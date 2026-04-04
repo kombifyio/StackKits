@@ -303,26 +303,181 @@ func TestInitCommand_AdminEmailFlag(t *testing.T) {
 	assert.Equal(t, "", f.DefValue)
 }
 
+func TestInitCommand_DomainFlag(t *testing.T) {
+	f := initCmd.Flags().Lookup("domain")
+	require.NotNil(t, f, "--domain flag should exist")
+	assert.Equal(t, "", f.DefValue)
+}
+
+func TestResolveInitDefaults(t *testing.T) {
+	resetInitGlobals := func(t *testing.T) {
+		t.Helper()
+		prevComputeTier := initComputeTier
+		prevDomain := initDomain
+		prevMode := initMode
+		prevForce := initForce
+		prevNonInteractive := initNonInteractive
+		prevAdminEmail := initAdminEmail
+		prevContextFlag := contextFlag
+
+		initComputeTier = ""
+		initDomain = ""
+		initMode = ""
+		initForce = false
+		initNonInteractive = false
+		initAdminEmail = ""
+		contextFlag = ""
+
+		t.Cleanup(func() {
+			initComputeTier = prevComputeTier
+			initDomain = prevDomain
+			initMode = prevMode
+			initForce = prevForce
+			initNonInteractive = prevNonInteractive
+			initAdminEmail = prevAdminEmail
+			contextFlag = prevContextFlag
+		})
+	}
+
+	t.Run("cloud defaults to kombify me public and detected standard tier", func(t *testing.T) {
+		resetInitGlobals(t)
+		setCapabilitiesHome(t, models.ContextCloud)
+
+		defaults := resolveInitDefaults("")
+
+		assert.Equal(t, models.ContextCloud, defaults.Context)
+		assert.Equal(t, models.ComputeTierStandard, defaults.ComputeTier)
+		assert.Equal(t, models.DomainKombifyMe, defaults.Domain)
+		assert.Equal(t, "public", defaults.NetworkMode)
+	})
+
+	t.Run("local defaults to home lab local network and detected high tier", func(t *testing.T) {
+		resetInitGlobals(t)
+
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
+		capsDir := filepath.Join(home, ".stackkits")
+		require.NoError(t, os.MkdirAll(capsDir, 0750))
+
+		caps := models.DockerCapabilities{
+			ResolvedContext:  models.ContextLocal,
+			BridgeNetworking: true,
+			StorageDriver:    models.StorageOverlay2,
+			CPUCores:         8,
+			MemoryGB:         16,
+		}
+		data, err := json.Marshal(caps)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(capsDir, "capabilities.json"), data, 0600))
+
+		defaults := resolveInitDefaults("")
+
+		assert.Equal(t, models.ContextLocal, defaults.Context)
+		assert.Equal(t, models.ComputeTierHigh, defaults.ComputeTier)
+		assert.Equal(t, models.DomainHomeLab, defaults.Domain)
+		assert.Equal(t, "local", defaults.NetworkMode)
+	})
+
+	t.Run("custom domain is preserved for cloud", func(t *testing.T) {
+		resetInitGlobals(t)
+		setCapabilitiesHome(t, models.ContextCloud)
+
+		defaults := resolveInitDefaults("apps.example.com")
+
+		assert.Equal(t, models.ContextCloud, defaults.Context)
+		assert.Equal(t, "apps.example.com", defaults.Domain)
+		assert.Equal(t, "public", defaults.NetworkMode)
+	})
+
+	t.Run("explicit flags win over detected defaults", func(t *testing.T) {
+		resetInitGlobals(t)
+		setCapabilitiesHome(t, models.ContextCloud)
+		initComputeTier = models.ComputeTierLow
+		contextFlag = string(models.ContextLocal)
+
+		defaults := resolveInitDefaults("")
+
+		assert.Equal(t, models.ContextLocal, defaults.Context)
+		assert.Equal(t, models.ComputeTierLow, defaults.ComputeTier)
+		assert.Equal(t, models.DomainHomeLab, defaults.Domain)
+		assert.Equal(t, "local", defaults.NetworkMode)
+	})
+}
+
+func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
+	prevComputeTier := initComputeTier
+	prevDomain := initDomain
+	prevMode := initMode
+	prevForce := initForce
+	prevNonInteractive := initNonInteractive
+	prevAdminEmail := initAdminEmail
+	prevContextFlag := contextFlag
+	prevSpecFile := specFile
+	t.Cleanup(func() {
+		initComputeTier = prevComputeTier
+		initDomain = prevDomain
+		initMode = prevMode
+		initForce = prevForce
+		initNonInteractive = prevNonInteractive
+		initAdminEmail = prevAdminEmail
+		contextFlag = prevContextFlag
+		specFile = prevSpecFile
+	})
+
+	specFile = "stack-spec.yaml"
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+	tmpDir, err := os.MkdirTemp(repoRoot, "init-domain-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	_, err = executeCommand(
+		"init", "base-kit",
+		"--non-interactive",
+		"--force",
+		"--context", "cloud",
+		"--compute-tier", "standard",
+		"--domain", "apps.example.com",
+		"--admin-email", "test@example.com",
+		"--chdir", tmpDir,
+	)
+	require.NoError(t, err)
+
+	specData, err := os.ReadFile(filepath.Join(tmpDir, "stack-spec.yaml"))
+	require.NoError(t, err)
+
+	var spec models.StackSpec
+	require.NoError(t, yaml.Unmarshal(specData, &spec))
+	assert.Equal(t, "apps.example.com", spec.Domain)
+	assert.Equal(t, string(models.ContextCloud), spec.Context)
+	assert.Equal(t, "public", spec.Network.Mode)
+	assert.Equal(t, "test@example.com", spec.AdminEmail)
+}
+
 func TestParseDfOutput(t *testing.T) {
 	tests := []struct {
-		name    string
-		output  string
-		wantGB  float64
-		wantOK  bool
+		name   string
+		output string
+		wantGB float64
+		wantOK bool
 	}{
 		{
 			name: "normal df output",
 			output: `     Avail      Size Target
  744488960 5267922944 /`,
-			wantGB:  0.69, // ~694MB
-			wantOK:  true,
+			wantGB: 0.69, // ~694MB
+			wantOK: true,
 		},
 		{
 			name: "larger disk",
 			output: `        Avail         Size Target
  21474836480  42949672960 /`,
-			wantGB:  20.0,
-			wantOK:  true,
+			wantGB: 20.0,
+			wantOK: true,
 		},
 		{
 			name:   "empty output",
@@ -481,7 +636,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  true,
+			wantTraefik:  false,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -491,7 +646,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  true,
+			wantTraefik:  false,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -511,7 +666,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  true,
+			wantTraefik:  false,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -519,6 +674,8 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			setCapabilitiesHome(t, models.ContextLocal)
+
 			spec := &models.StackSpec{
 				Name:   "test",
 				Domain: "test.local",

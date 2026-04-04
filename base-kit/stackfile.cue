@@ -2,7 +2,7 @@
 // STACKKIT: base-kit - Single Server Deployment
 // =============================================================================
 //
-// Version 4.0 - Architecture v4 (StackKit + Context + Add-Ons)
+// Version 5.0 - Transitional compatibility schema for the v5 Base Kit model.
 //
 // Architecture Pattern: Single-Environment
 //   All services run in one deployment target (local server or cloud VPS).
@@ -21,8 +21,12 @@
 //   - Small self-hosted services
 //   - PaaS-style application deployments
 //
-// Note: Variants are being migrated to Add-Ons (M4).
-//       Context system replaces manual compute tier selection (M2).
+// Note: This schema currently serves two callers:
+//   1. legacy CUE tests that still use variant-era inputs
+//   2. the v5 stack-spec surface used by the Go CLI and stackkit.yaml metadata
+//
+// The migration strategy is additive: expose the v5 fields without dropping
+// the legacy compatibility layer until Terraform generation is fully module-driven.
 // =============================================================================
 
 package base_kit
@@ -41,14 +45,28 @@ import (
 	// Metadata
 	meta: #StackMeta
 
-	// Deployment Mode: simple or advanced
-	deploymentMode: *"simple" | "advanced"
+	// Canonical v5 deployment surface
+	mode: *"simple" | "advanced"
+	runtime?: *"docker" | "native"
+	context?: *"local" | "cloud" | "pi"
+	paas?: *"dokploy" | "coolify" | "dockge" | "none"
+	addons?: [...string]
+	useCases?: [string]: #UseCaseSelection
+	domain?: string
+	subdomainPrefix?: string
+	email?: string
+	adminEmail?: string
+	tls?: #TLSConfig
+	compute: #ComputeConfig
+	ssh?: #SSHConfig
 
-	// Variant selection (coolify requires domain)
+	// Legacy compatibility aliases retained during migration
+	deploymentMode: mode
+
+	// Variant selection is legacy compatibility only.
 	variant: *"default" | "coolify" | "beszel" | "minimal"
 
-	// Compute tier (auto or explicit)
-	computeTier: *"standard" | "high" | "low"
+	computeTier: compute.tier
 
 	// Drift detection (triggers advanced mode)
 	driftDetection?: {
@@ -59,15 +77,16 @@ import (
 	// Node configuration (exactly 1 node)
 	nodes: [...#HomelabNode] & list.MinItems(1) & list.MaxItems(1)
 
-	// Network configuration
+	// Transitional network shape: accepts both legacy CUE fields and v5 stack-spec fields.
 	network: #NetworkConfig
 
-	// Services (auto-populated based on variant)
+	// Legacy compatibility service set. The generator remains the source of truth
+	// until module-driven Terraform selection lands.
 	services: #ServiceSet
 
 	// Deployment config (auto-generated based on mode)
 	_deployment: #DeploymentConfig & {
-		if deploymentMode == "simple" {
+		if mode == "simple" {
 			mode: "simple"
 			day1: {
 				engine: "opentofu"
@@ -75,7 +94,7 @@ import (
 			}
 			day2: enabled: false
 		}
-		if deploymentMode == "advanced" {
+		if mode == "advanced" {
 			mode: "advanced"
 			day1: {
 				engine: "opentofu"
@@ -102,7 +121,7 @@ import (
 
 #StackMeta: {
 	name:    string & =~"^[a-z][a-z0-9-]*$"
-	version: string | *"4.0.0"
+	version: string | *"5.0.0"
 }
 
 // =============================================================================
@@ -137,13 +156,14 @@ import (
 #HomelabNode: {
 	id:   string & =~"^[a-z][a-z0-9-]*$"
 	name: string & =~"^[a-z][a-z0-9-]*$"
-	host: string // IP address or hostname
+	host: string
+	ip?:  string
 
 	compute: #ComputeResources
 
 	os?: #OSConfig
 
-	role: *"worker" | "main"
+	role: *"worker" | "main" | "standalone"
 }
 
 #ComputeResources: {
@@ -163,14 +183,40 @@ import (
 // =============================================================================
 
 #NetworkConfig: {
-	domain:    string
-	acmeEmail: string
+	mode?: "local" | "public" | "hybrid" | *"local"
+	domain?: string
+	acmeEmail?: string
 
 	subnet: string | *"172.20.0.0/16"
+	gateway?: string
 
 	dns?: {
 		servers: [...string] | *["1.1.1.1", "8.8.8.8"]
 	}
+
+	tls?: {
+		mode?: "local" | "acme" | "off" | *"local"
+	}
+}
+
+#ComputeConfig: {
+	tier: *"standard" | "high" | "low"
+}
+
+#SSHConfig: {
+	user?:    string
+	port?:    int & >=1 & <=65535
+	keyPath?: string
+}
+
+#TLSConfig: {
+	provider?:  string
+	challenge?: *"tls" | "dns"
+}
+
+#UseCaseSelection: {
+	enabled?: bool | *true
+	tool?:    string
 }
 
 // =============================================================================

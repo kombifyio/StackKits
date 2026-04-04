@@ -37,7 +37,7 @@ Establish a local-first identity infrastructure that combines strong defaults (p
 | **Traefik** | 2 (Platform) | Reverse proxy, TLS termination, auth middleware host | HTTP/HTTPS |
 | **TinyAuth** | 2 (Platform) | Identity broker & auth proxy (Traefik ForwardAuth middleware) | OIDC, ForwardAuth |
 | **PocketID** | 2 (Platform) | Local OIDC provider with passkey/WebAuthn support | OIDC, WebAuthn |
-| **PocketBase** | Control Plane | kombify Stack app backend, OIDC consumer | OIDC client |
+| **PocketBase** | Control Plane | kombify-TechStack app backend, OIDC consumer | OIDC client |
 
 ### How the components relate
 
@@ -63,7 +63,7 @@ Establish a local-first identity infrastructure that combines strong defaults (p
 │  Control Plane                          │                   │
 │  ┌────▼──────────────┐                  │                   │
 │  │ PocketBase        │                  │                   │
-│  │ (kombify Stack)   │◄─── behind ──────┘                   │
+│  │ (kombify-TechStack)   │◄─── behind ──────┘                   │
 │  │ OIDC client of    │                                      │
 │  │ PocketID          │                                      │
 │  └───────────────────┘                                      │
@@ -120,27 +120,27 @@ For public-facing services, the mTLS check is optional. For internal admin UIs, 
 
 * **Standard model**: Certificate-based trust via Step-CA.
 * **Flow**:
-  1. Agent (kombify Stack worker, CI/CD, monitoring) requests a certificate from Step-CA.
+  1. Agent (kombify-TechStack worker, CI/CD, monitoring) requests a certificate from Step-CA.
   2. Access to target service is performed via mTLS using this certificate.
 * **Benefits**:
   * No static passwords or API keys in configuration files.
   * Short-lived certificates with automated rotation.
 
-### C. kombify Stack ↔ Homelab identity bridge
+### C. kombify-TechStack ↔ Homelab identity bridge
 
-kombify Stack (PocketBase) manages the control plane. Homelab services use the identity stack. The bridge:
+kombify-TechStack (PocketBase) manages the control plane. Homelab services use the identity stack. The bridge:
 
 * **PocketBase as OIDC client of PocketID**:
   * In self-hosted mode, PocketBase registers as an OIDC client of PocketID.
-  * Users log into kombify Stack via PocketID → passkey → OIDC token.
-  * kombify Stack users ARE homelab users — same identity, same groups.
+  * Users log into kombify-TechStack via PocketID → passkey → OIDC token.
+  * kombify-TechStack users ARE homelab users — same identity, same groups.
 * **User provisioning flow**:
   1. User is created in LLDAP (source of truth for the homelab).
   2. PocketID syncs users from LLDAP (LDAP integration).
-  3. User logs into kombify Stack via PocketID OIDC → PocketBase finds-or-creates the user.
-  4. LLDAP group memberships (`owner`, `operator`, `developer`, `viewer`) map to kombify Stack roles.
+  3. User logs into kombify-TechStack via PocketID OIDC → PocketBase finds-or-creates the user.
+  4. LLDAP group memberships (`owner`, `operator`, `developer`, `viewer`) map to kombify-TechStack roles.
 * **Cloud/SaaS mode alternative**:
-  * When kombify Stack runs in cloud mode (managed by kombifySphere), the OIDC provider is the platform IdP instead of PocketID.
+  * When kombify-TechStack runs in cloud mode (managed by kombifySphere), the OIDC provider is the platform IdP instead of PocketID.
   * The flow is the same, but the identity source is remote. See [IDENTITY-PLATFORM.md](IDENTITY-PLATFORM.md).
 
 ---
@@ -159,7 +159,7 @@ All settings are **defaults** — users can adjust any setting to match their ne
 
 * After successful device validation, the user authenticates via passkey through PocketID.
 * OIDC tokens contain roles and group information via LLDAP claims.
-* PocketBase (kombify Stack) receives and validates these tokens as an OIDC client.
+* PocketBase (kombify-TechStack) receives and validates these tokens as an OIDC client.
 
 ### RBAC via groups
 
@@ -188,7 +188,7 @@ All settings are **defaults** — users can adjust any setting to match their ne
 
 * If PocketID is unreachable, TinyAuth can fall back to local LLDAP accounts with password authentication.
 * If the internet is down and the user runs cloud mode, TinyAuth fails over to local LLDAP for critical infrastructure maintenance.
-* kombify Stack (PocketBase) can always be accessed via its local email/password auth as a last resort.
+* kombify-TechStack (PocketBase) can always be accessed via its local email/password auth as a last resort.
 
 ### Backups & key management
 
@@ -196,7 +196,7 @@ All settings are **defaults** — users can adjust any setting to match their ne
   * LLDAP database (SQLite or PostgreSQL).
   * Step-CA keys and PKI metadata.
   * PocketID database.
-  * PocketBase database (kombify Stack data).
+  * PocketBase database (kombify-TechStack data).
 * Stored in an encrypted vault (offline backup or dedicated backup server).
 * Regular restore tests to verify the emergency path works.
 
@@ -266,7 +266,7 @@ Each homelab can define its own access profile:
 |------|---------|-----------|
 | Public anonymous | Marketing website, landing page | Edge protection (WAF, rate limits) |
 | Public authenticated | Customer dashboard, self-service | OIDC login via TinyAuth |
-| Non-public admin | kombify Stack UI, PocketBase admin, monitoring | mTLS + OIDC + optional VPN |
+| Non-public admin | kombify-TechStack UI, PocketBase admin, monitoring | mTLS + OIDC + optional VPN |
 
 ### Architecture for public hosting
 
@@ -345,12 +345,12 @@ StackKits offer guided migrations:
 | TinyAuth | ✅ `base/layers.cue` | ✅ `templates/simple/main.tf` | ✅ | base-kit |
 | PocketID | ✅ `base/layers.cue` | ❌ Missing | ✅ | Disabled everywhere |
 | Traefik | ✅ via PaaS config | ✅ via Dokploy/Coolify | ✅ | All stacks |
-| PocketBase OIDC→PocketID | ❌ Not yet | N/A (kombify Stack code) | N/A | Not implemented |
+| PocketBase OIDC→PocketID | ❌ Not yet | N/A (kombify-TechStack code) | N/A | Not implemented |
 
 ### Priority gaps
 
 1. **TinyAuth Terraform template** — needed to deploy TinyAuth via StackKit engine.
 2. **PocketID Terraform template** — needed to deploy PocketID via StackKit engine.
-3. **PocketBase→PocketID OIDC** — kombify Stack needs OIDC client config for PocketID (self-hosted mode).
+3. **PocketBase→PocketID OIDC** — kombify-TechStack needs OIDC client config for PocketID (self-hosted mode).
 4. **Enable PocketID by default** — if passkeys are the recommended auth, the passkey IdP must be on.
 5. **Identity config in modern-homelab and ha-kit** — currently only base-kit has identity blocks.

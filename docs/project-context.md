@@ -172,7 +172,7 @@ All services use Traefik for reverse proxy with domain-based routing. Services a
 | Terramate           | Multi-stack orchestration (advanced mode)        |
 | Docker              | Container runtime for service deployment         |
 | Traefik             | Reverse proxy for domain-based routing          |
-| kombify Stack       | Consumes StackKits via Unifier Engine            |
+| kombify-TechStack       | Consumes StackKits via Unifier Engine            |
 
 ## Key Documentation
 

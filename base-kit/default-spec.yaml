@@ -13,15 +13,23 @@
 #   L3 Application - Uptime Kuma, Whoami (deployed via Compose)
 #
 # Domain Access Modes:
-#   1. Local (default): domain: home.lab → services at *.home.lab via local dnsmasq DNS
-#   2. Custom domain:   domain: example.com → services at *.example.com with Let's Encrypt TLS
-#   3. kombify.me:      domain: kombify.me → public access via kombify.me subdomains
+#   1. Local server (default): omit domain or use home.lab → dnsmasq + local DNS
+#      - network.mode: local
+#      - standard/high tier default to Dokploy
+#      - low tier defaults to Dockge
+#   2. Public server with custom domain: domain: example.com → Coolify + managed TLS
+#      - network.mode: public
+#      - recommended for kombify Cloud / VPS with your own domain
+#   3. Public server with kombify.me: domain: kombify.me → Dokploy + kombify.me subdomains
+#      - network.mode: public
+#      - requires KOMBIFY_API_KEY during generate/apply
 #
 # All services protected by TinyAuth ForwardAuth middleware.
 
 name: my-homelab
 stackkit: base-kit
 mode: simple
+context: local
 domain: home.lab
 email: admin
 
@@ -50,7 +58,8 @@ nodes:
 #     ssh.keyPath      - Path to your SSH private key
 #
 #   Optional:
-#     domain           - Access mode (see above). Default: homelab (local DNS)
+#     context          - local | cloud | pi. Default shown here: local
+#     domain           - Access mode (see above). Default: home.lab (local DNS)
 #     email            - Admin email / ACME email for Let's Encrypt
 #
 # Local mode DNS setup:
@@ -66,13 +75,22 @@ nodes:
 #   2. Open http://dokploy.home.lab (redirects through TinyAuth)
 #   3. Uptime Kuma and Whoami are auto-deployed
 #
-# Custom domain example:
+# Public server + custom domain example:
 #   domain: mylab.example.com
+#   context: cloud
+#   network:
+#     mode: public
 #   email: admin@example.com
+#   # Custom domain on cloud defaults to Coolify
 #   tls:
 #     provider: cloudflare   # For DNS-01 ACME challenge
 #     challenge: dns
 #   # Set STACKKIT_DNS_TOKEN env var with your Cloudflare API token
+#
+# Public server + kombify.me example:
+#   context: cloud
+#   domain: kombify.me
+#   # kombify.me on cloud defaults to Dokploy
 #
 # Secrets:
 #   Generated automatically by OpenTofu (random_password).

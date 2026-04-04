@@ -5,7 +5,7 @@ info:
   description: |
     kombify StackKits HTTP API — pre-packaged homelab infrastructure templates
     with CUE schema validation and OpenTofu generation. Designed for consumption
-    by the kombify Stack control plane and AI agents via the kombify API Gateway.
+    by the kombify Stack control plane and AI agents via the kombify Gateway.
   contact:
     name: kombify
     url: https://kombify.io

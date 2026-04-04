@@ -52,7 +52,7 @@
 │                    kombify Platform                          │
 ├─────────────────────────────────────────────────────────────┤
 │   ┌──────────────────┐     ┌──────────────────┐             │
-│   │  kombify Cloud     │     │  kombify Stack   │             │
+│   │  kombify Cloud     │     │  kombify-TechStack   │             │
 │   │  (Portal)        │     │  (Core API)      │             │
 │   └────────┬─────────┘     └────────┬─────────┘             │
 │            │   Uses templates from  │                        │
@@ -219,7 +219,7 @@ module: "github.com/kombifyio/stackkits"
 
 | Repo | Dependency Type | Notes |
 |------|-----------------|-------|
-| kombify Stack | Consumer | Stack loads StackKit definitions |
+| kombify-TechStack | Consumer | Stack loads StackKit definitions |
 | docs | Documentation | Published to docs site |
 | kombify Cloud | Display | Shows available templates |
 

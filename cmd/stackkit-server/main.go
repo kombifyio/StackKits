@@ -3,7 +3,7 @@
 // This is a lightweight REST API that wraps the existing CLI logic,
 // making StackKits functionality available to:
 //   - kombify Stack (via internal calls or Kong Gateway)
-//   - kombify API Gateway (Kong) for external consumers
+//   - kombify Gateway (Kong) for external consumers
 //   - AI agents and native client apps
 //
 // Usage:

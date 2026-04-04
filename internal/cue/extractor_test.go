@@ -99,3 +99,27 @@ func TestExtractModuleServices(t *testing.T) {
 		}
 	})
 }
+
+func TestExtractServicesFromModules_IncludesCurrentBaseKitApps(t *testing.T) {
+	modulesDir := filepath.Join("..", "..", "modules")
+	if _, err := os.Stat(modulesDir); os.IsNotExist(err) {
+		t.Skipf("modules directory not found: %s", modulesDir)
+	}
+
+	extractor := NewExtractor(".")
+	services, err := extractor.ExtractServicesFromModules(modulesDir)
+	if err != nil {
+		t.Fatalf("ExtractServicesFromModules() error = %v", err)
+	}
+
+	found := map[string]bool{}
+	for _, svc := range services {
+		found[svc.Name] = true
+	}
+
+	for _, required := range []string{"vaultwarden", "jellyfin", "immich"} {
+		if !found[required] {
+			t.Errorf("expected current base-kit app module %q to be extracted", required)
+		}
+	}
+}

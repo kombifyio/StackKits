@@ -255,7 +255,7 @@ Each StackKit builds on the concepts of the previous one:
 
 2. **Modern to HA**: Initialize Docker Swarm across your nodes, migrate from Docker Compose to `docker stack deploy`, add HA services (Patroni, Valkey Sentinel, HAProxy, Keepalived). This is a bigger migration since it changes the container runtime.
 
-kombify Stack automates both transitions through the wizard -- you don't need to manually reconfigure everything.
+kombify-TechStack automates both transitions through the wizard -- you don't need to manually reconfigure everything.
 
 ---
 

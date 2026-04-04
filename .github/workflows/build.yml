@@ -1,4 +1,4 @@
-name: Build and Push
+name: Build
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       image-name: kombify-stackkits
       dockerfile: Dockerfile
       context: "."
-      runner: ${{ vars.BUILD_RUNNER || '' }}
+      runner: ${{ vars.BUILD_RUNNER || 'blacksmith-4vcpu-ubuntu-2204' }}
 
   build-website:
     name: Build StackKits Website
@@ -30,4 +30,4 @@ jobs:
       image-name: kombify-stackkits-website
       dockerfile: website-v2/Dockerfile
       context: "./website-v2"
-      runner: ${{ vars.BUILD_RUNNER || '' }}
+      runner: ${{ vars.BUILD_RUNNER || 'blacksmith-4vcpu-ubuntu-2204' }}

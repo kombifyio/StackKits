@@ -48,7 +48,7 @@ manual SSH sessions.
 
 - **REST API for integration.** A Go HTTP server exposes 14 endpoints for
   catalog browsing, spec validation, and artifact generation -- used by
-  kombify Stack Web UI.
+  kombify-TechStack Web UI.
   (Source: `internal/api/server.go`, `internal/api/handlers.go`)
 
 ## Boundaries
@@ -58,7 +58,7 @@ manual SSH sessions.
 
 - **Not a runtime manager.** After `stackkit apply`, day-2 operations
   (monitoring, alerting, updates) are handled by the deployed services
-  themselves (Uptime Kuma, Beszel) or by the kombify Stack control plane --
+  themselves (Uptime Kuma, Beszel) or by the kombify-TechStack control plane --
   not by the CLI.
 
 - **Not Kubernetes.** Per ADR-0002, v1.x is Docker-only. K8s was explicitly
@@ -69,7 +69,7 @@ manual SSH sessions.
 
 - **No multi-cloud orchestration.** StackKits deploys to a single target
   environment per spec. Cross-cloud coordination is the responsibility of
-  kombify Stack (Level 1+).
+  kombify-TechStack (Level 1+).
 
 ## Target Audience
 
@@ -83,7 +83,7 @@ manual SSH sessions.
   that can be versioned and shared.
 
 - **AI agents and automation** that need deterministic, CLI-driven
-  infrastructure operations (kombify Stack, kombify Sphere).
+  infrastructure operations (kombify-TechStack, kombify Sphere).
 
 ## Competitive Differentiation
 

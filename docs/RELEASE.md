@@ -95,13 +95,13 @@ PUBLIC_REPO_TOKEN=ghp_... ./scripts/sync-public.sh
 
 ### CI Requirements
 
-The sync workflow requires a `PUBLIC_REPO_TOKEN` secret on the private repo — a GitHub PAT with write access to `kombifyio/stackKits`. The PAT is stored in Doppler (`kombination-meta` project, key `GITHUB_PAT`).
+The sync workflow requires a `PUBLIC_REPO_TOKEN` secret on the private repo — a GitHub PAT with write access to `kombifyio/stackKits`. The PAT is stored in Doppler (`kombination` project, key `GITHUB_PAT`).
 
 To set or refresh the secret:
 
 ```bash
 # Get PAT from Doppler
-GITHUB_PAT=$(doppler secrets get GITHUB_PAT --plain --project kombination-meta --config prd --no-read-env)
+GITHUB_PAT=$(doppler secrets get GITHUB_PAT --plain --project kombination --config prd --no-read-env)
 
 # Set as GitHub Actions secret on the private repo
 gh secret set PUBLIC_REPO_TOKEN --body "$GITHUB_PAT" --repo KombiverseLabs/kombify-StackKits
@@ -192,7 +192,7 @@ git remote add public https://github.com/kombifyio/stackKits.git
 
 The script tries multiple auth sources. If all fail:
 1. Check `gh auth status` — you may need to re-authenticate
-2. Verify the Doppler PAT is valid: `doppler secrets get GITHUB_PAT --plain --project kombination-meta --config prd --no-read-env | head -c 10`
+2. Verify the Doppler PAT is valid: `doppler secrets get GITHUB_PAT --plain --project kombination --config prd --no-read-env | head -c 10`
 3. On Windows/Git Bash, `gh auth token` may not work (can't access Windows keyring). The script falls back to `gh.exe auth token` and Doppler automatically.
 
 ### Sync script hangs (pager issue)

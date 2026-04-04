@@ -13,19 +13,19 @@
 |---|---------|-----------|-----------|--------------|
 | 1 | **Wildcard Tunnel** | `*.kombify.me` | HTTPS | Oeffentlicher Zugang Internet → Homelab (Agent/Gateway-Tunnel) |
 | 2 | **LAN DNS** | `*.lan.kombify.me` | DNS (UDP/TCP 53) | LAN-Zugang ohne Config: IP-basierte Wildcard-Aufloesung |
-| 3 | **Worker Registry** | _(kein eigener Endpunkt)_ | HTTPS via kombify-API | StackKit-Instanzen registrieren sich, Status-Tracking |
+| 3 | **Worker Registry** | _(kein eigener Endpunkt)_ | HTTPS via kombify Gateway | StackKit-Instanzen registrieren sich, Status-Tracking |
 
 ### Architektur-Regel: Zentrales API-Gateway
 
 ```
-ALLE API-Aufrufe → api.kombify.io (Kong) → kombify-API → kombify-DB
+ALLE API-Aufrufe → api.kombify.io (Kong) → kombify Gateway → kombify-DB
 ```
 
-**Es gibt kein `api.kombify.me`.** kombify.me ist ein Service-Endpunkt (Tunnel-Gateway, DNS), aber KEINE eigene API-Surface. Jede Datenoperation (Subdomain-Registrierung, Worker-Registration, Address-Verwaltung) laeuft ueber die zentrale kombify-API.
+**Es gibt kein `api.kombify.me`.** kombify.me ist ein Service-Endpunkt (Tunnel-Gateway, DNS), aber KEINE eigene API-Surface. Jede Datenoperation (Subdomain-Registrierung, Worker-Registration, Address-Verwaltung) laeuft ueber das zentrale kombify Gateway.
 
 ### Daten-Regel: kombify-DB ist Single Source of Truth
 
-Alle registrierten Adressen — Tunnel-Subdomains, Worker-Eintraege, Service-Mappings — werden in der kombify-DB gespeichert. kombify.me Services lesen ihre Konfiguration aus der kombify-DB (via kombify-API), halten aber KEINEN eigenen State.
+Alle registrierten Adressen — Tunnel-Subdomains, Worker-Eintraege, Service-Mappings — werden in der kombify-DB gespeichert. kombify.me Services lesen ihre Konfiguration aus der kombify-DB (via kombify Gateway), halten aber KEINEN eigenen State.
 
 ### Hosting-Architektur
 
@@ -44,7 +44,7 @@ kombify.me (Cloudflare DNS — Domain liegt hier)
 │   └── Stateless — parst IP aus Hostname, keine DB noetig
 │
 └── Worker Registry              → KEIN eigener Endpunkt
-    └── API: api.kombify.io/v1/workers/* (Kong → kombify-API)
+    └── API: api.kombify.io/v1/workers/* (Kong → kombify Gateway)
     └── DB: kombify-DB (PostgreSQL)
 ```
 
@@ -62,7 +62,7 @@ kombify.me (Cloudflare DNS — Domain liegt hier)
 | Cloudflare DNS | 0 EUR (inklusive) |
 | VPS srv1161760 (DNS ns1) | Bereits bezahlt |
 | VPS kombify-ionos (DNS ns2) | Bereits bezahlt |
-| kombify-API / kombify-DB | Bestehende Infrastruktur |
+| kombify Gateway / kombify-DB | Bestehende Infrastruktur |
 | **Gesamt zusaetzlich** | **0 EUR** |
 
 ---
@@ -119,8 +119,8 @@ grafana.172-16-0-5.lan.kombify.me    →  A 172.16.0.5
 |-----------|---------|---------|-------|
 | `*.kombify.me` (root) | Tunnel-Gateway | Cloudflare Worker | Oeffentlicher Zugang (Internet → Homelab) |
 | `*.lan.kombify.me` | LAN DNS | VPS (Port 53) | Lokaler Zugang (LAN → LAN, IP-basiert) |
-| `api.kombify.io/v1/subdomains/*` | Subdomain-API | kombify-API (Kong) | Tunnel-Registrierung → kombify-DB |
-| `api.kombify.io/v1/workers/*` | Worker-Registry | kombify-API (Kong) | StackKit Worker-Verwaltung → kombify-DB |
+| `api.kombify.io/v1/subdomains/*` | Subdomain-API | kombify Gateway (Kong) | Tunnel-Registrierung → kombify-DB |
+| `api.kombify.io/v1/workers/*` | Worker-Registry | kombify Gateway (Kong) | StackKit Worker-Verwaltung → kombify-DB |
 
 Keine Ueberschneidung — der LAN-DNS-Service beantwortet nur Queries fuer `*.lan.kombify.me`. Der Tunnel-Gateway (Cloudflare Worker) handhabt nur `*.kombify.me` root. Alle API-Operationen laufen zentral ueber `api.kombify.io`.
 
@@ -268,8 +268,8 @@ Der User muss nichts konfigurieren — keine /etc/hosts, kein lokaler DNS, kein 
 | F5 | IPv6-Support (AAAA Records fuer eingebettete IPv6) | SOLL |
 | F6 | Wildcard-TXT-Record fuer ACME DNS-01 Challenge | KANN |
 | F7 | Monitoring/Alerting bei DNS-Server-Ausfall | SOLL |
-| F8 | Tunnel-Gateway: Subdomain-Lookup via kombify-API (nicht lokaler State) | MUSS |
-| F9 | Worker-Registry: CRUD ueber kombify-API (`api.kombify.io/v1/workers/*`) | MUSS |
+| F8 | Tunnel-Gateway: Subdomain-Lookup via kombify Gateway (nicht lokaler State) | MUSS |
+| F9 | Worker-Registry: CRUD ueber kombify Gateway (`api.kombify.io/v1/workers/*`) | MUSS |
 | F10 | Alle registrierten Adressen (Subdomains, Worker) in kombify-DB gespeichert | MUSS |
 
 ### Nicht-funktionale Anforderungen
@@ -303,7 +303,7 @@ Der User muss nichts konfigurieren — keine /etc/hosts, kein lokaler DNS, kein 
 | 2 | Port 53 UDP/TCP offen auf kombify-ionos | Infra | Erledigt |
 | 3 | Kein anderer DNS-Service auf Port 53 (systemd-resolved etc.) | Infra | Erledigt |
 | 4 | NS-Delegation + A-Records in Cloudflare DNS Zone angelegt | DNS Admin | Erledigt |
-| 5 | kombify-API Endpunkte fuer Worker-Registry in Kong konfiguriert | API Team | Offen |
+| 5 | kombify Gateway Endpunkte fuer Worker-Registry in Kong konfiguriert | API Team | Offen |
 | 6 | Bestehende Tunnel-Registrierungen in kombify-DB migriert | Backend | Erledigt (Gateway laeuft auf VPS) |
 
 ### Abhaengigkeiten zu anderen Systemen
@@ -312,7 +312,7 @@ Der User muss nichts konfigurieren — keine /etc/hosts, kein lokaler DNS, kein 
 |--------|----------------------|
 | Cloudflare DNS | Domain `kombify.me` liegt hier, NS-Delegation fuer `lan.kombify.me` |
 | Cloudflare Tunnel | Leitet `*.kombify.me` Traffic zum Gateway-Container auf VPS |
-| kombify-API (Kong) | Zentrale API fuer alle Datenoperationen — Subdomain-Registry, Worker-Registry |
+| kombify Gateway (Kong) | Zentrale API fuer alle Datenoperationen — Subdomain-Registry, Worker-Registry |
 | kombify-DB | Single Source of Truth fuer alle registrierten Adressen |
 | srv1161760 | LAN DNS Server ns1 (Docker oder systemd) |
 | kombify-ionos | LAN DNS Server ns2 (Docker oder systemd) |
@@ -401,7 +401,7 @@ Alle registrierten Subdomains liegen in kombify-DB (Datenbank `kombify_me`).
 | Q2 | Laeuft systemd-resolved auf den Servern und blockiert Port 53? | Pruefen mit `ss -tlnp | grep :53`. Falls ja: resolved deaktivieren oder DNS auf Port 1053 + iptables-Redirect. |
 | Q3 | Brauchen wir DNSSEC fuer `lan.kombify.me`? | Fuer LAN-DNS nicht kritisch, aber nice-to-have fuer Trust. sslip.io Go-Server unterstuetzt kein DNSSEC out-of-the-box. |
 | Q4 | ~~Cloudflare Worker: WebSocket-Support fuer Tunnel-Gateway ausreichend?~~ | Geloest: Gateway laeuft als Docker-Container auf VPS, Cloudflare Tunnel leitet Traffic weiter. Kein Worker noetig. |
-| Q5 | Kombify-API Endpunkte fuer Worker-Registry bereits definiert? | `api.kombify.io/v1/workers/*` muss in Kong konfiguriert werden. Abstimmung mit kombify-API Team noetig. |
+| Q5 | kombify Gateway Endpunkte fuer Worker-Registry bereits definiert? | `api.kombify.io/v1/workers/*` muss in Kong konfiguriert werden. Abstimmung mit dem kombify Gateway Team noetig. |
 | Q6 | ~~Bestehende Tunnel-Subdomains aus Azure Container App → kombify-DB migrieren?~~ | Geloest: Gateway verbindet sich direkt mit kombify-DB (Datenbank `kombify_me`). Azure ist komplett deaktiviert. |
 
 ---

@@ -129,6 +129,24 @@ func TestLoader_SaveStackSpec(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestLoader_LoadBaseKitDefaultSpec(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", ".."))
+	loader := config.NewLoader(repoRoot)
+
+	spec, err := loader.LoadStackSpec("base-kit/default-spec.yaml")
+	require.NoError(t, err)
+
+	assert.Equal(t, "base-kit", spec.StackKit)
+	assert.Equal(t, "simple", spec.Mode)
+	assert.Equal(t, string(models.ContextLocal), spec.Context)
+	assert.Equal(t, models.DomainHomeLab, spec.Domain)
+	assert.Equal(t, "local", spec.Network.Mode)
+	assert.Equal(t, models.ComputeTierStandard, spec.Compute.Tier)
+}
+
 // =============================================================================
 // Path Safety Tests
 // =============================================================================

@@ -3,7 +3,7 @@
 > **Declarative infrastructure blueprints defined entirely in CUE — validated, generated, and deployed by `stackkit apply`**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![CUE](https://img.shields.io/badge/CUE-v0.9-blue)](https://cuelang.org/)
+[![CUE](https://img.shields.io/badge/CUE-v0.15.4-blue)](https://cuelang.org/)
 
 ## 🎯 Overview
 
@@ -16,7 +16,7 @@
 - **CUE-defined** - All services, configuration, and constraints live in CUE schemas
 - **Fully automated apply** - `stackkit apply` deploys ALL layers to a clean server with zero manual steps
 - **No manual rollout** - There is no "manual deploy" step. If it requires manual intervention, the CUE definition is incomplete.
-- **Standalone or Integrated** - Use via CLI or with kombify Stack Web UI
+- **Standalone or Integrated** - Use via CLI or with kombify-TechStack Web UI
 
 ### Prerequisites
 
@@ -66,8 +66,8 @@ Add-Ons replace the old monolithic variant system. They are stackable and compat
 | Level | Name | Access Method |
 | --- | --- | --- |
 | **Level 0** | Standalone CLI | `stackkit` CLI directly |
-| **Level 1** | Control Plane | kombify Stack Web UI / API |
-| **Level 2** | Worker Agent | kombify Stack + gRPC Agent |
+| **Level 1** | Control Plane | kombify-TechStack Web UI / API |
+| **Level 2** | Worker Agent | kombify-TechStack + gRPC Agent |
 | **Level 3** | Runtime Intelligence | Day-2 monitoring + auto-remediation |
 | **Level 4** | AI-Assisted (SaaS) | kombify Sphere |
 
@@ -169,9 +169,9 @@ stackkit apply
 
 See [docs/CLI.md](docs/CLI.md) for the full command reference.
 
-### Using with kombify Stack
+### Using with kombify-TechStack
 
-StackKits are automatically loaded by kombify Stack. Simply specify your intent:
+StackKits are automatically loaded by kombify-TechStack. Simply specify your intent:
 
 ```yaml
 # kombination.yaml (User Intent - created via UI Wizard)
@@ -191,7 +191,7 @@ services:
     type: reverse-proxy
 ```
 
-kombify Stack will automatically:
+kombify-TechStack will automatically:
 
 1. Validate via Unifier Pipeline
 2. Resolve StackKit pattern (`base` / `modern` / `ha`)
@@ -273,7 +273,7 @@ make test-integration
 
 ### Core Concepts
 
-- [Architecture v4](docs/ARCHITECTURE_V4.md) — Three-concept model, Progressive Capability, Add-Ons
+- [Architecture v5](docs/ARCHITECTURE_V5.md) — Three-concept model, Progressive Capability, Add-Ons
 - [Target State](docs/TARGET_STATE.md) — Product vision
 - [Roadmap](docs/ROADMAP.md) — M0–M9 milestones, timeline, dependencies
 - [Technical Debt](TECHNICAL_DEBT.md) — Known issues and debt register

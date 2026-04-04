@@ -34,7 +34,7 @@ This roadmap consolidates all planned work into a single milestone-based plan (M
 | **Service Modules** | **65%** | **NEW** — 14 modules implemented in `modules/`, each with module.cue + reference-compose + integration tests |
 | Add-On system | 0% | Replaces monolithic variants. 17 CUE schemas exist but no code generation |
 | Context system | 0% | Replaces manual compute tier selection |
-| kombify Stack integration | 30% | Unifier pipeline exists, needs v4 alignment |
+| kombify-TechStack integration | 30% | Unifier pipeline exists, needs v4 alignment |
 | API server | 95% | 13 endpoints, API key auth (TD-28), rate limiting (TD-33), CORS (TD-40), 42 test cases (TD-34), structured errors (TD-32), pagination (TD-41) |
 | Documentation | 50% | v4 docs current, K8s refs removed from active docs. Cross-repo Mintlify docs still outdated |
 
@@ -42,7 +42,7 @@ This roadmap consolidates all planned work into a single milestone-based plan (M
 
 ## Cross-Repo Consistency Audit (K1–K15)
 
-Before implementation, a full audit identified critical inconsistencies across StackKits, kombify Stack, kombify Core, and docs repos.
+Before implementation, a full audit identified critical inconsistencies across StackKits, kombify-TechStack, kombify Core, and docs repos.
 
 ### Critical Findings
 
@@ -50,7 +50,7 @@ Before implementation, a full audit identified critical inconsistencies across S
 |---|---------|----------------|----------|
 | K1 | **K8s references in docs** — Mintlify pages describe K8s/k3s despite removal | docs | High |
 | K2 | **License inconsistency** — different licenses cited in different places | docs, StackKits, Stack | High (✅ fixed) |
-| K3 | **Naming inconsistency** — "kombifyStack", "kombify Stack", "kombify Stack" etc. | all | High |
+| K3 | **Naming inconsistency** — "kombifyStack", "kombify-TechStack", "kombify-TechStack" etc. | all | High |
 | K4 | **Duplicate concept pages** — 3× StackKits explanations, 2× spec-driven pages | docs | Medium |
 | K5 | **ha-kit description** — docs say K8s, code is Docker Swarm | docs | High |
 | K6 | **modern-homelab.mdx** — 591 lines entirely about K8s/k3s/FluxCD/Longhorn | docs | High |
@@ -115,7 +115,7 @@ Before implementation, a full audit identified critical inconsistencies across S
 #### Cross-Repo (docs Mintlify repo)
 
 - [ ] Remove all K8s references from concept pages (K1, K5, K6)
-- [ ] Enforce naming standard: "kombify Stack", "kombify Sim", "kombify StackKits", "kombify Cloud" (K3)
+- [ ] Enforce naming standard: "kombify-TechStack", "kombify Sim", "kombify StackKits", "kombify Cloud" (K3)
 - [ ] Consolidate duplicate concept pages (K4)
 - [ ] Fix URL casing (K8)
 - [ ] Update service names: Authelia → TinyAuth/PocketID, Portainer → Dokploy (K9)
@@ -324,9 +324,9 @@ Current state: entirely K8s/k3s-based. Must be rewritten as **hybrid Docker mult
 
 ---
 
-### M7: kombify Stack Integration (Weeks 17–21)
+### M7: kombify-TechStack Integration (Weeks 17–21)
 
-**Goal:** Unifier pipeline in kombify Stack understands StackKits v4.
+**Goal:** Unifier pipeline in kombify-TechStack understands StackKits v4.
 
 - [ ] Update `resolver.go`: StackKit selection by architecture pattern (not node count)
 - [ ] Update `addons.go`: load Add-Ons from `addons/` directory
@@ -415,7 +415,7 @@ Current state: entirely K8s/k3s-based. Must be rewritten as **hybrid Docker mult
 
 2026 Q2–Q3 (Jun–Jul)
   ├── M6: Terramate & Day-2 ───────────┤  (Weeks 15–17)
-  ├── M7: kombify Stack Integration ───┤  (Weeks 17–21)
+  ├── M7: kombify-TechStack Integration ───┤  (Weeks 17–21)
   ├── M8: Beyond-IaC & AI ────────────┤  (Weeks 19–25)
   └── M9: Docs & Readiness ───────────┤  (parallel, Weeks 15–25)
 ```

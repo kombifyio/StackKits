@@ -1,6 +1,6 @@
 # kombify.me Integration Guide
 
-> For coding agents and developers integrating StackKits or kombify Stack services with kombify.me.
+> For coding agents and developers integrating StackKits or kombify-TechStack services with kombify.me.
 
 ## What is kombify.me?
 
@@ -34,7 +34,7 @@ Rules:
 
 **Base URL:** `https://kombify.me/_kombify/api`
 
-**Via Kong (kombify Stack internal):** `https://api.kombify.io/v1/subdomains/*`
+**Via Kong (kombify-TechStack internal):** `https://api.kombify.io/v1/subdomains/*`
 
 ### Register a user account
 

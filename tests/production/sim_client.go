@@ -16,16 +16,37 @@ type Simulation struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// simulationListResponse wraps the paginated list response from the Sim API.
+type simulationListResponse struct {
+	Data []Simulation `json:"data"`
+}
+
 // Node represents a VM node in a simulation.
 type Node struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	SSHIP      string `json:"ssh_ip,omitempty"`
-	SSHPort    int    `json:"ssh_port,omitempty"`
-	SSHUser    string `json:"ssh_user,omitempty"`
-	SSHKeyPath string `json:"ssh_key_path,omitempty"`
-	ProxyJump  string `json:"proxy_jump,omitempty"` // bastion hint from Sim (e.g. "root@simulate.kombify.io")
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	SSHIP       string `json:"ssh_ip,omitempty"`
+	SSHPort     int    `json:"ssh_port,omitempty"`
+	SSHUser     string `json:"ssh_user,omitempty"`
+	SSHPassword string `json:"ssh_password,omitempty"`
+	SSHKeyPath  string `json:"ssh_key_path,omitempty"`
+	ProxyJump   string `json:"proxy_jump,omitempty"`
+}
+
+// NodeSSHInfo is the structured response from the /nodes/:id/ssh endpoint.
+// It provides connection details for SSH access to a node, including the
+// server-side key path and ProxyJump hint for external access.
+type NodeSSHInfo struct {
+	Host        string `json:"host"`         // Docker/internal hostname (e.g. "host.docker.internal")
+	Port        int    `json:"port"`         // SSH port (e.g. 30001 — NAT-forwarded on host)
+	User        string `json:"user"`         // SSH username (e.g. "kombify-sim")
+	KeyPath     string `json:"key_path"`     // Server-side PEM path in kombify-sim container
+	PublicKey   string `json:"public_key"`   // SSH public key (informational)
+	AuthMethod  string `json:"auth_method"`  // "key" or "password"
+	DisplayHost string `json:"display_host"` // Public hostname for display (e.g. "simulate.kombify.io")
+	ProxyJump   string `json:"proxy_jump"`   // Bastion hint for external runners (e.g. "root@simulate.kombify.io")
+	NodePrivateIP string `json:"node_private_ip,omitempty"` // Private IP inside the simulation network
 }
 
 // HealthResponse from the Sim API health endpoint.
@@ -59,7 +80,7 @@ func (s *SimClient) Health() (*HealthResponse, error) {
 
 // ListSimulations returns all simulations for the authenticated user.
 func (s *SimClient) ListSimulations() ([]Simulation, error) {
-	var result []Simulation
+	var result simulationListResponse
 	resp, err := s.client.Get("/v1/simulation/simulations", &result)
 	if err != nil {
 		return nil, err
@@ -67,7 +88,7 @@ func (s *SimClient) ListSimulations() ([]Simulation, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("list simulations failed: status %d", resp.StatusCode)
 	}
-	return result, nil
+	return result.Data, nil
 }
 
 // CreateSimulationRequest is the body for creating a simulation.
@@ -162,9 +183,12 @@ func (s *SimClient) DeleteNode(nodeID string) error {
 	return nil
 }
 
-// GetNodeSSH returns SSH connection info for a node (including ProxyJump hint).
-func (s *SimClient) GetNodeSSH(nodeID string) (*Node, error) {
-	var result Node
+// GetNodeSSH returns full SSH connection info for a node.
+// The returned NodeSSHInfo contains the server-side key path, ProxyJump hint,
+// and internal host/port. Use extractNodeSSHKey to read the key from the
+// Sim container, then NewSSHSessionFromInfo to connect.
+func (s *SimClient) GetNodeSSH(nodeID string) (*NodeSSHInfo, error) {
+	var result NodeSSHInfo
 	path := fmt.Sprintf("/v1/simulation/nodes/%s/ssh", nodeID)
 	resp, err := s.client.Get(path, &result)
 	if err != nil {

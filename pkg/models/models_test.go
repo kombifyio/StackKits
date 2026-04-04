@@ -302,3 +302,59 @@ func TestFeatures(t *testing.T) {
 		assert.False(t, features.PublicAccess)
 	})
 }
+
+func TestResolvePAASForContext(t *testing.T) {
+	t.Run("legacy resolver still honors explicit paas", func(t *testing.T) {
+		spec := &StackSpec{
+			PAAS:    PAASCoolify,
+			Compute: ComputeSpec{Tier: ComputeTierLow},
+		}
+		assert.Equal(t, PAASCoolify, spec.ResolvePAAS())
+	})
+
+	t.Run("explicit paas wins", func(t *testing.T) {
+		spec := &StackSpec{PAAS: PAASCoolify}
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextCloud))
+	})
+
+	t.Run("local standard defaults to dokploy", func(t *testing.T) {
+		spec := &StackSpec{
+			Compute: ComputeSpec{Tier: ComputeTierStandard},
+		}
+		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextLocal))
+	})
+
+	t.Run("local low tier defaults to dockge", func(t *testing.T) {
+		spec := &StackSpec{
+			Compute: ComputeSpec{Tier: ComputeTierLow},
+		}
+		assert.Equal(t, PAASDockge, spec.ResolvePAASForContext(ContextLocal))
+	})
+
+	t.Run("cloud without domain defaults to dokploy", func(t *testing.T) {
+		spec := &StackSpec{}
+		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextCloud))
+	})
+
+	t.Run("cloud with kombify.me defaults to dokploy", func(t *testing.T) {
+		spec := &StackSpec{Domain: DomainKombifyMe}
+		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextCloud))
+	})
+
+	t.Run("cloud with custom domain defaults to coolify", func(t *testing.T) {
+		spec := &StackSpec{Domain: "apps.example.com"}
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextCloud))
+	})
+
+	t.Run("cloud with local domain still defaults to dokploy", func(t *testing.T) {
+		spec := &StackSpec{Domain: "lab.homebase"}
+		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextCloud))
+	})
+}
+
+func TestResolveReverseProxyForPAAS(t *testing.T) {
+	assert.Equal(t, ReverseProxyDokploy, ResolveReverseProxyForPAAS(PAASDokploy))
+	assert.Equal(t, ReverseProxyCoolify, ResolveReverseProxyForPAAS(PAASCoolify))
+	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(PAASDockge))
+	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(""))
+}

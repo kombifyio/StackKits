@@ -135,12 +135,12 @@ func (c *simCleanupClient) listSimulations() ([]simEntry, error) {
 	}
 	defer resp.Body.Close()
 	var result struct {
-		Simulations []simEntry `json:"simulations"`
+		Data []simEntry `json:"data"`
 	}
-	// Try wrapped format first, fall back to plain array
+	// Try wrapped format first ({"data": [...]}), fall back to plain array
 	body, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(body, &result); err == nil && result.Simulations != nil {
-		return result.Simulations, nil
+	if err := json.Unmarshal(body, &result); err == nil && result.Data != nil {
+		return result.Data, nil
 	}
 	var plain []simEntry
 	if err := json.Unmarshal(body, &plain); err != nil {

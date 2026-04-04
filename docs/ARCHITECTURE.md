@@ -290,7 +290,7 @@ Key path and user are configured in `stack-spec.yaml` under `ssh:`.
 - `dns` -- Local dnsmasq for `.stack.local` domain resolution
 
 ### Production Deployment
-1. User creates `stack-spec.yaml` (via `stackkit init` or kombify Stack UI)
+1. User creates `stack-spec.yaml` (via `stackkit init` or kombify-TechStack UI)
 2. `stackkit generate` produces OpenTofu files in `deploy/`
 3. `stackkit apply` runs OpenTofu against the target Docker host
 4. Services deploy into Docker containers on the target server

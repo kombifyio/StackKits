@@ -315,7 +315,7 @@ stackkit generate (reads roles, applies defaults + overrides)
 Deploy artifacts (OpenTofu, Docker Compose)
 ```
 
-For Level 0 (standalone CLI), tool roles are baked into `stackkit.yaml` and CUE files. For Level 1+ (kombify Stack integration), roles are synced from the admin-center API.
+For Level 0 (standalone CLI), tool roles are baked into `stackkit.yaml` and CUE files. For Level 1+ (kombify-TechStack integration), roles are synced from the admin-center API.
 
 ---
 

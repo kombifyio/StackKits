@@ -200,7 +200,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 	t.Run("cloud with local domain corrects to kombify.me", func(t *testing.T) {
 		localDomains := []string{
 			"stack.local", "home.lab", "my.lan", "my.home",
-			"homelab", "",
+			"lab.homebase", "homelab", "",
 		}
 		for _, d := range localDomains {
 			domain, reason := SuggestDomainForContext(models.ContextCloud, d)
@@ -246,7 +246,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 
 func TestIsLocalDomain(t *testing.T) {
 	localDomains := []string{
-		"", "homelab", "stack.local", "my.lab", "test.lan", "app.home",
+		"", "homelab", "stack.local", "my.lab", "test.lan", "app.home", "lab.homebase",
 	}
 	for _, d := range localDomains {
 		assert.True(t, isLocalDomain(d), "expected %q to be local domain", d)

@@ -55,6 +55,10 @@ func TestInstallerKombifyMeDomain(t *testing.T) {
 	if !strings.Contains(spec, "kombify.me") {
 		t.Errorf("expected kombify.me domain in spec, got:\n%s", spec)
 	}
+	tfvars, _ := ssh.Run("cat ~/homelab/deploy/terraform.tfvars.json 2>/dev/null | grep '\"paas\"' | head -1")
+	if !strings.Contains(tfvars, "dokploy") {
+		t.Errorf("expected dokploy PAAS for kombify.me installer flow, got:\n%s", tfvars)
+	}
 
 	assertCoreServicesRunning(t, ssh)
 	smokeTestViaSSHTunnel(t, ssh, 18080)
@@ -116,11 +120,11 @@ func TestInstallerCustomDomain(t *testing.T) {
 	})
 
 	runInstaller(t, ssh, map[string]string{
-		"STACKKIT_ADMIN_EMAIL":    adminEmail,
-		"KOMBIFY_CONTEXT":         "cloud",
-		"DOMAIN":                  domain,
-		"CLOUDFLARE_EMAIL":        cfEmail,
-		"CLOUDFLARE_API_TOKEN":    cfToken,
+		"STACKKIT_ADMIN_EMAIL": adminEmail,
+		"KOMBIFY_CONTEXT":      "cloud",
+		"DOMAIN":               domain,
+		"CLOUDFLARE_EMAIL":     cfEmail,
+		"CLOUDFLARE_API_TOKEN": cfToken,
 	})
 
 	// Spec must contain custom domain, not home.lab or kombify.me.
@@ -131,6 +135,10 @@ func TestInstallerCustomDomain(t *testing.T) {
 	}
 	if !strings.Contains(spec, domain) {
 		t.Errorf("domain %s not found in spec:\n%s", domain, spec)
+	}
+	tfvars, _ := ssh.Run("cat ~/homelab/deploy/terraform.tfvars.json 2>/dev/null | grep '\"paas\"' | head -1")
+	if !strings.Contains(tfvars, "coolify") {
+		t.Errorf("expected coolify PAAS for custom-domain installer flow, got:\n%s", tfvars)
 	}
 
 	// Verify Cloudflare DNS record points to node.
@@ -170,7 +178,7 @@ func startTestVPSNode(t *testing.T, sim *SimClient, name string) (Node, string, 
 		t.Fatalf("create node: %v", err)
 	}
 
-	if err := sim.StartNode(node.ID); err != nil {
+	if _, err := sim.StartNode(node.ID); err != nil {
 		cleanup()
 		t.Fatalf("start node: %v", err)
 	}
@@ -182,16 +190,17 @@ func startTestVPSNode(t *testing.T, sim *SimClient, name string) (Node, string, 
 		t.Fatalf("node did not start: %v", err)
 	}
 
-	// Enrich with SSH info (includes ProxyJump from Sim when PUBLIC_HOST is set).
-	sshNode, err := sim.GetNodeSSH(node.ID)
+	// Enrich with SSH info from the dedicated endpoint.
+	sshInfo, err := sim.GetNodeSSH(node.ID)
 	if err != nil {
 		cleanup()
 		t.Fatalf("get SSH info: %v", err)
 	}
-	node.SSHIP = sshNode.SSHIP
-	node.SSHPort = sshNode.SSHPort
-	node.ProxyJump = sshNode.ProxyJump
-	t.Logf("Node SSH: %s:%d (proxy: %s)", node.SSHIP, node.SSHPort, node.ProxyJump)
+	node.SSHIP = sshInfo.Host
+	node.SSHPort = sshInfo.Port
+	node.SSHUser = sshInfo.User
+	node.ProxyJump = sshInfo.ProxyJump
+	t.Logf("Node SSH: %s@%s:%d (proxy: %s)", node.SSHUser, node.SSHIP, node.SSHPort, node.ProxyJump)
 
 	keyPath, keyClean, err := extractNodeSSHKey(node.ID)
 	if err != nil {
@@ -199,7 +208,7 @@ func startTestVPSNode(t *testing.T, sim *SimClient, name string) (Node, string, 
 		t.Fatalf("extract SSH key: %v", err)
 	}
 	node.SSHKeyPath = keyPath
-	node.SSHUser = "kombify-sim"
+	node.SSHUser = sshInfo.User
 
 	origClean := cleanup
 	cleanup = func() {
@@ -207,12 +216,12 @@ func startTestVPSNode(t *testing.T, sim *SimClient, name string) (Node, string, 
 		origClean()
 	}
 
-	if err := WaitForSSH(node, 2*time.Minute); err != nil {
+	if err := WaitForSSH(*node, 2*time.Minute); err != nil {
 		cleanup()
 		t.Fatalf("SSH not ready: %v", err)
 	}
 
-	return node, simulation.ID, cleanup
+	return *node, simulation.ID, cleanup
 }
 
 // openSSH creates an SSH session or fatals the test.
@@ -363,7 +372,9 @@ func updateCloudflareDNS(apiToken, email, zoneID, domain, ip string) error {
 // verifyCloudflareDNS asserts that an A-record for domain points to expectedIP.
 func verifyCloudflareDNS(apiToken, zoneID, domain, expectedIP string) error {
 	var result struct {
-		Result []struct{ Content string `json:"content"` } `json:"result"`
+		Result []struct {
+			Content string `json:"content"`
+		} `json:"result"`
 	}
 	if err := cfDo("GET",
 		fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?type=A&name=%s", zoneID, domain),
@@ -380,7 +391,9 @@ func verifyCloudflareDNS(apiToken, zoneID, domain, expectedIP string) error {
 
 func cfListARecordIDs(apiToken, zoneID, domain string) ([]string, error) {
 	var result struct {
-		Result []struct{ ID string `json:"id"` } `json:"result"`
+		Result []struct {
+			ID string `json:"id"`
+		} `json:"result"`
 	}
 	if err := cfDo("GET",
 		fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?type=A&name=%s", zoneID, domain),

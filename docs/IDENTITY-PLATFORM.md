@@ -11,7 +11,7 @@
 
 ## 1. Context: Where SaaS Identity Meets Homelab Identity
 
-kombify Stack (PocketBase) operates in two modes:
+kombify-TechStack (PocketBase) operates in two modes:
 
 | Mode | Identity Source | How Users Authenticate |
 |------|----------------|----------------------|
@@ -31,7 +31,7 @@ The original plan proposed **Zitadel** as the central SaaS IdP. This remains a c
 | **Zitadel** | Multi-tenant OIDC, FIDO2, rich API | Operational complexity, self-host or cloud dependency |
 | **Auth0 / Clerk** | Managed, fast to integrate | Vendor lock-in, cost at scale |
 | **PocketID (cloud instance)** | Consistent with homelab stack | Not designed for multi-tenant SaaS |
-| **Custom (PocketBase auth)** | Already integrated in kombify Stack | Limited OIDC features, no federation |
+| **Custom (PocketBase auth)** | Already integrated in kombify-TechStack | Limited OIDC features, no federation |
 
 **Decision criteria:**
 - Must support OIDC with standard claims (roles, groups, org).
@@ -39,7 +39,7 @@ The original plan proposed **Zitadel** as the central SaaS IdP. This remains a c
 - Must support multi-tenancy (organizations / projects).
 - Must be able to federate with local PocketID instances in homelabs.
 
-**Current implementation**: kombify Stack has working Zitadel OIDC integration (`pkg/auth/zitadel/`) and Kong header trust (`pkg/auth/kong/`). These work but tie the stack to a specific IdP choice.
+**Current implementation**: kombify-TechStack has working Zitadel OIDC integration (`pkg/auth/zitadel/`) and Kong header trust (`pkg/auth/kong/`). These work but tie the stack to a specific IdP choice.
 
 ---
 
@@ -57,7 +57,7 @@ User → kombifySphere UI → Platform IdP (OIDC login)
                     kombifyAPI (validates JWT, injects X-User-ID, X-Org-ID)
                               │
                               ▼
-                    kombify Stack (PocketBase)
+                    kombify-TechStack (PocketBase)
                     → findOrCreateUser(external_id)
                     → maps org roles to local roles
 ```
@@ -65,7 +65,7 @@ User → kombifySphere UI → Platform IdP (OIDC login)
 ### Homelab agents connect to cloud
 
 ```
-kombify Stack agent (in homelab) → mTLS cert (from Step-CA)
+kombify-TechStack agent (in homelab) → mTLS cert (from Step-CA)
                                       │
                                       ▼
                                kombifyAPI (validates client cert)
@@ -107,7 +107,7 @@ TinyAuth acts as the federation broker: it can accept OIDC tokens from either th
 | MANAGER | Organization | Billing, team members, plans |
 | ADMIN | Organization | Full access at org level |
 
-### Homelab roles (kombify Stack)
+### Homelab roles (kombify-TechStack)
 
 | Role | Scope | Permissions |
 |------|-------|------------|
@@ -136,7 +136,7 @@ All roles appear as standardized claims (`role`, `org_role`, `lab_role`) in OIDC
 ```
 Organization (kombifySphere)
   └── Project / Tenant
-        ├── kombify Stack instance (homelab)
+        ├── kombify-TechStack instance (homelab)
         ├── kombify Sim instance (optional)
         └── StackKits catalog (optional)
 ```
@@ -152,7 +152,7 @@ Organization (kombifySphere)
 | Domain | Scope |
 |--------|-------|
 | `cloud.kombify.io` | SaaS / kombifySphere / kombifyAPI |
-| `homelab.local` or custom | Local kombify Stack instances |
+| `homelab.local` or custom | Local kombify-TechStack instances |
 | Per-environment domains | Optional dev / stage / prod split |
 
 ---
@@ -163,7 +163,7 @@ Organization (kombifySphere)
 
 | Service Account | Purpose | Auth Method |
 |----------------|---------|-------------|
-| kombify Stack workers | Execute provisioning jobs | mTLS (Step-CA) |
+| kombify-TechStack workers | Execute provisioning jobs | mTLS (Step-CA) |
 | kombify Sim orchestrator | Run simulations | mTLS or OAuth2 client credentials |
 | CI/CD pipelines | Automated StackKit validation | OAuth2 client credentials |
 | Monitoring agents | Push metrics/logs | mTLS |

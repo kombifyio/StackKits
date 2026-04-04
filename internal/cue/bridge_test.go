@@ -427,6 +427,8 @@ name: string
 
 func TestGenerateTFVarsFromSpec(t *testing.T) {
 	t.Run("generates tfvars with domain and subnet", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextCloud)
+
 		tmpDir := t.TempDir()
 		bridge := NewTerraformBridge(tmpDir)
 
@@ -449,15 +451,18 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 
 		assert.Equal(t, "homelab.example.com", tfvars.Domain)
 		assert.Equal(t, "172.20.0.0/16", tfvars.NetworkSubnet)
-		assert.True(t, tfvars.EnableTraefik)
+		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
-		assert.True(t, tfvars.EnableDokploy)
-		assert.True(t, tfvars.EnableDokployApps)
-		assert.False(t, tfvars.EnableDashboard)
+		assert.False(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableDokployApps)
+		assert.True(t, tfvars.EnableCoolify)
+		assert.True(t, tfvars.EnableDashboard)
 	})
 
 	t.Run("generates minimal tfvars for empty spec", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextLocal)
+
 		tmpDir := t.TempDir()
 		bridge := NewTerraformBridge(tmpDir)
 
@@ -476,13 +481,16 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		var tfvars TFVars
 		require.NoError(t, json.Unmarshal(data, &tfvars))
 
-		assert.Empty(t, tfvars.Domain)
-		assert.Empty(t, tfvars.NetworkSubnet)
-		assert.True(t, tfvars.EnableTraefik)
+		assert.Equal(t, models.DomainHomeLab, tfvars.Domain)
+		assert.Equal(t, "172.20.0.0/16", tfvars.NetworkSubnet)
+		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableDokploy)
+		assert.True(t, tfvars.EnableDashboard)
 	})
 
 	t.Run("service enabled=false disables service", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextLocal)
+
 		tmpDir := t.TempDir()
 		bridge := NewTerraformBridge(tmpDir)
 
@@ -508,7 +516,7 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		assert.False(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDashboard)
 		// Others still default to true
-		assert.True(t, tfvars.EnableTraefik)
+		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 	})
 }
@@ -517,44 +525,56 @@ func TestSpecToTFVars(t *testing.T) {
 	bridge := NewTerraformBridge(".")
 
 	t.Run("returns sensible defaults for empty spec", func(t *testing.T) {
-		spec := &models.StackSpec{}
-		tfvars := bridge.specToTFVars(spec)
+		setBridgeCapabilitiesHome(t, models.ContextLocal)
 
-		assert.Empty(t, tfvars.Domain)
-		assert.Empty(t, tfvars.NetworkSubnet)
-		assert.True(t, tfvars.EnableTraefik)
+		spec := &models.StackSpec{}
+		tfvars, err := bridge.specToTFVars(spec)
+		require.NoError(t, err)
+
+		assert.Equal(t, models.DomainHomeLab, tfvars.Domain)
+		assert.Equal(t, "172.20.0.0/16", tfvars.NetworkSubnet)
+		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDokploy)
 		assert.True(t, tfvars.EnableDokployApps)
-		assert.False(t, tfvars.EnableDashboard)
+		assert.True(t, tfvars.EnableDashboard)
 	})
 
 	t.Run("domain is passed through", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextCloud)
+
 		spec := &models.StackSpec{Domain: "test.example.com"}
-		tfvars := bridge.specToTFVars(spec)
+		tfvars, err := bridge.specToTFVars(spec)
+		require.NoError(t, err)
 
 		assert.Equal(t, "test.example.com", tfvars.Domain)
 	})
 
 	t.Run("network subnet is passed through", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextCloud)
+
 		spec := &models.StackSpec{
 			Network: models.NetworkSpec{Subnet: "10.10.0.0/16"},
 		}
-		tfvars := bridge.specToTFVars(spec)
+		tfvars, err := bridge.specToTFVars(spec)
+		require.NoError(t, err)
 
 		assert.Equal(t, "10.10.0.0/16", tfvars.NetworkSubnet)
 	})
 
 	t.Run("service overrides apply over defaults", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextLocal)
+
 		spec := &models.StackSpec{
 			Services: map[string]any{
-				"traefik":  map[string]any{"enabled": false},
-				"dokploy":  map[string]any{"enabled": false},
+				"traefik":   map[string]any{"enabled": false},
+				"dokploy":   map[string]any{"enabled": false},
 				"dashboard": map[string]any{"enabled": true},
 			},
 		}
-		tfvars := bridge.specToTFVars(spec)
+		tfvars, err := bridge.specToTFVars(spec)
+		require.NoError(t, err)
 
 		assert.False(t, tfvars.EnableTraefik)
 		assert.False(t, tfvars.EnableDokploy)
@@ -563,4 +583,27 @@ func TestSpecToTFVars(t *testing.T) {
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
 	})
+}
+
+func setBridgeCapabilitiesHome(t *testing.T, ctx models.NodeContext) {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	capsDir := filepath.Join(home, ".stackkits")
+	require.NoError(t, os.MkdirAll(capsDir, 0750))
+
+	caps := models.DockerCapabilities{
+		ResolvedContext:  ctx,
+		BridgeNetworking: true,
+		StorageDriver:    models.StorageOverlay2,
+		CPUCores:         4,
+		MemoryGB:         8,
+	}
+
+	data, err := json.Marshal(caps)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(capsDir, "capabilities.json"), data, 0600))
 }

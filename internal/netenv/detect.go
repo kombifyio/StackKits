@@ -83,16 +83,25 @@ func isKombifyCloud() bool {
 
 // GetCloudUserEmail returns the authenticated user's email when running in
 // kombify Cloud context. The email is injected by the Cloud platform via the
-// KOMBIFY_USER_EMAIL environment variable before executing the CLI.
+// KOMBIFY_USER_EMAIL environment variable or /etc/kombify/user_email file.
 //
 // Returns an empty string when:
 //   - Not running in kombify Cloud context
-//   - KOMBIFY_USER_EMAIL is not set
+//   - Neither KOMBIFY_USER_EMAIL nor /etc/kombify/user_email is set
 func GetCloudUserEmail() string {
 	if !isKombifyCloud() {
 		return ""
 	}
-	return strings.TrimSpace(os.Getenv("KOMBIFY_USER_EMAIL"))
+	if email := strings.TrimSpace(os.Getenv("KOMBIFY_USER_EMAIL")); email != "" {
+		return email
+	}
+	// Fallback: read from file (injected by Sim engine for Docker-based nodes)
+	if data, err := os.ReadFile("/etc/kombify/user_email"); err == nil {
+		if email := strings.TrimSpace(string(data)); email != "" {
+			return email
+		}
+	}
+	return ""
 }
 
 // getPublicIP fetches the external IP using a public API.
@@ -228,9 +237,7 @@ func SuggestDomain(env models.NetworkEnvironment, currentDomain string) (domain 
 	case models.NetEnvCloud:
 		return models.DomainKombifyMe, "deployed via kombify Cloud — using kombify.me for public access"
 	case models.NetEnvVPS:
-		if currentDomain == "" || currentDomain == models.DomainHomelab || currentDomain == "stack.local" ||
-			strings.HasSuffix(currentDomain, ".local") || strings.HasSuffix(currentDomain, ".lab") ||
-			strings.HasSuffix(currentDomain, ".lan") || strings.HasSuffix(currentDomain, ".home") {
+		if models.IsLocalDomain(currentDomain) {
 			return models.DomainKombifyMe, fmt.Sprintf("running on a VPS (public server) — local domain '%s' won't be reachable from outside", currentDomain)
 		}
 		return currentDomain, ""

@@ -741,12 +741,11 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 	caps := loadDockerCapabilities()
 	if caps != nil && netenv.NodeContextIsCloud(caps.ResolvedContext) {
 		// On a cloud/VPS context with local domains — this is the root cause
-		if strings.HasSuffix(domain, ".local") || strings.HasSuffix(domain, ".lab") ||
-			strings.HasSuffix(domain, ".lan") || strings.HasSuffix(domain, ".home") || domain == models.DomainHomelab {
+		if models.IsLocalDomain(domain) {
 			printError("Local domain '%s' is not accessible on a public server", domain)
 			fmt.Println()
 			printInfo("Your server is a VPS/cloud instance but is configured with a local domain.")
-			printInfo("Local domains (*.local, *.lab, *.lan) only work on home networks with dnsmasq.")
+			printInfo("Local domains (*.local, *.lab, *.lan, *.home, *.homebase) only work on home networks with dnsmasq.")
 			fmt.Println()
 			printInfo("To fix this, update your stack-spec.yaml domain to one of:")
 			fmt.Println("  1. domain: kombify.me    (free public subdomains via kombify.me)")

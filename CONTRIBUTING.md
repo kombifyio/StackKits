@@ -99,7 +99,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ## Brand Guidelines
 
 - Always use "kombify" with a lowercase k
-- Tool names: "kombify Stack", "kombify Sim", "kombify StackKits", "kombify Sphere"
+- Tool names: "kombify-TechStack", "kombify Sim", "kombify StackKits", "kombify Sphere"
 
 ---
 

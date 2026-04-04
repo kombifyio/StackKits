@@ -85,7 +85,7 @@ func SuggestDomainForContext(ctx models.NodeContext, currentDomain string) (doma
 	switch ctx {
 	case models.ContextCloud:
 		// Cloud/VPS with local domains → correct to kombify.me
-		if isLocalDomain(currentDomain) {
+		if models.IsLocalDomain(currentDomain) {
 			return models.DomainKombifyMe, "running on a public server — local domain '" + currentDomain + "' won't be reachable from outside"
 		}
 		if currentDomain == "" {
@@ -104,14 +104,5 @@ func SuggestDomainForContext(ctx models.NodeContext, currentDomain string) (doma
 
 // isLocalDomain returns true if the domain is a local/non-routable domain.
 func isLocalDomain(d string) bool {
-	if d == "" || d == models.DomainHomelab || d == "stack.local" {
-		return true
-	}
-	localSuffixes := []string{".local", ".lab", ".lan", ".home"}
-	for _, s := range localSuffixes {
-		if len(d) > len(s) && d[len(d)-len(s):] == s {
-			return true
-		}
-	}
-	return false
+	return models.IsLocalDomain(d)
 }

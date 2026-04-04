@@ -197,7 +197,7 @@ func TestSuggestDomain(t *testing.T) {
 	t.Run("VPS with local domain suggests kombify.me", func(t *testing.T) {
 		localDomains := []string{
 			"stack.local", "home.lab", "my.lan", "my.home",
-			"homelab", "",
+			"lab.homebase", "homelab", "",
 		}
 		for _, d := range localDomains {
 			domain, reason := SuggestDomain(models.NetEnvVPS, d)

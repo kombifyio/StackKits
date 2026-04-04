@@ -86,5 +86,8 @@ EXPOSE 8082
 # Verify installations
 RUN tofu version && stackkit --help
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8082/health || exit 1
+
 # Default: run HTTP API server (override with CMD ["stackkit", ...] for CLI mode)
 CMD ["stackkit-server", "--port", "8082", "--base-dir", "/workspace"]

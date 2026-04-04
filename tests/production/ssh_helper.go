@@ -26,17 +26,86 @@ type SSHSession struct {
 // outside the server network (e.g. GitHub Actions). Falls back to the
 // ProxyJump hint returned in the node struct, then direct connection.
 func NewSSHSession(node Node) (*SSHSession, error) {
+	cfg, err := buildNodeSSHConfig(node)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine ProxyJump: env overrides node hint.
+	proxyJump := os.Getenv("KOMBIFY_PROXY_JUMP")
+	if proxyJump == "" {
+		proxyJump = node.ProxyJump
+	}
+
+	// Try localhost:<port> first — works when tests run on the Sim server itself.
+	localAddr := net.JoinHostPort("localhost", fmt.Sprintf("%d", node.SSHPort))
+	if conn, err := net.DialTimeout("tcp", localAddr, 3*time.Second); err == nil {
+		conn.Close()
+		localNode := node
+		localNode.SSHIP = "localhost"
+		if client, err := ssh.Dial("tcp", localAddr, cfg); err == nil {
+			return &SSHSession{client: client, node: localNode}, nil
+		}
+	}
+
+	if proxyJump != "" {
+		return newSSHSessionViaProxy(node, proxyJump, cfg)
+	}
+	return newSSHSessionDirect(node, cfg)
+}
+
+func buildNodeSSHConfig(node Node) (*ssh.ClientConfig, error) {
+	user := node.SSHUser
+	if user == "" {
+		user = "root"
+	}
+
+	cfg := &ssh.ClientConfig{
+		User:            user,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // test helper
+		Timeout:         20 * time.Second,
+	}
+
 	keyPath := node.SSHKeyPath
 	if keyPath == "" {
 		keyPath = os.Getenv("KOMBIFY_SSH_KEY_PATH")
 	}
-	if keyPath == "" {
-		return nil, fmt.Errorf("no SSH key path: set node.SSHKeyPath or KOMBIFY_SSH_KEY_PATH")
+	if keyPath != "" {
+		keyBytes, err := os.ReadFile(keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("read SSH key %s: %w", keyPath, err)
+		}
+		signer, err := ssh.ParsePrivateKey(keyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse SSH key: %w", err)
+		}
+		cfg.Auth = append(cfg.Auth, ssh.PublicKeys(signer))
 	}
 
-	keyBytes, err := os.ReadFile(keyPath)
+	password := node.SSHPassword
+	if password == "" {
+		password = os.Getenv("KOMBIFY_SSH_PASSWORD")
+	}
+	if password != "" {
+		cfg.Auth = append(cfg.Auth, ssh.Password(password))
+	}
+
+	if len(cfg.Auth) == 0 {
+		return nil, fmt.Errorf("no SSH auth configured: set SSH key path or password")
+	}
+
+	return cfg, nil
+}
+
+// NewSSHSessionFromInfo opens an SSH connection using NodeSSHInfo returned by
+// the Sim /nodes/:id/ssh endpoint. The keyPath must be the local path to the
+// extracted PEM file (see extractNodeSSHKey). When running on the Sim server,
+// a direct connection to localhost:<port> is tried first; the ProxyJump path
+// is used as a fallback and for GitHub Actions runners.
+func NewSSHSessionFromInfo(info NodeSSHInfo, localKeyPath string) (*SSHSession, error) {
+	keyBytes, err := os.ReadFile(localKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("read SSH key %s: %w", keyPath, err)
+		return nil, fmt.Errorf("read SSH key %s: %w", localKeyPath, err)
 	}
 
 	signer, err := ssh.ParsePrivateKey(keyBytes)
@@ -44,9 +113,9 @@ func NewSSHSession(node Node) (*SSHSession, error) {
 		return nil, fmt.Errorf("parse SSH key: %w", err)
 	}
 
-	user := node.SSHUser
+	user := info.User
 	if user == "" {
-		user = "root"
+		user = "kombify-sim"
 	}
 
 	cfg := &ssh.ClientConfig{
@@ -56,16 +125,35 @@ func NewSSHSession(node Node) (*SSHSession, error) {
 		Timeout:         20 * time.Second,
 	}
 
-	// Determine ProxyJump: env overrides node hint.
+	// Try direct localhost connection first (on-server runners).
+	// The Sim always NAT-forwards the SSH port to 0.0.0.0:<port> on the host,
+	// so localhost:<port> works when tests run on the same machine as Sim.
 	proxyJump := os.Getenv("KOMBIFY_PROXY_JUMP")
 	if proxyJump == "" {
-		proxyJump = node.ProxyJump
+		proxyJump = info.ProxyJump
 	}
 
-	if proxyJump != "" {
-		return newSSHSessionViaProxy(node, proxyJump, cfg)
+	directAddr := net.JoinHostPort("localhost", fmt.Sprintf("%d", info.Port))
+	conn, err := net.DialTimeout("tcp", directAddr, 3*time.Second)
+	if err == nil {
+		conn.Close()
+		// Port is reachable on localhost — connect directly (no bastion needed).
+		client, dialErr := ssh.Dial("tcp", directAddr, cfg)
+		if dialErr == nil {
+			n := Node{SSHIP: "localhost", SSHPort: info.Port, SSHUser: user, ProxyJump: proxyJump}
+			return &SSHSession{client: client, node: n}, nil
+		}
 	}
-	return newSSHSessionDirect(node, cfg)
+
+	// Fall back to ProxyJump (remote CI / GitHub Actions).
+	if proxyJump != "" {
+		n := Node{SSHIP: info.Host, SSHPort: info.Port, SSHUser: user, ProxyJump: proxyJump}
+		return newSSHSessionViaProxy(n, proxyJump, cfg)
+	}
+
+	// Last resort: direct connection to the info.Host address.
+	n := Node{SSHIP: info.Host, SSHPort: info.Port, SSHUser: user}
+	return newSSHSessionDirect(n, cfg)
 }
 
 // newSSHSessionDirect opens a direct TCP connection to the node.
@@ -327,6 +415,14 @@ func canReach(node Node) bool {
 	proxyJump := os.Getenv("KOMBIFY_PROXY_JUMP")
 	if proxyJump == "" {
 		proxyJump = node.ProxyJump
+	}
+
+	// Always try localhost:<port> first — Sim always NAT-forwards the SSH port
+	// to 0.0.0.0:<port> on the host, so this works when running on the Sim server.
+	localAddr := net.JoinHostPort("localhost", fmt.Sprintf("%d", node.SSHPort))
+	if conn, err := net.DialTimeout("tcp", localAddr, 3*time.Second); err == nil {
+		conn.Close()
+		return true
 	}
 
 	if proxyJump != "" {

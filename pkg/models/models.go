@@ -1,7 +1,10 @@
 // Package models defines the core data structures for StackKits.
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // StackKitMetadata represents the metadata section of a stackkit.yaml
 type StackKitMetadata struct {
@@ -90,6 +93,32 @@ const (
 	DomainHomelab   = "homelab"
 	DomainHomeLab   = "home.lab"
 )
+
+// IsKombifyMeDomain returns true for the managed kombify.me shared domain.
+func IsKombifyMeDomain(domain string) bool {
+	return strings.EqualFold(domain, DomainKombifyMe)
+}
+
+// IsLocalDomain returns true for local-only or non-routable domains.
+func IsLocalDomain(domain string) bool {
+	if domain == "" || domain == DomainHomelab || domain == DomainHomeLab || domain == "stack.local" {
+		return true
+	}
+
+	localSuffixes := []string{".local", ".lab", ".lan", ".home", ".homebase"}
+	for _, suffix := range localSuffixes {
+		if strings.HasSuffix(domain, suffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasCustomPublicDomain returns true when the stack uses a routable, non-kombify domain.
+func (s *StackSpec) HasCustomPublicDomain() bool {
+	return s.Domain != "" && !IsLocalDomain(s.Domain) && !IsKombifyMeDomain(s.Domain)
+}
 
 // ToolRole represents the role of a tool within a StackKit (v5).
 type ToolRole string
@@ -387,7 +416,13 @@ type ServiceInfo struct {
 // based on the PAAS selection. When PAAS manages its own Traefik (Dokploy, Coolify),
 // platform services attach to that Traefik instead of deploying a separate one.
 func (s *StackSpec) ResolveReverseProxy() string {
-	switch s.PAAS {
+	return ResolveReverseProxyForPAAS(s.PAAS)
+}
+
+// ResolveReverseProxyForPAAS determines which Traefik instance routes platform
+// services for the given PAAS selection.
+func ResolveReverseProxyForPAAS(paas string) string {
+	switch paas {
 	case PAASDokploy:
 		return ReverseProxyDokploy
 	case PAASCoolify:
@@ -402,10 +437,32 @@ func (s *StackSpec) ResolvePAAS() string {
 	if s.PAAS != "" {
 		return s.PAAS
 	}
+	return s.resolvePAASByTier()
+}
+
+// ResolvePAASForContext determines the PAAS platform from explicit setting,
+// runtime context, and finally compute tier.
+func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
+	if s.PAAS != "" {
+		return s.PAAS
+	}
+
+	if ctx == ContextCloud {
+		if s.HasCustomPublicDomain() {
+			return PAASCoolify
+		}
+		return PAASDokploy
+	}
+
+	return s.resolvePAASByTier()
+}
+
+func (s *StackSpec) resolvePAASByTier() string {
 	tier := s.Compute.Tier
 	if tier == "" {
 		tier = ComputeTierStandard
 	}
+
 	switch tier {
 	case ComputeTierLow:
 		return PAASDockge
