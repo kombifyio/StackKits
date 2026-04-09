@@ -4,14 +4,14 @@
 
 | Tool | Version | Purpose | Required? |
 |------|---------|---------|-----------|
-| Go | 1.24+ | Build CLI and server binaries | Yes |
+| Go | 1.25+ | Build CLI and server binaries | Yes |
 | Docker | 24.0+ | Container runtime, dev VM | Yes |
 | Docker Compose | v2+ | Dev environment orchestration | Yes |
 | CUE CLI | latest stable | Schema validation (`cue vet`) | Yes |
 | Mise | >= 2024.11.1 | Task runner (replaces make) | Recommended |
 | Git | any | Version control | Yes |
 
-Mise will auto-install Go 1.24.1, Node 22, and CUE if configured:
+Mise will auto-install Go 1.25.x, Node 22, and CUE if configured:
 
 ```bash
 mise install   # reads .mise.toml [tools] section

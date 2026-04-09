@@ -16,7 +16,7 @@ kombify StackKits is the **declarative Infrastructure-as-Code framework** for th
 | Layer           | Technology                | Notes                                         |
 | --------------- | ------------------------- | --------------------------------------------- |
 | Schema/Config   | CUE                       | Constraint-based configuration language       |
-| CLI             | Go 1.24 + Cobra           | `stackkit` command-line tool                  |
+| CLI             | Go 1.25 + Cobra           | `stackkit` command-line tool                  |
 | IaC Generation  | OpenTofu / Terraform      | Generated from CUE definitions                |
 | Orchestration   | Terramate                 | Multi-stack orchestration (advanced mode)      |
 | Container Runtime| Docker + Docker Compose   | Service deployment target                     |

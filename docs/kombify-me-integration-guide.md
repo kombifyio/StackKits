@@ -128,11 +128,8 @@ curl -X PUT {BASE_URL}/subdomains/mylab-u8f3k2-grafana \
 ### Download / build
 
 ```bash
-# Pre-built Linux amd64 (from kombify-Me repo)
-curl -L https://github.com/KombiverseLabs/kombify-Me/releases/latest/download/agent-linux-amd64 -o agent
-chmod +x agent
-
-# Or build from source (requires Go 1.24+)
+# Use a release artifact from the kombify.me deployment you operate, or build the agent from source.
+# Building from source requires Go 1.25+
 go build -o agent ./cmd/agent
 ```
 
@@ -311,11 +308,11 @@ curl https://kombify.me/_kombify/health
 
 ## Hosting
 
-The gateway runs as a Docker container on the kombify-ionos VPS (217.154.174.107), managed via Dokploy. A secondary instance runs on srv1161760 (72.62.49.6).
+The gateway runs as a Docker container on kombify-managed infrastructure. Internal hostnames and IP addresses are intentionally omitted from this public guide.
 
 | Component | Location | Details |
 |-----------|----------|---------|
-| **Gateway** | kombify-ionos + srv1161760 | `ghcr.io/kombiverselabs/kombify-me-gateway:latest`, port 8080, `dokploy-network` |
-| **Database** | kombify-DB | Database `kombify_me` on shared PostgreSQL |
+| **Gateway** | kombify-managed infrastructure | Containerized gateway for HTTPS entrypoint and WebSocket tunnel termination |
+| **Database** | Managed PostgreSQL | Stores tunnel registry and account data |
 | **DNS/TLS** | Cloudflare | Domain `kombify.me`, wildcard TLS, Cloudflare Tunnel |
-| **Tunnel ingress** | cloudflared on VPS | Routes `*.kombify.me` traffic to gateway container |
+| **Tunnel ingress** | cloudflared | Routes `*.kombify.me` traffic to the active gateway |

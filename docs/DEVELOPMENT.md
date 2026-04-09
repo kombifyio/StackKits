@@ -12,7 +12,7 @@
 
 ## Prerequisites
 
-- [Go](https://go.dev/) 1.24+
+- [Go](https://go.dev/) 1.25+
 - [CUE](https://cuelang.org/) CLI 0.9+
 - [Docker](https://docs.docker.com/get-docker/) (optional)
 - Make
@@ -21,8 +21,8 @@
 
 ```bash
 # Clone
-git clone https://github.com/KombiverseLabs/StackKits.git
-cd StackKits
+git clone https://github.com/kombifyio/stackKits.git
+cd stackKits
 
 # Build CLI
 make build

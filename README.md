@@ -24,7 +24,7 @@
 | ------------ | ------- | --------------------------- |
 | **Docker**   | 24.0+   | Container runtime           |
 
-**For development only:** CUE CLI 0.9+ (schema validation), Go 1.24+ (build CLI)
+**For development only:** CUE CLI 0.9+ (schema validation), Go 1.25+ (build CLI)
 
 > OpenTofu and Terramate are used **internally by the CLI** as execution engines — they are not user-installed prerequisites and are never run directly by users or agents.
 

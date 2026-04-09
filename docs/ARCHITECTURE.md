@@ -4,7 +4,7 @@
 
 | Component | Technology | Version | Source |
 |-----------|-----------|---------|--------|
-| Language | Go | 1.24.0 | `go.mod:3` |
+| Language | Go | 1.25 | `go.mod:3` |
 | Configuration | CUE | v0.15.4 (cuelang.org/go) | `go.mod:6` |
 | CLI framework | Cobra | v1.10.2 | `go.mod:10` |
 | IaC engine (internal) | OpenTofu | >= 1.6.0 | `internal/template/renderer.go:341` |
@@ -12,7 +12,7 @@
 | Container runtime | Docker | 24.0+ | `README.md:26` |
 | YAML parsing | gopkg.in/yaml.v3 | v3.0.1 | `go.mod:13` |
 | SSH | golang.org/x/crypto | v0.47.0 | `go.mod:12` |
-| HTTP server | Go stdlib net/http | 1.24 | `internal/api/server.go` |
+| HTTP server | Go stdlib net/http | 1.25 | `internal/api/server.go` |
 | Testing | testify | v1.9.0 | `go.mod:11` |
 | Task runner | Mise | >= 2024.11.1 | `.mise.toml:4` |
 | Dev environment | Docker Compose | -- | `docker-compose.yml` |

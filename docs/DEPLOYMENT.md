@@ -82,17 +82,17 @@
 
 ### Domain Routing
 
-All `*.kombify.io` subdomains are routed through Cloudflare DNS to the kombify-ionos VPS (217.154.174.107). Traefik (managed by Dokploy) handles TLS termination and reverse proxy routing.
+Public `*.kombify.io` subdomains are routed through Cloudflare DNS to kombify-managed infrastructure. The public edge terminates TLS and forwards traffic to the active StackKits deployment.
 
 | Property | Value |
 |----------|-------|
 | **Public URL** | `https://stackkits.kombify.io` |
-| **VPS** | kombify-ionos (217.154.174.107) |
-| **Reverse Proxy** | Traefik v3 (Dokploy-managed) |
+| **Hosting** | kombify-managed infrastructure |
+| **Reverse Proxy** | Managed edge proxy |
 | **TLS** | Wildcard `*.kombify.io` via Let's Encrypt / Cloudflare DNS challenge |
 | **DNS** | Cloudflare |
 
-**To update routing**, modify the Traefik dynamic config at `/etc/dokploy/traefik/dynamic/kombify-io.yml` on the VPS.
+Routing changes are handled by maintainers through the active infrastructure configuration.
 
 ### Infrastructure
 
@@ -119,7 +119,7 @@ DOPPLER_TOKEN         # Doppler service token (secrets injection)
 ### Prerequisites
 
 ```bash
-go 1.24+        # Required
+go 1.25+        # Required
 cue 0.9+        # Required (go install cuelang.org/go/cmd/cue@latest)
 make             # Required
 docker           # Optional (for testing generated manifests)
@@ -173,7 +173,7 @@ StackKits artifacts are published to GHCR as OCI artifacts:
 
 ```bash
 # Login to GHCR
-echo $GITHUB_PAT | docker login ghcr.io -u USERNAME --password-stdin
+echo $GHCR_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
 
 # Push as OCI artifact
 oras push ghcr.io/kombiverselabs/stackkits/base-kit:v1.0.0 \

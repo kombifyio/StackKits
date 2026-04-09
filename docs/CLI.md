@@ -16,7 +16,7 @@ Build from source:
 git clone https://github.com/kombifyio/stackKits.git && cd stackKits && make install
 ```
 
-Go install (requires Go 1.24+):
+Go install (requires Go 1.25+):
 
 ```bash
 go install github.com/kombifyio/stackkits/cmd/stackkit@latest
@@ -333,7 +333,7 @@ Example output:
 stackkit version v0.3.0
   Git commit: a1b2c3d
   Build date: 2026-03-01T12:00:00Z
-  Go version: go1.24
+  Go version: go1.25
   OS/Arch:    linux/amd64
 ```
 

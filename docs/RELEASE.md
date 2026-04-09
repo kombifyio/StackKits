@@ -1,13 +1,8 @@
 # Release Process
 
-## Repository Topology
+This document describes the release process for the public `kombifyio/stackKits` repository.
 
-| Repo | Visibility | Purpose |
-|------|-----------|---------|
-| `KombiverseLabs/kombify-StackKits` | **Private** | Development — all source, CI, dev tools, internal docs |
-| `kombifyio/stackKits` | **Public** | Curated user-facing repo — kits, docs, installer, releases |
-
-The Go module path is `github.com/kombifyio/stackkits` (matches the public repo).
+The Go module path is `github.com/kombifyio/stackkits`.
 
 ## How Releases Work
 
@@ -46,66 +41,12 @@ Kits version independently from the CLI and from each other:
 
 A CLI release bundles whatever kit versions are in the repo at that point. To release only a specific kit's changes, just tag and release — the per-kit archive (`stackkits-base-kit_*`) contains only that kit.
 
-## Public Repo Sync
+## Source Curation
 
-The public repo is kept in sync automatically via a whitelist-based sync script.
+The public repo only documents and ships the public release surface.
+Internal source-sync or private maintainer workflows are intentionally not documented here.
 
-### How It Works
-
-1. **On every push to `main`** on the private repo, `.github/workflows/sync-public.yml` runs
-2. It executes `scripts/sync-public.sh`, which:
-   - Clones `kombifyio/stackKits` to a temp directory
-   - Removes everything except `.git/`
-   - Copies only whitelisted files from the private repo
-   - Commits and pushes if there are changes
-
-### Whitelist Approach
-
-Only files explicitly listed in the `INCLUDE` array in `scripts/sync-public.sh` go to the public repo. **New files added to the private repo default to private-only.** To publish a new file, add it to the `INCLUDE` array.
-
-Currently synced:
-- Go source: `cmd/`, `internal/`, `pkg/`, `api/`
-- Build files: `go.mod`, `go.sum`, `Makefile`, `Dockerfile`, etc.
-- Kit definitions: `base/`, `base-kit/`, `ha-kit/`, `modern-homelab/`, `addons/`, `modules/`, `platforms/`, `cue.mod/`
-- Docs & examples: `docs/`, `demos/`, `README.md`, `LICENSE`, `CONTRIBUTING.md`
-- Installer scripts: `base-install.sh`, `install.sh`
-- Tests: `tests/`
-- Release config: `.goreleaser.yaml`, `.golangci.yml`, `.env.example`
-- CI: `.github/workflows/release.yml` only
-
-### Manual Sync
-
-The sync script handles authentication automatically with multiple fallbacks:
-1. `PUBLIC_REPO_TOKEN` env var (used in CI)
-2. `gh auth token` / `gh.exe auth token` (local dev)
-3. Doppler `GITHUB_PAT` (fallback)
-
-The script also syncs `v*` tags from the private repo to the public repo.
-
-```bash
-# Preview what would change (no push)
-./scripts/sync-public.sh --dry-run
-
-# Sync and push
-./scripts/sync-public.sh
-
-# CI mode (uses PAT instead of gh auth)
-PUBLIC_REPO_TOKEN=ghp_... ./scripts/sync-public.sh
-```
-
-### CI Requirements
-
-The sync workflow requires a `PUBLIC_REPO_TOKEN` secret on the private repo — a GitHub PAT with write access to `kombifyio/stackKits`. The PAT is stored in Doppler (`kombination` project, key `GITHUB_PAT`).
-
-To set or refresh the secret:
-
-```bash
-# Get PAT from Doppler
-GITHUB_PAT=$(doppler secrets get GITHUB_PAT --plain --project kombination --config prd --no-read-env)
-
-# Set as GitHub Actions secret on the private repo
-gh secret set PUBLIC_REPO_TOKEN --body "$GITHUB_PAT" --repo KombiverseLabs/kombify-StackKits
-```
+For this repo, the release-relevant source of truth is simply the content currently committed on `main`.
 
 ## Creating a Release
 
@@ -113,18 +54,15 @@ gh secret set PUBLIC_REPO_TOKEN --body "$GITHUB_PAT" --repo KombiverseLabs/kombi
 # 1. Ensure you're on main with all changes committed
 git status  # clean working tree
 
-# 2. Sync is automatic on push, but you can verify:
-./scripts/sync-public.sh --dry-run
-
-# 3. Tag and push to public repo (triggers release workflow)
+# 2. Tag and push to origin (triggers release workflow)
 git tag v0.X.Y
-git push public v0.X.Y
+git push origin v0.X.Y
 
-# 4. Monitor the release
+# 3. Monitor the release
 gh run list --repo kombifyio/stackKits --limit 3
 gh run watch <run-id> --repo kombifyio/stackKits
 
-# 5. Verify the release
+# 4. Verify the release
 gh release view v0.X.Y --repo kombifyio/stackKits
 curl -sSL "https://github.com/kombifyio/stackKits/releases/download/v0.X.Y/stackkits_0.X.Y_linux_amd64.tar.gz" -o /tmp/verify.tar.gz
 tar tzf /tmp/verify.tar.gz  # check all files are present
@@ -137,16 +75,16 @@ If a release needs to be fixed:
 ```bash
 # Delete the release and tag
 gh release delete v0.X.Y --repo kombifyio/stackKits --yes
-git push public :refs/tags/v0.X.Y
+git push origin :refs/tags/v0.X.Y
 git tag -d v0.X.Y
 
 # Fix, commit, push
 git add . && git commit -m "fix: ..."
-git push origin main && git push public main
+git push origin main
 
 # Re-tag and push
 git tag v0.X.Y
-git push public v0.X.Y
+git push origin v0.X.Y
 ```
 
 ## Safeguards
@@ -168,36 +106,20 @@ Run locally before releasing:
 
 ### What NOT to Do
 
-- Never release from `KombiverseLabs/kombify-StackKits` (private) — users can't download
 - Never remove kit directories or `base/` from `.goreleaser.yaml` archive files
 - Never force push to `kombifyio/stackKits` without checking existing releases
-- Never change the Go module path without updating both repos
+- Never change the Go module path without updating all release consumers and installation docs
 - Never add a new kit without adding a corresponding archive entry in `.goreleaser.yaml`
 
 ## Git Remote Setup
 
 ```bash
-# In the local clone of KombiverseLabs/kombify-StackKits:
+# In the local clone of kombifyio/stackKits:
 git remote -v
-# origin    → KombiverseLabs/kombify-StackKits (private, fetch+push)
-# public    → kombifyio/stackKits (public, push for releases)
-
-# Add public remote if missing:
-git remote add public https://github.com/kombifyio/stackKits.git
+# origin    → kombifyio/stackKits (fetch+push)
 ```
 
 ## Troubleshooting
-
-### Sync script fails with auth error
-
-The script tries multiple auth sources. If all fail:
-1. Check `gh auth status` — you may need to re-authenticate
-2. Verify the Doppler PAT is valid: `doppler secrets get GITHUB_PAT --plain --project kombination --config prd --no-read-env | head -c 10`
-3. On Windows/Git Bash, `gh auth token` may not work (can't access Windows keyring). The script falls back to `gh.exe auth token` and Doppler automatically.
-
-### Sync script hangs (pager issue)
-
-The script uses `export GIT_PAGER=cat` and `--no-pager` flags to prevent git commands from opening `less`. If it still hangs, ensure you're running in a non-interactive terminal.
 
 ### CI lint fails after adding new code
 
