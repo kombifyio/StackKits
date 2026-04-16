@@ -161,7 +161,7 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 	if adminEmail == "" {
 		if cloudEmail := netenv.GetCloudUserEmail(); cloudEmail != "" {
 			adminEmail = cloudEmail
-			printInfo("Using Zitadel account email: %s", adminEmail)
+			printInfo("Using Auth0 account email: %s", adminEmail)
 		}
 	}
 
@@ -196,7 +196,7 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 
 	// Let's Encrypt email defaults to admin email; skip prompt if already set via Cloud
 	if adminEmail != "" && netenv.GetCloudUserEmail() != "" {
-		// Cloud context: LE email = Zitadel email, no prompt needed
+		// Cloud context: LE email = Auth0 email, no prompt needed
 		email = adminEmail
 	} else {
 		defaultEmail := adminEmail
@@ -488,3 +488,4 @@ func stackKitNames(kits []*models.StackKit) []string {
 	}
 	return names
 }
+

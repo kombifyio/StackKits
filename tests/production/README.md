@@ -63,12 +63,12 @@ published installer release.
 Canonical source of truth today:
 
 - Base URL: `https://simulate.kombify.space`
-- ZITADEL issuer comes from Doppler project `kombify`
+- AUTH0 issuer comes from Doppler project `kombify`
 - Sim cloud auth client config comes from Doppler project `kombify-sim`
 
 GitHub Actions must map these stable secret names:
 
-- `ZITADEL_ISSUER`
+- `AUTH0_ISSUER`
 - `KOMBISIM_AUTH_CLOUD_CLIENT_ID`
 - `KOMBISIM_AUTH_CLOUD_REDIRECT_URL`
 
@@ -80,7 +80,7 @@ What it does:
 
 1. Loads the public login page
 2. Verifies the `kombify Cloud` sign-in entrypoint exists
-3. Calls the ZITADEL authorize URL with the configured client/redirect
+3. Calls the AUTH0 authorize URL with the configured client/redirect
 4. Fails if the redirect URI is rejected or if the flow returns `invalid_request`
 
 Important:
@@ -111,7 +111,7 @@ the same time as the code change.
 As of 2026-03-16 the newly codified regressions expose two real production
 issues:
 
-- `TestSimCloudSSORedirectConfigured` fails because the ZITADEL authorize flow
+- `TestSimCloudSSORedirectConfigured` fails because the AUTH0 authorize flow
   rejects `https://simulate.kombify.space/auth/callback` with
   `redirect_uri is missing in the client configuration`.
 - `TestStackKitsBaseLocalReinstall` currently reaches `apply`, but the deploy
@@ -119,3 +119,4 @@ issues:
   `dokploy-network` is not present when OpenTofu expects it.
 
 Keep these notes current when the underlying issues are fixed.
+

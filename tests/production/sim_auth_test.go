@@ -55,7 +55,7 @@ func TestSimCloudSSORedirectConfigured(t *testing.T) {
 	bodyText := string(body)
 
 	if strings.Contains(bodyText, "redirect_uri is missing in the client configuration") {
-		t.Fatalf("simulate cloud SSO is misconfigured: redirect_uri rejected by Zitadel")
+		t.Fatalf("simulate cloud SSO is misconfigured: redirect_uri rejected by Auth0")
 	}
 	if strings.Contains(bodyText, `"error":"invalid_request"`) {
 		t.Fatalf("simulate cloud SSO returned invalid_request: %s", bodyText)
@@ -73,7 +73,7 @@ func loadSimCloudAuthConfig(t *testing.T) simCloudAuthConfig {
 		baseURL = "https://simulate.kombify.space"
 	}
 
-	issuer := firstEnv("KOMBIFY_ZITADEL_ISSUER", "ZITADEL_ISSUER")
+	issuer := firstEnv("KOMBIFY_AUTH0_ISSUER", "AUTH0_ISSUER")
 	clientID := firstEnv("KOMBIFY_SIM_CLIENT_ID", "KOMBISIM_AUTH_CLOUD_CLIENT_ID")
 	redirectURL := firstEnv("KOMBIFY_SIM_REDIRECT_URL", "KOMBISIM_AUTH_CLOUD_REDIRECT_URL")
 	if issuer == "" || clientID == "" || redirectURL == "" {
@@ -97,3 +97,4 @@ func buildAuthorizeURL(cfg simCloudAuthConfig) string {
 	values.Set("state", "stackkits-ci")
 	return fmt.Sprintf("%s/oauth/v2/authorize?%s", strings.TrimRight(cfg.Issuer, "/"), values.Encode())
 }
+

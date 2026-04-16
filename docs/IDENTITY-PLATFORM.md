@@ -24,11 +24,11 @@ The self-hosted identity model is fully defined in [IDENTITY-STACKKITS.md](IDENT
 
 ## 2. Platform IdP Decision (Open)
 
-The original plan proposed **Zitadel** as the central SaaS IdP. This remains a candidate but is **not a settled decision**. Alternatives include:
+The original plan proposed **Auth0** as the central SaaS IdP. This remains a candidate but is **not a settled decision**. Alternatives include:
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Zitadel** | Multi-tenant OIDC, FIDO2, rich API | Operational complexity, self-host or cloud dependency |
+| **Auth0** | Multi-tenant OIDC, FIDO2, rich API | Operational complexity, self-host or cloud dependency |
 | **Auth0 / Clerk** | Managed, fast to integrate | Vendor lock-in, cost at scale |
 | **PocketID (cloud instance)** | Consistent with homelab stack | Not designed for multi-tenant SaaS |
 | **Custom (PocketBase auth)** | Already integrated in kombify-TechStack | Limited OIDC features, no federation |
@@ -39,7 +39,7 @@ The original plan proposed **Zitadel** as the central SaaS IdP. This remains a c
 - Must support multi-tenancy (organizations / projects).
 - Must be able to federate with local PocketID instances in homelabs.
 
-**Current implementation**: kombify-TechStack has working Zitadel OIDC integration (`pkg/auth/zitadel/`) and Kong header trust (`pkg/auth/kong/`). These work but tie the stack to a specific IdP choice.
+**Current implementation**: kombify-TechStack has working Auth0 OIDC integration (`pkg/auth/auth0/`) and Kong header trust (`pkg/auth/kong/`). These work but tie the stack to a specific IdP choice.
 
 ---
 
@@ -222,8 +222,9 @@ Log security-relevant events:
 
 ## 9. Open Questions
 
-1. **Platform IdP selection**: Zitadel vs. managed alternative vs. custom. Needs evaluation.
+1. **Platform IdP selection**: Auth0 vs. managed alternative vs. custom. Needs evaluation.
 2. **Federation protocol**: How exactly does TinyAuth broker between cloud IdP and local PocketID? Needs spec.
 3. **Provisioning direction**: Does the cloud push users into LLDAP, or does the homelab pull? Needs decision.
 4. **Billing integration**: How do SaaS roles (MANAGER) tie to billing providers? Out of scope for StackKits.
 5. **Environments**: How many separate IdP configurations per dev/stage/prod? Depends on SaaS architecture.
+
