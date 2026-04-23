@@ -4,9 +4,19 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -59,7 +69,7 @@ jobs:
           govulncheck ./...
 
       - name: Run gosec
-        uses: securego/gosec@master
+        uses: securego/gosec@v2.25.0
         with:
           args: -exclude=G101,G104,G106,G115,G204,G301,G304,G306,G703,G705,G706 -exclude-generated ./...
 
@@ -96,6 +106,8 @@ jobs:
           fi
 
       - name: Upload coverage report
+        if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -209,6 +221,8 @@ jobs:
       # NOTE: Binary uploaded for build-matrix job dependency only
       # This binary goes directly to Docker image, not for distribution
       - name: Upload binary
+        if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: stackkit-linux-amd64
@@ -259,6 +273,8 @@ jobs:
 
       # Cross-platform binaries for CI testing only - not distributed
       - name: Upload binary
+        if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: stackkit-${{ matrix.os }}-${{ matrix.arch }}
