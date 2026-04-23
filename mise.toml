@@ -1,0 +1,49 @@
+min_version = "2024.11.1"
+
+[tools]
+go = "1.25"
+
+[env]
+PROJECT_NAME = "stackkits"
+_.file = [".env", ".env.local"]
+
+# Local-first preflight standard
+
+[tasks.test]
+description = "Run tests"
+run = "go test ./..."
+
+[tasks.build]
+description = "Build project"
+run = "go build ./..."
+
+[tasks.check]
+description = "Fast local gate: lint + unit tests + build"
+depends = ["test", "build"]
+run = 'echo "check complete"'
+
+[tasks."preview:local"]
+description = "Local preview gate with Docker, Wrangler, Aspire, or repository build fallback"
+depends = ["build"]
+run = 'echo "local preview complete"'
+
+[tasks."preflight:quick"]
+description = "Quick preflight without external deploy"
+depends = ["check"]
+run = 'echo "quick preflight complete"'
+
+[tasks."preflight:release"]
+description = "Release preflight: quick gate + local preview"
+depends = ["preflight:quick", "preview:local"]
+run = 'echo "release preflight complete"'
+
+[tasks."preflight:deploy"]
+description = "Hard deploy gate: requires clean git state and writes local preflight receipt"
+shell = "powershell -NoProfile -Command"
+depends = ["preflight:release"]
+run = 'python "../kombify Core/scripts/kombify_preflight.py" deploy --repo .'
+
+[tasks."release:dispatch"]
+description = "Dispatch remote release/deploy workflow for the current preflighted SHA"
+shell = "powershell -NoProfile -Command"
+run = 'python "../kombify Core/scripts/kombify_preflight.py" dispatch --repo .'
