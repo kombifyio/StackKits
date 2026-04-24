@@ -109,7 +109,7 @@ subdomainPrefix: mylab
 - **TLS:** Managed by kombify (Cloudflare wildcard)
 - **DNS:** Automatic via kombify.me subdomain registry
 - **Requires:** `KOMBIFY_API_KEY` environment variable
-- **Direct Connect:** After deploy, `stackkit apply` registers the instance with kombify. `stackkit-server` sends heartbeats so Kong can proxy traffic.
+- **Direct Connect:** After deploy, `stackkit apply` registers the instance with kombify. `stackkit-server` sends heartbeats so the Cloudflare Edge path can proxy traffic.
 
 ### Mode 3: Local (home.lab)
 

@@ -34,7 +34,7 @@ Rules:
 
 **Base URL:** `https://kombify.me/_kombify/api`
 
-**Via Kong (kombify-TechStack internal):** `https://api.kombify.io/v1/subdomains/*`
+**Via Cloudflare Edge (kombify-TechStack internal):** `https://api.kombify.io/v1/subdomains/*`
 
 ### Register a user account
 
@@ -234,7 +234,7 @@ The base subdomain (`mylab-u8f3k2.kombify.me`) can serve as the stack's manageme
 
 ### Pattern 2: Direct Connect (Registry-Based)
 
-When a stackkit-server instance is publicly reachable (e.g., VPS with public IP), Kong can proxy directly to it without the tunnel agent.
+When a stackkit-server instance is publicly reachable (e.g., VPS with public IP), the Cloudflare Edge path can proxy directly to it without the tunnel agent.
 
 **How it works:**
 

@@ -16,7 +16,7 @@ servers:
   - url: http://localhost:8082
     description: Local development
   - url: https://api.kombify.io/stackkits
-    description: Production (via Kong)
+    description: Production (via Cloudflare Edge)
 
 paths:
   /health:
@@ -419,7 +419,7 @@ paths:
       summary: Send a heartbeat for a registered instance
       description: |
         Sent every 60 seconds by stackkit-server. If no heartbeat is received
-        within 3 minutes, Kong marks the instance as unreachable and stops
+        within 3 minutes, the platform edge registry marks the instance as unreachable and stops
         routing traffic to it.
       tags: [Registry]
       parameters:
@@ -955,4 +955,4 @@ tags:
   - name: Logs
     description: Deploy log retrieval and live streaming for dashboards and agents
   - name: Registry
-    description: Direct Connect instance registry — deployed stackkit-servers register here so Kong can proxy to them
+      description: Direct Connect instance registry — deployed stackkit-servers register here so the platform edge can proxy to them

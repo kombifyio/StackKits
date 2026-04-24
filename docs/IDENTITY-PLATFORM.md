@@ -39,7 +39,7 @@ The original plan proposed **Auth0** as the central SaaS IdP. This remains a can
 - Must support multi-tenancy (organizations / projects).
 - Must be able to federate with local PocketID instances in homelabs.
 
-**Current implementation**: kombify-TechStack has working Auth0 OIDC integration (`pkg/auth/auth0/`) and Kong header trust (`pkg/auth/kong/`). These work but tie the stack to a specific IdP choice.
+**Current implementation**: kombify-TechStack has working Auth0 OIDC integration (`pkg/auth/auth0/`) and edge header trust. These work but tie the stack to a specific IdP choice.
 
 ---
 
