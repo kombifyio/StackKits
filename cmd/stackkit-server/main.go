@@ -38,6 +38,7 @@ func main() {
 	port := flag.Int("port", 8082, "HTTP server port")
 	baseDir := flag.String("base-dir", "", "Base directory for StackKit definitions (default: executable directory)")
 	apiKey := flag.String("api-key", "", "API key for authentication (or set STACKKITS_API_KEY env var)")
+	allowUnauthenticated := flag.Bool("allow-unauthenticated", false, "Allow unauthenticated API access for local development only (or set STACKKITS_ALLOW_UNAUTHENTICATED=true)")
 	corsOrigins := flag.String("cors-origins", "", "Comma-separated allowed CORS origins (or set STACKKITS_CORS_ORIGINS; empty = *)")
 	rateLimit := flag.Int("rate-limit", 60, "Max requests per IP per minute; 0 = no limit (or set STACKKITS_RATE_LIMIT)")
 	logDir := flag.String("log-dir", "", "Directory containing deploy logs (or set STACKKITS_LOG_DIR)")
@@ -47,7 +48,11 @@ func main() {
 
 	setupLogging(*logLevel)
 
-	cfg := resolveConfig(*port, *baseDir, *apiKey, *corsOrigins, *rateLimit, *logDir)
+	cfg, cfgErr := resolveConfig(*port, *baseDir, *apiKey, *corsOrigins, *rateLimit, *logDir, *allowUnauthenticated)
+	if cfgErr != nil {
+		slog.Error(cfgErr.Error())
+		os.Exit(1)
+	}
 
 	slog.Info("starting kombify StackKits API server",
 		"version", Version,
@@ -89,9 +94,12 @@ func setupLogging(logLevel string) {
 	slog.SetDefault(logger)
 }
 
-func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int, logDir string) api.ServerConfig {
+func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int, logDir string, allowUnauthenticated bool) (api.ServerConfig, error) {
 	dir := resolveBaseDir(baseDir)
-	key := resolveAPIKey(apiKey)
+	key, err := resolveAPIKey(apiKey, allowUnauthenticated)
+	if err != nil {
+		return api.ServerConfig{}, err
+	}
 	origins := resolveCORSOrigins(corsOrigins)
 	rl := resolveRateLimit(rateLimit)
 	ld := resolveLogDir(logDir, dir)
@@ -104,7 +112,7 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		CORSOrigins: origins,
 		RateLimit:   rl,
 		LogDir:      ld,
-	}
+	}, nil
 }
 
 func resolveLogDir(flagVal, baseDir string) string {
@@ -138,7 +146,7 @@ func resolveBaseDir(flagVal string) string {
 	return dir
 }
 
-func resolveAPIKey(flagVal string) string {
+func resolveAPIKey(flagVal string, allowUnauthenticated bool) (string, error) {
 	key := flagVal
 	if key == "" {
 		key = os.Getenv("STACKKITS_API_KEY")
@@ -146,9 +154,22 @@ func resolveAPIKey(flagVal string) string {
 	if key != "" {
 		slog.Info("API key authentication enabled")
 	} else {
-		slog.Warn("no API key configured — all endpoints are unauthenticated")
+		if allowUnauthenticated || envBool("STACKKITS_ALLOW_UNAUTHENTICATED") {
+			slog.Warn("unauthenticated API access enabled for local development")
+			return "", nil
+		}
+		return "", fmt.Errorf("API key is required; set STACKKITS_API_KEY or pass --allow-unauthenticated for local development")
 	}
-	return key
+	return key, nil
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveCORSOrigins(flagVal string) []string {
