@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stackkit — homelab infrastructure in one command</title>
+  <meta name="description" content="Deploy a fully configured homelab with a single command. Traefik, monitoring, backup — all from a declarative spec.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a; --fg: #e5e5e5; --muted: #737373; --accent: #f97316;
+      --surface: #171717; --border: #262626; --code-bg: #1c1c1c;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+    code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 0.875em; }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 0 1.5rem; }
+
+    nav { padding: 1.25rem 0; border-bottom: 1px solid var(--border); }
+    nav .inner { display: flex; align-items: center; gap: 1.5rem; }
+    nav .logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1rem; color: var(--fg); text-decoration: none; }
+    nav .logo img { width: 28px; height: 28px; }
+    nav .logo:hover { text-decoration: none; }
+    nav a { color: var(--muted); font-size: 0.875rem; }
+    nav a:hover { color: var(--fg); text-decoration: none; }
+
+    .hero { padding: 4rem 0 4rem; text-align: center; }
+    .hero h1 { font-size: 2.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .hero h1 span { color: var(--accent); }
+    .hero .subtitle { font-size: 1.125rem; color: var(--muted); max-width: 500px; margin: 0 auto 2.5rem; }
+
+    .install-block { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .install-block code { background: none; padding: 0; font-size: 0.95rem; color: var(--fg); white-space: nowrap; }
+    .install-block button { background: var(--accent); color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+    .install-block button:hover { opacity: 0.9; }
+    .install-note { text-align: center; color: var(--muted); font-size: 0.8rem; margin-bottom: 3rem; }
+
+    section { padding: 3rem 0; border-top: 1px solid var(--border); }
+    section h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.75rem; letter-spacing: -0.01em; }
+    section h3 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .section-desc { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+
+    .steps { display: grid; gap: 1.25rem; }
+    .step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; }
+    .step-num { font-size: 0.75rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+    .step pre { background: var(--code-bg); padding: 0.75rem 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; line-height: 1.5; margin-top: 0.5rem; }
+    .step p { color: var(--muted); font-size: 0.9rem; }
+
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; }
+    .feature { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    .feature h3 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+    .feature p { color: var(--muted); font-size: 0.85rem; margin: 0; }
+
+    .cli-preview pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+    .cli-preview .prompt { color: var(--accent); }
+    .cli-preview .comment { color: #525252; }
+
+    footer { padding: 3rem 0; border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 0.8rem; }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--fg); }
+    footer .links { margin-bottom: 1rem; }
+    footer .links a { margin: 0 0.75rem; }
+
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 1.75rem; }
+      .install-block { flex-direction: column; align-items: stretch; text-align: center; }
+      .install-block code { font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <div class="inner">
+      <a href="/" class="logo"><img src="/icon.png" alt="stackkit">stackkit</a>
+      <a href="/cli/">CLI Reference</a>
+      <a href="https://github.com/kombifyio/stackKits/releases">Releases</a>
+      <a href="https://github.com/kombifyio/stackKits">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="hero">
+    <h1>Your homelab.<br><span>One command.</span></h1>
+    <p class="subtitle">Install with one short command. BaseKit deploys the default stack end to end, while Modern Home Lab and High Availability Kit start with the right template preselected.</p>
+
+    <div class="install-block">
+      <code id="install-cmd">curl -sSL stackkit.cc/base | sh</code>
+      <button onclick="copyCmd(this)">Copy</button>
+    </div>
+    <p class="install-note">Default one-liner for BaseKit. Requires Linux or macOS with root/sudo access.</p>
+  </div>
+
+  <section>
+    <h2>Want more control?</h2>
+    <p class="section-desc">Install the CLI separately and choose your StackKit, compute tier, domain, and owner settings before deploying.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">Step 1 — Install the CLI</div>
+        <p>Downloads the stackkit binary. Works on Linux and macOS (amd64/arm64).</p>
+        <pre>curl -sSL stackkit.cc/install | sh</pre>
+      </div>
+      <div class="step">
+        <div class="step-num">Step 2 — Initialize</div>
+        <p>The interactive wizard lets you pick BaseKit, Modern Home Lab, or High Availability Kit, plus compute tier, domain, and owner details.</p>
+        <pre>mkdir my-homelab &amp;&amp; cd my-homelab
+stackkit init base-kit</pre>
+      </div>
+      <div class="step">
+        <div class="step-num">Step 3 — Deploy</div>
+        <p>Provisions Docker, OpenTofu, and deploys all services with Traefik reverse proxy.</p>
+        <pre>stackkit apply</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Choose your StackKit</h2>
+    <div class="features">
+      <div class="feature">
+        <h3>BaseKit</h3>
+        <p>Single-environment default for fast self-hosting with the core services already wired together.</p>
+        <pre style="margin-top:0.75rem;">curl -sSL stackkit.cc/base | sh</pre>
+      </div>
+      <div class="feature">
+        <h3>Modern Home Lab</h3>
+        <p>Hybrid local-plus-cloud direction with identity-aware access and room for gradual expansion.</p>
+        <pre style="margin-top:0.75rem;">curl -sSL stackkit.cc/modern | sh</pre>
+      </div>
+      <div class="feature">
+        <h3>High Availability Kit</h3>
+        <p>Cluster-first architecture for redundancy, quorum, and failover when a single node is not enough.</p>
+        <pre style="margin-top:0.75rem;">curl -sSL stackkit.cc/ha | sh</pre>
+      </div>
+    </div>
+    <p class="section-desc" style="margin-top:1.5rem;">BaseKit runs the default install engine. Modern and HA install the CLI and open the same guided flow with the matching StackKit already selected.</p>
+  </section>
+
+  <section class="cli-preview">
+    <h2>CLI Overview</h2>
+    <pre><span class="comment"># Core workflow</span>
+<span class="prompt">$</span> stackkit init base-kit      <span class="comment"># create stack-spec.yaml</span>
+<span class="prompt">$</span> stackkit prepare             <span class="comment"># check/install Docker + OpenTofu</span>
+<span class="prompt">$</span> stackkit generate            <span class="comment"># generate deployment files</span>
+<span class="prompt">$</span> stackkit plan                <span class="comment"># preview changes</span>
+<span class="prompt">$</span> stackkit apply               <span class="comment"># deploy everything</span>
+<span class="prompt">$</span> stackkit status              <span class="comment"># check service health</span>
+<span class="prompt">$</span> stackkit remove              <span class="comment"># tear down</span>
+
+<span class="comment"># Add-ons</span>
+<span class="prompt">$</span> stackkit addon list          <span class="comment"># available add-ons</span>
+<span class="prompt">$</span> stackkit addon add monitoring</pre>
+    <p style="margin-top:1rem;"><a href="/cli/">Full CLI Reference &rarr;</a></p>
+  </section>
+</div>
+
+<footer>
+  <div class="container">
+    <div class="links">
+      <a href="https://github.com/kombifyio/stackKits">GitHub</a>
+      <a href="https://github.com/kombifyio/stackKits/releases">Releases</a>
+      <a href="/cli/">CLI Reference</a>
+      <a href="/impressum.html">Impressum</a>
+    </div>
+    <p>&copy; 2026 Kombiverse Labs. Open source under Apache 2.0 + GPLv3.</p>
+  </div>
+</footer>
+
+<script>
+function copyCmd(btn) {
+  var text = document.getElementById('install-cmd').textContent;
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() { btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = 'Copy'; }, 1500); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  }
+}
+</script>
+</body>
+</html>

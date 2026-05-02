@@ -1,4 +1,8 @@
 #!/bin/sh
+# Static website entrypoint for the shared stackkit CLI installer.
+# Usage: curl -sSL stackkit.cc/install | sh
+exec sh <<'STACKKIT_INSTALL'
+#!/bin/sh
 # =============================================================================
 # StackKits CLI installer — shared core used by all stackkit installers.
 # =============================================================================
@@ -14,15 +18,8 @@
 # =============================================================================
 set -eu
 
-# KIT_NAME controls which kit definitions are downloaded alongside the binary.
-# ""         → CLI only (no kit files)
-# "base-kit" → CLI + base-kit definitions
-# "modern-homelab" → CLI + modern-homelab definitions
-# "ha-kit"   → CLI + ha-kit definitions
-# "all"      → CLI + all available kit definitions
 KIT_NAME="${1:-}"
 
-# Allow callers (e.g. base-install.sh) to suppress the banner.
 if [ "${STACKKIT_NO_BANNER:-}" != "1" ]; then
   printf '\033[38;5;208m'
   cat <<'BANNER'
@@ -40,8 +37,6 @@ fi
 REPO="kombifyio/stackKits"
 INSTALL_DIR="/usr/local/bin"
 
-# --- Detect platform ----------------------------------------------------------
-
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -54,8 +49,6 @@ case "$OS" in
   *) echo "Error: unsupported OS: $OS" >&2; exit 1 ;;
 esac
 
-# --- Resolve latest release ---------------------------------------------------
-
 echo "Resolving latest stackkit release..."
 LATEST=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest" \
   | grep '"tag_name"' | head -1 | sed -E 's/.*"v([^"]+)".*/\1/')
@@ -65,11 +58,6 @@ if [ -z "$LATEST" ]; then
   exit 1
 fi
 echo "  -> v${LATEST} (${OS}/${ARCH})"
-
-# --- Select archive -----------------------------------------------------------
-# Kit bundles include the binary plus kit definitions. The default archive
-# contains every current StackKit; kit-specific install modes simply choose
-# which definitions are copied into ~/.stackkits/.
 
 case "$KIT_NAME" in
   base-kit)
@@ -98,8 +86,6 @@ case "$KIT_NAME" in
     ;;
 esac
 
-# --- Download & install binary ------------------------------------------------
-
 URL="https://github.com/$REPO/releases/download/v${LATEST}/${ARCHIVE}"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -115,15 +101,10 @@ else
   sudo install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
 fi
 
-# --- Install kit definitions --------------------------------------------------
-# Kits are stored in ~/.stackkits/<kit-name>/ so the CLI can find them.
-# Shared directories sit alongside them at ~/.stackkits/.
-
 if [ -n "$INSTALL_KITS" ]; then
   STACKKITS_DIR="$HOME/.stackkits"
   mkdir -p "$STACKKITS_DIR"
 
-  # Shared CUE schemas — needed inside each kit dir for module resolution.
   if [ -d "$TMP/base" ]; then
     cp -r "$TMP/base" "$STACKKITS_DIR/"
   fi
@@ -132,18 +113,14 @@ if [ -n "$INSTALL_KITS" ]; then
     cp -r "$TMP/cue.mod" "$STACKKITS_DIR/"
   fi
 
-  # Shared module contracts/catalog — used for service URL generation,
-  # composition, and module fragment rendering.
   if [ -d "$TMP/modules" ]; then
     cp -r "$TMP/modules" "$STACKKITS_DIR/"
   fi
 
-  # Kit directories
   for kit in $INSTALL_KITS; do
     if [ -d "$TMP/$kit" ]; then
       rm -rf "$STACKKITS_DIR/$kit"
       cp -r "$TMP/$kit" "$STACKKITS_DIR/"
-      # Also place shared schemas inside the kit dir for CUE module resolution.
       if [ -d "$TMP/base" ]; then
         rm -rf "$STACKKITS_DIR/$kit/base"
         cp -r "$TMP/base" "$STACKKITS_DIR/$kit/"
@@ -152,8 +129,6 @@ if [ -n "$INSTALL_KITS" ]; then
     fi
   done
 fi
-
-# --- Summary ------------------------------------------------------------------
 
 echo ""
 stackkit version
@@ -186,3 +161,4 @@ else
   echo "    stackkit apply"
 fi
 echo ""
+STACKKIT_INSTALL

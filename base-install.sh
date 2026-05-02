@@ -2,10 +2,10 @@
 # =============================================================================
 # StackKits Base Installer — full base-kit deployment in one command.
 # =============================================================================
-# Usage: curl -sSL base.stackkit.cc | sh
+# Usage: curl -sSL stackkit.cc/base | sh
 #
 # Steps:
-#   1. Install stackkit CLI + base-kit definitions  (via install.kombify.me)
+#   1. Install stackkit CLI + base-kit definitions  (via stackkit.cc/install)
 #   2. Prepare system: Docker + OpenTofu
 #   3. Initialize base-kit (non-interactive, reads env vars)
 #   4. Generate + deploy the full homelab stack
@@ -37,6 +37,17 @@ printf '\033[0m'
 REPO="kombifyio/stackKits"
 HOMELAB_DIR="${HOMELAB_DIR:-$HOME/my-homelab}"
 
+STACKKIT_CONTEXT_ARG=""
+STACKKIT_CONTEXT_VALUE="${STACKKIT_CONTEXT:-${KOMBIFY_CONTEXT:-}}"
+case "$STACKKIT_CONTEXT_VALUE" in
+  local|cloud|pi)
+    STACKKIT_CONTEXT_ARG="--context $STACKKIT_CONTEXT_VALUE"
+    ;;
+  vps)
+    STACKKIT_CONTEXT_ARG="--context cloud"
+    ;;
+esac
+
 # --- Helpers ------------------------------------------------------------------
 
 info()  { printf '\033[1;34m==> %s\033[0m\n' "$*"; }
@@ -66,7 +77,8 @@ fi
 info "Step 1/4 -- Installing stackkit CLI + base-kit"
 
 # STACKKIT_NO_BANNER suppresses the duplicate banner from install.sh.
-STACKKIT_NO_BANNER=1 curl -sSL "https://install.kombify.me" | sh -s -- base-kit
+STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://stackkit.cc/install}"
+STACKKIT_NO_BANNER=1 curl -sSL "$STACKKIT_INSTALL_URL" | sh -s -- base-kit
 
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 
@@ -75,9 +87,9 @@ ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 info "Step 2/4 -- Preparing system (Docker + OpenTofu)"
 
 if [ "$(id -u)" -eq 0 ]; then
-  stackkit prepare || die "System preparation failed."
+  stackkit $STACKKIT_CONTEXT_ARG prepare || die "System preparation failed."
 else
-  sudo stackkit prepare || die "System preparation failed."
+  sudo stackkit $STACKKIT_CONTEXT_ARG prepare || die "System preparation failed."
 fi
 
 ok "  System ready"
@@ -93,7 +105,7 @@ set -- init base-kit --non-interactive --force --admin-email "$ADMIN_EMAIL"
 if [ -n "${DOMAIN:-}" ]; then
   set -- "$@" --domain "$DOMAIN"
 fi
-stackkit "$@"
+stackkit $STACKKIT_CONTEXT_ARG "$@"
 
 ok "  base-kit initialized in $HOMELAB_DIR"
 
@@ -102,8 +114,8 @@ ok "  base-kit initialized in $HOMELAB_DIR"
 info "Step 4/4 -- Deploying homelab stack"
 
 rm -rf "$HOMELAB_DIR/deploy"
-stackkit generate --force
-stackkit apply --auto-approve
+stackkit $STACKKIT_CONTEXT_ARG generate --force
+stackkit $STACKKIT_CONTEXT_ARG apply --auto-approve
 
 # --- Done: print access summary -----------------------------------------------
 
@@ -144,12 +156,12 @@ fi
 # Warn about local domain on a public server
 if [ "$NETWORK_ENV" = "vps" ] || [ "$NETWORK_ENV" = "cloud" ]; then
   case "$DOMAIN" in
-    *.local|*.lab|*.lan|*.home|*.internal|*.test|stack.local|home.lab|homelab)
+    *.kombify|*.local|*.lab|*.lan|*.home|*.internal|*.test|stack.local|home.lab|homelab)
       echo ""
       warn "WARNING: Local domain '$DOMAIN' is not reachable on a public server!"
       echo ""
       echo "  Your server has a public IP ($PUBLIC_IP) but services are configured with"
-      echo "  a local domain that only works on home networks with dnsmasq."
+      echo "  a local domain that only works on home networks with Kombify Point/local DNS."
       echo ""
       echo "  To fix: edit $HOMELAB_DIR/stack-spec.yaml and set:"
       echo "    domain: kombify.me     (free public subdomain via kombify.me)"
@@ -173,7 +185,7 @@ if [ -n "$SUBDOMAIN_PREFIX" ] && [ "$DOMAIN" = "kombify.me" ]; then
   ID_URL="${PROTO}://${SUBDOMAIN_PREFIX}-id.${DOMAIN}"
   URL_PATTERN="<service> at ${SUBDOMAIN_PREFIX}-<service>.${DOMAIN}"
 else
-  PROTO="http"
+  PROTO="https"
   DASH_URL="${PROTO}://base.${DOMAIN}"
   TRAEFIK_URL="${PROTO}://traefik.${DOMAIN}"
   DOKPLOY_URL="${PROTO}://dokploy.${DOMAIN}"
@@ -205,22 +217,32 @@ fi
 echo ""
 echo "  Next steps:"
 echo "    1. Login at ${AUTH_URL}"
-echo "    2. Register a passkey at ${ID_URL}/login/setup"
+echo "    2. Create your PocketID admin passkey at ${ID_URL}/setup"
 echo "    3. Change your auto-generated password"
 echo ""
 if [ "$DOMAIN" = "kombify.me" ] && [ -n "$SUBDOMAIN_PREFIX" ]; then
-  echo "  DNS: Managed by kombify.me (Cloudflare wildcard)"
+  echo "  DNS: Managed by kombify.me"
   echo ""
-elif [ "$DOMAIN" = "stack.local" ] || [ "$DOMAIN" = "home.lab" ]; then
-  echo "  DNS (add to /etc/hosts on your workstation):"
-  echo "    ${SERVER_IP}  base.${DOMAIN} traefik.${DOMAIN} dokploy.${DOMAIN}"
-  echo "    ${SERVER_IP}  kuma.${DOMAIN} auth.${DOMAIN} whoami.${DOMAIN}"
-  echo ""
+else
+  case "$DOMAIN" in
+    *.kombify|*.local|*.lab|*.lan|*.home|*.internal|*.test|stack.local|home.lab)
+      echo "  Local DNS: Kombify Point resolves *.${DOMAIN} inside your home network."
+      echo "  Temporary workstation hosts entries:"
+      echo "    ${SERVER_IP}  base.${DOMAIN} traefik.${DOMAIN} dokploy.${DOMAIN}"
+      echo "    ${SERVER_IP}  kuma.${DOMAIN} auth.${DOMAIN} whoami.${DOMAIN}"
+      echo ""
+      ;;
+  esac
 fi
 echo "  Commands:"
 echo "    stackkit status       Check service health"
 echo "    stackkit addon list   Available add-ons"
 echo "    stackkit remove       Tear down everything"
 echo ""
+if [ -f "$HOMELAB_DIR/.stackkit/access.json" ]; then
+  echo "  Machine-readable access summary:"
+  echo "    $HOMELAB_DIR/.stackkit/access.json"
+  echo ""
+fi
 echo "  Project directory: $HOMELAB_DIR"
 echo ""
