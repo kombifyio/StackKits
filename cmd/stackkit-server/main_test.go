@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestResolveAPIKey(t *testing.T) {
 	t.Run("requires key by default", func(t *testing.T) {
@@ -71,6 +73,43 @@ func TestResolveAPIKey(t *testing.T) {
 	})
 }
 
+func TestResolveCORSOrigins(t *testing.T) {
+	t.Run("empty disables browser CORS", func(t *testing.T) {
+		t.Setenv("STACKKITS_CORS_ORIGINS", "")
+		t.Setenv("STACKKITS_ALLOW_WILDCARD_CORS", "")
+
+		origins := resolveCORSOrigins("", false)
+
+		if origins != nil {
+			t.Fatalf("resolveCORSOrigins() = %#v, want nil", origins)
+		}
+	})
+
+	t.Run("wildcard requires explicit local override", func(t *testing.T) {
+		t.Setenv("STACKKITS_CORS_ORIGINS", "")
+
+		origins := resolveCORSOrigins("", true)
+
+		if len(origins) != 1 || origins[0] != "*" {
+			t.Fatalf("resolveCORSOrigins() = %#v, want wildcard", origins)
+		}
+	})
+
+	t.Run("trims configured origins", func(t *testing.T) {
+		origins := resolveCORSOrigins(" https://kombify.io,https://stackkits.kombify.io , ", false)
+
+		want := []string{"https://kombify.io", "https://stackkits.kombify.io"}
+		if len(origins) != len(want) {
+			t.Fatalf("resolveCORSOrigins() len = %d, want %d: %#v", len(origins), len(want), origins)
+		}
+		for i := range want {
+			if origins[i] != want[i] {
+				t.Fatalf("resolveCORSOrigins()[%d] = %q, want %q", i, origins[i], want[i])
+			}
+		}
+	})
+}
+
 func TestEnvBool(t *testing.T) {
 	for _, value := range []string{"1", "true", "TRUE", "yes", "on"} {
 		t.Run(value, func(t *testing.T) {
@@ -80,4 +119,30 @@ func TestEnvBool(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolveTrustedProxies(t *testing.T) {
+	t.Run("trims flag value", func(t *testing.T) {
+		got := resolveTrustedProxies(" 10.0.0.1, 192.0.2.0/24, ")
+		want := []string{"10.0.0.1", "192.0.2.0/24"}
+
+		if len(got) != len(want) {
+			t.Fatalf("resolveTrustedProxies() len = %d, want %d: %#v", len(got), len(want), got)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("resolveTrustedProxies()[%d] = %q, want %q", i, got[i], want[i])
+			}
+		}
+	})
+
+	t.Run("uses env value", func(t *testing.T) {
+		t.Setenv("STACKKITS_TRUSTED_PROXIES", "10.0.0.2")
+
+		got := resolveTrustedProxies("")
+
+		if len(got) != 1 || got[0] != "10.0.0.2" {
+			t.Fatalf("resolveTrustedProxies() = %#v, want env proxy", got)
+		}
+	})
 }

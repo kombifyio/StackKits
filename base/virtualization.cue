@@ -130,7 +130,7 @@ package base
 // =============================================================================
 //
 // Known VPS providers and their expected compatibility.
-// Used by `stackkit compat --providers` and by kombify Sim for testing.
+// Used by `stackkit compat --providers` and by kombify Simulate for testing.
 
 // #ProviderProfile describes a known VPS provider's capabilities.
 #ProviderProfile: {

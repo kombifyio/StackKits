@@ -11,6 +11,7 @@ services:
     container_name: test-traefik-dashboard
     command:
       - --api.insecure=true
+      - --ping=true
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
@@ -20,7 +21,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,11 +60,21 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      # nginx-alpine needs to bind to port 80 (NET_BIND_SERVICE), and the
+      # master process forks workers under the nginx user (CHOWN/SETUID/SETGID
+      # for chowning logs and dropping privileges).
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     read_only: true
     tmpfs:
       - /tmp
       - /var/cache/nginx
       - /run
+      - /usr/share/nginx/html
     mem_limit: 32m
     cpus: 0.1
 

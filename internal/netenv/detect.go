@@ -62,11 +62,17 @@ func Detect(ctx context.Context) *Result {
 	return r
 }
 
+// PrivateIP returns the first non-loopback RFC1918 address on the host.
+// It is intentionally network-local only and does not call external services.
+func PrivateIP() string {
+	return getPrivateIP()
+}
+
 // isKombifyCloud checks if the server was provisioned by kombify Cloud.
 // It checks for the KOMBIFY_CONTEXT env var or the /etc/kombify/context file.
 // Both "cloud" and "vps" are treated as cloud context — VPS-type Sim nodes
 // are injected with "cloud" by the Sim engine, but "vps" is accepted as a
-// defence-in-depth fallback.
+// defense-in-depth fallback.
 func isKombifyCloud() bool {
 	if ctx := os.Getenv("KOMBIFY_CONTEXT"); ctx == "cloud" || ctx == "vps" {
 		return true

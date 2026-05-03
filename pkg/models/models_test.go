@@ -353,7 +353,7 @@ func TestResolvePAASForContext(t *testing.T) {
 }
 
 func TestResolveReverseProxyForPAAS(t *testing.T) {
-	assert.Equal(t, ReverseProxyDokploy, ResolveReverseProxyForPAAS(PAASDokploy))
+	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(PAASDokploy))
 	assert.Equal(t, ReverseProxyCoolify, ResolveReverseProxyForPAAS(PAASCoolify))
 	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(PAASDockge))
 	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(""))

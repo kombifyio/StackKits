@@ -1,18 +1,28 @@
 # Base Kit
 
-> **Single-server homelab with Docker — production-ready, secure, identity-aware.**
+> Single-environment homelab blueprint for Docker-based local or VPS deployments. CUE is the source of truth; OpenTofu output is generated.
 
-## Overview
+## Current Verified Default
 
-The **Base Kit** deploys a complete, self-hosted infrastructure stack on a single server. It implements the [3-layer architecture](../docs/ARCHITECTURE_V4.md):
+As of 2026-04-23 the Level 0 CLI default is intentionally reduced to the services that pass local Docker/OpenTofu smoke tests:
 
-| Layer | Services | Managed By |
-|-------|----------|-----------|
-| **L1 Foundation** | TinyAuth (identity proxy) | OpenTofu |
-| **L2 Platform** | Traefik, Dokploy, PostgreSQL | OpenTofu |
-| **L3 Applications** | Uptime Kuma, your apps | Dokploy |
+| Area | Service | Status |
+|------|---------|--------|
+| Docker API isolation | `socket-proxy` | verified |
+| Reverse proxy | `traefik` `v3.6.13` | verified |
+| Passkey identity | `pocketid` | mandatory default |
+| Login gateway | `tinyauth` | verified with PocketID OIDC provider config |
+| Password vault | `vaultwarden` | container and route verified |
+| Media | `jellyfin` | container and health route verified |
 
-All services are accessed via domain routing (`service.stack.local`) through Traefik. TinyAuth provides zero-trust ForwardAuth for all protected services. No external ports except Traefik's 80/443/8080.
+PocketID is no longer optional in the Base Kit default: until another passkey-capable identity provider exists, TinyAuth is generated with a PocketID OIDC provider and PocketID is provisioned as the local IdP. `admin-bootstrap`, Smart Home, Files, and AI remain planned or opt-in until their modules can create a working first user and pass the same smoke path.
+
+The production-readiness path generates OpenTofu resources and applies them on a fresh Ubuntu target:
+
+- healthy platform containers include `step-ca`, `traefik`, `pocketid`, `tinyauth`, `dokploy`, `dashboard`, `kuma`, and `whoami`
+- standard app containers include `vaultwarden`, `jellyfin`, and the generated photos stack when enabled
+- TinyAuth is inspected for `PROVIDERS_POCKETID_*` and `OAUTH_AUTO_REDIRECT=pocketid`
+- Traefik probes use `*.home.localhost` over HTTPS with Step-CA; Jellyfin is reachable through Traefik but the root UI still needs first-run app setup, so use `/health` for infrastructure smoke.
 
 ## Requirements
 
@@ -22,178 +32,88 @@ All services are accessed via domain routing (`service.stack.local`) through Tra
 | RAM | 2 GB | 4+ GB |
 | Disk | 10 GB | 20+ GB |
 | OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
-| Domain | Not required | Optional (use `stack.local`) |
+| Runtime | Docker 24+ | Docker 29 tested locally |
+
+OpenTofu is invoked by the `stackkit` CLI. Users should not edit generated `.tf` files.
 
 ## Quick Start
 
-### 1. Initialize
-
 ```bash
 stackkit init base-kit
-# Edit my-homelab-spec.yaml: set IP, SSH user, SSH key path
+stackkit prepare
+stackkit generate
+stackkit plan
+stackkit apply
 ```
 
-### 2. Validate
+For local development smoke tests, generating into `build/` is enough:
 
 ```bash
-stackkit validate my-homelab-spec.yaml
+stackkit generate --spec base-kit/default-spec.yaml --output build/basekit-local --force
+tofu -chdir=build/basekit-local init -backend=false
+tofu -chdir=build/basekit-local plan
 ```
 
-### 3. Deploy
+## Access
 
-```bash
-stackkit apply my-homelab-spec.yaml
+For the default local spec on the same device, use the browser-reserved `.localhost` suffix:
+
+```text
+https://base.home.localhost
+https://id.home.localhost
+https://auth.home.localhost
+https://vault.home.localhost
+https://media.home.localhost
 ```
 
-### 4. Access your services
+For LAN-wide clear names, initialize with `stackkit init base-kit --local-dns` for `*.home`, or add `--local-name family` for `*.family.home`. That deploys Kombify Point DNS and requires router/client DNS to point at the StackKits server IP.
 
-Add to `/etc/hosts` on your client (or configure a wildcard in your DNS/dnsmasq):
+TinyAuth receives a generated local break-glass password from the composition engine and is also preconfigured for PocketID OIDC. There is no static `admin/admin123` credential. During local generation the generated values are written to `terraform.tfvars.json`; treat that file as sensitive build output and do not commit it.
 
-```
-192.168.1.100  auth.stack.local
-192.168.1.100  traefik.stack.local
-192.168.1.100  dokploy.stack.local
-192.168.1.100  kuma.stack.local
-```
+## Current Gaps
 
-Or use a wildcard entry: `*.stack.local → 192.168.1.100`
+These are deliberate scope boundaries, not hidden defaults:
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| TinyAuth | `http://auth.stack.local` | Login (admin / admin123) |
-| Traefik | `http://traefik.stack.local` | Reverse proxy dashboard |
-| Dokploy | `http://dokploy.stack.local` | Deploy and manage apps |
-| Uptime Kuma | `http://kuma.stack.local` | Service monitoring |
-| Traefik direct | `http://server-ip:8080` | Dashboard (no DNS needed) |
-
-## First Login
-
-1. Open `http://auth.stack.local` — TinyAuth login
-   - Username: `admin`, Password: `admin123`
-   - **Change the password immediately**
-2. Open `http://dokploy.stack.local` — redirects through TinyAuth
-3. In Dokploy, deploy Layer 3 apps (Uptime Kuma, your own services)
+- PocketID/OIDC is mandatory for passkey-capable login. The TinyAuth OIDC client is provisioned automatically; full owner/passkey enrollment remains part of the first-run identity flow.
+- Immich/photos is opt-in until its Postgres, Redis, and ML dependencies are rendered and smoked as a unit.
+- Jellyfin currently passes infrastructure health and Traefik discovery, but app-level first-run user setup is not automated.
+- Vaultwarden has generated admin material, but end-user account provisioning is not yet a one-click flow.
+- The documented V6 target still requires `security-baseline`, `admin-bootstrap`, and `login-gateway` to become mandatory defaults.
 
 ## Architecture
 
-```
-Internet / LAN client
-        │
-        ▼
-  Traefik :80/:443        (L2 Platform — reverse proxy)
-        │
-        ├─► TinyAuth      (L1 Foundation — ForwardAuth identity)
-        │
-        ├─► Dokploy       (L2 Platform — PaaS, protected by TinyAuth)
-        │    │
-        │    └─► dokploy-postgres (L2 — internal DB network, no host ports)
-        │
-        └─► Uptime Kuma   (L3 Application — managed by Dokploy)
-```
-
-**Security by default:**
-- PostgreSQL on isolated internal Docker network (no host ports)
-- All services: `security_opts: [no-new-privileges:true]`, dropped capabilities
-- All containers: health checks and restart policies
-- Secrets generated at deploy time via OpenTofu `random_password`
-
-## Configuration Variables
-
-Edit `terraform.tfvars` in `templates/simple/` to override defaults:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `domain` | `stack.local` | Base domain for all services |
-| `network_name` | `base_net` | Docker network name |
-| `network_subnet` | `172.20.0.0/16` | Docker network subnet |
-| `enable_tinyauth` | `true` | Enable TinyAuth identity proxy |
-| `enable_dokploy` | `true` | Enable Dokploy PaaS |
-| `enable_dokploy_apps` | `true` | Create Dokploy compose configs |
-| `tinyauth_users` | `admin:$2a$10$...` | Bcrypt-hashed user list |
-| `tinyauth_app_url` | `http://auth.stack.local` | TinyAuth URL |
-
-## DNS Options
-
-**Option A — /etc/hosts (simplest):**
-```
-# Add on each client machine
-192.168.1.100  auth.stack.local traefik.stack.local dokploy.stack.local kuma.stack.local
+```text
+LAN / browser
+      |
+      v
+Traefik :80/:443
+      |
+      +--> PocketID      id.home.localhost
+      +--> TinyAuth      auth.home.localhost
+      +--> Vaultwarden   vault.home.localhost
+      +--> Jellyfin      media.home.localhost
+      |
+      +--> socket-proxy  internal Docker API, never public
 ```
 
-**Option B — dnsmasq wildcard (recommended):**
-```
-# /etc/dnsmasq.conf
-address=/.stack.local/192.168.1.100
-```
+Security defaults currently covered by generated resources:
 
-**Option C — Real domain:**
-```hcl
-# terraform.tfvars
-domain = "yourdomain.com"
-# Add DNS A records: *.yourdomain.com → server-ip
-```
+- Docker socket access goes through `tecnativa/docker-socket-proxy`.
+- Traefik uses Docker discovery through the socket proxy.
+- Service routes are label-driven from CUE module contracts.
+- Secrets and user credentials are generated, not hard-coded.
 
-## Add-Ons
+Host hardening (`UFW`, `fail2ban`, SSH hardening, unattended upgrades) is planned under `security-baseline` and is not part of the verified Docker-only default yet.
 
-The Base Kit is the foundation. Extend it with add-ons from `addons/`:
+## Development Gates
 
-| Add-On | Adds |
-|--------|------|
-| `monitoring` | VictoriaMetrics + Grafana + Loki |
-| `backup` | Restic with scheduled backups |
-| `vpn-overlay` | Headscale/Tailscale mesh |
-| `tunnel` | Cloudflare Tunnel / Pangolin |
-| `media` | Jellyfin + Sonarr + Radarr |
-| `smart-home` | Home Assistant + MQTT |
-| `ai-workloads` | Ollama + Open WebUI |
+For code or CUE changes, run:
 
-Add-ons replace the old variant system (Beszel, Dockge, Portainer, Netdata). Enable them in your spec under `addons:`.
-
-## File Structure
-
-```
-base-kit/
-├── stackkit.yaml         # StackKit metadata
-├── stackfile.cue         # CUE schema definition
-├── services.cue          # Service definitions
-├── defaults.cue          # Smart defaults
-├── default-spec.yaml     # User-facing spec template
-├── templates/
-│   ├── simple/
-│   │   └── main.tf       # OpenTofu configuration (v4)
-│   └── advanced/         # Terramate multi-stack (advanced)
-└── tests/
-    ├── schema_test.cue   # CUE schema tests
-    ├── e2e_test.sh       # End-to-end SSH test
-    └── run_tests.sh      # CUE test runner
-```
-
-## Troubleshooting
-
-**Services not reachable:**
 ```bash
-# Check container status on server
-ssh user@server docker ps
-
-# Check Traefik logs
-ssh user@server docker logs traefik
-
-# Test Traefik is running (no DNS needed)
-curl http://server-ip:8080/ping
-```
-
-**TinyAuth redirect loop:**
-- Ensure `APP_URL` in TinyAuth matches the URL you're accessing
-- Verify `auth.stack.local` resolves to your server
-
-**Dokploy cannot reach PostgreSQL:**
-```bash
-# Check internal DB network
-ssh user@server docker network inspect base_net_db
-ssh user@server docker exec dokploy-postgres pg_isready -U dokploy
-```
-
-**CUE validation fails:**
-```bash
+go test ./...
+cue vet ./base/...
 cue vet ./base-kit/...
+cue vet -c=false ./modules/...
+cue vet ./modern-homelab/...
+make test-cue-binding
 ```

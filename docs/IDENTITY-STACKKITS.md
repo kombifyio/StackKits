@@ -343,14 +343,12 @@ StackKits offer guided migrations:
 | LLDAP | ✅ `base/identity.cue` | ✅ `base/identity/_lldap.tf.tmpl` | ✅ | base-kit |
 | Step-CA | ✅ `base/identity.cue` | ✅ `base/identity/_step-ca.tf.tmpl` | ✅ | base-kit (disabled) |
 | TinyAuth | ✅ `base/layers.cue` | ✅ `templates/simple/main.tf` | ✅ | base-kit |
-| PocketID | ✅ `base/layers.cue` | ❌ Missing | ✅ | Disabled everywhere |
+| PocketID | ✅ `base/layers.cue` | ✅ `templates/simple/main.tf` | ✅ TinyAuth public PKCE client | base-kit default |
 | Traefik | ✅ via PaaS config | ✅ via Dokploy/Coolify | ✅ | All stacks |
 | PocketBase OIDC→PocketID | ❌ Not yet | N/A (kombify-TechStack code) | N/A | Not implemented |
 
 ### Priority gaps
 
-1. **TinyAuth Terraform template** — needed to deploy TinyAuth via StackKit engine.
-2. **PocketID Terraform template** — needed to deploy PocketID via StackKit engine.
-3. **PocketBase→PocketID OIDC** — kombify-TechStack needs OIDC client config for PocketID (self-hosted mode).
-4. **Enable PocketID by default** — if passkeys are the recommended auth, the passkey IdP must be on.
-5. **Identity config in modern-homelab and ha-kit** — currently only base-kit has identity blocks.
+1. **Owner/passkey bootstrap** — first-run PocketID enrollment must become fully automated and idempotent.
+2. **PocketBase→PocketID OIDC** — kombify-TechStack needs OIDC client config for PocketID (self-hosted mode).
+3. **Identity config in modern-homelab and ha-kit** — currently only base-kit has identity blocks.

@@ -2,10 +2,10 @@
 
 > Identity, multi-tenancy, and federation for the kombify cloud platform.
 
-**Last Updated**: 2026-02-11
+**Last Updated**: 2026-04-17
 **Scope**: This document covers the identity model for the **kombify SaaS platform** — kombifySphere, kombifyAPI, multi-tenancy, and cloud ↔ homelab federation. For the identity stack **within homelabs** (deployed by StackKits), see [IDENTITY-STACKKITS.md](IDENTITY-STACKKITS.md).
 
-> **Status**: Planning phase. The SaaS platform IdP has not been finalized. The content below captures architectural intent and constraints.
+> **Status**: **CLOSED 2026-04-15** — Auth0 selected as platform IdP. Cutover from Zitadel completed 2026-04-15. Dual-client pattern live (regular_web for user login via Auth.js, non_interactive for M2M). JWT validation moved from Kong to Cloudflare Edge.
 
 ---
 
@@ -22,24 +22,45 @@ The self-hosted identity model is fully defined in [IDENTITY-STACKKITS.md](IDENT
 
 ---
 
-## 2. Platform IdP Decision (Open)
+## 2. Platform IdP Decision (CLOSED 2026-04-15)
 
-The original plan proposed **Auth0** as the central SaaS IdP. This remains a candidate but is **not a settled decision**. Alternatives include:
+**Selected: Auth0.** Cutover from Zitadel completed 2026-04-15. All kombify frontends now authenticate via Auth0 OIDC/PKCE through Auth.js; all backend services validate JWTs at the Cloudflare Edge instead of inside Kong OSS.
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Auth0** | Multi-tenant OIDC, FIDO2, rich API | Operational complexity, self-host or cloud dependency |
-| **Auth0 / Clerk** | Managed, fast to integrate | Vendor lock-in, cost at scale |
-| **PocketID (cloud instance)** | Consistent with homelab stack | Not designed for multi-tenant SaaS |
-| **Custom (PocketBase auth)** | Already integrated in kombify-TechStack | Limited OIDC features, no federation |
+### Decision outcome
 
-**Decision criteria:**
-- Must support OIDC with standard claims (roles, groups, org).
-- Must support passkeys (WebAuthn) as primary auth.
-- Must support multi-tenancy (organizations / projects).
-- Must be able to federate with local PocketID instances in homelabs.
+| Option | Verdict |
+|--------|---------|
+| **Auth0** | ✅ **Selected** — meets all decision criteria, managed OIDC/PKCE, WebAuthn-ready, multi-tenant via organizations |
+| Clerk | Rejected — vendor lock-in, cost at scale for kombify's growth model |
+| PocketID (cloud instance) | Rejected — not designed for multi-tenant SaaS (stays in homelabs as local IdP) |
+| Custom (PocketBase auth) | Rejected — limited OIDC features, no federation |
+| Zitadel (previous) | Replaced — operational complexity exceeded value at kombify scale |
 
-**Current implementation**: kombify-TechStack has working Auth0 OIDC integration (`pkg/auth/auth0/`) and edge header trust. These work but tie the stack to a specific IdP choice.
+### Dual-client pattern (live since 2026-04-15)
+
+Auth0 is configured with **two application clients** to cleanly separate human and machine flows:
+
+| Client type | Auth0 "Application Type" | Used by | Flow |
+|---|---|---|---|
+| User login | `regular_web` | All kombify frontends (via Auth.js in SvelteKit) | OIDC + PKCE |
+| M2M (service-to-service) | `non_interactive` | Internal services, CI, node agents | OAuth2 client credentials |
+
+### JWT validation at Cloudflare Edge
+
+JWT verification was moved from Kong OSS to **Cloudflare Edge** (Workers + Access). Kong OSS is no longer a production ingress. New routes go directly onto Cloudflare — see `kombify Core/standards/API-COMMUNICATION-ARCHITECTURE.md` for the current pattern.
+
+### Implementation references
+
+- Frontend: Auth.js config per SvelteKit app.
+- Backend: `pkg/auth/auth0/` validates Auth0-issued JWTs; legacy Kong header-trust (`pkg/auth/kong/`) is deprecated and should be removed where still present.
+- Secrets: `doppler secrets -p kombify-io -c prd --plain AUTH0_*`.
+
+### Decision criteria (all met)
+
+- ✅ OIDC with standard claims (roles, groups, org)
+- ✅ Passkeys (WebAuthn) — Auth0 native support
+- ✅ Multi-tenancy via Auth0 Organizations
+- ✅ Federates with local PocketID in homelabs (via TinyAuth broker — see §3)
 
 ---
 
@@ -137,7 +158,7 @@ All roles appear as standardized claims (`role`, `org_role`, `lab_role`) in OIDC
 Organization (kombifySphere)
   └── Project / Tenant
         ├── kombify-TechStack instance (homelab)
-        ├── kombify Sim instance (optional)
+        ├── kombify Simulate instance (optional)
         └── StackKits catalog (optional)
 ```
 
@@ -164,7 +185,7 @@ Organization (kombifySphere)
 | Service Account | Purpose | Auth Method |
 |----------------|---------|-------------|
 | kombify-TechStack workers | Execute provisioning jobs | mTLS (Step-CA) |
-| kombify Sim orchestrator | Run simulations | mTLS or OAuth2 client credentials |
+| kombify Simulate orchestrator | Run simulations | mTLS or OAuth2 client credentials |
 | CI/CD pipelines | Automated StackKit validation | OAuth2 client credentials |
 | Monitoring agents | Push metrics/logs | mTLS |
 
@@ -222,9 +243,8 @@ Log security-relevant events:
 
 ## 9. Open Questions
 
-1. **Platform IdP selection**: Auth0 vs. managed alternative vs. custom. Needs evaluation.
-2. **Federation protocol**: How exactly does TinyAuth broker between cloud IdP and local PocketID? Needs spec.
+1. ~~**Platform IdP selection**: Auth0 vs. managed alternative vs. custom.~~ **RESOLVED 2026-04-15** — Auth0 selected, cutover completed. See §2.
+2. **Federation protocol**: How exactly does TinyAuth broker between Auth0 and local PocketID? Needs spec (target: V6 Phase 3 ADR-0009 3-tier-provisioning reference).
 3. **Provisioning direction**: Does the cloud push users into LLDAP, or does the homelab pull? Needs decision.
 4. **Billing integration**: How do SaaS roles (MANAGER) tie to billing providers? Out of scope for StackKits.
-5. **Environments**: How many separate IdP configurations per dev/stage/prod? Depends on SaaS architecture.
-
+5. **Environments**: How many separate Auth0 tenants per dev/stage/prod? Currently: single tenant with environment-prefixed clients. Revisit if isolation requirements change.

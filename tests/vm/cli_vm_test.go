@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const vmWorkDir = "/workspace/.stackkits-vm-workspace"
+
 // execInCli runs a command inside the stackkits-cli container which has
 // DOCKER_HOST=tcp://vm:2375 set, so all docker/tofu operations target the VM.
 func execInCli(t *testing.T, args ...string) (string, error) {
@@ -61,19 +63,49 @@ func TestCLI_Version(t *testing.T) {
 }
 
 func TestCLI_Init(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "init", "base-kit",
-		"--non-interactive", "-C", "/workspace", "--force")
+	out, err := execInCli(t, "sh", "-c", fmt.Sprintf("rm -rf %s && mkdir -p %s", vmWorkDir, vmWorkDir))
+	require.NoError(t, err, "prepare isolated VM workspace failed: %s", out)
+
+	out, err = execInCli(t, "stackkit", "init", "base-kit",
+		"--non-interactive", "-C", vmWorkDir, "--force")
 	require.NoError(t, err, "init failed: %s", out)
 
 	// Verify stack-spec.yaml was created
-	specOut, err := execInCli(t, "cat", "/workspace/stack-spec.yaml")
+	specOut, err := execInCli(t, "cat", vmWorkDir+"/stack-spec.yaml")
 	require.NoError(t, err, "reading spec failed: %s", specOut)
 	assert.Contains(t, specOut, "base-kit", "spec should reference base-kit stackkit")
 	assert.Contains(t, specOut, "mode", "spec should contain mode field")
 }
 
+func TestCLI_Init_AddSvelteKitSmokeApp(t *testing.T) {
+	buildSmokeSvelteKitImage(t)
+
+	out, err := execInCli(t, "sh", "-c", fmt.Sprintf(`cat >> %s/stack-spec.yaml <<'YAML'
+
+apps:
+  web:
+    kind: sveltekit
+    image: stackkits-smoke-sveltekit:latest
+    port: 3000
+    route:
+      host: app.stack.local
+      auth: login-gateway
+    health:
+      path: /health
+    env:
+      PUBLIC_APP_NAME: StackKit Smoke
+YAML
+`, vmWorkDir))
+	require.NoError(t, err, "append SvelteKit smoke app failed: %s", out)
+
+	specOut, err := execInCli(t, "cat", vmWorkDir+"/stack-spec.yaml")
+	require.NoError(t, err, "reading spec failed: %s", specOut)
+	assert.Contains(t, specOut, "apps:", "spec should contain apps contract")
+	assert.Contains(t, specOut, "stackkits-smoke-sveltekit:latest", "spec should reference the local smoke image")
+}
+
 func TestCLI_Init_SpecStructure(t *testing.T) {
-	specOut, err := execInCli(t, "cat", "/workspace/stack-spec.yaml")
+	specOut, err := execInCli(t, "cat", vmWorkDir+"/stack-spec.yaml")
 	require.NoError(t, err, "reading spec failed: %s", specOut)
 
 	// Verify key spec fields
@@ -87,7 +119,7 @@ func TestCLI_Init_SpecStructure(t *testing.T) {
 }
 
 func TestCLI_Validate(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "validate", "-C", "/workspace")
+	out, err := execInCli(t, "stackkit", "validate", "-C", vmWorkDir)
 	require.NoError(t, err, "validate failed: %s", out)
 	assert.Contains(t, strings.ToLower(out), "valid")
 }
@@ -102,13 +134,13 @@ func TestCLI_Validate_InvalidSpec(t *testing.T) {
 }
 
 func TestCLI_Validate_Verbose(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "validate", "-C", "/workspace", "-v")
+	out, err := execInCli(t, "stackkit", "validate", "-C", vmWorkDir, "-v")
 	require.NoError(t, err, "validate -v failed: %s", out)
 	t.Logf("Verbose validate output:\n%s", out)
 }
 
 func TestCLI_Prepare(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "prepare", "-C", "/workspace")
+	out, err := execInCli(t, "stackkit", "prepare", "-C", vmWorkDir)
 	if err != nil {
 		t.Logf("prepare output (may partially fail): %s", out)
 	}
@@ -119,7 +151,7 @@ func TestCLI_Prepare(t *testing.T) {
 }
 
 func TestCLI_Prepare_DryRun(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "prepare", "-C", "/workspace", "--dry-run")
+	out, err := execInCli(t, "stackkit", "prepare", "-C", vmWorkDir, "--dry-run")
 	if err != nil {
 		t.Logf("prepare --dry-run output: %s", out)
 	}
@@ -129,11 +161,11 @@ func TestCLI_Prepare_DryRun(t *testing.T) {
 
 func TestCLI_Generate(t *testing.T) {
 	out, err := execInCli(t, "stackkit", "generate",
-		"-C", "/workspace", "--force")
+		"-C", vmWorkDir, "--force")
 	require.NoError(t, err, "generate failed: %s", out)
 
 	// Verify .tf files were created
-	lsOut, err := execInCli(t, "sh", "-c", "ls /workspace/deploy/*.tf 2>/dev/null || ls /workspace/*.tf 2>/dev/null || echo 'no tf files'")
+	lsOut, err := execInCli(t, "sh", "-c", fmt.Sprintf("ls %s/deploy/*.tf 2>/dev/null || ls %s/*.tf 2>/dev/null || echo 'no tf files'", vmWorkDir, vmWorkDir))
 	require.NoError(t, err)
 	assert.NotContains(t, lsOut, "no tf files", "generate should create .tf files")
 }
@@ -141,7 +173,7 @@ func TestCLI_Generate(t *testing.T) {
 func TestCLI_Generate_VerifyTfStructure(t *testing.T) {
 	// Verify generated Terraform contains expected resource types
 	tfContent, err := execInCli(t, "sh", "-c",
-		"cat /workspace/deploy/*.tf 2>/dev/null || cat /workspace/*.tf 2>/dev/null || echo 'no tf files'")
+		fmt.Sprintf("cat %s/deploy/*.tf 2>/dev/null || cat %s/*.tf 2>/dev/null || echo 'no tf files'", vmWorkDir, vmWorkDir))
 	require.NoError(t, err)
 	assert.NotContains(t, tfContent, "no tf files")
 
@@ -151,8 +183,19 @@ func TestCLI_Generate_VerifyTfStructure(t *testing.T) {
 		"generated TF should contain resource or module blocks: %s", tfContent[:min(500, len(tfContent))])
 }
 
+func TestCLI_Generate_VerifySvelteKitAppResources(t *testing.T) {
+	appsTF, err := execInCli(t, "cat", vmWorkDir+"/deploy/apps.tf")
+	require.NoError(t, err, "reading apps.tf failed: %s", appsTF)
+
+	assert.Contains(t, appsTF, `resource "docker_container" "app_web"`, "apps.tf should define the SvelteKit app container")
+	assert.Contains(t, appsTF, `name     = "app-web"`, "apps.tf should name the app container predictably")
+	assert.Contains(t, appsTF, "Host(`app.stack.local`)", "apps.tf should route the app through Traefik")
+	assert.Contains(t, appsTF, "tinyauth@docker", "login-gateway apps should use TinyAuth middleware")
+	assert.Contains(t, appsTF, "fetch('http://127.0.0.1:3000/health')", "apps.tf should healthcheck the configured path")
+}
+
 func TestCLI_Plan(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "plan", "-C", "/workspace")
+	out, err := execInCli(t, "stackkit", "plan", "-C", vmWorkDir)
 	require.NoError(t, err, "plan failed: %s", out)
 	lowerOut := strings.ToLower(out)
 	assert.True(t,
@@ -161,7 +204,7 @@ func TestCLI_Plan(t *testing.T) {
 }
 
 func TestCLI_Plan_ResourceCount(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "plan", "-C", "/workspace")
+	out, err := execInCli(t, "stackkit", "plan", "-C", vmWorkDir)
 	require.NoError(t, err, "plan failed: %s", out)
 
 	// Log the full plan for debugging
@@ -176,7 +219,7 @@ func TestCLI_Plan_ResourceCount(t *testing.T) {
 
 func TestCLI_Apply(t *testing.T) {
 	out, err := execInCli(t, "stackkit", "apply",
-		"-C", "/workspace", "--auto-approve")
+		"-C", vmWorkDir, "--auto-approve")
 	require.NoError(t, err, "apply failed: %s", out)
 	lowerOut := strings.ToLower(out)
 	assert.True(t,
@@ -198,6 +241,7 @@ func TestCLI_Apply_VerifyContainers(t *testing.T) {
 	names, err := execInVM(t, "docker", "ps", "--format", "{{.Names}}")
 	require.NoError(t, err)
 	assert.Contains(t, names, "traefik", "traefik should be running")
+	assert.Contains(t, names, "app-web", "SvelteKit app should be running")
 }
 
 func TestCLI_Apply_VerifyContainerHealth(t *testing.T) {
@@ -217,8 +261,32 @@ func TestCLI_Apply_VerifyContainerHealth(t *testing.T) {
 	}
 }
 
+func TestCLI_Apply_VerifySvelteKitAppRouteAndHealth(t *testing.T) {
+	found := waitForContainers(t, "app-web", 90*time.Second)
+	require.True(t, found, "SvelteKit app container should be running in VM after apply")
+
+	directHealth, err := execInVM(t, "docker", "exec", "app-web", "node", "-e",
+		"fetch('http://127.0.0.1:3000/health').then(async r=>{const body=await r.text(); if(!r.ok || !body.includes('ok')) process.exit(1)}).catch(()=>process.exit(1))")
+	require.NoError(t, err, "direct app health failed: %s", directHealth)
+
+	labels, err := execInVM(t, "docker", "inspect", "app-web",
+		"--format", "{{json .Config.Labels}}")
+	require.NoError(t, err, "inspect app-web labels failed: %s", labels)
+	assert.Contains(t, labels, "Host(`app.stack.local`)", "Traefik host route should be attached to app-web")
+	assert.Contains(t, labels, "tinyauth@docker", "login-gateway middleware should be attached to app-web")
+
+	status, err := execInVM(t, "sh", "-c",
+		"docker image inspect curlimages/curl:latest >/dev/null 2>&1 || docker pull -q curlimages/curl:latest >/dev/null; docker run --rm --network frontend curlimages/curl:latest -sS -o /tmp/stackkits-app-route.out -w '%{http_code}' -H 'Host: app.stack.local' http://traefik/health")
+	require.NoError(t, err, "Traefik app route request failed: %s", status)
+	code := strings.TrimSpace(status)
+	assert.NotEqual(t, "404", code, "Traefik should have a route for app.stack.local")
+	assert.NotEqual(t, "502", code, "Traefik should reach the app container")
+	assert.Contains(t, map[string]bool{"200": true, "302": true, "401": true, "403": true}, code,
+		"route should either serve health directly or be blocked by the login gateway")
+}
+
 func TestCLI_Status(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "status", "-C", "/workspace")
+	out, err := execInCli(t, "stackkit", "status", "-C", vmWorkDir)
 	require.NoError(t, err, "status failed: %s", out)
 	lowerOut := strings.ToLower(out)
 	assert.True(t,
@@ -227,7 +295,7 @@ func TestCLI_Status(t *testing.T) {
 }
 
 func TestCLI_Status_JSON(t *testing.T) {
-	out, err := execInCli(t, "stackkit", "status", "-C", "/workspace", "--json")
+	out, err := execInCli(t, "stackkit", "status", "-C", vmWorkDir, "--json")
 	require.NoError(t, err, "status --json failed: %s", out)
 	assert.True(t,
 		strings.Contains(out, "{") && strings.Contains(out, "}"),
@@ -235,10 +303,12 @@ func TestCLI_Status_JSON(t *testing.T) {
 
 	// Verify it's valid JSON
 	var parsed map[string]interface{}
-	jsonStr := out[strings.Index(out, "{"):]
-	if idx := strings.LastIndex(jsonStr, "}"); idx >= 0 {
-		jsonStr = jsonStr[:idx+1]
-	}
+	start := strings.Index(out, "{")
+	require.GreaterOrEqual(t, start, 0, "status --json should contain JSON: %s", out)
+	jsonStr := out[start:]
+	end := strings.LastIndex(jsonStr, "}")
+	require.GreaterOrEqual(t, end, 0, "status --json should contain a complete JSON object: %s", out)
+	jsonStr = jsonStr[:end+1]
 	err = json.Unmarshal([]byte(jsonStr), &parsed)
 	assert.NoError(t, err, "status --json should return parseable JSON: %s", jsonStr)
 }
@@ -500,7 +570,7 @@ func TestVM_DockerDaemonInfo(t *testing.T) {
 
 func TestCLI_Remove(t *testing.T) {
 	out, err := execInCli(t, "stackkit", "remove",
-		"-C", "/workspace", "--auto-approve")
+		"-C", vmWorkDir, "--auto-approve")
 	require.NoError(t, err, "remove failed: %s", out)
 	lowerOut := strings.ToLower(out)
 	assert.True(t,
@@ -517,6 +587,8 @@ func TestCLI_Remove_VerifyCleanup(t *testing.T) {
 		"traefik should be removed after remove")
 	assert.NotContains(t, names, "dokploy",
 		"dokploy should be removed after remove")
+	assert.NotContains(t, names, "app-web",
+		"SvelteKit app should be removed after remove")
 }
 
 func TestCLI_Remove_VerifyNoContainers(t *testing.T) {
@@ -568,4 +640,35 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func buildSmokeSvelteKitImage(t *testing.T) {
+	t.Helper()
+
+	out, err := execInVM(t, "sh", "-c", `set -eu
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+cat > "$tmp/Dockerfile" <<'DOCKERFILE'
+FROM node:22-alpine
+WORKDIR /app
+RUN cat > server.js <<'JS'
+const http = require('http');
+const appName = process.env.PUBLIC_APP_NAME || 'StackKit Smoke';
+const port = Number(process.env.PORT || 3000);
+
+http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, {'content-type': 'application/json'});
+    res.end(JSON.stringify({status: 'ok', app: appName}));
+    return;
+  }
+  res.writeHead(200, {'content-type': 'text/plain'});
+  res.end(appName);
+}).listen(port, '0.0.0.0');
+JS
+CMD ["node", "server.js"]
+DOCKERFILE
+docker build -t stackkits-smoke-sveltekit:latest "$tmp"
+`)
+	require.NoError(t, err, "build SvelteKit smoke image in VM failed: %s", out)
 }

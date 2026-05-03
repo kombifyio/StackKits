@@ -75,6 +75,26 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
+# Traefik's /ping returns 200 as soon as the API is up, but the Docker
+# provider discovers labels asynchronously -- there can be a several-hundred-ms
+# window where HTTP requests land on an empty router table and return 404.
+# Poll /api/http/routers until the dashboard router is registered before
+# issuing HTTP assertions.
+echo ""
+echo "Waiting for Traefik to discover dashboard router..."
+for i in $(seq 1 30); do
+    if curl -s "$TRAEFIK_API/api/http/routers" 2>/dev/null | grep -q "dashboard@docker"; then
+        echo "Traefik discovered dashboard router after ${i}s"
+        break
+    fi
+    if [ "$i" = "30" ]; then
+        echo "Traefik did not discover dashboard router within 30s"
+        curl -s "$TRAEFIK_API/api/http/routers" 2>&1 | head -20
+        exit 1
+    fi
+    sleep 1
+done
+
 echo ""
 echo "--- Running Tests ---"
 echo ""

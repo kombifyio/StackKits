@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/template"
 
+	cueval "github.com/kombifyio/stackkits/internal/cue"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -40,6 +41,10 @@ type RenderContext struct {
 	StackKit  *models.StackKit
 	Services  []ServiceContext
 	Variables map[string]interface{}
+	// Catalog is the CUE-driven service catalog for domain + dashboard generation.
+	Catalog []cueval.CatalogEntry
+	// Domains includes all services that need a local.domains entry (catalog + dashboard).
+	Domains []cueval.CatalogEntry
 }
 
 // ServiceContext contains service-specific data for templates
@@ -171,27 +176,29 @@ func (r *Renderer) renderTemplate(tmplPath string, ctx *RenderContext) error {
 // defaultFuncMap returns the default template functions
 func (r *Renderer) defaultFuncMap() template.FuncMap {
 	return template.FuncMap{
-		"lower":        strings.ToLower,
-		"upper":        strings.ToUpper,
-		"title":        cases.Title(language.English).String,
-		"trim":         strings.TrimSpace,
-		"replace":      strings.ReplaceAll,
-		"contains":     strings.Contains,
-		"hasPrefix":    strings.HasPrefix,
-		"hasSuffix":    strings.HasSuffix,
-		"join":         strings.Join,
-		"split":        strings.Split,
-		"default":      defaultValue,
-		"quote":        quote,
-		"indent":       indent,
-		"toYaml":       toYaml,
-		"toJson":       toJson,
-		"toJsonPretty": toJsonPretty,
-		"ifEnabled":    ifEnabled,
-		"serviceFor":   serviceFor,
-		"envMap":       envMap,
-		"labelMap":     labelMap,
-		"portList":     portList,
+		"lower":          strings.ToLower,
+		"upper":          strings.ToUpper,
+		"title":          cases.Title(language.English).String,
+		"trim":           strings.TrimSpace,
+		"replace":        strings.ReplaceAll,
+		"contains":       strings.Contains,
+		"hasPrefix":      strings.HasPrefix,
+		"hasSuffix":      strings.HasSuffix,
+		"join":           strings.Join,
+		"split":          strings.Split,
+		"default":        defaultValue,
+		"quote":          quote,
+		"indent":         indent,
+		"toYaml":         toYaml,
+		"toJson":         toJSON,
+		"toJsonPretty":   toJSONPretty,
+		"ifEnabled":      ifEnabled,
+		"serviceFor":     serviceFor,
+		"envMap":         envMap,
+		"labelMap":       labelMap,
+		"portList":       portList,
+		"catalogSection": catalogSection,
+		"hasEnableVar":   hasEnableVar,
 	}
 }
 
@@ -232,8 +239,10 @@ func toYaml(v interface{}) string {
 	return strings.TrimSuffix(string(data), "\n")
 }
 
-// toJson converts to JSON string (TD-013: proper implementation)
-func toJson(v interface{}) string {
+// toJSON converts to JSON string (TD-013: proper implementation).
+// Exposed in templates as "toJson" for backward compatibility with existing
+// template files; the Go identifier follows the canonical ID initialism.
+func toJSON(v interface{}) string {
 	if v == nil {
 		return "null"
 	}
@@ -244,8 +253,9 @@ func toJson(v interface{}) string {
 	return string(data)
 }
 
-// toJsonPretty converts to pretty-printed JSON string
-func toJsonPretty(v interface{}) string {
+// toJSONPretty converts to pretty-printed JSON string.
+// Exposed in templates as "toJsonPretty" for backward compatibility.
+func toJSONPretty(v interface{}) string {
 	if v == nil {
 		return "null"
 	}
@@ -327,6 +337,22 @@ func portList(ports []PortMapping) string {
 		blocks = append(blocks, block)
 	}
 	return strings.Join(blocks, "\n")
+}
+
+// catalogSection filters catalog entries by section name
+func catalogSection(section string, catalog []cueval.CatalogEntry) []cueval.CatalogEntry {
+	var result []cueval.CatalogEntry
+	for _, e := range catalog {
+		if e.Section == section {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
+// hasEnableVar returns true if the entry has a Terraform enable variable
+func hasEnableVar(e cueval.CatalogEntry) bool {
+	return e.EnableVar != ""
 }
 
 // validateHCLValue checks that a string is safe to embed in HCL.

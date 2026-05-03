@@ -11,9 +11,14 @@
 
 services:
   socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    # Pinned to 0.2.0 (last alpine-based release with wget) so the wget-based
+    # healthcheck below works. Newer :latest is scratch + Go and has no shell.
+    image: tecnativa/docker-socket-proxy:0.2.0
     container_name: test-cs-socket-proxy
     environment:
+      # VERSION=1 is required so the wget healthcheck (GET /version) can pass;
+      # without it the proxy returns 403 and the container is marked unhealthy.
+      VERSION: "1"
       CONTAINERS: "1"
       NETWORKS: "1"
       SERVICES: "1"
@@ -32,6 +37,10 @@ services:
     read_only: true
     tmpfs:
       - /run
+      # tecnativa/docker-socket-proxy's entrypoint writes /usr/local/etc/haproxy/haproxy.cfg
+      # at start-up from the *_* env flags. With read_only rootfs we must mount that
+      # directory as tmpfs so the rendered config can be written.
+      - /usr/local/etc/haproxy
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:2375/version || exit 1"]
       interval: 10s
@@ -44,6 +53,7 @@ services:
     container_name: test-cs-traefik
     command:
       - "--api.insecure=true"
+      - "--ping=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.endpoint=tcp://socket-proxy:2375"
@@ -70,7 +80,7 @@ services:
       - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecEnabled=true"
       - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecHost=crowdsec:7422"
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 10s
       timeout: 5s
       retries: 5

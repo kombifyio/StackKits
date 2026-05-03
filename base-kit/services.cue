@@ -43,7 +43,10 @@ import "github.com/kombifyio/stackkits/base"
 	required:    true
 	image:       "traefik"
 	tag:         "v3.3"
-	description: "Modern reverse proxy with automatic HTTPS via Let's Encrypt"
+	description: "Routes all traffic across services. View active routes, middlewares, and upstreams."
+
+	subdomain: { key: "traefik", nested: "traefik", flat: "traefik" }
+	dashboard: { icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy" }
 
 	network: {
 		ports: [
@@ -138,8 +141,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     false // Disabled by default in base-kit
 	image:       "ghcr.io/steveiliop56/tinyauth"
 	tag:         "v4"
-	description: "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth"
+	description: "ForwardAuth gateway. Protects all services via TinyAuth middleware backed by Pocket ID."
 	needs:       ["traefik"]
+
+	subdomain: { key: "auth", nested: "auth", flat: "tinyauth" }
+	dashboard: { icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth" }
 
 	network: {
 		ports: [
@@ -223,15 +229,18 @@ import "github.com/kombifyio/stackkits/base"
 // #PocketIDService - OIDC Provider (Layer 2)
 #PocketIDService: base.#ServiceDefinition & {
 	name:        "pocketid"
-	displayName: "PocketID"
+	displayName: "Pocket ID"
 	category:    "platform-identity"
 	type:        "auth"
 	required:    false
 	enabled:     false // Disabled by default
 	image:       "ghcr.io/pocket-id/pocket-id"
 	tag:         "v1"
-	description: "Self-hosted OIDC provider for single sign-on"
+	description: "OIDC identity provider with passkey authentication. Manage users and SSO clients."
 	needs:       ["traefik"]
+
+	subdomain: { key: "pocketid", nested: "id", flat: "id" }
+	dashboard: { icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP" }
 
 	network: {
 		ports: [
@@ -317,8 +326,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     true // Default enabled
 	image:       "dokploy/dokploy"
 	tag:         "latest"
-	description: "Self-hosted PaaS for deploying applications with Docker"
+	description: "Deploy and manage applications. Your self-hosted Heroku for services and compose stacks."
 	needs:       ["traefik"]
+
+	subdomain: { key: "dokploy", nested: "dokploy", flat: "dokploy" }
+	dashboard: { icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy" }
 
 	network: {
 		ports: [
@@ -411,8 +423,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     false // Not default, enabled in "coolify" variant
 	image:       "ghcr.io/coollabsio/coolify"
 	tag:         "latest"
-	description: "Self-hosted Heroku/Vercel alternative - recommended for users with own domain"
+	description: "Self-hosted Heroku/Vercel alternative with Git deployment and auto-HTTPS."
 	needs:       ["traefik"]
+
+	subdomain: { key: "coolify", nested: "coolify", flat: "coolify" }
+	dashboard: { icon: "&#128171;", order: 41, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_coolify" }
 
 	network: {
 		ports: [
@@ -509,8 +524,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     true // Default monitoring choice
 	image:       "louislam/uptime-kuma"
 	tag:         "1"
-	description: "Self-hosted uptime monitoring with beautiful status pages"
+	description: "Service uptime monitoring and status pages for all homelab services."
 	needs:       ["traefik"]
+
+	subdomain: { key: "kuma", nested: "kuma", flat: "kuma" }
+	dashboard: { icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring" }
 
 	network: {
 		ports: [
@@ -587,6 +605,8 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "latest"
 	description: "Lightweight server monitoring with historical data and alerts"
 	needs:       ["traefik"]
+
+	subdomain: { key: "monitor", nested: "monitor", flat: "monitor" }
 
 	network: {
 		ports: [
@@ -668,6 +688,8 @@ import "github.com/kombifyio/stackkits/base"
 	description: "Real-time Docker container log viewer"
 	needs:       ["traefik"]
 
+	subdomain: { key: "logs", nested: "logs", flat: "logs" }
+
 	network: {
 		ports: [
 			{host: 8081, container: 8080, protocol: "tcp", description: "Web UI"},
@@ -746,8 +768,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     true // Included for testing proxy configuration
 	image:       "traefik/whoami"
 	tag:         "latest"
-	description: "Simple HTTP server for testing reverse proxy configuration"
+	description: "HTTP echo service for verifying Traefik routing, TinyAuth middleware, and headers."
 	needs:       ["traefik"]
+
+	subdomain: { key: "whoami", nested: "whoami", flat: "whoami" }
+	dashboard: { icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 Test" }
 
 	network: {
 		ports: [
@@ -816,8 +841,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     true // All tiers (~128MB RAM)
 	image:       "vaultwarden/server"
 	tag:         "latest"
-	description: "Bitwarden-compatible password vault for passwords, TOTP, and secure notes"
+	description: "Self-hosted password manager. Bitwarden-compatible vault for passwords, TOTP, and secure notes."
 	needs:       ["traefik"]
+
+	subdomain: { key: "vault", nested: "vault", flat: "vault" }
+	dashboard: { icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden" }
 
 	network: {
 		ports: [
@@ -897,8 +925,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     false // Standard+ tiers only
 	image:       "jellyfin/jellyfin"
 	tag:         "latest"
-	description: "Free media server for movies, TV, music, and photos"
+	description: "Free media server for movies, TV, music, and photos. Stream to any device on your network."
 	needs:       ["traefik"]
+
+	subdomain: { key: "media", nested: "media", flat: "media" }
+	dashboard: { icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 Media", enableVar: "enable_jellyfin" }
 
 	network: {
 		ports: [
@@ -988,8 +1019,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     false // Standard+ tiers only
 	image:       "ghcr.io/immich-app/immich-server"
 	tag:         "release"
-	description: "Self-hosted photo and video management with AI-powered search and mobile backup"
+	description: "Self-hosted photo and video management with AI-powered search, facial recognition, and mobile backup."
 	needs:       ["traefik"]
+
+	subdomain: { key: "photos", nested: "photos", flat: "photos" }
+	dashboard: { icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich" }
 
 	network: {
 		ports: [
@@ -1084,8 +1118,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     false // Only in minimal variant
 	image:       "louislam/dockge"
 	tag:         "1"
-	description: "Visual Docker Compose management interface"
+	description: "Lightweight Docker Compose manager. Create and manage compose stacks with a simple UI."
 	needs:       ["traefik"]
+
+	subdomain: { key: "dockge", nested: "dockge", flat: "dockge" }
+	dashboard: { icon: "&#128230;", order: 42, section: "Platform", badge: "L2 \u00b7 Compose Manager", enableVar: "enable_dockge" }
 
 	network: {
 		ports: [
@@ -1182,6 +1219,8 @@ import "github.com/kombifyio/stackkits/base"
 	description: "Full-featured Docker management UI"
 	needs:       ["traefik"]
 
+	subdomain: { key: "portainer", nested: "portainer", flat: "portainer" }
+
 	network: {
 		ports: [
 			{host: 9000, container: 9000, protocol: "tcp", description: "Web UI"},
@@ -1266,6 +1305,8 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "stable"
 	description: "Real-time system monitoring with detailed metrics"
 	needs:       ["traefik"]
+
+	subdomain: { key: "netdata", nested: "netdata", flat: "netdata" }
 
 	network: {
 		ports: [

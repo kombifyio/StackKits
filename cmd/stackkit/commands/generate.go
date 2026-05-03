@@ -2,29 +2,29 @@ package commands
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/composition"
 	"github.com/kombifyio/stackkits/internal/config"
 	cueval "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/template"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/bcrypt"
 )
 
 var (
 	genOutputDir string
 	genForce     bool
+	genFragments bool
 )
 
 var generateCmd = &cobra.Command{
@@ -46,11 +46,23 @@ Examples:
 func init() {
 	generateCmd.Flags().StringVarP(&genOutputDir, "output", "o", "deploy", "Output directory for generated files")
 	generateCmd.Flags().BoolVarP(&genForce, "force", "f", false, "Overwrite existing files")
+	generateCmd.Flags().BoolVar(&genFragments, "fragments", false, "Generate experimental per-module OpenTofu fragments instead of the stable Base Kit template")
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
 	start := time.Now()
 	wd := getWorkDir()
+
+	// Validate output directory to prevent path traversal
+	if strings.Contains(genOutputDir, "..") {
+		return fmt.Errorf("output directory must not contain '..': %s", genOutputDir)
+	}
+	outputPath := filepath.Join(wd, genOutputDir)
+	cleanOutput := filepath.Clean(outputPath)
+	cleanWd := filepath.Clean(wd)
+	if !strings.HasPrefix(cleanOutput, cleanWd+string(filepath.Separator)) && cleanOutput != cleanWd {
+		return fmt.Errorf("output directory must be within working directory: %s", genOutputDir)
+	}
 
 	// Load spec (loader.resolvePath handles absolute vs relative paths)
 	loader := config.NewLoader(wd)
@@ -78,6 +90,20 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		spec.Context = string(resolvedCtx)
 	}
 
+	if err := ensureKombifyMeRegistration(loader, spec, resolvedCtx); err != nil {
+		return err
+	}
+
+	cueValidator := cueval.NewValidator(wd)
+	if specResult, valErr := cueValidator.ValidateSpec(spec); valErr != nil {
+		return fmt.Errorf("spec validation failed: %w", valErr)
+	} else if !specResult.Valid {
+		for _, e := range specResult.Errors {
+			printWarning("Spec: %s: %s", e.Path, e.Message)
+		}
+		return fmt.Errorf("spec validation failed with %d errors", len(specResult.Errors))
+	}
+
 	printInfo("Generating OpenTofu files for: %s", bold(spec.Name))
 	printInfo("StackKit: %s, Mode: %s, Context: %s", spec.StackKit, spec.Mode, netenv.FormatNodeContext(resolvedCtx))
 
@@ -93,33 +119,106 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Load StackKit
+	// Load StackKit. FindStackKitDir can return a path outside the current
+	// workdir (for example a deployment folder next to the repo root), so load
+	// the definition through a loader scoped to the kit directory.
 	stackkitPath := filepath.Join(stackkitDir, "stackkit.yaml")
-	stackkit, err := loader.LoadStackKit(stackkitPath)
+	stackkitLoader := config.NewLoader(stackkitDir)
+	stackkit, err := stackkitLoader.LoadStackKit(stackkitPath)
 	if err != nil {
 		return fmt.Errorf("failed to load stackkit: %w", err)
 	}
 
 	// Validate CUE schemas before generating
-	cueValidator := cueval.NewValidator(wd)
 	if cueResult, valErr := cueValidator.ValidateStackKit(stackkitDir); valErr != nil {
-		printWarning("CUE validation: %v", valErr)
-		deployLog.Warn("cue.validation",
+		deployLog.Error("cue.validation",
 			slog.String("status", "error"),
 			slog.String("error", valErr.Error()),
 		)
+		return fmt.Errorf("CUE validation failed: %w", valErr)
 	} else if !cueResult.Valid {
 		for _, e := range cueResult.Errors {
 			printWarning("CUE: %s: %s", e.Path, e.Message)
 		}
-		deployLog.Warn("cue.validation",
+		deployLog.Error("cue.validation",
 			slog.String("status", "invalid"),
 			slog.Int("error_count", len(cueResult.Errors)),
 		)
+		return fmt.Errorf("CUE validation failed with %d errors — fix schema issues before generating", len(cueResult.Errors))
 	} else {
 		deployLog.Event("cue.validation",
 			slog.String("status", "valid"),
 		)
+	}
+
+	// Load service catalog from CUE module contracts. BaseKit keeps modules at
+	// repo root; published standalone kits may carry a local modules/ directory.
+	modulesDir := resolveModulesDir(stackkitDir, wd)
+	catalog, catalogErr := cueval.ServiceCatalogFromModules(modulesDir)
+	if catalogErr != nil {
+		printWarning("CUE catalog: %v (falling back to hardcoded catalog)", catalogErr)
+		catalog = cueval.ServiceCatalog()
+		deployLog.Warn("cue.catalog",
+			slog.String("status", "fallback"),
+			slog.String("error", catalogErr.Error()),
+		)
+	} else {
+		deployLog.Event("cue.catalog",
+			slog.String("status", "loaded"),
+			slog.Int("service_count", len(catalog)),
+		)
+	}
+
+	domains, domainErr := cueval.DomainEntriesFromModules(modulesDir)
+	if domainErr != nil {
+		domains = cueval.DomainEntries()
+	}
+
+	// Validate module dependency graph and run composition engine
+	var compositionResult *composition.CompositionResult
+	var loadedContracts []cueval.ModuleContract
+	moduleReader := cueval.NewModuleReader()
+	if contracts, readErr := moduleReader.ReadAllModules(modulesDir); readErr == nil {
+		loadedContracts = contracts
+		graph := composition.BuildGraph(contracts)
+		if depErrs := graph.Validate(); len(depErrs) > 0 {
+			for _, e := range depErrs {
+				printWarning("Dependency: %s", e.Error())
+			}
+			deployLog.Warn("composition.validate",
+				slog.Int("error_count", len(depErrs)),
+			)
+		} else if order, sortErr := graph.TopologicalSort(); sortErr == nil {
+			deployLog.Event("composition.order",
+				slog.String("order", strings.Join(order, " → ")),
+			)
+		}
+
+		// Run composition engine to determine enabled modules and identity config
+		engine := composition.NewCompositionEngine(contracts, stackkit, spec)
+		if result, resolveErr := engine.Resolve(); resolveErr != nil {
+			deployLog.Warn("composition.resolve",
+				slog.String("error", resolveErr.Error()),
+			)
+			return fmt.Errorf("composition engine: %w", resolveErr)
+		} else {
+			compositionResult = result
+			deployLog.Event("composition.resolve",
+				slog.String("enabled", strings.Join(result.EnabledModules, ", ")),
+				slog.Int("warning_count", len(result.Warnings)),
+			)
+			for _, w := range result.Warnings {
+				printWarning("Composition: %s", w)
+			}
+			if result.Identity != nil {
+				deployLog.Event("composition.identity",
+					slog.Bool("pocketid", result.Identity.PocketIDEnabled),
+					slog.Bool("tinyauth", result.Identity.TinyAuthEnabled),
+					slog.Bool("oidc_enabled", result.Identity.TinyAuthOAuthEnabled),
+					slog.String("issuer", result.Identity.OIDCIssuerURL),
+				)
+			}
+		}
 	}
 
 	// Determine template directory: runtime overrides mode for native deployments
@@ -144,7 +243,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	)
 
 	// Create output directory
-	outputPath := filepath.Join(wd, genOutputDir)
+	outputPath = filepath.Join(wd, genOutputDir)
 	if _, statErr := os.Stat(outputPath); statErr == nil && !genForce {
 		return fmt.Errorf("output directory already exists: %s (use --force to overwrite)", outputPath)
 	}
@@ -153,51 +252,131 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create output directory: %w", mkdirErr)
 	}
 
-	// Check if templates use Go templating or are plain files
-	err = copyOrRenderTemplates(templateDir, outputPath, spec, stackkit)
-	if err != nil {
-		return fmt.Errorf("failed to generate files: %w", err)
-	}
-
-	// Generate main.tf if not present
-	mainTfPath := filepath.Join(outputPath, "main.tf")
-	if _, statErr := os.Stat(mainTfPath); os.IsNotExist(statErr) {
-		// Generate a basic main.tf
-		renderCtx := &template.RenderContext{
-			Spec:     spec,
-			StackKit: stackkit,
-		}
-		mainTf, err := template.GenerateMainTf(renderCtx)
-		if err != nil {
-			return fmt.Errorf("failed to generate main.tf: %w", err)
-		}
-		if err := os.WriteFile(mainTfPath, []byte(mainTf), 0600); err != nil {
-			return fmt.Errorf("failed to write main.tf: %w", err)
-		}
-		printSuccess("Generated: main.tf")
-	}
-
-	// kombify.me subdomain registration (when domain is kombify.me)
-	if isKombifyMeDomain(spec.Domain) {
-		if err := registerKombifyMeSubdomains(spec); err != nil {
-			printWarning("kombify.me registration: %v", err)
-			printInfo("Continuing with existing subdomainPrefix if set")
-			deployLog.Warn("kombifyme.registration",
-				slog.String("error", err.Error()),
-			)
-		} else {
-			deployLog.Event("kombifyme.registration",
-				slog.String("prefix", spec.SubdomainPrefix),
-			)
-		}
-	}
-
-	// Generate terraform.tfvars.json from spec (JSON format for consistency with API)
-	tfvarsPath := filepath.Join(outputPath, "terraform.tfvars.json")
-	tfvarsData, err := generateTfvarsJSON(spec)
+	// Generate terraform.tfvars.json from spec before fragment rendering so the
+	// fragment generator can declare and reference every runtime variable it uses.
+	tfvarsData, err := composition.GenerateTFVarsJSON(spec, compositionResult)
 	if err != nil {
 		return fmt.Errorf("failed to generate tfvars: %w", err)
 	}
+	tfvarsMap := map[string]any{}
+	if err := json.Unmarshal(tfvarsData, &tfvarsMap); err != nil {
+		return fmt.Errorf("failed to parse generated tfvars: %w", err)
+	}
+
+	// Phase 1 / Task 12 + Task 14 stopper-fix: inject the persisted PocketID
+	// secrets so the fragment generator both declares the variables (env
+	// block of the pocketid container references {{.pocketid_static_api_key}}
+	// and {{.pocketid_encryption_key}}) and writes the concrete values into
+	// terraform.tfvars.json. Both Ensure* calls are idempotent — if a prior
+	// generate ran they return the existing values; if not, they create
+	// 0600-mode files under <wd>/.stackkit/.
+	//
+	// Gated on the composition result actually enabling PocketID. Kits that
+	// don't deploy PocketID (e.g. base-kit out of the box) skip this so the
+	// .stackkit/ directory stays empty and we don't surface confusing
+	// "PocketID secrets stored in ..." messages on init/generate runs that
+	// will never start a PocketID container.
+	if pocketIDShouldProvisionSecrets(compositionResult, tfvarsMap) {
+		staticAPIKey, err := identity.EnsureStaticAPIKey(wd)
+		if err != nil {
+			return fmt.Errorf("provision pocketid static api key: %w", err)
+		}
+		encryptionKey, err := identity.EnsureEncryptionKey(wd)
+		if err != nil {
+			return fmt.Errorf("provision pocketid encryption key: %w", err)
+		}
+		tfvarsMap["pocketid_static_api_key"] = staticAPIKey
+		tfvarsMap["pocketid_encryption_key"] = encryptionKey
+		tfvarsData, err = json.MarshalIndent(tfvarsMap, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to re-marshal tfvars after pocketid secrets injection: %w", err)
+		}
+		tfvarsData = append(tfvarsData, '\n')
+	}
+
+	// Fragment-based generation: produce per-module .tf files from CUE contracts.
+	// Keep this behind an explicit flag until the module contracts can render
+	// the full Base Kit Hub, PaaS, monitoring, and bootstrapping surface.
+	fragmentsGenerated := false
+	if genFragments && compositionResult != nil && len(loadedContracts) > 0 {
+		moduleGraph, graphErr := buildModuleGraphFromComposition(loadedContracts, compositionResult)
+		if graphErr != nil {
+			printWarning("Fragment generation: %v (falling back to monolithic template)", graphErr)
+			deployLog.Warn("fragments.build",
+				slog.String("error", graphErr.Error()),
+			)
+		} else {
+			domain := spec.Domain
+			if domain == "" {
+				domain = models.DomainHomeLab
+			}
+			gen := cueval.NewGeneratorWithVariables(domain, tfvarsMap).
+				WithDockerMemoryLimits(dockerMemoryLimitsEnabled(loadDockerCapabilities()))
+			if genErr := gen.GenerateAll(moduleGraph, outputPath); genErr != nil {
+				printWarning("Fragment generation: %v (falling back to monolithic template)", genErr)
+				deployLog.Warn("fragments.generate",
+					slog.String("error", genErr.Error()),
+				)
+			} else {
+				fragmentsGenerated = true
+				printSuccess("Generated per-module fragments: %s", strings.Join(moduleGraph.Ordered, ", "))
+				deployLog.Event("fragments.generated",
+					slog.Int("module_count", len(moduleGraph.Ordered)),
+					slog.String("modules", strings.Join(moduleGraph.Ordered, ", ")),
+				)
+			}
+		}
+	} else if !genFragments {
+		deployLog.Event("fragments.skipped",
+			slog.String("reason", "explicit flag not set"),
+		)
+	}
+
+	// Stable path: copy monolithic templates when fragments aren't requested or
+	// aren't available.
+	if !fragmentsGenerated {
+		if genFragments {
+			printWarning("Using monolithic template generation (fragment generation unavailable)")
+			deployLog.Warn("fragments.fallback",
+				slog.String("reason", "fragment generation failed or composition unavailable"),
+			)
+		} else {
+			printInfo("Using stable Base Kit template generation")
+		}
+		err = copyOrRenderTemplates(templateDir, outputPath, spec, stackkit, catalog, domains)
+		if err != nil {
+			return fmt.Errorf("failed to generate files: %w", err)
+		}
+
+		// Generate main.tf if not present
+		mainTfPath := filepath.Join(outputPath, "main.tf")
+		if _, statErr := os.Stat(mainTfPath); os.IsNotExist(statErr) {
+			renderCtx := &template.RenderContext{
+				Spec:     spec,
+				StackKit: stackkit,
+				Catalog:  catalog,
+				Domains:  domains,
+			}
+			mainTf, err := template.GenerateMainTf(renderCtx)
+			if err != nil {
+				return fmt.Errorf("failed to generate main.tf: %w", err)
+			}
+			if err := os.WriteFile(mainTfPath, []byte(mainTf), 0600); err != nil {
+				return fmt.Errorf("failed to write main.tf: %w", err)
+			}
+			printSuccess("Generated: main.tf")
+		}
+	}
+
+	if err := cueval.GenerateAppsTF(spec, outputPath); err != nil {
+		return fmt.Errorf("failed to generate app resources: %w", err)
+	}
+	if len(spec.Apps) > 0 {
+		printSuccess("Generated user app resources: apps.tf")
+	}
+
+	// Write terraform.tfvars.json from spec (JSON format for consistency with API).
+	tfvarsPath := filepath.Join(outputPath, "terraform.tfvars.json")
 	if err := os.WriteFile(tfvarsPath, tfvarsData, 0600); err != nil {
 		return fmt.Errorf("failed to write terraform.tfvars.json: %w", err)
 	}
@@ -226,48 +405,86 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 // copyOrRenderTemplates renders template files using the template.Renderer,
 // falling back to plain copy for non-template files.
-func copyOrRenderTemplates(srcDir, dstDir string, spec *models.StackSpec, stackkit *models.StackKit) error {
+func copyOrRenderTemplates(srcDir, dstDir string, spec *models.StackSpec, stackkit *models.StackKit, catalog, domains []cueval.CatalogEntry) error {
 	renderer := template.NewRenderer(srcDir, dstDir)
 	renderCtx := &template.RenderContext{
 		Spec:     spec,
 		StackKit: stackkit,
+		Catalog:  catalog,
+		Domains:  domains,
 	}
 	return renderer.Render(renderCtx)
 }
 
-// generateRandomPassword generates a cryptographically random alphanumeric password.
-func generateRandomPassword(length int) (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", fmt.Errorf("generate random password: %w", err)
+func resolveModulesDir(stackkitDir, workDir string) string {
+	candidates := []string{
+		filepath.Join(stackkitDir, "modules"),
+		filepath.Join(workDir, "modules"),
+		filepath.Join(filepath.Dir(stackkitDir), "modules"),
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
 		}
-		b[i] = charset[n.Int64()]
 	}
-	return string(b), nil
+	return candidates[0]
 }
 
-// bcryptHash returns a bcrypt hash of the given password.
+// buildModuleGraphFromComposition creates a ModuleGraph from loaded contracts
+// and the composition result, marking only enabled modules as active.
+// The input contracts slice is NOT mutated; a copy is used internally.
+func buildModuleGraphFromComposition(contracts []cueval.ModuleContract, cr *composition.CompositionResult) (*cueval.ModuleGraph, error) {
+	enabledSet := make(map[string]bool, len(cr.EnabledModules))
+	for _, name := range cr.EnabledModules {
+		enabledSet[name] = true
+	}
+
+	// Clone contracts to avoid mutating the caller's slice
+	cloned := make([]cueval.ModuleContract, len(contracts))
+	copy(cloned, contracts)
+	for i := range cloned {
+		cloned[i].Enabled = enabledSet[cloned[i].Metadata.Name]
+	}
+
+	resolver := cueval.NewResolver()
+	return resolver.Resolve(cloned)
+}
+
+func generateTfvarsJSON(spec *models.StackSpec, cr *composition.CompositionResult) ([]byte, error) {
+	return composition.GenerateTFVarsJSON(spec, cr)
+}
+
+// pocketIDIsEnabled reports whether PocketID is part of the deployment per
+// the composition result. Used to gate file-based secret provisioning so
+// kits that don't deploy PocketID don't litter .stackkit/ with unused
+// STATIC_API_KEY / ENCRYPTION_KEY files. Returns false when composition
+// failed to resolve (cr == nil or cr.Identity == nil) — in that case the
+// callers that have already generated tfvars should use
+// pocketIDShouldProvisionSecrets so the bridge's mandatory PocketID default
+// still receives persisted secrets if composition is unavailable.
+func pocketIDIsEnabled(cr *composition.CompositionResult) bool {
+	if cr == nil || cr.Identity == nil {
+		return false
+	}
+	return cr.Identity.PocketIDEnabled
+}
+
+func pocketIDShouldProvisionSecrets(cr *composition.CompositionResult, tfvars map[string]any) bool {
+	if pocketIDIsEnabled(cr) {
+		return true
+	}
+	if enabled, ok := tfvars["enable_pocketid"].(bool); ok {
+		return enabled
+	}
+	return false
+}
+
+func generateRandomPassword(length int) (string, error) {
+	return composition.GenerateRandomPassword(length)
+}
+
 func bcryptHash(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("bcrypt hash: %w", err)
-	}
-	return string(hash), nil
-}
-
-// generateTfvarsJSON generates terraform.tfvars.json matching the template variables.
-// Service enablement is driven by compute tier (v4 architecture):
-//   - L1/L2 core (traefik, tinyauth, pocketid) = ALWAYS enabled
-//   - L2 PAAS = tier-dependent (Dokploy for standard/high, Dockge for low)
-//   - Monitoring = tier-dependent
-//
-// Per-service overrides can be applied via spec.Services[name]["enabled"].
-func generateTfvarsJSON(spec *models.StackSpec) ([]byte, error) { //nolint:gocyclo
-	bridge := cueval.NewTerraformBridge(".")
-	return bridge.GenerateTFVarsBytesFromSpec(spec)
+	return composition.BcryptHash(password)
 }
 
 // countFiles counts files in a directory
@@ -345,17 +562,104 @@ func resolveNodeContextFromCaps(caps *models.DockerCapabilities, spec *models.St
 	return resolved
 }
 
+func dockerMemoryLimitsEnabled(caps *models.DockerCapabilities) bool {
+	if caps == nil {
+		return true
+	}
+	if caps.CgroupVersion == "v2" && !caps.UnshareAvailable {
+		return false
+	}
+	if caps.CgroupVersion != "" && !caps.MemoryLimits {
+		return false
+	}
+	return true
+}
+
 // isKombifyMeDomain returns true if the domain is kombify.me (the subdomain service).
 func isKombifyMeDomain(domain string) bool {
 	return strings.EqualFold(domain, models.DomainKombifyMe)
 }
 
+func ensureKombifyMeRegistration(loader *config.Loader, spec *models.StackSpec, resolvedCtx models.NodeContext) error {
+	domain := spec.Domain
+	if suggested, _ := netenv.SuggestDomainForContext(resolvedCtx, domain); suggested != "" {
+		domain = suggested
+	}
+	if !isKombifyMeDomain(domain) {
+		return nil
+	}
+	spec.Domain = models.DomainKombifyMe
+
+	// Existing prefixed specs are portable/offline; refresh registration when
+	// a key is available, but do not block local regeneration solely because the
+	// key is absent.
+	if spec.SubdomainPrefix != "" {
+		if apiKey, _ := kombifyme.LoadAPIKey(); apiKey == "" {
+			return nil
+		}
+	}
+
+	if err := registerKombifyMeSubdomains(spec); err != nil {
+		deployLog.Warn("kombifyme.registration",
+			slog.String("error", err.Error()),
+		)
+		if spec.SubdomainPrefix == "" {
+			return fmt.Errorf("kombify.me registration failed and no subdomainPrefix is configured: %w", err)
+		}
+		printWarning("kombify.me registration: %v", err)
+		printInfo("Continuing with existing subdomainPrefix: %s", spec.SubdomainPrefix)
+		return nil
+	}
+
+	if saveErr := loader.SaveStackSpec(spec, specFile); saveErr != nil {
+		printWarning("Could not persist assigned kombify.me subdomainPrefix: %v", saveErr)
+		deployLog.Warn("kombifyme.persist_prefix",
+			slog.String("error", saveErr.Error()),
+		)
+	}
+	deployLog.Event("kombifyme.registration",
+		slog.String("prefix", spec.SubdomainPrefix),
+	)
+	return nil
+}
+
 // registerKombifyMeSubdomains registers base + service subdomains on the kombify.me API
 // and sets spec.SubdomainPrefix if not already set.
 func registerKombifyMeSubdomains(spec *models.StackSpec) error {
-	apiKey := os.Getenv("KOMBIFY_API_KEY")
+	// Try loading API key from env or keystore
+	apiKey, loadErr := kombifyme.LoadAPIKey()
+
 	if apiKey == "" {
-		return fmt.Errorf("KOMBIFY_API_KEY environment variable is required for kombify.me domain")
+		// No key found — attempt self-registration
+		email := spec.AdminEmail
+		if email == "" {
+			email = spec.Email
+		}
+		if email == "" {
+			return fmt.Errorf("no KOMBIFY_API_KEY found and no adminEmail/email in spec for auto-registration")
+		}
+
+		fingerprint := kombifyme.DeviceFingerprint()
+
+		printInfo("No kombify.me API key found. Registering with %s...", email)
+		regResp, err := kombifyme.Register(email, fingerprint)
+		if err != nil {
+			return fmt.Errorf("auto-registration failed (%v): %w\nSet KOMBIFY_API_KEY manually or see https://kombify.me/docs", loadErr, err)
+		}
+
+		apiKey = regResp.APIKey
+		savedPath, saveErr := kombifyme.SaveAPIKey(apiKey)
+		if saveErr != nil {
+			printWarning("Could not save API key: %v", saveErr)
+			printInfo("Set KOMBIFY_API_KEY=%s to persist manually", apiKey)
+		} else {
+			printSuccess("API key saved to %s", savedPath)
+		}
+
+		if regResp.Status == "pending_verification" {
+			printWarning("Please verify your email at %s to activate subdomains", email)
+			printInfo("Subdomains will be created now but remain inactive until verified")
+		}
 	}
 
 	homelabName := spec.Name
@@ -367,9 +671,10 @@ func registerKombifyMeSubdomains(spec *models.StackSpec) error {
 	fingerprint := ""
 	if spec.SubdomainPrefix != "" {
 		// Extract fingerprint from existing prefix: "sh-name-FINGERPRINT"
-		parts := strings.SplitN(spec.SubdomainPrefix, "-", 3)
-		if len(parts) >= 3 {
-			fingerprint = parts[2]
+		if strings.HasPrefix(spec.SubdomainPrefix, "sh-") {
+			if idx := strings.LastIndex(spec.SubdomainPrefix, "-"); idx > len("sh-") {
+				fingerprint = spec.SubdomainPrefix[idx+1:]
+			}
 		}
 	}
 	if fingerprint == "" {

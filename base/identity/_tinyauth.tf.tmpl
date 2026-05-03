@@ -47,10 +47,15 @@ variable "tinyauth_traefik_host" {
 }
 
 variable "tinyauth_session_secret" {
-  description = "Session secret for TinyAuth (use secret management in production)"
+  description = "Session secret for TinyAuth; generated when omitted"
   type        = string
   sensitive   = true
-  default     = "change-me-in-production"
+  default     = ""
+
+  validation {
+    condition     = var.tinyauth_session_secret == "" || length(var.tinyauth_session_secret) >= 32
+    error_message = "tinyauth_session_secret must be empty for generated credentials or at least 32 characters when provided explicitly."
+  }
 }
 
 variable "tinyauth_log_level" {
@@ -62,6 +67,16 @@ variable "tinyauth_log_level" {
     condition     = contains(["debug", "info", "warn", "error"], var.tinyauth_log_level)
     error_message = "Log level must be one of: debug, info, warn, error"
   }
+}
+
+resource "random_password" "tinyauth_session_secret" {
+  count   = var.tinyauth_enabled && var.tinyauth_session_secret == "" ? 1 : 0
+  length  = 48
+  special = false
+}
+
+locals {
+  tinyauth_session_secret_effective = var.tinyauth_enabled ? (var.tinyauth_session_secret != "" ? var.tinyauth_session_secret : random_password.tinyauth_session_secret[0].result) : ""
 }
 
 # OIDC provider configuration (connects to PocketID or external OIDC)
@@ -188,7 +203,7 @@ resource "docker_container" "tinyauth" {
       "TZ=Europe/Berlin",
       "APP_URL=${var.tinyauth_app_url}",
       "LOG_LEVEL=${var.tinyauth_log_level}",
-      "SESSION_SECRET=${var.tinyauth_session_secret}",
+      "SESSION_SECRET=${local.tinyauth_session_secret_effective}",
     ],
     # OIDC provider (PocketID or external)
     var.tinyauth_oidc_enabled ? [

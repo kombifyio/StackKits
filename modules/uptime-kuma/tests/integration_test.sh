@@ -56,7 +56,9 @@ echo ""
 
 # Start services
 echo "Starting services..."
-docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 90
+# Note: --wait is not used because the provisioner container exits (by design).
+# We poll for service health below.
+docker compose -f "$COMPOSE_FILE" up -d
 
 echo ""
 echo "Waiting for Uptime Kuma to be healthy..."
@@ -71,6 +73,25 @@ for i in $(seq 1 60); do
         echo "Container logs:"
         docker logs test-uptime-kuma 2>&1 | tail -20
         exit 1
+    fi
+    sleep 1
+done
+
+# Traefik's docker provider rediscovers containers asynchronously; poll the
+# routers API until our router shows up before running route-dependent tests.
+echo "Waiting for Traefik to register the uptime-kuma router..."
+for i in $(seq 1 30); do
+    if curl -s "$TRAEFIK_API/api/http/routers" 2>/dev/null | grep -q "uptime-kuma"; then
+        echo "Traefik registered uptime-kuma router after ${i}s"
+        break
+    fi
+    if [ "$i" = "30" ]; then
+        echo "Traefik did NOT register uptime-kuma router within 30s"
+        echo "Routers known to Traefik:"
+        curl -s "$TRAEFIK_API/api/http/routers" 2>/dev/null
+        echo ""
+        echo "Container labels:"
+        docker inspect --format='{{json .Config.Labels}}' test-uptime-kuma 2>/dev/null
     fi
     sleep 1
 done

@@ -4,7 +4,7 @@
 BINARY_NAME=stackkit
 VERSION?=dev
 
-.PHONY: all build build-server build-all clean test test-unit test-integration test-cue test-coverage lint fmt deps help
+.PHONY: all build build-server build-all clean test test-unit test-integration test-cue test-cue-binding test-coverage lint fmt deps help
 
 # Default target
 all: deps lint test build
@@ -45,6 +45,10 @@ test-unit: ## Run unit tests
 
 test-cue: ## Run CUE schema validation
 	mise run test-cue
+
+test-cue-binding: ## Validate CUE module contracts and Go binding pipeline
+	cue vet -c=false ./modules/...
+	go test ./internal/cue ./internal/composition ./cmd/stackkit/commands
 
 test-validation: ## Run 3-layer validation suite
 	mise run test-validation

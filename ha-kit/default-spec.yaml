@@ -145,7 +145,7 @@ services:
     env:
       POSTGRES_DB: kombistack
       POSTGRES_USER: kombistack
-      POSTGRES_PASSWORD: changeme_generate_strong_password  # ⚠️ ANPASSEN!
+      POSTGRES_PASSWORD: secret://ha-kit/postgres/password
       POSTGRES_REPLICATION_MODE: master
     labels:
       kombistack.service: postgres
@@ -173,9 +173,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/kombistack/dokploy/data:/app/data
     env:
-      DATABASE_URL: postgresql://kombistack:changeme@postgres:5432/dokploy  # ⚠️ ANPASSEN!
+      DATABASE_URL: secret://ha-kit/dokploy/database-url
       NEXTAUTH_URL: http://192.168.1.100:4000  # ⚠️ ANPASSEN: Load Balancer IP
-      NEXTAUTH_SECRET: changeme_generate_random_secret_32chars  # ⚠️ ANPASSEN!
+      NEXTAUTH_SECRET: secret://ha-kit/dokploy/nextauth-secret
     labels:
       kombistack.service: dokploy
       kombistack.managed: "true"
@@ -266,7 +266,7 @@ services:
       - /opt/kombistack/grafana/config:/etc/grafana
     env:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: changeme_admin_password  # ⚠️ ANPASSEN!
+      GF_SECURITY_ADMIN_PASSWORD: secret://ha-kit/grafana/admin-password
       GF_SERVER_ROOT_URL: http://grafana.local  # ⚠️ ANPASSEN
     labels:
       kombistack.service: grafana

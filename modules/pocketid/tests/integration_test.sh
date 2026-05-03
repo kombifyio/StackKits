@@ -50,7 +50,9 @@ echo "========================================="
 echo ""
 
 echo "Starting services..."
-docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 90
+# Note: --wait is not used because the provisioner container exits (by design).
+# We poll for service health below.
+docker compose -f "$COMPOSE_FILE" up -d
 
 echo ""
 echo "Waiting for PocketID to be healthy..."
@@ -83,10 +85,12 @@ else
 fi
 
 # Test 2: Health endpoint
-log_test "PocketID /api/health returns 200"
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: id.test.local" "$BASE_URL/api/health" 2>/dev/null || echo "000")
+# PocketID exposes /health (not /api/health). The internal healthcheck calls
+# /health and the container reports 200; /api/health is intentionally not a route.
+log_test "PocketID /health returns 200"
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: id.test.local" "$BASE_URL/health" 2>/dev/null || echo "000")
 if [ "$HTTP_CODE" = "200" ]; then
-    log_pass "/api/health → HTTP $HTTP_CODE"
+    log_pass "/health → HTTP $HTTP_CODE"
 else
     log_fail "Expected 200, got $HTTP_CODE"
 fi

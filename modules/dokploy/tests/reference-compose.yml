@@ -11,6 +11,7 @@ services:
     container_name: test-traefik-dokploy
     command:
       - "--api.insecure=true"
+      - "--ping=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
@@ -20,7 +21,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,11 +40,20 @@ services:
     container_name: test-dokploy
     environment:
       NODE_ENV: production
-      DATABASE_URL: "postgresql://dokploy:testpass123@dokploy-postgres:5432/dokploy"
+      DATABASE_URL: "postgresql://dokploy:${DOKPLOY_TEST_POSTGRES_PASSWORD:?set DOKPLOY_TEST_POSTGRES_PASSWORD}@dokploy-postgres:5432/dokploy"
       REDIS_URL: "redis://dokploy-redis:6379"
+      # dokploy refuses to boot without an encryption key (used to encrypt
+      # credentials at rest in postgres). 32-byte hex value is required.
+      ENCRYPTION_KEY: "${DOKPLOY_TEST_ENCRYPTION_KEY:?set DOKPLOY_TEST_ENCRYPTION_KEY}"
+      # Hostname/IP that dokploy advertises to managed nodes. In tests this
+      # only needs to be set; the value isn't actually contacted.
+      ADVERTISE_ADDR: "127.0.0.1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - dokploy-data:/app/data
+      # The image expects /etc/dokploy (config + state). The previous mount
+      # at /app/data hid the wrong directory and caused dokploy to abort
+      # (SIGABRT / exit 134) during boot.
+      - dokploy-data:/etc/dokploy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.dokploy.rule=Host(`dokploy.test.local`)"
@@ -91,6 +101,14 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      # Required by postgres entrypoint to chown PGDATA and drop privileges
+      # from root to the postgres user.
+      - CHOWN
+      - FOWNER
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     mem_limit: 512m
     cpus: 0.5
 
@@ -109,6 +127,16 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      # Required by the redis entrypoint:
+      #   - CHOWN: chown /data to redis user
+      #   - SETUID/SETGID: gosu/su-exec from root -> redis user
+      #   - DAC_OVERRIDE/FOWNER: file-permission edge cases during chown
+      - CHOWN
+      - FOWNER
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     read_only: true
     tmpfs:
       - /data

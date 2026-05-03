@@ -160,10 +160,18 @@ func (s *Server) handleStreamLog(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
+	// Maximum stream duration to prevent resource leaks
+	maxDuration := 30 * time.Minute
+	deadline := time.After(maxDuration)
+
 	// Send existing entries first, then poll for new ones
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-deadline:
+			_, _ = fmt.Fprintf(w, "event: timeout\ndata: {\"reason\":\"max stream duration exceeded\"}\n\n")
+			flusher.Flush()
 			return
 		case <-ticker.C:
 			entries, err := logging.ReadLogFile(logPath)

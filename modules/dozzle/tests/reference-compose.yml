@@ -33,13 +33,19 @@ services:
       - "traefik.http.routers.dozzle.entrypoints=web"
       - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      test: ["CMD", "/dozzle", "healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 10s
     networks:
       - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 128m
+    cpus: 0.25
 
 networks:
   test-net:

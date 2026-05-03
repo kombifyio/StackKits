@@ -112,6 +112,8 @@ Contract: base.#ModuleContract & {
 			"traefik.http.services.dashboard.loadbalancer.server.port":            "80"
 		}
 
+		subdomain: {key: "dashboard", nested: "base", flat: "dash"}
+
 		output: {
 			url:         "https://dash.{{.domain}}"
 			description: "Homelab service dashboard"

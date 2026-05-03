@@ -83,7 +83,16 @@ func runValidate(cmd *cobra.Command, args []string) error {
 
 // validateSpecFile validates the stack-spec.yaml file and returns the parsed spec (may be nil) and whether errors occurred.
 func validateSpecFile(loader *config.Loader, validator *cue.Validator, targetFile string) (*models.StackSpec, bool) {
-	printInfo("Validating %s...", targetFile)
+	_, displayPath, aliasUsed, err := loader.ResolveStackSpecPathForRead(targetFile)
+	if err != nil {
+		printError("Failed to resolve spec path: %v", err)
+		return nil, true
+	}
+	if aliasUsed {
+		printInfo("Validating %s (alias for %s)...", displayPath, targetFile)
+	} else {
+		printInfo("Validating %s...", displayPath)
+	}
 
 	spec, err := loader.LoadStackSpec(targetFile)
 	if err != nil {

@@ -5,18 +5,40 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
-	"text/template"
+
+	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
 // Generator produces per-module OpenTofu fragments from resolved module contracts.
 type Generator struct {
-	domain string
+	domain             string
+	variables          map[string]any
+	dockerMemoryLimits bool
 }
 
 // NewGenerator creates a new OpenTofu generator.
 func NewGenerator(domain string) *Generator {
-	return &Generator{domain: domain}
+	return &Generator{domain: domain, dockerMemoryLimits: true}
+}
+
+// NewGeneratorWithVariables creates a generator that also knows the tfvars
+// keys available to generated fragments.
+func NewGeneratorWithVariables(domain string, variables map[string]any) *Generator {
+	copied := make(map[string]any, len(variables))
+	for k, v := range variables {
+		copied[k] = v
+	}
+	return &Generator{domain: domain, variables: copied, dockerMemoryLimits: true}
+}
+
+// WithDockerMemoryLimits controls whether generated docker_container resources
+// include memory and memory_swap fields from module contracts.
+func (g *Generator) WithDockerMemoryLimits(enabled bool) *Generator {
+	g.dockerMemoryLimits = enabled
+	return g
 }
 
 // GenerateAll produces OpenTofu files for all modules in the resolved graph.
@@ -27,14 +49,12 @@ func NewGenerator(domain string) *Generator {
 //	  networks.tf       — shared Docker networks
 //	  variables.tf      — all variable declarations
 //	  terraform.tfvars.json — variable values
-//	  modules/
-//	    traefik.tf      — per-module resource definitions
-//	    tinyauth.tf
-//	    ...
+//	  traefik.tf        — per-module resource definitions
+//	  tinyauth.tf
+//	  ...
 func (g *Generator) GenerateAll(graph *ModuleGraph, outputDir string) error {
-	modulesDir := filepath.Join(outputDir, "modules")
-	if err := os.MkdirAll(modulesDir, 0750); err != nil {
-		return fmt.Errorf("failed to create modules output directory: %w", err)
+	if err := os.MkdirAll(outputDir, 0750); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Shared infrastructure files
@@ -54,7 +74,7 @@ func (g *Generator) GenerateAll(graph *ModuleGraph, outputDir string) error {
 	// Per-module .tf files
 	for _, name := range graph.Ordered {
 		mc := graph.Modules[name]
-		if err := g.writeModuleTF(mc, graph, modulesDir); err != nil {
+		if err := g.writeModuleTF(mc, graph, outputDir); err != nil {
 			return fmt.Errorf("failed to generate %s.tf: %w", name, err)
 		}
 	}
@@ -146,11 +166,28 @@ variable "network_name" {
 `)
 
 	// Per-module enable flags
+	declaredVars := map[string]bool{
+		"domain":       true,
+		"docker_host":  true,
+		"network_name": true,
+	}
 	for _, name := range graph.Ordered {
 		varName := moduleVarName(name)
-		fmt.Fprintf(&sb, "variable \"enable_%s\" {\n", varName)
+		enableName := "enable_" + varName
+		declaredVars[enableName] = true
+		fmt.Fprintf(&sb, "variable %q {\n", enableName)
 		sb.WriteString("  type    = bool\n")
 		sb.WriteString("  default = true\n")
+		sb.WriteString("}\n\n")
+	}
+
+	extraVars := g.extraVariableNames(graph)
+	for _, name := range extraVars {
+		if declaredVars[name] {
+			continue
+		}
+		fmt.Fprintf(&sb, "variable %q {\n", name)
+		sb.WriteString("  type = any\n")
 		sb.WriteString("}\n\n")
 	}
 
@@ -166,8 +203,7 @@ func (g *Generator) writeTFVarsJSON(graph *ModuleGraph, outputDir string) error 
 		vars["domain"] = "stack.local"
 	}
 
-	// Docker host from env
-	if dockerHost := os.Getenv("DOCKER_HOST"); dockerHost != "" {
+	if dockerHost := defaultDockerHost(); dockerHost != "" {
 		vars["docker_host"] = dockerHost
 	}
 
@@ -177,6 +213,9 @@ func (g *Generator) writeTFVarsJSON(graph *ModuleGraph, outputDir string) error 
 		varName := moduleVarName(name)
 		vars["enable_"+varName] = mc.Enabled
 	}
+	for k, v := range g.variables {
+		vars[k] = v
+	}
 
 	data, err := json.MarshalIndent(vars, "", "  ")
 	if err != nil {
@@ -184,6 +223,16 @@ func (g *Generator) writeTFVarsJSON(graph *ModuleGraph, outputDir string) error 
 	}
 
 	return writeFile(filepath.Join(outputDir, "terraform.tfvars.json"), string(data))
+}
+
+func defaultDockerHost() string {
+	if dockerHost := os.Getenv("DOCKER_HOST"); dockerHost != "" {
+		return dockerHost
+	}
+	if runtime.GOOS == "windows" {
+		return "npipe:////./pipe/docker_engine"
+	}
+	return ""
 }
 
 // writeModuleTF generates a per-module .tf file with docker_image + docker_container resources.
@@ -217,6 +266,17 @@ func (g *Generator) writeModuleTF(mc ModuleContract, graph *ModuleGraph, modules
 		fmt.Fprintf(&sb, "  count = var.enable_%s ? 1 : 0\n", varName)
 		fmt.Fprintf(&sb, "  name  = %q\n", svcKey)
 		fmt.Fprintf(&sb, "  image = docker_image.%s[0].image_id\n", tfName)
+
+		if len(svc.Command) > 0 {
+			sb.WriteString("  command = [")
+			for i, part := range svc.Command {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				fmt.Fprintf(&sb, "%q", hclString(renderTemplateVariables(part)))
+			}
+			sb.WriteString("]\n")
+		}
 
 		// Restart policy
 		restart := svc.RestartPolicy
@@ -258,10 +318,8 @@ func (g *Generator) writeModuleTF(mc ModuleContract, graph *ModuleGraph, modules
 			sb.WriteString("\n  env = [\n")
 			envKeys := sortedStringKeys(svc.Environment)
 			for _, k := range envKeys {
-				v := svc.Environment[k]
-				// Template domain references
-				v = strings.ReplaceAll(v, "{{.domain}}", "${var.domain}")
-				fmt.Fprintf(&sb, "    %q,\n", k+"="+v)
+				v := renderTemplateVariables(svc.Environment[k])
+				fmt.Fprintf(&sb, "    %q,\n", hclString(k+"="+v))
 			}
 			sb.WriteString("  ]\n")
 		}
@@ -269,13 +327,13 @@ func (g *Generator) writeModuleTF(mc ModuleContract, graph *ModuleGraph, modules
 		// Labels (including Traefik routing)
 		labels := g.buildLabels(svcKey, svc, mc)
 		if len(labels) > 0 {
-			sb.WriteString("\n  labels {\n")
 			labelKeys := sortedStringKeys(labels)
 			for _, k := range labelKeys {
-				fmt.Fprintf(&sb, "    label = %q\n", k)
-				fmt.Fprintf(&sb, "    value = %q\n", labels[k])
+				sb.WriteString("\n  labels {\n")
+				fmt.Fprintf(&sb, "    label = %q\n", hclString(k))
+				fmt.Fprintf(&sb, "    value = %q\n", hclString(labels[k]))
+				sb.WriteString("  }\n")
 			}
-			sb.WriteString("  }\n")
 		}
 
 		// Networks — connect to frontend by default
@@ -284,12 +342,25 @@ func (g *Generator) writeModuleTF(mc ModuleContract, graph *ModuleGraph, modules
 		sb.WriteString("  }\n")
 
 		// Health check
-		if svc.HealthCheck != nil {
+		if svc.HealthCheck != nil && (len(svc.HealthCheck.Test) > 0 || svc.HealthCheck.Path != "") {
 			sb.WriteString("\n  healthcheck {\n")
-			if svc.HealthCheck.Path != "" {
-				testCmd := fmt.Sprintf("wget --spider -q http://localhost:%d%s || exit 1",
-					svc.HealthCheck.Port, svc.HealthCheck.Path)
-				fmt.Fprintf(&sb, "    test     = [\"CMD-SHELL\", %q]\n", testCmd)
+			if len(svc.HealthCheck.Test) > 0 {
+				sb.WriteString("    test     = [")
+				for i, part := range svc.HealthCheck.Test {
+					if i > 0 {
+						sb.WriteString(", ")
+					}
+					fmt.Fprintf(&sb, "%q", hclString(part))
+				}
+				sb.WriteString("]\n")
+			} else if svc.HealthCheck.Path != "" {
+				scheme := svc.HealthCheck.Scheme
+				if scheme == "" {
+					scheme = "http"
+				}
+				testCmd := fmt.Sprintf("curl -fsS -o /dev/null %s://localhost:%d%s || exit 1",
+					scheme, svc.HealthCheck.Port, svc.HealthCheck.Path)
+				fmt.Fprintf(&sb, "    test     = [\"CMD-SHELL\", %q]\n", hclString(testCmd))
 			}
 			fmt.Fprintf(&sb, "    interval = %q\n", svc.HealthCheck.Interval)
 			fmt.Fprintf(&sb, "    timeout  = %q\n", svc.HealthCheck.Timeout)
@@ -301,7 +372,7 @@ func (g *Generator) writeModuleTF(mc ModuleContract, graph *ModuleGraph, modules
 		}
 
 		// Resource limits
-		if svc.Resources != nil {
+		if svc.Resources != nil && g.dockerMemoryLimits {
 			if svc.Resources.Memory != "" {
 				fmt.Fprintf(&sb, "\n  memory = %d\n", parseMemoryMB(svc.Resources.Memory))
 			}
@@ -344,19 +415,22 @@ func (g *Generator) writeModuleTF(mc ModuleContract, graph *ModuleGraph, modules
 		sb.WriteString("  must_run = false\n")
 
 		if prov.Command != "" {
-			fmt.Fprintf(&sb, "  command = [\"sh\", \"-c\", %q]\n", prov.Command)
+			fmt.Fprintf(&sb, "  command = [\"sh\", \"-c\", %q]\n", hclString(prov.Command))
 		}
 
 		if len(prov.Environment) > 0 {
 			sb.WriteString("\n  env = [\n")
 			envKeys := sortedStringKeys(prov.Environment)
 			for _, k := range envKeys {
-				v := prov.Environment[k]
-				v = strings.ReplaceAll(v, "{{.domain}}", "${var.domain}")
-				fmt.Fprintf(&sb, "    %q,\n", k+"="+v)
+				v := renderTemplateVariables(prov.Environment[k])
+				fmt.Fprintf(&sb, "    %q,\n", hclString(k+"="+v))
 			}
 			sb.WriteString("  ]\n")
 		}
+
+		sb.WriteString("\n  networks_advanced {\n")
+		fmt.Fprintf(&sb, "    name = docker_network.%s.id\n", "frontend")
+		sb.WriteString("  }\n")
 
 		if prov.DependsOn != "" {
 			depTF := tfResourceName(prov.DependsOn)
@@ -367,7 +441,7 @@ func (g *Generator) writeModuleTF(mc ModuleContract, graph *ModuleGraph, modules
 	}
 
 	outputPath := filepath.Join(modulesDir, name+".tf")
-	return writeFile(outputPath, sb.String())
+	return writeFile(outputPath, string(hclwrite.Format([]byte(sb.String()))))
 }
 
 // buildLabels creates Traefik routing labels and custom labels for a service.
@@ -388,7 +462,7 @@ func (g *Generator) buildLabels(svcKey string, svc ServiceDef, mc ModuleContract
 		if rule == "" {
 			rule = fmt.Sprintf("Host(`%s.${var.domain}`)", svcKey)
 		} else {
-			rule = strings.ReplaceAll(rule, "{{.domain}}", "${var.domain}")
+			rule = renderTemplateVariables(rule)
 		}
 		labels[fmt.Sprintf("traefik.http.routers.%s.rule", svcKey)] = rule
 
@@ -404,6 +478,68 @@ func (g *Generator) buildLabels(svcKey string, svc ServiceDef, mc ModuleContract
 
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0600)
+}
+
+var templateVarPattern = regexp.MustCompile(`\{\{\.\s*([A-Za-z0-9_]+)\s*\}\}`)
+
+func renderTemplateVariables(value string) string {
+	return templateVarPattern.ReplaceAllString(value, "${var.$1}")
+}
+
+func hclString(value string) string {
+	return strings.ReplaceAll(value, "%{", "%%{")
+}
+
+func (g *Generator) extraVariableNames(graph *ModuleGraph) []string {
+	names := make(map[string]bool)
+	for k := range g.variables {
+		names[k] = true
+	}
+	for _, name := range graph.Ordered {
+		mc := graph.Modules[name]
+		for _, svc := range mc.Services {
+			collectTemplateVars(names, svc.Environment)
+			collectStringTemplateVars(names, svc.Labels)
+			collectListTemplateVars(names, svc.Command)
+			if svc.TraefikRule != "" {
+				collectTemplateVarsFromString(names, svc.TraefikRule)
+			}
+		}
+		for _, prov := range mc.Provisioners {
+			collectTemplateVars(names, prov.Environment)
+		}
+	}
+
+	keys := make([]string, 0, len(names))
+	for k := range names {
+		keys = append(keys, k)
+	}
+	sortStrings(keys)
+	return keys
+}
+
+func collectTemplateVars(names map[string]bool, values map[string]string) {
+	for _, value := range values {
+		collectTemplateVarsFromString(names, value)
+	}
+}
+
+func collectStringTemplateVars(names map[string]bool, values map[string]string) {
+	collectTemplateVars(names, values)
+}
+
+func collectListTemplateVars(names map[string]bool, values []string) {
+	for _, value := range values {
+		collectTemplateVarsFromString(names, value)
+	}
+}
+
+func collectTemplateVarsFromString(names map[string]bool, value string) {
+	for _, match := range templateVarPattern.FindAllStringSubmatch(value, -1) {
+		if len(match) == 2 {
+			names[match[1]] = true
+		}
+	}
 }
 
 // moduleVarName converts a module name to a valid OpenTofu variable name part.
@@ -452,6 +588,3 @@ func sortStrings(s []string) {
 		}
 	}
 }
-
-// Ensure template import is used (for future template-based generation)
-var _ = template.New

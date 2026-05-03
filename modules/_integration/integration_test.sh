@@ -41,10 +41,25 @@ log_fail() {
     echo -e "${RED}  [FAIL]${NC} $1"
 }
 
+SWARM_INITED_BY_US=0
+
 cleanup() {
+    local rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo ""
+        echo "=== container state (rc=$rc) ==="
+        docker compose -f "$COMPOSE_FILE" ps -a 2>/dev/null || true
+        echo ""
+        echo "=== container logs (last 200 lines per service) ==="
+        docker compose -f "$COMPOSE_FILE" logs --no-color --tail=200 2>/dev/null || true
+    fi
     echo ""
     echo "Cleaning up..."
     docker compose -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true
+    if [ "$SWARM_INITED_BY_US" = "1" ]; then
+        echo "Leaving swarm (was initialised by this test)..."
+        docker swarm leave --force 2>/dev/null || true
+    fi
 }
 
 trap cleanup EXIT
@@ -59,8 +74,30 @@ echo "Security: socket-proxy, hardening, net isolation"
 echo "============================================="
 echo ""
 
+# Dokploy is architected around Docker Swarm and crashes with an unhandled
+# rejection ("This node is not a swarm manager") when it can't reach a
+# swarm API. Initialise swarm if the host isn't already a manager.
+SWARM_STATE=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "")
+if [ "$SWARM_STATE" != "active" ]; then
+    echo "Docker swarm not active (state=$SWARM_STATE). Initialising..."
+    ADV_ADDR=$(ip -4 addr show docker0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1)
+    if [ -z "$ADV_ADDR" ]; then
+        ADV_ADDR=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+    if [ -n "$ADV_ADDR" ]; then
+        docker swarm init --advertise-addr "$ADV_ADDR" >/dev/null
+    else
+        docker swarm init >/dev/null
+    fi
+    SWARM_INITED_BY_US=1
+    echo "Swarm initialised."
+fi
+
 echo "Starting all services..."
-docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 180
+# Note: --wait may race with short-lived provisioners (dokploy-provisioner,
+# pocketid-provisioner, kuma-provisioner) that exit 0 after seeding. Poll
+# service health explicitly below instead of relying on --wait alone.
+docker compose -f "$COMPOSE_FILE" up -d
 
 echo ""
 echo "Waiting for all services to be healthy (up to 120s)..."

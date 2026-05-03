@@ -19,6 +19,7 @@ type ServiceDef struct {
 	Enabled       bool
 	Image         string
 	Tag           string
+	Command       []string
 	Description   string
 	Needs         []string
 	RestartPolicy string
@@ -32,6 +33,18 @@ type ServiceDef struct {
 	TraefikPort   int
 	OutputURL     string
 	OutputDesc    string
+
+	// Subdomain routing (from CUE #ServiceDefinition.subdomain)
+	SubdomainKey    string
+	SubdomainNested string
+	SubdomainFlat   string
+
+	// Dashboard card (from CUE #ServiceDefinition.dashboard)
+	DashboardIcon      string
+	DashboardOrder     int
+	DashboardSection   string
+	DashboardBadge     string
+	DashboardEnableVar string
 }
 
 // PortDef represents a port mapping.
@@ -51,6 +64,7 @@ type VolumeDef struct {
 
 // HealthCheckDef represents a health check.
 type HealthCheckDef struct {
+	Test        []string
 	Path        string
 	Port        int
 	Scheme      string
@@ -103,9 +117,7 @@ func (e *Extractor) ExtractServicesFromModules(modulesDir string) ([]ServiceDef,
 
 // extractModuleServices loads a single module's CUE package and extracts its services.
 func (e *Extractor) extractModuleServices(modulePath string) ([]ServiceDef, error) {
-	cfg := &load.Config{
-		Dir: modulePath,
-	}
+	cfg := cueLoadConfig(modulePath, modulePath)
 
 	instances := load.Instances([]string{"."}, cfg)
 	if len(instances) == 0 {
@@ -168,6 +180,7 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 	svc.Type = stringField(v, "type")
 	svc.Image = stringField(v, "image")
 	svc.Tag = stringField(v, "tag")
+	svc.Command = stringOrListField(v, "command")
 	svc.Description = stringField(v, "description")
 	svc.RestartPolicy = stringFieldOr(v, "restartPolicy", "unless-stopped")
 
@@ -275,6 +288,18 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 					n, _ := port.Int64()
 					hcd.Port = int(n)
 				}
+				if test := hc.LookupPath(cue.ParsePath("test")); test.Exists() {
+					iter, _ := test.List()
+					for iter.Next() {
+						s, _ := iter.Value().String()
+						hcd.Test = append(hcd.Test, s)
+					}
+				}
+				if len(hcd.Test) == 0 {
+					if command := stringField(hc, "command"); command != "" {
+						hcd.Test = []string{"CMD-SHELL", command}
+					}
+				}
 				if retries := hc.LookupPath(cue.ParsePath("retries")); retries.Exists() {
 					n, _ := retries.Int64()
 					hcd.Retries = int(n)
@@ -303,6 +328,25 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 		svc.OutputDesc = stringField(out, "description")
 	}
 
+	// Subdomain routing
+	if sub := v.LookupPath(cue.ParsePath("subdomain")); sub.Exists() {
+		svc.SubdomainKey = stringField(sub, "key")
+		svc.SubdomainNested = stringField(sub, "nested")
+		svc.SubdomainFlat = stringField(sub, "flat")
+	}
+
+	// Dashboard card
+	if dash := v.LookupPath(cue.ParsePath("dashboard")); dash.Exists() {
+		svc.DashboardIcon = stringField(dash, "icon")
+		svc.DashboardSection = stringField(dash, "section")
+		svc.DashboardBadge = stringField(dash, "badge")
+		svc.DashboardEnableVar = stringField(dash, "enableVar")
+		if order := dash.LookupPath(cue.ParsePath("order")); order.Exists() {
+			n, _ := order.Int64()
+			svc.DashboardOrder = int(n)
+		}
+	}
+
 	return svc, nil
 }
 
@@ -314,6 +358,26 @@ func stringField(v cue.Value, path string) string {
 	}
 	s, _ := f.String()
 	return s
+}
+
+func stringOrListField(v cue.Value, path string) []string {
+	f := v.LookupPath(cue.ParsePath(path))
+	if !f.Exists() {
+		return nil
+	}
+	if iter, err := f.List(); err == nil {
+		var values []string
+		for iter.Next() {
+			if s, err := iter.Value().String(); err == nil {
+				values = append(values, s)
+			}
+		}
+		return values
+	}
+	if s, err := f.String(); err == nil && s != "" {
+		return []string{s}
+	}
+	return nil
 }
 
 // stringFieldOr extracts a string with a default fallback.

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -22,7 +23,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var applyAutoApprove bool
+var (
+	applyAutoApprove       bool
+	applyTenantDeployment  string
+	applyReportingEndpoint string
+	applyReportingToken    string
+)
 
 var applyCmd = &cobra.Command{
 	Use:   "apply [plan-file]",
@@ -42,21 +48,60 @@ Examples:
 
 func init() {
 	applyCmd.Flags().BoolVar(&applyAutoApprove, "auto-approve", false, "Skip interactive approval")
+	applyCmd.Flags().StringVar(&applyTenantDeployment, "tenant-deployment", "", "sk_tenant_deployment UUID: report success/failure back to Admin after apply")
+	applyCmd.Flags().StringVar(&applyReportingEndpoint, "admin-endpoint", "", "Admin API base URL for tenant-deployment reporting (env: STACKKIT_ADMIN_URL)")
+	applyCmd.Flags().StringVar(&applyReportingToken, "admin-token", "", "Admin API token (env: STACKKIT_ADMIN_TOKEN)")
 }
 
-func runApply(cmd *cobra.Command, args []string) error {
+func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
 	wd := getWorkDir()
 
-	// Load spec — create from kit defaults if missing
+	// When linked to a tenant deployment, report 'failed' on any error exit.
+	if applyTenantDeployment != "" {
+		defer func() {
+			if retErr != nil {
+				if reportErr := reportTenantDeploymentState(applyTenantDeployment, "failed", retErr.Error(),
+					"stackkit apply failed"); reportErr != nil {
+					printWarning("Could not report failed state: %v", reportErr)
+				}
+			}
+		}()
+	}
+
+	// Load spec — three-tier resolution:
+	//   1. Local stack-spec.yaml (operator/dev workflow).
+	//   2. If --tenant-deployment is set AND no local spec exists,
+	//      fetch the composed spec from Admin over the bootstrap
+	//      token. This is the "VM boots from a clean image" path.
+	//   3. Fall back to createDefaultSpec (kits/modules tree found
+	//      next to the binary).
 	loader := config.NewLoader(wd)
 	spec, err := loader.LoadStackSpec(specFile)
 	if err != nil {
 		specPath := filepath.Join(wd, specFile)
 		if _, statErr := os.Stat(specPath); os.IsNotExist(statErr) {
-			spec, err = createDefaultSpec(loader, wd)
-			if err != nil {
-				return fmt.Errorf("no spec file and auto-init failed: %w", err)
+			if applyTenantDeployment != "" {
+				printInfo("No local %s — fetching composed spec from Admin for deployment %s",
+					specFile, applyTenantDeployment)
+				fetched, fetchErr := fetchTenantSpec(ctx, applyTenantDeployment, wd)
+				if fetchErr != nil {
+					return fmt.Errorf("tenant-deployment spec fetch: %w", fetchErr)
+				}
+				// Re-load from disk so downstream code goes through
+				// the usual validation + defaulting path in the loader.
+				spec, err = loader.LoadStackSpec(specFile)
+				if err != nil {
+					// Defensive: the fetched spec didn't round-trip.
+					// Use it directly and log the loader error.
+					printWarning("Admin-fetched spec failed loader validation: %v (using raw spec)", err)
+					spec = fetched
+				}
+			} else {
+				spec, err = createDefaultSpec(loader, wd)
+				if err != nil {
+					return fmt.Errorf("no spec file and auto-init failed: %w", err)
+				}
 			}
 		} else {
 			return fmt.Errorf("failed to load spec: %w", err)
@@ -103,6 +148,11 @@ func runApply(cmd *cobra.Command, args []string) error {
 		genForce = true
 		if genErr := runGenerate(cmd, nil); genErr != nil {
 			return fmt.Errorf("auto-generate failed: %w", genErr)
+		}
+		if reloaded, reloadErr := loader.LoadStackSpec(specFile); reloadErr == nil {
+			spec = reloaded
+		} else {
+			printWarning("Could not reload generated stack spec: %v", reloadErr)
 		}
 	}
 
@@ -184,6 +234,25 @@ func runApply(cmd *cobra.Command, args []string) error {
 		LastApplied: time.Now(),
 	}
 
+	access, accessErr := buildAccessSummary(wd, spec)
+	if accessErr != nil {
+		printWarning("Could not build access summary: %v", accessErr)
+		deployLog.Warn("access.summary",
+			slog.String("status", "failed"),
+			slog.String("error", accessErr.Error()),
+		)
+	} else {
+		state.Services = serviceStatesFromAccessSummary(access)
+		if writeErr := writeAccessSummary(wd, access); writeErr != nil {
+			printWarning("Could not write access summary: %v", writeErr)
+		} else {
+			deployLog.Event("access.summary",
+				slog.String("status", "written"),
+				slog.String("hub_url", access.HubURL),
+			)
+		}
+	}
+
 	deployLog.Event("apply.success",
 		slog.Duration("duration", duration),
 	)
@@ -240,6 +309,81 @@ func runApply(cmd *cobra.Command, args []string) error {
 	// Post-deploy: verify service URLs are reachable
 	verifyServiceURLs(ctx, spec)
 
+	// Post-deploy: bootstrap PocketID owner + break-glass artifacts on the
+	// firstnode (Phase 1, gated on --cluster-mode=first --owner-source=local).
+	// No-op for existing deploys that don't opt into the new identity flow.
+	if err := runOwnerBootstrap(cmd, spec); err != nil {
+		return err
+	}
+
+	// Post-deploy: report tenant deployment state (if linked to a managed StackKit)
+	if applyTenantDeployment != "" {
+		if err := reportTenantDeploymentState(applyTenantDeployment, "healthy", "",
+			fmt.Sprintf("apply succeeded for stackkit=%s in %s", spec.StackKit, duration.Round(time.Second))); err != nil {
+			printWarning("Could not report deployment state to Admin: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// reportTenantDeploymentState PATCHes sk_tenant_deployment with a lifecycle
+// transition. Used by `apply --tenant-deployment=<uuid>` to bridge the
+// filesystem-apply flow back into the managed-tenant lifecycle.
+func reportTenantDeploymentState(deploymentID, state, lastError, message string) error {
+	endpoint := strings.TrimRight(applyReportingEndpoint, "/")
+	if endpoint == "" {
+		// Prefer the harmonized STACKKIT_ADMIN_ENDPOINT (also used by
+		// internal/registry.AutoClient); fall back to the legacy
+		// STACKKIT_ADMIN_URL for compatibility with older admin-jobs
+		// deployments that have not yet been updated.
+		endpoint = strings.TrimRight(os.Getenv("STACKKIT_ADMIN_ENDPOINT"), "/")
+	}
+	if endpoint == "" {
+		endpoint = strings.TrimRight(os.Getenv("STACKKIT_ADMIN_URL"), "/")
+	}
+	if endpoint == "" {
+		return fmt.Errorf("no --admin-endpoint, STACKKIT_ADMIN_ENDPOINT, or STACKKIT_ADMIN_URL configured")
+	}
+	token := applyReportingToken
+	if token == "" {
+		token = os.Getenv("STACKKIT_ADMIN_TOKEN")
+	}
+
+	payload := map[string]interface{}{
+		"lifecycleState": state,
+		"message":        message,
+		"actor":          "stackkit-cli",
+	}
+	if lastError != "" {
+		payload["lastError"] = lastError
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/api/v1/sk/tenants/deployments/%s", endpoint, deploymentID)
+	req, err := http.NewRequest(http.MethodPatch, url, strings.NewReader(string(body)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("admin returned %d", resp.StatusCode)
+	}
+	printSuccess("Reported deployment %s -> %s", deploymentID, state)
 	return nil
 }
 
@@ -360,7 +504,7 @@ func ensureDocker(ctx context.Context) error {
 			var answer string
 			_, _ = fmt.Scanln(&answer)
 			if len(answer) > 0 && (answer[0] == 'n' || answer[0] == 'N') {
-				return fmt.Errorf("Docker is required. Install it manually or run 'stackkit prepare'")
+				return fmt.Errorf("docker is required; install it manually or run 'stackkit prepare'")
 			}
 			printInfo("Installing Docker...")
 		}
@@ -639,7 +783,7 @@ func registerWithKombify(spec *models.StackSpec, state *models.DeploymentState) 
 
 	reg := &models.InstanceRegistration{
 		InstanceID:  instanceID,
-		EndpointURL: fmt.Sprintf("https://api.%s.kombify.me", spec.SubdomainPrefix),
+		EndpointURL: fmt.Sprintf("https://%s-api.kombify.me", spec.SubdomainPrefix),
 		StackKit:    spec.StackKit,
 		Services:    services,
 		Status:      string(state.Status),
@@ -701,7 +845,7 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 	}
 
 	// Build the primary test URL (dashboard)
-	proto := "http"
+	proto := "https"
 	testHost := "base." + domain
 	if spec.SubdomainPrefix != "" {
 		testHost = spec.SubdomainPrefix + "-dash." + domain
@@ -721,6 +865,13 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 		req, reqErr := http.NewRequestWithContext(checkCtx, http.MethodGet, testURL, nil)
 		if reqErr == nil {
 			client := &http.Client{Timeout: 5 * time.Second}
+			if models.IsLocalDomain(domain) {
+				// #nosec G402 -- IsLocalDomain check above limits this branch to .local /
+				// .home.arpa / .test domains used for first-node smoke tests. The certificate
+				// the dev StackKit issues to itself is not trusted by the system root store
+				// during the install window, but is replaced by ACME on cloud-context apply.
+				client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec
+			}
 			resp, httpErr := client.Do(req)
 			if httpErr == nil {
 				resp.Body.Close()
@@ -745,7 +896,7 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 			printError("Local domain '%s' is not accessible on a public server", domain)
 			fmt.Println()
 			printInfo("Your server is a VPS/cloud instance but is configured with a local domain.")
-			printInfo("Local domains (*.local, *.lab, *.lan, *.home, *.homebase) only work on home networks with dnsmasq.")
+			printInfo("Local domains (*.home.localhost, *.home, *.<name>.home, *.internal, *.local, *.lab, *.lan) only work on the local device or a LAN resolver.")
 			fmt.Println()
 			printInfo("To fix this, update your stack-spec.yaml domain to one of:")
 			fmt.Println("  1. domain: kombify.me    (free public subdomains via kombify.me)")
@@ -757,9 +908,11 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 		}
 	} else if !dnsOK {
 		printInfo("DNS resolution failed for '%s'", testHost)
-		if caps != nil && caps.PrivateIP != "" {
-			printInfo("Add to /etc/hosts on your workstation:")
-			fmt.Printf("  %s  %s\n", caps.PrivateIP, testHost)
+		if models.IsLocalhostDomain(domain) {
+			printInfo("The .localhost mode is device-local. Open the URL on the machine that reaches this Docker host, or use --local-dns for LAN-wide names.")
+		} else if caps != nil && caps.PrivateIP != "" {
+			printInfo("For LAN DNS, point router DHCP DNS to:")
+			fmt.Printf("  %s\n", caps.PrivateIP)
 		}
 	}
 }

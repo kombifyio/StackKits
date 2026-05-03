@@ -152,6 +152,9 @@ Contract: base.#ModuleContract & {
 				"traefik.http.services.dokploy.loadbalancer.server.port": "3000"
 			}
 
+			subdomain: {key: "dokploy", nested: "dokploy", flat: "dokploy"}
+			dashboard: {icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy"}
+
 			output: {
 				url:         "https://dokploy.{{.domain}}"
 				description: "Dokploy PaaS dashboard"

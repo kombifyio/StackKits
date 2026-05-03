@@ -14,9 +14,12 @@
 ### Key Features
 
 - **CUE-defined** - All services, configuration, and constraints live in CUE schemas
-- **Fully automated apply** - `stackkit apply` deploys ALL layers to a clean server with zero manual steps
-- **No manual rollout** - There is no "manual deploy" step. If it requires manual intervention, the CUE definition is incomplete.
+- **Generated deployment path** - `stackkit generate/plan/apply` is the canonical path from CUE to OpenTofu.
+- **No hand-edited rollout artifacts** - If generated output needs manual edits, the CUE definition is incomplete.
+- **OTLP-first observability** - OpenTelemetry Collector is the baseline contract; VictoriaMetrics stays an optional extension, not a mandatory default.
 - **Standalone or Integrated** - Use via CLI or with kombify-TechStack Web UI
+
+See [docs/MONITORING.md](docs/MONITORING.md) for the current monitoring contract and TechStack integration boundary.
 
 ### Prerequisites
 
@@ -24,7 +27,7 @@
 | ------------ | ------- | --------------------------- |
 | **Docker**   | 24.0+   | Container runtime           |
 
-**For development only:** CUE CLI 0.9+ (schema validation), Go 1.25+ (build CLI)
+**For development only:** CUE CLI 0.9+ (schema validation), Go 1.24+ (build CLI)
 
 > OpenTofu and Terramate are used **internally by the CLI** as execution engines — they are not user-installed prerequisites and are never run directly by users or agents.
 
@@ -34,7 +37,7 @@ StackKits are **architecture patterns**, not node-count definitions.
 
 | StackKit | Pattern | Core Idea | Status |
 | --- | --- | --- | --- |
-| **Base Kit** | Single environment | All services in one deployment target — local or cloud VPS. | ✅ Available |
+| **Base Kit** | Single environment | Verified Level 0 Docker default: Traefik, socket-proxy, TinyAuth, Vaultwarden, Jellyfin. | Available |
 | **Modern Homelab** | Hybrid infrastructure | Bridges local + cloud. Zero-trust access via identity stack. | 🚧 Schema Only |
 | **High Availability Kit** | HA cluster | Redundancy, failover, quorum. Cluster-first architecture. | 🚧 Schema Only |
 
@@ -54,7 +57,7 @@ Add-Ons replace the old monolithic variant system. They are stackable and compat
 
 | Add-On | Category | Description |
 | --- | --- | --- |
-| `monitoring` | Observability | Prometheus + Grafana + Alertmanager |
+| `monitoring` | Observability | OpenTelemetry Collector baseline with optional VictoriaMetrics, dashboards, and alert-routing extensions |
 | `backup` | Data | Restic + configurable targets |
 | `vpn-overlay` | Networking | Optional Headscale/Tailscale mesh |
 | `gpu-workloads` | Compute | NVIDIA/AMD GPU passthrough |
@@ -79,7 +82,7 @@ StackKits uses a strict **3-layer architecture** for maximum reusability:
 ┌─────────────────────────────────────────────────────────────┐
 │  LAYER 3: STACKKITS (stackkits/)                            │
 │  Use-case specific configurations with services             │
-│  • base-kit: Single-environment Docker + Dokploy        │
+│  • base-kit: Single-environment Docker + OpenTofu       │
 │  • modern-homelab: Hybrid Docker + identity stack            │
 │  • ha-kit: Docker Swarm HA cluster                       │
 ├─────────────────────────────────────────────────────────────┤
@@ -106,6 +109,7 @@ StackKits/
 │
 ├── docs/                       # Canonical project docs
 │   └── ADR/                    # Architectural Decision Records
+├── website/                    # Static public website source for stackkit.cc
 ├── tests/                      # Testing
 ├── cmd/                        # CLI Source
 ├── internal/                   # Internal Packages
@@ -139,9 +143,13 @@ docker compose exec vm docker ps    # VM: should show ALL services
 ./deploy-to-vm.sh
 ```
 
-**First Login:**
-- **TinyAuth**: http://auth.stack.local → `admin` / `admin123`
-- **Dokploy**: http://dokploy.stack.local (via TinyAuth SSO)
+**Current Base Kit default:**
+- PocketID: `https://id.home.localhost`
+- TinyAuth: `https://auth.home.localhost`
+- Vaultwarden: `https://vault.home.localhost`
+- Jellyfin: `https://media.home.localhost`
+
+The admin password is generated during composition and written to generated sensitive output such as `terraform.tfvars.json`; there is no static `admin/admin123` credential.
 
 See [base-kit/README.md](base-kit/README.md) for complete documentation.
 
@@ -168,6 +176,93 @@ stackkit apply
 ```
 
 See [docs/CLI.md](docs/CLI.md) for the full command reference.
+
+### Local-Owner Setup (Standalone)
+
+Phase 1 of the owner-and-break-glass-admin provisioning ([spec][bg-spec], [plan][bg-plan]) is shippable for self-hosted single-node setups with a local owner account.
+
+```bash
+# Interactive (prompts for missing fields):
+stackkit init base-kit \
+    --owner-source=local \
+    --owner-email=mako@kombify.io \
+    --owner-username=mako
+
+# Non-interactive (CI/automation):
+stackkit init base-kit --non-interactive \
+    --admin-email=mako@kombify.io \
+    --owner-source=local \
+    --owner-email=mako@kombify.io \
+    --owner-username=mako \
+    --owner-display-name="Marcel Kombify" \
+    --recovery-passphrase-hash="$(stackkit --hash-passphrase --pass 'your-recovery-phrase')"
+# (or pre-compute the argon2id PHC string however you prefer)
+
+stackkit apply --auto-approve
+```
+
+After `apply`, you'll see:
+
+1. **Owner setup URL** — open this in your browser to enroll your WebAuthn credential (passkey).
+   Example: `https://id.<domain>/setup-account?token=ott-abc123...`
+2. **Recovery bundle paths** — the encrypted `.age` file is your disaster-recovery artifact. Save it to a password manager (Bitwarden, 1Password, etc.) along with your recovery passphrase. The plaintext `.txt` next to it is convenience-only and must remain on the node (mode 0600).
+
+To list bundles later:
+
+```bash
+stackkit break-glass list
+```
+
+To find the path to a specific node's bundle:
+
+```bash
+stackkit break-glass show-bundle <node-name>
+```
+
+### Recovery (when normal owner-login is broken)
+
+Three-factor recovery: encrypted bundle + recovery passphrase + physical access to the node.
+
+```bash
+# 1. Decrypt the bundle:
+age -d -o break-glass.txt break-glass-<node>.age
+# (you will be prompted for the recovery passphrase)
+
+# 2. Read the YAML for the credentials. You have two recovery paths:
+#
+#    Path 1 (PocketID-admin layer):
+#      Open the SetupURL in a browser, enroll a WebAuthn credential.
+#      You're now the PocketID admin for this node.
+#
+#    Path 2 (TinyAuth-static-cred, used when PocketID is also down):
+#      Log in to TinyAuth directly with the static username/password.
+#      This bypasses PocketID entirely.
+
+# 3. Always rotate after a break-glass use:
+stackkit break-glass rotate    # (Phase 5 — currently stub)
+```
+
+### Recovering from an interrupted apply
+
+If `stackkit apply` fails between owner creation and bundle save (network blip,
+SIGINT, container OOM), a re-run will hit `HTTP 409 Conflict` because the
+owner user, the `owners` group, and the per-node break-glass admin already
+exist in PocketID. Phase 1 does not retry idempotently. To recover:
+
+1. Open `https://id.<domain>/admin/users` in a browser, sign in with the
+   PocketID admin you set up via the OTAT setup URL (or the break-glass
+   admin from a previous successful run on another node), and delete the
+   partially-created owner and break-glass users. Also delete the `owners`
+   group at `/admin/groups` if it was created. Then re-run `stackkit apply`.
+2. Or wait for Phase 5, which will introduce idempotent retries that detect
+   pre-existing records and reuse them instead of erroring.
+
+If neither path is available (no working admin), use the recovery bundle
+from a sibling node (clusters) or fall back to the three-factor procedure
+above.
+
+[bg-spec]: docs/superpowers/specs/2026-04-28-techstack-stackkits-owner-breakglass-design.md
+[bg-plan]: docs/superpowers/plans/2026-04-28-phase-1-standalone-firstnode-localowner.md
 
 ### Using with kombify-TechStack
 
@@ -251,7 +346,7 @@ import "github.com/kombifyio/stackkits/base"
         category: "observability"
     }
     compatible_stackkits: ["base", "modern", "ha"]
-    services: { prometheus: ..., grafana: ..., alertmanager: ... }
+  services: { otelCollector: ..., victoriaMetrics: ..., grafana: ... }
 }
 ```
 
@@ -261,7 +356,7 @@ import "github.com/kombifyio/stackkits/base"
 # Run CUE validation tests
 cd tests/cue && cue vet ./...
 
-# Run integration tests (requires kombify Sim)
+# Run integration tests (requires kombify Simulate)
 make test-integration
 ```
 

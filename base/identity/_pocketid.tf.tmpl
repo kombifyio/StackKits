@@ -23,15 +23,15 @@ variable "pocketid_enabled" {
 }
 
 variable "pocketid_version" {
-  description = "PocketID Docker image version"
+  description = "PocketID Docker image version (PocketID v2 — ghcr.io/pocket-id/pocket-id:v2 — has a non-overlapping schema with v1; v1 is end-of-life)"
   type        = string
-  default     = "latest"
+  default     = "v2"
 }
 
 variable "pocketid_port" {
-  description = "PocketID HTTP port"
+  description = "PocketID HTTP port (host-side mapping for the v2 container, which listens on 1411 internally)"
   type        = number
-  default     = 3003
+  default     = 1411
 }
 
 variable "pocketid_app_url" {
@@ -44,6 +44,29 @@ variable "pocketid_traefik_host" {
   description = "Traefik host rule for PocketID"
   type        = string
   default     = "id.stack.local"
+}
+
+# Phase 1 / Task 12: PocketID v2 STATIC_API_KEY for headless admin bootstrap.
+# The stackkit CLI persists this value in <homelab>/.stackkit/pocketid-static-api-key
+# and renders it here via terraform.tfvars.json. Same value is used by
+# `stackkit apply`'s owner-bootstrap step.
+variable "pocketid_static_api_key" {
+  description = "PocketID STATIC_API_KEY (admin bootstrap token)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# Phase 1 / Task 14 stopper-fix: PocketID v2 refuses to start without
+# ENCRYPTION_KEY (>=16 raw bytes). Persisted by the CLI in
+# <homelab>/.stackkit/pocketid-encryption-key and rendered here via
+# terraform.tfvars.json. Rotating this value makes existing data on the
+# volume undecryptable.
+variable "pocketid_encryption_key" {
+  description = "PocketID ENCRYPTION_KEY (>=16 raw bytes, persistent across re-apply)"
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 # Database configuration
@@ -159,7 +182,7 @@ resource "docker_container" "pocketid" {
   count = var.pocketid_enabled ? 1 : 0
 
   name  = "pocketid"
-  image = "stonith404/pocket-id:${var.pocketid_version}"
+  image = "ghcr.io/pocket-id/pocket-id:${var.pocketid_version}"
 
   restart = "unless-stopped"
 
@@ -167,9 +190,9 @@ resource "docker_container" "pocketid" {
     name = var.pocketid_network
   }
 
-  # Ports
+  # Ports — PocketID v2 listens on 1411 inside the container (PORT env, default).
   ports {
-    internal = 3000
+    internal = 1411
     external = var.pocketid_port
     protocol = "tcp"
   }
@@ -180,11 +203,17 @@ resource "docker_container" "pocketid" {
     container_path = "/app/data"
   }
 
-  # Environment
+  # Environment — PocketID v2 reads APP_URL (not PUBLIC_APP_URL), needs
+  # TRUST_PROXY=true so Traefik-supplied X-Forwarded-* headers are honored,
+  # and binds PORT=1411 internally.
   env = concat(
     [
       "TZ=Europe/Berlin",
-      "PUBLIC_APP_URL=${var.pocketid_app_url}",
+      "APP_URL=${var.pocketid_app_url}",
+      "TRUST_PROXY=true",
+      "PORT=1411",
+      "STATIC_API_KEY=${var.pocketid_static_api_key}",
+      "ENCRYPTION_KEY=${var.pocketid_encryption_key}",
     ],
     # Database
     var.pocketid_db_type == "postgres" ? [
@@ -212,9 +241,10 @@ resource "docker_container" "pocketid" {
     ] : [],
   )
 
-  # Healthcheck
+  # Healthcheck — PocketID v2 ships an in-binary `pocket-id healthcheck`
+  # subcommand; the legacy /api/health endpoint was removed in v2.
   healthcheck {
-    test     = ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+    test     = ["CMD", "/app/pocket-id", "healthcheck"]
     interval = "30s"
     timeout  = "5s"
     retries  = 3
@@ -243,7 +273,7 @@ resource "docker_container" "pocketid" {
 
   labels {
     label = "traefik.http.services.pocketid.loadbalancer.server.port"
-    value = "3000"
+    value = "1411"
   }
 
   # StackKit classification labels

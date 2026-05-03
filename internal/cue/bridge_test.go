@@ -167,7 +167,7 @@ func TestExtractTFVars(t *testing.T) {
 	ctx := cuecontext.New()
 	bridge := &TerraformBridge{ctx: ctx, stackkitDir: "."}
 
-	t.Run("defaults: all core services enabled, dashboard off", func(t *testing.T) {
+	t.Run("defaults: working gateway and PocketID enabled, dashboard off", func(t *testing.T) {
 		value := ctx.CompileString(`{ foo: "bar" }`)
 		require.NoError(t, value.Err())
 
@@ -482,13 +482,14 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		require.NoError(t, json.Unmarshal(data, &tfvars))
 
 		assert.Equal(t, models.DomainHomeLab, tfvars.Domain)
-		assert.Equal(t, "172.20.0.0/16", tfvars.NetworkSubnet)
-		assert.False(t, tfvars.EnableTraefik)
+		assert.Equal(t, "", tfvars.NetworkSubnet)
+		assert.True(t, tfvars.EnableTraefik)
+		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDokploy)
 		assert.True(t, tfvars.EnableDashboard)
 	})
 
-	t.Run("service enabled=false disables service", func(t *testing.T) {
+	t.Run("service enabled=false cannot disable mandatory PocketID", func(t *testing.T) {
 		setBridgeCapabilitiesHome(t, models.ContextLocal)
 
 		tmpDir := t.TempDir()
@@ -513,10 +514,10 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		var tfvars TFVars
 		require.NoError(t, json.Unmarshal(data, &tfvars))
 
-		assert.False(t, tfvars.EnablePocketID)
+		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDashboard)
 		// Others still default to true
-		assert.False(t, tfvars.EnableTraefik)
+		assert.True(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 	})
 }
@@ -532,8 +533,8 @@ func TestSpecToTFVars(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, models.DomainHomeLab, tfvars.Domain)
-		assert.Equal(t, "172.20.0.0/16", tfvars.NetworkSubnet)
-		assert.False(t, tfvars.EnableTraefik)
+		assert.Equal(t, "", tfvars.NetworkSubnet)
+		assert.True(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDokploy)
@@ -601,6 +602,7 @@ func setBridgeCapabilitiesHome(t *testing.T, ctx models.NodeContext) {
 		StorageDriver:    models.StorageOverlay2,
 		CPUCores:         4,
 		MemoryGB:         8,
+		PrivateIP:        "192.168.1.50",
 	}
 
 	data, err := json.Marshal(caps)

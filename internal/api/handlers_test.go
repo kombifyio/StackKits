@@ -471,6 +471,29 @@ func TestHandleGenerateTFVars(t *testing.T) {
 	srv, _ := testServer(t)
 	handler := srv.Handler()
 
+	t.Run("uses request spec", func(t *testing.T) {
+		body := `{"spec":{"name":"api-prod","stackkit":"base-kit","mode":"simple","context":"cloud","domain":"prod.example.com","adminEmail":"ops@example.com","network":{"mode":"public","subnet":"172.31.0.0/16"},"compute":{"tier":"low"}}}`
+		req := httptest.NewRequest("POST", "/api/v1/generate/tfvars", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var resp struct {
+			Data struct {
+				TFVars map[string]interface{} `json:"tfvars"`
+				File   string                 `json:"file"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		assert.Equal(t, "terraform.tfvars.json", resp.Data.File)
+		assert.Equal(t, "prod.example.com", resp.Data.TFVars["domain"])
+		assert.Equal(t, "ops@example.com", resp.Data.TFVars["admin_email"])
+		assert.Equal(t, "api-prod", resp.Data.TFVars["dashboard_title"])
+		assert.Equal(t, "172.31.0.0/16", resp.Data.TFVars["network_subnet"])
+	})
+
 	t.Run("missing stackkit", func(t *testing.T) {
 		body := `{"spec":{}}`
 		req := httptest.NewRequest("POST", "/api/v1/generate/tfvars", strings.NewReader(body))
@@ -506,6 +529,28 @@ func TestHandleGenerateTFVars(t *testing.T) {
 func TestHandleGeneratePreview(t *testing.T) {
 	srv, _ := testServer(t)
 	handler := srv.Handler()
+
+	t.Run("uses request spec", func(t *testing.T) {
+		body := `{"spec":{"name":"preview-prod","stackkit":"base-kit","mode":"simple","context":"cloud","domain":"preview.example.com","adminEmail":"preview@example.com","network":{"mode":"public"}}}`
+		req := httptest.NewRequest("POST", "/api/v1/generate/preview", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var resp struct {
+			Data struct {
+				TFVars  map[string]interface{} `json:"tfvars"`
+				Preview bool                   `json:"preview"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		assert.True(t, resp.Data.Preview)
+		assert.Equal(t, "preview.example.com", resp.Data.TFVars["domain"])
+		assert.Equal(t, "preview@example.com", resp.Data.TFVars["admin_email"])
+		assert.Equal(t, "preview-prod", resp.Data.TFVars["dashboard_title"])
+	})
 
 	t.Run("missing stackkit", func(t *testing.T) {
 		body := `{"spec":{}}`
@@ -598,11 +643,28 @@ func TestAPIKeyMiddleware(t *testing.T) {
 func TestCORSMiddleware(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	t.Run("wildcard when no origins configured", func(t *testing.T) {
+	t.Run("no browser CORS when no origins configured", func(t *testing.T) {
 		srv := NewServer(ServerConfig{
 			Port:    0,
 			BaseDir: tmpDir,
 			Version: "test",
+		})
+		t.Cleanup(srv.Close)
+		req := httptest.NewRequest("GET", "/health", nil)
+		req.Header.Set("Origin", "https://example.com")
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+	})
+
+	t.Run("explicit wildcard origin", func(t *testing.T) {
+		srv := NewServer(ServerConfig{
+			Port:        0,
+			BaseDir:     tmpDir,
+			Version:     "test",
+			CORSOrigins: []string{"*"},
 		})
 		t.Cleanup(srv.Close)
 		req := httptest.NewRequest("GET", "/health", nil)
@@ -723,6 +785,64 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, rec.Code, "health request %d should be exempt", i+1)
 		}
+	})
+
+	t.Run("ignores x-forwarded-for from untrusted peer", func(t *testing.T) {
+		spoofSrv := NewServer(ServerConfig{
+			Port:      0,
+			BaseDir:   tmpDir,
+			Version:   "test",
+			RateLimit: 1,
+		})
+		t.Cleanup(spoofSrv.Close)
+		h := spoofSrv.Handler()
+
+		req := httptest.NewRequest("GET", "/api/v1/capabilities", nil)
+		req.RemoteAddr = "10.0.0.5:12345"
+		req.Header.Set("X-Forwarded-For", "203.0.113.10")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		req = httptest.NewRequest("GET", "/api/v1/capabilities", nil)
+		req.RemoteAddr = "10.0.0.5:12345"
+		req.Header.Set("X-Forwarded-For", "203.0.113.11")
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	})
+
+	t.Run("honors x-forwarded-for from trusted peer", func(t *testing.T) {
+		trustedSrv := NewServer(ServerConfig{
+			Port:           0,
+			BaseDir:        tmpDir,
+			Version:        "test",
+			RateLimit:      1,
+			TrustedProxies: []string{"10.0.0.6"},
+		})
+		t.Cleanup(trustedSrv.Close)
+		h := trustedSrv.Handler()
+
+		req := httptest.NewRequest("GET", "/api/v1/capabilities", nil)
+		req.RemoteAddr = "10.0.0.6:12345"
+		req.Header.Set("X-Forwarded-For", "203.0.113.20")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		req = httptest.NewRequest("GET", "/api/v1/capabilities", nil)
+		req.RemoteAddr = "10.0.0.6:12345"
+		req.Header.Set("X-Forwarded-For", "203.0.113.21")
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		req = httptest.NewRequest("GET", "/api/v1/capabilities", nil)
+		req.RemoteAddr = "10.0.0.6:12345"
+		req.Header.Set("X-Forwarded-For", "203.0.113.20")
+		rec = httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 	})
 
 	t.Run("no limit when rate limit is 0", func(t *testing.T) {

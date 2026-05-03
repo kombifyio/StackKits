@@ -226,6 +226,30 @@ package base
 		}
 	}
 
+	// Subdomain routing configuration for domain computation.
+	// key = Terraform local.domains map key.
+	// nested = subdomain for own-domain mode ({nested}.{domain}).
+	// flat = subdomain suffix for kombify.me mode ({prefix}-{flat}.{domain}).
+	subdomain?: {
+		key:    =~"^[a-z][a-z0-9_]*$"
+		nested: =~"^[a-z][a-z0-9-]*$"
+		flat:   =~"^[a-z][a-z0-9-]*$"
+	}
+
+	// Dashboard card configuration for the generated homelab dashboard.
+	dashboard?: {
+		// HTML entity for the card icon (e.g., "&#128100;")
+		icon: string
+		// Display order within section (lower = first)
+		order: int & >=0
+		// Dashboard section grouping
+		section: "Platform" | "Applications"
+		// Layer badge label (e.g., "L1 · IdP")
+		badge: string
+		// Terraform enable variable name. Omit for always-shown services.
+		enableVar?: =~"^enable_[a-z_]+$"
+	}
+
 	// Allow additional custom fields for service-specific extensions
 	...
 }
@@ -250,7 +274,7 @@ package base
 	// Management
 	"management" |
 	// Specialized
-	"media" | "object-storage" | "test" | "custom"
+	"media" | "photos" | "vault" | "object-storage" | "test" | "custom"
 
 // #ServiceNetworkConfig defines service networking
 #ServiceNetworkConfig: {

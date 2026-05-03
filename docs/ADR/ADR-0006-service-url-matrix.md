@@ -10,7 +10,7 @@ StackKits need to produce correct service URLs for every combination of domain m
 - **Ingress** (Traefik configuration, TLS termination, routing rules)
 - **PAAS** (Dokploy/Coolify manage their own Traefik instances)
 - **Identity** (TinyAuth ForwardAuth middleware URLs depend on the domain)
-- **DNS** (resolution differs: public DNS, kombify.me registry, local dnsmasq)
+- **DNS** (resolution differs: public DNS, kombify.me registry, local Kombify Point)
 
 Currently only "Standalone Traefik" with custom domain and local domain are implemented and verified. The full matrix has 9 scenarios that must all work.
 
@@ -26,7 +26,8 @@ Implement all 9 combinations of domain mode x reverse proxy backend as part of t
 |------|---------------|-------------|----------------|
 | **Custom wildcard** | `*.kmbchr.de` | ACME (TLS-ALPN-01 or DNS-01) | User manages DNS (A/CNAME records) |
 | **kombify.me** | `*.mylab.kombify.me` | Managed by kombify (Cloudflare wildcard) | kombify.me subdomain registry + tunnel/direct connect |
-| **Local magic** | `*.home.lab` | Self-signed (no ACME) | dnsmasq container (`*.home.lab` → LAN IP) |
+| **Local zero-config** | `*.home.localhost` | StackKits Step-CA | Browser/OS `.localhost` handling on the current device |
+| **Local magic DNS** | `*.home` / `*.<name>.home` | StackKits Step-CA | Kombify Point (`*.home` / `*.<name>.home` -> LAN IP) |
 
 #### Reverse Proxy Backends (columns)
 
@@ -47,7 +48,8 @@ All three backends produce the same URL pattern for a given domain mode:
 Examples:
 - Custom: `kuma.kmbchr.de`, `base.kmbchr.de`
 - kombify.me: `mylab-kuma.kombify.me`, `mylab-base.kombify.me` (flat naming)
-- Local: `kuma.home.lab`, `base.home.lab`
+- Local zero-config: `kuma.home.localhost`, `base.home.localhost`
+- Local DNS: `kuma.home`, `base.family.home`
 
 The difference is HOW the routing happens internally:
 
@@ -71,7 +73,7 @@ The difference is HOW the routing happens internally:
 |---|---|---|---|
 | **Custom domain** | User DNS (wildcard A record) | User DNS (wildcard A record) | User DNS (wildcard A record) |
 | **kombify.me** | kombify registry + tunnel/direct connect | kombify registry + tunnel/direct connect | kombify registry + tunnel/direct connect |
-| **Local** | dnsmasq container | dnsmasq container | dnsmasq container |
+| **Local** | Kombify Point | Kombify Point | Kombify Point |
 
 ## Implementation Plan
 
@@ -79,7 +81,8 @@ The difference is HOW the routing happens internally:
 
 - [x] Custom domain with TLS-ALPN-01 (port 443 public)
 - [x] Custom domain with DNS-01 (behind NAT, Cloudflare verified)
-- [x] Local domain (`home.lab`) with dnsmasq + self-signed
+- [x] Local zero-config (`home.localhost`) with StackKits Step-CA
+- [x] Local DNS (`home` / `<name>.home`) with Kombify Point + StackKits Step-CA
 - [ ] kombify.me with Direct Connect registry
 
 ### Phase 2: Dokploy + Traefik
@@ -91,7 +94,7 @@ Implementation:
 2. Skip deploying a separate Traefik container
 3. Attach platform service Docker labels to Dokploy's Traefik network
 4. Configure ACME/DNS-01 on Dokploy's Traefik (not StackKit's)
-5. dnsmasq still managed by StackKit for local mode
+5. Kombify Point/local DNS still managed by StackKit for local mode
 
 ### Phase 3: Coolify + Traefik
 

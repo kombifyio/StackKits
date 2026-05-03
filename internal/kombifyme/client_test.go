@@ -23,7 +23,7 @@ func TestAutoRegister(t *testing.T) {
 	t.Run("successful registration", func(t *testing.T) {
 		c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "POST", r.Method)
-			assert.Equal(t, "/auto-register", r.URL.Path)
+			assert.Equal(t, "/subdomains/auto-register", r.URL.Path)
 			assert.Equal(t, "test-api-key", r.Header.Get(apiKeyHeader))
 			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
@@ -61,7 +61,7 @@ func TestAutoRegister(t *testing.T) {
 func TestRegisterService(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "/auto-register/service", r.URL.Path)
+		assert.Equal(t, "/subdomains/auto-register/service", r.URL.Path)
 
 		var body map[string]string
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
@@ -175,11 +175,22 @@ func TestBaseKitServices(t *testing.T) {
 	})
 }
 
+func TestProxyTargetAddrUsesPublicHTTPOrigin(t *testing.T) {
+	assert.Equal(t, "http://203.0.113.10:80", proxyTargetAddr("203.0.113.10"))
+	assert.Equal(t, "http://localhost:80", proxyTargetAddr(""))
+}
+
 func TestDeviceFingerprint(t *testing.T) {
 	fp := DeviceFingerprint()
 	assert.Len(t, fp, 6, "fingerprint should be 6 hex chars")
 	// Should be deterministic for the same machine
 	assert.Equal(t, fp, DeviceFingerprint())
+}
+
+func TestDeviceFingerprintUsesExplicitEnvironmentOverride(t *testing.T) {
+	t.Setenv("KOMBIFY_DEVICE_FINGERPRINT", "abc123")
+
+	assert.Equal(t, "abc123", DeviceFingerprint())
 }
 
 func serviceNames(defs []ServiceDef) []string {

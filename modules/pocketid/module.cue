@@ -32,6 +32,7 @@ Contract: base.#ModuleContract & {
 	provides: {
 		capabilities: {
 			"oidc":              true
+			"oidc-provider":     true
 			"identity-provider": true
 			"sso":               true
 			"passkeys":          true
@@ -42,7 +43,7 @@ Contract: base.#ModuleContract & {
 				description: "PocketID admin and login UI"
 			}
 			wellknown: {
-				url:         "http://pocketid:80/.well-known/openid-configuration"
+				url:         "http://pocketid:1411/.well-known/openid-configuration"
 				internal:    true
 				description: "OIDC discovery endpoint"
 			}
@@ -75,7 +76,14 @@ Contract: base.#ModuleContract & {
 		name:     "pocketid"
 		type:     "auth"
 		image:    "ghcr.io/pocket-id/pocket-id"
-		tag:      "v1"
+		// PocketID v2 (PR #1229, v2.0.0+) is required for Phase 1's apply-time
+		// owner-bootstrap. v1 has no STATIC_API_KEY support and cannot be
+		// API-bootstrapped, so the fragment-rendered deploy/pocketid.tf would
+		// be unbootable against a real install. v1 is end-of-life; the
+		// integration test (tests/integration/pocketid_e2e_test.go) docker-runs
+		// v2 directly, so this pin keeps the rendered TF and the integration
+		// harness on the same image.
+		tag:      "v2"
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]
@@ -89,7 +97,7 @@ Contract: base.#ModuleContract & {
 			traefik: {
 				enabled: true
 				rule:    "Host(`id.{{.domain}}`)"
-				port:    80
+				port:    1411
 			}
 			networks: ["base_net"]
 		}
@@ -105,16 +113,34 @@ Contract: base.#ModuleContract & {
 		]
 
 		environment: {
-			TZ:             "{{.timezone}}"
-			PUBLIC_APP_URL: "https://id.{{.domain}}"
-			TRUST_PROXY:    "true"
+			TZ: "{{.timezone}}"
+			// PocketID v2 reads APP_URL (the legacy v1 PUBLIC_APP_URL was
+			// removed); see base/identity/_pocketid.tf.tmpl for the matching
+			// shape used by the legacy fallback path.
+			APP_URL:     "https://id.{{.domain}}"
+			TRUST_PROXY: "true"
+			// PocketID v2 (PR #1229, v2.0.0+) accepts a fixed admin token at
+			// boot via STATIC_API_KEY, bypassing the in-browser setup wizard.
+			// The CLI persists this value in <homelab>/.stackkit/pocketid-static-api-key
+			// (see internal/identity/static_api_key.go) and renders the same
+			// value into the apply-time owner-bootstrap call so the
+			// container env and the orchestrator agree on the credential.
+			STATIC_API_KEY: "{{.pocketid_static_api_key}}"
+			// PocketID v2 refuses to start without ENCRYPTION_KEY (>=16 raw
+			// bytes) — without it the container exits immediately with
+			// "config error: ENCRYPTION_KEY must be at least 16 bytes long".
+			// Persisted at <homelab>/.stackkit/pocketid-encryption-key
+			// (24 raw bytes -> ~32 chars base64). Rotating this key makes
+			// existing data on the volume undecryptable, so we re-use the
+			// same value across destroy → re-apply round-trips.
+			ENCRYPTION_KEY: "{{.pocketid_encryption_key}}"
 		}
 
 		healthCheck: {
 			enabled: true
 			http: {
-				path:   "/api/health"
-				port:   80
+				path:   "/healthz"
+				port:   1411
 				scheme: "http"
 			}
 			interval: "30s"
@@ -137,12 +163,18 @@ Contract: base.#ModuleContract & {
 			"traefik.enable":                                          "true"
 			"traefik.http.routers.pocketid.rule":                      "Host(`id.{{.domain}}`)"
 			"traefik.http.routers.pocketid.entrypoints":               "web"
-			"traefik.http.services.pocketid.loadbalancer.server.port": "80"
+			"traefik.http.services.pocketid.loadbalancer.server.port": "1411"
 		}
+
+		subdomain: {key: "pocketid", nested: "id", flat: "id"}
+		dashboard: {icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP"}
 
 		output: {
 			url:         "https://id.{{.domain}}"
 			description: "PocketID OIDC provider"
 		}
 	}
+
+	// The stable Base Kit template registers TinyAuth as a public PKCE OIDC
+	// client during apply using PocketID's STATIC_API_KEY bootstrap path.
 }

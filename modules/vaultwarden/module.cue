@@ -126,6 +126,9 @@ Contract: base.#ModuleContract & {
 			"stackkit.managed-by":                                        "compose"
 		}
 
+		subdomain: {key: "vault", nested: "vault", flat: "vault"}
+		dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden"}
+
 		output: {
 			url:         "https://vault.{{.domain}}"
 			description: "Vaultwarden password manager"

@@ -262,7 +262,7 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 					printInfo("Docker daemon is not running, starting...")
 					caps, err := startDockerDaemon(ctx)
 					if err != nil {
-						return fmt.Errorf("Docker is installed but won't start: %w", err)
+						return fmt.Errorf("docker is installed but won't start: %w", err)
 					}
 					printSuccess("Docker daemon started")
 					writeDockerCapabilities(caps)
@@ -422,7 +422,10 @@ func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType
 	// Persist runtime choice
 	spec.Runtime = models.RuntimeNative
 	wd := getWorkDir()
-	specPath := filepath.Join(wd, "stack-spec.yaml")
+	specPath := specFile
+	if !filepath.IsAbs(specPath) {
+		specPath = filepath.Join(wd, specPath)
+	}
 	if err := loader.SaveStackSpec(spec, specPath); err != nil {
 		printWarning("Could not save runtime to spec: %v", err)
 	}
@@ -627,10 +630,13 @@ func checkLocalResources(reqs *models.Requirements) {
 	}
 }
 
-// saveSpec persists the spec to stack-spec.yaml.
+// saveSpec persists the spec to the active spec path.
 func saveSpec(spec *models.StackSpec, loader *config.Loader) {
 	wd := getWorkDir()
-	specPath := filepath.Join(wd, "stack-spec.yaml")
+	specPath := specFile
+	if !filepath.IsAbs(specPath) {
+		specPath = filepath.Join(wd, specPath)
+	}
 	if err := loader.SaveStackSpec(spec, specPath); err != nil {
 		printWarning("Could not save spec: %v", err)
 	}

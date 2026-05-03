@@ -87,7 +87,7 @@ services:
       - "8900:80"
       - "19100:8080"
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 10s
       timeout: 5s
       retries: 5

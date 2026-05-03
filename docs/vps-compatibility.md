@@ -1,6 +1,6 @@
 # VPS compatibility
 
-stackkits deploys homelab stacks on bare VPS via `curl -sSL base.stackkit.cc | sh`. Not all VPS providers support Docker — this document explains which providers work and why.
+stackkits deploys homelab stacks on bare VPS via `curl -sSL stackkit.cc/base | sh`. Not all VPS providers support Docker — this document explains which providers work and why.
 
 ## Quick check
 
@@ -87,7 +87,7 @@ Virtualization is a Layer 1 Foundation standard defined in `base/virtualization.
 
 ## Testing
 
-The compatibility matrix is tested weekly using kombify Sim's Incus VM engine. Each provider profile is simulated by:
+The compatibility matrix is tested weekly using kombify Simulate's Incus VM engine. Each provider profile is simulated by:
 
 1. Launching an Incus VM (boots its own kernel)
 2. Applying kernel restrictions matching the provider (seccomp filters, module blacklists)

@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -21,9 +22,12 @@ type ServerConfig struct {
 	BaseDir     string
 	Version     string
 	APIKey      string   // If set, all non-health endpoints require X-API-Key header
-	CORSOrigins []string // Allowed CORS origins; empty = "*"
+	CORSOrigins []string // Allowed CORS origins; empty disables browser CORS, "*" allows wildcard
 	RateLimit   int      // Max requests per IP per minute; 0 = no limit
 	LogDir      string   // Directory containing deploy log files (.stackkit/logs/)
+	// TrustedProxies may provide X-Forwarded-For for rate-limit identity.
+	// Empty means X-Forwarded-For is ignored.
+	TrustedProxies []string
 }
 
 // Server is the StackKits HTTP API server.
@@ -63,7 +67,7 @@ func (s *Server) Handler() http.Handler {
 		handler = apiKeyMiddleware(s.config.APIKey)(handler)
 	}
 	if s.config.RateLimit > 0 {
-		handler = rateLimitMiddleware(s.ctx, s.config.RateLimit)(handler)
+		handler = rateLimitMiddleware(s.ctx, s.config.RateLimit, s.config.TrustedProxies)(handler)
 	}
 	handler = corsMiddleware(s.config.CORSOrigins)(handler)
 	handler = loggingMiddleware(handler)
@@ -113,11 +117,12 @@ type successResponse struct {
 }
 
 type errorDetail struct {
-	Code        int      `json:"code"`
-	Message     string   `json:"message"`
-	Category    string   `json:"category,omitempty"`
-	ErrorCode   string   `json:"error_code,omitempty"`
-	Suggestions []string `json:"suggestions,omitempty"`
+	Code        int                    `json:"code"`
+	Message     string                 `json:"message"`
+	Category    string                 `json:"category,omitempty"`
+	ErrorCode   string                 `json:"error_code,omitempty"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+	Suggestions []string               `json:"suggestions,omitempty"`
 }
 
 type errorResponse struct {
@@ -158,6 +163,7 @@ func writeStructuredError(w http.ResponseWriter, r *http.Request, status int, er
 			Message:     err.Message,
 			Category:    string(err.Category),
 			ErrorCode:   err.Code,
+			Details:     err.Fields,
 			Suggestions: err.Suggestions,
 		},
 		Meta: metaFromRequest(r),
@@ -197,30 +203,28 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 }
 
 func corsMiddleware(origins []string) func(http.Handler) http.Handler {
-	allowOrigin := "*"
-	if len(origins) > 0 {
-		allowOrigin = strings.Join(origins, ", ")
-	} else {
-		slog.Warn("CORS configured with wildcard origin (*). Set CORSOrigins for production use.")
-	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if len(origins) > 0 {
 				reqOrigin := r.Header.Get("Origin")
 				matched := false
 				for _, o := range origins {
+					if o == "*" {
+						w.Header().Set("Access-Control-Allow-Origin", "*")
+						matched = true
+						break
+					}
 					if o == reqOrigin {
+						w.Header().Set("Access-Control-Allow-Origin", reqOrigin)
+						w.Header().Set("Vary", "Origin")
 						matched = true
 						break
 					}
 				}
-				if matched {
-					w.Header().Set("Access-Control-Allow-Origin", reqOrigin)
-					w.Header().Set("Vary", "Origin")
+				if !matched && reqOrigin != "" {
+					slog.Debug("CORS origin denied", "origin", reqOrigin)
 				}
 				// Non-matching origins get NO Access-Control-Allow-Origin header (CORS denied)
-			} else {
-				w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, X-API-Key, X-User-ID, X-Org-ID")
@@ -245,7 +249,7 @@ type rateLimitEntry struct {
 // maxPerMinute is the maximum number of requests allowed per IP per minute.
 // Health endpoints are exempt. The ctx parameter allows graceful shutdown of
 // the cleanup goroutine to prevent leaks.
-func rateLimitMiddleware(ctx context.Context, maxPerMinute int) func(http.Handler) http.Handler {
+func rateLimitMiddleware(ctx context.Context, maxPerMinute int, trustedProxies []string) func(http.Handler) http.Handler {
 	var mu sync.Mutex
 	clients := make(map[string]*rateLimitEntry)
 
@@ -278,16 +282,7 @@ func rateLimitMiddleware(ctx context.Context, maxPerMinute int) func(http.Handle
 				return
 			}
 
-			// Extract client IP (X-Forwarded-For for proxied requests)
-			ip := r.Header.Get("X-Forwarded-For")
-			if ip == "" {
-				ip = r.RemoteAddr
-			} else {
-				// Take first IP from comma-separated list
-				if idx := strings.IndexByte(ip, ','); idx != -1 {
-					ip = strings.TrimSpace(ip[:idx])
-				}
-			}
+			ip := clientIPForRateLimit(r, trustedProxies)
 
 			mu.Lock()
 			now := time.Now()
@@ -317,6 +312,76 @@ func rateLimitMiddleware(ctx context.Context, maxPerMinute int) func(http.Handle
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func clientIPForRateLimit(r *http.Request, trustedProxies []string) string {
+	remoteIP := remoteHost(r.RemoteAddr)
+	if remoteIP == "" {
+		remoteIP = r.RemoteAddr
+	}
+
+	if isTrustedProxy(remoteIP, trustedProxies) {
+		if forwardedIP := firstForwardedFor(r.Header.Get("X-Forwarded-For")); forwardedIP != "" {
+			return forwardedIP
+		}
+	}
+
+	return remoteIP
+}
+
+func remoteHost(remoteAddr string) string {
+	addr := strings.TrimSpace(remoteAddr)
+	if addr == "" {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err == nil {
+		return strings.Trim(host, "[]")
+	}
+	if ip := net.ParseIP(addr); ip != nil {
+		return ip.String()
+	}
+	return addr
+}
+
+func firstForwardedFor(header string) string {
+	for _, part := range strings.Split(header, ",") {
+		candidate := strings.TrimSpace(part)
+		if candidate == "" {
+			continue
+		}
+		if ip := net.ParseIP(candidate); ip != nil {
+			return ip.String()
+		}
+		return ""
+	}
+	return ""
+}
+
+func isTrustedProxy(remoteIP string, trustedProxies []string) bool {
+	ip := net.ParseIP(remoteIP)
+	for _, proxy := range trustedProxies {
+		proxy = strings.TrimSpace(proxy)
+		if proxy == "" {
+			continue
+		}
+		if _, network, err := net.ParseCIDR(proxy); err == nil {
+			if ip != nil && network.Contains(ip) {
+				return true
+			}
+			continue
+		}
+		if proxyIP := net.ParseIP(proxy); proxyIP != nil {
+			if ip != nil && ip.Equal(proxyIP) {
+				return true
+			}
+			continue
+		}
+		if proxy == remoteIP {
+			return true
+		}
+	}
+	return false
 }
 
 // statusResponseWriter wraps http.ResponseWriter to capture the status code.

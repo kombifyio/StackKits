@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // prompter wraps interactive terminal prompts.
@@ -102,6 +104,29 @@ func (p *prompter) inputString(label, defaultVal string) (string, error) {
 		return defaultVal, nil
 	}
 	return input, nil
+}
+
+// inputPassword reads a password from the terminal with echo suppressed.
+// Falls back to plain-text scanner reads when stdin is not a TTY (CI, pipes,
+// tests). The trailing newline is consumed and trimmed.
+func (p *prompter) inputPassword(label string) (string, error) {
+	fmt.Printf("  %s: ", label)
+
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		buf, err := term.ReadPassword(fd)
+		fmt.Println()
+		if err != nil {
+			return "", fmt.Errorf("read password: %w", err)
+		}
+		return strings.TrimSpace(string(buf)), nil
+	}
+
+	// Non-TTY fallback: read a line via the scanner without echo suppression.
+	if !p.scanner.Scan() {
+		return "", fmt.Errorf("input canceled")
+	}
+	return strings.TrimSpace(p.scanner.Text()), nil
 }
 
 // dim applies a dim color to text (used for descriptions).

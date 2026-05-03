@@ -28,14 +28,16 @@ func TestGenerateTfvarsJSON_LocalModeCoreDecisions(t *testing.T) {
 	vars := decodeTFVars(t, spec)
 
 	assert.Equal(t, models.DomainHomeLab, stringVar(t, vars, "domain"))
-	assert.True(t, boolVar(t, vars, "enable_dnsmasq"))
-	assert.False(t, boolVar(t, vars, "enable_https"))
+	assert.False(t, boolVar(t, vars, "enable_dnsmasq"))
+	assert.False(t, boolVar(t, vars, "enable_kombify_point"))
+	assert.True(t, boolVar(t, vars, "enable_https"))
+	assert.True(t, boolVar(t, vars, "step_ca_enabled"))
+	assert.Equal(t, "step-ca", stringVar(t, vars, "tls_provider"))
 	assert.Equal(t, models.PAASDokploy, stringVar(t, vars, "paas"))
 	assert.True(t, boolVar(t, vars, "enable_dokploy"))
 	assert.False(t, boolVar(t, vars, "enable_dockge"))
 	assert.False(t, boolVar(t, vars, "enable_coolify"))
 	assert.True(t, boolVar(t, vars, "enable_dashboard"))
-	assert.Equal(t, "192.168.1.50", stringVar(t, vars, "server_lan_ip"))
 }
 
 func TestGenerateTfvarsJSON_PublicDomainEnablesManagedTLS(t *testing.T) {
@@ -113,6 +115,8 @@ func TestGenerateTfvarsJSON_KombifyMePreservesFlatRoutingInputs(t *testing.T) {
 	assert.Equal(t, models.DomainKombifyMe, stringVar(t, vars, "domain"))
 	assert.Equal(t, "sh-sphere-abc123", stringVar(t, vars, "subdomain_prefix"))
 	assert.False(t, boolVar(t, vars, "enable_https"))
+	assert.True(t, boolVar(t, vars, "step_ca_enabled"))
+	assert.Equal(t, "step-ca", stringVar(t, vars, "tls_provider"))
 }
 
 func TestGenerateTfvarsJSON_CloudWithoutDomainDefaultsToKombifyMeDokploy(t *testing.T) {
@@ -126,10 +130,11 @@ func TestGenerateTfvarsJSON_CloudWithoutDomainDefaultsToKombifyMeDokploy(t *test
 
 	assert.Equal(t, models.DomainKombifyMe, stringVar(t, vars, "domain"))
 	assert.Equal(t, models.PAASDokploy, stringVar(t, vars, "paas"))
-	assert.Equal(t, models.ReverseProxyDokploy, stringVar(t, vars, "reverse_proxy_backend"))
+	assert.Equal(t, models.ReverseProxyStandalone, stringVar(t, vars, "reverse_proxy_backend"))
 	assert.True(t, boolVar(t, vars, "enable_dokploy"))
 	assert.False(t, boolVar(t, vars, "enable_coolify"))
 	assert.False(t, boolVar(t, vars, "enable_https"))
+	assert.True(t, boolVar(t, vars, "step_ca_enabled"))
 	assert.False(t, boolVar(t, vars, "enable_dnsmasq"))
 }
 
@@ -151,12 +156,13 @@ func TestGenerateTfvarsJSON_CloudCustomDomainDefaultsToCoolify(t *testing.T) {
 	assert.True(t, boolVar(t, vars, "enable_https"))
 }
 
-func TestGenerateTfvarsJSON_LocalServerKeepsDNSMasqWithExplicitPAAS(t *testing.T) {
+func TestGenerateTfvarsJSON_LocalDNSDomainEnablesKombifyPointWithExplicitPAAS(t *testing.T) {
 	setCapabilitiesHome(t, models.ContextLocal)
 
 	spec := &models.StackSpec{
-		Name: "local-coolify",
-		PAAS: models.PAASCoolify,
+		Name:   "local-coolify",
+		Domain: models.DomainHomeDNS,
+		PAAS:   models.PAASCoolify,
 		Nodes: []models.NodeSpec{
 			{Name: "node1", Role: "standalone", IP: "192.168.1.60"},
 		},
@@ -164,12 +170,13 @@ func TestGenerateTfvarsJSON_LocalServerKeepsDNSMasqWithExplicitPAAS(t *testing.T
 
 	vars := decodeTFVars(t, spec)
 
-	assert.Equal(t, models.DomainHomeLab, stringVar(t, vars, "domain"))
+	assert.Equal(t, models.DomainHomeDNS, stringVar(t, vars, "domain"))
+	assert.True(t, boolVar(t, vars, "enable_kombify_point"))
 	assert.True(t, boolVar(t, vars, "enable_dnsmasq"))
 	assert.Equal(t, "192.168.1.60", stringVar(t, vars, "server_lan_ip"))
 	assert.Equal(t, models.PAASCoolify, stringVar(t, vars, "paas"))
 	assert.True(t, boolVar(t, vars, "enable_coolify"))
-	assert.False(t, boolVar(t, vars, "enable_https"))
+	assert.True(t, boolVar(t, vars, "enable_https"))
 }
 
 func TestGenerateTfvarsJSON_BridgeParityOnCoreKeys(t *testing.T) {
@@ -233,7 +240,7 @@ func TestGenerateTfvarsJSON_BridgeParityOnCoreKeys(t *testing.T) {
 func decodeTFVars(t *testing.T, spec *models.StackSpec) map[string]interface{} {
 	t.Helper()
 
-	data, err := generateTfvarsJSON(spec)
+	data, err := generateTfvarsJSON(spec, nil)
 	require.NoError(t, err)
 
 	var vars map[string]interface{}
@@ -257,6 +264,7 @@ func setCapabilitiesHome(t *testing.T, ctx models.NodeContext) {
 		StorageDriver:    models.StorageOverlay2,
 		CPUCores:         4,
 		MemoryGB:         8,
+		PrivateIP:        "192.168.1.50",
 	}
 
 	data, err := json.Marshal(caps)

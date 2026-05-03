@@ -100,6 +100,9 @@ Contract: base.#ModuleContract & {
 			"traefik.http.services.whoami.loadbalancer.server.port":           "80"
 		}
 
+		subdomain: {key: "whoami", nested: "whoami", flat: "whoami"}
+		dashboard: {icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 Test"}
+
 		output: {
 			url:         "https://whoami.{{.domain}}"
 			description: "Whoami network diagnostic service"

@@ -39,8 +39,10 @@ func main() {
 	baseDir := flag.String("base-dir", "", "Base directory for StackKit definitions (default: executable directory)")
 	apiKey := flag.String("api-key", "", "API key for authentication (or set STACKKITS_API_KEY env var)")
 	allowUnauthenticated := flag.Bool("allow-unauthenticated", false, "Allow unauthenticated API access for local development only (or set STACKKITS_ALLOW_UNAUTHENTICATED=true)")
-	corsOrigins := flag.String("cors-origins", "", "Comma-separated allowed CORS origins (or set STACKKITS_CORS_ORIGINS; empty = *)")
+	corsOrigins := flag.String("cors-origins", "", "Comma-separated allowed CORS origins (or set STACKKITS_CORS_ORIGINS; empty disables browser CORS)")
+	allowWildcardCORS := flag.Bool("allow-wildcard-cors", false, "Allow wildcard CORS for local development only (or set STACKKITS_ALLOW_WILDCARD_CORS=true)")
 	rateLimit := flag.Int("rate-limit", 60, "Max requests per IP per minute; 0 = no limit (or set STACKKITS_RATE_LIMIT)")
+	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated trusted proxy IPs/CIDRs for X-Forwarded-For rate limiting (or set STACKKITS_TRUSTED_PROXIES)")
 	logDir := flag.String("log-dir", "", "Directory containing deploy logs (or set STACKKITS_LOG_DIR)")
 	logLevel := flag.String("log-level", "info", "Log level: debug, info, warn, error")
 	instanceID := flag.String("instance-id", "", "Instance ID for kombify registry heartbeat (or set STACKKITS_INSTANCE_ID)")
@@ -48,7 +50,7 @@ func main() {
 
 	setupLogging(*logLevel)
 
-	cfg, cfgErr := resolveConfig(*port, *baseDir, *apiKey, *corsOrigins, *rateLimit, *logDir, *allowUnauthenticated)
+	cfg, cfgErr := resolveConfig(*port, *baseDir, *apiKey, *corsOrigins, *rateLimit, *logDir, *trustedProxies, *allowUnauthenticated, *allowWildcardCORS)
 	if cfgErr != nil {
 		slog.Error(cfgErr.Error())
 		os.Exit(1)
@@ -94,24 +96,26 @@ func setupLogging(logLevel string) {
 	slog.SetDefault(logger)
 }
 
-func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int, logDir string, allowUnauthenticated bool) (api.ServerConfig, error) {
+func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int, logDir, trustedProxies string, allowUnauthenticated, allowWildcardCORS bool) (api.ServerConfig, error) {
 	dir := resolveBaseDir(baseDir)
 	key, err := resolveAPIKey(apiKey, allowUnauthenticated)
 	if err != nil {
 		return api.ServerConfig{}, err
 	}
-	origins := resolveCORSOrigins(corsOrigins)
+	origins := resolveCORSOrigins(corsOrigins, allowWildcardCORS)
 	rl := resolveRateLimit(rateLimit)
 	ld := resolveLogDir(logDir, dir)
+	proxies := resolveTrustedProxies(trustedProxies)
 
 	return api.ServerConfig{
-		Port:        port,
-		BaseDir:     dir,
-		Version:     Version,
-		APIKey:      key,
-		CORSOrigins: origins,
-		RateLimit:   rl,
-		LogDir:      ld,
+		Port:           port,
+		BaseDir:        dir,
+		Version:        Version,
+		APIKey:         key,
+		CORSOrigins:    origins,
+		RateLimit:      rl,
+		LogDir:         ld,
+		TrustedProxies: proxies,
 	}, nil
 }
 
@@ -163,21 +167,17 @@ func resolveAPIKey(flagVal string, allowUnauthenticated bool) (string, error) {
 	return key, nil
 }
 
-func envBool(name string) bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
-}
-
-func resolveCORSOrigins(flagVal string) []string {
+func resolveCORSOrigins(flagVal string, allowWildcard bool) []string {
 	corsStr := flagVal
 	if corsStr == "" {
 		corsStr = os.Getenv("STACKKITS_CORS_ORIGINS")
 	}
 	if corsStr == "" {
+		if allowWildcard || envBool("STACKKITS_ALLOW_WILDCARD_CORS") {
+			slog.Warn("wildcard CORS enabled for local development")
+			return []string{"*"}
+		}
+		slog.Info("browser CORS disabled; set STACKKITS_CORS_ORIGINS to allow browser clients")
 		return nil
 	}
 	var origins []string
@@ -186,8 +186,41 @@ func resolveCORSOrigins(flagVal string) []string {
 			origins = append(origins, trimmed)
 		}
 	}
-	slog.Info("CORS restricted", "origins", origins)
+	if len(origins) == 0 {
+		slog.Info("browser CORS disabled; no valid origins configured")
+	} else {
+		slog.Info("CORS restricted", "origins", origins)
+	}
 	return origins
+}
+
+func resolveTrustedProxies(flagVal string) []string {
+	proxyStr := flagVal
+	if proxyStr == "" {
+		proxyStr = os.Getenv("STACKKITS_TRUSTED_PROXIES")
+	}
+	if proxyStr == "" {
+		return nil
+	}
+	var proxies []string
+	for _, proxy := range strings.Split(proxyStr, ",") {
+		if trimmed := strings.TrimSpace(proxy); trimmed != "" {
+			proxies = append(proxies, trimmed)
+		}
+	}
+	if len(proxies) > 0 {
+		slog.Info("trusted proxies configured", "proxies", proxies)
+	}
+	return proxies
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveRateLimit(flagVal int) int {

@@ -16,7 +16,7 @@ Build from source:
 git clone https://github.com/kombifyio/stackKits.git && cd stackKits && make install
 ```
 
-Go install (requires Go 1.25+):
+Go install (requires Go 1.24+):
 
 ```bash
 go install github.com/kombifyio/stackkits/cmd/stackkit@latest
@@ -50,7 +50,7 @@ Every subcommand accepts these flags:
 | `--verbose` | `-v` | `false` | Enable verbose output |
 | `--quiet` | `-q` | `false` | Suppress non-essential output |
 | `--chdir` | `-C` | `.` | Change to directory before running |
-| `--spec` | `-s` | `stack-spec.yaml` | Path to stack specification file |
+| `--spec` | `-s` | `stack-spec.yaml` | Path to stack specification file. If the default is missing, `kombination.yaml` is accepted as a TechStack/user-intent alias. |
 | `--context` | | auto-detect | Node context override (`local`, `cloud`, `pi`) |
 
 ---
@@ -319,6 +319,78 @@ stackkit addon remove monitoring
 
 ---
 
+### `stackkit backup`
+
+Manage backups for the local StackKit deployment. The engine is Kopia (see [ADR-0016](ADR/ADR-0016-backup-single-engine-kopia.md)) and runs in the `kopia-agent` container that the `addons/backup` add-on deploys. Every subcommand here mirrors an action in the local Kopia Web UI under `https://backups.<domain>` — the CLI exists for power users and scripting.
+
+The `backup` subcommand only works on a host that has the `backup` add-on enabled and applied. Without that, it prints a clear "kopia-agent container not found" error and exits.
+
+#### Persistent flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--container` | `kopia-agent` | Override the container name when the local agent was renamed (rare). |
+
+#### `stackkit backup init`
+
+Print the first-run setup checklist (which addon to enable, which secrets to provision, where to find the Web UI). Does not modify anything.
+
+```bash
+stackkit backup init
+```
+
+#### `stackkit backup run`
+
+Force a snapshot of the configured volumes immediately, out of schedule.
+
+```bash
+stackkit backup run
+```
+
+#### `stackkit backup list`
+
+List snapshots in the local repository.
+
+```bash
+stackkit backup list
+stackkit backup list --json    # raw Kopia JSON for scripting
+```
+
+#### `stackkit backup restore <snapshot-id> [--target <path>]`
+
+Restore a snapshot into a target directory. Default target is `/tmp/stackkit-restore`. The CLI never writes back into the live volumes — verify the restored data first, then move it where you want it.
+
+```bash
+stackkit backup restore k1234567 --target /tmp/restore
+```
+
+#### `stackkit backup verify`
+
+Trigger a `kopia repository validate-provider` ad-hoc. Same job the addon runs every Sunday on its own; useful for confirming a freshly-provisioned offsite leg.
+
+```bash
+stackkit backup verify
+```
+
+#### `stackkit backup migrate-from-restic`
+
+Drive the one-shot Restic-to-Kopia importer (Phase 1 of the v1 → v2 migration). Reads the existing Restic repository configured in v1 of the addon, walks every snapshot, and re-creates them inside Kopia preserving original timestamps. The addon flips `engine: "restic-import"` → `engine: "kopia"` automatically on success.
+
+```bash
+stackkit backup migrate-from-restic
+stackkit backup migrate-from-restic --dry-run   # plan only, no writes
+```
+
+#### `stackkit backup enroll --token <token>` (Phase 4 — scaffold)
+
+Switch the host into agent mode against the kombify Backup-Controller. Phase-4 scaffold today: the command parses `--token` and `--endpoint`, but the controller endpoint is not yet operational and the command exits with a clear "not yet available" error.
+
+```bash
+stackkit backup enroll --token $TOKEN --endpoint https://backup.kombify.io
+```
+
+---
+
 ### `stackkit version`
 
 Print version, git commit, build date, Go version, and OS/architecture.
@@ -333,7 +405,7 @@ Example output:
 stackkit version v0.3.0
   Git commit: a1b2c3d
   Build date: 2026-03-01T12:00:00Z
-  Go version: go1.25
+  Go version: go1.24
   OS/Arch:    linux/amd64
 ```
 
@@ -404,8 +476,11 @@ stackkit remove --auto-approve
 | Path | Created by | Purpose |
 |------|-----------|---------|
 | `stack-spec.yaml` | `init` | Deployment specification |
+| `kombination.yaml` | TechStack/user import | Accepted as a read alias when `stack-spec.yaml` is missing |
 | `deploy/` | `generate` | Generated OpenTofu files (never edit) |
-| `deploy/main.tf` | `generate` | OpenTofu resource definitions |
-| `deploy/terraform.tfvars.json` | `generate` | Variable values from spec |
+| `deploy/apps.tf` | `generate` | User app resources generated from `apps:` |
+| `deploy/*.tf` | `generate` | Per-module OpenTofu resource fragments generated from CUE contracts |
+| `deploy/terraform.tfvars.json` | `generate` | Sensitive generated variable values from spec and composition |
+| `deploy/.terraform.lock.hcl` | `plan` / `apply` | OpenTofu provider lock file |
 | `deploy/.terraform/` | `apply` / `plan` | OpenTofu state and provider cache |
 | `.stackkit/state.yaml` | `apply` / `destroy` | Deployment state tracking |

@@ -100,6 +100,11 @@ func NewModuleReader() *ModuleReader {
 	}
 }
 
+// ReadModule reads a single module from the given directory (must contain module.cue).
+func (r *ModuleReader) ReadModule(modulePath string) (ModuleContract, error) {
+	return r.readModule(modulePath)
+}
+
 // ReadAllModules scans the modules directory and extracts all ModuleContracts.
 func (r *ModuleReader) ReadAllModules(modulesDir string) ([]ModuleContract, error) {
 	modulePaths, err := discoverModulePaths(modulesDir)
@@ -121,9 +126,7 @@ func (r *ModuleReader) ReadAllModules(modulesDir string) ([]ModuleContract, erro
 
 // readModule loads a single module's CUE and extracts its Contract.
 func (r *ModuleReader) readModule(modulePath string) (ModuleContract, error) {
-	cfg := &load.Config{
-		Dir: modulePath,
-	}
+	cfg := cueLoadConfig(modulePath, modulePath)
 
 	instances := load.Instances([]string{"."}, cfg)
 	if len(instances) == 0 {
@@ -280,7 +283,7 @@ func (r *ModuleReader) extractRequires(v cue.Value) *RequiresSpec {
 func (r *ModuleReader) extractProvides(v cue.Value) *ProvidesSpec {
 	prov := &ProvidesSpec{
 		Capabilities: make(map[string]bool),
-		Middleware:    make(map[string]MiddlewareDef),
+		Middleware:   make(map[string]MiddlewareDef),
 		Endpoints:    make(map[string]EndpointDef),
 	}
 

@@ -38,6 +38,15 @@ log_fail() {
 }
 
 cleanup() {
+    local rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo ""
+        echo "=== container state (rc=$rc) ==="
+        docker compose -f "$COMPOSE_FILE" ps -a 2>/dev/null || true
+        echo ""
+        echo "=== container logs (last 200 lines per service) ==="
+        docker compose -f "$COMPOSE_FILE" logs --no-color --tail=200 2>/dev/null || true
+    fi
     echo ""
     echo "Cleaning up..."
     docker compose -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true

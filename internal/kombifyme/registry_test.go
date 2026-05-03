@@ -21,7 +21,7 @@ func TestRegisterInstance(t *testing.T) {
 		var reg models.InstanceRegistration
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&reg))
 		assert.Equal(t, "test-instance", reg.InstanceID)
-		assert.Equal(t, "https://api.test.kombify.me", reg.EndpointURL)
+		assert.Equal(t, "https://test-api.kombify.me", reg.EndpointURL)
 		assert.Equal(t, "base-kit", reg.StackKit)
 		assert.Len(t, reg.Services, 1)
 
@@ -38,7 +38,7 @@ func TestRegisterInstance(t *testing.T) {
 
 	resp, err := client.RegisterInstance(&models.InstanceRegistration{
 		InstanceID:  "test-instance",
-		EndpointURL: "https://api.test.kombify.me",
+		EndpointURL: "https://test-api.kombify.me",
 		StackKit:    "base-kit",
 		Services: []models.ServiceInfo{
 			{Name: "traefik", Status: "running"},
@@ -100,7 +100,7 @@ func TestRegisterInstance_APIError(t *testing.T) {
 
 	_, err := client.RegisterInstance(&models.InstanceRegistration{
 		InstanceID:  "",
-		EndpointURL: "https://api.test.kombify.me",
+		EndpointURL: "https://test-api.kombify.me",
 		StackKit:    "base-kit",
 		Services:    []models.ServiceInfo{},
 		Status:      "running",

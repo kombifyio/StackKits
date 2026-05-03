@@ -1,0 +1,576 @@
+// ============================================================================
+// STACKKIT REGISTRY (sk_*) — ADR-0010 Database-First StackKit Registry
+// Co-owned by kombify-StackKits + kombify-Administration.
+// Migrations: kombify-DB/migrations/000033..000037
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Phase 1 — Tool Catalog Unification (migration 000033)
+// ----------------------------------------------------------------------------
+
+enum SkToolMaturity {
+  unknown
+  experimental
+  beta
+  ga
+  deprecated
+
+  @@map("sk_tool_maturity")
+}
+
+model SkTool {
+  id                 String   @id @default(uuid()) @db.Uuid
+  slug               String   @unique
+  name               String
+  description        String   @default("")
+  vendor             String   @default("")
+  category           String   @default("")
+  categoryId         String?  @map("category_id") @db.Uuid
+  website            String   @default("")
+  repoUrl            String   @default("") @map("repo_url")
+  documentationUrl   String   @default("") @map("documentation_url")
+  license            String   @default("")
+  licenseSpdx        String   @default("") @map("license_spdx")
+  maturity           SkToolMaturity @default(unknown)
+  imageRef           String   @default("") @map("image_ref")
+  logoUrl            String   @default("") @map("logo_url")
+  tags               String[] @default([])
+  isStackkitCatalog  Boolean  @default(false) @map("is_stackkit_catalog")
+  isEvaluationOnly   Boolean  @default(false) @map("is_evaluation_only")
+  overallScore       Decimal? @map("overall_score") @db.Decimal(5, 2)
+  latestVersion      String   @default("") @map("latest_version")
+  metadata           Json     @default("{}")
+  embedding          Unsupported("vector(1536)")?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  versions           SkToolVersion[]
+  evaluations        SkToolEvaluation[]
+  modulesUsing       SkModule[]          @relation("ModulePrimaryTool")
+
+  @@index([slug])
+  @@index([category])
+  @@index([categoryId])
+  @@index([maturity])
+  @@index([isStackkitCatalog])
+  @@map("sk_tool")
+}
+
+model SkToolVersion {
+  id               String    @id @default(uuid()) @db.Uuid
+  toolId           String    @map("tool_id") @db.Uuid
+  semver           String
+  releasedAt       DateTime? @map("released_at")
+  isRecommended    Boolean   @default(false) @map("is_recommended")
+  isLatest         Boolean   @default(false) @map("is_latest")
+  cveFlags         Json      @default("[]") @map("cve_flags")
+  changelogUrl     String    @default("") @map("changelog_url")
+  notes            String    @default("")
+  imageDigest      String    @default("") @map("image_digest")
+  metadata         Json      @default("{}")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tool             SkTool             @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  evaluations      SkToolEvaluation[]
+
+  @@unique([toolId, semver])
+  @@index([toolId])
+  @@index([toolId, releasedAt(sort: Desc)])
+  @@map("sk_tool_version")
+}
+
+model SkToolEvaluation {
+  id              String    @id @default(uuid()) @db.Uuid
+  toolId          String    @map("tool_id") @db.Uuid
+  toolVersionId   String?   @map("tool_version_id") @db.Uuid
+  runId           String    @map("run_id")
+  score           Decimal?  @db.Decimal(5, 2)
+  dimensions      Json      @default("{}")
+  evaluator       String    @default("ai")
+  modelRef        String    @default("") @map("model_ref")
+  promptVersion   String    @default("") @map("prompt_version")
+  summary         String    @default("")
+  rawOutput       Json?     @map("raw_output")
+  evaluatedAt     DateTime  @default(now()) @map("evaluated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  tool            SkTool         @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  toolVersion     SkToolVersion? @relation(fields: [toolVersionId], references: [id], onDelete: SetNull)
+
+  @@index([toolId, evaluatedAt(sort: Desc)])
+  @@index([toolVersionId])
+  @@index([evaluator])
+  @@map("sk_tool_evaluation")
+}
+
+// ----------------------------------------------------------------------------
+// Phase 2 — Module Registry (migration 000034)
+// ----------------------------------------------------------------------------
+
+enum SkModuleLayer {
+  foundation
+  platform
+  application
+  hardening
+
+  @@map("sk_module_layer")
+}
+
+enum SkModuleTrustLevel {
+  curated
+  ai_generated    @map("ai-generated")
+  community
+
+  @@map("sk_module_trust_level")
+}
+
+model SkModule {
+  id              String              @id @default(uuid()) @db.Uuid
+  slug            String              @unique
+  name            String
+  description     String              @default("")
+  layer           SkModuleLayer
+  trustLevel      SkModuleTrustLevel  @default(curated) @map("trust_level")
+  primaryToolId   String?             @map("primary_tool_id") @db.Uuid
+  cueSourcePath   String              @map("cue_source_path")
+  repo            String              @default("kombify-StackKits")
+  metadata        Json                @default("{}")
+  latestVersion   String              @default("") @map("latest_version")
+  latestVersionId String?             @map("latest_version_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  primaryTool     SkTool?             @relation("ModulePrimaryTool", fields: [primaryToolId], references: [id], onDelete: SetNull)
+  latestRelease   SkModuleVersion?    @relation("ModuleLatestVersion", fields: [latestVersionId], references: [id], onDelete: SetNull)
+  versions        SkModuleVersion[]   @relation("ModuleVersions")
+  stackkitMembers SkStackkitModule[]
+  promotions      SkTier3Promotion[]
+
+  @@index([slug])
+  @@index([layer])
+  @@index([trustLevel])
+  @@map("sk_module")
+}
+
+model SkModuleVersion {
+  id                       String   @id @default(uuid()) @db.Uuid
+  moduleId                 String   @map("module_id") @db.Uuid
+  version                  String
+  contractHash             String   @map("contract_hash") @db.Char(64)
+  cueSource                String   @map("cue_source")
+  requires                 Json     @default("[]")
+  provides                 Json     @default("[]")
+  supportedContexts        Json     @default("[]") @map("supported_contexts")
+  supportedComputeTiers    Json     @default("[]") @map("supported_compute_tiers")
+  settings                 Json     @default("[]")
+  disjunctionSlot          String?  @map("disjunction_slot")
+  isDefaultInSlot          Boolean  @default(false) @map("is_default_in_slot")
+  releaseNotes             String   @default("") @map("release_notes")
+  releasedAt               DateTime @default(now()) @map("released_at")
+  releasedBy               String   @default("ci") @map("released_by")
+  isYanked                 Boolean  @default(false) @map("is_yanked")
+  yankReason               String   @default("") @map("yank_reason")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  module                   SkModule            @relation("ModuleVersions", fields: [moduleId], references: [id], onDelete: Cascade)
+  latestOf                 SkModule[]          @relation("ModuleLatestVersion")
+  stackkitMemberships      SkStackkitModule[]
+  tenantDbSpecs            SkTenantDbSpec[]
+
+  @@unique([moduleId, version])
+  @@unique([moduleId, contractHash])
+  @@index([moduleId, releasedAt(sort: Desc)])
+  @@index([disjunctionSlot])
+  @@map("sk_module_version")
+}
+
+// ----------------------------------------------------------------------------
+// Phase 3 — StackKit Composition + Wizard Telemetry (migration 000035)
+// ----------------------------------------------------------------------------
+
+enum SkStackkitLifecycle {
+  draft
+  alpha
+  beta
+  ga
+  deprecated
+
+  @@map("sk_stackkit_lifecycle")
+}
+
+enum SkStackkitModuleRole {
+  default
+  alternative
+  optional
+  addon
+
+  @@map("sk_stackkit_module_role")
+}
+
+enum SkDecisionStatus {
+  proposed
+  accepted
+  superseded
+  rejected
+
+  @@map("sk_decision_status")
+}
+
+enum SkWizardIntentStatus {
+  captured
+  routed
+  applied
+  rejected
+
+  @@map("sk_wizard_intent_status")
+}
+
+model SkStackkit {
+  id                  String   @id @default(uuid()) @db.Uuid
+  slug                String   @unique
+  name                String
+  version             String
+  lifecycle           SkStackkitLifecycle @default(draft)
+  description         String   @default("")
+  summary             String   @default("")
+  architecture        String   @default("")
+  nodeContexts        String[] @default([]) @map("node_contexts")
+  latestContractHash  String?  @map("latest_contract_hash") @db.Char(64)
+  metadata            Json     @default("{}")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  modules      SkStackkitModule[]
+  decisions    SkStackkitDecision[]
+  wizardRuns   SkWizardAnswer[]
+  deployments  SkTenantDeployment[]
+
+  @@index([slug])
+  @@index([lifecycle])
+  @@map("sk_stackkit")
+}
+
+model SkStackkitModule {
+  id               String   @id @default(uuid()) @db.Uuid
+  stackkitId       String   @map("stackkit_id") @db.Uuid
+  moduleId         String   @map("module_id") @db.Uuid
+  moduleVersionId  String   @map("module_version_id") @db.Uuid
+  role             SkStackkitModuleRole @default(default)
+  position         Int      @default(0)
+  notes            String   @default("")
+  configOverride   Json     @default("{}") @map("config_override")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  stackkit       SkStackkit      @relation(fields: [stackkitId], references: [id], onDelete: Cascade)
+  module         SkModule        @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  moduleVersion  SkModuleVersion @relation(fields: [moduleVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([stackkitId, moduleId])
+  @@index([stackkitId, position])
+  @@index([moduleId])
+  @@index([moduleVersionId])
+  @@map("sk_stackkit_module")
+}
+
+model SkStackkitDecision {
+  id                       String   @id @default(uuid()) @db.Uuid
+  stackkitId               String?  @map("stackkit_id") @db.Uuid
+  title                    String
+  status                   SkDecisionStatus @default(proposed)
+  context                  String   @default("")
+  decision                 String   @default("")
+  consequences             String   @default("")
+  alternativesConsidered   Json     @default("[]") @map("alternatives_considered")
+  relatedAdrRef            String   @default("") @map("related_adr_ref")
+  decidedAt                DateTime? @map("decided_at")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  stackkit                 SkStackkit? @relation(fields: [stackkitId], references: [id], onDelete: Cascade)
+
+  @@index([stackkitId])
+  @@index([status])
+  @@map("sk_stackkit_decision")
+}
+
+model SkWizardAnswer {
+  id                     String   @id @default(uuid()) @db.Uuid
+  tenantId               String?  @map("tenant_id") @db.Uuid
+  stackkitId             String?  @map("stackkit_id") @db.Uuid
+  wizardSchemaVersion    String   @default("1.0.0") @map("wizard_schema_version")
+  answers                Json
+  derivedContext         String   @default("") @map("derived_context")
+  derivedComputeTier     String   @default("") @map("derived_compute_tier")
+  source                 String   @default("cli")
+  userAgent              String   @default("") @map("user_agent")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  stackkit    SkStackkit?    @relation(fields: [stackkitId], references: [id], onDelete: SetNull)
+  intents     SkWizardIntent[]
+  deployments SkTenantDeployment[]
+
+  @@index([tenantId])
+  @@index([stackkitId])
+  @@index([createdAt(sort: Desc)])
+  @@index([source])
+  @@map("sk_wizard_answer")
+}
+
+model SkWizardIntent {
+  id                String    @id @default(uuid()) @db.Uuid
+  wizardAnswerId    String    @map("wizard_answer_id") @db.Uuid
+  intentText        String    @map("intent_text")
+  intentEmbedding   Unsupported("vector(1536)")?  @map("intent_embedding")
+  status            SkWizardIntentStatus @default(captured)
+  aiProposal        Json?     @map("ai_proposal")
+  approvedBy        String    @default("") @map("approved_by")
+  rejectionReason   String    @default("") @map("rejection_reason")
+  appliedAt         DateTime? @map("applied_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  wizardAnswer      SkWizardAnswer @relation(fields: [wizardAnswerId], references: [id], onDelete: Cascade)
+
+  @@index([wizardAnswerId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("sk_wizard_intent")
+}
+
+// ----------------------------------------------------------------------------
+// Phase 4 — Tenant DB Provisioning (migration 000036)
+// ----------------------------------------------------------------------------
+
+enum SkDbEngine {
+  postgres
+  valkey
+  redis
+  s3
+  sqlite
+  mysql
+
+  @@map("sk_db_engine")
+}
+
+enum SkDbSharedMode {
+  per_tenant
+  shared_admin
+
+  @@map("sk_db_shared_mode")
+}
+
+enum SkDbSizeHint {
+  small
+  medium
+  large
+
+  @@map("sk_db_size_hint")
+}
+
+enum SkTenantDeploymentState {
+  requested
+  provisioning_db
+  db_ready
+  deploying_stackkit
+  healthy
+  degraded
+  retired
+  failed
+
+  @@map("sk_tenant_deployment_state")
+}
+
+enum SkTenantBindingStatus {
+  pending
+  creating
+  seeding
+  ready
+  failed
+  retired
+
+  @@map("sk_tenant_binding_status")
+}
+
+enum SkTenantEventType {
+  state_change
+  db_created
+  seed_run
+  error
+  retry
+  manual_intervention
+  retire
+
+  @@map("sk_tenant_event_type")
+}
+
+model SkTenantDbSpec {
+  id               String   @id @default(uuid()) @db.Uuid
+  moduleVersionId  String   @map("module_version_id") @db.Uuid
+  dbEngine         SkDbEngine @map("db_engine")
+  dbNameTemplate   String   @map("db_name_template")
+  schemaName       String   @default("public") @map("schema_name")
+  ownerRole        String   @default("app") @map("owner_role")
+  extensions       Json     @default("[]")
+  seedJobSlug      String?  @map("seed_job_slug")
+  sharedMode       SkDbSharedMode @default(per_tenant) @map("shared_mode")
+  sizeHint         SkDbSizeHint @default(small) @map("size_hint")
+  secretKey        String   @map("secret_key")
+  notes            String   @default("")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  moduleVersion    SkModuleVersion      @relation(fields: [moduleVersionId], references: [id], onDelete: Cascade)
+  bindings         SkTenantDbBinding[]
+
+  @@unique([moduleVersionId, secretKey])
+  @@index([moduleVersionId])
+  @@index([dbEngine])
+  @@map("sk_tenant_db_spec")
+}
+
+model SkTenantDeployment {
+  id                      String   @id @default(uuid()) @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  stackkitId              String   @map("stackkit_id") @db.Uuid
+  stackkitVersion         String   @map("stackkit_version")
+  wizardAnswerId          String?  @map("wizard_answer_id") @db.Uuid
+  appliedContractHash     String   @map("applied_contract_hash") @db.Char(64)
+  lifecycleState          SkTenantDeploymentState @default(requested) @map("lifecycle_state")
+  renderEnvGroupId        String   @default("") @map("render_env_group_id")
+  dopplerProject          String   @default("") @map("doppler_project")
+  dopplerConfig           String   @default("prd") @map("doppler_config")
+  totalMonthlyCostCents   Int?     @map("total_monthly_cost_cents")
+  startedAt               DateTime @default(now()) @map("started_at")
+  finishedAt              DateTime? @map("finished_at")
+  lastError               String   @default("") @map("last_error")
+  lastErrorAt             DateTime? @map("last_error_at")
+  retryCount              Int      @default(0) @map("retry_count")
+  createdBy               String   @default("system") @map("created_by")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  stackkit       SkStackkit       @relation(fields: [stackkitId], references: [id], onDelete: Restrict)
+  wizardAnswer   SkWizardAnswer?  @relation(fields: [wizardAnswerId], references: [id], onDelete: SetNull)
+  bindings       SkTenantDbBinding[]
+  events         SkTenantDeploymentEvent[]
+
+  @@unique([tenantId, stackkitId, stackkitVersion])
+  @@index([tenantId, lifecycleState])
+  @@index([lifecycleState])
+  @@index([stackkitId, stackkitVersion])
+  @@map("sk_tenant_deployment")
+}
+
+model SkTenantDbBinding {
+  id                   String   @id @default(uuid()) @db.Uuid
+  deploymentId         String   @map("deployment_id") @db.Uuid
+  specId               String   @map("spec_id") @db.Uuid
+  actualDbName         String   @map("actual_db_name")
+  renderResourceId     String   @default("") @map("render_resource_id")
+  renderResourceType   String   @default("") @map("render_resource_type")
+  renderPlan           String   @default("") @map("render_plan")
+  renderRegion         String   @default("frankfurt") @map("render_region")
+  dopplerSecretPath    String   @map("doppler_secret_path")
+  status               SkTenantBindingStatus @default(pending)
+  statusMessage        String   @default("") @map("status_message")
+  provisionedAt        DateTime? @map("provisioned_at")
+  seededAt             DateTime? @map("seeded_at")
+  readyAt              DateTime? @map("ready_at")
+  retiredAt            DateTime? @map("retired_at")
+  retireGraceUntil     DateTime? @map("retire_grace_until")
+  monthlyCostCents     Int?      @map("monthly_cost_cents")
+  lastError            String    @default("") @map("last_error")
+  lastErrorAt          DateTime? @map("last_error_at")
+  metadata             Json      @default("{}")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  deployment           SkTenantDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  spec                 SkTenantDbSpec     @relation(fields: [specId], references: [id], onDelete: Restrict)
+  events               SkTenantDeploymentEvent[]
+
+  @@unique([deploymentId, specId])
+  @@index([deploymentId, status])
+  @@index([status])
+  @@index([renderResourceId])
+  @@map("sk_tenant_db_binding")
+}
+
+model SkTenantDeploymentEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  deploymentId  String   @map("deployment_id") @db.Uuid
+  bindingId     String?  @map("binding_id") @db.Uuid
+  eventType     SkTenantEventType @map("event_type")
+  fromState     String   @default("") @map("from_state")
+  toState       String   @default("") @map("to_state")
+  payload       Json     @default("{}")
+  actor         String   @default("system")
+  message       String   @default("")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  deployment    SkTenantDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  binding       SkTenantDbBinding? @relation(fields: [bindingId], references: [id], onDelete: SetNull)
+
+  @@index([deploymentId, createdAt(sort: Desc)])
+  @@index([eventType, createdAt(sort: Desc)])
+  @@map("sk_tenant_deployment_event")
+}
+
+// ----------------------------------------------------------------------------
+// Phase 5 — Intent Telemetry + Tier-3 Promotion (migration 000037)
+// ----------------------------------------------------------------------------
+
+enum SkTier3Status {
+  candidate
+  scheduled
+  in_progress
+  released
+  rejected
+
+  @@map("sk_tier3_status")
+}
+
+model SkIntentTelemetry {
+  id                   String   @id @default(uuid()) @db.Uuid
+  patternHash          String   @map("pattern_hash") @db.Char(64)
+  patternLabel         String   @map("pattern_label")
+  canonicalEmbedding   Unsupported("vector(1536)")?  @map("canonical_embedding")
+  sampleCount          Int      @default(0) @map("sample_count")
+  windowStart          DateTime @map("window_start")
+  windowEnd            DateTime @map("window_end")
+  lastSampleAt         DateTime? @map("last_sample_at")
+  promotionCandidate   Boolean  @default(false) @map("promotion_candidate")
+  exampleIntentIds     String[] @default([]) @map("example_intent_ids") @db.Uuid
+  metadata             Json     @default("{}")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([patternHash, windowStart])
+  @@index([patternHash])
+  @@index([promotionCandidate])
+  @@index([windowStart, windowEnd])
+  @@map("sk_intent_telemetry")
+}
+
+model SkTier3Promotion {
+  id                 String    @id @default(uuid()) @db.Uuid
+  patternHash        String    @map("pattern_hash") @db.Char(64)
+  patternLabel       String    @map("pattern_label")
+  promotedModuleId   String?   @map("promoted_module_id") @db.Uuid
+  status             SkTier3Status @default(candidate)
+  rationale          String    @default("")
+  beadsTicketRef     String    @default("") @map("beads_ticket_ref")
+  decidedBy          String    @default("") @map("decided_by")
+  decidedAt          DateTime? @map("decided_at")
+  releasedAt         DateTime? @map("released_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  promotedModule     SkModule? @relation(fields: [promotedModuleId], references: [id], onDelete: SetNull)
+
+  @@index([patternHash])
+  @@index([status])
+  @@index([promotedModuleId])
+  @@map("sk_tier3_promotion")
+}

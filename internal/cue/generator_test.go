@@ -1,11 +1,16 @@
 package cue
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
 func testGraph() *ModuleGraph {
@@ -112,9 +117,30 @@ func TestGenerateAllCreatesFiles(t *testing.T) {
 
 	// Check per-module files
 	for _, name := range []string{"socket-proxy", "traefik", "whoami"} {
-		path := filepath.Join(dir, "modules", name+".tf")
+		path := filepath.Join(dir, name+".tf")
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			t.Errorf("expected modules/%s.tf to exist", name)
+			t.Errorf("expected %s.tf to exist", name)
+		}
+	}
+}
+
+func TestGenerateAllFormatsModuleHCL(t *testing.T) {
+	dir := t.TempDir()
+	gen := NewGenerator("test.local")
+
+	graph := testGraph()
+	if err := gen.GenerateAll(graph, dir); err != nil {
+		t.Fatalf("GenerateAll() error = %v", err)
+	}
+
+	for _, name := range []string{"socket-proxy", "traefik", "whoami"} {
+		path := filepath.Join(dir, name+".tf")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if formatted := hclwrite.Format(data); !bytes.Equal(data, formatted) {
+			t.Fatalf("%s is not canonical HCL", name+".tf")
 		}
 	}
 }
@@ -221,19 +247,17 @@ func TestTFVarsJSON(t *testing.T) {
 
 func TestModuleTFContent(t *testing.T) {
 	dir := t.TempDir()
-	modulesDir := filepath.Join(dir, "modules")
-	_ = os.MkdirAll(modulesDir, 0750)
 
 	gen := NewGenerator("test.local")
 	graph := testGraph()
 
 	// Generate traefik module
 	mc := graph.Modules["traefik"]
-	if err := gen.writeModuleTF(mc, graph, modulesDir); err != nil {
+	if err := gen.writeModuleTF(mc, graph, dir); err != nil {
 		t.Fatalf("writeModuleTF() error = %v", err)
 	}
 
-	data, _ := os.ReadFile(filepath.Join(modulesDir, "traefik.tf"))
+	data, _ := os.ReadFile(filepath.Join(dir, "traefik.tf"))
 	content := string(data)
 
 	// docker_image resource
@@ -280,12 +304,12 @@ func TestModuleTFContent(t *testing.T) {
 	}
 
 	// Resource limits
-	if !strings.Contains(content, "memory = 256") {
+	if !regexp.MustCompile(`(?m)^\s*memory\s*=\s*256\s*$`).MatchString(content) {
 		t.Error("should have memory limit of 256 MB")
 	}
 
 	// Restart policy
-	if !strings.Contains(content, `restart = "always"`) {
+	if !regexp.MustCompile(`(?m)^\s*restart\s*=\s*"always"\s*$`).MatchString(content) {
 		t.Error("should have restart policy 'always'")
 	}
 
@@ -300,20 +324,40 @@ func TestModuleTFContent(t *testing.T) {
 	}
 }
 
+func TestModuleTFContent_OmitsMemoryWhenDockerMemoryLimitsDisabled(t *testing.T) {
+	dir := t.TempDir()
+
+	gen := NewGenerator("test.local").WithDockerMemoryLimits(false)
+	graph := testGraph()
+
+	mc := graph.Modules["traefik"]
+	if err := gen.writeModuleTF(mc, graph, dir); err != nil {
+		t.Fatalf("writeModuleTF() error = %v", err)
+	}
+
+	data, _ := os.ReadFile(filepath.Join(dir, "traefik.tf"))
+	content := string(data)
+
+	if strings.Contains(content, "\n  memory = ") {
+		t.Error("should omit memory when Docker memory limits are disabled")
+	}
+	if strings.Contains(content, "\n  memory_swap = ") {
+		t.Error("should omit memory_swap when Docker memory limits are disabled")
+	}
+}
+
 func TestDomainTemplating(t *testing.T) {
 	dir := t.TempDir()
-	modulesDir := filepath.Join(dir, "modules")
-	_ = os.MkdirAll(modulesDir, 0750)
 
 	gen := NewGenerator("test.local")
 	graph := testGraph()
 
 	mc := graph.Modules["whoami"]
-	if err := gen.writeModuleTF(mc, graph, modulesDir); err != nil {
+	if err := gen.writeModuleTF(mc, graph, dir); err != nil {
 		t.Fatalf("writeModuleTF() error = %v", err)
 	}
 
-	data, _ := os.ReadFile(filepath.Join(modulesDir, "whoami.tf"))
+	data, _ := os.ReadFile(filepath.Join(dir, "whoami.tf"))
 	content := string(data)
 
 	// Should NOT contain the raw template marker
@@ -413,5 +457,24 @@ func TestEmptyDomainFallback(t *testing.T) {
 
 	if vars["domain"] != "stack.local" {
 		t.Errorf("empty domain should default to stack.local, got %v", vars["domain"])
+	}
+}
+
+func TestDefaultDockerHost(t *testing.T) {
+	t.Setenv("DOCKER_HOST", "tcp://127.0.0.1:2375")
+	if got := defaultDockerHost(); got != "tcp://127.0.0.1:2375" {
+		t.Fatalf("defaultDockerHost() with env = %q", got)
+	}
+
+	t.Setenv("DOCKER_HOST", "")
+	got := defaultDockerHost()
+	if runtime.GOOS == "windows" {
+		if got != "npipe:////./pipe/docker_engine" {
+			t.Fatalf("defaultDockerHost() on Windows = %q", got)
+		}
+		return
+	}
+	if got != "" {
+		t.Fatalf("defaultDockerHost() without env = %q", got)
 	}
 }

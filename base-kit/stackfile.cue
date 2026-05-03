@@ -51,7 +51,7 @@ import (
 	context?: *"local" | "cloud" | "pi"
 	paas?: *"dokploy" | "coolify" | "dockge" | "none"
 	addons?: [...string]
-	useCases?: [string]: #UseCaseSelection
+	application?: [string]: #ApplicationSelection
 	domain?: string
 	subdomainPrefix?: string
 	email?: string
@@ -214,7 +214,7 @@ import (
 	challenge?: *"tls" | "dns"
 }
 
-#UseCaseSelection: {
+#ApplicationSelection: {
 	enabled?: bool | *true
 	tool?:    string
 }

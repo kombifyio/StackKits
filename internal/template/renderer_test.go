@@ -422,17 +422,17 @@ func TestToYaml(t *testing.T) {
 func TestToJson(t *testing.T) {
 	t.Run("converts map to json", func(t *testing.T) {
 		data := map[string]string{"key": "value"}
-		result := toJson(data)
+		result := toJSON(data)
 		assert.Contains(t, result, `"key":"value"`)
 	})
 
 	t.Run("handles nil", func(t *testing.T) {
-		result := toJson(nil)
+		result := toJSON(nil)
 		assert.Equal(t, "null", result)
 	})
 
 	t.Run("converts number", func(t *testing.T) {
-		result := toJson(42)
+		result := toJSON(42)
 		assert.Equal(t, "42", result)
 	})
 }
@@ -440,13 +440,13 @@ func TestToJson(t *testing.T) {
 func TestToJsonPretty(t *testing.T) {
 	t.Run("converts map to pretty json", func(t *testing.T) {
 		data := map[string]string{"key": "value"}
-		result := toJsonPretty(data)
+		result := toJSONPretty(data)
 		assert.Contains(t, result, "  ")
 		assert.Contains(t, result, `"key": "value"`)
 	})
 
 	t.Run("handles nil", func(t *testing.T) {
-		result := toJsonPretty(nil)
+		result := toJSONPretty(nil)
 		assert.Equal(t, "null", result)
 	})
 }

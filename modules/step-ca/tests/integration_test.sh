@@ -29,6 +29,15 @@ log_pass() { PASS=$((PASS + 1)); echo -e "${GREEN}  [PASS]${NC} $1"; }
 log_fail() { FAIL=$((FAIL + 1)); echo -e "${RED}  [FAIL]${NC} $1"; }
 
 cleanup() {
+    local rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo ""
+        echo "=== container state (rc=$rc) ==="
+        docker compose -f "$COMPOSE_FILE" ps -a 2>/dev/null || true
+        echo ""
+        echo "=== container logs (last 200 lines per service) ==="
+        docker compose -f "$COMPOSE_FILE" logs --no-color --tail=200 2>/dev/null || true
+    fi
     echo ""
     echo "Cleaning up..."
     docker compose -f "$COMPOSE_FILE" down -v --remove-orphans 2>/dev/null || true
@@ -44,7 +53,9 @@ echo "============================================="
 echo ""
 
 echo "Starting services..."
-docker compose -f "$COMPOSE_FILE" up -d --wait --wait-timeout 120
+# Note: --wait is not used to keep behavior consistent with other module tests.
+# We poll for service health below.
+docker compose -f "$COMPOSE_FILE" up -d
 
 echo ""
 echo "Waiting for Step-CA to be healthy (up to 90s)..."

@@ -11,6 +11,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	defaultStackSpecPath = "stack-spec.yaml"
+	stackSpecAliasPath   = "kombination.yaml"
+)
+
 // Loader handles loading configuration files
 type Loader struct {
 	basePath string
@@ -42,24 +47,54 @@ func (l *Loader) LoadStackKit(path string) (*models.StackKit, error) {
 	return &stackkit, nil
 }
 
-// LoadStackSpec loads a stack-spec.yaml file
+// LoadStackSpec loads a StackKit deployment spec.
+// stack-spec.yaml remains the canonical CLI file. If the caller asks for the
+// canonical default and it is missing, kombination.yaml is accepted as a
+// user-intent alias for TechStack/CLI interoperability.
 func (l *Loader) LoadStackSpec(path string) (*models.StackSpec, error) {
-	fullPath := l.resolvePath(path)
+	fullPath, displayPath, _, err := l.ResolveStackSpecPathForRead(path)
+	if err != nil {
+		return nil, err
+	}
 
 	data, err := os.ReadFile(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read stack-spec.yaml: %w", err)
+		return nil, fmt.Errorf("failed to read %s: %w", displayPath, err)
 	}
 
 	var spec models.StackSpec
 	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return nil, fmt.Errorf("failed to parse stack-spec.yaml: %w", err)
+		return nil, fmt.Errorf("failed to parse %s: %w", displayPath, err)
 	}
 
 	// Apply defaults
 	applySpecDefaults(&spec)
 
 	return &spec, nil
+}
+
+// ResolveStackSpecPathForRead resolves the spec path and reports whether the
+// TechStack/user-intent alias was selected.
+func (l *Loader) ResolveStackSpecPathForRead(path string) (string, string, bool, error) {
+	fullPath := l.resolvePath(path)
+	if path != defaultStackSpecPath {
+		return fullPath, path, false, nil
+	}
+
+	if _, err := os.Stat(fullPath); err == nil {
+		return fullPath, defaultStackSpecPath, false, nil
+	} else if !os.IsNotExist(err) {
+		return "", defaultStackSpecPath, false, fmt.Errorf("failed to stat %s: %w", defaultStackSpecPath, err)
+	}
+
+	aliasPath := l.resolvePath(stackSpecAliasPath)
+	if _, err := os.Stat(aliasPath); err == nil {
+		return aliasPath, stackSpecAliasPath, true, nil
+	} else if !os.IsNotExist(err) {
+		return "", stackSpecAliasPath, false, fmt.Errorf("failed to stat %s: %w", stackSpecAliasPath, err)
+	}
+
+	return fullPath, defaultStackSpecPath, false, nil
 }
 
 // SaveStackSpec saves a stack-spec.yaml file
@@ -184,10 +219,20 @@ func validateStackKitName(name string) error {
 	return nil
 }
 
-// resolvePath resolves a path relative to the base path
+// resolvePath resolves a path relative to the base path.
+// Absolute paths are rejected to prevent directory traversal outside basePath.
 func (l *Loader) resolvePath(path string) string {
 	if filepath.IsAbs(path) {
-		return path
+		// Verify absolute path is under basePath to prevent traversal
+		absBase, err := filepath.Abs(l.basePath)
+		if err == nil {
+			cleaned := filepath.Clean(path)
+			if strings.HasPrefix(cleaned, absBase+string(filepath.Separator)) || cleaned == absBase {
+				return cleaned
+			}
+		}
+		// Reject paths outside basePath — treat as relative
+		return filepath.Join(l.basePath, filepath.Base(path))
 	}
 	return filepath.Join(l.basePath, path)
 }
@@ -214,9 +259,6 @@ func applySpecDefaults(spec *models.StackSpec) {
 	if spec.Network.Mode == "" {
 		spec.Network.Mode = "local"
 	}
-	if spec.Network.Subnet == "" {
-		spec.Network.Subnet = "172.20.0.0/16"
-	}
 	if spec.Compute.Tier == "" {
 		spec.Compute.Tier = "standard"
 	}
@@ -225,6 +267,28 @@ func applySpecDefaults(spec *models.StackSpec) {
 	}
 	if spec.SSH.User == "" {
 		spec.SSH.User = "root"
+	}
+	for name, app := range spec.Apps {
+		if app.Kind == "" {
+			app.Kind = "sveltekit"
+		}
+		if app.Port == 0 {
+			app.Port = 3000
+		}
+		if app.Health.Path == "" {
+			app.Health.Path = "/health"
+		}
+		if app.Route.Auth == "" {
+			app.Route.Auth = "login-gateway"
+		}
+		if app.Route.Host == "" {
+			domain := spec.Domain
+			if domain == "" {
+				domain = models.DomainHomeLab
+			}
+			app.Route.Host = name + "." + domain
+		}
+		spec.Apps[name] = app
 	}
 }
 
@@ -239,7 +303,12 @@ func ExpandPath(path string) string {
 
 // GetDefaultSpecPath returns the default spec file path
 func GetDefaultSpecPath() string {
-	return "stack-spec.yaml"
+	return defaultStackSpecPath
+}
+
+// GetSpecAliasPath returns the accepted TechStack/user-intent alias path.
+func GetSpecAliasPath() string {
+	return stackSpecAliasPath
 }
 
 // GetDeployDir returns the deployment output directory

@@ -4,18 +4,20 @@ kind: StackKit
 
 metadata:
   name: base-kit
-  version: "5.0.0"
-  description: "Single-environment homelab with Photos, Media, and Vault"
+  version: "6.0.0-draft"
+  description: "Single-environment homelab with a robust default scope: Platform + Media and Vault. Photos, Smart Home, Files, and AI stay opt-in until their modules are production-ready."
   author: "kombify Stack Team"
   license: "Apache-2.0"
   repository: "https://github.com/kombifyio/stackkits"
   tags:
     - homelab
-    - single-node
+    - single-environment
+    - multi-server-capable
     - docker
     - traefik
     - dokploy
     - professional
+    - v6-draft
 
 # Supported operating systems
 supportedOS:
@@ -91,13 +93,17 @@ autoSelect:
   default: simple
 
 # =============================================================================
-# USE CASES (v5 — replaces variants)
+# APPLICATION LAYER (L3 — use cases)
 # =============================================================================
+# Canonical layer name per ADR-0012 sk_layer + ARCHITECTURE_V6 §4. Pre-2026-04
+# this section was called `useCases`; renamed to `application` to match the
+# Foundation / Platform / Application standard surfaced in the Admin UI.
+#
 # Role: default = ships enabled, alternative = curated swap, optional = user enables
-# Source of truth: admin-center (admin_sk_stackkit_tools). This section mirrors it for Level 0 CLI.
-useCases:
+# Source of truth: admin-center (sk_stackkit_*). This section mirrors it for Level 0 CLI.
+application:
   photos:
-    role: default
+    role: optional            # Planned default; opt-in until Immich renders its full Postgres/Redis/ML stack and passes live smoke.
     defaultTool: immich
     alternatives: [ente-photos]
     description: "Photo gallery and memories"
@@ -112,17 +118,17 @@ useCases:
     alternatives: []
     description: "Password management and secure notes"
   smart-home:
-    role: optional
+    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
     defaultTool: home-assistant
     alternatives: []
     description: "Home automation with IoT device control"
   files:
-    role: optional
+    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
     defaultTool: cloudreve
     alternatives: [nextcloud]
     description: "File sharing and cloud storage"
   ai:
-    role: optional
+    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
     defaultTool: ollama
     alternatives: []
     description: "Local AI/LLM inference"
@@ -147,7 +153,23 @@ useCases:
     alternatives: []
     description: "Remote desktop access"
 
-# Platform services (always present, non-negotiable)
+# Foundation services (L1, always present, mandatory in V6 — host-level + identity bootstrap)
+# See docs/ARCHITECTURE_V6.md §5 "Out-of-the-box Production Hardening".
+foundation:
+  security-baseline:
+    role: default
+    alternatives: []
+    description: "UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. V6 mandatory."
+  admin-bootstrap:
+    role: optional
+    alternatives: []
+    description: "Planned initial admin user bootstrap for LLDAP/PocketID. Opt-in until admin-authenticated provisioning exists."
+
+# Platform services (L2, identity & routing). Migration 000085 (2026-04-27)
+# moved `login-gateway` here from `foundation:` to align with
+# ARCHITECTURE_V6 §4 — login-gateway (TinyAuth + PocketID) is L2 Platform,
+# not L1 Foundation. Only the bootstrap of an admin user is Foundation;
+# the actual Identity service stack is Platform.
 platform:
   traefik:
     role: default
@@ -155,19 +177,23 @@ platform:
   tinyauth:
     role: default
     alternatives: []
-  pocketid:
+  login-gateway:
     role: default
     alternatives: []
+    description: "TinyAuth forward-auth middleware in front of every L3 service. V6 mandatory."
+  pocketid:
+    role: optional
+    alternatives: []
   paas:
-    role: default
+    role: optional
     defaultTool: dokploy
     alternatives: [coolify, dockge]
   monitoring:
-    role: default
+    role: optional
     defaultTool: uptime-kuma
     alternatives: [beszel]
   dashboard:
-    role: default
+    role: optional
     alternatives: []
 
 # Feature flags

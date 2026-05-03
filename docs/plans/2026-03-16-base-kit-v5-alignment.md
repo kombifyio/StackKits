@@ -51,7 +51,7 @@ Why not:
 **Step 1: Write the failing tests**
 
 Add tests that snapshot the generated `terraform.tfvars.json` for these cases:
-- local `home.lab` standard tier
+- local `home.localhost` standard tier
 - public custom domain with HTTPS
 - `kombify.me`
 - low tier with `dockge`
@@ -68,7 +68,7 @@ Add tests that assert the generated output exposes and toggles these keys:
 - `enable_vaultwarden`
 - `enable_jellyfin`
 - `enable_immich`
-- `enable_dnsmasq`
+- `enable_kombify_point` (`enable_dnsmasq` remains a deprecated alias)
 - `reverse_proxy_backend`
 - `paas`
 

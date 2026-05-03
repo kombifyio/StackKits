@@ -5,6 +5,10 @@
 *.so
 *.dylib
 
+# Hygiene / audit working artifacts
+AUDIT-REPORT.md
+_export/
+
 # Tools
 .tools/
 tools/
@@ -17,8 +21,11 @@ tools/
 
 # StackKit state
 .stackkit/
+.stackkits-vm-workspace/
+dev/vm/.ssh/
 
 # Generated deploy artifacts (contain secrets like plaintext passwords and API tokens)
+deploy/*.tf
 deploy/terraform.tfvars.json
 deploy/*.tfstate
 deploy/*.tfstate.*
@@ -27,6 +34,9 @@ deploy/.terraform.lock.hcl
 
 # Test binary, built with `go test -c`
 *.test
+
+# Local Go build cache
+.gocache/
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
@@ -57,6 +67,8 @@ Thumbs.db
 
 # Research/tool artifacts
 .firecrawl/
+.claude/worktrees/
+.claude/scheduled_tasks.lock
 nul
 
 # Build outputs
@@ -70,3 +82,17 @@ website-v2/blob-report/
 
 # Built binary (root only, not cmd/stackkit/ source)
 /stackkit
+/stackkit-*
+
+# Auto-generated nested CUE module files inside subdirectories that are
+# covered by the root cue.mod/module.cue. CUE tooling / LSPs occasionally
+# auto-initialize these and they shadow the root module, breaking imports
+# like `github.com/kombifyio/stackkits/base` from base-kit. The root module
+# is the single source of truth — nested cue.mod dirs must not be committed.
+base-kit/cue.mod/
+modern-homelab/cue.mod/
+ha-kit/cue.mod/
+modules/*/cue.mod/
+
+# Git worktrees (Claude Code subagent-driven development)
+.worktrees/

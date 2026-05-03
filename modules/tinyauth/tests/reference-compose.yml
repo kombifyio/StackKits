@@ -17,6 +17,7 @@ services:
     container_name: test-traefik
     command:
       - --api.insecure=true
+      - --ping=true
       - --entrypoints.web.address=:80
       - --providers.file.filename=/etc/traefik/dynamic.yml
     ports:
@@ -25,7 +26,7 @@ services:
     volumes:
       - ./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 10s
       timeout: 5s
       retries: 5

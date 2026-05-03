@@ -3,7 +3,7 @@
 // The ONLY service that mounts docker.sock. All other services that need
 // Docker API access (Traefik, TinyAuth, Dozzle) connect through this proxy.
 //
-// Filters Docker API: read-only endpoints enabled (containers, networks, info),
+// Filters Docker API: read-only endpoints enabled (containers, events, networks, info, ping, version),
 // all write operations blocked (POST, EXEC, BUILD, etc.).
 //
 // Exception: Dokploy/Coolify (PaaS) keeps direct docker.sock because it needs
@@ -35,8 +35,8 @@ Contract: base.#ModuleContract & {
 
 	provides: {
 		capabilities: {
-			"docker-api-proxy":    true
-			"socket-isolation":    true
+			"docker-api-proxy":     true
+			"socket-isolation":     true
 			"read-only-docker-api": true
 		}
 		endpoints: {
@@ -51,16 +51,16 @@ Contract: base.#ModuleContract & {
 	settings: {
 		perma: {
 			// API access flags — set at deploy, changing requires redeploy
-			containers: *true | bool   // Traefik, Dozzle need container listing
-			networks:   *true | bool   // Traefik needs network info
-			services:   *true | bool   // Swarm service discovery (future High Availability Kit)
-			tasks:      *true | bool   // Swarm task info (future High Availability Kit)
-			info:       *true | bool   // Docker info endpoint
+			containers: *true | bool // Traefik, Dozzle need container listing
+			networks:   *true | bool // Traefik needs network info
+			services:   *true | bool // Swarm service discovery (future High Availability Kit)
+			tasks:      *true | bool // Swarm task info (future High Availability Kit)
+			info:       *true | bool // Docker info endpoint
 			// Write operations — all blocked by default
-			post:   *false | bool
-			build:  *false | bool
-			exec:   *false | bool      // Critical: block exec into containers
-			images: *false | bool
+			post:    *false | bool
+			build:   *false | bool
+			exec:    *false | bool // Critical: block exec into containers
+			images:  *false | bool
 			volumes: *false | bool
 		}
 	}
@@ -99,26 +99,29 @@ Contract: base.#ModuleContract & {
 		}]
 
 		environment: {
-			CONTAINERS:    "1"
-			NETWORKS:      "1"
-			SERVICES:      "1"
-			TASKS:         "1"
-			INFO:          "1"
-			POST:          "0"
-			BUILD:         "0"
-			COMMIT:        "0"
-			CONFIGS:       "0"
-			DISTRIBUTION:  "0"
-			EXEC:          "0"
-			GRPC:          "0"
-			IMAGES:        "0"
-			NODES:         "0"
-			PLUGINS:       "0"
-			SECRETS:       "0"
-			SESSION:       "0"
-			SWARM:         "0"
-			SYSTEM:        "0"
-			VOLUMES:       "0"
+			CONTAINERS:   "1"
+			EVENTS:       "1"
+			NETWORKS:     "1"
+			SERVICES:     "1"
+			TASKS:        "1"
+			INFO:         "1"
+			PING:         "1"
+			VERSION:      "1"
+			POST:         "0"
+			BUILD:        "0"
+			COMMIT:       "0"
+			CONFIGS:      "0"
+			DISTRIBUTION: "0"
+			EXEC:         "0"
+			GRPC:         "0"
+			IMAGES:       "0"
+			NODES:        "0"
+			PLUGINS:      "0"
+			SECRETS:      "0"
+			SESSION:      "0"
+			SWARM:        "0"
+			SYSTEM:       "0"
+			VOLUMES:      "0"
 		}
 
 		resources: {
@@ -128,7 +131,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		healthCheck: {
-			enabled:  true
+			enabled: true
 			test: ["CMD-SHELL", "wget -q --spider http://localhost:2375/version || exit 1"]
 			interval: "30s"
 			timeout:  "5s"

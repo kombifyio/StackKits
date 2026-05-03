@@ -119,6 +119,8 @@ Contract: base.#ModuleContract & {
 			"traefik.http.services.dozzle.loadbalancer.server.port":           "8080"
 		}
 
+		subdomain: {key: "logs", nested: "logs", flat: "logs"}
+
 		output: {
 			url:         "https://logs.{{.domain}}"
 			description: "Dozzle container log viewer"

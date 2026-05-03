@@ -74,14 +74,14 @@ Level 1: Schema (cue vet ./...)                 ← CUE constraint validation
 
 Levels 1–3 run without a VM. Level 4 is the final gate.
 
-### mise tasks
+### Test commands
 
 ```bash
-mise run test:cue              # Level 1: all CUE schemas
-mise run test:module <name>    # Level 2: single module
-mise run test:modules          # Level 2: all modules
-mise run test:compose          # Level 3: full-stack composition
-mise run dev                   # Level 4: full E2E via VM
+make test-cue-binding                          # Level 1: CUE contracts + Go binding
+bash modules/<name>/tests/integration_test.sh  # Level 2: single module
+for d in modules/*/tests/integration_test.sh; do bash "$d"; done
+bash modules/_integration/integration_test.sh  # Level 3: full-stack composition
+make test-e2e                                  # Level 4: full E2E via VM
 ```
 
 ---

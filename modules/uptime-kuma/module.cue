@@ -120,6 +120,9 @@ Contract: base.#ModuleContract & {
 			"traefik.http.services.uptime-kuma.loadbalancer.server.port":               "3001"
 		}
 
+		subdomain: {key: "kuma", nested: "kuma", flat: "kuma"}
+		dashboard: {icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring"}
+
 		output: {
 			url:         "https://kuma.{{.domain}}"
 			description: "Uptime Kuma monitoring dashboard"

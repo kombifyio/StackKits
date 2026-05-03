@@ -159,7 +159,7 @@ modern-homelab/
 
 ## See Also
 
-- [`base-kit`](../base-kit/) - Single-node homelab with Dokploy
+- [`base-kit`](../base-kit/) - Single-environment homelab (1..N servers) with Dokploy
 - [`ha-kit`](../ha-kit/) - High-availability homelab (planned)
 - [`addons/`](../addons/) - Composable add-on ecosystem
 

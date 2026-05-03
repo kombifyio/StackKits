@@ -1,9 +1,9 @@
 # StackKits Network Security Architecture
 
-> Defense-in-depth networking and container security for StackKits, from single-node to HA cluster.
+> Defense-in-depth networking and container security for StackKits, from single-environment (1..N co-located servers) to HA cluster.
 
 **Last Updated**: 2026-02-13
-**Scope**: This document covers the **network and infrastructure security layer** within StackKits — the controls that protect the transport and runtime environment beneath the identity layer. For identity architecture (OIDC, passkeys, mTLS, RBAC), see [IDENTITY-STACKKITS.md](IDENTITY-STACKKITS.md). For platform architecture, see [ARCHITECTURE_V4.md](ARCHITECTURE_V4.md).
+**Scope**: This document covers the **network and infrastructure security layer** within StackKits — the controls that protect the transport and runtime environment beneath the identity layer. For identity architecture (OIDC, passkeys, mTLS, RBAC), see [IDENTITY-STACKKITS.md](IDENTITY-STACKKITS.md). For platform architecture, see [ARCHITECTURE_V5.md](ARCHITECTURE_V5.md).
 
 ---
 
@@ -978,5 +978,5 @@ Image supply chain                     Auth mode configuration
 ## Related Documents
 
 - [IDENTITY-STACKKITS.md](IDENTITY-STACKKITS.md) — Identity architecture (OIDC, passkeys, mTLS, RBAC)
-- [ARCHITECTURE_V4.md](ARCHITECTURE_V4.md) — StackKits architecture, 3-layer model, Add-On system
+- [ARCHITECTURE_V5.md](ARCHITECTURE_V5.md) — StackKits architecture (current), 3-layer model, Use Case vs Add-On
 - [IDENTITY-PLATFORM.md](IDENTITY-PLATFORM.md) — kombifySphere/SaaS identity model

@@ -5,12 +5,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 	"github.com/kombifyio/stackkits/pkg/models"
+)
+
+const (
+	networkModePublic = "public"
+	appKindSvelteKit  = "sveltekit"
+	routeAuthLogin    = "login-gateway"
 )
 
 // Validator handles CUE schema validation
@@ -33,21 +40,39 @@ func NewValidator(baseDir string) *Validator {
 func (v *Validator) ValidateStackKit(stackkitDir string) (*models.ValidationResult, error) {
 	result := &models.ValidationResult{Valid: true}
 
-	// Ensure the kit directory has a cue.mod/module.cue so CUE imports resolve.
-	// Standalone kits (e.g. ~/.stackkits/base-kit/) may not have one.
-	if err := ensureCueModule(stackkitDir); err != nil {
+	if _, err := os.Stat(stackkitDir); err != nil {
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    stackkitDir,
+			Message: fmt.Sprintf("stackkit directory not found: %v", err),
+			Code:    "STACKKIT_DIR_ERROR",
+		})
+		return result, nil
+	}
+
+	// Prefer an existing workspace/root cue.mod. Creating a nested cue.mod in a
+	// repo checkout makes CUE treat base-kit as its own module and breaks imports
+	// such as github.com/kombifyio/stackkits/base.
+	if _, ok := resolveCueModuleRoot(v.baseDir, stackkitDir); !ok {
+		if err := ensureCueModule(stackkitDir); err != nil {
+			result.Warnings = append(result.Warnings, models.ValidationError{
+				Path:    stackkitDir,
+				Message: fmt.Sprintf("could not set up CUE module: %v", err),
+				Code:    "CUE_MODULE_WARNING",
+			})
+		}
+	}
+
+	cfg := cueLoadConfig(stackkitDir, v.baseDir)
+	if cfg.ModuleRoot == "" {
 		result.Warnings = append(result.Warnings, models.ValidationError{
 			Path:    stackkitDir,
-			Message: fmt.Sprintf("could not set up CUE module: %v", err),
+			Message: "no CUE module root found; imports may not resolve",
 			Code:    "CUE_MODULE_WARNING",
 		})
 	}
 
 	// Load CUE files from the stackkit directory
-	cfg := &load.Config{
-		Dir: stackkitDir,
-	}
-
 	instances := load.Instances([]string{"."}, cfg)
 	if len(instances) == 0 {
 		return nil, fmt.Errorf("no CUE files found in %s", stackkitDir)
@@ -117,7 +142,7 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 	}
 
 	// Validate network mode
-	validModes := map[string]bool{"local": true, "public": true, "hybrid": true}
+	validModes := map[string]bool{"local": true, networkModePublic: true, "hybrid": true}
 	if spec.Network.Mode != "" && !validModes[spec.Network.Mode] {
 		result.Valid = false
 		result.Errors = append(result.Errors, models.ValidationError{
@@ -169,8 +194,10 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 		}
 	}
 
+	v.validateApps(spec, result)
+
 	// Check for warnings
-	if spec.Domain == "" && spec.Network.Mode == "public" {
+	if spec.Domain == "" && spec.Network.Mode == networkModePublic {
 		result.Warnings = append(result.Warnings, models.ValidationError{
 			Path:    "domain",
 			Message: "domain is recommended for public network mode",
@@ -178,7 +205,7 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 		})
 	}
 
-	if spec.Email == "" && spec.Network.Mode == "public" {
+	if spec.Email == "" && spec.Network.Mode == networkModePublic {
 		result.Warnings = append(result.Warnings, models.ValidationError{
 			Path:    "email",
 			Message: "email is recommended for Let's Encrypt certificates",
@@ -187,6 +214,156 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 	}
 
 	return result, nil
+}
+
+func (v *Validator) validateApps(spec *models.StackSpec, result *models.ValidationResult) {
+	for name, app := range spec.Apps {
+		path := "apps." + name
+		if !isDNSLabel(name) {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path,
+				Message: "app name must be a DNS-safe label",
+				Code:    "INVALID_VALUE",
+			})
+		}
+
+		kind := app.Kind
+		if kind == "" {
+			kind = appKindSvelteKit
+		}
+		if kind != appKindSvelteKit {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path + ".kind",
+				Message: "only kind 'sveltekit' is supported for the BaseKit app contract",
+				Code:    "INVALID_VALUE",
+			})
+		}
+
+		if app.Image == "" {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path + ".image",
+				Message: "image is required",
+				Code:    "REQUIRED_FIELD",
+			})
+		}
+
+		port := app.Port
+		if port == 0 {
+			port = 3000
+		}
+		if port < 1 || port > 65535 {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path + ".port",
+				Message: "port must be between 1 and 65535",
+				Code:    "INVALID_VALUE",
+			})
+		}
+
+		healthPath := app.Health.Path
+		if healthPath == "" {
+			healthPath = "/health"
+		}
+		if !strings.HasPrefix(healthPath, "/") {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path + ".health.path",
+				Message: "health path must start with '/'",
+				Code:    "INVALID_VALUE",
+			})
+		}
+
+		auth := app.Route.Auth
+		if auth == "" {
+			auth = routeAuthLogin
+		}
+		if auth != routeAuthLogin && auth != networkModePublic {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path + ".route.auth",
+				Message: "route auth must be 'login-gateway' or 'public'",
+				Code:    "INVALID_VALUE",
+			})
+		}
+
+		for key := range app.Env {
+			if !isEnvName(key) {
+				result.Valid = false
+				result.Errors = append(result.Errors, models.ValidationError{
+					Path:    path + ".env." + key,
+					Message: "environment variable names must match [A-Za-z_][A-Za-z0-9_]*",
+					Code:    "INVALID_VALUE",
+				})
+			}
+		}
+		for key, ref := range app.Secrets {
+			if !isEnvName(key) {
+				result.Valid = false
+				result.Errors = append(result.Errors, models.ValidationError{
+					Path:    path + ".secrets." + key,
+					Message: "secret environment variable names must match [A-Za-z_][A-Za-z0-9_]*",
+					Code:    "INVALID_VALUE",
+				})
+			}
+			if !isSecretRef(ref) {
+				result.Valid = false
+				result.Errors = append(result.Errors, models.ValidationError{
+					Path:    path + ".secrets." + key,
+					Message: "secret references must start with env:, doppler:, vault:, or file:",
+					Code:    "INVALID_VALUE",
+				})
+			}
+		}
+	}
+}
+
+func isDNSLabel(value string) bool {
+	if value == "" || len(value) > 63 {
+		return false
+	}
+	if value[0] < 'a' || value[0] > 'z' {
+		return false
+	}
+	last := value[len(value)-1]
+	if last == '-' {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isEnvName(value string) bool {
+	if value == "" {
+		return false
+	}
+	first := value[0]
+	if !((first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z') || first == '_') {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isSecretRef(value string) bool {
+	for _, prefix := range []string{"env:", "doppler:", "vault:", "file:"} {
+		if strings.HasPrefix(value, prefix) && len(value) > len(prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateCUEFile validates a single CUE file
@@ -246,6 +423,67 @@ language: {
 }
 `
 	return os.WriteFile(modFile, []byte(content), 0600)
+}
+
+func cueLoadConfig(dir, preferredRoot string) *load.Config {
+	cfg := &load.Config{Dir: dir}
+	if root, ok := resolveCueModuleRoot(preferredRoot, dir); ok {
+		cfg.ModuleRoot = root
+	}
+	return cfg
+}
+
+func resolveCueModuleRoot(preferredRoot, dir string) (string, bool) {
+	var candidates []string
+	addCandidate := func(path string) {
+		if path == "" {
+			return
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return
+		}
+		abs = filepath.Clean(abs)
+		for _, existing := range candidates {
+			if existing == abs {
+				return
+			}
+		}
+		if hasCueModule(abs) {
+			candidates = append(candidates, abs)
+		}
+	}
+
+	addCandidate(preferredRoot)
+	if absDir, err := filepath.Abs(dir); err == nil {
+		for cur := filepath.Clean(absDir); ; cur = filepath.Dir(cur) {
+			addCandidate(cur)
+			parent := filepath.Dir(cur)
+			if parent == cur {
+				break
+			}
+		}
+	}
+
+	for _, candidate := range candidates {
+		if hasRepoBasePackage(candidate) {
+			return candidate, true
+		}
+	}
+	if len(candidates) > 0 {
+		return candidates[0], true
+	}
+	return "", false
+}
+
+func hasCueModule(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, "cue.mod", "module.cue"))
+	return err == nil
+}
+
+func hasRepoBasePackage(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, "base", "module.cue"))
+	return err == nil
 }
 
 // GetSchemaDir returns the CUE schema directory

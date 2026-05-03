@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/mail"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/kombifyio/stackkits/api/openapi"
+	"github.com/kombifyio/stackkits/internal/composition"
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
@@ -122,7 +124,10 @@ type stackKitSummary struct {
 
 func (s *Server) handleListStackKits(w http.ResponseWriter, r *http.Request) {
 	loader := config.NewLoader(s.config.BaseDir)
-	discovered, _ := loader.DiscoverStackKits(s.config.BaseDir)
+	discovered, err := loader.DiscoverStackKits(s.config.BaseDir)
+	if err != nil {
+		slog.Warn("failed to discover stackkits", "error", err, "baseDir", s.config.BaseDir)
+	}
 
 	kits := make([]stackKitSummary, 0, len(discovered))
 	for _, sk := range discovered {
@@ -137,26 +142,9 @@ func (s *Server) handleListStackKits(w http.ResponseWriter, r *http.Request) {
 
 	sort.Slice(kits, func(i, j int) bool { return kits[i].Name < kits[j].Name })
 
-	// Pagination: ?limit=N&offset=M
+	// Pagination
 	total := len(kits)
-	limit := total // default: return all
-	offset := 0
-
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 {
-			limit = v
-		}
-	}
-	if o := r.URL.Query().Get("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
-		}
-	}
-
-	// Apply pagination
-	if offset > total {
-		offset = total
-	}
+	limit, offset := parsePagination(r, total)
 	end := offset + limit
 	if end > total {
 		end = total
@@ -415,11 +403,10 @@ func validatePartialNetwork(partial map[string]interface{}) (errors, warnings []
 		}
 	}
 	if subnet, ok := network["subnet"].(string); ok && subnet != "" {
-		// Basic CIDR format check
-		if !strings.Contains(subnet, "/") {
+		if _, _, err := net.ParseCIDR(subnet); err != nil {
 			errors = append(errors, models.ValidationError{
 				Path:    "network.subnet",
-				Message: "subnet must be in CIDR notation (e.g., 172.20.0.0/16)",
+				Message: "subnet must be in valid CIDR notation (e.g., 172.20.0.0/16)",
 				Code:    "INVALID_SUBNET",
 			})
 		}
@@ -447,7 +434,7 @@ func validatePartialEmail(partial map[string]interface{}) []models.ValidationErr
 	if !ok || email == "" {
 		return nil
 	}
-	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+	if _, err := mail.ParseAddress(email); err != nil {
 		return []models.ValidationError{{
 			Path:    "email",
 			Message: "invalid email format: '" + email + "'",
@@ -457,15 +444,18 @@ func validatePartialEmail(partial map[string]interface{}) []models.ValidationErr
 	return nil
 }
 
+// domainPattern matches valid domain names (RFC 1123)
+var domainPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$`)
+
 func validatePartialDomain(partial map[string]interface{}) []models.ValidationError {
 	domain, ok := partial["domain"].(string)
 	if !ok || domain == "" {
 		return nil
 	}
-	if strings.ContainsAny(domain, " \t") || !strings.Contains(domain, ".") {
+	if !domainPattern.MatchString(domain) {
 		return []models.ValidationError{{
 			Path:    "domain",
-			Message: "invalid domain format: '" + domain + "'",
+			Message: "invalid domain format: '" + domain + "' — must be a valid hostname (e.g., example.com)",
 			Code:    "INVALID_DOMAIN",
 		}}
 	}
@@ -588,31 +578,33 @@ func (s *Server) handleGenerateTFVars(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Always generate into a temp directory — never accept a client-supplied path.
-	tempDir, err := os.MkdirTemp("", "stackkit-tfvars-*")
-	if err != nil {
-		writeError(w, r, http.StatusInternalServerError, "failed to create temp directory")
+	if !s.validateGenerationSpec(w, r, &req.Spec) {
 		return
 	}
-	defer func() { _ = os.RemoveAll(tempDir) }()
 
-	// Use the TerraformBridge to generate tfvars
-	bridge := cuepkg.NewTerraformBridge(dir)
-	if genErr := bridge.GenerateWithValidation(tempDir); genErr != nil {
+	sk, loadErr := loader.LoadStackKit(filepath.Join(dir, "stackkit.yaml"))
+	if loadErr != nil {
+		writeError(w, r, http.StatusInternalServerError, "failed to load stackkit metadata")
+		return
+	}
+	compositionResult, compErr := s.resolveComposition(&req.Spec, sk)
+	if compErr != nil {
+		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
+			"composition_failed", "composition failed: "+compErr.Error(),
+			skerrors.WithCause(compErr),
+			skerrors.WithSuggestion("Check module dependencies and service selections"),
+		))
+		return
+	}
+
+	data, genErr := composition.GenerateTFVarsJSON(&req.Spec, compositionResult)
+	if genErr != nil {
 		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
 			"generation_failed", "generation failed: "+genErr.Error(),
 			skerrors.WithCause(genErr),
 			skerrors.WithSuggestion("Validate your spec first: POST /api/v1/validate"),
 			skerrors.WithSuggestion("Check CUE schema compliance: GET /api/v1/stackkits/"+req.Spec.StackKit+"/schema"),
 		))
-		return
-	}
-
-	// Read back the generated file to return it
-	tfvarsPath := filepath.Join(tempDir, "terraform.tfvars.json")
-	data, err := os.ReadFile(tfvarsPath)
-	if err != nil {
-		writeError(w, r, http.StatusInternalServerError, "generated but failed to read tfvars")
 		return
 	}
 
@@ -656,38 +648,32 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use temp directory for preview
-	tempDir, err := os.MkdirTemp("", "stackkit-preview-*")
-	if err != nil {
-		writeError(w, r, http.StatusInternalServerError, "failed to create temp directory")
+	if !s.validateGenerationSpec(w, r, &req.Spec) {
 		return
 	}
-	defer func() { _ = os.RemoveAll(tempDir) }()
 
-	bridge := cuepkg.NewTerraformBridge(dir)
-	if valErr := bridge.ValidateBeforeGeneration(); valErr != nil {
-		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewValidationError(
-			"pre_generation_validation_failed", "pre-generation validation failed: "+valErr.Error(),
-			skerrors.WithCause(valErr),
-			skerrors.WithSuggestion("Run full validation first: POST /api/v1/validate"),
+	sk, loadErr := loader.LoadStackKit(filepath.Join(dir, "stackkit.yaml"))
+	if loadErr != nil {
+		writeError(w, r, http.StatusInternalServerError, "failed to load stackkit metadata")
+		return
+	}
+	compositionResult, compErr := s.resolveComposition(&req.Spec, sk)
+	if compErr != nil {
+		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
+			"composition_failed", "composition failed: "+compErr.Error(),
+			skerrors.WithCause(compErr),
+			skerrors.WithSuggestion("Check module dependencies and service selections"),
 		))
 		return
 	}
 
-	if genErr := bridge.GenerateTFVars(tempDir); genErr != nil {
+	data, genErr := composition.GenerateTFVarsJSON(&req.Spec, compositionResult)
+	if genErr != nil {
 		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
 			"preview_generation_failed", "preview generation failed: "+genErr.Error(),
 			skerrors.WithCause(genErr),
 			skerrors.WithSuggestion("Validate your spec first: POST /api/v1/validate"),
 		))
-		return
-	}
-
-	// Read the preview
-	tfvarsPath := filepath.Join(tempDir, "terraform.tfvars.json")
-	data, err := os.ReadFile(tfvarsPath)
-	if err != nil {
-		writeError(w, r, http.StatusInternalServerError, "preview generated but read failed")
 		return
 	}
 
@@ -697,9 +683,6 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusInternalServerError, "generated preview is invalid")
 		return
 	}
-
-	// Get stackkit info for context
-	sk, _ := loader.LoadStackKit(filepath.Join(dir, "stackkit.yaml"))
 
 	preview := map[string]interface{}{
 		"tfvars":  tfvars,
@@ -714,4 +697,38 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w, r, http.StatusOK, preview)
+}
+
+func (s *Server) resolveComposition(spec *models.StackSpec, sk *models.StackKit) (*composition.CompositionResult, error) {
+	modulesDir := filepath.Join(s.config.BaseDir, "modules")
+	contracts, err := cuepkg.NewModuleReader().ReadAllModules(modulesDir)
+	if err != nil {
+		slog.Warn("module contracts unavailable; falling back to identity-only composition", "modules_dir", modulesDir, "error", err)
+	}
+	engine := composition.NewCompositionEngine(contracts, sk, spec)
+	return engine.Resolve()
+}
+
+func (s *Server) validateGenerationSpec(w http.ResponseWriter, r *http.Request, spec *models.StackSpec) bool {
+	validator := cuepkg.NewValidator(s.config.BaseDir)
+	result, err := validator.ValidateSpec(spec)
+	if err != nil {
+		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewValidationError(
+			"spec_validation_failed", "validation error: "+err.Error(),
+			skerrors.WithCause(err),
+			skerrors.WithSuggestion("Check your spec against the schema: GET /api/v1/stackkits/"+spec.StackKit+"/schema"),
+			skerrors.WithSuggestion("Use partial validation to debug field-by-field: POST /api/v1/validate/partial"),
+		))
+		return false
+	}
+	if !result.Valid {
+		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewValidationError(
+			"invalid_generation_spec", "generation spec is invalid",
+			skerrors.WithField("errors", result.Errors),
+			skerrors.WithSuggestion("Fix validation errors before generating deployment artifacts"),
+			skerrors.WithSuggestion("Run full validation first: POST /api/v1/validate"),
+		))
+		return false
+	}
+	return true
 }

@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
+	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
 var (
-	statusJson bool
+	statusJSON bool
 )
 
 var statusCmd = &cobra.Command{
@@ -36,7 +38,7 @@ Examples:
 }
 
 func init() {
-	statusCmd.Flags().BoolVar(&statusJson, "json", false, "Output as JSON")
+	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Output as JSON")
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
@@ -85,12 +87,21 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Build service states
 	var services []models.ServiceState
+	access, accessErr := buildAccessSummary(wd, spec)
+	if accessErr != nil {
+		printWarning("Could not build access summary: %v", accessErr)
+	} else if err := writeAccessSummary(wd, access); err != nil {
+		printWarning("Could not write access summary: %v", err)
+	}
+	urls := urlAliases(access)
 	for _, c := range containers {
 		health, _ := dockerClient.GetContainerHealth(ctx, c.ID)
+		name := strings.ToLower(c.Name)
 		services = append(services, models.ServiceState{
 			Name:      c.Name,
 			Container: c.ID[:12],
 			Status:    docker.GetServiceStatus(&c),
+			URL:       urls[name],
 			Health:    health,
 		})
 	}
@@ -98,13 +109,17 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	overallStatus := determineOverallStatus(services)
 
 	// JSON output mode
-	if statusJson {
+	if statusJSON {
 		output := map[string]interface{}{
 			"stackkit":    spec.StackKit,
 			"mode":        spec.Mode,
 			"lastApplied": state.LastApplied.Format("2006-01-02T15:04:05Z"),
 			"status":      string(overallStatus),
 			"services":    services,
+		}
+		if access != nil {
+			output["hubUrl"] = access.HubURL
+			output["access"] = access
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -113,9 +128,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Display table
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Service", "Status", "Health", "Container"})
+	table.SetHeader([]string{"Service", "Status", "Health", "Container", "URL"})
 	table.SetBorder(false)
 	table.SetHeaderColor(
+		tablewriter.Colors{tablewriter.Bold},
 		tablewriter.Colors{tablewriter.Bold},
 		tablewriter.Colors{tablewriter.Bold},
 		tablewriter.Colors{tablewriter.Bold},
@@ -125,7 +141,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	for _, s := range services {
 		statusStr := formatStatus(s.Status)
 		healthStr := formatHealth(s.Health)
-		table.Append([]string{s.Name, statusStr, healthStr, s.Container})
+		table.Append([]string{s.Name, statusStr, healthStr, s.Container, s.URL})
 	}
 
 	table.Render()
@@ -139,6 +155,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		printWarning("Deployment is degraded")
 	case models.StatusError:
 		printError("Deployment has errors")
+	}
+
+	// kombify.me subdomain status (when domain is kombify.me)
+	if strings.EqualFold(spec.Domain, models.DomainKombifyMe) {
+		showSubdomainStatus(spec)
+	}
+
+	if access != nil && access.HubURL != "" {
+		fmt.Println()
+		printSuccess("Hub: %s", access.HubURL)
 	}
 
 	return nil
@@ -197,4 +223,75 @@ func determineOverallStatus(services []models.ServiceState) models.DeploymentSta
 		return models.StatusDegraded
 	}
 	return models.StatusRunning
+}
+
+// showSubdomainStatus queries the kombify.me API and displays subdomain status.
+func showSubdomainStatus(spec *models.StackSpec) {
+	apiKey, err := kombifyme.LoadAPIKey()
+	if err != nil {
+		printWarning("kombify.me: no API key configured")
+		return
+	}
+
+	client := kombifyme.NewClient(apiKey)
+
+	if spec.SubdomainPrefix == "" {
+		printWarning("kombify.me: no subdomain prefix set")
+		return
+	}
+
+	// Use the base subdomain ID if stored, otherwise try listing services by the prefix
+	services, err := client.ListServicesByPrefix(spec.SubdomainPrefix)
+	if err != nil {
+		printWarning("kombify.me: could not fetch subdomain status: %v", err)
+		return
+	}
+
+	if len(services) == 0 {
+		printInfo("kombify.me: no subdomains registered")
+		return
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s\n", bold("kombify.me Subdomains"))
+	fmt.Println()
+
+	subTable := tablewriter.NewWriter(os.Stdout)
+	subTable.SetHeader([]string{"Subdomain", "FQDN", "Status", "Exposed"})
+	subTable.SetBorder(false)
+	subTable.SetHeaderColor(
+		tablewriter.Colors{tablewriter.Bold},
+		tablewriter.Colors{tablewriter.Bold},
+		tablewriter.Colors{tablewriter.Bold},
+		tablewriter.Colors{tablewriter.Bold},
+	)
+
+	for _, s := range services {
+		statusStr := s.Status
+		if s.Status == "active" {
+			statusStr = green("active")
+		} else if s.Status == "dormant" {
+			statusStr = yellow("dormant")
+		}
+		exposedStr := "-"
+		if s.Exposed {
+			exposedStr = green("yes")
+		}
+		subTable.Append([]string{s.Name, s.FQDN, statusStr, exposedStr})
+	}
+
+	subTable.Render()
+
+	// Check if any subdomains are dormant (pending verification)
+	hasDormant := false
+	for _, s := range services {
+		if s.Status == "dormant" {
+			hasDormant = true
+			break
+		}
+	}
+	if hasDormant {
+		fmt.Println()
+		printWarning("Some subdomains are dormant — verify your email to activate them")
+	}
 }

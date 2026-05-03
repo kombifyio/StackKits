@@ -277,7 +277,7 @@ func FormatEntryHuman(w io.Writer, entry LogEntry) {
 
 // MaskSecrets replaces sensitive values in a map with "***".
 func MaskSecrets(attrs map[string]interface{}) map[string]interface{} {
-	sensitiveKeys := []string{"password", "token", "secret", "key", "hash", "credential"}
+	sensitiveKeys := []string{"password", "token", "secret", "key", "hash", "credential", "apikey", "bearer", "auth", "authorization"}
 	masked := make(map[string]interface{}, len(attrs))
 	for k, v := range attrs {
 		lower := strings.ToLower(k)

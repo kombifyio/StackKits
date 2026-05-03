@@ -39,10 +39,15 @@ variable "step_ca_health_port" {
 }
 
 variable "step_ca_password" {
-  description = "CA password (use secret management in production)"
+  description = "CA password; generated when omitted"
   type        = string
   sensitive   = true
-  default     = "changeme"
+  default     = ""
+
+  validation {
+    condition     = var.step_ca_password == "" || length(var.step_ca_password) >= 12
+    error_message = "step_ca_password must be empty for generated credentials or at least 12 characters when provided explicitly."
+  }
 }
 
 variable "step_ca_name" {
@@ -58,10 +63,15 @@ variable "step_ca_provisioner_name" {
 }
 
 variable "step_ca_provisioner_password" {
-  description = "JWK provisioner password (use secret management)"
+  description = "JWK provisioner password; generated when omitted"
   type        = string
   sensitive   = true
-  default     = "changeme"
+  default     = ""
+
+  validation {
+    condition     = var.step_ca_provisioner_password == "" || length(var.step_ca_provisioner_password) >= 12
+    error_message = "step_ca_provisioner_password must be empty for generated credentials or at least 12 characters when provided explicitly."
+  }
 }
 
 variable "step_ca_traefik_host" {
@@ -87,7 +97,21 @@ variable "step_ca_init_fingerprint" {
 # -----------------------------------------------------------------------------
 
 locals {
-  step_ca_init = var.step_ca_init_fingerprint == ""
+  step_ca_init                           = var.step_ca_init_fingerprint == ""
+  step_ca_password_effective             = var.step_ca_enabled ? (var.step_ca_password != "" ? var.step_ca_password : random_password.step_ca_password[0].result) : ""
+  step_ca_provisioner_password_effective = var.step_ca_enabled ? (var.step_ca_provisioner_password != "" ? var.step_ca_provisioner_password : random_password.step_ca_provisioner_password[0].result) : ""
+}
+
+resource "random_password" "step_ca_password" {
+  count   = var.step_ca_enabled && var.step_ca_password == "" ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "step_ca_provisioner_password" {
+  count   = var.step_ca_enabled && var.step_ca_provisioner_password == "" ? 1 : 0
+  length  = 32
+  special = false
 }
 
 # -----------------------------------------------------------------------------
@@ -140,8 +164,8 @@ resource "null_resource" "step_ca_init" {
       "  --dns=\"${join(\",\", var.step_ca_dns_names)}\" \\",
       "  --address=\":${var.step_ca_port}\" \\",
       "  --provisioner=\"${var.step_ca_provisioner_name}\" \\",
-      "  --password-file=<(echo '${var.step_ca_password}') \\",
-      "  --provisioner-password-file=<(echo '${var.step_ca_provisioner_password}')",
+      "  --password-file=<(echo '${local.step_ca_password_effective}') \\",
+      "  --provisioner-password-file=<(echo '${local.step_ca_provisioner_password_effective}')",
       "",
       "# Add ACME provisioner",
       "step ca provisioner add acme --type ACME",
@@ -209,7 +233,7 @@ resource "docker_container" "step_ca" {
     "TZ=Europe/Berlin",
     "STEPPATH=/home/step",
     "STEP_CA_URL=https://0.0.0.0:${var.step_ca_port}",
-    "STEP_CA_PASSWORD=${var.step_ca_password}",
+    "STEP_CA_PASSWORD=${local.step_ca_password_effective}",
     "DOCKER_STEPCA_INIT_NAME=${var.step_ca_name}",
     "DOCKER_STEPCA_INIT_DNS_NAMES=${join(",", var.step_ca_dns_names)}",
     "DOCKER_STEPCA_INIT_PROVISIONER_NAME=${var.step_ca_provisioner_name}",

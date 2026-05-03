@@ -200,7 +200,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 	t.Run("cloud with local domain corrects to kombify.me", func(t *testing.T) {
 		localDomains := []string{
 			"stack.local", "home.lab", "my.lan", "my.home",
-			"lab.homebase", "homelab", "",
+			"lab.homebase", "home.localhost", "homelab", "",
 		}
 		for _, d := range localDomains {
 			domain, reason := SuggestDomainForContext(models.ContextCloud, d)
@@ -215,7 +215,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 		assert.Empty(t, reason)
 	})
 
-	t.Run("local with empty domain defaults to home.lab", func(t *testing.T) {
+	t.Run("local with empty domain defaults to home.localhost", func(t *testing.T) {
 		domain, reason := SuggestDomainForContext(models.ContextLocal, "")
 		assert.Equal(t, models.DomainHomeLab, domain)
 		assert.Contains(t, reason, "local")
@@ -227,7 +227,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 		assert.Empty(t, reason)
 	})
 
-	t.Run("pi with empty domain defaults to home.lab", func(t *testing.T) {
+	t.Run("pi with empty domain defaults to home.localhost", func(t *testing.T) {
 		domain, reason := SuggestDomainForContext(models.ContextPi, "")
 		assert.Equal(t, models.DomainHomeLab, domain)
 		assert.Contains(t, reason, "local")
@@ -246,7 +246,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 
 func TestIsLocalDomain(t *testing.T) {
 	localDomains := []string{
-		"", "homelab", "stack.local", "my.lab", "test.lan", "app.home", "lab.homebase",
+		"", "homelab", "stack.local", "my.lab", "test.lan", "app.home", "lab.homebase", "home.localhost",
 	}
 	for _, d := range localDomains {
 		assert.True(t, isLocalDomain(d), "expected %q to be local domain", d)

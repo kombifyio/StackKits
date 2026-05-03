@@ -18,7 +18,7 @@ kombify-TechStack unterstützt drei Netzwerk-Modi, die über `network.mode` in d
 - Docker Bridge Network mit konfigurierbarem Subnet
 - Optional: mDNS/Avahi für `.local` Domain Discovery
 - Kein Reverse Proxy - direkte Port-Mappings
-- Optional: Lokaler DNS via dnsmasq Container
+- Optional: Lokaler DNS via Kombify Point Container
 - IPv6 Support (optional)
 
 **Outputs:**
@@ -76,7 +76,7 @@ kombify-TechStack unterstützt drei Netzwerk-Modi, die über `network.mode` in d
 - **Firewall-Regeln**: iptables/nftables via OpenTofu
 - **Load-Balancing**: Traefik/HAProxy-Konfiguration
 - **VPN/Tunnel**: WireGuard, Tailscale-Integration
-- **DNS**: CoreDNS, dnsmasq-Konfiguration
+- **DNS**: Kombify Point/CoreDNS-Konfiguration
 
 ## IaC-First Prinzip
 
@@ -111,7 +111,7 @@ network/
 | Variable | Typ | Default | Beschreibung |
 |----------|-----|---------|--------------|
 | `enable_mdns` | bool | false | mDNS/Avahi aktivieren |
-| `enable_local_dns` | bool | false | dnsmasq aktivieren |
+| `enable_local_dns` | bool | false | Kombify Point aktivieren |
 | `local_domain` | string | "local" | Lokale Domain |
 | `dns_upstream` | list(string) | ["1.1.1.1", "8.8.8.8"] | Upstream DNS |
 | `service_ports` | map(object) | {} | Port-Mappings |

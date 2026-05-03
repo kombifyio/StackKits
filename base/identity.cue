@@ -481,3 +481,32 @@ package base
 	// Bootstrap token for initial enrollment (secret reference)
 	bootstrapToken?: string
 }
+
+// =============================================================================
+// PocketID Identity (replaces LLDAP as default per pocketid-postgres roadmap)
+// =============================================================================
+
+#PocketIDOwner: {
+	source:   "local" | "cloud"
+	email:    =~"^[^@]+@[^@]+\\.[^@]+$"
+	username: =~"^[a-zA-Z][a-zA-Z0-9_-]*$"
+
+	// PocketID v2 is passkey-only — there is no password concept.
+	// Local owners are activated via a one-time-access token rendered into a
+	// /setup-account?token=... URL the operator clicks once to enroll a
+	// WebAuthn credential. Cloud owners federate from an external IdP.
+	foreignSubjectId?:       string // for source=cloud
+	passkeyEnrollmentToken?: string // optional first-login passkey link
+
+	if source == "cloud" {
+		foreignSubjectId!: string
+	}
+}
+
+#TinyAuthStaticCred: {
+	enabled:         bool | *true
+	usernamePattern: string | *"bg-{nodename}-static"
+	passwordLength:  int & >=24 | *32
+	bcryptCost:      int & >=10 & <=14 | *12
+	storageEnvVar:   string | *"USERS"
+}

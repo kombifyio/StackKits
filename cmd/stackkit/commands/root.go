@@ -107,7 +107,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress non-essential output")
 	rootCmd.PersistentFlags().StringVarP(&workDir, "chdir", "C", ".", "Change to directory before running")
-	rootCmd.PersistentFlags().StringVarP(&specFile, "spec", "s", "stack-spec.yaml", "Path to stack specification file")
+	rootCmd.PersistentFlags().StringVarP(&specFile, "spec", "s", "stack-spec.yaml", "Path to stack specification file (kombination.yaml is accepted when the default is missing)")
 	rootCmd.PersistentFlags().StringVar(&contextFlag, "context", "", "Node context override (local, cloud, pi). Auto-detected if omitted.")
 	rootCmd.PersistentFlags().BoolVar(&noLog, "no-log", false, "Disable structured deploy logging")
 
@@ -160,15 +160,6 @@ func printVerbose(format string, args ...interface{}) {
 		fmt.Printf("  %s\n", fmt.Sprintf(format, args...))
 	}
 }
-
-// contextOrDefault returns the context display string
-func contextOrDefault(ctx string) string {
-	if ctx == "" {
-		return "auto-detect"
-	}
-	return ctx
-}
-
 
 // initDeployLogger creates the structured deploy logger.
 // Closes any previously open logger (for test safety).

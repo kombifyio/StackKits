@@ -8,10 +8,10 @@ Side-by-side comparison of all three StackKits: Base Kit, Modern Homelab, and Hi
 
 | | Base Kit | Modern Homelab | High Availability Kit |
 |---|---|---|---|
-| **One-liner** | Professional single-environment deployment | Bridge home and cloud | No single point of failure |
-| **Nodes** | 1 | 2+ | 3+ (odd number) |
+| **One-liner** | Single-environment homelab (1..N servers, one trust domain) | Bridge home and cloud (multiple trust domains) | No single point of failure |
+| **Nodes** | 1..N (single trust domain) | 2+ (multiple trust domains bridged) | 3+ (odd number) |
 | **Container Runtime** | Docker Compose | Docker Compose per node | Docker Swarm |
-| **Orchestration** | Single-node Compose | PaaS-coordinated | Swarm scheduler + Raft |
+| **Orchestration** | Compose (single or multi-server co-located) | PaaS-coordinated across environments | Swarm scheduler + Raft |
 | **Networking** | Docker bridge + Traefik | Overlay tunnel (CF/Pangolin) + Traefik | Swarm overlay (encrypted) + routing mesh |
 | **Load Balancing** | Traefik only | Traefik per node | Traefik (L7) + HAProxy (L4) + Keepalived (VIP) |
 | **Service Discovery** | Docker DNS | Docker DNS per node | Swarm built-in DNS + CoreDNS + etcd |

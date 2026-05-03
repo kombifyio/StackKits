@@ -72,7 +72,7 @@ stackkit: base-kit
 		require.NoError(t, err)
 		assert.Equal(t, "simple", spec.Mode)
 		assert.Equal(t, "local", spec.Network.Mode)
-		assert.Equal(t, "172.20.0.0/16", spec.Network.Subnet)
+		assert.Equal(t, "", spec.Network.Subnet)
 		assert.Equal(t, "standard", spec.Compute.Tier)
 		assert.Equal(t, 22, spec.SSH.Port)
 		assert.Equal(t, "root", spec.SSH.User)
@@ -88,6 +88,51 @@ stackkit: base-kit
 		_, err = loader.LoadStackSpec("invalid.yaml")
 
 		assert.Error(t, err)
+	})
+}
+
+func TestLoadStackSpecKombinationAlias(t *testing.T) {
+	t.Run("loads kombination.yaml when default spec is missing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		specContent := `name: techstack-intent
+stackkit: base-kit
+`
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, GetSpecAliasPath()), []byte(specContent), 0600))
+
+		loader := NewLoader(tmpDir)
+		_, displayPath, aliasUsed, err := loader.ResolveStackSpecPathForRead(GetDefaultSpecPath())
+		require.NoError(t, err)
+		assert.Equal(t, GetSpecAliasPath(), displayPath)
+		assert.True(t, aliasUsed)
+
+		spec, err := loader.LoadStackSpec(GetDefaultSpecPath())
+
+		require.NoError(t, err)
+		assert.Equal(t, "techstack-intent", spec.Name)
+		assert.Equal(t, "base-kit", spec.StackKit)
+	})
+
+	t.Run("prefers canonical stack-spec.yaml when both files exist", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, GetDefaultSpecPath()), []byte("name: canonical\nstackkit: base-kit\n"), 0600))
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, GetSpecAliasPath()), []byte("name: alias\nstackkit: base-kit\n"), 0600))
+
+		loader := NewLoader(tmpDir)
+		spec, err := loader.LoadStackSpec(GetDefaultSpecPath())
+
+		require.NoError(t, err)
+		assert.Equal(t, "canonical", spec.Name)
+	})
+
+	t.Run("loads explicit kombination.yaml path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, GetSpecAliasPath()), []byte("name: explicit-alias\nstackkit: base-kit\n"), 0600))
+
+		loader := NewLoader(tmpDir)
+		spec, err := loader.LoadStackSpec(GetSpecAliasPath())
+
+		require.NoError(t, err)
+		assert.Equal(t, "explicit-alias", spec.Name)
 	})
 }
 
@@ -445,10 +490,29 @@ func TestApplySpecDefaults(t *testing.T) {
 
 		assert.Equal(t, "simple", spec.Mode)
 		assert.Equal(t, "local", spec.Network.Mode)
-		assert.Equal(t, "172.20.0.0/16", spec.Network.Subnet)
+		assert.Equal(t, "", spec.Network.Subnet)
 		assert.Equal(t, "standard", spec.Compute.Tier)
 		assert.Equal(t, 22, spec.SSH.Port)
 		assert.Equal(t, "root", spec.SSH.User)
+	})
+
+	t.Run("applies sveltekit app defaults", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Domain: "home.lab",
+			Apps: map[string]models.AppSpec{
+				"web": {
+					Image: "ghcr.io/kombify/example-sveltekit:latest",
+				},
+			},
+		}
+		applySpecDefaults(spec)
+
+		app := spec.Apps["web"]
+		assert.Equal(t, "sveltekit", app.Kind)
+		assert.Equal(t, 3000, app.Port)
+		assert.Equal(t, "web.home.lab", app.Route.Host)
+		assert.Equal(t, "login-gateway", app.Route.Auth)
+		assert.Equal(t, "/health", app.Health.Path)
 	})
 
 	t.Run("preserves existing values", func(t *testing.T) {

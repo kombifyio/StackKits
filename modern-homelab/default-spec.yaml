@@ -200,10 +200,10 @@ services:
     ports:
       - 3000
     env:
-      DATABASE_URL: postgresql://kombistack:changeme@postgres-cluster:5432/dokploy  # ⚠️ ANPASSEN!
+      DATABASE_URL: secret://modern-homelab/dokploy/database-url
       # Local-first default: use IP/hostname. Set a real https:// URL only if you enable ingress+TLS.
       NEXTAUTH_URL: http://192.168.1.100:4000  # ⚠️ ANPASSEN: Control Plane/Ingress IP oder DNS Name
-      NEXTAUTH_SECRET: changeme_generate_random_secret_32chars  # ⚠️ ANPASSEN!
+      NEXTAUTH_SECRET: secret://modern-homelab/dokploy/nextauth-secret
     labels:
       kombistack.service: dokploy
       kombistack.managed: "true"
@@ -276,7 +276,7 @@ services:
                       storage: 50Gi
         grafana:
           enabled: true
-          adminPassword: changeme_admin_password  # ⚠️ ANPASSEN!
+          adminPassword: secret://modern-homelab/grafana/admin-password
           ingress:
             enabled: false
             ingressClassName: nginx

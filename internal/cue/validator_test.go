@@ -230,6 +230,56 @@ func TestValidateSpec(t *testing.T) {
 		}
 		assert.True(t, hasEmailWarning)
 	})
+
+	t.Run("validates sveltekit app contract", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Apps: map[string]models.AppSpec{
+				"web": {
+					Kind:  "sveltekit",
+					Image: "ghcr.io/kombify/example-sveltekit:latest",
+					Port:  3000,
+					Route: models.AppRouteSpec{
+						Host: "app.home.lab",
+						Auth: "login-gateway",
+					},
+					Health:  models.AppHealthSpec{Path: "/health"},
+					Env:     map[string]string{"PUBLIC_APP_NAME": "My App"},
+					Secrets: map[string]string{"SESSION_SECRET": "env:SESSION_SECRET"},
+				},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.True(t, result.Valid)
+		assert.Empty(t, result.Errors)
+	})
+
+	t.Run("fails invalid sveltekit app contract", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Apps: map[string]models.AppSpec{
+				"Bad_App": {
+					Kind:    "nextjs",
+					Port:    70000,
+					Health:  models.AppHealthSpec{Path: "health"},
+					Route:   models.AppRouteSpec{Auth: "none"},
+					Env:     map[string]string{"BAD-NAME": "x"},
+					Secrets: map[string]string{"SESSION_SECRET": "literal-secret"},
+				},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.NotEmpty(t, result.Errors)
+	})
 }
 
 func TestValidateCUEFile(t *testing.T) {
@@ -277,4 +327,79 @@ version: "1.0.0"
 
 		assert.Error(t, err)
 	})
+}
+
+func TestValidateStackKit_UsesWorkspaceModuleRoot(t *testing.T) {
+	root := t.TempDir()
+	writeCueModule(t, root, "example.com/workspace@v0")
+
+	baseDir := filepath.Join(root, "base")
+	require.NoError(t, os.MkdirAll(baseDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(baseDir, "module.cue"), []byte(`package base
+
+#Thing: {
+	name: string
+}
+`), 0600))
+
+	kitDir := filepath.Join(root, "base-kit")
+	require.NoError(t, os.MkdirAll(kitDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(kitDir, "stackfile.cue"), []byte(`package base_kit
+
+import "example.com/workspace/base"
+
+thing: base.#Thing & {
+	name: "ok"
+}
+`), 0600))
+
+	validator := NewValidator(root)
+	result, err := validator.ValidateStackKit(kitDir)
+	require.NoError(t, err)
+	require.True(t, result.Valid, "errors: %#v", result.Errors)
+}
+
+func TestValidateStackKit_DoesNotCreateNestedCueModuleWhenWorkspaceExists(t *testing.T) {
+	root := t.TempDir()
+	writeCueModule(t, root, "example.com/workspace@v0")
+
+	baseDir := filepath.Join(root, "base")
+	require.NoError(t, os.MkdirAll(baseDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(baseDir, "module.cue"), []byte(`package base
+
+#Thing: {
+	name: string
+}
+`), 0600))
+
+	kitDir := filepath.Join(root, "base-kit")
+	require.NoError(t, os.MkdirAll(kitDir, 0750))
+	require.NoError(t, os.WriteFile(filepath.Join(kitDir, "stackfile.cue"), []byte(`package base_kit
+
+import "example.com/workspace/base"
+
+thing: base.#Thing & {
+	name: "ok"
+}
+`), 0600))
+
+	validator := NewValidator(root)
+	result, err := validator.ValidateStackKit(kitDir)
+	require.NoError(t, err)
+	require.True(t, result.Valid, "errors: %#v", result.Errors)
+
+	_, err = os.Stat(filepath.Join(kitDir, "cue.mod", "module.cue"))
+	require.True(t, os.IsNotExist(err), "validator should not create nested cue.mod in a workspace checkout")
+}
+
+func writeCueModule(t *testing.T, dir, module string) {
+	t.Helper()
+	modDir := filepath.Join(dir, "cue.mod")
+	require.NoError(t, os.MkdirAll(modDir, 0750))
+	content := `module: "` + module + `"
+language: {
+	version: "v0.9.0"
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(modDir, "module.cue"), []byte(content), 0600))
 }

@@ -44,10 +44,11 @@ Contract: base.#ModuleContract & {
 
 	provides: {
 		capabilities: {
-			"directory":    true
-			"user-groups":  true
-			"ldap":         true
-			"user-storage": true
+			"directory":      true
+			"ldap-directory": true
+			"user-groups":    true
+			"ldap":           true
+			"user-storage":   true
 		}
 		endpoints: {
 			ui: {
@@ -145,10 +146,10 @@ Contract: base.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                              "true"
-			"traefik.http.routers.lldap.rule":                             "Host(`ldap.{{.domain}}`)"
-			"traefik.http.routers.lldap.entrypoints":                      "web"
-			"traefik.http.services.lldap.loadbalancer.server.port":        "17170"
+			"traefik.enable":                                       "true"
+			"traefik.http.routers.lldap.rule":                      "Host(`ldap.{{.domain}}`)"
+			"traefik.http.routers.lldap.entrypoints":               "web"
+			"traefik.http.services.lldap.loadbalancer.server.port": "17170"
 		}
 
 		output: {

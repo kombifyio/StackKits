@@ -68,17 +68,44 @@ variable "lldap_traefik_host" {
 }
 
 variable "lldap_admin_password" {
-  description = "Admin password (use secret management in production)"
+  description = "Admin password; generated when omitted"
   type        = string
   sensitive   = true
-  default     = "changeme"
+  default     = ""
+
+  validation {
+    condition     = var.lldap_admin_password == "" || length(var.lldap_admin_password) >= 12
+    error_message = "lldap_admin_password must be empty for generated credentials or at least 12 characters when provided explicitly."
+  }
 }
 
 variable "lldap_jwt_secret" {
-  description = "JWT secret for LLDAP (use secret management in production)"
+  description = "JWT secret for LLDAP; generated when omitted"
   type        = string
   sensitive   = true
-  default     = "change-me-in-production"
+  default     = ""
+
+  validation {
+    condition     = var.lldap_jwt_secret == "" || length(var.lldap_jwt_secret) >= 32
+    error_message = "lldap_jwt_secret must be empty for generated credentials or at least 32 characters when provided explicitly."
+  }
+}
+
+resource "random_password" "lldap_admin_password" {
+  count   = var.lldap_enabled && var.lldap_admin_password == "" ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "lldap_jwt_secret" {
+  count   = var.lldap_enabled && var.lldap_jwt_secret == "" ? 1 : 0
+  length  = 48
+  special = false
+}
+
+locals {
+  lldap_admin_password_effective = var.lldap_enabled ? (var.lldap_admin_password != "" ? var.lldap_admin_password : random_password.lldap_admin_password[0].result) : ""
+  lldap_jwt_secret_effective     = var.lldap_enabled ? (var.lldap_jwt_secret != "" ? var.lldap_jwt_secret : random_password.lldap_jwt_secret[0].result) : ""
 }
 
 # -----------------------------------------------------------------------------
@@ -155,8 +182,8 @@ resource "docker_container" "lldap" {
     "LLDAP_LDAP_BASE_DN=${var.lldap_domain_base}",
     "LLDAP_LDAP_USER_DN=admin",
     "LLDAP_LDAP_USER_EMAIL=${var.lldap_admin_email}",
-    "LLDAP_LDAP_USER_PASS=${var.lldap_admin_password}",
-    "LLDAP_JWT_SECRET=${var.lldap_jwt_secret}",
+    "LLDAP_LDAP_USER_PASS=${local.lldap_admin_password_effective}",
+    "LLDAP_JWT_SECRET=${local.lldap_jwt_secret_effective}",
   ]
 
   # Healthcheck

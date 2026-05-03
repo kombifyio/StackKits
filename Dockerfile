@@ -7,7 +7,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Build the StackKit CLI
 # -----------------------------------------------------------------------------
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26.2-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
@@ -28,19 +28,24 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/stackkit ./cmd/
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/stackkit-server ./cmd/stackkit-server
 
 # -----------------------------------------------------------------------------
-# Stage 2: Install OpenTofu
+# Stage 2: Install OpenTofu (pinned version, no piped shell script)
 # -----------------------------------------------------------------------------
-FROM alpine:3.20 AS tofu-installer
+FROM alpine:3.22 AS tofu-installer
 
-RUN apk add --no-cache curl bash gnupg
+ARG TOFU_VERSION=1.11.5
 
-# Install OpenTofu (latest stable)
-RUN curl -fsSL https://get.opentofu.org/install-opentofu.sh | bash -s -- --install-method standalone
+RUN apk add --no-cache curl && \
+    curl -fsSL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_amd64.apk" \
+      -o /tmp/tofu.apk && \
+    apk add --no-cache --allow-untrusted /tmp/tofu.apk && \
+    rm /tmp/tofu.apk && \
+    tofu version && \
+    cp "$(command -v tofu)" /usr/local/bin/tofu
 
 # -----------------------------------------------------------------------------
 # Stage 3: Final Runtime Image
 # -----------------------------------------------------------------------------
-FROM alpine:3.20
+FROM alpine:3.22
 
 # Install runtime dependencies
 RUN apk add --no-cache \
@@ -66,19 +71,27 @@ COPY --from=builder /build/stackkit-server /usr/local/bin/stackkit-server
 # Ensure binaries are executable
 RUN chmod +x /usr/local/bin/tofu /usr/local/bin/stackkit /usr/local/bin/stackkit-server
 
+# Create non-root user (in docker group for Docker CLI access)
+RUN addgroup -S stackkit && adduser -S stackkit -G stackkit && \
+    addgroup stackkit docker 2>/dev/null || true
+
 # Create workspace directory
 WORKDIR /workspace
 
 # Set environment variables
-ENV DOCKER_HOST=tcp://vm:2375
 ENV STACKKIT_BIN=stackkit
 ENV STACKKITS_BASE_DIR=/workspace
 
 # Copy StackKit directories
+COPY cue.mod/ /workspace/cue.mod/
 COPY base/ /workspace/base/
 COPY base-kit/ /workspace/base-kit/
 COPY modern-homelab/ /workspace/modern-homelab/
 COPY ha-kit/ /workspace/ha-kit/
+
+# Set ownership and switch to non-root user
+RUN chown -R stackkit:stackkit /workspace
+USER stackkit
 
 # Expose HTTP API port
 EXPOSE 8082

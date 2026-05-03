@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/netenv"
@@ -21,6 +22,22 @@ var (
 	initForce          bool
 	initNonInteractive bool
 	initAdminEmail     string
+	initLocalDNS       bool
+	initLocalName      string
+
+	// Phase 1 owner-breakglass provisioning flags. Wired into init.go's
+	// flag block; consumed by resolveOwnerSpec / resolveRecoveryPassphrase
+	// in init_owner.go and by Task 11's apply-bootstrap path.
+	initClusterMode             string
+	initOwnerSource             string
+	initOwnerEmail              string
+	initOwnerUsername           string
+	initOwnerDisplayName        string
+	initCloudOIDCIssuer         string
+	initCloudOIDCClientID       string
+	initCloudOIDCSecretRef      string
+	initCloudOIDCForeignSubject string
+	initRecoveryPassphraseHash  string
 )
 
 type initDefaults struct {
@@ -53,11 +70,26 @@ Examples:
 func init() {
 	initCmd.Flags().StringVar(&initComputeTier, "compute-tier", "", "Compute tier (low, standard, high)")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
+	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "Use Kombify Point local DNS instead of the zero-config .localhost domain")
+	initCmd.Flags().StringVar(&initLocalName, "local-name", "", "Local DNS short name for --local-dns (e.g. family -> family.home)")
 	initCmd.Flags().StringVar(&initMode, "mode", "", "Deployment mode (simple, advanced)")
 	initCmd.Flags().StringVarP(&initOutputDir, "output", "o", "deploy", "Output directory for generated files")
 	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing files")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (fail if input is required)")
 	initCmd.Flags().StringVar(&initAdminEmail, "admin-email", "", "Admin email for login accounts (TinyAuth, Dokploy, Kuma)")
+
+	// Phase 1 owner-breakglass flags. Phase 2 cloud flags are stubbed for
+	// shape only; the resolver rejects --owner-source=cloud until then.
+	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "Cluster mode (first|join). Phase 1: only 'first' supported.")
+	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner source (local|cloud). Phase 1: only 'local' supported.")
+	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Owner email (used for display + recovery contact)")
+	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Owner username (required when --owner-source=local)")
+	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Owner display name (defaults to username)")
+	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "Cloud OIDC issuer URL (Phase 2; required when --owner-source=cloud)")
+	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "Cloud OIDC client ID (Phase 2)")
+	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (Phase 2; e.g. doppler:// or secret://)")
+	initCmd.Flags().StringVar(&initCloudOIDCForeignSubject, "cloud-oidc-foreign-subject", "", "Cloud user's foreign subject ID (Phase 2)")
+	initCmd.Flags().StringVar(&initRecoveryPassphraseHash, "recovery-passphrase-hash", "", "Recovery passphrase hash (argon2id PHC). If missing, prompts interactively.")
 }
 
 // selectStackKit prompts the user to pick a StackKit or returns the one
@@ -161,7 +193,7 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 	if adminEmail == "" {
 		if cloudEmail := netenv.GetCloudUserEmail(); cloudEmail != "" {
 			adminEmail = cloudEmail
-			printInfo("Using Auth0 account email: %s", adminEmail)
+			printInfo("Using kombify Cloud account email: %s", adminEmail)
 		}
 	}
 
@@ -196,7 +228,7 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 
 	// Let's Encrypt email defaults to admin email; skip prompt if already set via Cloud
 	if adminEmail != "" && netenv.GetCloudUserEmail() != "" {
-		// Cloud context: LE email = Auth0 email, no prompt needed
+		// Cloud context: LE email = kombify Cloud account email, no prompt needed
 		email = adminEmail
 	} else {
 		defaultEmail := adminEmail
@@ -213,6 +245,9 @@ func resolveInitDefaults(currentDomain string) initDefaults {
 	spec := &models.StackSpec{}
 	if contextFlag != "" {
 		spec.Context = contextFlag
+	}
+	if initLocalDNS {
+		currentDomain = models.LocalDNSDomain(initLocalName)
 	}
 
 	caps := loadDockerCapabilities()
@@ -231,9 +266,12 @@ func resolveInitDefaults(currentDomain string) initDefaults {
 	if domain == "" {
 		domain = currentDomain
 	}
+	if initLocalDNS {
+		domain = models.LocalDNSDomain(initLocalName)
+	}
 
 	networkMode := "local"
-	if netenv.NodeContextIsCloud(ctx) {
+	if !initLocalDNS && netenv.NodeContextIsCloud(ctx) {
 		networkMode = "public"
 	}
 
@@ -243,6 +281,25 @@ func resolveInitDefaults(currentDomain string) initDefaults {
 		Domain:      domain,
 		NetworkMode: networkMode,
 	}
+}
+
+func validateInitLocalDNSFlags() error {
+	if initLocalName != "" && !initLocalDNS {
+		return fmt.Errorf("--local-name requires --local-dns")
+	}
+	if initLocalDNS && initDomain != "" {
+		return fmt.Errorf("--local-dns and --domain cannot be used together")
+	}
+	if initLocalDNS {
+		domain := models.LocalDNSDomain(initLocalName)
+		if strings.Contains(domain, "arpa") {
+			return fmt.Errorf("--local-name must stay in the local .home namespace")
+		}
+		if strings.Contains(domain, "kombify.me") {
+			return fmt.Errorf("--local-name must not create a public kombify.me domain")
+		}
+	}
+	return nil
 }
 
 // applyNonInteractiveDefaults fills in missing flag values when running
@@ -273,8 +330,12 @@ func loadStackKit(loader *config.Loader, stackkitName, wd string) (*config.Loade
 		}
 	}
 
+	// FindStackKitDir may return a directory outside the loader's basePath
+	// (e.g., basePath/../name). Use a loader scoped to the stackkit directory
+	// to load the definition, keeping the original loader for downstream use.
 	stackkitPath := filepath.Join(stackkitDir, "stackkit.yaml")
-	stackkit, err := loader.LoadStackKit(stackkitPath)
+	stackkitLoader := config.NewLoader(stackkitDir)
+	stackkit, err := stackkitLoader.LoadStackKit(stackkitPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load stackkit: %w", err)
 	}
@@ -383,6 +444,9 @@ func gatherInitChoices(p *prompter, stackkit *models.StackKit, defaults initDefa
 
 func runInit(cmd *cobra.Command, args []string) error {
 	wd := getWorkDir()
+	if err := validateInitLocalDNSFlags(); err != nil {
+		return err
+	}
 
 	loader := config.NewLoader(wd)
 	availableKits, err := discoverStackKits(loader, wd)
@@ -429,6 +493,58 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Resolve owner-bootstrap fields. When --owner-source is set, these are
+	// persisted into spec.Owner so `stackkit apply` (which runs in a separate
+	// process) can read them without re-prompting the user.
+	//
+	// Non-interactive callers without --owner-source skip owner provisioning
+	// entirely; resolveOwnerSpec returns hasOwner=false in that case.
+	var ownerCfg models.OwnerConfig
+	hasOwnerData := false
+	if p == nil && !initNonInteractive {
+		// gatherInitChoices may have run without a prompter when all the
+		// stackkit-selection answers were already provided via flags. Build
+		// one here so the owner resolver has something to prompt against.
+		p = newPrompter()
+	}
+
+	ownerSpec, hasOwner, err := resolveOwnerSpec(ownerFlags{
+		Source:      initOwnerSource,
+		Email:       initOwnerEmail,
+		Username:    initOwnerUsername,
+		DisplayName: initOwnerDisplayName,
+	}, p, initNonInteractive)
+	if err != nil {
+		return fmt.Errorf("resolve owner spec: %w", err)
+	}
+
+	if hasOwner {
+		// Phase-1 only persists "first" cluster mode; "join" nodes don't
+		// provision owners. Validate up-front rather than failing inside
+		// runOwnerBootstrap on apply.
+		if initClusterMode != "" && initClusterMode != "first" {
+			return fmt.Errorf("--cluster-mode=%q is not supported with --owner-source (Phase 1 supports 'first' only)", initClusterMode)
+		}
+
+		passphraseHash, _, err := resolveRecoveryPassphrase(initRecoveryPassphraseHash, p, initNonInteractive)
+		if err != nil {
+			return fmt.Errorf("resolve recovery passphrase: %w", err)
+		}
+
+		ownerCfg = models.OwnerConfig{
+			Source:                   ownerSpec.Source,
+			Email:                    ownerSpec.Email,
+			Username:                 ownerSpec.Username,
+			DisplayName:              ownerSpec.DisplayName,
+			RecoveryPassphraseHash:   passphraseHash,
+			CloudOIDCIssuer:          initCloudOIDCIssuer,
+			CloudOIDCClientID:        initCloudOIDCClientID,
+			CloudOIDCClientSecretRef: initCloudOIDCSecretRef,
+			CloudOIDCForeignSubject:  initCloudOIDCForeignSubject,
+		}
+		hasOwnerData = true
+	}
+
 	spec := &models.StackSpec{
 		Name:       filepath.Base(wd),
 		StackKit:   stackkitName,
@@ -438,8 +554,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Email:      email,
 		AdminEmail: adminEmail,
 		Network: models.NetworkSpec{
-			Mode:   defaults.NetworkMode,
-			Subnet: "172.20.0.0/16",
+			Mode: defaults.NetworkMode,
 		},
 		Compute: models.ComputeSpec{
 			Tier: computeTier,
@@ -448,6 +563,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 			User: "root",
 			Port: 22,
 		},
+		Owner: ownerCfg,
+	}
+	if hasOwnerData {
+		deployLog.Event("init.owner_persisted",
+			slog.String("source", ownerCfg.Source),
+			slog.String("username", ownerCfg.Username),
+			slog.Bool("has_recovery_hash", ownerCfg.RecoveryPassphraseHash != ""),
+		)
 	}
 	deployLog.Event("init.spec_created",
 		slog.String("name", spec.Name),
@@ -465,6 +588,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 	deployLog.Event("init.spec_written",
 		slog.String("spec_path", specPath),
 	)
+
+	// PocketID's STATIC_API_KEY and ENCRYPTION_KEY are intentionally NOT
+	// provisioned here. `stackkit generate` owns that path: it runs the
+	// composition engine, decides whether PocketID is actually deployed,
+	// and only then writes <wd>/.stackkit/pocketid-* (gated, idempotent,
+	// 0600). This keeps the .stackkit/ directory empty for kits that don't
+	// enable PocketID (base-kit out of the box).
 
 	printInitSummary(stackkitName, mode, computeTier, defaults.Context, domain, email)
 	return nil
@@ -488,4 +618,3 @@ func stackKitNames(kits []*models.StackKit) []string {
 	}
 	return names
 }
-

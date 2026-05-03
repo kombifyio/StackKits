@@ -144,7 +144,7 @@ func runAddonAdd(cmd *cobra.Command, args []string) error {
 	loader := config.NewLoader(wd)
 	spec, err := loader.LoadStackSpec(specFile)
 	if err != nil {
-		return fmt.Errorf("failed to load spec: %w\nRun 'stackkit init' first.", err)
+		return fmt.Errorf("failed to load spec: %w (run 'stackkit init' first)", err)
 	}
 
 	// Check if already added

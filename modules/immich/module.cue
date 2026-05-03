@@ -140,6 +140,9 @@ Contract: base.#ModuleContract & {
 			"stackkit.managed-by":                                   "compose"
 		}
 
+		subdomain: {key: "photos", nested: "photos", flat: "photos"}
+		dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich"}
+
 		output: {
 			url:         "https://photos.{{.domain}}"
 			description: "Immich photo management"

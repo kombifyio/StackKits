@@ -140,6 +140,9 @@ Contract: base.#ModuleContract & {
 			"stackkit.managed-by":                                     "compose"
 		}
 
+		subdomain: {key: "media", nested: "media", flat: "media"}
+		dashboard: {icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 Media", enableVar: "enable_jellyfin"}
+
 		output: {
 			url:         "https://media.{{.domain}}"
 			description: "Jellyfin media server"

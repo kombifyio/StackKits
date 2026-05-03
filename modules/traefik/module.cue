@@ -78,8 +78,8 @@ Contract: base.#ModuleContract & {
 		}
 		flexible: {
 			dashboardEnabled: *true | bool
-			logLevel: *"ERROR" | "DEBUG" | "INFO" | "WARN"
-			accessLog: *true | bool
+			logLevel:         *"ERROR" | "DEBUG" | "INFO" | "WARN"
+			accessLog:        *true | bool
 		}
 	}
 
@@ -103,10 +103,20 @@ Contract: base.#ModuleContract & {
 		name:     "traefik"
 		type:     "reverse-proxy"
 		image:    "traefik"
-		tag:      "v3.3"
+		tag:      "v3.6.13"
 		required: true
 		status:   "implemented"
 		needs: ["socket-proxy"]
+		command: [
+			"--providers.docker=true",
+			"--providers.docker.endpoint=tcp://socket-proxy:2375",
+			"--providers.docker.exposedbydefault=false",
+			"--providers.docker.network=frontend",
+			"--entrypoints.web.address=:80",
+			"--entrypoints.websecure.address=:443",
+			"--api.dashboard=true",
+			"--ping=true",
+		]
 
 		placement: {
 			nodeType: "all"
@@ -139,8 +149,8 @@ Contract: base.#ModuleContract & {
 		}
 
 		healthCheck: {
-			enabled:  true
-			test: ["CMD", "traefik", "healthcheck"]
+			enabled: true
+			test: ["CMD", "traefik", "healthcheck", "--ping"]
 			interval: "30s"
 			timeout:  "5s"
 			retries:  3
@@ -153,6 +163,9 @@ Contract: base.#ModuleContract & {
 			readOnly: true
 			tmpfs: ["/tmp"]
 		}
+
+		subdomain: {key: "traefik", nested: "traefik", flat: "traefik"}
+		dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy"}
 
 		output: {
 			url:         "https://traefik.{{.domain}}"

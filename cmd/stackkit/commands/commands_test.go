@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/kombifyio/stackkits/internal/composition"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -232,6 +234,222 @@ func TestGenerateRandomPassword(t *testing.T) {
 	assert.NotEqual(t, pw, pw2)
 }
 
+func TestResolveModulesDirPrefersWorkspaceModules(t *testing.T) {
+	root := t.TempDir()
+	stackkitDir := filepath.Join(root, "base-kit")
+	require.NoError(t, os.MkdirAll(stackkitDir, 0750))
+
+	workspaceModules := filepath.Join(root, "modules")
+	require.NoError(t, os.MkdirAll(workspaceModules, 0750))
+
+	assert.Equal(t, workspaceModules, resolveModulesDir(stackkitDir, root))
+}
+
+func TestGenerateCommand_BaseKitDefaultSpecGoldenPath(t *testing.T) {
+	setCapabilitiesHome(t, models.ContextLocal)
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	outputRel := filepath.ToSlash(filepath.Join("build", "generate-command-"+strings.ReplaceAll(t.Name(), "/", "-")))
+	outputAbs := filepath.Join(repoRoot, filepath.FromSlash(outputRel))
+	require.NoError(t, os.RemoveAll(outputAbs))
+	t.Cleanup(func() { _ = os.RemoveAll(outputAbs) })
+
+	_, err = executeCommandCaptureStdout(
+		"--no-log",
+		"--spec", "base-kit/default-spec.yaml",
+		"--chdir", repoRoot,
+		"generate",
+		"--output", outputRel,
+		"--force",
+	)
+	require.NoError(t, err)
+
+	for _, rel := range []string{
+		"main.tf",
+		"terraform.tfvars.json",
+	} {
+		path := filepath.Join(outputAbs, rel)
+		info, statErr := os.Stat(path)
+		require.NoError(t, statErr, "expected generated file %s", rel)
+		assert.Greater(t, info.Size(), int64(0), "%s should not be empty", rel)
+	}
+
+	mainTFData, err := os.ReadFile(filepath.Join(outputAbs, "main.tf"))
+	require.NoError(t, err)
+	parser := hclparse.NewParser()
+	_, diags := parser.ParseHCLFile(filepath.Join(outputAbs, "main.tf"))
+	require.False(t, diags.HasErrors(), "generated main.tf should parse as HCL: %s", diags.Error())
+
+	mainTF := string(mainTFData)
+	assert.Contains(t, mainTF, `variable "tinyauth_users"`)
+	assert.Contains(t, mainTF, `variable "tinyauth_oidc_enabled"`)
+	assert.Contains(t, mainTF, `output "vaultwarden_admin_token"`)
+	assert.Contains(t, mainTF, `resource "docker_container" "dashboard"`)
+	assert.Contains(t, mainTF, `PROVIDERS_POCKETID_CLIENT_ID`)
+	assert.Contains(t, mainTF, `OAUTH_AUTO_REDIRECT=pocketid`)
+
+	_, statErr := os.Stat(filepath.Join(outputAbs, "immich.tf"))
+	assert.True(t, os.IsNotExist(statErr), "default production generation should use the stable Base Kit template, not experimental fragments")
+	_, statErr = os.Stat(filepath.Join(outputAbs, "pocketid.tf"))
+	assert.True(t, os.IsNotExist(statErr), "stable Base Kit generation should keep PocketID in main.tf instead of experimental fragments")
+
+	moduleFiles, err := os.ReadDir(outputAbs)
+	require.NoError(t, err)
+	for _, entry := range moduleFiles {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".tf" {
+			continue
+		}
+		if entry.Name() == "main.tf" {
+			// The stable template legitimately embeds Docker CLI Go templates
+			// such as docker ps --format '{{.Names}}' inside shell snippets.
+			continue
+		}
+		data, readErr := os.ReadFile(filepath.Join(outputAbs, entry.Name()))
+		require.NoError(t, readErr)
+		assert.NotContains(t, string(data), "{{.", "%s should not contain unresolved template placeholders", entry.Name())
+	}
+
+	tfvarsData, err := os.ReadFile(filepath.Join(outputAbs, "terraform.tfvars.json"))
+	require.NoError(t, err)
+	var tfvars map[string]any
+	require.NoError(t, json.Unmarshal(tfvarsData, &tfvars))
+	assert.NotEmpty(t, tfvars["tinyauth_users"])
+	assert.NotEmpty(t, tfvars["vaultwarden_admin_token"])
+	assert.Equal(t, "UTC", tfvars["timezone"])
+	assert.Equal(t, true, tfvars["enable_pocketid"])
+	assert.Equal(t, "https://id.home.localhost", tfvars["pocketid_app_url"])
+	assert.Equal(t, true, tfvars["tinyauth_oidc_enabled"])
+	assert.Equal(t, "https://id.home.localhost", tfvars["tinyauth_oidc_issuer"])
+	assert.NotEmpty(t, tfvars["tinyauth_oidc_client_id"])
+}
+
+func TestGenerateCommandRejectsPocketIDDisableWithoutPasskeyProvider(t *testing.T) {
+	setCapabilitiesHome(t, models.ContextLocal)
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	workDir := filepath.Join(repoRoot, ".tmp-generate-invalid-identity-"+strings.ReplaceAll(t.Name(), "/", "-"))
+	require.NoError(t, os.MkdirAll(workDir, 0750))
+	t.Cleanup(func() { _ = os.RemoveAll(workDir) })
+
+	specPath := filepath.Join(workDir, "stack-spec.yaml")
+	spec := `name: invalid-identity
+stackkit: base-kit
+mode: simple
+domain: home.localhost
+services:
+  pocketid:
+    enabled: false
+`
+	require.NoError(t, os.WriteFile(specPath, []byte(spec), 0600))
+
+	_, err = executeCommandCaptureStdout(
+		"--no-log",
+		"--spec", specPath,
+		"--chdir", repoRoot,
+		"generate",
+		"--output", filepath.ToSlash(filepath.Join("build", "invalid-identity-"+strings.ReplaceAll(t.Name(), "/", "-"))),
+		"--force",
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pocketid cannot be disabled")
+}
+
+func TestPocketIDSetupLinksUseSupportedRoute(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	for _, rel := range []string{
+		"base-install.sh",
+		filepath.Join("base-kit", "templates", "simple", "main.tf"),
+	} {
+		data, err := os.ReadFile(filepath.Join(repoRoot, rel))
+		require.NoError(t, err, rel)
+		content := string(data)
+		assert.NotContains(t, content, "/login/setup", "%s must not point at PocketID's removed route", rel)
+		assert.Contains(t, content, "/setup", "%s should point at PocketID's supported initial setup route", rel)
+	}
+}
+
+func TestTinyAuthPocketIDUsesInternalServerSideOIDCEndpoints(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	data, err := os.ReadFile(filepath.Join(repoRoot, "base-kit", "templates", "simple", "main.tf"))
+	require.NoError(t, err)
+	mainTF := string(data)
+
+	assert.Contains(t, mainTF, `PROVIDERS_POCKETID_AUTH_URL=${var.tinyauth_oidc_issuer}/authorize`)
+	assert.Contains(t, mainTF, `PROVIDERS_POCKETID_REDIRECT_URL=${var.tinyauth_app_url}/api/oauth/callback/pocketid`)
+	assert.Contains(t, mainTF, `pocketid_internal_oidc_origin`)
+	assert.Contains(t, mainTF, `"http://pocketid:1411"`)
+	assert.Contains(t, mainTF, `"http://127.0.0.1:${local.host_ports.pocketid}"`)
+	assert.Contains(t, mainTF, `PROVIDERS_POCKETID_TOKEN_URL=${local.pocketid_internal_oidc_origin}/api/oidc/token`)
+	assert.Contains(t, mainTF, `PROVIDERS_POCKETID_USER_INFO_URL=${local.pocketid_internal_oidc_origin}/api/oidc/userinfo`)
+}
+
+func TestTinyAuthPocketIDDoesNotRestrictOAuthToAdminEmailByDefault(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	data, err := os.ReadFile(filepath.Join(repoRoot, "base-kit", "templates", "simple", "main.tf"))
+	require.NoError(t, err)
+	mainTF := string(data)
+
+	assert.Contains(t, mainTF, `variable "tinyauth_oauth_whitelist"`)
+	assert.Contains(t, mainTF, `OAUTH_WHITELIST=${var.tinyauth_oauth_whitelist}`)
+	assert.NotContains(t, mainTF, `OAUTH_WHITELIST=${var.admin_email}`)
+}
+
+func TestGenerateCommand_KombinationAliasFromChildWorkDir(t *testing.T) {
+	setCapabilitiesHome(t, models.ContextLocal)
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	workDir := filepath.Join(repoRoot, ".tmp-generate-alias-"+strings.ReplaceAll(t.Name(), "/", "-"))
+	require.NoError(t, os.MkdirAll(workDir, 0750))
+	t.Cleanup(func() { _ = os.RemoveAll(workDir) })
+
+	spec := `name: alias-generate
+stackkit: base-kit
+mode: simple
+domain: home.localhost
+network:
+  mode: local
+compute:
+  tier: standard
+ssh:
+  user: root
+  port: 22
+`
+	require.NoError(t, os.WriteFile(filepath.Join(workDir, "kombination.yaml"), []byte(spec), 0600))
+
+	_, err = executeCommandCaptureStdout(
+		"--no-log",
+		"--spec", "stack-spec.yaml",
+		"--chdir", workDir,
+		"generate",
+		"--output", "deploy",
+		"--force",
+	)
+	require.NoError(t, err)
+
+	generatedPath := filepath.Join(workDir, "deploy", "terraform.tfvars.json")
+	info, statErr := os.Stat(generatedPath)
+	require.NoError(t, statErr)
+	assert.Greater(t, info.Size(), int64(0), "terraform.tfvars.json should not be empty")
+}
+
 func TestBcryptHash(t *testing.T) {
 	password := "testpassword123"
 	hash, err := bcryptHash(password)
@@ -254,7 +472,25 @@ func TestGenerateTfvarsJSON_AdminEmail(t *testing.T) {
 		Domain:     "home.example.com",
 	}
 
-	data, err := generateTfvarsJSON(spec)
+	// Composition engine provides identity credentials
+	cr := &composition.CompositionResult{
+		EnabledModules: []string{"socket-proxy", "traefik", "tinyauth", "pocketid"},
+		ModuleSettings: map[string]map[string]any{},
+		Identity: &composition.IdentityConfig{
+			AdminEmail:            "test@example.com",
+			AdminPassword:         "abcdef0123456789abcdef0123456789",
+			TinyAuthEnabled:       true,
+			PocketIDEnabled:       true,
+			TinyAuthSessionSecret: "session_secret_hex",
+			OIDCClientID:          "client_id_hex",
+			OIDCClientSecret:      "client_secret_hex",
+			OIDCIssuerURL:         "https://id.home.example.com",
+			PocketIDAppURL:        "https://id.home.example.com",
+			TinyAuthOAuthEnabled:  true,
+		},
+	}
+
+	data, err := generateTfvarsJSON(spec, cr)
 	require.NoError(t, err)
 
 	var vars map[string]interface{}
@@ -263,6 +499,8 @@ func TestGenerateTfvarsJSON_AdminEmail(t *testing.T) {
 
 	assert.Equal(t, "test@example.com", vars["admin_email"])
 	assert.Equal(t, true, vars["enable_dashboard"])
+	assert.Equal(t, "86400", vars["tinyauth_session_expiry"])
+	assert.Equal(t, "false", vars["tinyauth_secure_cookie"])
 
 	// tinyauth_users should be email:bcrypt_hash
 	users, ok := vars["tinyauth_users"].(string)
@@ -270,10 +508,10 @@ func TestGenerateTfvarsJSON_AdminEmail(t *testing.T) {
 	assert.True(t, strings.HasPrefix(users, "test@example.com:$2a$"),
 		"tinyauth_users should be email:bcrypt, got: %s", users)
 
-	// admin_password_plaintext should be present and 16 chars
+	// admin_password_plaintext should be present (32 hex chars from composition engine)
 	pw, ok := vars["admin_password_plaintext"].(string)
 	require.True(t, ok)
-	assert.Len(t, pw, 16)
+	assert.Len(t, pw, 32)
 }
 
 func TestGenerateTfvarsJSON_FallbackAdmin(t *testing.T) {
@@ -281,20 +519,20 @@ func TestGenerateTfvarsJSON_FallbackAdmin(t *testing.T) {
 		Name: "test-homelab",
 	}
 
-	data, err := generateTfvarsJSON(spec)
+	// Without composition result, bridge generates structural defaults only (no credentials)
+	data, err := generateTfvarsJSON(spec, nil)
 	require.NoError(t, err)
 
 	var vars map[string]interface{}
 	err = json.Unmarshal(data, &vars)
 	require.NoError(t, err)
 
-	// Without adminEmail, should fall back to "admin"
+	// Without composition result, admin_email comes from bridge defaults
 	assert.Equal(t, "admin", vars["admin_email"])
 
-	users, ok := vars["tinyauth_users"].(string)
-	require.True(t, ok)
-	assert.True(t, strings.HasPrefix(users, "admin:$2a$"),
-		"tinyauth_users should use 'admin' fallback, got: %s", users)
+	// Without composition result, no credentials are generated
+	assert.Empty(t, vars["admin_password_plaintext"], "no password without composition result")
+	assert.Empty(t, vars["tinyauth_users"], "no users without composition result")
 }
 
 func TestInitCommand_AdminEmailFlag(t *testing.T) {
@@ -318,6 +556,8 @@ func TestResolveInitDefaults(t *testing.T) {
 		prevForce := initForce
 		prevNonInteractive := initNonInteractive
 		prevAdminEmail := initAdminEmail
+		prevLocalDNS := initLocalDNS
+		prevLocalName := initLocalName
 		prevContextFlag := contextFlag
 
 		initComputeTier = ""
@@ -326,6 +566,8 @@ func TestResolveInitDefaults(t *testing.T) {
 		initForce = false
 		initNonInteractive = false
 		initAdminEmail = ""
+		initLocalDNS = false
+		initLocalName = ""
 		contextFlag = ""
 
 		t.Cleanup(func() {
@@ -335,6 +577,8 @@ func TestResolveInitDefaults(t *testing.T) {
 			initForce = prevForce
 			initNonInteractive = prevNonInteractive
 			initAdminEmail = prevAdminEmail
+			initLocalDNS = prevLocalDNS
+			initLocalName = prevLocalName
 			contextFlag = prevContextFlag
 		})
 	}
@@ -403,6 +647,30 @@ func TestResolveInitDefaults(t *testing.T) {
 		assert.Equal(t, models.DomainHomeLab, defaults.Domain)
 		assert.Equal(t, "local", defaults.NetworkMode)
 	})
+
+	t.Run("local dns defaults to home and local network", func(t *testing.T) {
+		resetInitGlobals(t)
+		setCapabilitiesHome(t, models.ContextCloud)
+		initLocalDNS = true
+
+		defaults := resolveInitDefaults("")
+
+		assert.Equal(t, models.ContextCloud, defaults.Context)
+		assert.Equal(t, models.DomainHomeDNS, defaults.Domain)
+		assert.Equal(t, "local", defaults.NetworkMode)
+	})
+
+	t.Run("local dns short name expands to nested home zone", func(t *testing.T) {
+		resetInitGlobals(t)
+		setCapabilitiesHome(t, models.ContextCloud)
+		initLocalDNS = true
+		initLocalName = "family"
+
+		defaults := resolveInitDefaults("")
+
+		assert.Equal(t, "family.home", defaults.Domain)
+		assert.Equal(t, "local", defaults.NetworkMode)
+	})
 }
 
 func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
@@ -412,6 +680,8 @@ func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
 	prevForce := initForce
 	prevNonInteractive := initNonInteractive
 	prevAdminEmail := initAdminEmail
+	prevLocalDNS := initLocalDNS
+	prevLocalName := initLocalName
 	prevContextFlag := contextFlag
 	prevSpecFile := specFile
 	t.Cleanup(func() {
@@ -421,6 +691,8 @@ func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
 		initForce = prevForce
 		initNonInteractive = prevNonInteractive
 		initAdminEmail = prevAdminEmail
+		initLocalDNS = prevLocalDNS
+		initLocalName = prevLocalName
 		contextFlag = prevContextFlag
 		specFile = prevSpecFile
 	})
@@ -636,7 +908,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  false,
+			wantTraefik:  true,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -646,7 +918,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  false,
+			wantTraefik:  true,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -666,7 +938,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  false,
+			wantTraefik:  true,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -684,7 +956,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 				},
 			}
 
-			data, err := generateTfvarsJSON(spec)
+			data, err := generateTfvarsJSON(spec, nil)
 			require.NoError(t, err)
 
 			var vars map[string]interface{}
@@ -714,7 +986,8 @@ func TestCleanupFiles_NoPurge(t *testing.T) {
 
 	// Create directories
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "deploy", ".terraform", "providers"), 0750))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "deploy", "main.tf"), []byte("# test"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "deploy", "traefik.tf"), []byte("# test"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "deploy", "terraform.tfvars.json"), []byte("{}"), 0600))
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, ".stackkit"), 0750))
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".stackkit", "state.yaml"), []byte("status: running"), 0600))
 
@@ -724,8 +997,11 @@ func TestCleanupFiles_NoPurge(t *testing.T) {
 	_, err := os.Stat(filepath.Join(tmpDir, "deploy", ".terraform"))
 	assert.True(t, os.IsNotExist(err), ".terraform/ should be removed")
 
-	_, err = os.Stat(filepath.Join(tmpDir, "deploy", "main.tf"))
-	assert.NoError(t, err, "deploy/main.tf should still exist")
+	_, err = os.Stat(filepath.Join(tmpDir, "deploy", "traefik.tf"))
+	assert.NoError(t, err, "generated deploy/*.tf files should still exist")
+
+	_, err = os.Stat(filepath.Join(tmpDir, "deploy", "terraform.tfvars.json"))
+	assert.NoError(t, err, "generated terraform.tfvars.json should still exist")
 
 	_, err = os.Stat(filepath.Join(tmpDir, ".stackkit", "state.yaml"))
 	assert.NoError(t, err, ".stackkit/state.yaml should still exist")

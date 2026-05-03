@@ -128,7 +128,7 @@ func startDockerDaemon(ctx context.Context) (*models.DockerCapabilities, error) 
 	if _, err := os.Stat("/var/run/docker.sock"); os.IsNotExist(err) {
 		printWarning("Docker socket /var/run/docker.sock does not exist")
 	}
-	return nil, fmt.Errorf("Docker daemon failed to start — see diagnostics above")
+	return nil, fmt.Errorf("docker daemon failed to start — see diagnostics above")
 }
 
 // detectCapabilities probes the system for Docker-relevant capabilities
@@ -151,6 +151,7 @@ func detectCapabilities() *models.DockerCapabilities {
 		CompatibilityTier:  tier,
 		UnshareAvailable:   unshareOK,
 		CgroupVersion:      detectCgroupVersion(),
+		MemoryLimits:       true,
 		DiskTotalGB:        totalGB,
 		DiskAvailGB:        availGB,
 		DiskMount:          mount,
@@ -201,6 +202,7 @@ func testDockerRuntime(ctx context.Context, caps *models.DockerCapabilities) boo
 		printSuccess("Docker runtime is functional")
 		caps.DockerFunctional = true
 		caps.UnshareAvailable = true
+		caps.MemoryLimits = testDockerMemoryLimits(ctx)
 		if caps.CompatibilityTier == "" {
 			caps.CompatibilityTier = models.TierFull
 		}
@@ -246,7 +248,34 @@ func testDockerRuntime(ctx context.Context, caps *models.DockerCapabilities) boo
 	// let the rest of prepare handle it.
 	printWarning("Docker test container failed: %s", outputStr)
 	caps.DockerFunctional = true // Assume functional, may be transient
+	caps.MemoryLimits = true
 	return true
+}
+
+func testDockerMemoryLimits(ctx context.Context) bool {
+	testCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(testCtx, "docker", "run", "--rm", "--memory", "32m", "hello-world") // #nosec G204
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return true
+	}
+
+	outputStr := strings.TrimSpace(string(output))
+	if outputStr == "" {
+		outputStr = err.Error()
+	}
+	printWarning("Docker memory limits are unavailable; generated local containers will omit memory limits: %s", firstLine(outputStr))
+	return false
+}
+
+func firstLine(s string) string {
+	s = strings.TrimSpace(s)
+	if idx := strings.IndexByte(s, '\n'); idx >= 0 {
+		return strings.TrimSpace(s[:idx])
+	}
+	return s
 }
 
 // testDockerDNS verifies DNS resolution works inside Docker containers.
@@ -346,7 +375,8 @@ func baseKitImages(tier string) []string {
 		"ghcr.io/pocket-id/pocket-id:v2",
 		"nginx:alpine",
 		"traefik/whoami:latest",
-		"jpillora/dnsmasq:latest",
+		"smallstep/step-ca:0.30.2",
+		"ghcr.io/kombiverselabs/kombify-point:latest",
 	}
 
 	if tier == models.ComputeTierLow {
@@ -469,11 +499,15 @@ func loadDockerKernelModules() {
 		"bridge",         // bridge networking
 	}
 	for _, mod := range modules {
-		exec.Command("modprobe", mod).Run() //nolint:errcheck
+		if err := exec.Command("modprobe", mod).Run(); err != nil {
+			printWarning("modprobe %s failed: %v (non-fatal, may be built-in)", mod, err)
+		}
 	}
 
 	// Enable IPv4 forwarding (required for container networking)
-	os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0644) //nolint:errcheck
+	if err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0644); err != nil { //nolint:gosec
+		printWarning("failed to enable IPv4 forwarding: %v", err)
+	}
 }
 
 // ensureIptables tests iptables NAT support, switching backends if needed.
@@ -711,7 +745,7 @@ func installDockerLocal(ctx context.Context) error {
 	// Enable and start Docker daemon — this must succeed for deployment to work
 	caps, err := startDockerDaemon(ctx)
 	if err != nil {
-		return fmt.Errorf("Docker installed but failed to start: %w", err)
+		return fmt.Errorf("docker installed but failed to start: %w", err)
 	}
 	writeDockerCapabilities(caps)
 	return nil

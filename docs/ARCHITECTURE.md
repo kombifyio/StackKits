@@ -4,7 +4,7 @@
 
 | Component | Technology | Version | Source |
 |-----------|-----------|---------|--------|
-| Language | Go | 1.25 | `go.mod:3` |
+| Language | Go | 1.24.0 | `go.mod:3` |
 | Configuration | CUE | v0.15.4 (cuelang.org/go) | `go.mod:6` |
 | CLI framework | Cobra | v1.10.2 | `go.mod:10` |
 | IaC engine (internal) | OpenTofu | >= 1.6.0 | `internal/template/renderer.go:341` |
@@ -12,7 +12,7 @@
 | Container runtime | Docker | 24.0+ | `README.md:26` |
 | YAML parsing | gopkg.in/yaml.v3 | v3.0.1 | `go.mod:13` |
 | SSH | golang.org/x/crypto | v0.47.0 | `go.mod:12` |
-| HTTP server | Go stdlib net/http | 1.25 | `internal/api/server.go` |
+| HTTP server | Go stdlib net/http | 1.24 | `internal/api/server.go` |
 | Testing | testify | v1.9.0 | `go.mod:11` |
 | Task runner | Mise | >= 2024.11.1 | `.mise.toml:4` |
 | Dev environment | Docker Compose | -- | `docker-compose.yml` |
@@ -198,9 +198,11 @@ Returns structured `ValidationResult` with errors and warnings.
 
 ### Artifact Generation
 Files: `cmd/stackkit/commands/generate.go`, `internal/cue/bridge.go`,
-`internal/template/renderer.go`
-Renders OpenTofu files from Go templates. Generates `terraform.tfvars.json`
-from StackSpec via CUE bridge.
+`cmd/stackkit/commands/generate.go`, `internal/composition/tfvars.go`,
+`internal/cue/generator.go`
+Renders OpenTofu files from CUE module contracts and writes per-module
+`deploy/*.tf` fragments. Generates sensitive `terraform.tfvars.json` from
+StackSpec plus composition-owned credentials.
 
 ### Dual IaC Backend
 Files: `internal/iac/executor.go`, `internal/tofu/`, `internal/terramate/`
@@ -229,12 +231,13 @@ status. Supports `--json` output for machine consumption.
 
 ### kombify Techstack (Control Plane)
 The API server (`internal/api/server.go`) exposes REST endpoints consumed by
-kombify Techstack (`techstack.kombify.io`). CORS is configured to allow
-`https://kombify.io` origins. Techstack loads StackKit definitions, provides
-a UI wizard, and calls the API for validation and generation.
+kombify Techstack (`techstack.kombify.io`). Production startup requires an API
+key via `STACKKITS_API_KEY` or `--api-key`, and browser CORS must be configured
+with explicit allowed origins. Techstack loads StackKit definitions, provides a
+UI wizard, and calls the API for validation and generation.
 
-> **Note:** `stack.kombify.io` is the marketing website (website-v2).
-> `techstack.kombify.io` is the actual tool.
+> **Note:** standalone tool websites are no longer canonical. `kombify.io` is the public product surface; `techstack.kombify.io` is a technical app/API origin. The `stackkits.kombify.io` standalone site was decommissioned on 2026-05-01.
+> The lightweight public OSS landing page still exists and now lives under `website/` in this repository for `stackkit.cc`.
 
 ### kombify Sphere (SaaS)
 Level 4 in the progressive capability model. StackKits provides the
@@ -264,10 +267,11 @@ Data models are defined in `pkg/models/models.go`: `StackKit`, `StackSpec`,
 ## Authentication and Authorization
 
 ### API Server Auth
-Optional API key authentication via `X-API-Key` header, configured with
-`--api-key` flag or `STACKKITS_API_KEY` env var. Uses constant-time
-comparison (`crypto/subtle`). Health and OpenAPI endpoints are exempt.
-(Source: `internal/api/server.go:354-388`)
+API key authentication via `X-API-Key` header, configured with `--api-key` flag
+or `STACKKITS_API_KEY` env var. Server startup fails closed without a key unless
+the operator explicitly enables local-only unauthenticated mode. Uses
+constant-time comparison (`crypto/subtle`). Health and OpenAPI endpoints are
+exempt.
 
 ### Deployed Service Auth
 Layer 1 mandates LLDAP + Step-CA (enforced in `base/layers.cue:385-393`).
@@ -287,7 +291,7 @@ Key path and user are configured in `stack-spec.yaml` under `ssh:`.
 - `portal` -- Service dashboard (port 9001)
 - `cli` -- StackKit CLI container targeting the VM via `DOCKER_HOST=tcp://vm:2375`
 - `e2e` -- Test runner container
-- `dns` -- Local dnsmasq for `.stack.local` domain resolution
+- `dns` -- Kombify Point local resolver for `.home` / `.<name>.home` domain resolution
 
 ### Production Deployment
 1. User creates `stack-spec.yaml` (via `stackkit init` or kombify-TechStack UI)

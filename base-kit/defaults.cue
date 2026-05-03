@@ -174,29 +174,49 @@ package base_kit
 	// Standard is the default (4-7 CPU, 8-15 GB)
 }
 
-// #DomainConfig provides domain configuration defaults
+// #DomainConfig provides domain configuration defaults.
+// This is the canonical list of all service subdomains.
+// When subdomainPrefix is set (kombify.me), domains use flat naming:
+//   {prefix}-{flat}.{domain}  e.g. sh-mylab-abc-dash.kombify.me
+// When empty (own domain or LAN), domains use nested naming:
+//   {nested}.{domain}         e.g. dash.kmbchr.de
 #DomainConfig: {
-	// Primary domain (required for ACME)
+	// Primary domain (required)
 	domain: string
 
-	// Subdomain pattern
+	// Optional subdomain prefix (kombify.me tunnel mode)
+	subdomainPrefix: string | *""
+
+	// Subdomain definitions: key → {nested, flat}
 	subdomains: {
-		traefik:   "traefik" | *"traefik"
-		dockge:    "dockge" | *"dockge"
-		dozzle:    "logs" | *"logs"
-		netdata:   "monitor" | *"monitor"
-		glances:   "monitor" | *"monitor"
-		portainer: "portainer" | *"portainer"
+		dashboard:  { nested: "base", flat: "dash" }
+		traefik:    { nested: "traefik", flat: "traefik" }
+		auth:       { nested: "auth", flat: "tinyauth" }
+		pocketid:   { nested: "id", flat: "id" }
+		dokploy:    { nested: "dokploy", flat: "dokploy" }
+		coolify:    { nested: "coolify", flat: "coolify" }
+		dockge:     { nested: "dockge", flat: "dockge" }
+		kuma:       { nested: "kuma", flat: "kuma" }
+		whoami:     { nested: "whoami", flat: "whoami" }
+		vault:      { nested: "vault", flat: "vault" }
+		media:      { nested: "media", flat: "media" }
+		photos:     { nested: "photos", flat: "photos" }
+		logs:       { nested: "logs", flat: "logs" }
+		monitor:    { nested: "monitor", flat: "monitor" }
+		portainer:  { nested: "portainer", flat: "portainer" }
+		netdata:    { nested: "netdata", flat: "netdata" }
 	}
 
-	// Full URLs (computed)
+	// Full URLs (computed from prefix + subdomain + domain)
 	urls: {
-		traefik:   "\(subdomains.traefik).\(domain)"
-		dockge:    "\(subdomains.dockge).\(domain)"
-		dozzle:    "\(subdomains.dozzle).\(domain)"
-		netdata:   "\(subdomains.netdata).\(domain)"
-		glances:   "\(subdomains.glances).\(domain)"
-		portainer: "\(subdomains.portainer).\(domain)"
+		for k, v in subdomains {
+			if subdomainPrefix != "" {
+				"\(k)": "\(subdomainPrefix)-\(v.flat).\(domain)"
+			}
+			if subdomainPrefix == "" {
+				"\(k)": "\(v.nested).\(domain)"
+			}
+		}
 	}
 }
 
@@ -240,10 +260,17 @@ package base_kit
 		{
 			ip: serverIP
 			domains: [
-				"dockge.\(domain)",
-				"logs.\(domain)",
-				"monitor.\(domain)",
+				"base.\(domain)",
 				"traefik.\(domain)",
+				"auth.\(domain)",
+				"id.\(domain)",
+				"dokploy.\(domain)",
+				"kuma.\(domain)",
+				"whoami.\(domain)",
+				"vault.\(domain)",
+				"media.\(domain)",
+				"photos.\(domain)",
+				"logs.\(domain)",
 			]
 		},
 	]

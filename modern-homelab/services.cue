@@ -8,7 +8,7 @@
 // - VPN is optional (not required, identity stack provides zero-trust)
 //
 // KEY DIFFERENCES FROM base-kit:
-// - Multi-node Docker Compose (not single-node, no Swarm)
+// - Multi-environment Docker Compose (bridges home + cloud trust domains, no Swarm)
 // - PaaS context-driven: domain+wildcard → Coolify, else → Dokploy
 // - Identity-aware proxies make VPN optional
 // - Public access via cloud node is default

@@ -12,8 +12,15 @@
 
 services:
   step-ca:
-    image: smallstep/step-ca:latest
+    # Pin to a known-good release. :latest has caused exit 126 in CI; this
+    # pin keeps the test deterministic and matches the version recommended
+    # by upstream documentation as of writing.
+    image: smallstep/step-ca:0.27.4
     container_name: test-step-ca
+    # Run as the image's default step user (uid 1000). The volume gets
+    # initialised by the entrypoint on first boot; we don't need to chown
+    # anything ourselves.
+    user: "1000:1000"
     environment:
       DOCKER_STEPCA_INIT_NAME: "Test Homelab CA"
       DOCKER_STEPCA_INIT_DNS_NAMES: "step-ca,ca.test.local,localhost"
@@ -24,7 +31,9 @@ services:
     volumes:
       - step-ca-data:/home/step
     healthcheck:
-      test: ["CMD-SHELL", "curl -f -k https://localhost:9000/health || exit 1"]
+      # The image ships with curl. Use --insecure because the CA uses its
+      # own self-signed cert during health checks.
+      test: ["CMD-SHELL", "curl -fsk https://localhost:9000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -35,14 +44,23 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    mem_limit: 256m
-    cpus: 0.25
+    # smallstep/step-ca's /usr/local/bin/step-ca binary has file capabilities
+    # (cap_net_bind_service=+eip) set so it can bind low ports when asked. With
+    # cap_drop: ALL + no-new-privileges, the kernel denies exec with EPERM
+    # (exit 126) because the process can't acquire its file-cap requirements.
+    # We run on :9000 so we don't *need* the capability at runtime, but we must
+    # grant it so exec succeeds. This keeps every other capability dropped.
+    cap_add:
+      - NET_BIND_SERVICE
+    mem_limit: 512m
+    cpus: 0.5
 
   traefik:
     image: traefik:v3.3
     container_name: test-traefik-stepca
     command:
       - "--api.insecure=true"
+      - "--ping=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
@@ -57,7 +75,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "traefik", "healthcheck"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
