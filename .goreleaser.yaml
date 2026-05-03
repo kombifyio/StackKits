@@ -74,6 +74,8 @@ builds:
 archives:
   # Full bundle — all kits + CLI (for users who want everything)
   - id: default
+    builds:
+      - stackkit
     formats:
       - tar.gz
     format_overrides:
@@ -93,6 +95,8 @@ archives:
 
   # Per-kit archives — CLI + specific kit + base schemas
   - id: base-kit
+    builds:
+      - stackkit
     formats:
       - tar.gz
     format_overrides:
