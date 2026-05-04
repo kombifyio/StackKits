@@ -206,10 +206,12 @@ jobs:
           /tmp/stackkit registry info || true
 
       - name: Run GoReleaser
+        # Refresh registry snapshot rewrites the embedded JSON before release.
+        # The archive-validation job already covers GoReleaser validation.
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean --skip=validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
