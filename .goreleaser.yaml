@@ -204,12 +204,12 @@ release:
 
     **Base Kit (single-server homelab):**
     ```bash
-    curl -sSL base.stackkit.cc | sh
+    curl -sSL stackkit.cc/base | sh
     ```
 
     **CLI only (pick a kit later):**
     ```bash
-    curl -sSL install.kombify.me | sh
+    curl -sSL stackkit.cc/install | sh
     ```
 
     ### Downloads

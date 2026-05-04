@@ -8,46 +8,82 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/servicecatalog"
 )
 
 const deviceFingerprintEnv = "KOMBIFY_DEVICE_FINGERPRINT"
 
 // ServiceDef defines a service to register on kombify.me.
 type ServiceDef struct {
-	Name        string // kombify.me service name (e.g. "dash", "tinyauth")
+	Name        string // kombify.me service name (e.g. "base", "auth")
 	Description string
+	Primary     bool
 }
 
 // BaseKitServices returns the service definitions for the base-kit based on compute tier.
-// Service names match the flat naming used in main.tf locals.domains.
+// Deprecated: use ServiceRegistrationsFromCatalog so the registration layer is
+// driven by the same canonical catalog as access.json and generated routes.
 func BaseKitServices(tier string) []ServiceDef {
-	// Core services (all tiers)
-	services := []ServiceDef{
-		{Name: "traefik", Description: "Reverse proxy & TLS"},
-		{Name: "tinyauth", Description: "Authentication proxy"},
-		{Name: "id", Description: "PocketID identity provider"},
-		{Name: "dash", Description: "Dashboard"},
-		{Name: "kuma", Description: "Uptime Kuma monitoring"},
-		{Name: "whoami", Description: "Whoami test service"},
+	return ServiceRegistrationsFromCatalog(servicecatalog.Default(), tier)
+}
+
+// ServiceRegistrationsFromCatalog converts the canonical service catalog into
+// kombify.me service registrations. Primary services are the public URL
+// contract; legacy aliases are registered only to keep existing links alive.
+func ServiceRegistrationsFromCatalog(catalog []servicecatalog.Service, tier string) []ServiceDef {
+	var services []ServiceDef
+	for _, svc := range catalog {
+		if !includeServiceForTier(svc, tier) {
+			continue
+		}
+		services = append(services, ServiceDef{
+			Name:        svc.PublicSlug,
+			Description: firstNonEmpty(svc.Description, svc.DisplayName),
+			Primary:     true,
+		})
+		for _, alias := range svc.LegacyAliases {
+			if !isKombifyLegacyRouteAlias(alias) {
+				continue
+			}
+			services = append(services, ServiceDef{
+				Name:        alias,
+				Description: firstNonEmpty(svc.Description, svc.DisplayName) + " (legacy alias)",
+				Primary:     false,
+			})
+		}
 	}
-
-	// L3 Application use cases — all tiers
-	services = append(services, ServiceDef{Name: "vault", Description: "Vaultwarden password manager"})
-
-	// Tier-specific PaaS
-	switch tier {
-	case "low":
-		services = append(services, ServiceDef{Name: "dockge", Description: "Dockge container manager"})
-	default: // standard, high
-		services = append(services, ServiceDef{Name: "dokploy", Description: "Dokploy PaaS"})
-		// L3 Application use cases — standard+ only
-		services = append(services,
-			ServiceDef{Name: "media", Description: "Jellyfin media server"},
-			ServiceDef{Name: "photos", Description: "Immich photo management"},
-		)
-	}
-
 	return services
+}
+
+func includeServiceForTier(svc servicecatalog.Service, tier string) bool {
+	switch svc.Key {
+	case "point", "coolify":
+		return false
+	case "dockge":
+		return tier == "low"
+	case "dokploy", "media", "photos":
+		return tier != "low"
+	default:
+		return svc.Default
+	}
+}
+
+func isKombifyLegacyRouteAlias(alias string) bool {
+	switch alias {
+	case "dash", "tinyauth":
+		return true
+	default:
+		return false
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 // DeviceFingerprint generates a short device fingerprint from hostname and machine-id.

@@ -6,12 +6,39 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func testRepoRoot(t *testing.T) string {
+	t.Helper()
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok, "failed to resolve caller info")
+	return filepath.Join(filepath.Dir(filename), "..", "..")
+}
+
+func copyTestDir(t *testing.T, srcDir, dstDir string) {
+	t.Helper()
+	entries, err := os.ReadDir(srcDir)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(dstDir, 0750))
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(srcDir, entry.Name())
+		dstPath := filepath.Join(dstDir, entry.Name())
+		if entry.IsDir() {
+			copyTestDir(t, srcPath, dstPath)
+			continue
+		}
+		data, err := os.ReadFile(srcPath)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(dstPath, data, 0600))
+	}
+}
 
 // testValidationEndpoint posts JSON to a validation endpoint and asserts the status code
 // and the "valid" field in the response data.
@@ -33,6 +60,11 @@ func testValidationEndpoint(t *testing.T, handler http.Handler, method, path, bo
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	tmpDir := t.TempDir()
+	repoRoot := testRepoRoot(t)
+
+	copyTestDir(t, filepath.Join(repoRoot, "base"), filepath.Join(tmpDir, "base"))
+	copyTestDir(t, filepath.Join(repoRoot, "modules"), filepath.Join(tmpDir, "modules"))
+	copyTestDir(t, filepath.Join(repoRoot, "cue.mod"), filepath.Join(tmpDir, "cue.mod"))
 
 	// Create a minimal stackkit fixture: base-kit
 	baseDir := filepath.Join(tmpDir, "base-kit")
@@ -492,6 +524,8 @@ func TestHandleGenerateTFVars(t *testing.T) {
 		assert.Equal(t, "ops@example.com", resp.Data.TFVars["admin_email"])
 		assert.Equal(t, "api-prod", resp.Data.TFVars["dashboard_title"])
 		assert.Equal(t, "172.31.0.0/16", resp.Data.TFVars["network_subnet"])
+		assert.Equal(t, "techstack:4317", resp.Data.TFVars["monitoring_agent_otlp_endpoint"])
+		assert.Equal(t, "30s", resp.Data.TFVars["monitoring_agent_collection_interval"])
 	})
 
 	t.Run("missing stackkit", func(t *testing.T) {

@@ -16,7 +16,7 @@ On first `stackkit apply`:
 
 The initial password is deliberately ephemeral:
 
-- **Not stored on disk.** No `.env` file, no Docker secret, no Doppler.
+- **Not stored on disk.** No `.env` file, no Docker secret, no external secret manager.
 - **Printed once** to stdout at the end of `stackkit apply`.
 - **Must be rotated on first login.** The user opens `https://auth.<domain>`, logs in with the temp password, and PocketID forces a rotation.
 

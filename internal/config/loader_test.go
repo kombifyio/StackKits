@@ -136,6 +136,46 @@ stackkit: base-kit
 	})
 }
 
+func TestLoadObservabilityExampleSpecs(t *testing.T) {
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	require.NoError(t, err)
+
+	loader := NewLoader(repoRoot)
+	tests := []struct {
+		name       string
+		path       string
+		wantDomain string
+		wantTier   string
+		wantAddons []string
+	}{
+		{
+			name:       "otlp baseline",
+			path:       filepath.Join("base-kit", "examples", "otlp-baseline-spec.yaml"),
+			wantDomain: "home.localhost",
+			wantTier:   string(models.ComputeTierStandard),
+		},
+		{
+			name:       "otlp victoriametrics",
+			path:       filepath.Join("base-kit", "examples", "otlp-victoriametrics-spec.yaml"),
+			wantDomain: "observability.example.com",
+			wantTier:   string(models.ComputeTierHigh),
+			wantAddons: []string{"monitoring-core"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec, err := loader.LoadStackSpec(tt.path)
+			require.NoError(t, err)
+			assert.Equal(t, "base-kit", spec.StackKit)
+			assert.Equal(t, tt.wantDomain, spec.Domain)
+			assert.Equal(t, tt.wantTier, spec.Compute.Tier)
+			assert.Len(t, spec.Nodes, 1)
+			assert.ElementsMatch(t, tt.wantAddons, spec.Addons)
+		})
+	}
+}
+
 func TestSaveStackSpec(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "stackkit-test-*")
 	require.NoError(t, err)

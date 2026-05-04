@@ -2,6 +2,7 @@ package cue
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -17,6 +18,7 @@ type ModuleContract struct {
 	Settings     *SettingsSpec
 	Services     map[string]ServiceDef
 	Provisioners map[string]ProvisionerDef
+	SourcePath   string
 	Enabled      bool
 }
 
@@ -148,7 +150,12 @@ func (r *ModuleReader) readModule(modulePath string) (ModuleContract, error) {
 		return ModuleContract{}, fmt.Errorf("module at %s has no Contract definition", modulePath)
 	}
 
-	return r.extractContract(contract)
+	mc, err := r.extractContract(contract)
+	if err != nil {
+		return ModuleContract{}, err
+	}
+	mc.SourcePath = filepath.Clean(modulePath)
+	return mc, nil
 }
 
 // extractContract extracts a ModuleContract from a CUE Contract value.
@@ -388,6 +395,23 @@ func (r *ModuleReader) extractProvisioner(v cue.Value) ProvisionerDef {
 
 // cueValueToGo extracts a concrete Go value from a CUE value.
 func cueValueToGo(v cue.Value) any {
+	if iter, err := v.Fields(cue.Optional(true)); err == nil {
+		mapped := make(map[string]any)
+		for iter.Next() {
+			name := strings.Trim(iter.Selector().String(), "\"")
+			mapped[name] = cueValueToGo(iter.Value())
+		}
+		return mapped
+	}
+
+	if iter, err := v.List(); err == nil {
+		var values []any
+		for iter.Next() {
+			values = append(values, cueValueToGo(iter.Value()))
+		}
+		return values
+	}
+
 	if s, err := v.String(); err == nil {
 		return s
 	}

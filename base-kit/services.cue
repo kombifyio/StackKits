@@ -144,7 +144,7 @@ import "github.com/kombifyio/stackkits/base"
 	description: "ForwardAuth gateway. Protects all services via TinyAuth middleware backed by Pocket ID."
 	needs:       ["traefik"]
 
-	subdomain: { key: "auth", nested: "auth", flat: "tinyauth" }
+	subdomain: { key: "auth", nested: "auth", flat: "auth" }
 	dashboard: { icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth" }
 
 	network: {
@@ -239,7 +239,7 @@ import "github.com/kombifyio/stackkits/base"
 	description: "OIDC identity provider with passkey authentication. Manage users and SSO clients."
 	needs:       ["traefik"]
 
-	subdomain: { key: "pocketid", nested: "id", flat: "id" }
+	subdomain: { key: "id", nested: "id", flat: "id" }
 	dashboard: { icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP" }
 
 	network: {
@@ -666,6 +666,106 @@ import "github.com/kombifyio/stackkits/base"
 		credentials: {
 			note: "Create admin account on first access"
 		}
+	}
+
+	restartPolicy: "unless-stopped"
+}
+
+// #OtelCollectorService — Standard host + container metrics agent.
+//
+// Deploys OTel Collector in agent mode on the node. Collects system and
+// Docker container metrics via hostmetrics + dockerstats receivers and pushes
+// them via OTLP/gRPC to TechStack (default) or monitoring-core gateway.
+//
+// Minimum hardware: Pi 4B (4 GB) — uses ~150 MB RAM in standard profile.
+//
+// Profile behaviour (set via #SmartDefaults.services.monitoring):
+//   standard — 30s interval, host + container metrics (~150 MB RAM)
+//   full     — 10s interval, adds per-process metrics (~250 MB RAM)
+#OtelCollectorService: base.#ServiceDefinition & {
+	name:        "otel-collector"
+	displayName: "OTel Collector Agent"
+	category:    "observability"
+	type:        "monitoring"
+	required:    false
+	enabled:     true // Standard monitoring agent — on by default
+	image:       "otel/opentelemetry-collector-contrib"
+		tag:         "0.114.0"
+	description: "OpenTelemetry Collector — collects host and container metrics and pushes via OTLP/gRPC to TechStack"
+	needs:       []  // No service dependencies — runs standalone
+
+	network: {
+		ports: [
+			{host: 4317, container: 4317, protocol: "tcp", description: "OTLP/gRPC inbound (local app forwarding)"},
+			{host: 4318, container: 4318, protocol: "tcp", description: "OTLP/HTTP inbound"},
+		]
+		traefik: {
+			enabled: false // Agent only — no web UI
+		}
+		networks: ["base_net"]
+	}
+
+	volumes: [
+		{
+			source:      "/var/run/docker.sock"
+			target:      "/var/run/docker.sock"
+			type:        "bind"
+			readOnly:    true
+			description: "Docker socket for container metrics collection"
+		},
+		{
+			source:      "/"
+			target:      "/hostfs"
+			type:        "bind"
+			readOnly:    true
+			description: "Host filesystem root for disk and filesystem metrics"
+		},
+		{
+			source:      "./monitoring-agent/otelcol-config.yaml"
+			target:      "/etc/otelcol/config.yaml"
+			type:        "bind"
+			readOnly:    true
+			description: "OTel Collector configuration (generated from module)"
+		},
+	]
+
+	healthCheck: {
+		enabled: true
+		http: {
+			path:   "/metrics"
+			port:   8888
+			scheme: "http"
+		}
+		interval:    "30s"
+		timeout:     "10s"
+		retries:     3
+		startPeriod: "15s"
+	}
+
+	environment: {
+		GOMEMLIMIT:                          "{{.monitoring_agent_gomemlimit}}"
+		OTEL_ENDPOINT:                       "{{.monitoring_agent_otlp_endpoint}}"
+		KOMBIFY_OTEL_COLLECTION_INTERVAL:    "{{.monitoring_agent_collection_interval}}"
+		KOMBIFY_OTEL_BATCH_TIMEOUT:          "{{.monitoring_agent_batch_timeout}}"
+		KOMBIFY_OTEL_DOCKER_ENDPOINT:        "{{.monitoring_agent_docker_endpoint}}"
+		KOMBIFY_OTEL_MEMORY_LIMIT_MIB:       "{{.monitoring_agent_memory_limit_mib}}"
+		KOMBIFY_OTEL_MEMORY_SPIKE_LIMIT_MIB: "{{.monitoring_agent_memory_spike_limit_mib}}"
+	}
+
+	resources: {
+		memory:    "256m"
+		memoryMax: "512m"
+		cpus:      0.25
+	}
+
+	labels: {
+		"stackkit.layer":      "2-platform"
+		"stackkit.managed-by": "stackkits"
+		"stackkit.component":  "observability"
+	}
+
+	output: {
+		description: "OTel Collector agent — pushing host+container metrics via OTLP/gRPC to TechStack"
 	}
 
 	restartPolicy: "unless-stopped"

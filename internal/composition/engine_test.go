@@ -550,3 +550,45 @@ func TestRealModuleDependencyCapabilities(t *testing.T) {
 		t.Errorf("module dependency contract violation: %v", err)
 	}
 }
+
+func TestResolve_EnabledModules_IncludesMonitoringAgentByDefault(t *testing.T) {
+	modulesDir := filepath.Join("..", "..", "modules")
+	if _, err := os.Stat(modulesDir); os.IsNotExist(err) {
+		t.Skipf("modules directory not found: %s", modulesDir)
+	}
+
+	reader := cueval.NewModuleReader()
+	contracts, err := reader.ReadAllModules(modulesDir)
+	if err != nil {
+		t.Fatalf("ReadAllModules failed: %v", err)
+	}
+
+	spec := &models.StackSpec{
+		Domain:  "home.localhost",
+		Context: "local",
+		Compute: models.ComputeSpec{Tier: models.ComputeTierStandard},
+	}
+
+	result, err := NewCompositionEngine(contracts, nil, spec).Resolve()
+	if err != nil {
+		t.Fatalf("Resolve() failed: %v", err)
+	}
+
+	if !containsString(result.EnabledModules, "monitoring-agent") {
+		t.Fatalf("monitoring-agent should be enabled by default, got %v", result.EnabledModules)
+	}
+	if containsString(result.EnabledModules, "monitoring-core") {
+		t.Fatalf("monitoring-core should remain opt-in, got %v", result.EnabledModules)
+	}
+	settings, ok := result.ModuleSettings["monitoring-agent"]
+	if !ok {
+		t.Fatalf("monitoring-agent settings missing from composition result: %v", result.ModuleSettings)
+	}
+	collector, ok := settings["collector"].(map[string]any)
+	if !ok {
+		t.Fatalf("monitoring-agent collector settings = %T, want map[string]any", settings["collector"])
+	}
+	if collector["endpoint"] != "techstack:4317" {
+		t.Fatalf("monitoring-agent collector endpoint = %v, want techstack:4317", collector["endpoint"])
+	}
+}

@@ -12,6 +12,9 @@
 # Variant: os/ubuntu-24 (Ubuntu 24.04 LTS)
 # Network Mode: local (Docker Swarm mit Overlay Network)
 # HA Features: Load Balancing, Service Replication, Failover
+# NOTE: This alpha spec still contains legacy Prometheus/Grafana scaffolding.
+# The canonical OTLP-first target for ha-kit is redundant manager-side gateways
+# behind the VIP, fanning in to VictoriaMetrics.
 
 version: "1.0"
 
@@ -20,7 +23,7 @@ stack:
   kit: ha-kit
   variant: os/ubuntu-24
   addons:
-    - monitoring  # Prometheus + Grafana Stack
+    - monitoring  # Redundant OTLP gateway + VictoriaMetrics + Grafana
 
 nodes:
   # Main Node - Swarm Manager + Control Plane
@@ -183,8 +186,8 @@ services:
       traefik.enable: "true"
       # Host rules are optional and require working DNS for the chosen zone.
       # .local is mDNS host identity and is NOT a reliable subdomain zone.
-      # Prefer IP:port access, or use an internal DNS zone (e.g. home.arpa).
-      traefik.http.routers.dokploy.rule: Host(`dokploy.home.arpa`)  # ⚠️ optional
+# Prefer IP:port access, or use a local DNS zone (e.g. home or family.home).
+traefik.http.routers.dokploy.rule: Host(`dokploy.home`)  # ⚠️ optional
       traefik.http.services.dokploy.loadbalancer.server.port: "3000"
     needs:
       - postgres
@@ -215,7 +218,7 @@ services:
       kombistack.managed: "true"
       kombistack.ha.enabled: "true"
       traefik.enable: "true"
-      traefik.http.routers.uptime.rule: Host(`uptime.home.arpa`)  # ⚠️ optional
+traefik.http.routers.uptime.rule: Host(`uptime.home`)  # ⚠️ optional
       traefik.http.services.uptime.loadbalancer.server.port: "3001"
     needs:
       - traefik

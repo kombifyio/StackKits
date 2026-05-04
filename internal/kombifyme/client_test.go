@@ -66,17 +66,17 @@ func TestRegisterService(t *testing.T) {
 		var body map[string]string
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 		assert.Equal(t, "sh-mylab-abc123", body["base_subdomain_name"])
-		assert.Equal(t, "dash", body["service_name"])
+		assert.Equal(t, "base", body["service_name"])
 
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(Subdomain{
 			ID:       "svc-1",
-			Name:     "sh-mylab-abc123-dash",
+			Name:     "sh-mylab-abc123-base",
 			ParentID: "sub-1",
 		})
 	})
 
-	sub, err := c.RegisterService("sh-mylab-abc123", "dash", "http://localhost:80", "Dashboard")
+	sub, err := c.RegisterService("sh-mylab-abc123", "base", "http://localhost:80", "Dashboard")
 	require.NoError(t, err)
 	assert.Equal(t, "svc-1", sub.ID)
 	assert.Equal(t, "sub-1", sub.ParentID)
@@ -119,7 +119,7 @@ func TestListServices(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode([]Subdomain{
-			{ID: "svc-1", Name: "dash"},
+			{ID: "svc-1", Name: "base"},
 			{ID: "svc-2", Name: "kuma"},
 		})
 	})
@@ -127,7 +127,7 @@ func TestListServices(t *testing.T) {
 	subs, err := c.ListServices("sub-1")
 	require.NoError(t, err)
 	assert.Len(t, subs, 2)
-	assert.Equal(t, "dash", subs[0].Name)
+	assert.Equal(t, "base", subs[0].Name)
 	assert.Equal(t, "kuma", subs[1].Name)
 }
 
@@ -166,9 +166,11 @@ func TestBaseKitServices(t *testing.T) {
 			services := BaseKitServices(tier)
 			names := serviceNames(services)
 			assert.Contains(t, names, "traefik", "tier=%s", tier)
-			assert.Contains(t, names, "tinyauth", "tier=%s", tier)
+			assert.Contains(t, names, "auth", "tier=%s", tier)
 			assert.Contains(t, names, "id", "tier=%s", tier)
+			assert.Contains(t, names, "base", "tier=%s", tier)
 			assert.Contains(t, names, "dash", "tier=%s", tier)
+			assert.Contains(t, names, "tinyauth", "tier=%s", tier)
 			assert.Contains(t, names, "kuma", "tier=%s", tier)
 			assert.Contains(t, names, "vault", "tier=%s", tier)
 		}

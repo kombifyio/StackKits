@@ -60,7 +60,7 @@ Contract: base.#ModuleContract & {
 	services: "kombify-point": base.#ServiceDefinition & {
 		name:     "kombify-point"
 		type:     "dns"
-		image:    "ghcr.io/kombiverselabs/kombify-point"
+		image:    "ghcr.io/kombifyio/kombify-point"
 		tag:      "latest"
 		required: false
 		status:   "implemented"

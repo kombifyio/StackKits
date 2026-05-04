@@ -32,18 +32,18 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	provides: {
-		capabilities: {
-			"dashboard":        true
-			"service-overview": true
-		}
-		endpoints: {
-			ui: {
-				url:         "https://dash.{{.domain}}"
-				description: "Homelab dashboard"
+		provides: {
+			capabilities: {
+				"dashboard":        true
+				"service-overview": true
+			}
+			endpoints: {
+				ui: {
+					url:         "https://base.{{.domain}}"
+					description: "Homelab dashboard"
+				}
 			}
 		}
-	}
 
 	settings: {
 		flexible: {
@@ -74,7 +74,7 @@ Contract: base.#ModuleContract & {
 		network: {
 			traefik: {
 				enabled: true
-				rule:    "Host(`dash.{{.domain}}`)"
+				rule:    "Host(`base.{{.domain}}`)"
 				port:    80
 			}
 			networks: ["base_net"]
@@ -107,15 +107,15 @@ Contract: base.#ModuleContract & {
 
 		labels: {
 			"traefik.enable":                                                      "true"
-			"traefik.http.routers.dashboard.rule":                                 "Host(`dash.{{.domain}}`)"
+			"traefik.http.routers.dashboard.rule":                                 "Host(`base.{{.domain}}`)"
 			"traefik.http.routers.dashboard.entrypoints":                          "web"
 			"traefik.http.services.dashboard.loadbalancer.server.port":            "80"
 		}
 
-		subdomain: {key: "dashboard", nested: "base", flat: "dash"}
+		subdomain: {key: "base", nested: "base", flat: "base"}
 
 		output: {
-			url:         "https://dash.{{.domain}}"
+			url:         "https://base.{{.domain}}"
 			description: "Homelab service dashboard"
 		}
 	}

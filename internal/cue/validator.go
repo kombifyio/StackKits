@@ -312,7 +312,7 @@ func (v *Validator) validateApps(spec *models.StackSpec, result *models.Validati
 				result.Valid = false
 				result.Errors = append(result.Errors, models.ValidationError{
 					Path:    path + ".secrets." + key,
-					Message: "secret references must start with env:, doppler:, vault:, or file:",
+					Message: "secret references must start with env:, secret:, vault:, or file:",
 					Code:    "INVALID_VALUE",
 				})
 			}
@@ -358,7 +358,7 @@ func isEnvName(value string) bool {
 }
 
 func isSecretRef(value string) bool {
-	for _, prefix := range []string{"env:", "doppler:", "vault:", "file:"} {
+	for _, prefix := range []string{"env:", "secret:", "vault:", "file:"} {
 		if strings.HasPrefix(value, prefix) && len(value) > len(prefix) {
 			return true
 		}

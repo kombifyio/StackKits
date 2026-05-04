@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,4 +145,193 @@ func TestE2E_IdentityPipeline(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestE2E_ObservabilityProfileCoverage(t *testing.T) {
+	modulesDir := filepath.Join("..", "..", "..", "modules")
+	if _, err := os.Stat(modulesDir); os.IsNotExist(err) {
+		t.Skipf("modules directory not found: %s", modulesDir)
+	}
+
+	reader := cueval.NewModuleReader()
+	contracts, err := reader.ReadAllModules(modulesDir)
+	require.NoError(t, err, "failed to load module contracts")
+	require.NotEmpty(t, contracts)
+
+	tests := []struct {
+		name                 string
+		capabilityCtx        models.NodeContext
+		cpuCores             int
+		memoryGB             int
+		spec                 *models.StackSpec
+		wantSecureCookie     bool
+		wantMonitoringCore   bool
+		wantRemoteWrite      string
+	}{
+		{
+			name:          "pi-4b",
+			capabilityCtx: models.ContextPi,
+			cpuCores:      4,
+			memoryGB:      4,
+			spec: &models.StackSpec{
+				Name:     "pi-4b-smoke",
+				StackKit: "base-kit",
+				Context:  string(models.ContextPi),
+				Domain:   models.DomainHomeLab,
+				Compute:  models.ComputeSpec{Tier: models.ComputeTierLow},
+				Nodes: []models.NodeSpec{{
+					Name:      "pi-4b",
+					Role:      "standalone",
+					IP:        "192.168.1.44",
+					CPUCores:  4,
+					RAMGB:     4,
+					StorageGB: 64,
+				}},
+			},
+			wantSecureCookie: false,
+		},
+		{
+			name:          "pi-5",
+			capabilityCtx: models.ContextPi,
+			cpuCores:      4,
+			memoryGB:      8,
+			spec: &models.StackSpec{
+				Name:     "pi-5-smoke",
+				StackKit: "base-kit",
+				Context:  string(models.ContextPi),
+				Domain:   models.DomainHomeLab,
+				Compute:  models.ComputeSpec{Tier: models.ComputeTierStandard},
+				Nodes: []models.NodeSpec{{
+					Name:      "pi-5",
+					Role:      "standalone",
+					IP:        "192.168.1.55",
+					CPUCores:  4,
+					RAMGB:     8,
+					StorageGB: 128,
+				}},
+			},
+			wantSecureCookie: false,
+		},
+		{
+			name:          "low-memory-vps",
+			capabilityCtx: models.ContextCloud,
+			cpuCores:      2,
+			memoryGB:      2,
+			spec: &models.StackSpec{
+				Name:       "low-memory-vps",
+				StackKit:   "base-kit",
+				Context:    string(models.ContextCloud),
+				Domain:     "edge.example.com",
+				AdminEmail: "ops@example.com",
+				Compute:    models.ComputeSpec{Tier: models.ComputeTierLow},
+				Nodes: []models.NodeSpec{{
+					Name:      "edge-vps",
+					Role:      "standalone",
+					IP:        "10.0.0.24",
+					CPUCores:  2,
+					RAMGB:     2,
+					StorageGB: 40,
+				}},
+			},
+			wantSecureCookie: true,
+		},
+		{
+			name:          "multi-node-homelab",
+			capabilityCtx: models.ContextCloud,
+			cpuCores:      4,
+			memoryGB:      8,
+			spec: &models.StackSpec{
+				Name:       "multi-node-homelab",
+				StackKit:   "modern-homelab",
+				Context:    string(models.ContextCloud),
+				Domain:     "cluster.example.com",
+				AdminEmail: "ops@example.com",
+				Compute:    models.ComputeSpec{Tier: models.ComputeTierStandard},
+				Addons:     []string{"monitoring-core"},
+				Nodes: []models.NodeSpec{
+					{Name: "manager-1", Role: "control-plane", IP: "10.0.0.10", CPUCores: 4, RAMGB: 8, StorageGB: 100},
+					{Name: "worker-1", Role: "worker", IP: "10.0.0.11", CPUCores: 4, RAMGB: 8, StorageGB: 100},
+					{Name: "worker-2", Role: "worker", IP: "10.0.0.12", CPUCores: 4, RAMGB: 8, StorageGB: 100},
+				},
+			},
+			wantSecureCookie:   true,
+			wantMonitoringCore: true,
+			wantRemoteWrite:    "http://victoriametrics:8428/api/v1/write",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setCapabilitiesProfile(t, tt.capabilityCtx, tt.cpuCores, tt.memoryGB)
+
+			stackkit := &models.StackKit{
+				Metadata: models.StackKitMetadata{Name: tt.spec.StackKit},
+				Application: map[string]models.ApplicationDef{
+					"self-hosting": {},
+				},
+			}
+
+			engine := composition.NewCompositionEngine(contracts, stackkit, tt.spec)
+			cr, err := engine.Resolve()
+			require.NoError(t, err, "composition engine resolve failed")
+			assert.Contains(t, cr.EnabledModules, "monitoring-agent", "OTLP monitoring-agent should remain enabled")
+			if tt.wantMonitoringCore {
+				assert.Contains(t, cr.EnabledModules, "monitoring-core", "monitoring-core add-on should be enabled")
+			} else {
+				assert.NotContains(t, cr.EnabledModules, "monitoring-core", "monitoring-core should stay opt-in")
+			}
+
+			data, err := generateTfvarsJSON(tt.spec, cr)
+			require.NoError(t, err, "generateTfvarsJSON failed")
+
+			var tfvars map[string]any
+			require.NoError(t, json.Unmarshal(data, &tfvars), "tfvars is not valid JSON")
+
+			assert.Equal(t, fmt.Sprintf("%t", tt.wantSecureCookie), tfvars["tinyauth_secure_cookie"])
+			assert.Equal(t, "standard", tfvars["monitoring_agent_profile"])
+			assert.Equal(t, "30s", tfvars["monitoring_agent_collection_interval"])
+			assert.Equal(t, "30s", tfvars["monitoring_agent_batch_timeout"])
+			assert.Equal(t, "256MiB", tfvars["monitoring_agent_gomemlimit"])
+			assert.Equal(t, "200", tfvars["monitoring_agent_memory_limit_mib"])
+			assert.Equal(t, "50", tfvars["monitoring_agent_memory_spike_limit_mib"])
+			assert.Equal(t, "unix:///var/run/docker.sock", tfvars["monitoring_agent_docker_endpoint"])
+
+			endpoint, ok := tfvars["monitoring_agent_otlp_endpoint"].(string)
+			require.True(t, ok, "monitoring_agent_otlp_endpoint should be a string")
+			assert.NotEmpty(t, endpoint)
+			assert.True(t, strings.HasSuffix(endpoint, ":4317"), "agent endpoint should remain an OTLP/gRPC target: %s", endpoint)
+
+			if tt.wantMonitoringCore {
+				assert.Equal(t, tt.wantRemoteWrite, tfvars["monitoring_core_gateway_remote_write_endpoint"])
+				assert.Equal(t, "256MiB", tfvars["monitoring_core_gateway_gomemlimit"])
+			} else {
+				_, exists := tfvars["monitoring_core_gateway_remote_write_endpoint"]
+				assert.False(t, exists, "monitoring-core tfvars should be absent when addon is disabled")
+			}
+		})
+	}
+}
+
+func setCapabilitiesProfile(t *testing.T, ctx models.NodeContext, cpuCores, memoryGB int) {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	capsDir := filepath.Join(home, ".stackkits")
+	require.NoError(t, os.MkdirAll(capsDir, 0750))
+
+	caps := models.DockerCapabilities{
+		ResolvedContext:  ctx,
+		BridgeNetworking: true,
+		StorageDriver:    models.StorageOverlay2,
+		CPUCores:         cpuCores,
+		MemoryGB:         float64(memoryGB),
+		PrivateIP:        "192.168.1.50",
+	}
+
+	data, err := json.Marshal(caps)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(capsDir, "capabilities.json"), data, 0600))
 }

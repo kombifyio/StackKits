@@ -1,0 +1,33 @@
+# OTLP sink config — receives metrics and logs them to stdout.
+# Used in integration tests to verify the agent is pushing correctly.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 5s
+
+exporters:
+  debug:
+    verbosity: normal
+  file:
+    path: /var/lib/otel/output/received-metrics.json
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers:  [otlp]
+      processors: [batch]
+      exporters:  [debug, file]
+    traces:
+      receivers:  [otlp]
+      processors: [batch]
+      exporters:  [debug]

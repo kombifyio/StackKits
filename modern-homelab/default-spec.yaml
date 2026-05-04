@@ -12,6 +12,9 @@
 # Variant: os/ubuntu-24 (Ubuntu 24.04 LTS)
 # Network Mode: local-first (Ingress optional; TLS/ACME optional)
 # Container Runtime: Kubernetes (K3s) statt Docker
+# NOTE: This alpha spec still contains legacy kube-prometheus scaffolding.
+# The canonical OTLP-first topology for modern-homelab is:
+# Grafana Alloy agents on every node -> cloud OTel gateway -> VictoriaMetrics.
 
 version: "1.0"
 
@@ -20,7 +23,7 @@ stack:
   kit: modern-homelab
   variant: os/ubuntu-24
   addons:
-    - monitoring     # Prometheus + Grafana
+    - monitoring     # OTel gateway + VictoriaMetrics + Grafana
     - observability  # Loki + Tempo
 
 nodes:

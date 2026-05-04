@@ -16,6 +16,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/internal/template"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
@@ -151,28 +152,14 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Load service catalog from CUE module contracts. BaseKit keeps modules at
-	// repo root; published standalone kits may carry a local modules/ directory.
+	// Load the canonical service catalog. Admin registry data is preferred;
+	// CUE module contracts remain the OSS-safe behavior/source fallback.
 	modulesDir := resolveModulesDir(stackkitDir, wd)
-	catalog, catalogErr := cueval.ServiceCatalogFromModules(modulesDir)
-	if catalogErr != nil {
-		printWarning("CUE catalog: %v (falling back to hardcoded catalog)", catalogErr)
-		catalog = cueval.ServiceCatalog()
-		deployLog.Warn("cue.catalog",
-			slog.String("status", "fallback"),
-			slog.String("error", catalogErr.Error()),
-		)
-	} else {
-		deployLog.Event("cue.catalog",
-			slog.String("status", "loaded"),
-			slog.Int("service_count", len(catalog)),
-		)
-	}
-
-	domains, domainErr := cueval.DomainEntriesFromModules(modulesDir)
-	if domainErr != nil {
-		domains = cueval.DomainEntries()
-	}
+	catalog := loadCanonicalServiceCatalog(wd, spec)
+	domains := catalog
+	deployLog.Event("service_catalog.loaded",
+		slog.Int("service_count", len(catalog)),
+	)
 
 	// Validate module dependency graph and run composition engine
 	var compositionResult *composition.CompositionResult
@@ -405,7 +392,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 
 // copyOrRenderTemplates renders template files using the template.Renderer,
 // falling back to plain copy for non-template files.
-func copyOrRenderTemplates(srcDir, dstDir string, spec *models.StackSpec, stackkit *models.StackKit, catalog, domains []cueval.CatalogEntry) error {
+func copyOrRenderTemplates(srcDir, dstDir string, spec *models.StackSpec, stackkit *models.StackKit, catalog, domains []servicecatalog.Service) error {
 	renderer := template.NewRenderer(srcDir, dstDir)
 	renderCtx := &template.RenderContext{
 		Spec:     spec,

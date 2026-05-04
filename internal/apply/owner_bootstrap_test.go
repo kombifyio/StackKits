@@ -53,6 +53,7 @@ type mockPocketIDState struct {
 	// created". Defaults true (existing behavior). Tests that exercise the
 	// cold-start branch flip it to false.
 	ownersGroupExists      bool
+	adminsGroupExists      bool
 	createUserGroupCalls   int32
 	createdUserGroupBodies []pocketid.CreateUserGroupRequest
 }
@@ -66,6 +67,7 @@ func newMockPocketID(t *testing.T) (*httptest.Server, *mockPocketIDState) {
 		addedToGroups:     map[string][]string{},
 		tokensIssued:      map[string]string{},
 		ownersGroupExists: true,
+		adminsGroupExists: true,
 	}
 
 	mux := http.NewServeMux()
@@ -108,16 +110,19 @@ func newMockPocketID(t *testing.T) (*httptest.Server, *mockPocketIDState) {
 		}
 	})
 
-	// /api/user-groups: GET (search) returns the owners group when it
-	// exists; POST creates it (cold-start path). Tests toggle
-	// state.ownersGroupExists to drive which branch the orchestrator takes.
+	// /api/user-groups: GET (search) returns matching groups when they
+	// exist; POST creates them (cold-start path).
 	mux.HandleFunc("/api/user-groups", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
+			search := r.URL.Query().Get("search")
 			w.WriteHeader(http.StatusOK)
-			if state.ownersGroupExists {
+			switch {
+			case search == "owners" && state.ownersGroupExists:
 				_, _ = io.WriteString(w, `{"data":[{"id":"grp-owners-uuid","name":"owners"}]}`)
-			} else {
+			case search == "admins" && state.adminsGroupExists:
+				_, _ = io.WriteString(w, `{"data":[{"id":"grp-admins-uuid","name":"admins"}]}`)
+			default:
 				_, _ = io.WriteString(w, `{"data":[]}`)
 			}
 		case http.MethodPost:
@@ -129,9 +134,14 @@ func newMockPocketID(t *testing.T) (*httptest.Server, *mockPocketIDState) {
 			state.createdUserGroupBodies = append(state.createdUserGroupBodies, body)
 			// Materialize the group so a subsequent GET (e.g. from
 			// OwnerProvisioner.Provision) returns it.
-			state.ownersGroupExists = true
+			switch body.Name {
+			case "owners":
+				state.ownersGroupExists = true
+			case "admins":
+				state.adminsGroupExists = true
+			}
 			w.WriteHeader(http.StatusCreated)
-			_, _ = io.WriteString(w, `{"id":"grp-owners-uuid","name":"`+body.Name+`","friendlyName":"`+body.FriendlyName+`"}`)
+			_, _ = io.WriteString(w, `{"id":"grp-`+body.Name+`-uuid","name":"`+body.Name+`","friendlyName":"`+body.FriendlyName+`"}`)
 		default:
 			t.Errorf("/api/user-groups: unexpected method %s", r.Method)
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -202,7 +212,7 @@ func makeHash(t *testing.T, plain string) string {
 //   - PocketID health was probed
 //   - BootstrapInitialAdmin verified the static API key
 //   - Owner + break-glass users were created with the right shapes
-//   - Both users were added to the owners group
+//   - Both users were added to the owners and admins groups
 //   - One-time-access tokens were issued for both
 //   - TinyAuth env file landed at the expected path with bcrypt content
 //   - Bundle .age and .txt files exist and round-trip via the passphrase
@@ -275,6 +285,10 @@ func TestRun_HappyPath(t *testing.T) {
 	owners := state.addedToGroups["grp-owners-uuid"]
 	if len(owners) != 2 {
 		t.Errorf("expected 2 owners-group members, got %v", owners)
+	}
+	admins := state.addedToGroups["grp-admins-uuid"]
+	if len(admins) != 2 {
+		t.Errorf("expected 2 admins-group members, got %v", admins)
 	}
 
 	// Both got setup tokens.

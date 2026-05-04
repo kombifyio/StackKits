@@ -36,7 +36,7 @@ A StackKit defines HOW infrastructure is organized AND WHICH use cases ship as d
 **Platform** (always present, non-negotiable):
 - L1 Foundation: LLDAP, Step-CA
 - L2 Platform: Traefik, TinyAuth, PocketID, PAAS (Dokploy/Coolify), Dashboard
-- Monitoring: Uptime Kuma (default), Beszel (alternative)
+- Monitoring: OTel Collector baseline, Uptime Kuma/Beszel as uptime UX, monitoring-core (VictoriaMetrics + optional Grafana) as an add-on
 
 A StackKit is a complete product. `stackkit apply` on a clean server produces a fully working homelab with all default use cases pre-configured and immediately usable.
 
@@ -58,9 +58,9 @@ Derived from CPU, RAM, and disk during `stackkit prepare`. Sub-property of Conte
 
 | Tier | Criteria | Effect |
 |------|----------|--------|
-| `high` | 8+ CPU, 16+ GB RAM, 100+ GB disk | Everything viable. Full monitoring (Prometheus+Grafana) possible. |
-| `standard` | 4+ CPU, 4+ GB RAM, 20+ GB disk | Most use cases viable. Default monitoring (Uptime Kuma). |
-| `low` | <4 CPU or <4 GB RAM | Dockge replaces Dokploy. Heavy use cases (Media, Photos, AI) gated out. |
+| `high` | 8+ CPU, 16+ GB RAM, 100+ GB disk | Everything viable. OTel baseline plus monitoring-core (VictoriaMetrics + optional Grafana) is viable. |
+| `standard` | 4+ CPU, 4+ GB RAM, 20+ GB disk | Most use cases viable. OTel baseline ships by default; uptime UX stays lightweight. |
+| `low` | <4 CPU or <4 GB RAM | Dockge replaces Dokploy. OTel baseline stays lightweight; heavy use cases (Media, Photos, AI) are gated out. |
 
 Compute Tier is a GATE, not a selector. The StackKit's default set + user overrides determine WHAT to deploy. The tier determines what CAN physically run. If a default exceeds the tier, it is disabled with a warning.
 
@@ -81,7 +81,7 @@ Compute Tier is a GATE, not a selector. The StackKit's default set + user overri
 |---------|--------|--------|
 | `pi` | "I need low resource requirements" | Forces compute tier = low. Dockge, minimal monitoring, lightweight images. |
 | `standard` | No special constraints | Hardware auto-detection determines tier. |
-| `full` | "Enable everything" | All default use cases + full monitoring enabled. |
+| `full` | "Enable everything" | All default use cases + monitoring-core add-on become eligible. |
 
 `--mode pi` is USER INTENT, not hardware detection. A user on an old x86 laptop can say `--mode pi` to get the lightweight experience. Mode overrides auto-detection, never the reverse.
 
@@ -108,7 +108,8 @@ Every tool in the catalog has a ROLE relative to each StackKit. This role is ass
 # Swap PaaS: Dokploy (default) → Coolify (alternative)
 stackkit generate --paas coolify
 
-# Swap monitoring: Uptime Kuma (default) → Beszel (alternative)
+# Swap uptime UX: Uptime Kuma (default dashboard) → Beszel (alternative)
+# The OTel Collector baseline remains enabled.
 stackkit generate --monitoring beszel
 
 # Enable optional use case
@@ -148,7 +149,7 @@ This is the critical distinction that v4 did not make sharply enough.
 | Media (Jellyfin) | Yes | No | User installs StackKit FOR this |
 | VPN Overlay | No | Yes | Infrastructure capability |
 | Backup (Restic) | No | Yes | Infrastructure capability |
-| Full Monitoring (Prometheus+Grafana) | No | Yes | Upgrades default monitoring |
+| Monitoring Core (VictoriaMetrics + optional Grafana) | No | Yes | Extends the OTLP collector baseline with fan-in, retention, and dashboards |
 
 **v4 Compatibility:** v4 lists all composable extensions under `addons/`. The directory structure stays. The ROLE field differentiates behavior: a media module with `role: default` ships enabled; a VPN module with `role: addon` requires explicit activation.
 

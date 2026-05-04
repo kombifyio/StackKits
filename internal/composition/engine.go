@@ -193,7 +193,7 @@ func (e *CompositionEngine) resolveAddons(enabled map[string]bool, result *Compo
 // addPlatformDefaults adds always-enabled platform modules.
 func (e *CompositionEngine) addPlatformDefaults(enabled map[string]bool) {
 	// L1-foundation modules that are always needed.
-	platformDefaults := []string{"traefik", "socket-proxy", "pocketid"}
+	platformDefaults := []string{"traefik", "socket-proxy", "pocketid", "monitoring-agent"}
 	for _, name := range platformDefaults {
 		if _, ok := e.contracts[name]; ok {
 			enabled[name] = true

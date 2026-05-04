@@ -70,6 +70,16 @@ Closes CUE-AUDIT Phase 3–5. Go CLI enforces CUE contracts instead of ignoring 
 
 **DoD:** `stackkit.yaml` that violates a contract fails CLI with a clear CUE error.
 
+### Phase 1.5: Unified Observability Standard (Q2–Q3/2026, ~2 weeks)
+
+- [ ] `modules/monitoring-agent/` on OpenTelemetry Collector profiles as the default node contract
+- [ ] `modules/monitoring-core/` as OTLP gateway profile with optional VictoriaMetrics wiring
+- [ ] Keep VictoriaMetrics additive; no mandatory baseline metrics backend
+- [ ] Align generated docs, examples, and TechStack integration docs with the OTLP-first topology
+- [ ] Work through the detailed checklist in [../kombify-Techstack/docs/plans/2026-05-01-otlp-observability-implementation-checklist.md](../kombify-Techstack/docs/plans/2026-05-01-otlp-observability-implementation-checklist.md)
+
+**DoD:** A StackKit can ship the standard OTel Collector path without extra backend requirements, while VictoriaMetrics remains an explicit add-on for larger retention and fan-in.
+
 ### Phase 2: Out-of-the-Box Production Hardening (Q3/2026, ~4 weeks)
 
 - [ ] `modules/security-baseline/` — UFW, fail2ban, unattended-upgrades, SSH hardening, sysctl
@@ -133,7 +143,7 @@ This roadmap consolidates all planned work into a single milestone-based plan (M
 | Context system | 0% | Replaces manual compute tier selection |
 | kombify-TechStack integration | 30% | Unifier pipeline exists, needs v4 alignment |
 | API server | 95% | 13 endpoints, API key auth (TD-28), rate limiting (TD-33), CORS (TD-40), 42 test cases (TD-34), structured errors (TD-32), pagination (TD-41) |
-| Documentation | 50% | v4 docs current, K8s refs removed from active docs. Cross-repo Mintlify docs still outdated |
+| Documentation | 55% | v4 docs current. OTLP repo docs and the Stack/StackKits Mintlify monitoring surfaces are aligned; broader cross-repo cleanup still remains |
 
 ---
 

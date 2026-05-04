@@ -381,7 +381,7 @@ variable "enable_kombify_point" {
 variable "kombify_point_image" {
   type        = string
   description = "Kombify Point DNS image published by kombify-Techstack"
-  default     = "ghcr.io/kombiverselabs/kombify-point:latest"
+  default     = "ghcr.io/kombifyio/kombify-point:latest"
 }
 
 variable "enable_coolify" {
@@ -1142,14 +1142,14 @@ locals {
       <nav>
         <div class="dot"></div>
         <span class="nav-title">${var.dashboard_title}</span>
-        <span class="nav-domain">${local.domains.dashboard}</span>
+        <span class="nav-domain">${local.domains.base}</span>
         <a class="nav-kuma" href="${local.proto}://${local.domains.kuma}" target="_blank">&#9650; Status</a>
       </nav>
       <main>
         ${local.host_mode_hint}${local.dns_fix_hint}${local.storage_hint}
         <div class="hdr">
           <h1>Service <span class="accent">Dashboard</span></h1>
-          <p>Running on <code style="font-family:monospace">${local.domains.dashboard}</code> &middot; Managed by StackKits</p>
+          <p>Running on <code style="font-family:monospace">${local.domains.base}</code> &middot; Managed by StackKits</p>
         </div>
         ${local.is_kombify_me ? "<div style=\"background:linear-gradient(135deg,rgba(249,115,22,0.08),rgba(249,115,22,0.02));border:1px solid rgba(249,115,22,0.25);border-radius:var(--r);padding:16px 20px;margin-bottom:28px;display:flex;align-items:center;gap:12px;\"><span style=\"font-size:18px;\">&#127760;</span><div><div style=\"font-weight:600;font-size:13px;margin-bottom:2px;\">Public Access via kombify.me</div><div style=\"font-size:12px;color:var(--dim);\">All services below are publicly accessible at their <code style=\"font-family:monospace;font-size:11px;color:var(--brand);\">.kombify.me</code> addresses.</div></div></div>" : ""}
         <section class="section">
@@ -1179,7 +1179,7 @@ locals {
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px 28px;">
             <ol style="margin:0;padding-left:20px;font-size:13px;color:var(--dim);line-height:2.2;">
               <li>Login to <a href="${local.proto}://${local.domains.auth}" style="color:var(--brand);text-decoration:none;">TinyAuth</a> with your admin email + generated password</li>
-              <li>Create your PocketID admin passkey at <a href="${local.proto}://${local.domains.pocketid}/setup" style="color:var(--brand);text-decoration:none;font-family:monospace;">${local.domains.pocketid}/setup</a> for passwordless login</li>
+              <li>Create your PocketID admin passkey at <a href="${local.proto}://${local.domains.id}/setup" style="color:var(--brand);text-decoration:none;font-family:monospace;">${local.domains.id}/setup</a> for passwordless login</li>
               ${var.enable_dokploy ? "<li>Access <a href=\"${local.proto}://${local.domains.dokploy}\" style=\"color:var(--brand);text-decoration:none;\">Dokploy</a> to deploy and manage applications (protected by TinyAuth)</li>" : ""}${var.enable_dockge ? "<li>Access <a href=\"${local.proto}://${local.domains.dockge}\" style=\"color:var(--brand);text-decoration:none;\">Dockge</a> to manage Docker Compose stacks (protected by TinyAuth)</li>" : ""}
               <li>Check <a href="${local.proto}://${local.domains.kuma}" style="color:var(--brand);text-decoration:none;">Uptime Kuma</a> for service monitoring</li>
               <li>Change your auto-generated password in TinyAuth settings</li>
@@ -2055,7 +2055,7 @@ resource "docker_container" "pocketid" {
 
   env = [
     "TZ=Europe/Berlin",
-    "APP_URL=${local.proto}://${local.domains.pocketid}",
+    "APP_URL=${local.proto}://${local.domains.id}",
     "TRUST_PROXY=true",
     "ENCRYPTION_KEY=${var.pocketid_encryption_key}",
     "STATIC_API_KEY=${var.pocketid_static_api_key}",
@@ -2079,7 +2079,7 @@ resource "docker_container" "pocketid" {
 
   labels {
     label = "traefik.http.routers.pocketid.rule"
-    value = "Host(`${local.domains.pocketid}`)"
+    value = "Host(`${local.domains.id}`)"
   }
 
   labels {
@@ -2788,7 +2788,7 @@ resource "docker_container" "dashboard" {
 
   labels {
     label = "traefik.http.routers.dashboard.rule"
-    value = "Host(`${local.domains.dashboard}`)"
+    value = "Host(`${local.domains.base}`)"
   }
 
   labels {
@@ -3019,7 +3019,7 @@ output "auth_url" {
 
 output "pocketid_url" {
   description = "Pocket ID OIDC provider URL (Layer 1 Foundation)"
-  value       = var.enable_pocketid ? "${local.proto}://${local.domains.pocketid}" : null
+  value       = var.enable_pocketid ? "${local.proto}://${local.domains.id}" : null
 }
 
 output "dokploy_url" {
@@ -3059,7 +3059,7 @@ output "kuma_url" {
 
 output "dashboard_url" {
   description = "Homelab links dashboard URL (Layer 2 Platform)"
-  value       = var.enable_dashboard ? "${local.proto}://${local.domains.dashboard}" : null
+  value       = var.enable_dashboard ? "${local.proto}://${local.domains.base}" : null
 }
 
 output "kuma_admin_password" {
@@ -3127,7 +3127,7 @@ output "architecture_summary" {
     ║  Network: ${local.is_host ? "HOST MODE (bridge unavailable)" : "Bridge (isolated Docker networks)"}${local.is_host ? "                       " : "         "}║
     ║                                                                   ║
     ║  LAYER 1 (Foundation):                                             ║
-    ║    ${var.enable_pocketid ? "✓" : "✗"} Pocket ID   → ${local.proto}://${local.domains.pocketid}       ║
+    ║    ${var.enable_pocketid ? "✓" : "✗"} Pocket ID   → ${local.proto}://${local.domains.id}       ║
     ║    ${var.enable_tinyauth ? "✓" : "✗"} TinyAuth    → ${local.proto}://${local.domains.auth}           ║
     ║        Credentials: ${var.admin_email} / <auto-generated>        ║
     ║                                                                   ║
@@ -3137,7 +3137,7 @@ output "architecture_summary" {
     ║    ${var.enable_dokploy ? "✓" : "✗"} Dokploy     → ${local.proto}://${local.domains.dokploy}        ║
     ║    ${var.enable_coolify ? "✓" : "✗"} Coolify     → ${local.proto}://${local.domains.coolify}        ║
     ║    ${var.enable_dockge ? "✓" : "✗"} Dockge      → ${local.proto}://${local.domains.dockge}         ║
-    ║    ${var.enable_dashboard ? "✓" : "✗"} Dashboard  → ${local.proto}://${local.domains.dashboard}      ║
+    ║    ${var.enable_dashboard ? "✓" : "✗"} Dashboard  → ${local.proto}://${local.domains.base}      ║
     ║                                                                   ║
     ║  LAYER 3 (Applications):                                           ║
     ║    ✓ Kuma     → ${local.proto}://${local.domains.kuma}          ║
@@ -3151,7 +3151,7 @@ output "architecture_summary" {
     ╠═══════════════════════════════════════════════════════════════════╣
     ║  1. Login: ${local.proto}://${local.domains.auth}                          ║
     ║     Email: ${var.admin_email} / Password: <see output>           ║
-    ║  2. Passkey: ${local.proto}://${local.domains.pocketid}/setup               ║
+    ║  2. Passkey: ${local.proto}://${local.domains.id}/setup               ║
     ║  3. PaaS: ${local.proto}://${var.enable_dokploy ? local.domains.dokploy : (var.enable_coolify ? local.domains.coolify : local.domains.dockge)}                          ║
     ║                                                                   ║
     ${var.subdomain_prefix != "" ? "║  DNS: Managed by kombify.me (Cloudflare wildcard)                   ║" : (local.enable_kombify_point_effective ? "║  DNS: *.${var.domain} -> ${local.kombify_point_target_ip} via Kombify Point       ║" : "║  DNS: *.${var.domain} uses browser localhost resolution          ║")}

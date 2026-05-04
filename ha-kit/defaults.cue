@@ -74,12 +74,13 @@ package ha_kit
 // SERVICE DEFAULTS PER VARIANT
 // =============================================================================
 
-// #DefaultVariantServices - Full monitoring + Dokploy
+// #DefaultVariantServices - Redundant OTLP monitoring + Dokploy
 #DefaultVariantServices: #HAServiceSet & {
 	traefik:    {enabled: true, mode: "global"}
 	keepalived: {enabled: true}
 	dokploy:    {enabled: true}
 	storage:    {enabled: true}
+	// Legacy placeholder until the dedicated otel-gateway-ha service lands.
 	prometheus: {enabled: true, replicas: 2}
 	grafana:    {enabled: true}
 	loki:       {enabled: true}
@@ -98,12 +99,13 @@ package ha_kit
 	dozzle:     {enabled: true, mode: "global"}
 }
 
-// #EnterpriseVariantServices - Full enterprise stack
+// #EnterpriseVariantServices - Redundant OTLP monitoring + enterprise add-ons
 #EnterpriseVariantServices: #HAServiceSet & {
 	traefik:      {enabled: true, mode: "global"}
 	keepalived:   {enabled: true}
 	dokploy:      {enabled: true}
 	storage:      {enabled: true}
+	// Legacy placeholder until the dedicated otel-gateway-ha service lands.
 	prometheus:   {enabled: true, replicas: 2}
 	grafana:      {enabled: true}
 	loki:         {enabled: true}
@@ -120,11 +122,41 @@ package ha_kit
 // =============================================================================
 
 #MonitoringDefaults: {
+	topology: {
+		mode:              *"redundant-otlp-gateway"
+		gatewayReplicas:   2
+		gatewayNodeRole:   *"manager"
+		agentMode:         *"global"
+		storageBackend:    *"victoriametrics"
+		legacyPlaceholder: true
+		summary:           "Each node ships OTLP to redundant manager-side gateways which fan in to VictoriaMetrics."
+	}
+
+	collector: {
+		protocol:           *"otlp"
+		transport:          *"grpc"
+		endpoint:           *"otel-gateway-ha:4317"
+		collectionInterval: *"15s"
+	}
+
+	gateway: {
+		replicas:             2
+		remoteWriteEndpoint:  *"http://victoriametrics:8428/api/v1/write"
+		alertingEndpoint:     *"http://alertmanager:9093"
+		loadBalancing:        *"keepalived-vip"
+	}
+
+	backend: {
+		engine:            *"victoriametrics"
+		retention:         *"30d"
+		replicationFactor: 2
+	}
+
 	prometheus: {
 		retention:      "30d"
 		scrapeInterval: "15s"
 		replicas:       2 // HA: 2 Prometheus instances
-		// Remote write for long-term (if Thanos enabled)
+		// Legacy placeholder while the dedicated OTLP gateway tier is still scaffolding-only.
 		remoteWrite: enabled: false
 	}
 

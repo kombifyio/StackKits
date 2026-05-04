@@ -36,7 +36,7 @@ A StackKit defines HOW infrastructure is organized AND WHICH use cases ship as d
 | **Modern Homelab** | Hybrid (local+cloud) | Platform + Photos + Media + Vault + more (Files, Smart Home) |
 | **HA Kit** | HA Cluster (3+ nodes) | Platform + Vault. Use cases opt-in. Focus = reliability. |
 
-Platform = Traefik + TinyAuth + PocketID + PAAS (Dokploy/Coolify) + Monitoring (Uptime Kuma).
+Platform = Traefik + TinyAuth + PocketID + PAAS (Dokploy/Coolify) + Monitoring (OTel Collector baseline, optional uptime UX, optional VictoriaMetrics fan-in).
 Always present regardless of StackKit.
 
 ### 2. Context = Where + What Hardware

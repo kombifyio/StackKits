@@ -4,15 +4,15 @@
 // Admin" path used by `stackkit apply --tenant-deployment <uuid>`.
 //
 // Flow:
-//   1. CLI boots on a freshly-provisioned VM with no local
-//      stack-spec.yaml, no modules/ tree.
-//   2. Environment carries STACKKIT_ADMIN_ENDPOINT (e.g.
-//      https://admin.kombify.io) and STACKKIT_BOOTSTRAP_TOKEN (the
-//      plaintext issued once by POST /sk/tenants/deployments).
-//   3. CLI calls GET /api/v1/sk/tenants/deployments/{id}/spec with
-//      `Authorization: Bearer <bootstrap-token>`.
-//   4. Response is decoded into StackSpec + bindings, written to
-//      disk, and the normal apply pipeline takes over.
+//  1. CLI boots on a freshly-provisioned VM with no local
+//     stack-spec.yaml, no modules/ tree.
+//  2. Environment carries STACKKIT_ADMIN_ENDPOINT (e.g.
+//     https://admin.kombify.io) and STACKKIT_BOOTSTRAP_TOKEN (the
+//     plaintext issued once by POST /sk/tenants/deployments).
+//  3. CLI calls GET /api/v1/sk/tenants/deployments/{id}/spec with
+//     `Authorization: Bearer <bootstrap-token>`.
+//  4. Response is decoded into StackSpec + bindings, written to
+//     disk, and the normal apply pipeline takes over.
 //
 // ADR-2026-04 invariant still holds: Admin surfaces state; CLI
 // performs actions. The Admin endpoint is read-only; no mutation.
@@ -45,24 +45,24 @@ type tenantSpecEnvelope struct {
 		StackkitSlug    string `json:"stackkitSlug"`
 		StackkitVersion string `json:"stackkitVersion"`
 		LifecycleState  string `json:"lifecycleState"`
-		DopplerProject  string `json:"dopplerProject"`
-		DopplerConfig   string `json:"dopplerConfig"`
+		SecretProject   string `json:"secretProject"`
+		SecretConfig    string `json:"secretConfig"`
 	} `json:"deployment"`
 	Spec     models.StackSpec   `json:"spec"`
 	Bindings []tenantSpecBindng `json:"bindings"`
 }
 
 type tenantSpecBindng struct {
-	ModuleSlug        string `json:"moduleSlug"`
-	ModuleVersion     string `json:"moduleVersion"`
-	SpecID            string `json:"specId"`
-	SecretKey         string `json:"secretKey"`
-	DopplerSecretPath string `json:"dopplerSecretPath"`
-	ActualDBName      string `json:"actualDbName"`
-	DBEngine          string `json:"dbEngine"`
-	SchemaName        string `json:"schemaName"`
-	SharedMode        string `json:"sharedMode"`
-	Status            string `json:"status"`
+	ModuleSlug    string `json:"moduleSlug"`
+	ModuleVersion string `json:"moduleVersion"`
+	SpecID        string `json:"specId"`
+	SecretKey     string `json:"secretKey"`
+	SecretPath    string `json:"secretPath"`
+	ActualDBName  string `json:"actualDbName"`
+	DBEngine      string `json:"dbEngine"`
+	SchemaName    string `json:"schemaName"`
+	SharedMode    string `json:"sharedMode"`
+	Status        string `json:"status"`
 }
 
 // fetchTenantSpec pulls the composed StackSpec for the given
@@ -129,7 +129,7 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	}
 
 	// Inject deployment-scoped env so downstream components (auth0
-	// callbacks, Doppler path composition, telemetry tags) can key
+	// callbacks, secret-path composition, telemetry tags) can key
 	// off the deployment UUID without re-fetching.
 	if env.Spec.Environment == nil {
 		env.Spec.Environment = map[string]string{}
@@ -137,13 +137,13 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	env.Spec.Environment["STACKKIT_TENANT_DEPLOYMENT_ID"] = env.Deployment.ID
 	env.Spec.Environment["STACKKIT_TENANT_ID"] = env.Deployment.TenantID
 	for _, b := range env.Bindings {
-		// Surface binding->doppler-path mapping so cloud-init /
+		// Surface binding->secret-path mapping so cloud-init /
 		// container-entrypoints know WHICH key to resolve for each
 		// binding. Keys are STACKKIT_BINDING_<SECRETKEY>.
-		if b.SecretKey == "" || b.DopplerSecretPath == "" {
+		if b.SecretKey == "" || b.SecretPath == "" {
 			continue
 		}
-		env.Spec.Environment["STACKKIT_BINDING_"+b.SecretKey] = b.DopplerSecretPath
+		env.Spec.Environment["STACKKIT_BINDING_"+b.SecretKey] = b.SecretPath
 	}
 
 	yamlBytes, err := yaml.Marshal(&env.Spec)
@@ -160,7 +160,7 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	}
 
 	// Also persist the bindings next to the spec so diagnostics can
-	// see which doppler paths the VM was told to pull from.
+	// see which secret paths the VM was told to pull from.
 	bindingsPath := filepath.Join(wd, ".stackkit", "tenant-bindings.json")
 	if err := os.MkdirAll(filepath.Dir(bindingsPath), 0o750); err == nil {
 		if data, jerr := json.MarshalIndent(env.Bindings, "", "  "); jerr == nil {

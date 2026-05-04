@@ -70,6 +70,9 @@ func (g *Generator) GenerateAll(graph *ModuleGraph, outputDir string) error {
 	if err := g.writeTFVarsJSON(graph, outputDir); err != nil {
 		return err
 	}
+	if err := g.copyModuleArtifacts(graph, outputDir); err != nil {
+		return err
+	}
 
 	// Per-module .tf files
 	for _, name := range graph.Ordered {
@@ -80,6 +83,96 @@ func (g *Generator) GenerateAll(graph *ModuleGraph, outputDir string) error {
 	}
 
 	return nil
+}
+
+func (g *Generator) copyModuleArtifacts(graph *ModuleGraph, outputDir string) error {
+	copied := make(map[string]struct{})
+	for _, name := range graph.Ordered {
+		mc := graph.Modules[name]
+		if mc.SourcePath == "" {
+			continue
+		}
+		for _, svc := range mc.Services {
+			for _, volume := range svc.Volumes {
+				relOutputPath, sourcePath, err := resolveModuleArtifact(volume.Source, mc.SourcePath)
+				if err != nil {
+					return fmt.Errorf("module %s artifact %s: %w", mc.Metadata.Name, volume.Source, err)
+				}
+				if relOutputPath == "" {
+					continue
+				}
+				destinationPath := filepath.Join(outputDir, relOutputPath)
+				if _, seen := copied[destinationPath]; seen {
+					continue
+				}
+				if err := copyArtifactPath(sourcePath, destinationPath); err != nil {
+					return fmt.Errorf("copy %s to %s: %w", sourcePath, destinationPath, err)
+				}
+				copied[destinationPath] = struct{}{}
+			}
+		}
+	}
+	return nil
+}
+
+func resolveModuleArtifact(volumeSource, moduleSourcePath string) (string, string, error) {
+	if !strings.HasPrefix(volumeSource, "./") {
+		return "", "", nil
+	}
+
+	relOutputPath := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(volumeSource, "./")))
+	if relOutputPath == "." || relOutputPath == "" {
+		return "", "", fmt.Errorf("empty relative artifact path")
+	}
+	if relOutputPath == ".." || strings.HasPrefix(relOutputPath, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("artifact path escapes output root: %s", volumeSource)
+	}
+
+	moduleDir := filepath.Clean(moduleSourcePath)
+	modulesRoot := filepath.Dir(moduleDir)
+	candidates := []string{
+		filepath.Join(modulesRoot, relOutputPath),
+		filepath.Join(moduleDir, relOutputPath),
+		filepath.Join(moduleDir, filepath.Base(relOutputPath)),
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return relOutputPath, candidate, nil
+		}
+	}
+
+	return "", "", fmt.Errorf("artifact source not found for %s", volumeSource)
+}
+
+func copyArtifactPath(sourcePath, destinationPath string) error {
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		entries, err := os.ReadDir(sourcePath)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(destinationPath, 0750); err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if err := copyArtifactPath(filepath.Join(sourcePath, entry.Name()), filepath.Join(destinationPath, entry.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(destinationPath), 0750); err != nil {
+		return err
+	}
+	return os.WriteFile(destinationPath, data, 0600)
 }
 
 // writeProviders generates the shared providers.tf file.

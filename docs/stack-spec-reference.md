@@ -252,6 +252,52 @@ nodes:
     ip: 192.168.1.50
 ```
 
+### Base Kit — OTLP Baseline (collector only)
+
+The full example lives at `base-kit/examples/otlp-baseline-spec.yaml`.
+
+```yaml
+name: otlp-baseline-lab
+stackkit: base-kit
+mode: simple
+context: local
+domain: home.localhost
+compute:
+  tier: standard
+ssh:
+  user: admin
+nodes:
+  - name: homeserver
+    role: standalone
+    ip: 192.168.1.100
+```
+
+`monitoring-agent` is enabled by default, so no add-on entry is required for the collector-only baseline.
+
+### Base Kit — OTLP + Monitoring Core (VictoriaMetrics)
+
+The full example lives at `base-kit/examples/otlp-victoriametrics-spec.yaml`.
+
+```yaml
+name: otlp-vm-lab
+stackkit: base-kit
+mode: simple
+context: cloud
+domain: observability.example.com
+compute:
+  tier: high
+addons:
+  - monitoring-core
+ssh:
+  user: admin
+nodes:
+  - name: observability-host
+    role: standalone
+    ip: 10.0.0.5
+```
+
+`monitoring-core` keeps the default collector path and adds the VictoriaMetrics-backed OTLP gateway for retention and fan-in.
+
 ### Base Kit — kombify.me
 
 ```yaml

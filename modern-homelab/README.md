@@ -23,9 +23,9 @@ Docker Compose per node, coordinated by Coolify or Dokploy.
 │          ┌─────────────┼─────────────┐                   │
 │          v             v             v                   │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐   │
-│  │ TinyAuth │  │ Coolify  │  │ Grafana / Victoria   │   │
-│  │ (Auth)   │  │ or       │  │ Metrics / Loki       │   │
-│  │          │  │ Dokploy  │  │ (Monitoring Add-On)  │   │
+│  │ TinyAuth │  │ Coolify  │  │ OTel Gateway / VM / │   │
+│  │ (Auth)   │  │ or       │  │ Grafana / Loki      │   │
+│  │          │  │ Dokploy  │  │ (Monitoring Add-On) │   │
 │  └──────────┘  └──────────┘  └──────────────────────┘   │
 │                      │                                   │
 │              ┌───────┴────────┐                          │
@@ -43,7 +43,8 @@ Docker Compose per node, coordinated by Coolify or Dokploy.
 │ Home Asst.   │ │ *arr Stack   │ │ Open WebUI   │
 │ Cloudreve    │ │ Game Server  │ │ Gitea        │
 │              │ │              │ │              │
-│ Alloy Agent  │ │ Alloy Agent  │ │ Alloy Agent  │
+│ Alloy OTLP   │ │ Alloy OTLP   │ │ Alloy OTLP   │
+│ Agent        │ │ Agent        │ │ Agent        │
 └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
@@ -55,9 +56,16 @@ Docker Compose per node, coordinated by Coolify or Dokploy.
 | **Network Model** | Identity-Aware Proxy | LLDAP + Step-CA + TinyAuth make VPN optional |
 | **PaaS Selection** | Context-driven | Domain + wildcard = Coolify, else = Dokploy |
 | **CGNAT Bypass** | Tunnel (not VPN) | Cloudflare Tunnel (free) or Pangolin (self-hosted) |
-| **Monitoring** | VictoriaMetrics + Grafana | Drop-in Prometheus replacement, lower resource usage |
-| **Log Agent** | Grafana Alloy | Unified telemetry, replaces Promtail |
+| **Monitoring** | OTLP gateway + VictoriaMetrics | Central fan-in on the cloud node with lower-overhead storage |
+| **Log Agent** | Grafana Alloy | Per-node OTLP agent for logs and metrics |
 | **Secrets** | SOPS + age | Git-native, no external dependencies |
+
+## Monitoring Topology
+
+- Every node runs `grafana-alloy` as the local OTLP agent.
+- The cloud node hosts the central `otel-gateway`, which receives OTLP from all nodes and forwards metrics to `victoriametrics`.
+- `grafana` reads from VictoriaMetrics for dashboards, while `loki` remains the optional log backend.
+- `uptime-kuma` and `beszel` remain availability and operator UX tools, not the canonical metrics pipeline.
 
 ## PaaS Decision Logic
 
@@ -96,7 +104,7 @@ Minimum topology: 1 cloud + 1 local node.
 | Add-On | Services | Placement | License |
 |--------|----------|-----------|---------|
 | `tunnel` | Cloudflare Tunnel / Pangolin | Cloud | Free / AGPL-3 |
-| `monitoring` | VictoriaMetrics, Grafana, Loki, Alloy | Cloud + Daemonset | Apache-2 / AGPL-3 |
+| `monitoring` | OTel Gateway, VictoriaMetrics, Grafana, Loki, Alloy | Cloud + Daemonset | Apache-2 / AGPL-3 |
 | `backup` | Restic + scheduler | Daemonset | BSD-2 |
 | `vpn-overlay` | Headscale / Tailscale | Cloud + Daemonset | BSD-3 |
 | `authelia` | Authelia (replaces TinyAuth) | Cloud | Apache-2 |
@@ -153,7 +161,7 @@ modern-homelab/
 | PaaS | Dokploy (default) | Coolify or Dokploy (context-driven) |
 | Network | Local / LAN | Identity-aware proxy + tunnel |
 | Domain | Optional | Required for Coolify, optional for Dokploy |
-| Monitoring | Uptime Kuma / Beszel | VictoriaMetrics + Grafana + Loki (add-on) |
+| Monitoring | OTel collector baseline + uptime UX | OTel node agents + cloud gateway + VictoriaMetrics/Grafana add-on |
 | Identity | TinyAuth (optional) | TinyAuth (always on) + PocketID (optional) |
 | Use Cases | Basic services | Full 10-scenario add-on ecosystem |
 

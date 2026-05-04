@@ -304,7 +304,7 @@ import (
 // These rules define WHERE services run in the hybrid topology.
 
 #PlacementRules: {
-	// Cloud node: public-facing, management, always-on
+	// Cloud node: public-facing, management, and central OTLP fan-in.
 	cloud: [
 		"traefik",
 		"coolify",
@@ -312,6 +312,7 @@ import (
 		"tinyauth",
 		"pocketid",
 		"uptime-kuma",
+		"otel-gateway",
 		"vaultwarden",
 		"grafana",
 		"victoriametrics",
@@ -334,7 +335,7 @@ import (
 		"gitea",
 	]
 
-	// All nodes: agents and telemetry
+	// All nodes: node-local telemetry agents and supporting exporters.
 	daemonset: [
 		"grafana-alloy",
 		"cadvisor",

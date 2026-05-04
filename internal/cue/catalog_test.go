@@ -54,14 +54,14 @@ func TestServiceCatalogFromModulesUsesModuleMetadataFallbacks(t *testing.T) {
 	}
 }
 
-func TestDomainEntriesFromModulesUsesMetadataForDashboard(t *testing.T) {
+func TestDomainEntriesFromModulesUsesCanonicalBaseKeyForDashboard(t *testing.T) {
 	entries, err := DomainEntriesFromModules(filepath.Join("..", "..", "modules"))
 	if err != nil {
 		t.Fatalf("DomainEntriesFromModules() error = %v", err)
 	}
 
 	for _, entry := range entries {
-		if entry.Key != "dashboard" {
+		if entry.Key != "base" {
 			continue
 		}
 		if entry.DisplayName != "Dashboard" {
@@ -73,5 +73,5 @@ func TestDomainEntriesFromModulesUsesMetadataForDashboard(t *testing.T) {
 		return
 	}
 
-	t.Fatal("dashboard domain entry missing")
+	t.Fatal("base domain entry for dashboard missing")
 }

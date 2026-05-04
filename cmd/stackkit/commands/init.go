@@ -87,7 +87,7 @@ func init() {
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Owner display name (defaults to username)")
 	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "Cloud OIDC issuer URL (Phase 2; required when --owner-source=cloud)")
 	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "Cloud OIDC client ID (Phase 2)")
-	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (Phase 2; e.g. doppler:// or secret://)")
+	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (Phase 2; e.g. secret:// or vault://)")
 	initCmd.Flags().StringVar(&initCloudOIDCForeignSubject, "cloud-oidc-foreign-subject", "", "Cloud user's foreign subject ID (Phase 2)")
 	initCmd.Flags().StringVar(&initRecoveryPassphraseHash, "recovery-passphrase-hash", "", "Recovery passphrase hash (argon2id PHC). If missing, prompts interactively.")
 }

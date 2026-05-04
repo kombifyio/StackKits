@@ -294,7 +294,7 @@ Example output:
 
 ```
 NAME            LAYER   STATUS   DESCRIPTION
-monitoring      L2      active   Prometheus and Grafana monitoring
+monitoring      L2      active   OTel Collector baseline with optional VictoriaMetrics and Grafana extensions
 backup          L2               Automated backup solutions
 vpn-overlay     L3               VPN tunnel overlay network
 media-server    L3               Media server stack (Jellyfin, *arr)

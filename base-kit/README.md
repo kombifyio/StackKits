@@ -54,6 +54,18 @@ tofu -chdir=build/basekit-local init -backend=false
 tofu -chdir=build/basekit-local plan
 ```
 
+## Observability Profiles
+
+The base kit now documents two concrete observability example specs on the supported contract:
+
+- `base-kit/examples/otlp-baseline-spec.yaml` keeps the default collector-only baseline via `monitoring-agent`.
+- `base-kit/examples/otlp-victoriametrics-spec.yaml` adds `monitoring-core` for a VictoriaMetrics-backed OTLP gateway and retention path.
+
+```bash
+stackkit generate --spec base-kit/examples/otlp-baseline-spec.yaml --output build/basekit-otlp-baseline --force
+stackkit generate --spec base-kit/examples/otlp-victoriametrics-spec.yaml --output build/basekit-otlp-vm --force
+```
+
 ## Access
 
 For the default local spec on the same device, use the browser-reserved `.localhost` suffix:

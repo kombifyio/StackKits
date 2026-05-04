@@ -22,6 +22,10 @@ type CatalogEntry struct {
 	Flat string
 	// Human-readable service name
 	DisplayName string
+	// Tool/service implementation name from CUE
+	ToolName string
+	// Module slug that owns this service
+	ModuleSlug string
 	// Short description for dashboard card
 	Description string
 	// HTML entity for dashboard icon (e.g., "&#128100;")
@@ -116,6 +120,8 @@ func catalogEntryForService(mc ModuleContract, svc ServiceDef) CatalogEntry {
 		Key:         svc.SubdomainKey,
 		Nested:      svc.SubdomainNested,
 		Flat:        svc.SubdomainFlat,
+		ToolName:    svc.Name,
+		ModuleSlug:  mc.Metadata.Name,
 		DisplayName: firstNonEmpty(svc.DisplayName, mc.Metadata.DisplayName, humanizeServiceName(svc.Name), humanizeServiceName(svc.SubdomainKey)),
 		Description: firstNonEmpty(svc.Description, mc.Metadata.Description, svc.OutputDesc),
 		Icon:        svc.DashboardIcon,
@@ -187,13 +193,13 @@ func ServiceCatalog() []CatalogEntry {
 	return []CatalogEntry{
 		// === Platform section ===
 		{
-			Key: "pocketid", Nested: "id", Flat: "id",
+			Key: "id", Nested: "id", Flat: "id",
 			DisplayName: "Pocket ID",
 			Description: "OIDC identity provider with passkey authentication. Manage users and SSO clients.",
 			Icon:        "&#128100;", Badge: "L1 &middot; IdP", Section: "Platform", Order: 10,
 		},
 		{
-			Key: "auth", Nested: "auth", Flat: "tinyauth",
+			Key: "auth", Nested: "auth", Flat: "auth",
 			DisplayName: "TinyAuth",
 			Description: "ForwardAuth gateway. Protects all services via TinyAuth middleware backed by Pocket ID.",
 			Icon:        "&#128274;", Badge: "L1 &middot; ForwardAuth", Section: "Platform", Order: 20,
@@ -271,12 +277,12 @@ func ServiceCatalog() []CatalogEntry {
 }
 
 // DomainEntries returns ALL services that need a local.domains entry,
-// including services that don't appear in the dashboard (e.g., "dashboard" itself).
+// including services that don't appear in the dashboard (e.g., "base" itself).
 // Deprecated: Use DomainEntriesFromModules for CUE-driven domains.
 func DomainEntries() []CatalogEntry {
 	// Dashboard container: not a dashboard card, but needs a domain entry
 	dashboard := CatalogEntry{
-		Key: "dashboard", Nested: "base", Flat: "dash",
+		Key: "base", Nested: "base", Flat: "base",
 	}
 
 	catalog := ServiceCatalog()

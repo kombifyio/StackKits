@@ -359,10 +359,12 @@ func (b *TerraformBridge) applyServiceEnables(services map[string]any, tfvars *T
 		"traefik":     &tfvars.EnableTraefik,
 		"tinyauth":    &tfvars.EnableTinyauth,
 		"pocketid":    &tfvars.EnablePocketID,
+		"id":          &tfvars.EnablePocketID,
 		"dokploy":     &tfvars.EnableDokploy,
 		"dockge":      &tfvars.EnableDockge,
 		"coolify":     &tfvars.EnableCoolify,
 		"dashboard":   &tfvars.EnableDashboard,
+		"base":        &tfvars.EnableDashboard,
 		"uptime_kuma": &tfvars.EnableUptimeKuma,
 		"vaultwarden": &tfvars.EnableVaultwarden,
 		"jellyfin":    &tfvars.EnableJellyfin,
@@ -376,7 +378,7 @@ func (b *TerraformBridge) applyServiceEnables(services map[string]any, tfvars *T
 			if svcMap, ok := svcConfig.(map[string]any); ok {
 				if enabled, ok := svcMap["enabled"]; ok {
 					if v, ok := enabled.(bool); ok {
-						if svcName == "pocketid" && !v {
+						if (svcName == "pocketid" || svcName == "id") && !v {
 							// PocketID is the mandatory passkey provider until
 							// another identity provider can satisfy that contract.
 							continue

@@ -376,7 +376,7 @@ func baseKitImages(tier string) []string {
 		"nginx:alpine",
 		"traefik/whoami:latest",
 		"smallstep/step-ca:0.30.2",
-		"ghcr.io/kombiverselabs/kombify-point:latest",
+		"ghcr.io/kombifyio/kombify-point:latest",
 	}
 
 	if tier == models.ComputeTierLow {

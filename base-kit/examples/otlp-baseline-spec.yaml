@@ -1,0 +1,25 @@
+name: otlp-baseline-lab
+stackkit: base-kit
+mode: simple
+context: local
+domain: home.localhost
+email: admin
+
+network:
+  mode: local
+
+compute:
+  tier: standard
+
+ssh:
+  user: admin
+  port: 22
+  keyPath: ~/.ssh/id_ed25519
+
+nodes:
+  - name: homeserver
+    role: standalone
+    ip: 192.168.1.100
+
+# monitoring-agent is enabled by default and ships the OTLP collector baseline.
+# In the default path it forwards telemetry upstream to TechStack.

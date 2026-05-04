@@ -175,13 +175,18 @@ const ownersGroupName = "owners"
 // machine-name lookup.
 const ownersGroupFriendlyName = "Owners"
 
+// adminsGroupName is the group SSO-facing tools can use to authorize
+// administrative access from PocketID without maintaining their own allowlist.
+const adminsGroupName = "admins"
+
+const adminsGroupFriendlyName = "Admins"
+
 // Run executes the full owner-and-break-glass bootstrap sequence:
 //
 //  1. Wait for PocketID health (HTTP /healthz returns 2xx).
 //  2. BootstrapInitialAdmin — verifies STATIC_API_KEY is accepted. Treated
 //     as success when the instance is already bootstrapped.
-//  3. Ensure the "owners" user-group exists. PocketID v2 ships without one
-//     and OwnerProvisioner / BreakGlassGenerator both add their users to it.
+//  3. Ensure the "owners" and "admins" user-groups exist.
 //  4. Provision the daily-admin owner (CreateUser + group + setup URL).
 //  5. Generate the per-node break-glass admin (CreateUser + group + token).
 //  6. Generate the per-node TinyAuth static credential (random pwd + bcrypt).
@@ -216,17 +221,9 @@ func Run(ctx context.Context, in OwnerBootstrapInput) (*OwnerBootstrapResult, er
 		return nil, fmt.Errorf("pocketid bootstrap: %w", err)
 	}
 
-	// Step 3: Ensure the "owners" user-group exists. PocketID v2 ships with
-	// zero preset groups; OwnerProvisioner.Provision and the break-glass
-	// generator both rely on it via GetGroupIDByName, so a fresh install
-	// would otherwise fail at step 4 with "no group by that name exists".
-	//
-	// Lookup-then-create (rather than create-with-conflict-recovery) keeps
-	// the happy path on re-runs cheap (one GET) and reserves CreateUserGroup
-	// for cold starts. CreateUserGroup itself is idempotent via
-	// pocketid.ErrAlreadyExists — that's our race-safety net.
-	if err := ensureOwnersGroup(ctx, pidClient); err != nil {
-		return nil, fmt.Errorf("ensure owners group: %w", err)
+	// Step 3: Ensure the groups used by strict SSO readiness exist.
+	if err := ensureBootstrapGroups(ctx, pidClient); err != nil {
+		return nil, fmt.Errorf("ensure bootstrap groups: %w", err)
 	}
 
 	// Step 4: Owner provisioning.
@@ -238,6 +235,9 @@ func Run(ctx context.Context, in OwnerBootstrapInput) (*OwnerBootstrapResult, er
 	if err != nil {
 		return nil, fmt.Errorf("provision owner: %w", err)
 	}
+	if err := addUserToGroupByName(ctx, pidClient, ownerResult.UserID, adminsGroupName); err != nil {
+		return nil, fmt.Errorf("add owner to %s group: %w", adminsGroupName, err)
+	}
 
 	// Step 5: Break-glass admin (per node).
 	bgGen := &identity.BreakGlassGenerator{
@@ -248,6 +248,9 @@ func Run(ctx context.Context, in OwnerBootstrapInput) (*OwnerBootstrapResult, er
 	bgCred, err := bgGen.Generate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("generate break-glass: %w", err)
+	}
+	if err := addUserToGroupByName(ctx, pidClient, bgCred.UserID, adminsGroupName); err != nil {
+		return nil, fmt.Errorf("add break-glass to %s group: %w", adminsGroupName, err)
 	}
 
 	// Step 6: TinyAuth static cred (per node).
@@ -345,7 +348,33 @@ func validateInput(in *OwnerBootstrapInput) error {
 	return nil
 }
 
+// ensureBootstrapGroups makes sure the groups used by StackKit SSO exist in
+// PocketID before owner/break-glass provisioning starts.
+func ensureBootstrapGroups(ctx context.Context, client pocketIDClientForBootstrap) error {
+	groups := []struct {
+		name     string
+		friendly string
+	}{
+		{name: ownersGroupName, friendly: ownersGroupFriendlyName},
+		{name: adminsGroupName, friendly: adminsGroupFriendlyName},
+	}
+	for _, group := range groups {
+		if err := ensureUserGroup(ctx, client, group.name, group.friendly); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ensureOwnersGroup makes sure the "owners" user-group exists in PocketID.
+//
+// Deprecated: use ensureBootstrapGroups when orchestrating a full StackKit
+// bootstrap.
+func ensureOwnersGroup(ctx context.Context, client pocketIDClientForBootstrap) error {
+	return ensureUserGroup(ctx, client, ownersGroupName, ownersGroupFriendlyName)
+}
+
+// ensureUserGroup makes sure a named user-group exists in PocketID.
 // Strategy:
 //
 //  1. Look up by name. If found, the group already exists; nothing to do.
@@ -357,20 +386,34 @@ func validateInput(in *OwnerBootstrapInput) error {
 // abort the bootstrap rather than continuing to OwnerProvisioner.Provision
 // where the missing group would surface as a confusing
 // "no group by that name exists" error.
-func ensureOwnersGroup(ctx context.Context, client pocketIDClientForBootstrap) error {
-	id, err := client.GetGroupIDByName(ctx, ownersGroupName)
+func ensureUserGroup(ctx context.Context, client pocketIDClientForBootstrap, name, friendlyName string) error {
+	id, err := client.GetGroupIDByName(ctx, name)
 	if err != nil {
-		return fmt.Errorf("lookup %s group: %w", ownersGroupName, err)
+		return fmt.Errorf("lookup %s group: %w", name, err)
 	}
 	if id != "" {
 		return nil
 	}
 	_, err = client.CreateUserGroup(ctx, pocketid.CreateUserGroupRequest{
-		Name:         ownersGroupName,
-		FriendlyName: ownersGroupFriendlyName,
+		Name:         name,
+		FriendlyName: friendlyName,
 	})
 	if err != nil && !errors.Is(err, pocketid.ErrAlreadyExists) {
-		return fmt.Errorf("create %s group: %w", ownersGroupName, err)
+		return fmt.Errorf("create %s group: %w", name, err)
+	}
+	return nil
+}
+
+func addUserToGroupByName(ctx context.Context, client pocketIDClientForBootstrap, userID, groupName string) error {
+	groupID, err := client.GetGroupIDByName(ctx, groupName)
+	if err != nil {
+		return fmt.Errorf("lookup %s group: %w", groupName, err)
+	}
+	if groupID == "" {
+		return fmt.Errorf("lookup %s group: no group by that name exists", groupName)
+	}
+	if err := client.AddUserToGroup(ctx, userID, groupID); err != nil {
+		return fmt.Errorf("add user to %s: %w", groupName, err)
 	}
 	return nil
 }

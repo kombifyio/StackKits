@@ -1,0 +1,66 @@
+# monitoring-agent Reference Compose
+# Purpose: Isolated integration test for OTel Collector agent
+# Usage:
+#   docker compose -f modules/monitoring-agent/tests/reference-compose.yml up -d
+#   curl http://localhost:8888/metrics   # OTel Collector self-metrics
+#   curl http://localhost:13133/        # Health check
+#
+# The compose spins up:
+#   - otel-collector: agent collecting host + container metrics
+#   - otlp-sink: a minimal OTLP/gRPC receiver that logs received metrics
+#     (simulates TechStack OTLP receiver for testing)
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    container_name: test-otel-collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - /:/hostfs:ro
+      - ./otelcol-test-config.yaml:/etc/otelcol/config.yaml:ro
+    environment:
+      GOMEMLIMIT: "256MiB"
+      OTEL_ENDPOINT: "otlp-sink:4317"
+      KOMBIFY_OTEL_COLLECTION_INTERVAL: "10s"
+      KOMBIFY_OTEL_BATCH_TIMEOUT: "5s"
+      KOMBIFY_OTEL_MEMORY_LIMIT_MIB: "200"
+      KOMBIFY_OTEL_MEMORY_SPIKE_LIMIT_MIB: "50"
+    ports:
+      - "18888:8888"   # OTel self-metrics (Prometheus scrape)
+      - "14317:4317"   # OTLP/gRPC inbound (for local app forwarding)
+      - "14318:4318"   # OTLP/HTTP inbound
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8888/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 0.5
+    depends_on:
+      otlp-sink:
+        condition: service_started
+
+  # Minimal OTLP sink — logs received metric batches to stdout.
+  # Replace with real TechStack endpoint in production.
+  otlp-sink:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    container_name: test-otlp-sink
+    command: ["--config=/etc/otelcol/sink-config.yaml"]
+    volumes:
+      - ./sink-config.yaml:/etc/otelcol/sink-config.yaml:ro
+      - ${KOMBIFY_OTLP_ARTIFACTS_DIR:-./artifacts}:/var/lib/otel/output
+    ports:
+      - "24317:4317"
+    networks:
+      - test-net
+
+networks:
+  test-net:
+    driver: bridge

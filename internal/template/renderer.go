@@ -11,7 +11,7 @@ import (
 	"strings"
 	"text/template"
 
-	cueval "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -41,10 +41,10 @@ type RenderContext struct {
 	StackKit  *models.StackKit
 	Services  []ServiceContext
 	Variables map[string]interface{}
-	// Catalog is the CUE-driven service catalog for domain + dashboard generation.
-	Catalog []cueval.CatalogEntry
+	// Catalog is the canonical service catalog for domain + dashboard generation.
+	Catalog []servicecatalog.Service
 	// Domains includes all services that need a local.domains entry (catalog + dashboard).
-	Domains []cueval.CatalogEntry
+	Domains []servicecatalog.Service
 }
 
 // ServiceContext contains service-specific data for templates
@@ -340,8 +340,8 @@ func portList(ports []PortMapping) string {
 }
 
 // catalogSection filters catalog entries by section name
-func catalogSection(section string, catalog []cueval.CatalogEntry) []cueval.CatalogEntry {
-	var result []cueval.CatalogEntry
+func catalogSection(section string, catalog []servicecatalog.Service) []servicecatalog.Service {
+	var result []servicecatalog.Service
 	for _, e := range catalog {
 		if e.Section == section {
 			result = append(result, e)
@@ -351,7 +351,7 @@ func catalogSection(section string, catalog []cueval.CatalogEntry) []cueval.Cata
 }
 
 // hasEnableVar returns true if the entry has a Terraform enable variable
-func hasEnableVar(e cueval.CatalogEntry) bool {
+func hasEnableVar(e servicecatalog.Service) bool {
 	return e.EnableVar != ""
 }
 

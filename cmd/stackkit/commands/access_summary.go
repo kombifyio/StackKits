@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/config"
-	cueval "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -24,13 +24,17 @@ type accessSummary struct {
 }
 
 type accessService struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Section     string `json:"section,omitempty"`
-	URL         string `json:"url"`
-	Host        string `json:"host"`
-	Status      string `json:"status,omitempty"`
+	Key           string   `json:"key"`
+	Name          string   `json:"name"`
+	DisplayName   string   `json:"displayName"`
+	ToolName      string   `json:"toolName"`
+	ModuleSlug    string   `json:"moduleSlug"`
+	RouteSlug     string   `json:"routeSlug"`
+	Section       string   `json:"section,omitempty"`
+	URL           string   `json:"url"`
+	Host          string   `json:"host"`
+	Status        string   `json:"status,omitempty"`
+	LegacyAliases []string `json:"legacyAliases,omitempty"`
 }
 
 func buildAccessSummary(wd string, spec *models.StackSpec) (*accessSummary, error) {
@@ -43,7 +47,7 @@ func buildAccessSummary(wd string, spec *models.StackSpec) (*accessSummary, erro
 		return nil, err
 	}
 
-	catalog := loadAccessCatalog(wd, spec)
+	catalog := loadCanonicalServiceCatalog(wd, spec)
 	return buildAccessSummaryFromInputs(spec, tfvars, catalog), nil
 }
 
@@ -64,26 +68,7 @@ func loadGeneratedTFVars(wd string) (map[string]any, error) {
 	return tfvars, nil
 }
 
-func loadAccessCatalog(wd string, spec *models.StackSpec) []cueval.CatalogEntry {
-	loader := config.NewLoader(wd)
-	stackkitDir, err := loader.FindStackKitDir(spec.StackKit)
-	if err != nil {
-		parentLoader := config.NewLoader(filepath.Dir(wd))
-		stackkitDir, err = parentLoader.FindStackKitDir(spec.StackKit)
-	}
-	if err != nil {
-		return cueval.ServiceCatalog()
-	}
-
-	modulesDir := resolveModulesDir(stackkitDir, wd)
-	catalog, err := cueval.ServiceCatalogFromModules(modulesDir)
-	if err != nil {
-		return cueval.ServiceCatalog()
-	}
-	return catalog
-}
-
-func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any, catalog []cueval.CatalogEntry) *accessSummary {
+func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any, catalog []servicecatalog.Service) *accessSummary {
 	domain := stringInput(tfvars, "domain", spec.Domain)
 	if domain == "" {
 		domain = models.DomainHomeLab
@@ -95,19 +80,6 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 		proto = "https"
 	}
 
-	entries := make([]cueval.CatalogEntry, 0, len(catalog)+1)
-	entries = append(entries, cueval.CatalogEntry{
-		Key:         "dashboard",
-		Nested:      "base",
-		Flat:        "dash",
-		DisplayName: "Dashboard",
-		Description: "StackKits service hub",
-		Section:     "Platform",
-		Order:       -1,
-		EnableVar:   "enable_dashboard",
-	})
-	entries = append(entries, catalog...)
-
 	summary := &accessSummary{
 		StackKit:        spec.StackKit,
 		Mode:            spec.Mode,
@@ -117,7 +89,7 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 	}
 
 	seen := map[string]bool{}
-	for _, entry := range entries {
+	for _, entry := range catalog {
 		if entry.Key == "" || seen[entry.Key] || !entryEnabled(entry, tfvars) {
 			continue
 		}
@@ -131,22 +103,27 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 		if display == "" {
 			display = entry.Key
 		}
-		name := entry.Key
-		if models.IsKombifyMeDomain(domain) && entry.Flat != "" {
-			name = entry.Flat
+		name := entry.Name
+		if name == "" {
+			name = entry.Key
 		}
+		routeSlug := routeSlugForEntry(entry, prefix)
 
 		svc := accessService{
-			Key:         entry.Key,
-			Name:        name,
-			DisplayName: display,
-			Section:     entry.Section,
-			Host:        host,
-			URL:         proto + "://" + host,
-			Status:      string(models.ServiceStatusRunning),
+			Key:           entry.Key,
+			Name:          name,
+			DisplayName:   display,
+			ToolName:      entry.ToolName,
+			ModuleSlug:    entry.ModuleSlug,
+			RouteSlug:     routeSlug,
+			Section:       entry.Section,
+			Host:          host,
+			URL:           proto + "://" + host,
+			Status:        string(models.ServiceStatusRunning),
+			LegacyAliases: append([]string(nil), entry.LegacyAliases...),
 		}
 		summary.Services = append(summary.Services, svc)
-		if entry.Key == "dashboard" {
+		if entry.Key == "base" {
 			summary.HubURL = svc.URL
 		}
 	}
@@ -154,26 +131,26 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 	return summary
 }
 
-func entryEnabled(entry cueval.CatalogEntry, tfvars map[string]any) bool {
+func entryEnabled(entry servicecatalog.Service, tfvars map[string]any) bool {
 	enableVar := entry.EnableVar
 	if enableVar == "" {
 		enableVar = defaultEnableVar(entry.Key)
 	}
 	if enableVar == "" {
-		return true
+		return entry.Default
 	}
-	return boolInput(tfvars, enableVar, true)
+	return boolInput(tfvars, enableVar, entry.Default)
 }
 
 func defaultEnableVar(key string) string {
 	switch key {
-	case "dashboard":
+	case "base", "dashboard":
 		return "enable_dashboard"
 	case "traefik":
 		return "enable_traefik"
 	case "auth":
 		return "enable_tinyauth"
-	case "pocketid":
+	case "id", "pocketid":
 		return "enable_pocketid"
 	case "dokploy":
 		return "enable_dokploy"
@@ -194,20 +171,33 @@ func defaultEnableVar(key string) string {
 	}
 }
 
-func hostForEntry(entry cueval.CatalogEntry, domain, prefix string) string {
+func hostForEntry(entry servicecatalog.Service, domain, prefix string) string {
 	if prefix != "" {
-		flat := entry.Flat
+		flat := entry.PublicSlug
 		if flat == "" {
 			flat = entry.Key
 		}
 		return prefix + "-" + flat + "." + domain
 	}
 
-	nested := entry.Nested
+	nested := entry.LocalSlug
 	if nested == "" {
 		nested = entry.Key
 	}
 	return nested + "." + domain
+}
+
+func routeSlugForEntry(entry servicecatalog.Service, prefix string) string {
+	if prefix != "" {
+		if entry.PublicSlug != "" {
+			return entry.PublicSlug
+		}
+		return entry.Key
+	}
+	if entry.LocalSlug != "" {
+		return entry.LocalSlug
+	}
+	return entry.Key
 }
 
 func writeAccessSummary(wd string, summary *accessSummary) error {
@@ -254,16 +244,15 @@ func urlAliases(summary *accessSummary) map[string]string {
 		return aliases
 	}
 	for _, svc := range summary.Services {
-		for _, alias := range []string{svc.Key, svc.Name, firstHostLabel(svc.Host)} {
+		candidates := []string{svc.Key, svc.Name, svc.RouteSlug, svc.ToolName, svc.ModuleSlug, firstHostLabel(svc.Host)}
+		candidates = append(candidates, svc.LegacyAliases...)
+		for _, alias := range candidates {
 			alias = strings.ToLower(strings.TrimSpace(alias))
 			if alias != "" {
 				aliases[alias] = svc.URL
 			}
 		}
 	}
-	aliases["tinyauth"] = aliases["auth"]
-	aliases["uptime-kuma"] = aliases["kuma"]
-	aliases["dashboard"] = summary.HubURL
 	return aliases
 }
 

@@ -109,12 +109,12 @@ variants:
   # Default: Docker Swarm HA with Dokploy
   default:
     name: "Standard HA"
-    description: "3 Swarm managers + Dokploy + HA monitoring"
+    description: "3 Swarm managers + Dokploy + redundant OTLP monitoring scaffolding"
     services:
       - docker-swarm-ha
       - dokploy             # Swarm mode enabled
       - traefik-ha          # Deployed as global service
-      - prometheus-ha       # With remote-write for federation
+      - prometheus-ha       # Legacy placeholder until otel-gateway-ha lands
       - grafana
       - loki
       - uptime-kuma-ha
@@ -124,7 +124,7 @@ variants:
   # Minimal: Basic HA without full observability
   minimal:
     name: "Minimal HA"
-    description: "3 Swarm managers + Dokploy + basic monitoring"
+    description: "3 Swarm managers + Dokploy + availability-only monitoring"
     services:
       - docker-swarm-ha
       - dokploy
@@ -134,7 +134,7 @@ variants:
   # Beszel: Alternative monitoring with Beszel
   beszel:
     name: "Beszel HA"
-    description: "3 Swarm managers + Dokploy + Beszel monitoring"
+    description: "3 Swarm managers + Dokploy + Beszel operator UX"
     services:
       - docker-swarm-ha
       - dokploy
@@ -170,7 +170,7 @@ services:
         
   - name: prometheus-ha
     required: false
-    description: "Prometheus with HA configuration (2 replicas)"
+    description: "Legacy placeholder for the future HA OTLP gateway tier (current scaffolding still models Prometheus)"
     status: planned
     replicas: 2
     

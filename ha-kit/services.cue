@@ -88,7 +88,7 @@ import "github.com/kombifyio/stackkits/base"
 // HA MONITORING
 // =============================================================================
 
-// #PrometheusHAService - HA Prometheus (Planned)
+// #PrometheusHAService - Legacy HA metrics placeholder (Planned)
 #PrometheusHAService: base.#ServiceDefinition & {
 	name:        "prometheus-ha"
 	displayName: "Prometheus HA"
@@ -96,7 +96,7 @@ import "github.com/kombifyio/stackkits/base"
 	type:        "metrics"
 	required:    true
 	status:      "planned"
-	description: "High Availability Prometheus setup"
+	description: "Legacy placeholder for the future redundant OTLP gateway tier"
 	needs:       ["docker-swarm"]
 
 	config: {
@@ -104,9 +104,9 @@ import "github.com/kombifyio/stackkits/base"
 		retention: "15d"
 	}
 
-	// TODO: Implement Prometheus HA
+	// TODO: Replace with the dedicated otel-gateway-ha implementation.
 	// - Multiple replicas via Swarm service
-	// - Shared storage for metrics
+	// - Shared VIP-fronted ingress for OTLP traffic
 	// - Alert deduplication
 }
 
@@ -118,7 +118,7 @@ import "github.com/kombifyio/stackkits/base"
 	type:        "metrics-aggregation"
 	required:    false
 	status:      "planned"
-	description: "Global view and long-term storage for Prometheus"
+	description: "Legacy long-term aggregation placeholder while VictoriaMetrics becomes the default backend"
 	needs:       ["docker-swarm", "prometheus-ha"]
 
 	config: {

@@ -301,8 +301,8 @@ type OwnerConfig struct {
 	// CloudOIDCClientID is the registered client ID at the cloud OIDC issuer.
 	CloudOIDCClientID string `yaml:"cloudOidcClientId,omitempty" json:"cloudOidcClientId,omitempty"`
 
-	// CloudOIDCClientSecretRef is a secret-store reference (e.g. doppler:// or
-	// secret://) pointing at the OIDC client secret. The literal secret is
+	// CloudOIDCClientSecretRef is a secret-store reference (e.g. secret:// or
+	// vault://) pointing at the OIDC client secret. The literal secret is
 	// never persisted in the spec.
 	CloudOIDCClientSecretRef string `yaml:"cloudOidcClientSecretRef,omitempty" json:"cloudOidcClientSecretRef,omitempty"`
 

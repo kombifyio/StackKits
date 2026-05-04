@@ -169,7 +169,7 @@ Contract: base.#ModuleContract & {
 			"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders":     "remote-user,remote-sub,remote-name,remote-email,remote-groups"
 		}
 
-		subdomain: {key: "auth", nested: "auth", flat: "tinyauth"}
+		subdomain: {key: "auth", nested: "auth", flat: "auth"}
 		dashboard: {icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth"}
 
 		output: {

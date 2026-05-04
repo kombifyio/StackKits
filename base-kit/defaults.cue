@@ -51,22 +51,25 @@ package base_kit
 	// Output: service configuration based on tier
 	services: {
 		if computeTier == "high" {
-			monitoring: "full"
-			management: "advanced"
-			logging:    "full"
-			_enabledServices: ["traefik", "dockge", "dozzle", "netdata", "portainer", "prometheus", "grafana"]
+			monitoring:       "full"
+			management:       "advanced"
+			logging:          "full"
+			// full profile: OTel Collector (full) + uptime-kuma + monitoring-core add-on
+			_enabledServices: ["traefik", "dockge", "dozzle", "otel-collector", "uptime-kuma"]
 		}
 		if computeTier == "standard" {
-			monitoring: "standard"
-			management: "basic"
-			logging:    "basic"
-			_enabledServices: ["traefik", "dockge", "dozzle", "netdata"]
+			monitoring:       "standard"
+			management:       "basic"
+			logging:          "basic"
+			// standard profile: OTel Collector (standard, 30s) + uptime-kuma
+			_enabledServices: ["traefik", "dockge", "dozzle", "otel-collector", "uptime-kuma"]
 		}
 		if computeTier == "low" {
-			monitoring: "minimal"
-			management: "minimal"
-			logging:    "basic"
-			_enabledServices: ["traefik", "dockge", "dozzle", "glances"]
+			monitoring:       "standard"
+			management:       "minimal"
+			logging:          "basic"
+			// low tier still uses OTel Collector standard profile (Pi 4B 4GB minimum)
+			_enabledServices: ["traefik", "dockge", "dozzle", "otel-collector"]
 		}
 	}
 
@@ -177,9 +180,9 @@ package base_kit
 // #DomainConfig provides domain configuration defaults.
 // This is the canonical list of all service subdomains.
 // When subdomainPrefix is set (kombify.me), domains use flat naming:
-//   {prefix}-{flat}.{domain}  e.g. sh-mylab-abc-dash.kombify.me
+//   {prefix}-{flat}.{domain}  e.g. sh-mylab-abc-base.kombify.me
 // When empty (own domain or LAN), domains use nested naming:
-//   {nested}.{domain}         e.g. dash.kmbchr.de
+//   {nested}.{domain}         e.g. base.kmbchr.de
 #DomainConfig: {
 	// Primary domain (required)
 	domain: string
@@ -189,10 +192,10 @@ package base_kit
 
 	// Subdomain definitions: key → {nested, flat}
 	subdomains: {
-		dashboard:  { nested: "base", flat: "dash" }
+		base:       { nested: "base", flat: "base" }
 		traefik:    { nested: "traefik", flat: "traefik" }
-		auth:       { nested: "auth", flat: "tinyauth" }
-		pocketid:   { nested: "id", flat: "id" }
+		auth:       { nested: "auth", flat: "auth" }
+		id:         { nested: "id", flat: "id" }
 		dokploy:    { nested: "dokploy", flat: "dokploy" }
 		coolify:    { nested: "coolify", flat: "coolify" }
 		dockge:     { nested: "dockge", flat: "dockge" }

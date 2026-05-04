@@ -32,6 +32,7 @@ import (
 
 	skcue "github.com/kombifyio/stackkits/internal/cue"
 	"github.com/kombifyio/stackkits/internal/registry"
+	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/spf13/cobra"
 )
 
@@ -147,8 +148,8 @@ func runRegistrySnapshot(cmd *cobra.Command, _ []string) error {
 	}
 
 	printSuccess("Wrote registry snapshot to %s", registrySnapshotOutput)
-	printInfo("source=admin-api tools=%d modules=%d stackkits=%d",
-		len(snap.Tools), len(snap.Modules), len(snap.StackKits))
+	printInfo("source=admin-api tools=%d services=%d modules=%d stackkits=%d",
+		len(snap.Tools), len(snap.Services), len(snap.Modules), len(snap.StackKits))
 	return nil
 }
 
@@ -186,6 +187,7 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 		Source:        "cue",
 		GeneratedAt:   time.Now().UTC(),
 		Modules:       modules,
+		Services:      registryServicesFromCatalog(servicecatalog.FromCUE(serviceCatalogEntriesFromContracts(contracts))),
 		// Tools and StackKits are authoritative only in the DB; OSS
 		// bakes are module-centric. Admin API baking fills the rest.
 		Tools:     []registry.Tool{},
@@ -198,7 +200,7 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 	}
 
 	printSuccess("Wrote registry snapshot to %s", registryBakeOutput)
-	printInfo("source=cue modules=%d (tools/stackkits empty in CUE-only bake)", len(snap.Modules))
+	printInfo("source=cue services=%d modules=%d (tools/stackkits empty in CUE-only bake)", len(snap.Services), len(snap.Modules))
 	return nil
 }
 
@@ -224,6 +226,7 @@ func runRegistryInfo(_ *cobra.Command, _ []string) error {
 		fmt.Printf("  admin_endpoint : %s\n", snap.AdminEndpoint)
 	}
 	fmt.Printf("  tools          : %d\n", len(snap.Tools))
+	fmt.Printf("  services       : %d\n", len(snap.Services))
 	fmt.Printf("  modules        : %d\n", len(snap.Modules))
 	fmt.Printf("  stackkits      : %d\n", len(snap.StackKits))
 
@@ -264,10 +267,73 @@ func writeSnapshot(path string, snap registry.Snapshot) error {
 	return nil
 }
 
+func serviceCatalogEntriesFromContracts(contracts []skcue.ModuleContract) []skcue.CatalogEntry {
+	var entries []skcue.CatalogEntry
+	for _, contract := range contracts {
+		for _, svc := range contract.Services {
+			if svc.SubdomainKey == "" {
+				continue
+			}
+			displayName := svc.DisplayName
+			if displayName == "" {
+				displayName = contract.Metadata.DisplayName
+			}
+			description := svc.Description
+			if description == "" {
+				description = contract.Metadata.Description
+			}
+			if description == "" {
+				description = svc.OutputDesc
+			}
+			entries = append(entries, skcue.CatalogEntry{
+				Key:         svc.SubdomainKey,
+				Nested:      svc.SubdomainNested,
+				Flat:        svc.SubdomainFlat,
+				ToolName:    svc.Name,
+				ModuleSlug:  contract.Metadata.Name,
+				DisplayName: displayName,
+				Description: description,
+				Icon:        svc.DashboardIcon,
+				Badge:       svc.DashboardBadge,
+				Section:     svc.DashboardSection,
+				Order:       svc.DashboardOrder,
+				EnableVar:   svc.DashboardEnableVar,
+			})
+		}
+	}
+	return entries
+}
+
+func registryServicesFromCatalog(catalog []servicecatalog.Service) []registry.Service {
+	services := make([]registry.Service, 0, len(catalog))
+	for _, svc := range catalog {
+		services = append(services, registry.Service{
+			Key:                     svc.Key,
+			DisplayName:             svc.DisplayName,
+			Description:             svc.Description,
+			ToolName:                svc.ToolName,
+			ModuleSlug:              svc.ModuleSlug,
+			LocalSlug:               svc.LocalSlug,
+			PublicSlug:              svc.PublicSlug,
+			LegacyAliases:           append([]string(nil), svc.LegacyAliases...),
+			IdentityPolicy:          svc.IdentityPolicy,
+			OwnerProvisioningPolicy: svc.OwnerProvisioningPolicy,
+			Icon:                    svc.Icon,
+			Badge:                   svc.Badge,
+			Section:                 svc.Section,
+			Order:                   svc.Order,
+			EnableVar:               svc.EnableVar,
+			Default:                 svc.Default,
+		})
+	}
+	return services
+}
+
 // sortSnapshot deterministically orders all slices so two snapshots
 // that encode the same data hash identically.
 func sortSnapshot(snap *registry.Snapshot) {
 	sort.Slice(snap.Tools, func(i, j int) bool { return snap.Tools[i].Slug < snap.Tools[j].Slug })
+	sort.Slice(snap.Services, func(i, j int) bool { return snap.Services[i].Key < snap.Services[j].Key })
 	sort.Slice(snap.Modules, func(i, j int) bool { return snap.Modules[i].Slug < snap.Modules[j].Slug })
 	sort.Slice(snap.StackKits, func(i, j int) bool { return snap.StackKits[i].Slug < snap.StackKits[j].Slug })
 	for i := range snap.StackKits {

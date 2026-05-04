@@ -15,6 +15,7 @@
 - [ARCHITECTURE.md](ARCHITECTURE.md) — High-Level.
 - [ARCHITECTURE_V5.md](ARCHITECTURE_V5.md) — Current (accepted 2026-03-10).
 - [ARCHITECTURE_V6.md](ARCHITECTURE_V6.md) — Planning (Q3/2026).
+- [MONITORING.md](MONITORING.md) — OTLP-first StackKits monitoring contract.
 - [CONCEPTS.md](CONCEPTS.md) — Use Cases + Tool Roles + Module Contracts.
 - [CLI.md](CLI.md).
 

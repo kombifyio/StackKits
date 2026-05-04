@@ -25,7 +25,7 @@ import "time"
 
 // SnapshotVersion is the current schema version for registry_snapshot.json.
 // Bump when the on-disk shape changes in an incompatible way.
-const SnapshotVersion = 1
+const SnapshotVersion = 2
 
 // Snapshot is the envelope serialized to registry_snapshot.json.
 //
@@ -60,6 +60,11 @@ type Snapshot struct {
 	// Tools is the unified tool catalog (sk_tool).
 	Tools []Tool `json:"tools"`
 
+	// Services is the product-facing service catalog (sk_service +
+	// sk_stackkit_service). It is authoritative for canonical service keys,
+	// URL slugs, legacy aliases, and strict owner/SSO readiness policy.
+	Services []Service `json:"services"`
+
 	// Modules is the latest-version view of the module registry
 	// (sk_module_version, one row per slug -- the "released" version).
 	Modules []Module `json:"modules"`
@@ -81,6 +86,28 @@ type Tool struct {
 	Homepage    string   `json:"homepage,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
+}
+
+// Service mirrors the CLI-visible projection of sk_service joined with the
+// current StackKit binding. It intentionally separates user-facing service
+// identity from tool/module implementation names.
+type Service struct {
+	Key                     string   `json:"key"`
+	DisplayName             string   `json:"display_name"`
+	Description             string   `json:"description,omitempty"`
+	ToolName                string   `json:"tool_name"`
+	ModuleSlug              string   `json:"module_slug"`
+	LocalSlug               string   `json:"local_slug"`
+	PublicSlug              string   `json:"public_slug"`
+	LegacyAliases           []string `json:"legacy_aliases,omitempty"`
+	IdentityPolicy          string   `json:"identity_policy"`
+	OwnerProvisioningPolicy string   `json:"owner_provisioning_policy"`
+	Icon                    string   `json:"icon,omitempty"`
+	Badge                   string   `json:"badge,omitempty"`
+	Section                 string   `json:"section,omitempty"`
+	Order                   int      `json:"order,omitempty"`
+	EnableVar               string   `json:"enable_var,omitempty"`
+	Default                 bool     `json:"default"`
 }
 
 // Module is the CLI-visible projection of one released sk_module_version.

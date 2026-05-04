@@ -75,11 +75,6 @@ nul
 dist/
 build/
 
-# Playwright
-website-v2/test-results/
-website-v2/playwright-report/
-website-v2/blob-report/
-
 # Built binary (root only, not cmd/stackkit/ source)
 /stackkit
 /stackkit-*

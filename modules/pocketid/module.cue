@@ -166,7 +166,7 @@ Contract: base.#ModuleContract & {
 			"traefik.http.services.pocketid.loadbalancer.server.port": "1411"
 		}
 
-		subdomain: {key: "pocketid", nested: "id", flat: "id"}
+		subdomain: {key: "id", nested: "id", flat: "id"}
 		dashboard: {icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP"}
 
 		output: {

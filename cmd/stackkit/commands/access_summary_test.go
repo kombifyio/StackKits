@@ -3,13 +3,13 @@ package commands
 import (
 	"testing"
 
-	cueval "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildAccessSummary_KombifyMeUsesFlatHTTPSHub(t *testing.T) {
+func TestBuildAccessSummary_KombifyMeUsesCanonicalServiceSlugs(t *testing.T) {
 	spec := &models.StackSpec{
 		Name:            "cloud-lab",
 		StackKit:        "base-kit",
@@ -31,14 +31,23 @@ func TestBuildAccessSummary_KombifyMeUsesFlatHTTPSHub(t *testing.T) {
 		"enable_immich":      false,
 	}
 
-	summary := buildAccessSummaryFromInputs(spec, tfvars, cueval.ServiceCatalog())
+	summary := buildAccessSummaryFromInputs(spec, tfvars, servicecatalog.Default())
 
-	require.Equal(t, "https://sh-cloud-abc123-dash.kombify.me", summary.HubURL)
+	require.Equal(t, "https://sh-cloud-abc123-base.kombify.me", summary.HubURL)
 	urls := serviceURLMap(summary)
-	assert.Equal(t, "https://sh-cloud-abc123-tinyauth.kombify.me", urls["auth"])
-	assert.Equal(t, "https://sh-cloud-abc123-id.kombify.me", urls["pocketid"])
+	assert.Equal(t, "https://sh-cloud-abc123-base.kombify.me", urls["base"])
+	assert.Equal(t, "https://sh-cloud-abc123-auth.kombify.me", urls["auth"])
+	assert.Equal(t, "https://sh-cloud-abc123-id.kombify.me", urls["id"])
 	assert.Equal(t, "https://sh-cloud-abc123-dokploy.kombify.me", urls["dokploy"])
 	assert.Equal(t, "https://sh-cloud-abc123-kuma.kombify.me", urls["kuma"])
+
+	services := servicesByAccessKey(summary)
+	assert.Equal(t, "dashboard", services["base"].ToolName)
+	assert.Equal(t, "dashboard", services["base"].ModuleSlug)
+	assert.Equal(t, "base", services["base"].RouteSlug)
+	assert.Contains(t, services["base"].LegacyAliases, "dash")
+	assert.Equal(t, "pocketid", services["id"].ToolName)
+	assert.Equal(t, "id", services["id"].RouteSlug)
 }
 
 func TestBuildAccessSummary_LocalUsesNestedHTTPSHub(t *testing.T) {
@@ -59,12 +68,13 @@ func TestBuildAccessSummary_LocalUsesNestedHTTPSHub(t *testing.T) {
 		"enable_uptime_kuma": true,
 	}
 
-	summary := buildAccessSummaryFromInputs(spec, tfvars, cueval.ServiceCatalog())
+	summary := buildAccessSummaryFromInputs(spec, tfvars, servicecatalog.Default())
 
 	require.Equal(t, "https://base.home.localhost", summary.HubURL)
 	urls := serviceURLMap(summary)
+	assert.Equal(t, "https://base.home.localhost", urls["base"])
 	assert.Equal(t, "https://auth.home.localhost", urls["auth"])
-	assert.Equal(t, "https://id.home.localhost", urls["pocketid"])
+	assert.Equal(t, "https://id.home.localhost", urls["id"])
 	assert.Equal(t, "https://dockge.home.localhost", urls["dockge"])
 	assert.NotContains(t, urls, "dokploy")
 }
@@ -92,13 +102,13 @@ func TestBuildAccessSummary_LocalDNSIncludesKombifyPoint(t *testing.T) {
 		"enable_immich":        false,
 	}
 
-	summary := buildAccessSummaryFromInputs(spec, tfvars, cueval.ServiceCatalog())
+	summary := buildAccessSummaryFromInputs(spec, tfvars, servicecatalog.Default())
 
 	require.Equal(t, "https://base.home", summary.HubURL)
 	urls := serviceURLMap(summary)
 	assert.Equal(t, "https://point.home", urls["point"])
 	assert.Equal(t, "https://auth.home", urls["auth"])
-	assert.Equal(t, "https://id.home", urls["pocketid"])
+	assert.Equal(t, "https://id.home", urls["id"])
 }
 
 func serviceURLMap(summary *accessSummary) map[string]string {
@@ -107,4 +117,12 @@ func serviceURLMap(summary *accessSummary) map[string]string {
 		urls[svc.Key] = svc.URL
 	}
 	return urls
+}
+
+func servicesByAccessKey(summary *accessSummary) map[string]accessService {
+	services := make(map[string]accessService, len(summary.Services))
+	for _, svc := range summary.Services {
+		services[svc.Key] = svc
+	}
+	return services
 }

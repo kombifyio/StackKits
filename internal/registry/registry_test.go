@@ -23,6 +23,31 @@ func TestEmbeddedSnapshot_SchemaVersion(t *testing.T) {
 	}
 }
 
+func TestEmbeddedSnapshot_IncludesCanonicalServices(t *testing.T) {
+	snap, err := EmbeddedSnapshot()
+	if err != nil {
+		t.Fatalf("EmbeddedSnapshot: %v", err)
+	}
+	services := map[string]Service{}
+	for _, svc := range snap.Services {
+		services[svc.Key] = svc
+	}
+	base, ok := services["base"]
+	if !ok {
+		t.Fatalf("embedded snapshot missing base service; got %v", services)
+	}
+	if base.ToolName != "dashboard" || base.PublicSlug != "base" {
+		t.Fatalf("base service = %#v, want dashboard tool with base public slug", base)
+	}
+	auth, ok := services["auth"]
+	if !ok {
+		t.Fatalf("embedded snapshot missing auth service; got %v", services)
+	}
+	if auth.PublicSlug != "auth" {
+		t.Fatalf("auth public slug = %q, want auth", auth.PublicSlug)
+	}
+}
+
 func TestEmbeddedClient_Module_NotFound(t *testing.T) {
 	c := NewEmbeddedClient()
 	_, err := c.Module(context.Background(), "definitely-not-a-real-module")
