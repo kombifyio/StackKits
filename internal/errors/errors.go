@@ -28,23 +28,23 @@ import (
 type ErrorCategory string
 
 const (
-	CategoryValidation    ErrorCategory = "validation"
+	CategoryValidation     ErrorCategory = "validation"
 	CategoryInfrastructure ErrorCategory = "infrastructure"
-	CategoryDeployment    ErrorCategory = "deployment"
-	CategoryResource      ErrorCategory = "resource"
-	CategoryAuth          ErrorCategory = "auth"
-	CategoryDependency    ErrorCategory = "dependency"
-	CategoryUnknown       ErrorCategory = "unknown"
+	CategoryDeployment     ErrorCategory = "deployment"
+	CategoryResource       ErrorCategory = "resource"
+	CategoryAuth           ErrorCategory = "auth"
+	CategoryDependency     ErrorCategory = "dependency"
+	CategoryUnknown        ErrorCategory = "unknown"
 )
 
 // Severity indicates how critical the error is
 type Severity string
 
 const (
-	SeverityFatal    Severity = "fatal"    // Cannot continue, manual intervention required
-	SeverityError    Severity = "error"    // Operation failed, can retry or fix
-	SeverityWarning  Severity = "warning"  // Non-critical issue, can proceed
-	SeverityInfo     Severity = "info"     // Informational, for logging only
+	SeverityFatal   Severity = "fatal"   // Cannot continue, manual intervention required
+	SeverityError   Severity = "error"   // Operation failed, can retry or fix
+	SeverityWarning Severity = "warning" // Non-critical issue, can proceed
+	SeverityInfo    Severity = "info"    // Informational, for logging only
 )
 
 // StackKitError is the base error type for all StackKit operations

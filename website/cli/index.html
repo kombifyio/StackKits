@@ -87,6 +87,7 @@
       <li><a href="#generate">generate</a></li>
       <li><a href="#plan">plan</a></li>
       <li><a href="#apply">apply</a></li>
+      <li><a href="#verify">verify</a></li>
       <li><a href="#remove">remove</a></li>
       <li><a href="#status">status</a></li>
       <li><a href="#validate">validate</a></li>
@@ -143,7 +144,7 @@ stackkit init ./path/to/custom-kit         # use local kit path</code></pre>
 
   <div class="cmd" id="prepare">
     <h2><code>stackkit prepare</code></h2>
-    <p>Prepare a system for deployment. Checks and installs Docker and OpenTofu if missing, validates the spec, and reports system resources.</p>
+    <p>Prepare a system for deployment. Checks and installs Docker when needed, verifies packaged OpenTofu, validates the spec, and reports system resources.</p>
     <pre><code>stackkit prepare                                  # local system
 stackkit prepare --host 192.168.1.100 --user root # remote via SSH
 stackkit prepare --dry-run                        # preview only</code></pre>
@@ -154,7 +155,7 @@ stackkit prepare --dry-run                        # preview only</code></pre>
       <tr><td><code>--key</code></td><td></td><td>SSH private key path (remote only)</td></tr>
       <tr><td><code>--dry-run</code></td><td><code>false</code></td><td>Show what would be done without changes</td></tr>
       <tr><td><code>--skip-docker</code></td><td><code>false</code></td><td>Skip Docker check/install</td></tr>
-      <tr><td><code>--skip-tofu</code></td><td><code>false</code></td><td>Skip OpenTofu check/install</td></tr>
+      <tr><td><code>--skip-tofu</code></td><td><code>false</code></td><td>Skip packaged OpenTofu check</td></tr>
       <tr><td><code>--auto-fix</code></td><td><code>true</code></td><td>Auto-correct fixable issues</td></tr>
     </table>
   </div>
@@ -190,10 +191,36 @@ stackkit plan --destroy           # preview a destroy</code></pre>
     <p>Deploy the infrastructure. If the deploy directory is missing, <code>generate</code> runs automatically first.</p>
     <pre><code>stackkit apply                    # deploy with confirmation
 stackkit apply --auto-approve     # deploy without confirmation
+stackkit apply --auto-approve --verify
+stackkit apply --verify-http      # also check generated service URLs
 stackkit apply plan.tfplan        # apply a saved plan</code></pre>
     <table>
       <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
       <tr><td><code>--auto-approve</code></td><td><code>false</code></td><td>Skip the interactive confirmation</td></tr>
+      <tr><td><code>--verify</code></td><td><code>false</code></td><td>Run post-deployment verification after a successful apply</td></tr>
+      <tr><td><code>--verify-http</code></td><td><code>false</code></td><td>Include generated service URL checks and enable verification</td></tr>
+      <tr><td><code>--verify-strict</code></td><td><code>false</code></td><td>Treat verification warnings as failures and enable verification</td></tr>
+    </table>
+  </div>
+
+  <div class="cmd" id="verify">
+    <h2><code>stackkit verify</code></h2>
+    <p>Run read-only post-deployment checks on the host where the StackKit is deployed.</p>
+    <pre><code>stackkit verify                 # spec, state, Docker, containers, health
+stackkit verify --http          # also check generated service URLs
+stackkit verify --json          # machine-readable report
+stackkit verify --json --strict # warnings become failures
+stackkit verify --host 203.0.113.10 --user ubuntu --remote-dir /opt/stackkit --json</code></pre>
+    <table>
+      <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+      <tr><td><code>--json</code></td><td><code>false</code></td><td>Output a machine-readable JSON report</td></tr>
+      <tr><td><code>--http</code></td><td><code>false</code></td><td>Verify generated service URLs with HTTP requests</td></tr>
+      <tr><td><code>--strict</code></td><td><code>false</code></td><td>Treat warnings as verification failures</td></tr>
+      <tr><td><code>--host</code></td><td></td><td>Remote host to verify over SSH</td></tr>
+      <tr><td><code>--user</code></td><td>SSH default</td><td>SSH username for remote verification</td></tr>
+      <tr><td><code>--key</code></td><td>SSH default</td><td>SSH private key path for remote verification</td></tr>
+      <tr><td><code>--port</code></td><td><code>22</code></td><td>SSH port for remote verification</td></tr>
+      <tr><td><code>--remote-dir</code></td><td><code>/opt/stackkit</code></td><td>StackKit working directory on the remote host</td></tr>
     </table>
   </div>
 
@@ -273,19 +300,19 @@ stackkit completion fish > ~/.config/fish/completions/stackkit.fish</code></pre>
     <pre><code>curl -sSL stackkit.cc/install | sh
 mkdir my-homelab && cd my-homelab
 stackkit init base-kit
-stackkit apply --auto-approve
-stackkit status</code></pre>
+stackkit apply --auto-approve --verify
+stackkit verify --http</code></pre>
 
     <h3>Changing configuration</h3>
     <pre><code># edit stack-spec.yaml
 stackkit generate --force
 stackkit plan
-stackkit apply</code></pre>
+stackkit apply --verify</code></pre>
 
     <h3>Adding an add-on</h3>
     <pre><code>stackkit addon add monitoring
 stackkit generate --force
-stackkit apply</code></pre>
+stackkit apply --verify</code></pre>
   </div>
 
   <div class="cmd" id="files">

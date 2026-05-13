@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -356,10 +357,10 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := cueval.GenerateAppsTF(spec, outputPath); err != nil {
-		return fmt.Errorf("failed to generate app resources: %w", err)
+		return fmt.Errorf("failed to generate platform app manifests: %w", err)
 	}
 	if len(spec.Apps) > 0 {
-		printSuccess("Generated user app resources: apps.tf")
+		printSuccess("Generated platform app manifests: apps.tf")
 	}
 
 	// Write terraform.tfvars.json from spec (JSON format for consistency with API).
@@ -379,8 +380,8 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	printInfo("Next steps:")
 	fmt.Printf("  1. Review generated files: %s\n", cyan("ls "+genOutputDir))
-	fmt.Printf("  2. Initialize OpenTofu:    %s\n", cyan("cd "+genOutputDir+" && tofu init"))
-	fmt.Printf("  3. Or use StackKit:        %s\n", cyan("stackkit plan"))
+	fmt.Printf("  2. Plan with StackKit:     %s\n", cyan("stackkit --chdir "+genOutputDir+" plan"))
+	fmt.Printf("  3. Apply with StackKit:    %s\n", cyan("stackkit --chdir "+genOutputDir+" apply"))
 
 	deployLog.Event("generate.complete",
 		slog.Int("file_count", files),
@@ -598,6 +599,10 @@ func ensureKombifyMeRegistration(loader *config.Loader, spec *models.StackSpec, 
 		return nil
 	}
 
+	if models.NeedsSyntheticAdminEmail(spec.AdminEmail) && spec.Email == "" {
+		spec.AdminEmail = models.SyntheticAdminEmail(spec.Domain, spec.SubdomainPrefix)
+	}
+
 	if saveErr := loader.SaveStackSpec(spec, specFile); saveErr != nil {
 		printWarning("Could not persist assigned kombify.me subdomainPrefix: %v", saveErr)
 		deployLog.Warn("kombifyme.persist_prefix",
@@ -619,10 +624,10 @@ func registerKombifyMeSubdomains(spec *models.StackSpec) error {
 	if apiKey == "" {
 		// No key found — attempt self-registration
 		email := spec.AdminEmail
-		if email == "" {
+		if models.NeedsSyntheticAdminEmail(email) {
 			email = spec.Email
 		}
-		if email == "" {
+		if models.NeedsSyntheticAdminEmail(email) {
 			return fmt.Errorf("no KOMBIFY_API_KEY found and no adminEmail/email in spec for auto-registration")
 		}
 
@@ -675,7 +680,7 @@ func registerKombifyMeSubdomains(spec *models.StackSpec) error {
 
 	printInfo("Registering subdomains on kombify.me...")
 
-	result, err := kombifyme.RegisterAll(apiKey, homelabName, fingerprint, tier)
+	result, err := kombifyme.RegisterAllWithServices(apiKey, homelabName, fingerprint, tier, kombifyMeAppServiceRegistrations(spec))
 	if err != nil {
 		return err
 	}
@@ -689,4 +694,25 @@ func registerKombifyMeSubdomains(spec *models.StackSpec) error {
 	}
 
 	return nil
+}
+
+func kombifyMeAppServiceRegistrations(spec *models.StackSpec) []kombifyme.ServiceDef {
+	if spec == nil || !models.IsKombifyMeDomain(spec.Domain) || len(spec.Apps) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(spec.Apps))
+	for name := range spec.Apps {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	services := make([]kombifyme.ServiceDef, 0, len(names))
+	for _, name := range names {
+		services = append(services, kombifyme.ServiceDef{
+			Name:        name,
+			Description: "StackKit app: " + name,
+			Primary:     true,
+		})
+	}
+	return services
 }

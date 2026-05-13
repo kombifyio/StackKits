@@ -8,6 +8,7 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
+    - sh scripts/release/fetch-opentofu.sh
 
 builds:
   - id: stackkit
@@ -74,7 +75,7 @@ builds:
 archives:
   # Full bundle — all kits + CLI (for users who want everything)
   - id: default
-    builds:
+    ids:
       - stackkit
     formats:
       - tar.gz
@@ -85,6 +86,11 @@ archives:
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     files:
+      - src: ".dist-tools/opentofu/{{ .Os }}_{{ .Arch }}/tofu*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
       - README.md
       - LICENSE
       - docs/CLI.md
@@ -95,7 +101,7 @@ archives:
 
   # Per-kit archives — CLI + specific kit + base schemas
   - id: base-kit
-    builds:
+    ids:
       - stackkit
     formats:
       - tar.gz
@@ -106,6 +112,11 @@ archives:
     name_template: >-
       {{ .ProjectName }}-base-kit_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     files:
+      - src: ".dist-tools/opentofu/{{ .Os }}_{{ .Arch }}/tofu*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
       - README.md
       - LICENSE
       - docs/CLI.md
@@ -120,7 +131,7 @@ archives:
   # kits or docs bundled. Operators install this on each host of a
   # fleet alongside their existing StackKit deployment.
   - id: backup-agent
-    builds:
+    ids:
       - stackkit-backup-agent
     formats:
       - tar.gz
@@ -134,7 +145,7 @@ archives:
   # Controller host binary — same shape as the agent archive. Lands
   # on the SaaS infra side (kombify-TechStack), not on customer hosts.
   - id: backup-controller
-    builds:
+    ids:
       - stackkit-backup-controller
     formats:
       - tar.gz
@@ -158,6 +169,11 @@ nfpms:
     bindir: /usr/local/bin
     section: utils
     priority: optional
+    contents:
+      - src: ".dist-tools/opentofu/linux_{{ .Arch }}/tofu"
+        dst: /usr/local/bin/tofu
+        file_info:
+          mode: 0755
 
 checksum:
   name_template: "checksums.txt"

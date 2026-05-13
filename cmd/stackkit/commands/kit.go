@@ -161,7 +161,7 @@ func runKitImport(cmd *cobra.Command, args []string) error {
 	url := fmt.Sprintf("%s/api/v1/sk/registry/stackkits/%s/kit-import",
 		trimTrailingSlash(endpoint), slugFromYAML)
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload)) // #nosec G107 G704 -- endpoint is an operator-supplied CLI flag, not untrusted input.
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func runKitImport(cmd *cobra.Command, args []string) error {
 	}
 
 	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G107 G704 -- request URL is operator-supplied CLI endpoint.
 	if err != nil {
 		return fmt.Errorf("POST %s: %w", url, err)
 	}

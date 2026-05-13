@@ -13,9 +13,9 @@ import (
 // Import parses stackkit.yaml bytes into a KitDefinition.
 //
 // Two-pass approach:
-//   1. yaml.Unmarshal into KitDefinition struct (typed sections).
-//   2. Re-parse as generic map to preserve unknown keys (Outputs, Pattern etc.
-//      that the struct surfaces as map[string]interface{}).
+//  1. yaml.Unmarshal into KitDefinition struct (typed sections).
+//  2. Re-parse as generic map to preserve unknown keys (Outputs, Pattern etc.
+//     that the struct surfaces as map[string]interface{}).
 func Import(yamlBytes []byte) (KitDefinition, error) {
 	var def KitDefinition
 	if err := yaml.Unmarshal(yamlBytes, &def); err != nil {

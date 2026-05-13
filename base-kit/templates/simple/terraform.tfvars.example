@@ -5,7 +5,7 @@
 # SETUP INSTRUCTIONS:
 #   1. Copy: cp terraform.tfvars.example terraform.tfvars
 #   2. (Optional) Choose variant/compute/access settings below
-#   3. Run: tofu init && tofu plan && tofu apply
+#   3. Run: stackkit plan && stackkit apply
 #
 # =============================================================================
 
@@ -36,10 +36,6 @@ access_mode = "ports"
 # =============================================================================
 
 # Choose your service stack:
-#
-# NOTE: The variant labels below are a legacy simple-template surface.
-# The long-term observability contract is OTLP-first: OpenTelemetry Collector
-# is the baseline, while VictoriaMetrics and Grafana remain additive.
 #
 # ┌─────────────────────────────────────────────────────────────────────────┐
 # │  VARIANT: "default" (Recommended for quick start)                         │

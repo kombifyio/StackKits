@@ -16,6 +16,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.1.0"
 		layer:       "L3-application"
 		description: "Real-time Docker container log viewer"
+		testScenarios: ["SK-S2", "SK-S3"]
 	}
 
 	requires: {
@@ -56,7 +57,7 @@ Contract: base.#ModuleContract & {
 	contexts: {
 		local: {}
 		cloud: {}
-		pi:    {}
+		pi: {}
 	}
 
 	services: dozzle: base.#ServiceDefinition & {
@@ -113,10 +114,10 @@ Contract: base.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                                  "true"
-			"traefik.http.routers.dozzle.rule":                                "Host(`logs.{{.domain}}`)"
-			"traefik.http.routers.dozzle.entrypoints":                         "web"
-			"traefik.http.services.dozzle.loadbalancer.server.port":           "8080"
+			"traefik.enable":                                        "true"
+			"traefik.http.routers.dozzle.rule":                      "Host(`logs.{{.domain}}`)"
+			"traefik.http.routers.dozzle.entrypoints":               "web"
+			"traefik.http.services.dozzle.loadbalancer.server.port": "8080"
 		}
 
 		subdomain: {key: "logs", nested: "logs", flat: "logs"}

@@ -95,9 +95,9 @@ package base
       layer:         "2"
       fieldPath:     "paas.type"
       ruleType:      "constraint"
-      cueExpression: "paas.type =~ \"^(dokploy|coolify|dokku|portainer|dockge)$\""
-      errorMessage:  "PAAS type must be one of: dokploy, coolify, dokku, portainer, dockge"
-      hint:          "Use a supported PAAS platform"
+      cueExpression: "paas.type =~ \"^(dokploy|coolify)$\""
+      errorMessage:  "PAAS type must be one of: dokploy, coolify"
+      hint:          "Use a supported standard PAAS platform"
       severity:      "error"
     },
     {

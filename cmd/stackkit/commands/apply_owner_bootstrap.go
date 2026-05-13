@@ -129,7 +129,11 @@ func pocketIDURLForSpec(spec *models.StackSpec) string {
 	if domain == "" {
 		return ""
 	}
-	return "https://id." + domain
+	proto := "https"
+	if models.IsLocalhostDomain(domain) {
+		proto = "http"
+	}
+	return proto + "://id." + domain
 }
 
 // nodeNameForBootstrap returns a stable identifier for the firstnode the

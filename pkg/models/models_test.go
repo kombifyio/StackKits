@@ -324,11 +324,11 @@ func TestResolvePAASForContext(t *testing.T) {
 		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextLocal))
 	})
 
-	t.Run("local low tier defaults to dockge", func(t *testing.T) {
+	t.Run("local low tier still gets a required platform", func(t *testing.T) {
 		spec := &StackSpec{
 			Compute: ComputeSpec{Tier: ComputeTierLow},
 		}
-		assert.Equal(t, PAASDockge, spec.ResolvePAASForContext(ContextLocal))
+		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextLocal))
 	})
 
 	t.Run("cloud without domain defaults to dokploy", func(t *testing.T) {
@@ -350,11 +350,133 @@ func TestResolvePAASForContext(t *testing.T) {
 		spec := &StackSpec{Domain: "lab.homebase"}
 		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextCloud))
 	})
+
+	t.Run("multi-node defaults to coolify", func(t *testing.T) {
+		spec := &StackSpec{
+			Nodes: []NodeSpec{
+				{Name: "main-1", Role: NodeRoleMain, IP: "192.168.1.10"},
+				{Name: "worker-1", Role: NodeRoleWorker, IP: "192.168.1.11"},
+			},
+		}
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextLocal))
+	})
+}
+
+func TestNodeRoleCanonicalization(t *testing.T) {
+	tests := []struct {
+		role string
+		want string
+	}{
+		{role: NodeRoleMain, want: NodeRoleMain},
+		{role: NodeRoleControlPlane, want: NodeRoleMain},
+		{role: NodeRoleStandalone, want: NodeRoleMain},
+		{role: NodeRoleWorker, want: NodeRoleWorker},
+		{role: NodeRoleStorage, want: NodeRoleStorage},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.role, func(t *testing.T) {
+			assert.Equal(t, tt.want, CanonicalNodeRole(tt.role))
+		})
+	}
+}
+
+func TestNormalizeAdminEmail(t *testing.T) {
+	tests := []struct {
+		name            string
+		email           string
+		domain          string
+		subdomainPrefix string
+		want            string
+	}{
+		{
+			name:   "empty local defaults to stack.home",
+			email:  "",
+			domain: DomainHomeLab,
+			want:   "admin@stack.home",
+		},
+		{
+			name:   "bare admin local becomes synthetic email",
+			email:  "admin",
+			domain: DomainHomeLab,
+			want:   "admin@stack.home",
+		},
+		{
+			name:            "kombify.me uses assigned homelab prefix",
+			email:           "",
+			domain:          DomainKombifyMe,
+			subdomainPrefix: "sh-my-homelab-cfe020",
+			want:            "admin@sh-my-homelab-cfe020.kombify.me",
+		},
+		{
+			name:   "bare username gets deployment domain",
+			email:  "ops",
+			domain: "lab.example.com",
+			want:   "ops@lab.example.com",
+		},
+		{
+			name:   "explicit email is preserved",
+			email:  "owner@example.com",
+			domain: DomainKombifyMe,
+			want:   "owner@example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, NormalizeAdminEmail(tt.email, tt.domain, tt.subdomainPrefix))
+		})
+	}
+}
+
+func TestDefaultAppHost(t *testing.T) {
+	tests := []struct {
+		name            string
+		domain          string
+		subdomainPrefix string
+		appName         string
+		want            string
+	}{
+		{
+			name:    "local default",
+			appName: "web",
+			want:    "web.stack.home",
+		},
+		{
+			name:    "custom domain",
+			domain:  "apps.example.com",
+			appName: "web",
+			want:    "web.apps.example.com",
+		},
+		{
+			name:            "kombify.me flat service route",
+			domain:          DomainKombifyMe,
+			subdomainPrefix: "sh-demo-abc123",
+			appName:         "web",
+			want:            "sh-demo-abc123-web.kombify.me",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, DefaultAppHost(tt.domain, tt.subdomainPrefix, tt.appName))
+		})
+	}
 }
 
 func TestResolveReverseProxyForPAAS(t *testing.T) {
-	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(PAASDokploy))
+	assert.Equal(t, ReverseProxyDokploy, ResolveReverseProxyForPAAS(PAASDokploy))
 	assert.Equal(t, ReverseProxyCoolify, ResolveReverseProxyForPAAS(PAASCoolify))
 	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(PAASDockge))
 	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(""))
+}
+
+func TestPAASClassification(t *testing.T) {
+	assert.True(t, IsStandardPAAS(PAASDokploy))
+	assert.True(t, IsStandardPAAS(PAASCoolify))
+	assert.False(t, IsStandardPAAS(PAASDockge))
+	assert.False(t, IsStandardPAAS(PAASNone))
+
+	assert.True(t, IsExperimentalPAAS(PAASDockge))
+	assert.False(t, IsExperimentalPAAS(PAASDokploy))
 }

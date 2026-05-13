@@ -2,8 +2,8 @@
 //
 // This is a lightweight REST API that wraps the existing CLI logic,
 // making StackKits functionality available to:
-//   - kombify Stack (via internal calls or Kong Gateway)
-//   - kombify Gateway (Kong) for external consumers
+//   - kombify Stack (via internal calls or Cloudflare Edge)
+//   - kombify Gateway (Cloudflare Edge) for external consumers
 //   - AI agents and native client apps
 //
 // Usage:
@@ -108,15 +108,33 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 	proxies := resolveTrustedProxies(trustedProxies)
 
 	return api.ServerConfig{
-		Port:           port,
-		BaseDir:        dir,
-		Version:        Version,
-		APIKey:         key,
-		CORSOrigins:    origins,
-		RateLimit:      rl,
-		LogDir:         ld,
-		TrustedProxies: proxies,
+		Port:                          port,
+		BaseDir:                       dir,
+		Version:                       Version,
+		APIKey:                        key,
+		CORSOrigins:                   origins,
+		RateLimit:                     rl,
+		LogDir:                        ld,
+		TrustedProxies:                proxies,
+		ServiceAuthSecret:             strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET")),
+		ServiceAuthSecretNext:         strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET_NEXT")),
+		RuntimeActionMode:             resolveRuntimeActionMode(),
+		RuntimeRestoreVerifierCommand: strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
 	}, nil
+}
+
+func resolveRuntimeActionMode() string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("STACKKITS_RUNTIME_ACTION_MODE")))
+	switch mode {
+	case "apply":
+		slog.Warn("StackKits runtime actions will execute OpenTofu apply/state commands")
+		return "apply"
+	case "", "dry-run":
+		return "dry-run"
+	default:
+		slog.Warn("unknown STACKKITS_RUNTIME_ACTION_MODE; falling back to dry-run", "mode", mode)
+		return "dry-run"
+	}
 }
 
 func resolveLogDir(flagVal, baseDir string) string {
@@ -236,7 +254,7 @@ func resolveRateLimit(flagVal int) int {
 	return rl
 }
 
-// startHeartbeat sends periodic heartbeats to kombify so Kong knows this instance is alive.
+// startHeartbeat sends periodic heartbeats to kombify so Cloudflare Edge knows this instance is alive.
 // Requires KOMBIFY_API_KEY env var and a valid instance ID.
 func startHeartbeat(ctx context.Context, flagInstanceID string) {
 	iid := flagInstanceID

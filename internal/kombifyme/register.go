@@ -132,6 +132,12 @@ type RegisterResult struct {
 // RegisterAll registers a base subdomain and all service subdomains for a StackKit deployment.
 // It returns the subdomain prefix to use in tfvars.
 func RegisterAll(apiKey, homelabName, fingerprint, tier string) (*RegisterResult, error) {
+	return RegisterAllWithServices(apiKey, homelabName, fingerprint, tier, nil)
+}
+
+// RegisterAllWithServices registers the base subdomain, canonical BaseKit
+// services, and any additional platform app services.
+func RegisterAllWithServices(apiKey, homelabName, fingerprint, tier string, extraServices []ServiceDef) (*RegisterResult, error) {
 	client := NewClient(apiKey)
 
 	// Detect public IP for target_addr.
@@ -154,7 +160,7 @@ func RegisterAll(apiKey, homelabName, fingerprint, tier string) (*RegisterResult
 	}
 
 	// 2. Register service subdomains with real target_addr
-	services := BaseKitServices(tier)
+	services := MergeServiceRegistrations(BaseKitServices(tier), extraServices)
 	for _, svc := range services {
 		sub, err := client.RegisterService(base.Name, svc.Name, targetAddr, svc.Description)
 		if err != nil {
@@ -173,6 +179,27 @@ func RegisterAll(apiKey, homelabName, fingerprint, tier string) (*RegisterResult
 	}
 
 	return result, nil
+}
+
+func MergeServiceRegistrations(primary, extra []ServiceDef) []ServiceDef {
+	merged := make([]ServiceDef, 0, len(primary)+len(extra))
+	seen := map[string]bool{}
+	appendUnique := func(svc ServiceDef) {
+		name := strings.TrimSpace(svc.Name)
+		if name == "" || seen[name] {
+			return
+		}
+		svc.Name = name
+		seen[name] = true
+		merged = append(merged, svc)
+	}
+	for _, svc := range primary {
+		appendUnique(svc)
+	}
+	for _, svc := range extra {
+		appendUnique(svc)
+	}
+	return merged
 }
 
 func proxyTargetAddr(publicIP string) string {

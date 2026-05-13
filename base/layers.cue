@@ -61,8 +61,10 @@ package base
 // PAAS CONFIGURATION (Layer 2)
 // =============================================================================
 
-// #PAASServiceType defines available PAAS platforms
-#PAASServiceType: "dokploy" | "coolify" | "dokku" | "portainer" | "dockge"
+// #PAASServiceType defines the standard PAAS platforms for normal StackKits.
+// Dockge and Portainer are compose/container managers, not required PaaS
+// adapters for L3 rollouts.
+#PAASServiceType: "dokploy" | "coolify"
 
 // #PAASConfig is the main PAAS configuration block for Layer 2
 #PAASConfig: {

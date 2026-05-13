@@ -49,7 +49,7 @@ func buildComposeOverview(def KitDefinition) map[string]interface{} {
 	// Foundation
 	for k, found := range def.Foundation {
 		services["foundation-"+k] = map[string]interface{}{
-			"image":  "kombify/" + k + ":foundation",
+			"image": "kombify/" + k + ":foundation",
 			"labels": map[string]string{
 				"stackkit.layer": "foundation",
 				"stackkit.role":  string(found.Role),

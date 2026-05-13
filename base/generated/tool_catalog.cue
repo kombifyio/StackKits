@@ -84,7 +84,7 @@ package base
     displayName:  "Platform-as-a-Service"
     layer:        "2"
     standardTool: "dokploy"
-    alternatives: ["coolify", "caprover", "portainer"]
+    alternatives: ["coolify", "caprover"]
   }
   "platform-identity": {
     slug:         "platform-identity"

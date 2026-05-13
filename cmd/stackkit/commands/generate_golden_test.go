@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kombifyio/stackkits/internal/testscenarios"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +29,10 @@ func init() {
 
 // goldenSpecs returns the canonical set of reference specs whose full TFVars
 // output is snapshotted. Each spec represents a distinct deployment archetype.
-func goldenSpecs() map[string]*models.StackSpec {
-	return map[string]*models.StackSpec{
+func goldenSpecs(t *testing.T) map[string]*models.StackSpec {
+	t.Helper()
+
+	specs := map[string]*models.StackSpec{
 		"local-standard": {
 			Name:    "My Homelab",
 			Compute: models.ComputeSpec{Tier: models.ComputeTierStandard},
@@ -78,12 +81,24 @@ func goldenSpecs() map[string]*models.StackSpec {
 			},
 		},
 	}
+
+	scenarios, err := testscenarios.LoadAll()
+	require.NoError(t, err)
+	for _, scenario := range scenarios {
+		if scenario.Expected.Failure.MessageContains != "" {
+			continue
+		}
+		spec := scenario.StackSpec
+		specs["scenario-"+scenario.ID] = &spec
+	}
+
+	return specs
 }
 
 // TestGolden_TFVarsSnapshots generates TFVars for each reference spec and compares
 // against stored golden files. Run with UPDATE_GOLDEN=1 to regenerate.
 func TestGolden_TFVarsSnapshots(t *testing.T) {
-	specs := goldenSpecs()
+	specs := goldenSpecs(t)
 
 	for name, spec := range specs {
 		t.Run(name, func(t *testing.T) {
@@ -140,12 +155,12 @@ func TestGolden_StructuralConsistency(t *testing.T) {
 		"enable_https", "paas", "reverse_proxy_backend",
 		"enable_traefik", "enable_tinyauth", "enable_pocketid",
 		"enable_dokploy", "enable_dockge", "enable_coolify",
-		"enable_dashboard", "enable_uptime_kuma", "enable_vaultwarden",
+		"enable_dashboard", "enable_homepage", "enable_uptime_kuma", "enable_vaultwarden",
 		"enable_jellyfin", "enable_immich",
 		"admin_email", "brand_color", "dashboard_title",
 	}
 
-	specs := goldenSpecs()
+	specs := goldenSpecs(t)
 	for name := range specs {
 		t.Run(name, func(t *testing.T) {
 			goldenPath := filepath.Join(goldenDir, name+".json")

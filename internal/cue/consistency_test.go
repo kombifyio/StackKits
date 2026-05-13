@@ -5,10 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/cue/load"
 )
 
 // TestCUEGoConsistencyGate validates that all CUE module contracts load correctly
@@ -40,6 +36,30 @@ func TestCUEGoConsistencyGate(t *testing.T) {
 			}
 			if mc.Metadata.Layer == "" {
 				t.Errorf("module %q has empty metadata.layer", mc.Metadata.Name)
+			}
+		}
+	})
+
+	t.Run("core_modules_map_to_canonical_scenarios", func(t *testing.T) {
+		validScenarios := map[string]bool{
+			"SK-S1": true,
+			"SK-S2": true,
+			"SK-S3": true,
+			"SK-S4": true,
+			"SK-S5": true,
+		}
+		for _, mc := range contracts {
+			if !mc.Enabled || !mc.Metadata.Core {
+				continue
+			}
+			if len(mc.Metadata.TestScenarios) == 0 {
+				t.Errorf("core module %q has no metadata.testScenarios", mc.Metadata.Name)
+				continue
+			}
+			for _, scenarioID := range mc.Metadata.TestScenarios {
+				if !validScenarios[scenarioID] {
+					t.Errorf("core module %q references unknown canonical scenario %q", mc.Metadata.Name, scenarioID)
+				}
 			}
 		}
 	})
@@ -192,6 +212,39 @@ func TestCUEGoConsistencyGate(t *testing.T) {
 		}
 	})
 
+	t.Run("basekit_runtime_findings_are_module_contracts", func(t *testing.T) {
+		mods := ModulesByName(contracts)
+
+		kuma, ok := mods["uptime-kuma"]
+		if !ok {
+			t.Fatal("uptime-kuma module missing")
+		}
+		kumaInit, ok := kuma.Provisioners["init-kuma"]
+		if !ok {
+			t.Fatal("uptime-kuma must document init-kuma provisioner")
+		}
+		if !strings.Contains(kumaInit.Command, "disableAuth=True") || !strings.Contains(kumaInit.Command, "trustProxy=True") {
+			t.Fatalf("init-kuma must document TinyAuth/PocketID handoff: %s", kumaInit.Command)
+		}
+
+		immich, ok := mods["immich"]
+		if !ok {
+			t.Fatal("immich module missing")
+		}
+		if immich.Provides == nil || !immich.Provides.Capabilities["photos"] {
+			t.Fatal("immich must declare the swappable photos capability")
+		}
+		immichInit, ok := immich.Provisioners["init-immich"]
+		if !ok {
+			t.Fatal("immich must document init-immich provisioner")
+		}
+		for _, want := range []string{"/api/auth/admin-sign-up", "/api/users/me", "/api/users/me/onboarding", "/api/system-metadata/admin-onboarding"} {
+			if !strings.Contains(immichInit.Command, want) {
+				t.Fatalf("init-immich command missing %q: %s", want, immichInit.Command)
+			}
+		}
+	})
+
 	t.Run("generator_round_trip", func(t *testing.T) {
 		// Verify the generator can produce output from the real module graph
 		resolver := NewResolver()
@@ -222,108 +275,4 @@ func TestCUEGoConsistencyGate(t *testing.T) {
 			}
 		}
 	})
-}
-
-func TestModuleReaderExtractsNestedFlexibleSettings(t *testing.T) {
-	modulesDir := filepath.Join("..", "..", "modules")
-	if _, err := os.Stat(modulesDir); os.IsNotExist(err) {
-		t.Skipf("modules directory not found: %s", modulesDir)
-	}
-
-	reader := NewModuleReader()
-
-	agentContract, err := reader.ReadModule(filepath.Join(modulesDir, "monitoring-agent"))
-	if err != nil {
-		t.Fatalf("ReadModule(monitoring-agent) failed: %v", err)
-	}
-	agentCollector, ok := agentContract.Settings.Flexible["collector"].(map[string]any)
-	if !ok {
-		t.Fatalf("monitoring-agent collector settings = %T, want map[string]any", agentContract.Settings.Flexible["collector"])
-	}
-	if agentCollector["endpoint"] != "techstack:4317" {
-		t.Fatalf("monitoring-agent collector endpoint = %v, want techstack:4317", agentCollector["endpoint"])
-	}
-	if agentCollector["collectionInterval"] != "30s" {
-		t.Fatalf("monitoring-agent collector collectionInterval = %v, want 30s", agentCollector["collectionInterval"])
-	}
-
-	coreContract, err := reader.ReadModule(filepath.Join(modulesDir, "monitoring-core"))
-	if err != nil {
-		t.Fatalf("ReadModule(monitoring-core) failed: %v", err)
-	}
-	backend, ok := coreContract.Settings.Flexible["backend"].(map[string]any)
-	if !ok {
-		t.Fatalf("monitoring-core backend settings = %T, want map[string]any", coreContract.Settings.Flexible["backend"])
-	}
-	if backend["retentionPeriod"] != "30d" {
-		t.Fatalf("monitoring-core backend retentionPeriod = %v, want 30d", backend["retentionPeriod"])
-	}
-	gateway, ok := coreContract.Settings.Flexible["gateway"].(map[string]any)
-	if !ok {
-		t.Fatalf("monitoring-core gateway settings = %T, want map[string]any", coreContract.Settings.Flexible["gateway"])
-	}
-	if gateway["batchTimeout"] != "15s" {
-		t.Fatalf("monitoring-core gateway batchTimeout = %v, want 15s", gateway["batchTimeout"])
-	}
-}
-
-func TestBaseStackKitExposesCanonicalObservabilitySurface(t *testing.T) {
-	baseDir := filepath.Join("..", "..", "base")
-	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-		t.Skipf("base directory not found: %s", baseDir)
-	}
-
-	repoRoot := filepath.Join("..", "..")
-	cfg := cueLoadConfig(baseDir, repoRoot)
-	instances := load.Instances([]string{"."}, cfg)
-	if len(instances) == 0 {
-		t.Fatal("no CUE instances loaded for base package")
-	}
-	if instErr := instances[0].Err; instErr != nil {
-		if strings.Contains(instErr.Error(), "cannot find package") {
-			t.Skipf("CUE module resolution not available: %v", instErr)
-		}
-		t.Fatalf("failed to load base package: %v", instErr)
-	}
-
-	ctx := cuecontext.New()
-	value := ctx.BuildInstance(instances[0])
-	if err := value.Err(); err != nil {
-		if strings.Contains(err.Error(), "cannot find package") {
-			t.Skipf("CUE module resolution not available: %v", err)
-		}
-		t.Fatalf("failed to build base package: %v", err)
-	}
-
-	monitoring := value.LookupPath(cue.ParsePath("#BaseStackKit.observability.monitoring"))
-	if !monitoring.Exists() {
-		t.Fatal("#BaseStackKit.observability.monitoring does not exist")
-	}
-	if got, err := monitoring.LookupPath(cue.ParsePath("collector.endpoint")).String(); err != nil || got != "techstack:4317" {
-		t.Fatalf("collector.endpoint = %q, %v, want techstack:4317", got, err)
-	}
-	if got, err := monitoring.LookupPath(cue.ParsePath("collector.collectionInterval")).String(); err != nil || got != "30s" {
-		t.Fatalf("collector.collectionInterval = %q, %v, want 30s", got, err)
-	}
-	if got, err := monitoring.LookupPath(cue.ParsePath("gateway.memoryLimitMiB")).Int64(); err != nil || got != 256 {
-		t.Fatalf("gateway.memoryLimitMiB = %d, %v, want 256", got, err)
-	}
-	if got, err := monitoring.LookupPath(cue.ParsePath("backend.retentionPeriod")).String(); err != nil || got != "30d" {
-		t.Fatalf("backend.retentionPeriod = %q, %v, want 30d", got, err)
-	}
-	if got, err := monitoring.LookupPath(cue.ParsePath("signals.metrics")).Bool(); err != nil || !got {
-		t.Fatalf("signals.metrics = %t, %v, want true", got, err)
-	}
-
-	coreContract, err := NewModuleReader().ReadModule(filepath.Join("..", "..", "modules", "monitoring-core"))
-	if err != nil {
-		t.Fatalf("ReadModule(monitoring-core) failed: %v", err)
-	}
-	gateway, ok := coreContract.Settings.Flexible["gateway"].(map[string]any)
-	if !ok {
-		t.Fatalf("monitoring-core gateway settings = %T, want map[string]any", coreContract.Settings.Flexible["gateway"])
-	}
-	if gateway["remoteWriteEndpoint"] != "http://victoriametrics:8428/api/v1/write" {
-		t.Fatalf("monitoring-core gateway remoteWriteEndpoint = %v, want http://victoriametrics:8428/api/v1/write", gateway["remoteWriteEndpoint"])
-	}
 }

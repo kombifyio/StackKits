@@ -27,10 +27,10 @@ func TestEdgeCases_MinimalSpec(t *testing.T) {
 	assert.Equal(t, "base_net", stringVar(t, vars, "network_name"))
 	assert.Equal(t, "", stringVar(t, vars, "network_subnet"))
 	assert.True(t, boolVar(t, vars, "enable_https"))
-	assert.False(t, boolVar(t, vars, "enable_dnsmasq"))
-	assert.False(t, boolVar(t, vars, "enable_kombify_point"))
+	assert.True(t, boolVar(t, vars, "enable_dnsmasq"))
+	assert.True(t, boolVar(t, vars, "enable_kombify_point"))
 	assert.True(t, boolVar(t, vars, "step_ca_enabled"))
-	assert.Equal(t, "admin", stringVar(t, vars, "admin_email"))
+	assert.Equal(t, "admin@stack.home", stringVar(t, vars, "admin_email"))
 	assert.Equal(t, "minimal", stringVar(t, vars, "dashboard_title"))
 	assert.Equal(t, "#F97316", stringVar(t, vars, "brand_color"))
 	assert.Equal(t, "bridge", stringVar(t, vars, "network_mode"))
@@ -52,10 +52,10 @@ func TestEdgeCases_EmptySpec(t *testing.T) {
 
 	// Dashboard title defaults to "My Homelab" when Name is empty
 	assert.Equal(t, "My Homelab", stringVar(t, vars, "dashboard_title"))
-	assert.Equal(t, "admin", stringVar(t, vars, "admin_email"))
+	assert.Equal(t, "admin@stack.home", stringVar(t, vars, "admin_email"))
 }
 
-// TestEdgeCases_NoNodes verifies zero-config local mode does not need LAN DNS.
+// TestEdgeCases_NoNodes verifies local mode defaults to Kombify Point names.
 func TestEdgeCases_NoNodes(t *testing.T) {
 	setCapabilitiesHome(t, models.ContextLocal)
 
@@ -65,8 +65,8 @@ func TestEdgeCases_NoNodes(t *testing.T) {
 
 	vars := decodeTFVars(t, spec)
 
-	assert.False(t, boolVar(t, vars, "enable_dnsmasq"), "home.localhost does not enable Kombify Point")
-	assert.False(t, boolVar(t, vars, "enable_kombify_point"), "home.localhost is zero-config")
+	assert.True(t, boolVar(t, vars, "enable_dnsmasq"), "stack.home enables Kombify Point")
+	assert.True(t, boolVar(t, vars, "enable_kombify_point"), "stack.home is the Kombify Point default zone")
 }
 
 // TestEdgeCases_NodeWithEmptyIP verifies that a node with no IP falls back
@@ -76,7 +76,7 @@ func TestEdgeCases_NodeWithEmptyIP(t *testing.T) {
 
 	spec := &models.StackSpec{
 		Name:   "empty-ip-node",
-		Domain: models.DomainHomeDNS,
+		Domain: models.DomainHomeLab,
 		Nodes: []models.NodeSpec{
 			{Name: "node1", Role: "standalone"},
 		},
@@ -100,7 +100,7 @@ func TestEdgeCases_SubdomainPrefixBranding(t *testing.T) {
 	vars := decodeTFVars(t, spec)
 
 	assert.Equal(t, "sh-mylab-abc123", stringVar(t, vars, "subdomain_prefix"))
-	assert.Contains(t, stringVar(t, vars, "tinyauth_app_url"), "sh-mylab-abc123-tinyauth")
+	assert.Equal(t, "https://sh-mylab-abc123-auth.kombify.me", stringVar(t, vars, "tinyauth_app_url"))
 	assert.Contains(t, stringVar(t, vars, "tinyauth_app_url"), models.DomainKombifyMe)
 }
 

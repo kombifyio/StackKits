@@ -70,12 +70,12 @@ func TestBuildAccessSummary_LocalUsesNestedHTTPSHub(t *testing.T) {
 
 	summary := buildAccessSummaryFromInputs(spec, tfvars, servicecatalog.Default())
 
-	require.Equal(t, "https://base.home.localhost", summary.HubURL)
+	require.Equal(t, "https://base.stack.home", summary.HubURL)
 	urls := serviceURLMap(summary)
-	assert.Equal(t, "https://base.home.localhost", urls["base"])
-	assert.Equal(t, "https://auth.home.localhost", urls["auth"])
-	assert.Equal(t, "https://id.home.localhost", urls["id"])
-	assert.Equal(t, "https://dockge.home.localhost", urls["dockge"])
+	assert.Equal(t, "https://base.stack.home", urls["base"])
+	assert.Equal(t, "https://auth.stack.home", urls["auth"])
+	assert.Equal(t, "https://id.stack.home", urls["id"])
+	assert.Equal(t, "https://dockge.stack.home", urls["dockge"])
 	assert.NotContains(t, urls, "dokploy")
 }
 
@@ -84,10 +84,10 @@ func TestBuildAccessSummary_LocalDNSIncludesKombifyPoint(t *testing.T) {
 		Name:     "lan-lab",
 		StackKit: "base-kit",
 		Mode:     "simple",
-		Domain:   models.DomainHomeDNS,
+		Domain:   models.DomainHomeLab,
 	}
 	tfvars := map[string]any{
-		"domain":               models.DomainHomeDNS,
+		"domain":               models.DomainHomeLab,
 		"enable_https":         true,
 		"enable_dashboard":     true,
 		"enable_tinyauth":      true,
@@ -104,11 +104,11 @@ func TestBuildAccessSummary_LocalDNSIncludesKombifyPoint(t *testing.T) {
 
 	summary := buildAccessSummaryFromInputs(spec, tfvars, servicecatalog.Default())
 
-	require.Equal(t, "https://base.home", summary.HubURL)
+	require.Equal(t, "https://base.stack.home", summary.HubURL)
 	urls := serviceURLMap(summary)
-	assert.Equal(t, "https://point.home", urls["point"])
-	assert.Equal(t, "https://auth.home", urls["auth"])
-	assert.Equal(t, "https://id.home", urls["id"])
+	assert.Equal(t, "https://point.stack.home", urls["point"])
+	assert.Equal(t, "https://auth.stack.home", urls["auth"])
+	assert.Equal(t, "https://id.stack.home", urls["id"])
 }
 
 func serviceURLMap(summary *accessSummary) map[string]string {

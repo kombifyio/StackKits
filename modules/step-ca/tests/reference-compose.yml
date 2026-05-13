@@ -56,8 +56,10 @@ services:
     cpus: 0.5
 
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.6
     container_name: test-traefik-stepca
+    environment:
+      DOCKER_API_VERSION: "1.40"
     command:
       - "--api.insecure=true"
       - "--ping=true"

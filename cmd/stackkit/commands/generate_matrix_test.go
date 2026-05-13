@@ -30,20 +30,20 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		{
 			name: "local/standard/auto",
 			tier: models.ComputeTierStandard, context: models.ContextLocal,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 		{
 			name: "local/low/auto",
 			tier: models.ComputeTierLow, context: models.ContextLocal,
-			wantPAAS: models.PAASDockge, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: false, wantDockge: true, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 		{
 			name: "local/high/auto",
 			tier: models.ComputeTierHigh, context: models.ContextLocal,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 		{
 			name: "local/standard/explicit-coolify",
@@ -54,8 +54,8 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		{
 			name: "local/low/explicit-dokploy",
 			tier: models.ComputeTierLow, context: models.ContextLocal, paas: models.PAASDokploy,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 
 		// --- Cloud context: domain-aware resolution ---
@@ -63,8 +63,8 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 			name: "cloud/standard/no-domain",
 			tier: models.ComputeTierStandard, context: models.ContextCloud,
 			// Empty domain + cloud → SuggestDomainForContext → kombify.me → PAASDokploy
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 		{
 			name: "cloud/standard/custom-domain",
@@ -83,8 +83,8 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		{
 			name: "cloud/standard/kombify-me",
 			tier: models.ComputeTierStandard, context: models.ContextCloud, domain: models.DomainKombifyMe,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 		{
 			name: "cloud/high/explicit-dockge",
@@ -98,14 +98,14 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		{
 			name: "pi/low/auto",
 			tier: models.ComputeTierLow, context: models.ContextPi,
-			wantPAAS: models.PAASDockge, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: false, wantDockge: true, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 		{
 			name: "pi/standard/auto",
 			tier: models.ComputeTierStandard, context: models.ContextPi,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 
 		// --- Default tier (empty string = standard) ---
@@ -113,8 +113,8 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 			name:    "local/default-tier/auto",
 			context: models.ContextLocal,
 			// Empty tier → ComputeTierStandard → PAASDokploy
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: true,
+			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
+			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
 		},
 	}
 
@@ -153,15 +153,16 @@ func TestSpecMatrix_DomainResolution(t *testing.T) {
 		wantHTTPS        bool
 		wantKombifyPoint bool
 	}{
-		// Local defaults use HTTPS via Step-CA. The browser-reserved
-		// home.localhost suffix is zero-config and does not start Kombify Point.
+		// Local defaults use Kombify Point DNS and StackKit-managed Step-CA
+		// HTTPS. Browser-local `.localhost` remains the explicit no-PKI legacy
+		// exception.
 		{
 			name: "empty-domain/local", context: models.ContextLocal,
-			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: false,
+			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
 		},
 		{
 			name: "homelab-literal/local", domain: "homelab", context: models.ContextLocal,
-			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: false,
+			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
 		},
 		{
 			name: "home.lab/local", domain: "home.lab", context: models.ContextLocal,
@@ -177,11 +178,11 @@ func TestSpecMatrix_DomainResolution(t *testing.T) {
 		},
 		{
 			name: "home.localhost/local", domain: "home.localhost", context: models.ContextLocal,
-			wantDomain: "home.localhost", wantHTTPS: true, wantKombifyPoint: false,
+			wantDomain: "home.localhost", wantHTTPS: false, wantKombifyPoint: false,
 		},
 		{
 			name: "home/local", domain: "home", context: models.ContextLocal,
-			wantDomain: "home", wantHTTPS: true, wantKombifyPoint: true,
+			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
 		},
 
 		// Cloud + local domain → redirect to kombify.me (no HTTPS, no Kombify Point)
@@ -214,7 +215,7 @@ func TestSpecMatrix_DomainResolution(t *testing.T) {
 		// Pi context (same as local for domain logic)
 		{
 			name: "empty-domain/pi", context: models.ContextPi,
-			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: false,
+			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
 		},
 	}
 
@@ -231,13 +232,29 @@ func TestSpecMatrix_DomainResolution(t *testing.T) {
 
 			assert.Equal(t, tt.wantDomain, stringVar(t, vars, "domain"), "domain mismatch")
 			assert.Equal(t, tt.wantHTTPS, boolVar(t, vars, "enable_https"), "enable_https mismatch")
-			if models.IsKombifyMeDomain(tt.wantDomain) {
-				assert.True(t, boolVar(t, vars, "step_ca_enabled"), "kombify.me must deploy Step-CA control plane")
-			}
+			assert.Contains(t, vars, "step_ca_enabled", "step_ca_enabled must be rendered explicitly so Terraform defaults cannot re-enable Step-CA")
+			wantStepCA := models.IsKombifyMeDomain(tt.wantDomain) || (tt.wantKombifyPoint && tt.wantHTTPS)
+			assert.Equal(t, wantStepCA, boolVar(t, vars, "step_ca_enabled"), "step_ca_enabled mismatch")
 			assert.Equal(t, tt.wantKombifyPoint, boolVar(t, vars, "enable_kombify_point"), "enable_kombify_point mismatch")
 			assert.Equal(t, tt.wantKombifyPoint, boolVar(t, vars, "enable_dnsmasq"), "deprecated enable_dnsmasq alias mismatch")
 		})
 	}
+}
+
+func TestCloudKombifyMeDefaultEnablesWhoamiDiagnostic(t *testing.T) {
+	setCapabilitiesHome(t, models.ContextCloud)
+
+	spec := &models.StackSpec{
+		Name:    "cloud-whoami",
+		Domain:  models.DomainKombifyMe,
+		Context: string(models.ContextCloud),
+		Compute: models.ComputeSpec{
+			Tier: models.ComputeTierStandard,
+		},
+	}
+
+	vars := decodeTFVars(t, spec)
+	assert.True(t, boolVar(t, vars, "enable_whoami"), "cloud kombify.me default should include whoami diagnostics")
 }
 
 // TestSpecMatrix_TLSConfiguration verifies ACME/TLS fields across provider combinations.

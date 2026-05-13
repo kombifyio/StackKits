@@ -1,0 +1,79 @@
+{
+  "id": "SK-S1",
+  "name": "Local Ready",
+  "stage": "live",
+  "liveGate": "fresh-ubuntu-local",
+  "stackSpec": {
+    "name": "sk-s1-local-ready",
+    "stackkit": "base-kit",
+    "mode": "simple",
+    "context": "local",
+    "domain": "stack.home",
+    "network": {
+      "mode": "local"
+    },
+    "compute": {
+      "tier": "standard"
+    },
+    "ssh": {
+      "user": "admin",
+      "keyPath": "~/.ssh/id_ed25519",
+      "port": 22
+    },
+    "paas": "none",
+    "services": {
+      "dokploy": {"enabled": false},
+      "uptime-kuma": {"enabled": true},
+      "whoami": {"enabled": true},
+      "vaultwarden": {"enabled": true},
+      "jellyfin": {"enabled": false},
+      "immich": {"enabled": true}
+    }
+  },
+  "env": {
+    "optionalKeys": [
+      "STACKKIT_FRESH_VM_OUTPUT",
+      "STACKKIT_FRESH_VM_KEEP",
+      "STACKKIT_FRESH_VM_HTTP_PORT",
+      "STACKKIT_FRESH_VM_HTTPS_PORT",
+      "STACKKIT_FRESH_VM_DOCKER_CONFIG",
+      "STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON"
+    ]
+  },
+  "expected": {
+    "generation": {
+      "context": "local",
+      "domain": "stack.home",
+      "paas": "none",
+      "reverseProxyBackend": "standalone",
+      "enableHTTPS": true,
+      "stepCAEnabled": true,
+      "enableKombifyPoint": true,
+      "adminEmail": "admin@stack.home",
+      "serviceFlags": {
+        "enable_dashboard": true,
+        "enable_tinyauth": true,
+        "enable_pocketid": true,
+        "enable_dokploy": false,
+        "enable_uptime_kuma": true,
+        "enable_whoami": true,
+        "enable_vaultwarden": true,
+        "enable_jellyfin": false,
+        "enable_immich": true
+      }
+    },
+    "access": {
+      "hubUrl": "https://base.stack.home",
+      "browserUrlMode": "local-host-port",
+      "services": [
+        {"key": "base", "host": "base.stack.home", "scheme": "https"},
+        {"key": "auth", "host": "auth.stack.home", "scheme": "https"},
+        {"key": "id", "host": "id.stack.home", "scheme": "https"},
+        {"key": "kuma", "host": "kuma.stack.home", "scheme": "https"},
+        {"key": "whoami", "host": "whoami.stack.home", "scheme": "https"},
+        {"key": "vault", "host": "vault.stack.home", "scheme": "https"},
+        {"key": "photos", "host": "photos.stack.home", "scheme": "https"}
+      ]
+    }
+  }
+}

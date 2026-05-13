@@ -20,21 +20,25 @@ func TestServiceCatalogFromModulesUsesModuleMetadataFallbacks(t *testing.T) {
 		key         string
 		displayName string
 		description string
+		guideURL    string
 	}{
 		{
 			key:         "auth",
 			displayName: "TinyAuth",
 			description: "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth support",
+			guideURL:    "https://docs.kombify.io/guides/stackkits/services/tinyauth",
 		},
 		{
 			key:         "kuma",
 			displayName: "Uptime Kuma",
 			description: "Self-hosted uptime monitoring with status pages and notifications",
+			guideURL:    "https://docs.kombify.io/guides/stackkits/services/uptime-kuma",
 		},
 		{
 			key:         "dokploy",
 			displayName: "Dokploy",
 			description: "Self-hosted PaaS with PostgreSQL and Redis for deploying applications",
+			guideURL:    "https://docs.kombify.io/guides/stackkits/services/dokploy",
 		},
 	}
 
@@ -50,6 +54,9 @@ func TestServiceCatalogFromModulesUsesModuleMetadataFallbacks(t *testing.T) {
 			if entry.Description != tt.description {
 				t.Fatalf("Description = %q, want %q", entry.Description, tt.description)
 			}
+			if entry.GuideURL != tt.guideURL {
+				t.Fatalf("GuideURL = %q, want %q", entry.GuideURL, tt.guideURL)
+			}
 		})
 	}
 }
@@ -64,11 +71,14 @@ func TestDomainEntriesFromModulesUsesCanonicalBaseKeyForDashboard(t *testing.T) 
 		if entry.Key != "base" {
 			continue
 		}
-		if entry.DisplayName != "Dashboard" {
-			t.Fatalf("dashboard DisplayName = %q, want Dashboard", entry.DisplayName)
+		if entry.DisplayName != "StackKits Node Hub" {
+			t.Fatalf("dashboard DisplayName = %q, want StackKits Node Hub", entry.DisplayName)
 		}
 		if entry.Description == "" {
 			t.Fatal("dashboard Description is empty")
+		}
+		if entry.GuideURL != "https://docs.kombify.io/guides/stackkits/node-hub" {
+			t.Fatalf("dashboard GuideURL = %q", entry.GuideURL)
 		}
 		return
 	}

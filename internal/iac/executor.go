@@ -5,6 +5,7 @@ package iac
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/terramate"
@@ -160,14 +161,52 @@ func (e *OpenTofuExecutor) Version(ctx context.Context) (string, error) {
 }
 
 func (e *OpenTofuExecutor) Init(ctx context.Context) error {
-	result, err := e.executor.Init(ctx)
-	if err != nil {
-		return err
+	const maxAttempts = 3
+	var lastStderr string
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result, err := e.executor.Init(ctx)
+		if err != nil {
+			return err
+		}
+		if result.Success {
+			return nil
+		}
+
+		lastStderr = result.Stderr
+		combinedOutput := result.Stderr + "\n" + result.Stdout
+		if attempt == maxAttempts || !isTransientTofuInitFailure(combinedOutput) {
+			return fmt.Errorf("init failed: %s", result.Stderr)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(attempt*2) * time.Second):
+		}
 	}
-	if !result.Success {
-		return fmt.Errorf("init failed: %s", result.Stderr)
+
+	return fmt.Errorf("init failed: %s", lastStderr)
+}
+
+func isTransientTofuInitFailure(output string) bool {
+	lower := strings.ToLower(output)
+	for _, marker := range []string{
+		"502 bad gateway",
+		"503 service unavailable",
+		"504 gateway timeout",
+		"connection reset",
+		"could not query provider registry",
+		"failed to retrieve cryptographic signature",
+		"request failed",
+		"timeout awaiting response headers",
+		"tls handshake timeout",
+	} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
 	}
-	return nil
+	return false
 }
 
 func (e *OpenTofuExecutor) Plan(ctx context.Context, outFile string, destroy bool) (*PlanResult, error) {

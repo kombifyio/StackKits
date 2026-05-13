@@ -1,6 +1,7 @@
-// Package dashboard -- Service overview dashboard module.
+// Package dashboard -- StackKits Node Hub module.
 //
-// Provides a service overview dashboard with links to all deployed services.
+// Provides a node-local hub with onboarding, recovery hints, and links to the
+// most important services on this StackKits node.
 // Uses nginx:alpine as a lightweight static file server.
 // Requires Traefik for reverse proxy routing.
 //
@@ -13,10 +14,11 @@ import "github.com/kombifyio/stackkits/base"
 Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "dashboard"
-		displayName: "Dashboard"
+		displayName: "StackKits Node Hub"
 		version:     "1.0.0"
 		layer:       "L3-application"
-		description: "Service overview dashboard with links to all deployed services"
+		description: "Node-local StackKits hub with onboarding, recovery, and service links"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
 	requires: {
@@ -32,18 +34,18 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-		provides: {
-			capabilities: {
-				"dashboard":        true
-				"service-overview": true
-			}
-			endpoints: {
-				ui: {
-					url:         "https://base.{{.domain}}"
-					description: "Homelab dashboard"
-				}
+	provides: {
+		capabilities: {
+			"dashboard":        true
+			"service-overview": true
+		}
+		endpoints: {
+			ui: {
+				url:         "https://base.{{.domain}}"
+				description: "StackKits Node Hub"
 			}
 		}
+	}
 
 	settings: {
 		flexible: {
@@ -54,7 +56,7 @@ Contract: base.#ModuleContract & {
 	contexts: {
 		local: {}
 		cloud: {}
-		pi:    {}
+		pi: {}
 	}
 
 	services: dashboard: base.#ServiceDefinition & {
@@ -106,17 +108,18 @@ Contract: base.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                                      "true"
-			"traefik.http.routers.dashboard.rule":                                 "Host(`base.{{.domain}}`)"
-			"traefik.http.routers.dashboard.entrypoints":                          "web"
-			"traefik.http.services.dashboard.loadbalancer.server.port":            "80"
+			"traefik.enable":                                           "true"
+			"traefik.http.routers.dashboard.rule":                      "Host(`base.{{.domain}}`)"
+			"traefik.http.routers.dashboard.entrypoints":               "web"
+			"traefik.http.services.dashboard.loadbalancer.server.port": "80"
 		}
 
 		subdomain: {key: "base", nested: "base", flat: "base"}
+		dashboard: {icon: "&#128421;", order: 0, section: "Platform", badge: "L3 \u00b7 Hub", enableVar: "enable_dashboard", guideUrl: "https://docs.kombify.io/guides/stackkits/node-hub"}
 
 		output: {
 			url:         "https://base.{{.domain}}"
-			description: "Homelab service dashboard"
+			description: "StackKits Node Hub"
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/tofu"
+	stackverify "github.com/kombifyio/stackkits/internal/verify"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +30,9 @@ var (
 	applyTenantDeployment  string
 	applyReportingEndpoint string
 	applyReportingToken    string
+	applyVerify            bool
+	applyVerifyHTTP        bool
+	applyVerifyStrict      bool
 )
 
 var applyCmd = &cobra.Command{
@@ -35,8 +40,8 @@ var applyCmd = &cobra.Command{
 	Short: "Apply infrastructure changes",
 	Long: `Apply the planned changes to the infrastructure.
 
-This command runs 'tofu apply' to create, update, or destroy
-infrastructure resources as needed.
+This command runs StackKit-packaged OpenTofu to create, update, or
+destroy infrastructure resources as needed.
 
 Examples:
   stackkit apply                   Apply changes (with confirmation)
@@ -51,6 +56,9 @@ func init() {
 	applyCmd.Flags().StringVar(&applyTenantDeployment, "tenant-deployment", "", "sk_tenant_deployment UUID: report success/failure back to Admin after apply")
 	applyCmd.Flags().StringVar(&applyReportingEndpoint, "admin-endpoint", "", "Admin API base URL for tenant-deployment reporting (env: STACKKIT_ADMIN_URL)")
 	applyCmd.Flags().StringVar(&applyReportingToken, "admin-token", "", "Admin API token (env: STACKKIT_ADMIN_TOKEN)")
+	applyCmd.Flags().BoolVar(&applyVerify, "verify", false, "Run stackkit verify after a successful apply")
+	applyCmd.Flags().BoolVar(&applyVerifyHTTP, "verify-http", false, "Include HTTP route checks in post-apply verification")
+	applyCmd.Flags().BoolVar(&applyVerifyStrict, "verify-strict", false, "Treat post-apply verification warnings as failures")
 }
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
@@ -209,7 +217,7 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	if !result.Success {
-		userMsg := formatApplyError(result.Stderr)
+		userMsg := formatApplyError(result.Stderr + "\n" + result.Stdout)
 		deployLog.Error("apply.failed",
 			slog.String("error", userMsg),
 			slog.Duration("duration", duration),
@@ -251,6 +259,10 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 				slog.String("hub_url", access.HubURL),
 			)
 		}
+	}
+
+	if err := runPlatformAppDeployments(ctx, deployDir, state); err != nil {
+		return fmt.Errorf("platform app rollout: %w", err)
 	}
 
 	deployLog.Event("apply.success",
@@ -307,13 +319,25 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	// Post-deploy: verify service URLs are reachable
-	verifyServiceURLs(ctx, spec)
+	verifyServiceURLs(ctx, spec, access)
 
 	// Post-deploy: bootstrap PocketID owner + break-glass artifacts on the
 	// firstnode (Phase 1, gated on --cluster-mode=first --owner-source=local).
 	// No-op for existing deploys that don't opt into the new identity flow.
 	if err := runOwnerBootstrap(cmd, spec); err != nil {
 		return err
+	}
+
+	if applyVerify || applyVerifyHTTP || applyVerifyStrict {
+		fmt.Println()
+		printInfo("Running post-deployment verification...")
+		report := buildLocalVerifyReport(ctx, wd, spec, state, stackverify.Options{
+			HTTP:   applyVerifyHTTP,
+			Strict: applyVerifyStrict,
+		})
+		if err := emitVerifyReport(cmd.OutOrStdout(), report, false); err != nil {
+			return fmt.Errorf("post-deployment verify: %w", err)
+		}
 	}
 
 	// Post-deploy: report tenant deployment state (if linked to a managed StackKit)
@@ -365,7 +389,7 @@ func reportTenantDeploymentState(deploymentID, state, lastError, message string)
 	}
 
 	url := fmt.Sprintf("%s/api/v1/sk/tenants/deployments/%s", endpoint, deploymentID)
-	req, err := http.NewRequest(http.MethodPatch, url, strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPatch, url, strings.NewReader(string(body))) // #nosec G107 G704 -- endpoint is an operator-supplied CLI flag.
 	if err != nil {
 		return err
 	}
@@ -375,7 +399,7 @@ func reportTenantDeploymentState(deploymentID, state, lastError, message string)
 	}
 
 	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G107 G704 -- request URL is operator-supplied CLI endpoint.
 	if err != nil {
 		return err
 	}
@@ -442,7 +466,7 @@ func createDefaultSpec(loader *config.Loader, wd string) (*models.StackSpec, err
 	}
 
 	specPath := filepath.Join(wd, specFile)
-	if err := os.WriteFile(specPath, data, 0600); err != nil {
+	if err := os.WriteFile(specPath, data, 0600); err != nil { // #nosec G304 G703 -- specFile is a fixed CLI artifact name, wd is the operator's working directory.
 		return nil, fmt.Errorf("failed to write %s: %w", specFile, err)
 	}
 	printSuccess("Created %s from %s defaults", specFile, kitName)
@@ -450,8 +474,8 @@ func createDefaultSpec(loader *config.Loader, wd string) (*models.StackSpec, err
 	return loader.LoadStackSpec(specFile)
 }
 
-// ensurePrerequisites checks that Docker and OpenTofu are available,
-// offering to install them if missing. Skips Docker for native runtime.
+// ensurePrerequisites checks that Docker is available and that the StackKit
+// release package includes its OpenTofu binary. Skips Docker for native runtime.
 func ensurePrerequisites(ctx context.Context, spec *models.StackSpec) error {
 	isNative := spec != nil && spec.Runtime == models.RuntimeNative
 
@@ -464,30 +488,17 @@ func ensurePrerequisites(ctx context.Context, spec *models.StackSpec) error {
 		}
 	}
 
-	// Check OpenTofu
-	tofuExec := tofu.NewExecutor()
-	if !tofuExec.IsInstalled() {
-		if applyAutoApprove {
-			printInfo("OpenTofu is not installed, installing...")
-		} else {
-			printWarning("OpenTofu is not installed")
-			fmt.Print("Install OpenTofu now? [Y/n] ")
-			var answer string
-			_, _ = fmt.Scanln(&answer)
-			if len(answer) > 0 && (answer[0] == 'n' || answer[0] == 'N') {
-				return fmt.Errorf("OpenTofu is required. Install it manually or run 'stackkit prepare'")
-			}
-			printInfo("Installing OpenTofu...")
-		}
-		if err := installTofuLocal(ctx); err != nil {
-			return fmt.Errorf("failed to install OpenTofu: %w", err)
-		}
-		tofuExec = tofu.NewExecutor()
-		if !tofuExec.IsInstalled() {
-			return fmt.Errorf("OpenTofu installation completed but binary not found in PATH")
-		}
-		printSuccess("OpenTofu installed")
+	// Check packaged OpenTofu. Do not prompt the user to install OpenTofu
+	// manually; it is a StackKit package component.
+	packagedTofu, ok := tofu.PackagedBinaryPath()
+	if !ok {
+		return fmt.Errorf("StackKit-packaged OpenTofu binary not found; reinstall StackKit from the official release package")
 	}
+	tofuExec := tofu.NewExecutor(tofu.WithBinary(packagedTofu))
+	if !tofuExec.IsInstalled() {
+		return fmt.Errorf("StackKit-packaged OpenTofu binary is not executable: %s", packagedTofu)
+	}
+	printSuccess("StackKit-packaged OpenTofu available")
 
 	return nil
 }
@@ -504,7 +515,7 @@ func ensureDocker(ctx context.Context) error {
 			var answer string
 			_, _ = fmt.Scanln(&answer)
 			if len(answer) > 0 && (answer[0] == 'n' || answer[0] == 'N') {
-				return fmt.Errorf("docker is required; install it manually or run 'stackkit prepare'")
+				return fmt.Errorf("docker is required; allow StackKit to prepare it or run 'stackkit prepare'")
 			}
 			printInfo("Installing Docker...")
 		}
@@ -660,6 +671,8 @@ func troubleshootAndApply(
 			return result, nil
 		}
 
+		combinedOutput := result.Stderr + "\n" + result.Stdout
+
 		// Apply failed — try to match a known pattern and fix
 		if attempt >= maxRetries {
 			break
@@ -667,7 +680,7 @@ func troubleshootAndApply(
 
 		fixed := false
 		for _, pattern := range patterns {
-			if !pattern.Match(result.Stderr) {
+			if !pattern.Match(combinedOutput) {
 				continue
 			}
 
@@ -728,6 +741,9 @@ func formatApplyError(stderr string) string {
 		pattern string
 		message string
 	}{
+		{"unauthenticated pull rate limit", "Docker Hub rate limit reached. Authenticate Docker on the target or configure a registry mirror, then retry."},
+		{"toomanyrequests", "Container registry rate limit reached. Authenticate Docker on the target or configure a registry mirror, then retry."},
+		{"Reference to undeclared resource", "Generated OpenTofu configuration references a missing resource. Regenerate with the current StackKit bundle and retry."},
 		{"unable to find", "Could not download one or more container images. Check your internet connection."},
 		{"unable to pull", "Could not download one or more container images. Check your internet connection."},
 		{"Error pulling image", "Failed to download a container image (DNS or network issue)."},
@@ -834,23 +850,16 @@ func patchTfvarsNetworkMode(deployDir, mode string) error {
 // verifyServiceURLs checks if the key service URLs are actually reachable
 // after deployment. This catches mismatches between the configured domain
 // and the actual network environment (e.g., local domains on a public VPS).
-func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
+func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *accessSummary) {
 	if spec == nil {
 		return
 	}
 
+	testHost, testURL := primaryServiceProbeTarget(spec, access)
 	domain := spec.Domain
-	if domain == "" {
-		domain = models.DomainHomeLab
+	if access != nil && access.Domain != "" {
+		domain = access.Domain
 	}
-
-	// Build the primary test URL (dashboard)
-	proto := "https"
-	testHost := "base." + domain
-	if spec.SubdomainPrefix != "" {
-		testHost = spec.SubdomainPrefix + "-dash." + domain
-	}
-	testURL := proto + "://" + testHost
 
 	// Try to resolve the hostname
 	_, err := net.LookupHost(testHost)
@@ -865,11 +874,9 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 		req, reqErr := http.NewRequestWithContext(checkCtx, http.MethodGet, testURL, nil)
 		if reqErr == nil {
 			client := &http.Client{Timeout: 5 * time.Second}
-			if models.IsLocalDomain(domain) {
-				// #nosec G402 -- IsLocalDomain check above limits this branch to .local /
-				// .home.arpa / .test domains used for first-node smoke tests. The certificate
-				// the dev StackKit issues to itself is not trusted by the system root store
-				// during the install window, but is replaced by ACME on cloud-context apply.
+			if strings.HasPrefix(testURL, "https://") && models.IsLocalDomain(domain) {
+				// #nosec G402 -- local Step-CA HTTPS uses a StackKit-managed
+				// trust root that is not installed in the system store during apply.
 				client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec
 			}
 			resp, httpErr := client.Do(req)
@@ -896,7 +903,7 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 			printError("Local domain '%s' is not accessible on a public server", domain)
 			fmt.Println()
 			printInfo("Your server is a VPS/cloud instance but is configured with a local domain.")
-			printInfo("Local domains (*.home.localhost, *.home, *.<name>.home, *.internal, *.local, *.lab, *.lan) only work on the local device or a LAN resolver.")
+			printInfo("Local domains (*.home, *.<name>.home, *.home.localhost, *.internal, *.local, *.lab, *.lan) only work through Kombify Point, a LAN resolver, or the explicit .localhost legacy path.")
 			fmt.Println()
 			printInfo("To fix this, update your stack-spec.yaml domain to one of:")
 			fmt.Println("  1. domain: kombify.me    (free public subdomains via kombify.me)")
@@ -915,4 +922,32 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec) {
 			fmt.Printf("  %s\n", caps.PrivateIP)
 		}
 	}
+}
+
+func primaryServiceProbeTarget(spec *models.StackSpec, access *accessSummary) (string, string) {
+	if access != nil && strings.TrimSpace(access.HubURL) != "" {
+		if parsed, err := url.Parse(access.HubURL); err == nil && parsed.Hostname() != "" {
+			return parsed.Hostname(), access.HubURL
+		}
+	}
+
+	domain := models.DomainHomeLab
+	prefix := ""
+	if spec != nil {
+		if spec.Domain != "" {
+			domain = spec.Domain
+		}
+		prefix = spec.SubdomainPrefix
+	}
+
+	proto := "http"
+	if !models.IsLocalhostDomain(domain) {
+		proto = "https"
+	}
+
+	host := "base." + domain
+	if prefix != "" {
+		host = prefix + "-base." + domain
+	}
+	return host, proto + "://" + host
 }

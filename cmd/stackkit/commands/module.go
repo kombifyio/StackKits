@@ -22,12 +22,12 @@ import (
 )
 
 var (
-	moduleReleaseModule    string
-	moduleReleaseVersion   string
-	moduleReleaseEndpoint  string
-	moduleReleaseToken     string
-	moduleReleaseOutput    string
-	moduleReleaseDryRun    bool
+	moduleReleaseModule     string
+	moduleReleaseVersion    string
+	moduleReleaseEndpoint   string
+	moduleReleaseToken      string
+	moduleReleaseOutput     string
+	moduleReleaseDryRun     bool
 	moduleReleaseReleasedBy string
 
 	moduleVerifyEndpoint string
@@ -86,6 +86,7 @@ type moduleReleasePayload struct {
 	Requires          map[string]interface{} `json:"requires"`
 	Provides          map[string]interface{} `json:"provides"`
 	Settings          map[string]interface{} `json:"settings"`
+	Provisioners      map[string]interface{} `json:"provisioners,omitempty"`
 	SupportedContexts []string               `json:"supported_contexts"`
 	ReleasedAt        time.Time              `json:"released_at"`
 	ReleasedBy        string                 `json:"released_by"`
@@ -151,6 +152,7 @@ func runModuleRelease(cmd *cobra.Command, args []string) error {
 		Requires:          mapField(contractMap, "requires"),
 		Provides:          mapField(contractMap, "provides"),
 		Settings:          mapField(contractMap, "settings"),
+		Provisioners:      mapField(contractMap, "provisioners"),
 		SupportedContexts: []string{"local", "cloud", "pi"},
 		ReleasedAt:        time.Now().UTC(),
 		ReleasedBy:        releasedBy,
@@ -297,6 +299,9 @@ func moduleContractToCanonicalMap(mc skcue.ModuleContract) map[string]interface{
 	if mc.Settings != nil {
 		m["settings"] = settingsMap(mc.Settings)
 	}
+	if len(mc.Provisioners) > 0 {
+		m["provisioners"] = provisionersMap(mc.Provisioners)
+	}
 	return m
 }
 
@@ -362,6 +367,20 @@ func settingsMap(s *skcue.SettingsSpec) map[string]interface{} {
 		"perma":    perma,
 		"flexible": flex,
 	}
+}
+
+func provisionersMap(p map[string]skcue.ProvisionerDef) map[string]interface{} {
+	out := map[string]interface{}{}
+	for k, v := range p {
+		out[k] = map[string]interface{}{
+			"image":       v.Image,
+			"command":     v.Command,
+			"dependsOn":   v.DependsOn,
+			"networks":    v.Networks,
+			"environment": v.Environment,
+		}
+	}
+	return out
 }
 
 func mapField(m map[string]interface{}, key string) map[string]interface{} {

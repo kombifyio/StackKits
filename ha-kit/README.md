@@ -74,15 +74,8 @@ When implemented, this StackKit will provide:
 
 - **High Availability:** Tolerates failure of 1 manager node without downtime.
 - **PaaS:** Integrated **Dokploy** (Swarm Mode) for git-push deployments.
-- **Observability:** Redundant OTLP gateways with VictoriaMetrics fan-in; legacy Prometheus scaffolding remains only until the HA gateway services land.
+- **Observability:** HA Prometheus/Grafana stack using federation.
 - **Storage:** Shared storage configuration templates.
-
-## Planned Monitoring Topology
-
-- Every swarm node ships telemetry through a global agent path.
-- Two manager-side OTLP gateways receive that traffic behind the HA VIP.
-- VictoriaMetrics is the planned metrics backend; Grafana remains the dashboard layer.
-- Alertmanager stays optional for alert fan-out, and Uptime Kuma remains availability UX rather than the primary metrics path.
 
 ## Target Requirements
 

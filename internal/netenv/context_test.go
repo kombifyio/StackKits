@@ -215,7 +215,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 		assert.Empty(t, reason)
 	})
 
-	t.Run("local with empty domain defaults to home.localhost", func(t *testing.T) {
+	t.Run("local with empty domain defaults to Kombify Point home zone", func(t *testing.T) {
 		domain, reason := SuggestDomainForContext(models.ContextLocal, "")
 		assert.Equal(t, models.DomainHomeLab, domain)
 		assert.Contains(t, reason, "local")
@@ -227,7 +227,7 @@ func TestSuggestDomainForContext(t *testing.T) {
 		assert.Empty(t, reason)
 	})
 
-	t.Run("pi with empty domain defaults to home.localhost", func(t *testing.T) {
+	t.Run("pi with empty domain defaults to Kombify Point home zone", func(t *testing.T) {
 		domain, reason := SuggestDomainForContext(models.ContextPi, "")
 		assert.Equal(t, models.DomainHomeLab, domain)
 		assert.Contains(t, reason, "local")

@@ -76,7 +76,7 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 	prefix := stringInput(tfvars, "subdomain_prefix", spec.SubdomainPrefix)
 
 	proto := "http"
-	if boolInput(tfvars, "enable_https", false) || models.IsKombifyMeDomain(domain) || models.IsLocalDomain(domain) {
+	if boolInput(tfvars, "enable_https", false) || models.IsKombifyMeDomain(domain) {
 		proto = "https"
 	}
 
@@ -146,6 +146,8 @@ func defaultEnableVar(key string) string {
 	switch key {
 	case "base", "dashboard":
 		return "enable_dashboard"
+	case "home", "homepage":
+		return "enable_homepage"
 	case "traefik":
 		return "enable_traefik"
 	case "auth":
@@ -160,6 +162,8 @@ func defaultEnableVar(key string) string {
 		return "enable_coolify"
 	case "kuma":
 		return "enable_uptime_kuma"
+	case "whoami":
+		return "enable_whoami"
 	case "vault":
 		return "enable_vaultwarden"
 	case "media":

@@ -55,14 +55,14 @@ func TestParseLsblkOutput_InvalidJSON(t *testing.T) {
 
 func TestFilterAvailableDevices(t *testing.T) {
 	devices := []models.BlockDevice{
-		{Name: "sda", Path: "/dev/sda", SizeGB: 20, Type: "disk", Mountpoint: "/"},                    // root — skip
-		{Name: "sdb", Path: "/dev/sdb", SizeGB: 32, Type: "disk"},                                      // available
-		{Name: "sdc", Path: "/dev/sdc", SizeGB: 16, Type: "disk", Mountpoint: "/mnt/data"},             // mounted — skip
-		{Name: "sdd", Path: "/dev/sdd", SizeGB: 8, Type: "disk", FSType: "ext4"},                       // has filesystem — skip
-		{Name: "sde", Path: "/dev/sde", SizeGB: 0.5, Type: "disk"},                                     // too small — skip
-		{Name: "sdf", Path: "/dev/sdf", SizeGB: 64, Type: "disk"},                                      // available
-		{Name: "sr0", Path: "/dev/sr0", SizeGB: 4, Type: "rom"},                                        // not disk — skip
-		{Name: "sda1", Path: "/dev/sda1", SizeGB: 20, Type: "part"},                                    // partition — skip
+		{Name: "sda", Path: "/dev/sda", SizeGB: 20, Type: "disk", Mountpoint: "/"},         // root — skip
+		{Name: "sdb", Path: "/dev/sdb", SizeGB: 32, Type: "disk"},                          // available
+		{Name: "sdc", Path: "/dev/sdc", SizeGB: 16, Type: "disk", Mountpoint: "/mnt/data"}, // mounted — skip
+		{Name: "sdd", Path: "/dev/sdd", SizeGB: 8, Type: "disk", FSType: "ext4"},           // has filesystem — skip
+		{Name: "sde", Path: "/dev/sde", SizeGB: 0.5, Type: "disk"},                         // too small — skip
+		{Name: "sdf", Path: "/dev/sdf", SizeGB: 64, Type: "disk"},                          // available
+		{Name: "sr0", Path: "/dev/sr0", SizeGB: 4, Type: "rom"},                            // not disk — skip
+		{Name: "sda1", Path: "/dev/sda1", SizeGB: 20, Type: "part"},                        // partition — skip
 	}
 
 	available := FilterAvailableDevices(devices, "/dev/sda")

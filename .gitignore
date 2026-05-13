@@ -22,6 +22,7 @@ tools/
 # StackKit state
 .stackkit/
 .stackkits-vm-workspace/
+.stackkits-e2e/
 dev/vm/.ssh/
 
 # Generated deploy artifacts (contain secrets like plaintext passwords and API tokens)
@@ -74,6 +75,20 @@ nul
 # Build outputs
 dist/
 build/
+
+# Playwright
+website-v2/test-results/
+website-v2/playwright-report/
+website-v2/blob-report/
+
+# Local tool/runtime state
+.beads/backup/
+.beads/embeddeddolt/
+.beads/dolt-server.lock
+.beads/export-state.json
+.wrangler/cache/
+modules/*/tests/artifacts/
+artifacts/release-smoke/
 
 # Built binary (root only, not cmd/stackkit/ source)
 /stackkit

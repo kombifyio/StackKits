@@ -189,7 +189,7 @@ func tryTofuDestroy(ctx context.Context, spec *models.StackSpec, wd string) bool
 	}
 
 	if !executor.IsInstalled() {
-		printWarning("OpenTofu is not installed — falling back to Docker cleanup")
+		printWarning("StackKit-packaged OpenTofu is not available — falling back to Docker cleanup")
 		deployLog.Warn("remove.tofu_skipped", slog.String("reason", "not_installed"))
 		return false
 	}

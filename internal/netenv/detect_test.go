@@ -212,7 +212,7 @@ func TestSuggestDomain(t *testing.T) {
 		assert.Empty(t, reason)
 	})
 
-	t.Run("home with empty domain defaults to home.localhost", func(t *testing.T) {
+	t.Run("home with empty domain defaults to Kombify Point home zone", func(t *testing.T) {
 		domain, reason := SuggestDomain(models.NetEnvHome, "")
 		assert.Equal(t, models.DomainHomeLab, domain)
 		assert.Contains(t, reason, "home network")

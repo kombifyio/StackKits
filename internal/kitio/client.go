@@ -26,12 +26,12 @@ import (
 //
 // Both empty: unauthenticated request. Useful for self-test instances.
 type AdminClient struct {
-	BaseURL            string
-	ServiceAuthSecret  string // for HS256 service-auth (preferred)
-	LegacyToken        string // for Authorization: Bearer (legacy)
-	ServiceName        string // svc claim, default "stackkits"
-	TargetServiceName  string // aud will be "kombify-" + this; default "administration"
-	HTTP               *http.Client
+	BaseURL           string
+	ServiceAuthSecret string // for HS256 service-auth (preferred)
+	LegacyToken       string // for Authorization: Bearer (legacy)
+	ServiceName       string // svc claim, default "stackkits"
+	TargetServiceName string // aud will be "kombify-" + this; default "administration"
+	HTTP              *http.Client
 }
 
 // NewAdminClient returns a client pointing at endpoint. Decides auth mode:

@@ -64,6 +64,7 @@ Examples:
   stackkit prepare --spec spec.yaml    Prepare system and validate spec
   stackkit plan                        Preview infrastructure changes
   stackkit apply                       Apply infrastructure changes
+  stackkit verify                      Run post-deployment verification checks
   stackkit status                      Check deployment status
   stackkit remove                      Tear down deployment`,
 	SilenceUsage: true,
@@ -117,13 +118,16 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(planCmd)
 	rootCmd.AddCommand(applyCmd)
+	rootCmd.AddCommand(verifyCmd)
 	rootCmd.AddCommand(removeCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(completionCmd)
+	rootCmd.AddCommand(appCmd)
 	rootCmd.AddCommand(addonCmd)
 	rootCmd.AddCommand(compatCmd)
+	rootCmd.AddCommand(clusterCmd)
 }
 
 // Helper functions for output

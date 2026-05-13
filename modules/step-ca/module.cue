@@ -25,6 +25,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L1-foundation"
 		description: "Internal certificate authority — ACME provider for Traefik TLS"
+		testScenarios: ["SK-S2", "SK-S3"]
 	}
 
 	requires: {
@@ -63,14 +64,14 @@ Contract: base.#ModuleContract & {
 
 	settings: {
 		perma: {
-			caName:     *"Homelab CA" | string
-			password:   string
-			dnsNames:   [...string] | *["step-ca", "ca.stack.local"]
+			caName:   *"Homelab CA" | string
+			password: string
+			dnsNames: [...string] | *["step-ca", "ca.stack.local"]
 		}
 		flexible: {
-			acmeEnabled:      *true | bool
-			defaultCertLife:   *"24h" | string
-			maxCertLife:       *"720h" | string
+			acmeEnabled:     *true | bool
+			defaultCertLife: *"24h" | string
+			maxCertLife:     *"720h" | string
 		}
 	}
 
@@ -118,19 +119,19 @@ Contract: base.#ModuleContract & {
 		}]
 
 		environment: {
-			DOCKER_STEPCA_INIT_NAME:              "{{.step_ca_name}}"
-			DOCKER_STEPCA_INIT_DNS_NAMES:         "step-ca,ca.{{.domain}}"
-			DOCKER_STEPCA_INIT_PASSWORD:           "{{.step_ca_password}}"
-			DOCKER_STEPCA_INIT_PROVISIONER_NAME:   "Admin JWK"
-			DOCKER_STEPCA_INIT_ACME:               "true"
+			DOCKER_STEPCA_INIT_NAME:             "{{.step_ca_name}}"
+			DOCKER_STEPCA_INIT_DNS_NAMES:        "step-ca,ca.{{.domain}}"
+			DOCKER_STEPCA_INIT_PASSWORD:         "{{.step_ca_password}}"
+			DOCKER_STEPCA_INIT_PROVISIONER_NAME: "Admin JWK"
+			DOCKER_STEPCA_INIT_ACME:             "true"
 		}
 
 		healthCheck: {
 			enabled: true
 			test: ["CMD-SHELL", "curl -f -k https://localhost:9000/health || exit 1"]
-			interval: "30s"
-			timeout:  "5s"
-			retries:  5
+			interval:    "30s"
+			timeout:     "5s"
+			retries:     5
 			startPeriod: "30s"
 		}
 

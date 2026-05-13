@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"sort"
@@ -199,6 +200,10 @@ func (r *Renderer) defaultFuncMap() template.FuncMap {
 		"portList":       portList,
 		"catalogSection": catalogSection,
 		"hasEnableVar":   hasEnableVar,
+		"htmlText":       htmlText,
+		"htmlAttr":       htmlAttr,
+		"publicGuideURL": publicGuideURL,
+		"serviceHint":    serviceHint,
 	}
 }
 
@@ -353,6 +358,40 @@ func catalogSection(section string, catalog []servicecatalog.Service) []servicec
 // hasEnableVar returns true if the entry has a Terraform enable variable
 func hasEnableVar(e servicecatalog.Service) bool {
 	return e.EnableVar != ""
+}
+
+func htmlText(value string) string {
+	escaped := html.EscapeString(value)
+	escaped = strings.ReplaceAll(escaped, "${", "$&#123;")
+	escaped = strings.ReplaceAll(escaped, "%{", "%&#123;")
+	return escaped
+}
+
+func htmlAttr(value string) string {
+	return htmlText(value)
+}
+
+func publicGuideURL(value string) string {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(value, "https://docs.kombify.io/") {
+		return htmlAttr(value)
+	}
+	return ""
+}
+
+func serviceHint(e servicecatalog.Service) string {
+	switch e.IdentityPolicy {
+	case servicecatalog.IdentityPolicyProvider:
+		return "Identity provider"
+	case servicecatalog.IdentityPolicyOIDC:
+		return "SSO entry"
+	case servicecatalog.IdentityPolicyForwardAuth:
+		return "Protected by TinyAuth"
+	case servicecatalog.IdentityPolicySelfAuth:
+		return "App login"
+	default:
+		return "Local service"
+	}
 }
 
 // validateHCLValue checks that a string is safe to embed in HCL.

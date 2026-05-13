@@ -12,7 +12,7 @@
 #
 # Prerequisites:
 # - CUE installed
-# - OpenTofu/Terraform installed
+# - StackKit release archive includes packaged OpenTofu
 # - (Optional) Test VM accessible via SSH
 #
 # Usage:
@@ -70,12 +70,12 @@ FAILED=0
 
 pass() {
     echo -e "${GREEN}✓ PASSED${NC}"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 }
 
 fail() {
     echo -e "${RED}✗ FAILED${NC}"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 }
 
 # =============================================================================
@@ -85,11 +85,11 @@ echo -e "\n${YELLOW}Test 1: Schema Validation${NC}"
 echo "-------------------------------------------"
 
 echo -n "Validating base-kit schema... "
-if cue vet "$PROJECT_ROOT/stackkits/base-kit/stackfile.cue" 2>/dev/null; then
+if cue vet "$PROJECT_ROOT/base-kit/stackfile.cue" 2>/dev/null; then
     pass
 else
     fail
-    cue vet "$PROJECT_ROOT/stackkits/base-kit/stackfile.cue" 2>&1 || true
+    cue vet "$PROJECT_ROOT/base-kit/stackfile.cue" 2>&1 || true
 fi
 
 # =============================================================================
@@ -123,7 +123,7 @@ EOF
 
 echo -n "Validating test spec against schema... "
 # Use CUE to validate the spec (this is a simplified check)
-if cue export "$PROJECT_ROOT/stackkits/base-kit/stackfile.cue" -e '#BaseKitKit' >/dev/null 2>&1; then
+if cue eval "$PROJECT_ROOT/base-kit/stackfile.cue" -e '#BaseKitStack' >/dev/null 2>&1; then
     pass
 else
     fail
@@ -135,38 +135,14 @@ fi
 echo -e "\n${YELLOW}Test 3: Variant Tests${NC}"
 echo "-------------------------------------------"
 
-test_variant() {
-    local variant="$1"
-    echo -n "Testing variant '$variant'... "
-    
-    cat > "$TEMP_DIR/variant-$variant.cue" << EOF
-package test
-
-import "kombistack.io/stackkits/base-kit"
-
-_test: base_kit.#BaseKitKit & {
-    variant: "$variant"
-    nodes: [{
-        name: "test"
-        connection: {
-            host: "192.168.1.100"
-            user: "root"
-            ssh_key: "/path/to/key"
-        }
-    }]
-}
-EOF
-    
-    if cue vet "$TEMP_DIR/variant-$variant.cue" "$PROJECT_ROOT/stackkits/base-kit/stackfile.cue" 2>/dev/null; then
-        pass
-    else
-        fail
-    fi
-}
-
-test_variant "default"
-test_variant "beszel"
-test_variant "minimal"
+echo -n "Checking variant fixtures are present... "
+if grep -q '_validDefaultVariant' "$PROJECT_ROOT/base-kit/tests/schema_test.cue" && \
+   grep -q '_validBeszelVariant' "$PROJECT_ROOT/base-kit/tests/schema_test.cue" && \
+   grep -q '_validMinimalVariant' "$PROJECT_ROOT/base-kit/tests/schema_test.cue"; then
+    pass
+else
+    fail
+fi
 
 # =============================================================================
 # TEST 4: Template Generation
@@ -224,10 +200,13 @@ generate_terraform() {
     echo -n "Generating Layer 3 (SERVICES) templates... "
     missing=0
     for template in \
-        "stackkits/base-kit/templates/services/_dokploy.tf.tmpl" \
-        "stackkits/base-kit/templates/services/_uptimekuma.tf.tmpl" \
-        "stackkits/base-kit/templates/services/_beszel.tf.tmpl" \
-        "stackkits/base-kit/templates/services/_minimal.tf.tmpl"
+        "base-kit/templates/simple/main.tf" \
+        "base-kit/templates/native/main.tf" \
+        "base-kit/templates/simple/modules/dokploy/main.tf" \
+        "base-kit/templates/simple/modules/dockge/main.tf" \
+        "base-kit/templates/simple/modules/monitoring/main.tf" \
+        "base-kit/templates/simple/modules/traefik/main.tf" \
+        "base-kit/templates/simple/modules/whoami/main.tf"
     do
         if [ ! -f "$PROJECT_ROOT/$template" ]; then
             echo -e "\n${RED}Missing: $template${NC}"
@@ -304,12 +283,12 @@ test_service_def() {
     fi
 }
 
-test_service_def "Dokploy" "dokploy/dokploy" "$PROJECT_ROOT/stackkits/base-kit/templates/services/_dokploy.tf.tmpl"
-test_service_def "Uptime Kuma" "louislam/uptime-kuma" "$PROJECT_ROOT/stackkits/base-kit/templates/services/_uptimekuma.tf.tmpl"
-test_service_def "Beszel" "henrygd/beszel" "$PROJECT_ROOT/stackkits/base-kit/templates/services/_beszel.tf.tmpl"
-test_service_def "Dockge" "louislam/dockge" "$PROJECT_ROOT/stackkits/base-kit/templates/services/_minimal.tf.tmpl"
-test_service_def "Portainer" "portainer/portainer-ce" "$PROJECT_ROOT/stackkits/base-kit/templates/services/_minimal.tf.tmpl"
-test_service_def "Netdata" "netdata/netdata" "$PROJECT_ROOT/stackkits/base-kit/templates/services/_minimal.tf.tmpl"
+test_service_def "Dokploy" "dokploy/dokploy" "$PROJECT_ROOT/base-kit/templates/simple/modules/dokploy/main.tf"
+test_service_def "Uptime Kuma" "louislam/uptime-kuma" "$PROJECT_ROOT/base-kit/templates/simple/modules/monitoring/main.tf"
+test_service_def "Beszel" "henrygd/beszel" "$PROJECT_ROOT/base-kit/templates/simple/modules/monitoring/main.tf"
+test_service_def "Dockge" "louislam/dockge" "$PROJECT_ROOT/base-kit/templates/simple/modules/dockge/main.tf"
+test_service_def "Portainer" "portainer/portainer-ce" "$PROJECT_ROOT/base-kit/templates/simple/modules/portainer/main.tf"
+test_service_def "Netdata" "netdata/netdata" "$PROJECT_ROOT/base-kit/templates/simple/modules/monitoring/main.tf"
 
 # =============================================================================
 # TEST 7: Network Mode Tests

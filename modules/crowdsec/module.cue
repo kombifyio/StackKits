@@ -21,6 +21,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-ingress"
 		description: "Behavioral IDS + WAF with crowd-sourced threat intel and Traefik bouncer"
+		testScenarios: ["SK-S2", "SK-S3"]
 	}
 
 	requires: {
@@ -130,7 +131,7 @@ Contract: base.#ModuleContract & {
 		]
 
 		environment: {
-			COLLECTIONS: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/sshd crowdsecurity/http-cve crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules"
+			COLLECTIONS:         "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/sshd crowdsecurity/http-cve crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules"
 			BOUNCER_KEY_traefik: "{{.crowdsec_bouncer_key}}"
 		}
 

@@ -296,7 +296,7 @@ func (v *LayerValidator) validateLayer3(stackkitDir string) *LayerValidationResu
 
 	// Check that Layer 3 does NOT contain PAAS/management services
 	// PAAS services belong in Layer 2 (Platform), not Layer 3 (Applications)
-	paasServices := []string{"dokploy", "coolify", "dokku"}
+	paasServices := []string{"dokploy", "coolify"}
 
 	// Iterate through services to find misplaced PAAS services
 	iter, err := services.Fields(cue.Concrete(false))

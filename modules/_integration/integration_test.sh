@@ -80,9 +80,13 @@ echo ""
 SWARM_STATE=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "")
 if [ "$SWARM_STATE" != "active" ]; then
     echo "Docker swarm not active (state=$SWARM_STATE). Initialising..."
-    ADV_ADDR=$(ip -4 addr show docker0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1)
+    # Use an advertise address that works inside CI (docker0 / first non-loopback).
+    ADV_ADDR=""
+    if command -v ip >/dev/null 2>&1; then
+        ADV_ADDR=$(ip -4 addr show docker0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1)
+    fi
     if [ -z "$ADV_ADDR" ]; then
-        ADV_ADDR=$(hostname -I 2>/dev/null | awk '{print $1}')
+        ADV_ADDR=$( (hostname -I 2>/dev/null || true) | awk '{print $1}' )
     fi
     if [ -n "$ADV_ADDR" ]; then
         docker swarm init --advertise-addr "$ADV_ADDR" >/dev/null

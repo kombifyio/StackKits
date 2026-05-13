@@ -26,7 +26,13 @@ package base
 
 	// Whether this is a core module (ships with StackKits)
 	core: bool | *true
+
+	// Canonical StackKit scenarios that cover this module in fast, VM, or live gates
+	testScenarios?: [...#CanonicalScenarioID]
 }
+
+// #CanonicalScenarioID enumerates the canonical rollout scenarios in docs/STACKKIT_TEST_SCENARIOS.md.
+#CanonicalScenarioID: "SK-S1" | "SK-S2" | "SK-S3" | "SK-S4" | "SK-S5"
 
 // #ModuleLayer classifies where a module sits in the stack.
 #ModuleLayer:

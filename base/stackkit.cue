@@ -69,7 +69,13 @@ package base
 	}
 
 	// Observability
-	observability: #ObservabilityConfig
+	observability: {
+		logging:  #LoggingConfig
+		health:   #HealthCheck
+		metrics:  #MetricsConfig
+		alerting: #AlertingConfig
+		backup:   #BackupConfig
+	}
 
 	// Service definitions — named map keyed by service name
 	// Enables `services.traefik.enabled` access pattern.
@@ -220,12 +226,6 @@ package base
 		}
 	}
 
-	// Wallet exposure metadata for TechStack and other access surfaces.
-	// This defines what the user should see in the wallet without changing the
-	// runtime secret backend. Machine and deployment secrets still live in the
-	// configured secrets backend (for homelab default: sops-age).
-	wallet?: #WalletExposure
-
 	// Subdomain routing configuration for domain computation.
 	// key = Terraform local.domains map key.
 	// nested = subdomain for own-domain mode ({nested}.{domain}).
@@ -248,51 +248,12 @@ package base
 		badge: string
 		// Terraform enable variable name. Omit for always-shown services.
 		enableVar?: =~"^enable_[a-z_]+$"
+		// Public Mintlify guide for the service row in the generated Node Hub.
+		guideUrl?: =~"^https://docs[.]kombify[.]io/.+"
 	}
 
 	// Allow additional custom fields for service-specific extensions
 	...
-}
-
-// #WalletExposure describes how a service or credential should surface in a
-// wallet-first UX. It is inventory metadata, not a storage backend.
-#WalletExposure: {
-	// Whether this service should surface in wallet inventory.
-	enabled: bool | *true
-
-	// Wallet item classification.
-	itemClass: "launch" | "user_account" | "credential" | "recovery" | "machine_secret_ref" | *"launch"
-
-	// Default user interaction mode.
-	accessMode: "open" | "reveal" | "manage" | *"open"
-
-	// Optional display overrides for the wallet UI.
-	displayName?: string
-	description?: string
-	url?:         string
-
-	// Secret references that should appear in wallet inventory for this service.
-	secretRefs?: [...#WalletSecretRef] | *[]
-}
-
-// #WalletSecretRef annotates a secret reference for wallet inventory.
-// `ref` remains the canonical runtime contract; the rest is wallet metadata.
-#WalletSecretRef: {
-	// Canonical StackKit secret reference.
-	ref: =~"^secret://"
-
-	// How the referenced item should appear in the wallet.
-	itemClass: "credential" | "recovery" | "machine_secret_ref" | *"machine_secret_ref"
-
-	// Display label in the wallet UI.
-	displayName: string
-
-	// Optional hint for the user without exposing the secret value by default.
-	description?: string
-	loginHint?:   string
-
-	// Whether TechStack may offer an explicit reveal path to the user.
-	revealable: bool | *false
 }
 
 // #ServiceType categorizes services (comprehensive homelab taxonomy)

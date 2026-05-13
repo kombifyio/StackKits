@@ -495,6 +495,7 @@ func (c *Client) listByLabel(ctx context.Context, resourceType, label string) ([
 
 	var names []string
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		line = strings.TrimSpace(line)
 		if line != "" {
 			names = append(names, line)
 		}

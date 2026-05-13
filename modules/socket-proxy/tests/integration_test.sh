@@ -155,17 +155,13 @@ fi
 
 # Test 7: Socket proxy network is internal (not internet-facing)
 log_test "socket-proxy-net is an internal network"
-INTERNAL=$(docker network inspect test-socket-proxy-tests_socket-proxy-net --format='{{.Internal}}' 2>/dev/null || \
-           docker network inspect socket-proxy-tests_socket-proxy-net --format='{{.Internal}}' 2>/dev/null || \
-           echo "unknown")
-# Try alternate network naming
-if [ "$INTERNAL" = "unknown" ]; then
-    # Find the actual network name
-    NET_NAME=$(docker network ls --filter "name=socket-proxy-net" --format '{{.Name}}' 2>/dev/null | head -1)
-    if [ -n "$NET_NAME" ]; then
+INTERNAL="unknown"
+for NET_NAME in $(docker inspect --format='{{range $k, $_ := .NetworkSettings.Networks}}{{$k}} {{end}}' test-socket-proxy 2>/dev/null || true); do
+    if echo "$NET_NAME" | grep -q "socket-proxy-net"; then
         INTERNAL=$(docker network inspect "$NET_NAME" --format='{{.Internal}}' 2>/dev/null || echo "unknown")
+        break
     fi
-fi
+done
 if [ "$INTERNAL" = "true" ]; then
     log_pass "socket-proxy-net is internal: $INTERNAL"
 else

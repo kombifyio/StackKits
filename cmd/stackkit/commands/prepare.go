@@ -39,7 +39,7 @@ var prepareCmd = &cobra.Command{
 
 This command:
   1. Checks/installs Docker
-  2. Checks/installs OpenTofu
+  2. Checks StackKit-packaged OpenTofu
   3. Validates the spec file against CUE schemas
   4. Checks hardware requirements
   5. Applies auto-fixes for common issues
@@ -58,7 +58,7 @@ func init() {
 	prepareCmd.Flags().StringVar(&prepareKey, "key", "", "SSH private key path")
 	prepareCmd.Flags().BoolVar(&prepareDryRun, "dry-run", false, "Show what would be done")
 	prepareCmd.Flags().BoolVar(&prepareSkipDocker, "skip-docker", false, "Skip Docker installation check")
-	prepareCmd.Flags().BoolVar(&prepareSkipTofu, "skip-tofu", false, "Skip OpenTofu installation check")
+	prepareCmd.Flags().BoolVar(&prepareSkipTofu, "skip-tofu", false, "Skip packaged OpenTofu check")
 	prepareCmd.Flags().BoolVar(&prepareAutoFix, "auto-fix", true, "Auto-correct fixable issues")
 	prepareCmd.Flags().BoolVar(&prepareForce, "force", false, "Continue even with insufficient disk space")
 }
@@ -330,8 +330,8 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		writeDockerCapabilities(caps)
 	}
 
-	// Check OpenTofu
-	if err := ensureOpenTofu(ctx); err != nil {
+	// Check packaged OpenTofu
+	if err := ensurePackagedOpenTofu(ctx); err != nil {
 		return err
 	}
 
@@ -436,8 +436,8 @@ func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType
 
 // prepareNativeMode prepares the system for native binary deployment (no Docker).
 func prepareNativeMode(ctx context.Context, spec *models.StackSpec, loader *config.Loader) error {
-	// Check OpenTofu (still needed for native mode)
-	if err := ensureOpenTofu(ctx); err != nil {
+	// Check packaged OpenTofu (still needed for native mode)
+	if err := ensurePackagedOpenTofu(ctx); err != nil {
 		return err
 	}
 
@@ -493,7 +493,7 @@ func prepareRemoteSystem(ctx context.Context, spec *models.StackSpec) error {
 		return err
 	}
 
-	// Check OpenTofu
+	// Install StackKit-packaged OpenTofu on the target.
 	if err := checkRemoteTofu(ctx, sshClient, sysInfo); err != nil {
 		return err
 	}
@@ -544,20 +544,66 @@ func checkRemoteTofu(ctx context.Context, sshClient *ssh.Client, sysInfo *models
 	if prepareSkipTofu {
 		return nil
 	}
-	if sysInfo.TofuVersion != "" {
-		printSuccess("OpenTofu %s installed", sysInfo.TofuVersion)
-		return nil
-	}
+
 	if prepareDryRun {
-		printWarning("OpenTofu not installed - would install")
+		printWarning("StackKit-packaged OpenTofu would be installed on the remote target")
 		return nil
 	}
-	printInfo("Installing OpenTofu...")
-	if err := installTofuRemote(ctx, sshClient); err != nil {
-		return fmt.Errorf("failed to install OpenTofu: %w", err)
+
+	packagedTofu, ok := tofu.PackagedBinaryPath()
+	if !ok {
+		return fmt.Errorf("StackKit-packaged OpenTofu binary not found; reinstall StackKit from the official release package")
 	}
-	printSuccess("OpenTofu installed successfully")
+	if err := ensurePackagedTofuMatchesRemote(sysInfo); err != nil {
+		return err
+	}
+
+	printInfo("Installing StackKit-packaged OpenTofu on remote target...")
+	remoteTmp := "/tmp/stackkit-tofu"
+	if err := sshClient.CopyFile(ctx, packagedTofu, remoteTmp); err != nil {
+		return fmt.Errorf("failed to upload packaged OpenTofu: %w", err)
+	}
+
+	stdout, stderr, err := sshClient.RunWithSudo(ctx, "install -m 755 /tmp/stackkit-tofu /usr/local/bin/tofu && rm -f /tmp/stackkit-tofu && /usr/local/bin/tofu version")
+	if err != nil {
+		return fmt.Errorf("failed to install packaged OpenTofu: %w: %s", err, stderr)
+	}
+	version := strings.TrimSpace(strings.Split(stdout, "\n")[0])
+	if version == "" && sysInfo != nil && sysInfo.TofuVersion != "" {
+		version = "OpenTofu v" + sysInfo.TofuVersion
+	}
+	if version == "" {
+		printSuccess("StackKit-packaged OpenTofu installed successfully")
+	} else {
+		printSuccess("StackKit-packaged %s installed successfully", version)
+	}
 	return nil
+}
+
+func ensurePackagedTofuMatchesRemote(sysInfo *models.SystemInfo) error {
+	if sysInfo == nil {
+		return fmt.Errorf("remote system information unavailable; cannot choose a packaged OpenTofu binary safely")
+	}
+
+	targetArch := normalizeRemoteArch(sysInfo.Arch)
+	if targetArch == "" {
+		return fmt.Errorf("unsupported remote architecture for packaged OpenTofu: %s", sysInfo.Arch)
+	}
+	if runtime.GOOS != "linux" || runtime.GOARCH != targetArch {
+		return fmt.Errorf("packaged OpenTofu binary is %s/%s, but remote target requires linux/%s; run the StackKit installer on the target or use the matching Linux release package", runtime.GOOS, runtime.GOARCH, targetArch)
+	}
+	return nil
+}
+
+func normalizeRemoteArch(arch string) string {
+	switch strings.TrimSpace(strings.ToLower(arch)) {
+	case "x86_64", "amd64":
+		return "amd64"
+	case "aarch64", "arm64":
+		return "arm64"
+	default:
+		return ""
+	}
 }
 
 func checkLocalResources(reqs *models.Requirements) {
@@ -733,48 +779,40 @@ func classifyCompatibilityTier(virtType string, unshareOK, bridgeOK, overlayOK b
 	return result
 }
 
-// ensureOpenTofu checks that OpenTofu is installed, installing it if necessary.
+// ensurePackagedOpenTofu checks the StackKit-packaged OpenTofu binary.
 // Respects prepareSkipTofu and prepareDryRun flags.
-func ensureOpenTofu(ctx context.Context) error {
+func ensurePackagedOpenTofu(ctx context.Context) error {
 	if prepareSkipTofu {
 		return nil
 	}
-	printInfo("Checking OpenTofu installation...")
-	tofuExec := tofu.NewExecutor()
 
-	if !tofuExec.IsInstalled() {
+	printInfo("Checking StackKit-packaged OpenTofu...")
+	packagedTofu, ok := tofu.PackagedBinaryPath()
+	if !ok {
 		if prepareDryRun {
-			printWarning("OpenTofu not installed - would install")
+			printWarning("StackKit-packaged OpenTofu missing - release package must include it")
 			return nil
 		}
-		printInfo("Installing OpenTofu...")
-		if err := installTofuLocal(ctx); err != nil {
-			return fmt.Errorf("failed to install OpenTofu: %w", err)
-		}
-		tofuExec = tofu.NewExecutor()
-		if !tofuExec.IsInstalled() {
-			return fmt.Errorf("OpenTofu installation completed but binary not found in PATH")
-		}
-		version, err := tofuExec.Version(ctx)
-		if err != nil {
-			printSuccess("OpenTofu installed successfully")
-		} else {
-			printSuccess("OpenTofu %s installed successfully", version)
-		}
-		return nil
+		return fmt.Errorf("StackKit-packaged OpenTofu binary not found; reinstall StackKit from the official release package")
+	}
+
+	tofuExec := tofu.NewExecutor(tofu.WithBinary(packagedTofu))
+	if !tofuExec.IsInstalled() {
+		return fmt.Errorf("StackKit-packaged OpenTofu binary is not executable: %s", packagedTofu)
 	}
 
 	version, err := tofuExec.Version(ctx)
 	if err != nil {
-		printWarning("Could not get OpenTofu version: %v", err)
-	} else {
-		printSuccess("OpenTofu %s installed", version)
+		printWarning("Could not get packaged OpenTofu version: %v", err)
+		return nil
 	}
+
+	printSuccess("StackKit-packaged OpenTofu %s available", version)
 	return nil
 }
 
 // cleanupInstallArtifacts removes package manager caches and dangling Docker
-// resources left behind by prepare steps (Docker install, OpenTofu install,
+// resources left behind by prepare steps (Docker install, image pre-pull,
 // image pre-pull). This prevents wasting disk on a space-constrained device.
 func cleanupInstallArtifacts(ctx context.Context) {
 	printInfo("Cleaning up installation artifacts...")

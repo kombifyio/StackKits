@@ -3,6 +3,10 @@ package docker
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -419,4 +423,125 @@ func TestIsInstalled(t *testing.T) {
 		client := NewClient(WithBinary("nonexistent-docker-binary-xyz"))
 		assert.False(t, client.IsInstalled())
 	})
+}
+
+func TestListContainersParsesJSONLinesAndSkipsMalformedRows(t *testing.T) {
+	client := NewClient(WithBinary(fakeDockerBinary(t,
+		`@echo off
+echo {"ID":"abc123","Names":"web","Image":"nginx:alpine","State":"running","Status":"Up 1 second","Ports":"80/tcp"}
+echo not-json
+exit /b 0
+`,
+		`#!/bin/sh
+printf '%s\n' '{"ID":"abc123","Names":"web","Image":"nginx:alpine","State":"running","Status":"Up 1 second","Ports":"80/tcp"}'
+printf '%s\n' 'not-json'
+`)))
+
+	containers, err := client.ListContainers(context.Background(), true)
+	assert.NoError(t, err)
+	assert.Len(t, containers, 1)
+	assert.Equal(t, "web", containers[0].Name)
+	assert.Equal(t, "nginx:alpine", containers[0].Image)
+	assert.True(t, containers[0].State.Running)
+}
+
+func TestGetStackKitContainersReturnsEmptyOnDockerError(t *testing.T) {
+	client := NewClient(WithBinary(fakeDockerBinary(t,
+		`@echo off
+echo docker failed 1>&2
+exit /b 1
+`,
+		`#!/bin/sh
+echo docker failed >&2
+exit 1
+`)))
+
+	containers, err := client.GetStackKitContainers(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, containers)
+}
+
+func TestRemoveResourceTreatsNotFoundAsSuccess(t *testing.T) {
+	client := NewClient(WithBinary(fakeDockerBinary(t,
+		`@echo off
+echo No such container: missing
+exit /b 1
+`,
+		`#!/bin/sh
+echo 'No such container: missing'
+exit 1
+`)))
+
+	err := client.removeResource(context.Background(), []string{"rm", "-f", "missing"}, "container", "missing")
+	assert.NoError(t, err)
+}
+
+func TestListByLabelParsesNames(t *testing.T) {
+	client := NewClient(WithBinary(fakeDockerBinary(t,
+		`@echo off
+echo frontend
+echo backend
+exit /b 0
+`,
+		`#!/bin/sh
+printf '%s\n' frontend backend
+`)))
+
+	names, err := client.ListNetworksByLabel(context.Background(), "stackkit.layer")
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"frontend", "backend"}, names)
+}
+
+func TestParseReclaimedSpace(t *testing.T) {
+	tests := []struct {
+		name string
+		out  string
+		want int64
+	}{
+		{"gigabytes", "Total reclaimed space: 1.5GB", int64(1.5 * 1024 * 1024 * 1024)},
+		{"megabytes", "Total reclaimed space: 12MB", 12 * 1024 * 1024},
+		{"kilobytes", "Total reclaimed space: 7kB", 7 * 1024},
+		{"bytes", "Total reclaimed space: 42B", 42},
+		{"missing", "nothing reclaimed", 0},
+		{"invalid", "Total reclaimed space: nope", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseReclaimedSpace(tt.out))
+		})
+	}
+}
+
+func TestRemoveMethodsRejectInvalidNamesBeforeExecuting(t *testing.T) {
+	client := NewClient(WithBinary("docker"))
+	assert.Error(t, client.RemoveContainer(context.Background(), "bad;name"))
+	assert.Error(t, client.RemoveNetwork(context.Background(), "bad/name"))
+	assert.Error(t, client.RemoveVolume(context.Background(), ""))
+	assert.Error(t, client.RemoveImage(context.Background(), "bad && image"))
+}
+
+func fakeDockerBinary(t *testing.T, windowsScript, unixScript string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	if runtime.GOOS == "windows" {
+		path := filepath.Join(dir, "docker.cmd")
+		if !strings.HasSuffix(windowsScript, "\r\n") {
+			windowsScript += "\r\n"
+		}
+		if err := os.WriteFile(path, []byte(windowsScript), 0700); err != nil {
+			t.Fatalf("write fake docker: %v", err)
+		}
+		return path
+	}
+
+	path := filepath.Join(dir, "docker")
+	if !strings.HasSuffix(unixScript, "\n") {
+		unixScript += "\n"
+	}
+	if err := os.WriteFile(path, []byte(unixScript), 0700); err != nil {
+		t.Fatalf("write fake docker: %v", err)
+	}
+	return path
 }

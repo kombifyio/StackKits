@@ -15,6 +15,11 @@ services:
     # healthcheck below works. Newer :latest is scratch + Go and has no shell.
     image: tecnativa/docker-socket-proxy:0.2.0
     container_name: test-cs-socket-proxy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed 's/[$][{]BIND_CONFIG[}]/[::]:2375 v4v6/g' /usr/local/etc/haproxy/haproxy.cfg.template > /run/haproxy.cfg
+        exec haproxy -W -db -f /run/haproxy.cfg
     environment:
       # VERSION=1 is required so the wget healthcheck (GET /version) can pass;
       # without it the proxy returns 403 and the container is marked unhealthy.
@@ -37,10 +42,6 @@ services:
     read_only: true
     tmpfs:
       - /run
-      # tecnativa/docker-socket-proxy's entrypoint writes /usr/local/etc/haproxy/haproxy.cfg
-      # at start-up from the *_* env flags. With read_only rootfs we must mount that
-      # directory as tmpfs so the rendered config can be written.
-      - /usr/local/etc/haproxy
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:2375/version || exit 1"]
       interval: 10s
@@ -49,8 +50,10 @@ services:
       start_period: 5s
 
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.6
     container_name: test-cs-traefik
+    environment:
+      DOCKER_API_VERSION: "1.40"
     command:
       - "--api.insecure=true"
       - "--ping=true"
@@ -77,7 +80,7 @@ services:
       - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiHost=crowdsec:8080"
       - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiKey=test-bouncer-key"
       - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecMode=stream"
-      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecEnabled=true"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecEnabled=false"
       - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecHost=crowdsec:7422"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
@@ -131,6 +134,12 @@ services:
       - "traefik.http.routers.whoami.entrypoints=web"
       - "traefik.http.routers.whoami.middlewares=crowdsec@docker"
       - "traefik.http.services.whoami.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.enabled=true"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiHost=crowdsec:8080"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiKey=test-bouncer-key"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecMode=stream"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecEnabled=false"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecHost=crowdsec:7422"
     networks:
       - test-net
 

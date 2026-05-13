@@ -249,7 +249,7 @@ func SuggestDomain(env models.NetworkEnvironment, currentDomain string) (domain 
 		return currentDomain, ""
 	case models.NetEnvHome:
 		if currentDomain == "" {
-			return models.DomainHomeLab, "home network detected — using local domain"
+			return DefaultLocalDomain(), "home network detected — using configured local domain"
 		}
 		return currentDomain, ""
 	default:

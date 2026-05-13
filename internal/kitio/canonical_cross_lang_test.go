@@ -20,20 +20,22 @@ import (
 // they agree.
 //
 // The TS-side test is at:
-//   kombify-Administration/frontend/src/routes/api/v1/sk/registry/stackkits/[id]/kit-import/canonical_hash.test.ts
+//
+//	kombify-Administration/frontend/src/routes/api/v1/sk/registry/stackkits/[id]/kit-import/canonical_hash.test.ts
 //
 // Updated 2026-04-27 after migration 000084 (useCases → application rename).
 // Previous anchor (pre-rename) was:
-//   b1e5815355939e0da5d568298467a4782a2fe2074a130493704cbf34f9628155
+//
+//	b1e5815355939e0da5d568298467a4782a2fe2074a130493704cbf34f9628155
 const ExpectedFixtureHash = "e0a2b8779d83ec126d24fbf9c9401ec28f1fe5e2acdecd73270ac761a4c624c8"
 
 // TestCanonicalHashFixtureMatchesAnchor recomputes the hash of the fixture
 // using the production canonicalizer (CanonicalHash via Import → marshal).
 // Must match ExpectedFixtureHash byte-for-byte. If this drifts, either:
 //
-//   (a) Someone changed the canonicalizer — they must re-run
-//       UPDATE_FIXTURE_HASH=1 and update the TS-side test in lockstep.
-//   (b) Someone changed the fixture — same procedure.
+//	(a) Someone changed the canonicalizer — they must re-run
+//	    UPDATE_FIXTURE_HASH=1 and update the TS-side test in lockstep.
+//	(b) Someone changed the fixture — same procedure.
 //
 // Set UPDATE_FIXTURE_HASH=1 to print the new hash and skip the assertion.
 func TestCanonicalHashFixtureMatchesAnchor(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -45,13 +46,14 @@ type Claims struct {
 //
 //	svc      service slug (the caller; e.g. "stackkits")
 //	target   service slug being called (e.g. "administration")
-//	secret   shared signing secret (SERVICE_AUTH_SECRET from the runtime secret store)
+//	secret   shared signing secret (SERVICE_AUTH_SECRET in Doppler)
 //	ttl      token lifetime; <=0 falls back to DefaultTokenTTL
 //
 // Returns "header.payload.signature" with each part base64url-encoded
 // without padding. Admin's tryServiceAuth verifies signature + audience
 // (kombify-<target>) + caller-allowlist (svc).
 func SignServiceToken(svc, target, secret string, ttl time.Duration) (string, error) {
+	secret = strings.TrimSpace(secret)
 	if secret == "" {
 		return "", fmt.Errorf("auth: service-auth secret is empty")
 	}

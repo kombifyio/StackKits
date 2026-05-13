@@ -239,6 +239,7 @@ package base
 
 // #SecretsPolicy defines how secrets are managed.
 // Default for homelab: SOPS + age (encrypted in Git, no server component).
+// Doppler is dev-only, NOT a self-hosting solution.
 #SecretsPolicy: {
 	// Secrets backend
 	backend: "file" | "env" | "vault" | "sops-age" | *"sops-age"

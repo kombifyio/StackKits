@@ -48,7 +48,7 @@ stackkit addon enable backup
 stackkit backup enroll --repo https://backup-repo-agent.<domain> --user host-a
 ```
 
-(The `enroll` subcommand lands in Phase 2 of the rollout. See `docs/plans/2026-05-01-backup-rollout.md`.)
+(The `enroll` subcommand is tracked as a Beads follow-up. See [ADR-0016](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md).)
 
 ## SaaS path
 
@@ -73,4 +73,5 @@ For SaaS Business tier, set `storage.s3.objectLockEnabled: true`. The controller
 
 - [`docs/BACKUP-ARCHITECTURE.md`](../../docs/BACKUP-ARCHITECTURE.md)
 - [ADR-0016 — Single backup engine: Kopia](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md)
-- [`docs/plans/2026-05-01-backup-rollout.md`](../../docs/plans/2026-05-01-backup-rollout.md) — Phase 3 covers this addon
+- [ADR-0016](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md) - backup engine decision
+- [Backup architecture](../../docs/BACKUP-ARCHITECTURE.md) - current SaaS backup surface

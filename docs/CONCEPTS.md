@@ -1,11 +1,12 @@
-# StackKits Concepts (V5)
+# StackKits Concepts (V5/V6 Canonical)
 
 > **READ THIS FIRST** before making any architectural suggestion or code change involving
 > service selection, tool roles, or StackKit structure.
 >
 > This is the single-page reference for all StackKits concepts.
-> For full details, see [ARCHITECTURE_V5.md](./ARCHITECTURE_V5.md).
+> For full details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 > V4 is the historical baseline; V5 evolves it.
+> For non-negotiable current rules, see [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md).
 
 ---
 
@@ -30,14 +31,13 @@ platform that enables the use cases.
 
 A StackKit defines HOW infrastructure is organized AND WHICH use cases ship as defaults.
 
-| StackKit | Pattern | Default Use Cases |
-|----------|---------|-------------------|
-| **Base Kit** | Single-server | Platform + Photos (Immich) + Media (Jellyfin) + Vault (Vaultwarden) |
-| **Modern Homelab** | Hybrid (local+cloud) | Platform + Photos + Media + Vault + more (Files, Smart Home) |
-| **HA Kit** | HA Cluster (3+ nodes) | Platform + Vault. Use cases opt-in. Focus = reliability. |
+| StackKit | Pattern | Default Scope |
+|----------|---------|---------------|
+| **Base Kit** | Single environment 1..N | Platform + verified default application modules; heavier modules are enabled only after their first-run path passes release gates |
+| **Modern Homelab** | Hybrid (local+cloud) | Platform + use cases split across public-facing and local-first nodes |
+| **HA Kit** | HA Cluster (3+ nodes) | Platform + reliability-focused defaults. Use cases opt-in unless they satisfy HA placement, backup, and failover rules. |
 
-Platform = Traefik + TinyAuth + PocketID + PAAS (Dokploy/Coolify) + Monitoring (OTel Collector baseline, optional uptime UX, optional VictoriaMetrics fan-in).
-Always present regardless of StackKit.
+Platform target = routing + identity implementation + access gateway + PaaS adapter + platform observability. Current release gates may keep individual platform services opt-in until their first-run UX and verification path are ready.
 
 ### 2. Context = Where + What Hardware
 
@@ -47,7 +47,7 @@ Auto-detected during `stackkit prepare` from the runtime environment. Drives inf
 |---------|-----------|---------|
 | `local` | Home/office network (private IP, no cloud metadata) | Self-signed TLS (Step-CA), Dokploy, overlay2 |
 | `cloud` | Cloud provider metadata or VPS detected (public IP, cloud signatures) | Let's Encrypt, Coolify, public IP routing |
-| `pi` | ARM64 architecture + low resources (<4 cores or <4 GB RAM) | Dockge, ARM images, constrained resources |
+| `pi` | ARM64 architecture + low resources (<4 cores or <4 GB RAM) | Standard PaaS contract remains Dokploy/Coolify; heavy modules are gated and lightweight managers remain experimental |
 
 **How auto-detection works:**
 
@@ -66,13 +66,13 @@ Derived from CPU/RAM/disk during `stackkit prepare`. CONSTRAINS what can physica
 |------|----------|--------|
 | `high` | 8+ CPU, 16+ GB RAM | Everything viable. Full monitoring possible. |
 | `standard` | 4+ CPU, 4+ GB RAM | Most use cases viable. Default monitoring. |
-| `low` | <4 CPU or <4 GB RAM | Dockge replaces Dokploy. Heavy use cases (Media, Photos, AI) unavailable. |
+| `low` | <4 CPU or <4 GB RAM | Required platform remains Dokploy/Coolify. Heavy use cases (Media, Photos, AI) unavailable. |
 
 The tier gates feasibility. It doesn't drive selection — the StackKit defaults + user overrides drive selection, then tier gates what's feasible.
 
-### 4. Mode = User Intent Profile
+### 4. Deployment Mode + Resource Profile
 
-Mode has TWO dimensions:
+StackKits separate the deployment engine from the resource profile:
 
 **Deployment Engine:**
 - `simple` = OpenTofu Day-1 only
@@ -82,16 +82,15 @@ Mode has TWO dimensions:
 
 | Profile | Intent | Effect |
 |---------|--------|--------|
-| `pi` | "Lightweight, low requirements" | Forces low compute tier, Dockge, minimal monitoring |
+| `pi` | "Lightweight, low requirements" | Forces low compute tier, disables heavy modules, uses minimal monitoring |
 | `standard` | Default, no special constraints | Auto-detected tier applies |
 | `full` | "Enable everything" | All default use cases + monitoring enabled |
 
-`--mode pi` is user intent — a user on an old laptop can use it. It overrides auto-detection.
+Use `--compute-tier low` or `--context pi` for constrained hardware intent. `--mode` is reserved for the deployment engine (`simple` or `advanced`).
 
 ### 5. Tool Role = Per-StackKit Per-Tool Assignment
 
-Every tool has a ROLE relative to each StackKit. Managed in the admin-center database
-(`admin_sk_stackkit_tools`), consumed by CUE definitions.
+Every tool has a ROLE relative to each StackKit. Roles are managed in the StackKits registry tables and consumed by CUE-backed release contracts with hash parity.
 
 | Role | Meaning | Example |
 |------|---------|---------|
@@ -143,7 +142,7 @@ The admin-center tool evaluation decides which alternatives we offer.
 StackKit selected (Base Kit / Modern Homelab / HA Kit)
     |
     v
-Mode applied (--mode pi overrides auto-detection)
+Deployment mode and resource profile applied
     |
     v
 Context auto-detected:
@@ -156,7 +155,7 @@ Context auto-detected:
 Compute Tier derived (high / standard / low)
     |
     v
-Default tool set resolved (from admin-center roles per StackKit)
+Default tool set resolved (from StackKits registry roles per kit)
     |
     v
 User overrides applied (--paas coolify, --enable photos, etc.)
@@ -184,7 +183,7 @@ Variants were mutually exclusive service bundles (default/beszel/minimal/coolify
 Replaced by the per-tool role system:
 - `beszel` variant → `--monitoring beszel`
 - `coolify` variant → `--paas coolify`
-- `minimal` variant → `--mode pi` or compute tier `low`
+- `minimal` variant → `--compute-tier low`, `--context pi`, or an explicit constrained resource profile
 
 ---
 
@@ -192,8 +191,9 @@ Replaced by the per-tool role system:
 
 | Situation | Behavior |
 |-----------|----------|
-| Base Kit + 1 local node | Services distributed across nodes. Base Kit stays. |
-| Base Kit + cloud node | Recommend upgrade to Modern Homelab (hybrid pattern). |
+| Base Kit + 1 local node | Services run on the primary node. Base Kit stays. |
+| Base Kit + additional worker/storage nodes in the same trust domain | Base Kit stays; placement is used for capacity, storage, backup, or device-specific workloads. |
+| Base Kit + separate cloud/local trust domains | Recommend upgrade to Modern Homelab (hybrid pattern). |
 | Base Kit + 3+ nodes | Recommend HA Kit if high availability needed. |
 | Modern Homelab + nodes | Register node, Placement Engine distributes services. |
 
@@ -209,8 +209,8 @@ Service placement rules:
 - **Use cases are NOT add-ons.** Use cases are the reason to install a StackKit.
 - **Variants are DEAD.** Use the role system (default/alternative/optional/addon).
 - **V4 is the baseline.** V5 evolves V4, never contradicts it.
-- **CUE is the source of truth.** Never edit generated files.
+- **CUE is the technical contract source of truth; DB is the registry and operations mirror.** Never edit generated files.
 - **OpenTofu, never Terraform.** Licensing violation.
-- **Never localhost URLs.** Always `service.stack.local`.
-- **Admin-center defines tool roles.** CUE consumes them.
-- **Mode = user intent, not just hardware.** `--mode pi` works on any hardware.
+- **Never localhost URLs.** Use stable service names such as `service.stack.home`.
+- **StackKits registry defines tool roles; CUE contracts enforce them.**
+- **Resource profile = user intent, not just hardware.** `--compute-tier low` can be chosen explicitly even when hardware auto-detection would allow more.

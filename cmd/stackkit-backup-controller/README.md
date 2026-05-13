@@ -75,4 +75,5 @@ TechStack SaaS infrastructure, not on customer hosts.
 
 - [`docs/BACKUP-ARCHITECTURE.md`](../../docs/BACKUP-ARCHITECTURE.md)
 - [ADR-0016 — Single backup engine: Kopia](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md)
-- [`docs/plans/2026-05-01-backup-rollout.md`](../../docs/plans/2026-05-01-backup-rollout.md)
+- [ADR-0016](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md)
+- [docs/BACKUP-ARCHITECTURE.md](../../docs/BACKUP-ARCHITECTURE.md)

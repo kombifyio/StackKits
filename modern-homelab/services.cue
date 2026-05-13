@@ -15,9 +15,9 @@
 // - Monitoring, backup, tunnels are composable add-ons
 //
 // PLACEMENT:
-// - Cloud node: Traefik, PaaS, TinyAuth, PocketID, Uptime Kuma, OTel gateway, Grafana
+// - Cloud node: Traefik, PaaS, TinyAuth, PocketID, Uptime Kuma, Grafana
 // - Local node: Workloads deployed via PaaS (Immich, Jellyfin, etc.)
-// - Daemonset: Grafana Alloy OTLP agents, cAdvisor, node-exporter (all nodes)
+// - Daemonset: Grafana Alloy, cAdvisor, node-exporter (all nodes)
 
 package modern_homelab
 
@@ -638,7 +638,7 @@ import "github.com/kombifyio/stackkits/base"
 // =============================================================================
 
 #DefaultPlacement: {
-	// Cloud node: public-facing, management, and central OTLP fan-in.
+	// Cloud node: public-facing, management, always-on
 	cloud: [
 		"traefik",
 		"tinyauth",
@@ -647,7 +647,6 @@ import "github.com/kombifyio/stackkits/base"
 		"dokploy",
 		"uptime-kuma",
 		"dozzle",
-		"otel-gateway",
 		"grafana",
 		"victoriametrics",
 		"loki",
@@ -670,7 +669,7 @@ import "github.com/kombifyio/stackkits/base"
 		"gitea",
 	]
 
-	// All nodes: node-local telemetry agents and supporting exporters.
+	// All nodes: agents and telemetry
 	daemonset: [
 		"grafana-alloy",
 		"cadvisor",

@@ -93,7 +93,7 @@ package base
         settingType:       "perma"
         description:      "Platform-as-a-Service selection"
         whyClassification: "Migrating applications between Dokploy/Coolify requires manual export/import"
-        cueType:          "\"dokploy\" | \"coolify\" | \"dokku\" | \"portainer\" | \"dockge\""
+        cueType:          "\"dokploy\" | \"coolify\""
       },
       {
         layer:             "2"

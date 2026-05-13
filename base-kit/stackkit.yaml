@@ -190,8 +190,8 @@ platform:
     alternatives: [coolify, dockge]
   monitoring:
     role: optional
-    defaultTool: monitoring-agent
-    alternatives: [monitoring-core, uptime-kuma, beszel]
+    defaultTool: uptime-kuma
+    alternatives: [beszel]
   dashboard:
     role: optional
     alternatives: []
@@ -212,7 +212,8 @@ computeTiers:
       memory: 16
       disk: 20
     additionalServices:
-      - monitoring-core
+      - prometheus
+      - grafana
   standard:
     requirements:
       cpu: 4
@@ -227,7 +228,6 @@ computeTiers:
     paasOverride: dockge
     serviceOverrides:
       dokploy: disabled
-      uptime-kuma: disabled
 
 # =============================================================================
 # SERVICE OUTPUTS (URLs and Credentials)

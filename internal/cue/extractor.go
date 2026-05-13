@@ -45,6 +45,7 @@ type ServiceDef struct {
 	DashboardSection   string
 	DashboardBadge     string
 	DashboardEnableVar string
+	DashboardGuideURL  string
 }
 
 // PortDef represents a port mapping.
@@ -341,6 +342,7 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 		svc.DashboardSection = stringField(dash, "section")
 		svc.DashboardBadge = stringField(dash, "badge")
 		svc.DashboardEnableVar = stringField(dash, "enableVar")
+		svc.DashboardGuideURL = stringField(dash, "guideUrl")
 		if order := dash.LookupPath(cue.ParsePath("order")); order.Exists() {
 			n, _ := order.Int64()
 			svc.DashboardOrder = int(n)

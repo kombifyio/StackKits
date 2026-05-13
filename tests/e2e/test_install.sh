@@ -108,9 +108,9 @@ fi
 
 # Verify OpenTofu
 if docker exec "$CONTAINER_NAME" tofu version >/dev/null 2>&1; then
-  pass "OpenTofu installed"
+  pass "StackKit-packaged OpenTofu installed"
 else
-  fail "OpenTofu not installed"
+  fail "StackKit-packaged OpenTofu not installed"
 fi
 
 # --- Test 3: Init with admin email ------------------------------------------

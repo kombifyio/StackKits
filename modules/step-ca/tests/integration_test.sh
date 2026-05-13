@@ -72,6 +72,20 @@ for i in $(seq 1 90); do
     sleep 1
 done
 
+echo "Waiting for Traefik to be healthy (up to 60s)..."
+for i in $(seq 1 60); do
+    STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' test-traefik-stepca 2>/dev/null || echo "not-found")
+    if [ "$STATUS" = "healthy" ]; then
+        echo "  Traefik: healthy (${i}s)"
+        break
+    fi
+    if [ "$i" = "60" ]; then
+        echo "  Traefik: NOT healthy after 60s (status: $STATUS)"
+        docker logs test-traefik-stepca 2>&1 | tail -20
+    fi
+    sleep 1
+done
+
 echo ""
 echo "--- Running Tests ---"
 
@@ -104,7 +118,7 @@ else
 fi
 
 log_test "Step-CA root CA was generated"
-ROOT_EXISTS=$(docker exec test-step-ca ls /home/step/certs/root_ca.crt 2>/dev/null && echo "yes" || echo "no")
+ROOT_EXISTS=$(docker exec test-step-ca sh -c 'test -f /home/step/certs/root_ca.crt' 2>/dev/null && echo "yes" || echo "no")
 if [ "$ROOT_EXISTS" = "yes" ]; then
     log_pass "Root CA certificate exists"
 else
@@ -112,7 +126,7 @@ else
 fi
 
 log_test "Step-CA intermediate CA was generated"
-INT_EXISTS=$(docker exec test-step-ca ls /home/step/certs/intermediate_ca.crt 2>/dev/null && echo "yes" || echo "no")
+INT_EXISTS=$(docker exec test-step-ca sh -c 'test -f /home/step/certs/intermediate_ca.crt' 2>/dev/null && echo "yes" || echo "no")
 if [ "$INT_EXISTS" = "yes" ]; then
     log_pass "Intermediate CA certificate exists"
 else
@@ -147,19 +161,19 @@ fi
 log_section "CA Configuration"
 
 log_test "CA config file exists"
-CONFIG_EXISTS=$(docker exec test-step-ca ls /home/step/config/ca.json 2>/dev/null && echo "yes" || echo "no")
+CONFIG_EXISTS=$(docker exec test-step-ca sh -c 'test -f /home/step/config/ca.json' 2>/dev/null && echo "yes" || echo "no")
 if [ "$CONFIG_EXISTS" = "yes" ]; then
     log_pass "ca.json exists"
 else
     log_fail "ca.json not found"
 fi
 
-log_test "CA name matches expected"
-CA_NAME=$(docker exec test-step-ca sh -c 'cat /home/step/config/ca.json 2>/dev/null | grep -o "\"Test Homelab CA\"" || echo ""' 2>/dev/null || echo "")
-if [ -n "$CA_NAME" ]; then
-    log_pass "CA name: Test Homelab CA"
+log_test "CA DNS names include local hostname"
+CA_DNS=$(docker exec test-step-ca sh -c 'grep -o "\"ca.test.local\"" /home/step/config/ca.json' 2>/dev/null || echo "")
+if [ -n "$CA_DNS" ]; then
+    log_pass "CA DNS name: ca.test.local"
 else
-    log_fail "CA name not found in config"
+    log_fail "ca.test.local not found in config"
 fi
 
 log_section "Security Hardening"

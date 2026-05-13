@@ -20,6 +20,7 @@ Contract: base.#ModuleContract & {
 		version:     "0.1.0"
 		layer:       "L1-foundation"
 		description: "Bootstraps the initial admin user in LLDAP + PocketID. Initial password printed to CLI stdout, must be rotated on first login."
+		testScenarios: ["SK-S3", "SK-S4", "SK-S5"]
 	}
 
 	requires: {
@@ -94,9 +95,9 @@ Contract: base.#ModuleContract & {
 			dependsOn: "pocketid"
 			networks: ["frontend"]
 			environment: {
-				POCKETID_URL:      "http://pocketid:1411"
-				ADMIN_USERNAME:    "{{.admin_username}}"
-				ADMIN_EMAIL:       "{{.admin_email}}"
+				POCKETID_URL:   "http://pocketid:1411"
+				ADMIN_USERNAME: "{{.admin_username}}"
+				ADMIN_EMAIL:    "{{.admin_email}}"
 			}
 		}
 	}

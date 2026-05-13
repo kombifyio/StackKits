@@ -12,6 +12,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Self-hosted photo and video management with AI-powered search and mobile backup"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S4"]
 	}
 
 	requires: {
@@ -31,6 +32,7 @@ Contract: base.#ModuleContract & {
 
 	provides: {
 		capabilities: {
+			"photos":           true
 			"photo-management": true
 			"media-backup":     true
 			"ai-search":        true
@@ -120,6 +122,22 @@ Contract: base.#ModuleContract & {
 			retries:  5
 		}
 
+		config: {
+			serviceGroup: "photos"
+			routeRole:    "photos"
+			replacementContract: {
+				stableRouteKey:  "photos"
+				stableLocalSlug: "photos"
+				requiredCapabilities: ["photos", "photo-management"]
+				bootstrapRequirements: ["create-first-admin", "complete-server-onboarding", "complete-user-onboarding"]
+				note: "Any replacement photo module must keep the photos route role and document equivalent owner bootstrap steps."
+			}
+			accessPolicy: {
+				appAuth:        "self-auth"
+				ownerBootstrap: "init-immich creates ci/admin owner from StackKit admin credentials and completes onboarding."
+			}
+		}
+
 		resources: {
 			memory:    "1g"
 			memoryMax: "4g"
@@ -141,11 +159,52 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "photos", nested: "photos", flat: "photos"}
-		dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich"}
+		dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/guides/stackkits/services/immich"}
 
 		output: {
 			url:         "https://photos.{{.domain}}"
 			description: "Immich photo management"
 		}
+	}
+
+	provisioners: "init-immich": base.#ProvisionerService & {
+		image:     "python:3.11-alpine"
+		dependsOn: "immich"
+		networks: ["base_net"]
+		environment: {
+			IMMICH_URL:  "http://immich:2283"
+			IMMICH_USER: "{{.adminEmail}}"
+			IMMICH_PASS: "{{.adminPassword}}"
+			IMMICH_NAME: "StackKit Admin"
+		}
+		command: """
+			python3 - <<'PYEOF'
+			import json, os, urllib.request
+
+			base = os.environ["IMMICH_URL"].rstrip("/")
+			user = os.environ["IMMICH_USER"]
+			password = os.environ["IMMICH_PASS"]
+			name = os.environ.get("IMMICH_NAME", "StackKit Admin")
+
+			def request(path, method="GET", payload=None, token=""):
+			    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+			    headers = {"Content-Type": "application/json"}
+			    if token:
+			        headers["Authorization"] = f"Bearer {token}"
+			    req = urllib.request.Request(f"{base}{path}", data=data, headers=headers, method=method)
+			    with urllib.request.urlopen(req, timeout=10) as resp:
+			        text = resp.read().decode("utf-8")
+			        return resp.status, json.loads(text) if text else {}
+
+			_, config = request("/api/server/config")
+			if not config.get("isInitialized"):
+			    request("/api/auth/admin-sign-up", "POST", {"email": user, "password": password, "name": name})
+			_, login = request("/api/auth/login", "POST", {"email": user, "password": password})
+			token = login["accessToken"]
+			request("/api/users/me", "PUT", {"name": name, "password": password}, token)
+			request("/api/users/me/onboarding", "PUT", {"isOnboarded": True}, token)
+			request("/api/system-metadata/admin-onboarding", "POST", {"isOnboarded": True}, token)
+			PYEOF
+			"""
 	}
 }

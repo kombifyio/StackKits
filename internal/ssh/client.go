@@ -290,13 +290,13 @@ func (c *Client) RunWithSudo(ctx context.Context, command string) (string, strin
 
 // CopyFile copies a file to the remote host
 func (c *Client) CopyFile(ctx context.Context, localPath, remotePath string) error {
-	if c.client == nil {
-		return fmt.Errorf("not connected")
-	}
-
 	// Validate remote path
 	if err := validatePath(remotePath); err != nil {
 		return fmt.Errorf("invalid remote path: %w", err)
+	}
+
+	if c.client == nil {
+		return fmt.Errorf("not connected")
 	}
 
 	// Read local file
@@ -310,13 +310,13 @@ func (c *Client) CopyFile(ctx context.Context, localPath, remotePath string) err
 
 // WriteFile writes content to a file on the remote host
 func (c *Client) WriteFile(ctx context.Context, remotePath string, content []byte, mode os.FileMode) error {
-	if c.client == nil {
-		return fmt.Errorf("not connected")
-	}
-
 	// Validate remote path to prevent command injection
 	if err := validatePath(remotePath); err != nil {
 		return fmt.Errorf("invalid remote path: %w", err)
+	}
+
+	if c.client == nil {
+		return fmt.Errorf("not connected")
 	}
 
 	session, err := c.client.NewSession()

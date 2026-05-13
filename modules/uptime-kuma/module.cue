@@ -16,6 +16,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Self-hosted uptime monitoring with status pages and notifications"
+		testScenarios: ["SK-S2"]
 	}
 
 	requires: {
@@ -34,10 +35,11 @@ Contract: base.#ModuleContract & {
 
 	provides: {
 		capabilities: {
-			"monitoring":    true
-			"uptime-checks": true
-			"status-pages":  true
-			"notifications": true
+			"monitoring":         true
+			"uptime-checks":      true
+			"status-pages":       true
+			"notifications":      true
+			"outer-auth-handoff": true
 		}
 		endpoints: {
 			ui: {
@@ -56,7 +58,7 @@ Contract: base.#ModuleContract & {
 	contexts: {
 		local: {}
 		cloud: {}
-		pi:    {}
+		pi: {}
 	}
 
 	services: "uptime-kuma": base.#ServiceDefinition & {
@@ -102,6 +104,16 @@ Contract: base.#ModuleContract & {
 			retries:  3
 		}
 
+		config: {
+			accessPolicy: {
+				outerAuth: "tinyauth-pocketid"
+				appAuth:   "disabled-after-bootstrap"
+				reason:    "BaseKit protects kuma.<domain> with TinyAuth/PocketID, then init-kuma disables the Kuma app login to avoid a second login prompt."
+			}
+			serviceGroup: "monitoring"
+			routeRole:    "kuma"
+		}
+
 		resources: {
 			memory:    "256m"
 			memoryMax: "512m"
@@ -114,18 +126,49 @@ Contract: base.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                                           "true"
-			"traefik.http.routers.uptime-kuma.rule":                                    "Host(`kuma.{{.domain}}`)"
-			"traefik.http.routers.uptime-kuma.entrypoints":                             "web"
-			"traefik.http.services.uptime-kuma.loadbalancer.server.port":               "3001"
+			"traefik.enable":                                             "true"
+			"traefik.http.routers.uptime-kuma.rule":                      "Host(`kuma.{{.domain}}`)"
+			"traefik.http.routers.uptime-kuma.entrypoints":               "web"
+			"traefik.http.services.uptime-kuma.loadbalancer.server.port": "3001"
 		}
 
 		subdomain: {key: "kuma", nested: "kuma", flat: "kuma"}
-		dashboard: {icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring"}
+		dashboard: {icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/guides/stackkits/services/uptime-kuma"}
 
 		output: {
 			url:         "https://kuma.{{.domain}}"
 			description: "Uptime Kuma monitoring dashboard"
 		}
+	}
+
+	provisioners: "init-kuma": base.#ProvisionerService & {
+		image:     "python:3.11-alpine"
+		dependsOn: "uptime-kuma"
+		networks: ["base_net"]
+		environment: {
+			KUMA_URL:  "http://uptime-kuma:3001"
+			KUMA_USER: "{{.adminEmail}}"
+			KUMA_PASS: "{{.kumaAdminPassword}}"
+			DOMAIN:    "{{.domain}}"
+		}
+		command: """
+			pip install -q uptime-kuma-api
+			python3 - <<'PYEOF'
+			from uptime_kuma_api import UptimeKumaApi, MonitorType
+			import os, sys
+
+			api = UptimeKumaApi(os.environ["KUMA_URL"], wait_events=True, timeout=30)
+			user = os.environ["KUMA_USER"]
+			pw = os.environ["KUMA_PASS"]
+			try:
+			    api.setup(user, pw)
+			except Exception:
+			    pass
+			api.login(user, pw)
+			api.set_settings(password=pw, disableAuth=True, trustProxy=True, entryPage="dashboard")
+			# Add StackKit service monitors here.
+			api.disconnect()
+			PYEOF
+			"""
 	}
 }

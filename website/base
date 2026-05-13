@@ -10,7 +10,7 @@ exec sh <<'STACKKIT_BASE'
 #
 # Steps:
 #   1. Install stackkit CLI + base-kit definitions  (via stackkit.cc/install)
-#   2. Prepare system: Docker + OpenTofu
+#   2. Prepare system: Docker + packaged OpenTofu
 #   3. Initialize base-kit (non-interactive, reads env vars)
 #   4. Generate + deploy the full homelab stack
 # =============================================================================
@@ -63,7 +63,7 @@ STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://stackkit.cc/install}"
 STACKKIT_NO_BANNER=1 curl -sSL "$STACKKIT_INSTALL_URL" | sh -s -- base-kit
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 
-info "Step 2/4 -- Preparing system (Docker + OpenTofu)"
+info "Step 2/4 -- Preparing system (Docker + packaged OpenTofu)"
 if [ "$(id -u)" -eq 0 ]; then
   stackkit $STACKKIT_CONTEXT_ARG prepare || die "System preparation failed."
 else

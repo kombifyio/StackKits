@@ -27,6 +27,7 @@ func TestServiceOverrides_IndividualToggle(t *testing.T) {
 		{"dockge", "enable_dockge", false, true},
 		{"coolify", "enable_coolify", false, true},
 		{"dashboard", "enable_dashboard", true, true},
+		{"homepage", "enable_homepage", true, true},
 		{"uptime_kuma", "enable_uptime_kuma", true, true},
 		{"vaultwarden", "enable_vaultwarden", true, true},
 		{"jellyfin", "enable_jellyfin", true, true},
@@ -132,6 +133,7 @@ func TestServiceOverrides_MultipleServices(t *testing.T) {
 	assert.False(t, boolVar(t, vars, "enable_dashboard"), "dashboard disabled")
 	// Services not mentioned should keep their defaults
 	assert.True(t, boolVar(t, vars, "enable_uptime_kuma"), "uptime_kuma default intact")
+	assert.True(t, boolVar(t, vars, "enable_homepage"), "homepage default intact")
 	assert.True(t, boolVar(t, vars, "enable_tinyauth"), "tinyauth default intact")
 }
 

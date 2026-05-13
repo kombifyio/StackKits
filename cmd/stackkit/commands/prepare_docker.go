@@ -376,11 +376,11 @@ func baseKitImages(tier string) []string {
 		"nginx:alpine",
 		"traefik/whoami:latest",
 		"smallstep/step-ca:0.30.2",
-		"ghcr.io/kombifyio/kombify-point:latest",
+		"coredns/coredns:1.11.3",
 	}
 
 	if tier == models.ComputeTierLow {
-		// Low compute: Dockge replaces Dokploy, Kuma always included
+		// Low compute: keep required Dokploy platform, but skip heavier app images.
 		images = append(images,
 			"louislam/dockge:1",
 			"louislam/uptime-kuma:1",
@@ -736,7 +736,7 @@ func getDockerLogs(isSystemd bool) string {
 }
 
 func installDockerLocal(ctx context.Context) error {
-	cmd := exec.Command("sh", "-c", "curl -fsSL https://get.docker.com | sh")
+	cmd := exec.Command("sh", "-c", packageManagerLockWaitScript()+"\ncurl -fsSL https://get.docker.com | sh")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -756,7 +756,7 @@ func installDockerRemote(ctx context.Context, client *ssh.Client, osType string)
 
 	switch osType {
 	case "ubuntu", "debian":
-		installCmd = `
+		installCmd = packageManagerLockWaitScript() + `
 curl -fsSL https://get.docker.com | sh
 systemctl enable docker
 systemctl start docker
@@ -778,4 +778,26 @@ systemctl start docker
 	}
 
 	return nil
+}
+
+func packageManagerLockWaitScript() string {
+	return `if command -v apt-get >/dev/null 2>&1; then
+  for i in $(seq 1 72); do
+    if command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
+      echo "Waiting for apt/dpkg lock to be released..."
+      sleep 5
+      continue
+    fi
+    if pgrep -x apt-get >/dev/null 2>&1 || pgrep -x apt >/dev/null 2>&1 || pgrep -x dpkg >/dev/null 2>&1 || pgrep -x unattended-upgr >/dev/null 2>&1; then
+      echo "Waiting for apt/dpkg process to finish..."
+      sleep 5
+      continue
+    fi
+    break
+  done
+  if command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
+    echo "Timed out waiting for apt/dpkg lock" >&2
+    exit 1
+  fi
+fi`
 }

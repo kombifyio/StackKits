@@ -9,9 +9,9 @@
 //   - simple: OpenTofu-only (NOT recommended for HA, warning issued)
 //
 // Variants:
-//   - default: Dokploy + redundant OTLP monitoring scaffolding (legacy Prometheus placeholder still present)
-//   - minimal: Dokploy + Uptime Kuma (availability-only monitoring)
-//   - enterprise: Dokploy + redundant OTLP monitoring + enterprise storage scaffolding
+//   - default: Dokploy + Full monitoring (Prometheus HA, Grafana, Loki)
+//   - minimal: Dokploy + Uptime Kuma (lightweight monitoring)
+//   - enterprise: Dokploy + Thanos + Ceph (long-term storage, distributed FS)
 //
 // DECISION POINTS (CUE-enforced):
 //   1. Manager count must be ODD (quorum requirement: 3, 5, or 7)

@@ -91,7 +91,7 @@ linters:
       # Individual branches are simple; complexity comes from flag-handling
       # plumbing. Refactoring into dispatch tables would add indirection
       # without reducing net complexity.
-      - path: "cmd/stackkit/commands/(apply|generate|prepare)\\.go"
+      - path: "cmd/stackkit/commands/(apply|generate|prepare|init|kit_upgrade|kit_upgrade_rollback)\\.go"
         linters:
           - gocyclo
       # CUE extractor/generator are inherently branchy because they walk
@@ -121,13 +121,19 @@ linters:
       - path: "cmd/stackkit/commands/(init|kit_roundtrip)\\.go"
         linters:
           - goconst
+      - path: "cmd/stackkit/commands/(doctor|verify)\\.go"
+        linters:
+          - goconst
+      - path: "internal/apply/owner_bootstrap\\.go"
+        linters:
+          - gocyclo
       - path: "internal/composition/engine\\.go"
         linters:
           - goconst
       - path: "internal/cue/bridge\\.go"
         linters:
           - goconst
-      - path: "internal/identity/owner\\.go"
+      - path: "internal/identity/(backup_encryption|breakglass|owner)\\.go"
         linters:
           - goconst
       - path: "internal/kitio/roundtrip\\.go"

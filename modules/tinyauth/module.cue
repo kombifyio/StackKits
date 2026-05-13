@@ -17,6 +17,7 @@ Contract: base.#ModuleContract & {
 		version:     "4.1.0"
 		layer:       "L2-platform-identity"
 		description: "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth support"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S5"]
 	}
 
 	requires: {
@@ -78,9 +79,9 @@ Contract: base.#ModuleContract & {
 			authMode: *"passkeys_plus_legacy" | "passkeys_only" | "password_only"
 		}
 		flexible: {
-			sessionExpiry:  *86400 | int
-			secureCookie:   *true | bool
-			logLevel:       *"info" | "debug" | "warn" | "error"
+			sessionExpiry: *86400 | int
+			secureCookie:  *true | bool
+			logLevel:      *"info" | "debug" | "warn" | "error"
 			trustedProxies: [...string] | *[]
 		}
 	}
@@ -160,17 +161,17 @@ Contract: base.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                                        "true"
-			"traefik.http.routers.tinyauth.rule":                                    "Host(`auth.{{.domain}}`)"
-			"traefik.http.routers.tinyauth.entrypoints":                             "web"
-			"traefik.http.services.tinyauth.loadbalancer.server.port":               "3000"
-			"traefik.http.middlewares.tinyauth.forwardauth.address":                 "http://tinyauth:3000/api/auth/traefik"
-			"traefik.http.middlewares.tinyauth.forwardauth.trustForwardHeader":      "true"
-			"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders":     "remote-user,remote-sub,remote-name,remote-email,remote-groups"
+			"traefik.enable":                                                    "true"
+			"traefik.http.routers.tinyauth.rule":                                "Host(`auth.{{.domain}}`)"
+			"traefik.http.routers.tinyauth.entrypoints":                         "web"
+			"traefik.http.services.tinyauth.loadbalancer.server.port":           "3000"
+			"traefik.http.middlewares.tinyauth.forwardauth.address":             "http://tinyauth:3000/api/auth/traefik"
+			"traefik.http.middlewares.tinyauth.forwardauth.trustForwardHeader":  "true"
+			"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders": "remote-user,remote-sub,remote-name,remote-email,remote-groups"
 		}
 
 		subdomain: {key: "auth", nested: "auth", flat: "auth"}
-		dashboard: {icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth"}
+		dashboard: {icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth", guideUrl: "https://docs.kombify.io/guides/stackkits/services/tinyauth"}
 
 		output: {
 			url:         "https://auth.{{.domain}}"

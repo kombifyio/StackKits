@@ -14,7 +14,7 @@ processors:
     limit_mib: ${env:KOMBIFY_OTEL_GATEWAY_MEMORY_LIMIT_MIB:-200}
     spike_limit_mib: ${env:KOMBIFY_OTEL_GATEWAY_MEMORY_SPIKE_LIMIT_MIB:-50}
   batch:
-    timeout: ${env:KOMBIFY_OTEL_GATEWAY_BATCH_TIMEOUT:-5s}
+    timeout: ${env:KOMBIFY_OTEL_GATEWAY_BATCH_TIMEOUT:-2s}
     send_batch_size: 500
 
 exporters:

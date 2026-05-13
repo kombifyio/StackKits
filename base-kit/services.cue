@@ -6,14 +6,15 @@
 //   Layer 3 (Applications): Uptime Kuma, Beszel, Whoami, etc. (user applications)
 //
 // PaaS Strategy:
-//   - Dokploy (default): For users WITHOUT a domain (ports mode, simpler)
-//   - Coolify (option):  For users WITH a domain (proxy mode, more features)
+//   - Dokploy (default): local, pi, kombify.me, and cloud without custom domain
+//   - Coolify (option):  cloud custom-domain or explicit supported override
+//   - Dockge: lightweight compose manager only; not the standard PaaS
 //
 // Variants:
 //   - default: Traefik + Dokploy + Uptime Kuma (local/no-domain users)
 //   - coolify: Traefik + Coolify + Uptime Kuma (own-domain users)
 //   - beszel:  Traefik + Dokploy + Beszel (server metrics focus)
-//   - minimal: Traefik + Dockge + Portainer (lightweight)
+//   - minimal: Dokploy + optional Dockge/Portainer (constrained/experimental)
 //   - secure:  Traefik + Dokploy + TinyAuth + Uptime Kuma (with auth)
 //
 // Monitoring Options:
@@ -528,7 +529,7 @@ import "github.com/kombifyio/stackkits/base"
 	needs:       ["traefik"]
 
 	subdomain: { key: "kuma", nested: "kuma", flat: "kuma" }
-	dashboard: { icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring" }
+	dashboard: { icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring", enableVar: "enable_uptime_kuma" }
 
 	network: {
 		ports: [
@@ -671,106 +672,6 @@ import "github.com/kombifyio/stackkits/base"
 	restartPolicy: "unless-stopped"
 }
 
-// #OtelCollectorService — Standard host + container metrics agent.
-//
-// Deploys OTel Collector in agent mode on the node. Collects system and
-// Docker container metrics via hostmetrics + dockerstats receivers and pushes
-// them via OTLP/gRPC to TechStack (default) or monitoring-core gateway.
-//
-// Minimum hardware: Pi 4B (4 GB) — uses ~150 MB RAM in standard profile.
-//
-// Profile behaviour (set via #SmartDefaults.services.monitoring):
-//   standard — 30s interval, host + container metrics (~150 MB RAM)
-//   full     — 10s interval, adds per-process metrics (~250 MB RAM)
-#OtelCollectorService: base.#ServiceDefinition & {
-	name:        "otel-collector"
-	displayName: "OTel Collector Agent"
-	category:    "observability"
-	type:        "monitoring"
-	required:    false
-	enabled:     true // Standard monitoring agent — on by default
-	image:       "otel/opentelemetry-collector-contrib"
-		tag:         "0.114.0"
-	description: "OpenTelemetry Collector — collects host and container metrics and pushes via OTLP/gRPC to TechStack"
-	needs:       []  // No service dependencies — runs standalone
-
-	network: {
-		ports: [
-			{host: 4317, container: 4317, protocol: "tcp", description: "OTLP/gRPC inbound (local app forwarding)"},
-			{host: 4318, container: 4318, protocol: "tcp", description: "OTLP/HTTP inbound"},
-		]
-		traefik: {
-			enabled: false // Agent only — no web UI
-		}
-		networks: ["base_net"]
-	}
-
-	volumes: [
-		{
-			source:      "/var/run/docker.sock"
-			target:      "/var/run/docker.sock"
-			type:        "bind"
-			readOnly:    true
-			description: "Docker socket for container metrics collection"
-		},
-		{
-			source:      "/"
-			target:      "/hostfs"
-			type:        "bind"
-			readOnly:    true
-			description: "Host filesystem root for disk and filesystem metrics"
-		},
-		{
-			source:      "./monitoring-agent/otelcol-config.yaml"
-			target:      "/etc/otelcol/config.yaml"
-			type:        "bind"
-			readOnly:    true
-			description: "OTel Collector configuration (generated from module)"
-		},
-	]
-
-	healthCheck: {
-		enabled: true
-		http: {
-			path:   "/metrics"
-			port:   8888
-			scheme: "http"
-		}
-		interval:    "30s"
-		timeout:     "10s"
-		retries:     3
-		startPeriod: "15s"
-	}
-
-	environment: {
-		GOMEMLIMIT:                          "{{.monitoring_agent_gomemlimit}}"
-		OTEL_ENDPOINT:                       "{{.monitoring_agent_otlp_endpoint}}"
-		KOMBIFY_OTEL_COLLECTION_INTERVAL:    "{{.monitoring_agent_collection_interval}}"
-		KOMBIFY_OTEL_BATCH_TIMEOUT:          "{{.monitoring_agent_batch_timeout}}"
-		KOMBIFY_OTEL_DOCKER_ENDPOINT:        "{{.monitoring_agent_docker_endpoint}}"
-		KOMBIFY_OTEL_MEMORY_LIMIT_MIB:       "{{.monitoring_agent_memory_limit_mib}}"
-		KOMBIFY_OTEL_MEMORY_SPIKE_LIMIT_MIB: "{{.monitoring_agent_memory_spike_limit_mib}}"
-	}
-
-	resources: {
-		memory:    "256m"
-		memoryMax: "512m"
-		cpus:      0.25
-	}
-
-	labels: {
-		"stackkit.layer":      "2-platform"
-		"stackkit.managed-by": "stackkits"
-		"stackkit.component":  "observability"
-	}
-
-	output: {
-		description: "OTel Collector agent — pushing host+container metrics via OTLP/gRPC to TechStack"
-	}
-
-	restartPolicy: "unless-stopped"
-}
-
 // =============================================================================
 // LOG VIEWER (Always Included)
 // =============================================================================
@@ -868,11 +769,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     true // Included for testing proxy configuration
 	image:       "traefik/whoami"
 	tag:         "latest"
-	description: "HTTP echo service for verifying Traefik routing, TinyAuth middleware, and headers."
+	description: "TinyAuth-protected HTTP echo service for verifying routing, login middleware, and headers."
 	needs:       ["traefik"]
 
 	subdomain: { key: "whoami", nested: "whoami", flat: "whoami" }
-	dashboard: { icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 Test" }
+	dashboard: { icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 SSO test", enableVar: "enable_whoami" }
 
 	network: {
 		ports: [
@@ -918,9 +819,9 @@ import "github.com/kombifyio/stackkits/base"
 
 	output: {
 		url:         "https://whoami.{{.domain}}"
-		description: "Whoami - Test service showing request info"
+		description: "Whoami - TinyAuth-protected routing test"
 		credentials: {
-			note: "No authentication required"
+			note: "Protected by TinyAuth"
 		}
 	}
 
@@ -941,11 +842,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     true // All tiers (~128MB RAM)
 	image:       "vaultwarden/server"
 	tag:         "latest"
-	description: "Self-hosted password manager. Bitwarden-compatible vault for passwords, TOTP, and secure notes."
+	description: "Self-hosted password manager with its own app login. Bitwarden-compatible vault for passwords, TOTP, and secure notes."
 	needs:       ["traefik"]
 
 	subdomain: { key: "vault", nested: "vault", flat: "vault" }
-	dashboard: { icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden" }
+	dashboard: { icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_vaultwarden" }
 
 	network: {
 		ports: [
@@ -1001,7 +902,7 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.vaultwarden.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.vaultwarden.loadbalancer.server.port": "80"
 		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "compose"
+		"stackkit.managed-by": "dokploy"
 	}
 
 	output: {
@@ -1025,11 +926,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     false // Standard+ tiers only
 	image:       "jellyfin/jellyfin"
 	tag:         "latest"
-	description: "Free media server for movies, TV, music, and photos. Stream to any device on your network."
+	description: "Free media server with its own app login for movies, TV, music, and photos."
 	needs:       ["traefik"]
 
 	subdomain: { key: "media", nested: "media", flat: "media" }
-	dashboard: { icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 Media", enableVar: "enable_jellyfin" }
+	dashboard: { icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_jellyfin" }
 
 	network: {
 		ports: [
@@ -1094,7 +995,7 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.jellyfin.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.jellyfin.loadbalancer.server.port": "8096"
 		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "compose"
+		"stackkit.managed-by": "dokploy"
 	}
 
 	output: {
@@ -1119,11 +1020,11 @@ import "github.com/kombifyio/stackkits/base"
 	enabled:     false // Standard+ tiers only
 	image:       "ghcr.io/immich-app/immich-server"
 	tag:         "release"
-	description: "Self-hosted photo and video management with AI-powered search, facial recognition, and mobile backup."
+	description: "Self-hosted photo and video management with its own app login, AI-powered search, facial recognition, and mobile backup."
 	needs:       ["traefik"]
 
 	subdomain: { key: "photos", nested: "photos", flat: "photos" }
-	dashboard: { icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich" }
+	dashboard: { icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_immich" }
 
 	network: {
 		ports: [
@@ -1190,7 +1091,7 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.immich.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.immich.loadbalancer.server.port": "2283"
 		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "compose"
+		"stackkit.managed-by": "dokploy"
 	}
 
 	output: {

@@ -11,6 +11,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
+	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -174,24 +175,88 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 		})
 	}
 
-	// Validate nodes if present
+	if requiresPublicOwnerEmail(spec) && !hasRealOwnerEmail(spec) {
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    "email",
+			Message: "owner/admin email is required for public or managed StackKit configs",
+			Code:    "REQUIRED_FIELD",
+		})
+	}
+
+	// Normal StackKits must deploy L3 apps through a managed platform adapter.
+	// Dockge is kept only as a constrained experimental compose manager, and
+	// "none" would allow platform bypasses.
+	if spec.PAAS != "" && !models.IsStandardPAAS(spec.PAAS) && !isAllowedLocalNoPAAS(spec) {
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    "paas",
+			Message: fmt.Sprintf("invalid paas '%s', must be one of: dokploy, coolify", spec.PAAS),
+			Code:    "INVALID_VALUE",
+		})
+	}
+
+	// Validate nodes if present. BaseKit is a single homelab environment with
+	// exactly one main-like node and optional worker/storage nodes.
+	seenNodeNames := map[string]bool{}
+	mainNodeCount := 0
 	for i, node := range spec.Nodes {
+		nodePath := fmt.Sprintf("nodes[%d]", i)
 		if node.Name == "" {
 			result.Valid = false
 			result.Errors = append(result.Errors, models.ValidationError{
-				Path:    fmt.Sprintf("nodes[%d].name", i),
+				Path:    nodePath + ".name",
 				Message: "node name is required",
 				Code:    "REQUIRED_FIELD",
 			})
+		} else if seenNodeNames[node.Name] {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    nodePath + ".name",
+				Message: fmt.Sprintf("duplicate node name '%s'", node.Name),
+				Code:    "DUPLICATE_NODE_NAME",
+			})
+		} else {
+			seenNodeNames[node.Name] = true
 		}
 		if node.IP == "" {
 			result.Valid = false
 			result.Errors = append(result.Errors, models.ValidationError{
-				Path:    fmt.Sprintf("nodes[%d].ip", i),
+				Path:    nodePath + ".ip",
 				Message: "node IP is required",
 				Code:    "REQUIRED_FIELD",
 			})
 		}
+		if !models.IsKnownNodeRole(node.Role) {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    nodePath + ".role",
+				Message: fmt.Sprintf("invalid node role '%s', must be one of: main, worker, storage, control-plane, standalone", node.Role),
+				Code:    "INVALID_VALUE",
+			})
+			continue
+		}
+		if len(spec.Nodes) > 1 && node.Role == "" {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    nodePath + ".role",
+				Message: "node role is required for multi-node topologies",
+				Code:    "REQUIRED_FIELD",
+			})
+			continue
+		}
+		if models.IsMainNodeRole(node.Role) {
+			mainNodeCount++
+		}
+	}
+
+	if len(spec.Nodes) > 1 && mainNodeCount != 1 {
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    "nodes",
+			Message: fmt.Sprintf("multi-node topologies require exactly one main node, found %d", mainNodeCount),
+			Code:    "INVALID_VALUE",
+		})
 	}
 
 	v.validateApps(spec, result)
@@ -214,6 +279,36 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 	}
 
 	return result, nil
+}
+
+func requiresPublicOwnerEmail(spec *models.StackSpec) bool {
+	domain := strings.TrimSpace(spec.Domain)
+	if domain == "" {
+		return false
+	}
+	if spec.Network.Mode != networkModePublic && spec.Context != string(models.ContextCloud) {
+		return false
+	}
+	return models.IsKombifyMeDomain(domain) || !models.IsLocalDomain(domain)
+}
+
+func isAllowedLocalNoPAAS(spec *models.StackSpec) bool {
+	return spec.PAAS == models.PAASNone &&
+		spec.StackKit == "base-kit" &&
+		spec.Network.Mode == "local" &&
+		spec.Context != string(models.ContextCloud) &&
+		models.IsLocalDomain(spec.Domain) &&
+		len(spec.Apps) == 0
+}
+
+func hasRealOwnerEmail(spec *models.StackSpec) bool {
+	for _, candidate := range []string{spec.Owner.Email, spec.AdminEmail, spec.Email} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate != "" && strings.Contains(candidate, "@") && !models.NeedsSyntheticAdminEmail(candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *Validator) validateApps(spec *models.StackSpec, result *models.ValidationResult) {
@@ -288,6 +383,22 @@ func (v *Validator) validateApps(spec *models.StackSpec, result *models.Validati
 				Code:    "INVALID_VALUE",
 			})
 		}
+		if app.Route.Host != "" && !isRouteHost(app.Route.Host) {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path + ".route.host",
+				Message: "route host must be a DNS hostname without scheme or path",
+				Code:    "INVALID_VALUE",
+			})
+		}
+		if app.Setup.Policy != "" && !isSetupPolicy(app.Setup.Policy) {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    path + ".setup.policy",
+				Message: "setup policy must be 'manual', 'on_demand', or 'automatic'",
+				Code:    "INVALID_VALUE",
+			})
+		}
 
 		for key := range app.Env {
 			if !isEnvName(key) {
@@ -312,7 +423,7 @@ func (v *Validator) validateApps(spec *models.StackSpec, result *models.Validati
 				result.Valid = false
 				result.Errors = append(result.Errors, models.ValidationError{
 					Path:    path + ".secrets." + key,
-					Message: "secret references must start with env:, secret:, vault:, or file:",
+					Message: "secret references must start with env:, doppler:, vault:, or file:",
 					Code:    "INVALID_VALUE",
 				})
 			}
@@ -358,12 +469,36 @@ func isEnvName(value string) bool {
 }
 
 func isSecretRef(value string) bool {
-	for _, prefix := range []string{"env:", "secret:", "vault:", "file:"} {
+	for _, prefix := range []string{"env:", "doppler:", "vault:", "file:"} {
 		if strings.HasPrefix(value, prefix) && len(value) > len(prefix) {
 			return true
 		}
 	}
 	return false
+}
+
+func isRouteHost(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 253 || strings.ContainsAny(value, "/:\\") {
+		return false
+	}
+	value = strings.TrimSuffix(value, ".")
+	labels := strings.Split(value, ".")
+	for _, label := range labels {
+		if !isDNSLabel(label) {
+			return false
+		}
+	}
+	return true
+}
+
+func isSetupPolicy(value string) bool {
+	switch value {
+	case platformdeploy.SetupPolicyManual, platformdeploy.SetupPolicyOnDemand, platformdeploy.SetupPolicyAutomatic:
+		return true
+	default:
+		return false
+	}
 }
 
 // ValidateCUEFile validates a single CUE file

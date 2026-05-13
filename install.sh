@@ -37,10 +37,7 @@ BANNER
   printf '\033[0m'
 fi
 
-REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
-RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases}"
-RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
-RELEASE_DOWNLOAD_BASE_URL="${STACKKIT_RELEASE_DOWNLOAD_BASE_URL:-https://github.com/$REPO/releases/download}"
+REPO="kombifyio/stackKits"
 INSTALL_DIR="/usr/local/bin"
 
 # --- Detect platform ----------------------------------------------------------
@@ -60,11 +57,11 @@ esac
 # --- Resolve latest release ---------------------------------------------------
 
 echo "Resolving latest stackkit release..."
-LATEST=$(curl -sSL "$RELEASE_API_URL" \
+LATEST=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest" \
   | grep '"tag_name"' | head -1 | sed -E 's/.*"v([^"]+)".*/\1/')
 if [ -z "$LATEST" ]; then
   echo "Error: could not determine latest version." >&2
-  echo "Check $RELEASES_PAGE_URL" >&2
+  echo "Check https://github.com/$REPO/releases" >&2
   exit 1
 fi
 echo "  -> v${LATEST} (${OS}/${ARCH})"
@@ -103,7 +100,7 @@ esac
 
 # --- Download & install binary ------------------------------------------------
 
-URL="${RELEASE_DOWNLOAD_BASE_URL}/v${LATEST}/${ARCHIVE}"
+URL="https://github.com/$REPO/releases/download/v${LATEST}/${ARCHIVE}"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -111,11 +108,19 @@ echo "Downloading ${URL}..."
 curl -sSL "$URL" -o "$TMP/$ARCHIVE"
 tar xzf "$TMP/$ARCHIVE" -C "$TMP"
 
+if [ ! -f "$TMP/tofu" ]; then
+  echo "Error: release archive is missing packaged OpenTofu binary." >&2
+  echo "This StackKit release is invalid; OpenTofu must ship with the package." >&2
+  exit 1
+fi
+
 if [ "$(id -u)" -eq 0 ]; then
   install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
+  install -m 755 "$TMP/tofu" "$INSTALL_DIR/tofu"
 else
   echo "  -> Need sudo to install to $INSTALL_DIR"
   sudo install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
+  sudo install -m 755 "$TMP/tofu" "$INSTALL_DIR/tofu"
 fi
 
 # --- Install kit definitions --------------------------------------------------

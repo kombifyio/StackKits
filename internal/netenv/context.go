@@ -2,10 +2,14 @@
 package netenv
 
 import (
+	"os"
 	"runtime"
+	"strings"
 
 	"github.com/kombifyio/stackkits/pkg/models"
 )
+
+const localDomainEnv = "STACKKIT_LOCAL_DOMAIN"
 
 // ContextInput holds the inputs used for NodeContext resolution.
 type ContextInput struct {
@@ -79,6 +83,20 @@ func NodeContextIsCloud(ctx models.NodeContext) bool {
 	return ctx == models.ContextCloud
 }
 
+// DefaultLocalDomain returns the local-only domain suffix used when no explicit
+// domain was provided. STACKKIT_LOCAL_DOMAIN lets local test runs switch between
+// DNS-backed names like stack.home and browser-native names like home.localhost.
+func DefaultLocalDomain() string {
+	domain := strings.ToLower(strings.Trim(strings.TrimSpace(os.Getenv(localDomainEnv)), "."))
+	if domain == "" {
+		return models.DomainHomeLab
+	}
+	if models.IsLocalDomain(domain) && !models.IsKombifyMeDomain(domain) {
+		return domain
+	}
+	return models.DomainHomeLab
+}
+
 // SuggestDomainForContext returns the recommended domain for a NodeContext.
 // This replaces the NetworkEnvironment-based SuggestDomain for external callers.
 func SuggestDomainForContext(ctx models.NodeContext, currentDomain string) (domain string, reason string) {
@@ -94,7 +112,7 @@ func SuggestDomainForContext(ctx models.NodeContext, currentDomain string) (doma
 		return currentDomain, ""
 	case models.ContextLocal, models.ContextPi:
 		if currentDomain == "" {
-			return models.DomainHomeLab, "local/home network detected — using local domain"
+			return DefaultLocalDomain(), "local/home network detected — using configured local domain"
 		}
 		return currentDomain, ""
 	default:

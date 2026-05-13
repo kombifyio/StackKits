@@ -28,6 +28,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-ingress"
 		description: "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and Grafana dashboards"
+		testScenarios: ["SK-S1", "SK-S4"]
 	}
 
 	requires: {
@@ -47,7 +48,7 @@ Contract: base.#ModuleContract & {
 
 	provides: {
 		capabilities: {
-			"metrics-storage":  true
+			"metrics-storage":   true
 			"promql-api":        true
 			"otlp-gateway":      true
 			"long-term-metrics": true
@@ -79,7 +80,7 @@ Contract: base.#ModuleContract & {
 	contexts: {
 		local: {}
 		cloud: {}
-		pi:    {}
+		pi: {}
 	}
 
 	// OTel gateway — receives OTLP/gRPC from all monitoring-agent nodes,
@@ -111,10 +112,10 @@ Contract: base.#ModuleContract & {
 		}]
 
 		environment: {
-			GOMEMLIMIT:                               "{{.monitoring_core_gateway_gomemlimit}}"
-			KOMBIFY_OTEL_GATEWAY_BATCH_TIMEOUT:       "{{.monitoring_core_gateway_batch_timeout}}"
+			GOMEMLIMIT:                                  "{{.monitoring_core_gateway_gomemlimit}}"
+			KOMBIFY_OTEL_GATEWAY_BATCH_TIMEOUT:          "{{.monitoring_core_gateway_batch_timeout}}"
 			KOMBIFY_OTEL_GATEWAY_MAX_CONCURRENT_STREAMS: "{{.monitoring_core_gateway_max_concurrent_streams}}"
-			KOMBIFY_OTEL_GATEWAY_MEMORY_LIMIT_MIB:    "{{.monitoring_core_gateway_memory_limit_mib}}"
+			KOMBIFY_OTEL_GATEWAY_MEMORY_LIMIT_MIB:       "{{.monitoring_core_gateway_memory_limit_mib}}"
 			KOMBIFY_OTEL_GATEWAY_MEMORY_SPIKE_LIMIT_MIB: "{{.monitoring_core_gateway_memory_spike_limit_mib}}"
 			KOMBIFY_OTEL_GATEWAY_REMOTE_WRITE_ENDPOINT:  "{{.monitoring_core_gateway_remote_write_endpoint}}"
 		}

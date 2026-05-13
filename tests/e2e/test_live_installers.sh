@@ -179,7 +179,10 @@ mkdir -p "\$HOME"
 export HOMELAB_DIR=/tmp/base-homelab
 curl -fsSL '$BASE_URL/base' | sh
 grep -Fq 'prepare' /tmp/stackkit-smoke.log
-grep -Fq 'init base-kit --non-interactive --force --admin-email smoke@stackkit.cc' /tmp/stackkit-smoke.log
+grep -Fq 'init base-kit' /tmp/stackkit-smoke.log
+grep -Fq -- '--force' /tmp/stackkit-smoke.log
+grep -Fq -- '--non-interactive' /tmp/stackkit-smoke.log
+grep -Fq -- '--admin-email smoke@stackkit.cc' /tmp/stackkit-smoke.log
 grep -Fq 'generate --force' /tmp/stackkit-smoke.log
 grep -Fq 'apply --auto-approve' /tmp/stackkit-smoke.log
 EOF
@@ -197,6 +200,8 @@ main() {
   wait_for_body "$BASE_URL/base" "StackKits Base Installer"
   wait_for_body "$BASE_URL/modern" "Modern Home Lab"
   wait_for_body "$BASE_URL/ha" "High Availability Kit"
+  wait_for_body "$BASE_URL/" "Latest Release Notes"
+  wait_for_body "$BASE_URL/changelog.json" "\"version\""
 
   if [ "$CHECK_LEGACY_REDIRECTS" = "1" ] && [ "$BASE_URL" = "https://stackkit.cc" ]; then
     assert_redirect "https://install.stackkit.cc" "$BASE_URL/install"

@@ -63,8 +63,8 @@ const (
 // service-group slug. Used by export to put selections back into the right
 // stackkit.yaml section.
 type ReverseMapping struct {
-	Section  SectionKind
-	Key      string
+	Section SectionKind
+	Key     string
 }
 
 // reverseMap is the inverse of the three forward maps. Built once at init.

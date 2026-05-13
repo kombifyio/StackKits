@@ -64,7 +64,7 @@ stackkit backup enroll --token <token-from-dashboard> --endpoint https://backup.
 After that, schedules, retention, and offsite targets are managed
 centrally. The local Kopia Web UI is disabled in this mode.
 
-> **Status note:** the controller endpoint is not operational yet — `enroll` returns a clear "not yet available" error until the Phase-4 follow-up PRs (Postgres driver, NATS, OIDC, live enrollment) land. The CLI surface is final; only the wire is missing. Track in [`docs/plans/2026-05-01-backup-rollout.md`](../../docs/plans/2026-05-01-backup-rollout.md).
+> **Status note:** the controller endpoint is not operational yet - `enroll` returns a clear "not yet available" error until the Phase-4 follow-up PRs (Postgres driver, NATS, OIDC, live enrollment) land. The CLI surface is final; only the wire is missing. Track implementation follow-ups in Beads and the architecture contract in [ADR-0016](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md).
 
 ## What runs on the host
 
@@ -124,4 +124,5 @@ The offsite leg is **immutable** for `immutability.retentionDays` (default
 
 - [`docs/BACKUP-ARCHITECTURE.md`](../../docs/BACKUP-ARCHITECTURE.md) — full architecture
 - [ADR-0016 — Single backup engine: Kopia](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md)
-- [`docs/plans/2026-05-01-backup-rollout.md`](../../docs/plans/2026-05-01-backup-rollout.md) — phase rollout
+- [ADR-0016](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md) - engine and rollout contract
+- [Backup architecture](../../docs/BACKUP-ARCHITECTURE.md) - current backup surfaces

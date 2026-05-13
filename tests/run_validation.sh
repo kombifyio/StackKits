@@ -7,7 +7,7 @@
 # Usage: ./tests/run_validation.sh
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -37,10 +37,10 @@ run_test() {
     
     if cue vet "$test_file" 2>/dev/null; then
         echo -e "${GREEN}PASSED${NC}"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
     else
         echo -e "${RED}FAILED${NC}"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         # Show error details
         echo -e "${YELLOW}Error details:${NC}"
         cue vet "$test_file" 2>&1 | head -20
@@ -57,10 +57,10 @@ run_eval_test() {
     
     if cue eval "$test_expr" >/dev/null 2>&1; then
         echo -e "${GREEN}PASSED${NC}"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
     else
         echo -e "${RED}FAILED${NC}"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 }
 
@@ -92,12 +92,8 @@ run_test "Docker platform schema" "platforms/docker/platform.cue"
 echo -e "\n${YELLOW}Layer 3 - STACKKIT Tests${NC}"
 echo "-------------------------------------------"
 
-run_test "base-kit stackfile" "stackkits/base-kit/stackfile.cue"
-
-# Check if old location still exists (backward compatibility)
-if [ -f "base-kit/stackfile.cue" ]; then
-    run_test "base-kit (legacy location)" "base-kit/stackfile.cue"
-fi
+run_test "base-kit stackfile" "base-kit/stackfile.cue"
+run_test "base-kit package" "./base-kit/..."
 
 # =============================================================================
 # INTEGRATION TESTS
@@ -125,7 +121,7 @@ check_template() {
         # Check for basic Terraform constructs
         if grep -q -E '(variable|resource|output|locals)' "$template"; then
             echo -e "${GREEN}OK${NC}"
-            ((PASSED++))
+        PASSED=$((PASSED + 1))
         else
             echo -e "${YELLOW}WARNING: No Terraform constructs found${NC}"
         fi
@@ -147,10 +143,13 @@ check_template "platforms/docker/_docker.tf.tmpl"
 check_template "platforms/docker/_traefik.tf.tmpl"
 
 # Layer 3 templates
-check_template "stackkits/base-kit/templates/services/_dokploy.tf.tmpl"
-check_template "stackkits/base-kit/templates/services/_uptimekuma.tf.tmpl"
-check_template "stackkits/base-kit/templates/services/_beszel.tf.tmpl"
-check_template "stackkits/base-kit/templates/services/_minimal.tf.tmpl"
+check_template "base-kit/templates/simple/main.tf"
+check_template "base-kit/templates/native/main.tf"
+check_template "base-kit/templates/simple/modules/traefik/main.tf"
+check_template "base-kit/templates/simple/modules/dokploy/main.tf"
+check_template "base-kit/templates/simple/modules/dockge/main.tf"
+check_template "base-kit/templates/simple/modules/monitoring/main.tf"
+check_template "base-kit/templates/simple/modules/whoami/main.tf"
 
 # =============================================================================
 # SUMMARY

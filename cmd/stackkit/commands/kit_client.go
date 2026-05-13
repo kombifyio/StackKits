@@ -12,7 +12,7 @@ import (
 //
 // Auth-mode resolution:
 //
-//  1. SERVICE_AUTH_SECRET (env or secret-store injected) → HS256 service-auth.
+//  1. SERVICE_AUTH_SECRET (env or doppler-injected) → HS256 service-auth.
 //     Preferred mode; works with admin's requireServiceKeyOrAdmin.
 //  2. legacyToken (--token flag) or STACKKIT_ADMIN_TOKEN env or
 //     KOMBIFY_ADMIN_API_KEY env → Authorization: Bearer.

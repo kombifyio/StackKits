@@ -19,6 +19,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "HTTP echo service for network and routing diagnostics"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
 	requires: {
@@ -52,7 +53,7 @@ Contract: base.#ModuleContract & {
 	contexts: {
 		local: {}
 		cloud: {}
-		pi:    {}
+		pi: {}
 	}
 
 	services: whoami: base.#ServiceDefinition & {
@@ -94,14 +95,14 @@ Contract: base.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                                  "true"
-			"traefik.http.routers.whoami.rule":                                "Host(`whoami.{{.domain}}`)"
-			"traefik.http.routers.whoami.entrypoints":                         "web"
-			"traefik.http.services.whoami.loadbalancer.server.port":           "80"
+			"traefik.enable":                                        "true"
+			"traefik.http.routers.whoami.rule":                      "Host(`whoami.{{.domain}}`)"
+			"traefik.http.routers.whoami.entrypoints":               "web"
+			"traefik.http.services.whoami.loadbalancer.server.port": "80"
 		}
 
 		subdomain: {key: "whoami", nested: "whoami", flat: "whoami"}
-		dashboard: {icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 Test"}
+		dashboard: {icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 Test", enableVar: "enable_whoami", guideUrl: "https://docs.kombify.io/guides/stackkits/services/whoami"}
 
 		output: {
 			url:         "https://whoami.{{.domain}}"

@@ -12,6 +12,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Free media server for movies, TV, music, and photos"
+		testScenarios: ["SK-S2", "SK-S4"]
 	}
 
 	requires: {
@@ -141,7 +142,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "media", nested: "media", flat: "media"}
-		dashboard: {icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 Media", enableVar: "enable_jellyfin"}
+		dashboard: {icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 Media", enableVar: "enable_jellyfin", guideUrl: "https://docs.kombify.io/guides/stackkits/services/jellyfin"}
 
 		output: {
 			url:         "https://media.{{.domain}}"

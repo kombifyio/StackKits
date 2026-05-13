@@ -22,52 +22,52 @@ import (
 
 // jsonMarshal/jsonUnmarshal aliases keep MarshalJSON/UnmarshalJSON below
 // independent of the struct's other deps.
-func jsonMarshal(v interface{}) ([]byte, error)        { return json.Marshal(v) }
-func jsonUnmarshal(b []byte, v interface{}) error      { return json.Unmarshal(b, v) }
+func jsonMarshal(v interface{}) ([]byte, error)   { return json.Marshal(v) }
+func jsonUnmarshal(b []byte, v interface{}) error { return json.Unmarshal(b, v) }
 
 // KitDefinition is the canonical DB-shape that round-trips through both
 // kit-import (yaml -> POST body) and kit-export (GET response -> yaml).
 // JSON tags match the TS endpoint's body shape verbatim.
 type KitDefinition struct {
-	APIVersion       string                       `yaml:"apiVersion,omitempty" json:"apiVersion,omitempty"`
-	Kind             string                       `yaml:"kind,omitempty" json:"kind,omitempty"`
-	Metadata         KitMetadata                  `yaml:"metadata" json:"metadata"`
-	SupportedOS      []string                     `yaml:"supportedOS,omitempty" json:"supportedOS,omitempty"`
-	Requirements     map[string]interface{}       `yaml:"requirements,omitempty" json:"requirements,omitempty"`
-	Modes            map[string]ModeDef           `yaml:"modes,omitempty" json:"modes,omitempty"`
-	AutoSelect       map[string]interface{}       `yaml:"autoSelect,omitempty" json:"autoSelect,omitempty"`
-	Application      map[string]ApplicationDef    `yaml:"application,omitempty" json:"application,omitempty"`
-	Foundation       map[string]FoundationDef     `yaml:"foundation,omitempty" json:"foundation,omitempty"`
-	Platform         PlatformField                `yaml:"platform,omitempty" json:"platform,omitempty"`
-	Features         map[string]bool              `yaml:"features,omitempty" json:"features,omitempty"`
-	ComputeTiers     map[string]ComputeTierDef    `yaml:"computeTiers,omitempty" json:"computeTiers,omitempty"`
-	Outputs          map[string]interface{}       `yaml:"outputs,omitempty" json:"outputs,omitempty"`
-	Changelog        []ChangelogEntry             `yaml:"changelog,omitempty" json:"changelog,omitempty"`
+	APIVersion   string                    `yaml:"apiVersion,omitempty" json:"apiVersion,omitempty"`
+	Kind         string                    `yaml:"kind,omitempty" json:"kind,omitempty"`
+	Metadata     KitMetadata               `yaml:"metadata" json:"metadata"`
+	SupportedOS  []string                  `yaml:"supportedOS,omitempty" json:"supportedOS,omitempty"`
+	Requirements map[string]interface{}    `yaml:"requirements,omitempty" json:"requirements,omitempty"`
+	Modes        map[string]ModeDef        `yaml:"modes,omitempty" json:"modes,omitempty"`
+	AutoSelect   map[string]interface{}    `yaml:"autoSelect,omitempty" json:"autoSelect,omitempty"`
+	Application  map[string]ApplicationDef `yaml:"application,omitempty" json:"application,omitempty"`
+	Foundation   map[string]FoundationDef  `yaml:"foundation,omitempty" json:"foundation,omitempty"`
+	Platform     PlatformField             `yaml:"platform,omitempty" json:"platform,omitempty"`
+	Features     map[string]bool           `yaml:"features,omitempty" json:"features,omitempty"`
+	ComputeTiers map[string]ComputeTierDef `yaml:"computeTiers,omitempty" json:"computeTiers,omitempty"`
+	Outputs      map[string]interface{}    `yaml:"outputs,omitempty" json:"outputs,omitempty"`
+	Changelog    []ChangelogEntry          `yaml:"changelog,omitempty" json:"changelog,omitempty"`
 
 	// Modern-Homelab specific
-	NodeTypes        map[string]NodeTypeDef       `yaml:"nodeTypes,omitempty" json:"nodeTypes,omitempty"`
-	Addons           AddonsDef                    `yaml:"addons,omitempty" json:"addons,omitempty"`
-	Identity         map[string]interface{}       `yaml:"identity,omitempty" json:"identity,omitempty"`
-	Pattern          map[string]interface{}       `yaml:"pattern,omitempty" json:"pattern,omitempty"`
-	PaaS             map[string]interface{}       `yaml:"paas,omitempty" json:"paas,omitempty"`
-	Secrets          map[string]interface{}       `yaml:"secrets,omitempty" json:"secrets,omitempty"`
+	NodeTypes map[string]NodeTypeDef `yaml:"nodeTypes,omitempty" json:"nodeTypes,omitempty"`
+	Addons    AddonsDef              `yaml:"addons,omitempty" json:"addons,omitempty"`
+	Identity  map[string]interface{} `yaml:"identity,omitempty" json:"identity,omitempty"`
+	Pattern   map[string]interface{} `yaml:"pattern,omitempty" json:"pattern,omitempty"`
+	PaaS      map[string]interface{} `yaml:"paas,omitempty" json:"paas,omitempty"`
+	Secrets   map[string]interface{} `yaml:"secrets,omitempty" json:"secrets,omitempty"`
 
 	// HA-Kit specific
-	Swarm            map[string]interface{}       `yaml:"swarm,omitempty" json:"swarm,omitempty"`
-	Variants         map[string]VariantDef        `yaml:"variants,omitempty" json:"variants,omitempty"`
-	Services         []ServiceSpecDef             `yaml:"services,omitempty" json:"services,omitempty"`
-	Extends          string                       `yaml:"extends,omitempty" json:"extends,omitempty"`
+	Swarm    map[string]interface{} `yaml:"swarm,omitempty" json:"swarm,omitempty"`
+	Variants map[string]VariantDef  `yaml:"variants,omitempty" json:"variants,omitempty"`
+	Services []ServiceSpecDef       `yaml:"services,omitempty" json:"services,omitempty"`
+	Extends  string                 `yaml:"extends,omitempty" json:"extends,omitempty"`
 
 	// Common optional
-	Architecture     string                       `yaml:"architecture,omitempty" json:"architecture,omitempty"`
-	TunnelOptions    []string                     `yaml:"tunnelOptions,omitempty" json:"tunnelOptions,omitempty"`
-	SecretsProvider  string                       `yaml:"-" json:"secretsProvider,omitempty"`
+	Architecture    string   `yaml:"architecture,omitempty" json:"architecture,omitempty"`
+	TunnelOptions   []string `yaml:"tunnelOptions,omitempty" json:"tunnelOptions,omitempty"`
+	SecretsProvider string   `yaml:"-" json:"secretsProvider,omitempty"`
 
 	// Meta fields injected by kit-import CLI (not in YAML)
-	CueSourcePath    string                       `yaml:"-" json:"cueSourcePath,omitempty"`
-	ImportedBy       string                       `yaml:"-" json:"importedBy,omitempty"`
-	ContractHash     string                       `yaml:"-" json:"contractHash,omitempty"`
-	DryRun           bool                         `yaml:"-" json:"dryRun,omitempty"`
+	CueSourcePath string `yaml:"-" json:"cueSourcePath,omitempty"`
+	ImportedBy    string `yaml:"-" json:"importedBy,omitempty"`
+	ContractHash  string `yaml:"-" json:"contractHash,omitempty"`
+	DryRun        bool   `yaml:"-" json:"dryRun,omitempty"`
 }
 
 // PlatformField is a polymorphic yaml `platform:` value.
@@ -163,13 +163,13 @@ type KitMetadata struct {
 
 // ModeDef captures a deployment mode (simple/advanced).
 type ModeDef struct {
-	Description    string                 `yaml:"description,omitempty" json:"description,omitempty"`
-	TemplateDir    string                 `yaml:"templateDir,omitempty" json:"templateDir,omitempty"`
-	Engine         string                 `yaml:"engine,omitempty" json:"engine,omitempty"`
-	Recommended    bool                   `yaml:"recommended,omitempty" json:"recommended,omitempty"`
-	Features       []string               `yaml:"features,omitempty" json:"features,omitempty"`
-	Requires       []string               `yaml:"requires,omitempty" json:"requires,omitempty"`
-	RecommendedFor []string               `yaml:"recommended_for,omitempty" json:"recommended_for,omitempty"`
+	Description    string                   `yaml:"description,omitempty" json:"description,omitempty"`
+	TemplateDir    string                   `yaml:"templateDir,omitempty" json:"templateDir,omitempty"`
+	Engine         string                   `yaml:"engine,omitempty" json:"engine,omitempty"`
+	Recommended    bool                     `yaml:"recommended,omitempty" json:"recommended,omitempty"`
+	Features       []string                 `yaml:"features,omitempty" json:"features,omitempty"`
+	Requires       []string                 `yaml:"requires,omitempty" json:"requires,omitempty"`
+	RecommendedFor []string                 `yaml:"recommended_for,omitempty" json:"recommended_for,omitempty"`
 	Stacks         []map[string]interface{} `yaml:"stacks,omitempty" json:"stacks,omitempty"`
 }
 
@@ -261,20 +261,20 @@ type ServiceSpecDef struct {
 // RoundTripReport captures the structural diff between the original kit
 // definition and the reconstructed one.
 type RoundTripReport struct {
-	Slug              string             `json:"slug"`
-	OriginalHash      string             `json:"originalHash"`
-	ReconstructedHash string             `json:"reconstructedHash"`
-	HashesEqual       bool               `json:"hashesEqual"`
-	Differences       []FieldDifference  `json:"differences,omitempty"`
-	CosmeticOnly      bool               `json:"cosmeticOnly"`
-	Formats           []string           `json:"formats"`
+	Slug              string            `json:"slug"`
+	OriginalHash      string            `json:"originalHash"`
+	ReconstructedHash string            `json:"reconstructedHash"`
+	HashesEqual       bool              `json:"hashesEqual"`
+	Differences       []FieldDifference `json:"differences,omitempty"`
+	CosmeticOnly      bool              `json:"cosmeticOnly"`
+	Formats           []string          `json:"formats"`
 }
 
 // FieldDifference is a single field-level diff entry.
 type FieldDifference struct {
-	Path     string      `json:"path"`
-	Severity string      `json:"severity"` // "critical" | "cosmetic"
-	Original interface{} `json:"original,omitempty"`
+	Path          string      `json:"path"`
+	Severity      string      `json:"severity"` // "critical" | "cosmetic"
+	Original      interface{} `json:"original,omitempty"`
 	Reconstructed interface{} `json:"reconstructed,omitempty"`
-	Note     string      `json:"note,omitempty"`
+	Note          string      `json:"note,omitempty"`
 }

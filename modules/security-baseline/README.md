@@ -18,7 +18,7 @@ Configures the host OS (Ubuntu 22.04+/24.04) with a safe-by-default baseline:
 
 V6 targets the bare-Ubuntu test-user. Defaults must be safe. A BaseKit deployment without UFW or without SSH hardening is not production-ready. Making this optional means the safe path relies on the user reading docs, which test users do not.
 
-See [ARCHITECTURE_V6.md §4](../../docs/ARCHITECTURE_V6.md) for the platform-level rationale.
+See [docs/SECURITY.md](../../docs/SECURITY.md) and [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) for the platform-level rationale.
 
 ## Settings
 
@@ -46,7 +46,7 @@ See `module.cue` `settings:` block.
 
 ## Status
 
-**Scaffolded** for V6 Phase 2 (Q3/2026). Terraform implementation pending — see [ROADMAP.md](../../docs/ROADMAP.md) Phase 2.
+**Scaffolded** for the hardening track. Terraform implementation follow-ups are tracked in Beads and summarized in [ROADMAP.md](../../ROADMAP.md).
 
 ## Non-Goals
 

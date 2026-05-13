@@ -167,7 +167,7 @@ func TestExtractTFVars(t *testing.T) {
 	ctx := cuecontext.New()
 	bridge := &TerraformBridge{ctx: ctx, stackkitDir: "."}
 
-	t.Run("defaults: working gateway and PocketID enabled, dashboard off", func(t *testing.T) {
+	t.Run("defaults: working gateway, PocketID, and dashboard enabled", func(t *testing.T) {
 		value := ctx.CompileString(`{ foo: "bar" }`)
 		require.NoError(t, value.Err())
 
@@ -178,7 +178,7 @@ func TestExtractTFVars(t *testing.T) {
 		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDokploy)
 		assert.True(t, tfvars.EnableDokployApps)
-		assert.False(t, tfvars.EnableDashboard)
+		assert.True(t, tfvars.EnableDashboard)
 		assert.Empty(t, tfvars.Domain)
 		assert.Empty(t, tfvars.NetworkSubnet)
 	})
@@ -483,7 +483,7 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 
 		assert.Equal(t, models.DomainHomeLab, tfvars.Domain)
 		assert.Equal(t, "", tfvars.NetworkSubnet)
-		assert.True(t, tfvars.EnableTraefik)
+		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDokploy)
 		assert.True(t, tfvars.EnableDashboard)
@@ -517,7 +517,7 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDashboard)
 		// Others still default to true
-		assert.True(t, tfvars.EnableTraefik)
+		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 	})
 }
@@ -534,7 +534,7 @@ func TestSpecToTFVars(t *testing.T) {
 
 		assert.Equal(t, models.DomainHomeLab, tfvars.Domain)
 		assert.Equal(t, "", tfvars.NetworkSubnet)
-		assert.True(t, tfvars.EnableTraefik)
+		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
 		assert.True(t, tfvars.EnableDokploy)

@@ -24,14 +24,22 @@
 services:
   # --- L1 Foundation: Docker Socket Proxy ---
   socket-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    image: tecnativa/docker-socket-proxy:0.2.0
     container_name: stack-socket-proxy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed 's/[$][{]BIND_CONFIG[}]/[::]:2375 v4v6/g' /usr/local/etc/haproxy/haproxy.cfg.template > /run/haproxy.cfg
+        exec haproxy -W -db -f /run/haproxy.cfg
     environment:
+      VERSION: "1"
       CONTAINERS: "1"
+      EVENTS: "1"
       NETWORKS: "1"
       SERVICES: "1"
       TASKS: "1"
       INFO: "1"
+      PING: "1"
       POST: "0"
       BUILD: "0"
       COMMIT: "0"
@@ -75,17 +83,22 @@ services:
   traefik:
     image: traefik:v3.6
     container_name: stack-traefik
+    environment:
+      DOCKER_API_VERSION: "1.40"
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.endpoint=tcp://socket-proxy:2375"
+      - "--providers.docker.network=integration_frontend"
       - "--entrypoints.web.address=:80"
       - "--ping=true"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "8900:80"
       - "19100:8080"
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
       interval: 10s
@@ -211,11 +224,14 @@ services:
     container_name: stack-dokploy
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=1024"
       DATABASE_URL: "postgresql://dokploy:stacktest123@dokploy-postgres:5432/dokploy"
       REDIS_URL: "redis://dokploy-redis:6379"
+      ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      ADVERTISE_ADDR: "127.0.0.1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - dokploy-data:/app/data
+      - dokploy-data:/etc/dokploy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.dokploy.rule=Host(`dokploy.test.local`)"
@@ -241,7 +257,7 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    mem_limit: 1g
+    mem_limit: 1536m
     cpus: 1.0
     restart: unless-stopped
 

@@ -1,6 +1,7 @@
 # base-kit Stack Specification
 #
-# Single-environment homelab with a robust Docker default.
+# Single-environment 1..N homelab with a required main node and
+# platform-managed app rollout.
 #
 # Usage:
 #   1. Copy: cp default-spec.yaml stack-spec.yaml
@@ -9,13 +10,14 @@
 #
 # Architecture:
 #   L1 Foundation  - socket-proxy (Docker API isolation), PocketID + TinyAuth (login gateway)
-#   L2 Platform    - Traefik
-#   L3 Application - Vaultwarden, Jellyfin
+#   L2 Platform    - Dokploy (default local/kombify.me platform router), Node Hub
+#   Dashboard      - Homepage/gethomepage as IaC-managed homelab start page
+#   L3 Application - Vaultwarden, Immich
 #
 # Domain Access Modes:
-#   1. Local server (default): omit domain or use home.localhost -> zero-config local HTTPS
+#   1. Local server (default): omit domain or use stack.home -> Kombify Point DNS + StackKit Step-CA HTTPS
 #      - network.mode: local
-#      - current verified default is Docker-only: Traefik + PocketID + TinyAuth + standard apps
+#      - current verified default: Dokploy + PocketID + TinyAuth + standard apps
 #   2. Public server with custom domain: domain: example.com → Coolify + managed TLS
 #      - network.mode: public
 #      - recommended for kombify Cloud / VPS with your own domain
@@ -23,14 +25,16 @@
 #      - network.mode: public
 #      - requires KOMBIFY_API_KEY during generate/apply
 #
-# PocketID/OIDC is mandatory for passkey-capable login. Immich/photos, Smart
-# Home, Files, AI, and host hardening stay bounded by their live smoke paths.
+# PocketID/OIDC is mandatory for passkey-capable login. Dokploy, Kuma,
+# Whoami, Vaultwarden, and Immich are part of the current default live path.
+# Jellyfin, Smart Home, Files, AI, and host hardening stay bounded by opt-in
+# live smoke paths.
 
 name: my-homelab
 stackkit: base-kit
 mode: simple
 context: local
-domain: home.localhost
+domain: stack.home
 email: admin
 
 network:
@@ -51,6 +55,22 @@ nodes:
     role: standalone
     ip: 192.168.1.100  # ADJUST: Your server IP
 
+services:
+  homepage:
+    enabled: true
+  dokploy:
+    enabled: true
+  uptime_kuma:
+    enabled: true
+  whoami:
+    enabled: true
+  vaultwarden:
+    enabled: true
+  jellyfin:
+    enabled: false
+  immich:
+    enabled: true
+
 # What to adjust:
 #
 #   Required:
@@ -60,22 +80,22 @@ nodes:
 #
 #   Optional:
 #     context          - local | cloud | pi. Default shown here: local
-#     domain           - Access mode (see above). Default: home.localhost (zero config)
+#     domain           - Access mode (see above). Default: stack.home (Kombify Point)
 #     email            - Admin email / ACME email for Let's Encrypt
 #
 # Local mode DNS setup:
-#   Default *.home.localhost needs no router DNS setup on this device.
-#   For LAN-wide names, use stackkit init --local-dns or set domain: home /
-#   domain: <name>.home and point router DHCP DNS to this server.
+#   Default *.stack.home uses Kombify Point and requires router/client DNS to point
+#   at this server. For device-local legacy mode, set domain: home.localhost.
 #
 # First login / access:
-#   1. Open https://id.home.localhost -> PocketID passkey identity.
-#   2. Open https://auth.home.localhost -> TinyAuth gateway, preconfigured
+#   1. Open https://id.stack.home -> PocketID passkey identity.
+#   2. Open https://auth.stack.home -> TinyAuth gateway, preconfigured
 #      with PocketID OIDC. Local break-glass username/password are generated;
 #      treat generated terraform.tfvars.json as sensitive output.
-#   3. Open https://vault.home.localhost -> Vaultwarden.
-#   4. Open https://media.home.localhost -> Jellyfin. Infrastructure health is
-#      available at /health; app-level first-run user setup is not automated yet.
+#   3. Open https://kuma.stack.home -> Uptime Kuma.
+#   4. Open https://whoami.stack.home -> TinyAuth-protected routing test.
+#   5. Open https://vault.stack.home -> Vaultwarden.
+#   6. Open https://photos.stack.home -> Immich.
 #
 # Public server + custom domain example:
 #   domain: mylab.example.com

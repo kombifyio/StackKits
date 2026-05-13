@@ -33,6 +33,34 @@ func TestServiceRegistrationsFromCatalogUseCanonicalNamesAndLegacyAliases(t *tes
 	}
 }
 
+func TestMergeServiceRegistrationsAddsAppServicesWithoutDuplicates(t *testing.T) {
+	merged := MergeServiceRegistrations(
+		[]ServiceDef{
+			{Name: "base", Description: "Dashboard", Primary: true},
+			{Name: "web", Description: "Existing app", Primary: true},
+		},
+		[]ServiceDef{
+			{Name: "web", Description: "Duplicate app", Primary: true},
+			{Name: "studio", Description: "StackKit app studio", Primary: true},
+		},
+	)
+
+	byName := make(map[string]ServiceDef, len(merged))
+	for _, svc := range merged {
+		byName[svc.Name] = svc
+	}
+
+	if len(merged) != 3 {
+		t.Fatalf("merged service count = %d, want 3: %v", len(merged), registrationNames(merged))
+	}
+	if byName["studio"].Description != "StackKit app studio" {
+		t.Fatalf("studio app registration missing: %#v", byName["studio"])
+	}
+	if byName["web"].Description != "Existing app" {
+		t.Fatalf("duplicate app registration should preserve first service, got %#v", byName["web"])
+	}
+}
+
 func registrationNames(services []ServiceDef) []string {
 	names := make([]string, 0, len(services))
 	for _, svc := range services {

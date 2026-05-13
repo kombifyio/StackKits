@@ -110,17 +110,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// JSON output mode
 	if statusJSON {
-		output := map[string]interface{}{
-			"stackkit":    spec.StackKit,
-			"mode":        spec.Mode,
-			"lastApplied": state.LastApplied.Format("2006-01-02T15:04:05Z"),
-			"status":      string(overallStatus),
-			"services":    services,
-		}
-		if access != nil {
-			output["hubUrl"] = access.HubURL
-			output["access"] = access
-		}
+		output := buildStatusJSONOutput(spec, state, services, overallStatus, access)
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(output)
@@ -168,6 +158,27 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func buildStatusJSONOutput(spec *models.StackSpec, state *models.DeploymentState, services []models.ServiceState, overallStatus models.DeploymentStatus, access *accessSummary) map[string]interface{} {
+	output := map[string]interface{}{
+		"stackkit":    spec.StackKit,
+		"mode":        spec.Mode,
+		"lastApplied": state.LastApplied.Format("2006-01-02T15:04:05Z"),
+		"status":      string(overallStatus),
+		"services":    services,
+	}
+	if len(state.PlatformSystemApps) > 0 {
+		output["platformSystemApps"] = state.PlatformSystemApps
+	}
+	if len(state.PlatformApps) > 0 {
+		output["platformApps"] = state.PlatformApps
+	}
+	if access != nil {
+		output["hubUrl"] = access.HubURL
+		output["access"] = access
+	}
+	return output
 }
 
 func formatStatus(status models.ServiceStatus) string {

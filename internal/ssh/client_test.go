@@ -2,6 +2,10 @@
 package ssh
 
 import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	cryptossh "golang.org/x/crypto/ssh"
 )
 
 func TestClient(t *testing.T) {
@@ -258,6 +263,68 @@ func TestClientAddress(t *testing.T) {
 		assert.Equal(t, "192.168.1.100", client.host)
 		assert.Equal(t, 2222, client.port)
 	})
+}
+
+func TestCreateAutoAddCallbackWritesKnownHostsEntry(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	sshPub, err := cryptossh.NewPublicKey(pub)
+	require.NoError(t, err)
+
+	knownHostsPath := filepath.Join(t.TempDir(), ".ssh", "known_hosts")
+	client := NewClient(WithKnownHostsPath(knownHostsPath), WithAutoAddHostKeys(true))
+	callback := client.createAutoAddCallback()
+
+	err = callback("example.test:2222", &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 2222}, sshPub)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(knownHostsPath)
+	require.NoError(t, err)
+	content := string(data)
+	assert.Contains(t, content, "example.test")
+	assert.Contains(t, content, "ssh-ed25519")
+}
+
+func TestRunFileAndDirectoryOperationsRequireConnection(t *testing.T) {
+	client := NewClient()
+	ctx := context.Background()
+
+	_, _, err := client.Run(ctx, "true")
+	assert.ErrorContains(t, err, "not connected")
+
+	err = client.WriteFile(ctx, "/tmp/example.txt", []byte("data"), 0644)
+	assert.ErrorContains(t, err, "not connected")
+
+	err = client.CopyFile(ctx, filepath.Join(t.TempDir(), "missing"), "/tmp/example.txt")
+	assert.ErrorContains(t, err, "not connected")
+
+	_, err = client.ReadFile(ctx, "/tmp/example.txt")
+	assert.ErrorContains(t, err, "not connected")
+
+	err = client.MkdirAll(ctx, "/tmp/example")
+	assert.ErrorContains(t, err, "not connected")
+}
+
+func TestFileOperationsRejectInvalidPathsBeforeConnectionUse(t *testing.T) {
+	client := NewClient()
+	ctx := context.Background()
+
+	err := client.WriteFile(ctx, "/tmp/bad;path", []byte("data"), 0644)
+	assert.ErrorContains(t, err, "invalid remote path")
+
+	_, err = client.ReadFile(ctx, "/tmp/bad\npath")
+	assert.ErrorContains(t, err, "invalid remote path")
+
+	assert.False(t, client.FileExists(ctx, "/tmp/bad`path`"))
+	assert.False(t, client.DirExists(ctx, "/tmp/bad|path"))
+
+	err = client.MkdirAll(ctx, "/tmp/bad$(whoami)")
+	assert.ErrorContains(t, err, "invalid remote path")
+}
+
+func TestCheckPortReturnsFalseWhenNotConnected(t *testing.T) {
+	client := NewClient()
+	assert.False(t, client.CheckPort(context.Background(), 8080))
 }
 
 // Note: Actual SSH connection tests would require a test SSH server

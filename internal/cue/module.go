@@ -2,7 +2,6 @@ package cue
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -18,18 +17,18 @@ type ModuleContract struct {
 	Settings     *SettingsSpec
 	Services     map[string]ServiceDef
 	Provisioners map[string]ProvisionerDef
-	SourcePath   string
 	Enabled      bool
 }
 
 // ModuleMetadata identifies a module.
 type ModuleMetadata struct {
-	Name        string
-	DisplayName string
-	Version     string
-	Layer       string
-	Description string
-	Core        bool
+	Name          string
+	DisplayName   string
+	Version       string
+	Layer         string
+	Description   string
+	Core          bool
+	TestScenarios []string
 }
 
 // RequiresSpec declares what a module needs from other modules and infrastructure.
@@ -150,12 +149,7 @@ func (r *ModuleReader) readModule(modulePath string) (ModuleContract, error) {
 		return ModuleContract{}, fmt.Errorf("module at %s has no Contract definition", modulePath)
 	}
 
-	mc, err := r.extractContract(contract)
-	if err != nil {
-		return ModuleContract{}, err
-	}
-	mc.SourcePath = filepath.Clean(modulePath)
-	return mc, nil
+	return r.extractContract(contract)
 }
 
 // extractContract extracts a ModuleContract from a CUE Contract value.
@@ -234,6 +228,14 @@ func (r *ModuleReader) extractMetadata(v cue.Value) ModuleMetadata {
 	if core := v.LookupPath(cue.ParsePath("core")); core.Exists() {
 		b, _ := core.Bool()
 		meta.Core = b
+	}
+	if scenarios := v.LookupPath(cue.ParsePath("testScenarios")); scenarios.Exists() {
+		iter, _ := scenarios.List()
+		for iter.Next() {
+			if s, err := iter.Value().String(); err == nil && s != "" {
+				meta.TestScenarios = append(meta.TestScenarios, s)
+			}
+		}
 	}
 	return meta
 }
@@ -395,23 +397,6 @@ func (r *ModuleReader) extractProvisioner(v cue.Value) ProvisionerDef {
 
 // cueValueToGo extracts a concrete Go value from a CUE value.
 func cueValueToGo(v cue.Value) any {
-	if iter, err := v.Fields(cue.Optional(true)); err == nil {
-		mapped := make(map[string]any)
-		for iter.Next() {
-			name := strings.Trim(iter.Selector().String(), "\"")
-			mapped[name] = cueValueToGo(iter.Value())
-		}
-		return mapped
-	}
-
-	if iter, err := v.List(); err == nil {
-		var values []any
-		for iter.Next() {
-			values = append(values, cueValueToGo(iter.Value()))
-		}
-		return values
-	}
-
 	if s, err := v.String(); err == nil {
 		return s
 	}

@@ -297,6 +297,40 @@ _minimalNode: homelab.#HomelabNode & {
 	}
 }
 
+// Test: BaseKit supports one homelab with main + worker + storage nodes.
+_validMultiNodeBaseKit: homelab.#BaseKitStack & {
+	meta: name: "multi-node"
+	nodes: [
+		{
+			id:   "main-1"
+			name: "main"
+			host: "192.168.1.10"
+			role: "main"
+			compute: {cpuCores: 4, ramGB: 8, storageGB: 100}
+		},
+		{
+			id:   "worker-1"
+			name: "worker"
+			host: "192.168.1.11"
+			role: "worker"
+			compute: {cpuCores: 4, ramGB: 8, storageGB: 100}
+		},
+		{
+			id:   "storage-1"
+			name: "storage"
+			host: "192.168.1.12"
+			role: "storage"
+			compute: {cpuCores: 4, ramGB: 8, storageGB: 500}
+		},
+	]
+	network: {domain: "stack.home", acmeEmail: "admin@stack.home"}
+	services: {
+		traefik: enabled: true
+		dokploy: enabled: true
+		dozzle: enabled: true
+	}
+}
+
 // =============================================================================
 // NETWORK VALIDATION TESTS
 // =============================================================================
@@ -375,5 +409,4 @@ _minimalServices: homelab.#ServiceSet & {
 	dozzle:    enabled: true
 	whoami:    enabled: false
 }
-
 

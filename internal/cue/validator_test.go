@@ -159,6 +159,80 @@ func TestValidateSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects platform bypass for normal stackkits", func(t *testing.T) {
+		for _, paas := range []string{models.PAASNone, models.PAASDockge} {
+			spec := &models.StackSpec{
+				Name:     "test",
+				StackKit: "base-kit",
+				PAAS:     paas,
+				Domain:   "apps.example.com",
+				Network:  models.NetworkSpec{Mode: "public"},
+				Email:    "owner@example.com",
+			}
+
+			result, err := validator.ValidateSpec(spec)
+
+			require.NoError(t, err)
+			assert.False(t, result.Valid, "paas %s should be rejected", paas)
+			assert.Contains(t, validationErrorPaths(result.Errors), "paas")
+		}
+	})
+
+	t.Run("accepts local base kit without paas adapter", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:       "test",
+			StackKit:   "base-kit",
+			Context:    string(models.ContextLocal),
+			Domain:     models.DomainHomeLab,
+			AdminEmail: "ci@kombify.io",
+			Network:    models.NetworkSpec{Mode: "local"},
+			PAAS:       models.PAASNone,
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.True(t, result.Valid, "local Base Kit paas=none should validate: %#v", result.Errors)
+	})
+
+	t.Run("rejects local base kit with apps and no paas adapter", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:       "test",
+			StackKit:   "base-kit",
+			Context:    string(models.ContextLocal),
+			Domain:     models.DomainHomeLab,
+			AdminEmail: "ci@kombify.io",
+			Network:    models.NetworkSpec{Mode: "local"},
+			PAAS:       models.PAASNone,
+			Apps: map[string]models.AppSpec{
+				"web": {
+					Image: "ghcr.io/kombifyio/stackkits-smoke-sveltekit:0.1.0",
+				},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "paas")
+	})
+
+	t.Run("accepts standard platform adapters", func(t *testing.T) {
+		for _, paas := range []string{models.PAASDokploy, models.PAASCoolify} {
+			spec := &models.StackSpec{
+				Name:     "test",
+				StackKit: "base-kit",
+				PAAS:     paas,
+			}
+
+			result, err := validator.ValidateSpec(spec)
+
+			require.NoError(t, err)
+			assert.True(t, result.Valid, "paas %s should be accepted: %#v", paas, result.Errors)
+		}
+	})
+
 	t.Run("validates nodes", func(t *testing.T) {
 		spec := &models.StackSpec{
 			Name:     "test",
@@ -189,6 +263,57 @@ func TestValidateSpec(t *testing.T) {
 		assert.False(t, result.Valid)
 	})
 
+	t.Run("accepts basekit multi-node main worker storage topology", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Nodes: []models.NodeSpec{
+				{Name: "main-1", Role: models.NodeRoleMain, IP: "192.168.1.10"},
+				{Name: "worker-1", Role: models.NodeRoleWorker, IP: "192.168.1.11"},
+				{Name: "storage-1", Role: models.NodeRoleStorage, IP: "192.168.1.12"},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.True(t, result.Valid, "expected valid multi-node topology: %#v", result.Errors)
+	})
+
+	t.Run("rejects multi-node topology without exactly one main role", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Nodes: []models.NodeSpec{
+				{Name: "main-1", Role: models.NodeRoleMain, IP: "192.168.1.10"},
+				{Name: "main-2", Role: models.NodeRoleControlPlane, IP: "192.168.1.11"},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "nodes")
+	})
+
+	t.Run("rejects duplicate node names", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Nodes: []models.NodeSpec{
+				{Name: "node-1", Role: models.NodeRoleMain, IP: "192.168.1.10"},
+				{Name: "node-1", Role: models.NodeRoleWorker, IP: "192.168.1.11"},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "nodes[1].name")
+	})
+
 	t.Run("warns for missing domain in public mode", func(t *testing.T) {
 		spec := &models.StackSpec{
 			Name:     "test",
@@ -205,7 +330,7 @@ func TestValidateSpec(t *testing.T) {
 		assert.NotEmpty(t, result.Warnings)
 	})
 
-	t.Run("warns for missing email in public mode", func(t *testing.T) {
+	t.Run("fails for missing email in public mode", func(t *testing.T) {
 		spec := &models.StackSpec{
 			Name:     "test",
 			StackKit: "base-kit",
@@ -218,17 +343,17 @@ func TestValidateSpec(t *testing.T) {
 		result, err := validator.ValidateSpec(spec)
 
 		require.NoError(t, err)
-		assert.True(t, result.Valid)
-		assert.NotEmpty(t, result.Warnings)
+		assert.False(t, result.Valid)
+		assert.NotEmpty(t, result.Errors)
 
-		hasEmailWarning := false
-		for _, w := range result.Warnings {
-			if w.Path == "email" {
-				hasEmailWarning = true
+		hasEmailError := false
+		for _, e := range result.Errors {
+			if e.Path == "email" {
+				hasEmailError = true
 				break
 			}
 		}
-		assert.True(t, hasEmailWarning)
+		assert.True(t, hasEmailError)
 	})
 
 	t.Run("validates sveltekit app contract", func(t *testing.T) {
@@ -280,6 +405,52 @@ func TestValidateSpec(t *testing.T) {
 		assert.False(t, result.Valid)
 		assert.NotEmpty(t, result.Errors)
 	})
+
+	t.Run("fails invalid sveltekit route host", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Apps: map[string]models.AppSpec{
+				"web": {
+					Image: "ghcr.io/kombifyio/stackkits-smoke-sveltekit:0.1.0",
+					Route: models.AppRouteSpec{Host: "https://app.example.com/path"},
+				},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "apps.web.route.host")
+	})
+
+	t.Run("fails invalid app setup policy", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Apps: map[string]models.AppSpec{
+				"web": {
+					Image: "ghcr.io/kombifyio/stackkits-smoke-sveltekit:0.1.0",
+					Setup: models.AppSetupSpec{Policy: "always"},
+				},
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "apps.web.setup.policy")
+	})
+}
+
+func validationErrorPaths(errors []models.ValidationError) []string {
+	paths := make([]string, 0, len(errors))
+	for _, err := range errors {
+		paths = append(paths, err.Path)
+	}
+	return paths
 }
 
 func TestValidateCUEFile(t *testing.T) {

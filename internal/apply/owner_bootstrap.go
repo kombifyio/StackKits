@@ -366,14 +366,6 @@ func ensureBootstrapGroups(ctx context.Context, client pocketIDClientForBootstra
 	return nil
 }
 
-// ensureOwnersGroup makes sure the "owners" user-group exists in PocketID.
-//
-// Deprecated: use ensureBootstrapGroups when orchestrating a full StackKit
-// bootstrap.
-func ensureOwnersGroup(ctx context.Context, client pocketIDClientForBootstrap) error {
-	return ensureUserGroup(ctx, client, ownersGroupName, ownersGroupFriendlyName)
-}
-
 // ensureUserGroup makes sure a named user-group exists in PocketID.
 // Strategy:
 //

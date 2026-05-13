@@ -107,6 +107,7 @@ type Service struct {
 	Section                 string   `json:"section,omitempty"`
 	Order                   int      `json:"order,omitempty"`
 	EnableVar               string   `json:"enable_var,omitempty"`
+	GuideURL                string   `json:"guide_url,omitempty"`
 	Default                 bool     `json:"default"`
 }
 

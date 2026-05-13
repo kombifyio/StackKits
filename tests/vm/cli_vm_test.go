@@ -187,11 +187,22 @@ func TestCLI_Generate_VerifySvelteKitAppResources(t *testing.T) {
 	appsTF, err := execInCli(t, "cat", vmWorkDir+"/deploy/apps.tf")
 	require.NoError(t, err, "reading apps.tf failed: %s", appsTF)
 
-	assert.Contains(t, appsTF, `resource "docker_container" "app_web"`, "apps.tf should define the SvelteKit app container")
-	assert.Contains(t, appsTF, `name     = "app-web"`, "apps.tf should name the app container predictably")
-	assert.Contains(t, appsTF, "Host(`app.stack.local`)", "apps.tf should route the app through Traefik")
-	assert.Contains(t, appsTF, "tinyauth@docker", "login-gateway apps should use TinyAuth middleware")
-	assert.Contains(t, appsTF, "fetch('http://127.0.0.1:3000/health')", "apps.tf should healthcheck the configured path")
+	assert.NotContains(t, appsTF, `resource "docker_container" "app_web"`, "apps.tf should hand apps to the platform adapter, not run direct containers")
+	assert.Contains(t, appsTF, `resource "local_file" "platform_app_web_compose"`, "apps.tf should write the generated compose handoff")
+	assert.Contains(t, appsTF, `resource "local_file" "platform_apps_manifest"`, "apps.tf should write the platform app manifest")
+
+	compose, err := execInCli(t, "cat", vmWorkDir+"/deploy/platform-apps/web.compose.yaml")
+	require.NoError(t, err, "reading SvelteKit compose handoff failed: %s", compose)
+	assert.Contains(t, compose, `container_name: app-web`, "compose should name the app container predictably")
+	assert.Contains(t, compose, "Host(`app.stack.local`)", "compose should route the app through Traefik")
+	assert.Contains(t, compose, "tinyauth@docker", "login-gateway apps should use TinyAuth middleware")
+	assert.Contains(t, compose, "fetch('http://127.0.0.1:3000/health')", "compose should healthcheck the configured path")
+
+	manifest, err := execInCli(t, "cat", vmWorkDir+"/deploy/platform-apps/manifest.json")
+	require.NoError(t, err, "reading platform app manifest failed: %s", manifest)
+	assert.Contains(t, manifest, `"version": "stackkit.platform-apps/v2"`, "manifest should use the v2 platform handoff")
+	assert.Contains(t, manifest, `"name": "web"`, "manifest should include the SvelteKit app")
+	assert.Contains(t, manifest, `"kind": "sveltekit"`, "manifest should preserve the SvelteKit kind")
 }
 
 func TestCLI_Plan(t *testing.T) {

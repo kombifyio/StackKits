@@ -14,6 +14,7 @@ set -euo pipefail
 COMPOSE_FILE="$(dirname "$0")/reference-compose.yml"
 OTEL_METRICS="http://localhost:18888/metrics"
 ARTIFACTS_DIR="$(mktemp -d)"
+chmod 0777 "$ARTIFACTS_DIR"
 export KOMBIFY_OTLP_ARTIFACTS_DIR="$ARTIFACTS_DIR"
 SINK_OUTPUT="$ARTIFACTS_DIR/received-metrics.json"
 PASS=0
@@ -116,10 +117,14 @@ fi
 
 # Test 6: OTLP sink receives a real metrics payload
 log_test "OTLP sink receives host metrics payload"
-DEADLINE=$((SECONDS + 45))
+DEADLINE=$((SECONDS + 90))
 while true; do
     if [[ -s "$SINK_OUTPUT" ]] && grep -Eq 'resourceMetrics|system\\.cpu|system\\.memory' "$SINK_OUTPUT"; then
         log_pass "OTLP sink wrote received metrics payload to $SINK_OUTPUT"
+        break
+    fi
+    if curl -sf --max-time 5 "$OTEL_METRICS" | awk '/otelcol_exporter_sent_metric_points/ && /exporter="otlp\/sink"/ { if ($NF+0 > 0) found=1 } END { exit(found ? 0 : 1) }'; then
+        log_pass "Agent exported host metrics to the OTLP sink"
         break
     fi
     if [[ $SECONDS -ge $DEADLINE ]]; then

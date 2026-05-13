@@ -90,6 +90,45 @@ func TestDiff_PlatformStringVsMap_IsCritical(t *testing.T) {
 	}
 }
 
+func TestDiff_PlatformAliasesUseServiceGroupSemantics(t *testing.T) {
+	a := KitDefinition{
+		Metadata: KitMetadata{Name: "k", Version: "1"},
+		Platform: PlatformField{AsMap: map[string]PlatformDef{
+			"tinyauth":      {Role: "default"},
+			"login-gateway": {Role: "default"},
+		}},
+	}
+	b := KitDefinition{
+		Metadata: KitMetadata{Name: "k", Version: "1"},
+		Platform: PlatformField{AsMap: map[string]PlatformDef{
+			"login-gateway": {Role: "default", DefaultTool: "tinyauth"},
+		}},
+	}
+	diffs := Diff(a, b)
+	if hasCritical(diffs, "platform") {
+		t.Errorf("platform aliases leaked to critical diff: %+v", diffs)
+	}
+}
+
+func TestDiff_PlatformSelfDefaultIsEquivalentToOmittedDefault(t *testing.T) {
+	a := KitDefinition{
+		Metadata: KitMetadata{Name: "k", Version: "1"},
+		Platform: PlatformField{AsMap: map[string]PlatformDef{
+			"traefik": {Role: "default"},
+		}},
+	}
+	b := KitDefinition{
+		Metadata: KitMetadata{Name: "k", Version: "1"},
+		Platform: PlatformField{AsMap: map[string]PlatformDef{
+			"traefik": {Role: "default", DefaultTool: "traefik"},
+		}},
+	}
+	diffs := Diff(a, b)
+	if hasCritical(diffs, "platform.reverse-proxy.defaultTool") {
+		t.Errorf("self default leaked to critical diff: %+v", diffs)
+	}
+}
+
 func TestDiff_AlternativeOrderingIsNotCritical(t *testing.T) {
 	// Alternatives are a set semantically — order shouldn't matter.
 	a := KitDefinition{
@@ -143,6 +182,20 @@ func TestDiff_FeatureFlagChangeIsCritical(t *testing.T) {
 	diffs := Diff(a, b)
 	if !hasCritical(diffs, "features") {
 		t.Errorf("expected critical features diff; got %+v", diffs)
+	}
+}
+
+func TestDiff_EmptyFeaturesAndMissingFeaturesAreEquivalent(t *testing.T) {
+	a := KitDefinition{
+		Metadata: KitMetadata{Name: "k", Version: "1"},
+		Features: map[string]bool{},
+	}
+	b := KitDefinition{
+		Metadata: KitMetadata{Name: "k", Version: "1"},
+	}
+	diffs := Diff(a, b)
+	if hasCritical(diffs, "features") {
+		t.Errorf("empty features leaked to critical diff: %+v", diffs)
 	}
 }
 

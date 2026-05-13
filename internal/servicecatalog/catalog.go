@@ -14,6 +14,7 @@ const (
 	IdentityPolicyForwardAuth = "forwardauth"
 	IdentityPolicyOIDC        = "oidc"
 	IdentityPolicyProvider    = "provider"
+	IdentityPolicySelfAuth    = "self-auth"
 
 	OwnerProvisioningNone     = "none"
 	OwnerProvisioningRequired = "required"
@@ -39,6 +40,7 @@ type Service struct {
 	Section                 string   `json:"section,omitempty"`
 	Order                   int      `json:"order,omitempty"`
 	EnableVar               string   `json:"enable_var,omitempty"`
+	GuideURL                string   `json:"guide_url,omitempty"`
 	Default                 bool     `json:"default"`
 
 	// Template-compat fields used by the existing monolithic Base Kit template.
@@ -54,94 +56,101 @@ func Default() []Service {
 	services := []Service{
 		{
 			Key: "base", Name: "base", ToolName: "dashboard", ModuleSlug: "dashboard",
-			DisplayName: "Dashboard", Description: "StackKits service hub",
+			DisplayName: "Node Hub", Description: "StackKits node hub with onboarding, recovery, and local service links.",
 			LocalSlug: "base", PublicSlug: "base", LegacyAliases: []string{"dashboard", "dash"},
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128421;", Badge: "L3 \u00b7 Hub", Section: "Platform", Order: -1, EnableVar: "enable_dashboard", Default: true,
+			Icon: "&#128421;", Badge: "L3 \u00b7 Hub", Section: "Platform", Order: -1, EnableVar: "enable_dashboard", GuideURL: "https://docs.kombify.io/guides/stackkits/node-hub", Default: true,
+		},
+		{
+			Key: "home", Name: "home", ToolName: "homepage", ModuleSlug: "homepage",
+			DisplayName: "Homepage", Description: "IaC-managed homelab start dashboard generated from the StackKits service catalog.",
+			LocalSlug: "home", PublicSlug: "home", LegacyAliases: []string{"homepage", "homelab-dashboard"},
+			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
+			Icon: "&#8962;", Badge: "L3 \u00b7 Start", Section: "Platform", Order: 0, EnableVar: "enable_homepage", GuideURL: "https://docs.kombify.io/guides/stackkits/services/homepage", Default: true,
 		},
 		{
 			Key: "auth", Name: "auth", ToolName: "tinyauth", ModuleSlug: "tinyauth",
 			DisplayName: "TinyAuth", Description: "ForwardAuth gateway backed by PocketID.",
 			LocalSlug: "auth", PublicSlug: "auth", LegacyAliases: []string{"tinyauth"},
 			IdentityPolicy: IdentityPolicyOIDC, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128274;", Badge: "L1 \u00b7 ForwardAuth", Section: "Platform", Order: 20, EnableVar: "enable_tinyauth", Default: true,
+			Icon: "&#128274;", Badge: "L1 \u00b7 ForwardAuth", Section: "Platform", Order: 20, EnableVar: "enable_tinyauth", GuideURL: "https://docs.kombify.io/guides/stackkits/services/tinyauth", Default: true,
 		},
 		{
 			Key: "id", Name: "id", ToolName: "pocketid", ModuleSlug: "pocketid",
 			DisplayName: "PocketID", Description: "OIDC identity provider with passkey authentication.",
 			LocalSlug: "id", PublicSlug: "id", LegacyAliases: []string{"pocketid"},
 			IdentityPolicy: IdentityPolicyProvider, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128100;", Badge: "L1 \u00b7 IdP", Section: "Platform", Order: 10, EnableVar: "enable_pocketid", Default: true,
+			Icon: "&#128100;", Badge: "L1 \u00b7 IdP", Section: "Platform", Order: 10, EnableVar: "enable_pocketid", GuideURL: "https://docs.kombify.io/guides/stackkits/services/pocketid", Default: true,
 		},
 		{
 			Key: "traefik", Name: "traefik", ToolName: "traefik", ModuleSlug: "traefik",
 			DisplayName: "Traefik", Description: "Routes all service traffic.",
 			LocalSlug: "traefik", PublicSlug: "traefik",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#9889;", Badge: "L2 \u00b7 Reverse Proxy", Section: "Platform", Order: 30, EnableVar: "enable_traefik", Default: true,
+			Icon: "&#9889;", Badge: "L2 \u00b7 Reverse Proxy", Section: "Platform", Order: 30, EnableVar: "enable_traefik", GuideURL: "https://docs.kombify.io/guides/stackkits/services/traefik", Default: true,
 		},
 		{
 			Key: "dokploy", Name: "dokploy", ToolName: "dokploy", ModuleSlug: "dokploy",
 			DisplayName: "Dokploy", Description: "Self-hosted PaaS for deploying applications.",
 			LocalSlug: "dokploy", PublicSlug: "dokploy",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128640;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 40, EnableVar: "enable_dokploy", Default: true,
+			Icon: "&#128640;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 40, EnableVar: "enable_dokploy", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dokploy", Default: true,
 		},
 		{
 			Key: "kuma", Name: "kuma", ToolName: "uptime-kuma", ModuleSlug: "uptime-kuma",
 			DisplayName: "Uptime Kuma", Description: "Service uptime monitoring and status pages.",
 			LocalSlug: "kuma", PublicSlug: "kuma", LegacyAliases: []string{"uptime-kuma"},
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128202;", Badge: "L3 \u00b7 Monitoring", Section: "Applications", Order: 10, EnableVar: "enable_uptime_kuma", Default: true,
+			Icon: "&#128202;", Badge: "L3 \u00b7 Monitoring", Section: "Applications", Order: 10, EnableVar: "enable_uptime_kuma", GuideURL: "https://docs.kombify.io/guides/stackkits/services/uptime-kuma", Default: true,
 		},
 		{
 			Key: "whoami", Name: "whoami", ToolName: "whoami", ModuleSlug: "whoami",
-			DisplayName: "Whoami", Description: "HTTP echo service for routing diagnostics.",
+			DisplayName: "Whoami", Description: "TinyAuth-protected HTTP echo service for routing diagnostics.",
 			LocalSlug: "whoami", PublicSlug: "whoami",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#129302;", Badge: "L3 \u00b7 Test", Section: "Applications", Order: 20, Default: true,
+			Icon: "&#129302;", Badge: "L3 \u00b7 SSO test", Section: "Applications", Order: 20, EnableVar: "enable_whoami", GuideURL: "https://docs.kombify.io/guides/stackkits/services/whoami", Default: true,
 		},
 		{
 			Key: "vault", Name: "vault", ToolName: "vaultwarden", ModuleSlug: "vaultwarden",
-			DisplayName: "Vaultwarden", Description: "Bitwarden-compatible password vault.",
+			DisplayName: "Vaultwarden", Description: "Bitwarden-compatible password vault with its own app login.",
 			LocalSlug: "vault", PublicSlug: "vault", LegacyAliases: []string{"vaultwarden"},
-			IdentityPolicy: IdentityPolicyOIDC, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128272;", Badge: "L3 \u00b7 Vault", Section: "Applications", Order: 30, EnableVar: "enable_vaultwarden", Default: true,
+			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningNone,
+			Icon: "&#128272;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 30, EnableVar: "enable_vaultwarden", GuideURL: "https://docs.kombify.io/guides/stackkits/services/vaultwarden", Default: true,
 		},
 		{
 			Key: "media", Name: "media", ToolName: "jellyfin", ModuleSlug: "jellyfin",
-			DisplayName: "Jellyfin", Description: "Media server for movies, TV, music, and photos.",
+			DisplayName: "Jellyfin", Description: "Media server with its own app login.",
 			LocalSlug: "media", PublicSlug: "media", LegacyAliases: []string{"jellyfin"},
-			IdentityPolicy: IdentityPolicyOIDC, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#127916;", Badge: "L3 \u00b7 Media", Section: "Applications", Order: 40, EnableVar: "enable_jellyfin", Default: true,
+			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningNone,
+			Icon: "&#127916;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 40, EnableVar: "enable_jellyfin", GuideURL: "https://docs.kombify.io/guides/stackkits/services/jellyfin", Default: true,
 		},
 		{
 			Key: "photos", Name: "photos", ToolName: "immich", ModuleSlug: "immich",
-			DisplayName: "Immich", Description: "Photo and video management with mobile backup.",
+			DisplayName: "Immich", Description: "Photo and video management with its own app login.",
 			LocalSlug: "photos", PublicSlug: "photos", LegacyAliases: []string{"immich"},
-			IdentityPolicy: IdentityPolicyOIDC, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128247;", Badge: "L3 \u00b7 Photos", Section: "Applications", Order: 50, EnableVar: "enable_immich", Default: true,
+			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
+			Icon: "&#128247;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 50, EnableVar: "enable_immich", GuideURL: "https://docs.kombify.io/guides/stackkits/services/immich", Default: true,
 		},
 		{
 			Key: "dockge", Name: "dockge", ToolName: "dockge", ModuleSlug: "dockge",
 			DisplayName: "Dockge", Description: "Docker Compose stack manager.",
 			LocalSlug: "dockge", PublicSlug: "dockge",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128230;", Badge: "L2 \u00b7 Compose Manager", Section: "Platform", Order: 42, EnableVar: "enable_dockge",
+			Icon: "&#128230;", Badge: "L2 \u00b7 Compose Manager", Section: "Platform", Order: 42, EnableVar: "enable_dockge", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dockge",
 		},
 		{
 			Key: "coolify", Name: "coolify", ToolName: "coolify", ModuleSlug: "coolify",
 			DisplayName: "Coolify", Description: "Self-hosted deployment platform.",
 			LocalSlug: "coolify", PublicSlug: "coolify",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128171;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 41, EnableVar: "enable_coolify",
+			Icon: "&#128171;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 41, EnableVar: "enable_coolify", GuideURL: "https://docs.kombify.io/guides/stackkits/services/coolify",
 		},
 		{
 			Key: "point", Name: "point", ToolName: "kombify-point", ModuleSlug: "kombify-point",
-			DisplayName: "Kombify Point DNS", Description: "Local LAN DNS resolver for home service names.",
+			DisplayName: "kombify Point DNS", Description: "Local LAN DNS resolver for home service names.",
 			LocalSlug: "point", PublicSlug: "point",
 			IdentityPolicy: IdentityPolicyNone, OwnerProvisioningPolicy: OwnerProvisioningNone,
-			Icon: "&#127760;", Badge: "L1 \u00b7 DNS", Section: "Platform", Order: 35, EnableVar: "enable_kombify_point",
+			Icon: "&#127760;", Badge: "L1 \u00b7 DNS", Section: "Platform", Order: 35, EnableVar: "enable_kombify_point", GuideURL: "https://docs.kombify.io/guides/stackkits/services/kombify-point",
 		},
 	}
 	for i := range services {
@@ -182,6 +191,7 @@ func FromCUE(entries []cueval.CatalogEntry) []Service {
 				Section:                 entry.Section,
 				Order:                   entry.Order,
 				EnableVar:               entry.EnableVar,
+				GuideURL:                entry.GuideURL,
 			}
 			normalize(&svc)
 			byKey[key] = len(services)
@@ -229,6 +239,7 @@ func FromRegistry(entries []registry.Service) []Service {
 			Section:                 entry.Section,
 			Order:                   entry.Order,
 			EnableVar:               entry.EnableVar,
+			GuideURL:                entry.GuideURL,
 			Default:                 entry.Default,
 		}
 		normalize(&svc)
@@ -268,7 +279,54 @@ func overlayFromCUE(svc *Service, entry cueval.CatalogEntry) {
 	if entry.EnableVar != "" {
 		svc.EnableVar = entry.EnableVar
 	}
+	if entry.GuideURL != "" {
+		svc.GuideURL = entry.GuideURL
+	}
 	normalize(svc)
+}
+
+// WithDefaultFallbacks merges default catalog metadata into a partial catalog
+// and appends default services that are missing entirely.
+func WithDefaultFallbacks(services []Service) []Service {
+	if len(services) == 0 {
+		return services
+	}
+	defaults := Default()
+	byKey := make(map[string]Service, len(defaults))
+	for _, svc := range defaults {
+		byKey[svc.Key] = svc
+	}
+	seen := make(map[string]bool, len(services))
+	out := append([]Service(nil), services...)
+	for i := range out {
+		key := canonicalKey(out[i].Key)
+		seen[key] = true
+		if fallback, ok := byKey[key]; ok {
+			mergeMissingDefaultFields(&out[i], fallback)
+		}
+		normalize(&out[i])
+	}
+	for _, fallback := range defaults {
+		if !seen[fallback.Key] {
+			out = append(out, fallback)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Section != out[j].Section {
+			return out[i].Section == "Platform"
+		}
+		if out[i].Order != out[j].Order {
+			return out[i].Order < out[j].Order
+		}
+		return out[i].Key < out[j].Key
+	})
+	return out
+}
+
+func mergeMissingDefaultFields(svc *Service, fallback Service) {
+	if svc.GuideURL == "" {
+		svc.GuideURL = fallback.GuideURL
+	}
 }
 
 func canonicalKey(key string) string {
@@ -283,6 +341,9 @@ func canonicalKey(key string) string {
 }
 
 func normalize(svc *Service) {
+	if canonicalKey(svc.Key) == "point" && svc.DisplayName == "Kombify Point DNS" {
+		svc.DisplayName = "kombify Point DNS"
+	}
 	if svc.Name == "" {
 		svc.Name = svc.Key
 	}

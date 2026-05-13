@@ -4,16 +4,18 @@
 //
 // Version 5.0 - Transitional compatibility schema for the v5 Base Kit model.
 //
-// Architecture Pattern: Single-Environment
-//   All services run in one deployment target (local server or cloud VPS).
+// Architecture Pattern: Single-Environment 1..N
+//   One homelab/trust domain has exactly one main node and optional
+//   worker/storage nodes.
 //
 // Deployment Modes:
 //   - simple:   OpenTofu Day-1 only (initial provisioning)
 //   - advanced: OpenTofu + Terramate Day-1 + Day-2 (drift, updates, lifecycle)
 //
 // PaaS Selection (Context-driven, M2):
-//   - local context → Dokploy (simpler, port-based)
-//   - cloud context → Coolify (more features, git deploys)
+//   - local / kombify.me context → Dokploy
+//   - cloud custom-domain context → Coolify
+//   - Dockge is a constrained compose-manager mode, not a normal PaaS default
 //
 // Use Cases:
 //   - Personal home server or cloud VPS
@@ -33,6 +35,8 @@ package base_kit
 
 import (
 	"list"
+
+	"github.com/kombifyio/stackkits/base"
 )
 
 // =============================================================================
@@ -46,19 +50,30 @@ import (
 	meta: #StackMeta
 
 	// Canonical v5 deployment surface
-	mode: *"simple" | "advanced"
+	mode:     *"simple" | "advanced"
 	runtime?: *"docker" | "native"
 	context?: *"local" | "cloud" | "pi"
-	paas?: *"dokploy" | "coolify" | "dockge" | "none"
+	paas?:    *"dokploy" | "coolify"
 	addons?: [...string]
 	application?: [string]: #ApplicationSelection
-	domain?: string
+	domain?:          string
 	subdomainPrefix?: string
-	email?: string
-	adminEmail?: string
-	tls?: #TLSConfig
-	compute: #ComputeConfig
-	ssh?: #SSHConfig
+	email?:           string
+	adminEmail?:      string
+	tls?:             #TLSConfig
+	compute:          #ComputeConfig
+	ssh?:             #SSHConfig
+
+	// IaC defaults (kit-update-phase-1, ADR-0018).
+	// Optional: when present, the renderer projects this onto the
+	// `iac/defaults` Terraform module so every resource picks up the
+	// shared provider versions and tag-set.
+	iac?: base.#IaCDefaults & {
+		default_tags: {
+			kit_slug:    "base-kit"
+			kit_version: meta.version
+		}
+	}
 
 	// Legacy compatibility aliases retained during migration
 	deploymentMode: mode
@@ -74,8 +89,18 @@ import (
 		schedule: string | *"0 */6 * * *"
 	}
 
-	// Node configuration (exactly 1 node)
-	nodes: [...#HomelabNode] & list.MinItems(1) & list.MaxItems(1)
+	// Node configuration (1..N nodes in one homelab/trust domain).
+	// Exactly one main-like node is required. "control-plane" and
+	// "standalone" remain compatibility aliases for "main".
+	nodes: [...#HomelabNode] & list.MinItems(1)
+
+	_nodeNames: list.UniqueItems([for n in nodes {n.name}]) & true
+	_mainNodes: [
+		for n in nodes
+		if n.role == "main" || n.role == "control-plane" || n.role == "standalone" {
+			n.name
+		},
+	] & list.MinItems(1) & list.MaxItems(1)
 
 	// Transitional network shape: accepts both legacy CUE fields and v5 stack-spec fields.
 	network: #NetworkConfig
@@ -105,10 +130,10 @@ import (
 				engine:  "terramate"
 				actions: ["drift", "update", "destroy"]
 				features: {
-					drift_detection:  true
-					change_sets:      true
-					rolling_updates:  true
-					stack_ordering:   true
+					drift_detection: true
+					change_sets:     true
+					rolling_updates: true
+					stack_ordering:  true
 				}
 			}
 		}
@@ -141,10 +166,10 @@ import (
 		engine?: string
 		actions?: [...string]
 		features?: {
-			drift_detection:  bool
-			change_sets:      bool
-			rolling_updates:  bool
-			stack_ordering:   bool
+			drift_detection: bool
+			change_sets:     bool
+			rolling_updates: bool
+			stack_ordering:  bool
 		}
 	}
 }
@@ -163,7 +188,7 @@ import (
 
 	os?: #OSConfig
 
-	role: *"worker" | "main" | "standalone"
+	role: *"standalone" | "main" | "worker" | "storage" | "control-plane"
 }
 
 #ComputeResources: {
@@ -183,11 +208,11 @@ import (
 // =============================================================================
 
 #NetworkConfig: {
-	mode?: "local" | "public" | "hybrid" | *"local"
-	domain?: string
+	mode?:      "local" | "public" | "hybrid" | *"local"
+	domain?:    string
 	acmeEmail?: string
 
-	subnet: string | *"172.20.0.0/16"
+	subnet:   string | *"172.20.0.0/16"
 	gateway?: string
 
 	dns?: {
@@ -226,8 +251,8 @@ import (
 #ServiceSet: {
 	// Core services (always present)
 	traefik: #ServiceToggle & {enabled: true}
-	dozzle:  #ServiceToggle
-	whoami:  #ServiceToggle
+	dozzle: #ServiceToggle
+	whoami: #ServiceToggle & {enabled: true}
 
 	// Default variant services
 	dokploy?:    #ServiceToggle

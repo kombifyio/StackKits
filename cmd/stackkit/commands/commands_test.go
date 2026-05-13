@@ -72,9 +72,9 @@ func executeCommandCaptureStdout(args ...string) (string, error) {
 
 func TestRootCommand_SubcommandsRegistered(t *testing.T) {
 	expected := []string{
-		"init", "prepare", "generate", "validate",
+		"init", "prepare", "generate", "validate", "app",
 		"plan", "apply", "remove", "status",
-		"version", "completion",
+		"verify", "version", "completion",
 	}
 
 	registered := make(map[string]bool)
@@ -287,9 +287,82 @@ func TestGenerateCommand_BaseKitDefaultSpecGoldenPath(t *testing.T) {
 	assert.Contains(t, mainTF, `variable "tinyauth_users"`)
 	assert.Contains(t, mainTF, `variable "tinyauth_oidc_enabled"`)
 	assert.Contains(t, mainTF, `output "vaultwarden_admin_token"`)
+	assert.Contains(t, mainTF, `platform_hub_managed = var.enable_dashboard && (local.rp_dokploy || local.rp_coolify)`)
+	assert.Contains(t, mainTF, `resource "local_file" "stackkit_hub_compose"`)
+	assert.Contains(t, mainTF, `resource "local_file" "stackkit_server_compose"`)
 	assert.Contains(t, mainTF, `resource "docker_container" "dashboard"`)
+	assert.Contains(t, mainTF, `count = var.enable_dashboard && local.platform_hub_fallback ? 1 : 0`)
+	assert.Contains(t, mainTF, `version    = "stackkit.platform-apps/v2"`)
+	assert.Contains(t, mainTF, `systemApps = concat(`)
+	assert.Contains(t, mainTF, `name        = "stackkit-hub"`)
+	assert.Contains(t, mainTF, `role        = "node-hub"`)
+	assert.Contains(t, mainTF, `name        = "stackkit-server"`)
+	assert.Contains(t, mainTF, `role        = "node-api"`)
+	assert.Contains(t, mainTF, `resource "docker_container" "homepage"`)
+	assert.Contains(t, mainTF, `resource "docker_container" "homepage_socket_proxy"`)
+	assert.Contains(t, mainTF, `resource "local_file" "homepage_services"`)
+	assert.Contains(t, mainTF, `homepage_services_yaml = yamlencode(local.homepage_services)`)
+	assert.Contains(t, mainTF, `homepage_container_names = {`)
+	assert.Contains(t, mainTF, `base    = "dashboard"`)
+	assert.Contains(t, mainTF, `kuma    = "kuma"`)
+	assert.Contains(t, mainTF, `server      = "stackkit"`)
+	assert.Contains(t, mainTF, `container   = lookup(local.homepage_container_names, "base", "dashboard")`)
+	assert.Contains(t, mainTF, `container   = lookup(local.homepage_container_names, "photos", "immich")`)
+	assert.NotContains(t, mainTF, `ping        = "${local.proto}://${local.domains`)
+	assert.Contains(t, mainTF, `HOMEPAGE_ALLOWED_HOSTS=${local.domains.home},localhost,127.0.0.1`)
 	assert.Contains(t, mainTF, `PROVIDERS_POCKETID_CLIENT_ID`)
 	assert.Contains(t, mainTF, `OAUTH_AUTO_REDIRECT=pocketid`)
+	assert.Contains(t, mainTF, `variable "pocketid_app_url"`)
+	assert.Contains(t, mainTF, `variable "docker_host"`)
+	assert.Contains(t, mainTF, `variable "enable_whoami"`)
+	assert.Contains(t, mainTF, `variable "vaultwarden_image"`)
+	assert.Contains(t, mainTF, `ghcr.io/dani-garcia/vaultwarden:latest`)
+	assert.Contains(t, mainTF, `variable "immich_postgres_image"`)
+	assert.Contains(t, mainTF, `ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0`)
+	assert.Contains(t, mainTF, `variable "immich_redis_image"`)
+	assert.Contains(t, mainTF, `docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9`)
+	assert.NotContains(t, mainTF, `init-immich:`)
+	assert.NotContains(t, mainTF, `IMMICH_USER: "${var.admin_email}"`)
+	assert.NotContains(t, mainTF, `IMMICH_PASS: "${var.admin_password_plaintext}"`)
+	assert.NotContains(t, mainTF, `/api/auth/admin-sign-up`)
+	assert.NotContains(t, mainTF, `/api/users/me/onboarding`)
+	assert.NotContains(t, mainTF, `/api/system-metadata/admin-onboarding`)
+	assert.Contains(t, mainTF, `setupPolicy = "manual"`)
+	assert.Contains(t, mainTF, `name        = "immich-owner-bootstrap"`)
+	assert.Contains(t, mainTF, `runner      = "stackkit-script"`)
+	assert.Contains(t, mainTF, `depends_on = [
+    docker_container.traefik,`)
+	assert.Contains(t, mainTF, `null_resource.coolify_traefik_ready`)
+	assert.NotContains(t, mainTF, `null_resource.dokploy_traefik_ready`)
+	assert.Contains(t, mainTF, `ERROR: reverse proxy (${var.reverse_proxy_backend}) not detected after 3 minutes`)
+	assert.Contains(t, mainTF, `exit 1`)
+	assert.Contains(t, mainTF, `value       = var.enable_uptime_kuma ? "${local.proto}://${local.domains.kuma}" : null`)
+	assert.Contains(t, mainTF, `value       = var.enable_uptime_kuma ? random_password.kuma_admin[0].result : null`)
+	assert.Contains(t, mainTF, `var.enable_uptime_kuma ? { kuma = local.domains.kuma } : {}`)
+	assert.Contains(t, mainTF, `var.enable_whoami ? { whoami = local.domains.whoami } : {}`)
+	assert.Contains(t, mainTF, `var.enable_homepage ? { home = local.domains.home } : {}`)
+	assert.Contains(t, mainTF, `var.enable_dokploy ? { dokploy = local.domains.dokploy } : {}`)
+	assert.Contains(t, mainTF, `KUMA_PASS: "${var.enable_uptime_kuma ? random_password.kuma_admin[0].result : ""}"`)
+	assert.Contains(t, mainTF, `api.set_settings(`)
+	assert.Contains(t, mainTF, `password=pw,`)
+	assert.Contains(t, mainTF, `disableAuth=True,`)
+	assert.Contains(t, mainTF, `trustProxy=True,`)
+	assert.Contains(t, mainTF, `resource "local_file" "whoami_compose"`)
+	assert.Contains(t, mainTF, `count = var.enable_whoami ? 1 : 0`)
+	assert.Contains(t, mainTF, `${var.enable_uptime_kuma ? "<a href=\"${local.proto}://${local.domains.kuma}\" target=\"_blank\" rel=\"noreferrer\">Status</a>" : ""}`)
+	assert.Contains(t, mainTF, `${var.enable_uptime_kuma ? "<li><span class=\"num\">4</span><span>Check <a href=\"${local.proto}://${local.domains.kuma}\"`)
+	assert.Contains(t, mainTF, `${var.enable_uptime_kuma ? "<div class=\"service-row\"><a class=\"service-main\" href=\"${local.proto}://${local.domains.kuma}\"`)
+	assert.Contains(t, mainTF, `${var.enable_whoami ? "<div class=\"service-row\"><a class=\"service-main\" href=\"${local.proto}://${local.domains.whoami}\"`)
+	assert.Contains(t, mainTF, `https://docs.kombify.io/guides/stackkits/services/uptime-kuma`)
+	assert.Contains(t, mainTF, `https://docs.kombify.io/guides/stackkits/services/whoami`)
+	assert.NotContains(t, mainTF, `${var.enable_uptime_kuma ? "✓" : "✗"} Kuma`)
+	assert.NotContains(t, mainTF, `${var.enable_whoami ? "✓" : "✗"} Whoami`)
+	assert.Contains(t, mainTF, `${var.enable_dokploy ? format("║    ✓ Dokploy`)
+	assert.Contains(t, mainTF, `${var.enable_coolify ? format("║    ✓ Coolify`)
+	assert.Contains(t, mainTF, `${var.enable_dockge ? format("║    ✓ Dockge`)
+	assert.Contains(t, mainTF, `${var.enable_uptime_kuma ? format("║    ✓ Kuma`)
+	assert.Contains(t, mainTF, `${var.enable_whoami ? format("║    ✓ Whoami`)
+	assert.Contains(t, mainTF, `${(var.enable_dokploy || var.enable_coolify || var.enable_dockge) ? format("║  3. PaaS:`)
 
 	_, statErr := os.Stat(filepath.Join(outputAbs, "immich.tf"))
 	assert.True(t, os.IsNotExist(statErr), "default production generation should use the stable Base Kit template, not experimental fragments")
@@ -320,9 +393,12 @@ func TestGenerateCommand_BaseKitDefaultSpecGoldenPath(t *testing.T) {
 	assert.NotEmpty(t, tfvars["vaultwarden_admin_token"])
 	assert.Equal(t, "UTC", tfvars["timezone"])
 	assert.Equal(t, true, tfvars["enable_pocketid"])
-	assert.Equal(t, "https://id.home.localhost", tfvars["pocketid_app_url"])
+	assert.Equal(t, true, tfvars["enable_homepage"])
+	assert.True(t, boolVar(t, tfvars, "enable_uptime_kuma"))
+	assert.True(t, boolVar(t, tfvars, "enable_whoami"))
+	assert.Equal(t, "https://id.stack.home", tfvars["pocketid_app_url"])
 	assert.Equal(t, true, tfvars["tinyauth_oidc_enabled"])
-	assert.Equal(t, "https://id.home.localhost", tfvars["tinyauth_oidc_issuer"])
+	assert.Equal(t, "https://id.stack.home", tfvars["tinyauth_oidc_issuer"])
 	assert.NotEmpty(t, tfvars["tinyauth_oidc_client_id"])
 }
 
@@ -407,6 +483,17 @@ func TestTinyAuthPocketIDDoesNotRestrictOAuthToAdminEmailByDefault(t *testing.T)
 	assert.Contains(t, mainTF, `variable "tinyauth_oauth_whitelist"`)
 	assert.Contains(t, mainTF, `OAUTH_WHITELIST=${var.tinyauth_oauth_whitelist}`)
 	assert.NotContains(t, mainTF, `OAUTH_WHITELIST=${var.admin_email}`)
+}
+
+func TestFormatApplyErrorUsesActionableRegistryAndConfigMessages(t *testing.T) {
+	assert.Contains(t,
+		formatApplyError("error from registry: You have reached your unauthenticated pull rate limit"),
+		"Docker Hub rate limit reached",
+	)
+	assert.Contains(t,
+		formatApplyError("Error: Reference to undeclared resource"),
+		"Generated OpenTofu configuration references a missing resource",
+	)
 }
 
 func TestGenerateCommand_KombinationAliasFromChildWorkDir(t *testing.T) {
@@ -515,6 +602,8 @@ func TestGenerateTfvarsJSON_AdminEmail(t *testing.T) {
 }
 
 func TestGenerateTfvarsJSON_FallbackAdmin(t *testing.T) {
+	setCapabilitiesHome(t, models.ContextLocal)
+
 	spec := &models.StackSpec{
 		Name: "test-homelab",
 	}
@@ -527,12 +616,46 @@ func TestGenerateTfvarsJSON_FallbackAdmin(t *testing.T) {
 	err = json.Unmarshal(data, &vars)
 	require.NoError(t, err)
 
-	// Without composition result, admin_email comes from bridge defaults
-	assert.Equal(t, "admin", vars["admin_email"])
+	// Without composition result, admin_email is still a syntactically valid email.
+	assert.Equal(t, "admin@stack.home", vars["admin_email"])
 
 	// Without composition result, no credentials are generated
 	assert.Empty(t, vars["admin_password_plaintext"], "no password without composition result")
 	assert.Empty(t, vars["tinyauth_users"], "no users without composition result")
+}
+
+func TestGenerateTfvarsJSON_SyntheticKombifyMeAdmin(t *testing.T) {
+	spec := &models.StackSpec{
+		Name:            "test-homelab",
+		Domain:          models.DomainKombifyMe,
+		SubdomainPrefix: "sh-my-homelab-cfe020",
+	}
+
+	adminEmail := models.NormalizeAdminEmail("", spec.Domain, spec.SubdomainPrefix)
+	cr := &composition.CompositionResult{
+		EnabledModules: []string{"socket-proxy", "traefik", "tinyauth", "pocketid"},
+		ModuleSettings: map[string]map[string]any{},
+		Identity: &composition.IdentityConfig{
+			AdminEmail:            adminEmail,
+			AdminPassword:         "abcdef0123456789abcdef0123456789",
+			TinyAuthEnabled:       true,
+			PocketIDEnabled:       true,
+			TinyAuthSessionSecret: "session_secret_hex",
+			OIDCClientID:          "stackkit-tinyauth",
+			OIDCIssuerURL:         "https://sh-my-homelab-cfe020-id.kombify.me",
+			PocketIDAppURL:        "https://sh-my-homelab-cfe020-id.kombify.me",
+			TinyAuthOAuthEnabled:  true,
+		},
+	}
+
+	data, err := generateTfvarsJSON(spec, cr)
+	require.NoError(t, err)
+
+	var vars map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &vars))
+
+	assert.Equal(t, "admin@sh-my-homelab-cfe020.kombify.me", vars["admin_email"])
+	assert.True(t, strings.HasPrefix(vars["tinyauth_users"].(string), "admin@sh-my-homelab-cfe020.kombify.me:$2a$"))
 }
 
 func TestInitCommand_AdminEmailFlag(t *testing.T) {
@@ -623,6 +746,18 @@ func TestResolveInitDefaults(t *testing.T) {
 		assert.Equal(t, "local", defaults.NetworkMode)
 	})
 
+	t.Run("local default domain honors stackkit local domain environment override", func(t *testing.T) {
+		resetInitGlobals(t)
+		setCapabilitiesHome(t, models.ContextLocal)
+		t.Setenv("STACKKIT_LOCAL_DOMAIN", models.DomainHomeLocalhost)
+
+		defaults := resolveInitDefaults("")
+
+		assert.Equal(t, models.ContextLocal, defaults.Context)
+		assert.Equal(t, models.DomainHomeLocalhost, defaults.Domain)
+		assert.Equal(t, "local", defaults.NetworkMode)
+	})
+
 	t.Run("custom domain is preserved for cloud", func(t *testing.T) {
 		resetInitGlobals(t)
 		setCapabilitiesHome(t, models.ContextCloud)
@@ -648,7 +783,7 @@ func TestResolveInitDefaults(t *testing.T) {
 		assert.Equal(t, "local", defaults.NetworkMode)
 	})
 
-	t.Run("local dns defaults to home and local network", func(t *testing.T) {
+	t.Run("local dns defaults to stack home and local network", func(t *testing.T) {
 		resetInitGlobals(t)
 		setCapabilitiesHome(t, models.ContextCloud)
 		initLocalDNS = true
@@ -656,7 +791,7 @@ func TestResolveInitDefaults(t *testing.T) {
 		defaults := resolveInitDefaults("")
 
 		assert.Equal(t, models.ContextCloud, defaults.Context)
-		assert.Equal(t, models.DomainHomeDNS, defaults.Domain)
+		assert.Equal(t, models.DomainHomeLab, defaults.Domain)
 		assert.Equal(t, "local", defaults.NetworkMode)
 	})
 
@@ -728,6 +863,75 @@ func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
 	assert.Equal(t, string(models.ContextCloud), spec.Context)
 	assert.Equal(t, "public", spec.Network.Mode)
 	assert.Equal(t, "test@example.com", spec.AdminEmail)
+}
+
+func TestInitCommand_BaseKitLocalReferenceUsesSafeSSHDefaults(t *testing.T) {
+	prevComputeTier := initComputeTier
+	prevDomain := initDomain
+	prevMode := initMode
+	prevForce := initForce
+	prevNonInteractive := initNonInteractive
+	prevAdminEmail := initAdminEmail
+	prevLocalDNS := initLocalDNS
+	prevLocalName := initLocalName
+	prevContextFlag := contextFlag
+	prevSpecFile := specFile
+	t.Cleanup(func() {
+		initComputeTier = prevComputeTier
+		initDomain = prevDomain
+		initMode = prevMode
+		initForce = prevForce
+		initNonInteractive = prevNonInteractive
+		initAdminEmail = prevAdminEmail
+		initLocalDNS = prevLocalDNS
+		initLocalName = prevLocalName
+		contextFlag = prevContextFlag
+		specFile = prevSpecFile
+	})
+
+	specFile = "stack-spec.yaml"
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+	tmpDir, err := os.MkdirTemp(repoRoot, "init-local-ssh-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	_, err = executeCommand(
+		"init", "base-kit",
+		"--non-interactive",
+		"--force",
+		"--context", "local",
+		"--admin-email", "test@example.com",
+		"--chdir", tmpDir,
+	)
+	require.NoError(t, err)
+
+	specData, err := os.ReadFile(filepath.Join(tmpDir, "stack-spec.yaml"))
+	require.NoError(t, err)
+
+	var spec models.StackSpec
+	require.NoError(t, yaml.Unmarshal(specData, &spec))
+	assert.Equal(t, models.DomainHomeLab, spec.Domain)
+	assert.Equal(t, string(models.ContextLocal), spec.Context)
+	assert.Equal(t, "admin", spec.SSH.User)
+	assert.Equal(t, "~/.ssh/id_ed25519", spec.SSH.KeyPath)
+	assert.Equal(t, models.PAASNone, spec.PAAS)
+
+	assertServiceEnabled := func(name string, want bool) {
+		t.Helper()
+		service, ok := spec.Services[name].(map[string]any)
+		require.True(t, ok, "service %q should be present in init spec", name)
+		assert.Equal(t, want, service["enabled"], "services.%s.enabled", name)
+	}
+	assertServiceEnabled("dokploy", false)
+	assertServiceEnabled("uptime-kuma", true)
+	assertServiceEnabled("whoami", true)
+	assertServiceEnabled("vaultwarden", true)
+	assertServiceEnabled("jellyfin", false)
+	assertServiceEnabled("immich", true)
 }
 
 func TestParseDfOutput(t *testing.T) {
@@ -908,7 +1112,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  true,
+			wantTraefik:  false,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -918,17 +1122,17 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  true,
+			wantTraefik:  false,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
 		{
 			name:         "low tier",
 			tier:         "low",
-			wantDokploy:  false,
-			wantDockge:   true,
+			wantDokploy:  true,
+			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  true,
+			wantTraefik:  false,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},
@@ -938,7 +1142,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 			wantDokploy:  true,
 			wantDockge:   false,
 			wantKuma:     true,
-			wantTraefik:  true,
+			wantTraefik:  false,
 			wantTinyauth: true,
 			wantPocketid: true,
 		},

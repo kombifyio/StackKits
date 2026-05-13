@@ -13,6 +13,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-identity"
 		description: "Self-hosted OIDC provider for single sign-on with passkeys"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S5"]
 	}
 
 	requires: {
@@ -73,9 +74,9 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: pocketid: base.#ServiceDefinition & {
-		name:     "pocketid"
-		type:     "auth"
-		image:    "ghcr.io/pocket-id/pocket-id"
+		name:  "pocketid"
+		type:  "auth"
+		image: "ghcr.io/pocket-id/pocket-id"
 		// PocketID v2 (PR #1229, v2.0.0+) is required for Phase 1's apply-time
 		// owner-bootstrap. v1 has no STATIC_API_KEY support and cannot be
 		// API-bootstrapped, so the fragment-rendered deploy/pocketid.tf would
@@ -167,7 +168,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "id", nested: "id", flat: "id"}
-		dashboard: {icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP"}
+		dashboard: {icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP", guideUrl: "https://docs.kombify.io/guides/stackkits/services/pocketid"}
 
 		output: {
 			url:         "https://id.{{.domain}}"

@@ -21,8 +21,8 @@ var planCmd = &cobra.Command{
 	Short: "Preview infrastructure changes",
 	Long: `Generate and show an execution plan for the infrastructure.
 
-This command runs 'tofu plan' to preview what changes would be made
-to your infrastructure without actually applying them.
+This command runs StackKit-packaged OpenTofu to preview what changes
+would be made to your infrastructure without actually applying them.
 
 Examples:
   stackkit plan                    Preview changes

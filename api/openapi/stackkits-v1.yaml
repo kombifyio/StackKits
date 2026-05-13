@@ -369,6 +369,86 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  # ── Internal runtime actions (TechStack servicecall) ────────────
+
+  /api/v1/internal/runtime-actions/stackkit-rollout:
+    post:
+      operationId: runtimeStackKitRollout
+      summary: Run or dry-run StackKits rollout for TechStack
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [Runtime]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuntimeActionRequest"
+      responses:
+        "200":
+          description: Runtime action accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/RuntimeActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/internal/runtime-actions/stackkit-verify:
+    post:
+      operationId: runtimeStackKitVerify
+      summary: Verify StackKits rollout state for TechStack
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [Runtime]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuntimeActionRequest"
+      responses:
+        "200":
+          description: Runtime action accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/RuntimeActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/internal/runtime-actions/restore-drill:
+    post:
+      operationId: runtimeRestoreDrill
+      summary: Run or dry-run StackKits restore-drill handoff for TechStack
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [Runtime]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuntimeActionRequest"
+      responses:
+        "200":
+          description: Runtime action accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/RuntimeActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   # ── Registry (Direct Connect) ───────────────────────────────────
 
   /api/v1/registry/instances:
@@ -377,7 +457,7 @@ paths:
       summary: Register a stackkit-server instance for Direct Connect
       description: |
         Called by stackkit-server after `stackkit apply` to register itself with
-        kombify. Kong uses this registry to discover and proxy requests to the
+        kombify. Cloudflare Edge uses this registry to discover and proxy requests to the
         instance directly.
       tags: [Registry]
       requestBody:
@@ -706,7 +786,7 @@ components:
           type: string
         role:
           type: string
-          enum: [control-plane, worker, standalone]
+          enum: [main, worker, storage, control-plane, standalone]
         ip:
           type: string
           format: ipv4
@@ -771,6 +851,59 @@ components:
           const: true
         stackkit:
           $ref: "#/components/schemas/StackKitSummary"
+
+    RuntimeActionRequest:
+      type: object
+      required: [action, stack_id]
+      properties:
+        action:
+          type: string
+          enum: [stackkit_rollout, verify_rollout, restore_drill]
+        stack_id:
+          type: string
+        stack_name:
+          type: string
+        stackkit:
+          type: string
+        tofu_dir:
+          type: string
+        unified_path:
+          type: string
+
+    RuntimeActionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        action:
+          type: string
+        stack_id:
+          type: string
+        stack_name:
+          type: string
+        stackkit:
+          type: string
+        tofu_dir:
+          type: string
+        unified_path:
+          type: string
+        mode:
+          type: string
+          enum: [dry-run, apply]
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeActionCheck"
+
+    RuntimeActionCheck:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        detail:
+          type: string
 
     LogRunSummary:
       type: object
@@ -954,5 +1087,7 @@ tags:
     description: OpenTofu variable generation from validated specs
   - name: Logs
     description: Deploy log retrieval and live streaming for dashboards and agents
+  - name: Runtime
+    description: Servicecall-protected runtime actions consumed by TechStack
   - name: Registry
-      description: Direct Connect instance registry — deployed stackkit-servers register here so the platform edge can proxy to them
+    description: Direct Connect instance registry — deployed stackkit-servers register here so the platform edge can proxy to them

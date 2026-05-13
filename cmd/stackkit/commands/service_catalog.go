@@ -31,7 +31,7 @@ func loadRegistryServiceCatalog() []servicecatalog.Service {
 		)
 		return nil
 	}
-	return servicecatalog.FromRegistry(snap.Services)
+	return servicecatalog.WithDefaultFallbacks(servicecatalog.FromRegistry(snap.Services))
 }
 
 func loadCUEServiceCatalog(wd string, spec *models.StackSpec) []servicecatalog.Service {

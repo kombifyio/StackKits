@@ -18,6 +18,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-dns"
 		description: "DNS filter, ad/malware blocking, and local DNS rewrites"
+		testScenarios: ["SK-S1", "SK-S4"]
 	}
 
 	requires: {
@@ -35,11 +36,11 @@ Contract: base.#ModuleContract & {
 
 	provides: {
 		capabilities: {
-			"dns-filtering":       true
-			"ad-blocking":         true
-			"dns-rebind-protect":  true
-			"local-dns-rewrites":  true
-			"dns-server":          true
+			"dns-filtering":      true
+			"ad-blocking":        true
+			"dns-rebind-protect": true
+			"local-dns-rewrites": true
+			"dns-server":         true
 		}
 		endpoints: {
 			ui: {
@@ -132,10 +133,10 @@ Contract: base.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                                          "true"
-			"traefik.http.routers.adguard-home.rule":                                  "Host(`adguard.{{.domain}}`)"
-			"traefik.http.routers.adguard-home.entrypoints":                           "web"
-			"traefik.http.services.adguard-home.loadbalancer.server.port":             "3000"
+			"traefik.enable":                                              "true"
+			"traefik.http.routers.adguard-home.rule":                      "Host(`adguard.{{.domain}}`)"
+			"traefik.http.routers.adguard-home.entrypoints":               "web"
+			"traefik.http.services.adguard-home.loadbalancer.server.port": "3000"
 		}
 
 		output: {

@@ -59,12 +59,6 @@ func overlayRuntimeTemplateVars(tfvars map[string]any, spec *models.StackSpec, c
 	if _, ok := tfvars["tinyauth_session_expiry"]; !ok {
 		tfvars["tinyauth_session_expiry"] = "86400"
 	}
-	if err := overlayMonitoringAgentRuntimeTemplateVars(tfvars, cr); err != nil {
-		return err
-	}
-	if err := overlayMonitoringCoreRuntimeTemplateVars(tfvars, cr); err != nil {
-		return err
-	}
 
 	if moduleIsEnabled(cr.EnabledModules, "vaultwarden") {
 		if existing, ok := tfvars["vaultwarden_admin_token"].(string); !ok || existing == "" {
@@ -77,178 +71,6 @@ func overlayRuntimeTemplateVars(tfvars map[string]any, spec *models.StackSpec, c
 	}
 
 	return nil
-}
-
-func overlayMonitoringCoreRuntimeTemplateVars(tfvars map[string]any, cr *CompositionResult) error {
-	if cr == nil || !moduleIsEnabled(cr.EnabledModules, "monitoring-core") {
-		return nil
-	}
-
-	retentionPeriod := "30d"
-	memoryAllowedPercent := 40
-	maxConcurrentRequests := 4
-	gatewayMemoryLimitMiB := 256
-	gatewayBatchTimeout := "15s"
-	gatewayMaxConcurrentStreams := 50
-	gatewayRemoteWriteEndpoint := "http://victoriametrics:8428/api/v1/write"
-
-	if cr.ModuleSettings != nil {
-		if settings, ok := cr.ModuleSettings["monitoring-core"]; ok {
-			if backend, ok := lookupMap(settings, "backend"); ok {
-				retentionPeriod = lookupString(backend, "retentionPeriod", retentionPeriod)
-				memoryAllowedPercent = lookupInt(backend, "memoryAllowedPercent", memoryAllowedPercent)
-				maxConcurrentRequests = lookupInt(backend, "maxConcurrentRequests", maxConcurrentRequests)
-				if port := lookupInt(backend, "port", 8428); port > 0 {
-					gatewayRemoteWriteEndpoint = fmt.Sprintf("http://victoriametrics:%d/api/v1/write", port)
-				}
-			}
-			if gateway, ok := lookupMap(settings, "gateway"); ok {
-				gatewayMemoryLimitMiB = lookupInt(gateway, "memoryLimitMiB", gatewayMemoryLimitMiB)
-				gatewayBatchTimeout = lookupString(gateway, "batchTimeout", gatewayBatchTimeout)
-				gatewayMaxConcurrentStreams = lookupInt(gateway, "maxConcurrentStreams", gatewayMaxConcurrentStreams)
-				gatewayRemoteWriteEndpoint = lookupString(gateway, "remoteWriteEndpoint", gatewayRemoteWriteEndpoint)
-			}
-		}
-	}
-
-	gatewayLimitMiB, gatewaySpikeLimitMiB := monitoringAgentMemoryLimiter(gatewayMemoryLimitMiB)
-
-	tfvars["monitoring_core_vm_retention_period"] = retentionPeriod
-	tfvars["monitoring_core_vm_memory_allowed_percent"] = fmt.Sprintf("%d", memoryAllowedPercent)
-	tfvars["monitoring_core_vm_max_concurrent_requests"] = fmt.Sprintf("%d", maxConcurrentRequests)
-	tfvars["monitoring_core_gateway_gomemlimit"] = fmt.Sprintf("%dMiB", gatewayMemoryLimitMiB)
-	tfvars["monitoring_core_gateway_batch_timeout"] = gatewayBatchTimeout
-	tfvars["monitoring_core_gateway_max_concurrent_streams"] = fmt.Sprintf("%d", gatewayMaxConcurrentStreams)
-	tfvars["monitoring_core_gateway_memory_limit_mib"] = fmt.Sprintf("%d", gatewayLimitMiB)
-	tfvars["monitoring_core_gateway_memory_spike_limit_mib"] = fmt.Sprintf("%d", gatewaySpikeLimitMiB)
-	tfvars["monitoring_core_gateway_remote_write_endpoint"] = gatewayRemoteWriteEndpoint
-
-	return nil
-}
-
-func overlayMonitoringAgentRuntimeTemplateVars(tfvars map[string]any, cr *CompositionResult) error {
-	if cr == nil || !moduleIsEnabled(cr.EnabledModules, "monitoring-agent") {
-		return nil
-	}
-
-	profile := "standard"
-	endpoint := "techstack:4317"
-	collectionInterval := defaultMonitoringAgentCollectionInterval(profile)
-	batchTimeout := defaultMonitoringAgentBatchTimeout(profile)
-	memoryLimitMiB := 256
-	dockerEndpoint := "unix:///var/run/docker.sock"
-
-	if cr.ModuleSettings != nil {
-		if settings, ok := cr.ModuleSettings["monitoring-agent"]; ok {
-			if collector, ok := lookupMap(settings, "collector"); ok {
-				profile = lookupString(collector, "profile", profile)
-				endpoint = lookupString(collector, "endpoint", endpoint)
-				memoryLimitMiB = lookupInt(collector, "memoryLimitMiB", memoryLimitMiB)
-				collectionInterval = lookupString(collector, "collectionInterval", defaultMonitoringAgentCollectionInterval(profile))
-				batchTimeout = lookupString(collector, "batchTimeout", defaultMonitoringAgentBatchTimeout(profile))
-				if dockerStats, ok := lookupMap(collector, "dockerStats"); ok {
-					dockerEndpoint = lookupString(dockerStats, "endpoint", dockerEndpoint)
-				}
-			}
-		}
-	}
-
-	memoryLimiterLimitMiB, memorySpikeLimitMiB := monitoringAgentMemoryLimiter(memoryLimitMiB)
-
-	tfvars["monitoring_agent_profile"] = profile
-	tfvars["monitoring_agent_otlp_endpoint"] = endpoint
-	tfvars["monitoring_agent_collection_interval"] = collectionInterval
-	tfvars["monitoring_agent_batch_timeout"] = batchTimeout
-	tfvars["monitoring_agent_docker_endpoint"] = dockerEndpoint
-	tfvars["monitoring_agent_gomemlimit"] = fmt.Sprintf("%dMiB", memoryLimitMiB)
-	tfvars["monitoring_agent_memory_limit_mib"] = fmt.Sprintf("%d", memoryLimiterLimitMiB)
-	tfvars["monitoring_agent_memory_spike_limit_mib"] = fmt.Sprintf("%d", memorySpikeLimitMiB)
-
-	return nil
-}
-
-func defaultMonitoringAgentCollectionInterval(profile string) string {
-	if profile == "full" {
-		return "10s"
-	}
-	return "30s"
-}
-
-func defaultMonitoringAgentBatchTimeout(profile string) string {
-	if profile == "full" {
-		return "15s"
-	}
-	return "30s"
-}
-
-func monitoringAgentMemoryLimiter(memoryLimitMiB int) (int, int) {
-	limitMiB := memoryLimitMiB - 56
-	if limitMiB < 64 {
-		limitMiB = 64
-	}
-
-	spikeLimitMiB := limitMiB / 4
-	if spikeLimitMiB < 16 {
-		spikeLimitMiB = 16
-	}
-
-	return limitMiB, spikeLimitMiB
-}
-
-func lookupMap(values map[string]any, key string) (map[string]any, bool) {
-	v, ok := values[key]
-	if !ok {
-		return nil, false
-	}
-	mapped, ok := v.(map[string]any)
-	return mapped, ok
-}
-
-func lookupString(values map[string]any, key string, fallback string) string {
-	v, ok := values[key]
-	if !ok {
-		return fallback
-	}
-	if s, ok := v.(string); ok && s != "" {
-		return s
-	}
-	return fallback
-}
-
-func lookupInt(values map[string]any, key string, fallback int) int {
-	v, ok := values[key]
-	if !ok {
-		return fallback
-	}
-
-	switch n := v.(type) {
-	case int:
-		return n
-	case int8:
-		return int(n)
-	case int16:
-		return int(n)
-	case int32:
-		return int(n)
-	case int64:
-		return int(n)
-	case uint:
-		return int(n)
-	case uint8:
-		return int(n)
-	case uint16:
-		return int(n)
-	case uint32:
-		return int(n)
-	case uint64:
-		return int(n)
-	case float32:
-		return int(n)
-	case float64:
-		return int(n)
-	default:
-		return fallback
-	}
 }
 
 func overlayIdentityConfig(tfvars map[string]any, ic *IdentityConfig) error {
@@ -299,7 +121,9 @@ func overlayEnableFlags(tfvars map[string]any, enabledModules []string) {
 		"dockge":      "enable_dockge",
 		"coolify":     "enable_coolify",
 		"dashboard":   "enable_dashboard",
+		"homepage":    "enable_homepage",
 		"uptime-kuma": "enable_uptime_kuma",
+		"whoami":      "enable_whoami",
 		"vaultwarden": "enable_vaultwarden",
 		"jellyfin":    "enable_jellyfin",
 		"immich":      "enable_immich",

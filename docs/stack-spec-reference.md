@@ -36,10 +36,12 @@ apps:
     image: string         # Immutable image ref, e.g. ghcr.io/acme/app:v1
     port: int             # Internal port; defaults to 3000 for SvelteKit
     route:
-      host: string        # Defaults to <app>.<domain>
+      host: string        # Optional DNS hostname only; defaults to <app>.<domain>; kombify.me uses <prefix>-<app>.kombify.me
       auth: string        # "login-gateway" (default) or "public"
     health:
       path: string        # Defaults to /health
+    setup:
+      policy: string      # "manual" (default), "on_demand", or "automatic"
     env:
       PUBLIC_APP_NAME: string
     secrets:
@@ -59,8 +61,8 @@ network:
 compute:
   tier: string            # "low", "standard" (default), "high"
 
-# PAAS Platform (optional — auto-detected from compute tier if omitted)
-paas: string              # "dokploy" (default for standard/high), "coolify", "dockge" (default for low), "none"
+# PAAS Platform (optional — auto-detected from context/domain if omitted)
+paas: string              # "dokploy" (default local/kombify.me), "coolify" (cloud custom-domain)
 
 # Storage (optional — for devices with limited disk)
 storage:
@@ -92,22 +94,22 @@ environment:
 
 ## Domain Modes
 
-StackKits support three domain access modes. Each determines how service URLs are generated, how TLS certificates are obtained, and how DNS resolution works.
+StackKits support four domain access modes. Each determines how service URLs are generated, how TLS certificates are obtained, and how DNS resolution works.
 
 ### Mode 1: Custom Domain
 
 ```yaml
 context: cloud
-domain: kmbchr.de
-email: admin@kmbchr.de
+domain: sk-<run-id>.kombify.pro
+email: owner@kombify.pro
 tls:
   provider: cloudflare    # Required if device is behind NAT
 ```
 
-- **Service URLs:** `service.kmbchr.de` (e.g. `base.kmbchr.de`, `kuma.kmbchr.de`)
+- **Service URLs:** `service.sk-<run-id>.kombify.pro` (e.g. `base.sk-<run-id>.kombify.pro`, `id.sk-<run-id>.kombify.pro`)
 - **Default PAAS:** `coolify` when running in `cloud` context and `paas` is omitted
 - **TLS:** Let's Encrypt via ACME. TLS-ALPN-01 (default, needs public port 443) or DNS-01 (NAT-friendly, needs DNS provider API)
-- **DNS:** User manages DNS records (wildcard `*.kmbchr.de` → server IP)
+- **DNS:** User manages DNS records, or StackKits automates supported providers such as Cloudflare (wildcard `*.sk-<run-id>.kombify.pro` → server IP)
 - **Environment variables for DNS-01:**
   - `STACKKIT_DNS_TOKEN` — API key/token for the DNS provider
   - `STACKKIT_DNS_EMAIL` — Email for Cloudflare Global API Key auth (optional for scoped tokens)
@@ -121,38 +123,38 @@ subdomainPrefix: mylab
 ```
 
 - **Service URLs:** `mylab-service.kombify.me` (flat naming, single DNS level)
+- **App URLs:** `mylab-web.kombify.me` for `apps.web` when `route.host` is omitted
 - **Default PAAS:** `dokploy` when `paas` is omitted
 - **TLS:** Managed by kombify (Cloudflare wildcard)
 - **DNS:** Automatic via kombify.me subdomain registry
 - **Requires:** `KOMBIFY_API_KEY` environment variable
 - **Direct Connect:** After deploy, `stackkit apply` registers the instance with kombify. `stackkit-server` sends heartbeats so the Cloudflare Edge path can proxy traffic.
 
-### Mode 3: Local Zero-Config (home.localhost)
+### Mode 3: Local DNS (Kombify Point, Default)
 
 ```yaml
 context: local
-domain: home.localhost
-# or omit domain entirely (defaults to home.localhost)
+domain: stack.home
+# or omit domain entirely (defaults to stack.home)
 ```
 
-- **Service URLs:** `service.home.localhost` (e.g. `auth.home.localhost`, `kuma.home.localhost`)
-- **Default PAAS:** `dokploy` for `standard` / `high`, `dockge` for `low`
-- **TLS:** StackKits Step-CA
-- **DNS:** Browser/OS localhost resolution on the device reaching the stack
-- **Note:** zero-config `.localhost` names are device-local. Use Kombify Point for LAN-wide names.
+- **Service URLs:** `service.stack.home` (e.g. `auth.stack.home`, `whoami.stack.home`)
+- **Default PAAS:** `dokploy` for normal local and pi StackKits. Low-resource mode still reduces heavy apps, but does not switch to Dockge by default.
+- **TLS:** HTTP in local-only mode. Use a public/custom domain for real certificates.
+- **DNS:** Kombify Point resolves `*.stack.home` to the server LAN IP.
+- **Requires:** router/client DNS points at the StackKits server IP.
 
-### Mode 4: Local DNS (Kombify Point)
+### Mode 4: Named Local DNS / Legacy Device-Local
 
 ```yaml
 context: local
-domain: home
-# or domain: family.home
+domain: family.home
+# or explicit legacy device-local domain: home.localhost
 ```
 
-- **Service URLs:** `service.home` or `service.family.home`
-- **TLS:** StackKits Step-CA
-- **DNS:** Kombify Point resolves `*.home` or `*.family.home` to the server LAN IP
-- **Requires:** router/client DNS points at the StackKits server IP and clients trust the Step-CA root certificate.
+- **Service URLs:** `service.family.home` or `service.home.localhost`
+- **TLS:** HTTP for local-only names; real certs require routable public/custom domains.
+- **DNS:** Kombify Point for `*.home` zones; `.localhost` remains a legacy shortcut for one device.
 
 ## TLS Challenge Types
 
@@ -177,26 +179,25 @@ DNS-01 is auto-selected when `tls.provider` is set. Supported providers:
 |------|----------|--------|
 | `high` | 8+ CPU, 16+ GB RAM | Full stack, all use cases |
 | `standard` | 4+ CPU, 8+ GB RAM | Default. Dokploy or Coolify depending on context/domain |
-| `low` | <4 CPU or <4 GB RAM | Dockge replaces Dokploy. No heavy services |
+| `low` | <4 CPU or <4 GB RAM | Required platform remains Dokploy/Coolify. Heavy services are gated out |
 
 ## PAAS Platforms
 
 | Platform | When Used | Reverse Proxy |
 |----------|-----------|---------------|
-| `dokploy` | Local `standard`/`high`, or cloud with `kombify.me` | Dokploy's Traefik (platform services attach to Dokploy's network) |
-| `coolify` | Explicit `paas: coolify` | Coolify's Traefik (platform services attach to Coolify's network) |
-| `dockge` | Default for low tier | Standalone Traefik (StackKit deploys its own) |
-| `none` | No PAAS | Standalone Traefik |
+| `dokploy` | Local/PI, cloud with `kombify.me`, or cloud without a custom public domain | Dokploy's Traefik |
+| `coolify` | Cloud with a custom public domain, or explicit `paas: coolify` | Coolify's Traefik |
 
-When `paas` is omitted, it is auto-detected from context + domain + compute tier:
+`dockge` is a lightweight Compose manager, not a normal StackKit PaaS. It can exist as an experimental/constrained service mode, but `paas: dockge` and `paas: none` are invalid for normal Base/Modern/HA StackKits.
+
+User `apps:` require `dokploy` or `coolify`. The CLI helper `stackkit app add` switches an explicit `paas: none` local BaseKit spec to Dokploy so app-enabled installer runs cannot silently generate an undeployable platform handoff.
+
+When `paas` is omitted, it is auto-detected from context + domain:
 - `cloud` + custom public domain → `coolify`
 - `cloud` + `kombify.me` or no explicit public domain → `dokploy`
-- `local` / `pi` + `standard` / `high` → `dokploy`
-- `local` / `pi` + `low` → `dockge`
+- `local` / `pi` → `dokploy`
 
 **Reverse proxy backend:** When Dokploy or Coolify is the PAAS, they manage their own Traefik instance. Platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) attach to the PAAS Traefik network for routing. StackKit does NOT deploy a separate Traefik in this case.
-
-When Dockge is the PAAS (or no PAAS), StackKit deploys its own standalone Traefik container.
 
 See [ADR-0006](ADR/ADR-0006-service-url-matrix.md) for the full 9-scenario Service URL Matrix.
 
@@ -209,8 +210,8 @@ name: mylab
 stackkit: base-kit
 mode: simple
 context: cloud
-domain: example.com
-email: admin@example.com
+domain: sk-<run-id>.kombify.pro
+email: owner@kombify.pro
 tls:
   provider: cloudflare
 network:
@@ -229,7 +230,7 @@ nodes:
 
 ```bash
 STACKKIT_DNS_TOKEN=cf_api_key_here \
-STACKKIT_DNS_EMAIL=admin@example.com \
+STACKKIT_DNS_ZONE=kombify.pro \
 stackkit generate && stackkit apply --auto-approve
 ```
 
@@ -240,7 +241,7 @@ name: homelab
 stackkit: base-kit
 mode: simple
 context: local
-domain: home.localhost
+domain: stack.home
 compute:
   tier: low
 ssh:
@@ -252,52 +253,6 @@ nodes:
     ip: 192.168.1.50
 ```
 
-### Base Kit — OTLP Baseline (collector only)
-
-The full example lives at `base-kit/examples/otlp-baseline-spec.yaml`.
-
-```yaml
-name: otlp-baseline-lab
-stackkit: base-kit
-mode: simple
-context: local
-domain: home.localhost
-compute:
-  tier: standard
-ssh:
-  user: admin
-nodes:
-  - name: homeserver
-    role: standalone
-    ip: 192.168.1.100
-```
-
-`monitoring-agent` is enabled by default, so no add-on entry is required for the collector-only baseline.
-
-### Base Kit — OTLP + Monitoring Core (VictoriaMetrics)
-
-The full example lives at `base-kit/examples/otlp-victoriametrics-spec.yaml`.
-
-```yaml
-name: otlp-vm-lab
-stackkit: base-kit
-mode: simple
-context: cloud
-domain: observability.example.com
-compute:
-  tier: high
-addons:
-  - monitoring-core
-ssh:
-  user: admin
-nodes:
-  - name: observability-host
-    role: standalone
-    ip: 10.0.0.5
-```
-
-`monitoring-core` keeps the default collector path and adds the VictoriaMetrics-backed OTLP gateway for retention and fan-in.
-
 ### Base Kit — kombify.me
 
 ```yaml
@@ -307,7 +262,7 @@ mode: simple
 context: cloud
 domain: kombify.me
 subdomainPrefix: mylab
-email: user@example.com
+email: user@kombify.pro
 compute:
   tier: standard
 ssh:
@@ -326,8 +281,8 @@ name: mylab
 stackkit: base-kit
 mode: simple
 context: cloud
-domain: example.com
-email: admin@example.com
+domain: sk-<run-id>.kombify.pro
+email: owner@kombify.pro
 paas: coolify
 tls:
   provider: cloudflare
@@ -350,9 +305,9 @@ Platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) route through Co
 - `stackkit` must reference an existing StackKit (`base-kit`, `modern-homelab`, `ha-kit`)
 - `mode` must be `simple` or `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
-- `paas` must be `dokploy`, `coolify`, `dockge`, or `none` (auto-detected if omitted)
+- `paas` must be `dokploy` or `coolify` for normal StackKits (auto-detected if omitted)
 - `tls.provider` auto-selects `challenge: dns` if set
-- `domain: home.localhost` enables HTTPS through the local StackKits Step-CA
+- `domain: stack.home` enables Kombify Point local DNS and StackKit-managed Step-CA HTTPS
 - `domain: kombify.me` requires `subdomainPrefix` and `KOMBIFY_API_KEY`
 - At least one node required
 - Node IPs must be valid IPv4
@@ -362,4 +317,4 @@ Platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) route through Co
 - [Concepts (V5)](./CONCEPTS.md) — Architecture overview
 - [CLI Reference](./CLI.md) — Command documentation
 - [kombify.me Integration Guide](./kombify-me-integration-guide.md) — Subdomain service
-- [Creating StackKits Guide](./creating-stackkits.md) — How to build new StackKits
+- [DEVELOPMENT.md](./DEVELOPMENT.md) — Development workflow for current CUE contracts

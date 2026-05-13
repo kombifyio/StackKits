@@ -28,11 +28,10 @@ func TestGenerateTfvarsJSON_LocalModeCoreDecisions(t *testing.T) {
 	vars := decodeTFVars(t, spec)
 
 	assert.Equal(t, models.DomainHomeLab, stringVar(t, vars, "domain"))
-	assert.False(t, boolVar(t, vars, "enable_dnsmasq"))
-	assert.False(t, boolVar(t, vars, "enable_kombify_point"))
+	assert.True(t, boolVar(t, vars, "enable_dnsmasq"))
+	assert.True(t, boolVar(t, vars, "enable_kombify_point"))
 	assert.True(t, boolVar(t, vars, "enable_https"))
 	assert.True(t, boolVar(t, vars, "step_ca_enabled"))
-	assert.Equal(t, "step-ca", stringVar(t, vars, "tls_provider"))
 	assert.Equal(t, models.PAASDokploy, stringVar(t, vars, "paas"))
 	assert.True(t, boolVar(t, vars, "enable_dokploy"))
 	assert.False(t, boolVar(t, vars, "enable_dockge"))
@@ -60,7 +59,7 @@ func TestGenerateTfvarsJSON_PublicDomainEnablesManagedTLS(t *testing.T) {
 	assert.Equal(t, "admin@example.com", stringVar(t, vars, "acme_email"))
 }
 
-func TestGenerateTfvarsJSON_LowTierSelectsLightweightProfile(t *testing.T) {
+func TestGenerateTfvarsJSON_LowTierKeepsRequiredPlatform(t *testing.T) {
 	setCapabilitiesHome(t, models.ContextLocal)
 
 	spec := &models.StackSpec{
@@ -73,9 +72,9 @@ func TestGenerateTfvarsJSON_LowTierSelectsLightweightProfile(t *testing.T) {
 
 	vars := decodeTFVars(t, spec)
 
-	assert.Equal(t, models.PAASDockge, stringVar(t, vars, "paas"))
-	assert.False(t, boolVar(t, vars, "enable_dokploy"))
-	assert.True(t, boolVar(t, vars, "enable_dockge"))
+	assert.Equal(t, models.PAASDokploy, stringVar(t, vars, "paas"))
+	assert.True(t, boolVar(t, vars, "enable_dokploy"))
+	assert.False(t, boolVar(t, vars, "enable_dockge"))
 	assert.False(t, boolVar(t, vars, "enable_coolify"))
 	assert.False(t, boolVar(t, vars, "enable_jellyfin"))
 	assert.False(t, boolVar(t, vars, "enable_immich"))
@@ -130,7 +129,7 @@ func TestGenerateTfvarsJSON_CloudWithoutDomainDefaultsToKombifyMeDokploy(t *test
 
 	assert.Equal(t, models.DomainKombifyMe, stringVar(t, vars, "domain"))
 	assert.Equal(t, models.PAASDokploy, stringVar(t, vars, "paas"))
-	assert.Equal(t, models.ReverseProxyStandalone, stringVar(t, vars, "reverse_proxy_backend"))
+	assert.Equal(t, models.ReverseProxyDokploy, stringVar(t, vars, "reverse_proxy_backend"))
 	assert.True(t, boolVar(t, vars, "enable_dokploy"))
 	assert.False(t, boolVar(t, vars, "enable_coolify"))
 	assert.False(t, boolVar(t, vars, "enable_https"))
@@ -161,7 +160,7 @@ func TestGenerateTfvarsJSON_LocalDNSDomainEnablesKombifyPointWithExplicitPAAS(t 
 
 	spec := &models.StackSpec{
 		Name:   "local-coolify",
-		Domain: models.DomainHomeDNS,
+		Domain: models.DomainHomeLab,
 		PAAS:   models.PAASCoolify,
 		Nodes: []models.NodeSpec{
 			{Name: "node1", Role: "standalone", IP: "192.168.1.60"},
@@ -170,13 +169,37 @@ func TestGenerateTfvarsJSON_LocalDNSDomainEnablesKombifyPointWithExplicitPAAS(t 
 
 	vars := decodeTFVars(t, spec)
 
-	assert.Equal(t, models.DomainHomeDNS, stringVar(t, vars, "domain"))
+	assert.Equal(t, models.DomainHomeLab, stringVar(t, vars, "domain"))
 	assert.True(t, boolVar(t, vars, "enable_kombify_point"))
 	assert.True(t, boolVar(t, vars, "enable_dnsmasq"))
 	assert.Equal(t, "192.168.1.60", stringVar(t, vars, "server_lan_ip"))
 	assert.Equal(t, models.PAASCoolify, stringVar(t, vars, "paas"))
 	assert.True(t, boolVar(t, vars, "enable_coolify"))
 	assert.True(t, boolVar(t, vars, "enable_https"))
+	assert.True(t, boolVar(t, vars, "step_ca_enabled"))
+}
+
+func TestGenerateTfvarsJSON_MultiNodeDefaultsToCoolifyAndHomepage(t *testing.T) {
+	setCapabilitiesHome(t, models.ContextLocal)
+
+	spec := &models.StackSpec{
+		Name:   "cluster-lab",
+		Domain: models.DomainHomeLab,
+		Nodes: []models.NodeSpec{
+			{Name: "main-1", Role: models.NodeRoleMain, IP: "192.168.1.10"},
+			{Name: "worker-1", Role: models.NodeRoleWorker, IP: "192.168.1.11"},
+		},
+	}
+
+	vars := decodeTFVars(t, spec)
+
+	assert.Equal(t, models.PAASCoolify, stringVar(t, vars, "paas"))
+	assert.Equal(t, models.ReverseProxyCoolify, stringVar(t, vars, "reverse_proxy_backend"))
+	assert.True(t, boolVar(t, vars, "enable_coolify"))
+	assert.False(t, boolVar(t, vars, "enable_dokploy"))
+	assert.True(t, boolVar(t, vars, "enable_dashboard"))
+	assert.True(t, boolVar(t, vars, "enable_homepage"))
+	assert.True(t, boolVar(t, vars, "enable_uptime_kuma"))
 }
 
 func TestGenerateTfvarsJSON_BridgeParityOnCoreKeys(t *testing.T) {
@@ -223,6 +246,7 @@ func TestGenerateTfvarsJSON_BridgeParityOnCoreKeys(t *testing.T) {
 		"enable_dockge",
 		"enable_coolify",
 		"enable_dashboard",
+		"enable_homepage",
 		"enable_uptime_kuma",
 		"enable_vaultwarden",
 		"enable_jellyfin",

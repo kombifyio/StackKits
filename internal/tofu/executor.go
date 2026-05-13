@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -60,7 +61,7 @@ func (e *Executor) SetAutoApprove(autoApprove bool) {
 func NewExecutor(opts ...ExecutorOption) *Executor {
 	e := &Executor{
 		workDir: ".",
-		binary:  "tofu",
+		binary:  DefaultBinary(),
 		timeout: 30 * time.Minute,
 	}
 
@@ -69,6 +70,55 @@ func NewExecutor(opts ...ExecutorOption) *Executor {
 	}
 
 	return e
+}
+
+// BinaryName returns the OpenTofu executable name for the current platform.
+func BinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "tofu.exe"
+	}
+	return "tofu"
+}
+
+// PackagedBinaryPath returns the StackKit-packaged OpenTofu binary path.
+// It intentionally does not fall back to PATH: product and release tests must
+// prove that OpenTofu ships with StackKit, not that the host happens to have it.
+func PackagedBinaryPath() (string, bool) {
+	if override := os.Getenv("STACKKIT_TOFU_BINARY"); override != "" {
+		return override, fileExists(override)
+	}
+
+	exePath, err := os.Executable()
+	if err != nil || exePath == "" {
+		return "", false
+	}
+
+	exeDir := filepath.Dir(exePath)
+	for _, candidate := range []string{
+		filepath.Join(exeDir, BinaryName()),
+		filepath.Join(exeDir, "bin", BinaryName()),
+	} {
+		if fileExists(candidate) {
+			return candidate, true
+		}
+	}
+
+	return "", false
+}
+
+// DefaultBinary resolves the OpenTofu binary used by regular execution.
+// It intentionally avoids PATH fallback so a host-installed OpenTofu cannot
+// make StackKit appear release-ready when the package is missing its own copy.
+func DefaultBinary() string {
+	if path, ok := PackagedBinaryPath(); ok {
+		return path
+	}
+	return filepath.Join(".stackkit-missing-packaged-opentofu", BinaryName())
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 // Result represents the result of a tofu command

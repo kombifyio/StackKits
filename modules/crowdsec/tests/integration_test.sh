@@ -69,6 +69,34 @@ for i in $(seq 1 60); do
     sleep 1
 done
 
+echo "Waiting for CrowdSec LAPI to accept local credentials (up to 60s)..."
+for i in $(seq 1 60); do
+    LAPI_STATUS=$(docker exec test-cs-crowdsec cscli lapi status 2>&1 || true)
+    if echo "$LAPI_STATUS" | grep -qi "successfully interact\|online\|OK\|running"; then
+        echo "  LAPI: ready (${i}s)"
+        break
+    fi
+    if [ "$i" = "60" ]; then
+        echo "  LAPI: NOT ready after 60s"
+        echo "$LAPI_STATUS" | tail -10
+    fi
+    sleep 1
+done
+
+echo "Waiting for Traefik route to settle (up to 60s)..."
+for i in $(seq 1 60); do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: whoami.test.local" "$BASE_URL/" 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" = "200" ]; then
+        echo "  whoami route: ready (${i}s)"
+        break
+    fi
+    if [ "$i" = "60" ]; then
+        echo "  whoami route: NOT ready after 60s (HTTP $HTTP_CODE)"
+        docker logs test-cs-traefik 2>&1 | tail -20
+    fi
+    sleep 1
+done
+
 echo ""
 echo "--- Running Tests ---"
 
@@ -94,7 +122,7 @@ log_section "CrowdSec LAPI"
 
 log_test "CrowdSec LAPI is accessible"
 LAPI_STATUS=$(docker exec test-cs-crowdsec cscli lapi status 2>&1 || echo "error")
-if echo "$LAPI_STATUS" | grep -qi "online\|OK\|running"; then
+if echo "$LAPI_STATUS" | grep -qi "successfully interact\|online\|OK\|running"; then
     log_pass "LAPI is online"
 else
     log_fail "LAPI status: $LAPI_STATUS"

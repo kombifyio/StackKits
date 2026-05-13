@@ -91,6 +91,10 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "logs.latest", "description": "Get the latest deploy log", "method": "GET", "path": "/api/v1/logs/latest"},
 			{"name": "logs.get", "description": "Get deploy log by run ID", "method": "GET", "path": "/api/v1/logs/{runID}"},
 			{"name": "logs.stream", "description": "Stream live deploy log events (SSE)", "method": "GET", "path": "/api/v1/logs/{runID}/stream"},
+			// Internal runtime actions
+			{"name": "runtime.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-rollout"},
+			{"name": "runtime.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-verify"},
+			{"name": "runtime.restore_drill", "description": "Run or dry-run a StackKits restore drill for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/restore-drill"},
 			// Registry
 			{"name": "registry.register", "description": "Register stackkit-server instance for Direct Connect", "method": "POST", "path": "/api/v1/registry/instances"},
 			{"name": "registry.heartbeat", "description": "Send instance heartbeat", "method": "PUT", "path": "/api/v1/registry/instances/{instanceId}/heartbeat"},
@@ -205,7 +209,7 @@ func (s *Server) handleGetStackKitSchema(w http.ResponseWriter, r *http.Request)
 	candidates := []string{"schema.cue", "stackkit.cue", name + ".cue"}
 	for _, c := range candidates {
 		p := filepath.Join(dir, c)
-		if _, statErr := os.Stat(p); statErr == nil {
+		if _, statErr := os.Stat(p); statErr == nil { // #nosec G304 G703 -- c is from a fixed candidate allow-list above.
 			schemaPath = p
 			break
 		}
@@ -229,7 +233,7 @@ func (s *Server) handleGetStackKitSchema(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := os.ReadFile(schemaPath)
+	data, err := os.ReadFile(schemaPath) // #nosec G304 G703 -- schemaPath was just resolved against the candidate allow-list / .cue suffix filter above.
 	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "failed to read schema")
 		return
@@ -513,7 +517,6 @@ func validatePartialNodes(partial map[string]interface{}) []models.ValidationErr
 		return nil
 	}
 	var errs []models.ValidationError
-	validRoles := map[string]bool{"control-plane": true, "worker": true, "standalone": true}
 	namesSeen := make(map[string]bool)
 	for i, n := range nodes {
 		node, ok := n.(map[string]interface{})
@@ -532,10 +535,10 @@ func validatePartialNodes(partial map[string]interface{}) []models.ValidationErr
 			namesSeen[nodeName] = true
 		}
 		if role, ok := node["role"].(string); ok {
-			if !validRoles[role] {
+			if !models.IsKnownNodeRole(role) {
 				errs = append(errs, models.ValidationError{
 					Path:    prefix + ".role",
-					Message: "invalid node role '" + role + "', expected control-plane/worker/standalone",
+					Message: "invalid node role '" + role + "', expected main/worker/storage/control-plane/standalone",
 					Code:    "INVALID_NODE_ROLE",
 				})
 			}

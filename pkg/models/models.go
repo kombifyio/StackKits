@@ -84,9 +84,8 @@ const (
 	PAASNone    = "none"
 
 	// Reverse proxy backend — determines which Traefik instance routes platform services.
-	// The default StackKit install deploys its own Traefik even when Dokploy is
-	// installed as the PaaS service; Dokploy/Coolify backends are reserved for
-	// future "attach to existing PaaS" flows.
+	// Standard StackKit app rollouts are routed through the selected platform
+	// backend; standalone is only for nonstandard/legacy modes.
 	ReverseProxyStandalone = "standalone"
 	ReverseProxyDokploy    = "dokploy"
 	ReverseProxyCoolify    = "coolify"
@@ -94,12 +93,12 @@ const (
 	// Domain constants
 	DomainKombifyMe = "kombify.me"
 	DomainHomelab   = "homelab"
-	// DomainHomeLab keeps the historical constant name for compatibility, but
-	// the default local suffix is the browser-supported home.localhost zone.
-	// It works without router or client DNS changes on the machine that reaches
-	// the stack.
-	DomainHomeLab           = "home.localhost"
-	DomainHomeLocalhost     = DomainHomeLab
+	// DomainHomeLab keeps the historical constant name for compatibility. The
+	// default local deployment domain sits under the Kombify Point .home zone
+	// and keeps service hosts at least three labels long (auth.stack.home),
+	// which local OIDC gateways require.
+	DomainHomeLab           = "stack.home"
+	DomainHomeLocalhost     = "home.localhost"
 	DomainHomeKombifyLegacy = "home.kombify"
 	DomainHomeLabLegacy     = "home.lab"
 	DomainHomeDNS           = "home"
@@ -108,6 +107,60 @@ const (
 // IsKombifyMeDomain returns true for the managed kombify.me shared domain.
 func IsKombifyMeDomain(domain string) bool {
 	return strings.EqualFold(domain, DomainKombifyMe)
+}
+
+// NeedsSyntheticAdminEmail reports whether the configured admin identity is only
+// a placeholder and must be converted into a usable email-shaped login.
+func NeedsSyntheticAdminEmail(email string) bool {
+	email = strings.TrimSpace(email)
+	return email == "" || strings.EqualFold(email, "admin")
+}
+
+// SyntheticAdminEmail returns the generated admin email for a deployment.
+func SyntheticAdminEmail(domain, subdomainPrefix string) string {
+	return "admin@" + adminEmailHost(domain, subdomainPrefix)
+}
+
+// NormalizeAdminEmail converts empty or bare admin identities into a usable
+// email-shaped login. Bare usernames are scoped to the deployment host.
+func NormalizeAdminEmail(email, domain, subdomainPrefix string) string {
+	email = strings.TrimSpace(email)
+	if NeedsSyntheticAdminEmail(email) {
+		return SyntheticAdminEmail(domain, subdomainPrefix)
+	}
+	if strings.Contains(email, "@") {
+		return email
+	}
+	return email + "@" + adminEmailHost(domain, subdomainPrefix)
+}
+
+// DefaultAppHost returns the route host for a StackSpec app when route.host is
+// omitted. kombify.me app routes use the flat registry service naming shape.
+func DefaultAppHost(domain, subdomainPrefix, appName string) string {
+	domain = strings.TrimSpace(domain)
+	if domain == "" {
+		domain = DomainHomeLab
+	}
+	prefix := strings.Trim(strings.TrimSpace(subdomainPrefix), ".")
+	if IsKombifyMeDomain(domain) && prefix != "" {
+		return prefix + "-" + appName + "." + domain
+	}
+	return appName + "." + domain
+}
+
+func adminEmailHost(domain, subdomainPrefix string) string {
+	domain = strings.ToLower(strings.Trim(strings.TrimSpace(domain), "."))
+	subdomainPrefix = strings.ToLower(strings.Trim(strings.TrimSpace(subdomainPrefix), "."))
+
+	switch domain {
+	case "", DomainHomelab, DomainHomeDNS, DomainHomeLocalhost, DomainHomeKombifyLegacy, DomainHomeLabLegacy, "localhost", "stack.local":
+		domain = DomainHomeLab
+	}
+
+	if IsKombifyMeDomain(domain) && subdomainPrefix != "" {
+		return subdomainPrefix + "." + DomainKombifyMe
+	}
+	return domain
 }
 
 // IsLocalDomain returns true for local-only or non-routable domains.
@@ -154,7 +207,7 @@ func RequiresKombifyPoint(domain string) bool {
 func LocalDNSDomain(localName string) string {
 	localName = strings.Trim(strings.ToLower(strings.TrimSpace(localName)), ".")
 	if localName == "" {
-		return DomainHomeDNS
+		return DomainHomeLab
 	}
 	if strings.HasSuffix(localName, "."+DomainHomeDNS) {
 		return localName
@@ -219,7 +272,7 @@ type StackSpec struct {
 	SSH             SSHSpec            `yaml:"ssh,omitempty" json:"ssh,omitempty"`
 	Nodes           []NodeSpec         `yaml:"nodes,omitempty" json:"nodes,omitempty"`
 	TLS             TLSSpec            `yaml:"tls,omitempty" json:"tls,omitempty"`
-	PAAS            string             `yaml:"paas,omitempty" json:"paas,omitempty"` // "dokploy", "coolify", "dockge", "none" (auto-detected from tier if empty)
+	PAAS            string             `yaml:"paas,omitempty" json:"paas,omitempty"` // "dokploy" or "coolify" for normal StackKits (auto-detected if empty)
 	Addons          []string           `yaml:"addons,omitempty" json:"addons,omitempty"`
 	Services        map[string]any     `yaml:"services,omitempty" json:"services,omitempty"`
 	Apps            map[string]AppSpec `yaml:"apps,omitempty" json:"apps,omitempty"`
@@ -253,8 +306,26 @@ type AppSpec struct {
 	Port    int               `yaml:"port,omitempty" json:"port,omitempty"`
 	Route   AppRouteSpec      `yaml:"route,omitempty" json:"route,omitempty"`
 	Health  AppHealthSpec     `yaml:"health,omitempty" json:"health,omitempty"`
+	Setup   AppSetupSpec      `yaml:"setup,omitempty" json:"setup,omitempty"`
 	Env     map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
 	Secrets map[string]string `yaml:"secrets,omitempty" json:"secrets,omitempty"`
+}
+
+// AppSetupSpec describes first-run setup behavior for a platform-managed app.
+type AppSetupSpec struct {
+	Policy string          `yaml:"policy,omitempty" json:"policy,omitempty"`
+	Drops  []SetupDropSpec `yaml:"drops,omitempty" json:"drops,omitempty"`
+}
+
+// SetupDropSpec describes a setup unit that can run separately from deploy.
+type SetupDropSpec struct {
+	Name        string            `yaml:"name" json:"name"`
+	Version     string            `yaml:"version,omitempty" json:"version,omitempty"`
+	Runner      string            `yaml:"runner,omitempty" json:"runner,omitempty"`
+	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Command     []string          `yaml:"command,omitempty" json:"command,omitempty"`
+	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
+	Secrets     map[string]string `yaml:"secrets,omitempty" json:"secrets,omitempty"`
 }
 
 // AppRouteSpec describes how an app is exposed through Traefik.
@@ -301,8 +372,8 @@ type OwnerConfig struct {
 	// CloudOIDCClientID is the registered client ID at the cloud OIDC issuer.
 	CloudOIDCClientID string `yaml:"cloudOidcClientId,omitempty" json:"cloudOidcClientId,omitempty"`
 
-	// CloudOIDCClientSecretRef is a secret-store reference (e.g. secret:// or
-	// vault://) pointing at the OIDC client secret. The literal secret is
+	// CloudOIDCClientSecretRef is a secret-store reference (e.g. doppler:// or
+	// secret://) pointing at the OIDC client secret. The literal secret is
 	// never persisted in the spec.
 	CloudOIDCClientSecretRef string `yaml:"cloudOidcClientSecretRef,omitempty" json:"cloudOidcClientSecretRef,omitempty"`
 
@@ -372,10 +443,59 @@ type SSHSpec struct {
 	MaxAuthTries int `yaml:"maxAuthTries,omitempty" json:"maxAuthTries,omitempty"`
 }
 
+const (
+	// NodeRoleMain is the canonical role for the homelab control node. The
+	// main node owns identity, StackKits control state, and the PaaS UI.
+	NodeRoleMain = "main"
+	// NodeRoleControlPlane is a compatibility alias for NodeRoleMain.
+	NodeRoleControlPlane = "control-plane"
+	// NodeRoleStandalone is a compatibility alias for a single-node main.
+	NodeRoleStandalone = "standalone"
+	NodeRoleWorker     = "worker"
+	NodeRoleStorage    = "storage"
+)
+
+// CanonicalNodeRole maps compatible legacy role names to the BaseKit v1 role
+// vocabulary used for validation and placement decisions.
+func CanonicalNodeRole(role string) string {
+	switch role {
+	case "", NodeRoleMain, NodeRoleControlPlane, NodeRoleStandalone:
+		return NodeRoleMain
+	case NodeRoleWorker:
+		return NodeRoleWorker
+	case NodeRoleStorage:
+		return NodeRoleStorage
+	default:
+		return role
+	}
+}
+
+// IsMainNodeRole reports whether role identifies the homelab main node.
+func IsMainNodeRole(role string) bool {
+	return CanonicalNodeRole(role) == NodeRoleMain
+}
+
+// IsKnownNodeRole reports whether role is part of the supported BaseKit node
+// vocabulary or one of its compatibility aliases.
+func IsKnownNodeRole(role string) bool {
+	switch role {
+	case "", NodeRoleMain, NodeRoleControlPlane, NodeRoleStandalone, NodeRoleWorker, NodeRoleStorage:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsMultiNode reports whether the spec describes one homelab spread across
+// multiple registered nodes.
+func (s *StackSpec) IsMultiNode() bool {
+	return s != nil && len(s.Nodes) > 1
+}
+
 // NodeSpec defines a deployment node
 type NodeSpec struct {
 	Name     string   `yaml:"name" json:"name"`
-	Role     string   `yaml:"role" json:"role"` // "control-plane", "worker", "standalone"
+	Role     string   `yaml:"role" json:"role"` // "main", "worker", "storage"; aliases: "control-plane", "standalone"
 	IP       string   `yaml:"ip" json:"ip"`
 	Host     string   `yaml:"host,omitempty" json:"host,omitempty"` // hostname or FQDN
 	Services []string `yaml:"services,omitempty" json:"services,omitempty"`
@@ -389,12 +509,29 @@ type NodeSpec struct {
 
 // DeploymentState represents the current deployment state
 type DeploymentState struct {
-	StackKit    string           `yaml:"stackkit" json:"stackkit"`
-	Mode        string           `yaml:"mode" json:"mode"`
-	Status      DeploymentStatus `yaml:"status" json:"status"`
-	LastApplied time.Time        `yaml:"lastApplied" json:"lastApplied"`
-	TofuState   string           `yaml:"tofuState,omitempty" json:"tofuState,omitempty"`
-	Services    []ServiceState   `yaml:"services" json:"services"`
+	StackKit           string             `yaml:"stackkit" json:"stackkit"`
+	Mode               string             `yaml:"mode" json:"mode"`
+	Status             DeploymentStatus   `yaml:"status" json:"status"`
+	LastApplied        time.Time          `yaml:"lastApplied" json:"lastApplied"`
+	TofuState          string             `yaml:"tofuState,omitempty" json:"tofuState,omitempty"`
+	Services           []ServiceState     `yaml:"services" json:"services"`
+	PlatformSystemApps []PlatformAppState `yaml:"platformSystemApps,omitempty" json:"platformSystemApps,omitempty"`
+	PlatformApps       []PlatformAppState `yaml:"platformApps,omitempty" json:"platformApps,omitempty"`
+	SetupRuns          []SetupRunState    `yaml:"setupRuns,omitempty" json:"setupRuns,omitempty"`
+
+	// KitVersionID, KitSemver, KitChannel are populated by `stackkit apply`
+	// and `stackkit kit upgrade` (kit-update-phase-1, ADR-0018). State files
+	// written by older CLI versions leave these empty; the upgrade command
+	// fails with a clear "re-apply to populate version metadata" message
+	// rather than guessing.
+	KitVersionID string `yaml:"kitVersionId,omitempty" json:"kitVersionId,omitempty"`
+	KitSemver    string `yaml:"kitSemver,omitempty" json:"kitSemver,omitempty"`
+	KitChannel   string `yaml:"kitChannel,omitempty" json:"kitChannel,omitempty"`
+
+	// LastSnapshotDir points at .stackkit/snapshots/<ts>-<old-kit>/ — used
+	// by `stackkit kit upgrade rollback` as the default --to-snapshot when
+	// the operator does not pass one explicitly.
+	LastSnapshotDir string `yaml:"lastSnapshotDir,omitempty" json:"lastSnapshotDir,omitempty"`
 }
 
 // DeploymentStatus represents deployment status
@@ -417,6 +554,31 @@ type ServiceState struct {
 	Container string        `yaml:"container,omitempty" json:"container,omitempty"`
 	URL       string        `yaml:"url,omitempty" json:"url,omitempty"`
 	Health    HealthStatus  `yaml:"health" json:"health"`
+}
+
+// PlatformAppState records the external platform identity for a StackKit L3 app.
+type PlatformAppState struct {
+	Name         string          `yaml:"name" json:"name"`
+	Role         string          `yaml:"role,omitempty" json:"role,omitempty"`
+	Platform     string          `yaml:"platform" json:"platform"`
+	ExternalID   string          `yaml:"externalId" json:"externalId"`
+	DeploymentID string          `yaml:"deploymentId,omitempty" json:"deploymentId,omitempty"`
+	ComposePath  string          `yaml:"composePath,omitempty" json:"composePath,omitempty"`
+	SetupPolicy  string          `yaml:"setupPolicy,omitempty" json:"setupPolicy,omitempty"`
+	SetupDrops   []SetupDropSpec `yaml:"setupDrops,omitempty" json:"setupDrops,omitempty"`
+	LastDeployed time.Time       `yaml:"lastDeployed,omitempty" json:"lastDeployed,omitempty"`
+}
+
+// SetupRunState records an explicit setup-drop execution. Manual setup drops
+// remain absent from this list until a user requests a run.
+type SetupRunState struct {
+	AppName       string    `yaml:"appName" json:"appName"`
+	DropName      string    `yaml:"dropName" json:"dropName"`
+	Policy        string    `yaml:"policy,omitempty" json:"policy,omitempty"`
+	Status        string    `yaml:"status" json:"status"`
+	LastRequested time.Time `yaml:"lastRequested,omitempty" json:"lastRequested,omitempty"`
+	LastStarted   time.Time `yaml:"lastStarted,omitempty" json:"lastStarted,omitempty"`
+	LastFinished  time.Time `yaml:"lastFinished,omitempty" json:"lastFinished,omitempty"`
 }
 
 // ServiceStatus represents service status
@@ -567,7 +729,7 @@ type StorageResolution struct {
 }
 
 // InstanceRegistration is the payload sent to kombify when a stackkit-server
-// registers itself for Direct Connect (Kong proxies directly to it).
+// registers itself for Direct Connect (Cloudflare Edge proxies directly to it).
 type InstanceRegistration struct {
 	InstanceID  string        `json:"instance_id"`        // Unique instance identifier (device fingerprint + stackkit name)
 	EndpointURL string        `json:"endpoint_url"`       // Public URL where stackkit-server is reachable (e.g. https://api.mylab.kombify.me)
@@ -597,10 +759,14 @@ func (s *StackSpec) ResolveReverseProxy() string {
 // ResolveReverseProxyForPAAS determines which Traefik instance routes platform
 // services for the given PAAS selection.
 func ResolveReverseProxyForPAAS(paas string) string {
-	if paas == PAASCoolify {
+	switch paas {
+	case PAASDokploy:
+		return ReverseProxyDokploy
+	case PAASCoolify:
 		return ReverseProxyCoolify
+	default:
+		return ReverseProxyStandalone
 	}
-	return ReverseProxyStandalone
 }
 
 // ResolvePAAS determines the PAAS platform from explicit setting or compute tier.
@@ -618,6 +784,10 @@ func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
 		return s.PAAS
 	}
 
+	if s.IsMultiNode() {
+		return PAASCoolify
+	}
+
 	if ctx == ContextCloud {
 		if s.HasCustomPublicDomain() {
 			return PAASCoolify
@@ -629,17 +799,19 @@ func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
 }
 
 func (s *StackSpec) resolvePAASByTier() string {
-	tier := s.Compute.Tier
-	if tier == "" {
-		tier = ComputeTierStandard
-	}
+	return PAASDokploy
+}
 
-	switch tier {
-	case ComputeTierLow:
-		return PAASDockge
-	default:
-		return PAASDokploy
-	}
+// IsStandardPAAS reports whether the platform is allowed for normal StackKit
+// rollouts. Normal Base/Modern/HA kits must resolve to one of these.
+func IsStandardPAAS(paas string) bool {
+	return paas == PAASDokploy || paas == PAASCoolify
+}
+
+// IsExperimentalPAAS reports whether the platform exists only as a constrained
+// nonstandard mode rather than a normal StackKit default.
+func IsExperimentalPAAS(paas string) bool {
+	return paas == PAASDockge
 }
 
 // SystemInfo represents system information from a node

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/terramate"
+	"github.com/kombifyio/stackkits/internal/tofu"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +72,28 @@ func TestNewExecutor(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, ModeOpenTofu, exec.Mode())
 	})
+}
+
+func TestIsTransientTofuInitFailure(t *testing.T) {
+	assert.True(t, isTransientTofuInitFailure("failed to retrieve cryptographic signature: 502 Bad Gateway"))
+	assert.True(t, isTransientTofuInitFailure("could not query provider registry: request failed after 2 attempts"))
+	assert.False(t, isTransientTofuInitFailure("Error: Unsupported argument"))
+}
+
+func TestIsTransientTofuInitFailureMarkers(t *testing.T) {
+	transient := []string{
+		"503 service unavailable",
+		"504 gateway timeout",
+		"connection reset by peer",
+		"failed to retrieve cryptographic signature",
+		"timeout awaiting response headers",
+		"tls handshake timeout",
+	}
+	for _, marker := range transient {
+		t.Run(marker, func(t *testing.T) {
+			assert.True(t, isTransientTofuInitFailure(marker))
+		})
+	}
 }
 
 func TestNewExecutorFromSpec(t *testing.T) {
@@ -207,6 +231,40 @@ func TestDriftedResource(t *testing.T) {
 	assert.Equal(t, "create", resource.Action)
 }
 
+func TestTofuResultToExecCopiesFields(t *testing.T) {
+	result := &tofu.Result{
+		Success:  true,
+		Stdout:   "ok",
+		Stderr:   "",
+		ExitCode: 0,
+		Duration: 2 * time.Second,
+	}
+
+	got := tofuResultToExec(result)
+	assert.Equal(t, true, got.Success)
+	assert.Equal(t, "ok", got.Stdout)
+	assert.Equal(t, "", got.Stderr)
+	assert.Equal(t, 0, got.ExitCode)
+	assert.Equal(t, 2*time.Second, got.Duration)
+}
+
+func TestTerramateResultToExecCopiesFields(t *testing.T) {
+	result := &terramate.Result{
+		Success:  false,
+		Stdout:   "out",
+		Stderr:   "err",
+		ExitCode: 1,
+		Duration: 3 * time.Second,
+	}
+
+	got := tmResultToExec(result)
+	assert.Equal(t, false, got.Success)
+	assert.Equal(t, "out", got.Stdout)
+	assert.Equal(t, "err", got.Stderr)
+	assert.Equal(t, 1, got.ExitCode)
+	assert.Equal(t, 3*time.Second, got.Duration)
+}
+
 func TestConfig(t *testing.T) {
 	cfg := &Config{
 		WorkDir:     "/custom/path",
@@ -223,12 +281,12 @@ func TestConfig(t *testing.T) {
 	assert.True(t, cfg.AutoApprove)
 }
 
-// Integration tests that require actual tools installed
+// Integration tests that require the StackKit-packaged OpenTofu binary.
 func TestExecutorIntegration(t *testing.T) {
-	t.Run("opentofu version if installed", func(t *testing.T) {
+	t.Run("packaged opentofu version if available", func(t *testing.T) {
 		exec, _ := NewExecutor(nil)
 		if !exec.IsInstalled() {
-			t.Skip("OpenTofu not installed")
+			t.Skip("StackKit-packaged OpenTofu not available in this test layout")
 		}
 
 		ctx := context.Background()

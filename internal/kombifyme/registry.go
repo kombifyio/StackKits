@@ -14,7 +14,7 @@ type RegistryResponse struct {
 }
 
 // RegisterInstance registers a stackkit-server instance with kombify for Direct Connect.
-// Kong uses this registry to discover and proxy requests to the instance.
+// Cloudflare Edge uses this registry to discover and proxy requests to the instance.
 func (c *Client) RegisterInstance(reg *models.InstanceRegistration) (*RegistryResponse, error) {
 	var resp RegistryResponse
 	if err := c.post("/registry/instances", reg, &resp); err != nil {
@@ -23,7 +23,7 @@ func (c *Client) RegisterInstance(reg *models.InstanceRegistration) (*RegistryRe
 	return &resp, nil
 }
 
-// Heartbeat sends a status update to kombify so Kong knows the instance is alive.
+// Heartbeat sends a status update to kombify so Cloudflare Edge knows the instance is alive.
 func (c *Client) Heartbeat(instanceID, status string) error {
 	body := map[string]string{
 		"instance_id": instanceID,

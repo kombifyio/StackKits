@@ -38,6 +38,8 @@ type CatalogEntry struct {
 	Order int
 	// Terraform enable variable name. Empty = always shown.
 	EnableVar string
+	// Public Mintlify guide URL for this service.
+	GuideURL string
 }
 
 // ServiceCatalogFromModules reads all module contracts and builds the service catalog.
@@ -129,6 +131,7 @@ func catalogEntryForService(mc ModuleContract, svc ServiceDef) CatalogEntry {
 		Section:     svc.DashboardSection,
 		Order:       svc.DashboardOrder,
 		EnableVar:   svc.DashboardEnableVar,
+		GuideURL:    svc.DashboardGuideURL,
 	}
 }
 
@@ -167,21 +170,21 @@ func fallbackCatalogEntries() []CatalogEntry {
 			DisplayName: "Coolify",
 			Description: "Self-hosted Heroku/Vercel alternative with Git deployment and auto-HTTPS.",
 			Icon:        "&#128171;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 41,
-			EnableVar: "enable_coolify",
+			EnableVar: "enable_coolify", GuideURL: "https://docs.kombify.io/guides/stackkits/services/coolify",
 		},
 		{
 			Key: "dockge", Nested: "dockge", Flat: "dockge",
 			DisplayName: "Dockge",
 			Description: "Lightweight Docker Compose manager. Create and manage compose stacks with a simple UI.",
 			Icon:        "&#128230;", Badge: "L2 \u00b7 Compose Manager", Section: "Platform", Order: 42,
-			EnableVar: "enable_dockge",
+			EnableVar: "enable_dockge", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dockge",
 		},
 		{
 			Key: "point", Nested: "point", Flat: "point",
-			DisplayName: "Kombify Point DNS",
+			DisplayName: "kombify Point DNS",
 			Description: "Local LAN DNS resolver for readable home service names.",
 			Icon:        "&#127760;", Badge: "L1 \u00b7 DNS", Section: "Platform", Order: 35,
-			EnableVar: "enable_kombify_point",
+			EnableVar: "enable_kombify_point", GuideURL: "https://docs.kombify.io/guides/stackkits/services/kombify-point",
 		},
 	}
 }
@@ -205,6 +208,13 @@ func ServiceCatalog() []CatalogEntry {
 			Icon:        "&#128274;", Badge: "L1 &middot; ForwardAuth", Section: "Platform", Order: 20,
 		},
 		{
+			Key: "home", Nested: "home", Flat: "home",
+			DisplayName: "Homepage",
+			Description: "IaC-managed homelab start dashboard generated from the StackKits service catalog.",
+			Icon:        "&#8962;", Badge: "L3 &middot; Start", Section: "Platform", Order: 0,
+			EnableVar: "enable_homepage",
+		},
+		{
 			Key: "traefik", Nested: "traefik", Flat: "traefik",
 			DisplayName: "Traefik",
 			Description: "Routes all traffic across services. View active routes, middlewares, and upstreams.",
@@ -219,7 +229,7 @@ func ServiceCatalog() []CatalogEntry {
 		},
 		{
 			Key: "point", Nested: "point", Flat: "point",
-			DisplayName: "Kombify Point DNS",
+			DisplayName: "kombify Point DNS",
 			Description: "Local LAN DNS resolver for readable home service names.",
 			Icon:        "&#127760;", Badge: "L1 &middot; DNS", Section: "Platform", Order: 35,
 			EnableVar: "enable_kombify_point",
@@ -245,12 +255,14 @@ func ServiceCatalog() []CatalogEntry {
 			DisplayName: "Uptime Kuma",
 			Description: "Service uptime monitoring and status pages for all homelab services.",
 			Icon:        "&#128202;", Badge: "L3 &middot; Monitoring", Section: "Applications", Order: 10,
+			EnableVar: "enable_uptime_kuma",
 		},
 		{
 			Key: "whoami", Nested: "whoami", Flat: "whoami",
 			DisplayName: "Whoami",
 			Description: "HTTP echo service for verifying Traefik routing, TinyAuth middleware, and headers.",
 			Icon:        "&#129302;", Badge: "L3 &middot; Test", Section: "Applications", Order: 20,
+			EnableVar: "enable_whoami",
 		},
 		{
 			Key: "vault", Nested: "vault", Flat: "vault",

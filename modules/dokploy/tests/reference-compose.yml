@@ -7,8 +7,10 @@
 
 services:
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.6
     container_name: test-traefik-dokploy
+    environment:
+      DOCKER_API_VERSION: "1.40"
     command:
       - "--api.insecure=true"
       - "--ping=true"
@@ -40,6 +42,7 @@ services:
     container_name: test-dokploy
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=1024"
       DATABASE_URL: "postgresql://dokploy:${DOKPLOY_TEST_POSTGRES_PASSWORD:?set DOKPLOY_TEST_POSTGRES_PASSWORD}@dokploy-postgres:5432/dokploy"
       REDIS_URL: "redis://dokploy-redis:6379"
       # dokploy refuses to boot without an encryption key (used to encrypt
@@ -59,6 +62,7 @@ services:
       - "traefik.http.routers.dokploy.rule=Host(`dokploy.test.local`)"
       - "traefik.http.routers.dokploy.entrypoints=web"
       - "traefik.http.services.dokploy.loadbalancer.server.port=3000"
+      - "traefik.docker.network=dokploy-test-net"
     depends_on:
       dokploy-postgres:
         condition: service_healthy
@@ -77,7 +81,7 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    mem_limit: 1g
+    mem_limit: 1536m
     cpus: 1.0
 
   dokploy-postgres:
@@ -86,7 +90,7 @@ services:
     environment:
       POSTGRES_DB: dokploy
       POSTGRES_USER: dokploy
-      POSTGRES_PASSWORD: testpass123
+      POSTGRES_PASSWORD: "${DOKPLOY_TEST_POSTGRES_PASSWORD:?set DOKPLOY_TEST_POSTGRES_PASSWORD}"
     volumes:
       - dokploy-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -171,8 +175,10 @@ services:
 
 networks:
   test-net:
+    name: dokploy-test-net
     driver: bridge
   test-db-net:
+    name: dokploy-test-db-net
     driver: bridge
     internal: true
 

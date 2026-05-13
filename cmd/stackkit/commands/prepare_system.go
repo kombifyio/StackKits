@@ -1,14 +1,10 @@
 package commands
 
 import (
-	"context"
-	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/ssh"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -88,58 +84,4 @@ func detectCgroupVersion() string {
 		}
 	}
 	return "v1"
-}
-
-func installTofuLocal(ctx context.Context) error {
-	// Try the official installer first (deb → rpm → standalone binary fallback)
-	script := `
-set -e
-curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh
-chmod +x /tmp/install-opentofu.sh
-/tmp/install-opentofu.sh --install-method deb 2>/dev/null || \
-  /tmp/install-opentofu.sh --install-method rpm 2>/dev/null || \
-  /tmp/install-opentofu.sh --install-method standalone 2>/dev/null
-rm -f /tmp/install-opentofu.sh
-`
-	cmd := exec.Command("sh", "-c", script)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		// Fallback: direct binary download
-		printWarning("Package install failed, trying direct binary download...")
-		return installTofuBinary(ctx)
-	}
-	return nil
-}
-
-func installTofuBinary(ctx context.Context) error {
-	arch := runtime.GOARCH
-	goos := runtime.GOOS
-	script := fmt.Sprintf(`
-set -e
-TOFU_VERSION=$(curl -sSL https://api.github.com/repos/opentofu/opentofu/releases/latest | grep '"tag_name"' | head -1 | sed -E 's/.*"v([^"]+)".*/\1/')
-curl -sSL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_%s_%s.tar.gz" -o /tmp/tofu.tar.gz
-tar xzf /tmp/tofu.tar.gz -C /tmp tofu
-install -m 755 /tmp/tofu /usr/local/bin/tofu
-rm -f /tmp/tofu.tar.gz /tmp/tofu
-`, goos, arch)
-	cmd := exec.Command("sh", "-c", script)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func installTofuRemote(ctx context.Context, client *ssh.Client) error {
-	installCmd := `
-curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
-chmod +x install-opentofu.sh
-./install-opentofu.sh --install-method deb 2>/dev/null || ./install-opentofu.sh --install-method rpm
-rm install-opentofu.sh
-`
-	_, stderr, err := client.RunWithSudo(ctx, installCmd)
-	if err != nil {
-		return fmt.Errorf("install failed: %w: %s", err, stderr)
-	}
-
-	return nil
 }

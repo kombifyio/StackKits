@@ -18,13 +18,17 @@ import (
 
 // ServerConfig holds configuration for the API server.
 type ServerConfig struct {
-	Port        int
-	BaseDir     string
-	Version     string
-	APIKey      string   // If set, all non-health endpoints require X-API-Key header
-	CORSOrigins []string // Allowed CORS origins; empty disables browser CORS, "*" allows wildcard
-	RateLimit   int      // Max requests per IP per minute; 0 = no limit
-	LogDir      string   // Directory containing deploy log files (.stackkit/logs/)
+	Port                          int
+	BaseDir                       string
+	Version                       string
+	APIKey                        string   // If set, all non-health endpoints require X-API-Key header
+	CORSOrigins                   []string // Allowed CORS origins; empty disables browser CORS, "*" allows wildcard
+	RateLimit                     int      // Max requests per IP per minute; 0 = no limit
+	LogDir                        string   // Directory containing deploy log files (.stackkit/logs/)
+	ServiceAuthSecret             string
+	ServiceAuthSecretNext         string
+	RuntimeActionMode             string
+	RuntimeRestoreVerifierCommand string
 	// TrustedProxies may provide X-Forwarded-For for rate-limit identity.
 	// Empty means X-Forwarded-For is ignored.
 	TrustedProxies []string
@@ -81,6 +85,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	s.mux.HandleFunc("GET /api/v1/capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("GET /api/v1/openapi.yaml", s.handleOpenAPISpec)
+
+	s.registerRuntimeActionRoutes()
 
 	// StackKit catalog
 	s.mux.HandleFunc("GET /api/v1/stackkits", s.handleListStackKits)
@@ -227,7 +233,7 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 				// Non-matching origins get NO Access-Control-Allow-Origin header (CORS denied)
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, X-API-Key, X-User-ID, X-Org-ID")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, X-API-Key, X-Kombify-Service-Auth, X-User-ID, X-Org-ID")
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -428,7 +434,7 @@ func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Allow health and OpenAPI spec without auth
-			if r.URL.Path == "/health" || r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/openapi.yaml" {
+			if r.URL.Path == "/health" || r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/openapi.yaml" || strings.HasPrefix(r.URL.Path, "/api/v1/internal/") {
 				next.ServeHTTP(w, r)
 				return
 			}

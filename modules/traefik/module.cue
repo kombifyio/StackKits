@@ -23,6 +23,7 @@ Contract: base.#ModuleContract & {
 		version:     "2.1.0"
 		layer:       "L2-platform-ingress"
 		description: "Reverse proxy configuration — middlewares, security headers, ForwardAuth (shipped by PaaS)"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
 	// Traefik uses socket-proxy for Docker service discovery (read-only).
@@ -165,7 +166,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "traefik", nested: "traefik", flat: "traefik"}
-		dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy"}
+		dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy", guideUrl: "https://docs.kombify.io/guides/stackkits/services/traefik"}
 
 		output: {
 			url:         "https://traefik.{{.domain}}"

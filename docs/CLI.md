@@ -1,486 +1,293 @@
 # StackKit CLI Reference
 
-Complete reference for the `stackkit` command-line interface.
+> Last verified: 2026-05-09
+
+This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
 
 ## Installation
 
-One-line install (Linux/macOS — downloads the latest release and OpenTofu):
-
 ```bash
 curl -sSL https://raw.githubusercontent.com/kombifyio/stackKits/main/install.sh | bash
+stackkit version
 ```
 
 Build from source:
 
 ```bash
-git clone https://github.com/kombifyio/stackKits.git && cd stackKits && make install
+go build -o build/stackkit ./cmd/stackkit
+./build/stackkit version
 ```
-
-Go install (requires Go 1.24+):
-
-```bash
-go install github.com/kombifyio/stackkits/cmd/stackkit@latest
-```
-
-Verify:
-
-```bash
-stackkit version
-```
-
----
-
-## Quick Start
-
-```bash
-curl -sSL https://raw.githubusercontent.com/kombifyio/stackKits/main/install.sh | bash
-stackkit init base-kit && stackkit apply --auto-approve
-```
-
-The install script installs the `stackkit` binary. When `apply` runs, it checks for Docker and OpenTofu and offers to install them if missing.
-
----
 
 ## Global Flags
 
-Every subcommand accepts these flags:
+| Flag | Short | Default | Purpose |
+| --- | --- | --- | --- |
+| `--verbose` | `-v` | `false` | Enable verbose output. |
+| `--quiet` | `-q` | `false` | Suppress non-essential output. |
+| `--chdir` | `-C` | `.` | Change working directory before running. |
+| `--spec` | `-s` | `stack-spec.yaml` | Spec file path; `kombination.yaml` is accepted as a read alias when the default is missing. |
+| `--context` | | auto | Override node context: `local`, `cloud`, or `pi`. |
+| `--no-log` | | `false` | Disable structured deploy logging. |
 
-| Flag | Short | Default | Description |
-|------|-------|---------|-------------|
-| `--verbose` | `-v` | `false` | Enable verbose output |
-| `--quiet` | `-q` | `false` | Suppress non-essential output |
-| `--chdir` | `-C` | `.` | Change to directory before running |
-| `--spec` | `-s` | `stack-spec.yaml` | Path to stack specification file. If the default is missing, `kombination.yaml` is accepted as a TechStack/user-intent alias. |
-| `--context` | | auto-detect | Node context override (`local`, `cloud`, `pi`) |
+## Primary Workflow
 
----
+```bash
+stackkit init base-kit
+stackkit prepare
+stackkit generate
+stackkit plan
+stackkit apply --verify
+stackkit verify --http --json
+```
 
-## Commands
+## Top-Level Commands
+
+| Command | Purpose |
+| --- | --- |
+| `init [stackkit]` | Create a deployment spec and initial output directory. |
+| `prepare` / `prep` | Prepare local or SSH target: prerequisites, Docker checks, packaged OpenTofu check, spec validation, hardware checks. |
+| `generate` / `gen` | Generate rollout artifacts from the spec and CUE contracts. |
+| `plan` | Run an OpenTofu plan for the generated deployment. |
+| `apply [plan-file]` | Apply generated infrastructure and optionally run verification. |
+| `verify` | Run read-only post-deployment checks locally or over SSH. |
+| `remove` | Destroy a StackKit deployment. |
+| `status` | Show deployment state and service health. |
+| `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
+| `addon` | Manage add-ons in `stack-spec.yaml`. |
+| `backup` | Operate local Kopia backup flows and controller enrollment stubs. |
+| `break-glass` | Inspect and rotate break-glass recovery bundles. |
+| `cluster` | Manage multi-node cluster membership. |
+| `compat` | Run a non-destructive VPS compatibility check. |
+| `doctor` | Run local diagnostics for common StackKit issues. |
+| `kit` | Import, export, list, verify, upgrade, rollback, history, roundtrip, and unlock kit definitions. |
+| `logs` | List and read structured deploy logs. |
+| `module` | Release module versions and verify DB parity. |
+| `registry` | Manage the embedded registry snapshot. |
+| `wizard` | Report wizard answers and free-form intents to the Admin API. |
+| `completion` | Generate shell completions. |
+| `version` | Print version, commit, build date, Go version, and OS/arch. |
+
+## Command Details
 
 ### `stackkit init [stackkit]`
 
-Create a new `stack-spec.yaml` in the current directory. When run without arguments an interactive wizard guides you through StackKit selection, variant, domain, and email configuration.
+Creates `stack-spec.yaml`. Without arguments it runs the interactive wizard.
 
-```bash
-stackkit init                              # interactive wizard
-stackkit init base-kit                     # skip kit selection
-stackkit init base-kit --variant minimal   # specify variant
-stackkit init base-kit --non-interactive   # fail if input required
-stackkit init ./path/to/custom-kit         # use local kit path
-```
+Common flags:
 
-**Flags:**
+- `--mode`
+- `--compute-tier`
+- `--domain`
+- `--local-dns`
+- `--local-name`
+- `--admin-email`
+- `--owner-source`
+- `--owner-email`
+- `--owner-username`
+- `--owner-display-name`
+- `--recovery-passphrase-hash`
+- `--output`, `-o`
+- `--force`, `-f`
+- `--non-interactive`
 
-| Flag | Short | Default | Description |
-|------|-------|---------|-------------|
-| `--variant` | | auto | Service variant |
-| `--mode` | | `simple` | Deployment mode (`simple`, `advanced`) |
-| `-o, --output` | `-o` | `deploy` | Output directory for generated files |
-| `-f, --force` | `-f` | `false` | Overwrite existing files |
-| `--non-interactive` | | `false` | Fail instead of prompting for input |
+### `stackkit prepare`
 
-**What it does:**
+Checks and installs prerequisites when allowed, validates the spec, and reports resource readiness.
 
-1. Discovers available StackKits in current and parent directories
-2. Prompts for variant, mode, domain, and admin email (unless flags given)
-3. Writes `stack-spec.yaml` with the chosen configuration
-4. Prints next steps (`prepare` -> `apply`)
+Common flags:
 
----
+- `--host`
+- `--user`
+- `--key`
+- `--dry-run`
+- `--skip-docker`
+- `--skip-tofu`
+- `--auto-fix`
+- `--force`
 
-### `stackkit prepare` (alias: `prep`)
+### `stackkit generate`
 
-Prepare a system for StackKit deployment. Checks (and installs if missing) Docker and OpenTofu, validates the spec against CUE schemas, and reports system resources.
+Generates OpenTofu/tfvars output. The default output directory is `deploy/`.
 
-```bash
-stackkit prepare                                  # local system
-stackkit prepare --spec ./stack-spec.yaml         # validate specific spec
-stackkit prepare --host 192.168.1.100 --user root # remote via SSH
-stackkit prepare --dry-run                        # preview only
-```
+Common flags:
 
-**Flags:**
+- `--output`, `-o`
+- `--force`, `-f`
+- `--fragments`
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--host` | `localhost` | Target host IP or hostname |
-| `--user` | | SSH username (remote only) |
-| `--key` | | SSH private key path (remote only) |
-| `--dry-run` | `false` | Show what would be done without changes |
-| `--skip-docker` | `false` | Skip Docker check/install |
-| `--skip-tofu` | `false` | Skip OpenTofu check/install |
-| `--auto-fix` | `true` | Auto-correct fixable issues |
-
-**Local mode** checks and installs Docker (via `get.docker.com`) and OpenTofu, validates the spec file, and reports CPU/memory stats.
-
-**Remote mode** connects via SSH, gathers OS info, installs Docker and OpenTofu if missing (supports Ubuntu/Debian and RHEL/Rocky/Fedora), and checks that ports 80/443 are free.
-
----
-
-### `stackkit generate` (alias: `gen`)
-
-Generate OpenTofu files from the stack spec and StackKit templates. The output is placed in the `deploy/` directory by default. These files are generated artifacts — never edit them directly.
-
-```bash
-stackkit generate                # generate into ./deploy
-stackkit generate -o ./out       # custom output directory
-stackkit generate --force        # overwrite existing output
-```
-
-**Flags:**
-
-| Flag | Short | Default | Description |
-|------|-------|---------|-------------|
-| `--output` | `-o` | `deploy` | Output directory |
-| `--force` | `-f` | `false` | Overwrite existing output directory |
-
-**What it does:**
-
-1. Loads `stack-spec.yaml`
-2. Locates the StackKit directory and its templates
-3. Validates CUE schemas (warnings only — does not block)
-4. Renders Go templates into the output directory
-5. Generates `main.tf` and `terraform.tfvars.json`
-6. Prints file count and next steps
-
-**Generated files:**
-
-| File | Purpose |
-|------|---------|
-| `main.tf` | OpenTofu resource definitions |
-| `terraform.tfvars.json` | Variable values derived from spec |
-| Template outputs | Mode-specific files from `templates/<mode>/` |
-
----
+Generated files are disposable outputs and must not be hand-edited.
 
 ### `stackkit plan`
 
-Preview what `apply` would change without modifying anything. Runs `tofu plan` inside the deploy directory.
-
-```bash
-stackkit plan                     # preview changes
-stackkit plan -o plan.tfplan      # save plan to file
-stackkit plan --destroy           # preview a destroy
-```
-
-**Flags:**
-
-| Flag | Short | Default | Description |
-|------|-------|---------|-------------|
-| `--out` | `-o` | | Save plan to file (default: `deploy/plan.tfplan`) |
-| `--destroy` | | `false` | Create a destroy plan |
-
-**What it does:**
-
-1. Loads spec and locates `deploy/` directory (fails if missing — run `generate` first)
-2. Initializes OpenTofu if `.terraform/` does not exist
-3. Runs `tofu plan`
-4. Prints resource summary: how many to add, change, destroy
-5. If saved to file, prints the `stackkit apply <plan-file>` command to run next
-
----
+Runs the StackKit-packaged OpenTofu plan against the generated deployment directory. Generate first if artifacts are missing or stale.
 
 ### `stackkit apply [plan-file]`
 
-Deploy the infrastructure. Runs `tofu apply` inside the deploy directory. If the deploy directory is missing or contains no `.tf` files, `generate` runs automatically first.
+Applies generated infrastructure. If the deploy directory is missing or empty, generation runs first.
 
-```bash
-stackkit apply                    # deploy with confirmation prompt
-stackkit apply --auto-approve     # deploy without confirmation
-stackkit apply plan.tfplan        # apply a previously saved plan
-```
+Common flags:
 
-**Flags:**
+- `--auto-approve`
+- `--tenant-deployment`
+- `--admin-endpoint`
+- `--admin-token`
+- `--verify`
+- `--verify-http`
+- `--verify-strict`
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--auto-approve` | `false` | Skip the interactive "yes" confirmation |
+### `stackkit verify`
 
-**What it does:**
+Runs read-only checks against an applied workspace.
 
-1. Loads spec
-2. Auto-generates if `deploy/` is missing or has no `.tf` files
-3. Initializes OpenTofu if `.terraform/` does not exist
-4. Runs `tofu apply`
-5. Saves deployment state to `.stackkit/state.yaml`
-6. Prints deployment outputs and total duration
+Common flags:
 
----
+- `--json`
+- `--http`
+- `--strict`
+- `--host`
+- `--user`
+- `--key`
+- `--port`
+- `--remote-dir`
+
+HTTP verification treats `2xx`, `3xx`, `401`, and `403` as reachable because authenticated services are expected.
 
 ### `stackkit remove`
 
-Tear down all infrastructure managed by the deployment. Runs `tofu destroy` inside the deploy directory. Requires typing `yes` to confirm unless `--auto-approve` is passed.
-
-```bash
-stackkit remove                          # remove with confirmation
-stackkit remove --auto-approve           # no confirmation
-stackkit remove --auto-approve --force   # ignore errors, keep going
-```
-
-**Flags:**
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--auto-approve` | `false` | Skip the "type yes" confirmation |
-| `--force` | `false` | Continue even if errors occur |
-
-**What it does:**
-
-1. Loads spec (continues with "unknown" if spec can't be loaded)
-2. Checks for `deploy/` directory (fails unless `--force`)
-3. Prompts for `yes` confirmation (unless `--auto-approve`)
-4. Runs `tofu destroy`
-5. Updates deployment state to `destroyed`
-
----
+Destroys the generated deployment with OpenTofu and updates `.stackkit/state.yaml`.
 
 ### `stackkit status`
 
-Show the current deployment status: which services are running, their health, and container IDs.
-
-```bash
-stackkit status             # table output
-stackkit status --json      # JSON output
-```
-
-**Flags:**
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--json` | `false` | Output as JSON |
-
-**Table output** shows service name, status, health, and container ID. **JSON output** includes stackkit name, variant, mode, last applied time, overall status, and a services array.
-
----
+Reads local deployment state and reports service health from generated outputs and runtime checks.
 
 ### `stackkit validate [file]`
 
-Validate configuration files: the stack spec against CUE schemas, StackKit CUE definitions, and (if present) the generated OpenTofu files.
-
-```bash
-stackkit validate                   # validate current spec
-stackkit validate my-spec.yaml      # validate a specific file
-stackkit validate --all             # also validate all .cue files
-```
-
-**Flags:**
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--all` | `false` | Also scan and validate all `.cue` files under the working directory |
-
-**What it does:**
-
-1. Validates spec against CUE schema — reports errors and warnings
-2. With `--all`: finds all `.cue` files and validates each
-3. If `deploy/` exists: checks for `.tf` files and runs `tofu validate`
-4. Returns non-zero exit code if any validation fails
-
----
+Validates `stack-spec.yaml` by default. It also validates CUE and generated OpenTofu output when those files are present.
 
 ### `stackkit addon`
 
-Manage composable add-ons (monitoring, backup, VPN, media server, etc.). Add-ons are declared in `stack-spec.yaml` and resolved at generate time.
+Subcommands:
 
-#### `stackkit addon list`
-
-List all available add-ons with their layer, activation status, and description.
-
-```bash
-stackkit addon list
-```
-
-Example output:
-
-```
-NAME            LAYER   STATUS   DESCRIPTION
-monitoring      L2      active   OTel Collector baseline with optional VictoriaMetrics and Grafana extensions
-backup          L2               Automated backup solutions
-vpn-overlay     L3               VPN tunnel overlay network
-media-server    L3               Media server stack (Jellyfin, *arr)
-```
-
-#### `stackkit addon add <name>`
-
-Add an add-on to `stack-spec.yaml`. After adding, run `stackkit generate --force` to regenerate deployment files.
-
-```bash
-stackkit addon add monitoring
-stackkit addon add vpn-overlay
-```
-
-#### `stackkit addon remove <name>`
-
-Remove an add-on from `stack-spec.yaml`. After removing, run `stackkit generate --force` to regenerate.
-
-```bash
-stackkit addon remove monitoring
-```
-
----
+- `addon list`
+- `addon add <addon-name>`
+- `addon remove <addon-name>`
 
 ### `stackkit backup`
 
-Manage backups for the local StackKit deployment. The engine is Kopia (see [ADR-0016](ADR/ADR-0016-backup-single-engine-kopia.md)) and runs in the `kopia-agent` container that the `addons/backup` add-on deploys. Every subcommand here mirrors an action in the local Kopia Web UI under `https://backups.<domain>` — the CLI exists for power users and scripting.
+Subcommands:
 
-The `backup` subcommand only works on a host that has the `backup` add-on enabled and applied. Without that, it prints a clear "kopia-agent container not found" error and exits.
+- `backup init`
+- `backup run`
+- `backup list`
+- `backup restore <snapshot-id>`
+- `backup verify`
+- `backup migrate-from-restic`
+- `backup enroll`
 
-#### Persistent flags
+`backup enroll` is a scaffolded controller path until the controller endpoint is operational.
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--container` | `kopia-agent` | Override the container name when the local agent was renamed (rare). |
+### `stackkit break-glass`
 
-#### `stackkit backup init`
+Subcommands:
 
-Print the first-run setup checklist (which addon to enable, which secrets to provision, where to find the Web UI). Does not modify anything.
+- `break-glass list`
+- `break-glass show-bundle <node>`
+- `break-glass rotate`
 
-```bash
-stackkit backup init
-```
+Rotation is marked as a later phase in the command help.
 
-#### `stackkit backup run`
+### `stackkit cluster`
 
-Force a snapshot of the configured volumes immediately, out of schedule.
+Subcommands:
 
-```bash
-stackkit backup run
-```
+- `cluster join-token`
 
-#### `stackkit backup list`
+Cluster command coverage expands with the multi-node workstream.
 
-List snapshots in the local repository.
+### `stackkit compat`
 
-```bash
-stackkit backup list
-stackkit backup list --json    # raw Kopia JSON for scripting
-```
+Runs a non-destructive VPS compatibility check for CPU, memory, disk, Docker readiness, and networking assumptions.
 
-#### `stackkit backup restore <snapshot-id> [--target <path>]`
+### `stackkit doctor`
 
-Restore a snapshot into a target directory. Default target is `/tmp/stackkit-restore`. The CLI never writes back into the live volumes — verify the restored data first, then move it where you want it.
+Runs local diagnostics for common StackKit issues. `--check-updates` adds Admin API-backed update discovery when endpoint and token configuration are present.
 
-```bash
-stackkit backup restore k1234567 --target /tmp/restore
-```
+### `stackkit kit`
 
-#### `stackkit backup verify`
+Subcommands:
 
-Trigger a `kopia repository validate-provider` ad-hoc. Same job the addon runs every Sunday on its own; useful for confirming a freshly-provisioned offsite leg.
+- `kit import`
+- `kit export`
+- `kit list`
+- `kit history`
+- `kit roundtrip`
+- `kit unlock`
+- `kit upgrade`
+- `kit upgrade rollback`
+- `kit verify`
 
-```bash
-stackkit backup verify
-```
+These commands are for registry, release, lifecycle, and parity workflows. Admin API calls require the relevant endpoint/token configuration documented in [CONFIGURATION.md](CONFIGURATION.md).
 
-#### `stackkit backup migrate-from-restic`
+### `stackkit module`
 
-Drive the one-shot Restic-to-Kopia importer (Phase 1 of the v1 → v2 migration). Reads the existing Restic repository configured in v1 of the addon, walks every snapshot, and re-creates them inside Kopia preserving original timestamps. The addon flips `engine: "restic-import"` → `engine: "kopia"` automatically on success.
+Subcommands:
 
-```bash
-stackkit backup migrate-from-restic
-stackkit backup migrate-from-restic --dry-run   # plan only, no writes
-```
+- `module release`
+- `module verify-db`
 
-#### `stackkit backup enroll --token <token>` (Phase 4 — scaffold)
+Use these for module contract hash release and DB parity checks.
 
-Switch the host into agent mode against the kombify Backup-Controller. Phase-4 scaffold today: the command parses `--token` and `--endpoint`, but the controller endpoint is not yet operational and the command exits with a clear "not yet available" error.
+### `stackkit registry`
 
-```bash
-stackkit backup enroll --token $TOKEN --endpoint https://backup.kombify.io
-```
+Subcommands:
 
----
+- `registry snapshot`
+- `registry bake-from-cue`
+- `registry info`
+
+`snapshot` fetches from the internal Admin API. `bake-from-cue` creates the OSS-safe fallback snapshot from local CUE modules.
+
+### `stackkit logs`
+
+Subcommands:
+
+- `logs list`
+- `logs [run-id]`
+
+Structured deploy logs live under `.stackkit/logs` unless configured otherwise.
+
+### `stackkit wizard`
+
+Subcommands:
+
+- `wizard report`
+
+Posts locally captured wizard answers or free-form intents to the Admin API. Use `--dry-run` to inspect the payload without sending it.
+
+### `stackkit completion [bash|zsh|fish|powershell]`
+
+Generates shell completion scripts from Cobra.
 
 ### `stackkit version`
 
-Print version, git commit, build date, Go version, and OS/architecture.
+Prints version, commit, build date, Go version, and target OS/arch.
 
-```bash
-stackkit version
-```
-
-Example output:
-
-```
-stackkit version v0.3.0
-  Git commit: a1b2c3d
-  Build date: 2026-03-01T12:00:00Z
-  Go version: go1.24
-  OS/Arch:    linux/amd64
-```
-
----
-
-### `stackkit completion <shell>`
-
-Generate shell completion scripts for tab-completion in your terminal.
-
-```bash
-# Bash
-stackkit completion bash > /etc/bash_completion.d/stackkit
-
-# Zsh
-stackkit completion zsh > "${fpath[1]}/_stackkit"
-
-# Fish
-stackkit completion fish > ~/.config/fish/completions/stackkit.fish
-
-# PowerShell
-stackkit completion powershell > stackkit.ps1
-```
-
----
-
-## Typical Workflows
-
-### First deployment on a fresh server
-
-```bash
-curl -sSL https://raw.githubusercontent.com/kombifyio/stackKits/main/install.sh | bash
-mkdir my-homelab && cd my-homelab
-stackkit init base-kit
-# edit stack-spec.yaml (set domain, email, etc.)
-stackkit prepare
-stackkit apply --auto-approve
-stackkit status
-```
-
-### Changing configuration
-
-```bash
-# edit stack-spec.yaml
-stackkit generate --force
-stackkit plan
-stackkit apply
-```
-
-### Adding an add-on
-
-```bash
-stackkit addon list
-stackkit addon add monitoring
-stackkit generate --force
-stackkit apply
-```
-
-### Tearing down
-
-```bash
-stackkit remove --auto-approve
-```
-
----
-
-## Files Created by StackKit CLI
+## Files Created by the CLI
 
 | Path | Created by | Purpose |
-|------|-----------|---------|
-| `stack-spec.yaml` | `init` | Deployment specification |
-| `kombination.yaml` | TechStack/user import | Accepted as a read alias when `stack-spec.yaml` is missing |
-| `deploy/` | `generate` | Generated OpenTofu files (never edit) |
-| `deploy/apps.tf` | `generate` | User app resources generated from `apps:` |
-| `deploy/*.tf` | `generate` | Per-module OpenTofu resource fragments generated from CUE contracts |
-| `deploy/terraform.tfvars.json` | `generate` | Sensitive generated variable values from spec and composition |
-| `deploy/.terraform.lock.hcl` | `plan` / `apply` | OpenTofu provider lock file |
-| `deploy/.terraform/` | `apply` / `plan` | OpenTofu state and provider cache |
-| `.stackkit/state.yaml` | `apply` / `destroy` | Deployment state tracking |
+| --- | --- | --- |
+| `stack-spec.yaml` | `init` | Deployment spec. |
+| `kombination.yaml` | TechStack/user import | Read alias when `stack-spec.yaml` is missing. |
+| `deploy/` | `generate` | Generated rollout artifacts. |
+| `deploy/*.tf` | `generate` | Generated OpenTofu resources. |
+| `deploy/terraform.tfvars.json` | `generate` | Sensitive generated values. |
+| `deploy/.terraform/` | `plan`/`apply` | Provider cache and state internals. |
+| `.stackkit/state.yaml` | `apply`/`remove` | Deployment state. |
+| `.stackkit/logs/` | most commands | Structured deploy logs. |
+
+## Related Docs
+
+- [CONFIGURATION.md](CONFIGURATION.md)
+- [TESTING.md](TESTING.md)
+- [API.md](API.md)
+- [stack-spec-reference.md](stack-spec-reference.md)

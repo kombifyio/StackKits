@@ -1,7 +1,7 @@
 // Package kombify_point describes the local DNS resolver integration.
 //
-// The service implementation lives in kombify-Techstack. StackKits owns the
-// rollout adapter: image, environment, health routing, and user guidance.
+// The rollout uses CoreDNS as the stable resolver runtime. StackKits owns the
+// generated Corefile, health routing, and user guidance.
 package kombify_point
 
 import "github.com/kombifyio/stackkits/base"
@@ -9,10 +9,11 @@ import "github.com/kombifyio/stackkits/base"
 Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "kombify-point"
-		displayName: "Kombify Point DNS"
+		displayName: "kombify Point DNS"
 		version:     "1.0.0"
 		layer:       "L1-foundation"
-		description: "Local LAN DNS resolver for *.home and *.<name>.home service names"
+		description: "Local LAN DNS resolver for StackKit home service names"
+		testScenarios: ["SK-S1", "SK-S4"]
 	}
 
 	requires: {
@@ -35,7 +36,7 @@ Contract: base.#ModuleContract & {
 				description: "LAN DNS resolver endpoint"
 			}
 			health: {
-				url:         "https://point.{{.domain}}/healthz"
+				url:         "http://point.{{.domain}}/health"
 				description: "Kombify Point health endpoint"
 			}
 		}
@@ -43,7 +44,7 @@ Contract: base.#ModuleContract & {
 
 	settings: {
 		perma: {
-			zones:    [...string] | *["home"]
+			zones: [...string] | *["home"]
 			targetIP: string
 		}
 		flexible: {
@@ -53,15 +54,15 @@ Contract: base.#ModuleContract & {
 
 	contexts: {
 		local: {_enabled: false}
-		pi:    {_enabled: false}
+		pi: {_enabled: false}
 		cloud: {_enabled: false}
 	}
 
 	services: "kombify-point": base.#ServiceDefinition & {
 		name:     "kombify-point"
 		type:     "dns"
-		image:    "ghcr.io/kombifyio/kombify-point"
-		tag:      "latest"
+		image:    "coredns/coredns"
+		tag:      "1.11.3"
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]
@@ -85,28 +86,20 @@ Contract: base.#ModuleContract & {
 			networks: ["frontend"]
 		}
 
-		environment: {
-			KOMBIFY_POINT_ZONES:      "{{.domain}}"
-			KOMBIFY_POINT_TARGET_IP:  "{{.server_lan_ip}}"
-			KOMBIFY_POINT_UPSTREAMS:  "1.1.1.1:53,8.8.8.8:53"
-			KOMBIFY_POINT_HTTP_ADDR:  ":8088"
-			KOMBIFY_POINT_DNS_ADDR:   ":53"
-		}
-
 		healthCheck: {
 			enabled: true
-			test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8088/healthz >/dev/null || exit 1"]
+			test: ["CMD", "/coredns", "-version"]
 			interval: "30s"
 			timeout:  "5s"
 			retries:  3
 		}
 
 		subdomain: {key: "point", nested: "point", flat: "point"}
-		dashboard: {icon: "&#127760;", order: 35, section: "Platform", badge: "L1 \\u00b7 DNS", enableVar: "enable_kombify_point"}
+		dashboard: {icon: "&#127760;", order: 35, section: "Platform", badge: "L1 \\u00b7 DNS", enableVar: "enable_kombify_point", guideUrl: "https://docs.kombify.io/guides/stackkits/services/kombify-point"}
 
 		output: {
-			url:         "https://point.{{.domain}}/healthz"
-			description: "Kombify Point local DNS resolver"
+			url:         "http://point.{{.domain}}/health"
+			description: "kombify Point local DNS resolver"
 		}
 	}
 }

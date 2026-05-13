@@ -51,25 +51,22 @@ package base_kit
 	// Output: service configuration based on tier
 	services: {
 		if computeTier == "high" {
-			monitoring:       "full"
-			management:       "advanced"
-			logging:          "full"
-			// full profile: OTel Collector (full) + uptime-kuma + monitoring-core add-on
-			_enabledServices: ["traefik", "dockge", "dozzle", "otel-collector", "uptime-kuma"]
+			monitoring: "full"
+			management: "advanced"
+			logging:    "full"
+			_enabledServices: ["traefik", "dockge", "dozzle", "netdata", "portainer", "prometheus", "grafana"]
 		}
 		if computeTier == "standard" {
-			monitoring:       "standard"
-			management:       "basic"
-			logging:          "basic"
-			// standard profile: OTel Collector (standard, 30s) + uptime-kuma
-			_enabledServices: ["traefik", "dockge", "dozzle", "otel-collector", "uptime-kuma"]
+			monitoring: "standard"
+			management: "basic"
+			logging:    "basic"
+			_enabledServices: ["traefik", "dockge", "dozzle", "netdata"]
 		}
 		if computeTier == "low" {
-			monitoring:       "standard"
-			management:       "minimal"
-			logging:          "basic"
-			// low tier still uses OTel Collector standard profile (Pi 4B 4GB minimum)
-			_enabledServices: ["traefik", "dockge", "dozzle", "otel-collector"]
+			monitoring: "minimal"
+			management: "minimal"
+			logging:    "basic"
+			_enabledServices: ["traefik", "dockge", "dozzle", "glances"]
 		}
 	}
 

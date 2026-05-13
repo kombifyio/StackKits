@@ -14,6 +14,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-paas"
 		description: "Self-hosted PaaS with PostgreSQL and Redis for deploying applications"
+		testScenarios: ["SK-S2"]
 	}
 
 	requires: {
@@ -153,7 +154,7 @@ Contract: base.#ModuleContract & {
 			}
 
 			subdomain: {key: "dokploy", nested: "dokploy", flat: "dokploy"}
-			dashboard: {icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy"}
+			dashboard: {icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy", guideUrl: "https://docs.kombify.io/guides/stackkits/services/dokploy"}
 
 			output: {
 				url:         "https://dokploy.{{.domain}}"
@@ -195,8 +196,8 @@ Contract: base.#ModuleContract & {
 			}
 
 			healthCheck: {
-				enabled: true
-				command: "pg_isready -U dokploy"
+				enabled:  true
+				command:  "pg_isready -U dokploy"
 				interval: "10s"
 				timeout:  "5s"
 				retries:  5
@@ -246,8 +247,8 @@ Contract: base.#ModuleContract & {
 			]
 
 			healthCheck: {
-				enabled: true
-				command: "redis-cli ping"
+				enabled:  true
+				command:  "redis-cli ping"
 				interval: "10s"
 				timeout:  "5s"
 				retries:  3

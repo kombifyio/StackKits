@@ -8,11 +8,11 @@ import (
 
 // LocalRoundTrip runs the YAML-only roundtrip cycle in memory:
 //
-//	1. Import original yaml -> KitDefinition A
-//	2. Export A -> reconstructed yaml
-//	3. Import reconstructed yaml -> KitDefinition B
-//	4. Compare A vs B as structs (cosmetic yaml differences ignored)
-//	5. Compute hashes; match indicates lossless roundtrip
+//  1. Import original yaml -> KitDefinition A
+//  2. Export A -> reconstructed yaml
+//  3. Import reconstructed yaml -> KitDefinition B
+//  4. Compare A vs B as structs (cosmetic yaml differences ignored)
+//  5. Compute hashes; match indicates lossless roundtrip
 //
 // This is the cheap, no-API check that ships with `stackkit kit roundtrip`
 // and runs in unit tests. The live API counterpart lives in client.go +
@@ -65,11 +65,11 @@ func Diff(a, b KitDefinition) []FieldDifference {
 	add := func(path, severity string, av, bv interface{}, note string) {
 		if !reflect.DeepEqual(av, bv) {
 			out = append(out, FieldDifference{
-				Path:     path,
-				Severity: severity,
-				Original: av,
+				Path:          path,
+				Severity:      severity,
+				Original:      av,
 				Reconstructed: bv,
-				Note:     note,
+				Note:          note,
 			})
 		}
 	}
@@ -112,7 +112,9 @@ func Diff(a, b KitDefinition) []FieldDifference {
 	if a.Platform.AsString != b.Platform.AsString {
 		add("platform(string)", "critical", a.Platform.AsString, b.Platform.AsString, "")
 	}
-	compareKeySet(&out, "platform", mapKeysGeneric(a.Platform.AsMap), mapKeysGeneric(b.Platform.AsMap), "critical")
+	platformA := normalizePlatform(a.Platform.AsMap)
+	platformB := normalizePlatform(b.Platform.AsMap)
+	compareKeySet(&out, "platform", mapKeysGeneric(platformA), mapKeysGeneric(platformB), "critical")
 
 	// Per-application role + defaultTool
 	for k, va := range a.Application {
@@ -131,10 +133,15 @@ func Diff(a, b KitDefinition) []FieldDifference {
 	}
 
 	// Per-platform role + defaultTool
-	for k, va := range a.Platform.AsMap {
-		vb := b.Platform.AsMap[k]
-		add("platform."+k+".role", "critical", string(va.Role), string(vb.Role), "")
-		add("platform."+k+".defaultTool", "critical", va.DefaultTool, vb.DefaultTool, "")
+	for group, va := range platformA {
+		vb := platformB[group]
+		add("platform."+group+".role", "critical", string(va.Role), string(vb.Role), "")
+		if !platformDefaultEqual(va.Keys, va.DefaultTool, vb.Keys, vb.DefaultTool) {
+			add("platform."+group+".defaultTool", "critical", va.DefaultTool, vb.DefaultTool, "")
+		}
+		if !sortedEqual(va.Alternatives, vb.Alternatives) {
+			add("platform."+group+".alternatives", "critical", va.Alternatives, vb.Alternatives, "")
+		}
 	}
 
 	// computeTiers requirements
@@ -146,8 +153,9 @@ func Diff(a, b KitDefinition) []FieldDifference {
 		}
 	}
 
-	// Features map
-	if !reflect.DeepEqual(a.Features, b.Features) {
+	// Features map. A missing features block and an empty features block are
+	// semantically equivalent after DB export.
+	if !boolMapEqual(a.Features, b.Features) {
 		add("features", "critical", a.Features, b.Features, "")
 	}
 
@@ -159,11 +167,11 @@ func compareKeySet(out *[]FieldDifference, label string, a, b []string, severity
 	sort.Strings(b)
 	if !reflect.DeepEqual(a, b) {
 		*out = append(*out, FieldDifference{
-			Path:     label,
-			Severity: severity,
-			Original: a,
+			Path:          label,
+			Severity:      severity,
+			Original:      a,
 			Reconstructed: b,
-			Note:     "key set differs",
+			Note:          "key set differs",
 		})
 	}
 }
@@ -185,6 +193,83 @@ func sortedEqual(a, b []string) bool {
 	sort.Strings(aa)
 	sort.Strings(bb)
 	return reflect.DeepEqual(aa, bb)
+}
+
+func boolMapEqual(a, b map[string]bool) bool {
+	if len(a) == 0 && len(b) == 0 {
+		return true
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+type normalizedPlatformDef struct {
+	Role         string
+	DefaultTool  string
+	Alternatives []string
+	Keys         []string
+}
+
+func normalizePlatform(in map[string]PlatformDef) map[string]normalizedPlatformDef {
+	out := make(map[string]normalizedPlatformDef, len(in))
+	for key, value := range in {
+		group := key
+		if mapped, ok := PlatformToGroup[key]; ok {
+			group = mapped
+		}
+		current := out[group]
+		if current.Role == "" {
+			current.Role = value.Role
+		}
+		if current.DefaultTool == "" {
+			current.DefaultTool = value.DefaultTool
+		}
+		current.Alternatives = mergeStringSet(current.Alternatives, value.Alternatives)
+		current.Keys = mergeStringSet(current.Keys, []string{key})
+		out[group] = current
+	}
+	return out
+}
+
+func platformDefaultEqual(aKeys []string, aDefault string, bKeys []string, bDefault string) bool {
+	if aDefault == bDefault {
+		return true
+	}
+	if aDefault == "" && containsString(aKeys, bDefault) {
+		return true
+	}
+	if bDefault == "" && containsString(bKeys, aDefault) {
+		return true
+	}
+	return false
+}
+
+func mergeStringSet(a, b []string) []string {
+	set := make(map[string]struct{}, len(a)+len(b))
+	for _, value := range a {
+		if value != "" {
+			set[value] = struct{}{}
+		}
+	}
+	for _, value := range b {
+		if value != "" {
+			set[value] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for value := range set {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func hasOnlyCosmetic(diffs []FieldDifference) bool {

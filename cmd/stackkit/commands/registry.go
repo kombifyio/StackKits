@@ -261,7 +261,7 @@ func writeSnapshot(path string, snap registry.Snapshot) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil { // #nosec G304 G703 -- path is constructed by the registry-cache layer from operator-controlled CLI inputs.
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil

@@ -193,7 +193,7 @@ func (e *CompositionEngine) resolveAddons(enabled map[string]bool, result *Compo
 // addPlatformDefaults adds always-enabled platform modules.
 func (e *CompositionEngine) addPlatformDefaults(enabled map[string]bool) {
 	// L1-foundation modules that are always needed.
-	platformDefaults := []string{"traefik", "socket-proxy", "pocketid", "monitoring-agent"}
+	platformDefaults := []string{"traefik", "socket-proxy", "pocketid"}
 	for _, name := range platformDefaults {
 		if _, ok := e.contracts[name]; ok {
 			enabled[name] = true
@@ -352,22 +352,13 @@ func (e *CompositionEngine) resolveIdentity(result *CompositionResult) error {
 		AuthMode: "passkeys_plus_legacy",
 	}
 
-	// Admin email: prefer AdminEmail, fall back to Email, then generate from domain
-	ic.AdminEmail = e.spec.AdminEmail
-	if ic.AdminEmail == "" {
-		ic.AdminEmail = e.spec.Email
+	// Admin email: prefer AdminEmail, fall back to Email, then synthesize a
+	// domain-scoped email so PocketID and downstream apps never receive "admin".
+	adminEmail := e.spec.AdminEmail
+	if adminEmail == "" {
+		adminEmail = e.spec.Email
 	}
-	if ic.AdminEmail == "" {
-		domain := e.spec.Domain
-		if domain == "" {
-			domain = models.DomainHomeLab
-		}
-		ic.AdminEmail = "admin@" + domain
-	}
-	// Validate email has @ sign (basic sanity check at system boundary)
-	if !strings.Contains(ic.AdminEmail, "@") {
-		ic.AdminEmail = ic.AdminEmail + "@" + e.spec.Domain
-	}
+	ic.AdminEmail = models.NormalizeAdminEmail(adminEmail, e.spec.Domain, e.spec.SubdomainPrefix)
 
 	// Generate admin password
 	adminPwd, err := generateRandomHex(16)
@@ -478,13 +469,20 @@ func (e *CompositionEngine) identityProviderIssuerURL(provider string) string {
 		if flat == "" {
 			flat = provider
 		}
-		return fmt.Sprintf("https://%s-%s.%s", e.spec.SubdomainPrefix, flat, domain)
+		return fmt.Sprintf("%s://%s-%s.%s", identityProviderURLScheme(domain), e.spec.SubdomainPrefix, flat, domain)
 	}
 
 	if nested == "" {
 		nested = provider
 	}
-	return fmt.Sprintf("https://%s.%s", nested, domain)
+	return fmt.Sprintf("%s://%s.%s", identityProviderURLScheme(domain), nested, domain)
+}
+
+func identityProviderURLScheme(domain string) string {
+	if models.IsLocalhostDomain(domain) {
+		return "http"
+	}
+	return "https"
 }
 
 func (e *CompositionEngine) identityProviderSubdomains(provider string) (nested string, flat string) {

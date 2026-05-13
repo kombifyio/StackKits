@@ -12,6 +12,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Bitwarden-compatible password vault for passwords, TOTP, and secure notes"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S4"]
 	}
 
 	requires: {
@@ -54,7 +55,7 @@ Contract: base.#ModuleContract & {
 	contexts: {
 		local: {}
 		cloud: {}
-		pi:    {}
+		pi: {}
 	}
 
 	services: vaultwarden: base.#ServiceDefinition & {
@@ -127,7 +128,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "vault", nested: "vault", flat: "vault"}
-		dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden"}
+		dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden", guideUrl: "https://docs.kombify.io/guides/stackkits/services/vaultwarden"}
 
 		output: {
 			url:         "https://vault.{{.domain}}"

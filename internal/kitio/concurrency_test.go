@@ -43,7 +43,7 @@ func TestCanonicalHashIsThreadSafe(t *testing.T) {
 			}
 
 			var (
-				wg      sync.WaitGroup
+				wg         sync.WaitGroup
 				mismatches int32
 			)
 			wg.Add(concurrencyGoroutines)

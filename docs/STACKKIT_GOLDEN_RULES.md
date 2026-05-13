@@ -1,0 +1,238 @@
+# StackKit Golden Rules
+
+> Status: Normative SPEC contract
+> Scope: All StackKit definitions, modules, generators, CLIs, installers, registry entries, TechStack integrations, and release artifacts.
+
+This document defines the non-negotiable rules for StackKits. If an implementation conflicts with this document, the implementation is wrong unless a newer accepted ADR explicitly changes this contract.
+
+## 1. Definition
+
+1. A StackKit is an intent-resolved homelab architecture pattern, not a static application bundle.
+2. A StackKit MUST convert user intent, detected context, kit defaults, module contracts, and operator registry data into a validated deployment plan.
+3. A StackKit MUST have an opinionated default. Missing intent MUST resolve to a safe, supported default or fail validation with a clear explanation.
+4. A StackKit MUST be deployable through the canonical workflow:
+
+```bash
+stackkit init
+stackkit prepare
+stackkit validate
+stackkit generate
+stackkit plan
+stackkit apply
+stackkit verify
+```
+
+5. A StackKit MUST be self-contained for every StackKit-owned toolchain component. Users MUST NOT be required to pre-install, configure, or select OpenTofu, CUE, Terramate, generators, providers, helper CLIs, or other StackKit-controlled deployment tooling before a OneClick or canonical CLI install works.
+6. OpenTofu is part of the StackKit release package. Installers, CLI commands, tests, and docs MUST use the packaged StackKit-provided OpenTofu binary and MUST NOT pass because a system or developer host already has `tofu` on `PATH`.
+7. `stackkit prepare` MAY install or configure unavoidable host runtime prerequisites such as Docker on supported systems, but that preparation is owned by StackKit. The user-facing contract remains: start from a compatible base OS with shell, network, and root/sudo access; do not ask the user to install the deployment toolchain first.
+8. A StackKit MUST NOT require users or agents to manually edit generated OpenTofu, Compose, script, or runtime artifacts.
+
+## 2. Source Of Truth
+
+1. CUE is the authoritative source for technical contracts: module schemas, defaults, constraints, `requires`, `provides`, context compatibility, compute-tier gates, and generated deployment shape.
+2. The kombify database is the authoritative registry for product and operations state: catalog entries, tool evaluations, module versions, kit composition mirrors, wizard answers, tenant deployments, telemetry, release lineage, and lifecycle state.
+3. Database-first means registry-first for operators and automation. It does NOT mean the database may overwrite live CUE contracts without the accepted import/export and hash-parity workflow.
+4. CUE-to-database and database-to-release surfaces MUST be protected by deterministic hashes. A release is invalid if the CUE contract hash, registry version, and deployed module version diverge.
+5. Generated artifacts are outputs. If generated output needs manual correction, the missing rule MUST be fixed in CUE, the composition engine, the registry contract, or the relevant generator.
+
+## 3. Canonical Layers
+
+Every StackKit MUST use the canonical layers `foundation`, `platform`, and `application`.
+
+### Foundation
+
+Foundation defines the mandatory base every StackKit depends on:
+
+- host bootstrap
+- operating system and package prerequisites
+- security baseline
+- owner and break-glass bootstrap
+- secrets bootstrap
+- base networking
+- minimal observability contract
+- policy requirements for identity, backup, and verification
+
+Foundation MAY define that identity is mandatory, but SHOULD NOT own every concrete platform routing detail.
+
+### Platform
+
+Platform provides the shared runtime used by application modules:
+
+- container/runtime management
+- reverse proxy and service routing
+- DNS and TLS
+- identity provider and access gateway implementation
+- PaaS adapter
+- platform-level monitoring and logs
+- service placement and registration
+
+Platform MUST expose a supported application rollout path. Normal StackKits MUST NOT deploy Layer-3 applications through unmanaged ad hoc containers when a platform adapter is required.
+
+### Application
+
+Application contains use-case modules:
+
+- photos
+- media
+- password vault
+- file sharing
+- smart home
+- development platform
+- marketing website
+- secrets management
+- AI and automation
+- other curated or optional homelab use cases
+
+An application module is a use-case package. It MAY contain multiple tools, databases, workers, routes, and bootstrap steps, but it MUST resolve and validate as one coherent module contract.
+
+## 4. Security And Identity
+
+1. No normal StackKit may expose an application service without an explicit access policy.
+2. TinyAuth plus PocketID is the current default identity and login-gateway pattern until an accepted ADR replaces it.
+3. The identity contract MUST support owner bootstrap, break-glass recovery, and first-login setup.
+4. Static default credentials are forbidden.
+5. Secrets MUST be generated, injected, or referenced through an approved secret path. Secrets MUST NOT be committed or embedded in generated public artifacts.
+6. Public exposure MUST be an explicit resolved decision based on access intent, domain availability, TLS capability, and service classification.
+7. Local-first does not mean unauthenticated. Cloud does not mean public-by-default.
+
+## 5. Platform Adapter Contract
+
+1. Normal StackKit rollouts MUST resolve exactly one primary platform adapter.
+2. The default adapter selection MUST be deterministic:
+   - local, pi, no-domain, or kombify-managed subdomain contexts SHOULD resolve to Dokploy.
+   - custom-domain cloud contexts SHOULD resolve to Coolify when wildcard or multi-node routing is needed.
+   - Modern Homelab and HA Kit contexts that require multi-node platform management SHOULD resolve to Coolify unless a newer accepted adapter contract supersedes it.
+3. `paas: none` is invalid for normal Base, Modern Homelab, and HA StackKits.
+4. Lightweight compose managers MAY exist for constrained or experimental modes, but MUST NOT be treated as the standard platform adapter unless they satisfy the same rollout, routing, auth, backup, and verification contract.
+5. Switching platform adapters after deployment is a migration or reprovisioning event, not a transparent live toggle.
+
+## 6. Intent Resolution
+
+1. StackKits MUST resolve from intent, not from raw tool preference alone.
+2. The resolver MUST consider at least:
+   - selected kit
+   - deployment mode
+   - access intent
+   - domain availability
+   - node inventory
+   - local/cloud/hybrid context
+   - compute tier
+   - storage tier
+   - application use cases
+   - data sensitivity
+   - backup requirements
+   - user overrides
+3. User overrides MUST be allowed only inside validated module contracts.
+4. Ambiguous intent MUST resolve to the safer default or fail validation. It MUST NOT silently choose a risky public, destructive, or data-losing path.
+5. The resolver MUST be explainable. A developer or advanced user must be able to understand why a default, adapter, route, or module was selected.
+
+## 7. Deployment Modes
+
+1. Standard Mode is the default Day-1 mode. It MUST produce a deterministic initial deployment with OpenTofu-backed lifecycle actions.
+2. Advanced Mode extends Standard Mode with Day-2 operations: drift detection, lifecycle orchestration, update management, remote agents, policy checks, and long-running observability.
+3. Advanced Mode SHOULD be managed through kombify TechStack or an equivalent accepted orchestration surface.
+4. A StackKit MUST remain useful after Day-1 even when the user does not adopt Advanced Mode.
+5. Day-2 features MUST NOT be required to complete the initial safe deployment unless the selected kit explicitly depends on orchestration.
+
+## 8. Kit Types
+
+### Base Kit
+
+1. Base Kit is a single-environment StackKit, not strictly a single-node StackKit.
+2. A single environment has one trust domain, one primary management boundary, and one StackKit state.
+3. Base Kit MUST support one primary node and MAY support additional worker or storage nodes inside the same trust domain.
+4. Additional nodes in Base Kit MUST be used for a concrete purpose such as application placement, storage, backup, or resource expansion.
+
+### Modern Homelab
+
+1. Modern Homelab MUST include at least one local-first node and at least one cloud or remotely reachable node.
+2. Modern Homelab MUST separate public-facing, remote-access, and LAN-only responsibilities.
+3. Modern Homelab MUST treat networking, routing, identity, backup, and data placement as first-class decisions.
+
+### HA Kit
+
+1. HA Kit exists for reliability and failover, not just multi-node scale.
+2. HA Kit MUST define quorum, placement, failover, backup, restore, and state-management rules before it can be considered production-ready.
+
+## 9. Multi-Server And Placement
+
+1. Whenever more than one server is present, StackKits MUST evaluate whether the extra nodes improve robustness, capacity, isolation, or recovery.
+2. Service placement MUST consider:
+   - primary management role
+   - locality
+   - public exposure
+   - CPU/RAM requirements
+   - storage requirements
+   - GPU or device requirements
+   - data sensitivity
+   - latency
+   - backup and restore topology
+3. Platform-critical services SHOULD remain on the primary platform node unless the kit explicitly defines HA behavior.
+4. Backup targets SHOULD avoid the same physical failure domain where practical.
+5. Explicit user placement MUST be validated against module and kit constraints.
+
+## 10. Application Module Contract
+
+Every application module MUST define:
+
+1. the user-facing use case it satisfies
+2. default tool selection
+3. supported alternatives
+4. required platform capabilities
+5. required secrets and generated credentials
+6. routes, access policy, and exposure classification
+7. storage and backup expectations
+8. compute and device requirements
+9. first-user or owner bootstrap behavior
+10. health checks and smoke tests
+11. upgrade and rollback expectations
+12. unsupported contexts and explicit failure conditions
+
+A module MUST NOT become a default module until its first-run path is automated enough for the OneClick/Ready audience.
+
+## 11. Audience Contract
+
+StackKits MUST serve two audiences without forking the product:
+
+1. OneClick/Ready users get safe defaults, minimal questions, autonomous rollout, first-user setup, and clear recovery material.
+2. Techie/Alternative users get validated overrides, curated alternatives, explainable decisions, and escape hatches without bypassing core contracts.
+
+The same StackKit definition MUST support both audiences through intent depth, not through separate incompatible systems.
+
+## 12. Verification
+
+1. Every default path MUST have automated validation before release.
+2. Any code or CUE change that affects StackKit behavior SHOULD run:
+
+```bash
+cue vet
+go test ./...
+stackkit generate
+stackkit verify
+make test-cue-binding
+```
+
+3. A default module is not release-ready unless validation covers:
+   - CUE contract validation
+   - generated artifact generation
+   - platform registration
+   - route availability
+   - access policy
+   - first-run bootstrap
+   - backup classification
+   - smoke test
+4. Production readiness MUST be proven through a fresh-target install path, not only local unit tests.
+
+## 13. Public And Open Source Release Hygiene
+
+1. Public releases MUST NOT contain internal Doppler references, internal-only documentation links, private tenant data, or Coolify/Render specifics that are not part of the public contract.
+2. Public OSS releases MAY include generated snapshots, examples, and docs only when they are scrubbed and reproducible from accepted sources.
+3. Sync direction for public release remains main-to-release unless explicitly changed by release governance.
+
+## 14. Change Governance
+
+1. Any change that weakens these rules requires an accepted ADR.
+2. Any new default tool or module MUST pass the module contract and verification requirements.
+3. Any new kit MUST map cleanly to Foundation, Platform, and Application.
+4. Any new registry field that affects deployment MUST have a CUE or validation counterpart.
+5. Any unresolved conflict between CUE, database, CLI, and documentation MUST block release until the authority boundary is clarified.

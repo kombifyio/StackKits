@@ -1,6 +1,6 @@
 module github.com/kombifyio/stackkits
 
-go 1.26.2
+go 1.26.3
 
 require (
 	cuelang.org/go v0.15.4

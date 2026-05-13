@@ -17,7 +17,7 @@ This binary ships as a Phase-4 scaffold. It accepts the planned CLI
 surface (`enroll`, `run`, `status`) and validates flags, but exits with
 a clear "not implemented" message because the controller's network
 listener is not yet stood up. See
-[`docs/plans/2026-05-01-backup-rollout.md`](../../docs/plans/2026-05-01-backup-rollout.md)
+[ADR-0016](../../docs/ADR/ADR-0016-backup-single-engine-kopia.md) and [docs/BACKUP-ARCHITECTURE.md](../../docs/BACKUP-ARCHITECTURE.md)
 for status.
 
 The agent is **not required** for self-hosted users. The local

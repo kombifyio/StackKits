@@ -55,6 +55,7 @@ func TestSignServiceToken_RejectsEmptyArgs(t *testing.T) {
 		name, svc, target, secret string
 	}{
 		{"empty secret", "stackkits", "administration", ""},
+		{"blank secret", "stackkits", "administration", " \n\t"},
 		{"empty svc", "", "administration", "secret"},
 		{"empty target", "stackkits", "", "secret"},
 	}
@@ -64,6 +65,27 @@ func TestSignServiceToken_RejectsEmptyArgs(t *testing.T) {
 				t.Errorf("expected error for %s", tc.name)
 			}
 		})
+	}
+}
+
+func TestSignServiceToken_TrimsSecretWhitespace(t *testing.T) {
+	tok, err := SignServiceToken("stackkits", "administration", "test-secret-12345\n", 0)
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	parts := strings.Split(tok, ".")
+	if len(parts) != 3 {
+		t.Fatalf("malformed token")
+	}
+
+	signingInput := parts[0] + "." + parts[1]
+	gotSig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		t.Fatalf("decode sig: %v", err)
+	}
+	expected := hmacSHA256([]byte(signingInput), []byte("test-secret-12345"))
+	if !equalBytes(gotSig, expected) {
+		t.Error("signature should use the trimmed service-auth secret")
 	}
 }
 

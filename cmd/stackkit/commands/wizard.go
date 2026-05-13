@@ -19,16 +19,16 @@ import (
 )
 
 var (
-	wizardReportFile      string
-	wizardReportEndpoint  string
-	wizardReportToken     string
-	wizardReportStackKit  string
-	wizardReportContext   string
-	wizardReportCompute   string
-	wizardReportTenant    string
-	wizardReportSource    string
-	wizardReportIntents   []string
-	wizardReportDryRun    bool
+	wizardReportFile     string
+	wizardReportEndpoint string
+	wizardReportToken    string
+	wizardReportStackKit string
+	wizardReportContext  string
+	wizardReportCompute  string
+	wizardReportTenant   string
+	wizardReportSource   string
+	wizardReportIntents  []string
+	wizardReportDryRun   bool
 )
 
 var wizardCmd = &cobra.Command{
@@ -59,7 +59,7 @@ func init() {
 }
 
 type wizardReportPayload struct {
-	TenantID          string                 `json:"tenantId,omitempty"`
+	TenantID            string                 `json:"tenantId,omitempty"`
 	StackkitSlug        string                 `json:"stackkitSlug,omitempty"`
 	WizardSchemaVersion string                 `json:"wizardSchemaVersion"`
 	Answers             map[string]interface{} `json:"answers"`
@@ -120,7 +120,7 @@ func runWizardReport(cmd *cobra.Command, args []string) error {
 	}
 
 	url := trimTrailingSlash(endpoint) + "/api/v1/sk/wizard/answers"
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body)) // #nosec G107 G704 -- endpoint is an operator-supplied CLI flag, not untrusted input.
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func runWizardReport(cmd *cobra.Command, args []string) error {
 	}
 
 	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G107 G704 -- request URL is operator-supplied CLI endpoint.
 	if err != nil {
 		return fmt.Errorf("POST %s: %w", url, err)
 	}

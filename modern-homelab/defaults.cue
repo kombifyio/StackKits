@@ -96,27 +96,6 @@ package modern_homelab
 // =============================================================================
 
 #MonitoringDefaults: {
-	topology: {
-		mode:            *"otlp-gateway"
-		gatewayNodeType: *"cloud"
-		agentMode:       *"daemonset"
-		summary:         "Grafana Alloy runs on every node and ships OTLP to a central cloud gateway."
-	}
-
-	collector: {
-		protocol:           *"otlp"
-		transport:          *"grpc"
-		endpoint:           *"otel-gateway.monitoring.svc.cluster.local:4317"
-		collectionInterval: *"15s"
-	}
-
-	gateway: {
-		enabled:             true
-		backend:             *"victoriametrics"
-		remoteWriteEndpoint: *"http://victoriametrics:8428/api/v1/write"
-		traces: enabled: false
-	}
-
 	victoriametrics: {
 		retention:      "30d"
 		scrapeInterval: "15s"
@@ -145,9 +124,7 @@ package modern_homelab
 	}
 
 	alloy: {
-		// Node-local OTLP agent; the central gateway lives on the cloud node.
-		role:           *"node-agent"
-		otlpEndpoint:   *"otel-gateway.monitoring.svc.cluster.local:4317"
+		// Unified telemetry agent replacing Promtail
 		collectLogs:    true
 		collectMetrics: true
 		collectTraces:  false

@@ -25,6 +25,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L1-foundation"
 		description: "Lightweight LDAP directory — source of truth for users and groups"
+		testScenarios: ["SK-S3", "SK-S4", "SK-S5"]
 	}
 
 	// No service dependencies — this is L1 foundation (like socket-proxy).

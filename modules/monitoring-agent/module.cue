@@ -22,6 +22,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-ingress"
 		description: "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to TechStack or monitoring-core"
+		testScenarios: ["SK-S1", "SK-S4"]
 	}
 
 	requires: {
@@ -52,7 +53,7 @@ Contract: base.#ModuleContract & {
 	contexts: {
 		local: {}
 		cloud: {}
-		pi:    {}
+		pi: {}
 	}
 
 	services: "otel-collector": base.#ServiceDefinition & {

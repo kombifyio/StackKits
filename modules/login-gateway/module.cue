@@ -21,6 +21,7 @@ Contract: base.#ModuleContract & {
 		version:     "0.1.0"
 		layer:       "L2-platform-identity"
 		description: "Enforces TinyAuth forward-auth in front of every L3 service, with PocketID as OIDC IdP. Mandatory platform invariant in V6."
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S5"]
 	}
 
 	requires: {

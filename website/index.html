@@ -57,6 +57,10 @@
     .feature { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
     .feature h3 { margin: 0 0 0.5rem; font-size: 0.95rem; }
     .feature p { color: var(--muted); font-size: 0.85rem; margin: 0; }
+    .release-list { display: grid; gap: 0.75rem; list-style: none; }
+    .release-list li { border-left: 2px solid var(--accent); padding-left: 1rem; }
+    .release-list strong { display: block; font-size: 0.95rem; margin-bottom: 0.15rem; }
+    .release-list span { color: var(--muted); font-size: 0.9rem; }
 
     .cli-preview pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
     .cli-preview .prompt { color: var(--accent); }
@@ -99,6 +103,8 @@
     </div>
     <p class="install-note">Default one-liner for BaseKit. Requires Linux or macOS with root/sudo access.</p>
   </div>
+
+  <!-- RELEASE_SUMMARY -->
 
   <section>
     <h2>Want more control?</h2>
@@ -149,7 +155,7 @@ stackkit init base-kit</pre>
     <h2>CLI Overview</h2>
     <pre><span class="comment"># Core workflow</span>
 <span class="prompt">$</span> stackkit init base-kit      <span class="comment"># create stack-spec.yaml</span>
-<span class="prompt">$</span> stackkit prepare             <span class="comment"># check/install Docker + OpenTofu</span>
+<span class="prompt">$</span> stackkit prepare             <span class="comment"># prepare Docker + packaged OpenTofu</span>
 <span class="prompt">$</span> stackkit generate            <span class="comment"># generate deployment files</span>
 <span class="prompt">$</span> stackkit plan                <span class="comment"># preview changes</span>
 <span class="prompt">$</span> stackkit apply               <span class="comment"># deploy everything</span>

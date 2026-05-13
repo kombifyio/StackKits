@@ -45,24 +45,24 @@ type tenantSpecEnvelope struct {
 		StackkitSlug    string `json:"stackkitSlug"`
 		StackkitVersion string `json:"stackkitVersion"`
 		LifecycleState  string `json:"lifecycleState"`
-		SecretProject   string `json:"secretProject"`
-		SecretConfig    string `json:"secretConfig"`
+		DopplerProject  string `json:"dopplerProject"`
+		DopplerConfig   string `json:"dopplerConfig"`
 	} `json:"deployment"`
 	Spec     models.StackSpec   `json:"spec"`
 	Bindings []tenantSpecBindng `json:"bindings"`
 }
 
 type tenantSpecBindng struct {
-	ModuleSlug    string `json:"moduleSlug"`
-	ModuleVersion string `json:"moduleVersion"`
-	SpecID        string `json:"specId"`
-	SecretKey     string `json:"secretKey"`
-	SecretPath    string `json:"secretPath"`
-	ActualDBName  string `json:"actualDbName"`
-	DBEngine      string `json:"dbEngine"`
-	SchemaName    string `json:"schemaName"`
-	SharedMode    string `json:"sharedMode"`
-	Status        string `json:"status"`
+	ModuleSlug        string `json:"moduleSlug"`
+	ModuleVersion     string `json:"moduleVersion"`
+	SpecID            string `json:"specId"`
+	SecretKey         string `json:"secretKey"`
+	DopplerSecretPath string `json:"dopplerSecretPath"`
+	ActualDBName      string `json:"actualDbName"`
+	DBEngine          string `json:"dbEngine"`
+	SchemaName        string `json:"schemaName"`
+	SharedMode        string `json:"sharedMode"`
+	Status            string `json:"status"`
 }
 
 // fetchTenantSpec pulls the composed StackSpec for the given
@@ -129,7 +129,7 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	}
 
 	// Inject deployment-scoped env so downstream components (auth0
-	// callbacks, secret-path composition, telemetry tags) can key
+	// callbacks, Doppler path composition, telemetry tags) can key
 	// off the deployment UUID without re-fetching.
 	if env.Spec.Environment == nil {
 		env.Spec.Environment = map[string]string{}
@@ -137,13 +137,13 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	env.Spec.Environment["STACKKIT_TENANT_DEPLOYMENT_ID"] = env.Deployment.ID
 	env.Spec.Environment["STACKKIT_TENANT_ID"] = env.Deployment.TenantID
 	for _, b := range env.Bindings {
-		// Surface binding->secret-path mapping so cloud-init /
+		// Surface binding->doppler-path mapping so cloud-init /
 		// container-entrypoints know WHICH key to resolve for each
 		// binding. Keys are STACKKIT_BINDING_<SECRETKEY>.
-		if b.SecretKey == "" || b.SecretPath == "" {
+		if b.SecretKey == "" || b.DopplerSecretPath == "" {
 			continue
 		}
-		env.Spec.Environment["STACKKIT_BINDING_"+b.SecretKey] = b.SecretPath
+		env.Spec.Environment["STACKKIT_BINDING_"+b.SecretKey] = b.DopplerSecretPath
 	}
 
 	yamlBytes, err := yaml.Marshal(&env.Spec)
@@ -160,7 +160,7 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	}
 
 	// Also persist the bindings next to the spec so diagnostics can
-	// see which secret paths the VM was told to pull from.
+	// see which doppler paths the VM was told to pull from.
 	bindingsPath := filepath.Join(wd, ".stackkit", "tenant-bindings.json")
 	if err := os.MkdirAll(filepath.Dir(bindingsPath), 0o750); err == nil {
 		if data, jerr := json.MarshalIndent(env.Bindings, "", "  "); jerr == nil {

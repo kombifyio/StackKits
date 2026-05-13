@@ -282,11 +282,7 @@ func applySpecDefaults(spec *models.StackSpec) {
 			app.Route.Auth = "login-gateway"
 		}
 		if app.Route.Host == "" {
-			domain := spec.Domain
-			if domain == "" {
-				domain = models.DomainHomeLab
-			}
-			app.Route.Host = name + "." + domain
+			app.Route.Host = models.DefaultAppHost(spec.Domain, spec.SubdomainPrefix, name)
 		}
 		spec.Apps[name] = app
 	}

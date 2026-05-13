@@ -14,6 +14,11 @@ services:
     # healthcheck below works. Newer :latest is scratch + Go and has no shell.
     image: tecnativa/docker-socket-proxy:0.2.0
     container_name: test-socket-proxy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed 's/[$][{]BIND_CONFIG[}]/[::]:2375 v4v6/g' /usr/local/etc/haproxy/haproxy.cfg.template > /run/haproxy.cfg
+        exec haproxy -W -db -f /run/haproxy.cfg
     restart: unless-stopped
     environment:
       # VERSION=1 is required so the wget healthcheck (GET /version) can pass;
@@ -50,10 +55,6 @@ services:
     read_only: true
     tmpfs:
       - /run
-      # tecnativa/docker-socket-proxy's entrypoint writes /usr/local/etc/haproxy/haproxy.cfg
-      # at start-up from the *_* env flags. With read_only rootfs we must mount that
-      # directory as tmpfs so the rendered config can be written.
-      - /usr/local/etc/haproxy
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:2375/version || exit 1"]
       interval: 10s
@@ -62,8 +63,10 @@ services:
       start_period: 5s
 
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.6
     container_name: test-traefik-socketproxy
+    environment:
+      DOCKER_API_VERSION: "1.40"
     command:
       - "--api.insecure=true"
       - "--ping=true"

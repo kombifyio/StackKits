@@ -70,7 +70,7 @@ Examples:
 func init() {
 	initCmd.Flags().StringVar(&initComputeTier, "compute-tier", "", "Compute tier (low, standard, high)")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
-	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "Use Kombify Point local DNS instead of the zero-config .localhost domain")
+	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "Use Kombify Point local DNS names; optionally combine with --local-name")
 	initCmd.Flags().StringVar(&initLocalName, "local-name", "", "Local DNS short name for --local-dns (e.g. family -> family.home)")
 	initCmd.Flags().StringVar(&initMode, "mode", "", "Deployment mode (simple, advanced)")
 	initCmd.Flags().StringVarP(&initOutputDir, "output", "o", "deploy", "Output directory for generated files")
@@ -80,14 +80,14 @@ func init() {
 
 	// Phase 1 owner-breakglass flags. Phase 2 cloud flags are stubbed for
 	// shape only; the resolver rejects --owner-source=cloud until then.
-	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "Cluster mode (first|join). Phase 1: only 'first' supported.")
+	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "Cluster mode (first|join). Join nodes require a token from 'stackkit cluster join-token'.")
 	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner source (local|cloud). Phase 1: only 'local' supported.")
 	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Owner email (used for display + recovery contact)")
 	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Owner username (required when --owner-source=local)")
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Owner display name (defaults to username)")
 	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "Cloud OIDC issuer URL (Phase 2; required when --owner-source=cloud)")
 	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "Cloud OIDC client ID (Phase 2)")
-	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (Phase 2; e.g. secret:// or vault://)")
+	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (Phase 2; e.g. doppler:// or secret://)")
 	initCmd.Flags().StringVar(&initCloudOIDCForeignSubject, "cloud-oidc-foreign-subject", "", "Cloud user's foreign subject ID (Phase 2)")
 	initCmd.Flags().StringVar(&initRecoveryPassphraseHash, "recovery-passphrase-hash", "", "Recovery passphrase hash (argon2id PHC). If missing, prompts interactively.")
 }
@@ -447,6 +447,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err := validateInitLocalDNSFlags(); err != nil {
 		return err
 	}
+	if initClusterMode != "" && initClusterMode != "first" && initClusterMode != "join" {
+		return fmt.Errorf("--cluster-mode must be 'first' or 'join'")
+	}
 
 	loader := config.NewLoader(wd)
 	availableKits, err := discoverStackKits(loader, wd)
@@ -518,6 +521,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve owner spec: %w", err)
 	}
 
+	if err := validateInitPublicIdentity(defaults, domain, email, adminEmail, ownerSpec.Email, initNonInteractive); err != nil {
+		return err
+	}
+
 	if hasOwner {
 		// Phase-1 only persists "first" cluster mode; "join" nodes don't
 		// provision owners. Validate up-front rather than failing inside
@@ -545,6 +552,30 @@ func runInit(cmd *cobra.Command, args []string) error {
 		hasOwnerData = true
 	}
 
+	sshSpec := models.SSHSpec{
+		User: "root",
+		Port: 22,
+	}
+	isLocalOnlyDomain := models.IsLocalDomain(domain) && !models.IsKombifyMeDomain(domain)
+	if stackkitName == "base-kit" && defaults.Context == models.ContextLocal && isLocalOnlyDomain {
+		sshSpec.User = "admin"
+		sshSpec.KeyPath = "~/.ssh/id_ed25519"
+	}
+
+	paas := ""
+	var services map[string]any
+	if stackkitName == "base-kit" && defaults.Context == models.ContextLocal && isLocalOnlyDomain {
+		paas = models.PAASNone
+		services = map[string]any{
+			"dokploy":     map[string]any{"enabled": false},
+			"uptime-kuma": map[string]any{"enabled": true},
+			"whoami":      map[string]any{"enabled": true},
+			"vaultwarden": map[string]any{"enabled": true},
+			"jellyfin":    map[string]any{"enabled": false},
+			"immich":      map[string]any{"enabled": true},
+		}
+	}
+
 	spec := &models.StackSpec{
 		Name:       filepath.Base(wd),
 		StackKit:   stackkitName,
@@ -559,11 +590,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Compute: models.ComputeSpec{
 			Tier: computeTier,
 		},
-		SSH: models.SSHSpec{
-			User: "root",
-			Port: 22,
-		},
-		Owner: ownerCfg,
+		SSH:      sshSpec,
+		PAAS:     paas,
+		Services: services,
+		Owner:    ownerCfg,
 	}
 	if hasOwnerData {
 		deployLog.Event("init.owner_persisted",
@@ -598,6 +628,30 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	printInitSummary(stackkitName, mode, computeTier, defaults.Context, domain, email)
 	return nil
+}
+
+func validateInitPublicIdentity(defaults initDefaults, domain, email, adminEmail, ownerEmail string, nonInteractive bool) error {
+	if !nonInteractive || !initRequiresRealOwnerEmail(defaults, domain) {
+		return nil
+	}
+	for _, candidate := range []string{ownerEmail, adminEmail, email} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate != "" && strings.Contains(candidate, "@") && !models.NeedsSyntheticAdminEmail(candidate) {
+			return nil
+		}
+	}
+	return fmt.Errorf("owner/admin email is required for public or managed StackKit configs")
+}
+
+func initRequiresRealOwnerEmail(defaults initDefaults, domain string) bool {
+	domain = strings.TrimSpace(domain)
+	if domain == "" {
+		return false
+	}
+	if defaults.NetworkMode != "public" && defaults.Context != models.ContextCloud {
+		return false
+	}
+	return models.IsKombifyMeDomain(domain) || !models.IsLocalDomain(domain)
 }
 
 // discoverStackKits scans the working directory (and parent) for stackkit.yaml files.

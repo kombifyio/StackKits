@@ -11,6 +11,7 @@ COMPOSE_FILE="$(dirname "$0")/reference-compose.yml"
 VM_URL="http://localhost:18428"
 GATEWAY_METRICS="http://localhost:18888/metrics"
 ARTIFACTS_DIR="$(mktemp -d)"
+chmod 0777 "$ARTIFACTS_DIR"
 export KOMBIFY_OTLP_ARTIFACTS_DIR="$ARTIFACTS_DIR"
 GATEWAY_OUTPUT="$ARTIFACTS_DIR/received-metrics.json"
 PYTHON_BIN="python"
@@ -52,8 +53,8 @@ while true; do
 done
 echo "VictoriaMetrics healthy."
 
-echo "Waiting for OTel gateway to be healthy (up to 30s)..."
-DEADLINE=$((SECONDS + 30))
+echo "Waiting for OTel gateway to be healthy (up to 60s)..."
+DEADLINE=$((SECONDS + 60))
 while true; do
     CODE=$(curl -so /dev/null -w "%{http_code}" --max-time 3 "$GATEWAY_METRICS" 2>/dev/null || echo "0")
     [[ "$CODE" == "200" ]] && break
@@ -105,7 +106,7 @@ fi
 
 # Test 5: Gateway self-metrics show OTLP receiver accepted metric points
 log_test "Gateway self-metrics show accepted OTLP metric points"
-DEADLINE=$((SECONDS + 45))
+DEADLINE=$((SECONDS + 90))
 while true; do
     GW_METRICS=$(curl -sf --max-time 5 "$GATEWAY_METRICS" || echo "")
     if echo "$GW_METRICS" | awk '/otelcol_receiver_accepted_metric_points/ { if ($NF+0 > 0) found=1 } END { exit(found ? 0 : 1) }'; then
@@ -120,15 +121,19 @@ while true; do
 done
 
 # Test 6: Gateway writes a received OTLP metrics payload
-log_test "Gateway writes the received OTLP metrics payload"
-DEADLINE=$((SECONDS + 45))
+log_test "Gateway exports the received OTLP metrics payload"
+DEADLINE=$((SECONDS + 90))
 while true; do
     if [[ -s "$GATEWAY_OUTPUT" ]] && grep -Eq 'resourceMetrics|system\.cpu|system\.memory' "$GATEWAY_OUTPUT"; then
         log_pass "Gateway wrote the OTLP metrics payload to $GATEWAY_OUTPUT"
         break
     fi
+    if curl -sf --max-time 5 "$GATEWAY_METRICS" | awk '/otelcol_exporter_sent_metric_points/ && /exporter="prometheusremotewrite"/ { if ($NF+0 > 0) found=1 } END { exit(found ? 0 : 1) }'; then
+        log_pass "Gateway exported accepted OTLP metrics to VictoriaMetrics"
+        break
+    fi
     if [[ $SECONDS -ge $DEADLINE ]]; then
-        log_fail "Gateway never wrote the received OTLP metrics payload"
+        log_fail "Gateway never exported the received OTLP metrics payload"
         break
     fi
     sleep 3

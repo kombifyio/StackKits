@@ -19,23 +19,24 @@ import (
 // 404 errors follow.
 //
 // To intentionally update the seed:
-//   1. Edit kombify-DB/migrations/000082_sk_service_group_yaml_mapping.up.sql
-//      (or write a new follow-up migration with ALTER ... yaml_section).
-//   2. Update kombify-StackKits/internal/kitio/mapping.go to match.
-//   3. Update testdata/service_group_seed.json to reflect the new state.
-//   4. Run this test — it must pass.
+//  1. Edit kombify-DB/migrations/000082_sk_service_group_yaml_mapping.up.sql
+//     (or write a new follow-up migration with ALTER ... yaml_section).
+//  2. Update kombify-StackKits/internal/kitio/mapping.go to match.
+//  3. Update testdata/service_group_seed.json to reflect the new state.
+//  4. Run this test — it must pass.
 //
 // Regenerate the test data:
-//   psql -At "$ADMIN_DATABASE_URL" -c "
-//     SELECT json_build_object(
-//       'mappings', json_agg(json_build_object(
-//         'section', yaml_section,
-//         'key', yaml_key,
-//         'groupSlug', slug
-//       )))
-//     FROM sk_service_group
-//     WHERE yaml_section <> '';
-//   "
+//
+//	psql -At "$ADMIN_DATABASE_URL" -c "
+//	  SELECT json_build_object(
+//	    'mappings', json_agg(json_build_object(
+//	      'section', yaml_section,
+//	      'key', yaml_key,
+//	      'groupSlug', slug
+//	    )))
+//	  FROM sk_service_group
+//	  WHERE yaml_section <> '';
+//	"
 type seedFile struct {
 	Mappings []struct {
 		Section   string `json:"section"`

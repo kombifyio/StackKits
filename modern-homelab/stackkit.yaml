@@ -163,7 +163,7 @@ nodeTypes:
 # Modern Homelab supports all add-ons. VPN is optional, not default.
 addons:
   autoActivated:
-    - monitoring          # OTel gateway + retention tier recommended for multi-node
+    - monitoring          # Always recommended for multi-node
     - backup              # Always recommended
   optional:
     # Infrastructure
@@ -185,7 +185,7 @@ addons:
     - remote-desktop      # Apache Guacamole
 
 # =============================================================================
-# SECRETS MANAGEMENT (Homelab standard)
+# SECRETS MANAGEMENT (Homelab standard, not Doppler)
 # =============================================================================
 secrets:
   provider: "sops-age"
@@ -205,7 +205,7 @@ changelog:
       - "Added tunnel add-on (Cloudflare Tunnel + Pangolin)"
       - "Added 10 use case add-ons (photos, AI, media, etc.)"
       - "Added calendar (Radicale + Bloben) and mail (Stalwart) add-ons"
-      - "Secrets via SOPS + age"
+      - "Secrets via SOPS + age (not Doppler)"
       - "Architecture v4 aligned: StackKit + Context + Add-Ons"
 
   - version: "0.1.0-alpha"

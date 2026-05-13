@@ -15,7 +15,7 @@ import (
 type VirtType string
 
 const (
-	VirtNone    VirtType = "none"      // bare metal
+	VirtNone    VirtType = "none" // bare metal
 	VirtKVM     VirtType = "kvm"
 	VirtVMware  VirtType = "vmware"
 	VirtHyperV  VirtType = "microsoft"

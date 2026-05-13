@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -234,6 +235,21 @@ func TestTemplateFunctions(t *testing.T) {
 			template: `{{quote "hello"}}`,
 			expected: `"hello"`,
 		},
+		{
+			name:     "htmlText escapes html and terraform interpolation",
+			template: `{{htmlText "<b>${bad}</b>"}}`,
+			expected: `&lt;b&gt;$&#123;bad}&lt;/b&gt;`,
+		},
+		{
+			name:     "publicGuideURL keeps public docs links",
+			template: `{{publicGuideURL "https://docs.kombify.io/guides/stackkits/node-hub"}}`,
+			expected: `https://docs.kombify.io/guides/stackkits/node-hub`,
+		},
+		{
+			name:     "publicGuideURL rejects non-docs links",
+			template: `{{publicGuideURL "https://example.com/private"}}`,
+			expected: ``,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -246,6 +262,28 @@ func TestTemplateFunctions(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestServiceHint(t *testing.T) {
+	tests := []struct {
+		name string
+		svc  servicecatalog.Service
+		want string
+	}{
+		{name: "provider", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicyProvider}, want: "Identity provider"},
+		{name: "oidc", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicyOIDC}, want: "SSO entry"},
+		{name: "forwardauth", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicyForwardAuth}, want: "Protected by TinyAuth"},
+		{name: "self-auth", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicySelfAuth}, want: "App login"},
+		{name: "none", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicyNone}, want: "Local service"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := serviceHint(tt.svc); got != tt.want {
+				t.Fatalf("serviceHint() = %q, want %q", got, tt.want)
+			}
 		})
 	}
 }

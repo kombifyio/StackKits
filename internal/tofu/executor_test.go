@@ -43,6 +43,31 @@ func TestExecutor(t *testing.T) {
 	})
 }
 
+func TestPackagedBinaryPath(t *testing.T) {
+	t.Run("uses explicit StackKit packaged tofu override", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		binaryPath := filepath.Join(tmpDir, BinaryName())
+		require.NoError(t, os.WriteFile(binaryPath, []byte("fake"), 0755))
+		t.Setenv("STACKKIT_TOFU_BINARY", binaryPath)
+
+		path, ok := PackagedBinaryPath()
+		require.True(t, ok)
+		assert.Equal(t, binaryPath, path)
+
+		executor := NewExecutor()
+		assert.Equal(t, binaryPath, executor.binary)
+	})
+
+	t.Run("does not claim missing override as packaged", func(t *testing.T) {
+		missingPath := filepath.Join(t.TempDir(), BinaryName())
+		t.Setenv("STACKKIT_TOFU_BINARY", missingPath)
+
+		path, ok := PackagedBinaryPath()
+		require.False(t, ok)
+		assert.Equal(t, missingPath, path)
+	})
+}
+
 func TestExecutorIsInstalled(t *testing.T) {
 	t.Run("checks for tofu binary", func(t *testing.T) {
 		executor := NewExecutor()
@@ -154,13 +179,12 @@ func TestEnsureStateDir(t *testing.T) {
 	})
 }
 
-// Integration tests that require actual tofu installation
+// Integration tests that require the StackKit-packaged OpenTofu binary.
 func TestExecutorIntegration(t *testing.T) {
 	executor := NewExecutor()
 
-	// Skip if tofu is not installed
 	if !executor.IsInstalled() {
-		t.Skip("OpenTofu not installed, skipping integration tests")
+		t.Skip("StackKit-packaged OpenTofu not available in this test layout, skipping integration tests")
 	}
 
 	ctx := context.Background()
