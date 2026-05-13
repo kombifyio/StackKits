@@ -4,6 +4,12 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.4] - 2026-05-13
+
+### Fixed
+
+- **Runtime image build**: Dockerfile now uses Go 1.26.3 so the public StackKit server image build matches `go.mod` and can publish `ghcr.io/kombifyio/stackkits`.
+
 ## [0.2.3] - 2026-05-13
 
 ### Highlights

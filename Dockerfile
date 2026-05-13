@@ -7,7 +7,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Build the StackKit CLI
 # -----------------------------------------------------------------------------
-FROM golang:1.26.2-alpine AS builder
+FROM golang:1.26.3-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
