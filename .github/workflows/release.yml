@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  GO_VERSION: "1.26.3"
+
+jobs:
+  test:
+    name: Test before release
+    if: github.repository == 'kombifyio/stackKits'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+  validate-archive:
+    name: Validate release archive
+    if: github.repository == 'kombifyio/stackKits'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build dry-run archive
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+
+      - name: Verify archive contents
+        run: bash scripts/release/validate-release-archives.sh dist
+
+  release:
+    name: Release
+    if: github.repository == 'kombifyio/stackKits'
+    needs: [test, validate-archive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Bake registry snapshot from public CUE tree
+        run: |
+          set -euo pipefail
+          go build -o /tmp/stackkit ./cmd/stackkit
+          /tmp/stackkit registry bake-from-cue \
+            --modules-dir modules \
+            --output internal/registry/data/registry_snapshot.json
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --skip=validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-image:
+    name: Publish StackKit Server Image
+    if: github.repository == 'kombifyio/stackKits'
+    needs: [test, validate-archive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Build and push GHCR image
+        shell: bash
+        env:
+          IMAGE: ghcr.io/kombifyio/stackkits
+          TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build \
+            --tag "${IMAGE}:${TAG}" \
+            --tag "${IMAGE}:latest" \
+            .
+          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:latest"

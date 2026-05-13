@@ -1,0 +1,318 @@
+# =============================================================================
+# PLATFORM: DOCKER - CONTAINER RUNTIME
+# =============================================================================
+# Layer 2 (PLATFORM): Docker container orchestration
+#
+# This template provides:
+# - Docker Engine installation
+# - Docker Compose plugin
+# - Docker networks
+# - Container runtime configuration
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "docker_install" {
+  description = "Install Docker (set false if already installed)"
+  type        = bool
+  default     = true
+}
+
+variable "docker_compose_version" {
+  description = "Docker Compose version to verify"
+  type        = string
+  default     = "v2"
+}
+
+variable "docker_log_driver" {
+  description = "Docker logging driver"
+  type        = string
+  default     = "json-file"
+}
+
+variable "docker_log_max_size" {
+  description = "Maximum log file size"
+  type        = string
+  default     = "10m"
+}
+
+variable "docker_log_max_file" {
+  description = "Maximum number of log files"
+  type        = number
+  default     = 3
+}
+
+variable "docker_storage_driver" {
+  description = "Docker storage driver (auto-detect if empty)"
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# DOCKER INSTALLATION
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "docker_install" {
+  count = var.docker_install ? 1 : 0
+
+  depends_on = [null_resource.system_prep]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = "10m"  # Docker install can take time
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== PLATFORM: Docker Installation ==='",
+      
+      "# Check if Docker is already installed",
+      "if command -v docker &> /dev/null; then",
+      "  echo 'Docker already installed:'",
+      "  docker --version",
+      "  docker compose version || true",
+      "  exit 0",
+      "fi",
+      
+      "# Install Docker using official script",
+      "curl -fsSL https://get.docker.com | sh",
+      
+      "# Enable and start Docker service",
+      "systemctl enable docker",
+      "systemctl start docker",
+      
+      "# Wait for Docker to be ready",
+      "for i in {1..30}; do",
+      "  docker info &> /dev/null && break",
+      "  echo 'Waiting for Docker to start...'",
+      "  sleep 2",
+      "done",
+      
+      "# Verify installation",
+      "docker --version",
+      "docker compose version",
+      
+      "echo '=== Docker installation complete ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# DOCKER USER CONFIGURATION
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "docker_user_config" {
+  depends_on = [null_resource.docker_install]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== PLATFORM: Docker User Configuration ==='",
+      
+      "# Add current user to docker group",
+      "usermod -aG docker ${var.ssh_user} 2>/dev/null || true",
+      
+      "# Create docker group if not exists",
+      "getent group docker || groupadd docker",
+      
+      "echo '=== Docker user configured ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# DOCKER DAEMON CONFIGURATION
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "docker_daemon_config" {
+  depends_on = [null_resource.docker_user_config]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== PLATFORM: Docker Daemon Configuration ==='",
+      
+      "# Create daemon.json with logging configuration",
+      "mkdir -p /etc/docker",
+      
+      "cat > /etc/docker/daemon.json << 'EOF'",
+      "{",
+      "  \"log-driver\": \"${var.docker_log_driver}\",",
+      "  \"log-opts\": {",
+      "    \"max-size\": \"${var.docker_log_max_size}\",",
+      "    \"max-file\": \"${var.docker_log_max_file}\"",
+      "  },",
+      "  \"storage-driver\": \"overlay2\",",
+      "  \"live-restore\": true,",
+      "  \"userland-proxy\": false,",
+      "  \"default-address-pools\": [",
+      "    {",
+      "      \"base\": \"172.17.0.0/12\",",
+      "      \"size\": 24",
+      "    }",
+      "  ]",
+      "}",
+      "EOF",
+      
+      "# Restart Docker to apply configuration",
+      "systemctl restart docker",
+      
+      "# Wait for Docker to be ready",
+      "for i in {1..30}; do",
+      "  docker info &> /dev/null && break",
+      "  echo 'Waiting for Docker to restart...'",
+      "  sleep 2",
+      "done",
+      
+      "echo '=== Docker daemon configured ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# DOCKER NETWORKS
+# -----------------------------------------------------------------------------
+
+variable "docker_networks" {
+  description = "Docker networks to create"
+  type = list(object({
+    name   = string
+    driver = string
+    subnet = string
+  }))
+  default = [
+    {
+      name   = "kombistack"
+      driver = "bridge"
+      subnet = "172.20.0.0/16"
+    }
+  ]
+}
+
+resource "null_resource" "docker_networks" {
+  depends_on = [null_resource.docker_daemon_config]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = concat(
+      [
+        "#!/bin/bash",
+        "set -e",
+        "echo '=== PLATFORM: Creating Docker Networks ==='"
+      ],
+      [for net in var.docker_networks : <<-EOT
+        docker network inspect ${net.name} &> /dev/null || \
+          docker network create \
+            --driver ${net.driver} \
+            --subnet ${net.subnet} \
+            ${net.name}
+        echo "Network ${net.name} ready"
+      EOT
+      ],
+      ["echo '=== Docker networks created ==='"]
+    )
+  }
+}
+
+# -----------------------------------------------------------------------------
+# DOCKER PRUNE CRON
+# -----------------------------------------------------------------------------
+
+variable "docker_auto_prune" {
+  description = "Enable automatic Docker pruning"
+  type        = bool
+  default     = true
+}
+
+resource "null_resource" "docker_prune_cron" {
+  count = var.docker_auto_prune ? 1 : 0
+
+  depends_on = [null_resource.docker_networks]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== PLATFORM: Docker Prune Cron ==='",
+      
+      "# Create prune script",
+      "cat > /opt/kombistack/docker-prune.sh << 'EOF'",
+      "#!/bin/bash",
+      "# Remove unused containers, networks, images, and volumes",
+      "docker system prune -af --volumes 2>/dev/null || true",
+      "echo \"$(date): Docker prune complete\" >> /opt/kombistack/logs/prune.log",
+      "EOF",
+      
+      "chmod +x /opt/kombistack/docker-prune.sh",
+      
+      "# Add weekly cron job (Sunday 3am)",
+      "(crontab -l 2>/dev/null | grep -v 'docker-prune'; echo '0 3 * * 0 /opt/kombistack/docker-prune.sh') | crontab -",
+      
+      "echo '=== Docker prune cron configured ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "docker_installed" {
+  value       = true
+  description = "Docker is installed"
+  depends_on  = [null_resource.docker_install]
+}
+
+output "docker_networks" {
+  value       = [for net in var.docker_networks : net.name]
+  description = "Created Docker networks"
+}
+
+output "docker_socket" {
+  value       = "unix:///var/run/docker.sock"
+  description = "Docker socket path"
+}

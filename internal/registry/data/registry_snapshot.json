@@ -1,0 +1,581 @@
+{
+  "schema_version": 2,
+  "source": "cue",
+  "generated_at": "2026-04-30T17:14:27.8304537Z",
+  "tools": [],
+  "services": [
+    {
+      "key": "auth",
+      "display_name": "TinyAuth",
+      "description": "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth support",
+      "tool_name": "tinyauth",
+      "module_slug": "tinyauth",
+      "local_slug": "auth",
+      "public_slug": "auth",
+      "legacy_aliases": [
+        "tinyauth"
+      ],
+      "identity_policy": "oidc",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128274;",
+      "badge": "L1 · ForwardAuth",
+      "section": "Platform",
+      "order": 20,
+      "enable_var": "enable_tinyauth",
+      "default": true
+    },
+    {
+      "key": "base",
+      "display_name": "StackKits Node Hub",
+      "description": "Node-local StackKits hub with onboarding, recovery, and service links",
+      "tool_name": "dashboard",
+      "module_slug": "dashboard",
+      "local_slug": "base",
+      "public_slug": "base",
+      "legacy_aliases": [
+        "dashboard",
+        "dash"
+      ],
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128421;",
+      "badge": "L3 · Hub",
+      "section": "Platform",
+      "order": -1,
+      "enable_var": "enable_dashboard",
+      "default": true
+    },
+    {
+      "key": "home",
+      "display_name": "Homepage",
+      "description": "IaC-managed homelab start dashboard generated from the StackKits service catalog.",
+      "tool_name": "homepage",
+      "module_slug": "homepage",
+      "local_slug": "home",
+      "public_slug": "home",
+      "legacy_aliases": [
+        "homepage",
+        "homelab-dashboard"
+      ],
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#8962;",
+      "badge": "L3 · Start",
+      "section": "Platform",
+      "order": 0,
+      "enable_var": "enable_homepage",
+      "default": true
+    },
+    {
+      "key": "coolify",
+      "display_name": "Coolify",
+      "description": "Self-hosted deployment platform.",
+      "tool_name": "coolify",
+      "module_slug": "coolify",
+      "local_slug": "coolify",
+      "public_slug": "coolify",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128171;",
+      "badge": "L2 · PaaS",
+      "section": "Platform",
+      "order": 41,
+      "enable_var": "enable_coolify",
+      "default": false
+    },
+    {
+      "key": "dockge",
+      "display_name": "Dockge",
+      "description": "Docker Compose stack manager.",
+      "tool_name": "dockge",
+      "module_slug": "dockge",
+      "local_slug": "dockge",
+      "public_slug": "dockge",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128230;",
+      "badge": "L2 · Compose Manager",
+      "section": "Platform",
+      "order": 42,
+      "enable_var": "enable_dockge",
+      "default": false
+    },
+    {
+      "key": "dokploy",
+      "display_name": "Dokploy",
+      "description": "Self-hosted PaaS with PostgreSQL and Redis for deploying applications",
+      "tool_name": "dokploy",
+      "module_slug": "dokploy",
+      "local_slug": "dokploy",
+      "public_slug": "dokploy",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128640;",
+      "badge": "L2 · PaaS",
+      "section": "Platform",
+      "order": 40,
+      "enable_var": "enable_dokploy",
+      "default": true
+    },
+    {
+      "key": "id",
+      "display_name": "PocketID",
+      "description": "Self-hosted OIDC provider for single sign-on with passkeys",
+      "tool_name": "pocketid",
+      "module_slug": "pocketid",
+      "local_slug": "id",
+      "public_slug": "id",
+      "legacy_aliases": [
+        "pocketid"
+      ],
+      "identity_policy": "provider",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128100;",
+      "badge": "L1 · IdP",
+      "section": "Platform",
+      "order": 10,
+      "enable_var": "enable_pocketid",
+      "default": true
+    },
+    {
+      "key": "kuma",
+      "display_name": "Uptime Kuma",
+      "description": "Self-hosted uptime monitoring with status pages and notifications",
+      "tool_name": "uptime-kuma",
+      "module_slug": "uptime-kuma",
+      "local_slug": "kuma",
+      "public_slug": "kuma",
+      "legacy_aliases": [
+        "uptime-kuma"
+      ],
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128202;",
+      "badge": "L3 · Monitoring",
+      "section": "Applications",
+      "order": 10,
+      "enable_var": "enable_uptime_kuma",
+      "default": true
+    },
+    {
+      "key": "logs",
+      "display_name": "Dozzle",
+      "description": "Real-time Docker container log viewer",
+      "tool_name": "logs",
+      "module_slug": "logs",
+      "local_slug": "logs",
+      "public_slug": "logs",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "default": false
+    },
+    {
+      "key": "media",
+      "display_name": "Jellyfin",
+      "description": "Free media server for movies, TV, music, and photos",
+      "tool_name": "jellyfin",
+      "module_slug": "jellyfin",
+      "local_slug": "media",
+      "public_slug": "media",
+      "legacy_aliases": [
+        "jellyfin"
+      ],
+      "identity_policy": "oidc",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#127916;",
+      "badge": "L3 · Media",
+      "section": "Applications",
+      "order": 40,
+      "enable_var": "enable_jellyfin",
+      "default": true
+    },
+    {
+      "key": "photos",
+      "display_name": "Immich",
+      "description": "Self-hosted photo and video management with AI-powered search and mobile backup",
+      "tool_name": "immich",
+      "module_slug": "immich",
+      "local_slug": "photos",
+      "public_slug": "photos",
+      "legacy_aliases": [
+        "immich"
+      ],
+      "identity_policy": "oidc",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128247;",
+      "badge": "L3 · Photos",
+      "section": "Applications",
+      "order": 50,
+      "enable_var": "enable_immich",
+      "default": true
+    },
+    {
+      "key": "point",
+      "display_name": "Kombify Point DNS",
+      "description": "Local LAN DNS resolver for *.home and *.\u003cname\u003e.home service names",
+      "tool_name": "kombify-point",
+      "module_slug": "kombify-point",
+      "local_slug": "point",
+      "public_slug": "point",
+      "identity_policy": "none",
+      "owner_provisioning_policy": "none",
+      "icon": "\u0026#127760;",
+      "badge": "L1 \\u00b7 DNS",
+      "section": "Platform",
+      "order": 35,
+      "enable_var": "enable_kombify_point",
+      "default": false
+    },
+    {
+      "key": "traefik",
+      "display_name": "Traefik",
+      "description": "Reverse proxy configuration — middlewares, security headers, ForwardAuth (shipped by PaaS)",
+      "tool_name": "traefik",
+      "module_slug": "traefik",
+      "local_slug": "traefik",
+      "public_slug": "traefik",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#9889;",
+      "badge": "L2 · Reverse Proxy",
+      "section": "Platform",
+      "order": 30,
+      "enable_var": "enable_traefik",
+      "default": true
+    },
+    {
+      "key": "vault",
+      "display_name": "Vaultwarden",
+      "description": "Bitwarden-compatible password vault for passwords, TOTP, and secure notes",
+      "tool_name": "vaultwarden",
+      "module_slug": "vaultwarden",
+      "local_slug": "vault",
+      "public_slug": "vault",
+      "legacy_aliases": [
+        "vaultwarden"
+      ],
+      "identity_policy": "oidc",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128272;",
+      "badge": "L3 · Vault",
+      "section": "Applications",
+      "order": 30,
+      "enable_var": "enable_vaultwarden",
+      "default": true
+    },
+    {
+      "key": "whoami",
+      "display_name": "Whoami",
+      "description": "HTTP echo service for network and routing diagnostics",
+      "tool_name": "whoami",
+      "module_slug": "whoami",
+      "local_slug": "whoami",
+      "public_slug": "whoami",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#129302;",
+      "badge": "L3 · Test",
+      "section": "Applications",
+      "order": 20,
+      "enable_var": "enable_whoami",
+      "default": true
+    }
+  ],
+  "modules": [
+    {
+      "slug": "adguard-home",
+      "display_name": "AdGuard Home",
+      "version": "1.0.0",
+      "layer": "L2-platform-dns",
+      "description": "DNS filter, ad/malware blocking, and local DNS rewrites",
+      "contract_hash": "51e585769aa40160af3570b44832c33df924abb8aae35b35cedc542264c0a60e",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "admin-bootstrap",
+      "display_name": "Admin Bootstrap",
+      "version": "0.1.0",
+      "layer": "L1-foundation",
+      "description": "Bootstraps the initial admin user in LLDAP + PocketID. Initial password printed to CLI stdout, must be rotated on first login.",
+      "contract_hash": "b838a7b4dd58d025e73166e8fb3c5c559b28c5a14edae881707827e7db6f90ae",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "crowdsec",
+      "display_name": "CrowdSec",
+      "version": "1.0.0",
+      "layer": "L2-platform-ingress",
+      "description": "Behavioral IDS + WAF with crowd-sourced threat intel and Traefik bouncer",
+      "contract_hash": "079cd9abd1490e8d9608879c44c956146464bc669a8c0a036e222c905beaa3c6",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "dashboard",
+      "display_name": "Dashboard",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "Service overview dashboard with links to all deployed services",
+      "contract_hash": "12f1be4bd05a90f4a7f447a9d9223083cfe12a79e265035fb8e0d64af23f21b2",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "dokploy",
+      "display_name": "Dokploy",
+      "version": "1.0.0",
+      "layer": "L2-platform-paas",
+      "description": "Self-hosted PaaS with PostgreSQL and Redis for deploying applications",
+      "contract_hash": "24fd82cbe80064977dc8344b789f521bbb2d592da760425104493ec632a80e58",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "dozzle",
+      "display_name": "Dozzle",
+      "version": "1.1.0",
+      "layer": "L3-application",
+      "description": "Real-time Docker container log viewer",
+      "contract_hash": "e1cc3a1e1f9505d751a11d2dc54060cdca7bc278812155f5ec62e6f9856c15db",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "immich",
+      "display_name": "Immich",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "Self-hosted photo and video management with AI-powered search and mobile backup",
+      "contract_hash": "7e30e7d89b7c4514032de32770d2d9e90c8686965916eacb65683109c2076885",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "jellyfin",
+      "display_name": "Jellyfin",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "Free media server for movies, TV, music, and photos",
+      "contract_hash": "2ca2c6bb683b451be0885b8cbf3d987ba779124f82149c84454618048f7125f9",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "kombify-point",
+      "display_name": "Kombify Point DNS",
+      "version": "1.0.0",
+      "layer": "L1-foundation",
+      "description": "Local LAN DNS resolver for *.home and *.\u003cname\u003e.home service names",
+      "contract_hash": "f56fa8e64a5da05e73f74f75e5f44bd6f87103604eab4c91297170da1fba3039",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "lldap",
+      "display_name": "LLDAP",
+      "version": "1.0.0",
+      "layer": "L1-foundation",
+      "description": "Lightweight LDAP directory — source of truth for users and groups",
+      "contract_hash": "351169277390ee14a4212b15a3aa095bca8c2a77ad9831f88f026e787a03b72e",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "login-gateway",
+      "display_name": "Login Gateway",
+      "version": "0.1.0",
+      "layer": "L2-platform-identity",
+      "description": "Enforces TinyAuth forward-auth in front of every L3 service, with PocketID as OIDC IdP. Mandatory platform invariant in V6.",
+      "contract_hash": "fc94b115132e53408167dd442d4d5e9605c379da79ad633f3c740ef25367eca1",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "pocketid",
+      "display_name": "PocketID",
+      "version": "1.0.0",
+      "layer": "L2-platform-identity",
+      "description": "Self-hosted OIDC provider for single sign-on with passkeys",
+      "contract_hash": "8028e3d1929a25d9895158e7aab7ed7d33518e8d3e6aa8fb11f204fc052aa931",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "security-baseline",
+      "display_name": "Security Baseline",
+      "version": "0.1.0",
+      "layer": "L1-foundation",
+      "description": "Host-level hardening: UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Foundation layer, mandatory in V6.",
+      "contract_hash": "1100089320ad241b97c89e3861c453685a194eefb5049049c75a57842805d2c5",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "socket-proxy",
+      "display_name": "Docker Socket Proxy",
+      "version": "1.0.0",
+      "layer": "L1-foundation",
+      "description": "Filtering proxy for Docker socket — eliminates root-equivalent socket exposure",
+      "contract_hash": "88931cf5c780d13804e19407b6761d112bc5a92f639d1ff962078c7f89582b0a",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "step-ca",
+      "display_name": "Step-CA",
+      "version": "1.0.0",
+      "layer": "L1-foundation",
+      "description": "Internal certificate authority — ACME provider for Traefik TLS",
+      "contract_hash": "1cfe237580db6ad9b72e4669b7d24fbaf086d305b1f5196fc85828236dd48832",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "tinyauth",
+      "display_name": "TinyAuth",
+      "version": "4.1.0",
+      "layer": "L2-platform-identity",
+      "description": "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth support",
+      "contract_hash": "2e7ae09bea17a51bad29a16800856ef8187150991b6323796b895a498cb60950",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "traefik",
+      "display_name": "Traefik",
+      "version": "2.1.0",
+      "layer": "L2-platform-ingress",
+      "description": "Reverse proxy configuration — middlewares, security headers, ForwardAuth (shipped by PaaS)",
+      "contract_hash": "793a71e80021e2798954d4ac41df4c450bd09908df2421b5dda0c452eebc2662",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "unbound",
+      "display_name": "Unbound",
+      "version": "1.0.0",
+      "layer": "L1-foundation",
+      "description": "Recursive DNS resolver with DNSSEC validation — no third-party dependency",
+      "contract_hash": "82ff0892b2301a4cf1e0d454c364b58454ba40a48f509d6d3baae994676683f8",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "uptime-kuma",
+      "display_name": "Uptime Kuma",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "Self-hosted uptime monitoring with status pages and notifications",
+      "contract_hash": "6c078edad89f4d5034a211947805cf66bb7c795d2ee057dd9efe6d78f9b52eb5",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "vaultwarden",
+      "display_name": "Vaultwarden",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "Bitwarden-compatible password vault for passwords, TOTP, and secure notes",
+      "contract_hash": "7705fdb53f52c492df6eba0bbbfc7583fd6025dae54da35f1dcdbc2a7c0d9555",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "whoami",
+      "display_name": "Whoami",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "HTTP echo service for network and routing diagnostics",
+      "contract_hash": "488cd9615bca3e4054382af15be102ab3c7b9756931de378ea48c16702760b7d",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    }
+  ],
+  "stackkits": []
+}

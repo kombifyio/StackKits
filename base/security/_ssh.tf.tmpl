@@ -1,0 +1,188 @@
+# =============================================================================
+# CORE: SECURITY - SSH HARDENING
+# =============================================================================
+# Layer 1 (CORE): Applied to ALL deployments
+#
+# This template hardens SSH configuration:
+# - Disable password authentication
+# - Disable root login (or restrict to key-only)
+# - Set max auth tries
+# - Configure allowed users
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "ssh_hardening_enabled" {
+  description = "Enable SSH hardening"
+  type        = bool
+  default     = true
+}
+
+variable "ssh_permit_root_login" {
+  description = "Allow root login (prohibit-password recommended)"
+  type        = string
+  default     = "prohibit-password"
+  validation {
+    condition     = contains(["yes", "no", "prohibit-password", "forced-commands-only"], var.ssh_permit_root_login)
+    error_message = "Must be yes, no, prohibit-password, or forced-commands-only"
+  }
+}
+
+variable "ssh_password_auth" {
+  description = "Allow password authentication"
+  type        = bool
+  default     = false
+}
+
+variable "ssh_max_auth_tries" {
+  description = "Maximum authentication attempts"
+  type        = number
+  default     = 3
+}
+
+variable "ssh_allowed_users" {
+  description = "List of users allowed to SSH (empty = all)"
+  type        = list(string)
+  default     = []
+}
+
+# -----------------------------------------------------------------------------
+# SSH HARDENING
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "ssh_hardening" {
+  count = var.ssh_hardening_enabled ? 1 : 0
+
+  depends_on = [null_resource.firewall_enable]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== CORE: SSH Hardening ==='",
+      
+      "# Backup original sshd_config",
+      "if [ ! -f /etc/ssh/sshd_config.original ]; then",
+      "  cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original",
+      "fi",
+      
+      "# Create timestamped backup",
+      "cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d%H%M%S)",
+      
+      "# Apply hardening settings",
+      "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin ${var.ssh_permit_root_login}/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication ${var.ssh_password_auth ? "yes" : "no"}/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*MaxAuthTries.*/MaxAuthTries ${var.ssh_max_auth_tries}/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*PermitEmptyPasswords.*/PermitEmptyPasswords no/' /etc/ssh/sshd_config",
+      
+      "# Add LoginGraceTime if not present",
+      "grep -q '^LoginGraceTime' /etc/ssh/sshd_config || echo 'LoginGraceTime 60' >> /etc/ssh/sshd_config",
+      
+      "# Add ClientAliveInterval for connection stability",
+      "grep -q '^ClientAliveInterval' /etc/ssh/sshd_config || echo 'ClientAliveInterval 120' >> /etc/ssh/sshd_config",
+      "grep -q '^ClientAliveCountMax' /etc/ssh/sshd_config || echo 'ClientAliveCountMax 3' >> /etc/ssh/sshd_config",
+      
+      "echo '=== SSH hardening settings applied ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# ALLOWED USERS (if specified)
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "ssh_allowed_users" {
+  count = var.ssh_hardening_enabled && length(var.ssh_allowed_users) > 0 ? 1 : 0
+
+  depends_on = [null_resource.ssh_hardening]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== CORE: SSH Allowed Users ==='",
+      
+      "# Remove existing AllowUsers line",
+      "sed -i '/^AllowUsers/d' /etc/ssh/sshd_config",
+      
+      "# Add AllowUsers directive",
+      "echo 'AllowUsers ${join(" ", var.ssh_allowed_users)}' >> /etc/ssh/sshd_config",
+      
+      "echo '=== SSH allowed users configured ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# RESTART SSH
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "ssh_restart" {
+  count = var.ssh_hardening_enabled ? 1 : 0
+
+  depends_on = [
+    null_resource.ssh_hardening,
+    null_resource.ssh_allowed_users
+  ]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== CORE: Restarting SSH ==='",
+      
+      "# Validate sshd config before restart",
+      "sshd -t",
+      
+      "# Restart SSH service",
+      "systemctl restart sshd || systemctl restart ssh",
+      
+      "echo '=== SSH service restarted ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUT
+# -----------------------------------------------------------------------------
+
+output "ssh_hardening_enabled" {
+  value       = var.ssh_hardening_enabled
+  description = "Whether SSH hardening is enabled"
+}
+
+output "ssh_password_auth_disabled" {
+  value       = var.ssh_hardening_enabled && !var.ssh_password_auth
+  description = "Whether password authentication is disabled"
+}

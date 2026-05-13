@@ -1,0 +1,46 @@
+# OTel Collector test config for the agent (points to local otlp-sink)
+# Used only in integration tests.
+receivers:
+  hostmetrics:
+    root_path: /hostfs
+    collection_interval: ${env:KOMBIFY_OTEL_COLLECTION_INTERVAL:-10s}
+    scrapers:
+      cpu: {}
+      memory: {}
+      filesystem: {}
+      network: {}
+      load: {}
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: ${env:KOMBIFY_OTEL_MEMORY_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:KOMBIFY_OTEL_MEMORY_SPIKE_LIMIT_MIB:-50}
+  resourcedetection:
+    detectors: [system]
+    override: false
+  batch:
+    timeout: ${env:KOMBIFY_OTEL_BATCH_TIMEOUT:-5s}
+    send_batch_size: 100
+
+exporters:
+  otlp/sink:
+    endpoint: "${env:OTEL_ENDPOINT:-otlp-sink:4317}"
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /
+
+service:
+  telemetry:
+    metrics:
+      address: 0.0.0.0:8888
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers:  [hostmetrics]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters:  [otlp/sink]

@@ -1,0 +1,68 @@
+{
+  "id": "SK-S4",
+  "name": "Modern Hybrid",
+  "stage": "resolver-only",
+  "liveGate": "future-multinode",
+  "stackSpec": {
+    "name": "sk-s4-modern-hybrid",
+    "stackkit": "modern-homelab",
+    "mode": "advanced",
+    "context": "cloud",
+    "domain": "sk-hybrid.kombify.pro",
+    "email": "owner@kombify.pro",
+    "adminEmail": "owner@kombify.pro",
+    "network": {
+      "mode": "hybrid"
+    },
+    "compute": {
+      "tier": "standard"
+    },
+    "owner": {
+      "source": "local",
+      "email": "owner@kombify.pro",
+      "username": "owner"
+    },
+    "nodes": [
+      {
+        "name": "cloud-main",
+        "role": "main",
+        "ip": "203.0.113.10"
+      },
+      {
+        "name": "local-main",
+        "role": "worker",
+        "ip": "192.168.1.10"
+      }
+    ]
+  },
+  "env": {
+    "optionalKeys": [
+      "STACKKIT_SCENARIO_OUTPUT"
+    ]
+  },
+  "expected": {
+    "generation": {
+      "context": "cloud",
+      "networkMode": "hybrid",
+      "domain": "sk-hybrid.kombify.pro",
+      "paas": "coolify",
+      "reverseProxyBackend": "coolify",
+      "enableHTTPS": true,
+      "stepCAEnabled": false,
+      "enableKombifyPoint": false,
+      "adminEmail": "owner@kombify.pro",
+      "serviceFlags": {
+        "enable_dashboard": true,
+        "enable_tinyauth": true,
+        "enable_pocketid": true,
+        "enable_coolify": true,
+        "enable_dokploy": false
+      }
+    },
+    "placement": {
+      "publicNode": "cloud-main",
+      "localNode": "local-main",
+      "ownerEmail": "owner@kombify.pro"
+    }
+  }
+}

@@ -1,0 +1,210 @@
+# =============================================================================
+# CORE: OBSERVABILITY - HEALTH CHECKS
+# =============================================================================
+# Layer 1 (CORE): Applied to ALL deployments
+#
+# This template sets up health check infrastructure:
+# - System-level health monitoring
+# - Service endpoint checks
+# - Resource utilization monitoring
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "health_check_enabled" {
+  description = "Enable health check infrastructure"
+  type        = bool
+  default     = true
+}
+
+variable "health_check_interval" {
+  description = "Health check interval in seconds"
+  type        = number
+  default     = 60
+}
+
+variable "health_check_endpoints" {
+  description = "List of HTTP endpoints to check"
+  type        = list(object({
+    name     = string
+    url      = string
+    expected = number  # Expected HTTP status code
+  }))
+  default = []
+}
+
+# -----------------------------------------------------------------------------
+# HEALTH CHECK SCRIPT
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "health_check_setup" {
+  count = var.health_check_enabled ? 1 : 0
+
+  depends_on = [null_resource.install_docker]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== CORE: Setting up Health Checks ==='",
+      
+      "# Create health check directory",
+      "mkdir -p /opt/kombistack/health",
+      
+      "# Create health check script",
+      "cat > /opt/kombistack/health/check.sh << 'HEALTHSCRIPT'",
+      "#!/bin/bash",
+      "# KombiStack Health Check Script",
+      "",
+      "HEALTH_DIR=/opt/kombistack/health",
+      "LOG_FILE=$HEALTH_DIR/health.log",
+      "STATUS_FILE=$HEALTH_DIR/status.json",
+      "",
+      "# Initialize status",
+      "declare -A CHECKS",
+      "",
+      "# Check system resources",
+      "check_system() {",
+      "    local cpu_usage=$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1)",
+      "    local mem_usage=$(free | grep Mem | awk '{print ($3/$2) * 100.0}')",
+      "    local disk_usage=$(df / | tail -1 | awk '{print $5}' | tr -d '%')",
+      "    ",
+      "    CHECKS[cpu]=$cpu_usage",
+      "    CHECKS[memory]=$mem_usage",
+      "    CHECKS[disk]=$disk_usage",
+      "    ",
+      "    # Alert if over threshold",
+      "    [ $(echo \"$cpu_usage > 90\" | bc -l) -eq 1 ] && echo \"$(date) WARN: High CPU usage: $cpu_usage%\" >> $LOG_FILE",
+      "    [ $(echo \"$mem_usage > 90\" | bc -l) -eq 1 ] && echo \"$(date) WARN: High memory usage: $mem_usage%\" >> $LOG_FILE",
+      "    [ $disk_usage -gt 90 ] && echo \"$(date) WARN: High disk usage: $disk_usage%\" >> $LOG_FILE",
+      "}",
+      "",
+      "# Check Docker",
+      "check_docker() {",
+      "    if docker info &> /dev/null; then",
+      "        CHECKS[docker]=\"running\"",
+      "        CHECKS[containers]=$(docker ps -q | wc -l)",
+      "    else",
+      "        CHECKS[docker]=\"error\"",
+      "        echo \"$(date) ERROR: Docker not running\" >> $LOG_FILE",
+      "    fi",
+      "}",
+      "",
+      "# Check HTTP endpoints",
+      "check_endpoints() {",
+      "    local endpoints=\"$@\"",
+      "    for endpoint in $endpoints; do",
+      "        local name=$(echo $endpoint | cut -d'|' -f1)",
+      "        local url=$(echo $endpoint | cut -d'|' -f2)",
+      "        local expected=$(echo $endpoint | cut -d'|' -f3)",
+      "        ",
+      "        local status=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 \"$url\" || echo \"000\")",
+      "        if [ \"$status\" = \"$expected\" ]; then",
+      "            CHECKS[$name]=\"healthy\"",
+      "        else",
+      "            CHECKS[$name]=\"unhealthy\"",
+      "            echo \"$(date) WARN: $name unhealthy (got $status, expected $expected)\" >> $LOG_FILE",
+      "        fi",
+      "    done",
+      "}",
+      "",
+      "# Generate JSON status",
+      "generate_status() {",
+      "    echo '{' > $STATUS_FILE",
+      "    echo '  \"timestamp\": \"'$(date -Iseconds)'\",' >> $STATUS_FILE",
+      "    echo '  \"checks\": {' >> $STATUS_FILE",
+      "    local first=true",
+      "    for key in \"${!CHECKS[@]}\"; do",
+      "        [ \"$first\" = \"false\" ] && echo ',' >> $STATUS_FILE",
+      "        echo -n \"    \\\"$key\\\": \\\"${CHECKS[$key]}\\\"\" >> $STATUS_FILE",
+      "        first=false",
+      "    done",
+      "    echo '' >> $STATUS_FILE",
+      "    echo '  }' >> $STATUS_FILE",
+      "    echo '}' >> $STATUS_FILE",
+      "}",
+      "",
+      "# Main",
+      "check_system",
+      "check_docker",
+      "check_endpoints \"$@\"",
+      "generate_status",
+      "HEALTHSCRIPT",
+      
+      "chmod +x /opt/kombistack/health/check.sh",
+      
+      "echo '=== Health check script created ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# HEALTH CHECK CRON
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "health_check_cron" {
+  count = var.health_check_enabled ? 1 : 0
+
+  depends_on = [null_resource.health_check_setup]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== CORE: Setting up Health Check Cron ==='",
+      
+      "# Calculate cron interval",
+      "INTERVAL=${var.health_check_interval}",
+      "if [ $INTERVAL -lt 60 ]; then",
+      "  # Every minute",
+      "  CRON_EXPR='* * * * *'",
+      "elif [ $INTERVAL -lt 3600 ]; then",
+      "  # Every N minutes",
+      "  MINS=$((INTERVAL / 60))",
+      "  CRON_EXPR=\"*/$MINS * * * *\"",
+      "else",
+      "  # Every hour",
+      "  CRON_EXPR='0 * * * *'",
+      "fi",
+      
+      "# Create cron job",
+      "(crontab -l 2>/dev/null | grep -v 'kombistack/health'; echo \"$CRON_EXPR /opt/kombistack/health/check.sh\") | crontab -",
+      
+      "echo '=== Health check cron configured ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "health_check_enabled" {
+  value       = var.health_check_enabled
+  description = "Whether health checks are enabled"
+}
+
+output "health_status_path" {
+  value       = "/opt/kombistack/health/status.json"
+  description = "Path to health status JSON file"
+}

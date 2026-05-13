@@ -1,0 +1,156 @@
+# CrowdSec Module Reference Compose
+# Purpose: Validate CrowdSec IDS + Traefik bouncer integration
+#
+# Architecture:
+#   socket-proxy → traefik (with bouncer plugin) → crowdsec (LAPI + AppSec)
+#   CrowdSec reads Traefik access logs and blocks malicious IPs.
+#
+# Usage:
+#   docker compose -f modules/crowdsec/tests/reference-compose.yml up -d
+#   ./modules/crowdsec/tests/integration_test.sh
+
+services:
+  socket-proxy:
+    # Pinned to 0.2.0 (last alpine-based release with wget) so the wget-based
+    # healthcheck below works. Newer :latest is scratch + Go and has no shell.
+    image: tecnativa/docker-socket-proxy:0.2.0
+    container_name: test-cs-socket-proxy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed 's/[$][{]BIND_CONFIG[}]/[::]:2375 v4v6/g' /usr/local/etc/haproxy/haproxy.cfg.template > /run/haproxy.cfg
+        exec haproxy -W -db -f /run/haproxy.cfg
+    environment:
+      # VERSION=1 is required so the wget healthcheck (GET /version) can pass;
+      # without it the proxy returns 403 and the container is marked unhealthy.
+      VERSION: "1"
+      CONTAINERS: "1"
+      NETWORKS: "1"
+      SERVICES: "1"
+      TASKS: "1"
+      INFO: "1"
+      POST: "0"
+      EXEC: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket-proxy-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /run
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2375/version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  traefik:
+    image: traefik:v3.6
+    container_name: test-cs-traefik
+    environment:
+      DOCKER_API_VERSION: "1.40"
+    command:
+      - "--api.insecure=true"
+      - "--ping=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.endpoint=tcp://socket-proxy:2375"
+      - "--entrypoints.web.address=:80"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      # CrowdSec bouncer plugin (experimental plugins)
+      - "--experimental.plugins.crowdsec-bouncer.modulename=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
+      - "--experimental.plugins.crowdsec-bouncer.version=v1.4.5"
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    ports:
+      - "8896:80"
+      - "19096:8080"
+    volumes:
+      - traefik-logs:/var/log/traefik
+    labels:
+      # CrowdSec bouncer middleware
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.enabled=true"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiHost=crowdsec:8080"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiKey=test-bouncer-key"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecMode=stream"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecEnabled=false"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecHost=crowdsec:7422"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - socket-proxy-net
+      - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: test-cs-crowdsec
+    environment:
+      COLLECTIONS: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/http-cve crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules"
+      BOUNCER_KEY_traefik: "test-bouncer-key"
+    volumes:
+      - crowdsec-config:/etc/crowdsec
+      - crowdsec-data:/var/lib/crowdsec/data
+      - traefik-logs:/var/log/traefik:ro
+    healthcheck:
+      test: ["CMD", "cscli", "version"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    mem_limit: 512m
+    cpus: 0.5
+
+  whoami:
+    image: traefik/whoami:latest
+    container_name: test-cs-whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.test.local`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.http.routers.whoami.middlewares=crowdsec@docker"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.enabled=true"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiHost=crowdsec:8080"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecLapiKey=test-bouncer-key"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecMode=stream"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecEnabled=false"
+      - "traefik.http.middlewares.crowdsec.plugin.crowdsec-bouncer.crowdsecAppsecHost=crowdsec:7422"
+    networks:
+      - test-net
+
+networks:
+  socket-proxy-net:
+    driver: bridge
+    internal: true
+  test-net:
+    driver: bridge
+
+volumes:
+  crowdsec-config:
+  crowdsec-data:
+  traefik-logs:

@@ -1,0 +1,37 @@
+# Enforce LF line endings for all text files
+* text=auto eol=lf
+
+# Explicit text file types
+*.go text eol=lf
+*.cue text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.svelte text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.tf text eol=lf
+*.hcl text eol=lf
+*.toml text eol=lf
+*.mod text eol=lf
+*.sum text eol=lf
+Makefile text eol=lf
+Dockerfile text eol=lf
+
+# Binary files — do not normalize
+*.tar.gz binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+
+# Use bd merge for beads JSONL files
+.beads/issues.jsonl merge=beads

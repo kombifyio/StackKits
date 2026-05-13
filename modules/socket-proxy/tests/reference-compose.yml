@@ -1,0 +1,110 @@
+# Socket Proxy Module Reference Compose
+# Purpose: Validate socket proxy filters Docker API correctly
+# Usage:
+#   docker compose -f modules/socket-proxy/tests/reference-compose.yml up -d
+#   ./modules/socket-proxy/tests/integration_test.sh
+#
+# Architecture:
+#   socket-proxy (mounts docker.sock) <-- socket-proxy-net --> traefik (no docker.sock)
+#   Traefik uses DOCKER_HOST=tcp://socket-proxy:2375 for service discovery.
+
+services:
+  socket-proxy:
+    # Pinned to 0.2.0 (last alpine-based release with wget) so the wget-based
+    # healthcheck below works. Newer :latest is scratch + Go and has no shell.
+    image: tecnativa/docker-socket-proxy:0.2.0
+    container_name: test-socket-proxy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed 's/[$][{]BIND_CONFIG[}]/[::]:2375 v4v6/g' /usr/local/etc/haproxy/haproxy.cfg.template > /run/haproxy.cfg
+        exec haproxy -W -db -f /run/haproxy.cfg
+    restart: unless-stopped
+    environment:
+      # VERSION=1 is required so the wget healthcheck (GET /version) can pass;
+      # without it the proxy returns 403 and the container is marked unhealthy.
+      VERSION: 1
+      CONTAINERS: 1
+      NETWORKS: 1
+      SERVICES: 1
+      TASKS: 1
+      INFO: 1
+      POST: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      GRPC: 0
+      IMAGES: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket-proxy-net
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /run
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2375/version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  traefik:
+    image: traefik:v3.6
+    container_name: test-traefik-socketproxy
+    environment:
+      DOCKER_API_VERSION: "1.40"
+    command:
+      - "--api.insecure=true"
+      - "--ping=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.endpoint=tcp://socket-proxy:2375"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "8895:80"
+      - "19095:8080"
+    # NO docker.sock volume mount — uses socket-proxy instead
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - socket-proxy-net
+      - test-net
+
+  whoami:
+    image: traefik/whoami:latest
+    container_name: test-whoami-socketproxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.test.local`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+    networks:
+      - test-net
+
+networks:
+  socket-proxy-net:
+    driver: bridge
+    internal: true
+  test-net:
+    driver: bridge

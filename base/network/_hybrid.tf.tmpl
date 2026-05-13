@@ -1,0 +1,1008 @@
+# =============================================================================
+# NETWORK TEMPLATES - HYBRID MODE
+# =============================================================================
+# IaC-First: Network configuration for hybrid access (public + private)
+# Features:
+#   - Traefik for public-facing services with Let's Encrypt
+#   - Separate internal network for private services
+#   - Split-horizon DNS support
+#   - VPN-ready configuration (Tailscale/WireGuard placeholders)
+#   - Secure network segmentation
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "docker_network_name" {
+  description = "Base name for Docker networks"
+  type        = string
+  default     = "kombistack"
+}
+
+# --- Public Network Variables ---
+
+variable "public_subnet" {
+  description = "Subnet for public-facing services"
+  type        = string
+  default     = "172.22.0.0/16"
+}
+
+variable "public_gateway" {
+  description = "Gateway IP for public network"
+  type        = string
+  default     = "172.22.0.1"
+}
+
+variable "domain" {
+  description = "Primary domain for public services"
+  type        = string
+}
+
+variable "email" {
+  description = "Email for Let's Encrypt certificate notifications"
+  type        = string
+}
+
+variable "enable_ssl" {
+  description = "Enable SSL/TLS via Let's Encrypt"
+  type        = bool
+  default     = true
+}
+
+# --- Internal Network Variables ---
+
+variable "internal_subnet" {
+  description = "Subnet for internal/private services"
+  type        = string
+  default     = "172.23.0.0/16"
+}
+
+variable "internal_gateway" {
+  description = "Gateway IP for internal network"
+  type        = string
+  default     = "172.23.0.1"
+}
+
+variable "internal_domain" {
+  description = "Domain suffix for internal services"
+  type        = string
+  default     = "internal"
+}
+
+# --- VPN Variables ---
+
+variable "vpn_enabled" {
+  description = "Enable VPN for remote access to internal network"
+  type        = bool
+  default     = false
+}
+
+variable "vpn_type" {
+  description = "Type of VPN to configure"
+  type        = string
+  default     = "tailscale"
+  validation {
+    condition     = contains(["tailscale", "wireguard", "none"], var.vpn_type)
+    error_message = "VPN type must be 'tailscale', 'wireguard', or 'none'."
+  }
+}
+
+variable "vpn_subnet" {
+  description = "Subnet for VPN clients"
+  type        = string
+  default     = "100.64.0.0/10"  # Tailscale default
+}
+
+# --- Tailscale Variables ---
+
+variable "tailscale_authkey" {
+  description = "Tailscale auth key for node registration"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "tailscale_hostname" {
+  description = "Hostname for Tailscale network"
+  type        = string
+  default     = "kombistack"
+}
+
+variable "tailscale_advertise_routes" {
+  description = "Routes to advertise via Tailscale"
+  type        = list(string)
+  default     = []
+}
+
+variable "tailscale_exit_node" {
+  description = "Enable as Tailscale exit node"
+  type        = bool
+  default     = false
+}
+
+# --- WireGuard Variables ---
+
+variable "wireguard_port" {
+  description = "WireGuard listening port"
+  type        = number
+  default     = 51820
+}
+
+variable "wireguard_peers" {
+  description = "WireGuard peer configurations"
+  type = list(object({
+    name       = string
+    public_key = string
+    allowed_ips = list(string)
+    endpoint   = optional(string)
+  }))
+  default = []
+}
+
+# --- DNS Variables ---
+
+variable "split_dns_enabled" {
+  description = "Enable split-horizon DNS"
+  type        = bool
+  default     = true
+}
+
+variable "dns_upstream" {
+  description = "Upstream DNS servers"
+  type        = list(string)
+  default     = ["1.1.1.1", "8.8.8.8"]
+}
+
+# --- Service Configuration ---
+
+variable "public_services" {
+  description = "Services to expose publicly via Traefik"
+  type = map(object({
+    subdomain         = string
+    port              = number
+    health_check_path = optional(string, "/health")
+  }))
+  default = {}
+}
+
+variable "internal_services" {
+  description = "Services available only on internal network"
+  type = map(object({
+    port              = number
+    health_check_path = optional(string, "/health")
+  }))
+  default = {}
+}
+
+variable "traefik_version" {
+  description = "Traefik Docker image version"
+  type        = string
+  default     = "v3.0"
+}
+
+variable "rate_limit_average" {
+  description = "Rate limit: average requests per second"
+  type        = number
+  default     = 100
+}
+
+variable "rate_limit_burst" {
+  description = "Rate limit: maximum burst size"
+  type        = number
+  default     = 200
+}
+
+# -----------------------------------------------------------------------------
+# PUBLIC NETWORK (Internet-facing)
+# -----------------------------------------------------------------------------
+
+resource "docker_network" "public" {
+  name   = "${var.docker_network_name}_public"
+  driver = "bridge"
+  
+  ipam_config {
+    subnet  = var.public_subnet
+    gateway = var.public_gateway
+  }
+  
+  internal = false  # Accessible from outside
+  
+  options = {
+    "com.docker.network.bridge.enable_ip_masquerade" = "true"
+    "com.docker.network.bridge.enable_icc"           = "true"
+    "com.docker.network.bridge.host_binding_ipv4"    = "0.0.0.0"
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.network.mode"
+    value = "hybrid"
+  }
+  labels {
+    label = "kombistack.network.zone"
+    value = "public"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# INTERNAL NETWORK (Private services only)
+# -----------------------------------------------------------------------------
+
+resource "docker_network" "internal" {
+  name   = "${var.docker_network_name}_internal"
+  driver = "bridge"
+  
+  ipam_config {
+    subnet  = var.internal_subnet
+    gateway = var.internal_gateway
+  }
+  
+  # Internal network - no direct internet access
+  internal = true
+  
+  options = {
+    "com.docker.network.bridge.enable_icc" = "true"
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.network.mode"
+    value = "hybrid"
+  }
+  labels {
+    label = "kombistack.network.zone"
+    value = "internal"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# VPN NETWORK (For remote access to internal services)
+# -----------------------------------------------------------------------------
+
+resource "docker_network" "vpn" {
+  count  = var.vpn_enabled ? 1 : 0
+  name   = "${var.docker_network_name}_vpn"
+  driver = "bridge"
+  
+  ipam_config {
+    subnet  = "172.24.0.0/16"
+    gateway = "172.24.0.1"
+  }
+  
+  internal = false  # VPN needs external connectivity
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.network.mode"
+    value = "hybrid"
+  }
+  labels {
+    label = "kombistack.network.zone"
+    value = "vpn"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# TRAEFIK REVERSE PROXY (Public services)
+# -----------------------------------------------------------------------------
+
+resource "docker_image" "traefik" {
+  name         = "traefik:${var.traefik_version}"
+  keep_locally = true
+}
+
+resource "docker_volume" "traefik_certs" {
+  name = "${var.docker_network_name}_traefik_certs"
+}
+
+# Traefik dynamic configuration for hybrid mode
+resource "local_file" "traefik_dynamic_config" {
+  filename = "${path.module}/generated/traefik-hybrid.yml"
+  content  = yamlencode({
+    http = {
+      middlewares = {
+        # Security headers
+        "security-headers" = {
+          headers = {
+            browserXssFilter         = true
+            contentTypeNosniff       = true
+            frameDeny                = true
+            stsIncludeSubdomains     = true
+            stsPreload               = true
+            stsSeconds               = 31536000
+            customFrameOptionsValue  = "SAMEORIGIN"
+            referrerPolicy           = "strict-origin-when-cross-origin"
+          }
+        }
+        
+        # Rate limiting
+        "rate-limit" = {
+          rateLimit = {
+            average = var.rate_limit_average
+            burst   = var.rate_limit_burst
+          }
+        }
+        
+        # Internal-only middleware (VPN/LAN access)
+        "internal-only" = {
+          ipWhiteList = {
+            sourceRange = concat(
+              ["127.0.0.1/32"],
+              [var.internal_subnet],
+              var.vpn_enabled ? [var.vpn_subnet] : [],
+              ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+            )
+          }
+        }
+        
+        # Compress
+        "compress" = {
+          compress = {}
+        }
+      }
+    }
+    
+    # TLS options
+    tls = {
+      options = {
+        default = {
+          minVersion = "VersionTLS12"
+          sniStrict  = true
+        }
+      }
+    }
+  })
+}
+
+resource "docker_container" "traefik" {
+  name  = "${var.docker_network_name}_traefik"
+  image = docker_image.traefik.image_id
+  
+  restart = "unless-stopped"
+  
+  # HTTP
+  ports {
+    internal = 80
+    external = 80
+    protocol = "tcp"
+  }
+  
+  # HTTPS
+  ports {
+    internal = 443
+    external = 443
+    protocol = "tcp"
+  }
+  
+  # Internal API (for health checks from internal network)
+  ports {
+    internal = 8080
+    external = 8080
+    protocol = "tcp"
+    ip       = "127.0.0.1"
+  }
+  
+  volumes {
+    host_path      = "/var/run/docker.sock"
+    container_path = "/var/run/docker.sock"
+    read_only      = true
+  }
+  
+  volumes {
+    volume_name    = docker_volume.traefik_certs.name
+    container_path = "/letsencrypt"
+  }
+  
+  volumes {
+    host_path      = abspath(local_file.traefik_dynamic_config.filename)
+    container_path = "/etc/traefik/dynamic.yml"
+    read_only      = true
+  }
+  
+  command = [
+    # API
+    "--api=true",
+    "--api.dashboard=true",
+    "--api.insecure=true",
+    
+    # Docker provider
+    "--providers.docker=true",
+    "--providers.docker.exposedbydefault=false",
+    "--providers.docker.network=${docker_network.public.name}",
+    
+    # File provider
+    "--providers.file.filename=/etc/traefik/dynamic.yml",
+    
+    # Entrypoints
+    "--entrypoints.web.address=:80",
+    "--entrypoints.websecure.address=:443",
+    
+    # HTTPS redirect
+    "--entrypoints.web.http.redirections.entryPoint.to=websecure",
+    "--entrypoints.web.http.redirections.entryPoint.scheme=https",
+    
+    # Default middlewares
+    "--entrypoints.websecure.http.middlewares=security-headers@file,rate-limit@file",
+    
+    # Let's Encrypt
+    "--certificatesresolvers.letsencrypt.acme.email=${var.email}",
+    "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json",
+    "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web",
+    
+    # Logging
+    "--log.level=INFO",
+    
+    # Health
+    "--ping=true",
+  ]
+  
+  # Connect to public network
+  networks_advanced {
+    name = docker_network.public.name
+  }
+  
+  # Also connect to internal network for internal routing
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+  
+  healthcheck {
+    test         = ["CMD", "traefik", "healthcheck", "--ping"]
+    interval     = "30s"
+    timeout      = "10s"
+    retries      = 3
+    start_period = "30s"
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.role"
+    value = "reverse-proxy"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# SPLIT-HORIZON DNS (CoreDNS)
+# -----------------------------------------------------------------------------
+
+resource "docker_image" "coredns" {
+  count        = var.split_dns_enabled ? 1 : 0
+  name         = "coredns/coredns:latest"
+  keep_locally = true
+}
+
+resource "docker_volume" "coredns_config" {
+  count = var.split_dns_enabled ? 1 : 0
+  name  = "${var.docker_network_name}_coredns_config"
+}
+
+resource "local_file" "coredns_config" {
+  count    = var.split_dns_enabled ? 1 : 0
+  filename = "${path.module}/generated/Corefile"
+  content  = <<-EOF
+    # KombiStack Split-Horizon DNS Configuration
+    # Auto-generated - do not edit manually
+    
+    # Internal zone - resolves to internal IPs
+    ${var.internal_domain} {
+        hosts {
+            ${var.internal_gateway} *.${var.internal_domain}
+            %{for name, svc in var.internal_services~}
+            ${cidrhost(var.internal_subnet, 10 + index(keys(var.internal_services), name))} ${name}.${var.internal_domain}
+            %{endfor~}
+            fallthrough
+        }
+        log
+        errors
+    }
+    
+    # Public zone - resolves to public IPs
+    ${var.domain} {
+        forward . ${join(" ", var.dns_upstream)}
+        log
+        errors
+    }
+    
+    # Default - forward to upstream
+    . {
+        forward . ${join(" ", var.dns_upstream)}
+        cache 30
+        log
+        errors
+        health :8080
+    }
+  EOF
+}
+
+resource "docker_container" "coredns" {
+  count = var.split_dns_enabled ? 1 : 0
+  
+  name  = "${var.docker_network_name}_coredns"
+  image = docker_image.coredns[0].image_id
+  
+  restart = "unless-stopped"
+  
+  # DNS ports
+  ports {
+    internal = 53
+    external = 53
+    protocol = "udp"
+    ip       = var.internal_gateway
+  }
+  ports {
+    internal = 53
+    external = 53
+    protocol = "tcp"
+    ip       = var.internal_gateway
+  }
+  
+  volumes {
+    host_path      = abspath(local_file.coredns_config[0].filename)
+    container_path = "/Corefile"
+    read_only      = true
+  }
+  
+  command = ["-conf", "/Corefile"]
+  
+  networks_advanced {
+    name         = docker_network.internal.name
+    ipv4_address = cidrhost(var.internal_subnet, 2)
+  }
+  
+  healthcheck {
+    test         = ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"]
+    interval     = "30s"
+    timeout      = "10s"
+    retries      = 3
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.role"
+    value = "dns"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# TAILSCALE VPN (Optional)
+# -----------------------------------------------------------------------------
+
+resource "docker_image" "tailscale" {
+  count        = var.vpn_enabled && var.vpn_type == "tailscale" ? 1 : 0
+  name         = "tailscale/tailscale:latest"
+  keep_locally = true
+}
+
+resource "docker_volume" "tailscale_state" {
+  count = var.vpn_enabled && var.vpn_type == "tailscale" ? 1 : 0
+  name  = "${var.docker_network_name}_tailscale_state"
+}
+
+resource "docker_container" "tailscale" {
+  count = var.vpn_enabled && var.vpn_type == "tailscale" ? 1 : 0
+  
+  name  = "${var.docker_network_name}_tailscale"
+  image = docker_image.tailscale[0].image_id
+  
+  restart = "unless-stopped"
+  
+  # Tailscale needs host networking or specific capabilities
+  capabilities {
+    add = ["NET_ADMIN", "NET_RAW", "SYS_MODULE"]
+  }
+  
+  volumes {
+    volume_name    = docker_volume.tailscale_state[0].name
+    container_path = "/var/lib/tailscale"
+  }
+  
+  volumes {
+    host_path      = "/dev/net/tun"
+    container_path = "/dev/net/tun"
+  }
+  
+  env = concat(
+    [
+      "TS_AUTHKEY=${var.tailscale_authkey}",
+      "TS_HOSTNAME=${var.tailscale_hostname}",
+      "TS_STATE_DIR=/var/lib/tailscale",
+      "TS_USERSPACE=false",
+    ],
+    var.tailscale_exit_node ? ["TS_EXTRA_ARGS=--advertise-exit-node"] : [],
+    length(var.tailscale_advertise_routes) > 0 ? ["TS_ROUTES=${join(",", var.tailscale_advertise_routes)}"] : []
+  )
+  
+  networks_advanced {
+    name = docker_network.vpn[0].name
+  }
+  
+  # Also connect to internal network
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.role"
+    value = "vpn"
+  }
+  labels {
+    label = "kombistack.vpn.type"
+    value = "tailscale"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# WIREGUARD VPN (Optional)
+# -----------------------------------------------------------------------------
+
+resource "docker_image" "wireguard" {
+  count        = var.vpn_enabled && var.vpn_type == "wireguard" ? 1 : 0
+  name         = "linuxserver/wireguard:latest"
+  keep_locally = true
+}
+
+resource "docker_volume" "wireguard_config" {
+  count = var.vpn_enabled && var.vpn_type == "wireguard" ? 1 : 0
+  name  = "${var.docker_network_name}_wireguard_config"
+}
+
+resource "local_file" "wireguard_config" {
+  count    = var.vpn_enabled && var.vpn_type == "wireguard" ? 1 : 0
+  filename = "${path.module}/generated/wg0.conf"
+  content  = <<-EOF
+    # KombiStack WireGuard Configuration
+    # Auto-generated - do not edit manually
+    
+    [Interface]
+    Address = ${cidrhost(var.vpn_subnet, 1)}/24
+    ListenPort = ${var.wireguard_port}
+    # PrivateKey is managed separately via secrets
+    PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+    PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+    
+    %{for peer in var.wireguard_peers~}
+    [Peer]
+    # ${peer.name}
+    PublicKey = ${peer.public_key}
+    AllowedIPs = ${join(", ", peer.allowed_ips)}
+    %{if peer.endpoint != null~}
+    Endpoint = ${peer.endpoint}
+    %{endif~}
+    PersistentKeepalive = 25
+    
+    %{endfor~}
+  EOF
+}
+
+resource "docker_container" "wireguard" {
+  count = var.vpn_enabled && var.vpn_type == "wireguard" ? 1 : 0
+  
+  name  = "${var.docker_network_name}_wireguard"
+  image = docker_image.wireguard[0].image_id
+  
+  restart = "unless-stopped"
+  
+  capabilities {
+    add = ["NET_ADMIN", "SYS_MODULE"]
+  }
+  
+  # WireGuard port
+  ports {
+    internal = var.wireguard_port
+    external = var.wireguard_port
+    protocol = "udp"
+  }
+  
+  volumes {
+    volume_name    = docker_volume.wireguard_config[0].name
+    container_path = "/config"
+  }
+  
+  volumes {
+    host_path      = "/lib/modules"
+    container_path = "/lib/modules"
+    read_only      = true
+  }
+  
+  env = [
+    "PUID=1000",
+    "PGID=1000",
+    "TZ=UTC",
+  ]
+  
+  sysctls = {
+    "net.ipv4.conf.all.src_valid_mark" = "1"
+  }
+  
+  networks_advanced {
+    name = docker_network.vpn[0].name
+  }
+  
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.role"
+    value = "vpn"
+  }
+  labels {
+    label = "kombistack.vpn.type"
+    value = "wireguard"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# FIREWALL RULES FOR HYBRID MODE
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "hybrid_firewall" {
+  depends_on = [
+    docker_container.traefik,
+    docker_container.coredns,
+  ]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = concat([
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== Configuring firewall for hybrid mode ==='",
+      
+      "# Ensure UFW is installed and enabled",
+      "apt-get install -y ufw",
+      "ufw --force enable",
+      
+      "# Default policies",
+      "ufw default deny incoming",
+      "ufw default allow outgoing",
+      "ufw default deny routed",
+      
+      "# Allow SSH",
+      "ufw allow 22/tcp comment 'SSH'",
+      
+      "# Allow HTTP/HTTPS for public services",
+      "ufw allow 80/tcp comment 'HTTP - Traefik'",
+      "ufw allow 443/tcp comment 'HTTPS - Traefik'",
+      
+      "# Allow traffic from public network",
+      "ufw allow from ${var.public_subnet} comment 'Docker public network'",
+      
+      "# Allow traffic from internal network",
+      "ufw allow from ${var.internal_subnet} comment 'Docker internal network'",
+    ],
+    # VPN-specific rules
+    var.vpn_enabled && var.vpn_type == "wireguard" ? [
+      "ufw allow ${var.wireguard_port}/udp comment 'WireGuard VPN'",
+      "ufw allow from ${var.vpn_subnet} comment 'VPN subnet'",
+    ] : [],
+    var.vpn_enabled && var.vpn_type == "tailscale" ? [
+      "ufw allow 41641/udp comment 'Tailscale'",
+      "ufw allow from ${var.vpn_subnet} comment 'Tailscale subnet'",
+    ] : [],
+    [
+      "# Enable IP forwarding for VPN routing",
+      "echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf",
+      "sysctl -p",
+      
+      "# Reload firewall",
+      "ufw reload",
+      
+      "echo '=== Hybrid firewall configured ==='"
+    ])
+  }
+
+  triggers = {
+    public_subnet   = var.public_subnet
+    internal_subnet = var.internal_subnet
+    vpn_enabled     = var.vpn_enabled
+    vpn_type        = var.vpn_type
+  }
+}
+
+# -----------------------------------------------------------------------------
+# NETWORK ROUTING BETWEEN ZONES
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "network_routing" {
+  depends_on = [
+    docker_network.public,
+    docker_network.internal,
+  ]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== Configuring network routing for hybrid mode ==='",
+      
+      "# Allow internal network to access public network (for DNS, updates)",
+      "iptables -A FORWARD -i br-${substr(docker_network.internal.id, 0, 12)} -o br-${substr(docker_network.public.id, 0, 12)} -j ACCEPT",
+      "iptables -A FORWARD -i br-${substr(docker_network.public.id, 0, 12)} -o br-${substr(docker_network.internal.id, 0, 12)} -m state --state RELATED,ESTABLISHED -j ACCEPT",
+      
+      "# Block direct internet access from internal network (must go through proxy)",
+      "iptables -A FORWARD -i br-${substr(docker_network.internal.id, 0, 12)} -o eth0 -j DROP",
+      
+      "echo '=== Network routing configured ==='"
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "network_config" {
+  value = {
+    mode             = "hybrid"
+    public_network   = docker_network.public.name
+    public_subnet    = var.public_subnet
+    internal_network = docker_network.internal.name
+    internal_subnet  = var.internal_subnet
+    vpn_enabled      = var.vpn_enabled
+    vpn_type         = var.vpn_enabled ? var.vpn_type : null
+    vpn_subnet       = var.vpn_enabled ? var.vpn_subnet : null
+    domain           = var.domain
+    internal_domain  = var.internal_domain
+  }
+  description = "Hybrid network configuration details"
+}
+
+output "traefik_info" {
+  value = {
+    container_name = docker_container.traefik.name
+    dashboard_url  = "http://127.0.0.1:8080"
+    public_url     = "https://${var.domain}"
+  }
+  description = "Traefik reverse proxy information"
+}
+
+output "dns_config" {
+  value = {
+    enabled          = var.split_dns_enabled
+    internal_dns_ip  = var.split_dns_enabled ? cidrhost(var.internal_subnet, 2) : null
+    internal_domain  = var.internal_domain
+    public_domain    = var.domain
+    upstream_servers = var.dns_upstream
+  }
+  description = "Split-horizon DNS configuration"
+}
+
+output "vpn_config" {
+  value = var.vpn_enabled ? {
+    type     = var.vpn_type
+    subnet   = var.vpn_subnet
+    status   = "enabled"
+    endpoint = var.vpn_type == "wireguard" ? "${local.ssh_connection.host}:${var.wireguard_port}" : "tailscale"
+  } : {
+    type     = "none"
+    subnet   = null
+    status   = "disabled"
+    endpoint = null
+  }
+  description = "VPN configuration details"
+  sensitive   = false
+}
+
+output "public_services" {
+  value = {
+    for name, svc in var.public_services : name => {
+      url       = "https://${svc.subdomain}.${var.domain}"
+      network   = docker_network.public.name
+      zone      = "public"
+    }
+  }
+  description = "Public service endpoints"
+}
+
+output "internal_services" {
+  value = {
+    for name, svc in var.internal_services : name => {
+      url       = "http://${name}.${var.internal_domain}:${svc.port}"
+      network   = docker_network.internal.name
+      zone      = "internal"
+      vpn_url   = var.vpn_enabled ? "http://${name}.${var.internal_domain}:${svc.port} (via VPN)" : null
+    }
+  }
+  description = "Internal service endpoints"
+}
+
+output "security_zones" {
+  value = {
+    public = {
+      network      = docker_network.public.name
+      subnet       = var.public_subnet
+      internet     = true
+      ssl          = var.enable_ssl
+      rate_limited = true
+    }
+    internal = {
+      network      = docker_network.internal.name
+      subnet       = var.internal_subnet
+      internet     = false
+      ssl          = false
+      rate_limited = false
+    }
+    vpn = var.vpn_enabled ? {
+      network      = docker_network.vpn[0].name
+      subnet       = var.vpn_subnet
+      internet     = var.tailscale_exit_node
+      ssl          = true
+      rate_limited = false
+    } : null
+  }
+  description = "Security zone definitions"
+}
+
+output "docker_labels_template" {
+  value = {
+    public_service = <<-EOF
+      # Labels for PUBLIC service (internet-accessible):
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.<service>.rule=Host(`<subdomain>.${var.domain}`)"
+        - "traefik.http.routers.<service>.entrypoints=websecure"
+        - "traefik.http.routers.<service>.tls.certresolver=letsencrypt"
+        - "traefik.http.services.<service>.loadbalancer.server.port=<port>"
+        - "traefik.docker.network=${docker_network.public.name}"
+    EOF
+    
+    internal_service = <<-EOF
+      # Labels for INTERNAL service (VPN/LAN only):
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.<service>.rule=Host(`<service>.${var.internal_domain}`)"
+        - "traefik.http.routers.<service>.middlewares=internal-only@file"
+        - "traefik.http.services.<service>.loadbalancer.server.port=<port>"
+        - "traefik.docker.network=${docker_network.internal.name}"
+    EOF
+    
+    dual_network = <<-EOF
+      # Connect container to both networks:
+      docker network connect ${docker_network.public.name} <container>
+      docker network connect ${docker_network.internal.name} <container>
+    EOF
+  }
+  description = "Docker label templates for service exposure"
+}

@@ -1,0 +1,273 @@
+# StackKit Metadata and Mode Configuration
+apiVersion: stackkit/v1
+kind: StackKit
+
+metadata:
+  name: base-kit
+  version: "6.0.0-draft"
+  description: "Single-environment homelab with a robust default scope: Platform + Media and Vault. Photos, Smart Home, Files, and AI stay opt-in until their modules are production-ready."
+  author: "kombify Stack Team"
+  license: "Apache-2.0"
+  repository: "https://github.com/kombifyio/stackkits"
+  tags:
+    - homelab
+    - single-environment
+    - multi-server-capable
+    - docker
+    - traefik
+    - dokploy
+    - professional
+    - v6-draft
+
+# Supported operating systems
+supportedOS:
+  - ubuntu-24
+  - ubuntu-22
+  - debian-12
+
+# Resource requirements
+requirements:
+  minimum:
+    cpu: 2
+    memory: 2
+    disk: 10
+  recommended:
+    cpu: 4
+    memory: 4
+    disk: 20
+
+# =============================================================================
+# DEPLOYMENT MODES (Available for all StackKits)
+# =============================================================================
+modes:
+  # Simple Mode: OpenTofu-only with Go integration
+  simple:
+    description: "OpenTofu-only deployment via kombify Stack Core"
+    templateDir: "templates/simple"
+    engine: "opentofu"
+    features:
+      - "Direct OpenTofu execution"
+      - "Go-based state management"
+      - "Simple rollback via state"
+    recommended_for:
+      - "Single node deployments"
+      - "Quick setup without drift detection"
+      - "Users new to infrastructure-as-code"
+      - "Development and testing"
+
+  # Advanced Mode: Terramate with drift detection
+  advanced:
+    description: "Terramate-orchestrated deployment with drift detection"
+    templateDir: "templates/advanced"
+    engine: "terramate"
+    requires:
+      - "terramate >= 0.5.0"
+    features:
+      - "Drift detection on schedule"
+      - "Granular stack orchestration"
+      - "Day-2 operations support"
+      - "Gradual rollouts"
+    recommended_for:
+      - "Production environments"
+      - "Compliance requirements"
+      - "Multi-stack coordination"
+    stacks:
+      - name: network
+        order: 1
+        description: "Docker networks and DNS"
+      - name: services
+        order: 2
+        after: [network]
+        description: "Core services (Traefik, monitoring)"
+      - name: applications
+        order: 3
+        after: [services]
+        description: "User applications via Dokploy"
+
+# Auto-selection rules
+autoSelect:
+  advancedWhen:
+    - "driftDetection.enabled == true"
+    - "autoUpdates.enabled == true"
+    - "compliance.required == true"
+  default: simple
+
+# =============================================================================
+# APPLICATION LAYER (L3 — use cases)
+# =============================================================================
+# Canonical layer name per ADR-0012 sk_layer + ARCHITECTURE_V6 §4. Pre-2026-04
+# this section was called `useCases`; renamed to `application` to match the
+# Foundation / Platform / Application standard surfaced in the Admin UI.
+#
+# Role: default = ships enabled, alternative = curated swap, optional = user enables
+# Source of truth: admin-center (sk_stackkit_*). This section mirrors it for Level 0 CLI.
+application:
+  photos:
+    role: optional            # Planned default; opt-in until Immich renders its full Postgres/Redis/ML stack and passes live smoke.
+    defaultTool: immich
+    alternatives: [ente-photos]
+    description: "Photo gallery and memories"
+  media:
+    role: default
+    defaultTool: jellyfin
+    alternatives: []
+    description: "Media streaming with automated library management"
+  vault:
+    role: default
+    defaultTool: vaultwarden
+    alternatives: []
+    description: "Password management and secure notes"
+  smart-home:
+    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
+    defaultTool: home-assistant
+    alternatives: []
+    description: "Home automation with IoT device control"
+  files:
+    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
+    defaultTool: cloudreve
+    alternatives: [nextcloud]
+    description: "File sharing and cloud storage"
+  ai:
+    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
+    defaultTool: ollama
+    alternatives: []
+    description: "Local AI/LLM inference"
+  dev:
+    role: optional
+    defaultTool: gitea
+    alternatives: []
+    description: "Self-hosted Git and CI/CD"
+  mail:
+    role: optional
+    defaultTool: stalwart
+    alternatives: []
+    description: "Self-hosted email server"
+  game:
+    role: optional
+    defaultTool: null
+    alternatives: []
+    description: "Game server hosting"
+  remote:
+    role: optional
+    defaultTool: guacamole
+    alternatives: []
+    description: "Remote desktop access"
+
+# Foundation services (L1, always present, mandatory in V6 — host-level + identity bootstrap)
+# See docs/ARCHITECTURE_V6.md §5 "Out-of-the-box Production Hardening".
+foundation:
+  security-baseline:
+    role: default
+    alternatives: []
+    description: "UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. V6 mandatory."
+  admin-bootstrap:
+    role: optional
+    alternatives: []
+    description: "Planned initial admin user bootstrap for LLDAP/PocketID. Opt-in until admin-authenticated provisioning exists."
+
+# Platform services (L2, identity & routing). Migration 000085 (2026-04-27)
+# moved `login-gateway` here from `foundation:` to align with
+# ARCHITECTURE_V6 §4 — login-gateway (TinyAuth + PocketID) is L2 Platform,
+# not L1 Foundation. Only the bootstrap of an admin user is Foundation;
+# the actual Identity service stack is Platform.
+platform:
+  traefik:
+    role: default
+    alternatives: []
+  tinyauth:
+    role: default
+    alternatives: []
+  login-gateway:
+    role: default
+    alternatives: []
+    description: "TinyAuth forward-auth middleware in front of every L3 service. V6 mandatory."
+  pocketid:
+    role: optional
+    alternatives: []
+  paas:
+    role: optional
+    defaultTool: dokploy
+    alternatives: [coolify, dockge]
+  monitoring:
+    role: optional
+    defaultTool: uptime-kuma
+    alternatives: [beszel]
+  dashboard:
+    role: optional
+    alternatives: []
+
+# Feature flags
+features:
+  multiNode: false
+  cloudProviders: false
+  vpnOverlay: false
+  gpuSupport: false
+  highAvailability: false
+
+# Compute tier adjustments
+computeTiers:
+  high:
+    requirements:
+      cpu: 8
+      memory: 16
+      disk: 20
+    additionalServices:
+      - prometheus
+      - grafana
+  standard:
+    requirements:
+      cpu: 4
+      memory: 8
+      disk: 10
+    additionalServices: []
+  low:
+    requirements:
+      cpu: 2
+      memory: 4
+      disk: 5
+    paasOverride: dockge
+    serviceOverrides:
+      dokploy: disabled
+
+# =============================================================================
+# SERVICE OUTPUTS (URLs and Credentials)
+# =============================================================================
+outputs:
+  format: "markdown"
+  include:
+    - serviceUrls
+    - credentials
+    - healthEndpoints
+  template: |
+    # 🏠 Base Kit - Deployed Services
+    
+    ## Service URLs
+    {{range .services}}
+    - **{{.displayName}}**: [{{.output.url}}]({{.output.url}})
+      {{.output.description}}
+    {{end}}
+    
+    ## Quick Access
+    | Service | URL | Notes |
+    |---------|-----|-------|
+    {{range .services}}
+    | {{.displayName}} | {{.output.url}} | {{.output.credentials.note}} |
+    {{end}}
+
+# Changelog
+changelog:
+  - version: "2.0.0"
+    date: "2025-01-27"
+    changes:
+      - "NEW: Dokploy as default PaaS platform"
+      - "NEW: Uptime Kuma for monitoring (default)"
+      - "NEW: Beszel as alternative monitoring option"
+      - "NEW: Whoami test container for verification"
+      - "NEW: Service URLs output in deployment summary"
+      - "CHANGED: Two deployment modes (simple/advanced) standardized"
+  - version: "1.0.0"
+    date: "2025-01-08"
+    changes:
+      - "Initial release"
+      - "Ubuntu 24.04 support"
+      - "Core services: Traefik, Dockge, Dozzle, Netdata"

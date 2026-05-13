@@ -1,0 +1,242 @@
+# GoReleaser configuration for StackKits CLI
+# See: https://goreleaser.com/customization/
+
+version: 2
+project_name: stackkits
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+    - sh scripts/release/fetch-opentofu.sh
+
+builds:
+  - id: stackkit
+    main: ./cmd/stackkit
+    binary: stackkit
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{ .Version }}
+      - -X main.GitCommit={{ .Commit }}
+      - -X main.BuildDate={{ .Date }}
+
+  # Per-host backup agent (Phase 4 of the backup rollout — see
+  # docs/plans/2026-05-01-backup-rollout.md). Linux-only because the
+  # agent only runs on backed-up hosts, which are always Linux Docker
+  # nodes in our supported StackKit set. Windows/macOS would only be
+  # operator workstations, and the operator surface is the main
+  # `stackkit backup` subcommand, not this binary.
+  - id: stackkit-backup-agent
+    main: ./cmd/stackkit-backup-agent
+    binary: stackkit-backup-agent
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{ .Version }}
+      - -X main.GitCommit={{ .Commit }}
+      - -X main.BuildDate={{ .Date }}
+
+  # Controller host binary (also Phase 4). Hosts the kombify-Backup
+  # HTTP API that the kombify-TechStack web UI integrates against.
+  # Linux-only; deployed via systemd/Docker on the SaaS infra side,
+  # never on customer machines.
+  - id: stackkit-backup-controller
+    main: ./cmd/stackkit-backup-controller
+    binary: stackkit-backup-controller
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{ .Version }}
+
+archives:
+  # Full bundle — all kits + CLI (for users who want everything)
+  - id: default
+    ids:
+      - stackkit
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - src: ".dist-tools/opentofu/{{ .Os }}_{{ .Arch }}/tofu*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
+      - README.md
+      - LICENSE
+      - docs/CLI.md
+      - cue.mod/**
+      - base-kit/**
+      - base/**
+      - modules/**
+      - ha-kit/**
+      - modern-homelab/**
+
+  # Per-kit archives — CLI + specific kit + base schemas
+  - id: base-kit
+    ids:
+      - stackkit
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}-base-kit_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - src: ".dist-tools/opentofu/{{ .Os }}_{{ .Arch }}/tofu*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
+      - README.md
+      - LICENSE
+      - docs/CLI.md
+      - cue.mod/**
+      - base-kit/**
+      - base/**
+      - modules/**
+
+  # TODO: add ha-kit and modern-homelab per-kit archives when they graduate from alpha
+  # - id: ha-kit
+  # - id: modern-homelab
+
+  # Backup agent ships standalone — small footprint, Linux-only, no
+  # kits or docs bundled. Operators install this on each host of a
+  # fleet alongside their existing StackKit deployment.
+  - id: backup-agent
+    ids:
+      - stackkit-backup-agent
+    formats:
+      - tar.gz
+    name_template: >-
+      stackkit-backup-agent_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - cmd/stackkit-backup-agent/README.md
+      - internal/backup-controller/README.md
+
+  # Controller host binary — same shape as the agent archive. Lands
+  # on the SaaS infra side (kombify-TechStack), not on customer hosts.
+  - id: backup-controller
+    ids:
+      - stackkit-backup-controller
+    formats:
+      - tar.gz
+    name_template: >-
+      stackkit-backup-controller_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - cmd/stackkit-backup-controller/README.md
+      - internal/backup-controller/README.md
+
+nfpms:
+  - id: deb
+    package_name: kombify-stackkits
+    vendor: kombify
+    homepage: https://github.com/kombifyio/stackKits
+    maintainer: kombify <admin@kombify.io>
+    description: "kombify StackKits CLI — infrastructure deployment from declarative blueprints"
+    license: "Apache-2.0 AND GPL-3.0"
+    formats:
+      - deb
+    bindir: /usr/local/bin
+    section: utils
+    priority: optional
+    contents:
+      - src: ".dist-tools/opentofu/linux_{{ .Arch }}/tofu"
+        dst: /usr/local/bin/tofu
+        file_info:
+          mode: 0755
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "Breaking Changes"
+      regexp: '^.*?!:.+$'
+      order: 0
+    - title: "Features"
+      regexp: '^.*?feat(\(.+\))?:.+$'
+      order: 1
+    - title: "Bug Fixes"
+      regexp: '^.*?fix(\(.+\))?:.+$'
+      order: 2
+    - title: "Other"
+      order: 999
+
+release:
+  github:
+    owner: kombifyio
+    name: stackKits
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }}"
+  header: |
+    ## StackKits CLI v{{ .Version }}
+
+    ### Quick Install
+
+    **Base Kit (single-server homelab):**
+    ```bash
+    curl -sSL stackkit.cc/base | sh
+    ```
+
+    **CLI only (pick a kit later):**
+    ```bash
+    curl -sSL stackkit.cc/install | sh
+    ```
+
+    ### Downloads
+
+    | Archive | Contents |
+    |---------|----------|
+    | `stackkits_*` | Full bundle — CLI + all kits |
+    | `stackkits-base-kit_*` | CLI + base-kit only |
+  footer: |
+    **Full Changelog**: https://github.com/kombifyio/stackKits/compare/{{ .PreviousTag }}...{{ .Tag }}

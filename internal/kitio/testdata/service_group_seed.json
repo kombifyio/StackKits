@@ -1,0 +1,37 @@
+{
+  "_comment": "Frozen snapshot of the (yaml_section, yaml_key, group_slug) triples seeded by kombify-DB migrations 000082 + 000084. Drift between this file and the DB seed is a CRITICAL test failure — re-sync intentionally and update both sides in lockstep.",
+  "_source": "kombify-DB/migrations/000082_sk_service_group_yaml_mapping.up.sql + 000084_sk_service_group_application_layer.up.sql (rename useCases -> application)",
+  "_lastSyncedAt": "2026-04-27",
+  "_layerStandard": "Foundation / Platform / Application — canonical per ADR-0012 sk_layer + ARCHITECTURE_V6 §4",
+  "_loginGatewayMove": "Migration 000085 (2026-04-27, P1-2 architect-review fix): login-gateway moved from foundation to platform per ARCHITECTURE_V6 §4. Identity service is Platform; only admin-bootstrap is Foundation.",
+  "mappings": [
+    {"section": "foundation", "key": "security-baseline", "groupSlug": "security-baseline"},
+    {"section": "foundation", "key": "admin-bootstrap",   "groupSlug": "admin-bootstrap"},
+
+    {"section": "platform", "key": "traefik",       "groupSlug": "reverse-proxy"},
+    {"section": "platform", "key": "login-gateway", "groupSlug": "forward-auth"},
+    {"section": "platform", "key": "pocketid",      "groupSlug": "oidc-provider"},
+    {"section": "platform", "key": "paas",          "groupSlug": "paas"},
+    {"section": "platform", "key": "monitoring",    "groupSlug": "uptime-monitoring"},
+    {"section": "platform", "key": "dashboard",     "groupSlug": "dashboard"},
+    {"section": "platform", "key": "dozzle",        "groupSlug": "container-logs"},
+    {"section": "platform", "key": "socket-proxy",  "groupSlug": "docker-socket-proxy"},
+    {"section": "platform", "key": "unbound",       "groupSlug": "dns-resolver"},
+    {"section": "platform", "key": "adguard-home",  "groupSlug": "dns-filter"},
+    {"section": "platform", "key": "crowdsec",      "groupSlug": "intrusion-detection"},
+
+    {"section": "application", "key": "photos",     "groupSlug": "photo-management"},
+    {"section": "application", "key": "media",      "groupSlug": "media-streaming"},
+    {"section": "application", "key": "vault",      "groupSlug": "password-vault"},
+    {"section": "application", "key": "smart-home", "groupSlug": "smart-home"},
+    {"section": "application", "key": "files",      "groupSlug": "file-sharing"},
+    {"section": "application", "key": "ai",         "groupSlug": "ai-workloads"},
+    {"section": "application", "key": "dev",        "groupSlug": "dev-platform"},
+    {"section": "application", "key": "mail",       "groupSlug": "mail-server"},
+    {"section": "application", "key": "game",       "groupSlug": "game-server"},
+    {"section": "application", "key": "remote",     "groupSlug": "remote-desktop"},
+
+    {"_alias": "stored in sk_service_group.metadata.yamlAliases — input-only, not used by kit-export",
+     "section": "platform", "key": "tinyauth", "groupSlug": "forward-auth"}
+  ]
+}

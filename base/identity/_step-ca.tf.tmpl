@@ -1,0 +1,375 @@
+# =============================================================================
+# CORE: IDENTITY - Step-CA (Certificate Authority)
+# =============================================================================
+# Layer 1 (CORE): Applied to ALL deployments
+#
+# This template deploys Step-CA for PKI and mTLS:
+# - Internal Certificate Authority
+# - ACME protocol support for automated certificates
+# - SCEP support for device enrollment
+# - JWK provisioner for service-to-service mTLS
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "step_ca_enabled" {
+  description = "Enable Step-CA certificate authority"
+  type        = bool
+  default     = true
+}
+
+variable "step_ca_version" {
+  description = "Step-CA Docker image version"
+  type        = string
+  default     = "latest"
+}
+
+variable "step_ca_port" {
+  description = "Step-CA HTTPS port"
+  type        = number
+  default     = 8443
+}
+
+variable "step_ca_health_port" {
+  description = "Step-CA health check port"
+  type        = number
+  default     = 8080
+}
+
+variable "step_ca_password" {
+  description = "CA password; generated when omitted"
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    condition     = var.step_ca_password == "" || length(var.step_ca_password) >= 12
+    error_message = "step_ca_password must be empty for generated credentials or at least 12 characters when provided explicitly."
+  }
+}
+
+variable "step_ca_name" {
+  description = "CA name"
+  type        = string
+  default     = "StackKits CA"
+}
+
+variable "step_ca_provisioner_name" {
+  description = "JWK provisioner name"
+  type        = string
+  default     = "stackkits"
+}
+
+variable "step_ca_provisioner_password" {
+  description = "JWK provisioner password; generated when omitted"
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    condition     = var.step_ca_provisioner_password == "" || length(var.step_ca_provisioner_password) >= 12
+    error_message = "step_ca_provisioner_password must be empty for generated credentials or at least 12 characters when provided explicitly."
+  }
+}
+
+variable "step_ca_traefik_host" {
+  description = "Traefik host rule for Step-CA"
+  type        = string
+  default     = "ca.stack.local"
+}
+
+variable "step_ca_dns_names" {
+  description = "DNS names for the CA certificate"
+  type        = list(string)
+  default     = ["ca.stack.local", "localhost"]
+}
+
+variable "step_ca_init_fingerprint" {
+  description = "Fingerprint of root certificate (set after init)"
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# LOCALS
+# -----------------------------------------------------------------------------
+
+locals {
+  step_ca_init                           = var.step_ca_init_fingerprint == ""
+  step_ca_password_effective             = var.step_ca_enabled ? (var.step_ca_password != "" ? var.step_ca_password : random_password.step_ca_password[0].result) : ""
+  step_ca_provisioner_password_effective = var.step_ca_enabled ? (var.step_ca_provisioner_password != "" ? var.step_ca_provisioner_password : random_password.step_ca_provisioner_password[0].result) : ""
+}
+
+resource "random_password" "step_ca_password" {
+  count   = var.step_ca_enabled && var.step_ca_password == "" ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "step_ca_provisioner_password" {
+  count   = var.step_ca_enabled && var.step_ca_provisioner_password == "" ? 1 : 0
+  length  = 32
+  special = false
+}
+
+# -----------------------------------------------------------------------------
+# STEP-CA VOLUME
+# -----------------------------------------------------------------------------
+
+resource "docker_volume" "step_ca_data" {
+  count = var.step_ca_enabled ? 1 : 0
+  name  = "step-ca-data"
+}
+
+# -----------------------------------------------------------------------------
+# STEP-CA INITIALIZATION SCRIPT
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "step_ca_init" {
+  count = var.step_ca_enabled && local.step_ca_init ? 1 : 0
+
+  triggers = {
+    volume_name = docker_volume.step_ca_data[0].name
+  }
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      "",
+      "echo '=== CORE: Initializing Step-CA ==='",
+      "",
+      "# Create initialization directory",
+      "mkdir -p /tmp/step-ca-init",
+      "cd /tmp/step-ca-init",
+      "",
+      "# Create initialization script",
+      "cat > init-step-ca.sh << 'INITEOF'",
+      "#!/bin/bash",
+      "set -e",
+      "",
+      "# Initialize Step-CA with JWK provisioner",
+      "step ca init \\",
+      "  --name=\"${var.step_ca_name}\" \\",
+      "  --dns=\"${join(\",\", var.step_ca_dns_names)}\" \\",
+      "  --address=\":${var.step_ca_port}\" \\",
+      "  --provisioner=\"${var.step_ca_provisioner_name}\" \\",
+      "  --password-file=<(echo '${local.step_ca_password_effective}') \\",
+      "  --provisioner-password-file=<(echo '${local.step_ca_provisioner_password_effective}')",
+      "",
+      "# Add ACME provisioner",
+      "step ca provisioner add acme --type ACME",
+      "",
+      "INITEOF",
+      "",
+      "chmod +x init-step-ca.sh",
+      "",
+      "# Run initialization in temporary container",
+      "docker run --rm \\",
+      "  -v ${docker_volume.step_ca_data[0].name}:/home/step \\",
+      "  -v /tmp/step-ca-init:/init \\",
+      "  -w /home/step \\",
+      "  -e STEPPATH=/home/step \\",
+      "  smallstep/step-ca:${var.step_ca_version} \\",
+      "  sh -c 'if [ ! -f /home/step/config/ca.json ]; then /init/init-step-ca.sh; else echo \"CA already initialized\"; fi'",
+      "",
+      "# Cleanup",
+      "rm -rf /tmp/step-ca-init",
+      "",
+      "echo '=== Step-CA initialization complete ==='",
+    ]
+  }
+
+  depends_on = [docker_volume.step_ca_data]
+}
+
+# -----------------------------------------------------------------------------
+# STEP-CA CONTAINER
+# -----------------------------------------------------------------------------
+
+resource "docker_container" "step_ca" {
+  count = var.step_ca_enabled ? 1 : 0
+
+  name  = "step-ca"
+  image = "smallstep/step-ca:${var.step_ca_version}"
+
+  restart = "unless-stopped"
+
+  networks_advanced {
+    name = docker_network.identity_net[0].name
+  }
+
+  # Ports
+  ports {
+    internal = var.step_ca_port
+    external = var.step_ca_port
+    protocol = "tcp"
+  }
+
+  ports {
+    internal = 8080
+    external = var.step_ca_health_port
+    protocol = "tcp"
+  }
+
+  # Volumes
+  volumes {
+    volume_name    = docker_volume.step_ca_data[0].name
+    container_path = "/home/step"
+  }
+
+  # Environment
+  env = [
+    "TZ=Europe/Berlin",
+    "STEPPATH=/home/step",
+    "STEP_CA_URL=https://0.0.0.0:${var.step_ca_port}",
+    "STEP_CA_PASSWORD=${local.step_ca_password_effective}",
+    "DOCKER_STEPCA_INIT_NAME=${var.step_ca_name}",
+    "DOCKER_STEPCA_INIT_DNS_NAMES=${join(",", var.step_ca_dns_names)}",
+    "DOCKER_STEPCA_INIT_PROVISIONER_NAME=${var.step_ca_provisioner_name}",
+    "DOCKER_STEPCA_INIT_ACME_ENABLED=true",
+  ]
+
+  # Healthcheck
+  healthcheck {
+    test     = ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://localhost:8080/health"]
+    interval = "30s"
+    timeout  = "5s"
+    retries  = 3
+  }
+
+  # Labels
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  labels {
+    label = "traefik.http.routers.step-ca.rule"
+    value = "Host(`${var.step_ca_traefik_host}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.step-ca.entrypoints"
+    value = "web"
+  }
+
+  labels {
+    label = "traefik.http.services.step-ca.loadbalancer.server.port"
+    value = tostring(var.step_ca_port)
+  }
+
+  labels {
+    label = "traefik.http.services.step-ca.loadbalancer.server.scheme"
+    value = "https"
+  }
+
+  labels {
+    label = "traefik.http.services.step-ca.loadbalancer.serversTransport"
+    value = "insecure@file"
+  }
+
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+
+  labels {
+    label = "stackkit.managed-by"
+    value = "terraform"
+  }
+
+  labels {
+    label = "stackkit.certificate-authority"
+    value = "step-ca"
+  }
+
+  depends_on = [
+    docker_volume.step_ca_data,
+    docker_network.identity_net,
+    null_resource.step_ca_init
+  ]
+}
+
+# -----------------------------------------------------------------------------
+# STEP-CA ROOT CERTIFICATE RETRIEVAL
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "step_ca_root_cert" {
+  count = var.step_ca_enabled ? 1 : 0
+
+  triggers = {
+    container_id = docker_container.step_ca[0].id
+  }
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      "",
+      "echo '=== CORE: Retrieving Step-CA root certificate ==='",
+      "",
+      "# Wait for CA to be ready",
+      "sleep 5",
+      "",
+      "# Get root certificate fingerprint",
+      "FINGERPRINT=$(docker exec step-ca step certificate fingerprint /home/step/certs/root_ca.crt 2>/dev/null || echo 'not-ready')",
+      "echo \"Root CA Fingerprint: $FINGERPRINT\"",
+      "",
+      "# Copy root certificate to known location for other services",
+      "mkdir -p /opt/stackkits/certs",
+      "docker cp step-ca:/home/step/certs/root_ca.crt /opt/stackkits/certs/stackkits-root-ca.crt 2>/dev/null || echo 'Certificate not ready yet'",
+      "",
+      "echo '=== Root certificate retrieved ==='",
+    ]
+  }
+
+  depends_on = [docker_container.step_ca]
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUT
+# -----------------------------------------------------------------------------
+
+output "step_ca_enabled" {
+  value       = var.step_ca_enabled
+  description = "Whether Step-CA is enabled"
+}
+
+output "step_ca_url" {
+  value       = var.step_ca_enabled ? "https://${var.step_ca_traefik_host}:${var.step_ca_port}" : ""
+  description = "Step-CA URL"
+}
+
+output "step_ca_health_url" {
+  value       = var.step_ca_enabled ? "https://localhost:${var.step_ca_health_port}/health" : ""
+  description = "Step-CA health check URL"
+}
+
+output "step_ca_provisioner" {
+  value       = var.step_ca_enabled ? var.step_ca_provisioner_name : ""
+  description = "JWK provisioner name"
+}
+
+output "step_ca_acme_url" {
+  value       = var.step_ca_enabled ? "https://${var.step_ca_traefik_host}:${var.step_ca_port}/acme/acme/directory" : ""
+  description = "ACME directory URL"
+}

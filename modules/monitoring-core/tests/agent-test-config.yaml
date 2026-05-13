@@ -1,0 +1,29 @@
+receivers:
+  hostmetrics:
+    collection_interval: 5s
+    scrapers:
+      cpu: {}
+      memory: {}
+
+processors:
+  resource:
+    attributes:
+      - key: stackkit_test
+        value: monitoring-core
+        action: upsert
+  batch:
+    timeout: 2s
+    send_batch_size: 200
+
+exporters:
+  otlp:
+    endpoint: otel-gateway:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [hostmetrics]
+      processors: [resource, batch]
+      exporters: [otlp]

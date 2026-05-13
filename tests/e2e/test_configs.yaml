@@ -1,0 +1,244 @@
+# =============================================================================
+# E2E TEST CONFIGURATION: base-kit
+# =============================================================================
+# Test configurations for different scenarios
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# MINIMAL TEST (Quick validation)
+# -----------------------------------------------------------------------------
+minimal_test:
+  name: "Minimal Test"
+  description: "Quick validation with minimal resources"
+  variant: minimal
+  timeout: "5m"
+  
+  spec:
+    variant: minimal
+    system:
+      timezone: "UTC"
+    nodes:
+      - name: test-minimal
+        role: main
+        type: local
+        os: ubuntu-24
+        resources:
+          cpu: 2
+          memory: 4
+          disk: 50
+        connection:
+          host: "${TEST_HOST}"
+          user: "${TEST_USER}"
+          ssh_key: "${TEST_SSH_KEY}"
+    network:
+      mode: local
+      # Domain is optional; local-first mode must work without any DNS
+      domain: ""
+  
+  assertions:
+    - type: service_running
+      service: dockge
+    - type: service_running
+      service: portainer
+    - type: service_running
+      service: netdata
+    - type: port_open
+      port: 5001
+    - type: port_open
+      port: 9000
+    - type: port_open
+      port: 19999
+    - type: port_open
+      port: 8888
+
+# -----------------------------------------------------------------------------
+# DEFAULT TEST (Standard configuration)
+# -----------------------------------------------------------------------------
+default_test:
+  name: "Default Test"
+  description: "Standard Dokploy + Uptime Kuma stack"
+  variant: default
+  timeout: "10m"
+  
+  spec:
+    variant: default
+    system:
+      timezone: "Europe/Berlin"
+    nodes:
+      - name: test-default
+        role: main
+        type: local
+        os: ubuntu-24
+        resources:
+          cpu: 4
+          memory: 8
+          disk: 100
+        connection:
+          host: "${TEST_HOST}"
+          user: "${TEST_USER}"
+          ssh_key: "${TEST_SSH_KEY}"
+    network:
+      mode: local
+      domain: ""
+  
+  assertions:
+    - type: service_running
+      service: dokploy
+    - type: service_running
+      service: uptime-kuma
+    - type: service_running
+      service: traefik
+    - type: http_response
+      url: "http://${TEST_HOST}:4000"
+      expected_code: 200
+    - type: http_response
+      url: "http://${TEST_HOST}:4001"
+      expected_code: 200
+
+# -----------------------------------------------------------------------------
+# BESZEL TEST (Alternative monitoring)
+# -----------------------------------------------------------------------------
+beszel_test:
+  name: "Beszel Test"
+  description: "Dokploy with Beszel monitoring"
+  variant: beszel
+  timeout: "10m"
+  
+  spec:
+    variant: beszel
+    system:
+      timezone: "Europe/Berlin"
+    nodes:
+      - name: test-beszel
+        role: main
+        type: local
+        os: debian-12
+        resources:
+          cpu: 4
+          memory: 8
+          disk: 100
+        connection:
+          host: "${TEST_HOST}"
+          user: "${TEST_USER}"
+          ssh_key: "${TEST_SSH_KEY}"
+    network:
+      mode: local
+      domain: ""
+  
+  assertions:
+    - type: service_running
+      service: dokploy
+    - type: service_running
+      service: beszel-hub
+    - type: service_running
+      service: beszel-agent
+    - type: service_running
+      service: traefik
+
+# -----------------------------------------------------------------------------
+# SECURITY TEST (Verify hardening)
+# -----------------------------------------------------------------------------
+security_test:
+  name: "Security Test"
+  description: "Verify security hardening is applied"
+  timeout: "5m"
+  
+  assertions:
+    # SSH hardening
+    - type: ssh_config
+      setting: "PasswordAuthentication"
+      expected: "no"
+    - type: ssh_config
+      setting: "PermitRootLogin"
+      expected: "prohibit-password"
+    - type: ssh_config
+      setting: "MaxAuthTries"
+      expected: "3"
+    
+    # Firewall
+    - type: command
+      command: "ufw status"
+      expected_output: "Status: active"
+    - type: command
+      command: "ufw status | grep 22"
+      expected_output: "ALLOW"
+    
+    # Fail2ban
+    - type: service_active
+      service: fail2ban
+    - type: command
+      command: "fail2ban-client status sshd"
+      expected_output: "Currently banned"
+
+# -----------------------------------------------------------------------------
+# FULL STACK TEST (All components)
+# -----------------------------------------------------------------------------
+full_test:
+  name: "Full Stack Test"
+  description: "Complete deployment with all Layer 1,2,3 components"
+  timeout: "15m"
+  
+  spec:
+    variant: default
+    system:
+      timezone: "Europe/Berlin"
+    nodes:
+      - name: full-test
+        role: main
+        type: local
+        os: ubuntu-24
+        resources:
+          cpu: 4
+          memory: 16
+          disk: 200
+        connection:
+          host: "${TEST_HOST}"
+          user: "${TEST_USER}"
+          ssh_key: "${TEST_SSH_KEY}"
+    network:
+      mode: local
+      domain: ""
+  
+  phases:
+    - name: "Layer 1 - CORE"
+      assertions:
+        # Bootstrap packages
+        - type: package_installed
+          package: bat
+        - type: package_installed
+          package: btop
+        - type: package_installed
+          package: tmux
+        # Security
+        - type: service_active
+          service: ufw
+        - type: service_active
+          service: fail2ban
+        # Health checks
+        - type: file_exists
+          path: /opt/kombistack/health/check.sh
+    
+    - name: "Layer 2 - PLATFORM"
+      assertions:
+        # Docker
+        - type: service_active
+          service: docker
+        - type: command
+          command: "docker --version"
+          expected_output: "Docker version"
+        # Traefik
+        - type: container_running
+          container: traefik
+        - type: port_open
+          port: 8080
+    
+    - name: "Layer 3 - SERVICES"
+      assertions:
+        - type: container_running
+          container: dokploy
+        - type: container_running
+          container: uptime-kuma
+        - type: health_check
+          url: "http://${TEST_HOST}:4000/health"
+        - type: health_check
+          url: "http://${TEST_HOST}:4001"

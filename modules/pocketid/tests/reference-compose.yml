@@ -1,0 +1,105 @@
+# PocketID Module — Reference Compose Test
+# Tests PocketID + Traefik routing in isolation.
+#
+# Usage:
+#   docker compose -f modules/pocketid/tests/reference-compose.yml up -d --wait
+#   ./modules/pocketid/tests/integration_test.sh
+
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: test-traefik-pocketid
+    environment:
+      DOCKER_API_VERSION: "1.40"
+    command:
+      - "--api.insecure=true"
+      - "--ping=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "8891:80"
+      - "19091:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+  pocketid:
+    image: ghcr.io/pocket-id/pocket-id:v2
+    container_name: test-pocketid
+    environment:
+      PUBLIC_APP_URL: "http://id.test.local"
+      TRUST_PROXY: "true"
+      ENCRYPTION_KEY: "test-encryption-key-32-bytes!!"
+      STATIC_API_KEY: "test-static-api-key"
+    volumes:
+      - pocketid-data:/app/backend/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pocketid.rule=Host(`id.test.local`)"
+      - "traefik.http.routers.pocketid.entrypoints=web"
+      - "traefik.http.services.pocketid.loadbalancer.server.port=1411"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:1411/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks:
+      - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    mem_limit: 512m
+    cpus: 0.5
+
+  pocketid-provisioner:
+    image: alpine/curl:latest
+    container_name: test-pocketid-provisioner
+    depends_on:
+      pocketid:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        echo "Provisioning PocketID admin account..."
+        result=$$(curl -s -w "\n%{http_code}" -X POST http://pocketid:1411/api/signup/setup \
+          -H "Content-Type: application/json" \
+          -d '{"username":"admin","firstName":"Admin","lastName":"","email":"admin@stack.local","token":""}')
+        code=$$(echo "$$result" | tail -1)
+        body=$$(echo "$$result" | head -1)
+        echo "HTTP $$code: $$body"
+        if [ "$$code" = "200" ] || [ "$$code" = "201" ]; then
+          echo "PocketID: admin created — visit id.test.local to register passkey"
+        else
+          echo "PocketID: response $$code (may already be configured)"
+        fi
+    networks:
+      - test-net
+    restart: "no"
+
+networks:
+  test-net:
+    driver: bridge
+
+volumes:
+  pocketid-data:

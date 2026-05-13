@@ -1,0 +1,42 @@
+# Traefik dynamic configuration for TinyAuth reference compose test
+# Uses file provider instead of Docker provider (reliable across all platforms)
+
+http:
+  routers:
+    tinyauth:
+      rule: "Host(`auth.test.local`)"
+      entryPoints:
+        - web
+      service: tinyauth
+      # TinyAuth itself is NOT behind ForwardAuth (it IS the auth)
+
+    whoami:
+      rule: "Host(`whoami.test.local`)"
+      entryPoints:
+        - web
+      service: whoami
+      middlewares:
+        - tinyauth-forward
+
+  services:
+    tinyauth:
+      loadBalancer:
+        servers:
+          - url: "http://tinyauth:3000"
+
+    whoami:
+      loadBalancer:
+        servers:
+          - url: "http://whoami:80"
+
+  middlewares:
+    tinyauth-forward:
+      forwardAuth:
+        address: "http://tinyauth:3000/api/auth/traefik"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - remote-user
+          - remote-sub
+          - remote-name
+          - remote-email
+          - remote-groups

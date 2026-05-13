@@ -1,0 +1,325 @@
+# =============================================================================
+# PLATFORM IDENTITY - PocketID (OIDC Provider with Passkey Support)
+# =============================================================================
+# Layer 2 (PLATFORM): Applied when platform identity is enabled
+#
+# This template deploys PocketID as the local OIDC provider:
+# - Self-hosted OIDC/OAuth2 provider with WebAuthn/Passkey support
+# - Syncs users from LLDAP (LDAP integration)
+# - Issues OIDC tokens consumed by TinyAuth, PocketBase (kombify Stack), etc.
+# - Exposed via Traefik with TLS
+#
+# DEPENDENCY: Requires Traefik (from PaaS layer) and LLDAP (Layer 1 foundation)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "pocketid_enabled" {
+  description = "Enable PocketID OIDC provider"
+  type        = bool
+  default     = false
+}
+
+variable "pocketid_version" {
+  description = "PocketID Docker image version (PocketID v2 — ghcr.io/pocket-id/pocket-id:v2 — has a non-overlapping schema with v1; v1 is end-of-life)"
+  type        = string
+  default     = "v2"
+}
+
+variable "pocketid_port" {
+  description = "PocketID HTTP port (host-side mapping for the v2 container, which listens on 1411 internally)"
+  type        = number
+  default     = 1411
+}
+
+variable "pocketid_app_url" {
+  description = "Public URL for PocketID (e.g., https://id.example.com)"
+  type        = string
+  default     = "https://id.stack.local"
+}
+
+variable "pocketid_traefik_host" {
+  description = "Traefik host rule for PocketID"
+  type        = string
+  default     = "id.stack.local"
+}
+
+# Phase 1 / Task 12: PocketID v2 STATIC_API_KEY for headless admin bootstrap.
+# The stackkit CLI persists this value in <homelab>/.stackkit/pocketid-static-api-key
+# and renders it here via terraform.tfvars.json. Same value is used by
+# `stackkit apply`'s owner-bootstrap step.
+variable "pocketid_static_api_key" {
+  description = "PocketID STATIC_API_KEY (admin bootstrap token)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# Phase 1 / Task 14 stopper-fix: PocketID v2 refuses to start without
+# ENCRYPTION_KEY (>=16 raw bytes). Persisted by the CLI in
+# <homelab>/.stackkit/pocketid-encryption-key and rendered here via
+# terraform.tfvars.json. Rotating this value makes existing data on the
+# volume undecryptable.
+variable "pocketid_encryption_key" {
+  description = "PocketID ENCRYPTION_KEY (>=16 raw bytes, persistent across re-apply)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# Database configuration
+variable "pocketid_db_type" {
+  description = "Database type for PocketID"
+  type        = string
+  default     = "sqlite"
+
+  validation {
+    condition     = contains(["sqlite", "postgres"], var.pocketid_db_type)
+    error_message = "Database type must be sqlite or postgres"
+  }
+}
+
+variable "pocketid_db_connection" {
+  description = "PostgreSQL connection string (when db_type is postgres)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# SMTP configuration (optional, for email verification)
+variable "pocketid_smtp_enabled" {
+  description = "Enable SMTP for email notifications"
+  type        = bool
+  default     = false
+}
+
+variable "pocketid_smtp_host" {
+  description = "SMTP server host"
+  type        = string
+  default     = ""
+}
+
+variable "pocketid_smtp_port" {
+  description = "SMTP server port"
+  type        = number
+  default     = 587
+}
+
+variable "pocketid_smtp_user" {
+  description = "SMTP username"
+  type        = string
+  default     = ""
+}
+
+variable "pocketid_smtp_password" {
+  description = "SMTP password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "pocketid_smtp_from" {
+  description = "SMTP from address"
+  type        = string
+  default     = "noreply@stack.local"
+}
+
+# LDAP sync (connects to LLDAP for user/group synchronization)
+variable "pocketid_ldap_enabled" {
+  description = "Enable LDAP sync with LLDAP"
+  type        = bool
+  default     = false
+}
+
+variable "pocketid_ldap_url" {
+  description = "LDAP server URL (e.g., ldap://lldap:3890)"
+  type        = string
+  default     = "ldap://lldap:3890"
+}
+
+variable "pocketid_ldap_bind_dn" {
+  description = "LDAP bind DN for sync"
+  type        = string
+  default     = "uid=admin,ou=people,dc=stack,dc=local"
+}
+
+variable "pocketid_ldap_bind_password" {
+  description = "LDAP bind password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "pocketid_ldap_base_dn" {
+  description = "LDAP base DN for user search"
+  type        = string
+  default     = "dc=stack,dc=local"
+}
+
+# Docker network
+variable "pocketid_network" {
+  description = "Docker network name to attach to"
+  type        = string
+  default     = "identity_net"
+}
+
+# -----------------------------------------------------------------------------
+# POCKETID VOLUME
+# -----------------------------------------------------------------------------
+
+resource "docker_volume" "pocketid_data" {
+  count = var.pocketid_enabled ? 1 : 0
+  name  = "pocketid-data"
+}
+
+# -----------------------------------------------------------------------------
+# POCKETID CONTAINER
+# -----------------------------------------------------------------------------
+
+resource "docker_container" "pocketid" {
+  count = var.pocketid_enabled ? 1 : 0
+
+  name  = "pocketid"
+  image = "ghcr.io/pocket-id/pocket-id:${var.pocketid_version}"
+
+  restart = "unless-stopped"
+
+  networks_advanced {
+    name = var.pocketid_network
+  }
+
+  # Ports — PocketID v2 listens on 1411 inside the container (PORT env, default).
+  ports {
+    internal = 1411
+    external = var.pocketid_port
+    protocol = "tcp"
+  }
+
+  # Volumes
+  volumes {
+    volume_name    = docker_volume.pocketid_data[0].name
+    container_path = "/app/data"
+  }
+
+  # Environment — PocketID v2 reads APP_URL (not PUBLIC_APP_URL), needs
+  # TRUST_PROXY=true so Traefik-supplied X-Forwarded-* headers are honored,
+  # and binds PORT=1411 internally.
+  env = concat(
+    [
+      "TZ=Europe/Berlin",
+      "APP_URL=${var.pocketid_app_url}",
+      "TRUST_PROXY=true",
+      "PORT=1411",
+      "STATIC_API_KEY=${var.pocketid_static_api_key}",
+      "ENCRYPTION_KEY=${var.pocketid_encryption_key}",
+    ],
+    # Database
+    var.pocketid_db_type == "postgres" ? [
+      "DB_PROVIDER=postgres",
+      "DB_CONNECTION_STRING=${var.pocketid_db_connection}",
+    ] : [
+      "DB_PROVIDER=sqlite",
+    ],
+    # SMTP
+    var.pocketid_smtp_enabled ? [
+      "SMTP_HOST=${var.pocketid_smtp_host}",
+      "SMTP_PORT=${var.pocketid_smtp_port}",
+      "SMTP_USER=${var.pocketid_smtp_user}",
+      "SMTP_PASSWORD=${var.pocketid_smtp_password}",
+      "SMTP_FROM=${var.pocketid_smtp_from}",
+    ] : [],
+    # LDAP sync with LLDAP
+    var.pocketid_ldap_enabled ? [
+      "LDAP_ENABLED=true",
+      "LDAP_URL=${var.pocketid_ldap_url}",
+      "LDAP_BIND_DN=${var.pocketid_ldap_bind_dn}",
+      "LDAP_BIND_PASSWORD=${var.pocketid_ldap_bind_password}",
+      "LDAP_BASE_DN=${var.pocketid_ldap_base_dn}",
+      "LDAP_USER_FILTER=(objectClass=person)",
+    ] : [],
+  )
+
+  # Healthcheck — PocketID v2 ships an in-binary `pocket-id healthcheck`
+  # subcommand; the legacy /api/health endpoint was removed in v2.
+  healthcheck {
+    test     = ["CMD", "/app/pocket-id", "healthcheck"]
+    interval = "30s"
+    timeout  = "5s"
+    retries  = 3
+  }
+
+  # Traefik labels — router for PocketID
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  labels {
+    label = "traefik.http.routers.pocketid.entrypoints"
+    value = "websecure"
+  }
+
+  labels {
+    label = "traefik.http.routers.pocketid.rule"
+    value = "Host(`${var.pocketid_traefik_host}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.pocketid.tls.certresolver"
+    value = "letsencrypt"
+  }
+
+  labels {
+    label = "traefik.http.services.pocketid.loadbalancer.server.port"
+    value = "1411"
+  }
+
+  # StackKit classification labels
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.managed-by"
+    value = "terraform"
+  }
+
+  labels {
+    label = "stackkit.category"
+    value = "platform-identity"
+  }
+
+  labels {
+    label = "stackkit.identity-provider"
+    value = "pocketid"
+  }
+
+  depends_on = [docker_volume.pocketid_data]
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUT
+# -----------------------------------------------------------------------------
+
+output "pocketid_enabled" {
+  value       = var.pocketid_enabled
+  description = "Whether PocketID is enabled"
+}
+
+output "pocketid_url" {
+  value       = var.pocketid_enabled ? var.pocketid_app_url : ""
+  description = "PocketID OIDC provider URL"
+}
+
+output "pocketid_oidc_issuer" {
+  value       = var.pocketid_enabled ? var.pocketid_app_url : ""
+  description = "OIDC issuer URL (use as tinyauth_oidc_issuer)"
+}
+
+output "pocketid_oidc_well_known" {
+  value       = var.pocketid_enabled ? "${var.pocketid_app_url}/.well-known/openid-configuration" : ""
+  description = "OIDC discovery endpoint"
+}

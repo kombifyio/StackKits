@@ -1,0 +1,124 @@
+# OTel Collector agent configuration for kombify monitoring-agent module.
+#
+# Profile: standard (30s interval, Pi 4B+, ~150 MB RAM)
+# To switch to full profile (10s interval, per-process metrics), replace
+# collection_interval values and uncomment the process scraper.
+#
+# Environment variables respected:
+#   GOMEMLIMIT      — Go runtime memory ceiling (set in Docker env)
+#   OTEL_ENDPOINT   — Override OTLP/gRPC target (default: techstack:4317)
+
+receivers:
+  hostmetrics:
+    # Bind to host filesystem for accurate disk/fs metrics inside Docker
+    root_path: /hostfs
+    collection_interval: ${env:KOMBIFY_OTEL_COLLECTION_INTERVAL:-30s}
+    scrapers:
+      cpu: {}
+      memory: {}
+      disk: {}
+      filesystem:
+        # Skip Docker overlay and tmpfs mounts — reduce noise
+        exclude_mount_points:
+          mount_points: ["/hostfs/proc/*", "/hostfs/sys/*", "/dev/*"]
+          match_type: regexp
+        exclude_fs_types:
+          fs_types: ["autofs", "binfmt_misc", "cgroup", "configfs", "debugfs",
+                     "devpts", "devtmpfs", "fusectl", "hugetlbfs", "mqueue",
+                     "nsfs", "overlay", "proc", "procfs", "pstore", "rpc_pipefs",
+                     "securityfs", "selinuxfs", "squashfs", "sysfs", "tracefs"]
+          match_type: strict
+      network: {}
+      load: {}
+      paging: {}   # swap — remove if Pi has no swap configured
+      # process:   # Uncomment for full profile (higher RAM usage)
+      #   include:
+      #     names: [".*"]
+      #     match_type: regexp
+      #   mute_process_name_error: true
+
+  # Docker container metrics — CPU, RAM, net I/O, block I/O per container
+  docker_stats:
+    endpoint: ${env:KOMBIFY_OTEL_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+    collection_interval: ${env:KOMBIFY_OTEL_COLLECTION_INTERVAL:-30s}
+    # Exclude pause/infra containers
+    excluded_images:
+      - "^pause:"
+
+  # Local OTLP receiver — allows services on this host to push traces/metrics
+  # to the agent, which forwards them to TechStack. Useful for instrumenting
+  # local apps (e.g., Home Assistant, Gitea) without direct TechStack access.
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # memory_limiter MUST be first in the pipeline.
+  # limit_mib = heap hard cap; process RSS ≈ limit_mib + ~50 MB Go overhead.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: ${env:KOMBIFY_OTEL_MEMORY_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:KOMBIFY_OTEL_MEMORY_SPIKE_LIMIT_MIB:-50}
+
+  # Attach host identity to every metric (agent_id / hostname label)
+  resourcedetection:
+    detectors: [system, docker]
+    system:
+      hostname_sources: [os]
+    override: false
+
+  # Batch samples before export — reduces network calls and CPU overhead.
+  # On Pi, batching for 30s is safe; increases local buffer but cuts connections.
+  batch:
+    timeout: ${env:KOMBIFY_OTEL_BATCH_TIMEOUT:-30s}
+    send_batch_size: 1000
+    send_batch_max_size: 2000
+
+exporters:
+  # Primary: push to TechStack OTLP/gRPC receiver.
+  # Swap endpoint for "monitoring-gateway:4317" when monitoring-core is deployed.
+  otlp/techstack:
+    endpoint: "${env:OTEL_ENDPOINT:-techstack:4317}"
+    tls:
+      insecure: true
+    # Retry on transient errors (network hiccups on Pi WiFi)
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    # Queue in memory while backend is unavailable
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 500   # ~500 batches ≈ ~15 min of standard-profile data
+
+  # Debug exporter — disable in production, useful for local troubleshooting
+  # debug:
+  #   verbosity: detailed
+
+extensions:
+  # Health check endpoint — used by Docker healthcheck
+  health_check:
+    endpoint: 0.0.0.0:8888
+    path: /metrics
+
+  # Pprof profiling endpoint — for diagnosing memory issues (disabled by default)
+  # pprof:
+  #   endpoint: 0.0.0.0:1777
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers:  [hostmetrics, docker_stats, otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters:  [otlp/techstack]
+    # Traces forwarded from local apps (via otlp receiver) to TechStack
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, batch]
+      exporters:  [otlp/techstack]

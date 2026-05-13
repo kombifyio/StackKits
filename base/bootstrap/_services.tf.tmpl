@@ -1,0 +1,130 @@
+# =============================================================================
+# SERVICES TEMPLATE - CONTAINER DEPLOYMENT
+# =============================================================================
+# IaC-First: All containers via Docker Provider resources
+# This template is rendered by the Unifier with values from UnifiedSpec
+#
+# Variables from UnifiedSpec:
+#   - services: List of service configurations
+#   - network_mode: public | local
+#   - docker_network_name: Name of the Docker network
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# TERRAFORM CONFIGURATION
+# -----------------------------------------------------------------------------
+
+terraform {
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# DOCKER NETWORK
+# -----------------------------------------------------------------------------
+
+resource "docker_network" "kombistack" {
+  name = var.docker_network_name
+  
+  ipam_config {
+    subnet  = "172.20.0.0/16"
+    gateway = "172.20.0.1"
+  }
+  
+  # Enable communication between containers
+  internal = false
+}
+
+# -----------------------------------------------------------------------------
+# DYNAMIC SERVICE DEPLOYMENT
+# -----------------------------------------------------------------------------
+
+# Service images
+resource "docker_image" "service" {
+  for_each = { for s in var.services : s.name => s }
+  
+  name         = each.value.image
+  keep_locally = true
+}
+
+# Service containers
+resource "docker_container" "service" {
+  for_each = { for s in var.services : s.name => s }
+  
+  depends_on = [docker_network.kombistack]
+  
+  name  = each.value.name
+  image = docker_image.service[each.key].image_id
+  
+  # Restart policy
+  restart = lookup(each.value, "restart", "unless-stopped")
+  
+  # Environment variables
+  dynamic "env" {
+    for_each = lookup(each.value, "environment", {})
+    content {
+      key   = env.key
+      value = env.value
+    }
+  }
+  
+  # Port mappings
+  dynamic "ports" {
+    for_each = lookup(each.value, "ports", [])
+    content {
+      internal = ports.value.internal
+      external = ports.value.external
+      protocol = lookup(ports.value, "protocol", "tcp")
+    }
+  }
+  
+  # Volume mounts
+  dynamic "volumes" {
+    for_each = lookup(each.value, "volumes", [])
+    content {
+      host_path      = volumes.value.host
+      container_path = volumes.value.container
+      read_only      = lookup(volumes.value, "read_only", false)
+    }
+  }
+  
+  # Network attachment
+  networks_advanced {
+    name = docker_network.kombistack.name
+  }
+  
+  # Labels
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.service"
+    value = each.value.name
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "services_deployed" {
+  value = {
+    for name, container in docker_container.service : name => {
+      id     = container.id
+      name   = container.name
+      image  = container.image
+      status = "deployed"
+    }
+  }
+  description = "Map of deployed services with their status"
+}
+
+output "network_id" {
+  value       = docker_network.kombistack.id
+  description = "ID of the Docker network"
+}

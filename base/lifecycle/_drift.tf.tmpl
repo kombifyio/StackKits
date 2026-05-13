@@ -1,0 +1,74 @@
+# =============================================================================
+# LIFECYCLE TEMPLATES - DRIFT DETECTION
+# =============================================================================
+# IaC-First: Terramate orchestration for Day-2 operations
+# Uses `tofu plan -detailed-exitcode` for drift detection
+# =============================================================================
+
+# This file documents the Terramate commands used by the Agent
+# The Agent executes these commands, NOT custom logic
+
+# -----------------------------------------------------------------------------
+# DRIFT DETECTION
+# -----------------------------------------------------------------------------
+#
+# Command: terramate run --sync-drift-status -- tofu plan -detailed-exitcode
+#
+# Exit codes:
+#   0 = No drift detected (infrastructure matches state)
+#   1 = Error during plan
+#   2 = Drift detected (changes required)
+#
+# Agent behavior:
+#   - Execute command via shell
+#   - Report exit code to Core
+#   - Core updates drift status in database
+
+# -----------------------------------------------------------------------------
+# SELECTIVE UPDATES
+# -----------------------------------------------------------------------------
+#
+# Command: terramate run --changed -- tofu apply -auto-approve
+#
+# Only applies changes to stacks that have:
+#   - Git changes since last apply
+#   - Detected drift
+#
+# This minimizes blast radius and speeds up deployments
+
+# -----------------------------------------------------------------------------
+# HEALTH CHECKS
+# -----------------------------------------------------------------------------
+#
+# For container health, use Docker Provider data sources:
+
+data "docker_container" "services" {
+  for_each = { for s in var.services : s.name => s }
+  name     = each.value.name
+}
+
+output "service_health" {
+  value = {
+    for name, container in data.docker_container.services : name => {
+      running = container.state.running
+      status  = container.state.status
+      health  = try(container.state.health.status, "no-healthcheck")
+    }
+  }
+  description = "Health status of all services"
+}
+
+# -----------------------------------------------------------------------------
+# ROLLBACK SUPPORT
+# -----------------------------------------------------------------------------
+#
+# Terramate provides rollback via Git:
+#
+# 1. All state is versioned in Git
+# 2. Rollback = checkout previous commit + apply
+#
+# Command sequence:
+#   git checkout <previous-commit> -- .
+#   terramate run -- tofu apply -auto-approve
+#
+# Agent role: Execute the commands provided by Core

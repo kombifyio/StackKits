@@ -1,0 +1,170 @@
+# =============================================================================
+# CORE: SECURITY - FIREWALL CONFIGURATION
+# =============================================================================
+# Layer 1 (CORE): Applied to ALL deployments
+# 
+# This template configures UFW firewall with sensible defaults:
+# - Deny all incoming by default
+# - Allow SSH, HTTP, HTTPS
+# - Allow additional ports specified in the spec
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "firewall_enabled" {
+  description = "Enable firewall configuration"
+  type        = bool
+  default     = true
+}
+
+variable "firewall_ssh_port" {
+  description = "SSH port to allow"
+  type        = number
+  default     = 22
+}
+
+variable "firewall_additional_ports" {
+  description = "Additional ports to allow (TCP)"
+  type        = list(object({
+    port    = number
+    comment = string
+  }))
+  default = []
+}
+
+# -----------------------------------------------------------------------------
+# UFW FIREWALL SETUP
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "firewall_setup" {
+  count = var.firewall_enabled ? 1 : 0
+
+  depends_on = [null_resource.system_prep]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== CORE: Firewall Configuration ==='",
+      
+      "# Install UFW if not present (Debian/Ubuntu)",
+      "if command -v apt-get &> /dev/null; then",
+      "  apt-get install -y ufw",
+      "fi",
+      
+      "# Check if UFW is available",
+      "if ! command -v ufw &> /dev/null; then",
+      "  echo 'UFW not available on this system'",
+      "  exit 0",
+      "fi",
+      
+      "# Reset UFW to defaults",
+      "ufw --force reset",
+      
+      "# Configure UFW defaults",
+      "ufw default deny incoming",
+      "ufw default allow outgoing",
+      
+      "# Allow SSH",
+      "ufw allow ${var.firewall_ssh_port}/tcp comment 'SSH'",
+      
+      "# Allow HTTP and HTTPS",
+      "ufw allow 80/tcp comment 'HTTP'",
+      "ufw allow 443/tcp comment 'HTTPS'",
+      
+      "# Allow Docker Swarm ports (if multi-node)",
+      "# ufw allow 2377/tcp comment 'Docker Swarm management'",
+      "# ufw allow 7946/tcp comment 'Docker Swarm node communication'",
+      "# ufw allow 7946/udp comment 'Docker Swarm node communication UDP'",
+      "# ufw allow 4789/udp comment 'Docker Swarm overlay network'",
+      
+      "echo '=== Firewall base rules configured ==='"
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# ADDITIONAL PORTS
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "firewall_additional_ports" {
+  count = var.firewall_enabled && length(var.firewall_additional_ports) > 0 ? 1 : 0
+
+  depends_on = [null_resource.firewall_setup]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = concat(
+      ["#!/bin/bash", "set -e", "echo '=== CORE: Additional Firewall Ports ==='"],
+      [for port in var.firewall_additional_ports : 
+        "ufw allow ${port.port}/tcp comment '${port.comment}'"
+      ],
+      ["echo '=== Additional ports configured ==='"]
+    )
+  }
+}
+
+# -----------------------------------------------------------------------------
+# ENABLE FIREWALL
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "firewall_enable" {
+  count = var.firewall_enabled ? 1 : 0
+
+  depends_on = [
+    null_resource.firewall_setup,
+    null_resource.firewall_additional_ports
+  ]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== CORE: Enabling Firewall ==='",
+      
+      "# Enable UFW (non-interactive)",
+      "echo 'y' | ufw enable",
+      
+      "# Show status",
+      "ufw status verbose",
+      
+      "echo '=== Firewall enabled ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUT
+# -----------------------------------------------------------------------------
+
+output "firewall_enabled" {
+  value       = var.firewall_enabled
+  description = "Whether firewall is enabled"
+}

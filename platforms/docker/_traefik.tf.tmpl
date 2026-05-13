@@ -1,0 +1,286 @@
+# =============================================================================
+# PLATFORM: DOCKER - TRAEFIK REVERSE PROXY
+# =============================================================================
+# Layer 2 (PLATFORM): Traefik as the default reverse proxy for Docker
+#
+# This template provides:
+# - Traefik container deployment
+# - Automatic service discovery via Docker labels
+# - TLS configuration (ACME or self-signed)
+# - Dashboard (optional)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "traefik_enabled" {
+  description = "Deploy Traefik reverse proxy"
+  type        = bool
+  default     = true
+}
+
+variable "traefik_version" {
+  description = "Traefik image version"
+  type        = string
+  default     = "v3.1"
+}
+
+variable "traefik_dashboard_enabled" {
+  description = "Enable Traefik dashboard"
+  type        = bool
+  default     = true
+}
+
+variable "traefik_dashboard_insecure" {
+  description = "Enable insecure dashboard (no auth)"
+  type        = bool
+  default     = false
+}
+
+variable "traefik_network" {
+  description = "Docker network for Traefik"
+  type        = string
+  default     = "kombistack"
+}
+
+variable "network_mode" {
+  description = "Network mode: local, public, or hybrid"
+  type        = string
+  default     = "local"
+}
+
+variable "acme_email" {
+  description = "Email for Let's Encrypt (required for public mode)"
+  type        = string
+  default     = ""
+}
+
+variable "domain" {
+  description = "Domain for services (required for public mode)"
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# TRAEFIK CONFIGURATION
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "traefik_config" {
+  count = var.traefik_enabled ? 1 : 0
+
+  depends_on = [null_resource.docker_networks]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== PLATFORM: Traefik Configuration ==='",
+      
+      "# Create Traefik directories",
+      "mkdir -p /opt/kombistack/traefik",
+      "mkdir -p /opt/kombistack/traefik/certs",
+      "mkdir -p /opt/kombistack/traefik/dynamic",
+      
+      "# Create static configuration",
+      "cat > /opt/kombistack/traefik/traefik.yml << 'EOF'",
+      "# Traefik Static Configuration",
+      "api:",
+      "  dashboard: ${var.traefik_dashboard_enabled}",
+      "  insecure: ${var.traefik_dashboard_insecure}",
+      "",
+      "entryPoints:",
+      "  web:",
+      "    address: \":80\"",
+      "    http:",
+      "      redirections:",
+      "        entryPoint:",
+      "          to: websecure",
+      "          scheme: https",
+      "  websecure:",
+      "    address: \":443\"",
+      "    http:",
+      "      tls:",
+      "        certResolver: ${var.network_mode == "public" ? "letsencrypt" : ""}",
+      "",
+      "providers:",
+      "  docker:",
+      "    endpoint: \"unix:///var/run/docker.sock\"",
+      "    exposedByDefault: false",
+      "    network: ${var.traefik_network}",
+      "  file:",
+      "    directory: /etc/traefik/dynamic",
+      "    watch: true",
+      "",
+      var.network_mode == "public" ? <<-ACME
+      certificatesResolvers:
+        letsencrypt:
+          acme:
+            email: ${var.acme_email}
+            storage: /etc/traefik/certs/acme.json
+            httpChallenge:
+              entryPoint: web
+      ACME
+      : "",
+      "",
+      "log:",
+      "  level: INFO",
+      "  filePath: /var/log/traefik/traefik.log",
+      "",
+      "accessLog:",
+      "  filePath: /var/log/traefik/access.log",
+      "  bufferingSize: 100",
+      "EOF",
+      
+      "echo '=== Traefik configuration created ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# SELF-SIGNED CERTIFICATE (Local Mode)
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "traefik_self_signed_cert" {
+  count = var.traefik_enabled && var.network_mode == "local" ? 1 : 0
+
+  depends_on = [null_resource.traefik_config]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== PLATFORM: Generating Self-Signed Certificate ==='",
+      
+      "# Check if certificate already exists",
+      "if [ -f /opt/kombistack/traefik/certs/server.crt ]; then",
+      "  echo 'Certificate already exists, skipping generation'",
+      "  exit 0",
+      "fi",
+      
+      "# Generate self-signed certificate",
+      "openssl req -x509 -nodes -days 365 -newkey rsa:2048 \\",
+      "  -keyout /opt/kombistack/traefik/certs/server.key \\",
+      "  -out /opt/kombistack/traefik/certs/server.crt \\",
+      "  -subj '/CN=localhost/O=KombiStack/C=DE' \\",
+      "  -addext 'subjectAltName=DNS:localhost,IP:${var.worker_ip}'",
+      
+      "# Create dynamic config for self-signed cert",
+      "cat > /opt/kombistack/traefik/dynamic/tls.yml << 'EOF'",
+      "tls:",
+      "  certificates:",
+      "    - certFile: /etc/traefik/certs/server.crt",
+      "      keyFile: /etc/traefik/certs/server.key",
+      "  stores:",
+      "    default:",
+      "      defaultCertificate:",
+      "        certFile: /etc/traefik/certs/server.crt",
+      "        keyFile: /etc/traefik/certs/server.key",
+      "EOF",
+      
+      "echo '=== Self-signed certificate generated ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# TRAEFIK CONTAINER
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "traefik_container" {
+  count = var.traefik_enabled ? 1 : 0
+
+  depends_on = [
+    null_resource.traefik_config,
+    null_resource.traefik_self_signed_cert
+  ]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== PLATFORM: Deploying Traefik ==='",
+      
+      "# Create log directory",
+      "mkdir -p /var/log/traefik",
+      
+      "# Stop existing container if running",
+      "docker stop traefik 2>/dev/null || true",
+      "docker rm traefik 2>/dev/null || true",
+      
+      "# Run Traefik container",
+      "docker run -d \\",
+      "  --name traefik \\",
+      "  --restart unless-stopped \\",
+      "  --network ${var.traefik_network} \\",
+      "  -p 80:80 \\",
+      "  -p 443:443 \\",
+      "  ${var.traefik_dashboard_enabled && var.traefik_dashboard_insecure ? "-p 8080:8080" : ""} \\",
+      "  -v /var/run/docker.sock:/var/run/docker.sock:ro \\",
+      "  -v /opt/kombistack/traefik/traefik.yml:/etc/traefik/traefik.yml:ro \\",
+      "  -v /opt/kombistack/traefik/certs:/etc/traefik/certs \\",
+      "  -v /opt/kombistack/traefik/dynamic:/etc/traefik/dynamic:ro \\",
+      "  -v /var/log/traefik:/var/log/traefik \\",
+      "  --label 'traefik.enable=true' \\",
+      "  --label 'traefik.http.routers.dashboard.rule=Host(\\`traefik.localhost\\`)' \\",
+      "  --label 'traefik.http.routers.dashboard.service=api@internal' \\",
+      "  traefik:${var.traefik_version}",
+      
+      "# Wait for Traefik to be healthy",
+      "echo 'Waiting for Traefik to start...'",
+      "for i in {1..30}; do",
+      "  if curl -s -o /dev/null -w '%{http_code}' http://localhost:80 | grep -q '404\\|301\\|302'; then",
+      "    echo 'Traefik is responding'",
+      "    break",
+      "  fi",
+      "  sleep 2",
+      "done",
+      
+      "# Show container status",
+      "docker ps | grep traefik",
+      
+      "echo '=== Traefik deployed ==='",
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "traefik_enabled" {
+  value       = var.traefik_enabled
+  description = "Whether Traefik is enabled"
+}
+
+output "traefik_dashboard_url" {
+  value       = var.traefik_dashboard_enabled ? (var.network_mode == "local" ? "https://${var.worker_ip}:8080" : "https://traefik.${var.domain}") : ""
+  description = "Traefik dashboard URL"
+}

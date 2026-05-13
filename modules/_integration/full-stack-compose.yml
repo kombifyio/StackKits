@@ -1,0 +1,544 @@
+# Full-Stack Composition Test — All Base Kit Modules Together
+#
+# Architecture:
+#   - Socket-proxy is the ONLY service mounting docker.sock
+#   - Traefik, TinyAuth, Dozzle all use socket-proxy (read-only Docker API)
+#   - Dokploy is the ONLY service with direct docker.sock (needs POST/EXEC)
+#   - Three network segments: frontend, backend (internal), socket-proxy-net (internal)
+#
+# Security (E3.1-E3.5):
+#   - Socket-proxy filters Docker API (read-only, POST/EXEC blocked)
+#   - Container hardening: no-new-privileges, cap_drop ALL, read_only where safe
+#   - Network isolation: databases on backend only, socket-proxy on internal net
+#   - Security headers: HSTS, Content-Type-Nosniff, Frame-Deny, COOP, CORP
+#   - Rate limiting: 100 req/s average, 200 burst
+#
+# Middleware chain (per NETWORK-SECURITY §7.4):
+#   Protected:   rate-limit → security-headers → tinyauth → backend
+#   Unprotected: rate-limit → security-headers → backend
+#
+# Usage:
+#   docker compose -f modules/_integration/full-stack-compose.yml up -d --wait
+#   ./modules/_integration/integration_test.sh
+
+services:
+  # --- L1 Foundation: Docker Socket Proxy ---
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.2.0
+    container_name: stack-socket-proxy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed 's/[$][{]BIND_CONFIG[}]/[::]:2375 v4v6/g' /usr/local/etc/haproxy/haproxy.cfg.template > /run/haproxy.cfg
+        exec haproxy -W -db -f /run/haproxy.cfg
+    environment:
+      VERSION: "1"
+      CONTAINERS: "1"
+      EVENTS: "1"
+      NETWORKS: "1"
+      SERVICES: "1"
+      TASKS: "1"
+      INFO: "1"
+      PING: "1"
+      POST: "0"
+      BUILD: "0"
+      COMMIT: "0"
+      CONFIGS: "0"
+      DISTRIBUTION: "0"
+      EXEC: "0"
+      GRPC: "0"
+      IMAGES: "0"
+      NODES: "0"
+      PLUGINS: "0"
+      SECRETS: "0"
+      SESSION: "0"
+      SWARM: "0"
+      SYSTEM: "0"
+      VOLUMES: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:2375/version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - socket-proxy-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /run
+      - /tmp
+    mem_limit: 64m
+    cpus: 0.1
+    restart: unless-stopped
+
+  # --- L2 Platform: Ingress (stand-in for PaaS Traefik) ---
+  # In production, the PaaS (Dokploy/Coolify) ships Traefik.
+  # Here we use a standalone Traefik as test stand-in, routed through socket-proxy.
+  traefik:
+    image: traefik:v3.6
+    container_name: stack-traefik
+    environment:
+      DOCKER_API_VERSION: "1.40"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.endpoint=tcp://socket-proxy:2375"
+      - "--providers.docker.network=integration_frontend"
+      - "--entrypoints.web.address=:80"
+      - "--ping=true"
+    ports:
+      - "8900:80"
+      - "19100:8080"
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - frontend
+      - socket-proxy-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+
+  # --- L2 Platform: Identity ---
+  # Test credentials: admin / admin123
+  tinyauth:
+    image: ghcr.io/steveiliop56/tinyauth:v4
+    container_name: stack-tinyauth
+    environment:
+      APP_URL: "http://auth.test.local:8900"
+      USERS: "admin:$$2a$$10$$3sBwjwkFU6y5/XWXUWDfqOz/OeVc2Pw1uYYK3bjKNeRj0cDQki/Oq"
+      SECRET: "test-secret-key-for-integration-tests"
+      SECURE_COOKIE: "false"
+      DOCKER_HOST: "tcp://socket-proxy:2375"
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    volumes:
+      - tinyauth-data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tinyauth.rule=Host(`auth.test.local`)"
+      - "traefik.http.routers.tinyauth.entrypoints=web"
+      - "traefik.http.routers.tinyauth.middlewares=rate-limit@docker,security-headers@docker"
+      - "traefik.http.services.tinyauth.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.tinyauth.forwardauth.address=http://tinyauth:3000/api/auth/traefik"
+      - "traefik.http.middlewares.tinyauth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders=remote-user,remote-sub,remote-name,remote-email,remote-groups"
+      # --- Global Middleware: Security Headers (E3.4) ---
+      - "traefik.http.middlewares.security-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.security-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.security-headers.headers.permissionsPolicy=camera=(), microphone=(), geolocation=(), payment=()"
+      - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Cross-Origin-Opener-Policy=same-origin"
+      - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.Cross-Origin-Resource-Policy=same-origin"
+      - "traefik.http.middlewares.security-headers.headers.customResponseHeaders.X-Permitted-Cross-Domain-Policies=none"
+      # --- Global Middleware: Rate Limiting (E3.5) ---
+      - "traefik.http.middlewares.rate-limit.rateLimit.average=100"
+      - "traefik.http.middlewares.rate-limit.rateLimit.burst=200"
+      - "traefik.http.middlewares.rate-limit.rateLimit.period=1s"
+    healthcheck:
+      test: ["CMD", "tinyauth", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - frontend
+      - socket-proxy-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    cpus: 0.25
+    restart: unless-stopped
+
+  pocketid:
+    image: ghcr.io/pocket-id/pocket-id:v2
+    container_name: stack-pocketid
+    environment:
+      PUBLIC_APP_URL: "http://id.test.local"
+      TRUST_PROXY: "true"
+      ENCRYPTION_KEY: "stack-test-encryption-key-32b!"
+      # Static API key for machine-level admin access (no passkey required)
+      STATIC_API_KEY: "stack-static-api-key-for-testing"
+    volumes:
+      - pocketid-data:/app/backend/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pocketid.rule=Host(`id.test.local`)"
+      - "traefik.http.routers.pocketid.entrypoints=web"
+      - "traefik.http.routers.pocketid.middlewares=rate-limit@docker,security-headers@docker"
+      - "traefik.http.services.pocketid.loadbalancer.server.port=1411"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:1411/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  # --- L2 Platform: PaaS ---
+  dokploy:
+    image: dokploy/dokploy:latest
+    container_name: stack-dokploy
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=1024"
+      DATABASE_URL: "postgresql://dokploy:stacktest123@dokploy-postgres:5432/dokploy"
+      REDIS_URL: "redis://dokploy-redis:6379"
+      ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      ADVERTISE_ADDR: "127.0.0.1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dokploy-data:/etc/dokploy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dokploy.rule=Host(`dokploy.test.local`)"
+      - "traefik.http.routers.dokploy.entrypoints=web"
+      - "traefik.http.services.dokploy.loadbalancer.server.port=3000"
+      - "traefik.http.routers.dokploy.middlewares=rate-limit@docker,security-headers@docker,tinyauth@docker"
+      - "traefik.docker.network=integration_frontend"
+    depends_on:
+      dokploy-postgres:
+        condition: service_healthy
+      dokploy-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - frontend
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1536m
+    cpus: 1.0
+    restart: unless-stopped
+
+  dokploy-postgres:
+    image: postgres:16-alpine
+    container_name: stack-dokploy-postgres
+    environment:
+      POSTGRES_DB: dokploy
+      POSTGRES_USER: dokploy
+      POSTGRES_PASSWORD: stacktest123
+    volumes:
+      - dokploy-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dokploy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  dokploy-redis:
+    image: redis:7-alpine
+    container_name: stack-dokploy-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /data
+    mem_limit: 256m
+    cpus: 0.25
+    restart: unless-stopped
+
+  # --- L3 Applications ---
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: stack-uptime-kuma
+    environment:
+      UPTIME_KUMA_DB_TYPE: sqlite
+    volumes:
+      - uptime-kuma-data:/app/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`kuma.test.local`)"
+      - "traefik.http.routers.uptime-kuma.entrypoints=web"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+      - "traefik.http.routers.uptime-kuma.middlewares=rate-limit@docker,security-headers@docker,tinyauth@docker"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const http=require('http');const r=http.get('http://127.0.0.1:3001',s=>{process.exit(s.statusCode<400?0:1)});r.on('error',()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: stack-dozzle
+    environment:
+      DOCKER_HOST: "tcp://socket-proxy:2375"
+    depends_on:
+      socket-proxy:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dozzle.rule=Host(`logs.test.local`)"
+      - "traefik.http.routers.dozzle.entrypoints=web"
+      - "traefik.http.routers.dozzle.middlewares=rate-limit@docker,security-headers@docker"
+      - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
+    networks:
+      - frontend
+      - socket-proxy-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 128m
+    cpus: 0.25
+    restart: unless-stopped
+
+  whoami:
+    image: traefik/whoami:latest
+    container_name: stack-whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.test.local`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+      - "traefik.http.routers.whoami.middlewares=rate-limit@docker,security-headers@docker,tinyauth@docker"
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    mem_limit: 32m
+    cpus: 0.1
+    restart: unless-stopped
+
+  dashboard:
+    image: nginx:alpine
+    container_name: stack-dashboard
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo '<html><body><h1>StackKit Dashboard</h1><p>Full-stack test</p></body></html>' > /usr/share/nginx/html/index.html
+        nginx -g "daemon off;"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`dash.test.local`)"
+      - "traefik.http.routers.dashboard.entrypoints=web"
+      - "traefik.http.routers.dashboard.middlewares=rate-limit@docker,security-headers@docker"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /run
+      - /usr/share/nginx/html
+    mem_limit: 32m
+    cpus: 0.1
+    restart: unless-stopped
+
+  # --- Provisioners (one-shot, run after services are healthy) ---
+  dokploy-provisioner:
+    image: alpine/curl:latest
+    container_name: stack-dokploy-provisioner
+    depends_on:
+      dokploy:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        echo "Provisioning Dokploy admin account..."
+        result=$$(curl -s -w "\n%{http_code}" -X POST http://dokploy:3000/api/auth/sign-up/email \
+          -H "Content-Type: application/json" \
+          -d '{"email":"admin@stack.local","password":"Admin1234!","name":"Admin","lastName":""}')
+        code=$$(echo "$$result" | tail -1)
+        body=$$(echo "$$result" | head -1)
+        echo "HTTP $$code: $$body"
+        if [ "$$code" = "200" ] || [ "$$code" = "201" ]; then
+          echo "Dokploy: admin created (admin@stack.local / Admin1234!)"
+        else
+          echo "Dokploy: response $$code (may already be configured)"
+        fi
+    networks:
+      - frontend
+    restart: "no"
+
+  pocketid-provisioner:
+    image: alpine/curl:latest
+    container_name: stack-pocketid-provisioner
+    depends_on:
+      pocketid:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        echo "Provisioning PocketID admin account..."
+        result=$$(curl -s -w "\n%{http_code}" -X POST http://pocketid:1411/api/signup/setup \
+          -H "Content-Type: application/json" \
+          -d '{"username":"admin","firstName":"Admin","lastName":"","email":"admin@stack.local","token":""}')
+        code=$$(echo "$$result" | tail -1)
+        body=$$(echo "$$result" | head -1)
+        echo "HTTP $$code: $$body"
+        if [ "$$code" = "200" ] || [ "$$code" = "201" ]; then
+          echo "PocketID: admin user created — visit id.test.local to register your passkey"
+        else
+          echo "PocketID: response $$code (may already be configured)"
+        fi
+    networks:
+      - frontend
+    restart: "no"
+
+  kuma-provisioner:
+    image: node:22-alpine
+    container_name: stack-kuma-provisioner
+    depends_on:
+      uptime-kuma:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        npm install --silent --prefix /tmp socket.io-client@4 2>/dev/null
+        node -e "
+          const { io } = require('/tmp/node_modules/socket.io-client');
+          const s = io('http://uptime-kuma:3001', { transports: ['websocket'] });
+          s.on('connect', () => {
+            s.emit('setup', 'admin', 'Admin1234!', (res) => {
+              if (res && res.ok) { console.log('Kuma: admin created (admin / Admin1234!)'); process.exit(0); }
+              console.log('Kuma: setup result:', JSON.stringify(res));
+              process.exit(0);
+            });
+            setTimeout(() => { console.log('Kuma: timeout (may already be configured)'); process.exit(0); }, 8000);
+          });
+          s.on('connect_error', (e) => { console.error('Kuma connect error:', e.message); process.exit(1); });
+        "
+    networks:
+      - frontend
+    restart: "no"
+
+networks:
+  # Traefik + all routed services
+  frontend:
+    driver: bridge
+  # Database services only (postgres, redis) — no external access
+  backend:
+    driver: bridge
+    internal: true
+  # Socket-proxy + consumers (TinyAuth, Dozzle) — no external access
+  socket-proxy-net:
+    driver: bridge
+    internal: true
+
+volumes:
+  tinyauth-data:
+  pocketid-data:
+  dokploy-data:
+  dokploy-postgres-data:
+  uptime-kuma-data:

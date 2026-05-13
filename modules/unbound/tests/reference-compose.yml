@@ -1,0 +1,40 @@
+# Unbound Reference Compose
+# Purpose: Isolated testing of Unbound recursive DNS resolver
+# Architecture:
+#   unbound (DNS on port 53 internal, mapped to host 15353)
+#
+# Uses klutchell/unbound (Alpine-based, no chroot, supports cap_drop ALL + SETUID/SETGID)
+#
+# Usage:
+#   docker compose -f modules/unbound/tests/reference-compose.yml up -d --wait
+#   ./modules/unbound/tests/integration_test.sh
+
+services:
+  unbound:
+    image: klutchell/unbound:latest
+    container_name: test-unbound
+    ports:
+      - "15353:53/udp"
+      - "15353:53/tcp"
+    healthcheck:
+      test: ["CMD", "drill", "@127.0.0.1", "cloudflare.com"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    networks:
+      - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
+    mem_limit: 128m
+    cpus: 0.25
+
+networks:
+  test-net:
+    driver: bridge

@@ -1,0 +1,489 @@
+# =============================================================================
+# NETWORK TEMPLATES - LOCAL MODE (Enhanced)
+# =============================================================================
+# IaC-First: Network configuration for LAN-only access
+# Features:
+#   - Docker bridge network with configurable subnet
+#   - Optional mDNS/Avahi for local discovery (.local domains)
+#   - No Traefik/reverse proxy - direct port mapping
+#   - Optional local DNS via dnsmasq
+#   - Comprehensive outputs for network info
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "docker_network_name" {
+  description = "Name for the Docker network"
+  type        = string
+  default     = "kombistack"
+}
+
+variable "network_subnet" {
+  description = "Subnet for the Docker bridge network (CIDR notation)"
+  type        = string
+  default     = "172.21.0.0/16"
+}
+
+variable "network_gateway" {
+  description = "Gateway IP for the Docker network"
+  type        = string
+  default     = "172.21.0.1"
+}
+
+variable "enable_mdns" {
+  description = "Enable mDNS/Avahi for .local domain discovery"
+  type        = bool
+  default     = false
+}
+
+variable "enable_local_dns" {
+  description = "Enable dnsmasq for local DNS resolution"
+  type        = bool
+  default     = false
+}
+
+variable "local_domain" {
+  description = "Local domain suffix for services"
+  type        = string
+  default     = "local"
+}
+
+variable "dns_upstream" {
+  description = "Upstream DNS servers for dnsmasq"
+  type        = list(string)
+  default     = ["1.1.1.1", "8.8.8.8"]
+}
+
+variable "service_ports" {
+  description = "Map of service name to port mappings"
+  type = map(object({
+    internal = number
+    external = number
+    protocol = optional(string, "tcp")
+  }))
+  default = {}
+}
+
+variable "custom_dns_records" {
+  description = "Custom DNS A records for local resolution"
+  type = map(string)
+  default = {}
+}
+
+variable "network_mtu" {
+  description = "MTU size for the network"
+  type        = number
+  default     = 1500
+}
+
+variable "ipv6_enabled" {
+  description = "Enable IPv6 on the network"
+  type        = bool
+  default     = false
+}
+
+variable "ipv6_subnet" {
+  description = "IPv6 subnet if enabled"
+  type        = string
+  default     = "fd00:kombi:local::/64"
+}
+
+# -----------------------------------------------------------------------------
+# LOCAL NETWORK CONFIGURATION
+# -----------------------------------------------------------------------------
+
+resource "docker_network" "local" {
+  name   = "${var.docker_network_name}_local"
+  driver = "bridge"
+  
+  ipam_config {
+    subnet  = var.network_subnet
+    gateway = var.network_gateway
+  }
+  
+  # IPv6 configuration (optional)
+  dynamic "ipam_config" {
+    for_each = var.ipv6_enabled ? [1] : []
+    content {
+      subnet = var.ipv6_subnet
+    }
+  }
+  
+  # Local mode: bridge network for LAN access
+  internal = false
+  
+  # Driver options
+  options = {
+    "com.docker.network.bridge.enable_ip_masquerade" = "true"
+    "com.docker.network.bridge.enable_icc"           = "true"
+    "com.docker.network.bridge.host_binding_ipv4"    = "0.0.0.0"
+    "com.docker.network.driver.mtu"                  = tostring(var.network_mtu)
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.network.mode"
+    value = "local"
+  }
+  labels {
+    label = "kombistack.network.domain"
+    value = var.local_domain
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: mDNS/Avahi for local discovery (.local domains)
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "mdns_setup" {
+  count = var.enable_mdns ? 1 : 0
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== Setting up mDNS/Avahi for local discovery ==='",
+      
+      "# Install avahi-daemon for .local resolution",
+      "apt-get update -qq",
+      "apt-get install -y avahi-daemon avahi-utils libnss-mdns",
+      
+      "# Configure avahi-daemon",
+      "cat > /etc/avahi/avahi-daemon.conf << 'EOF'",
+      "[server]",
+      "host-name=${var.docker_network_name}",
+      "domain-name=${var.local_domain}",
+      "use-ipv4=yes",
+      "use-ipv6=${var.ipv6_enabled ? "yes" : "no"}",
+      "allow-interfaces=eth0,docker0",
+      "deny-interfaces=",
+      "ratelimit-interval-usec=1000000",
+      "ratelimit-burst=1000",
+      "",
+      "[wide-area]",
+      "enable-wide-area=yes",
+      "",
+      "[publish]",
+      "publish-addresses=yes",
+      "publish-hinfo=yes",
+      "publish-workstation=no",
+      "publish-domain=yes",
+      "",
+      "[reflector]",
+      "enable-reflector=no",
+      "",
+      "[rlimits]",
+      "rlimit-core=0",
+      "rlimit-data=4194304",
+      "rlimit-fsize=0",
+      "rlimit-nofile=768",
+      "rlimit-stack=4194304",
+      "rlimit-nproc=3",
+      "EOF",
+      
+      "# Configure NSS for mDNS",
+      "if ! grep -q 'mdns4_minimal' /etc/nsswitch.conf; then",
+      "  sed -i 's/^hosts:.*/hosts: files mdns4_minimal [NOTFOUND=return] dns mymachines/' /etc/nsswitch.conf",
+      "fi",
+      
+      "# Enable and restart avahi",
+      "systemctl enable avahi-daemon",
+      "systemctl restart avahi-daemon",
+      
+      "echo '=== mDNS setup complete - services available at *.${var.local_domain} ==='"
+    ]
+  }
+
+  triggers = {
+    domain    = var.local_domain
+    ipv6      = var.ipv6_enabled
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: LOCAL DNS via dnsmasq container
+# -----------------------------------------------------------------------------
+
+resource "docker_image" "dnsmasq" {
+  count        = var.enable_local_dns ? 1 : 0
+  name         = "4km3/dnsmasq:latest"
+  keep_locally = true
+}
+
+resource "docker_volume" "dnsmasq_config" {
+  count = var.enable_local_dns ? 1 : 0
+  name  = "${var.docker_network_name}_dnsmasq_config"
+}
+
+resource "local_file" "dnsmasq_conf" {
+  count = var.enable_local_dns ? 1 : 0
+  
+  filename = "${path.module}/generated/dnsmasq.conf"
+  content  = <<-EOF
+    # KombiStack Local DNS Configuration
+    # Auto-generated - do not edit manually
+    
+    # Listen on all interfaces
+    listen-address=0.0.0.0
+    bind-interfaces
+    
+    # Local domain
+    domain=${var.local_domain}
+    local=/${var.local_domain}/
+    expand-hosts
+    
+    # Upstream DNS servers
+    %{for server in var.dns_upstream~}
+    server=${server}
+    %{endfor~}
+    
+    # DNS cache settings
+    cache-size=1000
+    neg-ttl=60
+    
+    # Logging (optional - disable for production)
+    log-queries
+    log-facility=/var/log/dnsmasq.log
+    
+    # DHCP disabled (we use static assignments via Docker)
+    no-dhcp-interface=eth0
+    
+    # Custom DNS records
+    %{for name, ip in var.custom_dns_records~}
+    address=/${name}.${var.local_domain}/${ip}
+    %{endfor~}
+    
+    # Docker network resolution
+    address=/${var.docker_network_name}.${var.local_domain}/${var.network_gateway}
+  EOF
+}
+
+resource "docker_container" "dnsmasq" {
+  count = var.enable_local_dns ? 1 : 0
+  
+  name  = "${var.docker_network_name}_dnsmasq"
+  image = docker_image.dnsmasq[0].image_id
+  
+  restart = "unless-stopped"
+  
+  # DNS port
+  ports {
+    internal = 53
+    external = 53
+    protocol = "udp"
+  }
+  ports {
+    internal = 53
+    external = 53
+    protocol = "tcp"
+  }
+  
+  # Configuration
+  volumes {
+    host_path      = abspath(local_file.dnsmasq_conf[0].filename)
+    container_path = "/etc/dnsmasq.conf"
+    read_only      = true
+  }
+  
+  networks_advanced {
+    name         = docker_network.local.name
+    ipv4_address = cidrhost(var.network_subnet, 2)  # e.g., 172.21.0.2
+  }
+  
+  # Required capabilities for DNS
+  capabilities {
+    add = ["NET_ADMIN", "NET_RAW"]
+  }
+  
+  # Health check
+  healthcheck {
+    test         = ["CMD", "nslookup", "localhost", "127.0.0.1"]
+    interval     = "30s"
+    timeout      = "10s"
+    retries      = 3
+    start_period = "10s"
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.role"
+    value = "dns"
+  }
+  labels {
+    label = "kombistack.network.mode"
+    value = "local"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# HOST DNS CONFIGURATION (point host to local DNS)
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "host_dns_config" {
+  count = var.enable_local_dns ? 1 : 0
+  
+  depends_on = [docker_container.dnsmasq]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== Configuring host to use local DNS ==='",
+      
+      "# Backup original resolv.conf",
+      "cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%Y%m%d%H%M%S) || true",
+      
+      "# Create systemd-resolved drop-in for local DNS",
+      "mkdir -p /etc/systemd/resolved.conf.d/",
+      "cat > /etc/systemd/resolved.conf.d/kombistack-local.conf << 'EOF'",
+      "[Resolve]",
+      "DNS=${cidrhost(var.network_subnet, 2)}",
+      "Domains=~${var.local_domain}",
+      "EOF",
+      
+      "# Restart systemd-resolved",
+      "systemctl restart systemd-resolved || true",
+      
+      "echo '=== Host DNS configured to use local dnsmasq ==='"
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# FIREWALL RULES FOR LOCAL MODE
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "local_firewall" {
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = concat([
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== Configuring firewall for local mode ==='",
+      
+      "# Ensure UFW is installed and enabled",
+      "apt-get install -y ufw",
+      "ufw --force enable",
+      
+      "# Allow SSH (always)",
+      "ufw allow 22/tcp comment 'SSH'",
+      
+      "# Allow mDNS if enabled",
+      var.enable_mdns ? "ufw allow 5353/udp comment 'mDNS/Avahi'" : "echo 'mDNS disabled'",
+      
+      "# Allow DNS if local DNS enabled",
+      var.enable_local_dns ? "ufw allow 53/tcp comment 'DNS TCP'" : "echo 'Local DNS disabled'",
+      var.enable_local_dns ? "ufw allow 53/udp comment 'DNS UDP'" : "echo 'Local DNS disabled'",
+      
+      "# Allow Docker network traffic",
+      "ufw allow from ${var.network_subnet} comment 'Docker local network'",
+    ],
+    # Dynamic port rules for services
+    [for name, port in var.service_ports : 
+      "ufw allow ${port.external}/${port.protocol} comment '${name}'"
+    ],
+    [
+      "# Reload firewall",
+      "ufw reload",
+      
+      "echo '=== Local firewall configured ==='"
+    ])
+  }
+
+  triggers = {
+    network_subnet = var.network_subnet
+    enable_mdns    = var.enable_mdns
+    enable_dns     = var.enable_local_dns
+    ports          = jsonencode(var.service_ports)
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "network_config" {
+  value = {
+    mode           = "local"
+    network_name   = docker_network.local.name
+    network_id     = docker_network.local.id
+    subnet         = var.network_subnet
+    gateway        = var.network_gateway
+    mtu            = var.network_mtu
+    domain         = var.local_domain
+    ipv6_enabled   = var.ipv6_enabled
+    ipv6_subnet    = var.ipv6_enabled ? var.ipv6_subnet : null
+    access_type    = "LAN only"
+    proxy_enabled  = false
+  }
+  description = "Local network configuration details"
+}
+
+output "dns_config" {
+  value = {
+    enabled        = var.enable_local_dns
+    server_ip      = var.enable_local_dns ? cidrhost(var.network_subnet, 2) : null
+    upstream       = var.dns_upstream
+    local_domain   = var.local_domain
+    custom_records = var.custom_dns_records
+  }
+  description = "DNS configuration details"
+}
+
+output "mdns_config" {
+  value = {
+    enabled = var.enable_mdns
+    domain  = var.enable_mdns ? "${var.docker_network_name}.${var.local_domain}" : null
+  }
+  description = "mDNS/Avahi configuration details"
+}
+
+output "service_endpoints" {
+  value = {
+    for name, port in var.service_ports : name => {
+      internal = "${var.network_gateway}:${port.internal}"
+      external = "http://${local.ssh_connection.host}:${port.external}"
+      protocol = port.protocol
+    }
+  }
+  description = "Service endpoint URLs for LAN access"
+}
+
+output "docker_network_connect_cmd" {
+  value       = "docker network connect ${docker_network.local.name} <container_name>"
+  description = "Command to connect a container to this network"
+}

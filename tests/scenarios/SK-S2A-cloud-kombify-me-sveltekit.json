@@ -1,0 +1,80 @@
+{
+  "id": "SK-S2A",
+  "name": "Cloud OneClick kombify.me + SvelteKit App",
+  "stage": "gated-live",
+  "liveGate": "sim-installer-kombify-me-sveltekit",
+  "stackSpec": {
+    "name": "sk-s2a-cloud-kombify-me-sveltekit",
+    "stackkit": "base-kit",
+    "mode": "simple",
+    "context": "cloud",
+    "domain": "kombify.me",
+    "subdomainPrefix": "sh-scenario-s2a",
+    "email": "tester@kombify.pro",
+    "adminEmail": "tester@kombify.pro",
+    "network": {
+      "mode": "public"
+    },
+    "compute": {
+      "tier": "standard"
+    },
+    "apps": {
+      "web": {
+        "kind": "sveltekit",
+        "image": "ghcr.io/kombifyio/stackkits-smoke-sveltekit:0.1.0",
+        "port": 3000,
+        "route": {
+          "auth": "public"
+        },
+        "health": {
+          "path": "/health"
+        },
+        "env": {
+          "PUBLIC_APP_NAME": "StackKit Smoke"
+        }
+      }
+    }
+  },
+  "env": {
+    "requiredKeys": [
+      "KOMBIFY_API_KEY",
+      "KOMBIFY_USER_EMAIL"
+    ],
+    "optionalKeys": [
+      "STACKKIT_SCENARIO_OUTPUT"
+    ]
+  },
+  "expected": {
+    "generation": {
+      "context": "cloud",
+      "domain": "kombify.me",
+      "paas": "dokploy",
+      "reverseProxyBackend": "dokploy",
+      "enableHTTPS": false,
+      "stepCAEnabled": true,
+      "enableKombifyPoint": false,
+      "adminEmail": "tester@kombify.pro",
+      "serviceFlags": {
+        "enable_dashboard": true,
+        "enable_tinyauth": true,
+        "enable_pocketid": true,
+        "enable_dokploy": true,
+        "enable_uptime_kuma": true,
+        "enable_whoami": true,
+        "enable_vaultwarden": true,
+        "enable_jellyfin": true,
+        "enable_immich": true
+      }
+    },
+    "access": {
+      "hubUrl": "https://sh-scenario-s2a-base.kombify.me",
+      "browserUrlMode": "public",
+      "services": [
+        {"key": "base", "host": "sh-scenario-s2a-base.kombify.me", "scheme": "https"},
+        {"key": "auth", "host": "sh-scenario-s2a-auth.kombify.me", "scheme": "https"},
+        {"key": "id", "host": "sh-scenario-s2a-id.kombify.me", "scheme": "https"},
+        {"key": "dokploy", "host": "sh-scenario-s2a-dokploy.kombify.me", "scheme": "https"}
+      ]
+    }
+  }
+}

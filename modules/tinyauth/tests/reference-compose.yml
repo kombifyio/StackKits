@@ -1,0 +1,82 @@
+# TinyAuth v4 Reference Compose
+# Purpose: Isolated testing of TinyAuth v4 ForwardAuth with Traefik
+# Usage:
+#   docker compose -f modules/tinyauth/tests/reference-compose.yml up -d
+#   Add to /etc/hosts: 127.0.0.1 auth.test.local whoami.test.local
+#   Browser: http://auth.test.local:8890 (TinyAuth login)
+#   Browser: http://whoami.test.local:8890 (protected by ForwardAuth)
+#
+# Test credentials: admin / admin123
+#
+# Note: Uses Traefik file provider (not Docker provider) for cross-platform
+# reliability. Docker socket is only mounted for TinyAuth label-based ACL.
+
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: test-traefik
+    command:
+      - --api.insecure=true
+      - --ping=true
+      - --entrypoints.web.address=:80
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+    ports:
+      - "8890:80"
+      - "19090:8080"
+    volumes:
+      - ./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    mem_limit: 256m
+    cpus: 0.5
+
+  tinyauth:
+    image: ghcr.io/steveiliop56/tinyauth:v4
+    container_name: test-tinyauth
+    restart: unless-stopped
+    environment:
+      - APP_URL=http://auth.test.local:8890
+      - "USERS=admin:$$2b$$12$$Osp9VbUj1xvhgmOeVlB/rOuayl4w0DvseE8W0O.J1m6WdVLV8EQbO"
+      - SECURE_COOKIE=false
+      - SESSION_EXPIRY=86400
+    volumes:
+      - tinyauth_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "tinyauth", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - test_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.5
+
+  whoami:
+    image: traefik/whoami:latest
+    container_name: test-whoami
+    networks:
+      - test_net
+
+networks:
+  test_net:
+
+volumes:
+  tinyauth_data:

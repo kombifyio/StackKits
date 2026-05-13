@@ -1,0 +1,214 @@
+# StackKit Metadata - Modern Homelab
+# v4.0: Hybrid infrastructure pattern (local + cloud)
+# Docker Compose per node, coordinated by Coolify or Dokploy
+apiVersion: stackkit/v1
+kind: StackKit
+
+metadata:
+  name: modern-homelab
+  version: "1.0.0-alpha"
+  description: "Hybrid homelab bridging local servers with cloud VPS via identity-aware proxies"
+  author: "kombify Team"
+  license: "Apache-2.0"
+  repository: "https://github.com/kombifyio/stackkits"
+  status: scaffolding
+  tags:
+    - homelab
+    - hybrid
+    - docker
+    - multi-node
+    - public-access
+
+# Platform: Docker Compose per node (no Swarm)
+platform: docker
+
+# Supported operating systems
+supportedOS:
+  - ubuntu-24
+  - ubuntu-22
+  - debian-12
+
+# =============================================================================
+# RESOURCE REQUIREMENTS
+# =============================================================================
+requirements:
+  minimum:
+    nodes: 2              # At least 1 cloud + 1 local
+    cpu: 2
+    memory: 4
+    disk: 50
+  recommended:
+    nodes: 3
+    cpu: 4
+    memory: 8
+    disk: 100
+
+# =============================================================================
+# PAAS DECISION LOGIC
+# =============================================================================
+# PaaS is context-driven, not variant-based:
+#   - User HAS own domain + can wildcard → Coolify (multi-node, git deploys)
+#   - User has NO domain or no wildcard  → Dokploy (traefik-me + MagicDNS)
+paas:
+  decision:
+    coolify:
+      when: "user.hasDomain && user.canWildcard"
+      description: "Full-featured PaaS with multi-server support and git deployments"
+    dokploy:
+      when: "!user.hasDomain || !user.canWildcard"
+      description: "Simpler PaaS with native traefik-me integration and MagicDNS"
+
+# =============================================================================
+# DEPLOYMENT MODES
+# =============================================================================
+modes:
+  simple:
+    description: "OpenTofu-only Day-1 provisioning"
+    templateDir: "templates/simple"
+    engine: "opentofu"
+    features:
+      - "Direct OpenTofu execution"
+      - "Go-based state management"
+      - "Simple rollback via state"
+
+  advanced:
+    description: "Terramate-orchestrated with drift detection"
+    templateDir: "templates/advanced"
+    engine: "terramate"
+    requires:
+      - "terramate >= 0.5.0"
+    features:
+      - "Drift detection on schedule"
+      - "Granular stack orchestration"
+      - "Day-2 operations support"
+    stacks:
+      - name: foundation
+        order: 1
+        description: "SSH, firewall, identity (LLDAP, Step-CA)"
+      - name: platform
+        order: 2
+        after: [foundation]
+        description: "Docker, Traefik, PaaS, TinyAuth"
+      - name: tunnel
+        order: 3
+        after: [platform]
+        description: "Cloudflare Tunnel or Pangolin (CGNAT bypass)"
+      - name: services
+        order: 4
+        after: [platform]
+        description: "User applications via PaaS"
+
+# =============================================================================
+# ARCHITECTURE PATTERN
+# =============================================================================
+# Modern Homelab = Hybrid Infrastructure Pattern
+#   - At least 1 local node (the "homelab" part)
+#   - At least 1 cloud node (public entry point)
+#   - Docker Compose per node, PaaS coordinates multi-node
+#   - Identity-aware proxies make VPN optional
+#   - Tunnel for CGNAT/DS-Lite bypass
+pattern:
+  name: "hybrid-infrastructure"
+  description: "Distributed services across local + cloud environments"
+  containerRuntime: "docker-compose"      # Per node, no Swarm
+  coordination: "paas"                    # Coolify or Dokploy
+  networkModel: "identity-aware-proxy"    # Not VPN-first
+  tunnelOptions:
+    - cloudflare                          # Default: free, simple
+    - pangolin                            # Alternative: self-hosted, AGPL-3
+
+# =============================================================================
+# IDENTITY STACK (from base, not Authentik)
+# =============================================================================
+# Layer 1: LLDAP + Step-CA (auto-certs, mTLS)
+# Layer 2: TinyAuth (identity-aware proxy, ForwardAuth)
+# Layer 2: PocketID (OIDC, passkeys) -- optional
+# VPN is NOT required thanks to this identity model
+identity:
+  layer1:
+    lldap: required
+    stepCA: required
+  layer2:
+    tinyauth: default
+    pocketid: optional
+
+# =============================================================================
+# NODE TYPES
+# =============================================================================
+nodeTypes:
+  local:
+    description: "On-premises server (homelab hardware)"
+    access: "tunnel"           # Reached via CF Tunnel or Pangolin
+    role: "compute + storage"  # Heavy workloads, data sovereignty
+    requirements:
+      minMemory: 4
+      minDisk: 50
+
+  cloud:
+    description: "Cloud VPS (public IP, entry point)"
+    access: "public"
+    role: "ingress + management"  # Traefik, PaaS, identity
+    requirements:
+      minMemory: 2
+      minDisk: 20
+    providers:
+      - hetzner
+      - digitalocean
+      - vultr
+      - linode
+
+# =============================================================================
+# ADD-ON ECOSYSTEM
+# =============================================================================
+# Modern Homelab supports all add-ons. VPN is optional, not default.
+addons:
+  autoActivated:
+    - monitoring          # Always recommended for multi-node
+    - backup              # Always recommended
+  optional:
+    # Infrastructure
+    - ha                  # High Availability (3+ nodes: HAProxy, Keepalived, Patroni, Valkey, GlusterFS)
+    - tunnel              # Cloudflare Tunnel / Pangolin (for CGNAT)
+    - vpn-overlay         # Headscale/Tailscale (only if user wants mesh VPN)
+    - authelia            # Advanced auth (replaces TinyAuth)
+    # Use Case Add-Ons (the 10 homelab scenarios)
+    - vault               # Vaultwarden (Password Manager)
+    - photos              # Immich (Photo Gallery)
+    - media               # Jellyfin + *arr (Streaming)
+    - file-sharing        # Cloudreve / OpenCloud / Nextcloud
+    - smart-home          # Home Assistant + MQTT + Z2M
+    - ai-workloads        # Ollama + Open WebUI
+    - calendar            # Radicale + Bloben (CalDAV/CardDAV)
+    - mail                # Stalwart (IMAP/JMAP/SMTP + CalDAV built-in)
+    - dev-platform        # Gitea + Woodpecker CI
+    - gameserver          # Generic game server framework
+    - remote-desktop      # Apache Guacamole
+
+# =============================================================================
+# SECRETS MANAGEMENT (Homelab standard, not Doppler)
+# =============================================================================
+secrets:
+  provider: "sops-age"
+  description: "SOPS + age for encrypted secrets in Git"
+
+# =============================================================================
+# CHANGELOG
+# =============================================================================
+changelog:
+  - version: "1.0.0-alpha"
+    date: "2026-02-11"
+    changes:
+      - "BREAKING: Removed Docker Swarm, now Docker Compose per node"
+      - "BREAKING: PaaS decision is context-driven (domain → Coolify, no domain → Dokploy)"
+      - "Removed Authentik, kept identity-aware proxy stack (LLDAP + Step-CA + TinyAuth)"
+      - "VPN is optional, identity-aware proxies are default"
+      - "Added tunnel add-on (Cloudflare Tunnel + Pangolin)"
+      - "Added 10 use case add-ons (photos, AI, media, etc.)"
+      - "Added calendar (Radicale + Bloben) and mail (Stalwart) add-ons"
+      - "Secrets via SOPS + age (not Doppler)"
+      - "Architecture v4 aligned: StackKit + Context + Add-Ons"
+
+  - version: "0.1.0-alpha"
+    date: "2025-01-27"
+    changes:
+      - "Initial scaffolding (Docker Swarm, Coolify-only)"

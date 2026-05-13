@@ -1,0 +1,235 @@
+# =============================================================================
+# BOOTSTRAP TEMPLATE - OS PREPARATION
+# =============================================================================
+# IaC-First: All OS preparation via OpenTofu remote-exec
+# This template is rendered by the Unifier with values from UnifiedSpec
+#
+# Variables from UnifiedSpec:
+#   - worker_ip: IP address of the target server
+#   - ssh_user: SSH username (default: root)
+#   - ssh_private_key_path: Path to SSH private key
+#   - os_type: Operating system (ubuntu-24, ubuntu-22, debian-12)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SSH CONNECTION LOCALS
+# -----------------------------------------------------------------------------
+
+locals {
+  ssh_connection = {
+    type        = "ssh"
+    host        = var.worker_ip
+    user        = var.ssh_user
+    private_key = file(var.ssh_private_key_path)
+    timeout     = "5m"
+  }
+  
+  # OS-specific package manager
+  pkg_manager = can(regex("ubuntu|debian", var.os_type)) ? "apt-get" : "dnf"
+  pkg_update  = can(regex("ubuntu|debian", var.os_type)) ? "apt-get update" : "dnf check-update || true"
+}
+
+# -----------------------------------------------------------------------------
+# SYSTEM PREPARATION
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "system_prep" {
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== KombiStack Bootstrap: System Preparation ==='",
+      
+      "# Update package lists",
+      "${local.pkg_update}",
+      
+      "# Install essential packages",
+      "${local.pkg_manager} install -y curl wget git ca-certificates gnupg lsb-release",
+      
+      "# Create KombiStack directories",
+      "mkdir -p /opt/kombistack",
+      "mkdir -p /opt/kombistack/data",
+      "mkdir -p /opt/kombistack/logs",
+      
+      "echo '=== System preparation complete ==='"
+    ]
+  }
+
+  triggers = {
+    # Re-run if OS type changes
+    os_type = var.os_type
+  }
+}
+
+# -----------------------------------------------------------------------------
+# DOCKER INSTALLATION
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "install_docker" {
+  depends_on = [null_resource.system_prep]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== KombiStack Bootstrap: Docker Installation ==='",
+      
+      "# Check if Docker is already installed",
+      "if command -v docker &> /dev/null; then",
+      "  echo 'Docker already installed, version:'",
+      "  docker --version",
+      "  exit 0",
+      "fi",
+      
+      "# Install Docker using official script",
+      "curl -fsSL https://get.docker.com | sh",
+      
+      "# Enable and start Docker service",
+      "systemctl enable docker",
+      "systemctl start docker",
+      
+      "# Add current user to docker group",
+      "usermod -aG docker ${var.ssh_user} || true",
+      
+      "# Verify installation",
+      "docker --version",
+      "docker compose version",
+      
+      "echo '=== Docker installation complete ==='"
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# FIREWALL SETUP
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "setup_firewall" {
+  depends_on = [null_resource.install_docker]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== KombiStack Bootstrap: Firewall Setup ==='",
+      
+      "# Install UFW if not present (Debian/Ubuntu)",
+      "if command -v apt-get &> /dev/null; then",
+      "  apt-get install -y ufw",
+      "fi",
+      
+      "# Check if UFW is available",
+      "if ! command -v ufw &> /dev/null; then",
+      "  echo 'UFW not available, skipping firewall setup'",
+      "  exit 0",
+      "fi",
+      
+      "# Configure UFW defaults",
+      "ufw default deny incoming",
+      "ufw default allow outgoing",
+      
+      "# Allow essential ports",
+      "ufw allow 22/tcp comment 'SSH'",
+      "ufw allow 80/tcp comment 'HTTP'",
+      "ufw allow 443/tcp comment 'HTTPS'",
+      
+      "# Allow KombiStack Agent port",
+      "ufw allow 5261/tcp comment 'KombiStack Agent'",
+      
+      "# Enable UFW (non-interactive)",
+      "echo 'y' | ufw enable",
+      
+      "# Show status",
+      "ufw status verbose",
+      
+      "echo '=== Firewall setup complete ==='"
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# SSH HARDENING (Optional)
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "ssh_hardening" {
+  count      = var.enable_ssh_hardening ? 1 : 0
+  depends_on = [null_resource.setup_firewall]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== KombiStack Bootstrap: SSH Hardening ==='",
+      
+      "# Backup original sshd_config",
+      "cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d)",
+      
+      "# Disable password authentication",
+      "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config",
+      "sed -i 's/^#*MaxAuthTries.*/MaxAuthTries 3/' /etc/ssh/sshd_config",
+      
+      "# Restart SSH service",
+      "systemctl restart sshd",
+      
+      "echo '=== SSH hardening complete ==='"
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "bootstrap_complete" {
+  value       = true
+  description = "Marker that bootstrap phase is complete"
+  depends_on  = [
+    null_resource.system_prep,
+    null_resource.install_docker,
+    null_resource.setup_firewall
+  ]
+}
+
+output "docker_installed" {
+  value       = true
+  description = "Marker that Docker is installed"
+  depends_on  = [null_resource.install_docker]
+}

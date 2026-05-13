@@ -1,0 +1,75 @@
+# OTel Collector gateway configuration for kombify monitoring-core module.
+#
+# This is the CENTRAL gateway, not a per-node agent.
+# It receives OTLP/gRPC from all monitoring-agent nodes and writes to VictoriaMetrics.
+#
+# All monitoring-agent nodes must point their OTLP endpoint to this host:
+#   OTEL_ENDPOINT=otel-gateway:4317
+
+receivers:
+  # Primary OTLP receiver — all agents push here
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        # Max concurrent streams from agents (default 100, fine for homelab)
+        max_concurrent_streams: ${env:KOMBIFY_OTEL_GATEWAY_MAX_CONCURRENT_STREAMS:-50}
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # memory_limiter first — protects gateway under burst from many agents
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: ${env:KOMBIFY_OTEL_GATEWAY_MEMORY_LIMIT_MIB:-200}
+    spike_limit_mib: ${env:KOMBIFY_OTEL_GATEWAY_MEMORY_SPIKE_LIMIT_MIB:-50}
+
+  # Add gateway hostname to all metrics for traceability
+  resourcedetection:
+    detectors: [system]
+    system:
+      hostname_sources: [os]
+    override: false
+
+  # Larger batch than agent (gateway aggregates from many sources)
+  batch:
+    timeout: ${env:KOMBIFY_OTEL_GATEWAY_BATCH_TIMEOUT:-15s}
+    send_batch_size: 5000
+    send_batch_max_size: 10000
+
+exporters:
+  # Primary: write to VictoriaMetrics via Remote Write 2.0
+  prometheusremotewrite:
+    endpoint: "${env:KOMBIFY_OTEL_GATEWAY_REMOTE_WRITE_ENDPOINT:-http://victoriametrics:8428/api/v1/write}"
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 60s
+      max_elapsed_time: 600s
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 2000
+
+  # Also forward to TechStack OTLP receiver for real-time alerting
+  # (TechStack reads from its own embedded TSDB for alerts; VM is long-term)
+  # Uncomment when TechStack OTLP receiver is available (Phase 2):
+  # otlp/techstack:
+  #   endpoint: "techstack:4317"
+  #   tls:
+  #     insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:8888
+    path: /metrics
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers:  [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters:  [prometheusremotewrite]

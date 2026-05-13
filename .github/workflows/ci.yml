@@ -1,0 +1,476 @@
+name: CI
+# Kritischer Pfad: changes (2) + lint (5) ‖ test (5) ‖ cue (5) ‖ modules (5) → composition (5) → build (5) = 22 min max
+# Smart skipping via dorny/paths-filter: Go-only PR runs ~10 min, website-only ~2 min, admin-only ~5 min, docs-only does not trigger.
+# Standard: kombify Core/standards/DEPLOYMENT-STANDARD.md §2.2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
+      - "base/**"
+      - "base-kit/**"
+      - "modern-homelab/**"
+      - "modules/**"
+      - "tests/**"
+      - "website/**"
+      - "scripts/public/**"
+      - "scripts/release/**"
+      - "kombify-admin/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
+      - ".gitleaks.toml"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "pkg/**"
+      - "base/**"
+      - "base-kit/**"
+      - "modern-homelab/**"
+      - "modules/**"
+      - "tests/**"
+      - "website/**"
+      - "scripts/public/**"
+      - "scripts/release/**"
+      - "kombify-admin/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
+      - ".gitleaks.toml"
+      - ".github/workflows/ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Required by dorny/paths-filter@v3 in `pull_request` mode: it lists
+  # changed files via the PR API, which the explicit permissions block
+  # above otherwise removes from the default GITHUB_TOKEN scope.
+  pull-requests: read
+
+env:
+  GO_VERSION: "1.26.3"
+  NODE_VERSION: "24"
+
+jobs:
+  changes:
+    name: Detect changed surfaces
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 2
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      cue: ${{ steps.filter.outputs.cue }}
+      modules: ${{ steps.filter.outputs.modules }}
+      website: ${{ steps.filter.outputs.website }}
+      public_release: ${{ steps.filter.outputs.public_release }}
+      admin: ${{ steps.filter.outputs.admin }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590
+        id: filter
+        with:
+          filters: |
+            go:
+              - "cmd/**"
+              - "internal/**"
+              - "pkg/**"
+              - "tests/**"
+              - "go.mod"
+              - "go.sum"
+              - ".golangci.yml"
+              - ".gitleaks.toml"
+            cue:
+              - "base/**"
+              - "base-kit/**"
+              - "modern-homelab/**"
+              - "modules/**/*.cue"
+            modules:
+              - "modules/**"
+            website:
+              - "website/**"
+              - "scripts/release/**"
+            public_release:
+              - "scripts/public/**"
+              - "scripts/release/**"
+              - ".github/workflows/publish-oss.yml"
+              - ".github/workflows/sync-public.yml"
+            admin:
+              - "kombify-admin/**"
+            docker:
+              - "Dockerfile"
+              - "docker-compose.yml"
+              - ".dockerignore"
+
+  lint:
+    name: Lint (Go)
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: go vet
+        run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@9fae48acfc02a90574d7c304a1758ef9895495fa
+        with:
+          version: v2.11.4
+          args: --timeout=5m
+
+  security:
+    name: Security Scan (Go)
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: gitleaks
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          "$(go env GOPATH)/bin/gitleaks" detect --no-banner --redact --no-git --source . --config .gitleaks.toml
+      - name: gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.25.0
+          "$(go env GOPATH)/bin/gosec" -exclude=G101,G104,G106,G115,G122,G204,G301,G304,G306,G703,G704,G705,G706 -exclude-generated ./...
+
+  test:
+    name: Test (Go)
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - run: go mod download
+      - name: go test with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+      - name: Coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          echo "Total coverage: ${COVERAGE}%"
+          THRESHOLD=45
+          if [ "$(echo "$COVERAGE < $THRESHOLD" | bc -l)" -eq 1 ]; then
+            echo "::error::Coverage ${COVERAGE}% below threshold ${THRESHOLD}%"
+            exit 1
+          fi
+
+  cue-validation:
+    name: CUE Validation
+    needs: changes
+    if: needs.changes.outputs.cue == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Install CUE
+        run: |
+          CUE_VERSION=$(grep 'cuelang.org/go ' go.mod | awk '{print $2}')
+          go install cuelang.org/go/cmd/cue@${CUE_VERSION}
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - run: cue vet ./base/...
+      - run: cue vet ./base-kit/...
+      - run: cue vet ./modern-homelab/...
+      - name: Validate modules
+        run: |
+          for dir in modules/*/; do
+            if [ -f "$dir/module.cue" ]; then
+              echo "Validating $dir..."
+              cue vet -c=false "./$dir/..."
+            fi
+          done
+      - name: Validate CUE-backed Go invariants
+        run: |
+          go test ./internal/cue -run 'TestCUEGoConsistencyGate|TestModuleReaderExtractsNestedFlexibleSettings|TestBaseStackKitExposesCanonicalObservabilitySurface|TestGenerateAllCopiesMonitoringModuleArtifacts|TestCopyModuleArtifactsCopiesNestedDirectories'
+          go test ./internal/composition -run 'TestGenerateTFVarsJSON|TestResolve_EnabledModules_IncludesMonitoringAgentByDefault'
+          go test ./internal/api -run TestHandleGenerateTFVars
+
+  module-tests:
+    name: Module Test (${{ matrix.module }})
+    needs: changes
+    if: needs.changes.outputs.modules == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        module: [traefik, tinyauth, pocketid, dokploy, uptime-kuma, dozzle, whoami, dashboard, socket-proxy, crowdsec, lldap, step-ca, adguard-home, unbound, monitoring-agent, monitoring-core, admin-bootstrap, immich, jellyfin, kombify-point, login-gateway, security-baseline, vaultwarden]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Install CUE
+        run: |
+          CUE_VERSION=$(grep 'cuelang.org/go ' go.mod | awk '{print $2}')
+          go install cuelang.org/go/cmd/cue@${CUE_VERSION}
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: Run module integration test
+        run: |
+          SCRIPT="modules/${{ matrix.module }}/tests/integration_test.sh"
+          if [ -f "$SCRIPT" ]; then
+            chmod +x "$SCRIPT"
+            bash "$SCRIPT"
+          else
+            echo "SKIP: $SCRIPT not found yet"
+          fi
+
+  composition-test:
+    name: Full Stack Composition
+    needs: [changes, module-tests, cue-validation]
+    if: |
+      always() &&
+      (needs.changes.outputs.modules == 'true' || needs.changes.outputs.cue == 'true' || github.event_name == 'push') &&
+      (needs.module-tests.result == 'success' || needs.module-tests.result == 'skipped') &&
+      (needs.cue-validation.result == 'success' || needs.cue-validation.result == 'skipped')
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Run composition test
+        run: |
+          SCRIPT="modules/_integration/integration_test.sh"
+          if [ -f "$SCRIPT" ]; then
+            chmod +x "$SCRIPT"
+            bash "$SCRIPT"
+          else
+            echo "SKIP: Composition test not yet created"
+          fi
+
+  website:
+    name: Website Validation
+    needs: changes
+    if: needs.changes.outputs.website == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Validate static website files
+        run: |
+          test -f website/index.html
+          test -f website/cli/index.html
+          test -f website/impressum.html
+          test -f website/CNAME
+          test -f website/favicon.svg
+          test -f website/icon.png
+          test -f website/install
+          test -f website/base
+          test -f website/modern
+          test -f website/ha
+          test -f website/package.json
+          test -f website/package-lock.json
+          test -f website/build.mjs
+          test -f scripts/release/changelog.mjs
+          grep -q 'href="/cli/"' website/index.html
+          grep -q 'href="/impressum.html"' website/index.html
+          grep -q 'github.com/kombifyio/stackKits/releases' website/index.html
+          grep -q '<!-- RELEASE_SUMMARY -->' website/index.html
+          grep -q 'curl -sSL stackkit.cc/base | sh' website/index.html
+          grep -q 'curl -sSL stackkit.cc/install | sh' website/cli/index.html
+          grep -q '^#!/bin/sh' website/install
+          grep -q '^#!/bin/sh' website/base
+          grep -q 'CLI Reference' website/cli/index.html
+          grep -q 'Impressum' website/impressum.html
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Test release-note parser
+        run: node --test scripts/release/changelog.test.mjs
+      - name: Build static website
+        working-directory: website
+        run: |
+          npm ci
+          npm run build
+          test -f build/index.html
+          test -f build/cli/index.html
+          test -f build/install
+          test -f build/changelog.json
+          grep -q 'Latest Release Notes' build/index.html
+
+  public-export:
+    name: Public Export Validation
+    needs: changes
+    if: needs.changes.outputs.public_release == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Validate public export allowlist
+        run: |
+          chmod +x scripts/public/*.sh
+          bash scripts/public/export-public.sh "${{ runner.temp }}/oss-export"
+          test -f "${{ runner.temp }}/oss-export/README.md"
+          test -f "${{ runner.temp }}/oss-export/.github/workflows/release.yml"
+          test ! -e "${{ runner.temp }}/oss-export/AGENTS.md"
+          test ! -e "${{ runner.temp }}/oss-export/.beads"
+
+  admin:
+    name: Admin Validation
+    needs: changes
+    if: needs.changes.outputs.admin == 'true' || github.event_name == 'push'
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: kombify-admin
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: kombify-admin/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=low
+      - run: npx prisma generate
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  build:
+    name: Build CLI binary
+    needs: [changes, lint, test, security, cue-validation]
+    if: |
+      always() &&
+      (needs.changes.outputs.go == 'true' || github.event_name == 'push') &&
+      needs.lint.result == 'success' &&
+      needs.test.result == 'success' &&
+      needs.security.result == 'success' &&
+      (needs.cue-validation.result == 'success' || needs.cue-validation.result == 'skipped')
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - run: go mod download
+      - name: Build CLI binary
+        run: |
+          CGO_ENABLED=0 go build -ldflags="-s -w" -o stackkit ./cmd/stackkit
+          ./stackkit --version || echo "Binary built"
+
+  build-matrix:
+    name: Build (${{ matrix.os }}/${{ matrix.arch }})
+    needs: [changes, lint, test, security, cue-validation]
+    if: |
+      always() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.lint.result == 'success' &&
+      needs.test.result == 'success' &&
+      needs.security.result == 'success' &&
+      (needs.cue-validation.result == 'success' || needs.cue-validation.result == 'skipped')
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        include:
+          - { os: linux, arch: amd64 }
+          - { os: linux, arch: arm64 }
+          - { os: darwin, arch: amd64 }
+          - { os: darwin, arch: arm64 }
+          - { os: windows, arch: amd64 }
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Build cross-platform binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: "0"
+        run: |
+          BINARY_NAME="stackkit-${{ matrix.os }}-${{ matrix.arch }}"
+          if [ "${{ matrix.os }}" = "windows" ]; then BINARY_NAME="${BINARY_NAME}.exe"; fi
+          go build -ldflags="-s -w" -o "${BINARY_NAME}" ./cmd/stackkit
+
+  ci-passed:
+    name: CI Passed
+    needs: [changes, lint, test, security, cue-validation, module-tests, composition-test, website, public-export, admin, build]
+    if: always()
+    runs-on: ${{ vars.GHA_HOSTED_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 2
+    steps:
+      - name: Verify all required jobs passed (or were intentionally skipped)
+        run: |
+          # changes job must always succeed
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "::error::changes job did not succeed: ${{ needs.changes.result }}"
+            exit 1
+          fi
+
+          fail=0
+          for entry in \
+              "lint=${{ needs.lint.result }}" \
+              "test=${{ needs.test.result }}" \
+              "security=${{ needs.security.result }}" \
+              "cue-validation=${{ needs.cue-validation.result }}" \
+              "module-tests=${{ needs.module-tests.result }}" \
+              "composition-test=${{ needs.composition-test.result }}" \
+              "website=${{ needs.website.result }}" \
+              "public-export=${{ needs.public-export.result }}" \
+              "admin=${{ needs.admin.result }}" \
+              "build=${{ needs.build.result }}"; do
+            name="${entry%%=*}"
+            result="${entry#*=}"
+            case "$result" in
+              success|skipped) echo "OK: $name = $result";;
+              *) echo "::error::$name did not pass: $result"; fail=1;;
+            esac
+          done
+          exit $fail

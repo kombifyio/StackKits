@@ -1,0 +1,30 @@
+# Module: security-baseline
+# STATUS: Placeholder. Phase 2 (V6, Q3/2026) implements:
+#
+# resource "null_resource" "ufw" {
+#   connection { type = "ssh" host = var.host user = var.ssh_user private_key = file(var.ssh_key_path) }
+#   provisioner "remote-exec" {
+#     inline = [
+#       "sudo apt-get update -qq",
+#       "sudo apt-get install -qq -y ufw fail2ban unattended-upgrades",
+#       "sudo ufw --force default deny incoming",
+#       "sudo ufw --force default allow outgoing",
+#       "sudo ufw allow ${var.ssh_port}/tcp comment 'SSH'",
+#       "sudo ufw allow 80/tcp comment 'HTTP'",
+#       "sudo ufw allow 443/tcp comment 'HTTPS'",
+#       # ... extraAllowedPorts loop ...
+#       "sudo ufw --force enable",
+#     ]
+#   }
+# }
+#
+# resource "null_resource" "fail2ban" { ... }
+# resource "null_resource" "unattended_upgrades" { ... }
+# resource "null_resource" "ssh_harden" { ... }
+# resource "null_resource" "sysctl_harden" { ... }
+#
+# variables.tf: host, ssh_user, ssh_key_path, ssh_port, extra_allowed_ports,
+#               fail2ban_bantime, fail2ban_maxretry, security_updates_only,
+#               ssh_password_auth, ssh_permit_root
+#
+# outputs.tf: hardening_applied (bool), ufw_rules (list), sshd_config_hash (string)

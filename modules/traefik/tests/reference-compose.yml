@@ -1,0 +1,50 @@
+# Traefik Module Reference Compose
+# Purpose: Isolated testing of Traefik reverse proxy
+# Usage:
+#   docker compose -f modules/traefik/tests/reference-compose.yml up -d
+#   Add to /etc/hosts: 127.0.0.1 whoami.test.local
+#   Browser: http://whoami.test.local:8890 (routed through Traefik)
+#   Dashboard: http://localhost:19090 (Traefik API/Dashboard)
+#
+# Tests: Traefik routing, file provider, health, no auth (standalone)
+
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: test-traefik
+    command:
+      - --api.insecure=true
+      - --ping=true
+      - --entrypoints.web.address=:80
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --log.level=INFO
+    ports:
+      - "8890:80"
+      - "19090:8080"
+    volumes:
+      - ./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - test_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    mem_limit: 256m
+    cpus: 0.5
+
+  whoami:
+    image: traefik/whoami:latest
+    container_name: test-whoami
+    networks:
+      - test_net
+
+networks:
+  test_net:

@@ -1,0 +1,115 @@
+# =============================================================================
+# VARIABLES TEMPLATE - COMMON VARIABLES
+# =============================================================================
+# Defines all variables used by bootstrap and services templates
+# These are populated by the Unifier from UnifiedSpec
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CONNECTION VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "worker_ip" {
+  type        = string
+  description = "IP address of the target worker node"
+}
+
+variable "ssh_user" {
+  type        = string
+  default     = "root"
+  description = "SSH username for remote connection"
+}
+
+variable "ssh_private_key_path" {
+  type        = string
+  description = "Path to SSH private key file"
+}
+
+# -----------------------------------------------------------------------------
+# SYSTEM VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "os_type" {
+  type        = string
+  default     = "ubuntu-24"
+  description = "Operating system type (ubuntu-24, ubuntu-22, debian-12)"
+  
+  validation {
+    condition     = contains(["ubuntu-24", "ubuntu-22", "debian-12"], var.os_type)
+    error_message = "Supported OS types: ubuntu-24, ubuntu-22, debian-12"
+  }
+}
+
+variable "enable_ssh_hardening" {
+  type        = bool
+  default     = true
+  description = "Enable SSH hardening (disable password auth, limit root login)"
+}
+
+# -----------------------------------------------------------------------------
+# NETWORK VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "network_mode" {
+  type        = string
+  default     = "local"
+  description = "Network mode: 'local' (LAN only) or 'public' (with reverse proxy)"
+  
+  validation {
+    condition     = contains(["local", "public"], var.network_mode)
+    error_message = "Network mode must be 'local' or 'public'"
+  }
+}
+
+variable "docker_network_name" {
+  type        = string
+  default     = "kombistack_network"
+  description = "Name of the Docker network for service communication"
+}
+
+# -----------------------------------------------------------------------------
+# SERVICE VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "services" {
+  type = list(object({
+    name        = string
+    image       = string
+    restart     = optional(string, "unless-stopped")
+    environment = optional(map(string), {})
+    ports = optional(list(object({
+      internal = number
+      external = number
+      protocol = optional(string, "tcp")
+    })), [])
+    volumes = optional(list(object({
+      host       = string
+      container  = string
+      read_only  = optional(bool, false)
+    })), [])
+  }))
+  default     = []
+  description = "List of services to deploy"
+}
+
+# -----------------------------------------------------------------------------
+# PUBLIC MODE VARIABLES (when network_mode = "public")
+# -----------------------------------------------------------------------------
+
+variable "domain" {
+  type        = string
+  default     = ""
+  description = "Primary domain for public access (required if network_mode = public)"
+}
+
+variable "email" {
+  type        = string
+  default     = ""
+  description = "Email for Let's Encrypt certificates"
+}
+
+variable "enable_ssl" {
+  type        = bool
+  default     = true
+  description = "Enable SSL/TLS for public services"
+}

@@ -1,0 +1,347 @@
+# ha-kit Default Spec
+# High-Availability Homelab mit 3 Nodes (1 Main + 2 Worker)
+# Für CLI-Only Nutzung ohne kombify Stack UI
+#
+# Verwendung:
+#   1. Kopiere diese Datei: cp default-spec.yaml my-ha-kit-spec.yaml
+#   2. Passe Werte an (IPs, SSH-User; Domains optional)
+#   3. Führe aus: stackkit apply my-ha-kit-spec.yaml
+#
+# Version: 1.0
+# StackKit: ha-kit
+# Variant: os/ubuntu-24 (Ubuntu 24.04 LTS)
+# Network Mode: local (Docker Swarm mit Overlay Network)
+# HA Features: Load Balancing, Service Replication, Failover
+
+version: "1.0"
+
+stack:
+  name: ha-kit-default
+  kit: ha-kit
+  variant: os/ubuntu-24
+  addons:
+    - monitoring  # Prometheus + Grafana Stack
+
+nodes:
+  # Main Node - Swarm Manager + Control Plane
+  - name: homelab-main
+    type: main
+    provider: local
+    ip: 192.168.1.100  # ⚠️ ANPASSEN: Main Server IP
+    ssh:
+      host: 192.168.1.100
+      port: 22
+      user: admin  # ⚠️ ANPASSEN: SSH-User
+      key_path: ~/.ssh/id_ed25519
+    os:
+      type: ubuntu
+      version: "24.04"
+      arch: amd64
+    compute:
+      tier: high
+      min_ram_gb: 8
+      min_cpu_cores: 4
+    docker:
+      version: "27.5.1"
+      installed: false
+      swarm:
+        role: manager
+        advertise_addr: 192.168.1.100
+
+  # Worker Node 1 - Application Services
+  - name: homelab-worker-1
+    type: worker
+    provider: local
+    ip: 192.168.1.101  # ⚠️ ANPASSEN: Worker 1 IP
+    ssh:
+      host: 192.168.1.101
+      port: 22
+      user: admin  # ⚠️ ANPASSEN: SSH-User
+      key_path: ~/.ssh/id_ed25519
+    os:
+      type: ubuntu
+      version: "24.04"
+      arch: amd64
+    compute:
+      tier: standard
+      min_ram_gb: 4
+      min_cpu_cores: 2
+    docker:
+      version: "27.5.1"
+      installed: false
+      swarm:
+        role: worker
+
+  # Worker Node 2 - Application Services
+  - name: homelab-worker-2
+    type: worker
+    provider: local
+    ip: 192.168.1.102  # ⚠️ ANPASSEN: Worker 2 IP
+    ssh:
+      host: 192.168.1.102
+      port: 22
+      user: admin  # ⚠️ ANPASSEN: SSH-User
+      key_path: ~/.ssh/id_ed25519
+    os:
+      type: ubuntu
+      version: "24.04"
+      arch: amd64
+    compute:
+      tier: standard
+      min_ram_gb: 4
+      min_cpu_cores: 2
+    docker:
+      version: "27.5.1"
+      installed: false
+      swarm:
+        role: worker
+
+services:
+  # Traefik - Load Balancer mit HA (replicated auf alle Manager)
+  - name: traefik
+    type: reverse-proxy
+    node: homelab-main  # Deployed on managers
+    image: traefik:v3.2
+    ports:
+      - 80
+      - 443
+      - 8080  # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/kombistack/traefik/config:/etc/traefik
+      - /opt/kombistack/traefik/certs:/certs
+    env:
+      TRAEFIK_API_DASHBOARD: "true"
+      TRAEFIK_API_INSECURE: "true"
+      TRAEFIK_PROVIDERS_DOCKER_SWARMMODE: "true"
+      TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT: "false"
+      TRAEFIK_ENTRYPOINTS_WEB_ADDRESS: ":80"
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS: ":443"
+    labels:
+      kombistack.service: traefik
+      kombistack.managed: "true"
+      kombistack.ha.enabled: "true"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  # PostgreSQL - HA Database mit Replication (Patroni)
+  - name: postgres
+    type: database
+    node: homelab-main  # Manager nodes
+    image: postgres:16-alpine
+    ports:
+      - 5432
+    volumes:
+      - /opt/kombistack/postgres/data:/var/lib/postgresql/data
+    env:
+      POSTGRES_DB: kombistack
+      POSTGRES_USER: kombistack
+      POSTGRES_PASSWORD: secret://ha-kit/postgres/password
+      POSTGRES_REPLICATION_MODE: master
+    labels:
+      kombistack.service: postgres
+      kombistack.managed: "true"
+      kombistack.ha.enabled: "true"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+      restart_policy:
+        condition: on-failure
+
+  # Dokploy - App Deployment Platform (replicated für HA)
+  - name: dokploy
+    type: deployment-platform
+    node: homelab-worker-1  # Deployed on workers
+    image: dokploy/dokploy:latest
+    ports:
+      - 3000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/kombistack/dokploy/data:/app/data
+    env:
+      DATABASE_URL: secret://ha-kit/dokploy/database-url
+      NEXTAUTH_URL: http://192.168.1.100:4000  # ⚠️ ANPASSEN: Load Balancer IP
+      NEXTAUTH_SECRET: secret://ha-kit/dokploy/nextauth-secret
+    labels:
+      kombistack.service: dokploy
+      kombistack.managed: "true"
+      kombistack.ha.enabled: "true"
+      traefik.enable: "true"
+      # Host rules are optional and require working DNS for the chosen zone.
+      # .local is mDNS host identity and is NOT a reliable subdomain zone.
+      # Prefer IP:port access, or use an internal DNS zone (e.g. home.arpa).
+      traefik.http.routers.dokploy.rule: Host(`dokploy.home.arpa`)  # ⚠️ optional
+      traefik.http.services.dokploy.loadbalancer.server.port: "3000"
+    needs:
+      - postgres
+      - traefik
+    deploy:
+      mode: replicated
+      replicas: 2  # HA: 2 Replicas
+      placement:
+        constraints:
+          - node.role == worker
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  # Uptime Kuma - Monitoring (replicated)
+  - name: uptime-kuma
+    type: monitoring
+    node: homelab-worker-2
+    image: louislam/uptime-kuma:1
+    ports:
+      - 3001
+    volumes:
+      - /opt/kombistack/uptime-kuma/data:/app/data
+    labels:
+      kombistack.service: uptime-kuma
+      kombistack.managed: "true"
+      kombistack.ha.enabled: "true"
+      traefik.enable: "true"
+      traefik.http.routers.uptime.rule: Host(`uptime.home.arpa`)  # ⚠️ optional
+      traefik.http.services.uptime.loadbalancer.server.port: "3001"
+    needs:
+      - traefik
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
+      restart_policy:
+        condition: on-failure
+
+  # Prometheus - Metrics Collection (monitoring addon)
+  - name: prometheus
+    type: monitoring
+    node: homelab-main
+    image: prom/prometheus:latest
+    ports:
+      - 9090
+    volumes:
+      - /opt/kombistack/prometheus/config:/etc/prometheus
+      - /opt/kombistack/prometheus/data:/prometheus
+    env:
+      PROMETHEUS_RETENTION_TIME: 15d
+    labels:
+      kombistack.service: prometheus
+      kombistack.managed: "true"
+      kombistack.addon: monitoring
+      traefik.enable: "true"
+      traefik.http.routers.prometheus.rule: Host(`prometheus.local`)  # ⚠️ ANPASSEN
+      traefik.http.services.prometheus.loadbalancer.server.port: "9090"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  # Grafana - Metrics Visualization (monitoring addon)
+  - name: grafana
+    type: monitoring
+    node: homelab-main
+    image: grafana/grafana:latest
+    ports:
+      - 3002
+    volumes:
+      - /opt/kombistack/grafana/data:/var/lib/grafana
+      - /opt/kombistack/grafana/config:/etc/grafana
+    env:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: secret://ha-kit/grafana/admin-password
+      GF_SERVER_ROOT_URL: http://grafana.local  # ⚠️ ANPASSEN
+    labels:
+      kombistack.service: grafana
+      kombistack.managed: "true"
+      kombistack.addon: monitoring
+      traefik.enable: "true"
+      traefik.http.routers.grafana.rule: Host(`grafana.local`)  # ⚠️ ANPASSEN
+      traefik.http.services.grafana.loadbalancer.server.port: "3002"
+    needs:
+      - prometheus
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+network:
+  mode: local
+  docker_network: kombi_overlay  # Docker Swarm Overlay Network
+  subnet: 10.0.1.0/24
+  gateway: 10.0.1.1
+  driver: overlay
+  attachable: true
+
+metadata:
+  created_at: "2026-01-10T12:00:00Z"
+  description: "High-Availability homelab with Docker Swarm (3 nodes, service replication)"
+  unifier_version: "n/a"
+  stackkit_version: "1.0.0"
+  tags:
+    - homelab
+    - ha
+    - docker-swarm
+    - 3-nodes
+
+# Anleitung: Was musst du anpassen?
+#
+# 1. IP-Adressen (9 Stellen):
+#    - nodes[0-2].ip (3x Node IPs)
+#    - nodes[0-2].ssh.host (3x gleiche IPs)
+#    - nodes[0].docker.swarm.advertise_addr (Manager IP)
+#    - services[2].env.NEXTAUTH_URL (Dokploy)
+#
+# 2. SSH-Konfiguration (3 Stellen):
+#    - nodes[0-2].ssh.user (gleicher User auf allen Nodes)
+#    - nodes[0-2].ssh.key_path (SSH-Key Pfad)
+#
+# 3. Secrets (4 Stellen):
+#    - services[1].env.POSTGRES_PASSWORD
+#    - services[2].env.DATABASE_URL (PostgreSQL Passwort)
+#    - services[2].env.NEXTAUTH_SECRET
+#    - services[5].env.GF_SECURITY_ADMIN_PASSWORD (Grafana)
+#
+#    Generiere mit: openssl rand -hex 32
+#
+# 4. Domains (optional, 4 Stellen):
+#    - services[2].labels.traefik.http.routers.dokploy.rule
+#    - services[3].labels.traefik.http.routers.uptime.rule
+#    - services[4].labels.traefik.http.routers.prometheus.rule
+#    - services[5].labels.traefik.http.routers.grafana.rule
+#
+# 5. HA-Konfiguration (optional):
+#    - services[X].deploy.replicas (Anzahl Replicas)
+#    - services[X].deploy.placement.constraints (Node-Zuordnung)
+#
+# Hardware-Anforderungen:
+#   Main Node:    8GB RAM, 4 CPU Cores
+#   Worker Nodes: 4GB RAM, 2 CPU Cores (jeweils)
+#   Gesamt:       16GB RAM, 8 CPU Cores
+#
+# Nach Anpassung:
+#   stackkit validate my-ha-kit-spec.yaml
+#   stackkit apply my-ha-kit-spec.yaml
+#
+# Swarm wird automatisch initialisiert:
+#   1. Main Node: docker swarm init
+#   2. Worker Nodes: docker swarm join (Token vom Manager)

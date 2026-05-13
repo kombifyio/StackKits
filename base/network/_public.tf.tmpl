@@ -1,0 +1,678 @@
+# =============================================================================
+# NETWORK TEMPLATES - PUBLIC MODE (Enhanced)
+# =============================================================================
+# IaC-First: Network configuration for public internet access
+# Features:
+#   - Traefik reverse proxy with Let's Encrypt
+#   - Automatic HTTP to HTTPS redirect
+#   - Rate limiting middleware
+#   - Security headers middleware  
+#   - Health checks for proxy
+#   - Comprehensive outputs for public URLs
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+
+variable "docker_network_name" {
+  description = "Name for the Docker network"
+  type        = string
+  default     = "kombistack"
+}
+
+variable "network_subnet" {
+  description = "Subnet for the Docker bridge network (CIDR notation)"
+  type        = string
+  default     = "172.22.0.0/16"
+}
+
+variable "network_gateway" {
+  description = "Gateway IP for the Docker network"
+  type        = string
+  default     = "172.22.0.1"
+}
+
+variable "domain" {
+  description = "Primary domain for public services"
+  type        = string
+}
+
+variable "email" {
+  description = "Email for Let's Encrypt certificate notifications"
+  type        = string
+}
+
+variable "enable_ssl" {
+  description = "Enable SSL/TLS via Let's Encrypt"
+  type        = bool
+  default     = true
+}
+
+variable "ssl_staging" {
+  description = "Use Let's Encrypt staging server (for testing)"
+  type        = bool
+  default     = false
+}
+
+variable "traefik_version" {
+  description = "Traefik Docker image version"
+  type        = string
+  default     = "v3.0"
+}
+
+variable "enable_dashboard" {
+  description = "Enable Traefik dashboard"
+  type        = bool
+  default     = true
+}
+
+variable "dashboard_auth" {
+  description = "Basic auth for Traefik dashboard (user:htpasswd format)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "rate_limit_average" {
+  description = "Rate limit: average requests per second"
+  type        = number
+  default     = 100
+}
+
+variable "rate_limit_burst" {
+  description = "Rate limit: maximum burst size"
+  type        = number
+  default     = 200
+}
+
+variable "enable_access_logs" {
+  description = "Enable Traefik access logging"
+  type        = bool
+  default     = true
+}
+
+variable "services" {
+  description = "Map of services to expose via Traefik"
+  type = map(object({
+    subdomain         = string
+    port              = number
+    health_check_path = optional(string, "/health")
+    rate_limit        = optional(bool, true)
+    auth_required     = optional(bool, false)
+  }))
+  default = {}
+}
+
+variable "additional_middlewares" {
+  description = "Additional middleware configurations"
+  type        = list(string)
+  default     = []
+}
+
+variable "cloudflare_enabled" {
+  description = "Enable Cloudflare integration (for DNS challenge)"
+  type        = bool
+  default     = false
+}
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token for DNS challenge"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# -----------------------------------------------------------------------------
+# PUBLIC NETWORK CONFIGURATION
+# -----------------------------------------------------------------------------
+
+resource "docker_network" "public" {
+  name   = "${var.docker_network_name}_public"
+  driver = "bridge"
+  
+  ipam_config {
+    subnet  = var.network_subnet
+    gateway = var.network_gateway
+  }
+  
+  # Public mode: accessible from internet
+  internal = false
+  
+  options = {
+    "com.docker.network.bridge.enable_ip_masquerade" = "true"
+    "com.docker.network.bridge.enable_icc"           = "true"
+    "com.docker.network.bridge.host_binding_ipv4"    = "0.0.0.0"
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.network.mode"
+    value = "public"
+  }
+  labels {
+    label = "kombistack.network.domain"
+    value = var.domain
+  }
+}
+
+# -----------------------------------------------------------------------------
+# TRAEFIK REVERSE PROXY
+# -----------------------------------------------------------------------------
+
+resource "docker_image" "traefik" {
+  name         = "traefik:${var.traefik_version}"
+  keep_locally = true
+}
+
+resource "docker_volume" "traefik_certs" {
+  name = "${var.docker_network_name}_traefik_certificates"
+}
+
+resource "docker_volume" "traefik_logs" {
+  count = var.enable_access_logs ? 1 : 0
+  name  = "${var.docker_network_name}_traefik_logs"
+}
+
+# Dynamic Traefik configuration file
+resource "local_file" "traefik_dynamic_config" {
+  filename = "${path.module}/generated/traefik-dynamic.yml"
+  content  = yamlencode({
+    http = {
+      middlewares = {
+        # Security headers middleware
+        "security-headers" = {
+          headers = {
+            browserXssFilter         = true
+            contentTypeNosniff       = true
+            frameDeny                = true
+            stsIncludeSubdomains     = true
+            stsPreload               = true
+            stsSeconds               = 31536000
+            customFrameOptionsValue  = "SAMEORIGIN"
+            referrerPolicy           = "strict-origin-when-cross-origin"
+            permissionsPolicy        = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+            customResponseHeaders = {
+              "X-Robots-Tag"         = "noindex, nofollow, nosnippet, noarchive"
+              "X-Download-Options"   = "noopen"
+              "X-Permitted-Cross-Domain-Policies" = "none"
+            }
+          }
+        }
+        
+        # Rate limiting middleware
+        "rate-limit" = {
+          rateLimit = {
+            average = var.rate_limit_average
+            burst   = var.rate_limit_burst
+            period  = "1s"
+          }
+        }
+        
+        # Compress responses
+        "compress" = {
+          compress = {
+            excludedContentTypes = ["text/event-stream"]
+          }
+        }
+        
+        # HTTPS redirect
+        "https-redirect" = {
+          redirectScheme = {
+            scheme    = "https"
+            permanent = true
+          }
+        }
+        
+        # Basic auth for dashboard
+        "dashboard-auth" = {
+          basicAuth = {
+            users = var.dashboard_auth != "" ? [var.dashboard_auth] : []
+          }
+        }
+        
+        # IP whitelist (for admin endpoints)
+        "admin-whitelist" = {
+          ipWhiteList = {
+            sourceRange = ["127.0.0.1/32", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+          }
+        }
+        
+        # Retry on failure
+        "retry" = {
+          retry = {
+            attempts        = 3
+            initialInterval = "100ms"
+          }
+        }
+      }
+      
+      # Default middleware chain for all services
+      routers = {
+        "default-chain" = {
+          middlewares = ["security-headers", "rate-limit", "compress"]
+        }
+      }
+    }
+    
+    # TLS configuration
+    tls = {
+      options = {
+        default = {
+          minVersion = "VersionTLS12"
+          sniStrict  = true
+          cipherSuites = [
+            "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
+            "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+          ]
+        }
+        "modern" = {
+          minVersion = "VersionTLS13"
+        }
+      }
+    }
+  })
+}
+
+resource "docker_container" "traefik" {
+  name  = "${var.docker_network_name}_traefik"
+  image = docker_image.traefik.image_id
+  
+  restart = "unless-stopped"
+  
+  # HTTP port
+  ports {
+    internal = 80
+    external = 80
+    protocol = "tcp"
+  }
+  
+  # HTTPS port  
+  ports {
+    internal = 443
+    external = 443
+    protocol = "tcp"
+  }
+  
+  # Dashboard port (localhost only by default)
+  dynamic "ports" {
+    for_each = var.enable_dashboard ? [1] : []
+    content {
+      internal = 8080
+      external = 8080
+      protocol = "tcp"
+      ip       = "127.0.0.1"
+    }
+  }
+  
+  # Mount Docker socket for service discovery
+  volumes {
+    host_path      = "/var/run/docker.sock"
+    container_path = "/var/run/docker.sock"
+    read_only      = true
+  }
+  
+  # Certificate storage
+  volumes {
+    volume_name    = docker_volume.traefik_certs.name
+    container_path = "/letsencrypt"
+  }
+  
+  # Dynamic configuration
+  volumes {
+    host_path      = abspath(local_file.traefik_dynamic_config.filename)
+    container_path = "/etc/traefik/dynamic.yml"
+    read_only      = true
+  }
+  
+  # Access logs volume
+  dynamic "volumes" {
+    for_each = var.enable_access_logs ? [1] : []
+    content {
+      volume_name    = docker_volume.traefik_logs[0].name
+      container_path = "/var/log/traefik"
+    }
+  }
+  
+  # Environment for Cloudflare DNS challenge
+  dynamic "env" {
+    for_each = var.cloudflare_enabled ? [1] : []
+    content {
+      "CF_API_EMAIL"    = var.email
+      "CF_DNS_API_TOKEN" = var.cloudflare_api_token
+    }
+  }
+  
+  # Traefik command line configuration
+  command = concat([
+    # API and Dashboard
+    "--api=true",
+    "--api.dashboard=${var.enable_dashboard}",
+    "--api.insecure=${var.dashboard_auth == "" ? "true" : "false"}",
+    
+    # Docker provider
+    "--providers.docker=true",
+    "--providers.docker.exposedbydefault=false",
+    "--providers.docker.network=${docker_network.public.name}",
+    "--providers.docker.watch=true",
+    
+    # File provider for dynamic config
+    "--providers.file.filename=/etc/traefik/dynamic.yml",
+    "--providers.file.watch=true",
+    
+    # Entrypoints
+    "--entrypoints.web.address=:80",
+    "--entrypoints.websecure.address=:443",
+    
+    # HTTP to HTTPS redirect
+    "--entrypoints.web.http.redirections.entryPoint.to=websecure",
+    "--entrypoints.web.http.redirections.entryPoint.scheme=https",
+    "--entrypoints.web.http.redirections.entrypoint.permanent=true",
+    
+    # Default middlewares for websecure entrypoint
+    "--entrypoints.websecure.http.middlewares=security-headers@file,rate-limit@file",
+    
+    # Let's Encrypt certificate resolver
+    "--certificatesresolvers.letsencrypt.acme.email=${var.email}",
+    "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json",
+    var.ssl_staging ? "--certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory" : "",
+  ],
+  # Certificate challenge configuration
+  var.cloudflare_enabled ? [
+    "--certificatesresolvers.letsencrypt.acme.dnschallenge=true",
+    "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare",
+    "--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53",
+  ] : [
+    "--certificatesresolvers.letsencrypt.acme.httpchallenge=true",
+    "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web",
+  ],
+  # Logging
+  var.enable_access_logs ? [
+    "--accesslog=true",
+    "--accesslog.filepath=/var/log/traefik/access.log",
+    "--accesslog.format=json",
+    "--accesslog.bufferingsize=100",
+  ] : [],
+  [
+    # General logging
+    "--log.level=INFO",
+    "--log.format=json",
+    
+    # Metrics (optional Prometheus)
+    "--metrics.prometheus=true",
+    "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0",
+    
+    # Health check
+    "--ping=true",
+    "--ping.entrypoint=websecure",
+  ])
+  
+  networks_advanced {
+    name = docker_network.public.name
+  }
+  
+  # Health check
+  healthcheck {
+    test         = ["CMD", "traefik", "healthcheck", "--ping"]
+    interval     = "30s"
+    timeout      = "10s"
+    retries      = 3
+    start_period = "30s"
+  }
+  
+  labels {
+    label = "kombistack.managed"
+    value = "true"
+  }
+  labels {
+    label = "kombistack.role"
+    value = "reverse-proxy"
+  }
+  labels {
+    label = "kombistack.network.mode"
+    value = "public"
+  }
+  
+  # Traefik self-registration for dashboard
+  dynamic "labels" {
+    for_each = var.enable_dashboard && var.dashboard_auth != "" ? [1] : []
+    content {
+      label = "traefik.enable"
+      value = "true"
+    }
+  }
+  dynamic "labels" {
+    for_each = var.enable_dashboard && var.dashboard_auth != "" ? [1] : []
+    content {
+      label = "traefik.http.routers.traefik-dashboard.rule"
+      value = "Host(`traefik.${var.domain}`)"
+    }
+  }
+  dynamic "labels" {
+    for_each = var.enable_dashboard && var.dashboard_auth != "" ? [1] : []
+    content {
+      label = "traefik.http.routers.traefik-dashboard.entrypoints"
+      value = "websecure"
+    }
+  }
+  dynamic "labels" {
+    for_each = var.enable_dashboard && var.dashboard_auth != "" ? [1] : []
+    content {
+      label = "traefik.http.routers.traefik-dashboard.tls.certresolver"
+      value = "letsencrypt"
+    }
+  }
+  dynamic "labels" {
+    for_each = var.enable_dashboard && var.dashboard_auth != "" ? [1] : []
+    content {
+      label = "traefik.http.routers.traefik-dashboard.middlewares"
+      value = "dashboard-auth@file"
+    }
+  }
+  dynamic "labels" {
+    for_each = var.enable_dashboard && var.dashboard_auth != "" ? [1] : []
+    content {
+      label = "traefik.http.routers.traefik-dashboard.service"
+      value = "api@internal"
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# FIREWALL RULES FOR PUBLIC MODE
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "public_firewall" {
+  depends_on = [docker_container.traefik]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== Configuring firewall for public mode ==='",
+      
+      "# Ensure UFW is installed and enabled",
+      "apt-get install -y ufw",
+      "ufw --force enable",
+      
+      "# Default policies",
+      "ufw default deny incoming",
+      "ufw default allow outgoing",
+      
+      "# Allow SSH",
+      "ufw allow 22/tcp comment 'SSH'",
+      
+      "# Allow HTTP/HTTPS traffic for Traefik",
+      "ufw allow 80/tcp comment 'HTTP - Traefik'",
+      "ufw allow 443/tcp comment 'HTTPS - Traefik'",
+      
+      "# Allow Docker network traffic",
+      "ufw allow from ${var.network_subnet} comment 'Docker public network'",
+      
+      "# Rate limiting for SSH",
+      "ufw limit ssh/tcp comment 'SSH rate limit'",
+      
+      "# Reload firewall",
+      "ufw reload",
+      
+      "echo '=== Public firewall configured ==='"
+    ]
+  }
+  
+  triggers = {
+    network_subnet = var.network_subnet
+  }
+}
+
+# -----------------------------------------------------------------------------
+# FAIL2BAN FOR ADDITIONAL PROTECTION
+# -----------------------------------------------------------------------------
+
+resource "null_resource" "fail2ban_setup" {
+  depends_on = [docker_container.traefik]
+
+  connection {
+    type        = local.ssh_connection.type
+    host        = local.ssh_connection.host
+    user        = local.ssh_connection.user
+    private_key = local.ssh_connection.private_key
+    timeout     = local.ssh_connection.timeout
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "#!/bin/bash",
+      "set -e",
+      
+      "echo '=== Setting up Fail2Ban for public mode ==='",
+      
+      "# Install fail2ban",
+      "apt-get update -qq",
+      "apt-get install -y fail2ban",
+      
+      "# Configure fail2ban for Traefik",
+      "cat > /etc/fail2ban/jail.d/traefik.conf << 'EOF'",
+      "[traefik-auth]",
+      "enabled = true",
+      "port = http,https",
+      "filter = traefik-auth",
+      "logpath = /var/lib/docker/volumes/${var.docker_network_name}_traefik_logs/_data/access.log",
+      "maxretry = 5",
+      "findtime = 600",
+      "bantime = 3600",
+      "EOF",
+      
+      "# Create filter for Traefik",
+      "cat > /etc/fail2ban/filter.d/traefik-auth.conf << 'EOF'",
+      "[Definition]",
+      "failregex = ^.*\"ClientHost\":\"<HOST>\".*\"DownstreamStatus\":401.*$",
+      "ignoreregex =",
+      "EOF",
+      
+      "# Enable and restart fail2ban",
+      "systemctl enable fail2ban",
+      "systemctl restart fail2ban",
+      
+      "echo '=== Fail2Ban configured ==='"
+    ]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OUTPUTS
+# -----------------------------------------------------------------------------
+
+output "network_config" {
+  value = {
+    mode           = "public"
+    network_name   = docker_network.public.name
+    network_id     = docker_network.public.id
+    subnet         = var.network_subnet
+    gateway        = var.network_gateway
+    domain         = var.domain
+    access_type    = "Internet via ${var.domain}"
+    proxy_enabled  = true
+    proxy_type     = "traefik"
+    ssl_enabled    = var.enable_ssl
+    ssl_staging    = var.ssl_staging
+  }
+  description = "Public network configuration details"
+}
+
+output "traefik_info" {
+  value = {
+    container_name = docker_container.traefik.name
+    container_id   = docker_container.traefik.id
+    version        = var.traefik_version
+    dashboard_url  = var.enable_dashboard ? "http://127.0.0.1:8080" : null
+    public_dashboard_url = var.enable_dashboard && var.dashboard_auth != "" ? "https://traefik.${var.domain}" : null
+    health_endpoint = "https://${var.domain}/ping"
+  }
+  description = "Traefik reverse proxy information"
+}
+
+output "public_urls" {
+  value = {
+    for name, svc in var.services : name => {
+      url           = "https://${svc.subdomain}.${var.domain}"
+      health_check  = "https://${svc.subdomain}.${var.domain}${svc.health_check_path}"
+      rate_limited  = svc.rate_limit
+      auth_required = svc.auth_required
+    }
+  }
+  description = "Public URLs for all exposed services"
+}
+
+output "ssl_config" {
+  value = {
+    enabled        = var.enable_ssl
+    staging        = var.ssl_staging
+    cert_resolver  = "letsencrypt"
+    acme_email     = var.email
+    challenge_type = var.cloudflare_enabled ? "dns" : "http"
+  }
+  description = "SSL/TLS configuration details"
+}
+
+output "security_config" {
+  value = {
+    rate_limit = {
+      average = var.rate_limit_average
+      burst   = var.rate_limit_burst
+    }
+    security_headers = true
+    fail2ban         = true
+    https_redirect   = true
+  }
+  description = "Security configuration details"
+}
+
+output "docker_labels_template" {
+  value = <<-EOF
+    # Add these labels to expose a service via Traefik:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.<service>.rule=Host(`<subdomain>.${var.domain}`)"
+      - "traefik.http.routers.<service>.entrypoints=websecure"
+      - "traefik.http.routers.<service>.tls.certresolver=letsencrypt"
+      - "traefik.http.services.<service>.loadbalancer.server.port=<port>"
+      - "traefik.http.routers.<service>.middlewares=security-headers@file,rate-limit@file"
+  EOF
+  description = "Template for Docker labels to expose services via Traefik"
+}

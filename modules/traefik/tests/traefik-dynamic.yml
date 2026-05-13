@@ -1,0 +1,14 @@
+# Traefik dynamic configuration for standalone testing
+http:
+  routers:
+    whoami:
+      rule: "Host(`whoami.test.local`)"
+      entryPoints:
+        - web
+      service: whoami
+
+  services:
+    whoami:
+      loadBalancer:
+        servers:
+          - url: "http://whoami:80"
