@@ -74,7 +74,7 @@ jobs:
       admin: ${{ steps.filter.outputs.admin }}
       docker: ${{ steps.filter.outputs.docker }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590
         id: filter
         with:
@@ -111,7 +111,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -132,7 +132,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -158,7 +158,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -186,7 +186,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -226,7 +226,7 @@ jobs:
       matrix:
         module: [traefik, tinyauth, pocketid, dokploy, uptime-kuma, dozzle, whoami, dashboard, socket-proxy, crowdsec, lldap, step-ca, adguard-home, unbound, monitoring-agent, monitoring-core]
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Run module integration test
         run: |
           SCRIPT="modules/${{ matrix.module }}/tests/integration_test.sh"
@@ -248,7 +248,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Run composition test
         run: |
           SCRIPT="modules/_integration/integration_test.sh"
@@ -266,7 +266,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Validate static website files
         run: |
           test -f website/index.html
@@ -304,7 +304,7 @@ jobs:
       run:
         working-directory: kombify-admin
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -328,7 +328,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -360,7 +360,7 @@ jobs:
           - { os: darwin, arch: arm64 }
           - { os: windows, arch: amd64 }
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: ${{ env.GO_VERSION }}
