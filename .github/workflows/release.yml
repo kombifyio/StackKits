@@ -55,7 +55,7 @@ jobs:
           cache: true
 
       - name: Build dry-run archive
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -101,7 +101,7 @@ jobs:
             --output internal/registry/data/registry_snapshot.json
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8
         with:
           distribution: goreleaser
           version: "~> v2"
