@@ -1,5 +1,4 @@
 name: Release
-# Kritischer Pfad: test (5) → release (5) = 10 min
 
 on:
   push:
@@ -12,15 +11,17 @@ concurrency:
 
 permissions:
   contents: write
+  packages: write
 
 env:
-  GO_VERSION: "1.26.2"
+  GO_VERSION: "1.26.3"
 
 jobs:
   test:
     name: Test before release
-    runs-on: ${{ vars.BUILD_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
-    timeout-minutes: 5
+    if: github.repository == 'kombifyio/stackKits'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -38,8 +39,9 @@ jobs:
 
   validate-archive:
     name: Validate release archive
-    runs-on: ${{ vars.BUILD_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
-    timeout-minutes: 5
+    if: github.repository == 'kombifyio/stackKits'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -53,7 +55,7 @@ jobs:
           cache: true
 
       - name: Build dry-run archive
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -62,101 +64,22 @@ jobs:
       - name: Verify archive contents
         run: |
           set -euo pipefail
-          MISSING=0
-
-          check_archive() {
-            local LABEL="$1"
-            local PATTERN="$2"
-            shift 2
-
-            echo ""
-            echo "=== Checking $LABEL archive ==="
-            ARCHIVE=$(find dist/ -name "$PATTERN" | head -1)
-            if [ -z "$ARCHIVE" ]; then
-              echo "FAIL: No archive matching $PATTERN found in dist/"
-              ls -la dist/
-              MISSING=$((MISSING + 1))
-              return
-            fi
-
-            echo "Archive: $ARCHIVE"
-            tar tzf "$ARCHIVE" | sort > /tmp/archive-files.txt
-
-            for f in "$@"; do
-              if ! grep -q "^${f}$" /tmp/archive-files.txt; then
-                echo "FAIL: Missing required file: $f"
-                MISSING=$((MISSING + 1))
-              fi
-            done
-            echo "OK: $LABEL archive checked."
-          }
-
-          # Common files required in ALL archives
-          COMMON=(
-            "stackkit"
-            "README.md"
-            "LICENSE"
-          )
-
-          # Base schemas required in ALL archives
-          BASE_SCHEMAS=(
-            "base/stackkit.cue"
-            "base/layers.cue"
-            "base/identity.cue"
-            "base/network.cue"
-            "base/security.cue"
-          )
-
-          # Per-kit required files
-          BASE_KIT_FILES=(
-            "base-kit/stackkit.yaml"
-            "base-kit/services.cue"
-            "base-kit/defaults.cue"
-            "base-kit/stackfile.cue"
-            "base-kit/default-spec.yaml"
-            "base-kit/templates/simple/main.tf"
-          )
-
-          HA_KIT_FILES=(
-            "ha-kit/stackkit.yaml"
-            "ha-kit/services.cue"
-            "ha-kit/defaults.cue"
-            "ha-kit/stackfile.cue"
-          )
-
-          MODERN_FILES=(
-            "modern-homelab/stackkit.yaml"
-            "modern-homelab/services.cue"
-            "modern-homelab/defaults.cue"
-            "modern-homelab/stackfile.cue"
-          )
-
-          # Check full bundle
-          check_archive "full bundle" \
-            "stackkits_*_linux_amd64.tar.gz" \
-            "${COMMON[@]}" "${BASE_SCHEMAS[@]}" "${BASE_KIT_FILES[@]}" "${HA_KIT_FILES[@]}" "${MODERN_FILES[@]}"
-
-          # Check per-kit archives (only base-kit for now)
-          check_archive "base-kit" \
-            "stackkits-base-kit_*_linux_amd64.tar.gz" \
-            "${COMMON[@]}" "${BASE_SCHEMAS[@]}" "${BASE_KIT_FILES[@]}"
-
-          # TODO: add ha-kit and modern-homelab archive checks when they graduate from alpha
-
-          echo ""
-          if [ "$MISSING" -gt 0 ]; then
-            echo "FAIL: $MISSING required files missing across archives!"
-            echo "Update .goreleaser.yaml 'files:' section to include them."
-            exit 1
-          fi
-
-          echo "OK: All archives validated successfully."
+          archive="$(find dist/ -name 'stackkits_*_linux_amd64.tar.gz' | head -1)"
+          test -n "$archive"
+          tar tzf "$archive" | sort > /tmp/archive-files.txt
+          grep -q '^stackkit$' /tmp/archive-files.txt
+          grep -q '^tofu$' /tmp/archive-files.txt
+          grep -q '^README.md$' /tmp/archive-files.txt
+          grep -q '^LICENSE$' /tmp/archive-files.txt
+          grep -q '^base/stackkit.cue$' /tmp/archive-files.txt
+          grep -q '^base-kit/stackkit.yaml$' /tmp/archive-files.txt
 
   release:
     name: Release
+    if: github.repository == 'kombifyio/stackKits'
     needs: [test, validate-archive]
-    runs-on: ${{ vars.BUILD_RUNNER || 'blacksmith-2vcpu-ubuntu-2204' }}
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -169,49 +92,47 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      # Refresh the embedded registry snapshot before goreleaser builds
-      # the release binaries. Priority:
-      #   1. STACKKIT_ADMIN_ENDPOINT set     -> pull live snapshot (internal build)
-      #   2. otherwise                       -> bake from local CUE tree (OSS-safe)
-      # Either way the resulting JSON is compiled into the binary via
-      # //go:embed, so the released CLI works with or without Admin API.
-      - name: Refresh registry snapshot
-        env:
-          STACKKIT_ADMIN_ENDPOINT: ${{ vars.STACKKIT_ADMIN_ENDPOINT }}
-          STACKKIT_ADMIN_TOKEN: ${{ secrets.STACKKIT_ADMIN_TOKEN }}
+      - name: Bake registry snapshot from public CUE tree
         run: |
           set -euo pipefail
-          # Build a throwaway CLI to drive the registry command.
           go build -o /tmp/stackkit ./cmd/stackkit
-
-          if [ -n "${STACKKIT_ADMIN_ENDPOINT:-}" ]; then
-            echo "Refreshing snapshot from Admin API: ${STACKKIT_ADMIN_ENDPOINT}"
-            /tmp/stackkit registry snapshot \
-              --endpoint "${STACKKIT_ADMIN_ENDPOINT}" \
-              --output internal/registry/data/registry_snapshot.json \
-              || {
-                echo "WARN: Admin snapshot failed -- falling back to CUE bake."
-                /tmp/stackkit registry bake-from-cue \
-                  --modules-dir modules \
-                  --output internal/registry/data/registry_snapshot.json
-              }
-          else
-            echo "STACKKIT_ADMIN_ENDPOINT unset -- baking snapshot from CUE."
-            /tmp/stackkit registry bake-from-cue \
-              --modules-dir modules \
-              --output internal/registry/data/registry_snapshot.json
-          fi
-
-          echo "Snapshot refreshed:"
-          /tmp/stackkit registry info || true
+          /tmp/stackkit registry bake-from-cue \
+            --modules-dir modules \
+            --output internal/registry/data/registry_snapshot.json
 
       - name: Run GoReleaser
-        # Refresh registry snapshot rewrites the embedded JSON before release.
-        # The archive-validation job already covers GoReleaser validation.
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
+        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --skip=validate
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-image:
+    name: Publish StackKit Server Image
+    if: github.repository == 'kombifyio/stackKits'
+    needs: [test, validate-archive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Build and push GHCR image
+        shell: bash
+        env:
+          IMAGE: ghcr.io/kombifyio/stackkits
+          TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build \
+            --tag "${IMAGE}:${TAG}" \
+            --tag "${IMAGE}:latest" \
+            .
+          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:latest"
