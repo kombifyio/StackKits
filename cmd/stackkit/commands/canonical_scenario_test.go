@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,32 @@ func TestCanonicalScenarioGenerationContracts(t *testing.T) {
 	}
 }
 
+func TestBaseKitLocalDefaultFixturesUseCanonicalCoolifyPlatform(t *testing.T) {
+	scenario, err := testscenarios.ByID("SK-S1")
+	require.NoError(t, err)
+
+	require.NotEqual(t, models.PAASNone, scenario.StackSpec.PAAS, "SK-S1 must not pin the forbidden platform bypass")
+	assert.Equal(t, models.PAASCoolify, scenario.Expected.Generation.PAAS)
+	assert.Equal(t, models.ReverseProxyCoolify, scenario.Expected.Generation.ReverseProxyBackend)
+	assert.True(t, scenario.Expected.Generation.ServiceFlags["enable_coolify"])
+	assert.False(t, scenario.Expected.Generation.ServiceFlags["enable_dokploy"])
+	assert.False(t, scenario.Expected.Generation.ServiceFlags["enable_jellyfin"])
+	assert.True(t, scenario.Expected.Generation.ServiceFlags["enable_immich"])
+
+	goldenPath := filepath.Join("testdata", "golden", "scenario-SK-S1.json")
+	data, err := os.ReadFile(goldenPath)
+	require.NoError(t, err)
+	var vars map[string]any
+	require.NoError(t, json.Unmarshal(data, &vars))
+
+	assert.Equal(t, models.PAASCoolify, vars["paas"])
+	assert.Equal(t, models.ReverseProxyCoolify, vars["reverse_proxy_backend"])
+	assert.Equal(t, true, vars["enable_coolify"])
+	assert.Equal(t, false, vars["enable_dokploy"])
+	assert.Equal(t, false, vars["enable_jellyfin"])
+	assert.Equal(t, true, vars["enable_immich"])
+}
+
 func TestCanonicalScenarioMissingMailNonInteractiveInitFails(t *testing.T) {
 	scenario, err := testscenarios.ByID("SK-S5")
 	require.NoError(t, err)
@@ -60,6 +87,7 @@ func TestCanonicalScenarioMissingMailNonInteractiveInitFails(t *testing.T) {
 	prevAdminEmail := initAdminEmail
 	prevLocalDNS := initLocalDNS
 	prevLocalName := initLocalName
+	prevServiceProfile := initServiceProfile
 	prevContextFlag := contextFlag
 	prevSpecFile := specFile
 	t.Cleanup(func() {
@@ -71,6 +99,7 @@ func TestCanonicalScenarioMissingMailNonInteractiveInitFails(t *testing.T) {
 		initAdminEmail = prevAdminEmail
 		initLocalDNS = prevLocalDNS
 		initLocalName = prevLocalName
+		initServiceProfile = prevServiceProfile
 		contextFlag = prevContextFlag
 		specFile = prevSpecFile
 	})

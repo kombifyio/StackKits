@@ -12,7 +12,9 @@ StackKits need to produce correct service URLs for every combination of domain m
 - **Identity** (TinyAuth ForwardAuth middleware URLs depend on the domain)
 - **DNS** (resolution differs: public DNS, kombify.me registry, local Kombify Point)
 
-Currently only selected paths are implemented and verified. The normal matrix covers custom-domain, kombify.me, and local DNS across the supported routing backends; legacy device-local names remain compatibility shortcuts, not a separate strategic default.
+Currently only selected paths are implemented and verified. The normal matrix covers custom-domain, kombify.me, browser-native local defaults, and explicit local DNS across the supported routing backends.
+
+2026-05-17 status note: local SK-S1 currently proves the StackKit-owned routing fallback plus auth/setup product guards. The complete Cubi/Coolify-managed L3 application-layer path is a P0 implementation blocker and must not be inferred as verified from this ADR.
 
 ## Decision
 
@@ -26,16 +28,16 @@ Implement the supported domain mode x reverse proxy backend combinations as part
 |------|---------------|-------------|----------------|
 | **Custom wildcard** | `*.sk-<run>.kombify.pro` | ACME (TLS-ALPN-01 or DNS-01) | User manages DNS or StackKits automates the DNS provider |
 | **kombify.me** | `*.mylab.kombify.me` | Managed by kombify (Cloudflare wildcard) | kombify.me subdomain registry + tunnel/direct connect |
-| **Local default DNS** | `*.stack.home` / `*.<name>.home` | HTTP in local-only mode | Kombify Point (`*.stack.home` / `*.<name>.home` -> LAN IP) |
-| **Legacy device-local** | `*.home.localhost` | HTTP in local-only mode | Browser/OS `.localhost` handling on the current device |
+| **Local default** | `*.home.localhost` | HTTP in local-only mode | Browser/OS `.localhost` handling on the current device |
+| **Explicit local DNS** | `*.stack.home` / `*.<name>.home` | HTTP or accepted local CA path | Kombify Point only when StackKit owns or verifies the resolver |
 
 #### Reverse Proxy Backends (columns)
 
 | Backend | When Used | Traefik Owner | Service Discovery |
 |---------|-----------|---------------|-------------------|
 | **Standalone Traefik** | Legacy/nonstandard modes only | StackKit-managed Traefik container | Docker labels |
-| **Dokploy + Traefik** | Standard tier, default PAAS | Dokploy-managed Traefik | Dokploy routing + Docker labels |
-| **Coolify + Traefik** | Alternative PAAS (`--paas coolify`) | Coolify-managed Traefik | Coolify routing + Docker labels |
+| **Coolify + Traefik** | Standard/default PAAS | Coolify-managed Traefik | Coolify routing + Docker labels |
+| **Dokploy + Traefik** | Explicit alternative PAAS (`paas: dokploy`) | Dokploy-managed Traefik | Dokploy routing + Docker labels |
 
 ### URL Generation Pattern
 
@@ -48,8 +50,8 @@ All three backends produce the same URL pattern for a given domain mode:
 Examples:
 - Custom: `kuma.sk-<run>.kombify.pro`, `base.sk-<run>.kombify.pro`
 - kombify.me: `mylab-kuma.kombify.me`, `mylab-base.kombify.me` (flat naming)
-- Local default DNS: `kuma.stack.home`, `base.family.home`
-- Legacy device-local: `kuma.home.localhost`, `base.home.localhost`
+- Local default: `kuma.home.localhost`, `base.home.localhost`
+- Explicit local DNS: `kuma.stack.home`, `base.family.home`
 
 The difference is HOW the routing happens internally:
 
@@ -73,7 +75,8 @@ The difference is HOW the routing happens internally:
 |---|---|---|---|
 | **Custom domain** | User DNS (wildcard A record) | User DNS (wildcard A record) | User DNS (wildcard A record) |
 | **kombify.me** | kombify registry + tunnel/direct connect | kombify registry + tunnel/direct connect | kombify registry + tunnel/direct connect |
-| **Local** | Kombify Point | Kombify Point | Kombify Point |
+| **Local default** | `.localhost` | `.localhost` | `.localhost` |
+| **Explicit local DNS** | Kombify Point | Kombify Point | Kombify Point |
 
 ## Implementation Plan
 
@@ -81,8 +84,8 @@ The difference is HOW the routing happens internally:
 
 - [x] Custom domain with TLS-ALPN-01 (port 443 public)
 - [x] Custom domain with DNS-01 (behind NAT, Cloudflare verified)
-- [x] Local DNS (`stack.home` / `<name>.home`) with Kombify Point + HTTP
-- [x] Legacy device-local (`home.localhost`) without claiming trusted browser certificates
+- [x] Local default (`home.localhost`) with no hosts-file edits, DNS setup, trust-store setup, or port suffixes
+- [x] Explicit local DNS (`stack.home` / `<name>.home`) with Kombify Point + HTTP
 - [ ] kombify.me with Direct Connect registry
 
 ### Phase 2: Dokploy + Traefik
@@ -94,7 +97,7 @@ Implementation:
 2. Skip deploying a separate Traefik container
 3. Attach platform service Docker labels to Dokploy's Traefik network
 4. Configure ACME/DNS-01 on Dokploy's Traefik (not StackKit's)
-5. Kombify Point/local DNS still managed by StackKit for local mode
+5. Kombify Point/local DNS is managed by StackKit only for explicit LAN-DNS mode
 
 ### Phase 3: Coolify + Traefik
 
@@ -110,7 +113,7 @@ Same principle as Dokploy, but Coolify has different internals:
 
 **PocketID:** The `PUBLIC_APP_URL` must match the actual accessible URL for the domain mode.
 
-**Dashboard:** Service cards link to `https://{service}.{domain}` — URL generation must be correct for all 9 scenarios.
+**Dashboard:** Service cards link to `{scheme}://{service}.{domain}` without host-port suffixes. Local default cards use `http://*.home.localhost`; public/custom cards use HTTPS.
 
 **kombify.me flat naming:** Service URLs use `{prefix}-{service}.kombify.me` (single DNS level), not `{service}.{prefix}.kombify.me` (nested). This applies regardless of reverse proxy backend.
 

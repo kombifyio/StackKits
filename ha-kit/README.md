@@ -102,4 +102,4 @@ This directory contains:
 - ❌ No tested configurations
 - ❌ Not ready for use
 
-**For a working homelab deployment, use [base-kit](../base-kit/) or [modern-homelab](../modern-homelab/) instead.**
+**For a release-ready homelab deployment, use [base-kit](../base-kit/). Modern Homelab is also alpha/scaffolding in this release and is not a production one-click path.**

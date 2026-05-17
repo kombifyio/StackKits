@@ -7,13 +7,13 @@ homelab and small-server deployments. The `stackkit` CLI turns a declarative
 ## Install
 
 ```sh
-curl -sSL stackkit.cc/base | sh
+curl -sSL https://base.stackkit.cc | sh
 ```
 
-For CLI-only installation:
+For CLI plus the public kit catalog:
 
 ```sh
-curl -sSL stackkit.cc/install | sh
+curl -sSL https://install.stackkit.cc | sh
 ```
 
 ## Documentation

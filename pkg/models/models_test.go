@@ -317,28 +317,28 @@ func TestResolvePAASForContext(t *testing.T) {
 		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextCloud))
 	})
 
-	t.Run("local standard defaults to dokploy", func(t *testing.T) {
+	t.Run("local standard defaults to coolify", func(t *testing.T) {
 		spec := &StackSpec{
 			Compute: ComputeSpec{Tier: ComputeTierStandard},
 		}
-		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextLocal))
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextLocal))
 	})
 
 	t.Run("local low tier still gets a required platform", func(t *testing.T) {
 		spec := &StackSpec{
 			Compute: ComputeSpec{Tier: ComputeTierLow},
 		}
-		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextLocal))
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextLocal))
 	})
 
-	t.Run("cloud without domain defaults to dokploy", func(t *testing.T) {
+	t.Run("cloud without domain defaults to coolify", func(t *testing.T) {
 		spec := &StackSpec{}
-		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextCloud))
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextCloud))
 	})
 
-	t.Run("cloud with kombify.me defaults to dokploy", func(t *testing.T) {
+	t.Run("cloud with kombify.me defaults to coolify", func(t *testing.T) {
 		spec := &StackSpec{Domain: DomainKombifyMe}
-		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextCloud))
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextCloud))
 	})
 
 	t.Run("cloud with custom domain defaults to coolify", func(t *testing.T) {
@@ -346,9 +346,15 @@ func TestResolvePAASForContext(t *testing.T) {
 		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextCloud))
 	})
 
-	t.Run("cloud with local domain still defaults to dokploy", func(t *testing.T) {
+	t.Run("own public domain defaults to coolify independent of context", func(t *testing.T) {
+		spec := &StackSpec{Domain: "apps.example.com"}
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextLocal))
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextPi))
+	})
+
+	t.Run("cloud with local domain still defaults to coolify", func(t *testing.T) {
 		spec := &StackSpec{Domain: "lab.homebase"}
-		assert.Equal(t, PAASDokploy, spec.ResolvePAASForContext(ContextCloud))
+		assert.Equal(t, PAASCoolify, spec.ResolvePAASForContext(ContextCloud))
 	})
 
 	t.Run("multi-node defaults to coolify", func(t *testing.T) {
@@ -390,16 +396,16 @@ func TestNormalizeAdminEmail(t *testing.T) {
 		want            string
 	}{
 		{
-			name:   "empty local defaults to stack.home",
+			name:   "empty local defaults to home.localhost",
 			email:  "",
 			domain: DomainHomeLab,
-			want:   "admin@stack.home",
+			want:   "admin@home.localhost",
 		},
 		{
 			name:   "bare admin local becomes synthetic email",
 			email:  "admin",
 			domain: DomainHomeLab,
-			want:   "admin@stack.home",
+			want:   "admin@home.localhost",
 		},
 		{
 			name:            "kombify.me uses assigned homelab prefix",
@@ -440,7 +446,7 @@ func TestDefaultAppHost(t *testing.T) {
 		{
 			name:    "local default",
 			appName: "web",
-			want:    "web.stack.home",
+			want:    "web.home.localhost",
 		},
 		{
 			name:    "custom domain",

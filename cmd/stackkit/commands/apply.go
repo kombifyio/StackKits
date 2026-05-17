@@ -19,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/iac"
 	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	stackverify "github.com/kombifyio/stackkits/internal/verify"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -54,8 +55,8 @@ Examples:
 func init() {
 	applyCmd.Flags().BoolVar(&applyAutoApprove, "auto-approve", false, "Skip interactive approval")
 	applyCmd.Flags().StringVar(&applyTenantDeployment, "tenant-deployment", "", "sk_tenant_deployment UUID: report success/failure back to Admin after apply")
-	applyCmd.Flags().StringVar(&applyReportingEndpoint, "admin-endpoint", "", "Admin API base URL for tenant-deployment reporting (env: STACKKIT_ADMIN_URL)")
-	applyCmd.Flags().StringVar(&applyReportingToken, "admin-token", "", "Admin API token (env: STACKKIT_ADMIN_TOKEN)")
+	applyCmd.Flags().StringVar(&applyReportingEndpoint, "admin-endpoint", "", "Admin API base URL for tenant-deployment spec fetch and reporting (env: STACKKIT_ADMIN_ENDPOINT, STACKKIT_ADMIN_URL)")
+	applyCmd.Flags().StringVar(&applyReportingToken, "admin-token", "", "Admin/bootstrap API token (env: STACKKIT_BOOTSTRAP_TOKEN, STACKKIT_ADMIN_TOKEN)")
 	applyCmd.Flags().BoolVar(&applyVerify, "verify", false, "Run stackkit verify after a successful apply")
 	applyCmd.Flags().BoolVar(&applyVerifyHTTP, "verify-http", false, "Include HTTP route checks in post-apply verification")
 	applyCmd.Flags().BoolVar(&applyVerifyStrict, "verify-strict", false, "Treat post-apply verification warnings as failures")
@@ -64,14 +65,34 @@ func init() {
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
 	wd := getWorkDir()
+	rolloutEvent("apply", "started", "apply started", nil)
+	defer func() {
+		if retErr != nil {
+			rolloutFailure("apply", retErr)
+			closeRolloutRecorder(rollout.Summary{
+				Status:  "failed",
+				Message: retErr.Error(),
+			})
+			return
+		}
+		rolloutEvent("apply", "succeeded", "apply succeeded", nil)
+		closeRolloutRecorder(rollout.Summary{Status: "success"})
+	}()
 
 	// When linked to a tenant deployment, report 'failed' on any error exit.
 	if applyTenantDeployment != "" {
+		recordTenantDeploymentEvent(applyTenantDeployment, "apply", "started", "stackkit apply started", "")
 		defer func() {
 			if retErr != nil {
+				failureClass := rollout.ClassifyFailure(retErr.Error())
+				recordTenantDeploymentEvent(applyTenantDeployment, "apply", "failed", retErr.Error(), failureClass)
+				recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "started", "reporting failed lifecycle state", failureClass)
 				if reportErr := reportTenantDeploymentState(applyTenantDeployment, "failed", retErr.Error(),
 					"stackkit apply failed"); reportErr != nil {
+					recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "failed", reportErr.Error(), rollout.ClassifyFailure(reportErr.Error()))
 					printWarning("Could not report failed state: %v", reportErr)
+				} else {
+					recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "succeeded", "failed lifecycle state reported", failureClass)
 				}
 			}
 		}()
@@ -85,15 +106,22 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	//   3. Fall back to createDefaultSpec (kits/modules tree found
 	//      next to the binary).
 	loader := config.NewLoader(wd)
+	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{
+		"spec_file": specFile,
+	})
 	spec, err := loader.LoadStackSpec(specFile)
 	if err != nil {
 		specPath := filepath.Join(wd, specFile)
 		if _, statErr := os.Stat(specPath); os.IsNotExist(statErr) {
 			if applyTenantDeployment != "" {
+				rolloutEvent("spec.load", "failed", "local stack spec missing; fetching tenant spec", map[string]string{
+					"tenant_deployment_id": applyTenantDeployment,
+				})
 				printInfo("No local %s — fetching composed spec from Admin for deployment %s",
 					specFile, applyTenantDeployment)
 				fetched, fetchErr := fetchTenantSpec(ctx, applyTenantDeployment, wd)
 				if fetchErr != nil {
+					rolloutFailure("tenant_spec_fetch", fetchErr)
 					return fmt.Errorf("tenant-deployment spec fetch: %w", fetchErr)
 				}
 				// Re-load from disk so downstream code goes through
@@ -106,14 +134,23 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 					spec = fetched
 				}
 			} else {
+				rolloutEvent("spec.load", "failed", "local stack spec missing; creating default spec", nil)
 				spec, err = createDefaultSpec(loader, wd)
 				if err != nil {
 					return fmt.Errorf("no spec file and auto-init failed: %w", err)
 				}
 			}
 		} else {
+			rolloutFailure("spec.load", err)
 			return fmt.Errorf("failed to load spec: %w", err)
 		}
+	}
+	if spec != nil {
+		rolloutEvent("spec.load", "succeeded", "stack spec loaded", map[string]string{
+			"stackkit": spec.StackKit,
+			"mode":     spec.Mode,
+			"domain":   spec.Domain,
+		})
 	}
 
 	deployLog.Event("apply.start",
@@ -185,16 +222,24 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	tfStatePath := filepath.Join(deployDir, ".terraform")
 	if _, statErr := os.Stat(tfStatePath); os.IsNotExist(statErr) {
 		printInfo("Initializing %s...", executor.Mode())
+		rolloutEvent("tofu.init", "started", "initializing OpenTofu", map[string]string{
+			"mode": string(executor.Mode()),
+		})
+		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.init", "started", "initializing OpenTofu", "")
 		if initErr := executor.Init(ctx); initErr != nil {
 			deployLog.Error("tofu.init",
 				slog.String("status", "failed"),
 				slog.String("error", initErr.Error()),
 			)
+			rolloutFailure("tofu.init", initErr)
+			recordTenantDeploymentEvent(applyTenantDeployment, "tofu.init", "failed", initErr.Error(), rollout.ClassifyFailure(initErr.Error()))
 			return fmt.Errorf("init error: %w", initErr)
 		}
 		deployLog.Event("tofu.init",
 			slog.String("status", "success"),
 		)
+		rolloutEvent("tofu.init", "succeeded", "OpenTofu initialized", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.init", "succeeded", "OpenTofu initialized", "")
 		printSuccess("Initialized successfully")
 	}
 
@@ -202,9 +247,13 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	printInfo("Applying changes...")
 	startTime := time.Now()
 	deployLog.Event("apply.attempt_start")
+	rolloutEvent("tofu.apply", "started", "OpenTofu apply started", nil)
+	recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "started", "OpenTofu apply started", "")
 
 	result, err := troubleshootAndApply(ctx, executor, applyAutoApprove, planFile, deployDir)
 	if err != nil {
+		rolloutFailure("tofu.apply", err)
+		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
 		return fmt.Errorf("apply error: %w", err)
 	}
 
@@ -222,6 +271,10 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			slog.String("error", userMsg),
 			slog.Duration("duration", duration),
 		)
+		rolloutEvent("tofu.apply", "failed", userMsg, map[string]string{
+			"failure_class": rollout.ClassifyFailure(userMsg),
+		})
+		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "failed", userMsg, rollout.ClassifyFailure(userMsg))
 		printError("%s", userMsg)
 		fmt.Println()
 		printInfo("Troubleshooting tips:")
@@ -233,6 +286,10 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		fmt.Println("  stackkit remove --purge       (full reset, remove everything)")
 		return fmt.Errorf("deployment failed")
 	}
+	rolloutEvent("tofu.apply", "succeeded", "OpenTofu apply succeeded", map[string]string{
+		"duration": duration.Round(time.Second).String(),
+	})
+	recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "succeeded", "OpenTofu apply succeeded", "")
 
 	// Update deployment state
 	state := &models.DeploymentState{
@@ -261,9 +318,15 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		}
 	}
 
+	rolloutEvent("platform_apps", "started", "platform app handoff processing started", nil)
+	recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "started", "platform app handoff processing started", "")
 	if err := runPlatformAppDeployments(ctx, deployDir, state); err != nil {
-		return fmt.Errorf("platform app rollout: %w", err)
+		rolloutFailure("platform_apps", err)
+		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
+		return fmt.Errorf("platform app handoff processing: %w", err)
 	}
+	rolloutEvent("platform_apps", "succeeded", "platform app handoff processing succeeded", nil)
+	recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "succeeded", "platform app handoff processing succeeded", "")
 
 	deployLog.Event("apply.success",
 		slog.Duration("duration", duration),
@@ -331,20 +394,30 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	if applyVerify || applyVerifyHTTP || applyVerifyStrict {
 		fmt.Println()
 		printInfo("Running post-deployment verification...")
+		rolloutEvent("verify", "started", "post-deployment verification started", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "verify", "started", "post-deployment verification started", "")
 		report := buildLocalVerifyReport(ctx, wd, spec, state, stackverify.Options{
 			HTTP:   applyVerifyHTTP,
 			Strict: applyVerifyStrict,
 		})
 		if err := emitVerifyReport(cmd.OutOrStdout(), report, false); err != nil {
+			rolloutFailure("verify", err)
+			recordTenantDeploymentEvent(applyTenantDeployment, "verify", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
 			return fmt.Errorf("post-deployment verify: %w", err)
 		}
+		rolloutEvent("verify", "succeeded", "post-deployment verification succeeded", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "verify", "succeeded", "post-deployment verification succeeded", "")
 	}
 
 	// Post-deploy: report tenant deployment state (if linked to a managed StackKit)
 	if applyTenantDeployment != "" {
+		recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "started", "reporting healthy lifecycle state", "")
 		if err := reportTenantDeploymentState(applyTenantDeployment, "healthy", "",
 			fmt.Sprintf("apply succeeded for stackkit=%s in %s", spec.StackKit, duration.Round(time.Second))); err != nil {
+			recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
 			printWarning("Could not report deployment state to Admin: %v", err)
+		} else {
+			recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "succeeded", "healthy lifecycle state reported", "")
 		}
 	}
 
@@ -369,9 +442,9 @@ func reportTenantDeploymentState(deploymentID, state, lastError, message string)
 	if endpoint == "" {
 		return fmt.Errorf("no --admin-endpoint, STACKKIT_ADMIN_ENDPOINT, or STACKKIT_ADMIN_URL configured")
 	}
-	token := applyReportingToken
+	token := resolveTenantDeploymentToken()
 	if token == "" {
-		token = os.Getenv("STACKKIT_ADMIN_TOKEN")
+		return fmt.Errorf("no STACKKIT_BOOTSTRAP_TOKEN, --admin-token, or STACKKIT_ADMIN_TOKEN configured")
 	}
 
 	payload := map[string]interface{}{
@@ -903,7 +976,7 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 			printError("Local domain '%s' is not accessible on a public server", domain)
 			fmt.Println()
 			printInfo("Your server is a VPS/cloud instance but is configured with a local domain.")
-			printInfo("Local domains (*.home, *.<name>.home, *.home.localhost, *.internal, *.local, *.lab, *.lan) only work through Kombify Point, a LAN resolver, or the explicit .localhost legacy path.")
+			printInfo("Browser-native *.localhost domains work only on the machine opening the link. LAN domains (*.home, *.<name>.home, *.internal, *.local, *.lab, *.lan) require a StackKit-managed or verified resolver path.")
 			fmt.Println()
 			printInfo("To fix this, update your stack-spec.yaml domain to one of:")
 			fmt.Println("  1. domain: kombify.me    (free public subdomains via kombify.me)")

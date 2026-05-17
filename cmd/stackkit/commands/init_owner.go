@@ -6,6 +6,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/crypto"
 	"github.com/kombifyio/stackkits/internal/identity"
+	"github.com/kombifyio/stackkits/pkg/models"
 )
 
 // ownerFlags is a small struct holding the raw CLI flag values for owner
@@ -13,12 +14,15 @@ import (
 // mode) prompt for missing fields. Decoupling the resolver from the package
 // globals keeps it unit-testable.
 type ownerFlags struct {
-	Source      string
-	Email       string
-	Username    string
-	DisplayName string
+	BootstrapMode       string
+	Source              string
+	Email               string
+	Username            string
+	DisplayName         string
+	RecoveryHash        string
+	RecoveryMaterialRef string
 
-	// Cloud-source only (Phase 2; Phase 1 errors out before these matter).
+	// Cloud-source only.
 	CloudIssuer    string
 	CloudClientID  string
 	CloudSecretRef string
@@ -30,6 +34,103 @@ type ownerFlags struct {
 // hand it, but a short passphrase still has weak entropy against a stolen
 // bundle, so we require at least 12 chars.
 const minRecoveryPassphraseLen = 12
+
+// resolveOwnerBootstrapConfig normalizes the current lane-aware owner
+// bootstrap flags into the stack-spec OwnerConfig. It keeps legacy
+// --owner-source=local behavior for self-hosted custom owners while allowing
+// orchestrator-managed SaaS specs to say bootstrapMode=auto without local
+// owner e-mail/username prompts.
+func resolveOwnerBootstrapConfig(f ownerFlags, p *prompter, nonInteractive bool) (models.OwnerConfig, bool, error) {
+	mode := strings.ToLower(strings.TrimSpace(f.BootstrapMode))
+	source := strings.ToLower(strings.TrimSpace(f.Source))
+	if mode == "" {
+		switch source {
+		case "":
+			if nonInteractive {
+				return models.OwnerConfig{}, false, nil
+			}
+			mode = models.OwnerBootstrapModeCustom
+		case models.OwnerSourceLocal:
+			mode = models.OwnerBootstrapModeCustom
+		case models.OwnerSourceCloud:
+			mode = models.OwnerBootstrapModeAuto
+		default:
+			return models.OwnerConfig{}, false, fmt.Errorf("invalid --owner-source %q (use 'local' or 'cloud')", f.Source)
+		}
+	}
+	if !models.IsKnownOwnerBootstrapMode(mode) || mode == "" {
+		return models.OwnerConfig{}, false, fmt.Errorf("invalid --owner-bootstrap-mode %q (use 'auto', 'custom', or 'none')", f.BootstrapMode)
+	}
+
+	switch mode {
+	case models.OwnerBootstrapModeNone:
+		if source != "" || strings.TrimSpace(f.Email) != "" || strings.TrimSpace(f.Username) != "" ||
+			strings.TrimSpace(f.DisplayName) != "" || f.RecoveryHash != "" || f.RecoveryMaterialRef != "" {
+			return models.OwnerConfig{}, false, fmt.Errorf("--owner-bootstrap-mode=none cannot be combined with owner identity or recovery fields")
+		}
+		return models.OwnerConfig{BootstrapMode: models.OwnerBootstrapModeNone}, true, nil
+
+	case models.OwnerBootstrapModeAuto:
+		if source == "" {
+			source = models.OwnerSourceCloud
+		}
+		if source != models.OwnerSourceCloud {
+			return models.OwnerConfig{}, false, fmt.Errorf("--owner-bootstrap-mode=auto requires --owner-source=cloud when source is provided")
+		}
+		if f.RecoveryHash == "" && strings.TrimSpace(f.RecoveryMaterialRef) == "" {
+			return models.OwnerConfig{}, false, fmt.Errorf("--owner-bootstrap-mode=auto requires --recovery-material-ref or --recovery-passphrase-hash")
+		}
+		if f.RecoveryHash != "" {
+			if !strings.HasPrefix(f.RecoveryHash, "$argon2id$") {
+				return models.OwnerConfig{}, false, fmt.Errorf("--recovery-passphrase-hash must be an argon2id PHC string (got: %q)", f.RecoveryHash)
+			}
+		}
+		return models.OwnerConfig{
+			BootstrapMode:            models.OwnerBootstrapModeAuto,
+			Source:                   models.OwnerSourceCloud,
+			Email:                    strings.TrimSpace(f.Email),
+			Username:                 strings.TrimSpace(f.Username),
+			DisplayName:              strings.TrimSpace(f.DisplayName),
+			RecoveryPassphraseHash:   f.RecoveryHash,
+			RecoveryMaterialRef:      strings.TrimSpace(f.RecoveryMaterialRef),
+			CloudOIDCIssuer:          strings.TrimSpace(f.CloudIssuer),
+			CloudOIDCClientID:        strings.TrimSpace(f.CloudClientID),
+			CloudOIDCClientSecretRef: strings.TrimSpace(f.CloudSecretRef),
+			CloudOIDCForeignSubject:  strings.TrimSpace(f.ForeignSubject),
+		}, true, nil
+
+	case models.OwnerBootstrapModeCustom:
+		if source == "" {
+			source = models.OwnerSourceLocal
+		}
+		if source != models.OwnerSourceLocal {
+			return models.OwnerConfig{}, false, fmt.Errorf("--owner-bootstrap-mode=custom requires --owner-source=local")
+		}
+		ownerSpec, hasOwner, err := resolveOwnerSpec(ownerFlags{
+			Source:      source,
+			Email:       f.Email,
+			Username:    f.Username,
+			DisplayName: f.DisplayName,
+		}, p, nonInteractive)
+		if err != nil || !hasOwner {
+			return models.OwnerConfig{}, hasOwner, err
+		}
+		passphraseHash, _, err := resolveRecoveryPassphrase(f.RecoveryHash, p, nonInteractive)
+		if err != nil {
+			return models.OwnerConfig{}, false, fmt.Errorf("resolve recovery passphrase: %w", err)
+		}
+		return models.OwnerConfig{
+			BootstrapMode:          models.OwnerBootstrapModeCustom,
+			Source:                 ownerSpec.Source,
+			Email:                  ownerSpec.Email,
+			Username:               ownerSpec.Username,
+			DisplayName:            ownerSpec.DisplayName,
+			RecoveryPassphraseHash: passphraseHash,
+		}, true, nil
+	default:
+		return models.OwnerConfig{}, false, fmt.Errorf("invalid --owner-bootstrap-mode %q (use 'auto', 'custom', or 'none')", f.BootstrapMode)
+	}
+}
 
 // resolveOwnerSpec validates flag values, prompts for missing required
 // fields in interactive mode, and returns a populated OwnerSpec.
@@ -44,14 +145,14 @@ const minRecoveryPassphraseLen = 12
 //     required fields in non-interactive mode despite --owner-source being set,
 //     or a prompt failure.
 //
-// Phase 1: --owner-source=cloud is rejected with a clear Phase-2 error. The
-// cloud-related fields on ownerFlags are accepted for shape but unused.
+// This helper resolves the local/custom Owner only. Cloud/auto bootstrap is
+// handled by resolveOwnerBootstrapConfig before this helper is called.
 func resolveOwnerSpec(f ownerFlags, p *prompter, nonInteractive bool) (identity.OwnerSpec, bool, error) {
 	source := strings.ToLower(strings.TrimSpace(f.Source))
 
-	// Source resolution. In interactive mode we default to "local" since
-	// that's the only Phase-1 option anyway; non-interactive callers without
-	// --owner-source intentionally skip owner provisioning (returning
+	// Source resolution. In interactive mode this local-only helper defaults to
+	// "local"; non-interactive callers without --owner-source intentionally
+	// skip owner provisioning (returning
 	// hasOwner=false rather than erroring).
 	if source == "" {
 		if nonInteractive {
@@ -60,7 +161,7 @@ func resolveOwnerSpec(f ownerFlags, p *prompter, nonInteractive bool) (identity.
 		source = "local"
 	}
 	if source == "cloud" {
-		return identity.OwnerSpec{}, false, fmt.Errorf("--owner-source=cloud is Phase 2, not yet supported")
+		return identity.OwnerSpec{}, false, fmt.Errorf("--owner-source=cloud requires --owner-bootstrap-mode=auto")
 	}
 	if source != "local" {
 		return identity.OwnerSpec{}, false, fmt.Errorf("invalid --owner-source %q (use 'local' or 'cloud')", f.Source)
@@ -140,8 +241,8 @@ func resolveRecoveryPassphrase(flagHash string, p *prompter, nonInteractive bool
 		if !strings.HasPrefix(flagHash, "$argon2id$") {
 			return "", "", fmt.Errorf("--recovery-passphrase-hash must be an argon2id PHC string (got: %q)", flagHash)
 		}
-		// Hash provided; plaintext stays empty. Task 11's apply path
-		// reprompts when it actually needs to derive the encryption key.
+		// Hash provided; plaintext stays empty. The apply path reprompts when
+		// it actually needs to derive the encryption key.
 		return flagHash, "", nil
 	}
 

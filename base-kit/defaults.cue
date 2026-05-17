@@ -43,6 +43,23 @@ package base_kit
 // SMART DEFAULTS
 // =============================================================================
 
+// #BaseKitReleaseDefault is the named product default for normal BaseKit app
+// composition. PaaS and reverse-proxy selection are resolved from context,
+// domain, and explicit overrides by the StackSpec resolver; this profile must
+// not pin Dokploy or Coolify directly.
+#BaseKitReleaseDefault: {
+	context: "local"
+	domain:  "home.localhost"
+	services: {
+		homepage:      true
+		"uptime-kuma": true
+		whoami:        true
+		vaultwarden:   true
+		jellyfin:      false
+		immich:        true
+	}
+}
+
 // #SmartDefaults provides intelligent defaults based on compute tier
 #SmartDefaults: {
 	// Input: detected compute tier
@@ -54,47 +71,47 @@ package base_kit
 			monitoring: "full"
 			management: "advanced"
 			logging:    "full"
-			_enabledServices: ["traefik", "dockge", "dozzle", "netdata", "portainer", "prometheus", "grafana"]
+			_enabledServices: ["traefik", "coolify", "dozzle", "netdata", "portainer", "prometheus", "grafana"]
 		}
 		if computeTier == "standard" {
 			monitoring: "standard"
 			management: "basic"
 			logging:    "basic"
-			_enabledServices: ["traefik", "dockge", "dozzle", "netdata"]
+			_enabledServices: ["traefik", "coolify", "dozzle", "netdata"]
 		}
 		if computeTier == "low" {
 			monitoring: "minimal"
 			management: "minimal"
 			logging:    "basic"
-			_enabledServices: ["traefik", "dockge", "dozzle", "glances"]
+			_enabledServices: ["traefik", "coolify", "dozzle", "glances"]
 		}
 	}
 
 	// Docker resource limits per tier
 	docker: {
 		if computeTier == "high" {
-			defaultMemoryLimit:     "4g"
+			defaultMemoryLimit:       "4g"
 			defaultMemoryReservation: "1g"
-			defaultCpuLimit:        4.0
-			maxContainers:          50
-			logMaxSize:             "100m"
-			logMaxFile:             10
+			defaultCpuLimit:          4.0
+			maxContainers:            50
+			logMaxSize:               "100m"
+			logMaxFile:               10
 		}
 		if computeTier == "standard" {
-			defaultMemoryLimit:     "1g"
+			defaultMemoryLimit:       "1g"
 			defaultMemoryReservation: "256m"
-			defaultCpuLimit:        1.0
-			maxContainers:          20
-			logMaxSize:             "50m"
-			logMaxFile:             5
+			defaultCpuLimit:          1.0
+			maxContainers:            20
+			logMaxSize:               "50m"
+			logMaxFile:               5
 		}
 		if computeTier == "low" {
-			defaultMemoryLimit:     "512m"
+			defaultMemoryLimit:       "512m"
 			defaultMemoryReservation: "128m"
-			defaultCpuLimit:        0.5
-			maxContainers:          10
-			logMaxSize:             "20m"
-			logMaxFile:             3
+			defaultCpuLimit:          0.5
+			maxContainers:            10
+			logMaxSize:               "20m"
+			logMaxFile:               3
 		}
 	}
 
@@ -189,22 +206,22 @@ package base_kit
 
 	// Subdomain definitions: key → {nested, flat}
 	subdomains: {
-		base:       { nested: "base", flat: "base" }
-		traefik:    { nested: "traefik", flat: "traefik" }
-		auth:       { nested: "auth", flat: "auth" }
-		id:         { nested: "id", flat: "id" }
-		dokploy:    { nested: "dokploy", flat: "dokploy" }
-		coolify:    { nested: "coolify", flat: "coolify" }
-		dockge:     { nested: "dockge", flat: "dockge" }
-		kuma:       { nested: "kuma", flat: "kuma" }
-		whoami:     { nested: "whoami", flat: "whoami" }
-		vault:      { nested: "vault", flat: "vault" }
-		media:      { nested: "media", flat: "media" }
-		photos:     { nested: "photos", flat: "photos" }
-		logs:       { nested: "logs", flat: "logs" }
-		monitor:    { nested: "monitor", flat: "monitor" }
-		portainer:  { nested: "portainer", flat: "portainer" }
-		netdata:    { nested: "netdata", flat: "netdata" }
+		base: {nested: "base", flat: "base"}
+		traefik: {nested: "traefik", flat: "traefik"}
+		auth: {nested: "auth", flat: "auth"}
+		id: {nested: "id", flat: "id"}
+		dokploy: {nested: "dokploy", flat: "dokploy"}
+		coolify: {nested: "coolify", flat: "coolify"}
+		dockge: {nested: "dockge", flat: "dockge"}
+		kuma: {nested: "kuma", flat: "kuma"}
+		whoami: {nested: "whoami", flat: "whoami"}
+		vault: {nested: "vault", flat: "vault"}
+		media: {nested: "media", flat: "media"}
+		photos: {nested: "photos", flat: "photos"}
+		logs: {nested: "logs", flat: "logs"}
+		monitor: {nested: "monitor", flat: "monitor"}
+		portainer: {nested: "portainer", flat: "portainer"}
+		netdata: {nested: "netdata", flat: "netdata"}
 	}
 
 	// Full URLs (computed from prefix + subdomain + domain)
@@ -222,32 +239,32 @@ package base_kit
 
 // #DefaultPorts defines default port mappings
 #DefaultPorts: {
-	ssh:       22
-	http:      80
-	https:     443
-	traefik:   8080
-	dockge:    5001
-	dozzle:    8080
-	netdata:   19999
-	glances:   61208
-	portainer: 9000
+	ssh:        22
+	http:       80
+	https:      443
+	traefik:    8080
+	dockge:     5001
+	dozzle:     8080
+	netdata:    19999
+	glances:    61208
+	portainer:  9000
 	prometheus: 9090
-	grafana:   3000
+	grafana:    3000
 }
 
 // #DefaultVolumes defines default volume paths
 #DefaultVolumes: {
-	stacksDir:     "/opt/stacks"
-	dataDir:       "/opt/data"
-	backupDir:     "/opt/backups"
-	certsDir:      "/opt/certs"
-	configDir:     "/opt/config"
-	dockerSocket:  "/var/run/docker.sock"
+	stacksDir:    "/opt/stacks"
+	dataDir:      "/opt/data"
+	backupDir:    "/opt/backups"
+	certsDir:     "/opt/certs"
+	configDir:    "/opt/config"
+	dockerSocket: "/var/run/docker.sock"
 }
 
 // #HostsEntry for /etc/hosts configuration
 #HostsEntry: {
-	ip:      string
+	ip: string
 	domains: [...string]
 }
 

@@ -20,17 +20,17 @@ func TestServiceOverrides_IndividualToggle(t *testing.T) {
 		defaultOnStandard bool // expected default for standard tier + local context
 		canDisable        bool
 	}{
-		{"traefik", "enable_traefik", false, true}, // false because Dokploy provides reverse proxy
+		{"traefik", "enable_traefik", false, true}, // false because Coolify provides reverse proxy
 		{"tinyauth", "enable_tinyauth", true, true},
 		{"pocketid", "enable_pocketid", true, false},
-		{"dokploy", "enable_dokploy", true, true},
+		{"dokploy", "enable_dokploy", false, true},
 		{"dockge", "enable_dockge", false, true},
-		{"coolify", "enable_coolify", false, true},
+		{"coolify", "enable_coolify", true, true},
 		{"dashboard", "enable_dashboard", true, true},
 		{"homepage", "enable_homepage", true, true},
 		{"uptime_kuma", "enable_uptime_kuma", true, true},
 		{"vaultwarden", "enable_vaultwarden", true, true},
-		{"jellyfin", "enable_jellyfin", true, true},
+		{"jellyfin", "enable_jellyfin", false, true},
 		{"immich", "enable_immich", true, true},
 	}
 
@@ -138,7 +138,7 @@ func TestServiceOverrides_MultipleServices(t *testing.T) {
 }
 
 // TestServiceOverrides_CompositionEnableFlags verifies that the composition
-// engine's enable flags are correctly overlaid onto the TFVars.
+// engine's enable flags are overlaid without overriding PAAS-owned routing.
 func TestServiceOverrides_CompositionEnableFlags(t *testing.T) {
 	setCapabilitiesHome(t, models.ContextLocal)
 
@@ -163,15 +163,18 @@ func TestServiceOverrides_CompositionEnableFlags(t *testing.T) {
 	var vars map[string]any
 	require.NoError(t, json.Unmarshal(data, &vars))
 
-	// Composition-enabled modules should be true
-	assert.True(t, boolVar(t, vars, "enable_traefik"), "composition enabled traefik")
+	// Composition-enabled modules should be true unless a higher-level platform
+	// decision already owns that behavior. Coolify owns the reverse proxy here,
+	// so standalone Traefik remains disabled.
+	assert.Equal(t, models.ReverseProxyCoolify, stringVar(t, vars, "reverse_proxy_backend"), "reverse proxy backend")
+	assert.False(t, boolVar(t, vars, "enable_traefik"), "coolify-owned reverse proxy keeps standalone traefik disabled")
 	assert.True(t, boolVar(t, vars, "enable_tinyauth"), "composition enabled tinyauth")
 	assert.True(t, boolVar(t, vars, "enable_dashboard"), "composition enabled dashboard")
 	assert.True(t, boolVar(t, vars, "enable_uptime_kuma"), "composition enabled uptime-kuma")
 
 	// Modules NOT in composition result should keep bridge defaults (not forced to false)
-	// Bridge default for dokploy is true (standard tier + local → dokploy)
-	assert.True(t, boolVar(t, vars, "enable_dokploy"), "non-composition module keeps bridge default")
+	// Bridge default for coolify is true.
+	assert.True(t, boolVar(t, vars, "enable_coolify"), "non-composition module keeps bridge default")
 }
 
 // TestServiceOverrides_CompositionIdentityOverlay verifies that composition

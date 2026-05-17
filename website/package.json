@@ -1,8 +1,30 @@
 {
   "name": "stackkit-website",
-  "version": "1.0.0",
   "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
-    "build": "node build.mjs"
+    "prebuild": "node scripts/prebuild.mjs",
+    "dev": "node scripts/prebuild.mjs && vite --host 127.0.0.1",
+    "build": "node scripts/prebuild.mjs && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/*.test.mjs",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^24.12.2",
+    "svelte": "^5.55.1",
+    "svelte-check": "^4.4.6",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.4"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "tailwindcss": "^4.2.2"
   }
 }

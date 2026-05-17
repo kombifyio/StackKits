@@ -96,6 +96,7 @@ func resetCommandGlobals(t *testing.T) {
 	initAdminEmail = ""
 	initLocalDNS = false
 	initLocalName = ""
+	initServiceProfile = ""
 	genOutputDir = "deploy"
 	genForce = false
 	genFragments = false

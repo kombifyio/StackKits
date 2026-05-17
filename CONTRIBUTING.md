@@ -9,7 +9,7 @@ Run the narrowest relevant checks for your change:
 ```sh
 go test ./...
 cue vet ./base/... ./base-kit/... ./modern-homelab/... ./ha-kit/...
-npm --prefix website ci
+npm --prefix website install
 npm --prefix website run build
 ```
 

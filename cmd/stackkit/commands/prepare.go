@@ -14,6 +14,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/cue"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/ssh"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -63,10 +64,24 @@ func init() {
 	prepareCmd.Flags().BoolVar(&prepareForce, "force", false, "Continue even with insufficient disk space")
 }
 
-func runPrepare(cmd *cobra.Command, args []string) error {
+func runPrepare(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
 	wd := getWorkDir()
 	isRemote := prepareHost != "localhost" && prepareHost != ""
+	rolloutEvent("prepare", "started", "prepare started", map[string]string{
+		"host": prepareHost,
+	})
+	defer func() {
+		if retErr != nil {
+			rolloutFailure("prepare", retErr)
+			closeRolloutRecorder(rollout.Summary{
+				Status:  "failed",
+				Message: retErr.Error(),
+			})
+			return
+		}
+		rolloutEvent("prepare", "succeeded", "prepare succeeded", nil)
+	}()
 
 	deployLog.Event("prepare.start",
 		slog.Bool("is_remote", isRemote),
@@ -77,9 +92,24 @@ func runPrepare(cmd *cobra.Command, args []string) error {
 
 	// Load spec if provided
 	loader := config.NewLoader(wd)
+	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{
+		"spec_file": specFile,
+	})
 	spec, err := loader.LoadStackSpec(specFile)
 	if err != nil && !os.IsNotExist(err) {
+		rolloutFailure("spec.load", err)
 		printWarning("Could not load spec file: %v", err)
+	}
+	if spec != nil {
+		rolloutEvent("spec.load", "succeeded", "stack spec loaded", map[string]string{
+			"stackkit": spec.StackKit,
+			"mode":     spec.Mode,
+			"domain":   spec.Domain,
+		})
+	} else {
+		rolloutEvent("spec.load", "skipped", "stack spec not present", map[string]string{
+			"spec_file": specFile,
+		})
 	}
 
 	// Validate spec if loaded

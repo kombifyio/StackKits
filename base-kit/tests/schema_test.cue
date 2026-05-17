@@ -4,7 +4,7 @@
 // Validates the schema definitions and constraints for base-kit StackKit.
 // 
 // Tests:
-//   - Default Variant (Dokploy + Uptime Kuma)
+//   - Default Variant (Coolify + Uptime Kuma)
 //   - Beszel Variant (Dokploy + Beszel)
 //   - Minimal Variant (Dockge + Portainer + Netdata)
 //   - Deployment Modes (simple/advanced)
@@ -18,7 +18,7 @@ import (
 )
 
 // =============================================================================
-// DEFAULT VARIANT TESTS (Dokploy + Uptime Kuma)
+// DEFAULT VARIANT TESTS (Coolify + Uptime Kuma)
 // =============================================================================
 
 // Test: Default Variant - minimal valid configuration
@@ -409,4 +409,3 @@ _minimalServices: homelab.#ServiceSet & {
 	dozzle:    enabled: true
 	whoami:    enabled: false
 }
-

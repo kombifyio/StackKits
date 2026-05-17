@@ -166,12 +166,12 @@ func TestLoadAndWriteAccessSummary(t *testing.T) {
 
 func TestPrimaryServiceProbeTargetUsesAccessSummaryHubURL(t *testing.T) {
 	access := &accessSummary{
-		HubURL: "https://base.stack.home",
+		HubURL: "http://base.home.localhost",
 	}
 
 	host, rawURL := primaryServiceProbeTarget(&models.StackSpec{Domain: models.DomainHomeLab}, access)
-	if host != "base.stack.home" || rawURL != "https://base.stack.home" {
-		t.Fatalf("primaryServiceProbeTarget local = (%q, %q), want base.stack.home/https", host, rawURL)
+	if host != "base.home.localhost" || rawURL != "http://base.home.localhost" {
+		t.Fatalf("primaryServiceProbeTarget local = (%q, %q), want base.home.localhost/http", host, rawURL)
 	}
 
 	access.HubURL = "https://sh-my-homelab-abc123-base.kombify.me"
@@ -189,16 +189,16 @@ func TestPrimaryServiceProbeTargetFallbackMatchesDomainMode(t *testing.T) {
 		url  string
 	}{
 		{
-			name: "local Step-CA HTTPS",
+			name: "local browser-native localhost HTTP",
 			spec: &models.StackSpec{Domain: models.DomainHomeLab},
-			host: "base.stack.home",
-			url:  "https://base.stack.home",
-		},
-		{
-			name: "localhost legacy HTTP",
-			spec: &models.StackSpec{Domain: "home.localhost"},
 			host: "base.home.localhost",
 			url:  "http://base.home.localhost",
+		},
+		{
+			name: "explicit local DNS Step-CA HTTPS",
+			spec: &models.StackSpec{Domain: models.DomainStackHome},
+			host: "base.stack.home",
+			url:  "https://base.stack.home",
 		},
 		{
 			name: "kombify.me flat HTTPS",
@@ -289,10 +289,10 @@ func TestPrepareAndCompatibilityPureHelpers(t *testing.T) {
 	if got := pocketIDURLForSpec(&models.StackSpec{Domain: " example.com "}); got != "https://id.example.com" {
 		t.Fatalf("unexpected PocketID URL: %q", got)
 	}
-	if got := pocketIDURLForSpec(&models.StackSpec{Domain: models.DomainHomeLab}); got != "https://id.stack.home" {
+	if got := pocketIDURLForSpec(&models.StackSpec{Domain: models.DomainHomeLab}); got != "http://id.home.localhost" {
 		t.Fatalf("unexpected PocketID URL: %q", got)
 	}
-	if got := pocketIDURLForSpec(&models.StackSpec{Domain: "home.localhost"}); got != "http://id.home.localhost" {
+	if got := pocketIDURLForSpec(&models.StackSpec{Domain: models.DomainStackHome}); got != "https://id.stack.home" {
 		t.Fatalf("unexpected PocketID URL: %q", got)
 	}
 	if got := pocketIDURLForSpec(&models.StackSpec{}); got != "" {
@@ -328,19 +328,82 @@ func TestPrepareAndCompatibilityPureHelpers(t *testing.T) {
 }
 
 func TestBaseKitImagesByTier(t *testing.T) {
+	t.Setenv("STACKKIT_SERVICE_PROFILE", "")
+
 	low := baseKitImages(models.ComputeTierLow)
-	if !slices.Contains(low, "louislam/dockge:1") || slices.Contains(low, "dokploy/dokploy:latest") {
+	if slices.Contains(low, "louislam/dockge:1") || slices.Contains(low, "dokploy/dokploy:latest") {
 		t.Fatalf("low tier image set is wrong: %#v", low)
 	}
 
 	standard := baseKitImages(models.ComputeTierStandard)
-	if !slices.Contains(standard, "dokploy/dokploy:latest") || slices.Contains(standard, "louislam/dockge:1") {
+	if slices.Contains(standard, "dokploy/dokploy:latest") || slices.Contains(standard, "louislam/dockge:1") {
 		t.Fatalf("standard tier image set is wrong: %#v", standard)
+	}
+	for _, image := range []string{
+		"ghcr.io/gethomepage/homepage:latest",
+		"tecnativa/docker-socket-proxy:latest",
+		"postgres:15-alpine",
+		"redis:7-alpine",
+		"ghcr.io/coollabsio/coolify-helper:1.0.13",
+		"ghcr.io/coollabsio/coolify-realtime:1.0.13",
+		"ghcr.io/coollabsio/coolify:4.0.0",
+		"ghcr.io/dani-garcia/vaultwarden:latest",
+		"ghcr.io/immich-app/immich-server:release",
+		"ghcr.io/immich-app/immich-machine-learning:release",
+		"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
+		"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+	} {
+		if !slices.Contains(standard, image) {
+			t.Fatalf("standard image set missing %s: %#v", image, standard)
+		}
 	}
 
 	all := baseKitImages("")
 	if !slices.Contains(all, "dokploy/dokploy:latest") || !slices.Contains(all, "louislam/dockge:1") {
 		t.Fatalf("all image set should include standard and low images: %#v", all)
+	}
+
+	t.Setenv("STACKKIT_SERVER_IMAGE", "stackkit-server:local")
+	if slices.Contains(baseKitImages(models.ComputeTierStandard), "stackkit-server:local") {
+		t.Fatalf("local stackkit-server image should not be pre-pulled")
+	}
+	t.Setenv("STACKKIT_SERVER_IMAGE", "ghcr.io/kombifyio/stackkits:latest")
+	if !slices.Contains(baseKitImages(models.ComputeTierStandard), "ghcr.io/kombifyio/stackkits:latest") {
+		t.Fatalf("remote stackkit-server image should be pre-pulled")
+	}
+}
+
+func TestBaseKitImagesAdminOnlyProfile(t *testing.T) {
+	t.Setenv("STACKKIT_SERVICE_PROFILE", "admin-only")
+
+	images := baseKitImages("")
+	for _, image := range []string{
+		"ghcr.io/gethomepage/homepage:latest",
+		"tecnativa/docker-socket-proxy:latest",
+		"postgres:15-alpine",
+		"redis:7-alpine",
+		"ghcr.io/coollabsio/coolify-helper:1.0.13",
+		"ghcr.io/coollabsio/coolify-realtime:1.0.13",
+		"ghcr.io/coollabsio/coolify:4.0.0",
+		"louislam/uptime-kuma:1",
+		"traefik/whoami:latest",
+	} {
+		if !slices.Contains(images, image) {
+			t.Fatalf("admin-only image set missing %s: %#v", image, images)
+		}
+	}
+	for _, image := range []string{
+		"dokploy/dokploy:latest",
+		"louislam/dockge:1",
+		"ghcr.io/dani-garcia/vaultwarden:latest",
+		"ghcr.io/immich-app/immich-server:release",
+		"ghcr.io/immich-app/immich-machine-learning:release",
+		"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
+		"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+	} {
+		if slices.Contains(images, image) {
+			t.Fatalf("admin-only image set should not include %s: %#v", image, images)
+		}
 	}
 }
 

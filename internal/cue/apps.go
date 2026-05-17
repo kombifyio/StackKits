@@ -13,9 +13,9 @@ import (
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
-// GenerateAppsTF writes platform deployment manifests for user applications
-// declared in StackSpec.apps. L3 apps are registered through the selected
-// platform adapter rather than emitted as direct docker_container resources.
+// GenerateAppsTF writes PaaS handoff manifests for user applications declared
+// in StackSpec.apps. StackKit produces the compose/manifest boundary; the
+// selected PaaS owns user app deployment and lifecycle.
 func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 	if spec == nil || len(spec.Apps) == 0 {
 		return nil
@@ -32,8 +32,8 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("# Auto-generated user application platform manifests from StackSpec.apps\n")
-	sb.WriteString("# L3 applications are deployed by StackKit platform adapters, not docker_container resources.\n\n")
+	sb.WriteString("# Auto-generated user application PaaS handoff manifests from StackSpec.apps\n")
+	sb.WriteString("# L3 applications are deployed and managed by the selected PaaS, not by StackKit.\n\n")
 
 	names := make([]string, 0, len(spec.Apps))
 	for name := range spec.Apps {

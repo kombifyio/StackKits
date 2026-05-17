@@ -8,6 +8,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/kombifyio/stackkits/internal/logging"
+	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +47,12 @@ var (
 // deployLog is the structured deploy logger for the current CLI run.
 var deployLog *logging.DeployLogger
 
+// rolloutRecorder writes product-facing evidence for the current CLI run.
+var (
+	rolloutRecorder       *rollout.Recorder
+	rolloutRecorderClosed bool
+)
+
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
 	Use:   "stackkit",
@@ -77,7 +84,7 @@ Examples:
 
 		// Initialize structured deploy logger (skip for help/completion/version)
 		switch name {
-		case "stackkit", "help", "completion", "version", "logs", "list":
+		case "stackkit", "help", "completion", "version", "logs", "list", "agent", "install-plan", "self-check", "prompt", "mcp-config":
 			// no logging for these commands
 		default:
 			if !noLog {
@@ -86,6 +93,7 @@ Examples:
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		closeRolloutRecorder(rollout.Summary{Status: "success"})
 		if deployLog != nil {
 			deployLog.Close()
 		}
@@ -95,10 +103,13 @@ Examples:
 // Execute runs the root command
 func Execute() error {
 	defer func() {
+		closeRolloutRecorder(rollout.Summary{Status: "success"})
 		if deployLog != nil {
 			deployLog.Close()
 			deployLog = nil
 		}
+		rolloutRecorder = nil
+		rolloutRecorderClosed = false
 	}()
 	return rootCmd.Execute()
 }
@@ -128,6 +139,8 @@ func init() {
 	rootCmd.AddCommand(addonCmd)
 	rootCmd.AddCommand(compatCmd)
 	rootCmd.AddCommand(clusterCmd)
+	rootCmd.AddCommand(doctorCmd)
+	rootCmd.AddCommand(agentCmd)
 }
 
 // Helper functions for output
@@ -172,9 +185,77 @@ func initDeployLogger() {
 		deployLog.Close()
 		deployLog = nil
 	}
+	closeRolloutRecorder(rollout.Summary{Status: "success"})
+	rolloutRecorder = nil
+	rolloutRecorderClosed = false
+
 	wd := getWorkDir()
 	logDir := filepath.Join(wd, ".stackkit", "logs")
 	deployLog = logging.New(logDir)
+	initRolloutRecorder(wd)
+}
+
+func initRolloutRecorder(wd string) {
+	runID := ""
+	if deployLog != nil {
+		runID = deployLog.RunID()
+	}
+	rec, err := rollout.NewRecorder(filepath.Join(wd, ".stackkit"), rollout.Metadata{
+		RunID:              runID,
+		TenantDeploymentID: firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID"),
+		TenantID:           firstEnv("STACKKIT_TENANT_ID"),
+		Environment:        firstEnv("STACKKIT_ENVIRONMENT", "KOMBIFY_ENVIRONMENT", "GO_ENV"),
+		Provider:           firstEnv("STACKKIT_PROVIDER", "STACKKIT_E2E_CLOUD_NODE_ENGINE"),
+	})
+	if err != nil {
+		printVerbose("rollout evidence disabled: %v", err)
+		return
+	}
+	rolloutRecorder = rec
+}
+
+func rolloutEvent(phase, status, message string, attrs map[string]string) {
+	if rolloutRecorder == nil {
+		return
+	}
+	rolloutRecorder.Event(rollout.Event{
+		Phase:      phase,
+		Status:     status,
+		Message:    message,
+		Attributes: attrs,
+	})
+}
+
+func rolloutFailure(phase string, err error) {
+	if err == nil {
+		return
+	}
+	if rolloutRecorder == nil {
+		return
+	}
+	rolloutRecorder.Event(rollout.Event{
+		Phase:        phase,
+		Status:       "failed",
+		Message:      err.Error(),
+		FailureClass: rollout.ClassifyFailure(err.Error()),
+	})
+}
+
+func closeRolloutRecorder(summary rollout.Summary) {
+	if rolloutRecorder == nil || rolloutRecorderClosed {
+		return
+	}
+	if len(summary.Artifacts) == 0 && deployLog != nil && deployLog.LogPath() != "" {
+		summary.Artifacts = []string{deployLog.LogPath()}
+	}
+	if summary.Status == "" {
+		summary.Status = "success"
+	}
+	if summary.Message != "" && summary.FailureClass == "" {
+		summary.FailureClass = rollout.ClassifyFailure(summary.Message)
+	}
+	_ = rolloutRecorder.Close(summary)
+	rolloutRecorderClosed = true
 }
 
 // getLogDir returns the log directory path for the current working directory.

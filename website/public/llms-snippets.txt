@@ -1,0 +1,37 @@
+# StackKits Agent Snippets
+
+## Autonomous BaseKit
+
+```bash
+stackkit init base-kit --non-interactive --admin-email admin@example.com
+stackkit prepare --dry-run
+stackkit validate
+stackkit generate --force
+stackkit plan
+stackkit apply
+stackkit verify --http --json
+```
+
+## Inspect
+
+```bash
+stackkit status --json
+stackkit verify --http --json
+stackkit logs list --json
+stackkit doctor --json
+```
+
+## MCP Config
+
+```bash
+stackkit agent mcp-config --client codex --mode docs,local,server
+```
+
+## Published Prompts
+
+- /getting-started/agents/basekit-autonomous-rollout.md
+- /getting-started/agents/inspect-existing-rollout.md
+- /getting-started/agents/diagnose-failed-rollout.md
+- /getting-started/agents/enable-monitoring-addon.md
+- /getting-started/agents/ssh-rollout.md
+

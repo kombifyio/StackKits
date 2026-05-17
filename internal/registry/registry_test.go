@@ -60,6 +60,80 @@ func TestEmbeddedSnapshot_IncludesCanonicalServices(t *testing.T) {
 	}
 }
 
+func TestEmbeddedSnapshot_KeepsPaaSSelectionOutOfAppDefaults(t *testing.T) {
+	snap, err := EmbeddedSnapshot()
+	if err != nil {
+		t.Fatalf("EmbeddedSnapshot: %v", err)
+	}
+	services := map[string]Service{}
+	for _, svc := range snap.Services {
+		services[svc.Key] = svc
+	}
+
+	for key, want := range map[string]bool{
+		"traefik": true,
+		"dokploy": false,
+		"kuma":    true,
+		"vault":   true,
+		"photos":  true,
+		"media":   false,
+		"coolify": false,
+		"dockge":  false,
+	} {
+		svc, ok := services[key]
+		if !ok {
+			t.Fatalf("embedded snapshot missing %q", key)
+		}
+		if svc.Default != want {
+			t.Fatalf("%s default = %v, want %v", key, svc.Default, want)
+		}
+	}
+}
+
+func TestEmbeddedSnapshot_ServiceSetupAndLogoMetadata(t *testing.T) {
+	snap, err := EmbeddedSnapshot()
+	if err != nil {
+		t.Fatalf("EmbeddedSnapshot: %v", err)
+	}
+	services := map[string]Service{}
+	for _, svc := range snap.Services {
+		services[svc.Key] = svc
+	}
+
+	for _, key := range []string{"kuma", "whoami"} {
+		svc, ok := services[key]
+		if !ok {
+			t.Fatalf("embedded snapshot missing %q", key)
+		}
+		if svc.Section != "Platform" {
+			t.Fatalf("%s Section = %q, want Platform", key, svc.Section)
+		}
+		if svc.Layer != "L2-platform" {
+			t.Fatalf("%s Layer = %q, want L2-platform", key, svc.Layer)
+		}
+		if svc.SetupPolicy != "automatic" {
+			t.Fatalf("%s SetupPolicy = %q, want automatic", key, svc.SetupPolicy)
+		}
+		if svc.LogoURL == "" {
+			t.Fatalf("%s LogoURL is empty", key)
+		}
+	}
+
+	photos := services["photos"]
+	if photos.Layer != "L3-application" {
+		t.Fatalf("photos Layer = %q, want L3-application", photos.Layer)
+	}
+	if photos.SetupPolicy != "on_demand" {
+		t.Fatalf("photos SetupPolicy = %q, want on_demand", photos.SetupPolicy)
+	}
+	if photos.SetupActionLabel != "Do the setup for me" {
+		t.Fatalf("photos SetupActionLabel = %q", photos.SetupActionLabel)
+	}
+	if photos.LogoURL == "" {
+		t.Fatal("photos LogoURL is empty")
+	}
+}
+
 func TestEmbeddedClient_Module_NotFound(t *testing.T) {
 	c := NewEmbeddedClient()
 	_, err := c.Module(context.Background(), "definitely-not-a-real-module")

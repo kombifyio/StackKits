@@ -1,12 +1,12 @@
 # Identity Module
 
-This module provides identity and PKI services for StackKits across Layer 1 (Foundation) and Layer 2 (Platform).
+This module provides identity and PKI services for StackKits across Layer 1 (Foundation) and Layer 2 (Platform). PocketID is the default Homelab identity authority for human users; LLDAP is compatibility tooling for LDAP-aware services.
 
-## Layer 1: Foundation Services (always deployed)
+## Layer 1: Foundation And Compatibility Services
 
 ### LLDAP (Lightweight LDAP)
 
-A simplified LDAP server for user and group management.
+A simplified LDAP server for services that still need LDAP semantics. It is not the default source of truth for Homelab users in the PocketID-first path.
 
 **Features:**
 - LDAP/LDAPS ports for service authentication
@@ -77,21 +77,23 @@ Self-hosted OIDC/OAuth2 provider with WebAuthn/Passkey support.
 **Features:**
 - Passkey (WebAuthn/FIDO2) authentication
 - OIDC/OAuth2 provider for SSO
-- LDAP sync with LLDAP for user/group management
-- Issues tokens consumed by TinyAuth, PocketBase, etc.
+- Source of truth for Homelab users/groups in the default path
+- Issues tokens consumed by TinyAuth and explicit OIDC clients
 
 **Default Configuration:**
 - UI: `https://id.stack.local`
 - OIDC Discovery: `https://id.stack.local/.well-known/openid-configuration`
 
+PocketID v2 has no password bootstrap. Owner activation uses a one-time setup URL for passkey enrollment.
+
 ## Integration with StackKits
 
-Both services are automatically available to all StackKits through Layer 1 inheritance:
+Identity services are resolved through the StackKit contract. PocketID is the default user authority; LLDAP overrides are for compatibility:
 
 ```cue
 // In your StackKit, identity services are already configured
 stackkit: {
-    // LLDAP configuration (optional overrides)
+    // LLDAP configuration (optional compatibility overrides)
     identity: lldap: {
         enabled: true
         domain: base: "dc=myorg,dc=com"
@@ -107,14 +109,12 @@ stackkit: {
 
 ## Network
 
-Both services run on the `identity_net` Docker network:
-- Subnet: `172.28.0.0/16`
-- Other services can reach LLDAP and Step-CA via container names
+Identity services run on platform/foundation networks selected by the active PaaS adapter and CUE contract. Do not hand-author generated networking output.
 
 ## Security Notes
 
-1. **Default Passwords**: Change default passwords in production using proper secret management
-2. **LDAPS**: Always use LDAPS (port 6360) for production deployments
+1. **No static default credentials**: owner and recovery material must be generated or referenced through approved secret paths.
+2. **LDAPS**: Use LDAPS (port 6360) where LDAP compatibility is enabled in production deployments.
 3. **Root CA**: Store the root CA certificate securely; it's the trust anchor for your infrastructure
 4. **mTLS**: Enable mTLS for internal service communication using Step-CA provisioned certificates
 

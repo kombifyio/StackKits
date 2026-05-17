@@ -14,10 +14,9 @@
 // which the owner clicks once to register a WebAuthn credential. The token
 // is single-use and consumed by PocketID on first redemption.
 //
-// Phase 1 only supports Source=="local" (a daily-admin owner provisioned
-// locally on the firstnode). Source=="cloud" -- the federated path where
-// PocketID trusts an external IdP for the owner's identity -- is Phase 2
-// and currently returns an error.
+// The local provisioner only supports Source=="local" (a daily-admin owner
+// provisioned locally on the first node). Source=="cloud" is orchestrator
+// managed by TechStack/kombify Cloud and must not call this local provisioner.
 package identity
 
 import (
@@ -40,8 +39,8 @@ type PocketIDClient interface {
 
 // OwnerSpec describes the daily-admin owner of a homelab instance.
 type OwnerSpec struct {
-	// Source controls the provisioning path. Phase 1 supports "local" only.
-	// "cloud" is reserved for Phase 2 federated identity.
+	// Source controls the provisioning path. This local provisioner supports
+	// "local" only; "cloud" is handled by TechStack/kombify Cloud.
 	Source string
 
 	// Email is the owner's address (also used as the WebAuthn account label).
@@ -55,8 +54,8 @@ type OwnerSpec struct {
 	// underlying user record.
 	DisplayName string
 
-	// ForeignSubjectID is the external IdP subject for Source=="cloud"
-	// (Phase 2). Ignored when Source=="local".
+	// ForeignSubjectID is the external IdP subject for Source=="cloud".
+	// Ignored when Source=="local".
 	ForeignSubjectID string
 }
 
@@ -96,12 +95,12 @@ const setupTokenTTL = 24 * time.Hour
 // group, and returns a ProvisionResult containing the user's UUID and a
 // setup URL the owner clicks once to enroll a WebAuthn credential.
 //
-// Phase 1 supports Source=="local" only; Source=="cloud" returns a
-// "Phase 2 not yet implemented" error. Any other Source value is rejected
-// as invalid.
+// Source=="local" is the only locally provisioned path. Source=="cloud"
+// returns an orchestrator-managed error. Any other Source value is rejected as
+// invalid.
 func (p *OwnerProvisioner) Provision(ctx context.Context, spec OwnerSpec) (*ProvisionResult, error) {
 	if spec.Source == "cloud" {
-		return nil, fmt.Errorf("cloud-source owner is Phase 2, not yet implemented")
+		return nil, fmt.Errorf("cloud-source owner is orchestrator-managed; local provisioner only supports source local")
 	}
 	if spec.Source != "local" {
 		return nil, fmt.Errorf("invalid owner source %q", spec.Source)

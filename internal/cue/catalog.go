@@ -211,7 +211,7 @@ func ServiceCatalog() []CatalogEntry {
 			Key: "home", Nested: "home", Flat: "home",
 			DisplayName: "Homepage",
 			Description: "IaC-managed homelab start dashboard generated from the StackKits service catalog.",
-			Icon:        "&#8962;", Badge: "L3 &middot; Start", Section: "Platform", Order: 0,
+			Icon:        "&#8962;", Badge: "L2 &middot; Start", Section: "Platform", Order: 0,
 			EnableVar: "enable_homepage",
 		},
 		{
@@ -254,14 +254,14 @@ func ServiceCatalog() []CatalogEntry {
 			Key: "kuma", Nested: "kuma", Flat: "kuma",
 			DisplayName: "Uptime Kuma",
 			Description: "Service uptime monitoring and status pages for all homelab services.",
-			Icon:        "&#128202;", Badge: "L3 &middot; Monitoring", Section: "Applications", Order: 10,
+			Icon:        "&#128202;", Badge: "L2 &middot; Monitoring", Section: "Platform", Order: 10,
 			EnableVar: "enable_uptime_kuma",
 		},
 		{
 			Key: "whoami", Nested: "whoami", Flat: "whoami",
 			DisplayName: "Whoami",
 			Description: "HTTP echo service for verifying Traefik routing, TinyAuth middleware, and headers.",
-			Icon:        "&#129302;", Badge: "L3 &middot; Test", Section: "Applications", Order: 20,
+			Icon:        "&#129302;", Badge: "L2 &middot; Routing test", Section: "Platform", Order: 20,
 			EnableVar: "enable_whoami",
 		},
 		{

@@ -86,11 +86,19 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			// Generation
 			{"name": "generate.tfvars", "description": "Generate terraform.tfvars from a validated spec", "method": "POST", "path": "/api/v1/generate/tfvars"},
 			{"name": "generate.preview", "description": "Preview the generated infrastructure without writing files", "method": "POST", "path": "/api/v1/generate/preview"},
+			// Management
+			{"name": "management.status", "description": "Read node-local StackKit rollout status", "method": "GET", "path": "/api/v1/status"},
+			{"name": "management.verify", "description": "Run node-local StackKit verification", "method": "POST", "path": "/api/v1/verify"},
+			{"name": "management.doctor", "description": "Run read-only node-local diagnostics", "method": "POST", "path": "/api/v1/doctor"},
+			{"name": "management.plan", "description": "Preview management readiness without mutation", "method": "POST", "path": "/api/v1/plan"},
+			{"name": "management.evidence", "description": "Read rollout evidence by run ID", "method": "GET", "path": "/api/v1/runs/{runID}/evidence"},
 			// Logs
 			{"name": "logs.list", "description": "List all deploy log runs", "method": "GET", "path": "/api/v1/logs"},
 			{"name": "logs.latest", "description": "Get the latest deploy log", "method": "GET", "path": "/api/v1/logs/latest"},
 			{"name": "logs.get", "description": "Get deploy log by run ID", "method": "GET", "path": "/api/v1/logs/{runID}"},
 			{"name": "logs.stream", "description": "Stream live deploy log events (SSE)", "method": "GET", "path": "/api/v1/logs/{runID}/stream"},
+			// Setup actions
+			{"name": "setup.service.run", "description": "Run or request an on-demand first-run setup action for a service", "method": "POST", "path": "/api/v1/setup/services/{service}/run"},
 			// Internal runtime actions
 			{"name": "runtime.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-rollout"},
 			{"name": "runtime.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-verify"},

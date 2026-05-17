@@ -1,8 +1,8 @@
 # Architecture — kombify StackKits
 
-> Last verified: 2026-05-13
+> Last verified: 2026-05-17
 
-This is the current implementation overview for this repo. The machine-readable architecture manifest is [../architecture.json](../architecture.json). Normative product and module rules live in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md), [STACKKIT_DEVELOPMENT_DECISION_GUIDE.md](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md), and accepted ADRs.
+This is the current implementation overview for this repo. Normative product and module rules live in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md), [STACKKIT_DEVELOPMENT_DECISION_GUIDE.md](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md), and accepted ADRs.
 
 ## System Role
 
@@ -45,8 +45,8 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 3. `stackkit validate` and generation paths bind the spec to CUE contracts.
 4. `stackkit generate` writes generated rollout artifacts under `deploy/`.
 5. `stackkit plan` and `stackkit apply` execute OpenTofu through the Go adapter.
-6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest and deploys StackKit system apps plus user apps through the Dokploy/Coolify adapter.
-7. App first-run setup is represented separately from deployment as setup-drop metadata. The default policy is `manual`; on-demand and automatic execution are future runner responsibilities, not implicit compose sidecars.
+6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest. StackKit may operate StackKit-owned system apps through the platform adapter, but user apps remain PaaS handoff metadata and are deployed, updated, and operated by the selected external PaaS tooling.
+7. First-run setup is represented separately from deployment as setup-drop metadata. L1/L2 platform services use `automatic` setup and must be usable after rollout; L3 apps use `manual` or `on_demand` depending on whether StackKits has a supported bootstrap drop.
 8. `stackkit verify` performs read-only host checks and optional HTTP URL checks.
 9. `stackkit-server` exposes the same catalog, validation, generation-preview, log, and registry concepts over HTTP and is deployed as a platform-managed system app in the normal BaseKit path.
 
@@ -105,8 +105,8 @@ The implemented top-level command groups are documented in [CLI.md](CLI.md):
 | Registry, catalog, lifecycle mirror | kombify database / Admin API |
 | API wire shape | `api/openapi/stackkits-v1.yaml` plus server tests |
 | CLI behavior | Cobra command definitions and tests |
-| Architecture manifest | `architecture.json` |
-| Active work | Beads |
-| Roadmap read-view | `ROADMAP.md` generated from Beads |
+| Architecture overview | `docs/ARCHITECTURE.md` |
+| Active work | published roadmap and release notes |
+| Roadmap read-view | `ROADMAP.md` |
 
 Historical V5/V6 and CUE-audit planning content has been folded into ADRs, Beads, the architecture manifest, and this overview. Do not reintroduce standalone architecture-version or task-tracker Markdown files.

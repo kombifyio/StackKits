@@ -1,6 +1,6 @@
 # StackKit Metadata - Modern Homelab
 # v4.0: Hybrid infrastructure pattern (local + cloud)
-# Docker Compose per node, coordinated by Coolify or Dokploy
+# Docker Compose per node, coordinated by Coolify by default or Dokploy explicitly
 apiVersion: stackkit/v1
 kind: StackKit
 
@@ -46,17 +46,18 @@ requirements:
 # =============================================================================
 # PAAS DECISION LOGIC
 # =============================================================================
-# PaaS is context-driven, not variant-based:
-#   - User HAS own domain + can wildcard → Coolify (multi-node, git deploys)
-#   - User has NO domain or no wildcard  → Dokploy (traefik-me + MagicDNS)
+# PaaS follows the current release contract:
+#   - omitted       -> Coolify
+#   - paas: dokploy -> explicit alternative
+#   - dockge        -> invalid as normal PaaS; experimental service only
 paas:
   decision:
     coolify:
-      when: "user.hasDomain && user.canWildcard"
+      when: "paas omitted"
       description: "Full-featured PaaS with multi-server support and git deployments"
     dokploy:
-      when: "!user.hasDomain || !user.canWildcard"
-      description: "Simpler PaaS with native traefik-me integration and MagicDNS"
+      when: "paas == 'dokploy'"
+      description: "Explicit alternative PaaS for advanced users"
 
 # =============================================================================
 # DEPLOYMENT MODES
@@ -199,7 +200,7 @@ changelog:
     date: "2026-02-11"
     changes:
       - "BREAKING: Removed Docker Swarm, now Docker Compose per node"
-      - "BREAKING: PaaS decision is context-driven (domain → Coolify, no domain → Dokploy)"
+      - "BREAKING: PaaS decision follows release contract (Coolify default, Dokploy explicit alternative)"
       - "Removed Authentik, kept identity-aware proxy stack (LLDAP + Step-CA + TinyAuth)"
       - "VPN is optional, identity-aware proxies are default"
       - "Added tunnel add-on (Cloudflare Tunnel + Pangolin)"

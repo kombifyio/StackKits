@@ -5,8 +5,6 @@ package testscenarios
 import (
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -212,9 +210,6 @@ func NewArtifact(s Scenario, runID, status string, access ObservedAccess, target
 	if artifact.BrowserURL == "" {
 		artifact.BrowserURL = hubURL
 	}
-	if s.Expected.Access.BrowserURLMode == "local-host-port" {
-		artifact.LogsHint = localHostMappingHint(hubURL, target)
-	}
 	return artifact
 }
 
@@ -272,46 +267,5 @@ func validateScenarios(scenarios []Scenario) error {
 }
 
 func browserURLForScenario(s Scenario, hubURL string, target Target) string {
-	if s.Expected.Access.BrowserURLMode != "local-host-port" {
-		return hubURL
-	}
-	parsed, err := url.Parse(hubURL)
-	if err != nil || parsed.Hostname() == "" {
-		return hubURL
-	}
-	port, defaultPort := mappedPortForURL(parsed, target)
-	if port <= 0 || port == defaultPort {
-		return hubURL
-	}
-	parsed.Host = net.JoinHostPort(parsed.Hostname(), fmt.Sprintf("%d", port))
-	return parsed.String()
-}
-
-func localHostMappingHint(hubURL string, target Target) string {
-	parsed, err := url.Parse(hubURL)
-	if err != nil || parsed.Hostname() == "" {
-		return "Open the local dashboard through the mapped host port."
-	}
-	host := parsed.Hostname()
-	port, defaultPort := mappedPortForURL(parsed, target)
-	if port <= 0 {
-		return fmt.Sprintf("Open %s after mapping %s to 127.0.0.1 if your workstation DNS does not resolve it.", hubURL, host)
-	}
-	if port == defaultPort {
-		return fmt.Sprintf("Open %s after mapping %s to 127.0.0.1 if your workstation DNS does not resolve it.", hubURL, host)
-	}
-	scheme := parsed.Scheme
-	if scheme == "" {
-		scheme = "http"
-	}
-	return fmt.Sprintf("Open %s://%s:%d after mapping %s to 127.0.0.1 in your hosts file.", scheme, host, port, host)
-}
-
-func mappedPortForURL(parsed *url.URL, target Target) (port int, defaultPort int) {
-	switch strings.ToLower(parsed.Scheme) {
-	case "https":
-		return target.HTTPSPort, 443
-	default:
-		return target.HTTPPort, 80
-	}
+	return hubURL
 }

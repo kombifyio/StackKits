@@ -32,6 +32,18 @@ package base
 	restoreInstructions: bool | *true
 }
 
+#RecoveryMaterialHandoff: {
+	kind:  "hash" | "ref"
+	value: string
+
+	if kind == "hash" {
+		value: =~"^\\$argon2id\\$.*"
+	}
+	if kind == "ref" {
+		value: =~"^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+	}
+}
+
 #BundlePayload: {
 	version:     1
 	generatedAt: =~"^\\d{4}-\\d{2}-\\d{2}T"

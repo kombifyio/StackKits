@@ -1,6 +1,6 @@
 # Runbook — `stackkit kit upgrade`
 
-> **Phase:** kit-update-phase-1 (Single-Node Base Kit). [ADR-0018](../ADR/ADR-0018-kit-update-lifecycle.md).
+> **Phase:** kit-update-phase-1 (Single-Node Base Kit). ADR-0018.
 > **Audience:** Operator with shell access to the node where the kit is deployed.
 > **When to read:** Before your first upgrade, when a new kit-version is announced, or when troubleshooting a stalled upgrade.
 
@@ -140,7 +140,7 @@ These are first-snapshot times; subsequent Kopia snapshots are dedup-aware and f
 
 ## Related
 
-- [ADR-0018](../ADR/ADR-0018-kit-update-lifecycle.md) — the design decisions behind this command.
+- ADR-0018 — the design decisions behind this command.
 - [ADR-0016](../ADR/ADR-0016-backup-single-engine-kopia.md) — why Kopia is the standard backup engine.
 - [Rollback runbook](kit-rollback.md) — how to undo an upgrade.
-- [Kit update lifecycle](../KIT_UPDATE_LIFECYCLE.md) - the canonical update model.
+- Kit update lifecycle - the canonical update model.

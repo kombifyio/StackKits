@@ -2,10 +2,10 @@
 # =============================================================================
 # StackKits Base Installer — full base-kit deployment in one command.
 # =============================================================================
-# Usage: curl -sSL stackkit.cc/base | sh
+# Usage: curl -sSL https://base.stackkit.cc | sh
 #
 # Steps:
-#   1. Install stackkit CLI + base-kit definitions  (via stackkit.cc/install)
+#   1. Install stackkit CLI + base-kit definitions  (via install.stackkit.cc)
 #   2. Prepare system: Docker + packaged OpenTofu
 #   3. Initialize base-kit (non-interactive, reads env vars)
 #   4. Generate + deploy the full homelab stack
@@ -17,12 +17,20 @@
 #   CLOUDFLARE_API_TOKEN   Required for custom domain with Let's Encrypt
 #   KOMBIFY_API_KEY        Required for kombify.me subdomain registration
 #   KOMBIFY_CONTEXT        Set to "cloud" to enable kombify.me domain mode
-#   STACKKIT_APP_IMAGE     Optional SvelteKit app image to deploy through PaaS
+#   STACKKIT_SERVICE_PROFILE
+#                          Optional BaseKit service profile: default or admin-only
+#   STACKKIT_SERVER_IMAGE  Optional stackkit-server image override
+#   STACKKIT_ENABLE_DEV_APP_HANDOFF
+#                          Optional dev-only app handoff toggle
+#   STACKKIT_DEV_APP_IMAGE Optional dev-only app handoff image
 #   STACKKIT_APP_NAME      Optional app name (default: web)
 #   STACKKIT_APP_AUTH      Optional auth mode: login-gateway or public
 #   STACKKIT_APP_HOST      Optional route host
 #   STACKKIT_APP_ENV       Optional comma-separated KEY=value app env entries
 #   STACKKIT_APP_SECRETS   Optional comma-separated KEY=env:NAME secret refs
+#   STACKKIT_PLATFORM_ENDPOINT / STACKKIT_PLATFORM_TOKEN
+#                          Optional platform API config persisted to .stackkit/platform.json
+#   DOKPLOY_* / COOLIFY_*  Provider-specific platform API aliases
 #
 # Requirements: Linux or macOS, root/sudo access
 # =============================================================================
@@ -62,6 +70,158 @@ warn()  { printf '\033[1;33m==> %s\033[0m\n' "$*"; }
 err()   { printf '\033[1;31m==> %s\033[0m\n' "$*" >&2; }
 die()   { err "$*"; exit 1; }
 can_prompt() { [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; }
+env_value() { eval "printf '%s' \"\${$1:-}\""; }
+first_env_value() {
+  for _stackkit_key in "$@"; do
+    _stackkit_value=$(env_value "$_stackkit_key")
+    if [ -n "$_stackkit_value" ]; then
+      printf '%s' "$_stackkit_value"
+      return 0
+    fi
+  done
+  return 0
+}
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+platform_config_env_present() {
+  for _stackkit_key in \
+    STACKKIT_PLATFORM STACKKIT_PAAS STACKKIT_PLATFORM_ENDPOINT STACKKIT_PLATFORM_TOKEN \
+    STACKKIT_PLATFORM_ENVIRONMENT_ID STACKKIT_PLATFORM_ENVIRONMENT_NAME \
+    STACKKIT_PLATFORM_SERVER_ID STACKKIT_PLATFORM_SERVER_UUID \
+    STACKKIT_PLATFORM_PROJECT_UUID STACKKIT_PLATFORM_ENVIRONMENT_UUID STACKKIT_PLATFORM_DESTINATION_UUID \
+    DOKPLOY_API_URL DOKPLOY_API_KEY DOKPLOY_ENVIRONMENT_ID DOKPLOY_SERVER_ID \
+    COOLIFY_API_URL COOLIFY_API_TOKEN COOLIFY_ENVIRONMENT_NAME COOLIFY_SERVER_UUID \
+    COOLIFY_PROJECT_UUID COOLIFY_ENVIRONMENT_UUID COOLIFY_DESTINATION_UUID; do
+    if [ -n "$(env_value "$_stackkit_key")" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+write_platform_json_field() {
+  _stackkit_json_name="$1"
+  _stackkit_json_value="$2"
+  _stackkit_json_file="$3"
+  if [ -z "$_stackkit_json_value" ]; then
+    return 0
+  fi
+  if [ "$PLATFORM_JSON_HAS_FIELDS" = "true" ]; then
+    printf ',\n' >> "$_stackkit_json_file"
+  else
+    PLATFORM_JSON_HAS_FIELDS="true"
+  fi
+  printf '  "%s": "%s"' "$_stackkit_json_name" "$(json_escape "$_stackkit_json_value")" >> "$_stackkit_json_file"
+}
+persist_platform_config() {
+  if ! platform_config_env_present; then
+    return 0
+  fi
+
+  PLATFORM_NAME="${STACKKIT_PLATFORM:-${STACKKIT_PAAS:-}}"
+  if [ -z "$PLATFORM_NAME" ]; then
+    if [ -n "${COOLIFY_API_URL:-}" ] || [ -n "${COOLIFY_API_TOKEN:-}" ]; then
+      PLATFORM_NAME="coolify"
+    elif [ -n "${DOKPLOY_API_URL:-}" ] || [ -n "${DOKPLOY_API_KEY:-}" ]; then
+      PLATFORM_NAME="dokploy"
+    else
+      PLATFORM_NAME="coolify"
+    fi
+  fi
+  PLATFORM_NAME=$(printf '%s' "$PLATFORM_NAME" | tr '[:upper:]' '[:lower:]')
+
+  case "$PLATFORM_NAME" in
+    coolify)
+      PLATFORM_ENDPOINT=$(first_env_value COOLIFY_API_URL STACKKIT_PLATFORM_ENDPOINT)
+      PLATFORM_TOKEN=$(first_env_value COOLIFY_API_TOKEN STACKKIT_PLATFORM_TOKEN)
+      PLATFORM_ENVIRONMENT_ID=$(first_env_value COOLIFY_ENVIRONMENT_NAME STACKKIT_PLATFORM_ENVIRONMENT_NAME)
+      PLATFORM_SERVER_ID=$(first_env_value COOLIFY_SERVER_UUID STACKKIT_PLATFORM_SERVER_UUID STACKKIT_PLATFORM_SERVER_ID)
+      ;;
+    dokploy)
+      PLATFORM_ENDPOINT=$(first_env_value DOKPLOY_API_URL STACKKIT_PLATFORM_ENDPOINT)
+      PLATFORM_TOKEN=$(first_env_value DOKPLOY_API_KEY STACKKIT_PLATFORM_TOKEN)
+      PLATFORM_ENVIRONMENT_ID=$(first_env_value DOKPLOY_ENVIRONMENT_ID STACKKIT_PLATFORM_ENVIRONMENT_ID)
+      PLATFORM_SERVER_ID=$(first_env_value DOKPLOY_SERVER_ID STACKKIT_PLATFORM_SERVER_ID)
+      ;;
+    *)
+      die "Unsupported STACKKIT_PLATFORM '$PLATFORM_NAME'. Expected coolify or dokploy."
+      ;;
+  esac
+
+  if [ -z "$PLATFORM_ENDPOINT" ] || [ -z "$PLATFORM_TOKEN" ]; then
+    die "Platform config is incomplete. Set STACKKIT_PLATFORM_ENDPOINT and STACKKIT_PLATFORM_TOKEN, or provider-specific endpoint/token variables."
+  fi
+
+  PLATFORM_PROJECT_UUID=$(first_env_value COOLIFY_PROJECT_UUID STACKKIT_PLATFORM_PROJECT_UUID)
+  PLATFORM_ENVIRONMENT_UUID=$(first_env_value COOLIFY_ENVIRONMENT_UUID STACKKIT_PLATFORM_ENVIRONMENT_UUID)
+  PLATFORM_DESTINATION_UUID=$(first_env_value COOLIFY_DESTINATION_UUID STACKKIT_PLATFORM_DESTINATION_UUID)
+
+  mkdir -p "$HOMELAB_DIR/.stackkit"
+  chmod 700 "$HOMELAB_DIR/.stackkit" 2>/dev/null || true
+  PLATFORM_JSON="$HOMELAB_DIR/.stackkit/platform.json"
+  PLATFORM_JSON_TMP="$PLATFORM_JSON.tmp"
+  PLATFORM_JSON_HAS_FIELDS="false"
+  : > "$PLATFORM_JSON_TMP"
+  chmod 600 "$PLATFORM_JSON_TMP" 2>/dev/null || true
+  printf '{\n' > "$PLATFORM_JSON_TMP"
+  write_platform_json_field "platform" "$PLATFORM_NAME" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "endpoint" "$PLATFORM_ENDPOINT" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "token" "$PLATFORM_TOKEN" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "environmentId" "$PLATFORM_ENVIRONMENT_ID" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "serverId" "$PLATFORM_SERVER_ID" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "projectUuid" "$PLATFORM_PROJECT_UUID" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "environmentUuid" "$PLATFORM_ENVIRONMENT_UUID" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "destinationUuid" "$PLATFORM_DESTINATION_UUID" "$PLATFORM_JSON_TMP"
+  printf '\n}\n' >> "$PLATFORM_JSON_TMP"
+  mv "$PLATFORM_JSON_TMP" "$PLATFORM_JSON"
+  chmod 600 "$PLATFORM_JSON" 2>/dev/null || true
+  ok "  Platform API config persisted to $PLATFORM_JSON"
+}
+
+configure_stackkit_server_image() {
+  if [ -n "${STACKKIT_SERVER_IMAGE:-}" ]; then
+    ok "  StackKit API image: $STACKKIT_SERVER_IMAGE"
+    export STACKKIT_SERVER_IMAGE
+    return 0
+  fi
+
+  if ! command -v stackkit-server >/dev/null 2>&1; then
+    warn "stackkit-server binary not installed; falling back to the configured registry image."
+    return 0
+  fi
+
+  DOCKER_CMD="docker"
+  if ! docker info >/dev/null 2>&1; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then
+      DOCKER_CMD="sudo -n docker"
+    else
+      warn "Docker is not reachable for local stackkit-server image build; falling back to the configured registry image."
+      return 0
+    fi
+  fi
+
+  STACKKIT_SERVER_LOCAL_IMAGE="${STACKKIT_SERVER_LOCAL_IMAGE:-stackkit-server:local}"
+  STACKKIT_SERVER_IMAGE_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t stackkit-server-image)
+  trap 'rm -rf "$STACKKIT_SERVER_IMAGE_DIR"' EXIT HUP INT TERM
+
+  cp "$(command -v stackkit-server)" "$STACKKIT_SERVER_IMAGE_DIR/stackkit-server"
+  cat > "$STACKKIT_SERVER_IMAGE_DIR/Dockerfile" <<'EOF'
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates curl
+COPY stackkit-server /usr/local/bin/stackkit-server
+RUN chmod +x /usr/local/bin/stackkit-server
+ENTRYPOINT ["stackkit-server"]
+EOF
+
+  info "Building local stackkit-server image ($STACKKIT_SERVER_LOCAL_IMAGE)"
+  if ! $DOCKER_CMD build -q -t "$STACKKIT_SERVER_LOCAL_IMAGE" "$STACKKIT_SERVER_IMAGE_DIR" >/dev/null; then
+    die "Local stackkit-server image build failed. Set STACKKIT_SERVER_IMAGE to a reachable image and retry."
+  fi
+  rm -rf "$STACKKIT_SERVER_IMAGE_DIR"
+  STACKKIT_SERVER_IMAGE="$STACKKIT_SERVER_LOCAL_IMAGE"
+  export STACKKIT_SERVER_IMAGE
+  ok "  StackKit API image: $STACKKIT_SERVER_IMAGE"
+}
 
 # --- Admin email --------------------------------------------------------------
 
@@ -106,7 +266,7 @@ fi
 info "Step 1/4 -- Installing stackkit CLI + base-kit"
 
 # STACKKIT_NO_BANNER suppresses the duplicate banner from install.sh.
-STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://stackkit.cc/install}"
+STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://install.stackkit.cc}"
 STACKKIT_NO_BANNER=1 curl -sSL "$STACKKIT_INSTALL_URL" | sh -s -- base-kit
 
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
@@ -122,6 +282,8 @@ else
 fi
 
 ok "  System ready"
+
+configure_stackkit_server_image
 
 # --- Step 3: Initialize base-kit ----------------------------------------------
 
@@ -139,6 +301,9 @@ if [ "$BOOTSTRAP_OWNER" = "true" ]; then
 else
   set -- "$@" --non-interactive
 fi
+if [ -n "${STACKKIT_SERVICE_PROFILE:-}" ]; then
+  set -- "$@" --service-profile "$STACKKIT_SERVICE_PROFILE"
+fi
 if [ -n "${DOMAIN:-}" ]; then
   set -- "$@" --domain "$DOMAIN"
 fi
@@ -150,9 +315,14 @@ fi
 
 ok "  base-kit initialized in $HOMELAB_DIR"
 
-# --- Optional app handoff -----------------------------------------------------
+persist_platform_config
 
-APP_IMAGE="${STACKKIT_APP_IMAGE:-}"
+# --- Optional dev-only app handoff -------------------------------------------
+
+APP_IMAGE=""
+if [ "${STACKKIT_ENABLE_DEV_APP_HANDOFF:-false}" = "true" ]; then
+  APP_IMAGE="${STACKKIT_DEV_APP_IMAGE:-${STACKKIT_APP_IMAGE:-}}"
+fi
 if [ -n "$APP_IMAGE" ]; then
   APP_NAME="${STACKKIT_APP_NAME:-web}"
   APP_KIND="${STACKKIT_APP_KIND:-sveltekit}"
@@ -161,7 +331,7 @@ if [ -n "$APP_IMAGE" ]; then
   APP_AUTH="${STACKKIT_APP_AUTH:-login-gateway}"
   APP_HEALTH_PATH="${STACKKIT_APP_HEALTH_PATH:-/health}"
 
-  info "Adding SvelteKit app '$APP_NAME'"
+  info "Adding dev PaaS handoff app '$APP_NAME'"
 
   set -- app add "$APP_NAME" \
     --image "$APP_IMAGE" \
@@ -198,7 +368,7 @@ if [ -n "$APP_IMAGE" ]; then
   fi
 
   stackkit $STACKKIT_CONTEXT_ARG "$@"
-  ok "  SvelteKit app '$APP_NAME' added to stack-spec.yaml"
+  ok "  Dev PaaS handoff app '$APP_NAME' added to stack-spec.yaml"
 fi
 
 # --- Step 4: Generate + Deploy ------------------------------------------------
@@ -224,8 +394,11 @@ fi
 
 # Read subdomain prefix from tfvars (kombify.me mode)
 SUBDOMAIN_PREFIX=""
+PAAS="coolify"
 if [ -f "$HOMELAB_DIR/deploy/terraform.tfvars.json" ]; then
   SUBDOMAIN_PREFIX=$(grep '"subdomain_prefix"' "$HOMELAB_DIR/deploy/terraform.tfvars.json" | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/' || true)
+  _paas=$(grep '"paas"' "$HOMELAB_DIR/deploy/terraform.tfvars.json" | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/' || true)
+  if [ -n "$_paas" ]; then PAAS="$_paas"; fi
 fi
 
 ENABLE_HTTPS="false"
@@ -277,12 +450,23 @@ if [ "$NETWORK_ENV" = "vps" ] || [ "$NETWORK_ENV" = "cloud" ]; then
   esac
 fi
 
+case "$PAAS" in
+  dokploy)
+    PAAS_ROUTE="dokploy"
+    PAAS_LABEL="Dokploy"
+    ;;
+  *)
+    PAAS_ROUTE="coolify"
+    PAAS_LABEL="Coolify"
+    ;;
+esac
+
 # Build service URLs
 if [ -n "$SUBDOMAIN_PREFIX" ] && [ "$DOMAIN" = "kombify.me" ]; then
   PROTO="https"
   DASH_URL="${PROTO}://${SUBDOMAIN_PREFIX}-base.${DOMAIN}"
   TRAEFIK_URL="${PROTO}://${SUBDOMAIN_PREFIX}-traefik.${DOMAIN}"
-  DOKPLOY_URL="${PROTO}://${SUBDOMAIN_PREFIX}-dokploy.${DOMAIN}"
+  PAAS_URL="${PROTO}://${SUBDOMAIN_PREFIX}-${PAAS_ROUTE}.${DOMAIN}"
   KUMA_URL="${PROTO}://${SUBDOMAIN_PREFIX}-kuma.${DOMAIN}"
   AUTH_URL="${PROTO}://${SUBDOMAIN_PREFIX}-auth.${DOMAIN}"
   ID_URL="${PROTO}://${SUBDOMAIN_PREFIX}-id.${DOMAIN}"
@@ -294,7 +478,7 @@ else
   fi
   DASH_URL="${PROTO}://base.${DOMAIN}"
   TRAEFIK_URL="${PROTO}://traefik.${DOMAIN}"
-  DOKPLOY_URL="${PROTO}://dokploy.${DOMAIN}"
+  PAAS_URL="${PROTO}://${PAAS_ROUTE}.${DOMAIN}"
   KUMA_URL="${PROTO}://kuma.${DOMAIN}"
   AUTH_URL="${PROTO}://auth.${DOMAIN}"
   ID_URL="${PROTO}://id.${DOMAIN}"
@@ -311,7 +495,7 @@ echo ""
 echo "  All services accessible at ${URL_PATTERN}:"
 echo "    ${DASH_URL}         Dashboard"
 echo "    ${TRAEFIK_URL}      Reverse proxy"
-echo "    ${DOKPLOY_URL}      PaaS controller"
+echo "    ${PAAS_URL}      ${PAAS_LABEL} controller"
 echo "    ${KUMA_URL}         Uptime monitoring"
 echo "    ${AUTH_URL}         Authentication"
 echo ""

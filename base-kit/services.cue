@@ -2,19 +2,19 @@
 //
 // Layer Architecture:
 //   Layer 1 (Foundation): System, security, core identity (LLDAP, Step-CA from base)
-//   Layer 2 (Platform): Traefik, PAAS (Dokploy/Coolify), Platform Identity (TinyAuth, PocketID)
-//   Layer 3 (Applications): Uptime Kuma, Beszel, Whoami, etc. (user applications)
+//   Layer 2 (Platform): Traefik, PAAS (Coolify/Dokploy), Platform Identity (TinyAuth, PocketID), Uptime Kuma, Whoami
+//   Layer 3 (Applications): Vaultwarden, Immich, Jellyfin, and other user applications
 //
 // PaaS Strategy:
-//   - Dokploy (default): local, pi, kombify.me, and cloud without custom domain
-//   - Coolify (option):  cloud custom-domain or explicit supported override
+//   - Coolify (default): no-domain, local, pi, kombify.me, and own public/custom domain
+//   - Dokploy: explicit supported alternative
 //   - Dockge: lightweight compose manager only; not the standard PaaS
 //
 // Variants:
-//   - default: Traefik + Dokploy + Uptime Kuma (local/no-domain users)
-//   - coolify: Traefik + Coolify + Uptime Kuma (own-domain users)
-//   - beszel:  Traefik + Dokploy + Beszel (server metrics focus)
-//   - minimal: Dokploy + optional Dockge/Portainer (constrained/experimental)
+//   - default: Traefik + Coolify + Uptime Kuma
+//   - coolify: Traefik + Coolify + Uptime Kuma
+//   - beszel:  Traefik + Coolify + Beszel (server metrics focus)
+//   - minimal: Coolify + optional Dockge/Portainer (constrained/experimental)
 //   - secure:  Traefik + Dokploy + TinyAuth + Uptime Kuma (with auth)
 //
 // Monitoring Options:
@@ -46,8 +46,8 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "v3.3"
 	description: "Routes all traffic across services. View active routes, middlewares, and upstreams."
 
-	subdomain: { key: "traefik", nested: "traefik", flat: "traefik" }
-	dashboard: { icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy" }
+	subdomain: {key: "traefik", nested: "traefik", flat: "traefik"}
+	dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy"}
 
 	network: {
 		ports: [
@@ -143,10 +143,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "ghcr.io/steveiliop56/tinyauth"
 	tag:         "v4"
 	description: "ForwardAuth gateway. Protects all services via TinyAuth middleware backed by Pocket ID."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "auth", nested: "auth", flat: "auth" }
-	dashboard: { icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth" }
+	subdomain: {key: "auth", nested: "auth", flat: "auth"}
+	dashboard: {icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth"}
 
 	network: {
 		ports: [
@@ -187,8 +187,8 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	healthCheck: {
-		enabled: true
-		command: "tinyauth healthcheck"
+		enabled:     true
+		command:     "tinyauth healthcheck"
 		interval:    "30s"
 		timeout:     "5s"
 		retries:     3
@@ -202,14 +202,14 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                                        "true"
-		"traefik.http.routers.tinyauth.entrypoints":                             "websecure"
-		"traefik.http.routers.tinyauth.rule":                                    "Host(`auth.{{.domain}}`)"
-		"traefik.http.routers.tinyauth.tls.certresolver":                        "letsencrypt"
-		"traefik.http.services.tinyauth.loadbalancer.server.port":               "3000"
-		"traefik.http.middlewares.tinyauth.forwardauth.address":                 "http://tinyauth:3000/api/auth/traefik"
-		"traefik.http.middlewares.tinyauth.forwardauth.trustForwardHeader":      "true"
-		"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders":     "remote-user,remote-sub,remote-name,remote-email,remote-groups"
+		"traefik.enable":                                                    "true"
+		"traefik.http.routers.tinyauth.entrypoints":                         "websecure"
+		"traefik.http.routers.tinyauth.rule":                                "Host(`auth.{{.domain}}`)"
+		"traefik.http.routers.tinyauth.tls.certresolver":                    "letsencrypt"
+		"traefik.http.services.tinyauth.loadbalancer.server.port":           "3000"
+		"traefik.http.middlewares.tinyauth.forwardauth.address":             "http://tinyauth:3000/api/auth/traefik"
+		"traefik.http.middlewares.tinyauth.forwardauth.trustForwardHeader":  "true"
+		"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders": "remote-user,remote-sub,remote-name,remote-email,remote-groups"
 		// Layer classification
 		"stackkit.layer":      "2-platform"
 		"stackkit.managed-by": "terraform"
@@ -238,10 +238,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "ghcr.io/pocket-id/pocket-id"
 	tag:         "v1"
 	description: "OIDC identity provider with passkey authentication. Manage users and SSO clients."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "id", nested: "id", flat: "id" }
-	dashboard: { icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP" }
+	subdomain: {key: "id", nested: "id", flat: "id"}
+	dashboard: {icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP"}
 
 	network: {
 		ports: [
@@ -266,9 +266,9 @@ import "github.com/kombifyio/stackkits/base"
 	]
 
 	environment: {
-		"TZ":              "Europe/Berlin"
-		"PUBLIC_APP_URL":  "https://id.{{.domain}}"
-		"TRUST_PROXY":     "true"
+		"TZ":             "Europe/Berlin"
+		"PUBLIC_APP_URL": "https://id.{{.domain}}"
+		"TRUST_PROXY":    "true"
 	}
 
 	healthCheck: {
@@ -291,10 +291,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                      "true"
-		"traefik.http.routers.pocketid.entrypoints":           "websecure"
-		"traefik.http.routers.pocketid.rule":                  "Host(`id.{{.domain}}`)"
-		"traefik.http.routers.pocketid.tls.certresolver":      "letsencrypt"
+		"traefik.enable":                                          "true"
+		"traefik.http.routers.pocketid.entrypoints":               "websecure"
+		"traefik.http.routers.pocketid.rule":                      "Host(`id.{{.domain}}`)"
+		"traefik.http.routers.pocketid.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.pocketid.loadbalancer.server.port": "80"
 		// Layer classification
 		"stackkit.layer":      "2-platform"
@@ -328,10 +328,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "dokploy/dokploy"
 	tag:         "latest"
 	description: "Deploy and manage applications. Your self-hosted Heroku for services and compose stacks."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "dokploy", nested: "dokploy", flat: "dokploy" }
-	dashboard: { icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy" }
+	subdomain: {key: "dokploy", nested: "dokploy", flat: "dokploy"}
+	dashboard: {icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy"}
 
 	network: {
 		ports: [
@@ -387,10 +387,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                       "true"
-		"traefik.http.routers.dokploy.entrypoints":             "websecure"
-		"traefik.http.routers.dokploy.rule":                    "Host(`dokploy.{{.domain}}`)"
-		"traefik.http.routers.dokploy.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                         "true"
+		"traefik.http.routers.dokploy.entrypoints":               "websecure"
+		"traefik.http.routers.dokploy.rule":                      "Host(`dokploy.{{.domain}}`)"
+		"traefik.http.routers.dokploy.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.dokploy.loadbalancer.server.port": "3000"
 		// Layer classification
 		"stackkit.layer":      "2-platform"
@@ -425,10 +425,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "ghcr.io/coollabsio/coolify"
 	tag:         "latest"
 	description: "Self-hosted Heroku/Vercel alternative with Git deployment and auto-HTTPS."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "coolify", nested: "coolify", flat: "coolify" }
-	dashboard: { icon: "&#128171;", order: 41, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_coolify" }
+	subdomain: {key: "coolify", nested: "coolify", flat: "coolify"}
+	dashboard: {icon: "&#128171;", order: 41, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_coolify"}
 
 	network: {
 		ports: [
@@ -463,9 +463,9 @@ import "github.com/kombifyio/stackkits/base"
 	]
 
 	environment: {
-		"APP_ID":       "{{.coolify_app_id}}"
-		"APP_KEY":      "{{.coolify_app_key}}"
-		"APP_URL":      "https://coolify.{{.domain}}"
+		"APP_ID":        "{{.coolify_app_id}}"
+		"APP_KEY":       "{{.coolify_app_key}}"
+		"APP_URL":       "https://coolify.{{.domain}}"
 		"DB_CONNECTION": "sqlite"
 	}
 
@@ -479,7 +479,7 @@ import "github.com/kombifyio/stackkits/base"
 		interval:    "30s"
 		timeout:     "10s"
 		retries:     3
-		startPeriod: "90s"  // Coolify takes longer to start
+		startPeriod: "90s" // Coolify takes longer to start
 	}
 
 	resources: {
@@ -489,10 +489,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                        "true"
-		"traefik.http.routers.coolify.entrypoints":              "websecure"
-		"traefik.http.routers.coolify.rule":                     "Host(`coolify.{{.domain}}`)"
-		"traefik.http.routers.coolify.tls.certresolver":         "letsencrypt"
+		"traefik.enable":                                         "true"
+		"traefik.http.routers.coolify.entrypoints":               "websecure"
+		"traefik.http.routers.coolify.rule":                      "Host(`coolify.{{.domain}}`)"
+		"traefik.http.routers.coolify.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.coolify.loadbalancer.server.port": "8000"
 		// Layer classification
 		"stackkit.layer":      "2-platform"
@@ -526,10 +526,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "louislam/uptime-kuma"
 	tag:         "1"
 	description: "Service uptime monitoring and status pages for all homelab services."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "kuma", nested: "kuma", flat: "kuma" }
-	dashboard: { icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring", enableVar: "enable_uptime_kuma" }
+	subdomain: {key: "kuma", nested: "kuma", flat: "kuma"}
+	dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma"}
 
 	network: {
 		ports: [
@@ -573,14 +573,14 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                           "true"
-		"traefik.http.routers.uptime-kuma.entrypoints":             "websecure"
-		"traefik.http.routers.uptime-kuma.rule":                    "Host(`kuma.{{.domain}}`)"
-		"traefik.http.routers.uptime-kuma.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                             "true"
+		"traefik.http.routers.uptime-kuma.entrypoints":               "websecure"
+		"traefik.http.routers.uptime-kuma.rule":                      "Host(`kuma.{{.domain}}`)"
+		"traefik.http.routers.uptime-kuma.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.uptime-kuma.loadbalancer.server.port": "3001"
-		// Layer classification - deployed via PAAS (Dokploy)
-		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "dokploy"
+		// Layer classification - platform observability, deployed by the selected PaaS adapter.
+		"stackkit.layer":      "2-platform"
+		"stackkit.managed-by": "platform"
 	}
 
 	output: {
@@ -605,9 +605,9 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "henrygd/beszel"
 	tag:         "latest"
 	description: "Lightweight server monitoring with historical data and alerts"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "monitor", nested: "monitor", flat: "monitor" }
+	subdomain: {key: "monitor", nested: "monitor", flat: "monitor"}
 
 	network: {
 		ports: [
@@ -651,10 +651,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                      "true"
-		"traefik.http.routers.beszel.entrypoints":             "websecure"
-		"traefik.http.routers.beszel.rule":                    "Host(`monitor.{{.domain}}`)"
-		"traefik.http.routers.beszel.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                        "true"
+		"traefik.http.routers.beszel.entrypoints":               "websecure"
+		"traefik.http.routers.beszel.rule":                      "Host(`monitor.{{.domain}}`)"
+		"traefik.http.routers.beszel.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.beszel.loadbalancer.server.port": "8090"
 		// Layer classification - deployed via PAAS (Dokploy)
 		"stackkit.layer":      "3-application"
@@ -687,9 +687,9 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "amir20/dozzle"
 	tag:         "latest"
 	description: "Real-time Docker container log viewer"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "logs", nested: "logs", flat: "logs" }
+	subdomain: {key: "logs", nested: "logs", flat: "logs"}
 
 	network: {
 		ports: [
@@ -734,10 +734,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                      "true"
-		"traefik.http.routers.dozzle.entrypoints":             "websecure"
-		"traefik.http.routers.dozzle.rule":                    "Host(`logs.{{.domain}}`)"
-		"traefik.http.routers.dozzle.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                        "true"
+		"traefik.http.routers.dozzle.entrypoints":               "websecure"
+		"traefik.http.routers.dozzle.rule":                      "Host(`logs.{{.domain}}`)"
+		"traefik.http.routers.dozzle.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.dozzle.loadbalancer.server.port": "8080"
 		// Layer classification - Platform observability, deployed via Terraform
 		"stackkit.layer":      "2-platform"
@@ -770,10 +770,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "traefik/whoami"
 	tag:         "latest"
 	description: "TinyAuth-protected HTTP echo service for verifying routing, login middleware, and headers."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "whoami", nested: "whoami", flat: "whoami" }
-	dashboard: { icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 SSO test", enableVar: "enable_whoami" }
+	subdomain: {key: "whoami", nested: "whoami", flat: "whoami"}
+	dashboard: {icon: "&#129302;", order: 20, section: "Platform", badge: "L2 \u00b7 Routing test", enableVar: "enable_whoami"}
 
 	network: {
 		ports: [
@@ -807,14 +807,14 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                      "true"
-		"traefik.http.routers.whoami.entrypoints":             "websecure"
-		"traefik.http.routers.whoami.rule":                    "Host(`whoami.{{.domain}}`)"
-		"traefik.http.routers.whoami.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                        "true"
+		"traefik.http.routers.whoami.entrypoints":               "websecure"
+		"traefik.http.routers.whoami.rule":                      "Host(`whoami.{{.domain}}`)"
+		"traefik.http.routers.whoami.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.whoami.loadbalancer.server.port": "80"
-		// Layer classification - deployed via PAAS (Dokploy)
-		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "dokploy"
+		// Layer classification - platform routing diagnostic, deployed by the selected PaaS adapter.
+		"stackkit.layer":      "2-platform"
+		"stackkit.managed-by": "platform"
 	}
 
 	output: {
@@ -843,10 +843,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "vaultwarden/server"
 	tag:         "latest"
 	description: "Self-hosted password manager with its own app login. Bitwarden-compatible vault for passwords, TOTP, and secure notes."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "vault", nested: "vault", flat: "vault" }
-	dashboard: { icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_vaultwarden" }
+	subdomain: {key: "vault", nested: "vault", flat: "vault"}
+	dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_vaultwarden"}
 
 	network: {
 		ports: [
@@ -871,9 +871,9 @@ import "github.com/kombifyio/stackkits/base"
 	]
 
 	environment: {
-		"DOMAIN":           "https://vault.{{.domain}}"
-		"SIGNUPS_ALLOWED":  "false"
-		"ADMIN_TOKEN":      "{{.vaultwarden_admin_token}}"
+		"DOMAIN":          "https://vault.{{.domain}}"
+		"SIGNUPS_ALLOWED": "false"
+		"ADMIN_TOKEN":     "{{.vaultwarden_admin_token}}"
 	}
 
 	healthCheck: {
@@ -901,8 +901,8 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.vaultwarden.rule":                      "Host(`vault.{{.domain}}`)"
 		"traefik.http.routers.vaultwarden.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.vaultwarden.loadbalancer.server.port": "80"
-		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "dokploy"
+		"stackkit.layer":                                             "3-application"
+		"stackkit.managed-by":                                        "dokploy"
 	}
 
 	output: {
@@ -927,10 +927,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "jellyfin/jellyfin"
 	tag:         "latest"
 	description: "Free media server with its own app login for movies, TV, music, and photos."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "media", nested: "media", flat: "media" }
-	dashboard: { icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_jellyfin" }
+	subdomain: {key: "media", nested: "media", flat: "media"}
+	dashboard: {icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_jellyfin"}
 
 	network: {
 		ports: [
@@ -994,8 +994,8 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.jellyfin.rule":                      "Host(`media.{{.domain}}`)"
 		"traefik.http.routers.jellyfin.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.jellyfin.loadbalancer.server.port": "8096"
-		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "dokploy"
+		"stackkit.layer":                                          "3-application"
+		"stackkit.managed-by":                                     "dokploy"
 	}
 
 	output: {
@@ -1021,10 +1021,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "ghcr.io/immich-app/immich-server"
 	tag:         "release"
 	description: "Self-hosted photo and video management with its own app login, AI-powered search, facial recognition, and mobile backup."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "photos", nested: "photos", flat: "photos" }
-	dashboard: { icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_immich" }
+	subdomain: {key: "photos", nested: "photos", flat: "photos"}
+	dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 App login", enableVar: "enable_immich"}
 
 	network: {
 		ports: [
@@ -1090,8 +1090,8 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.immich.rule":                      "Host(`photos.{{.domain}}`)"
 		"traefik.http.routers.immich.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.immich.loadbalancer.server.port": "2283"
-		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "dokploy"
+		"stackkit.layer":                                        "3-application"
+		"stackkit.managed-by":                                   "dokploy"
 	}
 
 	output: {
@@ -1120,10 +1120,10 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "louislam/dockge"
 	tag:         "1"
 	description: "Lightweight Docker Compose manager. Create and manage compose stacks with a simple UI."
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "dockge", nested: "dockge", flat: "dockge" }
-	dashboard: { icon: "&#128230;", order: 42, section: "Platform", badge: "L2 \u00b7 Compose Manager", enableVar: "enable_dockge" }
+	subdomain: {key: "dockge", nested: "dockge", flat: "dockge"}
+	dashboard: {icon: "&#128230;", order: 42, section: "Platform", badge: "L2 \u00b7 Compose Manager", enableVar: "enable_dockge"}
 
 	network: {
 		ports: [
@@ -1186,10 +1186,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                      "true"
-		"traefik.http.routers.dockge.entrypoints":             "websecure"
-		"traefik.http.routers.dockge.rule":                    "Host(`dockge.{{.domain}}`)"
-		"traefik.http.routers.dockge.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                        "true"
+		"traefik.http.routers.dockge.entrypoints":               "websecure"
+		"traefik.http.routers.dockge.rule":                      "Host(`dockge.{{.domain}}`)"
+		"traefik.http.routers.dockge.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.dockge.loadbalancer.server.port": "5001"
 		// Layer classification - Platform management, deployed via Terraform
 		"stackkit.layer":      "2-platform"
@@ -1218,9 +1218,9 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "portainer/portainer-ce"
 	tag:         "latest"
 	description: "Full-featured Docker management UI"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "portainer", nested: "portainer", flat: "portainer" }
+	subdomain: {key: "portainer", nested: "portainer", flat: "portainer"}
 
 	network: {
 		ports: [
@@ -1273,10 +1273,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                         "true"
-		"traefik.http.routers.portainer.entrypoints":             "websecure"
-		"traefik.http.routers.portainer.rule":                    "Host(`portainer.{{.domain}}`)"
-		"traefik.http.routers.portainer.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                           "true"
+		"traefik.http.routers.portainer.entrypoints":               "websecure"
+		"traefik.http.routers.portainer.rule":                      "Host(`portainer.{{.domain}}`)"
+		"traefik.http.routers.portainer.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.portainer.loadbalancer.server.port": "9000"
 		// Layer classification - Platform management, deployed via Terraform
 		"stackkit.layer":      "2-platform"
@@ -1305,9 +1305,9 @@ import "github.com/kombifyio/stackkits/base"
 	image:       "netdata/netdata"
 	tag:         "stable"
 	description: "Real-time system monitoring with detailed metrics"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
-	subdomain: { key: "netdata", nested: "netdata", flat: "netdata" }
+	subdomain: {key: "netdata", nested: "netdata", flat: "netdata"}
 
 	network: {
 		ports: [
@@ -1387,10 +1387,10 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                       "true"
-		"traefik.http.routers.netdata.entrypoints":             "websecure"
-		"traefik.http.routers.netdata.rule":                    "Host(`netdata.{{.domain}}`)"
-		"traefik.http.routers.netdata.tls.certresolver":        "letsencrypt"
+		"traefik.enable":                                         "true"
+		"traefik.http.routers.netdata.entrypoints":               "websecure"
+		"traefik.http.routers.netdata.rule":                      "Host(`netdata.{{.domain}}`)"
+		"traefik.http.routers.netdata.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.netdata.loadbalancer.server.port": "19999"
 		// Layer classification - deployed via PAAS (Dokploy)
 		"stackkit.layer":      "3-application"
@@ -1423,7 +1423,6 @@ import "github.com/kombifyio/stackkits/base"
 	dozzle:      #DozzleService
 	whoami:      #WhoamiService
 	vaultwarden: #VaultwardenService
-	jellyfin:    #JellyfinService
 	immich:      #ImmichService
 }
 
@@ -1448,7 +1447,7 @@ import "github.com/kombifyio/stackkits/base"
 	whoami:     #WhoamiService
 }
 
-// #MinimalServices - Minimal variant (Dockge + Portainer)
+// #MinimalServices - Minimal variant (Coolify + optional Dockge/Portainer)
 #MinimalServices: {
 	traefik:   #TraefikService
 	dockge:    #DockgeService

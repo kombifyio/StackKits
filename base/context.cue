@@ -5,7 +5,7 @@
 // and provider metadata, though it can be overridden via CLI --context flag.
 //
 // The Context × StackKit matrix produces curated default configurations:
-//   - PAAS selection (Dokploy vs Coolify)
+//   - PAAS selection (Coolify by default; Dokploy as explicit alternative)
 //   - TLS strategy (self-signed via Step-CA vs Let's Encrypt)
 //   - Resource limits (full vs constrained)
 //   - Image architecture (amd64 vs arm64)
@@ -60,7 +60,7 @@ package base
 // #ContextPAAS defines PAAS preference for a context
 #ContextPAAS: {
 	// Preferred PAAS for this context
-	preferred: "dokploy" | "coolify" | "dockge" | *"dokploy"
+	preferred: "dokploy" | "coolify" | "dockge" | *"coolify"
 }
 
 // #ContextResources defines resource limits for a context
@@ -87,7 +87,7 @@ package base
 			mode:          "self-signed"
 			acmeAvailable: false
 		}
-		paas: preferred:     "dokploy"
+		paas: preferred:     "coolify"
 		resources: {
 			defaultTier:  "standard"
 			memoryFactor: 1.0
@@ -123,7 +123,7 @@ package base
 			mode:          "self-signed"
 			acmeAvailable: false
 		}
-		paas: preferred:     "dockge"
+		paas: preferred:     "coolify"
 		resources: {
 			defaultTier:  "low"
 			memoryFactor: 0.5

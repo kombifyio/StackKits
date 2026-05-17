@@ -416,8 +416,13 @@ func TestResolve_AdminEmail_Fallback(t *testing.T) {
 	if result.Identity.AdminPassword == "" {
 		t.Error("AdminPassword should be generated")
 	}
-	if len(result.Identity.AdminPassword) != 32 { // 16 bytes = 32 hex chars
-		t.Errorf("AdminPassword should be 32 hex chars, got %d", len(result.Identity.AdminPassword))
+	if len(result.Identity.AdminPassword) != 24 {
+		t.Errorf("AdminPassword should be 24 chars, got %d", len(result.Identity.AdminPassword))
+	}
+	for _, chars := range []string{"ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", "0123456789", "!@#$%^&*()-_=+"} {
+		if !strings.ContainsAny(result.Identity.AdminPassword, chars) {
+			t.Errorf("AdminPassword should contain one of %q", chars)
+		}
 	}
 }
 

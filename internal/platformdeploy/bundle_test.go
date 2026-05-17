@@ -106,7 +106,7 @@ func TestLoadBundleManifestPreservesSetupDrops(t *testing.T) {
 	assert.Equal(t, "services:\n  immich:\n    image: immich\n", bundle.Apps[0].ComposeYAML)
 }
 
-func TestApplyBundleRecordsRefs(t *testing.T) {
+func TestApplyBundleIgnoresUserApps(t *testing.T) {
 	adapter := &recordingAdapter{}
 
 	refs, err := ApplyBundle(context.Background(), adapter, BundleManifest{
@@ -120,12 +120,11 @@ func TestApplyBundleRecordsRefs(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, refs, 1)
-	assert.Equal(t, "web", refs[0].AppName)
-	assert.Equal(t, "external-web", refs[0].ExternalID)
+	assert.Empty(t, refs)
+	assert.Empty(t, adapter.names)
 }
 
-func TestApplyBundleDeploysSystemAppsBeforeUserApps(t *testing.T) {
+func TestApplyBundleDeploysOnlySystemApps(t *testing.T) {
 	adapter := &recordingAdapter{}
 
 	refs, err := ApplyBundle(context.Background(), adapter, BundleManifest{
@@ -144,10 +143,9 @@ func TestApplyBundleDeploysSystemAppsBeforeUserApps(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"stackkit-hub", "web"}, adapter.names)
-	require.Len(t, refs, 2)
+	assert.Equal(t, []string{"stackkit-hub"}, adapter.names)
+	require.Len(t, refs, 1)
 	assert.Equal(t, "external-stackkit-hub", refs[0].ExternalID)
-	assert.Equal(t, "external-web", refs[1].ExternalID)
 }
 
 type recordingAdapter struct {

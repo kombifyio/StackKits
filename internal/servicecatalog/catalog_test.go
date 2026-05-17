@@ -79,6 +79,97 @@ func TestDefaultCatalogKeepsPhotosSwappableButOwnerBootstrapped(t *testing.T) {
 	}
 }
 
+func TestDefaultCatalogKeepsPaaSSelectionOutOfAppDefaults(t *testing.T) {
+	services := byKey(Default())
+
+	defaults := map[string]bool{
+		"base":    true,
+		"home":    true,
+		"auth":    true,
+		"id":      true,
+		"traefik": true,
+		"dokploy": false,
+		"kuma":    true,
+		"whoami":  true,
+		"vault":   true,
+		"photos":  true,
+		"media":   false,
+		"coolify": false,
+		"dockge":  false,
+		"point":   false,
+	}
+
+	for key, want := range defaults {
+		svc, ok := services[key]
+		if !ok {
+			t.Fatalf("default catalog missing %q", key)
+		}
+		if svc.Default != want {
+			t.Fatalf("%s Default = %v, want %v", key, svc.Default, want)
+		}
+	}
+}
+
+func TestDefaultCatalogKeepsPlatformServicesOutOfL3Applications(t *testing.T) {
+	services := byKey(Default())
+
+	for _, key := range []string{"kuma", "whoami"} {
+		svc, ok := services[key]
+		if !ok {
+			t.Fatalf("default catalog missing %q", key)
+		}
+		if svc.Section != "Platform" {
+			t.Fatalf("%s Section = %q, want Platform", key, svc.Section)
+		}
+		if svc.Layer != "L2-platform" {
+			t.Fatalf("%s Layer = %q, want L2-platform", key, svc.Layer)
+		}
+		if !hasPrefix(svc.Badge, "L2 ") {
+			t.Fatalf("%s Badge = %q, want L2 badge", key, svc.Badge)
+		}
+		if svc.SetupPolicy != SetupPolicyAutomatic {
+			t.Fatalf("%s SetupPolicy = %q, want %q", key, svc.SetupPolicy, SetupPolicyAutomatic)
+		}
+	}
+
+	for _, key := range []string{"vault", "media", "photos"} {
+		svc, ok := services[key]
+		if !ok {
+			t.Fatalf("default catalog missing %q", key)
+		}
+		if svc.Section != "Applications" {
+			t.Fatalf("%s Section = %q, want Applications", key, svc.Section)
+		}
+		if svc.Layer != "L3-application" {
+			t.Fatalf("%s Layer = %q, want L3-application", key, svc.Layer)
+		}
+	}
+}
+
+func TestDefaultCatalogProvidesToolLogosAndSetupMetadata(t *testing.T) {
+	services := byKey(Default())
+
+	for _, key := range []string{"base", "coolify", "kuma", "whoami", "vault", "photos"} {
+		svc, ok := services[key]
+		if !ok {
+			t.Fatalf("default catalog missing %q", key)
+		}
+		if svc.LogoURL == "" {
+			t.Fatalf("%s LogoURL is empty", key)
+		}
+		if svc.SetupPolicy == "" {
+			t.Fatalf("%s SetupPolicy is empty", key)
+		}
+	}
+
+	if services["photos"].SetupPolicy != SetupPolicyOnDemand {
+		t.Fatalf("photos SetupPolicy = %q, want %q", services["photos"].SetupPolicy, SetupPolicyOnDemand)
+	}
+	if services["photos"].SetupActionLabel != "Do the setup for me" {
+		t.Fatalf("photos SetupActionLabel = %q", services["photos"].SetupActionLabel)
+	}
+}
+
 func TestFromCUEOverlaysDefaultServiceAndAddsUnknownService(t *testing.T) {
 	services := FromCUE([]cueval.CatalogEntry{
 		{
@@ -135,6 +226,12 @@ func TestFromCUEOverlaysDefaultServiceAndAddsUnknownService(t *testing.T) {
 	if custom.IdentityPolicy != IdentityPolicyForwardAuth {
 		t.Fatalf("custom identity policy = %q", custom.IdentityPolicy)
 	}
+	if custom.Layer != "L3-application" {
+		t.Fatalf("custom Layer = %q, want L3-application", custom.Layer)
+	}
+	if custom.SetupPolicy != SetupPolicyManual {
+		t.Fatalf("custom SetupPolicy = %q, want %q", custom.SetupPolicy, SetupPolicyManual)
+	}
 	if custom.Nested != custom.LocalSlug || custom.Flat != custom.PublicSlug {
 		t.Fatalf("template compat slugs not normalized: %#v", custom)
 	}
@@ -167,6 +264,9 @@ func TestFromRegistryNormalizesAndSortsServices(t *testing.T) {
 			OwnerProvisioningPolicy: OwnerProvisioningRequired,
 			LegacyAliases:           []string{"tinyauth"},
 			GuideURL:                "https://docs.kombify.io/guides/stackkits/services/auth-custom",
+			Layer:                   "L2-platform",
+			LogoURL:                 "https://cdn.simpleicons.org/tinyauth/ffffff",
+			SetupPolicy:             SetupPolicyAutomatic,
 			Default:                 true,
 		},
 	})
@@ -190,8 +290,14 @@ func TestFromRegistryNormalizesAndSortsServices(t *testing.T) {
 	if photos.GuideURL != "" {
 		t.Fatalf("photos GuideURL = %q, registry conversion should not invent defaults", photos.GuideURL)
 	}
+	if photos.Layer != "L3-application" {
+		t.Fatalf("photos Layer = %q, want L3-application", photos.Layer)
+	}
 	if byKey(services)["auth"].GuideURL != "https://docs.kombify.io/guides/stackkits/services/auth-custom" {
 		t.Fatalf("auth GuideURL not preserved from registry")
+	}
+	if byKey(services)["auth"].LogoURL != "https://cdn.simpleicons.org/tinyauth/ffffff" {
+		t.Fatalf("auth LogoURL not preserved from registry")
 	}
 }
 
@@ -216,11 +322,35 @@ func TestWithDefaultFallbacksMergesGuideURLsAndMissingServices(t *testing.T) {
 	if auth.GuideURL != "https://docs.kombify.io/guides/stackkits/services/tinyauth" {
 		t.Fatalf("auth GuideURL = %q", auth.GuideURL)
 	}
+	if auth.LogoURL == "" {
+		t.Fatalf("auth LogoURL should be filled from default catalog")
+	}
+	if auth.SetupPolicy != SetupPolicyAutomatic {
+		t.Fatalf("auth SetupPolicy = %q, want %q", auth.SetupPolicy, SetupPolicyAutomatic)
+	}
 	if _, ok := byKey["base"]; !ok {
 		t.Fatal("base default service was not appended")
 	}
 	if _, ok := byKey["home"]; !ok {
 		t.Fatal("home default service was not appended")
+	}
+}
+
+func TestWithDefaultFallbacksKeepsKnownDefaultFlagsFromLocalContract(t *testing.T) {
+	services := WithDefaultFallbacks([]Service{
+		{
+			Key:                     "media",
+			DisplayName:             "Media from registry",
+			ToolName:                "jellyfin",
+			IdentityPolicy:          IdentityPolicySelfAuth,
+			OwnerProvisioningPolicy: OwnerProvisioningNone,
+			Default:                 true,
+		},
+	})
+
+	media := byKey(services)["media"]
+	if media.Default {
+		t.Fatalf("media Default = true from registry drift, want local BaseKit contract false")
 	}
 }
 

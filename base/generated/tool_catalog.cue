@@ -41,6 +41,8 @@ package base
 
 #OwnerProvisioningPolicy: "none" | "required"
 
+#SetupPolicy: "manual" | "on_demand" | "automatic"
+
 #CatalogService: {
   key:                     string
   displayName:             string
@@ -53,10 +55,14 @@ package base
   identityPolicy:          #IdentityPolicy
   ownerProvisioningPolicy: #OwnerProvisioningPolicy
   icon?:                   string
+  logoUrl?:                string
   badge?:                  string
+  layer?:                  string
   section?:                string
   order:                   int
   enableVar?:              string
+  setupPolicy?:            #SetupPolicy
+  setupActionLabel?:       string
   default:                 bool | *false
 }
 
@@ -83,8 +89,8 @@ package base
     slug:         "paas"
     displayName:  "Platform-as-a-Service"
     layer:        "2"
-    standardTool: "dokploy"
-    alternatives: ["coolify", "caprover"]
+    standardTool: "coolify"
+    alternatives: ["dokploy", "caprover"]
   }
   "platform-identity": {
     slug:         "platform-identity"
@@ -262,7 +268,7 @@ package base
     name:        "uptime-kuma"
     displayName: "Uptime Kuma"
     description: "Self-hosted monitoring tool for endpoints and services"
-    layer:       "3"
+    layer:       "2"
     category:    "monitoring"
     image:       "louislam/uptime-kuma"
     defaultTag:  "1"
@@ -274,7 +280,7 @@ package base
     name:        "whoami"
     displayName: "Whoami"
     description: "Simple HTTP request info service for testing"
-    layer:       "3"
+    layer:       "2"
     category:    "utility"
     image:       "traefik/whoami"
     defaultTag:  "latest"
@@ -286,7 +292,7 @@ package base
     name:        "dashboard"
     displayName: "StackKits Dashboard"
     description: "Service hub and owner onboarding surface for StackKits"
-    layer:       "3"
+    layer:       "2"
     category:    "utility"
     image:       "ghcr.io/kombify/stackkits-dashboard"
     defaultTag:  "latest"
@@ -349,7 +355,7 @@ package base
     identityPolicy:          "forwardauth"
     ownerProvisioningPolicy: "required"
     icon:                    "&#128421;"
-    badge:                   "L3 - Hub"
+    badge:                   "L2 - Node Hub"
     section:                 "Platform"
     order:                   -1
     enableVar:               "enable_dashboard"
@@ -475,8 +481,8 @@ package base
     identityPolicy:          "forwardauth"
     ownerProvisioningPolicy: "required"
     icon:                    "&#128202;"
-    badge:                   "L3 - Monitoring"
-    section:                 "Applications"
+    badge:                   "L2 - Monitoring"
+    section:                 "Platform"
     order:                   10
     enableVar:               "enable_uptime_kuma"
     default:                 true
@@ -493,9 +499,10 @@ package base
     identityPolicy:          "forwardauth"
     ownerProvisioningPolicy: "required"
     icon:                    "&#129302;"
-    badge:                   "L3 - Test"
-    section:                 "Applications"
+    badge:                   "L2 - Routing test"
+    section:                 "Platform"
     order:                   20
+    enableVar:               "enable_whoami"
     default:                 true
   }
   "vault": {

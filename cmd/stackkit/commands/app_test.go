@@ -13,7 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestAppAddSpecAddsSvelteKitAppAndForcesStandardPAAS(t *testing.T) {
+func TestAppAddSpecAddsSvelteKitHandoffAndForcesStandardPAAS(t *testing.T) {
 	spec := &models.StackSpec{
 		Name:     "homelab",
 		StackKit: "base-kit",
@@ -22,7 +22,7 @@ func TestAppAddSpecAddsSvelteKitAppAndForcesStandardPAAS(t *testing.T) {
 		Network:  models.NetworkSpec{Mode: "local"},
 		PAAS:     models.PAASNone,
 		Services: map[string]any{
-			"dokploy": map[string]any{"enabled": false},
+			"coolify": map[string]any{"enabled": false},
 		},
 	}
 
@@ -41,7 +41,7 @@ func TestAppAddSpecAddsSvelteKitAppAndForcesStandardPAAS(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, models.PAASDokploy, spec.PAAS)
+	assert.Equal(t, models.PAASCoolify, spec.PAAS)
 	require.Contains(t, spec.Apps, "web")
 	app := spec.Apps["web"]
 	assert.Equal(t, "sveltekit", app.Kind)
@@ -52,9 +52,9 @@ func TestAppAddSpecAddsSvelteKitAppAndForcesStandardPAAS(t *testing.T) {
 	assert.Equal(t, "StackKit Smoke", app.Env["PUBLIC_APP_NAME"])
 	assert.Equal(t, "env:SESSION_SECRET", app.Secrets["SESSION_SECRET"])
 
-	dokploy, ok := spec.Services["dokploy"].(map[string]any)
+	coolify, ok := spec.Services["coolify"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, true, dokploy["enabled"])
+	assert.Equal(t, true, coolify["enabled"])
 }
 
 func TestAppAddCommandWritesStackSpec(t *testing.T) {
@@ -119,7 +119,7 @@ func TestAppAddRejectsInvalidRouteHost(t *testing.T) {
 	assert.Contains(t, err.Error(), "route host")
 }
 
-func TestBaseInstallerWiresSvelteKitAppEnvironment(t *testing.T) {
+func TestBaseInstallerDevGatesSvelteKitAppHandoffEnvironment(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
@@ -129,13 +129,20 @@ func TestBaseInstallerWiresSvelteKitAppEnvironment(t *testing.T) {
 	installer := string(data)
 
 	for _, needle := range []string{
+		"STACKKIT_ENABLE_DEV_APP_HANDOFF",
+		"STACKKIT_DEV_APP_IMAGE",
 		"STACKKIT_APP_IMAGE",
 		"STACKKIT_APP_NAME",
 		"STACKKIT_APP_AUTH",
 		"app add \"$APP_NAME\"",
+		"persist_platform_config",
+		"STACKKIT_PLATFORM_ENDPOINT",
+		"STACKKIT_PLATFORM_TOKEN",
+		".stackkit/platform.json",
 	} {
 		assert.True(t, strings.Contains(installer, needle), "base installer should contain %q", needle)
 	}
+	assert.Contains(t, installer, `if [ "${STACKKIT_ENABLE_DEV_APP_HANDOFF:-false}" = "true" ]`)
 }
 
 func TestStatusJSONOutputIncludesPlatformApps(t *testing.T) {
@@ -145,8 +152,8 @@ func TestStatusJSONOutputIncludesPlatformApps(t *testing.T) {
 			LastApplied: time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC),
 			PlatformApps: []models.PlatformAppState{{
 				Name:       "web",
-				Platform:   models.PAASDokploy,
-				ExternalID: "dokploy-web-1",
+				Platform:   models.PAASCoolify,
+				ExternalID: "coolify-web-1",
 			}},
 		},
 		nil,
@@ -158,7 +165,7 @@ func TestStatusJSONOutputIncludesPlatformApps(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, apps, 1)
 	assert.Equal(t, "web", apps[0].Name)
-	assert.Equal(t, "dokploy-web-1", apps[0].ExternalID)
+	assert.Equal(t, "coolify-web-1", apps[0].ExternalID)
 }
 
 func TestKombifyMeAppServiceRegistrations(t *testing.T) {

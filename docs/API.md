@@ -1,10 +1,10 @@
 # StackKits API
 
-> Last verified: 2026-05-09
+> Last verified: 2026-05-17
 
 This document summarizes the StackKits HTTP API for operators, TechStack integrations, and AI agents. The contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml); the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server) and [internal/api](../internal/api).
 
-Implementation note: `internal/api/server.go` currently registers health, capabilities, catalog, validation, generation, log, and internal runtime-action routes. The OpenAPI contract and capability map also list Direct Connect registry routes; their route wiring is tracked in Beads (`kombify-StackKits-ati`).
+Implementation note: `internal/api/server.go` registers health, capabilities, catalog, validation, generation, node-local management, log, node-local setup, internal runtime-action, and Direct Connect registry routes.
 
 ## Surfaces
 
@@ -55,10 +55,16 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `POST` | `/api/v1/validate/partial` | Validate partial wizard fields. | Yes |
 | `POST` | `/api/v1/generate/tfvars` | Generate `terraform.tfvars` JSON from a validated spec. | Yes |
 | `POST` | `/api/v1/generate/preview` | Preview generated infrastructure without writing files. | Yes |
+| `GET` | `/api/v1/status` | Read node-local StackKit rollout status. | Yes |
+| `POST` | `/api/v1/verify` | Run node-local read-only verification. | Yes |
+| `POST` | `/api/v1/doctor` | Run read-only node-local diagnostics. | Yes |
+| `POST` | `/api/v1/plan` | Preview local management readiness without mutation. | Yes |
+| `GET` | `/api/v1/runs/{runID}/evidence` | Read rollout evidence by run ID. | Yes |
 | `GET` | `/api/v1/logs` | List deploy log runs with pagination. | Yes |
 | `GET` | `/api/v1/logs/latest` | Read the newest deploy log. | Yes |
 | `GET` | `/api/v1/logs/{runID}` | Read a deploy log by run ID. | Yes |
 | `GET` | `/api/v1/logs/{runID}/stream` | Stream deploy log events via SSE. | Yes |
+| `POST` | `/api/v1/setup/services/{service}/run` | Validate or execute a node-local first-run setup drop for a service. | Yes |
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-rollout` | Run/dry-run StackKits rollout for TechStack. | Servicecall |
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-verify` | Verify StackKits rollout state for TechStack. | Servicecall |
 | `POST` | `/api/v1/internal/runtime-actions/restore-drill` | Run/dry-run restore-drill handoff for TechStack. | Servicecall |
@@ -66,9 +72,27 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `DELETE` | `/api/v1/registry/instances/{instanceId}` | Deregister an instance. | Yes |
 | `PUT` | `/api/v1/registry/instances/{instanceId}/heartbeat` | Send an instance heartbeat. | Yes |
 
+## Management
+
+The management endpoints are for node-local agents, dashboards, and `stackkit-mcp`. They are read-only in v1:
+
+- `GET /api/v1/status` loads local `stack-spec.yaml`, `.stackkit/state.yaml`, log metadata, and mutation policy.
+- `POST /api/v1/verify` runs the same verifier shape as `stackkit verify`; pass `{"http":true,"strict":true}` to include URL probes and promote warnings to failures.
+- `POST /api/v1/doctor` returns diagnostic checks for spec, state, generated files, logs, and kit release stance.
+- `POST /api/v1/plan` reports dry-run readiness and next CLI commands; it does not run OpenTofu and does not write files.
+- `GET /api/v1/runs/{runID}/evidence` reads `.stackkit/runs/<runID>/metadata.json`, `events.jsonl`, and `summary.json`.
+
+Mutating management endpoints such as `apply` or destructive operations are intentionally absent by default. Use CLI commands with explicit operator approval for those workflows.
+
 ## Logs
 
 Deploy logs are read from `STACKKITS_LOG_DIR` or from `<base-dir>/.stackkit/logs` when no explicit log directory is set. The log API can list runs, read a specific run, filter by event level or prefix, and stream a run as server-sent events.
+
+## Setup Actions
+
+The Node Hub posts `Do the setup for me` actions to `POST /api/v1/setup/services/{service}/run`. The server resolves the service through the StackKits service catalog, loads the generated `.platform-apps-manifest.json`, and only executes drops whose manifest policy is `on_demand`.
+
+`STACKKITS_SETUP_ACTION_MODE=dry-run` validates the manifest and returns the planned drop. `STACKKITS_SETUP_ACTION_MODE=apply` runs implemented node-local drops. BaseKit currently implements `immich-owner-bootstrap`; it uses `STACKKIT_ADMIN_EMAIL`, `STACKKIT_ADMIN_PASSWORD`, and `STACKKIT_SETUP_IMMICH_URL` to create or complete the Immich owner onboarding.
 
 ## Runtime Actions
 
@@ -102,5 +126,7 @@ stackkit-server --api-key dev-secret --base-dir .
 
 curl -s http://localhost:8082/api/v1/health
 curl -s -H "X-API-Key: dev-secret" http://localhost:8082/api/v1/capabilities
+curl -s -H "X-API-Key: dev-secret" http://localhost:8082/api/v1/status
+curl -s -H "X-API-Key: dev-secret" -X POST http://localhost:8082/api/v1/verify -d '{"http":true}'
 curl -s -H "X-API-Key: dev-secret" http://localhost:8082/api/v1/stackkits
 ```

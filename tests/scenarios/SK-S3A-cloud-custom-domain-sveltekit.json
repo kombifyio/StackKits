@@ -1,8 +1,8 @@
 {
   "id": "SK-S3A",
-  "name": "Cloud Custom Domain + SvelteKit App",
-  "stage": "gated-live",
-  "liveGate": "cloudflare-custom-domain-sveltekit",
+  "name": "Cloud Custom Domain + PaaS App Handoff",
+  "stage": "dev-handoff",
+  "liveGate": "none",
   "stackSpec": {
     "name": "sk-s3a-cloud-custom-domain-sveltekit",
     "stackkit": "base-kit",

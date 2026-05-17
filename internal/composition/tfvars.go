@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
+	"strings"
 
 	cueval "github.com/kombifyio/stackkits/internal/cue"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -59,6 +61,9 @@ func overlayRuntimeTemplateVars(tfvars map[string]any, spec *models.StackSpec, c
 	if _, ok := tfvars["tinyauth_session_expiry"]; !ok {
 		tfvars["tinyauth_session_expiry"] = "86400"
 	}
+	if image := stackKitServerImageOverride(spec); image != "" {
+		tfvars["stackkit_server_image"] = image
+	}
 
 	if moduleIsEnabled(cr.EnabledModules, "vaultwarden") {
 		if existing, ok := tfvars["vaultwarden_admin_token"].(string); !ok || existing == "" {
@@ -71,6 +76,15 @@ func overlayRuntimeTemplateVars(tfvars map[string]any, spec *models.StackSpec, c
 	}
 
 	return nil
+}
+
+func stackKitServerImageOverride(spec *models.StackSpec) string {
+	if spec != nil && spec.Environment != nil {
+		if image := strings.TrimSpace(spec.Environment["STACKKIT_SERVER_IMAGE"]); image != "" {
+			return image
+		}
+	}
+	return strings.TrimSpace(os.Getenv("STACKKIT_SERVER_IMAGE"))
 }
 
 func overlayIdentityConfig(tfvars map[string]any, ic *IdentityConfig) error {
@@ -134,6 +148,12 @@ func overlayEnableFlags(tfvars map[string]any, enabledModules []string) {
 	}
 	for module, tfvarKey := range enableMapping {
 		if enabledSet[module] {
+			if module == "traefik" {
+				backend, _ := tfvars["reverse_proxy_backend"].(string)
+				if backend != "" && backend != models.ReverseProxyStandalone {
+					continue
+				}
+			}
 			tfvars[tfvarKey] = true
 		}
 	}

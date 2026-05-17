@@ -15,9 +15,9 @@
 //   - Cloudflare Tunnel or Pangolin bypasses CGNAT/DS-Lite
 //   - VPN (Headscale/Tailscale) available as optional add-on
 //
-// PaaS Decision (context-driven):
-//   - User has domain + wildcard → Coolify (multi-node, git deploys)
-//   - User has no domain          → Dokploy (traefik-me + MagicDNS)
+// PaaS Decision:
+//   - omitted       -> Coolify
+//   - paas: dokploy -> explicit alternative
 //
 // Container Runtime: Docker Compose per node (no Swarm)
 //   Coolify/Dokploy coordinates multi-node deployments via SSH.
@@ -40,7 +40,7 @@ import (
 	// Deployment Mode
 	deploymentMode: *"simple" | "advanced"
 
-	// PaaS selection (context-driven)
+	// PaaS selection
 	paas: *"coolify" | "dokploy"
 
 	// Domain configuration
@@ -107,7 +107,7 @@ import (
 
 #StackMeta: {
 	name:    string & =~"^[a-z][a-z0-9-]*$"
-	version: string | *"4.0.0"
+	version: string | *"1.0.0-alpha"
 }
 
 // =============================================================================
@@ -115,7 +115,7 @@ import (
 // =============================================================================
 
 #DomainConfig: {
-	// Primary domain (required for Coolify, optional for Dokploy)
+	// Primary domain
 	name?: string
 
 	// Can use wildcard SSL (*.domain.com)

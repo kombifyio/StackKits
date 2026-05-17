@@ -4,6 +4,19 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.7] - 2026-05-17
+
+### Highlights
+
+- **BaseKit product-contract guardrails**: fresh Ubuntu evidence now checks protected/default anonymous rejection, node-local manifest visibility, and the Photos setup action instead of relying on container liveness only.
+- **Release mirror hygiene**: the curated release export now ships a narrower documentation surface, a sanitized release roadmap, and root-relative website link validation for the Svelte/Vite site.
+- **Agent and website surface**: stackkit.cc moved to the Svelte 5/Vite/Tailwind site while preserving installer routes, `llms.txt`, OpenAPI/schema mirrors, and prompt Markdown.
+
+### Fixed
+
+- Local website release gates now run `npm install`, `npm run check`, and `npm run build` without failing on Windows locked native modules from an existing `node_modules`.
+- BaseKit docs now clarify that L3 public or unauthenticated exposure is allowed only through explicit access policy, never as the default.
+
 ## [0.2.6] - 2026-05-13
 
 ### Changed
@@ -29,20 +42,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Highlights
 
-- **SvelteKit app rollout path**: BaseKit can now accept a user SvelteKit app during the installer flow, persist it into the stack spec, register kombify.me app services, and expose platform app state in `stackkit status --json`.
+- **PaaS app handoff path**: BaseKit can persist optional user app handoff metadata into the stack spec, register kombify.me app service names, and expose platform app handoff state in `stackkit status --json`.
 - **Runtime action bridge**: `stackkit-server` now exposes service-auth-protected internal runtime actions for TechStack-managed rollout, verification, and restore-drill handoffs with dry-run-by-default execution.
-- **Release and scenario evidence**: SK-S2A and SK-S3A scenario definitions, golden fixtures, docs, and the public SvelteKit smoke app example are included in the OSS export surface.
+- **Scenario evidence**: SK-S2A and SK-S3A scenario definitions, golden fixtures, docs, and the public SvelteKit smoke app example are included for dev-only PaaS handoff validation.
 
 ### Added
 
 - `stackkit app add` command coverage for SvelteKit app definitions, route defaults, env values, and secret references.
-- Base installer app handoff environment variables (`STACKKIT_APP_*`) for one-liner app-enabled installs.
+- Dev-gated base installer app handoff environment variables for local handoff validation.
 - Internal service-auth JWT verification with current/next secret rotation support for runtime action callbacks.
 
 ### Changed
 
-- App-enabled StackSpecs now fail hard when platform endpoint/token configuration is missing, instead of silently skipping user app deployment.
-- Public export manifest includes the SvelteKit smoke example used by app rollout validation.
+- App-enabled StackSpecs now generate PaaS handoff manifests without making StackKit responsible for user app deployment.
+- Public export manifest includes the SvelteKit smoke example used by dev handoff validation.
 
 ## [Unreleased] — kit-update-phase-1: Base Kit Update-Lifecycle (Foundation + CLI)
 
@@ -50,14 +63,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - DB Migrations 000107–000109 (renumbered from initial 000090–000092 drafts because slots 000086–000106 were claimed by other repos before apply) **LIVE on Render** `kombify-stackkits` Postgres: `release_channel` columns, `sk_node_deployment` mirror, `sk_kit_module_compat` resolver view.
 - ADR-0018 implementation-status table updated: DB migrations + Admin (channel-promotion endpoints, resolver, node-deployments, UI) marked ✅ Shipped. Lessons-learned section added (sqlc-000106-fix, 000067-replay-fix, GO_VERSION 1.26.3 bump, renumbering rationale, best-effort PATCH note).
-- North-Star reference doc [`docs/KIT_UPDATE_LIFECYCLE.md`](docs/KIT_UPDATE_LIFECYCLE.md) — canonical landing page for the update lifecycle (TL;DR, diagram, three pillars, surfaces, phase roadmap, operator quick-start, cross-repo surfaces, architectural invariants). Linked from `docs/README.md`.
+- North-Star reference doc the private kit update lifecycle doc — canonical landing page for the update lifecycle (TL;DR, diagram, three pillars, surfaces, phase roadmap, operator quick-start, cross-repo surfaces, architectural invariants). Linked from the private source repository.
 
 ### Added
 
 - **Tests/Release**: BaseKit live preflight (`scripts/release/basekit-live-preflight.ps1`), release-note parser tests, public export validation, website changelog smoke, and `production-tests.yml` inputs for the first SK-S1 fresh Ubuntu live run.
 - Node Hub service-guide metadata in CUE, registry, and generated catalog paths; the generated `base.<domain>` dashboard now starts with Getting Started, important links, and a compact enabled-service matrix with public Mintlify how-to links.
-- ADR-0018 — Kit-Update-Lifecycle (Channels, Atomic-Snapshot, Compatibility-Resolver). See [`docs/ADR/ADR-0018-kit-update-lifecycle.md`](docs/ADR/ADR-0018-kit-update-lifecycle.md).
-- Kit-update design consolidated into ADR-0018, `docs/KIT_UPDATE_LIFECYCLE.md`, and the operator runbooks.
+- ADR-0018 — Kit-Update-Lifecycle (Channels, Atomic-Snapshot, Compatibility-Resolver). See the private ADR-0018 record.
+- Kit-update design consolidated into ADR-0018, the private kit update lifecycle doc, and the operator runbooks.
 - CUE — `#ToolType` (`oss`/`managed`/`hybrid`) + `#ToolCategory` (curated 18-Set) in [`base/tool_categorization.cue`](base/tool_categorization.cue).
 - CUE — `#IaCDefaults` schema (`provider_versions`, `default_tags`, `backend`) in [`base/iac-defaults.cue`](base/iac-defaults.cue).
 - IaC — Shared `iac/defaults/` module (`main.tf`, `variables.tf`, `outputs.tf`, `README.md`) — kits import as `module "defaults"` and consume `module.defaults.tags`.
@@ -121,4 +134,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Multi-node cluster join / `stackkit cluster join-token` (Phase 4)
 - `stackkit break-glass rotate` real implementation, audit logs, auto-rotation (Phase 5)
 
-See [ADR-0018](docs/ADR/ADR-0018-kit-update-lifecycle.md), [docs/KIT_UPDATE_LIFECYCLE.md](docs/KIT_UPDATE_LIFECYCLE.md), and [ROADMAP.md](ROADMAP.md) for the current roadmap.
+See ADR-0018, the private kit update lifecycle doc, and [ROADMAP.md](ROADMAP.md) for the current roadmap.

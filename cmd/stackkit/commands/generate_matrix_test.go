@@ -26,28 +26,35 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		wantCoolify      bool
 		wantTraefik      bool
 	}{
-		// --- Local context: tier-based resolution ---
+		// --- Local context: Coolify is the standard auto-selected PaaS ---
 		{
 			name: "local/standard/auto",
 			tier: models.ComputeTierStandard, context: models.ContextLocal,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
 		{
 			name: "local/low/auto",
 			tier: models.ComputeTierLow, context: models.ContextLocal,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
 		{
 			name: "local/high/auto",
 			tier: models.ComputeTierHigh, context: models.ContextLocal,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
 		{
 			name: "local/standard/explicit-coolify",
 			tier: models.ComputeTierStandard, context: models.ContextLocal, paas: models.PAASCoolify,
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
+		},
+		{
+			name: "local/standard/custom-domain",
+			tier: models.ComputeTierStandard, context: models.ContextLocal, domain: "apps.example.com",
+			// Own public domain → PAASCoolify, regardless of local/cloud context.
 			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
 			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
@@ -62,9 +69,9 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		{
 			name: "cloud/standard/no-domain",
 			tier: models.ComputeTierStandard, context: models.ContextCloud,
-			// Empty domain + cloud → SuggestDomainForContext → kombify.me → PAASDokploy
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			// Empty domain + cloud → SuggestDomainForContext → kombify.me, PaaS stays Coolify.
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
 		{
 			name: "cloud/standard/custom-domain",
@@ -83,38 +90,30 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		{
 			name: "cloud/standard/kombify-me",
 			tier: models.ComputeTierStandard, context: models.ContextCloud, domain: models.DomainKombifyMe,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
-		{
-			name: "cloud/high/explicit-dockge",
-			tier: models.ComputeTierHigh, context: models.ContextCloud, paas: models.PAASDockge, domain: "example.com",
-			// Explicit PAAS always wins
-			wantPAAS: models.PAASDockge, wantReverseProxy: models.ReverseProxyStandalone,
-			wantDokploy: false, wantDockge: true, wantCoolify: false, wantTraefik: true,
-		},
-
 		// --- Pi context: low-resource, tier-based ---
 		{
 			name: "pi/low/auto",
 			tier: models.ComputeTierLow, context: models.ContextPi,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
 		{
 			name: "pi/standard/auto",
 			tier: models.ComputeTierStandard, context: models.ContextPi,
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
 
 		// --- Default tier (empty string = standard) ---
 		{
 			name:    "local/default-tier/auto",
 			context: models.ContextLocal,
-			// Empty tier → ComputeTierStandard → PAASDokploy
-			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
-			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+			// Empty tier → ComputeTierStandard → PAASCoolify
+			wantPAAS: models.PAASCoolify, wantReverseProxy: models.ReverseProxyCoolify,
+			wantDokploy: false, wantDockge: false, wantCoolify: true, wantTraefik: false,
 		},
 	}
 
@@ -153,16 +152,17 @@ func TestSpecMatrix_DomainResolution(t *testing.T) {
 		wantHTTPS        bool
 		wantKombifyPoint bool
 	}{
-		// Local defaults use Kombify Point DNS and StackKit-managed Step-CA
-		// HTTPS. Browser-local `.localhost` remains the explicit no-PKI legacy
-		// exception.
+		// Local defaults use browser-native .localhost names and plain HTTP so
+		// generated links need no hosts-file edits, LAN DNS, trust-store setup, or
+		// host-port suffixes. Explicit LAN DNS zones still use Kombify Point and
+		// StackKit-managed Step-CA.
 		{
 			name: "empty-domain/local", context: models.ContextLocal,
-			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
+			wantDomain: models.DomainHomeLab, wantHTTPS: false, wantKombifyPoint: false,
 		},
 		{
 			name: "homelab-literal/local", domain: "homelab", context: models.ContextLocal,
-			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
+			wantDomain: models.DomainHomeLab, wantHTTPS: false, wantKombifyPoint: false,
 		},
 		{
 			name: "home.lab/local", domain: "home.lab", context: models.ContextLocal,
@@ -182,7 +182,7 @@ func TestSpecMatrix_DomainResolution(t *testing.T) {
 		},
 		{
 			name: "home/local", domain: "home", context: models.ContextLocal,
-			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
+			wantDomain: models.DomainHomeLab, wantHTTPS: false, wantKombifyPoint: false,
 		},
 
 		// Cloud + local domain → redirect to kombify.me (no HTTPS, no Kombify Point)
@@ -215,7 +215,7 @@ func TestSpecMatrix_DomainResolution(t *testing.T) {
 		// Pi context (same as local for domain logic)
 		{
 			name: "empty-domain/pi", context: models.ContextPi,
-			wantDomain: models.DomainHomeLab, wantHTTPS: true, wantKombifyPoint: true,
+			wantDomain: models.DomainHomeLab, wantHTTPS: false, wantKombifyPoint: false,
 		},
 	}
 
@@ -365,19 +365,19 @@ func TestSpecMatrix_TierServiceProfile(t *testing.T) {
 		{
 			name:         "standard-tier-full",
 			tier:         models.ComputeTierStandard,
-			wantJellyfin: true, wantImmich: true,
+			wantJellyfin: false, wantImmich: true,
 			wantDashboard: true, wantUptimeKuma: true, wantVaultwarden: true,
 		},
 		{
 			name:         "high-tier-full",
 			tier:         models.ComputeTierHigh,
-			wantJellyfin: true, wantImmich: true,
+			wantJellyfin: false, wantImmich: true,
 			wantDashboard: true, wantUptimeKuma: true, wantVaultwarden: true,
 		},
 		{
 			name:         "empty-tier-defaults-to-standard",
 			tier:         "",
-			wantJellyfin: true, wantImmich: true,
+			wantJellyfin: false, wantImmich: true,
 			wantDashboard: true, wantUptimeKuma: true, wantVaultwarden: true,
 		},
 	}

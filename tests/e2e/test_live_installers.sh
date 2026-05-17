@@ -2,9 +2,12 @@
 set -euo pipefail
 
 BASE_URL="${STACKKIT_BASE_URL:-https://stackkit.cc}"
+INSTALL_ENDPOINT="${STACKKIT_INSTALL_ENDPOINT:-https://install.stackkit.cc}"
+BASE_ENDPOINT="${STACKKIT_BASE_ENDPOINT:-https://base.stackkit.cc}"
+MODERN_ENDPOINT="${STACKKIT_MODERN_ENDPOINT:-https://modern.stackkit.cc}"
+HA_ENDPOINT="${STACKKIT_HA_ENDPOINT:-https://ha.stackkit.cc}"
 WAIT_TIMEOUT_SECONDS="${STACKKIT_WAIT_TIMEOUT_SECONDS:-600}"
 WAIT_INTERVAL_SECONDS="${STACKKIT_WAIT_INTERVAL_SECONDS:-10}"
-CHECK_LEGACY_REDIRECTS="${STACKKIT_CHECK_LEGACY_REDIRECTS:-1}"
 SMOKE_IMAGE_TAG="stackkit-live-installer-smoke:$RANDOM-$$"
 
 pass() { printf '\033[1;32m  PASS: %s\033[0m\n' "$*"; }
@@ -52,17 +55,28 @@ wait_for_body() {
   fail "$url did not serve expected content within ${WAIT_TIMEOUT_SECONDS}s"
 }
 
-assert_redirect() {
+wait_for_shell_body() {
   local url="$1"
-  local expected_location="$2"
-  local location
+  local needle="$2"
+  local deadline=$((SECONDS + WAIT_TIMEOUT_SECONDS))
+  local body=""
 
-  location="$(curl -sSI "$url" | tr -d '\r' | awk 'BEGIN{IGNORECASE=1} /^location:/ {print $2; exit}')"
-  if [ "$location" != "$expected_location" ]; then
-    fail "$url redirects to $location (expected $expected_location)"
-  fi
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    body="$(curl -fsSL "$url" 2>/dev/null || true)"
+    first_line="${body%%$'\n'*}"
+    first_chunk="${body:0:512}"
+    if printf '%s' "$body" | grep -Fq "$needle" && [ "$first_line" = "#!/bin/sh" ]; then
+      if printf '%s' "$first_chunk" | grep -Fqi '<!DOCTYPE html'; then
+        fail "$url returned HTML instead of shell"
+      fi
+      pass "$url serves shell"
+      return 0
+    fi
+    info "Waiting for shell content at $url"
+    sleep "$WAIT_INTERVAL_SECONDS"
+  done
 
-  pass "$url redirects to $expected_location"
+  fail "$url did not serve expected shell content within ${WAIT_TIMEOUT_SECONDS}s"
 }
 
 collect_docker_env_args() {
@@ -81,20 +95,21 @@ collect_docker_env_args() {
 }
 
 smoke_cli_install() {
-  info "Smoke testing $BASE_URL/install"
+  info "Smoke testing $INSTALL_ENDPOINT"
   docker run --rm \
     "${DOCKER_ENV_ARGS[@]}" \
     -e STACKKIT_NO_BANNER=1 \
     "$SMOKE_IMAGE_TAG" \
-    bash -lc "set -euo pipefail; export HOME=/tmp/home; mkdir -p \"\$HOME\"; curl -fsSL '$BASE_URL/install' | sh; command -v stackkit >/dev/null; stackkit version >/tmp/stackkit-version.txt; grep -Fq stackkit /tmp/stackkit-version.txt"
-  pass "CLI installer installs stackkit"
+    bash -lc "set -euo pipefail; export HOME=/tmp/home; mkdir -p \"\$HOME\" /tmp/project; curl -fsSL '$INSTALL_ENDPOINT' | sh; command -v stackkit >/dev/null; command -v stackkit-server >/dev/null; stackkit version >/tmp/stackkit-version.txt; grep -Fq stackkit /tmp/stackkit-version.txt; cd /tmp/project; stackkit --context local init base-kit --non-interactive --force --admin-email smoke@stackkit.cc; stackkit --context local generate --force; test -f deploy/terraform.tfvars.json; grep -Fq '\"paas\": \"coolify\"' deploy/terraform.tfvars.json"
+  pass "CLI installer installs stackkit, stackkit-server, and discoverable BaseKit definitions"
 }
 
 smoke_guided_entrypoint() {
-  local path="$1"
-  local expected_log="$2"
+  local name="$1"
+  local url="$2"
+  local expected_log="$3"
 
-  info "Smoke testing $BASE_URL/$path"
+  info "Smoke testing $url"
   docker run --rm \
     "${DOCKER_ENV_ARGS[@]}" \
     -e STACKKIT_NO_BANNER=1 \
@@ -131,15 +146,15 @@ chmod +x /smoke/stackkit
 export PATH=/smoke:\$PATH
 export HOME=/tmp/home
 mkdir -p "\$HOME"
-export HOMELAB_DIR=/tmp/$path-homelab
-curl -fsSL '$BASE_URL/$path' | sh
+export HOMELAB_DIR=/tmp/$name-homelab
+curl -fsSL '$url' | sh
 grep -Fq '$expected_log' /tmp/stackkit-smoke.log
 EOF
-  pass "$path installer reaches $expected_log"
+  pass "$name installer reaches $expected_log"
 }
 
 smoke_base_entrypoint() {
-  info "Smoke testing $BASE_URL/base"
+  info "Smoke testing $BASE_ENDPOINT"
   docker run --rm \
     "${DOCKER_ENV_ARGS[@]}" \
     -e STACKKIT_NO_BANNER=1 \
@@ -177,7 +192,7 @@ export PATH=/smoke:\$PATH
 export HOME=/tmp/home
 mkdir -p "\$HOME"
 export HOMELAB_DIR=/tmp/base-homelab
-curl -fsSL '$BASE_URL/base' | sh
+curl -fsSL '$BASE_ENDPOINT' | sh
 grep -Fq 'prepare' /tmp/stackkit-smoke.log
 grep -Fq 'init base-kit' /tmp/stackkit-smoke.log
 grep -Fq -- '--force' /tmp/stackkit-smoke.log
@@ -196,23 +211,20 @@ main() {
   collect_docker_env_args
   build_smoke_image
 
-  wait_for_body "$BASE_URL/install" "StackKits CLI installer"
-  wait_for_body "$BASE_URL/base" "StackKits Base Installer"
-  wait_for_body "$BASE_URL/modern" "Modern Home Lab"
-  wait_for_body "$BASE_URL/ha" "High Availability Kit"
-  wait_for_body "$BASE_URL/" "Latest Release Notes"
+  wait_for_shell_body "$INSTALL_ENDPOINT" "StackKits CLI installer"
+  wait_for_shell_body "$BASE_ENDPOINT" "StackKits Base Installer"
+  wait_for_shell_body "$MODERN_ENDPOINT" "Modern Home Lab"
+  wait_for_shell_body "$HA_ENDPOINT" "High Availability Kit"
+  # The Svelte SPA renders release notes from /changelog.json at runtime, so
+  # the static index.html only ships the brand wordmark and alternate links.
+  # Probe a marker that exists in the rendered HTML, and verify changelog.json
+  # separately because that surface is fully static.
+  wait_for_body "$BASE_URL/" "Kombify StackKits"
   wait_for_body "$BASE_URL/changelog.json" "\"version\""
 
-  if [ "$CHECK_LEGACY_REDIRECTS" = "1" ] && [ "$BASE_URL" = "https://stackkit.cc" ]; then
-    assert_redirect "https://install.stackkit.cc" "$BASE_URL/install"
-    assert_redirect "https://base.stackkit.cc" "$BASE_URL/base"
-    assert_redirect "https://modern.stackkit.cc" "$BASE_URL/modern"
-    assert_redirect "https://ha.stackkit.cc" "$BASE_URL/ha"
-  fi
-
   smoke_cli_install
-  smoke_guided_entrypoint modern "init modern-homelab"
-  smoke_guided_entrypoint ha "init ha-kit"
+  smoke_guided_entrypoint modern "$MODERN_ENDPOINT" "init modern-homelab"
+  smoke_guided_entrypoint ha "$HA_ENDPOINT" "init ha-kit"
   smoke_base_entrypoint
 
   pass "All live installer smoke tests passed"

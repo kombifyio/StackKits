@@ -289,31 +289,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Validate static website files
-        run: |
-          test -f website/index.html
-          test -f website/cli/index.html
-          test -f website/impressum.html
-          test -f website/CNAME
-          test -f website/favicon.svg
-          test -f website/icon.png
-          test -f website/install
-          test -f website/base
-          test -f website/modern
-          test -f website/ha
-          test -f website/package.json
-          test -f website/package-lock.json
-          test -f website/build.mjs
-          test -f scripts/release/changelog.mjs
-          grep -q 'href="/cli/"' website/index.html
-          grep -q 'href="/impressum.html"' website/index.html
-          grep -q 'github.com/kombifyio/stackKits/releases' website/index.html
-          grep -q '<!-- RELEASE_SUMMARY -->' website/index.html
-          grep -q 'curl -sSL stackkit.cc/base | sh' website/index.html
-          grep -q 'curl -sSL stackkit.cc/install | sh' website/cli/index.html
-          grep -q '^#!/bin/sh' website/install
-          grep -q '^#!/bin/sh' website/base
-          grep -q 'CLI Reference' website/cli/index.html
-          grep -q 'Impressum' website/impressum.html
+        run: node scripts/release/check-website.mjs source
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -326,11 +302,7 @@ jobs:
         run: |
           npm ci
           npm run build
-          test -f build/index.html
-          test -f build/cli/index.html
-          test -f build/install
-          test -f build/changelog.json
-          grep -q 'Latest Release Notes' build/index.html
+          node ../scripts/release/check-website.mjs build
 
   public-export:
     name: Public Export Validation

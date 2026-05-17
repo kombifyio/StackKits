@@ -70,11 +70,12 @@ package base
 
 	// Observability
 	observability: {
-		logging:  #LoggingConfig
-		health:   #HealthCheck
-		metrics:  #MetricsConfig
-		alerting: #AlertingConfig
-		backup:   #BackupConfig
+		monitoring: #MonitoringConfig
+		logging:    #LoggingConfig
+		health:     #HealthCheck
+		metrics:    #MetricsConfig
+		alerting:   #AlertingConfig
+		backup:     #BackupConfig
 	}
 
 	// Service definitions — named map keyed by service name

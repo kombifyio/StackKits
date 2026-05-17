@@ -12,9 +12,10 @@
 //   - simple:   OpenTofu Day-1 only (initial provisioning)
 //   - advanced: OpenTofu + Terramate Day-1 + Day-2 (drift, updates, lifecycle)
 //
-// PaaS Selection (Context-driven, M2):
-//   - local / kombify.me context → Dokploy
-//   - cloud custom-domain context → Coolify
+// PaaS Selection (intent/domain-driven, M2):
+//   - explicit paas config wins
+//   - omitted paas → Coolify
+//   - Dokploy remains a supported explicit adapter
 //   - Dockge is a constrained compose-manager mode, not a normal PaaS default
 //
 // Use Cases:
@@ -53,7 +54,9 @@ import (
 	mode:     *"simple" | "advanced"
 	runtime?: *"docker" | "native"
 	context?: *"local" | "cloud" | "pi"
-	paas?:    *"dokploy" | "coolify"
+	// Optional explicit override. When omitted, the StackSpec intent resolver
+	// selects the platform from domain/context intent.
+	paas?: "dokploy" | "coolify"
 	addons?: [...string]
 	application?: [string]: #ApplicationSelection
 	domain?:          string

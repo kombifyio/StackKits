@@ -77,9 +77,7 @@ func TestCLI_Init(t *testing.T) {
 	assert.Contains(t, specOut, "mode", "spec should contain mode field")
 }
 
-func TestCLI_Init_AddSvelteKitSmokeApp(t *testing.T) {
-	buildSmokeSvelteKitImage(t)
-
+func TestCLI_Init_AddSvelteKitHandoffApp(t *testing.T) {
 	out, err := execInCli(t, "sh", "-c", fmt.Sprintf(`cat >> %s/stack-spec.yaml <<'YAML'
 
 apps:
@@ -252,7 +250,6 @@ func TestCLI_Apply_VerifyContainers(t *testing.T) {
 	names, err := execInVM(t, "docker", "ps", "--format", "{{.Names}}")
 	require.NoError(t, err)
 	assert.Contains(t, names, "traefik", "traefik should be running")
-	assert.Contains(t, names, "app-web", "SvelteKit app should be running")
 }
 
 func TestCLI_Apply_VerifyContainerHealth(t *testing.T) {
@@ -272,28 +269,22 @@ func TestCLI_Apply_VerifyContainerHealth(t *testing.T) {
 	}
 }
 
-func TestCLI_Apply_VerifySvelteKitAppRouteAndHealth(t *testing.T) {
-	found := waitForContainers(t, "app-web", 90*time.Second)
-	require.True(t, found, "SvelteKit app container should be running in VM after apply")
+func TestCLI_Apply_RecordsSvelteKitHandoffWithoutRunningUserApp(t *testing.T) {
+	names, err := execInVM(t, "docker", "ps", "--format", "{{.Names}}")
+	require.NoError(t, err)
+	assert.NotContains(t, names, "app-web", "StackKit must not run user app containers; the PaaS owns app deployment")
 
-	directHealth, err := execInVM(t, "docker", "exec", "app-web", "node", "-e",
-		"fetch('http://127.0.0.1:3000/health').then(async r=>{const body=await r.text(); if(!r.ok || !body.includes('ok')) process.exit(1)}).catch(()=>process.exit(1))")
-	require.NoError(t, err, "direct app health failed: %s", directHealth)
-
-	labels, err := execInVM(t, "docker", "inspect", "app-web",
-		"--format", "{{json .Config.Labels}}")
-	require.NoError(t, err, "inspect app-web labels failed: %s", labels)
-	assert.Contains(t, labels, "Host(`app.stack.local`)", "Traefik host route should be attached to app-web")
-	assert.Contains(t, labels, "tinyauth@docker", "login-gateway middleware should be attached to app-web")
-
-	status, err := execInVM(t, "sh", "-c",
-		"docker image inspect curlimages/curl:latest >/dev/null 2>&1 || docker pull -q curlimages/curl:latest >/dev/null; docker run --rm --network frontend curlimages/curl:latest -sS -o /tmp/stackkits-app-route.out -w '%{http_code}' -H 'Host: app.stack.local' http://traefik/health")
-	require.NoError(t, err, "Traefik app route request failed: %s", status)
-	code := strings.TrimSpace(status)
-	assert.NotEqual(t, "404", code, "Traefik should have a route for app.stack.local")
-	assert.NotEqual(t, "502", code, "Traefik should reach the app container")
-	assert.Contains(t, map[string]bool{"200": true, "302": true, "401": true, "403": true}, code,
-		"route should either serve health directly or be blocked by the login gateway")
+	status, err := execInCli(t, "stackkit", "status", "-C", vmWorkDir, "--json")
+	require.NoError(t, err, "status --json failed: %s", status)
+	start := strings.Index(status, "{")
+	require.GreaterOrEqual(t, start, 0, "status --json should contain JSON: %s", status)
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(status[start:]), &parsed), "status should be valid JSON: %s", status)
+	apps, _ := parsed["platformApps"].([]any)
+	require.NotEmpty(t, apps, "status should expose user app handoff metadata")
+	web, _ := apps[0].(map[string]any)
+	assert.Equal(t, "web", web["name"])
+	assert.Empty(t, web["externalId"], "handoff metadata should not claim a PaaS deployment id")
 }
 
 func TestCLI_Status(t *testing.T) {
@@ -598,8 +589,6 @@ func TestCLI_Remove_VerifyCleanup(t *testing.T) {
 		"traefik should be removed after remove")
 	assert.NotContains(t, names, "dokploy",
 		"dokploy should be removed after remove")
-	assert.NotContains(t, names, "app-web",
-		"SvelteKit app should be removed after remove")
 }
 
 func TestCLI_Remove_VerifyNoContainers(t *testing.T) {
@@ -651,35 +640,4 @@ func min(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func buildSmokeSvelteKitImage(t *testing.T) {
-	t.Helper()
-
-	out, err := execInVM(t, "sh", "-c", `set -eu
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-cat > "$tmp/Dockerfile" <<'DOCKERFILE'
-FROM node:22-alpine
-WORKDIR /app
-RUN cat > server.js <<'JS'
-const http = require('http');
-const appName = process.env.PUBLIC_APP_NAME || 'StackKit Smoke';
-const port = Number(process.env.PORT || 3000);
-
-http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, {'content-type': 'application/json'});
-    res.end(JSON.stringify({status: 'ok', app: appName}));
-    return;
-  }
-  res.writeHead(200, {'content-type': 'text/plain'});
-  res.end(appName);
-}).listen(port, '0.0.0.0');
-JS
-CMD ["node", "server.js"]
-DOCKERFILE
-docker build -t stackkits-smoke-sveltekit:latest "$tmp"
-`)
-	require.NoError(t, err, "build SvelteKit smoke image in VM failed: %s", out)
 }

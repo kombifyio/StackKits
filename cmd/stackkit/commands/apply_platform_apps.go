@@ -32,27 +32,33 @@ func runPlatformAppDeployments(ctx context.Context, deployDir string, state *mod
 		if len(bundle.SystemApps) == 0 && len(bundle.Apps) == 0 {
 			continue
 		}
+		if len(bundle.Apps) > 0 {
+			recordPlatformAppHandoffs(state, bundle)
+			printInfo("Recorded %d user app handoff(s) for %s. Deploy user apps through the PaaS; StackKit does not manage their lifecycle.", len(bundle.Apps), bundle.Platform)
+		}
+		if len(bundle.SystemApps) == 0 {
+			continue
+		}
 
 		adapter, configured, err := platformAdapterForBundle(bundle, deployDir)
 		if err != nil {
 			return err
 		}
 		if !configured {
-			if len(bundle.Apps) > 0 {
-				return fmt.Errorf("platform app rollout for %s requires API endpoint and token when user apps are present; set STACKKIT_PLATFORM_ENDPOINT and STACKKIT_PLATFORM_TOKEN, or provider-specific variables, then rerun stackkit apply", bundle.Platform)
-			}
-			printWarning("Platform app manifests were generated for %s, but API endpoint/token settings are missing; skipping adapter rollout", bundle.Platform)
+			printWarning("Platform system app manifests were generated for %s, but API endpoint/token settings are missing; skipping adapter rollout", bundle.Platform)
 			printWarning("Set STACKKIT_PLATFORM_ENDPOINT and STACKKIT_PLATFORM_TOKEN, or provider-specific variables, then rerun stackkit apply")
 			continue
 		}
 
-		printInfo("Deploying %d system app(s) and %d user app(s) through %s platform adapter...", len(bundle.SystemApps), len(bundle.Apps), bundle.Platform)
-		refs, err := platformdeploy.ApplyBundle(ctx, adapter, bundle)
+		printInfo("Deploying %d StackKit system app(s) through %s platform adapter...", len(bundle.SystemApps), bundle.Platform)
+		systemBundle := bundle
+		systemBundle.Apps = nil
+		refs, err := platformdeploy.ApplyBundle(ctx, adapter, systemBundle)
 		if err != nil {
 			return err
 		}
 		recordPlatformAppState(state, bundle, refs)
-		printSuccess("Platform app rollout complete: %s", bundle.Platform)
+		printSuccess("Platform system app rollout complete: %s", bundle.Platform)
 	}
 
 	return nil
@@ -80,15 +86,15 @@ func platformAdapterForBundle(bundle platformdeploy.BundleManifest, deployDir st
 }
 
 type platformConfigFile struct {
-	Platform        string `json:"platform"`
-	Endpoint        string `json:"endpoint"`
-	BaseURL         string `json:"baseUrl"`
-	Token           string `json:"token"`
-	EnvironmentID   string `json:"environmentId"`
-	ServerID        string `json:"serverId"`
-	ProjectUUID     string `json:"projectUuid"`
-	EnvironmentUUID string `json:"environmentUuid"`
-	DestinationUUID string `json:"destinationUuid"`
+	Platform        string `json:"platform,omitempty"`
+	Endpoint        string `json:"endpoint,omitempty"`
+	BaseURL         string `json:"baseUrl,omitempty"`
+	Token           string `json:"token,omitempty"`
+	EnvironmentID   string `json:"environmentId,omitempty"`
+	ServerID        string `json:"serverId,omitempty"`
+	ProjectUUID     string `json:"projectUuid,omitempty"`
+	EnvironmentUUID string `json:"environmentUuid,omitempty"`
+	DestinationUUID string `json:"destinationUuid,omitempty"`
 }
 
 func platformHTTPConfigForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.HTTPConfig, bool) {
@@ -134,57 +140,198 @@ func platformConfigCandidates(deployDir string) []string {
 	}
 }
 
-func firstPlatformEnv(platform, field string) string {
+func writePlatformConfigFile(wd string, cfg platformConfigFile) error {
+	if cfg.Platform == "" {
+		cfg.Platform = models.PAASCoolify
+	}
+	path := filepath.Join(wd, ".stackkit", "platform.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return fmt.Errorf("create platform config directory: %w", err)
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal platform config: %w", err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0600); err != nil {
+		return fmt.Errorf("write platform config: %w", err)
+	}
+	return nil
+}
+
+func persistPlatformConfigFromSpecEnvironment(spec *models.StackSpec, wd string) error {
+	if spec == nil || len(spec.Environment) == 0 {
+		return nil
+	}
+	cfg, anyConfigured := platformConfigFromValueMap(spec.PAAS, spec.Environment)
+	if !anyConfigured {
+		return nil
+	}
+	if err := validatePlatformConfigPlatform(cfg.Platform); err != nil {
+		return err
+	}
+	if cfg.endpoint() == "" || cfg.Token == "" {
+		return fmt.Errorf("tenant spec platform config is incomplete; provide STACKKIT_PLATFORM_ENDPOINT and STACKKIT_PLATFORM_TOKEN or provider-specific endpoint/token values")
+	}
+	if err := writePlatformConfigFile(wd, cfg); err != nil {
+		return err
+	}
+	redactPlatformConfigEnvironment(spec.Environment)
+	return nil
+}
+
+func platformConfigFromValueMap(defaultPlatform string, values map[string]string) (platformConfigFile, bool) {
+	platform, platformSeen := platformFromValueMap(defaultPlatform, values)
+	cfg := platformConfigFile{
+		Platform:        platform,
+		Endpoint:        firstPlatformValue(platform, values, "endpoint"),
+		Token:           firstPlatformValue(platform, values, "token"),
+		EnvironmentID:   firstPlatformValue(platform, values, "environment_id"),
+		ServerID:        firstPlatformValue(platform, values, "server_id"),
+		ProjectUUID:     firstPlatformValue(platform, values, "project_uuid"),
+		EnvironmentUUID: firstPlatformValue(platform, values, "environment_uuid"),
+		DestinationUUID: firstPlatformValue(platform, values, "destination_uuid"),
+	}
+	return cfg, platformSeen || cfg.endpoint() != "" || cfg.Token != "" ||
+		cfg.EnvironmentID != "" || cfg.ServerID != "" || cfg.ProjectUUID != "" ||
+		cfg.EnvironmentUUID != "" || cfg.DestinationUUID != ""
+}
+
+func platformFromValueMap(defaultPlatform string, values map[string]string) (string, bool) {
+	for _, key := range []string{"STACKKIT_PLATFORM", "STACKKIT_PAAS"} {
+		if value := strings.TrimSpace(values[key]); value != "" {
+			return strings.ToLower(value), true
+		}
+	}
+	if values["COOLIFY_API_URL"] != "" || values["COOLIFY_API_TOKEN"] != "" {
+		return models.PAASCoolify, true
+	}
+	if values["DOKPLOY_API_URL"] != "" || values["DOKPLOY_API_KEY"] != "" {
+		return models.PAASDokploy, true
+	}
+	defaultPlatform = strings.ToLower(strings.TrimSpace(defaultPlatform))
+	if defaultPlatform == models.PAASCoolify || defaultPlatform == models.PAASDokploy {
+		return defaultPlatform, false
+	}
+	if genericPlatformConfigPresent(values) {
+		return models.PAASCoolify, false
+	}
+	if defaultPlatform != "" {
+		return defaultPlatform, false
+	}
+	return models.PAASCoolify, false
+}
+
+func validatePlatformConfigPlatform(platform string) error {
+	switch platform {
+	case models.PAASCoolify, models.PAASDokploy:
+		return nil
+	default:
+		return fmt.Errorf("unsupported tenant spec platform config %q; expected coolify or dokploy", platform)
+	}
+}
+
+func genericPlatformConfigPresent(values map[string]string) bool {
+	for _, key := range []string{
+		"STACKKIT_PLATFORM_ENDPOINT",
+		"STACKKIT_PLATFORM_TOKEN",
+		"STACKKIT_PLATFORM_ENVIRONMENT_ID",
+		"STACKKIT_PLATFORM_ENVIRONMENT_NAME",
+		"STACKKIT_PLATFORM_SERVER_ID",
+		"STACKKIT_PLATFORM_SERVER_UUID",
+		"STACKKIT_PLATFORM_PROJECT_UUID",
+		"STACKKIT_PLATFORM_ENVIRONMENT_UUID",
+		"STACKKIT_PLATFORM_DESTINATION_UUID",
+	} {
+		if strings.TrimSpace(values[key]) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func firstPlatformValue(platform string, values map[string]string, field string) string {
+	for _, key := range platformConfigEnvKeys(platform, field) {
+		if value := strings.TrimSpace(values[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func redactPlatformConfigEnvironment(values map[string]string) {
+	for _, key := range allPlatformConfigEnvKeys() {
+		delete(values, key)
+	}
+}
+
+func allPlatformConfigEnvKeys() []string {
+	seen := map[string]bool{}
+	var keys []string
+	for _, platform := range []string{models.PAASCoolify, models.PAASDokploy} {
+		for _, field := range []string{"endpoint", "token", "environment_id", "server_id", "project_uuid", "environment_uuid", "destination_uuid"} {
+			for _, key := range platformConfigEnvKeys(platform, field) {
+				if !seen[key] {
+					seen[key] = true
+					keys = append(keys, key)
+				}
+			}
+		}
+	}
+	for _, key := range []string{"STACKKIT_PLATFORM", "STACKKIT_PAAS"} {
+		if !seen[key] {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func platformConfigEnvKeys(platform, field string) []string {
 	switch field {
 	case "endpoint":
 		if platform == models.PAASDokploy {
-			return firstEnv("DOKPLOY_API_URL", "STACKKIT_PLATFORM_ENDPOINT")
+			return []string{"DOKPLOY_API_URL", "STACKKIT_PLATFORM_ENDPOINT"}
 		}
 		if platform == models.PAASCoolify {
-			return firstEnv("COOLIFY_API_URL", "STACKKIT_PLATFORM_ENDPOINT")
+			return []string{"COOLIFY_API_URL", "STACKKIT_PLATFORM_ENDPOINT"}
 		}
 	case "token":
 		if platform == models.PAASDokploy {
-			return firstEnv("DOKPLOY_API_KEY", "STACKKIT_PLATFORM_TOKEN")
+			return []string{"DOKPLOY_API_KEY", "STACKKIT_PLATFORM_TOKEN"}
 		}
 		if platform == models.PAASCoolify {
-			return firstEnv("COOLIFY_API_TOKEN", "STACKKIT_PLATFORM_TOKEN")
+			return []string{"COOLIFY_API_TOKEN", "STACKKIT_PLATFORM_TOKEN"}
 		}
 	case "environment_id":
 		if platform == models.PAASDokploy {
-			return firstEnv("DOKPLOY_ENVIRONMENT_ID", "STACKKIT_PLATFORM_ENVIRONMENT_ID")
+			return []string{"DOKPLOY_ENVIRONMENT_ID", "STACKKIT_PLATFORM_ENVIRONMENT_ID"}
 		}
 		if platform == models.PAASCoolify {
-			return firstEnv("COOLIFY_ENVIRONMENT_NAME", "STACKKIT_PLATFORM_ENVIRONMENT_NAME")
+			return []string{"COOLIFY_ENVIRONMENT_NAME", "STACKKIT_PLATFORM_ENVIRONMENT_NAME"}
 		}
 	case "server_id":
 		if platform == models.PAASDokploy {
-			return firstEnv("DOKPLOY_SERVER_ID", "STACKKIT_PLATFORM_SERVER_ID")
+			return []string{"DOKPLOY_SERVER_ID", "STACKKIT_PLATFORM_SERVER_ID"}
 		}
 		if platform == models.PAASCoolify {
-			return firstEnv("COOLIFY_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_ID")
+			return []string{"COOLIFY_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_ID"}
 		}
 	case "project_uuid":
-		return firstEnv("COOLIFY_PROJECT_UUID", "STACKKIT_PLATFORM_PROJECT_UUID")
+		return []string{"COOLIFY_PROJECT_UUID", "STACKKIT_PLATFORM_PROJECT_UUID"}
 	case "environment_uuid":
-		return firstEnv("COOLIFY_ENVIRONMENT_UUID", "STACKKIT_PLATFORM_ENVIRONMENT_UUID")
+		return []string{"COOLIFY_ENVIRONMENT_UUID", "STACKKIT_PLATFORM_ENVIRONMENT_UUID"}
 	case "destination_uuid":
-		return firstEnv("COOLIFY_DESTINATION_UUID", "STACKKIT_PLATFORM_DESTINATION_UUID")
+		return []string{"COOLIFY_DESTINATION_UUID", "STACKKIT_PLATFORM_DESTINATION_UUID"}
 	}
-	return ""
+	return nil
+}
+
+func firstPlatformEnv(platform, field string) string {
+	return firstEnv(platformConfigEnvKeys(platform, field)...)
 }
 
 func recordPlatformAppState(state *models.DeploymentState, bundle platformdeploy.BundleManifest, refs []platformdeploy.DeploymentRef) {
 	if state == nil {
 		return
-	}
-	composePaths := make(map[string]string, len(bundle.Apps))
-	setupPolicies := make(map[string]string, len(bundle.Apps))
-	setupDrops := make(map[string][]platformdeploy.SetupDropManifest, len(bundle.Apps))
-	for _, app := range bundle.Apps {
-		composePaths[app.Name] = app.ComposePath
-		setupPolicies[app.Name] = app.SetupPolicy
-		setupDrops[app.Name] = app.SetupDrops
 	}
 	systemComposePaths := make(map[string]string, len(bundle.SystemApps))
 	systemRoles := make(map[string]string, len(bundle.SystemApps))
@@ -197,25 +344,37 @@ func recordPlatformAppState(state *models.DeploymentState, bundle platformdeploy
 		systemSetupDrops[app.Name] = app.SetupDrops
 	}
 	for _, ref := range refs {
+		role, ok := systemRoles[ref.AppName]
+		if !ok {
+			continue
+		}
 		appState := models.PlatformAppState{
 			Name:         ref.AppName,
 			Platform:     ref.Platform,
 			ExternalID:   ref.ExternalID,
 			DeploymentID: ref.DeploymentID,
 			LastDeployed: ref.LastDeployed,
+			Role:         role,
+			ComposePath:  systemComposePaths[ref.AppName],
+			SetupPolicy:  systemSetupPolicies[ref.AppName],
+			SetupDrops:   setupDropsToState(systemSetupDrops[ref.AppName]),
 		}
-		if role, ok := systemRoles[ref.AppName]; ok {
-			appState.Role = role
-			appState.ComposePath = systemComposePaths[ref.AppName]
-			appState.SetupPolicy = systemSetupPolicies[ref.AppName]
-			appState.SetupDrops = setupDropsToState(systemSetupDrops[ref.AppName])
-			state.PlatformSystemApps = upsertPlatformAppState(state.PlatformSystemApps, appState)
-			continue
-		}
-		appState.ComposePath = composePaths[ref.AppName]
-		appState.SetupPolicy = setupPolicies[ref.AppName]
-		appState.SetupDrops = setupDropsToState(setupDrops[ref.AppName])
-		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, appState)
+		state.PlatformSystemApps = upsertPlatformAppState(state.PlatformSystemApps, appState)
+	}
+}
+
+func recordPlatformAppHandoffs(state *models.DeploymentState, bundle platformdeploy.BundleManifest) {
+	if state == nil {
+		return
+	}
+	for _, app := range bundle.Apps {
+		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, models.PlatformAppState{
+			Name:        app.Name,
+			Platform:    firstNonEmpty(app.ManagedBy, app.Platform, bundle.Platform),
+			ComposePath: app.ComposePath,
+			SetupPolicy: app.SetupPolicy,
+			SetupDrops:  setupDropsToState(app.SetupDrops),
+		})
 	}
 }
 

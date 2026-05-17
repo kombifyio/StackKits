@@ -1,0 +1,11 @@
+#!/bin/sh
+# Static website entrypoint for the shared stackkit CLI installer.
+# Usage: curl -sSL https://install.stackkit.cc | sh
+#
+# StackKits CLI installer. This thin public endpoint delegates to the
+# allowlisted public repo installer so the website entrypoint cannot drift from
+# the release installer shipped at repo root.
+set -eu
+
+STACKKIT_INSTALL_SOURCE_URL="${STACKKIT_INSTALL_SOURCE_URL:-https://raw.githubusercontent.com/kombifyio/stackKits/main/install.sh}"
+curl -fsSL "$STACKKIT_INSTALL_SOURCE_URL" | sh -s -- "$@"

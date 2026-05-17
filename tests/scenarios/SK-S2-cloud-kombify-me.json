@@ -10,8 +10,11 @@
     "context": "cloud",
     "domain": "kombify.me",
     "subdomainPrefix": "sh-scenario-s2",
-    "email": "tester@kombify.pro",
-    "adminEmail": "tester@kombify.pro",
+    "owner": {
+      "bootstrapMode": "auto",
+      "source": "cloud",
+      "recoveryMaterialRef": "techstack://recovery/scenarios/sk-s2"
+    },
     "network": {
       "mode": "public"
     },
@@ -32,21 +35,22 @@
     "generation": {
       "context": "cloud",
       "domain": "kombify.me",
-      "paas": "dokploy",
-      "reverseProxyBackend": "dokploy",
+      "paas": "coolify",
+      "reverseProxyBackend": "coolify",
       "enableHTTPS": false,
       "stepCAEnabled": true,
       "enableKombifyPoint": false,
-      "adminEmail": "tester@kombify.pro",
+      "adminEmail": "admin@sh-scenario-s2.kombify.me",
       "serviceFlags": {
         "enable_dashboard": true,
         "enable_tinyauth": true,
         "enable_pocketid": true,
-        "enable_dokploy": true,
+        "enable_coolify": true,
+        "enable_dokploy": false,
         "enable_uptime_kuma": true,
         "enable_whoami": true,
         "enable_vaultwarden": true,
-        "enable_jellyfin": true,
+        "enable_jellyfin": false,
         "enable_immich": true
       }
     },
@@ -57,10 +61,9 @@
         {"key": "base", "host": "sh-scenario-s2-base.kombify.me", "scheme": "https"},
         {"key": "auth", "host": "sh-scenario-s2-auth.kombify.me", "scheme": "https"},
         {"key": "id", "host": "sh-scenario-s2-id.kombify.me", "scheme": "https"},
-        {"key": "dokploy", "host": "sh-scenario-s2-dokploy.kombify.me", "scheme": "https"},
+        {"key": "coolify", "host": "sh-scenario-s2-coolify.kombify.me", "scheme": "https"},
         {"key": "kuma", "host": "sh-scenario-s2-kuma.kombify.me", "scheme": "https"},
         {"key": "vault", "host": "sh-scenario-s2-vault.kombify.me", "scheme": "https"},
-        {"key": "media", "host": "sh-scenario-s2-media.kombify.me", "scheme": "https"},
         {"key": "photos", "host": "sh-scenario-s2-photos.kombify.me", "scheme": "https"}
       ]
     }

@@ -8,7 +8,7 @@
     "stackkit": "base-kit",
     "mode": "simple",
     "context": "local",
-    "domain": "stack.home",
+    "domain": "home.localhost",
     "network": {
       "mode": "local"
     },
@@ -20,9 +20,9 @@
       "keyPath": "~/.ssh/id_ed25519",
       "port": 22
     },
-    "paas": "none",
     "services": {
-      "dokploy": {"enabled": false},
+      "homepage": {"enabled": true},
+      "coolify": {"enabled": true},
       "uptime-kuma": {"enabled": true},
       "whoami": {"enabled": true},
       "vaultwarden": {"enabled": true},
@@ -43,17 +43,19 @@
   "expected": {
     "generation": {
       "context": "local",
-      "domain": "stack.home",
-      "paas": "none",
-      "reverseProxyBackend": "standalone",
-      "enableHTTPS": true,
-      "stepCAEnabled": true,
-      "enableKombifyPoint": true,
-      "adminEmail": "admin@stack.home",
+      "domain": "home.localhost",
+      "paas": "coolify",
+      "reverseProxyBackend": "coolify",
+      "enableHTTPS": false,
+      "stepCAEnabled": false,
+      "enableKombifyPoint": false,
+      "adminEmail": "admin@home.localhost",
       "serviceFlags": {
         "enable_dashboard": true,
+        "enable_homepage": true,
         "enable_tinyauth": true,
         "enable_pocketid": true,
+        "enable_coolify": true,
         "enable_dokploy": false,
         "enable_uptime_kuma": true,
         "enable_whoami": true,
@@ -63,16 +65,17 @@
       }
     },
     "access": {
-      "hubUrl": "https://base.stack.home",
-      "browserUrlMode": "local-host-port",
+      "hubUrl": "http://base.home.localhost",
       "services": [
-        {"key": "base", "host": "base.stack.home", "scheme": "https"},
-        {"key": "auth", "host": "auth.stack.home", "scheme": "https"},
-        {"key": "id", "host": "id.stack.home", "scheme": "https"},
-        {"key": "kuma", "host": "kuma.stack.home", "scheme": "https"},
-        {"key": "whoami", "host": "whoami.stack.home", "scheme": "https"},
-        {"key": "vault", "host": "vault.stack.home", "scheme": "https"},
-        {"key": "photos", "host": "photos.stack.home", "scheme": "https"}
+        {"key": "base", "host": "base.home.localhost", "scheme": "http"},
+        {"key": "home", "host": "home.home.localhost", "scheme": "http"},
+        {"key": "auth", "host": "auth.home.localhost", "scheme": "http"},
+        {"key": "id", "host": "id.home.localhost", "scheme": "http"},
+        {"key": "coolify", "host": "coolify.home.localhost", "scheme": "http"},
+        {"key": "kuma", "host": "kuma.home.localhost", "scheme": "http"},
+        {"key": "whoami", "host": "whoami.home.localhost", "scheme": "http"},
+        {"key": "vault", "host": "vault.home.localhost", "scheme": "http"},
+        {"key": "photos", "host": "photos.home.localhost", "scheme": "http"}
       ]
     }
   }

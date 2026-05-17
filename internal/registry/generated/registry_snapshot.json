@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "source": "cue",
-  "generated_at": "2026-04-30T17:14:27.8304537Z",
+  "generated_at": "2026-05-14T14:07:06.0092492Z",
   "tools": [],
   "services": [
     {
@@ -18,10 +18,14 @@
       "identity_policy": "oidc",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128274;",
+      "logo_url": "https://cdn.simpleicons.org/openid/ffffff",
       "badge": "L1 · ForwardAuth",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": 20,
       "enable_var": "enable_tinyauth",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/tinyauth",
+      "setup_policy": "automatic",
       "default": true
     },
     {
@@ -39,31 +43,14 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128421;",
-      "badge": "L3 · Hub",
+      "logo_url": "https://stackkit.cc/favicon.svg",
+      "badge": "L2 · Node Hub",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": -1,
       "enable_var": "enable_dashboard",
-      "default": true
-    },
-    {
-      "key": "home",
-      "display_name": "Homepage",
-      "description": "IaC-managed homelab start dashboard generated from the StackKits service catalog.",
-      "tool_name": "homepage",
-      "module_slug": "homepage",
-      "local_slug": "home",
-      "public_slug": "home",
-      "legacy_aliases": [
-        "homepage",
-        "homelab-dashboard"
-      ],
-      "identity_policy": "forwardauth",
-      "owner_provisioning_policy": "required",
-      "icon": "\u0026#8962;",
-      "badge": "L3 · Start",
-      "section": "Platform",
-      "order": 0,
-      "enable_var": "enable_homepage",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/node-hub",
+      "setup_policy": "automatic",
       "default": true
     },
     {
@@ -77,10 +64,14 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128171;",
+      "logo_url": "https://cdn.simpleicons.org/coolify/ffffff",
       "badge": "L2 · PaaS",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": 41,
       "enable_var": "enable_coolify",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/coolify",
+      "setup_policy": "automatic",
       "default": false
     },
     {
@@ -94,10 +85,14 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128230;",
+      "logo_url": "https://cdn.simpleicons.org/docker/ffffff",
       "badge": "L2 · Compose Manager",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": 42,
       "enable_var": "enable_dockge",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/dockge",
+      "setup_policy": "automatic",
       "default": false
     },
     {
@@ -111,10 +106,38 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128640;",
+      "logo_url": "https://cdn.simpleicons.org/docker/ffffff",
       "badge": "L2 · PaaS",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": 40,
       "enable_var": "enable_dokploy",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/dokploy",
+      "setup_policy": "automatic",
+      "default": false
+    },
+    {
+      "key": "home",
+      "display_name": "Homepage",
+      "description": "IaC-managed homelab start dashboard generated from the StackKits service catalog",
+      "tool_name": "homepage",
+      "module_slug": "homepage",
+      "local_slug": "home",
+      "public_slug": "home",
+      "legacy_aliases": [
+        "homepage",
+        "homelab-dashboard"
+      ],
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#8962;",
+      "logo_url": "https://cdn.simpleicons.org/homeassistant/ffffff",
+      "badge": "L2 · Start",
+      "layer": "L2-platform",
+      "section": "Platform",
+      "enable_var": "enable_homepage",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/homepage",
+      "setup_policy": "automatic",
       "default": true
     },
     {
@@ -131,10 +154,14 @@
       "identity_policy": "provider",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128100;",
+      "logo_url": "https://cdn.simpleicons.org/openid/ffffff",
       "badge": "L1 · IdP",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": 10,
       "enable_var": "enable_pocketid",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/pocketid",
+      "setup_policy": "automatic",
       "default": true
     },
     {
@@ -151,22 +178,27 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128202;",
-      "badge": "L3 · Monitoring",
-      "section": "Applications",
+      "logo_url": "https://cdn.simpleicons.org/uptimekuma/ffffff",
+      "badge": "L2 · Monitoring",
+      "layer": "L2-platform",
+      "section": "Platform",
       "order": 10,
       "enable_var": "enable_uptime_kuma",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/uptime-kuma",
+      "setup_policy": "automatic",
       "default": true
     },
     {
       "key": "logs",
       "display_name": "Dozzle",
       "description": "Real-time Docker container log viewer",
-      "tool_name": "logs",
-      "module_slug": "logs",
+      "tool_name": "dozzle",
+      "module_slug": "dozzle",
       "local_slug": "logs",
       "public_slug": "logs",
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
+      "setup_policy": "manual",
       "default": false
     },
     {
@@ -180,14 +212,18 @@
       "legacy_aliases": [
         "jellyfin"
       ],
-      "identity_policy": "oidc",
-      "owner_provisioning_policy": "required",
+      "identity_policy": "self-auth",
+      "owner_provisioning_policy": "none",
       "icon": "\u0026#127916;",
+      "logo_url": "https://cdn.simpleicons.org/jellyfin/ffffff",
       "badge": "L3 · Media",
+      "layer": "L3-application",
       "section": "Applications",
       "order": 40,
       "enable_var": "enable_jellyfin",
-      "default": true
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/jellyfin",
+      "setup_policy": "manual",
+      "default": false
     },
     {
       "key": "photos",
@@ -200,19 +236,24 @@
       "legacy_aliases": [
         "immich"
       ],
-      "identity_policy": "oidc",
+      "identity_policy": "self-auth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#128247;",
+      "logo_url": "https://cdn.simpleicons.org/immich/ffffff",
       "badge": "L3 · Photos",
+      "layer": "L3-application",
       "section": "Applications",
       "order": 50,
       "enable_var": "enable_immich",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/immich",
+      "setup_policy": "on_demand",
+      "setup_action_label": "Do the setup for me",
       "default": true
     },
     {
       "key": "point",
-      "display_name": "Kombify Point DNS",
-      "description": "Local LAN DNS resolver for *.home and *.\u003cname\u003e.home service names",
+      "display_name": "kombify Point DNS",
+      "description": "Local LAN DNS resolver for StackKit home service names",
       "tool_name": "kombify-point",
       "module_slug": "kombify-point",
       "local_slug": "point",
@@ -220,10 +261,14 @@
       "identity_policy": "none",
       "owner_provisioning_policy": "none",
       "icon": "\u0026#127760;",
+      "logo_url": "https://cdn.simpleicons.org/cloudflare/ffffff",
       "badge": "L1 \\u00b7 DNS",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": 35,
       "enable_var": "enable_kombify_point",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/kombify-point",
+      "setup_policy": "automatic",
       "default": false
     },
     {
@@ -237,10 +282,14 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#9889;",
+      "logo_url": "https://cdn.simpleicons.org/traefikproxy/ffffff",
       "badge": "L2 · Reverse Proxy",
+      "layer": "L2-platform",
       "section": "Platform",
       "order": 30,
       "enable_var": "enable_traefik",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/traefik",
+      "setup_policy": "automatic",
       "default": true
     },
     {
@@ -254,13 +303,17 @@
       "legacy_aliases": [
         "vaultwarden"
       ],
-      "identity_policy": "oidc",
-      "owner_provisioning_policy": "required",
+      "identity_policy": "self-auth",
+      "owner_provisioning_policy": "none",
       "icon": "\u0026#128272;",
+      "logo_url": "https://cdn.simpleicons.org/bitwarden/ffffff",
       "badge": "L3 · Vault",
+      "layer": "L3-application",
       "section": "Applications",
       "order": 30,
       "enable_var": "enable_vaultwarden",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/vaultwarden",
+      "setup_policy": "manual",
       "default": true
     },
     {
@@ -274,10 +327,14 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "icon": "\u0026#129302;",
-      "badge": "L3 · Test",
-      "section": "Applications",
+      "logo_url": "https://cdn.simpleicons.org/httpie/ffffff",
+      "badge": "L2 · Routing test",
+      "layer": "L2-platform",
+      "section": "Platform",
       "order": 20,
       "enable_var": "enable_whoami",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/whoami",
+      "setup_policy": "automatic",
       "default": true
     }
   ],
@@ -288,7 +345,7 @@
       "version": "1.0.0",
       "layer": "L2-platform-dns",
       "description": "DNS filter, ad/malware blocking, and local DNS rewrites",
-      "contract_hash": "51e585769aa40160af3570b44832c33df924abb8aae35b35cedc542264c0a60e",
+      "contract_hash": "e8f8d148a78b9ed3b9ed80269c86176f2c9fbbd10243230d77dd0c2360137ff4",
       "supported_contexts": [
         "local",
         "cloud",
@@ -302,7 +359,7 @@
       "version": "0.1.0",
       "layer": "L1-foundation",
       "description": "Bootstraps the initial admin user in LLDAP + PocketID. Initial password printed to CLI stdout, must be rotated on first login.",
-      "contract_hash": "b838a7b4dd58d025e73166e8fb3c5c559b28c5a14edae881707827e7db6f90ae",
+      "contract_hash": "f84ecd93d165e80d57c68f731e4c4b08794eee2f498673f2bafa3773b000056c",
       "supported_contexts": [
         "local",
         "cloud",
@@ -326,11 +383,11 @@
     },
     {
       "slug": "dashboard",
-      "display_name": "Dashboard",
+      "display_name": "StackKits Node Hub",
       "version": "1.0.0",
       "layer": "L3-application",
-      "description": "Service overview dashboard with links to all deployed services",
-      "contract_hash": "12f1be4bd05a90f4a7f447a9d9223083cfe12a79e265035fb8e0d64af23f21b2",
+      "description": "Node-local StackKits hub with onboarding, recovery, and service links",
+      "contract_hash": "e2a06fd75048790e83afce3401f4b710978f2578e53f558483ae6db0b73cdc61",
       "supported_contexts": [
         "local",
         "cloud",
@@ -367,12 +424,26 @@
       "core": true
     },
     {
+      "slug": "homepage",
+      "display_name": "Homepage",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "IaC-managed homelab start dashboard generated from the StackKits service catalog",
+      "contract_hash": "4e26943a3124184705905dbe4a182a59cb89b8f0822682ff315115f3a8445200",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
       "slug": "immich",
       "display_name": "Immich",
       "version": "1.0.0",
       "layer": "L3-application",
       "description": "Self-hosted photo and video management with AI-powered search and mobile backup",
-      "contract_hash": "7e30e7d89b7c4514032de32770d2d9e90c8686965916eacb65683109c2076885",
+      "contract_hash": "789d560c3f8f67cd9dd58a93533cab81a33160dd83de3724a84d8eae51a3f200",
       "supported_contexts": [
         "local",
         "cloud",
@@ -396,11 +467,11 @@
     },
     {
       "slug": "kombify-point",
-      "display_name": "Kombify Point DNS",
+      "display_name": "kombify Point DNS",
       "version": "1.0.0",
       "layer": "L1-foundation",
-      "description": "Local LAN DNS resolver for *.home and *.\u003cname\u003e.home service names",
-      "contract_hash": "f56fa8e64a5da05e73f74f75e5f44bd6f87103604eab4c91297170da1fba3039",
+      "description": "Local LAN DNS resolver for StackKit home service names",
+      "contract_hash": "d0d6aaf807ebba8a3743371585be584e9096551e4c22f4929fd380b4baafeff6",
       "supported_contexts": [
         "local",
         "cloud",
@@ -413,7 +484,7 @@
       "display_name": "LLDAP",
       "version": "1.0.0",
       "layer": "L1-foundation",
-      "description": "Lightweight LDAP directory — source of truth for users and groups",
+      "description": "Lightweight LDAP directory for compatibility with LDAP-aware services",
       "contract_hash": "351169277390ee14a4212b15a3aa095bca8c2a77ad9831f88f026e787a03b72e",
       "supported_contexts": [
         "local",
@@ -429,6 +500,34 @@
       "layer": "L2-platform-identity",
       "description": "Enforces TinyAuth forward-auth in front of every L3 service, with PocketID as OIDC IdP. Mandatory platform invariant in V6.",
       "contract_hash": "fc94b115132e53408167dd442d4d5e9605c379da79ad633f3c740ef25367eca1",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "monitoring-agent",
+      "display_name": "Monitoring Agent (OTel)",
+      "version": "1.0.0",
+      "layer": "L2-platform-ingress",
+      "description": "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to TechStack or monitoring-core",
+      "contract_hash": "bf548cb53af3e2acb09db1aea5d9c5b599dc2c2488fd1bc258f0f6194b935b07",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "monitoring-core",
+      "display_name": "Monitoring Core (VictoriaMetrics)",
+      "version": "1.0.0",
+      "layer": "L2-platform-ingress",
+      "description": "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and Grafana dashboards",
+      "contract_hash": "d2d7327e63d7c50295e9d5f80fb7301f8a89b6efbf900966a1e0a691ca7c6174",
       "supported_contexts": [
         "local",
         "cloud",
@@ -538,9 +637,9 @@
       "slug": "uptime-kuma",
       "display_name": "Uptime Kuma",
       "version": "1.0.0",
-      "layer": "L3-application",
+      "layer": "L2-platform-observability",
       "description": "Self-hosted uptime monitoring with status pages and notifications",
-      "contract_hash": "6c078edad89f4d5034a211947805cf66bb7c795d2ee057dd9efe6d78f9b52eb5",
+      "contract_hash": "8634541b1f1dfa7c99282954e68f994c001b6c08e37798c8bb2d3a0c93c9d595",
       "supported_contexts": [
         "local",
         "cloud",
@@ -566,9 +665,9 @@
       "slug": "whoami",
       "display_name": "Whoami",
       "version": "1.0.0",
-      "layer": "L3-application",
+      "layer": "L2-platform-diagnostics",
       "description": "HTTP echo service for network and routing diagnostics",
-      "contract_hash": "488cd9615bca3e4054382af15be102ab3c7b9756931de378ea48c16702760b7d",
+      "contract_hash": "6cc3438b3884a61aabdb5f94681628dda0c5ab32df54b92fe8016eca4002080f",
       "supported_contexts": [
         "local",
         "cloud",

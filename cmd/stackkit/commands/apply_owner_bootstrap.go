@@ -14,11 +14,12 @@ import (
 
 // runOwnerBootstrap performs the post-deployment owner + break-glass
 // provisioning sequence. It is gated by spec.Owner — the field populated by
-// `stackkit init` when the operator opts into Phase-1 owner-bootstrap.
+// `stackkit init` or by an orchestration handoff when owner bootstrap is
+// requested.
 //
-// When spec.Owner.Source is empty (existing deploys that don't opt into the
-// new identity bootstrap), the function returns nil immediately. The
-// --cluster-mode flag still gates which nodes provision the daily-admin
+// Empty owner data, bootstrapMode=none, and bootstrapMode=auto are no-ops for
+// local apply. Only bootstrapMode=custom provisions the local PocketID Owner.
+// The --cluster-mode flag still gates which nodes provision the daily-admin
 // record: only "first" runs the bootstrap; "join" nodes are no-ops.
 //
 // Inputs:
@@ -36,7 +37,14 @@ import (
 //   - The recovery bundle (encrypted .age + plaintext .txt) is written to
 //     the configured bundle directory.
 func runOwnerBootstrap(cmd *cobra.Command, spec *models.StackSpec) error {
-	if spec == nil || spec.Owner.Source == "" {
+	if spec == nil {
+		return nil
+	}
+	switch spec.Owner.EffectiveBootstrapMode() {
+	case "", models.OwnerBootstrapModeNone:
+		return nil
+	case models.OwnerBootstrapModeAuto:
+		printInfo("Skipping local owner bootstrap (owner bootstrap is orchestrator-managed)")
 		return nil
 	}
 	if initClusterMode != "" && initClusterMode != "first" {

@@ -32,6 +32,45 @@ builds:
       - -X main.GitCommit={{ .Commit }}
       - -X main.BuildDate={{ .Date }}
 
+  - id: stackkit-server
+    main: ./cmd/stackkit-server
+    binary: stackkit-server
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{ .Version }}
+      - -X main.GitCommit={{ .Commit }}
+      - -X main.BuildDate={{ .Date }}
+
+  - id: stackkit-mcp
+    main: ./cmd/stackkit-mcp
+    binary: stackkit-mcp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+
   # Per-host backup agent (Phase 4 of the backup rollout — see
   # docs/plans/2026-05-01-backup-rollout.md). Linux-only because the
   # agent only runs on backed-up hosts, which are always Linux Docker
@@ -77,6 +116,8 @@ archives:
   - id: default
     ids:
       - stackkit
+      - stackkit-server
+      - stackkit-mcp
     formats:
       - tar.gz
     format_overrides:
@@ -105,6 +146,8 @@ archives:
   - id: base-kit
     ids:
       - stackkit
+      - stackkit-server
+      - stackkit-mcp
     formats:
       - tar.gz
     format_overrides:
@@ -224,12 +267,12 @@ release:
 
     **Base Kit (single-server homelab):**
     ```bash
-    curl -sSL stackkit.cc/base | sh
+    curl -sSL https://base.stackkit.cc | sh
     ```
 
-    **CLI only (pick a kit later):**
+    **CLI + public kit catalog (pick a kit later):**
     ```bash
-    curl -sSL stackkit.cc/install | sh
+    curl -sSL https://install.stackkit.cc | sh
     ```
 
     ### Downloads

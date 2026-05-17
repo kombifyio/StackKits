@@ -5,7 +5,7 @@ kind: StackKit
 metadata:
   name: base-kit
   version: "6.0.0-draft"
-  description: "Single-environment homelab with a robust default scope: Platform + Media and Vault. Photos, Smart Home, Files, and AI stay opt-in until their modules are production-ready."
+  description: "Single-environment homelab with a robust default scope: Platform + Photos and Vault. Media, Smart Home, Files, and AI stay opt-in until their first-run paths are production-ready."
   author: "kombify Stack Team"
   license: "Apache-2.0"
   repository: "https://github.com/kombifyio/stackkits"
@@ -99,16 +99,16 @@ autoSelect:
 # this section was called `useCases`; renamed to `application` to match the
 # Foundation / Platform / Application standard surfaced in the Admin UI.
 #
-# Role: default = ships enabled, alternative = curated swap, optional = user enables
-# Source of truth: admin-center (sk_stackkit_*). This section mirrors it for Level 0 CLI.
+# Role: default = ships enabled, alternative = curated swap, optional = user enables.
+# CUE/StackKit contracts are the rollout source of truth; the Admin registry mirrors release lineage and operations state.
 application:
   photos:
-    role: optional            # Planned default; opt-in until Immich renders its full Postgres/Redis/ML stack and passes live smoke.
+    role: default
     defaultTool: immich
     alternatives: [ente-photos]
     description: "Photo gallery and memories"
   media:
-    role: default
+    role: optional            # Opt-in until Jellyfin first-run UX matches the default live smoke path.
     defaultTool: jellyfin
     alternatives: []
     description: "Media streaming with automated library management"
@@ -182,18 +182,18 @@ platform:
     alternatives: []
     description: "TinyAuth forward-auth middleware in front of every L3 service. V6 mandatory."
   pocketid:
-    role: optional
+    role: default
     alternatives: []
   paas:
-    role: optional
-    defaultTool: dokploy
-    alternatives: [coolify, dockge]
+    role: default
+    defaultTool: coolify
+    alternatives: [dokploy]
   monitoring:
-    role: optional
+    role: default
     defaultTool: uptime-kuma
     alternatives: [beszel]
   dashboard:
-    role: optional
+    role: default
     alternatives: []
 
 # Feature flags
@@ -225,7 +225,6 @@ computeTiers:
       cpu: 2
       memory: 4
       disk: 5
-    paasOverride: dockge
     serviceOverrides:
       dokploy: disabled
 
@@ -259,7 +258,7 @@ changelog:
   - version: "2.0.0"
     date: "2025-01-27"
     changes:
-      - "NEW: Dokploy as default PaaS platform"
+      - "NEW: Coolify as default PaaS platform"
       - "NEW: Uptime Kuma for monitoring (default)"
       - "NEW: Beszel as alternative monitoring option"
       - "NEW: Whoami test container for verification"

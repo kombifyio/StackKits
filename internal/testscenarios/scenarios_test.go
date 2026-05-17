@@ -97,26 +97,26 @@ func TestNewArtifactUsesPublicHubURLAsBrowserURL(t *testing.T) {
 	}
 }
 
-func TestNewArtifactBuildsLocalBrowserURLWithHostMappingHint(t *testing.T) {
+func TestNewArtifactKeepsLocalBrowserURLPortless(t *testing.T) {
 	scenario, err := ByID("SK-S1")
 	if err != nil {
 		t.Fatalf("ByID returned error: %v", err)
 	}
 
 	artifact := NewArtifact(scenario, "local-run", "passed", ObservedAccess{
-		HubURL: "https://base.stack.home",
+		HubURL: "http://base.home.localhost",
 		Services: []ObservedService{{
 			Key:  "base",
-			URL:  "https://base.stack.home",
-			Host: "base.stack.home",
+			URL:  "http://base.home.localhost",
+			Host: "base.home.localhost",
 		}},
 	}, Target{Host: "127.0.0.1", HTTPPort: 32780, HTTPSPort: 32743, ContainerName: "stackkits-e2e"})
 
-	if artifact.BrowserURL != "https://base.stack.home:32743" {
+	if artifact.BrowserURL != "http://base.home.localhost" {
 		t.Fatalf("local browserUrl = %q", artifact.BrowserURL)
 	}
-	if !strings.Contains(artifact.LogsHint, "base.stack.home") || !strings.Contains(artifact.LogsHint, "127.0.0.1") {
-		t.Fatalf("local logsHint should include host mapping guidance, got %q", artifact.LogsHint)
+	if strings.Contains(artifact.LogsHint, "127.0.0.1") || strings.Contains(artifact.LogsHint, "hosts file") || strings.Contains(artifact.LogsHint, ":32743") {
+		t.Fatalf("local logsHint must not include host mapping or port guidance, got %q", artifact.LogsHint)
 	}
 }
 
@@ -139,6 +139,34 @@ func TestResolverOnlyScenariosDeclarePlacementContracts(t *testing.T) {
 	}
 	if scenario.StackSpec.Owner.Email != placement.OwnerEmail {
 		t.Fatalf("SK-S4 owner email = %q, want %q", scenario.StackSpec.Owner.Email, placement.OwnerEmail)
+	}
+	if scenario.StackSpec.Owner.BootstrapMode != "custom" {
+		t.Fatalf("SK-S4 owner bootstrap mode = %q, want custom", scenario.StackSpec.Owner.BootstrapMode)
+	}
+	if scenario.StackSpec.Owner.RecoveryPassphraseHash == "" {
+		t.Fatal("SK-S4 custom owner must carry a recovery hash, not plaintext")
+	}
+}
+
+func TestManagedCloudScenariosUseAutoOwnerContract(t *testing.T) {
+	for _, id := range []string{"SK-S2", "SK-S2A"} {
+		scenario, err := ByID(id)
+		if err != nil {
+			t.Fatalf("ByID(%s) returned error: %v", id, err)
+		}
+		owner := scenario.StackSpec.Owner
+		if owner.BootstrapMode != "auto" || owner.Source != "cloud" {
+			t.Fatalf("%s owner lane = mode %q source %q, want auto/cloud", id, owner.BootstrapMode, owner.Source)
+		}
+		if owner.Email != "" || owner.Username != "" {
+			t.Fatalf("%s must not carry public owner identity in stack spec: %+v", id, owner)
+		}
+		if owner.RecoveryMaterialRef == "" || strings.Contains(owner.RecoveryMaterialRef, " ") {
+			t.Fatalf("%s must carry a recovery material reference: %+v", id, owner)
+		}
+		if scenario.StackSpec.Email != "" || scenario.StackSpec.AdminEmail != "" {
+			t.Fatalf("%s must keep Cloud user identity in env/handoff, not stack spec email fields", id)
+		}
 	}
 }
 

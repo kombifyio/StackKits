@@ -176,8 +176,9 @@ func TestExtractTFVars(t *testing.T) {
 		assert.True(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
-		assert.True(t, tfvars.EnableDokploy)
-		assert.True(t, tfvars.EnableDokployApps)
+		assert.False(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableDokployApps)
+		assert.True(t, tfvars.EnableCoolify)
 		assert.True(t, tfvars.EnableDashboard)
 		assert.Empty(t, tfvars.Domain)
 		assert.Empty(t, tfvars.NetworkSubnet)
@@ -293,14 +294,13 @@ func TestWriteTFVars(t *testing.T) {
 	t.Run("writes valid JSON file with correct fields", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tfvars := &TFVars{
-			Domain:            "example.com",
-			NetworkSubnet:     "172.20.0.0/16",
-			EnableTraefik:     true,
-			EnableTinyauth:    true,
-			EnablePocketID:    true,
-			EnableDokploy:     true,
-			EnableDokployApps: true,
-			EnableDashboard:   false,
+			Domain:          "example.com",
+			NetworkSubnet:   "172.20.0.0/16",
+			EnableTraefik:   true,
+			EnableTinyauth:  true,
+			EnablePocketID:  true,
+			EnableCoolify:   true,
+			EnableDashboard: false,
 		}
 
 		err := bridge.writeTFVars(tfvars, tmpDir)
@@ -314,7 +314,7 @@ func TestWriteTFVars(t *testing.T) {
 		assert.Equal(t, "example.com", parsed.Domain)
 		assert.Equal(t, "172.20.0.0/16", parsed.NetworkSubnet)
 		assert.True(t, parsed.EnableTraefik)
-		assert.True(t, parsed.EnableDokploy)
+		assert.True(t, parsed.EnableCoolify)
 		assert.False(t, parsed.EnableDashboard)
 	})
 
@@ -485,7 +485,8 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		assert.Equal(t, "", tfvars.NetworkSubnet)
 		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnablePocketID)
-		assert.True(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableDokploy)
+		assert.True(t, tfvars.EnableCoolify)
 		assert.True(t, tfvars.EnableDashboard)
 	})
 
@@ -537,8 +538,9 @@ func TestSpecToTFVars(t *testing.T) {
 		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
-		assert.True(t, tfvars.EnableDokploy)
-		assert.True(t, tfvars.EnableDokployApps)
+		assert.False(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableDokployApps)
+		assert.True(t, tfvars.EnableCoolify)
 		assert.True(t, tfvars.EnableDashboard)
 	})
 
@@ -570,7 +572,7 @@ func TestSpecToTFVars(t *testing.T) {
 		spec := &models.StackSpec{
 			Services: map[string]any{
 				"traefik":   map[string]any{"enabled": false},
-				"dokploy":   map[string]any{"enabled": false},
+				"coolify":   map[string]any{"enabled": false},
 				"dashboard": map[string]any{"enabled": true},
 			},
 		}
@@ -578,7 +580,7 @@ func TestSpecToTFVars(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.False(t, tfvars.EnableTraefik)
-		assert.False(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableCoolify)
 		assert.True(t, tfvars.EnableDashboard)
 		// Unaffected defaults remain
 		assert.True(t, tfvars.EnableTinyauth)

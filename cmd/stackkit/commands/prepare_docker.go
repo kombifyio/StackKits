@@ -365,51 +365,89 @@ func restartDockerForDNS(ctx context.Context) {
 }
 
 // baseKitImages returns the Docker images used by the base-kit for a given compute tier.
-// Low tier uses Dockge (lightweight) instead of Dokploy. Kuma is always included.
-// Empty tier returns ALL images (used for destroy/cleanup).
+// Coolify is installed through its official installer, but its runtime images
+// are still pre-pulled for the default standard tier so registry/auth/rate-limit
+// problems fail early in stackkit prepare instead of halfway through apply.
+// Empty tier returns ALL images (used for destroy/cleanup), unless an explicit
+// installer service profile scopes the prepare pass before a spec exists.
 func baseKitImages(tier string) []string {
+	adminOnly := strings.EqualFold(strings.TrimSpace(os.Getenv("STACKKIT_SERVICE_PROFILE")), "admin-only")
+
 	// Common images across all tiers
 	images := []string{
 		"traefik:v3",
 		"ghcr.io/steveiliop56/tinyauth:v4",
 		"ghcr.io/pocket-id/pocket-id:v2",
 		"nginx:alpine",
+		"ghcr.io/gethomepage/homepage:latest",
+		"tecnativa/docker-socket-proxy:latest",
 		"traefik/whoami:latest",
 		"smallstep/step-ca:0.30.2",
 		"coredns/coredns:1.11.3",
 	}
 
 	if tier == models.ComputeTierLow {
-		// Low compute: keep required Dokploy platform, but skip heavier app images.
+		// Low compute: keep diagnostics and the default identity stack, but skip
+		// heavier app images.
 		images = append(images,
-			"louislam/dockge:1",
 			"louislam/uptime-kuma:1",
 			"python:3.11-alpine",
 		)
-	} else if tier == "" {
+	} else if tier == "" && !adminOnly {
 		// All images (for destroy/cleanup/recovery)
 		images = append(images,
 			"postgres:16-alpine",
+			"postgres:15-alpine",
 			"redis:7-alpine",
+			"ghcr.io/coollabsio/coolify-helper:1.0.13",
+			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
+			"ghcr.io/coollabsio/coolify:4.0.0",
 			"dokploy/dokploy:latest",
 			"curlimages/curl:latest",
 			"louislam/uptime-kuma:1",
 			"python:3.11-alpine",
+			"ghcr.io/dani-garcia/vaultwarden:latest",
+			"ghcr.io/immich-app/immich-server:release",
+			"ghcr.io/immich-app/immich-machine-learning:release",
+			"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
+			"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
 			"louislam/dockge:1",
 		)
 	} else {
-		// Standard/high: full Dokploy stack + monitoring
+		// Standard/high: platform baseline, monitoring, and Coolify runtime images.
 		images = append(images,
-			"postgres:16-alpine",
+			"postgres:15-alpine",
 			"redis:7-alpine",
-			"dokploy/dokploy:latest",
-			"curlimages/curl:latest",
+			"ghcr.io/coollabsio/coolify-helper:1.0.13",
+			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
+			"ghcr.io/coollabsio/coolify:4.0.0",
 			"louislam/uptime-kuma:1",
 			"python:3.11-alpine",
 		)
+		if !adminOnly {
+			images = append(images,
+				"ghcr.io/dani-garcia/vaultwarden:latest",
+				"ghcr.io/immich-app/immich-server:release",
+				"ghcr.io/immich-app/immich-machine-learning:release",
+				"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
+				"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+			)
+		}
+	}
+
+	if image := strings.TrimSpace(os.Getenv("STACKKIT_SERVER_IMAGE")); image != "" && shouldPrePullImage(image) {
+		images = append(images, image)
 	}
 
 	return images
+}
+
+func shouldPrePullImage(image string) bool {
+	image = strings.TrimSpace(image)
+	if image == "" {
+		return false
+	}
+	return strings.Contains(image, "/")
 }
 
 // prePullImages pulls all base-kit Docker images from the host network.

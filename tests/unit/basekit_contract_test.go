@@ -19,6 +19,7 @@ func TestBaseKitStackfile_ExposesV5CompatibilitySurface(t *testing.T) {
 	assert.Contains(t, content, "runtime?:", "stackfile should expose runtime field")
 	assert.Contains(t, content, "context?:", "stackfile should expose context field")
 	assert.Contains(t, content, "paas?:", "stackfile should expose PAAS field")
+	assert.NotContains(t, content, `paas?:    *"dokploy" | "coolify"`, "stackfile must not define a competing PaaS default")
 	assert.Contains(t, content, "addons?:", "stackfile should expose add-ons field")
 	assert.Contains(t, content, "compute:", "stackfile should expose compute object")
 	assert.Contains(t, content, "variant:", "stackfile should still expose legacy variant compatibility")

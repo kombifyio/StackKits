@@ -319,11 +319,16 @@ func registryServicesFromCatalog(catalog []servicecatalog.Service) []registry.Se
 			IdentityPolicy:          svc.IdentityPolicy,
 			OwnerProvisioningPolicy: svc.OwnerProvisioningPolicy,
 			Icon:                    svc.Icon,
+			LogoURL:                 svc.LogoURL,
 			Badge:                   svc.Badge,
+			Layer:                   svc.Layer,
 			Section:                 svc.Section,
 			Order:                   svc.Order,
 			EnableVar:               svc.EnableVar,
 			Default:                 svc.Default,
+			GuideURL:                svc.GuideURL,
+			SetupPolicy:             svc.SetupPolicy,
+			SetupActionLabel:        svc.SetupActionLabel,
 		})
 	}
 	return services

@@ -1,6 +1,6 @@
 # Runbook — `stackkit kit upgrade rollback`
 
-> **Phase:** kit-update-phase-1 (Single-Node Base Kit). [ADR-0018](../ADR/ADR-0018-kit-update-lifecycle.md) §3.
+> **Phase:** kit-update-phase-1 (Single-Node Base Kit). ADR-0018 §3.
 > **Audience:** Operator who needs to revert a recent `stackkit kit upgrade`.
 > **When to read:** After a failed upgrade, after a regression caused by an upgrade, or before testing your recovery procedure.
 
@@ -167,6 +167,6 @@ stackkit doctor --check-updates
 
 ## Related
 
-- [ADR-0018](../ADR/ADR-0018-kit-update-lifecycle.md) — the rollback design.
+- ADR-0018 — the rollback design.
 - [Upgrade runbook](kit-upgrade.md) — what the `--volumes` flag and atomic-snapshot do at upgrade time.
-- [Kit update lifecycle](../KIT_UPDATE_LIFECYCLE.md) - the canonical update model and phase status.
+- Kit update lifecycle - the canonical update model and phase status.

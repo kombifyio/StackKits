@@ -9,6 +9,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
+	"github.com/kombifyio/stackkits/pkg/models"
 )
 
 const deviceFingerprintEnv = "KOMBIFY_DEVICE_FINGERPRINT"
@@ -24,16 +25,35 @@ type ServiceDef struct {
 // Deprecated: use ServiceRegistrationsFromCatalog so the registration layer is
 // driven by the same canonical catalog as access.json and generated routes.
 func BaseKitServices(tier string) []ServiceDef {
-	return ServiceRegistrationsFromCatalog(servicecatalog.Default(), tier)
+	return BaseKitServicesForSpec(&models.StackSpec{
+		StackKit: "base-kit",
+		Compute:  models.ComputeSpec{Tier: tier},
+	})
+}
+
+// BaseKitServicesForSpec returns service definitions for the BaseKit spec's
+// generated default state. The platform service follows the same PaaS resolver
+// as tfvars generation: omitted PaaS resolves to Coolify.
+func BaseKitServicesForSpec(spec *models.StackSpec) []ServiceDef {
+	return ServiceRegistrationsFromCatalogForSpec(servicecatalog.Default(), spec)
 }
 
 // ServiceRegistrationsFromCatalog converts the canonical service catalog into
 // kombify.me service registrations. Primary services are the public URL
 // contract; legacy aliases are registered only to keep existing links alive.
 func ServiceRegistrationsFromCatalog(catalog []servicecatalog.Service, tier string) []ServiceDef {
+	return ServiceRegistrationsFromCatalogForSpec(catalog, &models.StackSpec{
+		StackKit: "base-kit",
+		Compute:  models.ComputeSpec{Tier: tier},
+	})
+}
+
+// ServiceRegistrationsFromCatalogForSpec converts the canonical service catalog
+// into kombify.me service registrations for the generated service state.
+func ServiceRegistrationsFromCatalogForSpec(catalog []servicecatalog.Service, spec *models.StackSpec) []ServiceDef {
 	var services []ServiceDef
 	for _, svc := range catalog {
-		if !includeServiceForTier(svc, tier) {
+		if !includeServiceForSpec(svc, spec) {
 			continue
 		}
 		services = append(services, ServiceDef{
@@ -55,17 +75,68 @@ func ServiceRegistrationsFromCatalog(catalog []servicecatalog.Service, tier stri
 	return services
 }
 
-func includeServiceForTier(svc servicecatalog.Service, tier string) bool {
+func includeServiceForSpec(svc servicecatalog.Service, spec *models.StackSpec) bool {
+	if spec == nil {
+		spec = &models.StackSpec{}
+	}
+	if enabled, ok := explicitServiceEnable(svc, spec); ok {
+		return enabled
+	}
+
+	tier := spec.Compute.Tier
+	if tier == "" {
+		tier = models.ComputeTierStandard
+	}
+
 	switch svc.Key {
-	case "point", "coolify":
+	case "point":
 		return false
+	case "traefik":
+		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASDockge
+	case "coolify":
+		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASCoolify
+	case "dokploy":
+		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASDokploy
 	case "dockge":
-		return tier == "low"
-	case "dokploy", "media", "photos":
-		return tier != "low"
+		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASDockge
+	case "media":
+		return false
+	case "photos":
+		return tier == models.ComputeTierStandard || tier == models.ComputeTierHigh
 	default:
 		return svc.Default
 	}
+}
+
+func explicitServiceEnable(svc servicecatalog.Service, spec *models.StackSpec) (bool, bool) {
+	if spec == nil || spec.Services == nil {
+		return false, false
+	}
+	for _, key := range []string{
+		svc.Key,
+		svc.Name,
+		svc.ToolName,
+		svc.ModuleSlug,
+		svc.LocalSlug,
+		svc.PublicSlug,
+	} {
+		if key == "" {
+			continue
+		}
+		if enabled, ok := serviceEnabled(spec.Services[key]); ok {
+			return enabled, true
+		}
+	}
+	return false, false
+}
+
+func serviceEnabled(config any) (bool, bool) {
+	svcMap, ok := config.(map[string]any)
+	if !ok {
+		return false, false
+	}
+	enabled, ok := svcMap["enabled"].(bool)
+	return enabled, ok
 }
 
 func isKombifyLegacyRouteAlias(alias string) bool {
@@ -138,6 +209,15 @@ func RegisterAll(apiKey, homelabName, fingerprint, tier string) (*RegisterResult
 // RegisterAllWithServices registers the base subdomain, canonical BaseKit
 // services, and any additional platform app services.
 func RegisterAllWithServices(apiKey, homelabName, fingerprint, tier string, extraServices []ServiceDef) (*RegisterResult, error) {
+	return RegisterAllForSpec(apiKey, homelabName, fingerprint, &models.StackSpec{
+		StackKit: "base-kit",
+		Compute:  models.ComputeSpec{Tier: tier},
+	}, extraServices)
+}
+
+// RegisterAllForSpec registers the base subdomain, generated BaseKit services,
+// and any additional platform app services.
+func RegisterAllForSpec(apiKey, homelabName, fingerprint string, spec *models.StackSpec, extraServices []ServiceDef) (*RegisterResult, error) {
 	client := NewClient(apiKey)
 
 	// Detect public IP for target_addr.
@@ -160,7 +240,7 @@ func RegisterAllWithServices(apiKey, homelabName, fingerprint, tier string, extr
 	}
 
 	// 2. Register service subdomains with real target_addr
-	services := MergeServiceRegistrations(BaseKitServices(tier), extraServices)
+	services := MergeServiceRegistrations(BaseKitServicesForSpec(spec), extraServices)
 	for _, svc := range services {
 		sub, err := client.RegisterService(base.Name, svc.Name, targetAddr, svc.Description)
 		if err != nil {

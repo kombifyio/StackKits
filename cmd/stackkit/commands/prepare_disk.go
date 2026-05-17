@@ -244,7 +244,7 @@ func resolveInsufficientStorage(availGB, minDiskGB float64, mount string,
 		choices = append(choices, choice{
 			Key:         "tier-downgrade",
 			Display:     "Downgrade to low compute tier",
-			Description: "lighter services (Dockge instead of Dokploy), requires only 5 GB",
+			Description: "lighter application set with the same Coolify platform contract, requires only 5 GB",
 			IsDefault:   true,
 		})
 	}

@@ -120,6 +120,10 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		ServiceAuthSecretNext:         strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET_NEXT")),
 		RuntimeActionMode:             resolveRuntimeActionMode(),
 		RuntimeRestoreVerifierCommand: strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
+		SetupActionMode:               resolveSetupActionMode(),
+		SetupAdminEmail:               strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_EMAIL")),
+		SetupAdminPassword:            strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_PASSWORD")),
+		SetupImmichURL:                strings.TrimSpace(os.Getenv("STACKKIT_SETUP_IMMICH_URL")),
 	}, nil
 }
 
@@ -133,6 +137,20 @@ func resolveRuntimeActionMode() string {
 		return "dry-run"
 	default:
 		slog.Warn("unknown STACKKITS_RUNTIME_ACTION_MODE; falling back to dry-run", "mode", mode)
+		return "dry-run"
+	}
+}
+
+func resolveSetupActionMode() string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("STACKKITS_SETUP_ACTION_MODE")))
+	switch mode {
+	case "apply":
+		slog.Warn("StackKits setup actions will execute node-local setup drops")
+		return "apply"
+	case "", "dry-run":
+		return "dry-run"
+	default:
+		slog.Warn("unknown STACKKITS_SETUP_ACTION_MODE; falling back to dry-run", "mode", mode)
 		return "dry-run"
 	}
 }

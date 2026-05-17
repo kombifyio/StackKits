@@ -14,7 +14,7 @@ Contract: base.#ModuleContract & {
 		name:        "uptime-kuma"
 		displayName: "Uptime Kuma"
 		version:     "1.0.0"
-		layer:       "L3-application"
+		layer:       "L2-platform-observability"
 		description: "Self-hosted uptime monitoring with status pages and notifications"
 		testScenarios: ["SK-S2"]
 	}
@@ -133,7 +133,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "kuma", nested: "kuma", flat: "kuma"}
-		dashboard: {icon: "&#128202;", order: 10, section: "Applications", badge: "L3 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/guides/stackkits/services/uptime-kuma"}
+		dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/guides/stackkits/services/uptime-kuma"}
 
 		output: {
 			url:         "https://kuma.{{.domain}}"

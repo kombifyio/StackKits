@@ -31,7 +31,7 @@ package base
 	testScenarios?: [...#CanonicalScenarioID]
 }
 
-// #CanonicalScenarioID enumerates the canonical rollout scenarios in docs/STACKKIT_TEST_SCENARIOS.md.
+// #CanonicalScenarioID enumerates the canonical rollout scenarios in the private StackKit scenario catalog.
 #CanonicalScenarioID: "SK-S1" | "SK-S2" | "SK-S3" | "SK-S4" | "SK-S5"
 
 // #ModuleLayer classifies where a module sits in the stack.
@@ -41,6 +41,8 @@ package base
 	"L2-platform-identity" |
 	"L2-platform-paas" |
 	"L2-platform-dns" |
+	"L2-platform-observability" |
+	"L2-platform-diagnostics" |
 	"L3-application"
 
 // #RequiresSpec declares what a module needs from other modules or infrastructure.

@@ -60,9 +60,10 @@ type Snapshot struct {
 	// Tools is the unified tool catalog (sk_tool).
 	Tools []Tool `json:"tools"`
 
-	// Services is the product-facing service catalog (sk_service +
-	// sk_stackkit_service). It is authoritative for canonical service keys,
-	// URL slugs, legacy aliases, and strict owner/SSO readiness policy.
+	// Services is the product-facing service catalog mirror (sk_service +
+	// sk_stackkit_service). It carries canonical service keys, URL slugs,
+	// legacy aliases, and owner/SSO readiness policy, but composition defaults
+	// still come from CUE/StackKit contracts and must be parity-tested here.
 	Services []Service `json:"services"`
 
 	// Modules is the latest-version view of the module registry
@@ -85,6 +86,8 @@ type Tool struct {
 	Status      string   `json:"status"` // "evaluated" | "candidate" | "deprecated"
 	Homepage    string   `json:"homepage,omitempty"`
 	Description string   `json:"description,omitempty"`
+	LogoURL     string   `json:"logo_url,omitempty"`
+	ImageURL    string   `json:"image_url,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 }
 
@@ -103,11 +106,15 @@ type Service struct {
 	IdentityPolicy          string   `json:"identity_policy"`
 	OwnerProvisioningPolicy string   `json:"owner_provisioning_policy"`
 	Icon                    string   `json:"icon,omitempty"`
+	LogoURL                 string   `json:"logo_url,omitempty"`
 	Badge                   string   `json:"badge,omitempty"`
+	Layer                   string   `json:"layer,omitempty"`
 	Section                 string   `json:"section,omitempty"`
 	Order                   int      `json:"order,omitempty"`
 	EnableVar               string   `json:"enable_var,omitempty"`
 	GuideURL                string   `json:"guide_url,omitempty"`
+	SetupPolicy             string   `json:"setup_policy,omitempty"`
+	SetupActionLabel        string   `json:"setup_action_label,omitempty"`
 	Default                 bool     `json:"default"`
 }
 

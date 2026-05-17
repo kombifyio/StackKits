@@ -22,12 +22,12 @@ var (
 
 var appCmd = &cobra.Command{
 	Use:   "app",
-	Short: "Manage platform-deployed StackKit applications",
+	Short: "Write optional PaaS app handoff metadata",
 }
 
 var appAddCmd = &cobra.Command{
 	Use:   "add <name>",
-	Short: "Add or update a SvelteKit app in stack-spec.yaml",
+	Short: "Add or update a PaaS app handoff in stack-spec.yaml",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runAppAdd,
 }
@@ -45,7 +45,7 @@ type appAddOptions struct {
 }
 
 func init() {
-	appAddCmd.Flags().StringVar(&appAddImage, "image", "", "Container image for the SvelteKit app")
+	appAddCmd.Flags().StringVar(&appAddImage, "image", "", "Container image for the PaaS handoff")
 	appAddCmd.Flags().StringVar(&appAddKind, "kind", "sveltekit", "App kind (currently only sveltekit)")
 	appAddCmd.Flags().IntVar(&appAddPort, "port", 3000, "Container port exposed by the app")
 	appAddCmd.Flags().StringVar(&appAddHost, "host", "", "Route host for the app")
@@ -92,7 +92,7 @@ func runAppAdd(cmd *cobra.Command, args []string) error {
 	if err := loader.SaveStackSpec(spec, specPath); err != nil {
 		return fmt.Errorf("save stack spec: %w", err)
 	}
-	printSuccess("Added app %s to %s", args[0], specPath)
+	printSuccess("Added app handoff %s to %s", args[0], specPath)
 	return nil
 }
 
@@ -174,16 +174,16 @@ func ensureStandardPAASForApps(spec *models.StackSpec) {
 	if spec.PAAS == "" || models.IsStandardPAAS(spec.PAAS) {
 		return
 	}
-	spec.PAAS = models.PAASDokploy
+	spec.PAAS = models.PAASCoolify
 	if spec.Services == nil {
 		spec.Services = map[string]any{}
 	}
-	service, _ := spec.Services["dokploy"].(map[string]any)
+	service, _ := spec.Services["coolify"].(map[string]any)
 	if service == nil {
 		service = map[string]any{}
 	}
 	service["enabled"] = true
-	spec.Services["dokploy"] = service
+	spec.Services["coolify"] = service
 }
 
 func parseKeyValueFlags(values []string, flagName string) (map[string]string, error) {

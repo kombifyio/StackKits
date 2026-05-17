@@ -24,11 +24,13 @@ var (
 	initAdminEmail     string
 	initLocalDNS       bool
 	initLocalName      string
+	initServiceProfile string
 
 	// Phase 1 owner-breakglass provisioning flags. Wired into init.go's
-	// flag block; consumed by resolveOwnerSpec / resolveRecoveryPassphrase
-	// in init_owner.go and by Task 11's apply-bootstrap path.
+	// flag block; consumed by resolveOwnerBootstrapConfig in init_owner.go
+	// and by the apply-bootstrap path.
 	initClusterMode             string
+	initOwnerBootstrapMode      string
 	initOwnerSource             string
 	initOwnerEmail              string
 	initOwnerUsername           string
@@ -38,6 +40,7 @@ var (
 	initCloudOIDCSecretRef      string
 	initCloudOIDCForeignSubject string
 	initRecoveryPassphraseHash  string
+	initRecoveryMaterialRef     string
 )
 
 type initDefaults struct {
@@ -76,20 +79,23 @@ func init() {
 	initCmd.Flags().StringVarP(&initOutputDir, "output", "o", "deploy", "Output directory for generated files")
 	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing files")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (fail if input is required)")
-	initCmd.Flags().StringVar(&initAdminEmail, "admin-email", "", "Admin email for login accounts (TinyAuth, Dokploy, Kuma)")
+	initCmd.Flags().StringVar(&initAdminEmail, "admin-email", "", "Admin email for login accounts (TinyAuth, Coolify, Kuma)")
+	initCmd.Flags().StringVar(&initServiceProfile, "service-profile", "", "BaseKit service profile (default, admin-only)")
 
-	// Phase 1 owner-breakglass flags. Phase 2 cloud flags are stubbed for
-	// shape only; the resolver rejects --owner-source=cloud until then.
+	// Owner-breakglass flags. bootstrap-mode separates orchestrator-managed
+	// SaaS owner prep, explicit self-hosted owner bootstrap, and OSS/BYOS noop.
 	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "Cluster mode (first|join). Join nodes require a token from 'stackkit cluster join-token'.")
-	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner source (local|cloud). Phase 1: only 'local' supported.")
-	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Owner email (used for display + recovery contact)")
-	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Owner username (required when --owner-source=local)")
+	initCmd.Flags().StringVar(&initOwnerBootstrapMode, "owner-bootstrap-mode", "", "Owner bootstrap mode (auto|custom|none). Empty preserves legacy --owner-source behavior.")
+	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner source (local|cloud). Use local with custom bootstrap, cloud with auto bootstrap.")
+	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Owner email (required only when --owner-bootstrap-mode=custom)")
+	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Owner username (required only when --owner-bootstrap-mode=custom)")
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Owner display name (defaults to username)")
-	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "Cloud OIDC issuer URL (Phase 2; required when --owner-source=cloud)")
-	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "Cloud OIDC client ID (Phase 2)")
-	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (Phase 2; e.g. doppler:// or secret://)")
-	initCmd.Flags().StringVar(&initCloudOIDCForeignSubject, "cloud-oidc-foreign-subject", "", "Cloud user's foreign subject ID (Phase 2)")
+	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "Cloud OIDC issuer URL for auto/cloud owner handoff")
+	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "Cloud OIDC client ID")
+	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (e.g. doppler:// or secret://)")
+	initCmd.Flags().StringVar(&initCloudOIDCForeignSubject, "cloud-oidc-foreign-subject", "", "Cloud user's foreign subject ID")
 	initCmd.Flags().StringVar(&initRecoveryPassphraseHash, "recovery-passphrase-hash", "", "Recovery passphrase hash (argon2id PHC). If missing, prompts interactively.")
+	initCmd.Flags().StringVar(&initRecoveryMaterialRef, "recovery-material-ref", "", "Reference to orchestrator-owned recovery material. Plaintext recovery passphrases are never accepted in stack specs.")
 }
 
 // selectStackKit prompts the user to pick a StackKit or returns the one
@@ -511,45 +517,34 @@ func runInit(cmd *cobra.Command, args []string) error {
 		p = newPrompter()
 	}
 
-	ownerSpec, hasOwner, err := resolveOwnerSpec(ownerFlags{
-		Source:      initOwnerSource,
-		Email:       initOwnerEmail,
-		Username:    initOwnerUsername,
-		DisplayName: initOwnerDisplayName,
+	ownerCfg, hasOwnerData, err = resolveOwnerBootstrapConfig(ownerFlags{
+		BootstrapMode:       initOwnerBootstrapMode,
+		Source:              initOwnerSource,
+		Email:               initOwnerEmail,
+		Username:            initOwnerUsername,
+		DisplayName:         initOwnerDisplayName,
+		RecoveryHash:        initRecoveryPassphraseHash,
+		RecoveryMaterialRef: initRecoveryMaterialRef,
+		CloudIssuer:         initCloudOIDCIssuer,
+		CloudClientID:       initCloudOIDCClientID,
+		CloudSecretRef:      initCloudOIDCSecretRef,
+		ForeignSubject:      initCloudOIDCForeignSubject,
 	}, p, initNonInteractive)
 	if err != nil {
-		return fmt.Errorf("resolve owner spec: %w", err)
+		return fmt.Errorf("resolve owner bootstrap: %w", err)
 	}
 
-	if err := validateInitPublicIdentity(defaults, domain, email, adminEmail, ownerSpec.Email, initNonInteractive); err != nil {
+	if err := validateInitPublicIdentity(defaults, domain, email, adminEmail, ownerCfg.Email, initNonInteractive); err != nil {
 		return err
 	}
 
-	if hasOwner {
-		// Phase-1 only persists "first" cluster mode; "join" nodes don't
+	if hasOwnerData && ownerCfg.EffectiveBootstrapMode() == models.OwnerBootstrapModeCustom {
+		// Only first nodes run local owner provisioning; join nodes don't
 		// provision owners. Validate up-front rather than failing inside
 		// runOwnerBootstrap on apply.
 		if initClusterMode != "" && initClusterMode != "first" {
 			return fmt.Errorf("--cluster-mode=%q is not supported with --owner-source (Phase 1 supports 'first' only)", initClusterMode)
 		}
-
-		passphraseHash, _, err := resolveRecoveryPassphrase(initRecoveryPassphraseHash, p, initNonInteractive)
-		if err != nil {
-			return fmt.Errorf("resolve recovery passphrase: %w", err)
-		}
-
-		ownerCfg = models.OwnerConfig{
-			Source:                   ownerSpec.Source,
-			Email:                    ownerSpec.Email,
-			Username:                 ownerSpec.Username,
-			DisplayName:              ownerSpec.DisplayName,
-			RecoveryPassphraseHash:   passphraseHash,
-			CloudOIDCIssuer:          initCloudOIDCIssuer,
-			CloudOIDCClientID:        initCloudOIDCClientID,
-			CloudOIDCClientSecretRef: initCloudOIDCSecretRef,
-			CloudOIDCForeignSubject:  initCloudOIDCForeignSubject,
-		}
-		hasOwnerData = true
 	}
 
 	sshSpec := models.SSHSpec{
@@ -562,18 +557,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		sshSpec.KeyPath = "~/.ssh/id_ed25519"
 	}
 
-	paas := ""
-	var services map[string]any
-	if stackkitName == "base-kit" && defaults.Context == models.ContextLocal && isLocalOnlyDomain {
-		paas = models.PAASNone
-		services = map[string]any{
-			"dokploy":     map[string]any{"enabled": false},
-			"uptime-kuma": map[string]any{"enabled": true},
-			"whoami":      map[string]any{"enabled": true},
-			"vaultwarden": map[string]any{"enabled": true},
-			"jellyfin":    map[string]any{"enabled": false},
-			"immich":      map[string]any{"enabled": true},
-		}
+	services, err := baseKitInitServices(stackkitName, defaults.Context, isLocalOnlyDomain, initServiceProfile)
+	if err != nil {
+		return err
 	}
 
 	spec := &models.StackSpec{
@@ -591,7 +577,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 			Tier: computeTier,
 		},
 		SSH:      sshSpec,
-		PAAS:     paas,
 		Services: services,
 		Owner:    ownerCfg,
 	}
@@ -628,6 +613,49 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	printInitSummary(stackkitName, mode, computeTier, defaults.Context, domain, email)
 	return nil
+}
+
+func baseKitLocalReleaseDefaultServices() map[string]any {
+	return map[string]any{
+		"homepage":    map[string]any{"enabled": true},
+		"uptime-kuma": map[string]any{"enabled": true},
+		"whoami":      map[string]any{"enabled": true},
+		"vaultwarden": map[string]any{"enabled": true},
+		"jellyfin":    map[string]any{"enabled": false},
+		"immich":      map[string]any{"enabled": true},
+	}
+}
+
+func baseKitInitServices(stackkitName string, ctx models.NodeContext, isLocalOnlyDomain bool, profile string) (map[string]any, error) {
+	profile = strings.ToLower(strings.TrimSpace(profile))
+	switch profile {
+	case "", "default":
+		if stackkitName == "base-kit" && ctx == models.ContextLocal && isLocalOnlyDomain {
+			return baseKitLocalReleaseDefaultServices(), nil
+		}
+		return nil, nil
+	case "admin-only":
+		if stackkitName != "base-kit" {
+			return nil, fmt.Errorf("--service-profile=%s is only supported for base-kit", profile)
+		}
+		return baseKitAdminOnlyServices(), nil
+	default:
+		return nil, fmt.Errorf("unsupported --service-profile %q; expected default or admin-only", profile)
+	}
+}
+
+func baseKitAdminOnlyServices() map[string]any {
+	return map[string]any{
+		"homepage":    map[string]any{"enabled": true},
+		"uptime-kuma": map[string]any{"enabled": true},
+		"whoami":      map[string]any{"enabled": true},
+		"vault":       map[string]any{"enabled": false},
+		"vaultwarden": map[string]any{"enabled": false},
+		"media":       map[string]any{"enabled": false},
+		"jellyfin":    map[string]any{"enabled": false},
+		"photos":      map[string]any{"enabled": false},
+		"immich":      map[string]any{"enabled": false},
+	}
 }
 
 func validateInitPublicIdentity(defaults initDefaults, domain, email, adminEmail, ownerEmail string, nonInteractive bool) error {

@@ -73,6 +73,10 @@ type tenantSpecBindng struct {
 // Returns the parsed StackSpec (also written to disk) so callers
 // don't need to re-read it.
 func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.StackSpec, error) {
+	rolloutEvent("tenant_spec_fetch", "started", "fetching tenant deployment spec", map[string]string{
+		"tenant_deployment_id": deploymentID,
+	})
+	recordTenantDeploymentEvent(deploymentID, "tenant_spec_fetch", "started", "fetching tenant deployment spec", "")
 	endpoint := resolveAdminEndpoint()
 	if endpoint == "" {
 		return nil, fmt.Errorf("--tenant-deployment set but no --admin-endpoint / STACKKIT_ADMIN_ENDPOINT configured")
@@ -118,11 +122,16 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		return nil, fmt.Errorf("decode spec envelope: %w", err)
 	}
+	if err := validateTenantSpecEnvelope(deploymentID, &env); err != nil {
+		return nil, err
+	}
 
 	if env.Spec.Name == "" {
-		// Defensive: composing code should always set a name, but if
-		// Admin changes shape fall back to tenant-slug + stackkit.
-		env.Spec.Name = fmt.Sprintf("%s-%s", env.Deployment.TenantSlug, env.Deployment.StackkitSlug)
+		// Defensive fallback for older Admin payloads. The validated
+		// deployment id keeps the generated workspace traceable even if a
+		// tenant slug is absent.
+		nameScope := firstNonEmpty(env.Deployment.TenantSlug, env.Deployment.TenantID, deploymentID)
+		env.Spec.Name = fmt.Sprintf("%s-%s", nameScope, env.Deployment.StackkitSlug)
 	}
 	if env.Spec.StackKit == "" {
 		env.Spec.StackKit = env.Deployment.StackkitSlug
@@ -145,6 +154,9 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 		}
 		env.Spec.Environment["STACKKIT_BINDING_"+b.SecretKey] = b.DopplerSecretPath
 	}
+	if err := persistPlatformConfigFromSpecEnvironment(&env.Spec, wd); err != nil {
+		return nil, err
+	}
 
 	yamlBytes, err := yaml.Marshal(&env.Spec)
 	if err != nil {
@@ -158,6 +170,12 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	if err := os.WriteFile(specPath, yamlBytes, 0o600); err != nil {
 		return nil, fmt.Errorf("write %s: %w", specPath, err)
 	}
+	rolloutEvent("tenant_spec_fetch", "succeeded", "tenant deployment spec written", map[string]string{
+		"tenant_deployment_id": env.Deployment.ID,
+		"tenant_id":            env.Deployment.TenantID,
+		"stackkit":             env.Spec.StackKit,
+	})
+	recordTenantDeploymentEvent(deploymentID, "tenant_spec_fetch", "succeeded", "tenant deployment spec written", "")
 
 	// Also persist the bindings next to the spec so diagnostics can
 	// see which doppler paths the VM was told to pull from.
@@ -169,6 +187,30 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	}
 
 	return &env.Spec, nil
+}
+
+func validateTenantSpecEnvelope(deploymentID string, env *tenantSpecEnvelope) error {
+	if env == nil {
+		return fmt.Errorf("admin returned empty tenant spec envelope")
+	}
+	requestedID := strings.TrimSpace(deploymentID)
+	returnedID := strings.TrimSpace(env.Deployment.ID)
+	if requestedID == "" {
+		return fmt.Errorf("tenant deployment id is required")
+	}
+	if returnedID == "" {
+		return fmt.Errorf("admin returned spec without deployment id")
+	}
+	if returnedID != requestedID {
+		return fmt.Errorf("admin returned spec for deployment %s, expected %s", returnedID, requestedID)
+	}
+	if strings.TrimSpace(env.Deployment.TenantID) == "" {
+		return fmt.Errorf("admin returned spec without tenant id for deployment %s", requestedID)
+	}
+	if strings.TrimSpace(env.Deployment.StackkitSlug) == "" {
+		return fmt.Errorf("admin returned spec without stackkit slug for deployment %s", requestedID)
+	}
+	return nil
 }
 
 // resolveAdminEndpoint mirrors reportTenantDeploymentState() so the
@@ -190,10 +232,17 @@ func resolveAdminEndpoint() string {
 // authenticate GET /spec. Order:
 //  1. STACKKIT_BOOTSTRAP_TOKEN (preferred; name signals "narrow
 //     audience, per-deployment")
-//  2. STACKKIT_ADMIN_TOKEN (fallback for admin-jobs container runs
+//  2. --admin-token CLI flag
+//  3. STACKKIT_ADMIN_TOKEN (fallback for admin-jobs container runs
 //     where the operator-scoped token doubles as bootstrap)
-//  3. --admin-token CLI flag
 func resolveBootstrapToken() string {
+	return resolveTenantDeploymentToken()
+}
+
+// resolveTenantDeploymentToken returns the token used by the managed tenant
+// deployment bridge. The same deployment-scoped token must work for both the
+// spec fetch and lifecycle reporting so Admin can build one event trace.
+func resolveTenantDeploymentToken() string {
 	if v := os.Getenv("STACKKIT_BOOTSTRAP_TOKEN"); v != "" {
 		return v
 	}

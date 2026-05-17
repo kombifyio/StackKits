@@ -76,7 +76,7 @@ type KitDefinition struct {
 //
 //	platform:
 //	  traefik: { role: default }
-//	  paas: { role: optional, defaultTool: dokploy }
+//	  paas: { role: optional, defaultTool: coolify }
 //
 // In modern-homelab and ha-kit it is a single string:
 //

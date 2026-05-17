@@ -29,7 +29,18 @@ subdomainPrefix: string   # For kombify.me: prefix for subdomain (e.g. "mylab")
 email: string             # Admin email (shown in UI, used for ACME)
 adminEmail: string        # ACME registration email (falls back to email)
 
-# Standard user applications
+# Owner bootstrap (optional)
+owner:
+  bootstrapMode: string   # "auto", "custom", or "none"
+  source: string          # "cloud" for auto, "local" for custom
+  email: string           # custom/local only
+  username: string        # custom/local only
+  displayName: string     # custom/local optional
+  recoveryPassphraseHash: string  # argon2id PHC hash, never plaintext
+  recoveryMaterialRef: string     # TechStack/secret-store recovery reference
+
+# Optional PaaS user-app handoff metadata. StackKit does not deploy or manage
+# these apps; the selected PaaS owns their lifecycle.
 apps:
   web:
     kind: sveltekit       # First supported app standard
@@ -61,8 +72,8 @@ network:
 compute:
   tier: string            # "low", "standard" (default), "high"
 
-# PAAS Platform (optional — auto-detected from context/domain if omitted)
-paas: string              # "dokploy" (default local/kombify.me), "coolify" (cloud custom-domain)
+# PAAS Platform (optional — auto-detected from domain/context intent if omitted)
+paas: string              # explicit override: "dokploy" or "coolify"
 
 # Storage (optional — for devices with limited disk)
 storage:
@@ -107,7 +118,7 @@ tls:
 ```
 
 - **Service URLs:** `service.sk-<run-id>.kombify.pro` (e.g. `base.sk-<run-id>.kombify.pro`, `id.sk-<run-id>.kombify.pro`)
-- **Default PAAS:** `coolify` when running in `cloud` context and `paas` is omitted
+- **Default PAAS:** `coolify` when `paas` is omitted
 - **TLS:** Let's Encrypt via ACME. TLS-ALPN-01 (default, needs public port 443) or DNS-01 (NAT-friendly, needs DNS provider API)
 - **DNS:** User manages DNS records, or StackKits automates supported providers such as Cloudflare (wildcard `*.sk-<run-id>.kombify.pro` → server IP)
 - **Environment variables for DNS-01:**
@@ -120,41 +131,45 @@ tls:
 context: cloud
 domain: kombify.me
 subdomainPrefix: mylab
+owner:
+  bootstrapMode: auto
+  source: cloud
+  recoveryMaterialRef: techstack://recovery/stacks/mylab
 ```
 
 - **Service URLs:** `mylab-service.kombify.me` (flat naming, single DNS level)
 - **App URLs:** `mylab-web.kombify.me` for `apps.web` when `route.host` is omitted
-- **Default PAAS:** `dokploy` when `paas` is omitted
+- **Default PAAS:** `coolify` when `paas` is omitted
 - **TLS:** Managed by kombify (Cloudflare wildcard)
 - **DNS:** Automatic via kombify.me subdomain registry
 - **Requires:** `KOMBIFY_API_KEY` environment variable
 - **Direct Connect:** After deploy, `stackkit apply` registers the instance with kombify. `stackkit-server` sends heartbeats so the Cloudflare Edge path can proxy traffic.
+- **Owner identity:** In the TechStack SaaS lane, the Owner is prepared from the authenticated kombify Cloud profile. The stack spec carries `bootstrapMode: auto` plus recovery material reference/hash, not a fake `owner.email` or `owner.username`.
 
-### Mode 3: Local DNS (Kombify Point, Default)
+### Mode 3: Local Default (Browser-Native)
 
 ```yaml
 context: local
-domain: stack.home
-# or omit domain entirely (defaults to stack.home)
+domain: home.localhost
+# or omit domain entirely (defaults to home.localhost)
 ```
 
-- **Service URLs:** `service.stack.home` (e.g. `auth.stack.home`, `whoami.stack.home`)
-- **Default PAAS:** `dokploy` for normal local and pi StackKits. Low-resource mode still reduces heavy apps, but does not switch to Dockge by default.
+- **Service URLs:** `service.home.localhost` (e.g. `auth.home.localhost`, `whoami.home.localhost`)
+- **Default PAAS:** `coolify` for local-only/no-domain local and pi StackKits. Low-resource mode still reduces heavy apps, but does not switch to Dockge by default.
 - **TLS:** HTTP in local-only mode. Use a public/custom domain for real certificates.
-- **DNS:** Kombify Point resolves `*.stack.home` to the server LAN IP.
-- **Requires:** router/client DNS points at the StackKits server IP.
+- **DNS:** Browser/OS `.localhost` handling resolves names to loopback.
+- **Requires:** no hosts-file edits, no router/client DNS setup, no trust-store setup, and no port suffixes in generated user links.
 
-### Mode 4: Named Local DNS / Legacy Device-Local
+### Mode 4: Explicit Named Local DNS
 
 ```yaml
 context: local
 domain: family.home
-# or explicit legacy device-local domain: home.localhost
 ```
 
-- **Service URLs:** `service.family.home` or `service.home.localhost`
+- **Service URLs:** `service.family.home`
 - **TLS:** HTTP for local-only names; real certs require routable public/custom domains.
-- **DNS:** Kombify Point for `*.home` zones; `.localhost` remains a legacy shortcut for one device.
+- **DNS:** Kombify Point for explicit LAN zones only. Do not present these as ready-to-open links unless StackKit owns or verifies the resolver path.
 
 ## TLS Challenge Types
 
@@ -178,28 +193,66 @@ DNS-01 is auto-selected when `tls.provider` is set. Supported providers:
 | Tier | Criteria | Effect |
 |------|----------|--------|
 | `high` | 8+ CPU, 16+ GB RAM | Full stack, all use cases |
-| `standard` | 4+ CPU, 8+ GB RAM | Default. Dokploy or Coolify depending on context/domain |
-| `low` | <4 CPU or <4 GB RAM | Required platform remains Dokploy/Coolify. Heavy services are gated out |
+| `standard` | 4+ CPU, 8+ GB RAM | Default Coolify platform |
+| `low` | <4 CPU or <4 GB RAM | Required platform remains Coolify unless explicitly overridden. Heavy services are gated out |
 
 ## PAAS Platforms
 
 | Platform | When Used | Reverse Proxy |
 |----------|-----------|---------------|
-| `dokploy` | Local/PI, cloud with `kombify.me`, or cloud without a custom public domain | Dokploy's Traefik |
-| `coolify` | Cloud with a custom public domain, or explicit `paas: coolify` | Coolify's Traefik |
+| `coolify` | Default when `paas` is omitted | Coolify's Traefik |
+| `dokploy` | Explicit `paas: dokploy` alternative | Dokploy's Traefik |
 
 `dockge` is a lightweight Compose manager, not a normal StackKit PaaS. It can exist as an experimental/constrained service mode, but `paas: dockge` and `paas: none` are invalid for normal Base/Modern/HA StackKits.
 
-User `apps:` require `dokploy` or `coolify`. The CLI helper `stackkit app add` switches an explicit `paas: none` local BaseKit spec to Dokploy so app-enabled installer runs cannot silently generate an undeployable platform handoff.
+User `apps:` require `dokploy` or `coolify`. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local BaseKit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff.
 
-When `paas` is omitted, it is auto-detected from context + domain:
-- `cloud` + custom public domain → `coolify`
-- `cloud` + `kombify.me` or no explicit public domain → `dokploy`
-- `local` / `pi` → `dokploy`
+When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. Use `paas: dokploy` only for an explicit Dokploy alternative rollout.
 
-**Reverse proxy backend:** When Dokploy or Coolify is the PAAS, they manage their own Traefik instance. Platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) attach to the PAAS Traefik network for routing. StackKit does NOT deploy a separate Traefik in this case.
+During the current transition, `pkg/models.StackSpec.ResolvePAASForContext` is the canonical auto-selection resolver for omitted `paas` values. CUE remains the broader StackKit contract source, and the PaaS default should move fully back into CUE once the CUE export -> tfvars pipeline is complete.
+
+Coolify root bootstrap is part of the StackKits implementation. StackKits passes generated credentials to Coolify's official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables; generated links must never require the user to create an extra Coolify account manually.
+
+**Reverse proxy backend:** In the target Dokploy/Coolify path, the selected PAAS manages its own Traefik instance and platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) attach to that routing surface. The current local SK-S1 Fresh VM evidence still uses a StackKit-owned routing fallback for product-contract verification; complete Cubi/Coolify-managed L3 routing remains a P0 blocker until proven.
 
 See [ADR-0006](ADR/ADR-0006-service-url-matrix.md) for the full 9-scenario Service URL Matrix.
+
+## Owner Bootstrap Modes
+
+Owner bootstrap is optional and lane-specific. Stack specs must never contain a plaintext recovery passphrase.
+
+| Mode | Lane | Required fields | Behavior |
+| --- | --- | --- | --- |
+| `auto` | TechStack SaaS / kombify Cloud | `source: cloud` and `recoveryMaterialRef` or `recoveryPassphraseHash` | TechStack resolves the real Owner from the authenticated Cloud subject and prepares PocketID passkey activation after rollout. `owner.email` and `owner.username` are not required or invented in the public spec. |
+| `custom` | Self-hosted / explicit local Owner | `source: local`, `email`, `username`, `recoveryPassphraseHash` | StackKits provisions the PocketID `owners` user locally and emits the one-time passkey setup URL. |
+| `none` | OSS/BYOS or manual identity | no owner identity or recovery fields | StackKits skips owner bootstrap. Use this only when another accepted process owns first-user setup. |
+
+### SaaS auto-owner
+
+```yaml
+owner:
+  bootstrapMode: auto
+  source: cloud
+  recoveryMaterialRef: techstack://recovery/stacks/mylab
+```
+
+### Self-hosted custom Owner
+
+```yaml
+owner:
+  bootstrapMode: custom
+  source: local
+  email: owner@example.com
+  username: owner
+  recoveryPassphraseHash: "$argon2id$v=19$m=65536,t=3,p=4$..."
+```
+
+### OSS/BYOS no Owner bootstrap
+
+```yaml
+owner:
+  bootstrapMode: none
+```
 
 ## Examples
 
@@ -241,7 +294,7 @@ name: homelab
 stackkit: base-kit
 mode: simple
 context: local
-domain: stack.home
+domain: home.localhost
 compute:
   tier: low
 ssh:
@@ -297,7 +350,7 @@ nodes:
     ip: 10.0.0.5
 ```
 
-Platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) route through Coolify's Traefik — no separate Traefik container is deployed.
+Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) route through Coolify's Traefik, with no separate StackKit Traefik. Current local Fresh VM proof may use the StackKit-owned fallback until the Cubi/Coolify-managed L3 path is complete.
 
 ## Validation Rules
 
@@ -307,8 +360,12 @@ Platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) route through Co
 - `compute.tier` must be `low`, `standard`, or `high`
 - `paas` must be `dokploy` or `coolify` for normal StackKits (auto-detected if omitted)
 - `tls.provider` auto-selects `challenge: dns` if set
-- `domain: stack.home` enables Kombify Point local DNS and StackKit-managed Step-CA HTTPS
+- `domain: home.localhost` is the local default and must generate portless links that open without hosts-file edits, DNS setup, or trust-store setup
+- `domain: stack.home` is explicit LAN-DNS mode and may enable Kombify Point only when StackKit owns or verifies the resolver path
 - `domain: kombify.me` requires `subdomainPrefix` and `KOMBIFY_API_KEY`
+- `owner.bootstrapMode: auto` requires `source: cloud` and recovery material by reference or hash, but not `owner.email` or `owner.username`
+- `owner.bootstrapMode: custom` requires `source: local`, `owner.email`, `owner.username`, and an argon2id `recoveryPassphraseHash`
+- `owner.bootstrapMode: none` must not include owner identity or recovery material fields
 - At least one node required
 - Node IPs must be valid IPv4
 
@@ -317,4 +374,4 @@ Platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) route through Co
 - [Concepts (V5)](./CONCEPTS.md) — Architecture overview
 - [CLI Reference](./CLI.md) — Command documentation
 - [kombify.me Integration Guide](./kombify-me-integration-guide.md) — Subdomain service
-- [DEVELOPMENT.md](./DEVELOPMENT.md) — Development workflow for current CUE contracts
+- private development workflow — Development workflow for current CUE contracts

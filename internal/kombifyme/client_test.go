@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -132,46 +133,62 @@ func TestListServices(t *testing.T) {
 }
 
 func TestBaseKitServices(t *testing.T) {
-	t.Run("standard tier includes dokploy and all L3 apps", func(t *testing.T) {
+	t.Run("standard tier defaults to coolify and generated default apps", func(t *testing.T) {
 		services := BaseKitServices("standard")
 		names := serviceNames(services)
-		assert.Contains(t, names, "dokploy")
+		assert.Contains(t, names, "coolify")
+		assert.NotContains(t, names, "dokploy")
 		assert.NotContains(t, names, "dockge")
 		assert.Contains(t, names, "vault")
-		assert.Contains(t, names, "media")
+		assert.NotContains(t, names, "media")
 		assert.Contains(t, names, "photos")
 	})
 
-	t.Run("high tier includes dokploy and all L3 apps", func(t *testing.T) {
+	t.Run("high tier defaults to coolify and generated default apps", func(t *testing.T) {
 		services := BaseKitServices("high")
 		names := serviceNames(services)
-		assert.Contains(t, names, "dokploy")
+		assert.Contains(t, names, "coolify")
+		assert.NotContains(t, names, "dokploy")
 		assert.Contains(t, names, "vault")
-		assert.Contains(t, names, "media")
+		assert.NotContains(t, names, "media")
 		assert.Contains(t, names, "photos")
 	})
 
-	t.Run("low tier includes dockge and vault only", func(t *testing.T) {
+	t.Run("low tier keeps coolify but excludes standard plus apps", func(t *testing.T) {
 		services := BaseKitServices("low")
 		names := serviceNames(services)
-		assert.Contains(t, names, "dockge")
+		assert.Contains(t, names, "coolify")
+		assert.NotContains(t, names, "dockge")
 		assert.NotContains(t, names, "dokploy")
 		assert.Contains(t, names, "vault")
 		assert.NotContains(t, names, "media")
 		assert.NotContains(t, names, "photos")
 	})
 
+	t.Run("explicit dokploy registers dokploy instead of coolify", func(t *testing.T) {
+		services := BaseKitServicesForSpec(&models.StackSpec{
+			StackKit: "base-kit",
+			PAAS:     models.PAASDokploy,
+			Compute:  models.ComputeSpec{Tier: models.ComputeTierStandard},
+		})
+		names := serviceNames(services)
+		assert.Contains(t, names, "dokploy")
+		assert.NotContains(t, names, "coolify")
+		assert.Contains(t, names, "photos")
+	})
+
 	t.Run("all tiers have core services", func(t *testing.T) {
 		for _, tier := range []string{"low", "standard", "high"} {
 			services := BaseKitServices(tier)
 			names := serviceNames(services)
-			assert.Contains(t, names, "traefik", "tier=%s", tier)
 			assert.Contains(t, names, "auth", "tier=%s", tier)
 			assert.Contains(t, names, "id", "tier=%s", tier)
 			assert.Contains(t, names, "base", "tier=%s", tier)
+			assert.Contains(t, names, "home", "tier=%s", tier)
 			assert.Contains(t, names, "dash", "tier=%s", tier)
 			assert.Contains(t, names, "tinyauth", "tier=%s", tier)
 			assert.Contains(t, names, "kuma", "tier=%s", tier)
+			assert.Contains(t, names, "whoami", "tier=%s", tier)
 			assert.Contains(t, names, "vault", "tier=%s", tier)
 		}
 	})

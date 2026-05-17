@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	"github.com/kombifyio/stackkits/pkg/models"
 )
 
 // ServerConfig holds configuration for the API server.
@@ -29,6 +30,10 @@ type ServerConfig struct {
 	ServiceAuthSecretNext         string
 	RuntimeActionMode             string
 	RuntimeRestoreVerifierCommand string
+	SetupActionMode               string
+	SetupAdminEmail               string
+	SetupAdminPassword            string
+	SetupImmichURL                string
 	// TrustedProxies may provide X-Forwarded-For for rate-limit identity.
 	// Empty means X-Forwarded-For is ignored.
 	TrustedProxies []string
@@ -36,20 +41,23 @@ type ServerConfig struct {
 
 // Server is the StackKits HTTP API server.
 type Server struct {
-	config ServerConfig
-	mux    *http.ServeMux
-	ctx    context.Context
-	cancel context.CancelFunc
+	config            ServerConfig
+	mux               *http.ServeMux
+	ctx               context.Context
+	cancel            context.CancelFunc
+	registryMu        sync.Mutex
+	registryInstances map[string]models.InstanceRegistration
 }
 
 // NewServer creates a new API server.
 func NewServer(cfg ServerConfig) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		config: cfg,
-		mux:    http.NewServeMux(),
-		ctx:    ctx,
-		cancel: cancel,
+		config:            cfg,
+		mux:               http.NewServeMux(),
+		ctx:               ctx,
+		cancel:            cancel,
+		registryInstances: make(map[string]models.InstanceRegistration),
 	}
 	s.routes()
 	return s
@@ -88,6 +96,13 @@ func (s *Server) routes() {
 
 	s.registerRuntimeActionRoutes()
 
+	// Node-local management
+	s.mux.HandleFunc("GET /api/v1/status", s.handleManagementStatus)
+	s.mux.HandleFunc("POST /api/v1/verify", s.handleManagementVerify)
+	s.mux.HandleFunc("POST /api/v1/doctor", s.handleManagementDoctor)
+	s.mux.HandleFunc("POST /api/v1/plan", s.handleManagementPlan)
+	s.mux.HandleFunc("GET /api/v1/runs/{runID}/evidence", s.handleRunEvidence)
+
 	// StackKit catalog
 	s.mux.HandleFunc("GET /api/v1/stackkits", s.handleListStackKits)
 	s.mux.HandleFunc("GET /api/v1/stackkits/{name}", s.handleGetStackKit)
@@ -107,6 +122,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/logs/latest", s.handleGetLatestLog)
 	s.mux.HandleFunc("GET /api/v1/logs/{runID}", s.handleGetLog)
 	s.mux.HandleFunc("GET /api/v1/logs/{runID}/stream", s.handleStreamLog)
+
+	// Node-local setup actions
+	s.mux.HandleFunc("POST /api/v1/setup/services/{service}/run", s.handleRunServiceSetup)
+
+	// Direct Connect registry
+	s.mux.HandleFunc("POST /api/v1/registry/instances", s.handleRegisterInstance)
+	s.mux.HandleFunc("DELETE /api/v1/registry/instances/{instanceId}", s.handleDeregisterInstance)
+	s.mux.HandleFunc("PUT /api/v1/registry/instances/{instanceId}/heartbeat", s.handleRegistryHeartbeat)
 }
 
 // ── Response helpers ──────────────────────────────────────────────

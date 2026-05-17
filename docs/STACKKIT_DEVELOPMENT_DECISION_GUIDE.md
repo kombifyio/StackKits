@@ -336,6 +336,7 @@ A module may be default only when it has:
 10. registry and CUE hash parity
 
 Default status is a product and engineering decision, not just a working container.
+Use [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md) as the compact checklist for role assignment, promotion gates, and the current BaseKit PaaS option matrix.
 
 ## 7. Kit-Specific Development Guidance
 
@@ -447,7 +448,7 @@ Every service should classify exposure.
 | public-authenticated | Internet reachable behind auth | Domain, TLS, auth gateway, service classification. |
 | public-unauthenticated | Internet reachable without auth | Must be intentionally allowed, usually websites or public endpoints only. |
 
-Default application services should not become public-unauthenticated. Public websites are the exception, not the pattern.
+Default application services should not become public-unauthenticated. L3 can be public or unauthenticated only when the StackSpec/module policy explicitly says so; public websites are the common exception, not the default pattern.
 
 ## 10. Validation And Test Expectations
 
@@ -471,7 +472,7 @@ cue vet ./base-kit/...
 cue vet -c=false ./modules/...
 cue vet ./modern-homelab/...
 go test ./...
-make test-cue-binding
+mise run test:cue-binding
 stackkit generate
 stackkit verify
 ```

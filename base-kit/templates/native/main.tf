@@ -660,13 +660,8 @@ resource "local_file" "dashboard_html" {
               <p class="cdesc">Routes all traffic across services. View active routes, middlewares, and upstreams.</p>
               <div class="curl">traefik.${var.domain}</div>
             </a>
-          </div>
-        </section>
-        <section class="section">
-          <div class="slabel">Applications</div>
-          <div class="grid">
             <a class="card" href="http://whoami.${var.domain}" target="_blank">
-              <div class="chead"><div class="cicon">&#128075;</div><div class="cmeta"><div class="cname">Whoami</div><span class="cbadge">L3 &middot; Test</span></div><div class="cstatus"></div></div>
+              <div class="chead"><div class="cicon">&#128075;</div><div class="cmeta"><div class="cname">Whoami</div><span class="cbadge">L2 &middot; Routing test</span></div><div class="cstatus"></div></div>
               <p class="cdesc">Network diagnostic endpoint. Shows request headers, IP, and routing information.</p>
               <div class="curl">whoami.${var.domain}</div>
             </a>

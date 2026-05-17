@@ -2,7 +2,7 @@ name: otlp-baseline-lab
 stackkit: base-kit
 mode: simple
 context: local
-domain: stack.home
+domain: home.localhost
 email: admin
 
 network:

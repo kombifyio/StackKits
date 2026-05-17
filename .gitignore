@@ -45,6 +45,7 @@ deploy/.terraform.lock.hcl
 
 # Dependency directories (remove the comment below to include it)
 vendor/
+node_modules/
 
 # Go workspace file
 go.work
@@ -90,6 +91,7 @@ website-v2/blob-report/
 .wrangler/cache/
 modules/*/tests/artifacts/
 artifacts/release-smoke/
+artifacts/scenarios/
 
 # Built binary (root only, not cmd/stackkit/ source)
 /stackkit

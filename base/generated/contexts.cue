@@ -41,7 +41,7 @@ package base
     context:             "LOCAL"
     displayName:         "Local Hardware"
     description:         "Physical server with no cloud metadata — full control, local network, no egress costs"
-    defaultPaas:         "dokploy"
+    defaultPaas:         "coolify"
     defaultTlsMode:      "self-signed"
     defaultComputeTier:  "standard"
     defaultMemoryLimitMB: 4096
@@ -67,7 +67,7 @@ package base
     context:             "PI"
     displayName:         "Raspberry Pi"
     description:         "ARM architecture with low memory — resource-constrained, SD card storage, power-efficient"
-    defaultPaas:         "dockge"
+    defaultPaas:         "coolify"
     defaultTlsMode:      "self-signed"
     defaultComputeTier:  "low"
     defaultMemoryLimitMB: 256

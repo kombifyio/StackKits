@@ -3,7 +3,7 @@
 > **Status: Alpha/Scaffolding** - Architecture designed, implementation in progress
 
 Hybrid homelab bridging local servers with cloud VPS via identity-aware proxies.
-Docker Compose per node, coordinated by Coolify or Dokploy.
+Docker Compose per node, coordinated by Coolify by default or Dokploy as an explicit alternative once this kit graduates from scaffolding.
 
 ---
 
@@ -53,7 +53,7 @@ Docker Compose per node, coordinated by Coolify or Dokploy.
 |----------|--------|-----------|
 | **Container Runtime** | Docker Compose per node | No Swarm complexity, PaaS coordinates multi-node |
 | **Network Model** | Identity-Aware Proxy | LLDAP + Step-CA + TinyAuth make VPN optional |
-| **PaaS Selection** | Context-driven | Domain + wildcard = Coolify, else = Dokploy |
+| **PaaS Selection** | Coolify default, Dokploy explicit alternative | Matches the BaseKit release contract until Modern-specific routing gates graduate |
 | **CGNAT Bypass** | Tunnel (not VPN) | Cloudflare Tunnel (free) or Pangolin (self-hosted) |
 | **Monitoring** | VictoriaMetrics + Grafana | Drop-in Prometheus replacement, lower resource usage |
 | **Log Agent** | Grafana Alloy | Unified telemetry, replaces Promtail |
@@ -62,9 +62,12 @@ Docker Compose per node, coordinated by Coolify or Dokploy.
 ## PaaS Decision Logic
 
 ```
-User has own domain AND can wildcard?
-  YES → Coolify (multi-node, git deploys, full PaaS)
-  NO  → Dokploy (traefik-me + MagicDNS, simpler setup)
+paas omitted?
+  YES → Coolify
+paas: dokploy?
+  YES → Dokploy explicit alternative
+paas: dockge?
+  NO  → invalid normal PaaS; Dockge remains experimental/constrained
 ```
 
 ## Identity Stack (not VPN)
@@ -150,7 +153,7 @@ modern-homelab/
 | Feature | base-kit | modern-homelab |
 |---------|-------------|----------------|
 | Nodes | Single server | Multi-server (cloud + local) |
-| PaaS | Dokploy (default) | Coolify or Dokploy (context-driven) |
+| PaaS | Coolify default, Dokploy explicit alternative | Coolify default, Dokploy explicit alternative |
 | Network | Local / LAN | Identity-aware proxy + tunnel |
 | Domain | Optional | Required for Coolify, optional for Dokploy |
 | Monitoring | Uptime Kuma / Beszel | VictoriaMetrics + Grafana + Loki (add-on) |
@@ -159,8 +162,8 @@ modern-homelab/
 
 ## See Also
 
-- [`base-kit`](../base-kit/) - Single-environment homelab (1..N servers) with Dokploy
-- [`ha-kit`](../ha-kit/) - High-availability homelab (planned)
+- [`base-kit`](../base-kit/) - Release-ready single-environment homelab (1..N servers) with Coolify default
+- [`ha-kit`](../ha-kit/) - High-availability homelab scaffolding (planned)
 - [`addons/`](../addons/) - Composable add-on ecosystem
 
 ## License

@@ -288,6 +288,26 @@ func TestServiceHint(t *testing.T) {
 	}
 }
 
+func TestSetupActionAvailable(t *testing.T) {
+	tests := []struct {
+		name string
+		svc  servicecatalog.Service
+		want bool
+	}{
+		{name: "on demand", svc: servicecatalog.Service{SetupPolicy: servicecatalog.SetupPolicyOnDemand}, want: true},
+		{name: "automatic", svc: servicecatalog.Service{SetupPolicy: servicecatalog.SetupPolicyAutomatic}, want: false},
+		{name: "manual", svc: servicecatalog.Service{SetupPolicy: servicecatalog.SetupPolicyManual}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := setupActionAvailable(tt.svc); got != tt.want {
+				t.Fatalf("setupActionAvailable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEnvMap(t *testing.T) {
 	t.Run("creates empty map", func(t *testing.T) {
 		result := envMap(nil)

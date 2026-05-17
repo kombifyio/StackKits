@@ -18,6 +18,10 @@ const (
 
 	OwnerProvisioningNone     = "none"
 	OwnerProvisioningRequired = "required"
+
+	SetupPolicyManual    = "manual"
+	SetupPolicyOnDemand  = "on_demand"
+	SetupPolicyAutomatic = "automatic"
 )
 
 // Service is the canonical service-facing identity for one exposed StackKit
@@ -36,11 +40,15 @@ type Service struct {
 	IdentityPolicy          string   `json:"identity_policy"`
 	OwnerProvisioningPolicy string   `json:"owner_provisioning_policy"`
 	Icon                    string   `json:"icon,omitempty"`
+	LogoURL                 string   `json:"logo_url,omitempty"`
 	Badge                   string   `json:"badge,omitempty"`
+	Layer                   string   `json:"layer,omitempty"`
 	Section                 string   `json:"section,omitempty"`
 	Order                   int      `json:"order,omitempty"`
 	EnableVar               string   `json:"enable_var,omitempty"`
 	GuideURL                string   `json:"guide_url,omitempty"`
+	SetupPolicy             string   `json:"setup_policy,omitempty"`
+	SetupActionLabel        string   `json:"setup_action_label,omitempty"`
 	Default                 bool     `json:"default"`
 
 	// Template-compat fields used by the existing monolithic Base Kit template.
@@ -94,21 +102,21 @@ func Default() []Service {
 			DisplayName: "Dokploy", Description: "Self-hosted PaaS for deploying applications.",
 			LocalSlug: "dokploy", PublicSlug: "dokploy",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128640;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 40, EnableVar: "enable_dokploy", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dokploy", Default: true,
+			Icon: "&#128640;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 40, EnableVar: "enable_dokploy", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dokploy", Default: false,
 		},
 		{
 			Key: "kuma", Name: "kuma", ToolName: "uptime-kuma", ModuleSlug: "uptime-kuma",
 			DisplayName: "Uptime Kuma", Description: "Service uptime monitoring and status pages.",
 			LocalSlug: "kuma", PublicSlug: "kuma", LegacyAliases: []string{"uptime-kuma"},
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128202;", Badge: "L3 \u00b7 Monitoring", Section: "Applications", Order: 10, EnableVar: "enable_uptime_kuma", GuideURL: "https://docs.kombify.io/guides/stackkits/services/uptime-kuma", Default: true,
+			Icon: "&#128202;", Badge: "L2 \u00b7 Monitoring", Section: "Platform", Order: 10, EnableVar: "enable_uptime_kuma", GuideURL: "https://docs.kombify.io/guides/stackkits/services/uptime-kuma", SetupPolicy: SetupPolicyAutomatic, Default: true,
 		},
 		{
 			Key: "whoami", Name: "whoami", ToolName: "whoami", ModuleSlug: "whoami",
 			DisplayName: "Whoami", Description: "TinyAuth-protected HTTP echo service for routing diagnostics.",
 			LocalSlug: "whoami", PublicSlug: "whoami",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#129302;", Badge: "L3 \u00b7 SSO test", Section: "Applications", Order: 20, EnableVar: "enable_whoami", GuideURL: "https://docs.kombify.io/guides/stackkits/services/whoami", Default: true,
+			Icon: "&#129302;", Badge: "L2 \u00b7 Routing test", Section: "Platform", Order: 20, EnableVar: "enable_whoami", GuideURL: "https://docs.kombify.io/guides/stackkits/services/whoami", SetupPolicy: SetupPolicyAutomatic, Default: true,
 		},
 		{
 			Key: "vault", Name: "vault", ToolName: "vaultwarden", ModuleSlug: "vaultwarden",
@@ -122,7 +130,7 @@ func Default() []Service {
 			DisplayName: "Jellyfin", Description: "Media server with its own app login.",
 			LocalSlug: "media", PublicSlug: "media", LegacyAliases: []string{"jellyfin"},
 			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningNone,
-			Icon: "&#127916;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 40, EnableVar: "enable_jellyfin", GuideURL: "https://docs.kombify.io/guides/stackkits/services/jellyfin", Default: true,
+			Icon: "&#127916;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 40, EnableVar: "enable_jellyfin", GuideURL: "https://docs.kombify.io/guides/stackkits/services/jellyfin", Default: false,
 		},
 		{
 			Key: "photos", Name: "photos", ToolName: "immich", ModuleSlug: "immich",
@@ -235,11 +243,15 @@ func FromRegistry(entries []registry.Service) []Service {
 			IdentityPolicy:          entry.IdentityPolicy,
 			OwnerProvisioningPolicy: entry.OwnerProvisioningPolicy,
 			Icon:                    entry.Icon,
+			LogoURL:                 entry.LogoURL,
 			Badge:                   entry.Badge,
+			Layer:                   entry.Layer,
 			Section:                 entry.Section,
 			Order:                   entry.Order,
 			EnableVar:               entry.EnableVar,
 			GuideURL:                entry.GuideURL,
+			SetupPolicy:             entry.SetupPolicy,
+			SetupActionLabel:        entry.SetupActionLabel,
 			Default:                 entry.Default,
 		}
 		normalize(&svc)
@@ -324,8 +336,24 @@ func WithDefaultFallbacks(services []Service) []Service {
 }
 
 func mergeMissingDefaultFields(svc *Service, fallback Service) {
+	// Default membership is a rollout contract, not registry decoration. Keep
+	// known service defaults pinned to the local StackKit/CUE-derived catalog so
+	// an Admin mirror snapshot cannot silently redefine BaseKit composition.
+	svc.Default = fallback.Default
 	if svc.GuideURL == "" {
 		svc.GuideURL = fallback.GuideURL
+	}
+	if svc.LogoURL == "" {
+		svc.LogoURL = fallback.LogoURL
+	}
+	if svc.Layer == "" {
+		svc.Layer = fallback.Layer
+	}
+	if svc.SetupPolicy == "" {
+		svc.SetupPolicy = fallback.SetupPolicy
+	}
+	if svc.SetupActionLabel == "" {
+		svc.SetupActionLabel = fallback.SetupActionLabel
 	}
 }
 
@@ -359,8 +387,114 @@ func normalize(svc *Service) {
 	if svc.PublicSlug == "" {
 		svc.PublicSlug = svc.LocalSlug
 	}
+	applyPlatformLayerOverrides(svc)
+	if svc.Layer == "" {
+		switch svc.Section {
+		case "Platform":
+			svc.Layer = "L2-platform"
+		case "Applications":
+			svc.Layer = "L3-application"
+		}
+	}
+	if svc.SetupPolicy == "" {
+		if svc.Section == "Platform" {
+			svc.SetupPolicy = SetupPolicyAutomatic
+		} else {
+			svc.SetupPolicy = SetupPolicyManual
+		}
+	}
+	if svc.Key == "photos" {
+		svc.SetupPolicy = SetupPolicyOnDemand
+	}
+	if svc.SetupPolicy == SetupPolicyOnDemand && svc.SetupActionLabel == "" {
+		svc.SetupActionLabel = "Do the setup for me"
+	}
+	if svc.LogoURL == "" {
+		svc.LogoURL = logoURLForKey(svc.Key, svc.ToolName)
+	}
 	svc.Nested = svc.LocalSlug
 	svc.Flat = svc.PublicSlug
+}
+
+func applyPlatformLayerOverrides(svc *Service) {
+	switch svc.Key {
+	case "base":
+		svc.Section = "Platform"
+		svc.Layer = "L2-platform"
+		if svc.Badge == "" || hasL3Badge(svc.Badge) {
+			svc.Badge = "L2 \u00b7 Node Hub"
+		}
+	case "home":
+		svc.Section = "Platform"
+		svc.Layer = "L2-platform"
+		if svc.Badge == "" || hasL3Badge(svc.Badge) {
+			svc.Badge = "L2 \u00b7 Start"
+		}
+	case "kuma":
+		svc.Section = "Platform"
+		svc.Layer = "L2-platform"
+		svc.SetupPolicy = SetupPolicyAutomatic
+		if svc.Badge == "" || hasL3Badge(svc.Badge) {
+			svc.Badge = "L2 \u00b7 Monitoring"
+		}
+	case "whoami":
+		svc.Section = "Platform"
+		svc.Layer = "L2-platform"
+		svc.SetupPolicy = SetupPolicyAutomatic
+		if svc.Badge == "" || hasL3Badge(svc.Badge) {
+			svc.Badge = "L2 \u00b7 Routing test"
+		}
+	}
+}
+
+func hasL3Badge(value string) bool {
+	return len(value) >= 2 && value[:2] == "L3"
+}
+
+func logoURLForKey(key, tool string) string {
+	switch key {
+	case "base":
+		return "https://stackkit.cc/favicon.svg"
+	case "home":
+		return "https://cdn.simpleicons.org/homeassistant/ffffff"
+	case "auth":
+		return "https://cdn.simpleicons.org/openid/ffffff"
+	case "id":
+		return "https://cdn.simpleicons.org/openid/ffffff"
+	case "traefik":
+		return "https://cdn.simpleicons.org/traefikproxy/ffffff"
+	case "dokploy":
+		return "https://cdn.simpleicons.org/docker/ffffff"
+	case "coolify":
+		return "https://cdn.simpleicons.org/coolify/ffffff"
+	case "kuma":
+		return "https://cdn.simpleicons.org/uptimekuma/ffffff"
+	case "whoami":
+		return "https://cdn.simpleicons.org/httpie/ffffff"
+	case "vault":
+		return "https://cdn.simpleicons.org/bitwarden/ffffff"
+	case "media":
+		return "https://cdn.simpleicons.org/jellyfin/ffffff"
+	case "photos":
+		return "https://cdn.simpleicons.org/immich/ffffff"
+	case "dockge":
+		return "https://cdn.simpleicons.org/docker/ffffff"
+	case "point":
+		return "https://cdn.simpleicons.org/cloudflare/ffffff"
+	default:
+		switch tool {
+		case "coolify":
+			return "https://cdn.simpleicons.org/coolify/ffffff"
+		case "jellyfin":
+			return "https://cdn.simpleicons.org/jellyfin/ffffff"
+		case "immich":
+			return "https://cdn.simpleicons.org/immich/ffffff"
+		case "vaultwarden":
+			return "https://cdn.simpleicons.org/bitwarden/ffffff"
+		default:
+			return ""
+		}
+	}
 }
 
 func first(values ...string) string {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kombifyio/stackkits/internal/identity"
+	"github.com/kombifyio/stackkits/pkg/models"
 )
 
 func TestResolveOwnerSpec_LocalNonInteractive(t *testing.T) {
@@ -49,10 +50,10 @@ func TestResolveOwnerSpec_DisplayNameFallsBack(t *testing.T) {
 	}
 }
 
-func TestResolveOwnerSpec_CloudRejected(t *testing.T) {
+func TestResolveOwnerSpec_CloudRequiresAutoBootstrap(t *testing.T) {
 	_, has, err := resolveOwnerSpec(ownerFlags{Source: "cloud"}, nil, true)
-	if err == nil || !strings.Contains(err.Error(), "Phase 2") {
-		t.Errorf("expected Phase-2 error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "owner-bootstrap-mode=auto") {
+		t.Errorf("expected auto-bootstrap error, got: %v", err)
 	}
 	if has {
 		t.Error("hasOwner must be false on error")
@@ -146,9 +147,78 @@ func TestResolveOwnerSpec_TrimsWhitespace(t *testing.T) {
 	}
 }
 
+func TestResolveOwnerBootstrapConfig_AutoDoesNotRequireOwnerIdentityOrRecoveryHash(t *testing.T) {
+	cfg, has, err := resolveOwnerBootstrapConfig(ownerFlags{
+		BootstrapMode:       "auto",
+		Source:              "cloud",
+		RecoveryMaterialRef: "techstack://recovery/stacks/stack-123",
+	}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !has {
+		t.Fatal("expected hasOwner=true for explicit auto bootstrap")
+	}
+	if cfg.BootstrapMode != models.OwnerBootstrapModeAuto {
+		t.Errorf("BootstrapMode %q", cfg.BootstrapMode)
+	}
+	if cfg.Source != models.OwnerSourceCloud {
+		t.Errorf("Source %q", cfg.Source)
+	}
+	if cfg.Email != "" || cfg.Username != "" {
+		t.Errorf("auto owner must not require or invent owner identity, got email=%q username=%q", cfg.Email, cfg.Username)
+	}
+	if cfg.RecoveryMaterialRef != "techstack://recovery/stacks/stack-123" {
+		t.Errorf("RecoveryMaterialRef %q", cfg.RecoveryMaterialRef)
+	}
+}
+
+func TestResolveOwnerBootstrapConfig_AutoRequiresRecoveryReferenceOrHash(t *testing.T) {
+	_, has, err := resolveOwnerBootstrapConfig(ownerFlags{
+		BootstrapMode: "auto",
+		Source:        "cloud",
+	}, nil, true)
+	if err == nil || !strings.Contains(err.Error(), "recovery") {
+		t.Fatalf("expected recovery material error, got has=%v err=%v", has, err)
+	}
+	if has {
+		t.Error("hasOwner must be false on auto recovery validation error")
+	}
+}
+
+func TestResolveOwnerBootstrapConfig_NoneIsExplicitNoop(t *testing.T) {
+	cfg, has, err := resolveOwnerBootstrapConfig(ownerFlags{BootstrapMode: "none"}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !has {
+		t.Fatal("expected hasOwner=true so explicit none persists")
+	}
+	if cfg.BootstrapMode != models.OwnerBootstrapModeNone {
+		t.Errorf("BootstrapMode %q", cfg.BootstrapMode)
+	}
+	if cfg.Source != "" || cfg.Email != "" || cfg.Username != "" {
+		t.Errorf("none lane must not carry owner fields: %+v", cfg)
+	}
+}
+
+func TestResolveOwnerBootstrapConfig_CustomKeepsLegacyRequirements(t *testing.T) {
+	_, has, err := resolveOwnerBootstrapConfig(ownerFlags{
+		BootstrapMode: "custom",
+		Source:        "local",
+		Email:         "owner@example.com",
+	}, nil, true)
+	if err == nil || !strings.Contains(err.Error(), "--owner-username required") {
+		t.Fatalf("expected missing username error, got has=%v err=%v", has, err)
+	}
+	if has {
+		t.Error("hasOwner must be false on custom validation error")
+	}
+}
+
 func TestResolveRecoveryPassphrase_FlagHash(t *testing.T) {
 	// Valid PHC string passes through verbatim. Plaintext stays empty —
-	// Task 11's apply path is responsible for reprompting when it needs
+	// The apply path is responsible for reprompting when it needs
 	// the actual symmetric key material.
 	phc := "$argon2id$v=19$m=65536,t=3,p=4$dGVzdHNhbHQ$dGVzdGhhc2g"
 	h, plain, err := resolveRecoveryPassphrase(phc, nil, true)

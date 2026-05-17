@@ -3,19 +3,19 @@
 # StackKits CLI installer — shared core used by all stackkit installers.
 # =============================================================================
 # Usage (direct):
-#   curl -sSL stackkit.cc/install | sh                   # CLI only
-#   curl -sSL stackkit.cc/install | sh -s -- base-kit    # CLI + base-kit
-#   curl -sSL stackkit.cc/install | sh -s -- modern-homelab
-#   curl -sSL stackkit.cc/install | sh -s -- ha-kit
-#   curl -sSL stackkit.cc/install | sh -s -- all         # CLI + all kits
+#   curl -sSL https://install.stackkit.cc | sh                   # CLI + public kit catalog
+#   curl -sSL https://install.stackkit.cc | sh -s -- base-kit    # CLI + base-kit
+#   curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab
+#   curl -sSL https://install.stackkit.cc | sh -s -- ha-kit
+#   curl -sSL https://install.stackkit.cc | sh -s -- all         # CLI + all kits
 #
-# Called by the short website entrypoints (`/base`, `/modern`, `/ha`) to
+# Called by the short website entrypoints (`base.stackkit.cc`, `modern.stackkit.cc`, `ha.stackkit.cc`) to
 # provide the shared install + kit-download step before the kit-specific flow.
 # =============================================================================
 set -eu
 
 # KIT_NAME controls which kit definitions are downloaded alongside the binary.
-# ""         → CLI only (no kit files)
+# ""         → CLI + all public kit definitions
 # "base-kit" → CLI + base-kit definitions
 # "modern-homelab" → CLI + modern-homelab definitions
 # "ha-kit"   → CLI + ha-kit definitions
@@ -37,7 +37,8 @@ BANNER
   printf '\033[0m'
 fi
 
-REPO="kombifyio/stackKits"
+REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
+RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
 INSTALL_DIR="/usr/local/bin"
 
 # --- Detect platform ----------------------------------------------------------
@@ -57,8 +58,12 @@ esac
 # --- Resolve latest release ---------------------------------------------------
 
 echo "Resolving latest stackkit release..."
-LATEST=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest" \
-  | grep '"tag_name"' | head -1 | sed -E 's/.*"v([^"]+)".*/\1/')
+if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
+  LATEST=$(printf '%s' "$STACKKIT_RELEASE_VERSION" | sed -E 's/^v//')
+else
+  LATEST=$(curl -sSL "$RELEASE_API_URL" \
+    | grep '"tag_name"' | head -1 | sed -E 's/.*"v([^"]+)".*/\1/')
+fi
 if [ -z "$LATEST" ]; then
   echo "Error: could not determine latest version." >&2
   echo "Check https://github.com/$REPO/releases" >&2
@@ -90,7 +95,7 @@ case "$KIT_NAME" in
     ;;
   "")
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS=""
+    INSTALL_KITS="base-kit ha-kit modern-homelab"
     ;;
   *)
     echo "Error: unknown kit '${KIT_NAME}'. Available: base-kit, modern-homelab, ha-kit, all" >&2
@@ -100,7 +105,8 @@ esac
 
 # --- Download & install binary ------------------------------------------------
 
-URL="https://github.com/$REPO/releases/download/v${LATEST}/${ARCHIVE}"
+DOWNLOAD_BASE="${STACKKIT_RELEASE_DOWNLOAD_BASE_URL:-https://github.com/$REPO/releases/download/v${LATEST}}"
+URL="${DOWNLOAD_BASE%/}/${ARCHIVE}"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -117,10 +123,22 @@ fi
 if [ "$(id -u)" -eq 0 ]; then
   install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
   install -m 755 "$TMP/tofu" "$INSTALL_DIR/tofu"
+  if [ -f "$TMP/stackkit-server" ]; then
+    install -m 755 "$TMP/stackkit-server" "$INSTALL_DIR/stackkit-server"
+  fi
+  if [ -f "$TMP/stackkit-mcp" ]; then
+    install -m 755 "$TMP/stackkit-mcp" "$INSTALL_DIR/stackkit-mcp"
+  fi
 else
   echo "  -> Need sudo to install to $INSTALL_DIR"
   sudo install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
   sudo install -m 755 "$TMP/tofu" "$INSTALL_DIR/tofu"
+  if [ -f "$TMP/stackkit-server" ]; then
+    sudo install -m 755 "$TMP/stackkit-server" "$INSTALL_DIR/stackkit-server"
+  fi
+  if [ -f "$TMP/stackkit-mcp" ]; then
+    sudo install -m 755 "$TMP/stackkit-mcp" "$INSTALL_DIR/stackkit-mcp"
+  fi
 fi
 
 # --- Install kit definitions --------------------------------------------------
@@ -167,6 +185,9 @@ echo ""
 stackkit version
 echo ""
 echo "stackkit is installed."
+if command -v stackkit-mcp >/dev/null 2>&1; then
+  echo "stackkit-mcp is installed for local agent/MCP workflows."
+fi
 
 if [ -n "$INSTALL_KITS" ]; then
   echo ""
@@ -174,18 +195,20 @@ if [ -n "$INSTALL_KITS" ]; then
   echo ""
   echo "  Get started manually:"
   echo "    mkdir my-homelab && cd my-homelab"
-  if [ "$KIT_NAME" = "all" ]; then
-    echo "    stackkit init               # interactive kit selection"
-  else
+  if [ "$KIT_NAME" = "base-kit" ] || [ "$KIT_NAME" = "modern-homelab" ] || [ "$KIT_NAME" = "ha-kit" ]; then
     echo "    stackkit init $KIT_NAME     # continue with this StackKit"
+  else
+    echo "    stackkit init               # interactive kit selection"
   fi
   echo "    stackkit apply              # deploy with confirmation"
   echo ""
   echo "  Shortcut install entrypoints:"
-  echo "    curl -sSL stackkit.cc/install | sh"
-  echo "    curl -sSL stackkit.cc/base | sh"
-  echo "    curl -sSL stackkit.cc/modern | sh"
-  echo "    curl -sSL stackkit.cc/ha | sh"
+  echo "    curl -sSL https://install.stackkit.cc | sh"
+  echo "    curl -sSL https://base.stackkit.cc | sh"
+  echo ""
+  echo "  Alpha/scaffolding preview entrypoints:"
+  echo "    curl -sSL https://modern.stackkit.cc | sh"
+  echo "    curl -sSL https://ha.stackkit.cc | sh"
 else
   echo ""
   echo "  Get started:"

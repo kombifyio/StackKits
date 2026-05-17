@@ -1,0 +1,345 @@
+package commands
+
+import (
+	"encoding/json"
+	"fmt"
+	"os/exec"
+	"sort"
+	"strings"
+
+	"github.com/spf13/cobra"
+)
+
+type agentCommandStep struct {
+	Command  string `json:"command"`
+	Purpose  string `json:"purpose"`
+	Mutation bool   `json:"mutation"`
+}
+
+type agentInstallPlan struct {
+	Scenario      string             `json:"scenario"`
+	Kit           string             `json:"kit"`
+	Target        string             `json:"target"`
+	Workspace     string             `json:"workspace"`
+	Commands      []agentCommandStep `json:"commands"`
+	Evidence      []string           `json:"evidence"`
+	ReadinessNote string             `json:"readinessNote"`
+}
+
+type agentSelfCheck struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Target  string `json:"target,omitempty"`
+	Message string `json:"message"`
+}
+
+var (
+	agentInstallPlanJSON bool
+	agentSelfCheckJSON   bool
+	agentPromptJSON      bool
+	agentKit             string
+	agentTarget          string
+	agentWorkspace       string
+	agentClient          string
+	agentMode            string
+	agentServerURL       string
+	agentPromptList      bool
+)
+
+var agentPromptBodies = map[string]string{
+	"basekit-autonomous-rollout": `You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only.
+
+Run:
+stackkit init base-kit --non-interactive --admin-email <operator-email>
+stackkit prepare --dry-run
+stackkit validate
+stackkit generate --force
+stackkit plan
+stackkit apply
+stackkit verify --http --json
+
+Preserve logs and evidence. Do not hand-edit generated files under deploy/, .stackkit/, or generated snapshots. Expected Hub URL: http://base.home.localhost.`,
+	"inspect-existing-rollout": `Inspect an existing StackKits workspace without mutation.
+
+Run:
+stackkit status --json
+stackkit verify --http --json
+stackkit logs list --json
+stackkit doctor --json
+
+Report current StackKit, mode, Hub URL, service URLs, failing checks, latest run ID, and evidence paths.`,
+	"diagnose-failed-rollout": `Diagnose a failed StackKits rollout with read-only evidence first.
+
+Run:
+stackkit logs list --json
+stackkit logs latest --json
+stackkit doctor --json
+stackkit verify --http --json
+stackkit status --json
+
+Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or-dns, generated-config, opentofu-plan, opentofu-apply, service-health, or unknown.`,
+	"enable-monitoring-addon": `Enable monitoring for an existing BaseKit rollout only after operator approval.
+
+Inspect first:
+stackkit status --json
+stackkit verify --http --json
+stackkit addon list
+
+After approval:
+stackkit addon add monitoring
+stackkit validate
+stackkit generate --force
+stackkit plan
+stackkit apply
+stackkit verify --http --json`,
+	"ssh-rollout": `Roll out BaseKit to a reachable SSH target. Keep the workflow non-interactive and evidence-based.
+
+Confirm target host, SSH user, SSH key path, admin email, and whether the host is dedicated to StackKits.
+
+Run:
+stackkit init base-kit --non-interactive --admin-email <email>
+stackkit prepare --dry-run
+stackkit validate
+stackkit generate --force
+stackkit plan
+stackkit apply
+stackkit verify --http --json`,
+}
+
+var agentCmd = &cobra.Command{
+	Use:   "agent",
+	Short: "Agent-native helpers for StackKits automation",
+	Long:  "Agent-native helpers emit install plans, self-checks, prompts, and MCP configuration without mutating a rollout.",
+}
+
+var agentInstallPlanCmd = &cobra.Command{
+	Use:   "install-plan",
+	Short: "Print a non-interactive StackKits install plan",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		plan := buildAgentInstallPlan(agentKit, agentTarget, agentWorkspace)
+		if agentInstallPlanJSON {
+			return writeAgentJSON(cmd, plan)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Scenario: %s\nKit: %s\nTarget: %s\nWorkspace: %s\n\n", plan.Scenario, plan.Kit, plan.Target, plan.Workspace)
+		for i, step := range plan.Commands {
+			mutation := "read-only"
+			if step.Mutation {
+				mutation = "mutating"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%d. %s\n   %s (%s)\n", i+1, step.Command, step.Purpose, mutation)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "\nEvidence:\n")
+		for _, item := range plan.Evidence {
+			fmt.Fprintf(cmd.OutOrStdout(), "- %s\n", item)
+		}
+		return nil
+	},
+}
+
+var agentSelfCheckCmd = &cobra.Command{
+	Use:   "self-check",
+	Short: "Check local agent-facing StackKits prerequisites",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		checks := buildAgentSelfChecks(agentServerURL)
+		if agentSelfCheckJSON {
+			return writeAgentJSON(cmd, map[string]any{"checks": checks})
+		}
+		for _, check := range checks {
+			target := check.Target
+			if target != "" {
+				target = " " + target
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s%s: %s\n", check.Name, target, check.Message)
+		}
+		return nil
+	},
+}
+
+var agentPromptCmd = &cobra.Command{
+	Use:   "prompt [scenario]",
+	Short: "Print a copy-ready StackKits agent prompt",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if agentPromptList {
+			return nil
+		}
+		if len(args) != 1 {
+			return fmt.Errorf("scenario is required; use --list to see options")
+		}
+		if _, ok := agentPromptBodies[args[0]]; !ok {
+			return fmt.Errorf("unknown scenario %q; use --list to see options", args[0])
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		names := agentPromptNames()
+		if agentPromptList {
+			if agentPromptJSON {
+				return writeAgentJSON(cmd, map[string]any{"scenarios": names})
+			}
+			for _, name := range names {
+				fmt.Fprintln(cmd.OutOrStdout(), name)
+			}
+			return nil
+		}
+		name := args[0]
+		body := agentPromptBodies[name]
+		if agentPromptJSON {
+			return writeAgentJSON(cmd, map[string]any{"scenario": name, "prompt": body})
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), body)
+		return nil
+	},
+}
+
+var agentMCPConfigCmd = &cobra.Command{
+	Use:   "mcp-config",
+	Short: "Print local MCP client configuration for stackkit-mcp",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		mode := normalizeAgentMode(agentMode)
+		serverURL := strings.TrimSpace(agentServerURL)
+		client := strings.ToLower(strings.TrimSpace(agentClient))
+		if client == "" {
+			client = "generic"
+		}
+		switch client {
+		case "codex":
+			fmt.Fprintf(cmd.OutOrStdout(), "[mcp_servers.stackkit]\ncommand = \"stackkit-mcp\"\nargs = [\"--mode\", %q", mode)
+			if serverURL != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), ", \"--server-url\", %q", serverURL)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "]")
+		case "claude":
+			return writeAgentJSON(cmd, map[string]any{
+				"mcpServers": map[string]any{
+					"stackkit": mcpConfigMap(mode, serverURL),
+				},
+			})
+		default:
+			return writeAgentJSON(cmd, map[string]any{
+				"name":   "stackkit",
+				"config": mcpConfigMap(mode, serverURL),
+			})
+		}
+		return nil
+	},
+}
+
+func init() {
+	agentCmd.AddCommand(agentInstallPlanCmd, agentSelfCheckCmd, agentPromptCmd, agentMCPConfigCmd)
+
+	agentInstallPlanCmd.Flags().BoolVar(&agentInstallPlanJSON, "json", false, "Emit JSON")
+	agentInstallPlanCmd.Flags().StringVar(&agentKit, "kit", "base-kit", "StackKit to plan for")
+	agentInstallPlanCmd.Flags().StringVar(&agentTarget, "target", "local", "Target kind: local, ssh, vm, or ci")
+	agentInstallPlanCmd.Flags().StringVar(&agentWorkspace, "dir", "my-homelab", "Workspace directory")
+
+	agentSelfCheckCmd.Flags().BoolVar(&agentSelfCheckJSON, "json", false, "Emit JSON")
+	agentSelfCheckCmd.Flags().StringVar(&agentServerURL, "server-url", "http://localhost:8082", "stackkit-server URL")
+
+	agentPromptCmd.Flags().BoolVar(&agentPromptJSON, "json", false, "Emit JSON")
+	agentPromptCmd.Flags().BoolVar(&agentPromptList, "list", false, "List available prompt scenarios")
+
+	agentMCPConfigCmd.Flags().StringVar(&agentClient, "client", "generic", "Client format: generic, codex, or claude")
+	agentMCPConfigCmd.Flags().StringVar(&agentMode, "mode", "docs,local,server", "MCP modes")
+	agentMCPConfigCmd.Flags().StringVar(&agentServerURL, "server-url", "http://localhost:8082", "stackkit-server URL")
+}
+
+func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
+	kit = strings.TrimSpace(kit)
+	if kit == "" {
+		kit = "base-kit"
+	}
+	target = strings.TrimSpace(target)
+	if target == "" {
+		target = "local"
+	}
+	workspace = strings.TrimSpace(workspace)
+	if workspace == "" {
+		workspace = "my-homelab"
+	}
+	return agentInstallPlan{
+		Scenario:  "basekit-autonomous-rollout",
+		Kit:       kit,
+		Target:    target,
+		Workspace: workspace,
+		Commands: []agentCommandStep{
+			{Command: "curl -sSL https://base.stackkit.cc | sh", Purpose: "install stackkit, stackkit-server, stackkit-mcp, packaged OpenTofu, and BaseKit definitions", Mutation: true},
+			{Command: "mkdir -p " + workspace + " && cd " + workspace, Purpose: "create a clean workspace", Mutation: true},
+			{Command: "stackkit init " + kit + " --non-interactive --admin-email <operator-email>", Purpose: "write stack-spec.yaml from the release-ready kit", Mutation: true},
+			{Command: "stackkit prepare --dry-run", Purpose: "check host prerequisites without changing the host", Mutation: false},
+			{Command: "stackkit validate", Purpose: "validate StackSpec and CUE contracts", Mutation: false},
+			{Command: "stackkit generate --force", Purpose: "generate deployment artifacts from source-of-truth inputs", Mutation: true},
+			{Command: "stackkit plan", Purpose: "preview OpenTofu changes", Mutation: false},
+			{Command: "stackkit apply", Purpose: "apply the approved rollout", Mutation: true},
+			{Command: "stackkit verify --http --json", Purpose: "produce machine-readable functional evidence", Mutation: false},
+		},
+		Evidence: []string{
+			"stackkit verify --http --json output",
+			".stackkit/logs/<runID>.jsonl",
+			".stackkit/runs/<runID>/summary.json",
+			"manifest matching stackkit-agent-run-manifest.schema.json",
+			"functional result matching stackkit-agent-functional-result.schema.json",
+		},
+		ReadinessNote: "BaseKit is release-ready; Modern Homelab and HA Kit remain alpha/scaffolding.",
+	}
+}
+
+func buildAgentSelfChecks(serverURL string) []agentSelfCheck {
+	checks := []agentSelfCheck{
+		binaryCheck("stackkit"),
+		binaryCheck("stackkit-server"),
+		binaryCheck("stackkit-mcp"),
+		{Name: "server-url", Status: "info", Target: serverURL, Message: "use with stackkit-server read-only management endpoints"},
+		{Name: "mcp-write-gate", Status: "info", Target: "STACKKIT_MCP_ALLOW_WRITE", Message: "write tools are disabled unless this variable is true"},
+		{Name: "mcp-http-token", Status: "info", Target: "STACKKIT_MCP_TOKEN", Message: "required when management/write tools are exposed beyond loopback"},
+	}
+	return checks
+}
+
+func binaryCheck(name string) agentSelfCheck {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return agentSelfCheck{Name: "binary", Status: "warn", Target: name, Message: name + " not found on PATH"}
+	}
+	return agentSelfCheck{Name: "binary", Status: "pass", Target: path, Message: name + " is on PATH"}
+}
+
+func agentPromptNames() []string {
+	names := make([]string, 0, len(agentPromptBodies))
+	for name := range agentPromptBodies {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func normalizeAgentMode(mode string) string {
+	parts := strings.Split(mode, ",")
+	var out []string
+	for _, part := range parts {
+		part = strings.ToLower(strings.TrimSpace(part))
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	if len(out) == 0 {
+		return "docs,local,server"
+	}
+	return strings.Join(out, ",")
+}
+
+func mcpConfigMap(mode, serverURL string) map[string]any {
+	args := []string{"--mode", mode}
+	if strings.TrimSpace(serverURL) != "" {
+		args = append(args, "--server-url", strings.TrimSpace(serverURL))
+	}
+	return map[string]any{
+		"command": "stackkit-mcp",
+		"args":    args,
+	}
+}
+
+func writeAgentJSON(cmd *cobra.Command, value any) error {
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(value)
+}

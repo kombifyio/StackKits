@@ -18,9 +18,11 @@
       "tier": "standard"
     },
     "owner": {
+      "bootstrapMode": "custom",
       "source": "local",
       "email": "owner@kombify.pro",
-      "username": "owner"
+      "username": "owner",
+      "recoveryPassphraseHash": "$argon2id$v=19$m=65536,t=3,p=4$dGVzdHNhbHQ$dGVzdGhhc2g"
     },
     "nodes": [
       {

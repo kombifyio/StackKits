@@ -26,8 +26,8 @@ package base
 
 	// Loki configuration (if driver = loki)
 	loki?: {
-		url:      string
-		tenant?:  string
+		url:     string
+		tenant?: string
 		labels?: [string]: string
 		batchSize: int | *1048576
 		batchWait: string | *"1s"
@@ -111,6 +111,68 @@ package base
 	}
 }
 
+// #MonitoringSignals defines which OTLP signal lanes a StackKit enables.
+#MonitoringSignals: {
+	metrics: bool | *true
+	logs:    bool | *false
+	traces:  bool | *false
+}
+
+// #OtelCollectorAuthConfig defines outbound OTLP authentication.
+#OtelCollectorAuthConfig: {
+	mode: "none" | "headers" | *"none"
+	headers?: [string]: string
+}
+
+// #OtelCollectorTLSConfig defines outbound OTLP TLS behavior.
+#OtelCollectorTLSConfig: {
+	insecure: bool | *true
+	caFile?:  string
+}
+
+// #OtelCollectorConfig is the canonical per-node collector contract.
+#OtelCollectorConfig: {
+	enabled:  bool | *true
+	endpoint: string | *"techstack:4317"
+	protocol: "grpc" | "http/protobuf" | *"grpc"
+	signals:  #MonitoringSignals
+	auth:     #OtelCollectorAuthConfig
+	tls:      #OtelCollectorTLSConfig
+	resource?: [string]: string
+}
+
+// #VictoriaMetricsConfig configures the optional retention backend.
+#VictoriaMetricsConfig: {
+	enabled:               bool | *false
+	retention:             string | *"30d"
+	remoteWriteEndpoint:   string | *"http://victoriametrics:8428/api/v1/write"
+	memoryAllowedPercent:  int & >=10 & <=80 | *40
+	maxConcurrentRequests: int & >=1 & <=128 | *8
+}
+
+// #MonitoringGatewayConfig configures the optional collector gateway.
+#MonitoringGatewayConfig: {
+	enabled:              bool | *false
+	endpoint:             string | *"otel-gateway:4317"
+	batchTimeout:         string | *"15s"
+	maxConcurrentStreams: int & >=1 & <=1000 | *50
+	memoryLimitMiB:       int & >=64 & <=4096 | *200
+	memorySpikeLimitMiB:  int & >=32 & <=2048 | *50
+	forwardToTechStack:   bool | *false
+	techStackEndpoint?:   string
+}
+
+// #MonitoringConfig is the canonical OTLP-first monitoring surface.
+#MonitoringConfig: {
+	enabled:   bool | *true
+	signals:   #MonitoringSignals
+	collector: #OtelCollectorConfig
+	gateway?:  #MonitoringGatewayConfig
+	backend?: {
+		victoriametrics?: #VictoriaMetricsConfig
+	}
+}
+
 // #AlertingConfig defines alerting settings
 #AlertingConfig: {
 	// Enable alerting
@@ -136,8 +198,8 @@ package base
 
 	// Email configuration
 	email?: {
-		to:       [...string]
-		from?:    string
+		to: [...string]
+		from?:     string
 		smarthost: string
 	}
 
@@ -161,8 +223,8 @@ package base
 
 	// Webhook configuration
 	webhook?: {
-		url:     string
-		method:  "POST" | "PUT" | *"POST"
+		url:    string
+		method: "POST" | "PUT" | *"POST"
 		headers?: [string]: string
 	}
 }
@@ -243,28 +305,28 @@ package base
 
 	// S3 configuration (if type = s3)
 	s3?: {
-		bucket:   string
+		bucket:    string
 		endpoint?: string
-		region:   string | *"us-east-1"
+		region:    string | *"us-east-1"
 		accessKey: =~"^secret://"
 		secretKey: =~"^secret://"
 	}
 
 	// B2 configuration (if type = b2)
 	b2?: {
-		bucket:     string
-		keyId:      =~"^secret://"
+		bucket:         string
+		keyId:          =~"^secret://"
 		applicationKey: =~"^secret://"
 	}
 
 	// SFTP configuration (if type = sftp)
 	sftp?: {
-		host:     string
-		port:     uint16 | *22
-		user:     string
+		host:      string
+		port:      uint16 | *22
+		user:      string
 		password?: =~"^secret://"
-		keyPath?: string
-		path:     string
+		keyPath?:  string
+		path:      string
 	}
 
 	// rclone remote name (if type = rclone)

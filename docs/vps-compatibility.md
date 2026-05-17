@@ -1,6 +1,6 @@
 # VPS compatibility
 
-stackkits deploys homelab stacks on bare VPS via `curl -sSL stackkit.cc/base | sh`. Not all VPS providers support Docker — this document explains which providers work and why.
+stackkits deploys homelab stacks on bare VPS via `curl -sSL https://base.stackkit.cc | sh`. Not all VPS providers support Docker — this document explains which providers work and why.
 
 ## Quick check
 

@@ -135,7 +135,7 @@ package base
 	}
 
 	healthCheck: {
-		test:     ["CMD", "wget", "-q", "--spider", "http://localhost:17170/health"]
+		test: ["CMD", "wget", "-q", "--spider", "http://localhost:17170/health"]
 		interval: "30s"
 		timeout:  "5s"
 		retries:  3
@@ -155,16 +155,16 @@ package base
 	}
 
 	labels: {
-		"traefik.enable":                          "true"
-		"stackkit.layer":                          "1-foundation"
-		"stackkit.managed-by":                     "terraform"
-		"stackkit.identity-provider":              "lldap"
+		"traefik.enable":             "true"
+		"stackkit.layer":             "1-foundation"
+		"stackkit.managed-by":        "terraform"
+		"stackkit.identity-provider": "lldap"
 	}
 
 	config: {
-		baseDN:         string
-		adminEmail:     string
-		adminUsername:  string | *"admin"
+		baseDN:        string
+		adminEmail:    string
+		adminUsername: string | *"admin"
 		defaultGroups: [...string] | *["lldap_admin", "lldap_password_manager", "users"]
 	}
 }
@@ -378,9 +378,9 @@ package base
 	]
 
 	environment: {
-		"TZ":                     "Europe/Berlin"
-		"STEP_CA_URL":            "https://localhost:8443"
-		"STEPPATH":               "/home/step"
+		"TZ":          "Europe/Berlin"
+		"STEP_CA_URL": "https://localhost:8443"
+		"STEPPATH":    "/home/step"
 	}
 
 	environmentSecrets: {
@@ -388,7 +388,7 @@ package base
 	}
 
 	healthCheck: {
-		test:     ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://localhost:8080/health"]
+		test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://localhost:8080/health"]
 		interval: "30s"
 		timeout:  "5s"
 		retries:  3
@@ -408,10 +408,10 @@ package base
 	}
 
 	labels: {
-		"traefik.enable":                            "true"
-		"stackkit.layer":                            "1-foundation"
-		"stackkit.managed-by":                       "terraform"
-		"stackkit.certificate-authority":            "step-ca"
+		"traefik.enable":                 "true"
+		"stackkit.layer":                 "1-foundation"
+		"stackkit.managed-by":            "terraform"
+		"stackkit.certificate-authority": "step-ca"
 	}
 
 	config: {
@@ -487,19 +487,42 @@ package base
 // =============================================================================
 
 #PocketIDOwner: {
-	source:   "local" | "cloud"
-	email:    =~"^[^@]+@[^@]+\\.[^@]+$"
-	username: =~"^[a-zA-Z][a-zA-Z0-9_-]*$"
+	bootstrapMode: "auto" | "custom" | "none" | *"custom"
+	source?:       "local" | "cloud"
+	email?:        =~"^[^@]+@[^@]+\\.[^@]+$"
+	username?:     =~"^[a-zA-Z][a-zA-Z0-9_-]*$"
 
 	// PocketID v2 is passkey-only — there is no password concept.
 	// Local owners are activated via a one-time-access token rendered into a
 	// /setup-account?token=... URL the operator clicks once to enroll a
 	// WebAuthn credential. Cloud owners federate from an external IdP.
-	foreignSubjectId?:       string // for source=cloud
+	recoveryPassphraseHash?: =~"^\\$argon2id\\$.*"
+	recoveryMaterialRef?:    =~"^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+	foreignSubjectId?:       string // optional for source=cloud; Cloud can resolve it out-of-band
 	passkeyEnrollmentToken?: string // optional first-login passkey link
 
-	if source == "cloud" {
-		foreignSubjectId!: string
+	if bootstrapMode == "custom" {
+		source!:                 "local"
+		email!:                  =~"^[^@]+@[^@]+\\.[^@]+$"
+		username!:               =~"^[a-zA-Z][a-zA-Z0-9_-]*$"
+		recoveryPassphraseHash!: =~"^\\$argon2id\\$.*"
+	}
+
+	if bootstrapMode == "auto" {
+		source?: "cloud"
+		{
+			recoveryMaterialRef!: =~"^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+		} | {
+			recoveryPassphraseHash!: =~"^\\$argon2id\\$.*"
+		}
+	}
+
+	if bootstrapMode == "none" {
+		source?:                 _|_
+		email?:                  _|_
+		username?:               _|_
+		recoveryPassphraseHash?: _|_
+		recoveryMaterialRef?:    _|_
 	}
 }
 

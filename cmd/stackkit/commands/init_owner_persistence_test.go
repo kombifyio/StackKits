@@ -13,7 +13,7 @@ import (
 // TestStackSpec_OwnerYAMLRoundTrip verifies that the Owner block survives a
 // SaveStackSpec → LoadStackSpec round-trip. Without this, `stackkit init`
 // could silently drop the owner data, leaving `stackkit apply` with nothing
-// to bootstrap (the Phase-1 final-review #3.1 stopper).
+// to bootstrap.
 func TestStackSpec_OwnerYAMLRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	loader := config.NewLoader(dir)
@@ -24,6 +24,7 @@ func TestStackSpec_OwnerYAMLRoundTrip(t *testing.T) {
 		Mode:     "simple",
 		Domain:   "homelab.local",
 		Owner: models.OwnerConfig{
+			BootstrapMode:          models.OwnerBootstrapModeCustom,
 			Source:                 "local",
 			Email:                  "owner@example.com",
 			Username:               "owner",
@@ -68,6 +69,7 @@ func TestStackSpec_OwnerYAMLRoundTrip(t *testing.T) {
 	yamlStr := string(raw)
 	for _, want := range []string{
 		"owner:",
+		"bootstrapMode: custom",
 		"source: local",
 		"email: owner@example.com",
 		"username: owner",
@@ -79,9 +81,98 @@ func TestStackSpec_OwnerYAMLRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStackSpec_OwnerAutoYAMLRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	loader := config.NewLoader(dir)
+
+	want := &models.StackSpec{
+		Name:     "saas-homelab",
+		StackKit: "base-kit",
+		Mode:     "simple",
+		Domain:   "kombify.me",
+		Owner: models.OwnerConfig{
+			BootstrapMode:       models.OwnerBootstrapModeAuto,
+			Source:              models.OwnerSourceCloud,
+			RecoveryMaterialRef: "techstack://recovery/stacks/saas-homelab",
+		},
+	}
+
+	specPath := filepath.Join(dir, "stack-spec.yaml")
+	if err := loader.SaveStackSpec(want, specPath); err != nil {
+		t.Fatalf("SaveStackSpec: %v", err)
+	}
+
+	got, err := loader.LoadStackSpec(specPath)
+	if err != nil {
+		t.Fatalf("LoadStackSpec: %v", err)
+	}
+	if got.Owner.BootstrapMode != models.OwnerBootstrapModeAuto {
+		t.Errorf("Owner.BootstrapMode: got %q, want %q", got.Owner.BootstrapMode, models.OwnerBootstrapModeAuto)
+	}
+	if got.Owner.Email != "" || got.Owner.Username != "" {
+		t.Errorf("auto owner must not persist fake owner identity: %+v", got.Owner)
+	}
+	if got.Owner.RecoveryMaterialRef != want.Owner.RecoveryMaterialRef {
+		t.Errorf("Owner.RecoveryMaterialRef: got %q, want %q", got.Owner.RecoveryMaterialRef, want.Owner.RecoveryMaterialRef)
+	}
+
+	raw, err := os.ReadFile(specPath)
+	if err != nil {
+		t.Fatalf("read spec file: %v", err)
+	}
+	yamlStr := string(raw)
+	for _, want := range []string{
+		"owner:",
+		"bootstrapMode: auto",
+		"source: cloud",
+		"recoveryMaterialRef: techstack://recovery/stacks/saas-homelab",
+	} {
+		if !strings.Contains(yamlStr, want) {
+			t.Errorf("YAML missing %q. Full content:\n%s", want, yamlStr)
+		}
+	}
+	for _, forbidden := range []string{"email:", "username:", "recoveryPassphrasePlain"} {
+		if strings.Contains(yamlStr, forbidden) {
+			t.Errorf("auto owner YAML must not include %q. Full content:\n%s", forbidden, yamlStr)
+		}
+	}
+}
+
+func TestStackSpec_OwnerNonePersistsWhenExplicit(t *testing.T) {
+	dir := t.TempDir()
+	loader := config.NewLoader(dir)
+
+	spec := &models.StackSpec{
+		Name:     "oss-byos-homelab",
+		StackKit: "base-kit",
+		Mode:     "simple",
+		Domain:   "home.localhost",
+		Owner: models.OwnerConfig{
+			BootstrapMode: models.OwnerBootstrapModeNone,
+		},
+	}
+
+	specPath := filepath.Join(dir, "stack-spec.yaml")
+	if err := loader.SaveStackSpec(spec, specPath); err != nil {
+		t.Fatalf("SaveStackSpec: %v", err)
+	}
+
+	raw, err := os.ReadFile(specPath)
+	if err != nil {
+		t.Fatalf("read spec file: %v", err)
+	}
+	yamlStr := string(raw)
+	if !strings.Contains(yamlStr, "bootstrapMode: none") {
+		t.Errorf("explicit none owner should persist; got:\n%s", yamlStr)
+	}
+	if strings.Contains(yamlStr, "email:") || strings.Contains(yamlStr, "username:") {
+		t.Errorf("none owner must not carry fake identity fields; got:\n%s", yamlStr)
+	}
+}
+
 // TestStackSpec_OwnerOmitEmpty confirms that older specs (without owner data)
 // don't pick up an empty owner block on save. This matters because operators
-// who upgrade to a Phase-1-aware binary but never opt into owner provisioning
+// who upgrade to an owner-bootstrap-aware binary but never opt into provisioning
 // shouldn't see noisy diffs in their stack-spec.yaml.
 func TestStackSpec_OwnerOmitEmpty(t *testing.T) {
 	dir := t.TempDir()

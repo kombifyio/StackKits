@@ -38,6 +38,8 @@ type TFVars struct {
 	NetworkSubnet string `json:"network_subnet"`
 	ServerLANIP   string `json:"server_lan_ip,omitempty"`
 
+	ComputeTier string `json:"compute_tier"`
+
 	EnableKombifyPoint bool `json:"enable_kombify_point"`
 	// Deprecated alias kept for older generated templates and external tests.
 	EnableDNSMasq bool `json:"enable_dnsmasq"`
@@ -92,6 +94,9 @@ type TFVars struct {
 	// Branding
 	BrandColor     string `json:"brand_color"`
 	DashboardTitle string `json:"dashboard_title"`
+
+	// Runtime system app images
+	StackKitServerImage string `json:"stackkit_server_image,omitempty"`
 
 	NetworkMode           string `json:"network_mode"`
 	DNSFixed              bool   `json:"dns_fixed"`
@@ -183,6 +188,7 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 	if tier == "" {
 		tier = models.ComputeTierStandard
 	}
+	tfvars.ComputeTier = tier
 
 	b.configurePaaS(spec, tfvars, resolvedCtx)
 	b.configureServiceDefaults(tfvars, tier)
@@ -315,7 +321,7 @@ func (b *TerraformBridge) configureServiceDefaults(tfvars *TFVars, tier string) 
 	tfvars.EnablePocketID = true
 
 	isStandardPlus := tier == models.ComputeTierStandard || tier == models.ComputeTierHigh
-	tfvars.EnableJellyfin = isStandardPlus
+	tfvars.EnableJellyfin = false
 	tfvars.EnableImmich = isStandardPlus
 	tfvars.MediaPath = "/opt/media"
 }
@@ -406,14 +412,16 @@ func (b *TerraformBridge) applyServiceEnables(services map[string]any, tfvars *T
 // newDefaultTFVars returns TFVars with defaults matching main.tf variable defaults.
 func newDefaultTFVars() *TFVars {
 	return &TFVars{
-		EnableTraefik:     true,
-		EnableTinyauth:    true,
-		EnablePocketID:    true,
-		EnableDokploy:     true,
-		EnableDokployApps: true,
-		EnableDashboard:   true,
-		EnableHomepage:    true,
-		EnableWhoami:      true,
+		EnableTraefik:       true,
+		EnableTinyauth:      true,
+		EnablePocketID:      true,
+		ComputeTier:         models.ComputeTierStandard,
+		Paas:                models.PAASCoolify,
+		ReverseProxyBackend: models.ReverseProxyCoolify,
+		EnableCoolify:       true,
+		EnableDashboard:     true,
+		EnableHomepage:      true,
+		EnableWhoami:        true,
 	}
 }
 

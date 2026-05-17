@@ -12,6 +12,8 @@ concurrency:
 permissions:
   contents: write
   packages: write
+  id-token: write
+  attestations: write
 
 env:
   GO_VERSION: "1.26.3"
@@ -99,6 +101,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/**/*"
+
   publish-image:
     name: Publish StackKit Server Image
     if: github.repository == 'kombifyio/stackKits'
@@ -126,3 +133,21 @@ jobs:
             .
           docker push "${IMAGE}:${TAG}"
           docker push "${IMAGE}:latest"
+
+      - name: Resolve image digest
+        id: image-digest
+        shell: bash
+        env:
+          IMAGE: ghcr.io/kombifyio/stackkits
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{.Manifest.Digest}}')"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest server image
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/kombifyio/stackkits
+          subject-digest: ${{ steps.image-digest.outputs.digest }}
+          push-to-registry: true

@@ -184,14 +184,16 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 		})
 	}
 
-	// Normal StackKits must deploy L3 apps through a managed platform adapter.
+	validateOwnerConfig(spec.Owner, result)
+
+	// Normal StackKits must deploy through a supported platform adapter.
 	// Dockge is kept only as a constrained experimental compose manager, and
 	// "none" would allow platform bypasses.
-	if spec.PAAS != "" && !models.IsStandardPAAS(spec.PAAS) && !isAllowedLocalNoPAAS(spec) {
+	if spec.PAAS != "" && !models.IsStandardPAAS(spec.PAAS) {
 		result.Valid = false
 		result.Errors = append(result.Errors, models.ValidationError{
 			Path:    "paas",
-			Message: fmt.Sprintf("invalid paas '%s', must be one of: dokploy, coolify", spec.PAAS),
+			Message: fmt.Sprintf("invalid paas '%s': normal StackKits must use dokploy or coolify; remove paas to use the default coolify resolver", spec.PAAS),
 			Code:    "INVALID_VALUE",
 		})
 	}
@@ -292,19 +294,101 @@ func requiresPublicOwnerEmail(spec *models.StackSpec) bool {
 	return models.IsKombifyMeDomain(domain) || !models.IsLocalDomain(domain)
 }
 
-func isAllowedLocalNoPAAS(spec *models.StackSpec) bool {
-	return spec.PAAS == models.PAASNone &&
-		spec.StackKit == "base-kit" &&
-		spec.Network.Mode == "local" &&
-		spec.Context != string(models.ContextCloud) &&
-		models.IsLocalDomain(spec.Domain) &&
-		len(spec.Apps) == 0
-}
-
 func hasRealOwnerEmail(spec *models.StackSpec) bool {
+	if spec.Owner.EffectiveBootstrapMode() == models.OwnerBootstrapModeAuto {
+		return true
+	}
 	for _, candidate := range []string{spec.Owner.Email, spec.AdminEmail, spec.Email} {
 		candidate = strings.TrimSpace(candidate)
 		if candidate != "" && strings.Contains(candidate, "@") && !models.NeedsSyntheticAdminEmail(candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateOwnerConfig(owner models.OwnerConfig, result *models.ValidationResult) {
+	if owner.IsZero() {
+		return
+	}
+
+	mode := owner.EffectiveBootstrapMode()
+	if !models.IsKnownOwnerBootstrapMode(mode) {
+		addOwnerError(result, "owner.bootstrapMode", fmt.Sprintf("invalid owner bootstrapMode %q (use auto, custom, or none)", owner.BootstrapMode), "INVALID_VALUE")
+		return
+	}
+	if !models.IsKnownOwnerSource(owner.Source) {
+		addOwnerError(result, "owner.source", fmt.Sprintf("invalid owner source %q (use local or cloud)", owner.Source), "INVALID_VALUE")
+		return
+	}
+
+	switch mode {
+	case models.OwnerBootstrapModeNone:
+		if hasOwnerIdentityFields(owner) || owner.RecoveryPassphraseHash != "" || owner.RecoveryMaterialRef != "" || owner.Source != "" {
+			addOwnerError(result, "owner", "owner bootstrapMode none must not include owner identity or recovery material fields", "INVALID_VALUE")
+		}
+	case models.OwnerBootstrapModeAuto:
+		source := strings.ToLower(strings.TrimSpace(owner.Source))
+		if source != "" && source != models.OwnerSourceCloud {
+			addOwnerError(result, "owner.source", "owner bootstrapMode auto must use source cloud when source is set", "INVALID_VALUE")
+		}
+		if owner.RecoveryPassphraseHash == "" && owner.RecoveryMaterialRef == "" {
+			addOwnerError(result, "owner.recoveryMaterialRef", "owner bootstrapMode auto requires recoveryPassphraseHash or recoveryMaterialRef", "REQUIRED_FIELD")
+		}
+		if owner.RecoveryPassphraseHash != "" && !strings.HasPrefix(owner.RecoveryPassphraseHash, "$argon2id$") {
+			addOwnerError(result, "owner.recoveryPassphraseHash", "owner recoveryPassphraseHash must be an argon2id PHC string", "INVALID_VALUE")
+		}
+		if owner.RecoveryMaterialRef != "" && !isRecoveryMaterialRef(owner.RecoveryMaterialRef) {
+			addOwnerError(result, "owner.recoveryMaterialRef", "owner recoveryMaterialRef must be a secret or TechStack recovery reference", "INVALID_VALUE")
+		}
+	case models.OwnerBootstrapModeCustom:
+		source := strings.ToLower(strings.TrimSpace(owner.Source))
+		if source == "" {
+			source = models.OwnerSourceLocal
+		}
+		if source != models.OwnerSourceLocal {
+			addOwnerError(result, "owner.source", "owner bootstrapMode custom must use source local", "INVALID_VALUE")
+		}
+		if strings.TrimSpace(owner.Email) == "" {
+			addOwnerError(result, "owner.email", "owner email is required for custom owner bootstrap", "REQUIRED_FIELD")
+		}
+		if strings.TrimSpace(owner.Username) == "" {
+			addOwnerError(result, "owner.username", "owner username is required for custom owner bootstrap", "REQUIRED_FIELD")
+		}
+		if owner.RecoveryPassphraseHash == "" {
+			addOwnerError(result, "owner.recoveryPassphraseHash", "owner recoveryPassphraseHash is required for custom owner bootstrap", "REQUIRED_FIELD")
+		} else if !strings.HasPrefix(owner.RecoveryPassphraseHash, "$argon2id$") {
+			addOwnerError(result, "owner.recoveryPassphraseHash", "owner recoveryPassphraseHash must be an argon2id PHC string", "INVALID_VALUE")
+		}
+	case "":
+		if !owner.IsZero() {
+			addOwnerError(result, "owner.bootstrapMode", "owner bootstrapMode is required when owner fields are set without source", "REQUIRED_FIELD")
+		}
+	}
+}
+
+func hasOwnerIdentityFields(owner models.OwnerConfig) bool {
+	return strings.TrimSpace(owner.Email) != "" ||
+		strings.TrimSpace(owner.Username) != "" ||
+		strings.TrimSpace(owner.DisplayName) != "" ||
+		strings.TrimSpace(owner.CloudOIDCIssuer) != "" ||
+		strings.TrimSpace(owner.CloudOIDCClientID) != "" ||
+		strings.TrimSpace(owner.CloudOIDCClientSecretRef) != "" ||
+		strings.TrimSpace(owner.CloudOIDCForeignSubject) != ""
+}
+
+func addOwnerError(result *models.ValidationResult, path, message, code string) {
+	result.Valid = false
+	result.Errors = append(result.Errors, models.ValidationError{
+		Path:    path,
+		Message: message,
+		Code:    code,
+	})
+}
+
+func isRecoveryMaterialRef(value string) bool {
+	for _, prefix := range []string{"techstack://", "secret://", "doppler://", "vault://", "env:", "file:"} {
+		if strings.HasPrefix(value, prefix) && len(value) > len(prefix) {
 			return true
 		}
 	}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
+	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/ssh"
 	stackverify "github.com/kombifyio/stackkits/internal/verify"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -87,8 +88,22 @@ func init() {
 	verifyCmd.Flags().StringVar(&verifyRemoteDir, "remote-dir", "/opt/stackkit", "Remote StackKit working directory")
 }
 
-func runVerify(cmd *cobra.Command, args []string) error {
+func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
+	rolloutEvent("verify", "started", "verify started", map[string]string{
+		"remote_host": verifyHost,
+	})
+	defer func() {
+		if retErr != nil {
+			rolloutFailure("verify", retErr)
+			closeRolloutRecorder(rollout.Summary{
+				Status:  "failed",
+				Message: retErr.Error(),
+			})
+			return
+		}
+		rolloutEvent("verify", "succeeded", "verify succeeded", nil)
+	}()
 	if strings.TrimSpace(verifyHost) != "" {
 		report := runRemoteVerify(ctx, remoteVerifyOptions{
 			Host:      verifyHost,
@@ -106,10 +121,19 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	wd := getWorkDir()
 	loader := config.NewLoader(wd)
 
+	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{
+		"spec_file": specFile,
+	})
 	spec, err := loader.LoadStackSpec(specFile)
 	if err != nil {
+		rolloutFailure("spec.load", err)
 		return fmt.Errorf("verify: failed to load spec: %w", err)
 	}
+	rolloutEvent("spec.load", "succeeded", "stack spec loaded", map[string]string{
+		"stackkit": spec.StackKit,
+		"mode":     spec.Mode,
+		"domain":   spec.Domain,
+	})
 
 	state, err := loader.LoadDeploymentState(filepath.Join(wd, ".stackkit", "state.yaml"))
 	if err != nil {

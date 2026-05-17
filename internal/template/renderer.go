@@ -177,33 +177,34 @@ func (r *Renderer) renderTemplate(tmplPath string, ctx *RenderContext) error {
 // defaultFuncMap returns the default template functions
 func (r *Renderer) defaultFuncMap() template.FuncMap {
 	return template.FuncMap{
-		"lower":          strings.ToLower,
-		"upper":          strings.ToUpper,
-		"title":          cases.Title(language.English).String,
-		"trim":           strings.TrimSpace,
-		"replace":        strings.ReplaceAll,
-		"contains":       strings.Contains,
-		"hasPrefix":      strings.HasPrefix,
-		"hasSuffix":      strings.HasSuffix,
-		"join":           strings.Join,
-		"split":          strings.Split,
-		"default":        defaultValue,
-		"quote":          quote,
-		"indent":         indent,
-		"toYaml":         toYaml,
-		"toJson":         toJSON,
-		"toJsonPretty":   toJSONPretty,
-		"ifEnabled":      ifEnabled,
-		"serviceFor":     serviceFor,
-		"envMap":         envMap,
-		"labelMap":       labelMap,
-		"portList":       portList,
-		"catalogSection": catalogSection,
-		"hasEnableVar":   hasEnableVar,
-		"htmlText":       htmlText,
-		"htmlAttr":       htmlAttr,
-		"publicGuideURL": publicGuideURL,
-		"serviceHint":    serviceHint,
+		"lower":                strings.ToLower,
+		"upper":                strings.ToUpper,
+		"title":                cases.Title(language.English).String,
+		"trim":                 strings.TrimSpace,
+		"replace":              strings.ReplaceAll,
+		"contains":             strings.Contains,
+		"hasPrefix":            strings.HasPrefix,
+		"hasSuffix":            strings.HasSuffix,
+		"join":                 strings.Join,
+		"split":                strings.Split,
+		"default":              defaultValue,
+		"quote":                quote,
+		"indent":               indent,
+		"toYaml":               toYaml,
+		"toJson":               toJSON,
+		"toJsonPretty":         toJSONPretty,
+		"ifEnabled":            ifEnabled,
+		"serviceFor":           serviceFor,
+		"envMap":               envMap,
+		"labelMap":             labelMap,
+		"portList":             portList,
+		"catalogSection":       catalogSection,
+		"hasEnableVar":         hasEnableVar,
+		"htmlText":             htmlText,
+		"htmlAttr":             htmlAttr,
+		"publicGuideURL":       publicGuideURL,
+		"serviceHint":          serviceHint,
+		"setupActionAvailable": setupActionAvailable,
 	}
 }
 
@@ -392,6 +393,10 @@ func serviceHint(e servicecatalog.Service) string {
 	default:
 		return "Local service"
 	}
+}
+
+func setupActionAvailable(e servicecatalog.Service) bool {
+	return e.SetupPolicy == servicecatalog.SetupPolicyOnDemand
 }
 
 // validateHCLValue checks that a string is safe to embed in HCL.

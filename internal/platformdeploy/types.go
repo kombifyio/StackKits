@@ -1,6 +1,6 @@
-// Package platformdeploy contains the StackKit boundary for platform-managed
-// application rollouts. OpenTofu owns platform installation; this package owns
-// application registration and deploy operations against that platform.
+// Package platformdeploy contains the StackKit boundary for PaaS handoff and
+// StackKit-owned system app operations. OpenTofu owns platform installation;
+// external PaaS tools own customer/user application deployment and lifecycle.
 package platformdeploy
 
 import (
@@ -12,7 +12,7 @@ import (
 )
 
 // BundleManifest is the generated handoff from StackKit generation to the
-// platform deployment adapter.
+// selected PaaS. User apps are handoff metadata; systemApps are StackKit-owned.
 type BundleManifest struct {
 	Version    string              `json:"version"`
 	Platform   string              `json:"platform"`
@@ -21,14 +21,13 @@ type BundleManifest struct {
 }
 
 // SystemAppManifest describes a StackKit-owned control-plane application that
-// is deployed through the same platform adapter as user applications.
+// StackKit may deploy through the selected platform adapter.
 type SystemAppManifest struct {
 	AppManifest
 	Role string `json:"role,omitempty"`
 }
 
-// AppManifest describes one generated compose bundle that must be registered
-// with a platform adapter instead of run directly with Docker.
+// AppManifest describes one generated compose bundle for PaaS handoff.
 type AppManifest struct {
 	Name        string              `json:"name"`
 	Kind        string              `json:"kind,omitempty"`

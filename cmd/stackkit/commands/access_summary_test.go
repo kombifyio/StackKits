@@ -24,7 +24,8 @@ func TestBuildAccessSummary_KombifyMeUsesCanonicalServiceSlugs(t *testing.T) {
 		"enable_dashboard":   true,
 		"enable_tinyauth":    true,
 		"enable_pocketid":    true,
-		"enable_dokploy":     true,
+		"enable_coolify":     true,
+		"enable_dokploy":     false,
 		"enable_uptime_kuma": true,
 		"enable_vaultwarden": true,
 		"enable_jellyfin":    false,
@@ -38,7 +39,7 @@ func TestBuildAccessSummary_KombifyMeUsesCanonicalServiceSlugs(t *testing.T) {
 	assert.Equal(t, "https://sh-cloud-abc123-base.kombify.me", urls["base"])
 	assert.Equal(t, "https://sh-cloud-abc123-auth.kombify.me", urls["auth"])
 	assert.Equal(t, "https://sh-cloud-abc123-id.kombify.me", urls["id"])
-	assert.Equal(t, "https://sh-cloud-abc123-dokploy.kombify.me", urls["dokploy"])
+	assert.Equal(t, "https://sh-cloud-abc123-coolify.kombify.me", urls["coolify"])
 	assert.Equal(t, "https://sh-cloud-abc123-kuma.kombify.me", urls["kuma"])
 
 	services := servicesByAccessKey(summary)
@@ -50,7 +51,7 @@ func TestBuildAccessSummary_KombifyMeUsesCanonicalServiceSlugs(t *testing.T) {
 	assert.Equal(t, "id", services["id"].RouteSlug)
 }
 
-func TestBuildAccessSummary_LocalUsesNestedHTTPSHub(t *testing.T) {
+func TestBuildAccessSummary_LocalDefaultUsesBrowserNativeLocalhostHub(t *testing.T) {
 	spec := &models.StackSpec{
 		Name:     "local-lab",
 		StackKit: "base-kit",
@@ -59,7 +60,7 @@ func TestBuildAccessSummary_LocalUsesNestedHTTPSHub(t *testing.T) {
 	}
 	tfvars := map[string]any{
 		"domain":             models.DomainHomeLab,
-		"enable_https":       true,
+		"enable_https":       false,
 		"enable_dashboard":   true,
 		"enable_tinyauth":    true,
 		"enable_pocketid":    true,
@@ -70,24 +71,24 @@ func TestBuildAccessSummary_LocalUsesNestedHTTPSHub(t *testing.T) {
 
 	summary := buildAccessSummaryFromInputs(spec, tfvars, servicecatalog.Default())
 
-	require.Equal(t, "https://base.stack.home", summary.HubURL)
+	require.Equal(t, "http://base.home.localhost", summary.HubURL)
 	urls := serviceURLMap(summary)
-	assert.Equal(t, "https://base.stack.home", urls["base"])
-	assert.Equal(t, "https://auth.stack.home", urls["auth"])
-	assert.Equal(t, "https://id.stack.home", urls["id"])
-	assert.Equal(t, "https://dockge.stack.home", urls["dockge"])
+	assert.Equal(t, "http://base.home.localhost", urls["base"])
+	assert.Equal(t, "http://auth.home.localhost", urls["auth"])
+	assert.Equal(t, "http://id.home.localhost", urls["id"])
+	assert.Equal(t, "http://dockge.home.localhost", urls["dockge"])
 	assert.NotContains(t, urls, "dokploy")
 }
 
-func TestBuildAccessSummary_LocalDNSIncludesKombifyPoint(t *testing.T) {
+func TestBuildAccessSummary_ExplicitLocalDNSIncludesKombifyPoint(t *testing.T) {
 	spec := &models.StackSpec{
 		Name:     "lan-lab",
 		StackKit: "base-kit",
 		Mode:     "simple",
-		Domain:   models.DomainHomeLab,
+		Domain:   models.DomainStackHome,
 	}
 	tfvars := map[string]any{
-		"domain":               models.DomainHomeLab,
+		"domain":               models.DomainStackHome,
 		"enable_https":         true,
 		"enable_dashboard":     true,
 		"enable_tinyauth":      true,

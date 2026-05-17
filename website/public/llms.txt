@@ -1,0 +1,17 @@
+# StackKits
+
+StackKits is an infrastructure blueprint system for autonomous homelab rollout from declarative StackSpec and CUE contracts.
+
+BaseKit is the verified beta one-click path. Modern Homelab and HA Kit are alpha/scaffolding until their matrices graduate. Current BaseKit evidence proves the local fallback path plus auth/setup guards; Cubi/Coolify-managed L3 rollout remains a documented blocker.
+
+Agent entrypoints:
+
+- Full context: /llms-full.txt
+- Snippets and prompts: /llms-snippets.txt
+- Agent guide: /getting-started/agents.md
+- MCP guide: /mcp/stackkit-mcp.md
+- OpenAPI: /api/openapi.v1.yaml
+- Run manifest schema: /schemas/stackkit-agent-run-manifest.schema.json
+- Functional result schema: /schemas/stackkit-agent-functional-result.schema.json
+
+Canonical local BaseKit Hub URL: http://base.home.localhost

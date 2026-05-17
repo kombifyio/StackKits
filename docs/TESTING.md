@@ -1,6 +1,6 @@
 # Testing — kombify StackKits
 
-> Last verified: 2026-05-13
+> Last verified: 2026-05-17
 
 Use the smallest gate that proves the changed surface, then broaden when a shared contract changed.
 
@@ -14,8 +14,9 @@ Use the smallest gate that proves the changed surface, then broaden when a share
 | Static analysis | `go vet ./...`, `golangci-lint run ./...` | Compiler-adjacent and configured lint checks. |
 | CUE schemas | `cue vet ./base/... ./base-kit/... ./modern-homelab/... ./ha-kit/...` | Kit and base schema validation. |
 | Module CUE | `cue vet -c=false ./modules/...` | Module contract validation with incomplete values allowed. |
-| CUE binding | `make test-cue-binding` | Module contracts plus Go binding/composition/generate packages. |
-| Website | `mise run test:website` | Static website structure, links, scripts, and build output. |
+| CUE binding | `mise run test:cue-binding` | Module contracts plus Go binding/composition/generate packages. |
+| Website | `mise run test:website` | Cross-platform static website structure, installer scripts, Pages routing metadata, links, and build output. |
+| Agent docs and MCP | `mise run test:website`; `go test ./cmd/stackkit-mcp ./cmd/stackkit/commands ./internal/api` | Public `llms.txt`, prompt Markdown, schema/OpenAPI mirrors, CLI agent helpers, MCP tool gating, and node-local management endpoints. |
 | Release-note surface | `node --test scripts/release/changelog.test.mjs` | Parser coverage for website changelog JSON and public release notes. |
 | Public release-note export | `node --test scripts/release/changelog.test.mjs && npm --prefix website run build` | Public website release-note JSON and built changelog section. |
 | API/OpenAPI | `go test ./internal/api ./api/openapi/...` | API handler and OpenAPI embed behavior. |
@@ -25,7 +26,7 @@ Use the smallest gate that proves the changed surface, then broaden when a share
 | Vulnerability scan | `govulncheck ./...` | Reachable Go vulnerability detection. |
 | Docker build | `docker build .` | Server image build verification. |
 | BaseKit fresh Ubuntu VM | `mise run test:vm:local` | SK-S1 fresh target path: prepare, init, generate, apply, verify Hub and default services. |
-| Release archive toolchain | `bash scripts/release/validate-release-archives.sh dist` | Public archives must contain `stackkit`, packaged `tofu`, root `cue.mod`, shared `base/`, kit definitions, and required `modules/`; the BaseKit archive must also run `init` and `generate` from extracted release content. |
+| Release archive toolchain | `bash scripts/release/validate-release-archives.sh dist` | Public archives must contain `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged `tofu`, root `cue.mod`, shared `base/`, kit definitions, and required `modules/`; the BaseKit and full CLI/catalog archives must run `init` and `generate` from extracted release content. |
 
 ## Local-First Rule
 
@@ -35,17 +36,30 @@ Local gates MUST NOT rely on a host-installed OpenTofu binary. OpenTofu is a Sta
 
 Release archive gates MUST NOT rely on the repo checkout for CUE imports or module contracts. Build the snapshot with GoReleaser, extract the archive, copy only the released files into a fresh home directory, and prove that `stackkit init` plus `stackkit generate` creates non-empty identity runtime values such as `admin_email` and `tinyauth_users`.
 
+## Local Demo Rollouts
+
+Local demos MUST be real StackKit rollouts. The dev orchestrator may start two BaseKit paths:
+
+- **Base Kit Installer**: runs the public one-line installer (`https://base.stackkit.cc`) with `STACKKIT_ADMIN_EMAIL`/`KOMBIFY_USER_EMAIL` supplied from `STACKKIT_DEMO_ADMIN_EMAIL`.
+- **Base Kit CLI**: runs `stackkit init base-kit`, `stackkit generate`, and `stackkit apply` directly through the repo's CLI container.
+
+The installer path exercises the CLI implicitly because the installer installs and invokes `stackkit prepare`, `stackkit init`, `stackkit generate`, and `stackkit apply`. Keep the direct CLI path as a separate gate so installer breakage and CLI breakage are distinguishable.
+
+The orchestrator targets `STACKKIT_DEMO_DOCKER_HOST` (default `tcp://vm:2375`) and does not start a different VM as a side effect of pressing Start. For the persistent VM profile, set `STACKKIT_DEMO_DOCKER_HOST=tcp://vm-persistent:2375` and `STACKKIT_DEMO_VM_CONTAINER=stackkits-vm-persistent`.
+
+Do not add hand-authored demo `docker-compose.yml` rollout paths to the orchestrator. The only local user-facing Hub link for BaseKit is `http://base.home.localhost`; local demo links MUST NOT contain ports, hosts-file instructions, manual DNS mapping, browser proxy setup, trust-store setup, or invented per-kit Hub hostnames such as `modern.home.localhost` or `ha.home.localhost`.
+
 For code, CUE, config, deployment, or user-facing behavior changes:
 
 ```bash
 go test ./...
 cue vet ./base/... ./base-kit/... ./modern-homelab/... ./ha-kit/...
-make test-cue-binding
+mise run test:cue-binding
 ```
 
 ## Release Candidate Preflight
 
-Before the first official OSS release, and before every tag that should reach `kombifyio/stackKits`, run the SpeechKit-style public-surface gate from the private repo:
+Before every tag that should reach `kombifyio/stackKits`, run the SpeechKit-style public-surface gate from the private development repo:
 
 ```powershell
 node --test scripts/release/changelog.test.mjs && npm --prefix website run build
@@ -56,19 +70,20 @@ The preflight verifies:
 - focused Go release packages,
 - kit CUE contracts,
 - `CHANGELOG.md` release-note parsing,
-- `website/build/changelog.json` and the `Latest Release Notes` website section,
+- installer shell routes, `website/dist/changelog.json`, and the `Latest Release Notes` website section,
 - sanitized allowlist export from `scripts/public/export-manifest.txt`,
 - Go tests in the exported public tree,
 - release and live-test workflow syntax through `actionlint`.
 - release archive installability via `scripts/release/validate-release-archives.sh` in the public workflow.
+- GitHub Artifact Attestations for public release files and the GHCR server image.
 
 Use `-SkipCue`, `-SkipGoTests`, `-SkipWebsite`, or `-SkipActionlint` only for narrow local debugging. A release-candidate receipt should use the full command.
 
-When installer URLs or website routing change, verify the live one-liner endpoints after deployment. `https://stackkit.cc/install` and related public shell endpoints must return executable shell, not an HTML fallback page. Raw GitHub URLs are acceptable fallback evidence, but they do not prove the short public endpoint.
+When installer URLs or website routing change, verify the live one-liner endpoints after deployment. `https://install.stackkit.cc` and `https://base.stackkit.cc` are canonical BaseKit one-line installer paths and must return executable shell, not an HTML fallback page. `https://modern.stackkit.cc` and `https://ha.stackkit.cc` may return shell preview entrypoints, but they must warn that the kits are alpha/scaffolding. Raw GitHub URLs are acceptable fallback evidence, but they do not prove the public short endpoint.
 
 ## Canonical Scenarios
 
-[STACKKIT_TEST_SCENARIOS.md](STACKKIT_TEST_SCENARIOS.md) defines the canonical scenario set for topology, domain mode, identity bootstrap, platform adapter selection, and application placement.
+private StackKit scenario catalog defines the canonical scenario set for topology, domain mode, identity bootstrap, platform adapter selection, and application placement.
 
 Every new module should map to at least one canonical scenario before it becomes part of the release default.
 
@@ -84,6 +99,22 @@ Important targets:
 
 When Docker Hub rate-limits anonymous pulls, seed the Ubuntu VM target with either `STACKKIT_FRESH_VM_DOCKER_CONFIG` or `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON`.
 
+The fresh Ubuntu gate is no longer a pure liveness smoke. For BaseKit local
+defaults it must also prove:
+
+- fixed host ports are free before Docker resources are created,
+- protected/default services do not answer anonymous requests with `2xx`,
+- `stackkit-server` can read `deploy/.platform-apps-manifest.json`,
+- the Photos/Immich on-demand setup drop can execute from the node-local API,
+- expensive phases are logged so slow local runs show progress.
+
+Explicit `public-unauthenticated` L3 services are allowed, but they are a separate access-policy case and must not be inferred from the BaseKit default path.
+
+Known release blocker: the Cubi/Coolify-managed application-layer contract is
+tracked in Beads as `kombify-StackKits-85x`. Until that P0 is resolved, a local
+SK-S1 pass proves the current direct-compose fallback path plus auth/setup
+guards, not a complete Cubi-managed L3 rollout.
+
 ## First BaseKit Live Test Sequence
 
 Use this sequence for the first BaseKit live validation after the preflight passes:
@@ -93,7 +124,11 @@ Use this sequence for the first BaseKit live validation after the preflight pass
 3. Ensure `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON` is configured in GitHub Actions secrets, or provide `STACKKIT_FRESH_VM_DOCKER_CONFIG` locally.
 4. Dispatch `.github/workflows/production-tests.yml` with `run_basekit_live=true`, `run_live_sim=false`, and `run_installer=false`.
 5. Verify the `stackkit-SK-S1-homelab` artifact contains `status=success`, the Hub URL, browser URL, default service URLs, target metadata, and logs hint.
-6. Only after SK-S1 passes, run the public-history reset/tag path described in private release runbook.
+6. Only after SK-S1 passes, run the tag publish path described in private release runbook.
+
+SvelteKit app rollouts are not StackKit release gates. StackKit validates the
+PaaS, routing baseline, generated handoff manifests, and status evidence; the
+selected PaaS owns user app deployment and lifecycle.
 
 ## Post-Deployment Verification
 

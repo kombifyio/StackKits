@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 
 	cueval "github.com/kombifyio/stackkits/internal/cue"
@@ -360,8 +361,9 @@ func (e *CompositionEngine) resolveIdentity(result *CompositionResult) error {
 	}
 	ic.AdminEmail = models.NormalizeAdminEmail(adminEmail, e.spec.Domain, e.spec.SubdomainPrefix)
 
-	// Generate admin password
-	adminPwd, err := generateRandomHex(16)
+	// Generate an admin password that satisfies Coolify's root-user bootstrap
+	// rules: lower/upper case letters, numbers, and a symbol.
+	adminPwd, err := generateAdminPassword(24)
 	if err != nil {
 		return fmt.Errorf("generate admin password: %w", err)
 	}
@@ -566,4 +568,49 @@ func generateRandomHex(byteLen int) (string, error) {
 		return "", fmt.Errorf("crypto/rand.Read failed: %w", err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func generateAdminPassword(length int) (string, error) {
+	if length < 12 {
+		length = 12
+	}
+	classes := []string{
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+		"abcdefghijklmnopqrstuvwxyz",
+		"0123456789",
+		"!@#$%^&*()-_=+",
+	}
+	all := strings.Join(classes, "")
+	out := make([]byte, 0, length)
+	for _, class := range classes {
+		ch, err := randomChar(class)
+		if err != nil {
+			return "", err
+		}
+		out = append(out, ch)
+	}
+	for len(out) < length {
+		ch, err := randomChar(all)
+		if err != nil {
+			return "", err
+		}
+		out = append(out, ch)
+	}
+	for i := len(out) - 1; i > 0; i-- {
+		jBig, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+		if err != nil {
+			return "", fmt.Errorf("crypto/rand.Int failed: %w", err)
+		}
+		j := int(jBig.Int64())
+		out[i], out[j] = out[j], out[i]
+	}
+	return string(out), nil
+}
+
+func randomChar(charset string) (byte, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+	if err != nil {
+		return 0, fmt.Errorf("crypto/rand.Int failed: %w", err)
+	}
+	return charset[n.Int64()], nil
 }

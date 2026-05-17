@@ -1,0 +1,56 @@
+# StackKits Agent Context
+
+StackKits is a local CLI plus node-local server framework for deploying homelab infrastructure from declarative specs. CUE is the source of truth for schemas, defaults, constraints, module contracts, and deployment shape. Generated OpenTofu, Docker Compose, scripts, tfvars, state, and snapshots are outputs.
+
+## Release Stance
+
+BaseKit is the verified beta path for the current one-click OSS surface:
+
+```bash
+curl -sSL https://base.stackkit.cc | sh
+```
+
+Modern Homelab and HA Kit are alpha/scaffolding definitions. They are visible for exploration, not production one-click deployment.
+
+Current BaseKit evidence proves the local direct-compose fallback plus auth/setup guards. The complete Cubi/Coolify-managed L3 application path remains a documented blocker and must not be treated as verified rollout evidence.
+
+## Agent Workflow
+
+Use non-interactive commands and JSON output where available:
+
+```bash
+stackkit agent install-plan --json
+stackkit agent self-check --json
+stackkit agent prompt basekit-autonomous-rollout
+stackkit init base-kit --non-interactive --admin-email admin@example.com
+stackkit prepare --dry-run
+stackkit validate
+stackkit generate --force
+stackkit plan
+stackkit status --json
+stackkit verify --http --json
+stackkit logs list --json
+stackkit doctor --json
+```
+
+Never hand-edit generated rollout artifacts. Change StackSpec, CUE, or Go source, then regenerate.
+
+## Local API
+
+`stackkit-server` is the node-local API surface. It is not a required hosted cloud service. Read-only management endpoints include status, verify, doctor, plan preview, logs, and run evidence. Mutating management APIs are disabled by default.
+
+OpenAPI mirror: /api/openapi.v1.yaml
+
+## MCP
+
+`stackkit-mcp` is installed with the CLI and runs as a local agent bridge. Default transport is stdio. HTTP transport binds to loopback by default. Write tools require `STACKKIT_MCP_ALLOW_WRITE=true`.
+
+## Evidence
+
+A release-hardening agent run should produce:
+
+- manifest matching /schemas/stackkit-agent-run-manifest.schema.json
+- functional result matching /schemas/stackkit-agent-functional-result.schema.json
+- `stackkit verify --http --json` output
+- latest run ID and evidence files
+- Hub URL `http://base.home.localhost`

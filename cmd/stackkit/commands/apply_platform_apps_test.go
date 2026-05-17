@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +23,7 @@ func TestPlatformAdapterForBundleUsesLocalComposeForNone(t *testing.T) {
 	assert.NotNil(t, adapter)
 }
 
-func TestRecordPlatformAppStateSeparatesSystemApps(t *testing.T) {
+func TestRecordPlatformAppStateOnlyRecordsSystemApps(t *testing.T) {
 	state := &models.DeploymentState{}
 	bundle := platformdeploy.BundleManifest{
 		Platform: models.PAASDokploy,
@@ -55,21 +56,17 @@ func TestRecordPlatformAppStateSeparatesSystemApps(t *testing.T) {
 	assert.Equal(t, "stackkit-hub", state.PlatformSystemApps[0].Name)
 	assert.Equal(t, "node-hub", state.PlatformSystemApps[0].Role)
 	assert.Equal(t, ".stackkit-hub-compose.yaml", state.PlatformSystemApps[0].ComposePath)
-	require.Len(t, state.PlatformApps, 1)
-	assert.Equal(t, "immich", state.PlatformApps[0].Name)
-	assert.Empty(t, state.PlatformApps[0].Role)
-	assert.Equal(t, platformdeploy.SetupPolicyManual, state.PlatformApps[0].SetupPolicy)
-	require.Len(t, state.PlatformApps[0].SetupDrops, 1)
-	assert.Equal(t, "immich-owner-bootstrap", state.PlatformApps[0].SetupDrops[0].Name)
+	assert.Empty(t, state.PlatformApps, "user app deployment refs must not be recorded by StackKit")
 	assert.Empty(t, state.SetupRuns, "manual setup drops are metadata until explicitly requested")
 }
 
-func TestRecordPlatformAppStateUpsertsExistingApps(t *testing.T) {
+func TestRecordPlatformAppStateUpsertsExistingSystemApps(t *testing.T) {
 	state := &models.DeploymentState{
 		PlatformApps: []models.PlatformAppState{{
-			Name:       "web",
-			Platform:   models.PAASDokploy,
-			ExternalID: "old-web",
+			Name:        "web",
+			Platform:    models.PAASDokploy,
+			ExternalID:  "old-web",
+			ComposePath: "old-web.compose.yaml",
 		}},
 		PlatformSystemApps: []models.PlatformAppState{{
 			Name:       "stackkit-hub",
@@ -99,7 +96,35 @@ func TestRecordPlatformAppStateUpsertsExistingApps(t *testing.T) {
 	assert.Equal(t, "new-hub", state.PlatformSystemApps[0].ExternalID)
 	assert.Equal(t, ".hub.compose.yaml", state.PlatformSystemApps[0].ComposePath)
 	require.Len(t, state.PlatformApps, 1)
-	assert.Equal(t, "new-web", state.PlatformApps[0].ExternalID)
+	assert.Equal(t, "old-web", state.PlatformApps[0].ExternalID)
+	assert.Equal(t, "old-web.compose.yaml", state.PlatformApps[0].ComposePath)
+}
+
+func TestRecordPlatformAppHandoffsClearsLegacyDeploymentIDs(t *testing.T) {
+	state := &models.DeploymentState{
+		PlatformApps: []models.PlatformAppState{{
+			Name:         "web",
+			Platform:     models.PAASDokploy,
+			ExternalID:   "legacy-web",
+			DeploymentID: "legacy-deploy",
+		}},
+	}
+	bundle := platformdeploy.BundleManifest{
+		Platform: models.PAASDokploy,
+		Apps: []platformdeploy.AppManifest{{
+			Name:        "web",
+			ManagedBy:   models.PAASDokploy,
+			ComposePath: "platform-apps/web.compose.yaml",
+			SetupPolicy: platformdeploy.SetupPolicyManual,
+		}},
+	}
+
+	recordPlatformAppHandoffs(state, bundle)
+
+	require.Len(t, state.PlatformApps, 1)
+	assert.Equal(t, "web", state.PlatformApps[0].Name)
+	assert.Empty(t, state.PlatformApps[0].ExternalID)
+	assert.Empty(t, state.PlatformApps[0].DeploymentID)
 	assert.Equal(t, "platform-apps/web.compose.yaml", state.PlatformApps[0].ComposePath)
 }
 
@@ -130,7 +155,68 @@ func TestPlatformAdapterConfigUsesPersistedConfigWhenEnvMissing(t *testing.T) {
 	assert.Equal(t, "server-1", cfg.ServerID)
 }
 
-func TestRunPlatformAppDeploymentsFailsWhenUserAppsNeedUnconfiguredPlatform(t *testing.T) {
+func TestPersistPlatformConfigFromSpecEnvironmentRejectsIncompleteConfig(t *testing.T) {
+	tmp := t.TempDir()
+	spec := &models.StackSpec{
+		PAAS: models.PAASCoolify,
+		Environment: map[string]string{
+			"STACKKIT_PLATFORM_ENDPOINT": "https://coolify.example.test",
+		},
+	}
+
+	err := persistPlatformConfigFromSpecEnvironment(spec, tmp)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "platform config is incomplete")
+	if _, statErr := os.Stat(filepath.Join(tmp, ".stackkit", "platform.json")); !os.IsNotExist(statErr) {
+		t.Fatalf("platform config should not be written for incomplete config, statErr=%v", statErr)
+	}
+}
+
+func TestPersistPlatformConfigFromSpecEnvironmentDefaultsGenericConfigToCoolify(t *testing.T) {
+	tmp := t.TempDir()
+	spec := &models.StackSpec{
+		PAAS: models.PAASNone,
+		Environment: map[string]string{
+			"STACKKIT_PLATFORM_ENDPOINT": "https://coolify.example.test",
+			"STACKKIT_PLATFORM_TOKEN":    "platform-token",
+		},
+	}
+
+	err := persistPlatformConfigFromSpecEnvironment(spec, tmp)
+
+	require.NoError(t, err)
+	data, err := os.ReadFile(filepath.Join(tmp, ".stackkit", "platform.json"))
+	require.NoError(t, err)
+	var cfg platformConfigFile
+	require.NoError(t, json.Unmarshal(data, &cfg))
+	assert.Equal(t, models.PAASCoolify, cfg.Platform)
+	assert.Equal(t, "https://coolify.example.test", cfg.Endpoint)
+	assert.Equal(t, "platform-token", cfg.Token)
+	assert.NotContains(t, spec.Environment, "STACKKIT_PLATFORM_TOKEN")
+}
+
+func TestPersistPlatformConfigFromSpecEnvironmentRejectsUnsupportedPlatform(t *testing.T) {
+	tmp := t.TempDir()
+	spec := &models.StackSpec{
+		PAAS: models.PAASCoolify,
+		Environment: map[string]string{
+			"STACKKIT_PLATFORM":          "fly",
+			"STACKKIT_PLATFORM_ENDPOINT": "https://fly.example.test",
+			"STACKKIT_PLATFORM_TOKEN":    "platform-token",
+		},
+	}
+
+	err := persistPlatformConfigFromSpecEnvironment(spec, tmp)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported tenant spec platform config")
+	if _, statErr := os.Stat(filepath.Join(tmp, ".stackkit", "platform.json")); !os.IsNotExist(statErr) {
+		t.Fatalf("platform config should not be written for unsupported platform, statErr=%v", statErr)
+	}
+}
+
+func TestRunPlatformAppDeploymentsRecordsUserAppHandoffWithoutPlatformConfig(t *testing.T) {
 	t.Setenv("STACKKIT_PLATFORM_ENDPOINT", "")
 	t.Setenv("STACKKIT_PLATFORM_TOKEN", "")
 	t.Setenv("DOKPLOY_API_URL", "")
@@ -151,9 +237,14 @@ func TestRunPlatformAppDeploymentsFailsWhenUserAppsNeedUnconfiguredPlatform(t *t
   }]
 }`), 0600))
 
-	err := runPlatformAppDeployments(context.Background(), deployDir, &models.DeploymentState{})
+	state := &models.DeploymentState{}
+	err := runPlatformAppDeployments(context.Background(), deployDir, state)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "platform app rollout for dokploy requires API endpoint and token")
-	assert.Contains(t, err.Error(), "STACKKIT_PLATFORM_ENDPOINT")
+	require.NoError(t, err)
+	require.Len(t, state.PlatformApps, 1)
+	assert.Equal(t, "web", state.PlatformApps[0].Name)
+	assert.Equal(t, models.PAASDokploy, state.PlatformApps[0].Platform)
+	assert.Equal(t, "platform-apps/web.compose.yaml", state.PlatformApps[0].ComposePath)
+	assert.Empty(t, state.PlatformApps[0].ExternalID)
+	assert.Empty(t, state.PlatformApps[0].DeploymentID)
 }

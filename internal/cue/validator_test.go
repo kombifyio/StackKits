@@ -178,7 +178,7 @@ func TestValidateSpec(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts local base kit without paas adapter", func(t *testing.T) {
+	t.Run("rejects local base kit without paas adapter", func(t *testing.T) {
 		spec := &models.StackSpec{
 			Name:       "test",
 			StackKit:   "base-kit",
@@ -192,7 +192,10 @@ func TestValidateSpec(t *testing.T) {
 		result, err := validator.ValidateSpec(spec)
 
 		require.NoError(t, err)
-		assert.True(t, result.Valid, "local Base Kit paas=none should validate: %#v", result.Errors)
+		assert.False(t, result.Valid, "local Base Kit paas=none should be rejected")
+		assert.Contains(t, validationErrorPaths(result.Errors), "paas")
+		require.NotEmpty(t, result.Errors)
+		assert.Contains(t, result.Errors[0].Message, "dokploy")
 	})
 
 	t.Run("rejects local base kit with apps and no paas adapter", func(t *testing.T) {
@@ -354,6 +357,67 @@ func TestValidateSpec(t *testing.T) {
 			}
 		}
 		assert.True(t, hasEmailError)
+	})
+
+	t.Run("accepts SaaS auto owner without owner username or owner email", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Context:  string(models.ContextCloud),
+			Domain:   "kombify.me",
+			Network:  models.NetworkSpec{Mode: "public"},
+			Owner: models.OwnerConfig{
+				BootstrapMode:       models.OwnerBootstrapModeAuto,
+				Source:              models.OwnerSourceCloud,
+				RecoveryMaterialRef: "techstack://recovery/stacks/test",
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.True(t, result.Valid, "expected SaaS auto owner to validate without owner.email/owner.username: %#v", result.Errors)
+	})
+
+	t.Run("rejects custom owner without explicit owner identity", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:       "test",
+			StackKit:   "base-kit",
+			Context:    string(models.ContextLocal),
+			Domain:     models.DomainHomeLab,
+			AdminEmail: "admin@home.localhost",
+			Network:    models.NetworkSpec{Mode: "local"},
+			Owner: models.OwnerConfig{
+				BootstrapMode:          models.OwnerBootstrapModeCustom,
+				Source:                 models.OwnerSourceLocal,
+				RecoveryPassphraseHash: "$argon2id$v=19$m=65536,t=3,p=4$dGVzdHNhbHQ$dGVzdGhhc2g",
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "owner.email")
+		assert.Contains(t, validationErrorPaths(result.Errors), "owner.username")
+	})
+
+	t.Run("accepts explicit owner none lane for OSS BYOS specs", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			Context:  string(models.ContextLocal),
+			Domain:   models.DomainHomeLab,
+			Network:  models.NetworkSpec{Mode: "local"},
+			Owner: models.OwnerConfig{
+				BootstrapMode: models.OwnerBootstrapModeNone,
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.True(t, result.Valid, "expected owner bootstrap none to validate: %#v", result.Errors)
 	})
 
 	t.Run("validates sveltekit app contract", func(t *testing.T) {

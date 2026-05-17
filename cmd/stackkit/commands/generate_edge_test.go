@@ -26,11 +26,11 @@ func TestEdgeCases_MinimalSpec(t *testing.T) {
 	assert.Equal(t, models.DomainHomeLab, stringVar(t, vars, "domain"))
 	assert.Equal(t, "base_net", stringVar(t, vars, "network_name"))
 	assert.Equal(t, "", stringVar(t, vars, "network_subnet"))
-	assert.True(t, boolVar(t, vars, "enable_https"))
-	assert.True(t, boolVar(t, vars, "enable_dnsmasq"))
-	assert.True(t, boolVar(t, vars, "enable_kombify_point"))
-	assert.True(t, boolVar(t, vars, "step_ca_enabled"))
-	assert.Equal(t, "admin@stack.home", stringVar(t, vars, "admin_email"))
+	assert.False(t, boolVar(t, vars, "enable_https"))
+	assert.False(t, boolVar(t, vars, "enable_dnsmasq"))
+	assert.False(t, boolVar(t, vars, "enable_kombify_point"))
+	assert.False(t, boolVar(t, vars, "step_ca_enabled"))
+	assert.Equal(t, "admin@home.localhost", stringVar(t, vars, "admin_email"))
 	assert.Equal(t, "minimal", stringVar(t, vars, "dashboard_title"))
 	assert.Equal(t, "#F97316", stringVar(t, vars, "brand_color"))
 	assert.Equal(t, "bridge", stringVar(t, vars, "network_mode"))
@@ -52,10 +52,10 @@ func TestEdgeCases_EmptySpec(t *testing.T) {
 
 	// Dashboard title defaults to "My Homelab" when Name is empty
 	assert.Equal(t, "My Homelab", stringVar(t, vars, "dashboard_title"))
-	assert.Equal(t, "admin@stack.home", stringVar(t, vars, "admin_email"))
+	assert.Equal(t, "admin@home.localhost", stringVar(t, vars, "admin_email"))
 }
 
-// TestEdgeCases_NoNodes verifies local mode defaults to Kombify Point names.
+// TestEdgeCases_NoNodes verifies local mode defaults to browser-native names.
 func TestEdgeCases_NoNodes(t *testing.T) {
 	setCapabilitiesHome(t, models.ContextLocal)
 
@@ -65,8 +65,8 @@ func TestEdgeCases_NoNodes(t *testing.T) {
 
 	vars := decodeTFVars(t, spec)
 
-	assert.True(t, boolVar(t, vars, "enable_dnsmasq"), "stack.home enables Kombify Point")
-	assert.True(t, boolVar(t, vars, "enable_kombify_point"), "stack.home is the Kombify Point default zone")
+	assert.False(t, boolVar(t, vars, "enable_dnsmasq"), "home.localhost does not need Kombify Point")
+	assert.False(t, boolVar(t, vars, "enable_kombify_point"), "home.localhost is browser-native")
 }
 
 // TestEdgeCases_NodeWithEmptyIP verifies that a node with no IP falls back
@@ -76,7 +76,7 @@ func TestEdgeCases_NodeWithEmptyIP(t *testing.T) {
 
 	spec := &models.StackSpec{
 		Name:   "empty-ip-node",
-		Domain: models.DomainHomeLab,
+		Domain: models.DomainStackHome,
 		Nodes: []models.NodeSpec{
 			{Name: "node1", Role: "standalone"},
 		},

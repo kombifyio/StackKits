@@ -17,6 +17,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/internal/template"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -51,9 +52,21 @@ func init() {
 	generateCmd.Flags().BoolVar(&genFragments, "fragments", false, "Generate experimental per-module OpenTofu fragments instead of the stable Base Kit template")
 }
 
-func runGenerate(cmd *cobra.Command, args []string) error {
+func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 	start := time.Now()
 	wd := getWorkDir()
+	rolloutEvent("generate", "started", "generate started", nil)
+	defer func() {
+		if retErr != nil {
+			rolloutFailure("generate", retErr)
+			closeRolloutRecorder(rollout.Summary{
+				Status:  "failed",
+				Message: retErr.Error(),
+			})
+			return
+		}
+		rolloutEvent("generate", "succeeded", "generate succeeded", nil)
+	}()
 
 	// Validate output directory to prevent path traversal
 	if strings.Contains(genOutputDir, "..") {
@@ -69,10 +82,19 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	// Load spec (loader.resolvePath handles absolute vs relative paths)
 	loader := config.NewLoader(wd)
 
+	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{
+		"spec_file": specFile,
+	})
 	spec, err := loader.LoadStackSpec(specFile)
 	if err != nil {
+		rolloutFailure("spec.load", err)
 		return fmt.Errorf("failed to load spec file: %w", err)
 	}
+	rolloutEvent("spec.load", "succeeded", "stack spec loaded", map[string]string{
+		"stackkit": spec.StackKit,
+		"mode":     spec.Mode,
+		"domain":   spec.Domain,
+	})
 
 	deployLog.Event("spec.loaded",
 		slog.String("stackkit", spec.StackKit),
@@ -673,14 +695,9 @@ func registerKombifyMeSubdomains(spec *models.StackSpec) error {
 		fingerprint = kombifyme.DeviceFingerprint()
 	}
 
-	tier := spec.Compute.Tier
-	if tier == "" {
-		tier = models.ComputeTierStandard
-	}
-
 	printInfo("Registering subdomains on kombify.me...")
 
-	result, err := kombifyme.RegisterAllWithServices(apiKey, homelabName, fingerprint, tier, kombifyMeAppServiceRegistrations(spec))
+	result, err := kombifyme.RegisterAllForSpec(apiKey, homelabName, fingerprint, spec, kombifyMeAppServiceRegistrations(spec))
 	if err != nil {
 		return err
 	}

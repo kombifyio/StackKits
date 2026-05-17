@@ -17,7 +17,7 @@ Contract: base.#ModuleContract & {
 		name:        "whoami"
 		displayName: "Whoami"
 		version:     "1.0.0"
-		layer:       "L3-application"
+		layer:       "L2-platform-diagnostics"
 		description: "HTTP echo service for network and routing diagnostics"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
@@ -102,7 +102,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "whoami", nested: "whoami", flat: "whoami"}
-		dashboard: {icon: "&#129302;", order: 20, section: "Applications", badge: "L3 \u00b7 Test", enableVar: "enable_whoami", guideUrl: "https://docs.kombify.io/guides/stackkits/services/whoami"}
+		dashboard: {icon: "&#129302;", order: 20, section: "Platform", badge: "L2 \u00b7 Routing test", enableVar: "enable_whoami", guideUrl: "https://docs.kombify.io/guides/stackkits/services/whoami"}
 
 		output: {
 			url:         "https://whoami.{{.domain}}"

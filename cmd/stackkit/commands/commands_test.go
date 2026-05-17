@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -75,6 +76,8 @@ func TestRootCommand_SubcommandsRegistered(t *testing.T) {
 		"init", "prepare", "generate", "validate", "app",
 		"plan", "apply", "remove", "status",
 		"verify", "version", "completion",
+		"doctor",
+		"agent",
 	}
 
 	registered := make(map[string]bool)
@@ -85,6 +88,13 @@ func TestRootCommand_SubcommandsRegistered(t *testing.T) {
 	for _, name := range expected {
 		assert.True(t, registered[name], "subcommand %q should be registered", name)
 	}
+}
+
+func TestDoctorCommand_RegisteredAndDocumentsUpdateCheck(t *testing.T) {
+	cmd, _, err := rootCmd.Find([]string{"doctor"})
+	require.NoError(t, err, "rootCmd.Find should locate the documented doctor subcommand")
+	require.Equal(t, "doctor", cmd.Name())
+	require.NotNil(t, cmd.Flag("check-updates"), "doctor must expose the documented --check-updates flag")
 }
 
 func TestRootCommand_GlobalFlags(t *testing.T) {
@@ -287,17 +297,50 @@ func TestGenerateCommand_BaseKitDefaultSpecGoldenPath(t *testing.T) {
 	assert.Contains(t, mainTF, `variable "tinyauth_users"`)
 	assert.Contains(t, mainTF, `variable "tinyauth_oidc_enabled"`)
 	assert.Contains(t, mainTF, `output "vaultwarden_admin_token"`)
-	assert.Contains(t, mainTF, `platform_hub_managed = var.enable_dashboard && (local.rp_dokploy || local.rp_coolify)`)
+	assert.Contains(t, mainTF, `platform_hub_managed = var.enable_dashboard && local.rp_dokploy && !local.is_localhost_domain`)
+	assert.Contains(t, mainTF, `coolify_stackkit_router  = local.rp_coolify`)
+	assert.Contains(t, mainTF, `stackkit_traefik_enabled = var.enable_traefik || local.coolify_stackkit_router`)
+	assert.Contains(t, mainTF, `direct_compose_deploy    = local.is_localhost_domain || local.rp_standalone || local.coolify_stackkit_router`)
+	assert.Contains(t, mainTF, `platform_adapter         = (local.is_localhost_domain || local.rp_standalone) ? "none" : var.paas`)
+	assert.Contains(t, mainTF, `auth_middleware          = var.enable_tinyauth ? "tinyauth@docker" : ""`)
+	assert.Contains(t, mainTF, `local.rp_dokploy ? docker_network.dokploy_network[0].name`)
+	assert.Contains(t, mainTF, `resource "docker_network" "dokploy_network"`)
+	assert.Contains(t, mainTF, `count = (!local.is_host && (var.enable_dokploy || local.rp_dokploy)) ? 1 : 0`)
+	assert.Contains(t, mainTF, `count      = (!local.is_host && local.rp_coolify && !local.coolify_stackkit_router) ? 1 : 0`)
+	assert.Contains(t, mainTF, `count = local.stackkit_traefik_enabled ? 1 : 0`)
+	assert.Contains(t, mainTF, `resource "docker_container" "coolify_dashboard_route"`)
+	assert.Contains(t, mainTF, `name = local.coolify_stackkit_router ? docker_network.base_net[0].name : data.docker_network.paas_traefik[0].name`)
+	assert.Contains(t, mainTF, `for_each = local.coolify_stackkit_router ? [1] : []`)
+	assert.Contains(t, mainTF, `ROOT_USER_EMAIL="${var.admin_email}"`)
+	assert.Contains(t, mainTF, `DOCKER_HOST="${var.docker_host}"`)
+	assert.Contains(t, mainTF, `DOCKER_ADDRESS_POOL_BASE="172.30.0.0/16"`)
+	assert.Contains(t, mainTF, `DOCKER_POOL_FORCE_OVERRIDE=true`)
+	assert.Contains(t, mainTF, `COOLIFY_SYSTEMCTL_SHIM="$(mktemp -d)"`)
+	assert.Contains(t, mainTF, `PATH="$COOLIFY_INSTALL_PATH"`)
 	assert.Contains(t, mainTF, `resource "local_file" "stackkit_hub_compose"`)
 	assert.Contains(t, mainTF, `resource "local_file" "stackkit_server_compose"`)
 	assert.Contains(t, mainTF, `resource "docker_container" "dashboard"`)
 	assert.Contains(t, mainTF, `count = var.enable_dashboard && local.platform_hub_fallback ? 1 : 0`)
+	assert.Contains(t, mainTF, `traefik.http.routers.dashboard.middlewares=${local.auth_middleware}`)
+	assert.Contains(t, mainTF, `traefik.http.routers.stackkit-server.middlewares=${local.auth_middleware}`)
+	assert.Contains(t, mainTF, `traefik.http.routers.vaultwarden.middlewares=${local.auth_middleware}`)
+	assert.Contains(t, mainTF, `traefik.http.routers.immich.middlewares=${local.auth_middleware}`)
+	assert.Contains(t, mainTF, `label = "traefik.http.routers.coolify.middlewares"`)
+	assert.Contains(t, mainTF, `value = local.auth_middleware`)
+	assert.Contains(t, mainTF, `entrypoint = ["stackkit-server"]`)
+	assert.NotContains(t, mainTF, `"stackkit-server",`+"\n"+`    "--port"`)
 	assert.Contains(t, mainTF, `version    = "stackkit.platform-apps/v2"`)
+	assert.Contains(t, mainTF, `platform   = local.platform_adapter`)
+	assert.Contains(t, mainTF, `managedBy   = local.platform_adapter`)
 	assert.Contains(t, mainTF, `systemApps = concat(`)
+	assert.Contains(t, mainTF, `workspace_root = abspath("${path.module}/..")`)
 	assert.Contains(t, mainTF, `name        = "stackkit-hub"`)
 	assert.Contains(t, mainTF, `role        = "node-hub"`)
 	assert.Contains(t, mainTF, `name        = "stackkit-server"`)
 	assert.Contains(t, mainTF, `role        = "node-api"`)
+	assert.Contains(t, mainTF, `source: ${local.workspace_root}`)
+	assert.Contains(t, mainTF, `source = local.workspace_root`)
+	assert.Contains(t, mainTF, `name: ${local.routing_network}`)
 	assert.Contains(t, mainTF, `resource "docker_container" "homepage"`)
 	assert.Contains(t, mainTF, `resource "docker_container" "homepage_socket_proxy"`)
 	assert.Contains(t, mainTF, `resource "local_file" "homepage_services"`)
@@ -327,22 +370,27 @@ func TestGenerateCommand_BaseKitDefaultSpecGoldenPath(t *testing.T) {
 	assert.NotContains(t, mainTF, `/api/auth/admin-sign-up`)
 	assert.NotContains(t, mainTF, `/api/users/me/onboarding`)
 	assert.NotContains(t, mainTF, `/api/system-metadata/admin-onboarding`)
-	assert.Contains(t, mainTF, `setupPolicy = "manual"`)
+	assert.Contains(t, mainTF, `setupPolicy = "on_demand"`)
 	assert.Contains(t, mainTF, `name        = "immich-owner-bootstrap"`)
 	assert.Contains(t, mainTF, `runner      = "stackkit-script"`)
 	assert.Contains(t, mainTF, `depends_on = [
     docker_container.traefik,`)
 	assert.Contains(t, mainTF, `null_resource.coolify_traefik_ready`)
 	assert.NotContains(t, mainTF, `null_resource.dokploy_traefik_ready`)
+	assert.Contains(t, mainTF, `StackKit Traefik ready for Coolify-backed routing`)
+	assert.Contains(t, mainTF, `Coolify app is ready for StackKit routing`)
+	assert.Contains(t, mainTF, `docker compose -f ${local_file.kuma_compose[0].filename} -p stackkit-uptime-kuma up -d`)
+	assert.Contains(t, mainTF, `docker compose -f ${local_file.immich_compose[0].filename} -p stackkit-immich up -d`)
 	assert.Contains(t, mainTF, `ERROR: reverse proxy (${var.reverse_proxy_backend}) not detected after 3 minutes`)
 	assert.Contains(t, mainTF, `exit 1`)
 	assert.Contains(t, mainTF, `value       = var.enable_uptime_kuma ? "${local.proto}://${local.domains.kuma}" : null`)
-	assert.Contains(t, mainTF, `value       = var.enable_uptime_kuma ? random_password.kuma_admin[0].result : null`)
+	assert.Contains(t, mainTF, `value       = var.enable_uptime_kuma ? try(random_password.kuma_admin[0].result, "") : null`)
 	assert.Contains(t, mainTF, `var.enable_uptime_kuma ? { kuma = local.domains.kuma } : {}`)
 	assert.Contains(t, mainTF, `var.enable_whoami ? { whoami = local.domains.whoami } : {}`)
 	assert.Contains(t, mainTF, `var.enable_homepage ? { home = local.domains.home } : {}`)
 	assert.Contains(t, mainTF, `var.enable_dokploy ? { dokploy = local.domains.dokploy } : {}`)
-	assert.Contains(t, mainTF, `KUMA_PASS: "${var.enable_uptime_kuma ? random_password.kuma_admin[0].result : ""}"`)
+	assert.Contains(t, mainTF, `KUMA_PASS: "${var.enable_uptime_kuma ? try(random_password.kuma_admin[0].result, "") : ""}"`)
+	assert.Contains(t, mainTF, `DB_PASSWORD=${try(random_password.immich_db[0].result, "")}`)
 	assert.Contains(t, mainTF, `api.set_settings(`)
 	assert.Contains(t, mainTF, `password=pw,`)
 	assert.Contains(t, mainTF, `disableAuth=True,`)
@@ -362,7 +410,7 @@ func TestGenerateCommand_BaseKitDefaultSpecGoldenPath(t *testing.T) {
 	assert.Contains(t, mainTF, `${var.enable_dockge ? format("║    ✓ Dockge`)
 	assert.Contains(t, mainTF, `${var.enable_uptime_kuma ? format("║    ✓ Kuma`)
 	assert.Contains(t, mainTF, `${var.enable_whoami ? format("║    ✓ Whoami`)
-	assert.Contains(t, mainTF, `${(var.enable_dokploy || var.enable_coolify || var.enable_dockge) ? format("║  3. PaaS:`)
+	assert.Contains(t, mainTF, `${(var.enable_dokploy || var.enable_coolify) ? format("║  3. PaaS:`)
 
 	_, statErr := os.Stat(filepath.Join(outputAbs, "immich.tf"))
 	assert.True(t, os.IsNotExist(statErr), "default production generation should use the stable Base Kit template, not experimental fragments")
@@ -396,9 +444,9 @@ func TestGenerateCommand_BaseKitDefaultSpecGoldenPath(t *testing.T) {
 	assert.Equal(t, true, tfvars["enable_homepage"])
 	assert.True(t, boolVar(t, tfvars, "enable_uptime_kuma"))
 	assert.True(t, boolVar(t, tfvars, "enable_whoami"))
-	assert.Equal(t, "https://id.stack.home", tfvars["pocketid_app_url"])
+	assert.Equal(t, "http://id.home.localhost", tfvars["pocketid_app_url"])
 	assert.Equal(t, true, tfvars["tinyauth_oidc_enabled"])
-	assert.Equal(t, "https://id.stack.home", tfvars["tinyauth_oidc_issuer"])
+	assert.Equal(t, "http://id.home.localhost", tfvars["tinyauth_oidc_issuer"])
 	assert.NotEmpty(t, tfvars["tinyauth_oidc_client_id"])
 }
 
@@ -617,7 +665,7 @@ func TestGenerateTfvarsJSON_FallbackAdmin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Without composition result, admin_email is still a syntactically valid email.
-	assert.Equal(t, "admin@stack.home", vars["admin_email"])
+	assert.Equal(t, "admin@home.localhost", vars["admin_email"])
 
 	// Without composition result, no credentials are generated
 	assert.Empty(t, vars["admin_password_plaintext"], "no password without composition result")
@@ -670,6 +718,12 @@ func TestInitCommand_DomainFlag(t *testing.T) {
 	assert.Equal(t, "", f.DefValue)
 }
 
+func TestInitCommand_ServiceProfileFlag(t *testing.T) {
+	f := initCmd.Flags().Lookup("service-profile")
+	require.NotNil(t, f, "--service-profile flag should exist")
+	assert.Equal(t, "", f.DefValue)
+}
+
 func TestResolveInitDefaults(t *testing.T) {
 	resetInitGlobals := func(t *testing.T) {
 		t.Helper()
@@ -681,6 +735,7 @@ func TestResolveInitDefaults(t *testing.T) {
 		prevAdminEmail := initAdminEmail
 		prevLocalDNS := initLocalDNS
 		prevLocalName := initLocalName
+		prevServiceProfile := initServiceProfile
 		prevContextFlag := contextFlag
 
 		initComputeTier = ""
@@ -691,6 +746,7 @@ func TestResolveInitDefaults(t *testing.T) {
 		initAdminEmail = ""
 		initLocalDNS = false
 		initLocalName = ""
+		initServiceProfile = ""
 		contextFlag = ""
 
 		t.Cleanup(func() {
@@ -702,6 +758,7 @@ func TestResolveInitDefaults(t *testing.T) {
 			initAdminEmail = prevAdminEmail
 			initLocalDNS = prevLocalDNS
 			initLocalName = prevLocalName
+			initServiceProfile = prevServiceProfile
 			contextFlag = prevContextFlag
 		})
 	}
@@ -791,7 +848,7 @@ func TestResolveInitDefaults(t *testing.T) {
 		defaults := resolveInitDefaults("")
 
 		assert.Equal(t, models.ContextCloud, defaults.Context)
-		assert.Equal(t, models.DomainHomeLab, defaults.Domain)
+		assert.Equal(t, models.DomainStackHome, defaults.Domain)
 		assert.Equal(t, "local", defaults.NetworkMode)
 	})
 
@@ -817,6 +874,7 @@ func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
 	prevAdminEmail := initAdminEmail
 	prevLocalDNS := initLocalDNS
 	prevLocalName := initLocalName
+	prevServiceProfile := initServiceProfile
 	prevContextFlag := contextFlag
 	prevSpecFile := specFile
 	t.Cleanup(func() {
@@ -828,6 +886,7 @@ func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
 		initAdminEmail = prevAdminEmail
 		initLocalDNS = prevLocalDNS
 		initLocalName = prevLocalName
+		initServiceProfile = prevServiceProfile
 		contextFlag = prevContextFlag
 		specFile = prevSpecFile
 	})
@@ -865,6 +924,106 @@ func TestInitCommand_NonInteractive_DomainOverrideCreatesSpec(t *testing.T) {
 	assert.Equal(t, "test@example.com", spec.AdminEmail)
 }
 
+func TestInitCommand_BaseKitAdminOnlyServiceProfile(t *testing.T) {
+	prevComputeTier := initComputeTier
+	prevDomain := initDomain
+	prevMode := initMode
+	prevForce := initForce
+	prevNonInteractive := initNonInteractive
+	prevAdminEmail := initAdminEmail
+	prevLocalDNS := initLocalDNS
+	prevLocalName := initLocalName
+	prevServiceProfile := initServiceProfile
+	prevContextFlag := contextFlag
+	prevSpecFile := specFile
+	prevGenOutputDir := genOutputDir
+	prevGenForce := genForce
+	t.Cleanup(func() {
+		initComputeTier = prevComputeTier
+		initDomain = prevDomain
+		initMode = prevMode
+		initForce = prevForce
+		initNonInteractive = prevNonInteractive
+		initAdminEmail = prevAdminEmail
+		initLocalDNS = prevLocalDNS
+		initLocalName = prevLocalName
+		initServiceProfile = prevServiceProfile
+		contextFlag = prevContextFlag
+		specFile = prevSpecFile
+		genOutputDir = prevGenOutputDir
+		genForce = prevGenForce
+	})
+
+	setCapabilitiesHome(t, models.ContextCloud)
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+	tmpDir, err := os.MkdirTemp(repoRoot, "init-admin-only-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	specFile = "stack-spec.yaml"
+	_, err = executeCommand(
+		"init", "base-kit",
+		"--non-interactive",
+		"--force",
+		"--context", "cloud",
+		"--compute-tier", "standard",
+		"--admin-email", "tester@kombify.pro",
+		"--service-profile", "admin-only",
+		"--chdir", tmpDir,
+	)
+	require.NoError(t, err)
+
+	specData, err := os.ReadFile(filepath.Join(tmpDir, "stack-spec.yaml"))
+	require.NoError(t, err)
+
+	var spec models.StackSpec
+	require.NoError(t, yaml.Unmarshal(specData, &spec))
+	assert.Equal(t, models.DomainKombifyMe, spec.Domain)
+	assert.Equal(t, string(models.ContextCloud), spec.Context)
+	assert.Equal(t, "public", spec.Network.Mode)
+	assert.Equal(t, "tester@kombify.pro", spec.AdminEmail)
+	require.Contains(t, spec.Services, "vault")
+	require.Contains(t, spec.Services, "photos")
+	assertServiceEnabled := func(name string, want bool) {
+		t.Helper()
+		service, ok := spec.Services[name].(map[string]any)
+		require.True(t, ok, "services.%s should be a map", name)
+		assert.Equal(t, want, service["enabled"], "services.%s.enabled", name)
+	}
+	assertServiceEnabled("uptime-kuma", true)
+	assertServiceEnabled("whoami", true)
+	assertServiceEnabled("vault", false)
+	assertServiceEnabled("vaultwarden", false)
+	assertServiceEnabled("photos", false)
+	assertServiceEnabled("immich", false)
+
+	spec.SubdomainPrefix = "sh-admin-only-test"
+	specBytes, err := yaml.Marshal(&spec)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "stack-spec.yaml"), specBytes, 0600))
+
+	_, err = executeCommand(
+		"--chdir", tmpDir,
+		"--context", "cloud",
+		"generate",
+		"--force",
+	)
+	require.NoError(t, err)
+	vars := readTFVarsFile(t, filepath.Join(tmpDir, "deploy", "terraform.tfvars.json"))
+	assert.Equal(t, models.PAASCoolify, vars["paas"])
+	assert.Equal(t, true, vars["enable_coolify"])
+	assert.Equal(t, false, vars["enable_dokploy"])
+	assert.Equal(t, true, vars["enable_uptime_kuma"])
+	assert.Equal(t, true, vars["enable_whoami"])
+	assert.Equal(t, false, vars["enable_vaultwarden"])
+	assert.Equal(t, false, vars["enable_jellyfin"])
+	assert.Equal(t, false, vars["enable_immich"])
+}
+
 func TestInitCommand_BaseKitLocalReferenceUsesSafeSSHDefaults(t *testing.T) {
 	prevComputeTier := initComputeTier
 	prevDomain := initDomain
@@ -874,6 +1033,7 @@ func TestInitCommand_BaseKitLocalReferenceUsesSafeSSHDefaults(t *testing.T) {
 	prevAdminEmail := initAdminEmail
 	prevLocalDNS := initLocalDNS
 	prevLocalName := initLocalName
+	prevServiceProfile := initServiceProfile
 	prevContextFlag := contextFlag
 	prevSpecFile := specFile
 	t.Cleanup(func() {
@@ -885,6 +1045,7 @@ func TestInitCommand_BaseKitLocalReferenceUsesSafeSSHDefaults(t *testing.T) {
 		initAdminEmail = prevAdminEmail
 		initLocalDNS = prevLocalDNS
 		initLocalName = prevLocalName
+		initServiceProfile = prevServiceProfile
 		contextFlag = prevContextFlag
 		specFile = prevSpecFile
 	})
@@ -918,7 +1079,7 @@ func TestInitCommand_BaseKitLocalReferenceUsesSafeSSHDefaults(t *testing.T) {
 	assert.Equal(t, string(models.ContextLocal), spec.Context)
 	assert.Equal(t, "admin", spec.SSH.User)
 	assert.Equal(t, "~/.ssh/id_ed25519", spec.SSH.KeyPath)
-	assert.Equal(t, models.PAASNone, spec.PAAS)
+	assert.Empty(t, spec.PAAS, "init should leave PaaS resolution to the canonical resolver")
 
 	assertServiceEnabled := func(name string, want bool) {
 		t.Helper()
@@ -926,12 +1087,200 @@ func TestInitCommand_BaseKitLocalReferenceUsesSafeSSHDefaults(t *testing.T) {
 		require.True(t, ok, "service %q should be present in init spec", name)
 		assert.Equal(t, want, service["enabled"], "services.%s.enabled", name)
 	}
-	assertServiceEnabled("dokploy", false)
+	assertServiceEnabled("homepage", true)
 	assertServiceEnabled("uptime-kuma", true)
 	assertServiceEnabled("whoami", true)
 	assertServiceEnabled("vaultwarden", true)
 	assertServiceEnabled("jellyfin", false)
 	assertServiceEnabled("immich", true)
+	for _, platformService := range []string{"dokploy", "coolify", "dockge", "traefik"} {
+		assert.NotContains(t, spec.Services, platformService, "init must leave %s selection to the resolver", platformService)
+	}
+}
+
+func TestBaseKitDefaultSpecDoesNotPinPlatformSelection(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	data, err := os.ReadFile(filepath.Join(repoRoot, "base-kit", "default-spec.yaml"))
+	require.NoError(t, err)
+
+	var spec models.StackSpec
+	require.NoError(t, yaml.Unmarshal(data, &spec))
+
+	assert.Empty(t, spec.PAAS, "default-spec must leave PaaS selection to the resolver")
+	for _, platformService := range []string{"dokploy", "coolify", "dockge", "traefik"} {
+		assert.NotContains(t, spec.Services, platformService, "default-spec must not pin %s", platformService)
+	}
+
+	setCapabilitiesHome(t, models.ContextCloud)
+	spec.Context = string(models.ContextCloud)
+	spec.Domain = "example.com"
+	spec.Network.Mode = "public"
+
+	vars := decodeTFVars(t, &spec)
+	assert.Equal(t, models.PAASCoolify, stringVar(t, vars, "paas"))
+	assert.Equal(t, models.ReverseProxyCoolify, stringVar(t, vars, "reverse_proxy_backend"))
+	assert.True(t, boolVar(t, vars, "enable_coolify"))
+	assert.False(t, boolVar(t, vars, "enable_dokploy"))
+	assert.False(t, boolVar(t, vars, "enable_traefik"))
+}
+
+func TestBaseKitTemplateCriticalDefaultsMatchGeneratedGolden(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	templateData, err := os.ReadFile(filepath.Join(repoRoot, "base-kit", "templates", "simple", "main.tf"))
+	require.NoError(t, err)
+	template := string(templateData)
+	golden := readTFVarsFile(t, filepath.Join(repoRoot, "cmd", "stackkit", "commands", "testdata", "golden", "local-standard.json"))
+
+	for variable, tfvarKey := range map[string]string{
+		"enable_coolify":        "enable_coolify",
+		"enable_dokploy":        "enable_dokploy",
+		"enable_dokploy_apps":   "enable_dokploy_apps",
+		"enable_whoami":         "enable_whoami",
+		"enable_jellyfin":       "enable_jellyfin",
+		"paas":                  "paas",
+		"reverse_proxy_backend": "reverse_proxy_backend",
+	} {
+		expected, ok := golden[tfvarKey]
+		require.True(t, ok, "golden tfvars missing %s", tfvarKey)
+		assertTerraformVariableDefault(t, template, variable, expected)
+	}
+}
+
+func TestInitCommand_BaseKitLocalDefaultMatchesDefaultSpecTFVars(t *testing.T) {
+	prevComputeTier := initComputeTier
+	prevDomain := initDomain
+	prevMode := initMode
+	prevForce := initForce
+	prevNonInteractive := initNonInteractive
+	prevAdminEmail := initAdminEmail
+	prevLocalDNS := initLocalDNS
+	prevLocalName := initLocalName
+	prevServiceProfile := initServiceProfile
+	prevContextFlag := contextFlag
+	prevSpecFile := specFile
+	prevGenOutputDir := genOutputDir
+	prevGenForce := genForce
+	t.Cleanup(func() {
+		initComputeTier = prevComputeTier
+		initDomain = prevDomain
+		initMode = prevMode
+		initForce = prevForce
+		initNonInteractive = prevNonInteractive
+		initAdminEmail = prevAdminEmail
+		initLocalDNS = prevLocalDNS
+		initLocalName = prevLocalName
+		initServiceProfile = prevServiceProfile
+		contextFlag = prevContextFlag
+		specFile = prevSpecFile
+		genOutputDir = prevGenOutputDir
+		genForce = prevGenForce
+	})
+
+	setCapabilitiesHome(t, models.ContextLocal)
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", "..", ".."))
+
+	initDir, err := os.MkdirTemp(repoRoot, "init-parity-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(initDir) })
+
+	specFile = "stack-spec.yaml"
+	_, err = executeCommand(
+		"init", "base-kit",
+		"--non-interactive",
+		"--force",
+		"--context", "local",
+		"--admin-email", "admin@home.localhost",
+		"--chdir", initDir,
+	)
+	require.NoError(t, err)
+
+	_, err = executeCommand(
+		"--chdir", initDir,
+		"--context", "local",
+		"generate",
+		"--force",
+	)
+	require.NoError(t, err)
+	initVars := readTFVarsFile(t, filepath.Join(initDir, "deploy", "terraform.tfvars.json"))
+
+	defaultDir, err := os.MkdirTemp(repoRoot, "default-spec-parity-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(defaultDir) })
+
+	defaultSpec := filepath.Join("..", "base-kit", "default-spec.yaml")
+	_, err = executeCommand(
+		"--chdir", defaultDir,
+		"--context", "local",
+		"--spec", defaultSpec,
+		"generate",
+		"--force",
+	)
+	require.NoError(t, err)
+	defaultVars := readTFVarsFile(t, filepath.Join(defaultDir, "deploy", "terraform.tfvars.json"))
+
+	for _, key := range []string{
+		"domain",
+		"paas",
+		"reverse_proxy_backend",
+		"enable_https",
+		"step_ca_enabled",
+		"enable_kombify_point",
+		"enable_dashboard",
+		"enable_homepage",
+		"enable_tinyauth",
+		"enable_pocketid",
+		"enable_dokploy",
+		"enable_dokploy_apps",
+		"enable_uptime_kuma",
+		"enable_whoami",
+		"enable_vaultwarden",
+		"enable_jellyfin",
+		"enable_immich",
+	} {
+		assert.Equalf(t, defaultVars[key], initVars[key], "init/default-spec drift for %s", key)
+	}
+}
+
+func readTFVarsFile(t *testing.T, path string) map[string]any {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var vars map[string]any
+	require.NoError(t, json.Unmarshal(data, &vars))
+	return vars
+}
+
+func assertTerraformVariableDefault(t *testing.T, template, variable string, expected any) {
+	t.Helper()
+	pattern := regexp.MustCompile(`(?s)variable\s+"` + regexp.QuoteMeta(variable) + `"\s*\{.*?default\s*=\s*` + regexp.QuoteMeta(terraformDefaultLiteral(t, expected)) + `(?:\s|$)`)
+	assert.Regexp(t, pattern, template, "variable %s default should match generated local-standard golden", variable)
+}
+
+func terraformDefaultLiteral(t *testing.T, value any) string {
+	t.Helper()
+	switch v := value.(type) {
+	case bool:
+		if v {
+			return "true"
+		}
+		return "false"
+	case string:
+		return `"` + v + `"`
+	default:
+		t.Fatalf("unsupported Terraform default literal type %T", value)
+		return ""
+	}
 }
 
 func TestParseDfOutput(t *testing.T) {
@@ -1100,6 +1449,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 		name         string
 		tier         string
 		wantDokploy  bool
+		wantCoolify  bool
 		wantDockge   bool
 		wantKuma     bool
 		wantTraefik  bool
@@ -1109,7 +1459,8 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 		{
 			name:         "standard tier",
 			tier:         "standard",
-			wantDokploy:  true,
+			wantDokploy:  false,
+			wantCoolify:  true,
 			wantDockge:   false,
 			wantKuma:     true,
 			wantTraefik:  false,
@@ -1119,7 +1470,8 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 		{
 			name:         "high tier",
 			tier:         "high",
-			wantDokploy:  true,
+			wantDokploy:  false,
+			wantCoolify:  true,
 			wantDockge:   false,
 			wantKuma:     true,
 			wantTraefik:  false,
@@ -1129,7 +1481,8 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 		{
 			name:         "low tier",
 			tier:         "low",
-			wantDokploy:  true,
+			wantDokploy:  false,
+			wantCoolify:  true,
 			wantDockge:   false,
 			wantKuma:     true,
 			wantTraefik:  false,
@@ -1139,7 +1492,8 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 		{
 			name:         "empty tier defaults to standard",
 			tier:         "",
-			wantDokploy:  true,
+			wantDokploy:  false,
+			wantCoolify:  true,
 			wantDockge:   false,
 			wantKuma:     true,
 			wantTraefik:  false,
@@ -1174,6 +1528,7 @@ func TestGenerateTfvarsJSON_TierDriven(t *testing.T) {
 
 			// PAAS — tier-dependent
 			assert.Equal(t, tt.wantDokploy, vars["enable_dokploy"], "enable_dokploy")
+			assert.Equal(t, tt.wantCoolify, vars["enable_coolify"], "enable_coolify")
 			assert.Equal(t, tt.wantDockge, vars["enable_dockge"], "enable_dockge")
 
 			// Monitoring — tier-dependent

@@ -45,9 +45,9 @@ Auto-detected during `stackkit prepare` from the runtime environment. Drives inf
 
 | Context | Detection | Effects |
 |---------|-----------|---------|
-| `local` | Home/office network (private IP, no cloud metadata) | Self-signed TLS (Step-CA), Dokploy, overlay2 |
+| `local` | Home/office network (private IP, no cloud metadata) | Browser-native `.localhost` links, Coolify, overlay2 |
 | `cloud` | Cloud provider metadata or VPS detected (public IP, cloud signatures) | Let's Encrypt, Coolify, public IP routing |
-| `pi` | ARM64 architecture + low resources (<4 cores or <4 GB RAM) | Standard PaaS contract remains Dokploy/Coolify; heavy modules are gated and lightweight managers remain experimental |
+| `pi` | ARM64 architecture + low resources (<4 cores or <4 GB RAM) | Standard PaaS contract remains Coolify unless explicitly overridden; heavy modules are gated and lightweight managers remain experimental |
 
 **How auto-detection works:**
 
@@ -66,7 +66,7 @@ Derived from CPU/RAM/disk during `stackkit prepare`. CONSTRAINS what can physica
 |------|----------|--------|
 | `high` | 8+ CPU, 16+ GB RAM | Everything viable. Full monitoring possible. |
 | `standard` | 4+ CPU, 4+ GB RAM | Most use cases viable. Default monitoring. |
-| `low` | <4 CPU or <4 GB RAM | Required platform remains Dokploy/Coolify. Heavy use cases (Media, Photos, AI) unavailable. |
+| `low` | <4 CPU or <4 GB RAM | Required platform remains Coolify unless explicitly overridden. Heavy use cases (Media, Photos, AI) unavailable. |
 
 The tier gates feasibility. It doesn't drive selection — the StackKit defaults + user overrides drive selection, then tier gates what's feasible.
 
@@ -91,15 +91,16 @@ Use `--compute-tier low` or `--context pi` for constrained hardware intent. `--m
 ### 5. Tool Role = Per-StackKit Per-Tool Assignment
 
 Every tool has a ROLE relative to each StackKit. Roles are managed in the StackKits registry tables and consumed by CUE-backed release contracts with hash parity.
+The compact authoring and promotion matrix lives in [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md).
 
 | Role | Meaning | Example |
 |------|---------|---------|
-| `default` | Ships enabled, pre-configured, immediately usable | Dokploy in Base Kit |
-| `alternative` | Curated swap for a default (same category) | Coolify as alt for Dokploy |
+| `default` | Ships enabled, pre-configured, immediately usable | Coolify in Base Kit |
+| `alternative` | Curated swap for a default (same category) | Dokploy as explicit alternative |
 | `optional` | Available but off by default, user enables | Game Server |
 | `addon` | Composable infrastructure capability (not a use case) | VPN Overlay, Backup |
 
-User swaps defaults: `stackkit generate --paas coolify --monitoring beszel`
+User swaps defaults: `stackkit generate --paas dokploy --monitoring beszel`
 User enables optionals: `stackkit generate --enable smart-home`
 
 ### 6. Use Case vs Add-On
@@ -211,6 +212,6 @@ Service placement rules:
 - **V4 is the baseline.** V5 evolves V4, never contradicts it.
 - **CUE is the technical contract source of truth; DB is the registry and operations mirror.** Never edit generated files.
 - **OpenTofu, never Terraform.** Licensing violation.
-- **Never localhost URLs.** Use stable service names such as `service.stack.home`.
+- **Local default links must open as printed.** Use browser-native names such as `service.home.localhost`; never require hosts-file edits, manual DNS mapping, trust-store setup, or port suffixes for generated default links.
 - **StackKits registry defines tool roles; CUE contracts enforce them.**
 - **Resource profile = user intent, not just hardware.** `--compute-tier low` can be chosen explicitly even when hardware auto-detection would allow more.

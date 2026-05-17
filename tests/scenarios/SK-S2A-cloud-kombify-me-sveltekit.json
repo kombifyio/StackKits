@@ -1,8 +1,8 @@
 {
   "id": "SK-S2A",
-  "name": "Cloud OneClick kombify.me + SvelteKit App",
-  "stage": "gated-live",
-  "liveGate": "sim-installer-kombify-me-sveltekit",
+  "name": "Cloud OneClick kombify.me + PaaS App Handoff",
+  "stage": "dev-handoff",
+  "liveGate": "none",
   "stackSpec": {
     "name": "sk-s2a-cloud-kombify-me-sveltekit",
     "stackkit": "base-kit",
@@ -10,8 +10,11 @@
     "context": "cloud",
     "domain": "kombify.me",
     "subdomainPrefix": "sh-scenario-s2a",
-    "email": "tester@kombify.pro",
-    "adminEmail": "tester@kombify.pro",
+    "owner": {
+      "bootstrapMode": "auto",
+      "source": "cloud",
+      "recoveryMaterialRef": "techstack://recovery/scenarios/sk-s2a"
+    },
     "network": {
       "mode": "public"
     },
@@ -48,21 +51,22 @@
     "generation": {
       "context": "cloud",
       "domain": "kombify.me",
-      "paas": "dokploy",
-      "reverseProxyBackend": "dokploy",
+      "paas": "coolify",
+      "reverseProxyBackend": "coolify",
       "enableHTTPS": false,
       "stepCAEnabled": true,
       "enableKombifyPoint": false,
-      "adminEmail": "tester@kombify.pro",
+      "adminEmail": "admin@sh-scenario-s2a.kombify.me",
       "serviceFlags": {
         "enable_dashboard": true,
         "enable_tinyauth": true,
         "enable_pocketid": true,
-        "enable_dokploy": true,
+        "enable_coolify": true,
+        "enable_dokploy": false,
         "enable_uptime_kuma": true,
         "enable_whoami": true,
         "enable_vaultwarden": true,
-        "enable_jellyfin": true,
+        "enable_jellyfin": false,
         "enable_immich": true
       }
     },
@@ -73,7 +77,7 @@
         {"key": "base", "host": "sh-scenario-s2a-base.kombify.me", "scheme": "https"},
         {"key": "auth", "host": "sh-scenario-s2a-auth.kombify.me", "scheme": "https"},
         {"key": "id", "host": "sh-scenario-s2a-id.kombify.me", "scheme": "https"},
-        {"key": "dokploy", "host": "sh-scenario-s2a-dokploy.kombify.me", "scheme": "https"}
+        {"key": "coolify", "host": "sh-scenario-s2a-coolify.kombify.me", "scheme": "https"}
       ]
     }
   }

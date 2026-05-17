@@ -84,8 +84,8 @@ const (
 	PAASNone    = "none"
 
 	// Reverse proxy backend — determines which Traefik instance routes platform services.
-	// Standard StackKit app rollouts are routed through the selected platform
-	// backend; standalone is only for nonstandard/legacy modes.
+	// User app rollouts are owned by the selected PaaS; StackKit only records
+	// route and manifest handoff metadata for those apps.
 	ReverseProxyStandalone = "standalone"
 	ReverseProxyDokploy    = "dokploy"
 	ReverseProxyCoolify    = "coolify"
@@ -94,14 +94,22 @@ const (
 	DomainKombifyMe = "kombify.me"
 	DomainHomelab   = "homelab"
 	// DomainHomeLab keeps the historical constant name for compatibility. The
-	// default local deployment domain sits under the Kombify Point .home zone
-	// and keeps service hosts at least three labels long (auth.stack.home),
-	// which local OIDC gateways require.
-	DomainHomeLab           = "stack.home"
+	// default local deployment domain uses the browser-reserved .localhost
+	// namespace, so generated links resolve without hosts-file edits, LAN DNS,
+	// random host ports, or manual workstation setup.
+	DomainHomeLab           = "home.localhost"
 	DomainHomeLocalhost     = "home.localhost"
+	DomainStackHome         = "stack.home"
 	DomainHomeKombifyLegacy = "home.kombify"
 	DomainHomeLabLegacy     = "home.lab"
 	DomainHomeDNS           = "home"
+
+	OwnerBootstrapModeAuto   = "auto"
+	OwnerBootstrapModeCustom = "custom"
+	OwnerBootstrapModeNone   = "none"
+
+	OwnerSourceLocal = "local"
+	OwnerSourceCloud = "cloud"
 )
 
 // IsKombifyMeDomain returns true for the managed kombify.me shared domain.
@@ -153,7 +161,7 @@ func adminEmailHost(domain, subdomainPrefix string) string {
 	subdomainPrefix = strings.ToLower(strings.Trim(strings.TrimSpace(subdomainPrefix), "."))
 
 	switch domain {
-	case "", DomainHomelab, DomainHomeDNS, DomainHomeLocalhost, DomainHomeKombifyLegacy, DomainHomeLabLegacy, "localhost", "stack.local":
+	case "", DomainHomelab, DomainHomeDNS, DomainHomeKombifyLegacy, DomainHomeLabLegacy, "localhost", "stack.local":
 		domain = DomainHomeLab
 	}
 
@@ -169,6 +177,7 @@ func IsLocalDomain(domain string) bool {
 	if domain == "" ||
 		domain == DomainHomelab ||
 		domain == DomainHomeLab ||
+		domain == DomainStackHome ||
 		domain == DomainHomeKombifyLegacy ||
 		domain == DomainHomeLabLegacy ||
 		domain == DomainHomeLocalhost ||
@@ -207,7 +216,7 @@ func RequiresKombifyPoint(domain string) bool {
 func LocalDNSDomain(localName string) string {
 	localName = strings.Trim(strings.ToLower(strings.TrimSpace(localName)), ".")
 	if localName == "" {
-		return DomainHomeLab
+		return DomainStackHome
 	}
 	if strings.HasSuffix(localName, "."+DomainHomeDNS) {
 		return localName
@@ -279,10 +288,10 @@ type StackSpec struct {
 	Environment     map[string]string  `yaml:"environment,omitempty" json:"environment,omitempty"`
 	Identity        *IdentitySpec      `yaml:"identity,omitempty" json:"identity,omitempty"`
 
-	// Owner is set by `stackkit init` when --owner-source is provided. It is
-	// read by `stackkit apply` to drive the owner-bootstrap pipeline. All
-	// fields are zero-value for self-host setups that skip owner provisioning,
-	// in which case the owner-bootstrap step is a no-op.
+	// Owner is set by `stackkit init` or orchestration handoff when owner
+	// bootstrap is requested. Empty means owner provisioning is disabled. The
+	// explicit bootstrapMode separates SaaS auto-owner, self-hosted custom
+	// owner, and OSS/BYOS no-owner specs without inventing a fake human owner.
 	Owner OwnerConfig `yaml:"owner,omitempty" json:"owner,omitempty"`
 
 	// Extended spec sections — derived from base-kit CUE schemas.
@@ -339,22 +348,30 @@ type AppHealthSpec struct {
 	Path string `yaml:"path,omitempty" json:"path,omitempty"`
 }
 
-// OwnerConfig holds the owner-provisioning fields that `stackkit init`
-// captures and `stackkit apply` consumes. It is populated only when the
-// operator opts into the Phase-1 owner-bootstrap flow via --owner-source;
-// otherwise every field is the zero value and the bootstrap step no-ops.
+// OwnerConfig holds the owner-provisioning fields that `stackkit init` captures
+// and TechStack may pass through stack-spec handoff. `bootstrapMode` is the
+// current lane selector:
+//   - auto: owner identity is resolved by kombify Cloud/TechStack. StackKits
+//     must not require or invent owner.email/owner.username in the public spec.
+//   - custom: explicit self-hosted/local Owner. Email and username are required.
+//   - none: no Owner bootstrap for OSS/BYOS or legacy/manual setups.
 //
 // Persisted to stack-spec.yaml under the `owner:` key with omitempty so older
-// specs (pre-Phase-1) round-trip without picking up an empty owner block.
+// specs round-trip without picking up an empty owner block.
 type OwnerConfig struct {
-	// Source selects the provisioning path: "local" (Phase 1) or "cloud"
-	// (Phase 2). Empty means owner provisioning is disabled for this spec.
+	// BootstrapMode selects how owner identity is prepared: "auto", "custom",
+	// or "none". Empty preserves legacy specs; a non-empty Source with no
+	// BootstrapMode resolves to custom(local) or auto(cloud).
+	BootstrapMode string `yaml:"bootstrapMode,omitempty" json:"bootstrapMode,omitempty"`
+
+	// Source selects the provisioning path: "local" for custom self-hosted
+	// bootstrap or "cloud" for orchestrator-managed auto bootstrap.
 	Source string `yaml:"source,omitempty" json:"source,omitempty"`
 
-	// Email is the owner's address (used for display + recovery contact).
+	// Email is the owner's address. Required only for custom bootstrap.
 	Email string `yaml:"email,omitempty" json:"email,omitempty"`
 
-	// Username is the PocketID login handle.
+	// Username is the PocketID login handle. Required only for custom bootstrap.
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 
 	// DisplayName is rendered in PocketID's UI; defaults to Username when empty.
@@ -365,8 +382,12 @@ type OwnerConfig struct {
 	// is non-empty; the plaintext is re-prompted at apply-time.
 	RecoveryPassphraseHash string `yaml:"recoveryPassphraseHash,omitempty" json:"recoveryPassphraseHash,omitempty"`
 
-	// CloudOIDCIssuer is the URL of the external OIDC issuer for Phase-2
-	// cloud-source owners. Stored now so the YAML schema is forward-compatible.
+	// RecoveryMaterialRef points at orchestrator-owned recovery material. It is
+	// a reference only; plaintext recovery passphrases do not belong in specs.
+	RecoveryMaterialRef string `yaml:"recoveryMaterialRef,omitempty" json:"recoveryMaterialRef,omitempty"`
+
+	// CloudOIDCIssuer is the URL of the external OIDC issuer for auto/cloud
+	// owner bootstrap.
 	CloudOIDCIssuer string `yaml:"cloudOidcIssuer,omitempty" json:"cloudOidcIssuer,omitempty"`
 
 	// CloudOIDCClientID is the registered client ID at the cloud OIDC issuer.
@@ -380,6 +401,56 @@ type OwnerConfig struct {
 	// CloudOIDCForeignSubject is the cloud user's stable subject ID at the
 	// external IdP. PocketID uses it to federate the local owner record.
 	CloudOIDCForeignSubject string `yaml:"cloudOidcForeignSubject,omitempty" json:"cloudOidcForeignSubject,omitempty"`
+}
+
+// IsZero lets YAML encoders omit an empty owner block while still preserving
+// an explicit bootstrapMode: none block.
+func (o OwnerConfig) IsZero() bool {
+	return o.BootstrapMode == "" &&
+		o.Source == "" &&
+		o.Email == "" &&
+		o.Username == "" &&
+		o.DisplayName == "" &&
+		o.RecoveryPassphraseHash == "" &&
+		o.RecoveryMaterialRef == "" &&
+		o.CloudOIDCIssuer == "" &&
+		o.CloudOIDCClientID == "" &&
+		o.CloudOIDCClientSecretRef == "" &&
+		o.CloudOIDCForeignSubject == ""
+}
+
+// EffectiveBootstrapMode normalizes legacy owner specs to the new lane model.
+func (o OwnerConfig) EffectiveBootstrapMode() string {
+	mode := strings.ToLower(strings.TrimSpace(o.BootstrapMode))
+	if mode != "" {
+		return mode
+	}
+	switch strings.ToLower(strings.TrimSpace(o.Source)) {
+	case OwnerSourceLocal:
+		return OwnerBootstrapModeCustom
+	case OwnerSourceCloud:
+		return OwnerBootstrapModeAuto
+	default:
+		return ""
+	}
+}
+
+func IsKnownOwnerBootstrapMode(mode string) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", OwnerBootstrapModeAuto, OwnerBootstrapModeCustom, OwnerBootstrapModeNone:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsKnownOwnerSource(source string) bool {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case "", OwnerSourceLocal, OwnerSourceCloud:
+		return true
+	default:
+		return false
+	}
 }
 
 // IdentitySpec configures the identity/auth stack behavior.
@@ -777,29 +848,20 @@ func (s *StackSpec) ResolvePAAS() string {
 	return s.resolvePAASByTier()
 }
 
-// ResolvePAASForContext determines the PAAS platform from explicit setting,
-// runtime context, and finally compute tier.
+// ResolvePAASForContext is the canonical auto-selection policy for normal
+// StackKit platform adapters. Explicit user config wins; otherwise fresh
+// StackKit rollouts default to Coolify. Dokploy remains a supported explicit
+// adapter while its first-owner and SSO story is hardened separately.
 func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
 	if s.PAAS != "" {
 		return s.PAAS
 	}
 
-	if s.IsMultiNode() {
-		return PAASCoolify
-	}
-
-	if ctx == ContextCloud {
-		if s.HasCustomPublicDomain() {
-			return PAASCoolify
-		}
-		return PAASDokploy
-	}
-
-	return s.resolvePAASByTier()
+	return PAASCoolify
 }
 
 func (s *StackSpec) resolvePAASByTier() string {
-	return PAASDokploy
+	return PAASCoolify
 }
 
 // IsStandardPAAS reports whether the platform is allowed for normal StackKit

@@ -2,14 +2,14 @@
 //
 // Modern Homelab = Multi-node Docker Compose hybrid with:
 // - Identity-aware proxy stack (LLDAP + Step-CA + TinyAuth/PocketID)
-// - Coolify OR Dokploy as PaaS (context-driven)
+// - Coolify as default PaaS, Dokploy as explicit alternative
 // - Traefik on cloud entry node
 // - Tunnel (Cloudflare/Pangolin) for CGNAT bypass
 // - VPN is optional (not required, identity stack provides zero-trust)
 //
 // KEY DIFFERENCES FROM base-kit:
 // - Multi-environment Docker Compose (bridges home + cloud trust domains, no Swarm)
-// - PaaS context-driven: domain+wildcard → Coolify, else → Dokploy
+// - PaaS follows BaseKit release contract: Coolify default, Dokploy explicit
 // - Identity-aware proxies make VPN optional
 // - Public access via cloud node is default
 // - Monitoring, backup, tunnels are composable add-ons
@@ -611,7 +611,7 @@ import "github.com/kombifyio/stackkits/base"
 // SERVICE COLLECTIONS
 // =============================================================================
 
-// Services for Coolify-based deployment (user has domain + wildcard)
+// Services for Coolify-based deployment (release default)
 #CoolifyServiceSet: {
 	traefik:    #TraefikService
 	tinyauth:   #TinyAuthService
@@ -622,7 +622,7 @@ import "github.com/kombifyio/stackkits/base"
 	whoami:     #WhoamiService
 }
 
-// Services for Dokploy-based deployment (no domain)
+// Services for Dokploy-based deployment (explicit alternative)
 #DokployServiceSet: {
 	traefik:    #TraefikService
 	tinyauth:   #TinyAuthService

@@ -167,12 +167,12 @@ func TestProvisionDisplayNameFallsBackToUsername(t *testing.T) {
 	}
 }
 
-func TestProvisionRejectsCloudInPhase1(t *testing.T) {
+func TestProvisionRejectsCloudAsOrchestratorManaged(t *testing.T) {
 	fake := &fakePocketID{}
 	p := &OwnerProvisioner{Client: fake, PocketIDURL: "https://id.test.local"}
 	_, err := p.Provision(t.Context(), OwnerSpec{Source: "cloud", Email: "x@y.com", Username: "x"})
-	if err == nil || !strings.Contains(err.Error(), "Phase 2") {
-		t.Errorf("expected Phase-2 error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "orchestrator-managed") {
+		t.Errorf("expected orchestrator-managed error, got: %v", err)
 	}
 	// No PocketID calls should have been made.
 	if len(fake.createdUsers) != 0 {

@@ -1,20 +1,27 @@
 # StackKit CLI Reference
 
-> Last verified: 2026-05-09
+> Last verified: 2026-05-17
 
 This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
 
 ## Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/kombifyio/stackKits/main/install.sh | bash
+curl -sSL https://install.stackkit.cc | sh
 stackkit version
 ```
+
+The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu,
+and the public kit catalog under `~/.stackkits`, so `stackkit init base-kit`
+works from a clean directory without a repo checkout. BaseKit is the verified
+beta one-click path; Modern Home Lab and HA Kit are packaged as
+alpha/scaffolding definitions until their rollout matrices graduate.
 
 Build from source:
 
 ```bash
 go build -o build/stackkit ./cmd/stackkit
+go build -o build/stackkit-mcp ./cmd/stackkit-mcp
 ./build/stackkit version
 ```
 
@@ -59,6 +66,7 @@ stackkit verify --http --json
 | `cluster` | Manage multi-node cluster membership. |
 | `compat` | Run a non-destructive VPS compatibility check. |
 | `doctor` | Run local diagnostics for common StackKit issues. |
+| `agent` | Emit agent-native install plans, prompts, self-checks, and MCP config. |
 | `kit` | Import, export, list, verify, upgrade, rollback, history, roundtrip, and unlock kit definitions. |
 | `logs` | List and read structured deploy logs. |
 | `module` | Release module versions and verify DB parity. |
@@ -81,14 +89,24 @@ Common flags:
 - `--local-dns`
 - `--local-name`
 - `--admin-email`
+- `--owner-bootstrap-mode`
 - `--owner-source`
 - `--owner-email`
 - `--owner-username`
 - `--owner-display-name`
 - `--recovery-passphrase-hash`
+- `--recovery-material-ref`
 - `--output`, `-o`
 - `--force`, `-f`
 - `--non-interactive`
+
+Owner bootstrap modes:
+
+| Mode | CLI shape | Notes |
+| --- | --- | --- |
+| `auto` | `--owner-bootstrap-mode auto --owner-source cloud --recovery-material-ref techstack://...` | SaaS/TechStack handoff. Does not require `--owner-email` or `--owner-username`; Cloud profile resolution happens outside the CLI. |
+| `custom` | `--owner-bootstrap-mode custom --owner-source local --owner-email ... --owner-username ... --recovery-passphrase-hash ...` | Self-hosted explicit Owner. The hash is persisted; plaintext is never stored in `stack-spec.yaml`. |
+| `none` | `--owner-bootstrap-mode none` | Explicitly skip Owner bootstrap for OSS/BYOS or manually managed identity. |
 
 ### `stackkit prepare`
 
@@ -134,6 +152,22 @@ Common flags:
 - `--verify`
 - `--verify-http`
 - `--verify-strict`
+
+Managed tenant mode uses `--tenant-deployment <uuid>` on a VM or job created
+from the Admin SaaS flow. If no local `stack-spec.yaml` exists, the CLI fetches
+`GET /api/v1/sk/tenants/deployments/{id}/spec`, validates that the returned
+deployment envelope matches the requested id, writes `stack-spec.yaml` plus
+`.stackkit/tenant-bindings.json`, and then runs the normal apply pipeline. Use
+`STACKKIT_ADMIN_ENDPOINT` and the deployment-scoped `STACKKIT_BOOTSTRAP_TOKEN`;
+`STACKKIT_ADMIN_URL`, `--admin-token`, and `STACKKIT_ADMIN_TOKEN` remain
+fallbacks for older operator jobs. The same token path is used to report
+`healthy` or `failed` back to the Admin deployment record.
+
+Unless `--no-log` is set, rollout evidence is written under
+`.stackkit/runs/<runId>/` next to the structured log. Managed tenant applies
+also post phase progress to Admin when
+`POST /api/v1/sk/tenants/deployments/{id}/events` is available; unsupported
+event endpoints degrade safely and the final lifecycle `PATCH` remains.
 
 ### `stackkit verify`
 
@@ -212,6 +246,27 @@ Runs a non-destructive VPS compatibility check for CPU, memory, disk, Docker rea
 
 Runs local diagnostics for common StackKit issues. `--check-updates` adds Admin API-backed update discovery when endpoint and token configuration are present.
 
+### `stackkit agent`
+
+Read-only helpers for Coding Agents and Assistants. These commands do not create rollout logs or mutate deployment state.
+
+Subcommands:
+
+- `agent install-plan` prints a non-interactive BaseKit rollout plan. Use `--json` for machine-readable output.
+- `agent self-check` prints local binary, server, and MCP gate checks. Use `--json` for machine-readable output.
+- `agent prompt <scenario>` prints copy-ready prompts. Use `--list` to see scenarios.
+- `agent mcp-config` prints `stackkit-mcp` client configuration for `generic`, `codex`, or `claude`.
+
+Examples:
+
+```bash
+stackkit agent install-plan --json
+stackkit agent prompt basekit-autonomous-rollout
+stackkit agent mcp-config --client codex --mode docs,local,server
+```
+
+`stackkit-mcp` is a separate installed binary. It defaults to stdio transport, supports `docs`, `local`, `server`, and optional `actions` modes, and keeps write tools disabled unless `STACKKIT_MCP_ALLOW_WRITE=true`.
+
 ### `stackkit kit`
 
 Subcommands:
@@ -284,6 +339,7 @@ Prints version, commit, build date, Go version, and target OS/arch.
 | `deploy/.terraform/` | `plan`/`apply` | Provider cache and state internals. |
 | `.stackkit/state.yaml` | `apply`/`remove` | Deployment state. |
 | `.stackkit/logs/` | most commands | Structured deploy logs. |
+| `.stackkit/runs/<runId>/` | most commands | Rollout evidence bundle with metadata, events, and summary. |
 
 ## Related Docs
 
@@ -291,3 +347,5 @@ Prints version, commit, build date, Go version, and target OS/arch.
 - [TESTING.md](TESTING.md)
 - [API.md](API.md)
 - [stack-spec-reference.md](stack-spec-reference.md)
+- [agent/agents.md](agent/agents.md)
+- [agent/stackkit-mcp.md](agent/stackkit-mcp.md)

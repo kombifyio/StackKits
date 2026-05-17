@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/stackkit-agent-run-manifest.schema.json",
+  "title": "StackKit Agent Run Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scenario", "kit", "target", "workspace", "commands", "evidenceFiles", "checkedViaAgent", "noHandEditedGeneratedArtifacts"],
+  "properties": {
+    "scenario": { "type": "string", "minLength": 1 },
+    "kit": { "type": "string", "enum": ["base-kit", "modern-homelab", "ha-kit"] },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["local", "ssh", "vm", "ci"] },
+        "host": { "type": "string" },
+        "user": { "type": "string" }
+      }
+    },
+    "workspace": { "type": "string", "minLength": 1 },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "exitCode"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "exitCode": { "type": "integer" },
+          "redacted": { "type": "boolean", "default": true }
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string" },
+        "transport": { "type": "string", "enum": ["stdio", "http"] },
+        "serverUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "evidenceFiles": { "type": "array", "items": { "type": "string" } },
+    "hubUrl": { "type": "string", "format": "uri" },
+    "serviceUrls": { "type": "array", "items": { "type": "string", "format": "uri" } },
+    "runId": { "type": "string", "pattern": "^[0-9]{8}-[0-9]{6}$" },
+    "checkedViaAgent": { "type": "boolean", "const": true },
+    "noHandEditedGeneratedArtifacts": { "type": "boolean", "const": true }
+  }
+}
+
