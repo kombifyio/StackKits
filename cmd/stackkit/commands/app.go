@@ -147,7 +147,7 @@ func addAppToSpec(spec *models.StackSpec, opts appAddOptions) error {
 			return fmt.Errorf("secret variable %q must match [A-Za-z_][A-Za-z0-9_]*", key)
 		}
 		if !isAppSecretRef(ref) {
-			return fmt.Errorf("secret reference for %q must start with env:, doppler:, vault:, or file:", key)
+			return fmt.Errorf("secret reference for %q must start with env, doppler, vault, or file scheme", key)
 		}
 	}
 
