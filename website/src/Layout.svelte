@@ -61,9 +61,8 @@
 <nav class="fixed top-0 w-full z-50 bg-surface/85 backdrop-blur-xl font-sans antialiased text-sm tracking-tight border-b border-outline-variant/50">
   <div class="flex justify-between items-center max-w-7xl mx-auto px-4 md:px-6 h-16 relative">
     <div class="flex items-center gap-4 md:gap-8">
-      <a href="/" onclick={(e) => handleLink(e, '/')} class="flex items-center gap-2.5 no-underline shrink-0">
-        <img src="/icon.png" alt="Kombify StackKits" class="w-7 h-7" />
-        <span class="text-base font-bold tracking-tight text-on-surface">Kombify <span class="text-primary">StackKits</span></span>
+      <a href="/" onclick={(e) => handleLink(e, '/')} class="flex items-center gap-2.5 no-underline shrink-0" aria-label="kombify StackKits — home">
+        <img src="/wordmark.png" alt="kombify StackKits" class="h-8 md:h-9 w-auto" />
       </a>
 
       <div class="hidden md:flex gap-3 md:gap-6 items-center">
@@ -193,9 +192,9 @@
   <div class="max-w-7xl mx-auto px-6 md:px-8 py-12">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
       <div class="flex items-center gap-3">
-        <img src="/icon.png" alt="" class="w-8 h-8 opacity-80" />
+        <img src="/icon.png" alt="" class="w-9 h-9 opacity-90" />
         <div>
-          <div class="text-sm font-bold text-on-surface">Kombify StackKits</div>
+          <div class="text-sm font-bold text-on-surface">kombify StackKits</div>
           <div class="text-xs text-on-surface-variant mt-0.5">Declarative homelab infrastructure</div>
         </div>
       </div>

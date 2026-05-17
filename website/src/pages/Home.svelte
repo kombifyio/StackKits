@@ -4,6 +4,7 @@
   import KitCard from '../lib/KitCard.svelte'
   import FeatureGrid from '../lib/FeatureGrid.svelte'
   import WorksWithMarquee from '../lib/WorksWithMarquee.svelte'
+  import CubeCluster from '../lib/CubeCluster.svelte'
   import { kits } from '../content/kits'
   import { worksWithRail } from '../content/worksWith'
 
@@ -38,6 +39,9 @@
 <main class="pt-24 md:pt-32 pb-12">
   <section class="relative max-w-7xl mx-auto px-6 mb-20 md:mb-28">
     <div class="absolute inset-0 hero-glow pointer-events-none -z-10"></div>
+    <div class="absolute -right-12 top-8 opacity-15 pointer-events-none -z-10 hidden lg:block">
+      <CubeCluster size={420} variant="cluster" />
+    </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-12 items-center">
       <div class="lg:col-span-7">
@@ -52,7 +56,7 @@
         </h1>
 
         <p class="text-lg md:text-xl text-on-surface-variant max-w-2xl leading-relaxed mb-8">
-          Kombify <strong class="text-on-surface">StackKits</strong> is a declarative infrastructure blueprint system. CUE is the source of truth, OpenTofu does the provisioning, and a single shell command brings up a routed homelab with identity, dashboard, photos, and backups.
+          <strong class="text-on-surface">kombify StackKits</strong> is a declarative infrastructure blueprint system. CUE is the source of truth, OpenTofu does the provisioning, and a single shell command brings up a routed homelab with identity, dashboard, photos, and backups.
         </p>
 
         <div class="mb-4">
@@ -173,7 +177,14 @@
   </section>
 
   <section class="max-w-5xl mx-auto px-6 mb-20 md:mb-24">
-    <div class="bg-linear-to-br from-primary-container/50 to-surface-container border border-primary/30 rounded-3xl p-8 md:p-12 text-center">
+    <div class="relative overflow-hidden bg-linear-to-br from-primary-container/50 to-surface-container border border-primary/30 rounded-3xl p-8 md:p-12 text-center">
+      <div class="absolute -left-8 -top-8 opacity-25 pointer-events-none">
+        <CubeCluster size={200} variant="pyramid" />
+      </div>
+      <div class="absolute -right-8 -bottom-12 opacity-20 pointer-events-none">
+        <CubeCluster size={220} variant="cluster" />
+      </div>
+      <div class="relative">
       <span class="text-[11px] font-bold tracking-widest uppercase text-primary">For agents &amp; LLMs</span>
       <h2 class="text-3xl md:text-4xl font-bold text-on-surface mt-2 mb-3">First-class autonomous rollout.</h2>
       <p class="text-on-surface-variant max-w-2xl mx-auto mb-7 leading-relaxed">
@@ -188,6 +199,7 @@
           <span class="material-symbols-outlined text-base leading-none">description</span>
           Open llms.txt
         </a>
+      </div>
       </div>
     </div>
   </section>

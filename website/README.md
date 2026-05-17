@@ -1,6 +1,6 @@
 # stackkit.cc website
 
-Public-facing site for **Kombify StackKits**, deployed to https://stackkit.cc via Cloudflare Pages/Workers.
+Public-facing site for **kombify StackKits**, deployed to https://stackkit.cc via Render (with a Cloudflare CDN in front) and a Cloudflare Worker (`public/_worker.js`) that handles installer-subdomain routing.
 
 ## Stack
 
