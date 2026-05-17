@@ -203,15 +203,20 @@ func (s *Server) handleRunEvidence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runDir := filepath.Join(s.config.BaseDir, ".stackkit", "runs", runID)
+	runDir, ok := s.runEvidenceDir(runID)
+	if !ok {
+		writeError(w, r, http.StatusBadRequest, "invalid run evidence path")
+		return
+	}
+	// #nosec G304 -- runID is timestamp-validated and runDir is constrained under .stackkit/runs.
 	if info, err := os.Stat(runDir); err != nil || !info.IsDir() {
 		writeError(w, r, http.StatusNotFound, "run evidence not found")
 		return
 	}
 
-	metadata := readJSONFile(filepath.Join(runDir, "metadata.json"))
-	summary := readJSONFile(filepath.Join(runDir, "summary.json"))
-	events, err := readJSONLines(filepath.Join(runDir, "events.jsonl"))
+	metadata := readRunJSONFile(runDir, "metadata.json")
+	summary := readRunJSONFile(runDir, "summary.json")
+	events, err := readRunJSONLines(runDir, "events.jsonl")
 	if err != nil && !os.IsNotExist(err) {
 		writeError(w, r, http.StatusInternalServerError, "failed to read run evidence")
 		return
@@ -223,6 +228,16 @@ func (s *Server) handleRunEvidence(w http.ResponseWriter, r *http.Request) {
 		"summary":  summary,
 		"events":   events,
 	})
+}
+
+func (s *Server) runEvidenceDir(runID string) (string, bool) {
+	root := filepath.Clean(filepath.Join(s.config.BaseDir, ".stackkit", "runs"))
+	runDir := filepath.Clean(filepath.Join(root, runID))
+	rel, err := filepath.Rel(root, runDir)
+	if err != nil || rel == "." || rel == ".." || filepath.IsAbs(rel) || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", false
+	}
+	return runDir, true
 }
 
 func (s *Server) loadWorkspaceSpec() (*models.StackSpec, string, error) {
@@ -288,7 +303,12 @@ func listTerraformFiles(dir string) []string {
 	return files
 }
 
-func readJSONFile(path string) map[string]any {
+func readRunJSONFile(runDir, filename string) map[string]any {
+	if filename != filepath.Base(filename) {
+		return nil
+	}
+	path := filepath.Join(runDir, filename)
+	// #nosec G304 -- filename is a fixed run-evidence filename under a validated runDir.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -300,7 +320,12 @@ func readJSONFile(path string) map[string]any {
 	return out
 }
 
-func readJSONLines(path string) ([]map[string]any, error) {
+func readRunJSONLines(runDir, filename string) ([]map[string]any, error) {
+	if filename != filepath.Base(filename) {
+		return nil, os.ErrInvalid
+	}
+	path := filepath.Join(runDir, filename)
+	// #nosec G304 -- filename is a fixed run-evidence filename under a validated runDir.
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
