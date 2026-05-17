@@ -135,7 +135,7 @@ for (const route of ['/llms.txt', '/llms-full.txt', '/llms-snippets.txt', '/gett
 
 if (mode === 'source') {
   const indexHtml = await readFile(path.join(websiteDir, 'index.html'), 'utf8');
-  assert(indexHtml.includes('Kombify StackKits'), 'index.html must brand as Kombify StackKits');
+  assert(/kombify StackKits/i.test(indexHtml), 'index.html must brand as kombify StackKits');
   assert(indexHtml.includes('rel="alternate"'), 'index.html must expose <link rel="alternate"> agent surfaces');
   assert(indexHtml.includes('href="/llms.txt"'), 'index.html must alternate-link llms.txt');
   assert(indexHtml.includes('href="/api/openapi.v1.yaml"'), 'index.html must alternate-link the OpenAPI mirror');
@@ -155,7 +155,7 @@ if (mode === 'source') {
 
 if (mode === 'build') {
   const distIndex = await readStatic('index.html');
-  assert(distIndex.includes('Kombify StackKits'), 'built index must brand as Kombify StackKits');
+  assert(/kombify StackKits/i.test(distIndex), 'built index must brand as kombify StackKits');
   assert(distIndex.includes('href="/llms.txt"'), 'built index must alternate-link llms.txt');
   assert(distIndex.includes('href="/icon.png"'), 'built index must reference the kombifyKits icon');
 
