@@ -121,10 +121,13 @@ linters:
       - path: "cmd/stackkit-server/main\\.go"
         linters:
           - goconst
-      - path: "cmd/stackkit/commands/(access_summary|agent|prepare_docker|tenant_deployment_events)\\.go"
+      - path: "cmd/stackkit/commands/(access_summary|agent|app|prepare_docker|tenant_deployment_events)\\.go"
         linters:
           - goconst
       - path: "cmd/stackkit/commands/apply\\.go"
+        linters:
+          - goconst
+      - path: "cmd/stackkit/commands/apply_owner_bootstrap\\.go"
         linters:
           - goconst
       - path: "cmd/stackkit/commands/(init|kit_roundtrip)\\.go"
@@ -143,6 +146,9 @@ linters:
         linters:
           - goconst
       - path: "internal/api/runtime_actions\\.go"
+        linters:
+          - goconst
+      - path: "internal/api/management_handlers\\.go"
         linters:
           - goconst
       - path: "internal/identity/(backup_encryption|breakglass|owner)\\.go"
