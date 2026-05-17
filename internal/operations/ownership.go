@@ -1,3 +1,4 @@
+// Package operations validates and describes StackKits operation specs.
 package operations
 
 import (

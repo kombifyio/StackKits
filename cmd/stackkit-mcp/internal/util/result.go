@@ -1,3 +1,4 @@
+// Package util contains shared helpers for stackkit-mcp tool results.
 package util
 
 import (

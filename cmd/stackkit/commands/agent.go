@@ -177,7 +177,9 @@ var agentPromptCmd = &cobra.Command{
 				return writeAgentJSON(cmd, map[string]any{"scenarios": names})
 			}
 			for _, name := range names {
-				fmt.Fprintln(cmd.OutOrStdout(), name)
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), name); err != nil {
+					return err
+				}
 			}
 			return nil
 		}
@@ -186,8 +188,8 @@ var agentPromptCmd = &cobra.Command{
 		if agentPromptJSON {
 			return writeAgentJSON(cmd, map[string]any{"scenario": name, "prompt": body})
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), body)
-		return nil
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), body)
+		return err
 	},
 }
 
@@ -207,7 +209,9 @@ var agentMCPConfigCmd = &cobra.Command{
 			if serverURL != "" {
 				fmt.Fprintf(cmd.OutOrStdout(), ", \"--server-url\", %q", serverURL)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "]")
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), "]"); err != nil {
+				return err
+			}
 		case "claude":
 			return writeAgentJSON(cmd, map[string]any{
 				"mcpServers": map[string]any{

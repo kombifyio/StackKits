@@ -19,14 +19,14 @@ func TestDocsModeExposesToolsResourcesAndPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server connect: %v", err)
 	}
-	defer serverSession.Wait()
+	defer func() { _ = serverSession.Wait() }()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client connect: %v", err)
 	}
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	foundTool := false
 	for tool, err := range clientSession.Tools(ctx, nil) {
@@ -76,14 +76,14 @@ func TestReadOnlyDefaultsDoNotExposeActionTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server connect: %v", err)
 	}
-	defer serverSession.Wait()
+	defer func() { _ = serverSession.Wait() }()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client connect: %v", err)
 	}
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	for tool, err := range clientSession.Tools(ctx, nil) {
 		if err != nil {
@@ -103,14 +103,14 @@ func TestActionToolsRequireAllowWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server connect: %v", err)
 	}
-	defer serverSession.Wait()
+	defer func() { _ = serverSession.Wait() }()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client connect: %v", err)
 	}
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	found := false
 	for tool, err := range clientSession.Tools(ctx, nil) {

@@ -1,3 +1,4 @@
+// Package cluster contains local cluster bootstrap primitives.
 package cluster
 
 import (

@@ -185,10 +185,6 @@ func buildDoctorReport(spec *models.StackSpec) doctorReport {
 	}
 	add("spec", "pass", "stack spec loaded")
 
-	domain := spec.Domain
-	if domain == "" {
-		domain = models.DomainHomeLab
-	}
 	if isBaseKitProductionReferenceSpec(spec) {
 		add("fresh-ubuntu-local", "pass", "local context with Kombify Point home domain")
 	} else {

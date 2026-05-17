@@ -89,8 +89,8 @@ func runClusterJoinToken(cmd *cobra.Command, args []string) error {
 		printSuccess("Wrote join token: %s", outPath)
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), token.Token)
-	return nil
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), token.Token)
+	return err
 }
 
 func applySpecClusterDefaults(spec *models.StackSpec, main cluster.MainNode) cluster.MainNode {

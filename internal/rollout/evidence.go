@@ -1,3 +1,4 @@
+// Package rollout records rollout manifests and functional evidence.
 package rollout
 
 import (

@@ -1,3 +1,4 @@
+// Package docs embeds public documentation for local agent surfaces.
 package docs
 
 import "embed"
