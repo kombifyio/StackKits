@@ -88,6 +88,22 @@ for i in $(seq 1 60); do
 done
 
 echo ""
+echo "Waiting for AdGuard Home route to settle (up to 30s)..."
+ROUTE_READY="false"
+for i in $(seq 1 30); do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: adguard.test.local" "$BASE_URL/" 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
+        echo "  AdGuard Home route: ready (${i}s, HTTP $HTTP_CODE)"
+        ROUTE_READY="true"
+        break
+    fi
+    sleep 1
+done
+if [ "$ROUTE_READY" != "true" ]; then
+    echo "  AdGuard Home route: not ready yet (last HTTP $HTTP_CODE)"
+fi
+
+echo ""
 echo "--- Running Tests ---"
 
 log_section "Container Health"

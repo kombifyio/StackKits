@@ -381,6 +381,9 @@ func publicGuideURL(value string) string {
 }
 
 func serviceHint(e servicecatalog.Service) string {
+	if e.Key == "base" && e.IdentityPolicy == servicecatalog.IdentityPolicyNone {
+		return "Bootstrap open"
+	}
 	switch e.IdentityPolicy {
 	case servicecatalog.IdentityPolicyProvider:
 		return "Identity provider"

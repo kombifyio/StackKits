@@ -64,10 +64,10 @@ func Default() []Service {
 	services := []Service{
 		{
 			Key: "base", Name: "base", ToolName: "dashboard", ModuleSlug: "dashboard",
-			DisplayName: "Node Hub", Description: "StackKits node hub with onboarding, recovery, and local service links.",
+			DisplayName: "Node Hub", Description: "StackKits node hub with bootstrap warnings, onboarding, recovery, and local service links.",
 			LocalSlug: "base", PublicSlug: "base", LegacyAliases: []string{"dashboard", "dash"},
-			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128421;", Badge: "L3 \u00b7 Hub", Section: "Platform", Order: -1, EnableVar: "enable_dashboard", GuideURL: "https://docs.kombify.io/guides/stackkits/node-hub", Default: true,
+			IdentityPolicy: IdentityPolicyNone, OwnerProvisioningPolicy: OwnerProvisioningNone,
+			Icon: "&#128421;", Badge: "L2 \u00b7 Node Hub", Section: "Platform", Order: -1, EnableVar: "enable_dashboard", GuideURL: "https://docs.kombify.io/guides/stackkits/node-hub", Default: true,
 		},
 		{
 			Key: "home", Name: "home", ToolName: "homepage", ModuleSlug: "homepage",
@@ -340,6 +340,10 @@ func mergeMissingDefaultFields(svc *Service, fallback Service) {
 	// known service defaults pinned to the local StackKit/CUE-derived catalog so
 	// an Admin mirror snapshot cannot silently redefine BaseKit composition.
 	svc.Default = fallback.Default
+	if fallback.Key == "base" {
+		svc.IdentityPolicy = fallback.IdentityPolicy
+		svc.OwnerProvisioningPolicy = fallback.OwnerProvisioningPolicy
+	}
 	if svc.GuideURL == "" {
 		svc.GuideURL = fallback.GuideURL
 	}

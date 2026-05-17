@@ -82,6 +82,12 @@ variable "enable_tinyauth" {
   default     = true
 }
 
+variable "protect_base_hub" {
+  type        = bool
+  description = "Protect local base.<domain> Node Hub and its node-local API with TinyAuth after owner setup. Public/non-local Base routes stay protected when TinyAuth is enabled."
+  default     = false
+}
+
 variable "enable_pocketid" {
   type        = bool
   description = "Enable Pocket ID OIDC identity provider (Layer 1)"
@@ -496,6 +502,9 @@ locals {
   direct_compose_deploy    = local.is_localhost_domain || local.rp_standalone || local.coolify_stackkit_router
   platform_adapter         = (local.is_localhost_domain || local.rp_standalone) ? "none" : var.paas
   auth_middleware          = var.enable_tinyauth ? "tinyauth@docker" : ""
+  base_hub_bootstrap_open  = var.enable_dashboard && (local.is_localhost_domain || local.is_local_dns_domain) && !var.protect_base_hub
+  base_hub_auth_middleware = var.enable_tinyauth && !local.base_hub_bootstrap_open ? "tinyauth@docker" : ""
+  base_hub_unprotected     = var.enable_dashboard && (local.base_hub_auth_middleware == "")
   # Local first setup must not depend on a platform API token. The Node Hub is
   # directly generated for browser-native .localhost rollouts, but public
   # service routes still go through TinyAuth when identity is enabled.
@@ -1282,6 +1291,9 @@ locals {
         h1 { margin: 6px 0 6px; font-size: 32px; line-height: 1.08; letter-spacing: 0; }
         .intro { max-width: 760px; color: var(--dim); font-size: 14px; margin: 0; }
         .banner { background: rgba(245,158,11,.09); border: 1px solid rgba(245,158,11,.28); border-radius: var(--r); padding: 12px 14px; color: #FDE68A; font-size: 13px; margin-bottom: 16px; }
+        .protection-banner { display: grid; gap: 8px; }
+        .banner-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .banner-actions code { color: #FDE68A; background: rgba(0,0,0,.16); border: 1px solid rgba(245,158,11,.22); border-radius: 5px; padding: 4px 7px; }
         .top-grid { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(280px,.95fr); gap: 14px; margin: 22px 0 24px; }
         .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
         .panel h2, .section-title { margin: 0 0 12px; font-size: 13px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
@@ -1365,6 +1377,7 @@ locals {
           <p class="intro">Use this node-local hub for first setup, recovery, service access, and the public guides for everything installed by this StackKit.</p>
         </header>
         ${local.is_kombify_me ? "<div class=\"banner\">Public access is using kombify.me routes. Keep service ownership and app-level admin setup tight before sharing links.</div>" : ""}
+        ${local.base_hub_unprotected ? "<div class=\"banner protection-banner\"><div><strong>Diese Seite ist aktuell ungeschützt.</strong> Base bleibt im Bootstrap absichtlich offen, damit PocketID und die ersten Setup-Aktionen erreichbar sind, bevor eine Identität existiert.</div><div class=\"banner-actions\"><a class=\"link-pill\" href=\"${local.proto}://${local.domains.id}/setup\" target=\"_blank\" rel=\"noreferrer\">PocketID Setup</a><span>Nach dem Owner-Setup <code>protect_base_hub=true</code> setzen und erneut anwenden, um Base hinter TinyAuth zu legen.</span></div></div>" : ""}
         <section class="top-grid" aria-label="Getting started and node overview">
           <div class="panel">
             <h2>Getting Started</h2>
@@ -1471,7 +1484,7 @@ locals {
 %{if var.enable_https~}
           - "traefik.http.routers.dashboard.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.dashboard.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.dashboard.middlewares=${local.base_hub_auth_middleware}"
           - "traefik.http.services.dashboard.loadbalancer.server.port=80"
         healthcheck:
           test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
@@ -1526,7 +1539,7 @@ locals {
 %{if var.enable_https~}
           - "traefik.http.routers.stackkit-server.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.stackkit-server.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.stackkit-server.middlewares=${local.base_hub_auth_middleware}"
           - "traefik.http.services.stackkit-server.loadbalancer.server.port=8082"
         healthcheck:
           test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8082/health || exit 1"]
@@ -3454,7 +3467,7 @@ resource "docker_container" "dashboard" {
 
   labels {
     label = "traefik.http.routers.dashboard.middlewares"
-    value = local.auth_middleware
+    value = local.base_hub_auth_middleware
   }
 
   healthcheck {
@@ -3562,7 +3575,7 @@ resource "docker_container" "stackkit_server" {
 
   labels {
     label = "traefik.http.routers.stackkit-server.middlewares"
-    value = local.auth_middleware
+    value = local.base_hub_auth_middleware
   }
 
   labels {

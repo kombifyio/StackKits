@@ -72,6 +72,8 @@ Platform provides the shared runtime used by application modules:
 
 Uptime Kuma and Whoami are Platform concerns in BaseKit. They MUST NOT be modeled as L3 applications because their job is to verify and observe L1/L2/L3 services. Uptime Kuma MUST be bootstrapped by StackKits and receive monitors for enabled services; Whoami MUST be treated as the routing/auth diagnostic endpoint.
 
+The Base Node Hub is the bootstrap entrypoint, not an L3 app. Local Base routes MUST be reachable before owner identity exists, show `Diese Seite ist aktuell ungeschützt.` while bootstrap-open, and only move behind TinyAuth when the operator explicitly enables Base Hub protection after setup. Public/non-local Base routes remain protected when TinyAuth is enabled.
+
 Platform MUST expose a supported application rollout path. Normal StackKits MUST NOT deploy Layer-3 applications through unmanaged ad hoc containers when a platform adapter is required.
 
 ### Application

@@ -1,7 +1,7 @@
 // Package dashboard -- StackKits Node Hub module.
 //
-// Provides a node-local hub with onboarding, recovery hints, and links to the
-// most important services on this StackKits node.
+// Provides a node-local bootstrap hub with protection warnings, onboarding,
+// recovery hints, and links to the most important services on this StackKits node.
 // Uses nginx:alpine as a lightweight static file server.
 // Requires Traefik for reverse proxy routing.
 //
@@ -16,8 +16,8 @@ Contract: base.#ModuleContract & {
 		name:        "dashboard"
 		displayName: "StackKits Node Hub"
 		version:     "1.0.0"
-		layer:       "L3-application"
-		description: "Node-local StackKits hub with onboarding, recovery, and service links"
+		layer:       "L2-platform-diagnostics"
+		description: "Node-local StackKits bootstrap hub with protection warnings, onboarding, recovery, and service links"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
@@ -115,7 +115,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		subdomain: {key: "base", nested: "base", flat: "base"}
-		dashboard: {icon: "&#128421;", order: 0, section: "Platform", badge: "L3 \u00b7 Hub", enableVar: "enable_dashboard", guideUrl: "https://docs.kombify.io/guides/stackkits/node-hub"}
+		dashboard: {icon: "&#128421;", order: 0, section: "Platform", badge: "L2 \u00b7 Node Hub", enableVar: "enable_dashboard", guideUrl: "https://docs.kombify.io/guides/stackkits/node-hub"}
 
 		output: {
 			url:         "https://base.{{.domain}}"

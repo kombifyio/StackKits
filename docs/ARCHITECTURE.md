@@ -46,7 +46,7 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 4. `stackkit generate` writes generated rollout artifacts under `deploy/`.
 5. `stackkit plan` and `stackkit apply` execute OpenTofu through the Go adapter.
 6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest. StackKit may operate StackKit-owned system apps through the platform adapter, but user apps remain PaaS handoff metadata and are deployed, updated, and operated by the selected external PaaS tooling.
-7. First-run setup is represented separately from deployment as setup-drop metadata. L1/L2 platform services use `automatic` setup and must be usable after rollout; L3 apps use `manual` or `on_demand` depending on whether StackKits has a supported bootstrap drop.
+7. First-run setup is represented separately from deployment as setup-drop metadata. Local Base Node Hub routes are intentionally bootstrap-open until `protect_base_hub=true` is applied after owner setup, while public/non-local Base routes stay protected when TinyAuth is enabled. Other L1/L2 platform services use `automatic` setup and must be usable after rollout, while L3 apps use `manual` or `on_demand` depending on whether StackKits has a supported bootstrap drop.
 8. `stackkit verify` performs read-only host checks and optional HTTP URL checks.
 9. `stackkit-server` exposes the same catalog, validation, generation-preview, log, and registry concepts over HTTP and is deployed as a platform-managed system app in the normal BaseKit path.
 

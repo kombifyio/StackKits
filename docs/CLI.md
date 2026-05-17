@@ -291,6 +291,9 @@ Subcommands:
 - `module verify-db`
 
 Use these for module contract hash release and DB parity checks.
+Admin API auth follows the kit commands: `SERVICE_AUTH_SECRET` mints the
+preferred `X-Kombify-Service-Auth` token, with `STACKKIT_ADMIN_TOKEN` or
+`KOMBIFY_ADMIN_API_KEY` only as legacy Bearer fallbacks.
 
 ### `stackkit registry`
 

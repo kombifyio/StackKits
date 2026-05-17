@@ -79,7 +79,8 @@ Any other setup policy is rejected during spec validation.
 
 Layer rules are part of the public service contract:
 
-- L1/L2 platform services must be complete after rollout. The user must not land in a required upstream setup wizard for the Node Hub, identity layer, reverse proxy, selected PaaS, Uptime Kuma, or routing diagnostics.
+- The Base Node Hub is the bootstrap entrypoint. Local `.localhost` and managed LAN-DNS Base routes are open by default so first setup is reachable before a PocketID user exists. They must show `Diese Seite ist aktuell ungeschützt.` while `protect_base_hub=false`; set `protect_base_hub=true` and re-apply after owner setup to put local Base behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled.
+- Other L1/L2 platform services must be complete after rollout. The user must not land in a required upstream setup wizard for the identity layer, reverse proxy, selected PaaS, Uptime Kuma, or routing diagnostics.
 - Uptime Kuma and Whoami are L2 platform services, not L3 apps. Uptime Kuma is bootstrapped automatically and registers monitors for enabled L1/L2/L3 services.
 - L3 application tools may keep app-local first-run setup. When StackKits has a supported setup drop, the Node Hub can expose `Do the setup for me`; otherwise it exposes the public How-to guide.
 
@@ -159,6 +160,7 @@ If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackk
 | `stackkit registry snapshot` | `--endpoint`; `--token` or `STACKKIT_ADMIN_TOKEN`; optional `--output`. |
 | `stackkit registry bake-from-cue` | `--modules-dir`; optional `--output`. |
 | `stackkit registry info` | Optional `--json`. |
+| `stackkit module release` / `stackkit module verify-db` | `--endpoint` or `STACKKIT_ADMIN_ENDPOINT`; preferred `SERVICE_AUTH_SECRET`; legacy `--token`, `STACKKIT_ADMIN_TOKEN`, or `KOMBIFY_ADMIN_API_KEY`. |
 | `stackkit kit list` | `--endpoint` or `STACKKIT_ADMIN_ENDPOINT` or `ADMIN_PUBLIC_API_URL`; `--token` or `STACKKIT_ADMIN_TOKEN` or `KOMBIFY_ADMIN_API_KEY`. |
 | `stackkit kit export` | `--slug`, `--from-api` or `STACKKIT_ADMIN_ENDPOINT`, `--token` or `STACKKIT_ADMIN_TOKEN`, `--output`, `--format`; `--from-yaml` for offline tests. |
 | `stackkit kit verify` | `--kit-dir`, optional Admin API endpoint/token, optional `--strict`. |

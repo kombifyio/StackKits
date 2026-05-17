@@ -277,6 +277,7 @@ func TestServiceHint(t *testing.T) {
 		{name: "forwardauth", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicyForwardAuth}, want: "Protected by TinyAuth"},
 		{name: "self-auth", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicySelfAuth}, want: "App login"},
 		{name: "none", svc: servicecatalog.Service{IdentityPolicy: servicecatalog.IdentityPolicyNone}, want: "Local service"},
+		{name: "base bootstrap open", svc: servicecatalog.Service{Key: "base", IdentityPolicy: servicecatalog.IdentityPolicyNone}, want: "Bootstrap open"},
 	}
 
 	for _, tt := range tests {

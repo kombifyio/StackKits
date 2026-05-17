@@ -103,7 +103,8 @@ The fresh Ubuntu gate is no longer a pure liveness smoke. For BaseKit local
 defaults it must also prove:
 
 - fixed host ports are free before Docker resources are created,
-- protected/default services do not answer anonymous requests with `2xx`,
+- `base.home.localhost` answers anonymous first-setup requests with the warning `Diese Seite ist aktuell ungeschützt.`,
+- protected/default services other than the Base Hub do not answer anonymous requests with `2xx`,
 - `stackkit-server` can read `deploy/.platform-apps-manifest.json`,
 - the Photos/Immich on-demand setup drop can execute from the node-local API,
 - expensive phases are logged so slow local runs show progress.

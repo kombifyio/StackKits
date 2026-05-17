@@ -60,13 +60,13 @@ func init() {
 	moduleReleaseCmd.Flags().StringVar(&moduleReleaseModule, "module", "", "Path to the module directory (containing module.cue). Required.")
 	moduleReleaseCmd.Flags().StringVar(&moduleReleaseVersion, "version", "", "Override metadata.version")
 	moduleReleaseCmd.Flags().StringVar(&moduleReleaseEndpoint, "endpoint", "", "Admin API base URL (e.g. https://admin.kombify.io). If unset, only computes hash.")
-	moduleReleaseCmd.Flags().StringVar(&moduleReleaseToken, "token", "", "Bearer token for the Admin API. Defaults to $STACKKIT_ADMIN_TOKEN.")
+	moduleReleaseCmd.Flags().StringVar(&moduleReleaseToken, "token", "", "Bearer token for the Admin API. Defaults to $STACKKIT_ADMIN_TOKEN or $KOMBIFY_ADMIN_API_KEY; $SERVICE_AUTH_SECRET takes precedence.")
 	moduleReleaseCmd.Flags().StringVar(&moduleReleaseOutput, "output", "", "Write release artifact to this path (JSON). If unset, writes to module-release.json in the module dir.")
 	moduleReleaseCmd.Flags().BoolVar(&moduleReleaseDryRun, "dry-run", false, "Compute hash + write artifact but do not POST to API")
 	moduleReleaseCmd.Flags().StringVar(&moduleReleaseReleasedBy, "released-by", "", "Identifier of the releaser (user/email/CI ref). Defaults to $USER or 'ci'.")
 
 	moduleVerifyDBCmd.Flags().StringVar(&moduleVerifyEndpoint, "endpoint", "", "Admin API base URL. Required.")
-	moduleVerifyDBCmd.Flags().StringVar(&moduleVerifyToken, "token", "", "Bearer token for the Admin API. Defaults to $STACKKIT_ADMIN_TOKEN.")
+	moduleVerifyDBCmd.Flags().StringVar(&moduleVerifyToken, "token", "", "Bearer token for the Admin API. Defaults to $STACKKIT_ADMIN_TOKEN or $KOMBIFY_ADMIN_API_KEY; $SERVICE_AUTH_SECRET takes precedence.")
 	moduleVerifyDBCmd.Flags().StringVar(&moduleVerifyModule, "module", "", "Verify a single module directory")
 	moduleVerifyDBCmd.Flags().StringVar(&moduleVerifyModules, "modules-dir", "modules", "Root modules directory (used with --all)")
 	moduleVerifyDBCmd.Flags().BoolVar(&moduleVerifyAll, "all", false, "Verify all modules in --modules-dir")
@@ -135,14 +135,7 @@ func runModuleRelease(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("compute contract hash: %w", err)
 	}
 
-	releasedBy := moduleReleaseReleasedBy
-	if releasedBy == "" {
-		if u := os.Getenv("USER"); u != "" {
-			releasedBy = u
-		} else {
-			releasedBy = "ci"
-		}
-	}
+	releasedBy := resolveModuleReleaseActor()
 
 	payload := moduleReleasePayload{
 		ModuleSlug:        slug,
@@ -189,10 +182,7 @@ func runModuleRelease(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	token := moduleReleaseToken
-	if token == "" {
-		token = os.Getenv("STACKKIT_ADMIN_TOKEN")
-	}
+	token := resolveModuleReleaseToken()
 
 	url := fmt.Sprintf("%s/api/v1/sk/registry/modules/%s/versions", trimTrailingSlash(moduleReleaseEndpoint), slug)
 	if err := postJSON(url, token, artifact); err != nil {
@@ -203,14 +193,31 @@ func runModuleRelease(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func resolveModuleReleaseActor() string {
+	if moduleReleaseReleasedBy != "" {
+		return moduleReleaseReleasedBy
+	}
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	return "ci"
+}
+
+func resolveModuleReleaseToken() string {
+	if moduleReleaseToken != "" {
+		return moduleReleaseToken
+	}
+	if token := os.Getenv("STACKKIT_ADMIN_TOKEN"); token != "" {
+		return token
+	}
+	return os.Getenv("KOMBIFY_ADMIN_API_KEY")
+}
+
 func runModuleVerifyDB(cmd *cobra.Command, args []string) error {
 	if moduleVerifyEndpoint == "" {
 		return fmt.Errorf("--endpoint is required")
 	}
-	token := moduleVerifyToken
-	if token == "" {
-		token = os.Getenv("STACKKIT_ADMIN_TOKEN")
-	}
+	token := resolveModuleVerifyToken()
 
 	var paths []string
 	switch {
@@ -277,6 +284,16 @@ func runModuleVerifyDB(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("verify-db: %d mismatches", mismatches)
 	}
 	return nil
+}
+
+func resolveModuleVerifyToken() string {
+	if moduleVerifyToken != "" {
+		return moduleVerifyToken
+	}
+	if token := os.Getenv("STACKKIT_ADMIN_TOKEN"); token != "" {
+		return token
+	}
+	return os.Getenv("KOMBIFY_ADMIN_API_KEY")
 }
 
 func moduleContractToCanonicalMap(mc skcue.ModuleContract) map[string]interface{} {
@@ -398,8 +415,8 @@ func postJSON(url, token string, body []byte) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	if err := attachKitClientAuth(req, token); err != nil {
+		return fmt.Errorf("attach auth: %w", err)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -422,8 +439,8 @@ func fetchLatestContractHash(baseURL, slug, token string) (hash, version string,
 	if err != nil {
 		return "", "", err
 	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	if err := attachKitClientAuth(req, token); err != nil {
+		return "", "", fmt.Errorf("attach auth: %w", err)
 	}
 
 	client := &http.Client{Timeout: 15 * time.Second}

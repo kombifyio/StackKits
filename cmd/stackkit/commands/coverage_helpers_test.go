@@ -255,6 +255,7 @@ func TestModuleContractToCanonicalMapCopiesRequiredFields(t *testing.T) {
 }
 
 func TestPostJSONAndFetchLatestContractHash(t *testing.T) {
+	t.Setenv("SERVICE_AUTH_SECRET", "")
 	var postedAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -294,7 +295,89 @@ func TestPostJSONAndFetchLatestContractHash(t *testing.T) {
 	}
 }
 
+func TestPostJSONAndFetchLatestContractHashUseServiceAuth(t *testing.T) {
+	t.Setenv("SERVICE_AUTH_SECRET", "shared-secret")
+	var serviceAuthHeaders []string
+	var bearerHeaders []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serviceAuthHeaders = append(serviceAuthHeaders, r.Header.Get("X-Kombify-Service-Auth"))
+		bearerHeaders = append(bearerHeaders, r.Header.Get("Authorization"))
+		switch r.Method {
+		case http.MethodPost:
+			w.WriteHeader(http.StatusCreated)
+		case http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": []map[string]string{{"version": "1.0.0", "contract_hash": "abcdef1234567890"}},
+			})
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	}))
+	defer srv.Close()
+
+	if err := postJSON(srv.URL+"/modules", "legacy-token", []byte(`{"ok":true}`)); err != nil {
+		t.Fatalf("postJSON: %v", err)
+	}
+	if _, _, err := fetchLatestContractHash(srv.URL, "tinyauth", "legacy-token"); err != nil {
+		t.Fatalf("fetchLatestContractHash: %v", err)
+	}
+	if len(serviceAuthHeaders) != 2 {
+		t.Fatalf("service auth headers = %#v", serviceAuthHeaders)
+	}
+	for i, header := range serviceAuthHeaders {
+		if header == "" {
+			t.Fatalf("service auth header %d is empty", i)
+		}
+	}
+	for i, header := range bearerHeaders {
+		if header != "" {
+			t.Fatalf("bearer header %d = %q, want empty when service auth is set", i, header)
+		}
+	}
+}
+
+func TestResolveModuleReleaseDefaults(t *testing.T) {
+	prevReleaseToken := moduleReleaseToken
+	prevVerifyToken := moduleVerifyToken
+	prevReleasedBy := moduleReleaseReleasedBy
+	moduleReleaseToken = ""
+	moduleVerifyToken = ""
+	moduleReleaseReleasedBy = ""
+	t.Cleanup(func() {
+		moduleReleaseToken = prevReleaseToken
+		moduleVerifyToken = prevVerifyToken
+		moduleReleaseReleasedBy = prevReleasedBy
+	})
+
+	t.Setenv("STACKKIT_ADMIN_TOKEN", "")
+	t.Setenv("KOMBIFY_ADMIN_API_KEY", "admin-key")
+	t.Setenv("USER", "operator")
+	if got := resolveModuleReleaseToken(); got != "admin-key" {
+		t.Fatalf("release token = %q", got)
+	}
+	if got := resolveModuleVerifyToken(); got != "admin-key" {
+		t.Fatalf("verify token = %q", got)
+	}
+	if got := resolveModuleReleaseActor(); got != "operator" {
+		t.Fatalf("release actor = %q", got)
+	}
+
+	moduleReleaseToken = "flag-release"
+	moduleVerifyToken = "flag-verify"
+	moduleReleaseReleasedBy = "flag-actor"
+	if got := resolveModuleReleaseToken(); got != "flag-release" {
+		t.Fatalf("flag release token = %q", got)
+	}
+	if got := resolveModuleVerifyToken(); got != "flag-verify" {
+		t.Fatalf("flag verify token = %q", got)
+	}
+	if got := resolveModuleReleaseActor(); got != "flag-actor" {
+		t.Fatalf("flag release actor = %q", got)
+	}
+}
+
 func TestPostJSONAndFetchLatestContractHashErrors(t *testing.T) {
+	t.Setenv("SERVICE_AUTH_SECRET", "")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "broken", http.StatusBadGateway)
 	}))

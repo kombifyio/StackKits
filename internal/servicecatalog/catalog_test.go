@@ -54,11 +54,13 @@ func TestDefaultCatalogUsesCanonicalKeysAndStableSlugs(t *testing.T) {
 
 func TestDefaultCatalogDeclaresIdentityForDefaultServices(t *testing.T) {
 	for _, svc := range Default() {
-		if svc.Default && svc.IdentityPolicy == IdentityPolicyNone {
-			t.Fatalf("%s must declare an identity policy", svc.Key)
+		if svc.Default && svc.IdentityPolicy == IdentityPolicyNone && svc.Key != "base" {
+			t.Fatalf("%s must declare an identity policy unless it is the bootstrap-open Node Hub", svc.Key)
 		}
 		if svc.Default && svc.IdentityPolicy != IdentityPolicySelfAuth && svc.OwnerProvisioningPolicy != OwnerProvisioningRequired {
-			t.Fatalf("%s OwnerProvisioningPolicy = %q, want %q for %s", svc.Key, svc.OwnerProvisioningPolicy, OwnerProvisioningRequired, svc.IdentityPolicy)
+			if svc.Key != "base" {
+				t.Fatalf("%s OwnerProvisioningPolicy = %q, want %q for %s", svc.Key, svc.OwnerProvisioningPolicy, OwnerProvisioningRequired, svc.IdentityPolicy)
+			}
 		}
 		if svc.GuideURL == "" {
 			t.Fatalf("%s GuideURL is empty", svc.Key)
@@ -66,6 +68,19 @@ func TestDefaultCatalogDeclaresIdentityForDefaultServices(t *testing.T) {
 		if !hasPrefix(svc.GuideURL, "https://docs.kombify.io/") {
 			t.Fatalf("%s GuideURL = %q, want public docs URL", svc.Key, svc.GuideURL)
 		}
+	}
+}
+
+func TestDefaultCatalogKeepsBaseHubBootstrapOpen(t *testing.T) {
+	base := byKey(Default())["base"]
+	if base.IdentityPolicy != IdentityPolicyNone {
+		t.Fatalf("base IdentityPolicy = %q, want %q", base.IdentityPolicy, IdentityPolicyNone)
+	}
+	if base.OwnerProvisioningPolicy != OwnerProvisioningNone {
+		t.Fatalf("base OwnerProvisioningPolicy = %q, want %q", base.OwnerProvisioningPolicy, OwnerProvisioningNone)
+	}
+	if base.Layer != "L2-platform" {
+		t.Fatalf("base Layer = %q, want L2-platform", base.Layer)
 	}
 }
 
@@ -351,6 +366,27 @@ func TestWithDefaultFallbacksKeepsKnownDefaultFlagsFromLocalContract(t *testing.
 	media := byKey(services)["media"]
 	if media.Default {
 		t.Fatalf("media Default = true from registry drift, want local BaseKit contract false")
+	}
+}
+
+func TestWithDefaultFallbacksPinsBaseHubBootstrapOpenContract(t *testing.T) {
+	services := WithDefaultFallbacks([]Service{
+		{
+			Key:                     "base",
+			DisplayName:             "Base from stale registry",
+			ToolName:                "dashboard",
+			IdentityPolicy:          IdentityPolicyForwardAuth,
+			OwnerProvisioningPolicy: OwnerProvisioningRequired,
+			Default:                 true,
+		},
+	})
+
+	base := byKey(services)["base"]
+	if base.IdentityPolicy != IdentityPolicyNone {
+		t.Fatalf("base IdentityPolicy = %q, want %q", base.IdentityPolicy, IdentityPolicyNone)
+	}
+	if base.OwnerProvisioningPolicy != OwnerProvisioningNone {
+		t.Fatalf("base OwnerProvisioningPolicy = %q, want %q", base.OwnerProvisioningPolicy, OwnerProvisioningNone)
 	}
 }
 

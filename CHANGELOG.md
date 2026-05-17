@@ -4,6 +4,20 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.8] - 2026-05-17
+
+### Highlights
+
+- **BaseKit bootstrap-open Base Hub**: local `base.<domain>` stays reachable during first-run owner setup, shows an unprotected warning, and can be protected after PocketID/TinyAuth setup.
+- **Registry-backed module release**: module release and verify now use service auth, bootstrap missing module rows through the Admin registry, and keep all 24 module contract hashes in strict parity.
+- **Release gate stabilization**: AdGuard Home module tests wait for routed UI readiness after provisioning, and the module release command stays below lint complexity thresholds.
+
+### Fixed
+
+- Prevent stale service-catalog snapshots from re-protecting the local Base Hub by pinning `base` to identity `none` for local fallback defaults.
+- Keep default L3/application services protected unless they are explicitly configured public; the Base Hub is the local onboarding exception only.
+- Avoid browser-session Admin tokens in module release CI; signed service-auth requests now take precedence.
+
 ## [0.2.7] - 2026-05-17
 
 ### Highlights
