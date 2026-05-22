@@ -4458,7 +4458,15 @@ resource "null_resource" "coolify_install" {
           docker context use default >/dev/null 2>&1 || true
         )
       fi
-      if ! command -v coolify &> /dev/null && ! docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -q coolify; then
+      COOLIFY_REAL_DOCKER="$(command -v docker)"
+      stackkit_docker() {
+        if [ -n "${var.docker_host}" ]; then
+          DOCKER_HOST="${var.docker_host}" "$COOLIFY_REAL_DOCKER" "$@"
+        else
+          "$COOLIFY_REAL_DOCKER" "$@"
+        fi
+      }
+      if ! stackkit_docker ps -a --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
         if [ -z "${var.admin_email}" ] || [ -z "${var.admin_password_plaintext}" ]; then
           echo "ERROR: Coolify requires generated admin_email and admin_password_plaintext for root-user bootstrap"
           exit 1
@@ -4466,14 +4474,6 @@ resource "null_resource" "coolify_install" {
         echo "Installing Coolify..."
         COOLIFY_INSTALL_PATH="$PATH"
         COOLIFY_SYSTEMCTL_SHIM="$(mktemp -d)"
-        COOLIFY_REAL_DOCKER="$(command -v docker)"
-        stackkit_docker() {
-          if [ -n "${var.docker_host}" ]; then
-            DOCKER_HOST="${var.docker_host}" "$COOLIFY_REAL_DOCKER" "$@"
-          else
-            "$COOLIFY_REAL_DOCKER" "$@"
-          fi
-        }
         stackkit_preseed_coolify_image() {
           target="$1"
           mirror="$2"
@@ -4530,6 +4530,11 @@ EOS
           DOCKER_POOL_FORCE_OVERRIDE=true \
           AUTOUPDATE=false \
           bash -c 'curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash'
+        if ! stackkit_docker ps -a --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
+          echo "ERROR: Coolify installer exited without creating the coolify container"
+          stackkit_docker ps -a --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' || true
+          exit 1
+        fi
       else
         echo "Coolify already installed"
       fi
@@ -4762,12 +4767,17 @@ resource "null_resource" "coolify_platform_bootstrap" {
           ss -ltnp 2>&1 | grep -E '(:8000|:8080)\b' | stackkit_redact >&2 || true
         fi
       }
-      for i in $(seq 1 360); do
+      if ! stackkit_docker ps -a --filter "name=^/coolify$" --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
+        echo "ERROR: Coolify runtime container is missing after installer phase"
+        stackkit_coolify_diagnostics
+        exit 1
+      fi
+      for i in $(seq 1 60); do
         if stackkit_coolify_http_ready && stackkit_docker exec coolify sh -lc 'cd /var/www/html && php artisan --version >/dev/null 2>&1'; then
           break
         fi
-        if [ "$i" -eq 360 ]; then
-          echo "ERROR: Coolify API did not become ready at ${local.coolify_api_endpoint} after 30 minutes"
+        if [ "$i" -eq 60 ]; then
+          echo "ERROR: Coolify API did not become ready at ${local.coolify_api_endpoint} after 5 minutes"
           stackkit_coolify_diagnostics
           exit 1
         fi

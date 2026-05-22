@@ -19,6 +19,7 @@ type Executor struct {
 	binary      string
 	timeout     time.Duration
 	autoApprove bool
+	env         []string
 }
 
 // ExecutorOption configures the Executor
@@ -49,6 +50,13 @@ func WithTimeout(timeout time.Duration) ExecutorOption {
 func WithAutoApprove(autoApprove bool) ExecutorOption {
 	return func(e *Executor) {
 		e.autoApprove = autoApprove
+	}
+}
+
+// WithEnv appends environment values for OpenTofu commands.
+func WithEnv(values ...string) ExecutorOption {
+	return func(e *Executor) {
+		e.env = append(e.env, values...)
 	}
 }
 
@@ -234,6 +242,7 @@ func (e *Executor) run(ctx context.Context, args ...string) (*Result, error) {
 	env := os.Environ()
 	env = append(env, "TF_IN_AUTOMATION=1")
 	env = append(env, "TF_INPUT=0")
+	env = append(env, e.env...)
 	cmd.Env = env
 
 	err := cmd.Run()

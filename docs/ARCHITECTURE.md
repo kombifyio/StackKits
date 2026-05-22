@@ -2,7 +2,7 @@
 
 > Last verified: 2026-05-17
 
-This is the current implementation overview for this repo. Normative product and module rules live in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md), [STACKKIT_DEVELOPMENT_DECISION_GUIDE.md](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md), and accepted ADRs.
+This is the current implementation overview for this repo. The public release docs use this page as their architecture overview. Normative product and module rules live in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md), [STACKKIT_DEVELOPMENT_DECISION_GUIDE.md](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md), and accepted ADRs.
 
 ## System Role
 

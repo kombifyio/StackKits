@@ -105,6 +105,44 @@ func TestRuntimeActionEndpoints_ReturnManagedStackKitOutputs(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "passphrase")
 }
 
+func TestRuntimeActionRemoteTargetWritesDockerHostTFVars(t *testing.T) {
+	tofuDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tofuDir, "terraform.tfvars.json"), []byte(`{"domain":"kombify.me"}`), 0600))
+
+	target := normalizeRuntimeActionTarget(&runtimeActionTarget{
+		Host: "203.0.113.10",
+		User: "ubuntu",
+		Port: 2222,
+	})
+	require.NotNil(t, target)
+	dockerHost := runtimeTargetDockerHost(target)
+	require.Equal(t, "ssh://ubuntu@203.0.113.10:2222", dockerHost)
+	require.NoError(t, writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost))
+
+	data, err := os.ReadFile(filepath.Join(tofuDir, "terraform.tfvars.json"))
+	require.NoError(t, err)
+	var values map[string]any
+	require.NoError(t, json.Unmarshal(data, &values))
+	assert.Equal(t, "kombify.me", values["domain"])
+	assert.Equal(t, dockerHost, values["docker_host"])
+}
+
+func TestRuntimeActionRemoteTargetSSHCommandDoesNotIncludeHost(t *testing.T) {
+	target := normalizeRuntimeActionTarget(&runtimeActionTarget{
+		Host: "203.0.113.10",
+		User: "root",
+		Port: 22,
+	})
+	require.NotNil(t, target)
+
+	command := runtimeTargetSSHCommand(target, "/tmp/id_runtime")
+	assert.Contains(t, command, "-i /tmp/id_runtime")
+	assert.NotContains(t, command, "root@203.0.113.10")
+
+	args := runtimeTargetSSHArgs(target, "/tmp/id_runtime")
+	assert.Equal(t, "root@203.0.113.10", args[len(args)-1])
+}
+
 func TestRuntimeActionEndpoints_RejectWrongCaller(t *testing.T) {
 	srv, _ := testServer(t)
 	srv.config.ServiceAuthSecret = "shared-secret"

@@ -34,6 +34,8 @@ Use the smallest gate that proves the changed surface, then broaden when a share
 
 Debug release candidates locally before relying on remote CI. For docs-only changes, link checks are sufficient unless `website/`, install snippets, CLI examples, or test docs changed.
 
+No test, workflow job, generated readiness wait, or manual release gate may wait longer than 15 minutes. Extending a timeout to hide slow or stuck behavior is not a fix; the gate must fail fast with diagnostics, split into smaller phases, or be redesigned until the blocking phase is visible and bounded. The timeout-budget policy is enforced by `node scripts/release/check-timeout-budget.mjs --repo-root .`.
+
 Local gates MUST NOT rely on a host-installed OpenTofu binary. OpenTofu is a StackKit release-package component, not a developer or user prerequisite. Any test that proves install, prepare, plan, apply, or verify behavior must either use the packaged StackKit OpenTofu binary or start from a fresh target where `tofu` is absent before StackKit installs its packaged copy. The BaseKit fresh-VM gate explicitly fails if the target already has `tofu` on `PATH`.
 
 Release archive gates MUST NOT rely on the repo checkout for CUE imports or module contracts. Build the snapshot with GoReleaser, extract the archive, copy only the released files into a fresh home directory, and prove that `stackkit init` plus `stackkit generate` creates non-empty identity runtime values such as `admin_email` and `tinyauth_users`.

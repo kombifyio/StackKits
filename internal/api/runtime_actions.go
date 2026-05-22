@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -33,6 +34,20 @@ type runtimeActionRequest struct {
 	TofuDir            string                           `json:"tofu_dir,omitempty"`
 	UnifiedPath        string                           `json:"unified_path,omitempty"`
 	OwnerSpecBootstrap *runtimeActionOwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
+	RuntimeTarget      *runtimeActionTarget             `json:"runtime_target,omitempty"`
+}
+
+type runtimeActionTarget struct {
+	Host             string `json:"host,omitempty"`
+	PublicIP         string `json:"public_ip,omitempty"`
+	PrivateIP        string `json:"private_ip,omitempty"`
+	User             string `json:"user,omitempty"`
+	Port             int    `json:"port,omitempty"`
+	DockerHost       string `json:"docker_host,omitempty"`
+	KeyPath          string `json:"key_path,omitempty"`
+	PrivateKey       string `json:"private_key,omitempty"`
+	ClientPrivateKey string `json:"client_private_key,omitempty"`
+	Password         string `json:"password,omitempty"`
 }
 
 type runtimeActionResponse struct {
@@ -209,6 +224,9 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	} else {
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: "ok", Detail: resp.StackKit})
 	}
+	if target := normalizeRuntimeActionTarget(req.RuntimeTarget); target != nil {
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
+	}
 
 	includeStackKitOutputs := req.OwnerSpecBootstrap != nil
 	if mode == runtimeActionModeDryRun {
@@ -221,7 +239,7 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 
 	switch req.Action {
 	case runtimeActionRollout:
-		return runOpenTofuRollout(ctx, resp, includeStackKitOutputs)
+		return runOpenTofuRollout(ctx, resp, includeStackKitOutputs, req.RuntimeTarget)
 	case runtimeActionVerify:
 		return runOpenTofuVerify(ctx, resp, includeStackKitOutputs)
 	case runtimeActionRestore:
@@ -231,11 +249,23 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	}
 }
 
-func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool) (runtimeActionResponse, int, *skerrors.StackKitError) {
+func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool, target *runtimeActionTarget) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	if err := requireLocalTofuDir(resp.TofuDir); err != nil {
 		return resp, http.StatusBadRequest, err
 	}
-	exec := tofu.NewExecutor(tofu.WithWorkDir(resp.TofuDir), tofu.WithAutoApprove(true), tofu.WithTimeout(30*time.Minute))
+	remote, cleanup, remoteErr := prepareRuntimeActionRemoteTarget(ctx, resp.TofuDir, target)
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if remoteErr != nil {
+		return resp, http.StatusBadGateway, tofuActionError("runtime_target_prepare_failed", "Runtime target preparation failed", remoteErr, "")
+	}
+	opts := []tofu.ExecutorOption{tofu.WithWorkDir(resp.TofuDir), tofu.WithAutoApprove(true), tofu.WithTimeout(30 * time.Minute)}
+	if remote != nil {
+		opts = append(opts, tofu.WithEnv(remote.env...))
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "remote_docker_host", Status: "ok", Detail: remote.dockerHost})
+	}
+	exec := tofu.NewExecutor(opts...)
 	if result, err := exec.Init(ctx); err != nil || !result.Success {
 		return resp, http.StatusBadGateway, tofuActionError("opentofu_init_failed", "OpenTofu init failed", err, resultStderr(result))
 	}
@@ -248,6 +278,175 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
 	}
 	return resp, http.StatusOK, nil
+}
+
+type preparedRuntimeTarget struct {
+	dockerHost string
+	env        []string
+}
+
+func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, target *runtimeActionTarget) (*preparedRuntimeTarget, func(), error) {
+	target = normalizeRuntimeActionTarget(target)
+	if target == nil {
+		return nil, nil, nil
+	}
+	keyPath, cleanup, err := materializeRuntimeTargetSSHKey(target)
+	if err != nil {
+		return nil, cleanup, err
+	}
+	if err := bootstrapRuntimeTargetDocker(ctx, target, keyPath); err != nil {
+		return nil, cleanup, err
+	}
+	dockerHost := runtimeTargetDockerHost(target)
+	if err := writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost); err != nil {
+		return nil, cleanup, err
+	}
+	env := []string{"DOCKER_HOST=" + dockerHost}
+	if keyPath != "" {
+		env = append(env, "DOCKER_SSH_COMMAND="+runtimeTargetSSHCommand(target, keyPath))
+	}
+	return &preparedRuntimeTarget{dockerHost: dockerHost, env: env}, cleanup, nil
+}
+
+func normalizeRuntimeActionTarget(target *runtimeActionTarget) *runtimeActionTarget {
+	if target == nil {
+		return nil
+	}
+	normalized := *target
+	normalized.Host = firstRuntimeOutput(map[string]string{
+		"host":       normalized.Host,
+		"public_ip":  normalized.PublicIP,
+		"private_ip": normalized.PrivateIP,
+	}, "host", "public_ip", "private_ip")
+	normalized.User = strings.TrimSpace(normalized.User)
+	if normalized.User == "" {
+		normalized.User = "root"
+	}
+	if normalized.Port <= 0 {
+		normalized.Port = 22
+	}
+	normalized.DockerHost = strings.TrimSpace(normalized.DockerHost)
+	normalized.KeyPath = strings.TrimSpace(normalized.KeyPath)
+	normalized.PrivateKey = strings.TrimSpace(normalized.PrivateKey)
+	normalized.ClientPrivateKey = strings.TrimSpace(normalized.ClientPrivateKey)
+	normalized.Password = strings.TrimSpace(normalized.Password)
+	if normalized.Host == "" {
+		return nil
+	}
+	return &normalized
+}
+
+func materializeRuntimeTargetSSHKey(target *runtimeActionTarget) (string, func(), error) {
+	key := firstRuntimeOutput(map[string]string{
+		"client_private_key": target.ClientPrivateKey,
+		"private_key":        target.PrivateKey,
+	}, "client_private_key", "private_key")
+	if key == "" {
+		if target.KeyPath != "" {
+			return target.KeyPath, nil, nil
+		}
+		return "", nil, fmt.Errorf("runtime target SSH private key is required for remote Docker access")
+	}
+	dir, err := os.MkdirTemp("", "stackkits-runtime-ssh-")
+	if err != nil {
+		return "", nil, fmt.Errorf("create runtime SSH key dir: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	keyPath := filepath.Join(dir, "id_runtime")
+	if err := os.WriteFile(keyPath, []byte(strings.TrimSpace(key)+"\n"), 0600); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("write runtime SSH key: %w", err)
+	}
+	return keyPath, cleanup, nil
+}
+
+func bootstrapRuntimeTargetDocker(ctx context.Context, target *runtimeActionTarget, keyPath string) error {
+	if keyPath == "" {
+		return fmt.Errorf("runtime target SSH key path is required")
+	}
+	args := runtimeTargetSSHArgs(target, keyPath)
+	script := `set -eu
+if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != "0" ]; then SUDO="sudo -n"; else SUDO=""; fi
+if ! command -v docker >/dev/null 2>&1; then
+  if ! command -v curl >/dev/null 2>&1; then
+    $SUDO apt-get update
+    $SUDO apt-get install -y ca-certificates curl
+  fi
+  curl -fsSL https://get.docker.com | $SUDO sh
+fi
+if [ "$(id -u)" != "0" ]; then
+  $SUDO usermod -aG docker "$(id -un)" || true
+fi
+$SUDO systemctl enable --now docker >/dev/null 2>&1 || true
+for i in $(seq 1 60); do
+  if $SUDO docker info >/dev/null 2>&1; then exit 0; fi
+  sleep 2
+done
+$SUDO docker info >/dev/null`
+	args = append(args, "sh", "-c", script)
+	runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, "ssh", args...) // #nosec G204 -- command args are assembled without shell interpolation.
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("bootstrap remote Docker over SSH: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost string) error {
+	tfvarsPath := filepath.Join(filepath.Clean(tofuDir), "terraform.tfvars.json")
+	values := map[string]any{}
+	if data, err := os.ReadFile(tfvarsPath); err == nil && len(strings.TrimSpace(string(data))) > 0 {
+		if err := json.Unmarshal(data, &values); err != nil {
+			return fmt.Errorf("parse terraform.tfvars.json: %w", err)
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read terraform.tfvars.json: %w", err)
+	}
+	values["docker_host"] = dockerHost
+	data, err := json.MarshalIndent(values, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal terraform.tfvars.json: %w", err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(tfvarsPath, data, 0600); err != nil {
+		return fmt.Errorf("write terraform.tfvars.json: %w", err)
+	}
+	return nil
+}
+
+func runtimeTargetDockerHost(target *runtimeActionTarget) string {
+	if target.DockerHost != "" {
+		return target.DockerHost
+	}
+	host := target.Host
+	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+		host = "[" + host + "]"
+	}
+	if target.Port > 0 && target.Port != 22 {
+		host = host + ":" + strconv.Itoa(target.Port)
+	}
+	return "ssh://" + target.User + "@" + host
+}
+
+func runtimeTargetSSHCommand(target *runtimeActionTarget, keyPath string) string {
+	return strings.Join(runtimeTargetSSHBaseArgs(target, keyPath), " ")
+}
+
+func runtimeTargetSSHArgs(target *runtimeActionTarget, keyPath string) []string {
+	return append(runtimeTargetSSHBaseArgs(target, keyPath), target.User+"@"+target.Host)
+}
+
+func runtimeTargetSSHBaseArgs(target *runtimeActionTarget, keyPath string) []string {
+	return []string{
+		"-i", keyPath,
+		"-p", strconv.Itoa(target.Port),
+		"-o", "IdentitiesOnly=yes",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "ConnectTimeout=20",
+	}
 }
 
 func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool) (runtimeActionResponse, int, *skerrors.StackKitError) {
