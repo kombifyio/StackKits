@@ -55,6 +55,25 @@ wait_for_body() {
   fail "$url did not serve expected content within ${WAIT_TIMEOUT_SECONDS}s"
 }
 
+wait_for_absent_body() {
+  local url="$1"
+  local forbidden="$2"
+  local deadline=$((SECONDS + WAIT_TIMEOUT_SECONDS))
+  local body=""
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    body="$(curl -fsSL "$url" 2>/dev/null || true)"
+    if ! printf '%s' "$body" | grep -Fq "$forbidden"; then
+      pass "$url does not reference $forbidden"
+      return 0
+    fi
+    info "Waiting for $url to remove $forbidden"
+    sleep "$WAIT_INTERVAL_SECONDS"
+  done
+
+  fail "$url still references $forbidden within ${WAIT_TIMEOUT_SECONDS}s"
+}
+
 wait_for_shell_body() {
   local url="$1"
   local needle="$2"
@@ -79,6 +98,32 @@ wait_for_shell_body() {
   fail "$url did not serve expected shell content within ${WAIT_TIMEOUT_SECONDS}s"
 }
 
+wait_for_embed_headers() {
+  local url="$1"
+  local deadline=$((SECONDS + WAIT_TIMEOUT_SECONDS))
+  local headers=""
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    # Use a GET response because browsers evaluate iframe headers on the
+    # document request; some CDN/origin combinations handle HEAD differently.
+    headers="$(curl -fsSL -D - -o /dev/null "$url" 2>/dev/null | tr -d '\r' || true)"
+    if printf '%s\n' "$headers" | grep -Eiq '^x-frame-options:'; then
+      info "Waiting for X-Frame-Options to clear at $url"
+      sleep "$WAIT_INTERVAL_SECONDS"
+      continue
+    fi
+    if printf '%s\n' "$headers" | grep -Eiq '^content-security-policy: .*frame-ancestors.*https://kombify\.io.*https://\*\.kombify\.io'; then
+      pass "$url allows Kombify Cloud embedding"
+      return 0
+    fi
+    info "Waiting for embedded-mode headers at $url"
+    sleep "$WAIT_INTERVAL_SECONDS"
+  done
+
+  printf '%s\n' "$headers" >&2
+  fail "$url did not serve embedded-mode CSP headers without X-Frame-Options within ${WAIT_TIMEOUT_SECONDS}s"
+}
+
 collect_docker_env_args() {
   DOCKER_ENV_ARGS=()
 
@@ -87,7 +132,8 @@ collect_docker_env_args() {
     STACKKIT_RELEASES_PAGE_URL \
     STACKKIT_RELEASE_API_URL \
     STACKKIT_RELEASE_DOWNLOAD_BASE_URL \
-    STACKKIT_INSTALL_URL; do
+    STACKKIT_INSTALL_URL \
+    STACKKIT_GITHUB_TOKEN; do
     if [ -n "${!env_name:-}" ]; then
       DOCKER_ENV_ARGS+=("-e" "$env_name=${!env_name}")
     fi
@@ -212,6 +258,8 @@ main() {
   build_smoke_image
 
   wait_for_shell_body "$INSTALL_ENDPOINT" "StackKits CLI installer"
+  wait_for_absent_body "$INSTALL_ENDPOINT" "raw.githubusercontent.com/kombifyio/stackKits"
+  wait_for_body "$INSTALL_ENDPOINT" "application/octet-stream"
   wait_for_shell_body "$BASE_ENDPOINT" "StackKits Base Installer"
   wait_for_shell_body "$MODERN_ENDPOINT" "Modern Home Lab"
   wait_for_shell_body "$HA_ENDPOINT" "High Availability Kit"
@@ -219,8 +267,9 @@ main() {
   # the static index.html only ships the brand wordmark and alternate links.
   # Probe a marker that exists in the rendered HTML, and verify changelog.json
   # separately because that surface is fully static.
-  wait_for_body "$BASE_URL/" "Kombify StackKits"
+  wait_for_body "$BASE_URL/" "StackKits"
   wait_for_body "$BASE_URL/changelog.json" "\"version\""
+  wait_for_embed_headers "$BASE_URL/"
 
   smoke_cli_install
   smoke_guided_entrypoint modern "$MODERN_ENDPOINT" "init modern-homelab"

@@ -19,6 +19,11 @@ Contract: base.#ModuleContract & {
 		testScenarios: ["SK-S2", "SK-S3"]
 	}
 
+	delivery: {
+		type:      "paas"
+		managedBy: "selected-paas"
+	}
+
 	requires: {
 		services: {
 			traefik: {
@@ -118,6 +123,8 @@ Contract: base.#ModuleContract & {
 			"traefik.http.routers.dozzle.rule":                      "Host(`logs.{{.domain}}`)"
 			"traefik.http.routers.dozzle.entrypoints":               "web"
 			"traefik.http.services.dozzle.loadbalancer.server.port": "8080"
+			"stackkit.layer":                                        "3-application"
+			"stackkit.managed-by":                                   "selected-paas"
 		}
 
 		subdomain: {key: "logs", nested: "logs", flat: "logs"}

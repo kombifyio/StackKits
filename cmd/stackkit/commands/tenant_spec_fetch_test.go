@@ -103,6 +103,110 @@ func TestFetchTenantSpecWritesTraceableManagedSpec(t *testing.T) {
 	}
 }
 
+func TestFetchTenantSpecPersistsManagedIdentityBootstrapEnvelope(t *testing.T) {
+	resetTenantDeploymentTestGlobals(t)
+
+	tmp := t.TempDir()
+	t.Setenv("STACKKIT_BOOTSTRAP_TOKEN", "boot-token")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"deployment": map[string]any{
+				"id":           "dep-123",
+				"tenantId":     "tenant-1",
+				"tenantSlug":   "acme",
+				"stackkitSlug": "base-kit",
+			},
+			"spec": map[string]any{
+				"stackkit": "base-kit",
+				"owner": map[string]any{
+					"bootstrapMode":       "auto",
+					"source":              "cloud",
+					"recoveryMaterialRef": "techstack://identity-bootstrap/deployments/dep-123/recovery",
+				},
+			},
+			"identityBootstrap": map[string]any{
+				"owner": map[string]any{
+					"bootstrapMode": "custom",
+					"source":        "local",
+					"email":         "owner@example.com",
+					"username":      "owner",
+					"displayName":   "Owner Example",
+				},
+				"adminEmail":              "owner@example.com",
+				"adminUsername":           "owner",
+				"adminCredentialRef":      "techstack://identity-bootstrap/deployments/dep-123/owner-admin-bootstrap",
+				"recoveryMaterialRef":     "techstack://identity-bootstrap/deployments/dep-123/recovery",
+				"recoveryPassphrasePlain": "this is one-time material",
+				"breakGlass": map[string]any{
+					"enabled":        true,
+					"scope":          "full-emergency-admin",
+					"pocketidAdmin":  true,
+					"tinyauthStatic": true,
+					"serverRecovery": true,
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+	t.Setenv("STACKKIT_ADMIN_ENDPOINT", srv.URL)
+
+	_, err := fetchTenantSpec(context.Background(), "dep-123", tmp)
+	if err != nil {
+		t.Fatalf("fetchTenantSpec returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(identityBootstrapEnvelopePath(tmp))
+	if err != nil {
+		t.Fatalf("identity bootstrap envelope was not written: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `"email": "owner@example.com"`) {
+		t.Fatalf("identity bootstrap envelope missing owner email:\n%s", content)
+	}
+	if !strings.Contains(content, `"recoveryPassphrasePlain": "this is one-time material"`) {
+		t.Fatalf("identity bootstrap envelope missing one-time recovery material:\n%s", content)
+	}
+	if strings.Contains(content, "@kombify.io") {
+		t.Fatalf("identity bootstrap envelope must not invent kombify.io users:\n%s", content)
+	}
+}
+
+func TestFetchTenantSpecFailsManagedAutoWithoutIdentityBootstrap(t *testing.T) {
+	resetTenantDeploymentTestGlobals(t)
+
+	tmp := t.TempDir()
+	t.Setenv("STACKKIT_BOOTSTRAP_TOKEN", "boot-token")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"deployment": map[string]any{
+				"id":           "dep-123",
+				"tenantId":     "tenant-1",
+				"stackkitSlug": "base-kit",
+			},
+			"spec": map[string]any{
+				"stackkit": "base-kit",
+				"owner": map[string]any{
+					"bootstrapMode":       "auto",
+					"source":              "cloud",
+					"recoveryMaterialRef": "techstack://identity-bootstrap/deployments/dep-123/recovery",
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+	t.Setenv("STACKKIT_ADMIN_ENDPOINT", srv.URL)
+
+	_, err := fetchTenantSpec(context.Background(), "dep-123", tmp)
+	if err == nil || !strings.Contains(err.Error(), "identityBootstrap") {
+		t.Fatalf("expected missing identityBootstrap error, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(tmp, specFile)); !os.IsNotExist(statErr) {
+		t.Fatalf("spec file should not be written after missing identity bootstrap, statErr=%v", statErr)
+	}
+}
+
 func TestFetchTenantSpecRejectsMismatchedDeploymentEnvelope(t *testing.T) {
 	resetTenantDeploymentTestGlobals(t)
 
@@ -391,10 +495,12 @@ func resetTenantDeploymentTestGlobals(t *testing.T) {
 	t.Helper()
 	prevEndpoint := applyReportingEndpoint
 	prevToken := applyReportingToken
+	prevTenantDeployment := applyTenantDeployment
 	prevSpecFile := specFile
 	t.Cleanup(func() {
 		applyReportingEndpoint = prevEndpoint
 		applyReportingToken = prevToken
+		applyTenantDeployment = prevTenantDeployment
 		specFile = prevSpecFile
 		rolloutRecorder = nil
 		rolloutRecorderClosed = false
@@ -402,6 +508,7 @@ func resetTenantDeploymentTestGlobals(t *testing.T) {
 
 	applyReportingEndpoint = ""
 	applyReportingToken = ""
+	applyTenantDeployment = ""
 	specFile = "stack-spec.yaml"
 
 	t.Setenv("STACKKIT_ADMIN_ENDPOINT", "")

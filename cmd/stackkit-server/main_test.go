@@ -9,7 +9,7 @@ func TestResolveAPIKey(t *testing.T) {
 		t.Setenv("STACKKITS_API_KEY", "")
 		t.Setenv("STACKKITS_ALLOW_UNAUTHENTICATED", "")
 
-		key, err := resolveAPIKey("", false)
+		key, err := resolveAPIKey("", false, false)
 
 		if err == nil {
 			t.Fatal("resolveAPIKey() error = nil, want required-key error")
@@ -22,7 +22,7 @@ func TestResolveAPIKey(t *testing.T) {
 	t.Run("uses flag value", func(t *testing.T) {
 		t.Setenv("STACKKITS_API_KEY", "env-key")
 
-		key, err := resolveAPIKey("flag-key", false)
+		key, err := resolveAPIKey("flag-key", false, false)
 
 		if err != nil {
 			t.Fatalf("resolveAPIKey() unexpected error: %v", err)
@@ -35,7 +35,7 @@ func TestResolveAPIKey(t *testing.T) {
 	t.Run("uses env value", func(t *testing.T) {
 		t.Setenv("STACKKITS_API_KEY", "env-key")
 
-		key, err := resolveAPIKey("", false)
+		key, err := resolveAPIKey("", false, false)
 
 		if err != nil {
 			t.Fatalf("resolveAPIKey() unexpected error: %v", err)
@@ -48,7 +48,7 @@ func TestResolveAPIKey(t *testing.T) {
 	t.Run("allows explicit unauthenticated local mode", func(t *testing.T) {
 		t.Setenv("STACKKITS_API_KEY", "")
 
-		key, err := resolveAPIKey("", true)
+		key, err := resolveAPIKey("", true, false)
 
 		if err != nil {
 			t.Fatalf("resolveAPIKey() unexpected error: %v", err)
@@ -62,10 +62,37 @@ func TestResolveAPIKey(t *testing.T) {
 		t.Setenv("STACKKITS_API_KEY", "")
 		t.Setenv("STACKKITS_ALLOW_UNAUTHENTICATED", "true")
 
-		key, err := resolveAPIKey("", false)
+		key, err := resolveAPIKey("", false, false)
 
 		if err != nil {
 			t.Fatalf("resolveAPIKey() unexpected error: %v", err)
+		}
+		if key != "" {
+			t.Fatalf("resolveAPIKey() key = %q, want empty", key)
+		}
+	})
+
+	t.Run("rejects unauthenticated production profile", func(t *testing.T) {
+		t.Setenv("STACKKITS_API_KEY", "")
+		t.Setenv("STACKKITS_ALLOW_UNAUTHENTICATED", "true")
+
+		key, err := resolveAPIKey("", false, true)
+
+		if err == nil {
+			t.Fatal("resolveAPIKey() error = nil, want production guard error")
+		}
+		if key != "" {
+			t.Fatalf("resolveAPIKey() key = %q, want empty", key)
+		}
+	})
+
+	t.Run("rejects production bypass even when key is set", func(t *testing.T) {
+		t.Setenv("STACKKITS_API_KEY", "env-key")
+
+		key, err := resolveAPIKey("", true, true)
+
+		if err == nil {
+			t.Fatal("resolveAPIKey() error = nil, want production guard error")
 		}
 		if key != "" {
 			t.Fatalf("resolveAPIKey() key = %q, want empty", key)
@@ -78,8 +105,11 @@ func TestResolveCORSOrigins(t *testing.T) {
 		t.Setenv("STACKKITS_CORS_ORIGINS", "")
 		t.Setenv("STACKKITS_ALLOW_WILDCARD_CORS", "")
 
-		origins := resolveCORSOrigins("", false)
+		origins, err := resolveCORSOrigins("", false, false)
 
+		if err != nil {
+			t.Fatalf("resolveCORSOrigins() unexpected error: %v", err)
+		}
 		if origins != nil {
 			t.Fatalf("resolveCORSOrigins() = %#v, want nil", origins)
 		}
@@ -88,16 +118,22 @@ func TestResolveCORSOrigins(t *testing.T) {
 	t.Run("wildcard requires explicit local override", func(t *testing.T) {
 		t.Setenv("STACKKITS_CORS_ORIGINS", "")
 
-		origins := resolveCORSOrigins("", true)
+		origins, err := resolveCORSOrigins("", true, false)
 
+		if err != nil {
+			t.Fatalf("resolveCORSOrigins() unexpected error: %v", err)
+		}
 		if len(origins) != 1 || origins[0] != "*" {
 			t.Fatalf("resolveCORSOrigins() = %#v, want wildcard", origins)
 		}
 	})
 
 	t.Run("trims configured origins", func(t *testing.T) {
-		origins := resolveCORSOrigins(" https://kombify.io,https://stackkits.kombify.io , ", false)
+		origins, err := resolveCORSOrigins(" https://kombify.io,https://stackkits.kombify.io , ", false, false)
 
+		if err != nil {
+			t.Fatalf("resolveCORSOrigins() unexpected error: %v", err)
+		}
 		want := []string{"https://kombify.io", "https://stackkits.kombify.io"}
 		if len(origins) != len(want) {
 			t.Fatalf("resolveCORSOrigins() len = %d, want %d: %#v", len(origins), len(want), origins)
@@ -106,6 +142,53 @@ func TestResolveCORSOrigins(t *testing.T) {
 			if origins[i] != want[i] {
 				t.Fatalf("resolveCORSOrigins()[%d] = %q, want %q", i, origins[i], want[i])
 			}
+		}
+	})
+
+	t.Run("rejects wildcard production profile from flag", func(t *testing.T) {
+		origins, err := resolveCORSOrigins("", true, true)
+
+		if err == nil {
+			t.Fatal("resolveCORSOrigins() error = nil, want production guard error")
+		}
+		if origins != nil {
+			t.Fatalf("resolveCORSOrigins() = %#v, want nil", origins)
+		}
+	})
+
+	t.Run("rejects wildcard production profile from configured origins", func(t *testing.T) {
+		origins, err := resolveCORSOrigins("https://kombify.io,*", false, true)
+
+		if err == nil {
+			t.Fatal("resolveCORSOrigins() error = nil, want production guard error")
+		}
+		if origins != nil {
+			t.Fatalf("resolveCORSOrigins() = %#v, want nil", origins)
+		}
+	})
+}
+
+func TestResolveRuntimeProfile(t *testing.T) {
+	t.Run("defaults to local", func(t *testing.T) {
+		t.Setenv("STACKKITS_RUNTIME_PROFILE", "")
+		t.Setenv("KOMBIFY_ENV", "")
+		t.Setenv("APP_ENV", "")
+		t.Setenv("ENVIRONMENT", "")
+		t.Setenv("STACKKITS_PRODUCTION", "")
+
+		if got := resolveRuntimeProfile(); got != "local" {
+			t.Fatalf("resolveRuntimeProfile() = %q, want local", got)
+		}
+	})
+
+	t.Run("maps public to production guards", func(t *testing.T) {
+		t.Setenv("STACKKITS_RUNTIME_PROFILE", "public")
+
+		if got := resolveRuntimeProfile(); got != "production" {
+			t.Fatalf("resolveRuntimeProfile() = %q, want production", got)
+		}
+		if !runtimeProfileRequiresProductionGuards("production") {
+			t.Fatal("runtimeProfileRequiresProductionGuards(production) = false, want true")
 		}
 	})
 }

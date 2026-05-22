@@ -93,7 +93,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		WorkDir:     ".",
 		Mode:        ModeOpenTofu,
-		Timeout:     30 * time.Minute,
+		Timeout:     60 * time.Minute,
 		Parallelism: 1,
 		AutoApprove: false,
 	}

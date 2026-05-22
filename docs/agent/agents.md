@@ -2,7 +2,7 @@
 
 StackKits is agent-ready through static public docs, deterministic CLI commands, a node-local API surface, and a local MCP connector installed beside the CLI.
 
-BaseKit is the verified beta one-click path. Modern Homelab and HA Kit are alpha/scaffolding definitions until their release matrices graduate. Current BaseKit evidence proves the local fallback path plus auth/setup guards; Cubi/Coolify-managed L3 rollout remains a documented blocker.
+BaseKit is the verified beta one-click path. Modern Homelab and HA Kit are alpha/scaffolding definitions until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; Coolify-managed application-layer evidence for ready-to-use use cases remains a documented blocker. User-installed apps outside that path are state-unmanaged.
 
 ## Agent Contract
 

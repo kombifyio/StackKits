@@ -15,6 +15,11 @@ Contract: base.#ModuleContract & {
 		testScenarios: ["SK-S2", "SK-S4"]
 	}
 
+	delivery: {
+		type:      "paas"
+		managedBy: "selected-paas"
+	}
+
 	requires: {
 		services: {
 			traefik: {
@@ -138,7 +143,7 @@ Contract: base.#ModuleContract & {
 			"traefik.http.routers.jellyfin.entrypoints":               "web"
 			"traefik.http.services.jellyfin.loadbalancer.server.port": "8096"
 			"stackkit.layer":                                          "3-application"
-			"stackkit.managed-by":                                     "compose"
+			"stackkit.managed-by":                                     "selected-paas"
 		}
 
 		subdomain: {key: "media", nested: "media", flat: "media"}

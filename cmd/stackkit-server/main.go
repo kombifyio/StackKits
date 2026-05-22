@@ -98,11 +98,16 @@ func setupLogging(logLevel string) {
 
 func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int, logDir, trustedProxies string, allowUnauthenticated, allowWildcardCORS bool) (api.ServerConfig, error) {
 	dir := resolveBaseDir(baseDir)
-	key, err := resolveAPIKey(apiKey, allowUnauthenticated)
+	runtimeProfile := resolveRuntimeProfile()
+	productionGuards := runtimeProfileRequiresProductionGuards(runtimeProfile)
+	key, err := resolveAPIKey(apiKey, allowUnauthenticated, productionGuards)
 	if err != nil {
 		return api.ServerConfig{}, err
 	}
-	origins := resolveCORSOrigins(corsOrigins, allowWildcardCORS)
+	origins, err := resolveCORSOrigins(corsOrigins, allowWildcardCORS, productionGuards)
+	if err != nil {
+		return api.ServerConfig{}, err
+	}
 	rl := resolveRateLimit(rateLimit)
 	ld := resolveLogDir(logDir, dir)
 	proxies := resolveTrustedProxies(trustedProxies)
@@ -125,6 +130,26 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		SetupAdminPassword:            strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_PASSWORD")),
 		SetupImmichURL:                strings.TrimSpace(os.Getenv("STACKKIT_SETUP_IMMICH_URL")),
 	}, nil
+}
+
+func resolveRuntimeProfile() string {
+	for _, key := range []string{"STACKKITS_RUNTIME_PROFILE", "KOMBIFY_ENV", "APP_ENV", "ENVIRONMENT"} {
+		value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+		switch value {
+		case "prod", "production", "public", "managed", "enterprise":
+			return "production"
+		case "dev", "development", "local", "test":
+			return "local"
+		}
+	}
+	if envBool("STACKKITS_PRODUCTION") {
+		return "production"
+	}
+	return "local"
+}
+
+func runtimeProfileRequiresProductionGuards(profile string) bool {
+	return profile == "production"
 }
 
 func resolveRuntimeActionMode() string {
@@ -186,15 +211,19 @@ func resolveBaseDir(flagVal string) string {
 	return dir
 }
 
-func resolveAPIKey(flagVal string, allowUnauthenticated bool) (string, error) {
+func resolveAPIKey(flagVal string, allowUnauthenticated bool, productionGuards bool) (string, error) {
 	key := flagVal
 	if key == "" {
 		key = os.Getenv("STACKKITS_API_KEY")
 	}
+	bypassRequested := allowUnauthenticated || envBool("STACKKITS_ALLOW_UNAUTHENTICATED")
+	if productionGuards && bypassRequested {
+		return "", fmt.Errorf("unauthenticated API access is forbidden when STACKKITS_RUNTIME_PROFILE is production/public/managed")
+	}
 	if key != "" {
 		slog.Info("API key authentication enabled")
 	} else {
-		if allowUnauthenticated || envBool("STACKKITS_ALLOW_UNAUTHENTICATED") {
+		if bypassRequested {
 			slog.Warn("unauthenticated API access enabled for local development")
 			return "", nil
 		}
@@ -203,22 +232,29 @@ func resolveAPIKey(flagVal string, allowUnauthenticated bool) (string, error) {
 	return key, nil
 }
 
-func resolveCORSOrigins(flagVal string, allowWildcard bool) []string {
+func resolveCORSOrigins(flagVal string, allowWildcard bool, productionGuards bool) ([]string, error) {
 	corsStr := flagVal
 	if corsStr == "" {
 		corsStr = os.Getenv("STACKKITS_CORS_ORIGINS")
 	}
+	wildcardRequested := allowWildcard || envBool("STACKKITS_ALLOW_WILDCARD_CORS")
+	if productionGuards && wildcardRequested {
+		return nil, fmt.Errorf("wildcard CORS is forbidden when STACKKITS_RUNTIME_PROFILE is production/public/managed")
+	}
 	if corsStr == "" {
-		if allowWildcard || envBool("STACKKITS_ALLOW_WILDCARD_CORS") {
+		if wildcardRequested {
 			slog.Warn("wildcard CORS enabled for local development")
-			return []string{"*"}
+			return []string{"*"}, nil
 		}
 		slog.Info("browser CORS disabled; set STACKKITS_CORS_ORIGINS to allow browser clients")
-		return nil
+		return nil, nil
 	}
 	var origins []string
 	for _, o := range strings.Split(corsStr, ",") {
 		if trimmed := strings.TrimSpace(o); trimmed != "" {
+			if trimmed == "*" && productionGuards {
+				return nil, fmt.Errorf("wildcard CORS is forbidden when STACKKITS_RUNTIME_PROFILE is production/public/managed")
+			}
 			origins = append(origins, trimmed)
 		}
 	}
@@ -227,7 +263,7 @@ func resolveCORSOrigins(flagVal string, allowWildcard bool) []string {
 	} else {
 		slog.Info("CORS restricted", "origins", origins)
 	}
-	return origins
+	return origins, nil
 }
 
 func resolveTrustedProxies(flagVal string) []string {

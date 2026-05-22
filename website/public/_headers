@@ -1,3 +1,8 @@
+/*
+  Content-Security-Policy: frame-ancestors 'self' https://kombify.io https://*.kombify.io
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+
 /install
   Content-Type: text/x-shellscript; charset=utf-8
   X-Content-Type-Options: nosniff

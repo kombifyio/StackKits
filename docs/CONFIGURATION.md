@@ -1,6 +1,6 @@
 # StackKits Configuration
 
-> Last verified: 2026-05-15
+> Last verified: 2026-05-19
 
 This document collects the runtime configuration surfaces for StackKits. CUE remains the technical contract source of truth; `stack-spec.yaml`, CLI flags, environment variables, registry snapshots, and server settings are inputs or mirrors, not replacements for CUE contracts.
 
@@ -67,7 +67,7 @@ The BaseKit installer also configures the node-local StackKits API image. If `ST
 
 ## Platform App Deployment Env
 
-Generated platform app manifests use `stackkit.platform-apps/v2`. The manifest separates StackKit-owned `systemApps` such as the Node Hub and `stackkit-server` from user-facing `apps`. User-facing `apps` are handoff metadata for the selected PaaS; StackKit records them in status but does not deploy or manage their lifecycle.
+Generated platform app manifests use `stackkit.platform-apps/v2`. The manifest separates StackKit-owned `systemApps` such as the Node Hub and `stackkit-server` from L3 `apps`. Product-bundled L3 apps carry `ownership: "stackkit"` and are PaaS-intended through the selected adapter. Customer-owned apps created with `stackkit app add` carry `ownership: "customer"` or omit ownership; StackKit records those handoffs in status but does not deploy or manage their lifecycle. Apps installed outside these manifests are state-unmanaged by StackKit.
 
 Each platform app may also carry first-run setup metadata:
 
@@ -79,10 +79,10 @@ Any other setup policy is rejected during spec validation.
 
 Layer rules are part of the public service contract:
 
-- The Base Node Hub is the bootstrap entrypoint. Local `.localhost` and managed LAN-DNS Base routes are open by default so first setup is reachable before a PocketID user exists. They must show `Diese Seite ist aktuell ungeschützt.` while `protect_base_hub=false`; set `protect_base_hub=true` and re-apply after owner setup to put local Base behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled.
+- The Base Node Hub is the bootstrap entrypoint. Local `.localhost` and managed LAN-DNS Base routes are open by default so first setup is reachable before a PocketID user exists. They must show `Diese Seite ist aktuell ungeschützt.` while bootstrap-open; after owner setup, use the `Base Hub schützen` button in the Hub to persist the protection setting and move local Base behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled.
 - Other L1/L2 platform services must be complete after rollout. The user must not land in a required upstream setup wizard for the identity layer, reverse proxy, selected PaaS, Uptime Kuma, or routing diagnostics.
 - Uptime Kuma and Whoami are L2 platform services, not L3 apps. Uptime Kuma is bootstrapped automatically and registers monitors for enabled L1/L2/L3 services.
-- L3 application tools may keep app-local first-run setup. When StackKits has a supported setup drop, the Node Hub can expose `Do the setup for me`; otherwise it exposes the public How-to guide.
+- StackKit-owned/default L3 application tools are PaaS-intended. They may keep app-local first-run setup after deployment; when StackKits has a supported setup drop, the Node Hub can expose `Do the setup for me`; otherwise it exposes the public How-to guide. User-installed L3 apps outside this manifest path remain unmanaged state.
 
 BaseKit records `immich-owner-bootstrap` as an `on_demand` setup drop for Immich. The Node Hub exposes this as a user-triggered setup action instead of pretending that Immich is fully configured at deploy time.
 
@@ -101,20 +101,26 @@ The StackKits service catalog and registry snapshot also mirror tool UI metadata
 
 `owner.bootstrapMode` is the lane selector for first-user setup:
 
-- `auto` is the TechStack SaaS path. The StackSpec carries `source: cloud` plus a recovery material reference or hash. `owner.email` and `owner.username` are not required in the public spec because TechStack resolves the real Owner from the authenticated Cloud profile.
+- `auto` is the TechStack SaaS path. The public/default StackSpec carries `source: cloud` or `source: first-run` plus policy only. `owner.email` and `owner.username` are not required or invented in the public spec because Admin resolves the real Owner from the tenant deployment and sends it as a private identity-bootstrap envelope.
 - `custom` is the self-hosted explicit Owner path. It requires `source: local`, `owner.email`, `owner.username`, and an argon2id `recoveryPassphraseHash`.
 - `none` is the OSS/BYOS or manual setup path. It must not carry owner identity or recovery fields.
 
-Plaintext recovery passphrases are never valid StackSpec fields.
+The Owner is the normal daily admin for PocketID, Coolify, StackKit Server, Kuma, and later tool setup. `adminEmail` is a compatibility alias only: when `owner.email` is available, the generated `admin_email` for Coolify/Kuma/bootstrap credentials resolves to the Owner email.
 
-`stackkit apply` resolves platform adapter configuration from environment first, then from `.stackkit/platform.json` in the deployment working directory. Use the generic `STACKKIT_PLATFORM_*` names where possible. Provider-specific names remain supported for compatibility. `base-install.sh` persists this file automatically when endpoint/token variables are present, and the managed Admin bootstrap path writes the same file from deployment-scoped spec environment before redacting platform token values from `stack-spec.yaml`.
+Managed `stackkit apply --tenant-deployment` must receive `.stackkit/identity-bootstrap.json` from Admin when `owner.bootstrapMode=auto`. Without that runtime handoff the CLI fails before deployment instead of silently skipping Owner/PocketID bootstrap. The handoff may contain one-time material for the VM; plaintext recovery passphrases are never valid public StackSpec fields.
+
+`breakGlass` is the separate emergency path. It is enabled by default with `scope: full-emergency-admin` and covers a PocketID admin, TinyAuth static fallback, and server recovery material in the encrypted recovery bundle. Synthetic local defaults use reserved/local domains such as `admin@example.com` and `.invalid`; tests must not invent real `@kombify.io` accounts.
+
+`stackkit apply` resolves platform adapter configuration from environment first, then from `.stackkit/platform.json` in the deployment working directory. Use the generic `STACKKIT_PLATFORM_*` names where possible. Provider-specific names remain supported for compatibility. In the default self-managed BaseKit path, the generated Coolify bootstrap creates a root-scoped Coolify API token inside the installed Coolify instance, enables the Coolify API, resolves the StackKit project/environment/server/destination placement IDs, and writes `.stackkit/platform.json` before StackKit-owned app deployment begins. In the explicit Komodo path, the generated bootstrap logs in with the generated initial admin, creates a Komodo API key/secret through the HTTP API, and writes the same file with `apiKey`/`apiSecret`. `base-install.sh` still persists this file automatically when endpoint/token or endpoint/api-key/api-secret variables are present for external platform targets, and the managed Admin bootstrap path writes the same file from deployment-scoped spec environment before redacting platform credential values from `stack-spec.yaml`.
 
 | Variable | Provider alias | Purpose |
 | --- | --- | --- |
-| `STACKKIT_PLATFORM_ENDPOINT` | `DOKPLOY_API_URL`, `COOLIFY_API_URL` | Platform API base URL. |
+| `STACKKIT_PLATFORM_ENDPOINT` | `DOKPLOY_API_URL`, `COOLIFY_API_URL`, `KOMODO_API_URL` | Platform API base URL. |
 | `STACKKIT_PLATFORM_TOKEN` | `DOKPLOY_API_KEY`, `COOLIFY_API_TOKEN` | Platform API token. |
+| `STACKKIT_PLATFORM_API_KEY` | `KOMODO_API_KEY` | Komodo API key. |
+| `STACKKIT_PLATFORM_API_SECRET` | `KOMODO_API_SECRET` | Komodo API secret. |
 | `STACKKIT_PLATFORM_ENVIRONMENT_ID` | `DOKPLOY_ENVIRONMENT_ID` | Dokploy environment. |
-| `STACKKIT_PLATFORM_SERVER_ID` | `DOKPLOY_SERVER_ID`, `COOLIFY_SERVER_UUID` | Target server. |
+| `STACKKIT_PLATFORM_SERVER_ID` | `DOKPLOY_SERVER_ID`, `COOLIFY_SERVER_UUID`, `KOMODO_SERVER_ID` | Target server. |
 | `STACKKIT_PLATFORM_PROJECT_UUID` | `COOLIFY_PROJECT_UUID` | Coolify project. |
 | `STACKKIT_PLATFORM_ENVIRONMENT_NAME` | `COOLIFY_ENVIRONMENT_NAME` | Coolify environment name. |
 | `STACKKIT_PLATFORM_ENVIRONMENT_UUID` | `COOLIFY_ENVIRONMENT_UUID` | Coolify environment UUID. |
@@ -125,14 +131,17 @@ Persisted platform config shape:
 ```json
 {
   "platform": "coolify",
-  "endpoint": "http://127.0.0.1:3000",
+  "endpoint": "http://127.0.0.1:8000",
   "token": "<platform-api-token>",
-  "environmentId": "<optional>",
-  "serverId": "<optional>"
+  "projectUuid": "<coolify-project-uuid>",
+  "environmentId": "production",
+  "environmentUuid": "<coolify-environment-uuid>",
+  "serverId": "<coolify-server-uuid>",
+  "destinationUuid": "<coolify-destination-uuid>"
 }
 ```
 
-Coolify is the default platform. StackKits bootstraps its root user during installation from generated `admin_email` and `admin_password_plaintext` values by passing Coolify's official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables. Dokploy remains an explicit alternative. Platform API tokens are required only when StackKit-owned `systemApps` need to be registered through the PaaS adapter. User `apps` remain handoff metadata and do not make `stackkit apply` responsible for app deployment.
+Coolify is the default platform. StackKits bootstraps its root user during installation from generated `admin_password_plaintext` and the same technical admin email rendered into `adminEmail` by passing Coolify's official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables, then creates the API token required for StackKit-owned `systemApps` and product-bundled L3 `apps`. Local-only rollouts synthesize `admin@example.com` when no admin email is supplied; local tests must not use Kombify-owned domains for synthetic users. The bootstrap disables Coolify public registration and clears Coolify onboarding before the rollout can pass. Komodo and Dokploy remain explicit alternatives. If strict PaaS mode reaches `stackkit apply` without a complete platform config, the apply fails; it must not fall through to standalone Compose unless `platformFallback.mode: "standalone-compose"` is explicitly enabled. Customer-owned user `apps` remain handoff metadata and do not make `stackkit apply` responsible for app deployment.
 
 ## Dev PaaS App Handoff Env
 
@@ -176,6 +185,7 @@ If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackk
 | `--allow-unauthenticated` | `STACKKITS_ALLOW_UNAUTHENTICATED` | `false` | Local-only auth bypass. |
 | `--cors-origins` | `STACKKITS_CORS_ORIGINS` | empty | Comma-separated browser origins. |
 | `--allow-wildcard-cors` | `STACKKITS_ALLOW_WILDCARD_CORS` | `false` | Local-only wildcard CORS. |
+| n/a | `STACKKITS_RUNTIME_PROFILE` | `local` | Set to `production`, `public`, `managed`, or `enterprise` to reject unauthenticated mode and wildcard CORS at startup. |
 | `--rate-limit` | `STACKKITS_RATE_LIMIT` | `60` | Requests per IP per minute; `0` disables. |
 | `--trusted-proxies` | `STACKKITS_TRUSTED_PROXIES` | empty | Trusted proxy IPs/CIDRs for `X-Forwarded-For`. |
 | `--log-dir` | `STACKKITS_LOG_DIR` | `<base-dir>/.stackkit/logs` | Deploy log directory. |

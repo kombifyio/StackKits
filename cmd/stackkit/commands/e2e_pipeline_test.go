@@ -46,7 +46,7 @@ func TestBaseKitValidateGeneratePlanPipeline(t *testing.T) {
 		"--non-interactive",
 		"--force",
 		"--context", "local",
-		"--admin-email", "ci@kombify.io",
+		"--admin-email", "admin@example.com",
 	)
 	require.NoError(t, err)
 

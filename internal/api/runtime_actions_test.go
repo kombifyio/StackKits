@@ -76,6 +76,35 @@ func TestRuntimeActionEndpoints_RequireConfiguredServiceAuth(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "service_auth_not_configured")
 }
 
+func TestRuntimeActionEndpoints_ReturnManagedStackKitOutputs(t *testing.T) {
+	srv, _ := testServer(t)
+	srv.config.ServiceAuthSecret = "shared-secret"
+	srv.config.RuntimeActionMode = "dry-run"
+
+	rec := postRuntimeAction(t, srv, "/api/v1/internal/runtime-actions/stackkit-rollout", "shared-secret", map[string]any{
+		"action":     "stackkit_rollout",
+		"stack_id":   "stack-123",
+		"stack_name": "BaseKit IONOS",
+		"stackkit":   "base-kit",
+		"owner_spec_bootstrap": map[string]any{
+			"endpoint":   "/api/v1/stacks/stack-123/owner-spec",
+			"token":      "bootstrap-token",
+			"expires_at": "2026-05-14T10:15:00Z",
+			"scopes":     []string{"read:owner-spec"},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	resp := parseResponse(t, rec)
+	var data runtimeActionResponse
+	require.NoError(t, json.Unmarshal(resp["data"], &data))
+	require.NotNil(t, data.StackKitOutputs)
+	assert.Equal(t, "owner", data.StackKitOutputs.Identity.Owner.Username)
+	assert.Equal(t, "https://basekit-ionos.kombify.me", data.StackKitOutputs.LoginGateway.URL)
+	assert.Equal(t, "techstack://recovery/stacks/stack-123", data.StackKitOutputs.Identity.Recovery.BundleRef)
+	assert.NotContains(t, rec.Body.String(), "passphrase")
+}
+
 func TestRuntimeActionEndpoints_RejectWrongCaller(t *testing.T) {
 	srv, _ := testServer(t)
 	srv.config.ServiceAuthSecret = "shared-secret"

@@ -79,9 +79,9 @@ func TestProvisionLocalOwner(t *testing.T) {
 
 	result, err := p.Provision(t.Context(), OwnerSpec{
 		Source:      "local",
-		Email:       "mako@kombify.io",
-		Username:    "mako",
-		DisplayName: "Marcel Kombify",
+		Email:       "owner@example.com",
+		Username:    "owner",
+		DisplayName: "Example Owner",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -92,13 +92,13 @@ func TestProvisionLocalOwner(t *testing.T) {
 		t.Fatalf("want 1 user, got %d", len(fake.createdUsers))
 	}
 	cu := fake.createdUsers[0]
-	if cu.Email != "mako@kombify.io" {
+	if cu.Email != "owner@example.com" {
 		t.Errorf("wrong email: %q", cu.Email)
 	}
-	if cu.Username != "mako" {
+	if cu.Username != "owner" {
 		t.Errorf("wrong username: %q", cu.Username)
 	}
-	if cu.FirstName != "Marcel Kombify" {
+	if cu.FirstName != "Example Owner" {
 		t.Errorf("wrong firstName: %q", cu.FirstName)
 	}
 	if !cu.IsAdmin {
@@ -107,21 +107,21 @@ func TestProvisionLocalOwner(t *testing.T) {
 
 	// Verify added to owners group via the resolved UUID.
 	members, ok := fake.addedToGroups["grp-owners-uuid"]
-	if !ok || len(members) != 1 || members[0] != "user-mako" {
+	if !ok || len(members) != 1 || members[0] != "user-owner" {
 		t.Errorf("owner not added to owners group: %v", fake.addedToGroups)
 	}
 
 	// Verify a single one-time-access token was issued for the new user.
-	if got := fake.issuedTokens["user-mako"]; got != "ott-user-mako" {
-		t.Errorf("expected token to be issued for user-mako, got %q", got)
+	if got := fake.issuedTokens["user-owner"]; got != "ott-user-owner" {
+		t.Errorf("expected token to be issued for user-owner, got %q", got)
 	}
 
 	// Verify setup URL was generated correctly.
-	wantPrefix := "https://id.test.local/setup-account?token=ott-user-mako"
+	wantPrefix := "https://id.test.local/setup-account?token=ott-user-owner"
 	if !strings.Contains(result.SetupURL, wantPrefix) {
 		t.Errorf("setup URL malformed: got %q, want prefix %q", result.SetupURL, wantPrefix)
 	}
-	if result.UserID != "user-mako" {
+	if result.UserID != "user-owner" {
 		t.Errorf("wrong UserID: %q", result.UserID)
 	}
 }

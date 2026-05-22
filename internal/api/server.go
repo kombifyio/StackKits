@@ -47,6 +47,7 @@ type Server struct {
 	cancel            context.CancelFunc
 	registryMu        sync.Mutex
 	registryInstances map[string]models.InstanceRegistration
+	setupMu           sync.Mutex
 }
 
 // NewServer creates a new API server.
@@ -124,6 +125,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/logs/{runID}/stream", s.handleStreamLog)
 
 	// Node-local setup actions
+	s.mux.HandleFunc("GET /api/v1/setup/base-hub/protection", s.handleGetBaseHubProtection)
+	s.mux.HandleFunc("POST /api/v1/setup/base-hub/protection", s.handleProtectBaseHub)
 	s.mux.HandleFunc("POST /api/v1/setup/services/{service}/run", s.handleRunServiceSetup)
 
 	// Direct Connect registry

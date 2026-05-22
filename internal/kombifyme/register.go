@@ -92,9 +92,12 @@ func includeServiceForSpec(svc servicecatalog.Service, spec *models.StackSpec) b
 	case "point":
 		return false
 	case "traefik":
-		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASDockge
+		paas := spec.ResolvePAASForContext(models.NodeContext(spec.Context))
+		return paas == models.PAASDockge || paas == models.PAASKomodo
 	case "coolify":
 		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASCoolify
+	case "komodo":
+		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASKomodo
 	case "dokploy":
 		return spec.ResolvePAASForContext(models.NodeContext(spec.Context)) == models.PAASDokploy
 	case "dockge":

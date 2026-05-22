@@ -56,6 +56,11 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
       - name: Bake registry snapshot from public CUE tree
         run: |
           set -euo pipefail
@@ -74,6 +79,31 @@ jobs:
       - name: Verify archive contents
         run: bash scripts/release/validate-release-archives.sh dist
 
+      - name: Install Syft
+        run: |
+          go install github.com/anchore/syft/cmd/syft@v1.38.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Generate dry-run SBOMs and release evidence
+        run: |
+          set -euo pipefail
+          bash scripts/release/generate-sboms.sh dist
+          node scripts/release/render-release-evidence.mjs \
+            --tag "${GITHUB_REF_NAME}" \
+            --commit "${GITHUB_SHA}" \
+            --source-repo "kombifyio/stackKits" \
+            --release-repo "kombifyio/stackKits" \
+            --visibility internal \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --release-url "https://github.com/kombifyio/stackKits/releases/tag/${GITHUB_REF_NAME}" \
+            --dist dist \
+            --output dist/release-evidence.json \
+            --check "publicExport=pass,public tag workflow is running on exported contents" \
+            --check "archiveValidation=pass,dry-run archive validation passed" \
+            --check "defaultL3PaaSDelivery=pass,default StackKit-owned L3 apps are PaaS-intended" \
+            --check "attestationVerification=pending,verify published release assets and image after workflows complete"
+
   publish-image:
     name: Publish StackKit Server Image
     if: github.repository == 'kombifyio/stackKits'
@@ -85,6 +115,17 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
 
       - name: Build and push GHCR image
         shell: bash
@@ -113,9 +154,38 @@ jobs:
           digest="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{.Manifest.Digest}}')"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
+      - name: Install Syft
+        run: |
+          go install github.com/anchore/syft/cmd/syft@v1.38.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Generate server image SBOM
+        env:
+          IMAGE: ghcr.io/kombifyio/stackkits
+          TAG: ${{ github.ref_name }}
+        run: syft "${IMAGE}:${TAG}" -o spdx-json=stackkits-server-image.spdx.json
+
+      - name: Attest server image SBOM
+        uses: actions/attest-sbom@10926c72720ffc3f7b666661c8e55b1344e2a365
+        with:
+          subject-name: ghcr.io/kombifyio/stackkits
+          subject-digest: ${{ steps.image-digest.outputs.digest }}
+          sbom-path: stackkits-server-image.spdx.json
+          push-to-registry: true
+
       - name: Attest server image
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
         with:
           subject-name: ghcr.io/kombifyio/stackkits
           subject-digest: ${{ steps.image-digest.outputs.digest }}
           push-to-registry: true
+
+      - name: Verify server image attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ghcr.io/kombifyio/stackkits
+          TAG: ${{ github.ref_name }}
+        run: |
+          node scripts/release/verify-release-attestations.mjs \
+            --repo "${GITHUB_REPOSITORY}" \
+            --image "${IMAGE}:${TAG}"

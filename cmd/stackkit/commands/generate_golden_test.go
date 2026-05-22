@@ -153,8 +153,9 @@ func TestGolden_StructuralConsistency(t *testing.T) {
 	requiredKeys := []string{
 		"domain", "network_name", "network_subnet",
 		"enable_https", "paas", "reverse_proxy_backend",
+		"enable_platform_fallback", "platform_fallback_mode",
 		"enable_traefik", "enable_tinyauth", "enable_pocketid",
-		"enable_dokploy", "enable_dockge", "enable_coolify",
+		"enable_dokploy", "enable_dockge", "enable_coolify", "enable_komodo",
 		"enable_dashboard", "enable_homepage", "enable_uptime_kuma", "enable_vaultwarden",
 		"enable_jellyfin", "enable_immich",
 		"admin_email", "brand_color", "dashboard_title",

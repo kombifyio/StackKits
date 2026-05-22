@@ -10,7 +10,7 @@
 #
 # Architecture:
 #   L1 Foundation  - socket-proxy (Docker API isolation), PocketID + TinyAuth (login gateway)
-#   L2 Platform    - Selected PaaS router (Dokploy/Coolify), Node Hub
+#   L2 Platform    - Selected PaaS/router contract (Coolify default; Komodo/Dokploy explicit), Node Hub
 #   Dashboard      - Homepage/gethomepage as IaC-managed homelab start page
 #   L3 Application - Vaultwarden, Immich
 #
@@ -45,6 +45,10 @@ network:
 
 compute:
   tier: standard
+
+platformFallback:
+  enabled: false
+  mode: disabled
 
 ssh:
   user: admin

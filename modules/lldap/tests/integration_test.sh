@@ -27,6 +27,23 @@ log_test() { TOTAL=$((TOTAL + 1)); echo -e "${YELLOW}[TEST $TOTAL]${NC} $1"; }
 log_pass() { PASS=$((PASS + 1)); echo -e "${GREEN}  [PASS]${NC} $1"; }
 log_fail() { FAIL=$((FAIL + 1)); echo -e "${RED}  [FAIL]${NC} $1"; }
 
+wait_for_traefik_router() {
+    echo ""
+    echo "Waiting for Traefik to register LLDAP router (up to 60s)..."
+    for i in $(seq 1 60); do
+        ROUTERS=$(curl -s "http://localhost:19097/api/http/routers" 2>/dev/null || echo "")
+        if echo "$ROUTERS" | grep -qi "lldap"; then
+            echo "  Traefik: LLDAP router registered (${i}s)"
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "  Traefik: LLDAP router not registered after 60s"
+    docker logs test-traefik-lldap 2>&1 | tail -80 || true
+    return 1
+}
+
 cleanup() {
     local rc=$?
     if [ "$rc" -ne 0 ]; then
@@ -70,6 +87,8 @@ for i in $(seq 1 60); do
     fi
     sleep 1
 done
+
+wait_for_traefik_router || true
 
 echo ""
 echo "--- Running Tests ---"

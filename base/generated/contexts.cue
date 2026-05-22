@@ -4,7 +4,7 @@
 // This file is auto-generated from the kombify-admin database.
 // To modify context defaults, update the database and re-run the generator.
 //
-// Generated: 2026-02-11T13:27:29.111Z
+// Generated: 2026-05-22T08:50:42.500Z
 // Source: kombify-admin/prisma/seed.ts → ContextDefaults table
 // =============================================================================
 

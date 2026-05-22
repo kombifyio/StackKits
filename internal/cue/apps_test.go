@@ -60,8 +60,11 @@ func TestGenerateAppsTF_SvelteKitContract(t *testing.T) {
 	assert.Contains(t, compose, `PUBLIC_APP_NAME: "My App"`)
 	assert.Contains(t, compose, `SESSION_SECRET: "${APP_WEB_SECRET_SESSION_SECRET}"`)
 	assert.Contains(t, compose, `stackkit.managed-by=dokploy`)
+	assert.Contains(t, compose, `traefik.docker.network=dokploy-network`)
 	assert.Contains(t, compose, `traefik.http.routers.app-web.rule=Host(`+"`"+`app.home.lab`+"`"+`)`)
+	assert.Contains(t, compose, `traefik.http.routers.app-web.entrypoints=web`)
 	assert.Contains(t, compose, `traefik.http.routers.app-web.middlewares=tinyauth@docker`)
+	assert.Contains(t, compose, `name: dokploy-network`)
 
 	manifestData, err := os.ReadFile(filepath.Join(outputDir, "platform-apps", "manifest.json"))
 	require.NoError(t, err)
@@ -75,6 +78,39 @@ func TestGenerateAppsTF_SvelteKitContract(t *testing.T) {
 	assert.Equal(t, models.PAASDokploy, bundle.Apps[0].ManagedBy)
 	assert.Equal(t, platformdeploy.SetupPolicyManual, bundle.Apps[0].SetupPolicy)
 	assert.Empty(t, bundle.Apps[0].SetupDrops)
+}
+
+func TestGenerateAppsTF_CoolifyDefaultUsesCoolifyRoutingContract(t *testing.T) {
+	outputDir := t.TempDir()
+	spec := &models.StackSpec{
+		Domain:  "home.localhost",
+		Context: string(models.ContextLocal),
+		Apps: map[string]models.AppSpec{
+			"web": {
+				Image: "ghcr.io/kombify/example-sveltekit:latest",
+				Port:  3000,
+			},
+		},
+	}
+
+	require.NoError(t, GenerateAppsTF(spec, outputDir))
+
+	composeData, err := os.ReadFile(filepath.Join(outputDir, "platform-apps", "web.compose.yaml"))
+	require.NoError(t, err)
+	compose := string(composeData)
+	assert.Contains(t, compose, `stackkit.managed-by=coolify`)
+	assert.Contains(t, compose, `traefik.docker.network=coolify`)
+	assert.Contains(t, compose, `traefik.http.routers.app-web.entrypoints=http`)
+	assert.NotContains(t, compose, `traefik.http.routers.app-web.entrypoints=web`)
+	assert.Contains(t, compose, `name: coolify`)
+
+	manifestData, err := os.ReadFile(filepath.Join(outputDir, "platform-apps", "manifest.json"))
+	require.NoError(t, err)
+	var bundle platformdeploy.BundleManifest
+	require.NoError(t, json.Unmarshal(manifestData, &bundle))
+	assert.Equal(t, models.PAASCoolify, bundle.Platform)
+	require.Len(t, bundle.Apps, 1)
+	assert.Equal(t, models.PAASCoolify, bundle.Apps[0].ManagedBy)
 }
 
 func TestGenerateAppsTF_NoAppsNoFile(t *testing.T) {

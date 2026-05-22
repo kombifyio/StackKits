@@ -45,6 +45,20 @@ package base
 	"L2-platform-diagnostics" |
 	"L3-application"
 
+// #DeliveryType defines how a module reaches the target runtime.
+#DeliveryType: "stackkit-iac" | "paas"
+
+// #DeliveryManager identifies the runtime owner for a delivered module.
+#DeliveryManager: "stackkit" | "selected-paas" | "external-paas"
+
+// #ModuleDelivery declares the delivery boundary for a module. Layer-3
+// applications may emit compose manifests, but those manifests are PaaS input;
+// OpenTofu/local-exec must not start L3 applications directly.
+#ModuleDelivery: {
+	type:      #DeliveryType
+	managedBy: #DeliveryManager
+}
+
 // #RequiresSpec declares what a module needs from other modules or infrastructure.
 #RequiresSpec: {
 	// Required services (other modules that must be enabled)
@@ -164,6 +178,11 @@ package base
 #ModuleContract: {
 	// Module identity
 	metadata: #ModuleMetadata
+
+	// Delivery contract. StackKit-owned/default L3 modules should declare
+	// PaaS delivery. L3 as a category is not globally forced through PaaS:
+	// user-installed apps outside StackKit manifests are state-unmanaged.
+	delivery?: #ModuleDelivery
 
 	// What this module requires
 	requires?: #RequiresSpec

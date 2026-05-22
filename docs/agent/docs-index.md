@@ -10,4 +10,4 @@ Agent-facing StackKits references:
 - `docs/agent/monitoring.md`: status, logs, verification, and evidence surfaces.
 - `api/openapi.v1.yaml`: OpenAPI mirror embedded by `stackkit-mcp`.
 
-BaseKit is the verified beta one-click path. Modern Homelab and HA Kit remain alpha/scaffolding until their release matrices graduate. The current BaseKit proof covers local fallback behavior plus auth/setup guards, not the complete Cubi/Coolify-managed L3 path.
+BaseKit is the verified beta one-click path. Modern Homelab and HA Kit remain alpha/scaffolding until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; the complete Coolify-managed application-layer evidence for ready-to-use use cases remains a blocker. User-installed apps outside that path are state-unmanaged.

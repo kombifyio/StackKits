@@ -238,6 +238,8 @@ func TestGenerateTfvarsJSON_BridgeParityOnCoreKeys(t *testing.T) {
 		"dns_provider",
 		"paas",
 		"reverse_proxy_backend",
+		"enable_platform_fallback",
+		"platform_fallback_mode",
 		"enable_traefik",
 		"enable_tinyauth",
 		"enable_pocketid",

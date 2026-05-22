@@ -89,6 +89,9 @@ const canonicalOpenAPI = await readRepo('api/openapi/stackkits-v1.yaml');
 const runManifestSchema = JSON.parse(await readStatic('schemas/stackkit-agent-run-manifest.schema.json'));
 const functionalResultSchema = JSON.parse(await readStatic('schemas/stackkit-agent-functional-result.schema.json'));
 const sitemap = await readStatic('sitemap.xml');
+const renderBlueprint = await readRepo('render.yaml');
+const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io https://*.kombify.io";
+const rootInstall = await readRepo('install.sh');
 
 for (const [name, content] of Object.entries({ install, base, modern, ha })) {
   assert(content.startsWith('#!/bin/sh'), `${name} must start with #!/bin/sh`);
@@ -96,7 +99,7 @@ for (const [name, content] of Object.entries({ install, base, modern, ha })) {
 }
 
 assert(install.includes('StackKits CLI installer'), 'install endpoint must identify the CLI installer');
-assert(install.includes('install.sh'), 'install endpoint must delegate to the root release installer');
+assert(install === rootInstall, 'install endpoint must be the self-contained root release installer');
 assert(base.includes('StackKits Base Installer'), 'base endpoint must identify the Base installer');
 assert(modern.includes('alpha/scaffolding'), 'modern endpoint must warn that it is alpha/scaffolding');
 assert(ha.includes('alpha/scaffolding'), 'ha endpoint must warn that it is alpha/scaffolding');
@@ -105,6 +108,8 @@ for (const route of ['/install', '/base', '/modern', '/ha']) {
   assert(headers.includes(route), `_headers must include ${route}`);
 }
 assert(headers.includes('text/x-shellscript'), '_headers must force shell content type');
+assert(headers.includes(embedFrameAncestors), '_headers must allow Kombify Cloud embedding via CSP frame-ancestors');
+assert(!/X-Frame-Options/i.test(headers), '_headers must not set X-Frame-Options for embedded mode');
 for (const route of ['/llms.txt', '/llms-full.txt', '/llms-snippets.txt', '/getting-started/agents.md', '/mcp/stackkit-mcp.md', '/api/openapi.v1.yaml', '/schemas/*']) {
   assert(headers.includes(route), `_headers must include ${route}`);
 }
@@ -116,6 +121,16 @@ for (const host of ['install.stackkit.cc', 'base.stackkit.cc', 'modern.stackkit.
 }
 assert(worker.includes('env.ASSETS.fetch'), '_worker.js must serve static assets through ASSETS');
 assert(worker.includes('text/x-shellscript'), '_worker.js must set shell content type');
+assert(worker.includes(embedFrameAncestors), '_worker.js must allow Kombify Cloud embedding via CSP frame-ancestors');
+assert(worker.includes('headers.delete("X-Frame-Options")'), '_worker.js must strip inherited X-Frame-Options for embedded mode');
+
+assert(renderBlueprint.includes('runtime: static'), 'render.yaml must define the static website service');
+assert(renderBlueprint.includes('staticPublishPath: website/dist'), 'render.yaml must publish website/dist');
+assert(renderBlueprint.includes(embedFrameAncestors), 'render.yaml must allow Kombify Cloud embedding via CSP frame-ancestors');
+assert(!/name:\s*X-Frame-Options/i.test(renderBlueprint), 'render.yaml must not set X-Frame-Options for embedded mode');
+for (const route of ['/install', '/base', '/modern', '/ha']) {
+  assert(renderBlueprint.includes(`path: ${route}`), `render.yaml must include ${route} headers`);
+}
 
 assert(llms.includes('/llms-full.txt'), 'llms.txt must point to full context');
 assert(llms.includes('/api/openapi.v1.yaml'), 'llms.txt must point to OpenAPI mirror');

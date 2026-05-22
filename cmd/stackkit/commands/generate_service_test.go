@@ -26,6 +26,7 @@ func TestServiceOverrides_IndividualToggle(t *testing.T) {
 		{"dokploy", "enable_dokploy", false, true},
 		{"dockge", "enable_dockge", false, true},
 		{"coolify", "enable_coolify", true, true},
+		{"komodo", "enable_komodo", false, true},
 		{"dashboard", "enable_dashboard", true, true},
 		{"homepage", "enable_homepage", true, true},
 		{"uptime_kuma", "enable_uptime_kuma", true, true},

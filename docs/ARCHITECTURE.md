@@ -45,10 +45,18 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 3. `stackkit validate` and generation paths bind the spec to CUE contracts.
 4. `stackkit generate` writes generated rollout artifacts under `deploy/`.
 5. `stackkit plan` and `stackkit apply` execute OpenTofu through the Go adapter.
-6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest. StackKit may operate StackKit-owned system apps through the platform adapter, but user apps remain PaaS handoff metadata and are deployed, updated, and operated by the selected external PaaS tooling.
-7. First-run setup is represented separately from deployment as setup-drop metadata. Local Base Node Hub routes are intentionally bootstrap-open until `protect_base_hub=true` is applied after owner setup, while public/non-local Base routes stay protected when TinyAuth is enabled. Other L1/L2 platform services use `automatic` setup and must be usable after rollout, while L3 apps use `manual` or `on_demand` depending on whether StackKits has a supported bootstrap drop.
+6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest. StackKit may operate StackKit-owned system apps and StackKit-owned L3 application use cases through the platform adapter, but customer-owned user apps remain PaaS handoff metadata and are deployed, updated, and operated by the selected external PaaS tooling.
+7. First-run setup is represented separately from deployment as setup-drop metadata. Local Base Node Hub routes are intentionally bootstrap-open until the operator clicks `Base Hub schützen` after owner setup; that action persists the protection setting and switches the local router behind TinyAuth. Public/non-local Base routes stay protected when TinyAuth is enabled. Other L1/L2 platform services use `automatic` setup and must be usable after rollout, while L3 apps use `manual` or `on_demand` depending on whether StackKits has a supported bootstrap drop.
 8. `stackkit verify` performs read-only host checks and optional HTTP URL checks.
 9. `stackkit-server` exposes the same catalog, validation, generation-preview, log, and registry concepts over HTTP and is deployed as a platform-managed system app in the normal BaseKit path.
+
+## Routing Ownership
+
+StackKit does not own a separate router when the selected PaaS already includes one. For Coolify, generated StackKit routes must be served by Coolify's Traefik/proxy. For Dokploy, generated StackKit routes must be served by Dokploy's Traefik. In those environments, the PaaS router is the StackKit router.
+
+Komodo is the first explicit exception: the initial `paas: komodo` contract uses exactly one StackKit-owned Traefik while Komodo owns Compose Stack deployment. The generated dashboard/status output and release evidence must label that routing ownership as StackKit-owned, not Komodo-owned.
+
+StackKit must not add a second Traefik instance, an Nginx bridge container, a host-side proxy, or a browser/test-only forwarding workaround to make service URLs appear reachable. Such a path is a routing bypass, not production evidence. If StackKit later supports another PaaS without an integrated router, that adapter contract must explicitly include one StackKit-owned router and the generated dashboard/status output must label it as such.
 
 ## Current Technical Stack
 

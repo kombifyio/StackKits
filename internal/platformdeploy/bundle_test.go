@@ -124,7 +124,7 @@ func TestApplyBundleIgnoresUserApps(t *testing.T) {
 	assert.Empty(t, adapter.names)
 }
 
-func TestApplyBundleDeploysOnlySystemApps(t *testing.T) {
+func TestApplyBundleDeploysSystemAppsAndStackKitOwnedApps(t *testing.T) {
 	adapter := &recordingAdapter{}
 
 	refs, err := ApplyBundle(context.Background(), adapter, BundleManifest{
@@ -138,14 +138,20 @@ func TestApplyBundleDeploysOnlySystemApps(t *testing.T) {
 		}},
 		Apps: []AppManifest{{
 			Name:        "web",
+			Ownership:   AppOwnershipCustomer,
+			ComposeYAML: "services: {}\n",
+		}, {
+			Name:        "immich",
+			Ownership:   AppOwnershipStackKit,
 			ComposeYAML: "services: {}\n",
 		}},
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"stackkit-hub"}, adapter.names)
-	require.Len(t, refs, 1)
+	assert.Equal(t, []string{"stackkit-hub", "immich"}, adapter.names)
+	require.Len(t, refs, 2)
 	assert.Equal(t, "external-stackkit-hub", refs[0].ExternalID)
+	assert.Equal(t, "external-immich", refs[1].ExternalID)
 }
 
 type recordingAdapter struct {

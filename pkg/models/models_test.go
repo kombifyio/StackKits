@@ -396,16 +396,16 @@ func TestNormalizeAdminEmail(t *testing.T) {
 		want            string
 	}{
 		{
-			name:   "empty local defaults to home.localhost",
+			name:   "empty local defaults to reserved admin email",
 			email:  "",
 			domain: DomainHomeLab,
-			want:   "admin@home.localhost",
+			want:   "admin@example.com",
 		},
 		{
-			name:   "bare admin local becomes synthetic email",
+			name:   "bare admin local becomes reserved synthetic email",
 			email:  "admin",
 			domain: DomainHomeLab,
-			want:   "admin@home.localhost",
+			want:   "admin@example.com",
 		},
 		{
 			name:            "kombify.me uses assigned homelab prefix",
@@ -433,6 +433,26 @@ func TestNormalizeAdminEmail(t *testing.T) {
 			assert.Equal(t, tt.want, NormalizeAdminEmail(tt.email, tt.domain, tt.subdomainPrefix))
 		})
 	}
+}
+
+func TestResolveAdminEmailPrefersOwnerEmail(t *testing.T) {
+	spec := &StackSpec{
+		AdminEmail: "legacy-admin@example.com",
+		Email:      "legacy-contact@example.com",
+		Domain:     "apps.example.com",
+		Owner: OwnerConfig{
+			Email: "owner@example.com",
+		},
+	}
+
+	assert.Equal(t, "owner@example.com", ResolveAdminEmail(spec))
+}
+
+func TestResolveAdminEmailLocalDefaultUsesReservedDomain(t *testing.T) {
+	spec := &StackSpec{Domain: DomainHomeLab}
+
+	assert.Equal(t, "admin@example.com", ResolveAdminEmail(spec))
+	assert.NotContains(t, ResolveAdminEmail(spec), "@kombify.io")
 }
 
 func TestDefaultAppHost(t *testing.T) {
@@ -473,6 +493,7 @@ func TestDefaultAppHost(t *testing.T) {
 func TestResolveReverseProxyForPAAS(t *testing.T) {
 	assert.Equal(t, ReverseProxyDokploy, ResolveReverseProxyForPAAS(PAASDokploy))
 	assert.Equal(t, ReverseProxyCoolify, ResolveReverseProxyForPAAS(PAASCoolify))
+	assert.Equal(t, ReverseProxyStackKit, ResolveReverseProxyForPAAS(PAASKomodo))
 	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(PAASDockge))
 	assert.Equal(t, ReverseProxyStandalone, ResolveReverseProxyForPAAS(""))
 }
@@ -480,6 +501,7 @@ func TestResolveReverseProxyForPAAS(t *testing.T) {
 func TestPAASClassification(t *testing.T) {
 	assert.True(t, IsStandardPAAS(PAASDokploy))
 	assert.True(t, IsStandardPAAS(PAASCoolify))
+	assert.True(t, IsStandardPAAS(PAASKomodo))
 	assert.False(t, IsStandardPAAS(PAASDockge))
 	assert.False(t, IsStandardPAAS(PAASNone))
 

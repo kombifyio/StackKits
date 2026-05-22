@@ -125,6 +125,20 @@ func TestContainerPort(t *testing.T) {
 	})
 }
 
+func TestParseDockerPSOutput(t *testing.T) {
+	output := []byte("abc123\tstackkit-hub\tghcr.io/kombifyio/stackkit-server:latest\trunning\tUp 2 minutes (healthy)\t8080/tcp\nstopped1\told\tnginx:alpine\texited\tExited (0) 1 hour ago\t\n")
+
+	containers := parseDockerPSOutput(output)
+
+	assert.Len(t, containers, 2)
+	assert.Equal(t, "abc123", containers[0].ID)
+	assert.Equal(t, "stackkit-hub", containers[0].Name)
+	assert.Equal(t, "ghcr.io/kombifyio/stackkit-server:latest", containers[0].Image)
+	assert.True(t, containers[0].State.Running)
+	assert.Equal(t, "Up 2 minutes (healthy)", containers[0].State.Status)
+	assert.False(t, containers[1].State.Running)
+}
+
 // Integration tests that require Docker
 func TestClientIntegration(t *testing.T) {
 	client := NewClient()
@@ -425,16 +439,16 @@ func TestIsInstalled(t *testing.T) {
 	})
 }
 
-func TestListContainersParsesJSONLinesAndSkipsMalformedRows(t *testing.T) {
+func TestListContainersParsesDockerPSRowsAndSkipsMalformedRows(t *testing.T) {
 	client := NewClient(WithBinary(fakeDockerBinary(t,
 		`@echo off
-echo {"ID":"abc123","Names":"web","Image":"nginx:alpine","State":"running","Status":"Up 1 second","Ports":"80/tcp"}
-echo not-json
+echo abc123	web	nginx:alpine	running	Up 1 second	80/tcp
+echo malformed-row
 exit /b 0
 `,
 		`#!/bin/sh
-printf '%s\n' '{"ID":"abc123","Names":"web","Image":"nginx:alpine","State":"running","Status":"Up 1 second","Ports":"80/tcp"}'
-printf '%s\n' 'not-json'
+printf '%s\n' 'abc123	web	nginx:alpine	running	Up 1 second	80/tcp'
+printf '%s\n' 'malformed-row'
 `)))
 
 	containers, err := client.ListContainers(context.Background(), true)

@@ -1,26 +1,45 @@
 version: 2
 updates:
-  - package-ecosystem: gomod
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
-    labels: [dependencies, go]
-    groups:
-      go-minor-patch:
-        update-types: [minor, patch]
-
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    labels: [dependencies, ci]
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:30"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
 
   - package-ecosystem: npm
     directory: /website
     schedule:
       interval: weekly
-    labels: [dependencies, website]
+      day: monday
+      time: "05:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
     groups:
-      npm-minor-patch:
-        update-types: [minor, patch]
+      website-npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:30"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 3

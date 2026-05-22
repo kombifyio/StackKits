@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -118,6 +119,66 @@ func TestSetupServiceRunExecutesImmichOwnerBootstrap(t *testing.T) {
 	}, paths)
 }
 
+func TestBaseHubProtectionStatusReadsBootstrapState(t *testing.T) {
+	srv, tmpDir := testServer(t)
+	writeBaseHubTFVars(t, tmpDir, `{"enable_tinyauth":true,"protect_base_hub":false,"network_mode":"bridge"}`)
+	require.NoError(t, writeBaseHubProtectionDynamicConfig(filepath.Join(tmpDir, "deploy", "traefik-dynamic", "stackkit.yml"), "bridge", false))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/setup/base-hub/protection", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp := parseResponse(t, rec)
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(resp["data"], &data))
+	require.Equal(t, "bootstrap_open", data["status"])
+	require.Equal(t, false, data["protected"])
+}
+
+func TestBaseHubProtectionAppliesDynamicMiddlewareAndPersistsTFVars(t *testing.T) {
+	srv, tmpDir := testServer(t)
+	writeBaseHubTFVars(t, tmpDir, `{"enable_tinyauth":true,"protect_base_hub":false,"network_mode":"host"}`)
+	srv.config.SetupActionMode = setupActionModeApply
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/setup/base-hub/protection", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	resp := parseResponse(t, rec)
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(resp["data"], &data))
+	require.Equal(t, "completed", data["status"])
+	require.Equal(t, true, data["protected"])
+
+	tfvarsData, err := os.ReadFile(filepath.Join(tmpDir, "deploy", "terraform.tfvars.json"))
+	require.NoError(t, err)
+	var tfvars map[string]any
+	require.NoError(t, json.Unmarshal(tfvarsData, &tfvars))
+	require.Equal(t, true, tfvars["protect_base_hub"])
+
+	dynamicData, err := os.ReadFile(filepath.Join(tmpDir, "deploy", "traefik-dynamic", "stackkit.yml"))
+	require.NoError(t, err)
+	dynamic := string(dynamicData)
+	require.Contains(t, dynamic, "forwardAuth:")
+	require.Contains(t, dynamic, "http://127.0.0.1:3004/api/auth/traefik")
+	require.NotContains(t, dynamic, "protect_base_hub")
+}
+
+func TestBaseHubProtectionRejectsWhenTinyAuthDisabled(t *testing.T) {
+	srv, tmpDir := testServer(t)
+	writeBaseHubTFVars(t, tmpDir, `{"enable_tinyauth":false,"protect_base_hub":false}`)
+	srv.config.SetupActionMode = setupActionModeApply
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/setup/base-hub/protection", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Contains(t, rec.Body.String(), "base_hub_protection_requires_tinyauth")
+}
+
 func writeSetupManifest(t *testing.T, baseDir string) {
 	t.Helper()
 	manifest := `{
@@ -142,4 +203,12 @@ func writeSetupManifest(t *testing.T, baseDir string) {
   ]
 }`
 	require.NoError(t, os.WriteFile(filepath.Join(baseDir, ".platform-apps-manifest.json"), []byte(manifest), 0600))
+}
+
+func writeBaseHubTFVars(t *testing.T, baseDir, content string) {
+	t.Helper()
+	deployDir := filepath.Join(baseDir, "deploy")
+	require.NoError(t, os.MkdirAll(deployDir, 0750))
+	content = strings.TrimSpace(content) + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(deployDir, "terraform.tfvars.json"), []byte(content), 0600))
 }

@@ -47,10 +47,11 @@ func LoadBundleManifest(path string) (BundleManifest, error) {
 	return bundle, nil
 }
 
-// ApplyBundle applies only StackKit-owned systemApps. User apps in Apps are
-// PaaS handoff metadata and are intentionally not deployed by StackKit.
+// ApplyBundle applies StackKit-owned systemApps and StackKit-owned/default L3
+// apps through the supplied PaaS adapter. Customer-owned apps in Apps are
+// handoff metadata and are intentionally not deployed by StackKit.
 func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([]DeploymentRef, error) {
-	refs := make([]DeploymentRef, 0, len(bundle.SystemApps))
+	refs := make([]DeploymentRef, 0, len(bundle.SystemApps)+len(bundle.Apps))
 	for _, systemApp := range bundle.SystemApps {
 		app := systemApp.AppManifest
 		defaultAppPlatform(&app, bundle.Platform)
@@ -60,7 +61,25 @@ func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([
 		}
 		refs = append(refs, ref)
 	}
+	for _, app := range bundle.Apps {
+		if !IsStackKitOwnedApp(app) {
+			continue
+		}
+		defaultAppPlatform(&app, bundle.Platform)
+		ref, err := adapter.ApplyCompose(ctx, app)
+		if err != nil {
+			return refs, fmt.Errorf("deploy StackKit L3 app %q: %w", app.Name, err)
+		}
+		refs = append(refs, ref)
+	}
 	return refs, nil
+}
+
+// IsStackKitOwnedApp reports whether this L3 app belongs to the StackKit-owned
+// product surface. If no PaaS adapter is configured, callers may record it as
+// unmanaged state rather than deploying it.
+func IsStackKitOwnedApp(app AppManifest) bool {
+	return app.Ownership == AppOwnershipStackKit
 }
 
 func defaultAppPlatform(app *AppManifest, platform string) {

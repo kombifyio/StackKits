@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,30 +26,71 @@ const (
 )
 
 type runtimeActionRequest struct {
-	Action      string `json:"action"`
-	StackID     string `json:"stack_id"`
-	StackName   string `json:"stack_name,omitempty"`
-	StackKit    string `json:"stackkit,omitempty"`
-	TofuDir     string `json:"tofu_dir,omitempty"`
-	UnifiedPath string `json:"unified_path,omitempty"`
+	Action             string                           `json:"action"`
+	StackID            string                           `json:"stack_id"`
+	StackName          string                           `json:"stack_name,omitempty"`
+	StackKit           string                           `json:"stackkit,omitempty"`
+	TofuDir            string                           `json:"tofu_dir,omitempty"`
+	UnifiedPath        string                           `json:"unified_path,omitempty"`
+	OwnerSpecBootstrap *runtimeActionOwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
 }
 
 type runtimeActionResponse struct {
-	Status      string               `json:"status"`
-	Action      string               `json:"action"`
-	StackID     string               `json:"stack_id"`
-	StackName   string               `json:"stack_name,omitempty"`
-	StackKit    string               `json:"stackkit,omitempty"`
-	TofuDir     string               `json:"tofu_dir,omitempty"`
-	UnifiedPath string               `json:"unified_path,omitempty"`
-	Mode        string               `json:"mode"`
-	Checks      []runtimeActionCheck `json:"checks,omitempty"`
+	Status          string                        `json:"status"`
+	Action          string                        `json:"action"`
+	StackID         string                        `json:"stack_id"`
+	StackName       string                        `json:"stack_name,omitempty"`
+	StackKit        string                        `json:"stackkit,omitempty"`
+	TofuDir         string                        `json:"tofu_dir,omitempty"`
+	UnifiedPath     string                        `json:"unified_path,omitempty"`
+	Mode            string                        `json:"mode"`
+	Checks          []runtimeActionCheck          `json:"checks,omitempty"`
+	StackKitOutputs *runtimeActionStackKitOutputs `json:"stackkit_outputs,omitempty"`
 }
 
 type runtimeActionCheck struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	Detail string `json:"detail,omitempty"`
+}
+
+type runtimeActionOwnerSpecBootstrap struct {
+	Endpoint  string   `json:"endpoint"`
+	Token     string   `json:"token"`
+	ExpiresAt string   `json:"expires_at"`
+	Scopes    []string `json:"scopes,omitempty"`
+}
+
+type runtimeActionStackKitOutputs struct {
+	Identity     runtimeActionIdentityOutputs `json:"identity"`
+	LoginGateway runtimeActionLoginGateway    `json:"login_gateway"`
+	ServiceLinks []runtimeActionServiceLink   `json:"service_links,omitempty"`
+}
+
+type runtimeActionIdentityOutputs struct {
+	Owner    runtimeActionOwnerOutput    `json:"owner"`
+	Recovery runtimeActionRecoveryOutput `json:"recovery"`
+}
+
+type runtimeActionOwnerOutput struct {
+	Username    string `json:"username,omitempty"`
+	Email       string `json:"email,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+}
+
+type runtimeActionRecoveryOutput struct {
+	BundleRef             string `json:"bundle_ref,omitempty"`
+	PassphraseHashPresent bool   `json:"passphrase_hash_present,omitempty"`
+}
+
+type runtimeActionLoginGateway struct {
+	URL   string `json:"url"`
+	Label string `json:"label,omitempty"`
+}
+
+type runtimeActionServiceLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 func (s *Server) registerRuntimeActionRoutes() {
@@ -168,16 +210,20 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: "ok", Detail: resp.StackKit})
 	}
 
+	includeStackKitOutputs := req.OwnerSpecBootstrap != nil
 	if mode == runtimeActionModeDryRun {
 		resp.Status = dryRunStatus(req.Action)
+		if includeStackKitOutputs {
+			resp.StackKitOutputs = stackKitOutputsFromOpenTofu(resp, nil)
+		}
 		return resp, http.StatusOK, nil
 	}
 
 	switch req.Action {
 	case runtimeActionRollout:
-		return runOpenTofuRollout(ctx, resp)
+		return runOpenTofuRollout(ctx, resp, includeStackKitOutputs)
 	case runtimeActionVerify:
-		return runOpenTofuVerify(ctx, resp)
+		return runOpenTofuVerify(ctx, resp, includeStackKitOutputs)
 	case runtimeActionRestore:
 		return runRestoreDrillVerifier(ctx, resp, s.config.RuntimeRestoreVerifierCommand)
 	default:
@@ -185,7 +231,7 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	}
 }
 
-func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse) (runtimeActionResponse, int, *skerrors.StackKitError) {
+func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	if err := requireLocalTofuDir(resp.TofuDir); err != nil {
 		return resp, http.StatusBadRequest, err
 	}
@@ -198,10 +244,13 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse) (runtim
 	}
 	resp.Status = "applied"
 	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_apply", Status: "ok"})
+	if includeStackKitOutputs {
+		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
+	}
 	return resp, http.StatusOK, nil
 }
 
-func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse) (runtimeActionResponse, int, *skerrors.StackKitError) {
+func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	if err := requireLocalTofuDir(resp.TofuDir); err != nil {
 		return resp, http.StatusBadRequest, err
 	}
@@ -211,7 +260,132 @@ func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse) (runtime
 	}
 	resp.Status = "verified"
 	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_state", Status: "ok"})
+	if includeStackKitOutputs {
+		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
+	}
 	return resp, http.StatusOK, nil
+}
+
+func collectStackKitOutputs(ctx context.Context, exec *tofu.Executor, resp *runtimeActionResponse) *runtimeActionStackKitOutputs {
+	result, err := exec.Output(ctx)
+	if err != nil || result == nil || !result.Success {
+		detail := "tofu output unavailable"
+		if result != nil && strings.TrimSpace(result.Stderr) != "" {
+			detail = strings.TrimSpace(result.Stderr)
+		} else if err != nil {
+			detail = err.Error()
+		}
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit_outputs", Status: "warning", Detail: detail})
+		return stackKitOutputsFromOpenTofu(*resp, nil)
+	}
+
+	values := parseOpenTofuOutputValues(result.Stdout)
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit_outputs", Status: "ok"})
+	return stackKitOutputsFromOpenTofu(*resp, values)
+}
+
+func parseOpenTofuOutputValues(raw string) map[string]string {
+	var document map[string]struct {
+		Value interface{} `json:"value"`
+	}
+	if err := json.Unmarshal([]byte(raw), &document); err != nil {
+		return nil
+	}
+	values := make(map[string]string, len(document))
+	for key, output := range document {
+		switch v := output.Value.(type) {
+		case string:
+			values[key] = strings.TrimSpace(v)
+		case float64:
+			values[key] = strings.TrimSpace(jsonNumber(v))
+		}
+	}
+	return values
+}
+
+func stackKitOutputsFromOpenTofu(resp runtimeActionResponse, values map[string]string) *runtimeActionStackKitOutputs {
+	loginURL := firstRuntimeOutput(values, "tinyauth_login_url", "paas_url", "coolify_url", "dashboard_url", "homepage_url")
+	if loginURL == "" {
+		loginURL = "https://" + stackSlug(resp.StackName, resp.StackID) + ".kombify.me"
+	}
+	ownerEmail := firstRuntimeOutput(values, "coolify_admin_email", "admin_email")
+	ownerUsername := ownerEmail
+	if ownerUsername == "" {
+		ownerUsername = "owner"
+	}
+	links := make([]runtimeActionServiceLink, 0, 4)
+	for _, candidate := range []struct {
+		name string
+		key  string
+	}{
+		{name: "base", key: "homepage_url"},
+		{name: "auth", key: "tinyauth_login_url"},
+		{name: "coolify", key: "coolify_url"},
+		{name: "monitoring", key: "kuma_url"},
+	} {
+		if url := firstRuntimeOutput(values, candidate.key); url != "" {
+			links = append(links, runtimeActionServiceLink{Name: candidate.name, URL: url})
+		}
+	}
+	return &runtimeActionStackKitOutputs{
+		Identity: runtimeActionIdentityOutputs{
+			Owner: runtimeActionOwnerOutput{
+				Username:    ownerUsername,
+				Email:       ownerEmail,
+				DisplayName: "Owner",
+			},
+			Recovery: runtimeActionRecoveryOutput{
+				BundleRef: "techstack://recovery/stacks/" + resp.StackID,
+			},
+		},
+		LoginGateway: runtimeActionLoginGateway{
+			URL:   loginURL,
+			Label: "Open first login",
+		},
+		ServiceLinks: links,
+	}
+}
+
+func firstRuntimeOutput(values map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if values != nil && strings.TrimSpace(values[key]) != "" {
+			return strings.TrimSpace(values[key])
+		}
+	}
+	return ""
+}
+
+func stackSlug(values ...string) string {
+	for _, value := range values {
+		slug := strings.ToLower(strings.TrimSpace(value))
+		slug = strings.Map(func(r rune) rune {
+			switch {
+			case r >= 'a' && r <= 'z':
+				return r
+			case r >= '0' && r <= '9':
+				return r
+			case r == '-':
+				return r
+			default:
+				return '-'
+			}
+		}, slug)
+		slug = strings.Trim(slug, "-")
+		for strings.Contains(slug, "--") {
+			slug = strings.ReplaceAll(slug, "--", "-")
+		}
+		if slug != "" {
+			return slug
+		}
+	}
+	return "techstack"
+}
+
+func jsonNumber(value float64) string {
+	if value == float64(int64(value)) {
+		return strconv.FormatInt(int64(value), 10)
+	}
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
 func runRestoreDrillVerifier(ctx context.Context, resp runtimeActionResponse, command string) (runtimeActionResponse, int, *skerrors.StackKitError) {

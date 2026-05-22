@@ -185,15 +185,17 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 	}
 
 	validateOwnerConfig(spec.Owner, result)
+	validateBreakGlassConfig(spec.BreakGlass, result)
+	validatePlatformFallback(spec, result)
 
 	// Normal StackKits must deploy through a supported platform adapter.
 	// Dockge is kept only as a constrained experimental compose manager, and
 	// "none" would allow platform bypasses.
-	if spec.PAAS != "" && !models.IsStandardPAAS(spec.PAAS) {
+	if spec.PAAS != "" && !models.IsStandardPAAS(spec.PAAS) && !platformFallbackEnabled(spec) {
 		result.Valid = false
 		result.Errors = append(result.Errors, models.ValidationError{
 			Path:    "paas",
-			Message: fmt.Sprintf("invalid paas '%s': normal StackKits must use dokploy or coolify; remove paas to use the default coolify resolver", spec.PAAS),
+			Message: fmt.Sprintf("invalid paas '%s': normal StackKits must use coolify, komodo, or dokploy; remove paas to use the default coolify resolver", spec.PAAS),
 			Code:    "INVALID_VALUE",
 		})
 	}
@@ -329,8 +331,8 @@ func validateOwnerConfig(owner models.OwnerConfig, result *models.ValidationResu
 		}
 	case models.OwnerBootstrapModeAuto:
 		source := strings.ToLower(strings.TrimSpace(owner.Source))
-		if source != "" && source != models.OwnerSourceCloud {
-			addOwnerError(result, "owner.source", "owner bootstrapMode auto must use source cloud when source is set", "INVALID_VALUE")
+		if source != "" && source != models.OwnerSourceCloud && source != models.OwnerSourceFirstRun {
+			addOwnerError(result, "owner.source", "owner bootstrapMode auto must use source cloud or first-run when source is set", "INVALID_VALUE")
 		}
 		if owner.RecoveryPassphraseHash == "" && owner.RecoveryMaterialRef == "" {
 			addOwnerError(result, "owner.recoveryMaterialRef", "owner bootstrapMode auto requires recoveryPassphraseHash or recoveryMaterialRef", "REQUIRED_FIELD")
@@ -365,6 +367,49 @@ func validateOwnerConfig(owner models.OwnerConfig, result *models.ValidationResu
 			addOwnerError(result, "owner.bootstrapMode", "owner bootstrapMode is required when owner fields are set without source", "REQUIRED_FIELD")
 		}
 	}
+}
+
+func validateBreakGlassConfig(breakGlass models.BreakGlassConfig, result *models.ValidationResult) {
+	if breakGlass.IsZero() {
+		return
+	}
+	if strings.TrimSpace(breakGlass.Scope) != "" &&
+		breakGlass.EffectiveScope() != models.BreakGlassScopeFullEmergencyAdmin {
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    "breakGlass.scope",
+			Message: fmt.Sprintf("invalid breakGlass scope %q (use %q)", breakGlass.Scope, models.BreakGlassScopeFullEmergencyAdmin),
+			Code:    "INVALID_VALUE",
+		})
+	}
+}
+
+func validatePlatformFallback(spec *models.StackSpec, result *models.ValidationResult) {
+	if spec == nil {
+		return
+	}
+	mode := strings.TrimSpace(spec.PlatformFallback.Mode)
+	if spec.PlatformFallback.Enabled {
+		if mode == "" || mode == models.PlatformFallbackStandaloneCompose {
+			return
+		}
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    "platformFallback.mode",
+			Message: fmt.Sprintf("platformFallback.enabled=true requires mode %q", models.PlatformFallbackStandaloneCompose),
+			Code:    "INVALID_VALUE",
+		})
+		return
+	}
+	if mode == "" || mode == models.PlatformFallbackDisabled {
+		return
+	}
+	result.Valid = false
+	result.Errors = append(result.Errors, models.ValidationError{
+		Path:    "platformFallback.mode",
+		Message: fmt.Sprintf("platformFallback.enabled=false requires mode %q", models.PlatformFallbackDisabled),
+		Code:    "INVALID_VALUE",
+	})
 }
 
 func hasOwnerIdentityFields(owner models.OwnerConfig) bool {

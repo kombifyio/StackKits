@@ -426,6 +426,29 @@ func TestResolve_AdminEmail_Fallback(t *testing.T) {
 	}
 }
 
+func TestResolve_AdminEmail_OwnerWins(t *testing.T) {
+	spec := &models.StackSpec{
+		AdminEmail: "legacy-admin@example.com",
+		Email:      "fallback@example.com",
+		Domain:     "example.com",
+		Context:    "cloud",
+		Compute:    models.ComputeSpec{Tier: models.ComputeTierStandard},
+		Owner: models.OwnerConfig{
+			Email: "owner@example.com",
+		},
+	}
+
+	engine := NewCompositionEngine(identityContracts(), nil, spec)
+	result, err := engine.Resolve()
+	if err != nil {
+		t.Fatalf("Resolve() failed: %v", err)
+	}
+
+	if result.Identity.AdminEmail != "owner@example.com" {
+		t.Errorf("AdminEmail = %q, want owner@example.com", result.Identity.AdminEmail)
+	}
+}
+
 func TestResolve_AdminEmail_NoneProvided(t *testing.T) {
 	spec := &models.StackSpec{
 		Domain:  "mylab.com",

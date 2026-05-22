@@ -49,7 +49,7 @@
       "enableHTTPS": false,
       "stepCAEnabled": false,
       "enableKombifyPoint": false,
-      "adminEmail": "admin@home.localhost",
+      "adminEmail": "admin@example.com",
       "serviceFlags": {
         "enable_dashboard": true,
         "enable_homepage": true,

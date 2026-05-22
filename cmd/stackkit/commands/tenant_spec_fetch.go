@@ -48,8 +48,9 @@ type tenantSpecEnvelope struct {
 		DopplerProject  string `json:"dopplerProject"`
 		DopplerConfig   string `json:"dopplerConfig"`
 	} `json:"deployment"`
-	Spec     models.StackSpec   `json:"spec"`
-	Bindings []tenantSpecBindng `json:"bindings"`
+	Spec              models.StackSpec                    `json:"spec"`
+	Bindings          []tenantSpecBindng                  `json:"bindings"`
+	IdentityBootstrap *models.OwnerAdminBootstrapEnvelope `json:"identityBootstrap,omitempty"`
 }
 
 type tenantSpecBindng struct {
@@ -136,6 +137,9 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	if env.Spec.StackKit == "" {
 		env.Spec.StackKit = env.Deployment.StackkitSlug
 	}
+	if err := validateManagedIdentityBootstrap(&env); err != nil {
+		return nil, err
+	}
 
 	// Inject deployment-scoped env so downstream components (auth0
 	// callbacks, Doppler path composition, telemetry tags) can key
@@ -155,6 +159,9 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 		env.Spec.Environment["STACKKIT_BINDING_"+b.SecretKey] = b.DopplerSecretPath
 	}
 	if err := persistPlatformConfigFromSpecEnvironment(&env.Spec, wd); err != nil {
+		return nil, err
+	}
+	if err := persistIdentityBootstrapEnvelope(wd, env.IdentityBootstrap); err != nil {
 		return nil, err
 	}
 
@@ -187,6 +194,47 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	}
 
 	return &env.Spec, nil
+}
+
+func validateManagedIdentityBootstrap(env *tenantSpecEnvelope) error {
+	if env == nil {
+		return fmt.Errorf("admin returned empty tenant spec envelope")
+	}
+	if env.Spec.Owner.EffectiveBootstrapMode() != models.OwnerBootstrapModeAuto {
+		return nil
+	}
+	if env.IdentityBootstrap == nil {
+		return fmt.Errorf("managed owner bootstrap requires identityBootstrap envelope for owner.bootstrapMode=auto")
+	}
+	owner := env.IdentityBootstrap.Owner
+	if strings.TrimSpace(owner.Email) == "" || strings.TrimSpace(owner.Username) == "" {
+		return fmt.Errorf("identityBootstrap.owner requires email and username for managed owner bootstrap")
+	}
+	if env.IdentityBootstrap.RecoveryPassphraseHash == "" &&
+		env.IdentityBootstrap.RecoveryPassphrasePlain == "" &&
+		owner.RecoveryPassphraseHash == "" {
+		return fmt.Errorf("identityBootstrap requires recoveryPassphraseHash or recoveryPassphrasePlain for managed owner bootstrap")
+	}
+	return nil
+}
+
+func persistIdentityBootstrapEnvelope(wd string, env *models.OwnerAdminBootstrapEnvelope) error {
+	if env == nil {
+		return nil
+	}
+	path := identityBootstrapEnvelopePath(wd)
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return fmt.Errorf("mkdir identity bootstrap dir: %w", err)
+	}
+	data, err := json.MarshalIndent(env, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal identity bootstrap envelope: %w", err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write identity bootstrap envelope: %w", err)
+	}
+	return nil
 }
 
 func validateTenantSpecEnvelope(deploymentID string, env *tenantSpecEnvelope) error {

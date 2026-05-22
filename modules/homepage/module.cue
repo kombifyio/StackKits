@@ -17,6 +17,11 @@ Contract: base.#ModuleContract & {
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
+	delivery: {
+		type:      "paas"
+		managedBy: "selected-paas"
+	}
+
 	requires: {
 		services: {
 			traefik: {
@@ -124,6 +129,8 @@ Contract: base.#ModuleContract & {
 				"traefik.http.routers.homepage.rule":                      "Host(`home.{{.domain}}`)"
 				"traefik.http.routers.homepage.entrypoints":               "web"
 				"traefik.http.services.homepage.loadbalancer.server.port": "3000"
+				"stackkit.layer":                                          "3-application"
+				"stackkit.managed-by":                                     "selected-paas"
 			}
 
 			subdomain: {key: "home", nested: "home", flat: "home"}
@@ -180,6 +187,11 @@ Contract: base.#ModuleContract & {
 				readOnly: true
 				backup:   false
 			}]
+
+			labels: {
+				"stackkit.layer":      "3-application"
+				"stackkit.managed-by": "selected-paas"
+			}
 
 			resources: {
 				memory:    "64m"

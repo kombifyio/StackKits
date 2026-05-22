@@ -10,6 +10,7 @@ This documentation set is the public OSS surface for `stackkit`.
 - [Development Decision Guide](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md)
 - [Stack Spec Reference](stack-spec-reference.md)
 - [Testing](TESTING.md)
+- [Enterprise Readiness](ENTERPRISE_READINESS.md)
 - [VPS Compatibility](vps-compatibility.md)
 - [Agent Guide](agent/agents.md)
 - [Backup Architecture](BACKUP-ARCHITECTURE.md)

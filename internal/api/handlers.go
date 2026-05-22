@@ -98,6 +98,8 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "logs.get", "description": "Get deploy log by run ID", "method": "GET", "path": "/api/v1/logs/{runID}"},
 			{"name": "logs.stream", "description": "Stream live deploy log events (SSE)", "method": "GET", "path": "/api/v1/logs/{runID}/stream"},
 			// Setup actions
+			{"name": "setup.base_hub.protection.status", "description": "Read Base Hub protection state", "method": "GET", "path": "/api/v1/setup/base-hub/protection"},
+			{"name": "setup.base_hub.protection.apply", "description": "Protect Base Hub and the node-local API with TinyAuth", "method": "POST", "path": "/api/v1/setup/base-hub/protection"},
 			{"name": "setup.service.run", "description": "Run or request an on-demand first-run setup action for a service", "method": "POST", "path": "/api/v1/setup/services/{service}/run"},
 			// Internal runtime actions
 			{"name": "runtime.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-rollout"},

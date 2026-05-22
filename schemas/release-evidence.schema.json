@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/release-evidence.schema.json",
+  "title": "StackKits Release Evidence",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "release", "artifacts", "checks", "knownLimitations"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "release": {
+      "type": "object",
+      "required": ["tag", "commit", "sourceRepository", "releaseRepository", "visibility"],
+      "additionalProperties": false,
+      "properties": {
+        "tag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+([-.].+)?$" },
+        "commit": { "type": "string", "minLength": 7 },
+        "sourceRepository": { "type": "string", "minLength": 1 },
+        "releaseRepository": { "type": "string", "minLength": 1 },
+        "visibility": { "type": "string", "enum": ["public", "internal", "private", "unknown"] },
+        "releaseUrl": { "type": "string" },
+        "workflowRunId": { "type": "string" },
+        "workflowRunUrl": { "type": "string" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "checks": {
+      "type": "object",
+      "required": [
+        "publicExport",
+        "archiveValidation",
+        "securityScans",
+        "liveInstallerSmoke",
+        "freshUbuntuBaseKit",
+        "upgradeRollbackVm",
+        "defaultL3PaaSDelivery",
+        "attestationVerification"
+      ],
+      "additionalProperties": { "$ref": "#/$defs/check" },
+      "properties": {
+        "publicExport": { "$ref": "#/$defs/check" },
+        "archiveValidation": { "$ref": "#/$defs/check" },
+        "securityScans": { "$ref": "#/$defs/check" },
+        "liveInstallerSmoke": { "$ref": "#/$defs/check" },
+        "freshUbuntuBaseKit": { "$ref": "#/$defs/check" },
+        "upgradeRollbackVm": { "$ref": "#/$defs/check" },
+        "defaultL3PaaSDelivery": { "$ref": "#/$defs/check" },
+        "attestationVerification": { "$ref": "#/$defs/check" }
+      }
+    },
+    "knownLimitations": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["name", "kind", "sha256", "sizeBytes"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["archive", "checksum", "sbom", "evidence", "package", "other"]
+        },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sizeBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "check": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "pending", "not_applicable"]
+        },
+        "summary": { "type": "string" },
+        "url": { "type": "string" }
+      }
+    }
+  }
+}

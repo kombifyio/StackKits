@@ -12,6 +12,10 @@ import (
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
+var newLocalComposeAdapter = func(deployDir string) platformdeploy.Adapter {
+	return platformdeploy.NewLocalComposeAdapter(deployDir)
+}
+
 func runPlatformAppDeployments(ctx context.Context, deployDir string, state *models.DeploymentState) error {
 	manifestPaths := []string{
 		filepath.Join(deployDir, "platform-apps", "manifest.json"),
@@ -32,42 +36,135 @@ func runPlatformAppDeployments(ctx context.Context, deployDir string, state *mod
 		if len(bundle.SystemApps) == 0 && len(bundle.Apps) == 0 {
 			continue
 		}
-		if len(bundle.Apps) > 0 {
-			recordPlatformAppHandoffs(state, bundle)
-			printInfo("Recorded %d user app handoff(s) for %s. Deploy user apps through the PaaS; StackKit does not manage their lifecycle.", len(bundle.Apps), bundle.Platform)
-		}
-		if len(bundle.SystemApps) == 0 {
-			continue
+
+		customerBundle := bundle
+		customerBundle.SystemApps = nil
+		customerBundle.Apps = customerOwnedApps(bundle.Apps)
+		if len(customerBundle.Apps) > 0 {
+			recordPlatformAppHandoffs(state, customerBundle)
+			printInfo("Recorded %d customer app handoff(s) for %s. Deploy customer-owned apps through the PaaS/Admin surface; StackKit does not manage their lifecycle.", len(customerBundle.Apps), bundle.Platform)
 		}
 
-		adapter, configured, err := platformAdapterForBundle(bundle, deployDir)
-		if err != nil {
-			return err
-		}
-		if !configured {
-			printWarning("Platform system app manifests were generated for %s, but API endpoint/token settings are missing; skipping adapter rollout", bundle.Platform)
-			printWarning("Set STACKKIT_PLATFORM_ENDPOINT and STACKKIT_PLATFORM_TOKEN, or provider-specific variables, then rerun stackkit apply")
-			continue
-		}
+		for _, deployBundle := range platformDeploymentBundles(bundle) {
+			stackKitOwnedAppCount := countStackKitOwnedApps(deployBundle.Apps)
+			deployCount := len(deployBundle.SystemApps) + stackKitOwnedAppCount
+			if deployCount == 0 {
+				continue
+			}
+			fallback := explicitStandaloneFallback(deployBundle)
+			if !models.IsStandardPAAS(deployBundle.Platform) && !fallback {
+				return fmt.Errorf("StackKit-owned platform app manifest targets %q without an explicit platformFallback standalone-compose contract", deployBundle.Platform)
+			}
 
-		printInfo("Deploying %d StackKit system app(s) through %s platform adapter...", len(bundle.SystemApps), bundle.Platform)
-		systemBundle := bundle
-		systemBundle.Apps = nil
-		refs, err := platformdeploy.ApplyBundle(ctx, adapter, systemBundle)
-		if err != nil {
-			return err
+			adapter, configured, err := platformAdapterForBundle(deployBundle, deployDir)
+			if err != nil {
+				return err
+			}
+			if !configured {
+				return fmt.Errorf("platform API config for %s is required for %d StackKit-owned app(s); self-managed rollouts must persist .stackkit/platform.json during PaaS bootstrap, Coolify/Dokploy require endpoint/token values, Komodo requires endpoint/apiKey/apiSecret values, or platformFallback.mode=standalone-compose must be enabled explicitly", deployBundle.Platform, deployCount)
+			}
+
+			if fallback {
+				printWarning("Deploying %d StackKit-owned app(s) through explicit standalone Compose fallback...", deployCount)
+			} else {
+				printInfo("Deploying %d StackKit-owned app(s) through %s platform adapter...", deployCount, deployBundle.Platform)
+			}
+			refs, err := platformdeploy.ApplyBundle(ctx, adapter, deployBundle)
+			if err != nil {
+				return err
+			}
+			management := platformdeploy.AppManagementManaged
+			if fallback {
+				management = platformdeploy.AppManagementFallback
+			}
+			recordPlatformAppStateWithManagement(state, deployBundle, refs, management)
+			if fallback {
+				printSuccess("Standalone Compose fallback rollout complete")
+			} else {
+				printSuccess("PaaS app rollout complete: %s", deployBundle.Platform)
+			}
 		}
-		recordPlatformAppState(state, bundle, refs)
-		printSuccess("Platform system app rollout complete: %s", bundle.Platform)
 	}
 
 	return nil
 }
 
+func customerOwnedApps(apps []platformdeploy.AppManifest) []platformdeploy.AppManifest {
+	out := make([]platformdeploy.AppManifest, 0, len(apps))
+	for _, app := range apps {
+		if platformdeploy.IsStackKitOwnedApp(app) {
+			continue
+		}
+		out = append(out, app)
+	}
+	return out
+}
+
+func platformDeploymentBundles(bundle platformdeploy.BundleManifest) []platformdeploy.BundleManifest {
+	groups := map[string]*platformdeploy.BundleManifest{}
+	order := []string{}
+
+	ensure := func(platform string) *platformdeploy.BundleManifest {
+		platform = strings.TrimSpace(platform)
+		if platform == "" {
+			platform = strings.TrimSpace(bundle.Platform)
+		}
+		if platform == "" {
+			platform = models.PAASNone
+		}
+		if _, ok := groups[platform]; !ok {
+			groups[platform] = &platformdeploy.BundleManifest{
+				Version:  bundle.Version,
+				Platform: platform,
+				Fallback: bundle.Fallback,
+			}
+			order = append(order, platform)
+		}
+		return groups[platform]
+	}
+
+	for _, app := range bundle.SystemApps {
+		platform := firstNonEmpty(app.Platform, app.ManagedBy, bundle.Platform)
+		group := ensure(platform)
+		group.SystemApps = append(group.SystemApps, app)
+	}
+	for _, app := range bundle.Apps {
+		if !platformdeploy.IsStackKitOwnedApp(app) {
+			continue
+		}
+		platform := firstNonEmpty(app.Platform, app.ManagedBy, bundle.Platform)
+		group := ensure(platform)
+		group.Apps = append(group.Apps, app)
+	}
+
+	out := make([]platformdeploy.BundleManifest, 0, len(order))
+	for _, platform := range order {
+		group := groups[platform]
+		if len(group.SystemApps) == 0 && len(group.Apps) == 0 {
+			continue
+		}
+		out = append(out, *group)
+	}
+	return out
+}
+
+func countStackKitOwnedApps(apps []platformdeploy.AppManifest) int {
+	count := 0
+	for _, app := range apps {
+		if platformdeploy.IsStackKitOwnedApp(app) {
+			count++
+		}
+	}
+	return count
+}
+
 func platformAdapterForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.Adapter, bool, error) {
 	switch bundle.Platform {
 	case models.PAASNone:
-		return platformdeploy.NewLocalComposeAdapter(deployDir), true, nil
+		if !explicitStandaloneFallback(bundle) {
+			return nil, false, fmt.Errorf("local compose adapter requires platformFallback.mode=standalone-compose")
+		}
+		return newLocalComposeAdapter(deployDir), true, nil
 	case models.PAASDokploy:
 		cfg, configured := platformHTTPConfigForBundle(bundle, deployDir)
 		if !configured {
@@ -80,33 +177,58 @@ func platformAdapterForBundle(bundle platformdeploy.BundleManifest, deployDir st
 			return nil, false, nil
 		}
 		return platformdeploy.NewCoolifyAdapter(cfg), true, nil
+	case models.PAASKomodo:
+		cfg, configured := platformHTTPConfigForBundle(bundle, deployDir)
+		if !configured {
+			return nil, false, nil
+		}
+		return platformdeploy.NewKomodoAdapter(cfg), true, nil
 	default:
 		return nil, false, fmt.Errorf("unsupported platform app adapter %q", bundle.Platform)
 	}
 }
 
+func explicitStandaloneFallback(bundle platformdeploy.BundleManifest) bool {
+	return bundle.Fallback.Enabled && bundle.Fallback.Mode == models.PlatformFallbackStandaloneCompose
+}
+
 type platformConfigFile struct {
-	Platform        string `json:"platform,omitempty"`
-	Endpoint        string `json:"endpoint,omitempty"`
-	BaseURL         string `json:"baseUrl,omitempty"`
-	Token           string `json:"token,omitempty"`
-	EnvironmentID   string `json:"environmentId,omitempty"`
-	ServerID        string `json:"serverId,omitempty"`
-	ProjectUUID     string `json:"projectUuid,omitempty"`
-	EnvironmentUUID string `json:"environmentUuid,omitempty"`
-	DestinationUUID string `json:"destinationUuid,omitempty"`
+	Platform               string `json:"platform,omitempty"`
+	Endpoint               string `json:"endpoint,omitempty"`
+	BaseURL                string `json:"baseUrl,omitempty"`
+	Token                  string `json:"token,omitempty"`
+	APIKey                 string `json:"apiKey,omitempty"`
+	APISecret              string `json:"apiSecret,omitempty"`
+	EnvironmentID          string `json:"environmentId,omitempty"`
+	ServerID               string `json:"serverId,omitempty"`
+	ProjectUUID            string `json:"projectUuid,omitempty"`
+	EnvironmentUUID        string `json:"environmentUuid,omitempty"`
+	DestinationUUID        string `json:"destinationUuid,omitempty"`
+	LegacyDockerComposeAPI bool   `json:"legacyDockerComposeApi,omitempty"`
 }
 
 func platformHTTPConfigForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.HTTPConfig, bool) {
 	persisted := loadPlatformConfigFile(bundle.Platform, deployDir)
 	cfg := platformdeploy.HTTPConfig{
-		BaseURL:         firstNonEmpty(firstPlatformEnv(bundle.Platform, "endpoint"), persisted.endpoint()),
-		Token:           firstNonEmpty(firstPlatformEnv(bundle.Platform, "token"), persisted.Token),
-		EnvironmentID:   firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_id"), persisted.EnvironmentID),
-		ServerID:        firstNonEmpty(firstPlatformEnv(bundle.Platform, "server_id"), persisted.ServerID),
-		ProjectUUID:     firstNonEmpty(firstPlatformEnv(bundle.Platform, "project_uuid"), persisted.ProjectUUID),
-		EnvironmentUUID: firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_uuid"), persisted.EnvironmentUUID),
-		DestinationUUID: firstNonEmpty(firstPlatformEnv(bundle.Platform, "destination_uuid"), persisted.DestinationUUID),
+		BaseURL:                firstNonEmpty(firstPlatformEnv(bundle.Platform, "endpoint"), persisted.endpoint()),
+		Token:                  firstNonEmpty(firstPlatformEnv(bundle.Platform, "token"), persisted.Token),
+		APIKey:                 firstNonEmpty(firstPlatformEnv(bundle.Platform, "api_key"), persisted.APIKey, persisted.Token),
+		Secret:                 firstNonEmpty(firstPlatformEnv(bundle.Platform, "api_secret"), persisted.APISecret),
+		EnvironmentID:          firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_id"), persisted.EnvironmentID),
+		ServerID:               firstNonEmpty(firstPlatformEnv(bundle.Platform, "server_id"), persisted.ServerID),
+		ProjectUUID:            firstNonEmpty(firstPlatformEnv(bundle.Platform, "project_uuid"), persisted.ProjectUUID),
+		EnvironmentUUID:        firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_uuid"), persisted.EnvironmentUUID),
+		DestinationUUID:        firstNonEmpty(firstPlatformEnv(bundle.Platform, "destination_uuid"), persisted.DestinationUUID),
+		LegacyDockerComposeAPI: persisted.LegacyDockerComposeAPI,
+	}
+	if value, ok := firstPlatformBoolEnv(bundle.Platform, "legacy_docker_compose_api"); ok {
+		cfg.LegacyDockerComposeAPI = value
+	}
+	if bundle.Platform == models.PAASDokploy && cfg.Token == "" && cfg.APIKey != "" {
+		cfg.Token = cfg.APIKey
+	}
+	if bundle.Platform == models.PAASKomodo {
+		return cfg, cfg.BaseURL != "" && cfg.APIKey != "" && cfg.Secret != ""
 	}
 	return cfg, cfg.BaseURL != "" && cfg.Token != ""
 }
@@ -169,7 +291,11 @@ func persistPlatformConfigFromSpecEnvironment(spec *models.StackSpec, wd string)
 	if err := validatePlatformConfigPlatform(cfg.Platform); err != nil {
 		return err
 	}
-	if cfg.endpoint() == "" || cfg.Token == "" {
+	if cfg.Platform == models.PAASKomodo {
+		if cfg.endpoint() == "" || cfg.APIKey == "" || cfg.APISecret == "" {
+			return fmt.Errorf("tenant spec Komodo platform config is incomplete; provide STACKKIT_PLATFORM_ENDPOINT plus STACKKIT_PLATFORM_API_KEY/STACKKIT_PLATFORM_API_SECRET or KOMODO_API_URL plus KOMODO_API_KEY/KOMODO_API_SECRET")
+		}
+	} else if cfg.endpoint() == "" || cfg.Token == "" {
 		return fmt.Errorf("tenant spec platform config is incomplete; provide STACKKIT_PLATFORM_ENDPOINT and STACKKIT_PLATFORM_TOKEN or provider-specific endpoint/token values")
 	}
 	if err := writePlatformConfigFile(wd, cfg); err != nil {
@@ -182,18 +308,22 @@ func persistPlatformConfigFromSpecEnvironment(spec *models.StackSpec, wd string)
 func platformConfigFromValueMap(defaultPlatform string, values map[string]string) (platformConfigFile, bool) {
 	platform, platformSeen := platformFromValueMap(defaultPlatform, values)
 	cfg := platformConfigFile{
-		Platform:        platform,
-		Endpoint:        firstPlatformValue(platform, values, "endpoint"),
-		Token:           firstPlatformValue(platform, values, "token"),
-		EnvironmentID:   firstPlatformValue(platform, values, "environment_id"),
-		ServerID:        firstPlatformValue(platform, values, "server_id"),
-		ProjectUUID:     firstPlatformValue(platform, values, "project_uuid"),
-		EnvironmentUUID: firstPlatformValue(platform, values, "environment_uuid"),
-		DestinationUUID: firstPlatformValue(platform, values, "destination_uuid"),
+		Platform:               platform,
+		Endpoint:               firstPlatformValue(platform, values, "endpoint"),
+		Token:                  firstPlatformValue(platform, values, "token"),
+		APIKey:                 firstPlatformValue(platform, values, "api_key"),
+		APISecret:              firstPlatformValue(platform, values, "api_secret"),
+		EnvironmentID:          firstPlatformValue(platform, values, "environment_id"),
+		ServerID:               firstPlatformValue(platform, values, "server_id"),
+		ProjectUUID:            firstPlatformValue(platform, values, "project_uuid"),
+		EnvironmentUUID:        firstPlatformValue(platform, values, "environment_uuid"),
+		DestinationUUID:        firstPlatformValue(platform, values, "destination_uuid"),
+		LegacyDockerComposeAPI: platformBoolValue(firstPlatformValue(platform, values, "legacy_docker_compose_api")),
 	}
 	return cfg, platformSeen || cfg.endpoint() != "" || cfg.Token != "" ||
+		cfg.APIKey != "" || cfg.APISecret != "" ||
 		cfg.EnvironmentID != "" || cfg.ServerID != "" || cfg.ProjectUUID != "" ||
-		cfg.EnvironmentUUID != "" || cfg.DestinationUUID != ""
+		cfg.EnvironmentUUID != "" || cfg.DestinationUUID != "" || cfg.LegacyDockerComposeAPI
 }
 
 func platformFromValueMap(defaultPlatform string, values map[string]string) (string, bool) {
@@ -208,8 +338,11 @@ func platformFromValueMap(defaultPlatform string, values map[string]string) (str
 	if values["DOKPLOY_API_URL"] != "" || values["DOKPLOY_API_KEY"] != "" {
 		return models.PAASDokploy, true
 	}
+	if values["KOMODO_API_URL"] != "" || values["KOMODO_API_KEY"] != "" || values["KOMODO_API_SECRET"] != "" {
+		return models.PAASKomodo, true
+	}
 	defaultPlatform = strings.ToLower(strings.TrimSpace(defaultPlatform))
-	if defaultPlatform == models.PAASCoolify || defaultPlatform == models.PAASDokploy {
+	if defaultPlatform == models.PAASCoolify || defaultPlatform == models.PAASDokploy || defaultPlatform == models.PAASKomodo {
 		return defaultPlatform, false
 	}
 	if genericPlatformConfigPresent(values) {
@@ -223,10 +356,10 @@ func platformFromValueMap(defaultPlatform string, values map[string]string) (str
 
 func validatePlatformConfigPlatform(platform string) error {
 	switch platform {
-	case models.PAASCoolify, models.PAASDokploy:
+	case models.PAASCoolify, models.PAASDokploy, models.PAASKomodo:
 		return nil
 	default:
-		return fmt.Errorf("unsupported tenant spec platform config %q; expected coolify or dokploy", platform)
+		return fmt.Errorf("unsupported tenant spec platform config %q; expected coolify, komodo, or dokploy", platform)
 	}
 }
 
@@ -234,6 +367,8 @@ func genericPlatformConfigPresent(values map[string]string) bool {
 	for _, key := range []string{
 		"STACKKIT_PLATFORM_ENDPOINT",
 		"STACKKIT_PLATFORM_TOKEN",
+		"STACKKIT_PLATFORM_API_KEY",
+		"STACKKIT_PLATFORM_API_SECRET",
 		"STACKKIT_PLATFORM_ENVIRONMENT_ID",
 		"STACKKIT_PLATFORM_ENVIRONMENT_NAME",
 		"STACKKIT_PLATFORM_SERVER_ID",
@@ -241,6 +376,7 @@ func genericPlatformConfigPresent(values map[string]string) bool {
 		"STACKKIT_PLATFORM_PROJECT_UUID",
 		"STACKKIT_PLATFORM_ENVIRONMENT_UUID",
 		"STACKKIT_PLATFORM_DESTINATION_UUID",
+		"STACKKIT_PLATFORM_LEGACY_DOCKERCOMPOSE_API",
 	} {
 		if strings.TrimSpace(values[key]) != "" {
 			return true
@@ -267,8 +403,8 @@ func redactPlatformConfigEnvironment(values map[string]string) {
 func allPlatformConfigEnvKeys() []string {
 	seen := map[string]bool{}
 	var keys []string
-	for _, platform := range []string{models.PAASCoolify, models.PAASDokploy} {
-		for _, field := range []string{"endpoint", "token", "environment_id", "server_id", "project_uuid", "environment_uuid", "destination_uuid"} {
+	for _, platform := range []string{models.PAASCoolify, models.PAASDokploy, models.PAASKomodo} {
+		for _, field := range []string{"endpoint", "token", "api_key", "api_secret", "environment_id", "server_id", "project_uuid", "environment_uuid", "destination_uuid", "legacy_docker_compose_api"} {
 			for _, key := range platformConfigEnvKeys(platform, field) {
 				if !seen[key] {
 					seen[key] = true
@@ -294,12 +430,23 @@ func platformConfigEnvKeys(platform, field string) []string {
 		if platform == models.PAASCoolify {
 			return []string{"COOLIFY_API_URL", "STACKKIT_PLATFORM_ENDPOINT"}
 		}
+		if platform == models.PAASKomodo {
+			return []string{"KOMODO_API_URL", "STACKKIT_PLATFORM_ENDPOINT"}
+		}
 	case "token":
 		if platform == models.PAASDokploy {
 			return []string{"DOKPLOY_API_KEY", "STACKKIT_PLATFORM_TOKEN"}
 		}
 		if platform == models.PAASCoolify {
 			return []string{"COOLIFY_API_TOKEN", "STACKKIT_PLATFORM_TOKEN"}
+		}
+	case "api_key":
+		if platform == models.PAASKomodo {
+			return []string{"KOMODO_API_KEY", "STACKKIT_PLATFORM_API_KEY"}
+		}
+	case "api_secret":
+		if platform == models.PAASKomodo {
+			return []string{"KOMODO_API_SECRET", "STACKKIT_PLATFORM_API_SECRET"}
 		}
 	case "environment_id":
 		if platform == models.PAASDokploy {
@@ -315,12 +462,19 @@ func platformConfigEnvKeys(platform, field string) []string {
 		if platform == models.PAASCoolify {
 			return []string{"COOLIFY_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_ID"}
 		}
+		if platform == models.PAASKomodo {
+			return []string{"KOMODO_SERVER_ID", "STACKKIT_PLATFORM_SERVER_ID"}
+		}
 	case "project_uuid":
 		return []string{"COOLIFY_PROJECT_UUID", "STACKKIT_PLATFORM_PROJECT_UUID"}
 	case "environment_uuid":
 		return []string{"COOLIFY_ENVIRONMENT_UUID", "STACKKIT_PLATFORM_ENVIRONMENT_UUID"}
 	case "destination_uuid":
 		return []string{"COOLIFY_DESTINATION_UUID", "STACKKIT_PLATFORM_DESTINATION_UUID"}
+	case "legacy_docker_compose_api":
+		if platform == models.PAASCoolify {
+			return []string{"COOLIFY_LEGACY_DOCKERCOMPOSE_API", "STACKKIT_PLATFORM_LEGACY_DOCKERCOMPOSE_API"}
+		}
 	}
 	return nil
 }
@@ -329,7 +483,29 @@ func firstPlatformEnv(platform, field string) string {
 	return firstEnv(platformConfigEnvKeys(platform, field)...)
 }
 
+func firstPlatformBoolEnv(platform, field string) (bool, bool) {
+	for _, key := range platformConfigEnvKeys(platform, field) {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return platformBoolValue(value), true
+		}
+	}
+	return false, false
+}
+
+func platformBoolValue(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "y", "on", "enabled":
+		return true
+	default:
+		return false
+	}
+}
+
 func recordPlatformAppState(state *models.DeploymentState, bundle platformdeploy.BundleManifest, refs []platformdeploy.DeploymentRef) {
+	recordPlatformAppStateWithManagement(state, bundle, refs, platformdeploy.AppManagementManaged)
+}
+
+func recordPlatformAppStateWithManagement(state *models.DeploymentState, bundle platformdeploy.BundleManifest, refs []platformdeploy.DeploymentRef, management string) {
 	if state == nil {
 		return
 	}
@@ -343,23 +519,69 @@ func recordPlatformAppState(state *models.DeploymentState, bundle platformdeploy
 		systemSetupPolicies[app.Name] = app.SetupPolicy
 		systemSetupDrops[app.Name] = app.SetupDrops
 	}
+	appComposePaths := make(map[string]string, len(bundle.Apps))
+	appSetupPolicies := make(map[string]string, len(bundle.Apps))
+	appSetupDrops := make(map[string][]platformdeploy.SetupDropManifest, len(bundle.Apps))
+	for _, app := range bundle.Apps {
+		if !platformdeploy.IsStackKitOwnedApp(app) {
+			continue
+		}
+		appComposePaths[app.Name] = app.ComposePath
+		appSetupPolicies[app.Name] = app.SetupPolicy
+		appSetupDrops[app.Name] = app.SetupDrops
+	}
 	for _, ref := range refs {
 		role, ok := systemRoles[ref.AppName]
-		if !ok {
+		if ok {
+			appState := models.PlatformAppState{
+				Name:         ref.AppName,
+				Platform:     ref.Platform,
+				Management:   management,
+				ExternalID:   ref.ExternalID,
+				DeploymentID: ref.DeploymentID,
+				LastDeployed: ref.LastDeployed,
+				Role:         role,
+				ComposePath:  systemComposePaths[ref.AppName],
+				SetupPolicy:  systemSetupPolicies[ref.AppName],
+				SetupDrops:   setupDropsToState(systemSetupDrops[ref.AppName]),
+			}
+			state.PlatformSystemApps = upsertPlatformAppState(state.PlatformSystemApps, appState)
+			continue
+		}
+		if _, ok := appComposePaths[ref.AppName]; !ok {
 			continue
 		}
 		appState := models.PlatformAppState{
 			Name:         ref.AppName,
 			Platform:     ref.Platform,
+			Management:   management,
 			ExternalID:   ref.ExternalID,
 			DeploymentID: ref.DeploymentID,
 			LastDeployed: ref.LastDeployed,
-			Role:         role,
-			ComposePath:  systemComposePaths[ref.AppName],
-			SetupPolicy:  systemSetupPolicies[ref.AppName],
-			SetupDrops:   setupDropsToState(systemSetupDrops[ref.AppName]),
+			ComposePath:  appComposePaths[ref.AppName],
+			SetupPolicy:  appSetupPolicies[ref.AppName],
+			SetupDrops:   setupDropsToState(appSetupDrops[ref.AppName]),
 		}
-		state.PlatformSystemApps = upsertPlatformAppState(state.PlatformSystemApps, appState)
+		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, appState)
+	}
+}
+
+func recordStackKitOwnedAppUnmanagedState(state *models.DeploymentState, bundle platformdeploy.BundleManifest) {
+	if state == nil {
+		return
+	}
+	for _, app := range bundle.Apps {
+		if !platformdeploy.IsStackKitOwnedApp(app) {
+			continue
+		}
+		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, models.PlatformAppState{
+			Name:        app.Name,
+			Platform:    firstNonEmpty(app.ManagedBy, app.Platform, bundle.Platform),
+			Management:  platformdeploy.AppManagementUnmanaged,
+			ComposePath: app.ComposePath,
+			SetupPolicy: app.SetupPolicy,
+			SetupDrops:  setupDropsToState(app.SetupDrops),
+		})
 	}
 }
 
@@ -371,6 +593,7 @@ func recordPlatformAppHandoffs(state *models.DeploymentState, bundle platformdep
 		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, models.PlatformAppState{
 			Name:        app.Name,
 			Platform:    firstNonEmpty(app.ManagedBy, app.Platform, bundle.Platform),
+			Management:  platformdeploy.AppManagementHandoff,
 			ComposePath: app.ComposePath,
 			SetupPolicy: app.SetupPolicy,
 			SetupDrops:  setupDropsToState(app.SetupDrops),

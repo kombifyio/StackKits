@@ -15,6 +15,7 @@ metadata:
     - multi-server-capable
     - docker
     - traefik
+    - komodo
     - dokploy
     - professional
     - v6-draft
@@ -82,7 +83,7 @@ modes:
       - name: applications
         order: 3
         after: [services]
-        description: "User applications via Dokploy"
+        description: "User applications via selected PaaS"
 
 # Auto-selection rules
 autoSelect:
@@ -187,7 +188,7 @@ platform:
   paas:
     role: default
     defaultTool: coolify
-    alternatives: [dokploy]
+    alternatives: [komodo, dokploy]
   monitoring:
     role: default
     defaultTool: uptime-kuma
@@ -226,6 +227,7 @@ computeTiers:
       memory: 4
       disk: 5
     serviceOverrides:
+      komodo: disabled
       dokploy: disabled
 
 # =============================================================================
@@ -259,6 +261,7 @@ changelog:
     date: "2025-01-27"
     changes:
       - "NEW: Coolify as default PaaS platform"
+      - "NEW: Komodo and Dokploy tracked as explicit PaaS alternatives"
       - "NEW: Uptime Kuma for monitoring (default)"
       - "NEW: Beszel as alternative monitoring option"
       - "NEW: Whoami test container for verification"

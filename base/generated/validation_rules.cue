@@ -4,7 +4,7 @@
 // This file is auto-generated from the kombify-admin database.
 // To modify validation rules, update the database and re-run the generator.
 //
-// Generated: 2026-02-11T13:27:29.089Z
+// Generated: 2026-05-22T08:50:42.481Z
 // Source: kombify-admin/prisma/seed.ts → ValidationRule table
 // =============================================================================
 
@@ -95,9 +95,9 @@ package base
       layer:         "2"
       fieldPath:     "paas.type"
       ruleType:      "constraint"
-      cueExpression: "paas.type =~ \"^(dokploy|coolify)$\""
-      errorMessage:  "PAAS type must be one of: dokploy, coolify"
-      hint:          "Use a supported standard PAAS platform"
+      cueExpression: "paas.type =~ \"^(dokploy|coolify|komodo)$\""
+      errorMessage:  "PAAS type must be one of: coolify, komodo, dokploy"
+      hint:          "Use Coolify by default, or explicitly select Komodo/Dokploy where the adapter is supported"
       severity:      "error"
     },
     {
@@ -131,7 +131,7 @@ package base
       ruleType:      "required"
       cueExpression: "services[_].labels[\"stackkit.managed-by\"] != _|_"
       errorMessage:  "All services must have stackkit.managed-by label"
-      hint:          "Add labels: {\"stackkit.managed-by\": \"dokploy\"} to your service"
+      hint:          "Add labels: {\"stackkit.managed-by\": \"selected-paas\"} to your service"
       severity:      "warning"
     },
   ]

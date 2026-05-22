@@ -644,7 +644,7 @@ resource "local_file" "dashboard_html" {
             (Hetzner, DigitalOcean, Vultr, etc.).
           </div>
         </div>
-        ${var.enable_dashboard && !(var.enable_tinyauth && var.protect_base_hub) ? "<div class=\"banner\"><span class=\"banner-icon\">&#9888;</span><div class=\"banner-text\"><strong>Diese Seite ist aktuell ungeschützt.</strong> Base bleibt im Bootstrap absichtlich offen. Richte zuerst PocketID ein und setze danach <code>protect_base_hub=true</code>, um Base hinter TinyAuth zu legen.</div></div>" : ""}
+        ${var.enable_dashboard && !(var.enable_tinyauth && var.protect_base_hub) ? "<div class=\"banner\"><span class=\"banner-icon\">&#9888;</span><div class=\"banner-text\"><strong>Diese Seite ist aktuell ungeschützt.</strong> Base bleibt im Bootstrap absichtlich offen. Richte zuerst PocketID ein und aktiviere danach den Base-Hub-Schutz in der Oberfläche, um Base hinter TinyAuth zu legen.</div></div>" : ""}
         <div class="hdr">
           <h1>Service <span class="accent">Dashboard</span></h1>
           <p>Running on <code style="font-family:monospace">${var.domain}</code> &middot; Managed by StackKits (native mode)</p>

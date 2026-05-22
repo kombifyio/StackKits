@@ -4,6 +4,27 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-05-22
+
+### Highlights
+
+- **PaaS portfolio expansion**: Coolify remains the default PaaS, while Komodo and Dokploy are now explicit, VM-proven alternatives for BaseKit rollouts.
+- **Komodo no-UI path**: generated rollouts install Komodo Core, Periphery, and DB, create the initial admin/API key without UI, close registration, persist `.stackkit/platform.json`, and deploy StackKit-owned Compose bundles as Komodo Stack resources through the API.
+- **Dokploy no-UI path**: generated rollouts set `BETTER_AUTH_SECRET`, create or confirm the first owner, establish a session, mint a non-rate-limited API key, persist both `token` and `apiKey`, deploy raw Compose resources through Dokploy, and route through `dokploy-traefik`.
+- **Forge Map/Admin sync**: Admin seed and generated CUE now carry Coolify as the PaaS standard with Komodo, Dokploy, and CapRover as alternatives.
+
+### Changed
+
+- StackKit-owned L3 app deployment now has explicit selected-PaaS adapter contracts for Coolify, Komodo, and Dokploy.
+- Production Fresh-VM coverage now includes targeted explicit PaaS gates for `paas: komodo` and `paas: dokploy`.
+- Documentation, ADRs, StackSpec reference, website content, and Works-With metadata now describe the Coolify default plus Komodo/Dokploy alternatives honestly.
+
+### Fixed
+
+- Dokploy Compose creation now persists `sourceType: raw` through a follow-up update before deploy, avoiding accidental GitHub-source deployments.
+- Komodo adapter upserts now resolve canonical stack IDs on create conflicts before update/deploy evidence is recorded.
+- Generated Admin/CUE artifacts are back in sync for `paas.type` and `paas.alternatives`.
+
 ## [0.2.8] - 2026-05-17
 
 ### Highlights

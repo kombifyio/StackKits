@@ -353,13 +353,10 @@ func (e *CompositionEngine) resolveIdentity(result *CompositionResult) error {
 		AuthMode: "passkeys_plus_legacy",
 	}
 
-	// Admin email: prefer AdminEmail, fall back to Email, then synthesize a
-	// domain-scoped email so PocketID and downstream apps never receive "admin".
-	adminEmail := e.spec.AdminEmail
-	if adminEmail == "" {
-		adminEmail = e.spec.Email
-	}
-	ic.AdminEmail = models.NormalizeAdminEmail(adminEmail, e.spec.Domain, e.spec.SubdomainPrefix)
+	// Admin email: the human Owner is canonical. adminEmail/email are kept as
+	// compatibility fallbacks and are normalized so downstream apps never get
+	// a bare "admin" placeholder.
+	ic.AdminEmail = models.ResolveAdminEmail(e.spec)
 
 	// Generate an admin password that satisfies Coolify's root-user bootstrap
 	// rules: lower/upper case letters, numbers, and a symbol.

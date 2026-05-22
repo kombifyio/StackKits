@@ -26,6 +26,11 @@ Public endpoints:
 
 Protected endpoints return structured JSON errors for missing or invalid keys. CORS can be enabled with explicit origins; wildcard CORS is local-development-only.
 
+Set `STACKKITS_RUNTIME_PROFILE=production`, `public`, `managed`, or
+`enterprise` for non-local deployments. In those profiles the server refuses
+to start with unauthenticated API access or wildcard CORS, even if the local
+development flags are present.
+
 Internal runtime-action endpoints under `/api/v1/internal/runtime-actions/*` are not browser/API-key endpoints. They require `X-Kombify-Service-Auth` with caller `techstack` and audience `stackkits`; configure `SERVICE_AUTH_SECRET` and optional `SERVICE_AUTH_SECRET_NEXT` on the server. The endpoints default to `STACKKITS_RUNTIME_ACTION_MODE=dry-run`; `apply` mode runs local OpenTofu commands against the supplied `tofu_dir` and can run a configured restore verifier via `STACKKITS_RESTORE_DRILL_COMMAND`.
 
 ## Response Model
@@ -64,6 +69,8 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `GET` | `/api/v1/logs/latest` | Read the newest deploy log. | Yes |
 | `GET` | `/api/v1/logs/{runID}` | Read a deploy log by run ID. | Yes |
 | `GET` | `/api/v1/logs/{runID}/stream` | Stream deploy log events via SSE. | Yes |
+| `GET` | `/api/v1/setup/base-hub/protection` | Read Base Hub protection state. | Yes |
+| `POST` | `/api/v1/setup/base-hub/protection` | Protect Base Hub and the node-local API with TinyAuth. | Yes |
 | `POST` | `/api/v1/setup/services/{service}/run` | Validate or execute a node-local first-run setup drop for a service. | Yes |
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-rollout` | Run/dry-run StackKits rollout for TechStack. | Servicecall |
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-verify` | Verify StackKits rollout state for TechStack. | Servicecall |
@@ -89,6 +96,12 @@ Mutating management endpoints such as `apply` or destructive operations are inte
 Deploy logs are read from `STACKKITS_LOG_DIR` or from `<base-dir>/.stackkit/logs` when no explicit log directory is set. The log API can list runs, read a specific run, filter by event level or prefix, and stream a run as server-sent events.
 
 ## Setup Actions
+
+The Node Hub exposes `Base Hub schützen` at `POST /api/v1/setup/base-hub/protection`.
+This is the supported first-run path after owner setup: it persists the Base Hub
+protection flag and updates the local Traefik dynamic middleware so Base Hub and
+the node-local API move behind TinyAuth without asking the user to edit
+variables or run OpenTofu manually.
 
 The Node Hub posts `Do the setup for me` actions to `POST /api/v1/setup/services/{service}/run`. The server resolves the service through the StackKits service catalog, loads the generated `.platform-apps-manifest.json`, and only executes drops whose manifest policy is `on_demand`.
 

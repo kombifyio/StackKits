@@ -1,15 +1,18 @@
 # stackkit.cc website
 
-Public-facing site for **kombify StackKits**, deployed to https://stackkit.cc via Render (with a Cloudflare CDN in front) and a Cloudflare Worker (`public/_worker.js`) that handles installer-subdomain routing.
+Public-facing site for **kombify StackKits**, deployed to https://stackkit.cc via Render with a Cloudflare CDN in front. The repo-owned Render static-site config is `../render.yaml`; `public/_headers` and `public/_worker.js` keep equivalent Cloudflare Pages-compatible header/routing behavior for the mirrored static surface.
 
 ## Stack
 
 - Svelte 5 SPA + Vite 8 + Tailwind 4
 - TypeScript with `svelte-check` for type safety
 - Static output (`dist/`) compatible with Cloudflare Pages
-- Cloudflare Worker (`public/_worker.js`) handles installer host routing
-  (`install.stackkit.cc`, `base.stackkit.cc`, `modern.stackkit.cc`,
-  `ha.stackkit.cc` → `/install`, `/base`, `/modern`, `/ha` shell scripts).
+- Installer host routing maps `install.stackkit.cc`, `base.stackkit.cc`,
+  `modern.stackkit.cc`, and `ha.stackkit.cc` to the matching shell-script
+  assets under `/install`, `/base`, `/modern`, and `/ha`.
+- Embedded mode in Kombify Cloud requires `Content-Security-Policy:
+  frame-ancestors 'self' https://kombify.io https://*.kombify.io` and no
+  `X-Frame-Options` header on `stackkit.cc` HTML routes.
 
 ## Development
 

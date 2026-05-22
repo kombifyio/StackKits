@@ -7,6 +7,7 @@
 //
 // PaaS Strategy:
 //   - Coolify (default): no-domain, local, pi, kombify.me, and own public/custom domain
+//   - Komodo: explicit PoC-first alternative, routed through StackKit Traefik
 //   - Dokploy: explicit supported alternative
 //   - Dockge: lightweight compose manager only; not the standard PaaS
 //
@@ -314,7 +315,7 @@ import "github.com/kombifyio/stackkits/base"
 }
 
 // =============================================================================
-// DEFAULT PLATFORM: DOKPLOY (Layer 2 PAAS)
+// SUPPORTED ALTERNATIVE PLATFORM: DOKPLOY (Layer 2 PAAS)
 // =============================================================================
 
 // #DokployService - Self-hosted PaaS Platform (Layer 2)
@@ -324,7 +325,7 @@ import "github.com/kombifyio/stackkits/base"
 	category:    "platform"
 	type:        "paas"
 	required:    false
-	enabled:     true // Default enabled
+	enabled:     false // Explicit alternative; Coolify is the default PaaS
 	image:       "dokploy/dokploy"
 	tag:         "latest"
 	description: "Deploy and manage applications. Your self-hosted Heroku for services and compose stacks."
@@ -410,25 +411,121 @@ import "github.com/kombifyio/stackkits/base"
 }
 
 // =============================================================================
-// ALTERNATIVE PLATFORM: COOLIFY (For users with own domain)
+// EXPLICIT ALTERNATIVE PLATFORM: KOMODO (Layer 2 PAAS)
 // =============================================================================
 
-// #CoolifyService - Self-hosted PaaS Platform (Alternative to Dokploy)
-// Use when: User has their own domain and wants more features
+// #KomodoService - Programmable self-hosted PaaS Platform (Layer 2)
+#KomodoService: base.#ServiceDefinition & {
+	name:        "komodo"
+	displayName: "Komodo"
+	category:    "platform"
+	type:        "paas"
+	required:    false
+	enabled:     false // Explicit alternative; Coolify is the default PaaS
+	image:       "ghcr.io/moghtech/komodo-core"
+	tag:         "2"
+	description: "Programmable self-hosted PaaS for Compose stack deployment through API keys."
+	needs: ["traefik"]
+
+	subdomain: {key: "komodo", nested: "komodo", flat: "komodo"}
+	dashboard: {icon: "&#9881;", order: 41, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_komodo"}
+
+	network: {
+		ports: [
+			{host: 9120, container: 9120, protocol: "tcp", description: "Web UI and API"},
+		]
+		traefik: {
+			enabled: true
+			rule:    "Host(`komodo.{{.domain}}`)"
+			tls:     true
+			port:    9120
+		}
+	}
+
+	volumes: [
+		{
+			source:      "komodo-mongo-data"
+			target:      "/data/db"
+			type:        "volume"
+			backup:      true
+			description: "Komodo MongoDB data"
+		},
+		{
+			source:      "komodo-keys"
+			target:      "/keys"
+			type:        "volume"
+			backup:      true
+			description: "Komodo core keys and runtime secrets"
+		},
+	]
+
+	environment: {
+		"KOMODO_LOCAL_AUTH":                  "true"
+		"KOMODO_DISABLE_USER_REGISTRATION":  "true"
+		"KOMODO_DISABLE_NON_ADMIN_CREATE":   "true"
+		"KOMODO_FIRST_SERVER_NAME":          "stackkit-local"
+	}
+
+	healthCheck: {
+		enabled: true
+		http: {
+			path:   "/"
+			port:   9120
+			scheme: "http"
+		}
+		interval:    "30s"
+		timeout:     "10s"
+		retries:     5
+		startPeriod: "90s"
+	}
+
+	resources: {
+		memory:    "512m"
+		memoryMax: "1g"
+		cpus:      1.0
+	}
+
+	labels: {
+		"traefik.enable":                                        "true"
+		"traefik.http.routers.komodo.entrypoints":               "websecure"
+		"traefik.http.routers.komodo.rule":                      "Host(`komodo.{{.domain}}`)"
+		"traefik.http.routers.komodo.tls.certresolver":          "letsencrypt"
+		"traefik.http.services.komodo.loadbalancer.server.port": "9120"
+		"stackkit.layer":                                        "2-platform"
+		"stackkit.managed-by":                                   "terraform"
+	}
+
+	output: {
+		url:         "https://komodo.{{.domain}}"
+		description: "Komodo Dashboard - Deploy Compose stacks through API-backed resources"
+		credentials: {
+			defaultUser: "stackkits-admin"
+			note:        "Admin and API credentials are generated during bootstrap"
+		}
+	}
+
+	restartPolicy: "unless-stopped"
+}
+
+// =============================================================================
+// DEFAULT PLATFORM: COOLIFY
+// =============================================================================
+
+// #CoolifyService - Self-hosted PaaS Platform (default)
 #CoolifyService: base.#ServiceDefinition & {
 	name:        "coolify"
 	displayName: "Coolify"
 	category:    "platform"
 	type:        "paas"
 	required:    false
-	enabled:     false // Not default, enabled in "coolify" variant
+	enabled:     true
 	image:       "ghcr.io/coollabsio/coolify"
 	tag:         "latest"
 	description: "Self-hosted Heroku/Vercel alternative with Git deployment and auto-HTTPS."
 	needs: ["traefik"]
 
 	subdomain: {key: "coolify", nested: "coolify", flat: "coolify"}
-	dashboard: {icon: "&#128171;", order: 41, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_coolify"}
+	dashboard: {icon: "&#128171;", order: 42, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_coolify"}
 
 	network: {
 		ports: [
@@ -656,9 +753,9 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.beszel.rule":                      "Host(`monitor.{{.domain}}`)"
 		"traefik.http.routers.beszel.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.beszel.loadbalancer.server.port": "8090"
-		// Layer classification - deployed via PAAS (Dokploy)
+		// Layer classification - deployed via the selected PaaS adapter.
 		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "dokploy"
+		"stackkit.managed-by": "selected-paas"
 	}
 
 	output: {
@@ -902,7 +999,7 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.vaultwarden.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.vaultwarden.loadbalancer.server.port": "80"
 		"stackkit.layer":                                             "3-application"
-		"stackkit.managed-by":                                        "dokploy"
+		"stackkit.managed-by":                                        "selected-paas"
 	}
 
 	output: {
@@ -995,7 +1092,7 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.jellyfin.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.jellyfin.loadbalancer.server.port": "8096"
 		"stackkit.layer":                                          "3-application"
-		"stackkit.managed-by":                                     "dokploy"
+		"stackkit.managed-by":                                     "selected-paas"
 	}
 
 	output: {
@@ -1091,7 +1188,7 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.immich.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.immich.loadbalancer.server.port": "2283"
 		"stackkit.layer":                                        "3-application"
-		"stackkit.managed-by":                                   "dokploy"
+		"stackkit.managed-by":                                   "selected-paas"
 	}
 
 	output: {
@@ -1123,7 +1220,7 @@ import "github.com/kombifyio/stackkits/base"
 	needs: ["traefik"]
 
 	subdomain: {key: "dockge", nested: "dockge", flat: "dockge"}
-	dashboard: {icon: "&#128230;", order: 42, section: "Platform", badge: "L2 \u00b7 Compose Manager", enableVar: "enable_dockge"}
+	dashboard: {icon: "&#128230;", order: 43, section: "Platform", badge: "L2 \u00b7 Compose Manager", enableVar: "enable_dockge"}
 
 	network: {
 		ports: [
@@ -1392,9 +1489,9 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.routers.netdata.rule":                      "Host(`netdata.{{.domain}}`)"
 		"traefik.http.routers.netdata.tls.certresolver":          "letsencrypt"
 		"traefik.http.services.netdata.loadbalancer.server.port": "19999"
-		// Layer classification - deployed via PAAS (Dokploy)
+		// Layer classification - deployed via the selected PaaS adapter.
 		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "dokploy"
+		"stackkit.managed-by": "selected-paas"
 	}
 
 	output: {
@@ -1412,12 +1509,14 @@ import "github.com/kombifyio/stackkits/base"
 // SERVICE COLLECTIONS (Pre-defined Service Sets)
 // =============================================================================
 
-// #DefaultServices - Standard deployment (Dokploy-based, with identity)
+// #DefaultServices - Standard deployment (Coolify-based, with identity)
 // Service enablement is controlled by tfvars at deployment time.
 #DefaultServices: {
 	traefik:     #TraefikService
 	tinyauth:    #TinyAuthService
 	pocketid:    #PocketIDService
+	coolify:     #CoolifyService
+	komodo:      #KomodoService
 	dokploy:     #DokployService
 	uptimeKuma:  #UptimeKumaService
 	dozzle:      #DozzleService
@@ -1431,7 +1530,7 @@ import "github.com/kombifyio/stackkits/base"
 	traefik:  #TraefikService
 	tinyauth: #TinyAuthService
 	pocketid: #PocketIDService
-	dokploy:  #DokployService
+	coolify:  #CoolifyService
 	beszel:   #BeszelService
 	dozzle:   #DozzleService
 	whoami:   #WhoamiService
@@ -1441,7 +1540,7 @@ import "github.com/kombifyio/stackkits/base"
 #DefaultServicesWithAuth: {
 	traefik:    #TraefikService
 	tinyauth:   #TinyAuthService
-	dokploy:    #DokployService
+	coolify:    #CoolifyService
 	uptimeKuma: #UptimeKumaService
 	dozzle:     #DozzleService
 	whoami:     #WhoamiService
@@ -1460,7 +1559,7 @@ import "github.com/kombifyio/stackkits/base"
 #SecureServices: {
 	traefik:    #TraefikService
 	tinyauth:   #TinyAuthService
-	dokploy:    #DokployService
+	coolify:    #CoolifyService
 	uptimeKuma: #UptimeKumaService
 	dozzle:     #DozzleService
 	whoami:     #WhoamiService

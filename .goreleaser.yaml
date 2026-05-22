@@ -135,6 +135,8 @@ archives:
       - README.md
       - LICENSE
       - docs/CLI.md
+      - docs/ENTERPRISE_READINESS.md
+      - schemas/release-evidence.schema.json
       - cue.mod/**
       - base-kit/**
       - base/**
@@ -165,6 +167,8 @@ archives:
       - README.md
       - LICENSE
       - docs/CLI.md
+      - docs/ENTERPRISE_READINESS.md
+      - schemas/release-evidence.schema.json
       - cue.mod/**
       - base-kit/**
       - base/**

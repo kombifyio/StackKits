@@ -160,6 +160,8 @@ func defaultEnableVar(key string) string {
 		return "enable_dockge"
 	case "coolify":
 		return "enable_coolify"
+	case "komodo":
+		return "enable_komodo"
 	case "kuma":
 		return "enable_uptime_kuma"
 	case "whoami":

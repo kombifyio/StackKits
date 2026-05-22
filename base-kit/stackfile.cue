@@ -15,6 +15,7 @@
 // PaaS Selection (intent/domain-driven, M2):
 //   - explicit paas config wins
 //   - omitted paas → Coolify
+//   - Komodo is an explicit PoC-first alternative using StackKit-owned Traefik
 //   - Dokploy remains a supported explicit adapter
 //   - Dockge is a constrained compose-manager mode, not a normal PaaS default
 //
@@ -56,7 +57,8 @@ import (
 	context?: *"local" | "cloud" | "pi"
 	// Optional explicit override. When omitted, the StackSpec intent resolver
 	// selects the platform from domain/context intent.
-	paas?: "dokploy" | "coolify"
+	paas?: "dokploy" | "coolify" | "komodo"
+	platformFallback?: #PlatformFallbackConfig
 	addons?: [...string]
 	application?: [string]: #ApplicationSelection
 	domain?:          string
@@ -240,6 +242,18 @@ import (
 #TLSConfig: {
 	provider?:  string
 	challenge?: *"tls" | "dns"
+}
+
+#PlatformFallbackConfig: {
+	enabled: bool | *false
+	mode:    *"disabled" | "standalone-compose"
+
+	if enabled == false {
+		mode: "disabled"
+	}
+	if enabled == true {
+		mode: "standalone-compose"
+	}
 }
 
 #ApplicationSelection: {

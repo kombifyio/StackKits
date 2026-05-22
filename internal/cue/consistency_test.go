@@ -84,6 +84,34 @@ func TestCUEGoConsistencyGate(t *testing.T) {
 		}
 	})
 
+	t.Run("l3_modules_with_delivery_contract_are_consistent", func(t *testing.T) {
+		for _, mc := range contracts {
+			if mc.Metadata.Layer != "L3-application" {
+				continue
+			}
+			if mc.Delivery == nil {
+				continue
+			}
+			if mc.Delivery.Type != "paas" {
+				t.Errorf("L3 module %q delivery.type = %q, want paas", mc.Metadata.Name, mc.Delivery.Type)
+			}
+			if mc.Delivery.ManagedBy != "selected-paas" {
+				t.Errorf("L3 module %q delivery.managedBy = %q, want selected-paas", mc.Metadata.Name, mc.Delivery.ManagedBy)
+			}
+			for svcName, svc := range mc.Services {
+				if svc.Labels["stackkit.layer"] != "3-application" {
+					t.Errorf("L3 module %q service %q must label stackkit.layer=3-application", mc.Metadata.Name, svcName)
+				}
+				if svc.Labels["stackkit.managed-by"] == "compose" {
+					t.Errorf("L3 module %q service %q must not be marked as compose-managed", mc.Metadata.Name, svcName)
+				}
+				if svc.Labels["stackkit.managed-by"] != "selected-paas" {
+					t.Errorf("L3 module %q service %q must label stackkit.managed-by=selected-paas", mc.Metadata.Name, svcName)
+				}
+			}
+		}
+	})
+
 	t.Run("unique_module_names", func(t *testing.T) {
 		seen := make(map[string]int)
 		for _, mc := range contracts {

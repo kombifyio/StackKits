@@ -33,8 +33,9 @@ exec sh <<'STACKKIT_BASE'
 #   STACKKIT_APP_ENV       Optional comma-separated KEY=value app env entries
 #   STACKKIT_APP_SECRETS   Optional comma-separated KEY=env:NAME secret refs
 #   STACKKIT_PLATFORM_ENDPOINT / STACKKIT_PLATFORM_TOKEN
-#                          Optional platform API config persisted to .stackkit/platform.json
-#   DOKPLOY_* / COOLIFY_*  Provider-specific platform API aliases
+#                          Optional advanced override for an external existing PaaS.
+#                          Default Coolify installs bootstrap .stackkit/platform.json automatically.
+#   DOKPLOY_* / COOLIFY_*  Provider-specific aliases for the advanced override only.
 #
 # Requirements: Linux or macOS, root/sudo access
 # =============================================================================
@@ -153,7 +154,7 @@ persist_platform_config() {
   esac
 
   if [ -z "$PLATFORM_ENDPOINT" ] || [ -z "$PLATFORM_TOKEN" ]; then
-    die "Platform config is incomplete. Set STACKKIT_PLATFORM_ENDPOINT and STACKKIT_PLATFORM_TOKEN, or provider-specific endpoint/token variables."
+    die "Platform config override is incomplete. Remove the partial STACKKIT_PLATFORM_* / provider env vars, or provide endpoint and token for an external existing PaaS."
   fi
 
   PLATFORM_PROJECT_UUID=$(first_env_value COOLIFY_PROJECT_UUID STACKKIT_PLATFORM_PROJECT_UUID)

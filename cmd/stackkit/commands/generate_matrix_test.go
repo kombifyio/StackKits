@@ -24,6 +24,7 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 		wantDokploy      bool
 		wantDockge       bool
 		wantCoolify      bool
+		wantKomodo       bool
 		wantTraefik      bool
 	}{
 		// --- Local context: Coolify is the standard auto-selected PaaS ---
@@ -63,6 +64,12 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 			tier: models.ComputeTierLow, context: models.ContextLocal, paas: models.PAASDokploy,
 			wantPAAS: models.PAASDokploy, wantReverseProxy: models.ReverseProxyDokploy,
 			wantDokploy: true, wantDockge: false, wantCoolify: false, wantTraefik: false,
+		},
+		{
+			name: "local/standard/explicit-komodo",
+			tier: models.ComputeTierStandard, context: models.ContextLocal, paas: models.PAASKomodo,
+			wantPAAS: models.PAASKomodo, wantReverseProxy: models.ReverseProxyStackKit,
+			wantDokploy: false, wantDockge: false, wantCoolify: false, wantKomodo: true, wantTraefik: true,
 		},
 
 		// --- Cloud context: domain-aware resolution ---
@@ -135,6 +142,7 @@ func TestSpecMatrix_TierContextPAAS(t *testing.T) {
 			assert.Equal(t, tt.wantDokploy, boolVar(t, vars, "enable_dokploy"), "enable_dokploy mismatch")
 			assert.Equal(t, tt.wantDockge, boolVar(t, vars, "enable_dockge"), "enable_dockge mismatch")
 			assert.Equal(t, tt.wantCoolify, boolVar(t, vars, "enable_coolify"), "enable_coolify mismatch")
+			assert.Equal(t, tt.wantKomodo, boolVar(t, vars, "enable_komodo"), "enable_komodo mismatch")
 			assert.Equal(t, tt.wantTraefik, boolVar(t, vars, "enable_traefik"), "enable_traefik mismatch")
 		})
 	}

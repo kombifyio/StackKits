@@ -11,9 +11,9 @@ import (
 func TestResolveOwnerSpec_LocalNonInteractive(t *testing.T) {
 	s, has, err := resolveOwnerSpec(ownerFlags{
 		Source:      "local",
-		Email:       "mako@kombify.io",
-		Username:    "mako",
-		DisplayName: "Marcel",
+		Email:       "owner@example.com",
+		Username:    "owner",
+		DisplayName: "Example Owner",
 	}, nil, true)
 	if err != nil {
 		t.Fatal(err)
@@ -24,13 +24,13 @@ func TestResolveOwnerSpec_LocalNonInteractive(t *testing.T) {
 	if s.Source != "local" {
 		t.Errorf("source %q", s.Source)
 	}
-	if s.Email != "mako@kombify.io" {
+	if s.Email != "owner@example.com" {
 		t.Errorf("email %q", s.Email)
 	}
-	if s.Username != "mako" {
+	if s.Username != "owner" {
 		t.Errorf("username %q", s.Username)
 	}
-	if s.DisplayName != "Marcel" {
+	if s.DisplayName != "Example Owner" {
 		t.Errorf("displayName %q", s.DisplayName)
 	}
 }

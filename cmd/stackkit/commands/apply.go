@@ -152,6 +152,9 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			"domain":   spec.Domain,
 		})
 	}
+	if err := requireManagedIdentityBootstrapHandoff(wd, spec); err != nil {
+		return err
+	}
 
 	deployLog.Event("apply.start",
 		slog.String("stackkit", spec.StackKit),

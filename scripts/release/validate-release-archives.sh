@@ -2,6 +2,7 @@
 set -euo pipefail
 
 dist_dir="${1:-dist}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 fail() {
   printf 'release archive validation failed: %s\n' "$*" >&2
@@ -37,6 +38,8 @@ for path in \
   README.md \
   LICENSE \
   cue.mod/module.cue \
+  docs/ENTERPRISE_READINESS.md \
+  schemas/release-evidence.schema.json \
   base/stackkit.cue \
   base-kit/stackkit.yaml \
   ha-kit/stackkit.yaml \
@@ -55,6 +58,8 @@ for path in \
   README.md \
   LICENSE \
   cue.mod/module.cue \
+  docs/ENTERPRISE_READINESS.md \
+  schemas/release-evidence.schema.json \
   base/stackkit.cue \
   base-kit/stackkit.yaml \
   modules/tinyauth/module.cue \
@@ -124,6 +129,16 @@ smoke_basekit_init_generate() {
     fail "$label smoke did not enable Immich"
   grep -q '"enable_jellyfin": false' "$tfvars" ||
     fail "$label smoke did not keep Jellyfin opt-in"
+  grep -q 'resource "null_resource" "coolify_stackkit_bootstrap"' "$project_dir/deploy/main.tf" ||
+    fail "$label smoke did not generate Coolify API bootstrap"
+  grep -q 'coolify-api-token' "$project_dir/deploy/main.tf" ||
+    fail "$label smoke did not persist Coolify adapter token path"
+  grep -q '/api/v1/projects' "$project_dir/deploy/main.tf" ||
+    fail "$label smoke did not create Coolify project context"
+  node "$script_dir/check-l3-paas-contract.mjs" \
+    --repo-root "$extract_dir" \
+    --generated "$project_dir/deploy/main.tf" ||
+    fail "$label smoke violated the default StackKit-owned L3 PaaS contract"
 }
 
 base_extract="$tmp/base-extract"

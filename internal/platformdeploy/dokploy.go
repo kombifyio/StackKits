@@ -76,6 +76,14 @@ func (a *DokployAdapter) UpsertCompose(ctx context.Context, manifest AppManifest
 	if composeID == "" {
 		composeID = manifest.Name
 	}
+	payload["composeId"] = composeID
+	var updated map[string]any
+	if _, _, updateErr := a.client.postJSON(ctx, "/api/compose.update", payload, &updated); updateErr != nil {
+		return DeploymentRef{}, fmt.Errorf("dokploy compose update %q after create: %w", manifest.Name, updateErr)
+	}
+	if id := firstString(updated, "id", "composeId"); id != "" {
+		composeID = id
+	}
 	return DeploymentRef{Platform: manifest.ManagedBy, AppName: manifest.Name, ExternalID: composeID}, nil
 }
 

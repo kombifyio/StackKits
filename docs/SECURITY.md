@@ -1,11 +1,36 @@
 # Security
 
-StackKits is designed around safe defaults:
+StackKits is designed around safe defaults and release evidence:
 
 - generated deployment artifacts must not contain committed secrets,
-- public services should be explicit and authenticated by default,
-- local-only services should stay local-only,
-- examples must use placeholders such as `<token>` or `secret://path`.
+- public and non-local services are authenticated by default unless an explicit access policy says otherwise,
+- local-only services stay local-only,
+- `stackkit-server` requires an API key outside local development and production profiles reject unauthenticated mode and wildcard CORS,
+- examples use placeholders such as `<token>` or `secret://path`,
+- release artifacts publish checksums, SBOMs, and `release-evidence.json` when the Enterprise evidence contract is active,
+- GitHub Artifact Attestations must verify before release evidence marks attestation status as passed.
+
+## Supported Security Scope
+
+The production-oriented public OSS scope is BaseKit only. Modern Homelab and
+HA Kit remain alpha/scaffolding until their rollout matrices graduate. Backup
+agent/controller binaries are shipped for operator visibility, but their
+multi-tenant controller path is not part of a production support claim until
+durable storage, queueing, enrollment, and OIDC operator auth are complete.
+
+## Release Evidence
+
+Enterprise reviewers should inspect:
+
+- `checksums.txt`,
+- SBOM files ending in `.spdx.json` or `.cdx.json`,
+- `release-evidence.json`,
+- GitHub Artifact Attestation verification output,
+- live installer and fresh Ubuntu BaseKit evidence referenced from the release notes.
+
+If `kombifyio/stackKits` is Internal visibility for a release, treat that
+release as a customer preview instead of a broad Public OSS production
+release.
 
 Report security issues through GitHub Security Advisories on the public
 repository.

@@ -80,6 +80,7 @@ const (
 	// PAAS platform types
 	PAASDokploy = "dokploy"
 	PAASCoolify = "coolify"
+	PAASKomodo  = "komodo"
 	PAASDockge  = "dockge"
 	PAASNone    = "none"
 
@@ -87,8 +88,12 @@ const (
 	// User app rollouts are owned by the selected PaaS; StackKit only records
 	// route and manifest handoff metadata for those apps.
 	ReverseProxyStandalone = "standalone"
+	ReverseProxyStackKit   = "stackkit"
 	ReverseProxyDokploy    = "dokploy"
 	ReverseProxyCoolify    = "coolify"
+
+	PlatformFallbackDisabled          = "disabled"
+	PlatformFallbackStandaloneCompose = "standalone-compose"
 
 	// Domain constants
 	DomainKombifyMe = "kombify.me"
@@ -97,19 +102,23 @@ const (
 	// default local deployment domain uses the browser-reserved .localhost
 	// namespace, so generated links resolve without hosts-file edits, LAN DNS,
 	// random host ports, or manual workstation setup.
-	DomainHomeLab           = "home.localhost"
-	DomainHomeLocalhost     = "home.localhost"
-	DomainStackHome         = "stack.home"
-	DomainHomeKombifyLegacy = "home.kombify"
-	DomainHomeLabLegacy     = "home.lab"
-	DomainHomeDNS           = "home"
+	DomainHomeLab             = "home.localhost"
+	DomainHomeLocalhost       = "home.localhost"
+	DomainStackHome           = "stack.home"
+	DomainHomeKombifyLegacy   = "home.kombify"
+	DomainHomeLabLegacy       = "home.lab"
+	DomainHomeDNS             = "home"
+	LocalTechnicalEmailDomain = "example.com"
 
 	OwnerBootstrapModeAuto   = "auto"
 	OwnerBootstrapModeCustom = "custom"
 	OwnerBootstrapModeNone   = "none"
 
-	OwnerSourceLocal = "local"
-	OwnerSourceCloud = "cloud"
+	OwnerSourceLocal    = "local"
+	OwnerSourceCloud    = "cloud"
+	OwnerSourceFirstRun = "first-run"
+
+	BreakGlassScopeFullEmergencyAdmin = "full-emergency-admin"
 )
 
 // IsKombifyMeDomain returns true for the managed kombify.me shared domain.
@@ -142,6 +151,38 @@ func NormalizeAdminEmail(email, domain, subdomainPrefix string) string {
 	return email + "@" + adminEmailHost(domain, subdomainPrefix)
 }
 
+// ResolveAdminEmail returns the email-shaped account used for bootstrap-only
+// admin credentials in tools that cannot yet rely on PocketID/OIDC. The human
+// Owner is canonical; adminEmail and email remain compatibility fallbacks.
+func ResolveAdminEmail(spec *StackSpec) string {
+	if spec == nil {
+		return SyntheticAdminEmail("", "")
+	}
+	return NormalizeAdminEmail(primaryAdminEmail(spec), spec.Domain, spec.SubdomainPrefix)
+}
+
+// ResolveAdminEmailForDomain is the same owner-first resolver but lets callers
+// pass a domain that was already normalized or context-adjusted.
+func ResolveAdminEmailForDomain(spec *StackSpec, domain string) string {
+	if spec == nil {
+		return SyntheticAdminEmail(domain, "")
+	}
+	return NormalizeAdminEmail(primaryAdminEmail(spec), domain, spec.SubdomainPrefix)
+}
+
+func primaryAdminEmail(spec *StackSpec) string {
+	if spec == nil {
+		return ""
+	}
+	if email := strings.TrimSpace(spec.Owner.Email); email != "" {
+		return email
+	}
+	if email := strings.TrimSpace(spec.AdminEmail); email != "" {
+		return email
+	}
+	return strings.TrimSpace(spec.Email)
+}
+
 // DefaultAppHost returns the route host for a StackSpec app when route.host is
 // omitted. kombify.me app routes use the flat registry service naming shape.
 func DefaultAppHost(domain, subdomainPrefix, appName string) string {
@@ -160,13 +201,11 @@ func adminEmailHost(domain, subdomainPrefix string) string {
 	domain = strings.ToLower(strings.Trim(strings.TrimSpace(domain), "."))
 	subdomainPrefix = strings.ToLower(strings.Trim(strings.TrimSpace(subdomainPrefix), "."))
 
-	switch domain {
-	case "", DomainHomelab, DomainHomeDNS, DomainHomeKombifyLegacy, DomainHomeLabLegacy, "localhost", "stack.local":
-		domain = DomainHomeLab
-	}
-
 	if IsKombifyMeDomain(domain) && subdomainPrefix != "" {
 		return subdomainPrefix + "." + DomainKombifyMe
+	}
+	if IsLocalDomain(domain) {
+		return LocalTechnicalEmailDomain
 	}
 	return domain
 }
@@ -266,33 +305,40 @@ type Features struct {
 
 // StackSpec represents the user's deployment specification (stack-spec.yaml)
 type StackSpec struct {
-	Name            string             `yaml:"name" json:"name"`
-	StackKit        string             `yaml:"stackkit" json:"stackkit"`
-	Mode            string             `yaml:"mode,omitempty" json:"mode,omitempty"`
-	Runtime         string             `yaml:"runtime,omitempty" json:"runtime,omitempty"` // "docker" or "native"
-	Context         string             `yaml:"context,omitempty" json:"context,omitempty"`
-	Domain          string             `yaml:"domain,omitempty" json:"domain,omitempty"`
-	SubdomainPrefix string             `yaml:"subdomainPrefix,omitempty" json:"subdomainPrefix,omitempty"`
-	Email           string             `yaml:"email,omitempty" json:"email,omitempty"`
-	AdminEmail      string             `yaml:"adminEmail,omitempty" json:"adminEmail,omitempty"`
-	Network         NetworkSpec        `yaml:"network,omitempty" json:"network,omitempty"`
-	Compute         ComputeSpec        `yaml:"compute,omitempty" json:"compute,omitempty"`
-	Storage         StorageSpec        `yaml:"storage,omitempty" json:"storage,omitempty"`
-	SSH             SSHSpec            `yaml:"ssh,omitempty" json:"ssh,omitempty"`
-	Nodes           []NodeSpec         `yaml:"nodes,omitempty" json:"nodes,omitempty"`
-	TLS             TLSSpec            `yaml:"tls,omitempty" json:"tls,omitempty"`
-	PAAS            string             `yaml:"paas,omitempty" json:"paas,omitempty"` // "dokploy" or "coolify" for normal StackKits (auto-detected if empty)
-	Addons          []string           `yaml:"addons,omitempty" json:"addons,omitempty"`
-	Services        map[string]any     `yaml:"services,omitempty" json:"services,omitempty"`
-	Apps            map[string]AppSpec `yaml:"apps,omitempty" json:"apps,omitempty"`
-	Environment     map[string]string  `yaml:"environment,omitempty" json:"environment,omitempty"`
-	Identity        *IdentitySpec      `yaml:"identity,omitempty" json:"identity,omitempty"`
+	Name             string               `yaml:"name" json:"name"`
+	StackKit         string               `yaml:"stackkit" json:"stackkit"`
+	Mode             string               `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Runtime          string               `yaml:"runtime,omitempty" json:"runtime,omitempty"` // "docker" or "native"
+	Context          string               `yaml:"context,omitempty" json:"context,omitempty"`
+	Domain           string               `yaml:"domain,omitempty" json:"domain,omitempty"`
+	SubdomainPrefix  string               `yaml:"subdomainPrefix,omitempty" json:"subdomainPrefix,omitempty"`
+	Email            string               `yaml:"email,omitempty" json:"email,omitempty"`
+	AdminEmail       string               `yaml:"adminEmail,omitempty" json:"adminEmail,omitempty"`
+	Network          NetworkSpec          `yaml:"network,omitempty" json:"network,omitempty"`
+	Compute          ComputeSpec          `yaml:"compute,omitempty" json:"compute,omitempty"`
+	Storage          StorageSpec          `yaml:"storage,omitempty" json:"storage,omitempty"`
+	SSH              SSHSpec              `yaml:"ssh,omitempty" json:"ssh,omitempty"`
+	Nodes            []NodeSpec           `yaml:"nodes,omitempty" json:"nodes,omitempty"`
+	TLS              TLSSpec              `yaml:"tls,omitempty" json:"tls,omitempty"`
+	PAAS             string               `yaml:"paas,omitempty" json:"paas,omitempty"` // explicit platform adapter override; omitted resolves to Coolify
+	Addons           []string             `yaml:"addons,omitempty" json:"addons,omitempty"`
+	Services         map[string]any       `yaml:"services,omitempty" json:"services,omitempty"`
+	Apps             map[string]AppSpec   `yaml:"apps,omitempty" json:"apps,omitempty"`
+	PlatformFallback PlatformFallbackSpec `yaml:"platformFallback,omitempty" json:"platformFallback,omitempty"`
+	Environment      map[string]string    `yaml:"environment,omitempty" json:"environment,omitempty"`
+	Identity         *IdentitySpec        `yaml:"identity,omitempty" json:"identity,omitempty"`
 
 	// Owner is set by `stackkit init` or orchestration handoff when owner
 	// bootstrap is requested. Empty means owner provisioning is disabled. The
 	// explicit bootstrapMode separates SaaS auto-owner, self-hosted custom
 	// owner, and OSS/BYOS no-owner specs without inventing a fake human owner.
 	Owner OwnerConfig `yaml:"owner,omitempty" json:"owner,omitempty"`
+
+	// BreakGlass declares the emergency-admin contract. It is enabled by
+	// default even when omitted; the explicit block exists so Admin/private
+	// specs can prove that break-glass is a separate full-emergency path rather
+	// than a second daily admin account.
+	BreakGlass BreakGlassConfig `yaml:"breakGlass,omitempty" json:"breakGlass,omitempty"`
 
 	// Extended spec sections — derived from base-kit CUE schemas.
 	// These capture the full Zielbild that StackKits need to generate configs.
@@ -306,6 +352,56 @@ type StackSpec struct {
 	Branding        *BrandingSpec         `yaml:"branding,omitempty" json:"branding,omitempty"`
 	Tunnel          *TunnelSpec           `yaml:"tunnel,omitempty" json:"tunnel,omitempty"`
 	DriftDetection  *DriftDetectionSpec   `yaml:"driftDetection,omitempty" json:"driftDetection,omitempty"`
+}
+
+// PlatformFallbackSpec controls the explicit bare-metal fallback path for
+// StackKit-owned platform apps. The zero value is the strict PaaS path.
+type PlatformFallbackSpec struct {
+	Enabled bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Mode    string `yaml:"mode,omitempty" json:"mode,omitempty"` // disabled or standalone-compose
+}
+
+// BreakGlassConfig describes the emergency account and server-recovery scope.
+// Pointer bools let us distinguish omitted defaults from explicit false.
+type BreakGlassConfig struct {
+	Enabled        *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Scope          string `yaml:"scope,omitempty" json:"scope,omitempty"`
+	PocketIDAdmin  *bool  `yaml:"pocketidAdmin,omitempty" json:"pocketidAdmin,omitempty"`
+	TinyAuthStatic *bool  `yaml:"tinyauthStatic,omitempty" json:"tinyauthStatic,omitempty"`
+	ServerRecovery *bool  `yaml:"serverRecovery,omitempty" json:"serverRecovery,omitempty"`
+}
+
+func (b BreakGlassConfig) IsZero() bool {
+	return b.Enabled == nil &&
+		b.Scope == "" &&
+		b.PocketIDAdmin == nil &&
+		b.TinyAuthStatic == nil &&
+		b.ServerRecovery == nil
+}
+
+func (b BreakGlassConfig) EffectiveEnabled() bool {
+	return b.Enabled == nil || *b.Enabled
+}
+
+func (b BreakGlassConfig) EffectiveScope() string {
+	if strings.TrimSpace(b.Scope) != "" {
+		return strings.TrimSpace(b.Scope)
+	}
+	return BreakGlassScopeFullEmergencyAdmin
+}
+
+// OwnerAdminBootstrapEnvelope is the private runtime handoff delivered by
+// kombify Administration to a freshly booted VM. It must never be exported as a
+// public/default StackSpec because it can contain one-time secret material.
+type OwnerAdminBootstrapEnvelope struct {
+	Owner                   OwnerConfig      `yaml:"owner,omitempty" json:"owner,omitempty"`
+	AdminEmail              string           `yaml:"adminEmail,omitempty" json:"adminEmail,omitempty"`
+	AdminUsername           string           `yaml:"adminUsername,omitempty" json:"adminUsername,omitempty"`
+	AdminCredentialRef      string           `yaml:"adminCredentialRef,omitempty" json:"adminCredentialRef,omitempty"`
+	RecoveryMaterialRef     string           `yaml:"recoveryMaterialRef,omitempty" json:"recoveryMaterialRef,omitempty"`
+	RecoveryPassphraseHash  string           `yaml:"recoveryPassphraseHash,omitempty" json:"recoveryPassphraseHash,omitempty"`
+	RecoveryPassphrasePlain string           `yaml:"-" json:"recoveryPassphrasePlain,omitempty"`
+	BreakGlass              BreakGlassConfig `yaml:"breakGlass,omitempty" json:"breakGlass,omitempty"`
 }
 
 // AppSpec describes a user application deployed behind the StackKits platform.
@@ -428,7 +524,7 @@ func (o OwnerConfig) EffectiveBootstrapMode() string {
 	switch strings.ToLower(strings.TrimSpace(o.Source)) {
 	case OwnerSourceLocal:
 		return OwnerBootstrapModeCustom
-	case OwnerSourceCloud:
+	case OwnerSourceCloud, OwnerSourceFirstRun:
 		return OwnerBootstrapModeAuto
 	default:
 		return ""
@@ -446,7 +542,7 @@ func IsKnownOwnerBootstrapMode(mode string) bool {
 
 func IsKnownOwnerSource(source string) bool {
 	switch strings.ToLower(strings.TrimSpace(source)) {
-	case "", OwnerSourceLocal, OwnerSourceCloud:
+	case "", OwnerSourceLocal, OwnerSourceCloud, OwnerSourceFirstRun:
 		return true
 	default:
 		return false
@@ -632,6 +728,7 @@ type PlatformAppState struct {
 	Name         string          `yaml:"name" json:"name"`
 	Role         string          `yaml:"role,omitempty" json:"role,omitempty"`
 	Platform     string          `yaml:"platform" json:"platform"`
+	Management   string          `yaml:"management,omitempty" json:"management,omitempty"`
 	ExternalID   string          `yaml:"externalId" json:"externalId"`
 	DeploymentID string          `yaml:"deploymentId,omitempty" json:"deploymentId,omitempty"`
 	ComposePath  string          `yaml:"composePath,omitempty" json:"composePath,omitempty"`
@@ -835,6 +932,8 @@ func ResolveReverseProxyForPAAS(paas string) string {
 		return ReverseProxyDokploy
 	case PAASCoolify:
 		return ReverseProxyCoolify
+	case PAASKomodo:
+		return ReverseProxyStackKit
 	default:
 		return ReverseProxyStandalone
 	}
@@ -850,8 +949,8 @@ func (s *StackSpec) ResolvePAAS() string {
 
 // ResolvePAASForContext is the canonical auto-selection policy for normal
 // StackKit platform adapters. Explicit user config wins; otherwise fresh
-// StackKit rollouts default to Coolify. Dokploy remains a supported explicit
-// adapter while its first-owner and SSO story is hardened separately.
+// StackKit rollouts default to Coolify. Komodo and Dokploy are supported
+// explicit adapters while their live bootstrap gates mature separately.
 func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
 	if s.PAAS != "" {
 		return s.PAAS
@@ -867,7 +966,7 @@ func (s *StackSpec) resolvePAASByTier() string {
 // IsStandardPAAS reports whether the platform is allowed for normal StackKit
 // rollouts. Normal Base/Modern/HA kits must resolve to one of these.
 func IsStandardPAAS(paas string) bool {
-	return paas == PAASDokploy || paas == PAASCoolify
+	return paas == PAASDokploy || paas == PAASCoolify || paas == PAASKomodo
 }
 
 // IsExperimentalPAAS reports whether the platform exists only as a constrained

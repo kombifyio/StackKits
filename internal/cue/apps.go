@@ -33,7 +33,7 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 
 	var sb strings.Builder
 	sb.WriteString("# Auto-generated user application PaaS handoff manifests from StackSpec.apps\n")
-	sb.WriteString("# L3 applications are deployed and managed by the selected PaaS, not by StackKit.\n\n")
+	sb.WriteString("# Customer apps are PaaS/Admin handoff metadata. Apps installed outside this manifest are state-unmanaged by StackKit.\n\n")
 
 	names := make([]string, 0, len(spec.Apps))
 	for name := range spec.Apps {
@@ -60,11 +60,13 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 		bundle.Apps = append(bundle.Apps, platformdeploy.AppManifest{
 			Name:        appName,
 			Kind:        app.Kind,
+			Ownership:   platformdeploy.AppOwnershipCustomer,
 			Platform:    platform,
 			ManagedBy:   platform,
 			Image:       app.Image,
 			Port:        app.Port,
 			Host:        app.Route.Host,
+			URL:         appRouteURL(app.Route.Host),
 			Auth:        app.Route.Auth,
 			HealthPath:  app.Health.Path,
 			ComposePath: composeRelPath,
@@ -89,6 +91,17 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 	writePlatformManifestResource(&sb, manifestRelPath, manifest)
 
 	return writeFile(filepath.Join(outputDir, "apps.tf"), sb.String())
+}
+
+func appRouteURL(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return ""
+	}
+	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+		return host
+	}
+	return "https://" + host
 }
 
 func effectiveAppPlatform(spec *models.StackSpec) string {
@@ -159,11 +172,14 @@ func writeAppSecretVariables(sb *strings.Builder, appName string, app models.App
 func renderPlatformCompose(appName string, app models.AppSpec, platform string) string {
 	serviceName := "app-" + appName
 	routerName := "app-" + appName
+	entrypoint := platformComposeEntrypoint(platform)
+	networkName := platformComposeNetwork(platform)
 
 	labels := map[string]string{
-		"traefik.enable": fmt.Sprintf("%t", true),
+		"traefik.enable":         fmt.Sprintf("%t", true),
+		"traefik.docker.network": platformComposeNetwork(platform),
 		fmt.Sprintf("traefik.http.routers.%s.rule", routerName):                      fmt.Sprintf("Host(`%s`)", app.Route.Host),
-		fmt.Sprintf("traefik.http.routers.%s.entrypoints", routerName):               "web",
+		fmt.Sprintf("traefik.http.routers.%s.entrypoints", routerName):               entrypoint,
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", routerName): fmt.Sprintf("%d", app.Port),
 		"stackkit.managed-by":              platform,
 		"com.kombify.stackkits.app":        appName,
@@ -190,9 +206,27 @@ func renderPlatformCompose(appName string, app models.AppSpec, platform string) 
 	sb.WriteString("      - stackkit\n")
 	sb.WriteString("\nnetworks:\n")
 	sb.WriteString("  stackkit:\n")
-	sb.WriteString("    name: base_net\n")
+	fmt.Fprintf(&sb, "    name: %s\n", networkName)
 	sb.WriteString("    external: true\n")
 	return sb.String()
+}
+
+func platformComposeEntrypoint(platform string) string {
+	if platform == models.PAASCoolify {
+		return "http"
+	}
+	return "web"
+}
+
+func platformComposeNetwork(platform string) string {
+	switch platform {
+	case models.PAASCoolify:
+		return "coolify"
+	case models.PAASDokploy:
+		return "dokploy-network"
+	default:
+		return "base_net"
+	}
 }
 
 func writeComposeEnvironment(sb *strings.Builder, appName string, app models.AppSpec) {

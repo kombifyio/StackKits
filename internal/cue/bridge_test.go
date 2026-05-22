@@ -178,6 +178,10 @@ func TestExtractTFVars(t *testing.T) {
 		assert.True(t, tfvars.EnablePocketID)
 		assert.False(t, tfvars.EnableDokploy)
 		assert.False(t, tfvars.EnableDokployApps)
+		assert.False(t, tfvars.EnableKomodo)
+		assert.False(t, tfvars.EnableKomodo)
+		assert.False(t, tfvars.EnableKomodo)
+		assert.False(t, tfvars.EnableKomodo)
 		assert.True(t, tfvars.EnableCoolify)
 		assert.True(t, tfvars.EnableDashboard)
 		assert.Empty(t, tfvars.Domain)
@@ -457,6 +461,8 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		assert.False(t, tfvars.EnableDokploy)
 		assert.False(t, tfvars.EnableDokployApps)
 		assert.True(t, tfvars.EnableCoolify)
+		assert.False(t, tfvars.EnablePlatformFallback)
+		assert.Equal(t, models.PlatformFallbackDisabled, tfvars.PlatformFallbackMode)
 		assert.True(t, tfvars.EnableDashboard)
 	})
 
@@ -486,6 +492,7 @@ func TestGenerateTFVarsFromSpec(t *testing.T) {
 		assert.False(t, tfvars.EnableTraefik)
 		assert.True(t, tfvars.EnablePocketID)
 		assert.False(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableKomodo)
 		assert.True(t, tfvars.EnableCoolify)
 		assert.True(t, tfvars.EnableDashboard)
 	})
@@ -585,6 +592,52 @@ func TestSpecToTFVars(t *testing.T) {
 		// Unaffected defaults remain
 		assert.True(t, tfvars.EnableTinyauth)
 		assert.True(t, tfvars.EnablePocketID)
+	})
+
+	t.Run("explicit fallback disables platform install even with service overrides", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextLocal)
+
+		spec := &models.StackSpec{
+			PAAS: models.PAASCoolify,
+			PlatformFallback: models.PlatformFallbackSpec{
+				Enabled: true,
+				Mode:    models.PlatformFallbackStandaloneCompose,
+			},
+			Services: map[string]any{
+				"coolify": map[string]any{"enabled": true},
+				"dokploy": map[string]any{"enabled": true},
+			},
+		}
+		tfvars, err := bridge.specToTFVars(spec)
+		require.NoError(t, err)
+
+		assert.True(t, tfvars.EnablePlatformFallback)
+		assert.Equal(t, models.PlatformFallbackStandaloneCompose, tfvars.PlatformFallbackMode)
+		assert.Equal(t, models.ReverseProxyStandalone, tfvars.ReverseProxyBackend)
+		assert.True(t, tfvars.EnableTraefik)
+		assert.False(t, tfvars.EnableCoolify)
+		assert.False(t, tfvars.EnableKomodo)
+		assert.False(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableDokployApps)
+		assert.False(t, tfvars.EnableDockge)
+	})
+
+	t.Run("explicit komodo uses stackkit traefik", func(t *testing.T) {
+		setBridgeCapabilitiesHome(t, models.ContextLocal)
+
+		spec := &models.StackSpec{
+			PAAS: models.PAASKomodo,
+		}
+		tfvars, err := bridge.specToTFVars(spec)
+		require.NoError(t, err)
+
+		assert.Equal(t, models.PAASKomodo, tfvars.Paas)
+		assert.Equal(t, models.ReverseProxyStackKit, tfvars.ReverseProxyBackend)
+		assert.True(t, tfvars.EnableTraefik)
+		assert.True(t, tfvars.EnableKomodo)
+		assert.False(t, tfvars.EnableCoolify)
+		assert.False(t, tfvars.EnableDokploy)
+		assert.False(t, tfvars.EnableDokployApps)
 	})
 }
 

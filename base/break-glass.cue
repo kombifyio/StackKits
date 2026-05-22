@@ -5,7 +5,15 @@ package base
 	enabled:         bool | *true
 	usernamePattern: string | *"bg-{nodename}@local"
 	passwordLength:  int & >=24 | *32
-	group:           string | *"pocketid_admin"
+	group:           string | *"owners"
+}
+
+#BreakGlassConfig: {
+	enabled:        bool | *true
+	scope:          "full-emergency-admin" | *"full-emergency-admin"
+	pocketidAdmin:  bool | *true
+	tinyauthStatic: bool | *true
+	serverRecovery: bool | *true
 }
 
 #BreakGlassBundle: {

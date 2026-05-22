@@ -27,7 +27,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, ".", cfg.WorkDir)
 	assert.Equal(t, ModeOpenTofu, cfg.Mode)
-	assert.Equal(t, 30*time.Minute, cfg.Timeout)
+	assert.Equal(t, 60*time.Minute, cfg.Timeout)
 	assert.Equal(t, 1, cfg.Parallelism)
 	assert.False(t, cfg.AutoApprove)
 }

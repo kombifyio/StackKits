@@ -15,6 +15,11 @@ Contract: base.#ModuleContract & {
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S4"]
 	}
 
+	delivery: {
+		type:      "paas"
+		managedBy: "selected-paas"
+	}
+
 	requires: {
 		services: {
 			traefik: {
@@ -124,7 +129,7 @@ Contract: base.#ModuleContract & {
 			"traefik.http.routers.vaultwarden.entrypoints":               "web"
 			"traefik.http.services.vaultwarden.loadbalancer.server.port": "80"
 			"stackkit.layer":                                             "3-application"
-			"stackkit.managed-by":                                        "compose"
+			"stackkit.managed-by":                                        "selected-paas"
 		}
 
 		subdomain: {key: "vault", nested: "vault", flat: "vault"}

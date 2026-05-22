@@ -4,7 +4,7 @@
 // This file is auto-generated from the kombify-admin database.
 // To modify settings classification, update the database and re-run the generator.
 //
-// Generated: 2026-02-11T13:27:29.098Z
+// Generated: 2026-05-22T08:50:42.488Z
 // Source: kombify-admin/prisma/seed.ts → Setting table
 // =============================================================================
 
@@ -92,8 +92,8 @@ package base
         name:              "PAAS Type"
         settingType:       "perma"
         description:      "Platform-as-a-Service selection"
-        whyClassification: "Migrating applications between Dokploy/Coolify requires manual export/import"
-        cueType:          "\"dokploy\" | \"coolify\""
+        whyClassification: "Migrating applications between Coolify/Komodo/Dokploy requires manual export/import and adapter-specific evidence"
+        cueType:          "\"coolify\" | \"komodo\" | \"dokploy\""
       },
       {
         layer:             "2"

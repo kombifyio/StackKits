@@ -1,12 +1,15 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/apply"
+	"github.com/kombifyio/stackkits/internal/crypto"
 	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
@@ -17,10 +20,13 @@ import (
 // `stackkit init` or by an orchestration handoff when owner bootstrap is
 // requested.
 //
-// Empty owner data, bootstrapMode=none, and bootstrapMode=auto are no-ops for
-// local apply. Only bootstrapMode=custom provisions the local PocketID Owner.
-// The --cluster-mode flag still gates which nodes provision the daily-admin
-// record: only "first" runs the bootstrap; "join" nodes are no-ops.
+// Empty owner data and bootstrapMode=none are no-ops. bootstrapMode=custom
+// provisions from spec.owner directly. bootstrapMode=auto provisions only when
+// a managed tenant deployment handoff supplied .stackkit/identity-bootstrap.json;
+// otherwise managed apply fails loud instead of silently skipping the required
+// identity bootstrap. The --cluster-mode flag still gates which nodes provision
+// the daily-admin record: only "first" runs the bootstrap; "join" nodes are
+// no-ops.
 //
 // Inputs:
 //   - cmd is the cobra command driving the run; we use it only for context
@@ -40,11 +46,11 @@ func runOwnerBootstrap(cmd *cobra.Command, spec *models.StackSpec) error {
 	if spec == nil {
 		return nil
 	}
-	switch spec.Owner.EffectiveBootstrapMode() {
-	case "", models.OwnerBootstrapModeNone:
-		return nil
-	case models.OwnerBootstrapModeAuto:
-		printInfo("Skipping local owner bootstrap (owner bootstrap is orchestrator-managed)")
+	bootstrap, shouldRun, err := resolveOwnerBootstrapForApply(getWorkDir(), spec)
+	if err != nil {
+		return err
+	}
+	if !shouldRun {
 		return nil
 	}
 	if initClusterMode != "" && initClusterMode != "first" {
@@ -52,11 +58,21 @@ func runOwnerBootstrap(cmd *cobra.Command, spec *models.StackSpec) error {
 		return nil
 	}
 
-	if spec.Owner.RecoveryPassphraseHash == "" {
-		return fmt.Errorf("spec.owner.source is set but recoveryPassphraseHash is missing — re-run 'stackkit init'")
+	owner := bootstrap.Owner
+	recoveryHash := bootstrap.RecoveryPassphraseHash
+	if recoveryHash == "" && bootstrap.RecoveryPassphrasePlain != "" {
+		var hashErr error
+		recoveryHash, hashErr = crypto.HashPassphrase(bootstrap.RecoveryPassphrasePlain)
+		if hashErr != nil {
+			return fmt.Errorf("hash managed recovery passphrase: %w", hashErr)
+		}
 	}
-	if spec.Owner.Email == "" || spec.Owner.Username == "" {
-		return fmt.Errorf("spec.owner is incomplete (email or username missing) — re-run 'stackkit init'")
+
+	if recoveryHash == "" {
+		return fmt.Errorf("owner bootstrap requires recoveryPassphraseHash or managed recoveryPassphrasePlain")
+	}
+	if owner.Email == "" || owner.Username == "" {
+		return fmt.Errorf("owner bootstrap identity is incomplete (email or username missing)")
 	}
 
 	// Read the per-homelab STATIC_API_KEY persisted by `stackkit init` into
@@ -69,17 +85,17 @@ func runOwnerBootstrap(cmd *cobra.Command, spec *models.StackSpec) error {
 		return fmt.Errorf("load pocketid static api key: %w", err)
 	}
 
-	displayName := spec.Owner.DisplayName
+	displayName := owner.DisplayName
 	if displayName == "" {
-		displayName = spec.Owner.Username
+		displayName = owner.Username
 	}
 
 	ownerSpec := identity.OwnerSpec{
-		Source:           spec.Owner.Source,
-		Email:            spec.Owner.Email,
-		Username:         spec.Owner.Username,
+		Source:           owner.Source,
+		Email:            owner.Email,
+		Username:         owner.Username,
 		DisplayName:      displayName,
-		ForeignSubjectID: spec.Owner.CloudOIDCForeignSubject,
+		ForeignSubjectID: owner.CloudOIDCForeignSubject,
 	}
 
 	pocketIDURL := pocketIDURLForSpec(spec)
@@ -92,21 +108,23 @@ func runOwnerBootstrap(cmd *cobra.Command, spec *models.StackSpec) error {
 	deployLog.Event("owner_bootstrap.start",
 		slog.String("node", nodeName),
 		slog.String("pocketid_url", pocketIDURL),
-		slog.String("owner_source", spec.Owner.Source),
+		slog.String("owner_source", owner.Source),
 		slog.String("cluster_mode", initClusterMode),
 	)
 
 	printInfo("Bootstrapping owner and break-glass...")
 
-	// Recovery passphrase plaintext is empty here — apply.Run prompts at the
-	// terminal for the third-factor (only the hash is persisted in the spec).
+	// Custom/local bootstrap prompts at the terminal for the third factor.
+	// Managed bootstrap can carry one-time plaintext in the private handoff so
+	// first boot stays non-interactive without leaking it into public specs.
 	result, err := apply.Run(cmd.Context(), apply.OwnerBootstrapInput{
-		NodeName:               nodeName,
-		Hostname:               nodeName,
-		PocketIDURL:            pocketIDURL,
-		PocketIDStaticAPIKey:   staticAPIKey,
-		Owner:                  ownerSpec,
-		RecoveryPassphraseHash: spec.Owner.RecoveryPassphraseHash,
+		NodeName:                nodeName,
+		Hostname:                nodeName,
+		PocketIDURL:             pocketIDURL,
+		PocketIDStaticAPIKey:    staticAPIKey,
+		Owner:                   ownerSpec,
+		RecoveryPassphraseHash:  recoveryHash,
+		RecoveryPassphrasePlain: bootstrap.RecoveryPassphrasePlain,
 	})
 	if err != nil {
 		deployLog.Error("owner_bootstrap.failed",
@@ -123,6 +141,93 @@ func runOwnerBootstrap(cmd *cobra.Command, spec *models.StackSpec) error {
 
 	printOwnerBootstrapSummary(cmd, ownerSpec, result)
 	return nil
+}
+
+type ownerBootstrapForApply struct {
+	Owner                   models.OwnerConfig
+	RecoveryPassphraseHash  string
+	RecoveryPassphrasePlain string
+	Managed                 bool
+}
+
+func requireManagedIdentityBootstrapHandoff(wd string, spec *models.StackSpec) error {
+	if spec == nil || applyTenantDeployment == "" {
+		return nil
+	}
+	if spec.Owner.EffectiveBootstrapMode() != models.OwnerBootstrapModeAuto {
+		return nil
+	}
+	if _, _, err := readIdentityBootstrapEnvelope(wd); err != nil {
+		return err
+	}
+	return nil
+}
+
+func resolveOwnerBootstrapForApply(wd string, spec *models.StackSpec) (ownerBootstrapForApply, bool, error) {
+	if spec == nil {
+		return ownerBootstrapForApply{}, false, nil
+	}
+	mode := spec.Owner.EffectiveBootstrapMode()
+	switch mode {
+	case "", models.OwnerBootstrapModeNone:
+		return ownerBootstrapForApply{}, false, nil
+	case models.OwnerBootstrapModeCustom:
+		return ownerBootstrapForApply{
+			Owner:                  spec.Owner,
+			RecoveryPassphraseHash: spec.Owner.RecoveryPassphraseHash,
+		}, true, nil
+	case models.OwnerBootstrapModeAuto:
+		if applyTenantDeployment == "" {
+			printInfo("Skipping local owner bootstrap (owner bootstrap is orchestrator-managed)")
+			return ownerBootstrapForApply{}, false, nil
+		}
+		env, ok, err := readIdentityBootstrapEnvelope(wd)
+		if err != nil {
+			return ownerBootstrapForApply{}, false, err
+		}
+		if !ok {
+			return ownerBootstrapForApply{}, false, fmt.Errorf("managed owner bootstrap requires %s for owner.bootstrapMode=auto", identityBootstrapEnvelopePath(wd))
+		}
+		owner := env.Owner
+		if strings.TrimSpace(owner.Source) == "" ||
+			owner.Source == models.OwnerSourceCloud ||
+			owner.Source == models.OwnerSourceFirstRun {
+			// The managed handoff identifies the kombify Cloud owner, but the
+			// VM still provisions a local PocketID account for passkey enrollment.
+			owner.Source = models.OwnerSourceLocal
+		}
+		if owner.BootstrapMode == "" {
+			owner.BootstrapMode = models.OwnerBootstrapModeCustom
+		}
+		return ownerBootstrapForApply{
+			Owner:                   owner,
+			RecoveryPassphraseHash:  firstNonEmpty(env.RecoveryPassphraseHash, owner.RecoveryPassphraseHash),
+			RecoveryPassphrasePlain: env.RecoveryPassphrasePlain,
+			Managed:                 true,
+		}, true, nil
+	default:
+		return ownerBootstrapForApply{}, false, fmt.Errorf("invalid owner bootstrapMode %q", mode)
+	}
+}
+
+func readIdentityBootstrapEnvelope(wd string) (*models.OwnerAdminBootstrapEnvelope, bool, error) {
+	path := identityBootstrapEnvelopePath(wd)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, fmt.Errorf("managed owner bootstrap requires identity bootstrap handoff: %s is missing", path)
+		}
+		return nil, false, fmt.Errorf("read identity bootstrap handoff %s: %w", path, err)
+	}
+	var env models.OwnerAdminBootstrapEnvelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		return nil, false, fmt.Errorf("decode identity bootstrap handoff %s: %w", path, err)
+	}
+	return &env, true, nil
+}
+
+func identityBootstrapEnvelopePath(wd string) string {
+	return filepath.Join(wd, ".stackkit", "identity-bootstrap.json")
 }
 
 // pocketIDURLForSpec returns the public origin of the homelab's PocketID

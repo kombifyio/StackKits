@@ -72,9 +72,17 @@ Platform provides the shared runtime used by application modules:
 
 Uptime Kuma and Whoami are Platform concerns in BaseKit. They MUST NOT be modeled as L3 applications because their job is to verify and observe L1/L2/L3 services. Uptime Kuma MUST be bootstrapped by StackKits and receive monitors for enabled services; Whoami MUST be treated as the routing/auth diagnostic endpoint.
 
-The Base Node Hub is the bootstrap entrypoint, not an L3 app. Local Base routes MUST be reachable before owner identity exists, show `Diese Seite ist aktuell ungeschützt.` while bootstrap-open, and only move behind TinyAuth when the operator explicitly enables Base Hub protection after setup. Public/non-local Base routes remain protected when TinyAuth is enabled.
+The Base Node Hub is the bootstrap entrypoint, not an L3 app. Local Base routes MUST be reachable before owner identity exists, show `Diese Seite ist aktuell ungeschützt.` while bootstrap-open, and move behind TinyAuth through the Hub's `Base Hub schützen` action after setup. Public/non-local Base routes remain protected when TinyAuth is enabled.
 
 Platform MUST expose a supported application rollout path. Normal StackKits MUST NOT deploy Layer-3 applications through unmanaged ad hoc containers when a platform adapter is required.
+
+PaaS routing ownership rule: when the selected PaaS includes an integrated Traefik or equivalent reverse proxy, that router is the StackKit router for the environment. StackKit MUST attach generated platform/system apps and StackKit-owned L3 apps to the PaaS router and MUST NOT run a second Traefik, Nginx bridge, host-side proxy, or other route shim to make generated URLs appear reachable. `paas: komodo` is the first explicit adapter exception: StackKit owns exactly one Traefik while Komodo owns Stack deployment, and docs/generated output/evidence must state that explicitly.
+
+When Coolify is the selected platform, BaseKit MUST bootstrap Coolify into an API-ready and router-ready state without asking the user to set token variables: root user/team seeded, API enabled, StackKit API token persisted under `.stackkit/`, default StackKit project/environment/server/destination context available for the adapter, and Coolify's Traefik/proxy serving generated service routes. If that bootstrap cannot complete, StackKit MUST report unmanaged/pending state instead of claiming Coolify-managed delivery.
+
+When Komodo is explicitly selected, BaseKit MUST bootstrap Komodo into an API-ready state without UI setup: initial admin generated, registration closed, API key/secret persisted under `.stackkit/`, target server context available for the adapter, and StackKit-owned Traefik serving generated service routes. If that bootstrap cannot complete, StackKit MUST report unmanaged/pending state instead of claiming Komodo-managed delivery.
+
+Default StackKit-owned L3 rule: product-bundled L3 use cases in StackKit-generated manifests are PaaS-intended until the PaaS reports an external app identity. StackKits may generate compose bundles and manifests as PaaS input. User-installed applications outside StackKit/PaaS manifests are allowed, but they are state-unmanaged by StackKit and do not count as managed release evidence. L3 as a category is not globally forced through PaaS.
 
 ### Application
 
@@ -110,11 +118,13 @@ An application module is a use-case package. It MAY contain multiple tools, data
 1. Normal StackKit rollouts MUST resolve exactly one primary platform adapter.
 2. The default adapter selection MUST be deterministic:
    - omitted `paas` MUST resolve to Coolify for no-domain, local-only, pi, cloud-without-custom-domain, kombify-managed subdomain, and own public/custom-domain contexts.
+   - Komodo MAY be used only through an explicit `paas: komodo` selection until Fresh VM evidence proves headless admin/API-key bootstrap, Stack deployment, and routing ownership.
    - Dokploy MAY be used only through an explicit `paas: dokploy` selection until its first-owner and SSO automation satisfy the default-platform bar.
    - Modern Homelab and HA Kit contexts that require multi-node platform management SHOULD resolve to Coolify unless a newer accepted adapter contract supersedes it.
 3. `paas: none` is invalid for normal Base, Modern Homelab, and HA StackKits.
 4. Lightweight compose managers MAY exist for constrained or experimental modes, but MUST NOT be treated as the standard platform adapter unless they satisfy the same rollout, routing, auth, backup, and verification contract.
 5. Switching platform adapters after deployment is a migration or reprovisioning event, not a transparent live toggle.
+6. `reverse_proxy_backend` is not cosmetic. If it resolves to a PaaS with an integrated router, release evidence must prove that PaaS router is handling the service routes. Dashboard links, status output, and generated service URLs MUST NOT advertise a router that is not actually in the active traffic path.
 
 ## 6. Intent Resolution
 
@@ -199,6 +209,8 @@ Every application module MUST define:
 12. unsupported contexts and explicit failure conditions
 
 A module MUST NOT become a default module until its first-run path is automated enough for the OneClick/Ready audience.
+
+Every StackKit-owned/default L3 application module SHOULD declare `delivery.type: "paas"` and `delivery.managedBy: "selected-paas"` in its CUE module contract. Labels, generated manifests, release evidence, and runtime state must agree when that delivery contract is present.
 
 ## 11. Audience Contract
 

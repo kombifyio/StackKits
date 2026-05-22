@@ -1,5 +1,5 @@
 {
-  "admin_email": "admin@home.localhost",
+  "admin_email": "admin@example.com",
   "admin_password_plaintext": "",
   "brand_color": "#F97316",
   "compute_tier": "standard",
@@ -18,6 +18,8 @@
   "enable_immich": true,
   "enable_jellyfin": false,
   "enable_kombify_point": false,
+  "enable_komodo": false,
+  "enable_platform_fallback": false,
   "enable_pocketid": true,
   "enable_tinyauth": true,
   "enable_traefik": false,
@@ -29,6 +31,7 @@
   "network_name": "base_net",
   "network_subnet": "",
   "paas": "coolify",
+  "platform_fallback_mode": "disabled",
   "reverse_proxy_backend": "coolify",
   "step_ca_enabled": false,
   "storage_driver": "overlay2",

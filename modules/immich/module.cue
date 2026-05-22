@@ -15,6 +15,11 @@ Contract: base.#ModuleContract & {
 		testScenarios: ["SK-S1", "SK-S2", "SK-S4"]
 	}
 
+	delivery: {
+		type:      "paas"
+		managedBy: "selected-paas"
+	}
+
 	requires: {
 		services: {
 			traefik: {
@@ -155,7 +160,7 @@ Contract: base.#ModuleContract & {
 			"traefik.http.routers.immich.entrypoints":               "web"
 			"traefik.http.services.immich.loadbalancer.server.port": "2283"
 			"stackkit.layer":                                        "3-application"
-			"stackkit.managed-by":                                   "compose"
+			"stackkit.managed-by":                                   "selected-paas"
 		}
 
 		subdomain: {key: "photos", nested: "photos", flat: "photos"}

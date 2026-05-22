@@ -5,7 +5,7 @@
 // 
 // Tests:
 //   - Default Variant (Coolify + Uptime Kuma)
-//   - Beszel Variant (Dokploy + Beszel)
+//   - Beszel Variant (explicit alternative PaaS + Beszel)
 //   - Minimal Variant (Dockge + Portainer + Netdata)
 //   - Deployment Modes (simple/advanced)
 //   - Compute Tiers (high/standard/low)
@@ -20,6 +20,26 @@ import (
 // =============================================================================
 // DEFAULT VARIANT TESTS (Coolify + Uptime Kuma)
 // =============================================================================
+
+// Test: Platform fallback is disabled unless explicitly enabled.
+_platformFallbackDefaultsDisabled: homelab.#PlatformFallbackConfig & {
+	enabled: false
+	mode:    "disabled"
+}
+
+// Test: Explicit fallback resolves to standalone Compose mode.
+_platformFallbackExplicitStandaloneCompose: homelab.#PlatformFallbackConfig & {
+	enabled: true
+	mode:    "standalone-compose"
+}
+
+// Test: StackKit-owned/default L3 apps are selected-PaaS managed, not tied to
+// Dokploy in the BaseKit defaults.
+_l3SelectedPaaSLabels: {
+	vaultwarden: homelab.#VaultwardenService.labels."stackkit.managed-by" & "selected-paas"
+	jellyfin:    homelab.#JellyfinService.labels."stackkit.managed-by" & "selected-paas"
+	immich:      homelab.#ImmichService.labels."stackkit.managed-by" & "selected-paas"
+}
 
 // Test: Default Variant - minimal valid configuration
 _validDefaultVariant: homelab.#BaseKitStack & {
@@ -46,7 +66,7 @@ _validDefaultVariant: homelab.#BaseKitStack & {
 	// Default Variant Services
 	services: {
 		traefik:    enabled: true
-		dokploy:    enabled: true
+		coolify:    enabled: true
 		uptimeKuma: enabled: true
 		dozzle:     enabled: true
 		whoami:     enabled: true
@@ -54,7 +74,7 @@ _validDefaultVariant: homelab.#BaseKitStack & {
 }
 
 // =============================================================================
-// BESZEL VARIANT TESTS (Dokploy + Beszel)
+// BESZEL VARIANT TESTS (explicit alternative PaaS + Beszel)
 // =============================================================================
 
 // Test: Beszel Variant
@@ -154,7 +174,7 @@ _validHighComputeConfig: homelab.#BaseKitStack & {
 	}
 	services: {
 		traefik:    enabled: true
-		dokploy:    enabled: true
+		coolify:    enabled: true
 		uptimeKuma: enabled: true
 		dozzle:     enabled: true
 		whoami:     enabled: true
@@ -221,7 +241,7 @@ _validSimpleModeConfig: homelab.#BaseKitStack & {
 	}
 	services: {
 		traefik:    enabled: true
-		dokploy:    enabled: true
+		coolify:    enabled: true
 		uptimeKuma: enabled: true
 		dozzle:     enabled: true
 		whoami:     enabled: true
@@ -256,7 +276,7 @@ _validAdvancedModeConfig: homelab.#BaseKitStack & {
 	}
 	services: {
 		traefik:    enabled: true
-		dokploy:    enabled: true
+		coolify:    enabled: true
 		uptimeKuma: enabled: true
 		dozzle:     enabled: true
 		whoami:     enabled: true
@@ -394,7 +414,7 @@ _advancedDeployment: homelab.#DeploymentConfig & {
 // Test: Default services
 _defaultServices: homelab.#ServiceSet & {
 	traefik:    enabled: true
-	dokploy:    enabled: true
+	coolify:    enabled: true
 	uptimeKuma: enabled: true
 	dozzle:     enabled: true
 	whoami:     enabled: true

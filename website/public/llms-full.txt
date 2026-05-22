@@ -12,7 +12,7 @@ curl -sSL https://base.stackkit.cc | sh
 
 Modern Homelab and HA Kit are alpha/scaffolding definitions. They are visible for exploration, not production one-click deployment.
 
-Current BaseKit evidence proves the local direct-compose fallback plus auth/setup guards. The complete Cubi/Coolify-managed L3 application path remains a documented blocker and must not be treated as verified rollout evidence.
+Product-bundled L3 applications are PaaS-intended by default. The complete Coolify-managed application-layer path for ready-to-use use cases remains a documented blocker and must not be treated as verified rollout evidence until external app IDs/status are captured. User-installed apps outside that path are state-unmanaged by StackKit.
 
 ## Agent Workflow
 

@@ -19,6 +19,7 @@ services:
       - "--ping=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=stackkit-lldap-test-net"
       - "--entrypoints.web.address=:80"
     ports:
       - "8897:80"
@@ -55,6 +56,7 @@ services:
       - "traefik.http.routers.lldap.rule=Host(`ldap.test.local`)"
       - "traefik.http.routers.lldap.entrypoints=web"
       - "traefik.http.services.lldap.loadbalancer.server.port=17170"
+      - "traefik.docker.network=stackkit-lldap-test-net"
     healthcheck:
       test: ["CMD", "/app/lldap", "healthcheck", "--config-file", "/data/lldap_config.toml"]
       interval: 10s
@@ -110,6 +112,7 @@ services:
 
 networks:
   test-net:
+    name: stackkit-lldap-test-net
     driver: bridge
 
 volumes:

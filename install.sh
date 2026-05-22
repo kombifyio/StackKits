@@ -41,6 +41,19 @@ REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
 RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
 INSTALL_DIR="/usr/local/bin"
 
+GITHUB_AUTH_HEADER=""
+if [ -n "${STACKKIT_GITHUB_TOKEN:-}" ]; then
+  GITHUB_AUTH_HEADER="Authorization: Bearer ${STACKKIT_GITHUB_TOKEN}"
+fi
+
+curl_release() {
+  if [ -n "$GITHUB_AUTH_HEADER" ]; then
+    curl -H "$GITHUB_AUTH_HEADER" "$@"
+  else
+    curl "$@"
+  fi
+}
+
 # --- Detect platform ----------------------------------------------------------
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -58,10 +71,12 @@ esac
 # --- Resolve latest release ---------------------------------------------------
 
 echo "Resolving latest stackkit release..."
+RELEASE_JSON=""
 if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
   LATEST=$(printf '%s' "$STACKKIT_RELEASE_VERSION" | sed -E 's/^v//')
 else
-  LATEST=$(curl -sSL "$RELEASE_API_URL" \
+  RELEASE_JSON=$(curl_release -sSL "$RELEASE_API_URL")
+  LATEST=$(printf '%s' "$RELEASE_JSON" \
     | grep '"tag_name"' | head -1 | sed -E 's/.*"v([^"]+)".*/\1/')
 fi
 if [ -z "$LATEST" ]; then
@@ -105,13 +120,57 @@ esac
 
 # --- Download & install binary ------------------------------------------------
 
-DOWNLOAD_BASE="${STACKKIT_RELEASE_DOWNLOAD_BASE_URL:-https://github.com/$REPO/releases/download/v${LATEST}}"
+DOWNLOAD_BASE_OVERRIDE="${STACKKIT_RELEASE_DOWNLOAD_BASE_URL:-}"
+DOWNLOAD_BASE="${DOWNLOAD_BASE_OVERRIDE:-https://github.com/$REPO/releases/download/v${LATEST}}"
 URL="${DOWNLOAD_BASE%/}/${ARCHIVE}"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-echo "Downloading ${URL}..."
-curl -sSL "$URL" -o "$TMP/$ARCHIVE"
+release_asset_api_url() {
+  asset_name="$1"
+  printf '%s\n' "$RELEASE_JSON" | awk -v target="$asset_name" '
+    /"url": "https:\/\/api.github.com\/repos\/.*\/releases\/assets\/[0-9]+"/ {
+      api_url=$0
+      sub(/.*"url": "/, "", api_url)
+      sub(/".*/, "", api_url)
+      next
+    }
+    /"name":/ {
+      name=$0
+      sub(/.*"name": "/, "", name)
+      sub(/".*/, "", name)
+      if (name == target && api_url != "") {
+        print api_url
+        exit
+      }
+    }
+    /^[[:space:]]*}/ {
+      api_url=""
+    }
+  '
+}
+
+ASSET_API_URL=""
+if [ -n "$GITHUB_AUTH_HEADER" ] && [ -z "$DOWNLOAD_BASE_OVERRIDE" ]; then
+  if [ -z "$RELEASE_JSON" ]; then
+    RELEASE_TAG_API_URL="${STACKKIT_RELEASE_TAG_API_URL:-https://api.github.com/repos/$REPO/releases/tags/v${LATEST}}"
+    RELEASE_JSON=$(curl_release -sSL "$RELEASE_TAG_API_URL")
+  fi
+  ASSET_API_URL=$(release_asset_api_url "$ARCHIVE")
+  if [ -z "$ASSET_API_URL" ]; then
+    echo "Error: release v${LATEST} does not contain asset ${ARCHIVE}." >&2
+    echo "Check https://github.com/$REPO/releases/tag/v${LATEST}" >&2
+    exit 1
+  fi
+fi
+
+if [ -n "$ASSET_API_URL" ]; then
+  echo "Downloading ${URL} via GitHub release asset API..."
+  curl_release -H "Accept: application/octet-stream" -fsSL "$ASSET_API_URL" -o "$TMP/$ARCHIVE"
+else
+  echo "Downloading ${URL}..."
+  curl_release -fsSL "$URL" -o "$TMP/$ARCHIVE"
+fi
 tar xzf "$TMP/$ARCHIVE" -C "$TMP"
 
 if [ ! -f "$TMP/tofu" ]; then

@@ -7,9 +7,17 @@ const installerHosts = new Map([
 
 const installerPaths = new Set(["/install", "/base", "/modern", "/ha"]);
 
-const shellHeaders = {
-  "Content-Type": "text/x-shellscript; charset=utf-8",
+const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io https://*.kombify.io";
+
+const siteHeaders = {
+  "Content-Security-Policy": embedFrameAncestors,
+  "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Content-Type-Options": "nosniff",
+};
+
+const shellHeaders = {
+  ...siteHeaders,
+  "Content-Type": "text/x-shellscript; charset=utf-8",
   "Cache-Control": "public, max-age=300",
 };
 
@@ -26,7 +34,7 @@ export default {
       return serveInstallerAsset(request, env, url.pathname);
     }
 
-    return env.ASSETS.fetch(request);
+    return withSiteHeaders(await env.ASSETS.fetch(request));
   },
 };
 
@@ -37,9 +45,20 @@ async function serveInstallerAsset(request, env, pathname) {
 
   const assetRequest = new Request(assetURL.toString(), request);
   const assetResponse = await env.ASSETS.fetch(assetRequest);
-  const response = new Response(assetResponse.body, assetResponse);
+  const response = withSiteHeaders(assetResponse);
 
   for (const [name, value] of Object.entries(shellHeaders)) {
+    response.headers.set(name, value);
+  }
+
+  return response;
+}
+
+function withSiteHeaders(assetResponse) {
+  const response = new Response(assetResponse.body, assetResponse);
+  response.headers.delete("X-Frame-Options");
+
+  for (const [name, value] of Object.entries(siteHeaders)) {
     response.headers.set(name, value);
   }
 

@@ -184,7 +184,7 @@ func TestValidateSpec(t *testing.T) {
 			StackKit:   "base-kit",
 			Context:    string(models.ContextLocal),
 			Domain:     models.DomainHomeLab,
-			AdminEmail: "ci@kombify.io",
+			AdminEmail: "admin@example.com",
 			Network:    models.NetworkSpec{Mode: "local"},
 			PAAS:       models.PAASNone,
 		}
@@ -195,7 +195,7 @@ func TestValidateSpec(t *testing.T) {
 		assert.False(t, result.Valid, "local Base Kit paas=none should be rejected")
 		assert.Contains(t, validationErrorPaths(result.Errors), "paas")
 		require.NotEmpty(t, result.Errors)
-		assert.Contains(t, result.Errors[0].Message, "dokploy")
+		assert.Contains(t, result.Errors[0].Message, "komodo")
 	})
 
 	t.Run("rejects local base kit with apps and no paas adapter", func(t *testing.T) {
@@ -204,7 +204,7 @@ func TestValidateSpec(t *testing.T) {
 			StackKit:   "base-kit",
 			Context:    string(models.ContextLocal),
 			Domain:     models.DomainHomeLab,
-			AdminEmail: "ci@kombify.io",
+			AdminEmail: "admin@example.com",
 			Network:    models.NetworkSpec{Mode: "local"},
 			PAAS:       models.PAASNone,
 			Apps: map[string]models.AppSpec{
@@ -221,8 +221,47 @@ func TestValidateSpec(t *testing.T) {
 		assert.Contains(t, validationErrorPaths(result.Errors), "paas")
 	})
 
+	t.Run("accepts explicit standalone compose fallback", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:       "test",
+			StackKit:   "base-kit",
+			Context:    string(models.ContextLocal),
+			Domain:     models.DomainHomeLab,
+			AdminEmail: "admin@example.com",
+			Network:    models.NetworkSpec{Mode: "local"},
+			PAAS:       models.PAASNone,
+			PlatformFallback: models.PlatformFallbackSpec{
+				Enabled: true,
+				Mode:    models.PlatformFallbackStandaloneCompose,
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.True(t, result.Valid, "explicit standalone fallback should be accepted: %#v", result.Errors)
+	})
+
+	t.Run("rejects contradictory platform fallback mode", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:     "test",
+			StackKit: "base-kit",
+			PAAS:     models.PAASCoolify,
+			PlatformFallback: models.PlatformFallbackSpec{
+				Enabled: true,
+				Mode:    models.PlatformFallbackDisabled,
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "platformFallback.mode")
+	})
+
 	t.Run("accepts standard platform adapters", func(t *testing.T) {
-		for _, paas := range []string{models.PAASDokploy, models.PAASCoolify} {
+		for _, paas := range []string{models.PAASDokploy, models.PAASCoolify, models.PAASKomodo} {
 			spec := &models.StackSpec{
 				Name:     "test",
 				StackKit: "base-kit",
@@ -385,7 +424,7 @@ func TestValidateSpec(t *testing.T) {
 			StackKit:   "base-kit",
 			Context:    string(models.ContextLocal),
 			Domain:     models.DomainHomeLab,
-			AdminEmail: "admin@home.localhost",
+			AdminEmail: "admin@example.com",
 			Network:    models.NetworkSpec{Mode: "local"},
 			Owner: models.OwnerConfig{
 				BootstrapMode:          models.OwnerBootstrapModeCustom,
@@ -418,6 +457,26 @@ func TestValidateSpec(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.True(t, result.Valid, "expected owner bootstrap none to validate: %#v", result.Errors)
+	})
+
+	t.Run("rejects unknown break glass scope", func(t *testing.T) {
+		spec := &models.StackSpec{
+			Name:       "test",
+			StackKit:   "base-kit",
+			Context:    string(models.ContextLocal),
+			Domain:     models.DomainHomeLab,
+			AdminEmail: "admin@example.com",
+			Network:    models.NetworkSpec{Mode: "local"},
+			BreakGlass: models.BreakGlassConfig{
+				Scope: "limited",
+			},
+		}
+
+		result, err := validator.ValidateSpec(spec)
+
+		require.NoError(t, err)
+		assert.False(t, result.Valid)
+		assert.Contains(t, validationErrorPaths(result.Errors), "breakGlass.scope")
 	})
 
 	t.Run("validates sveltekit app contract", func(t *testing.T) {

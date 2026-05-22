@@ -105,6 +105,13 @@ func Default() []Service {
 			Icon: "&#128640;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 40, EnableVar: "enable_dokploy", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dokploy", Default: false,
 		},
 		{
+			Key: "komodo", Name: "komodo", ToolName: "komodo", ModuleSlug: "komodo",
+			DisplayName: "Komodo", Description: "Programmable self-hosted PaaS for Compose stack deployment through API keys.",
+			LocalSlug: "komodo", PublicSlug: "komodo",
+			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
+			Icon: "&#9881;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 41, EnableVar: "enable_komodo", GuideURL: "https://docs.kombify.io/guides/stackkits/services/komodo", Default: false,
+		},
+		{
 			Key: "kuma", Name: "kuma", ToolName: "uptime-kuma", ModuleSlug: "uptime-kuma",
 			DisplayName: "Uptime Kuma", Description: "Service uptime monitoring and status pages.",
 			LocalSlug: "kuma", PublicSlug: "kuma", LegacyAliases: []string{"uptime-kuma"},
@@ -144,14 +151,14 @@ func Default() []Service {
 			DisplayName: "Dockge", Description: "Docker Compose stack manager.",
 			LocalSlug: "dockge", PublicSlug: "dockge",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128230;", Badge: "L2 \u00b7 Compose Manager", Section: "Platform", Order: 42, EnableVar: "enable_dockge", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dockge",
+			Icon: "&#128230;", Badge: "L2 \u00b7 Compose Manager", Section: "Platform", Order: 43, EnableVar: "enable_dockge", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dockge",
 		},
 		{
 			Key: "coolify", Name: "coolify", ToolName: "coolify", ModuleSlug: "coolify",
 			DisplayName: "Coolify", Description: "Self-hosted deployment platform.",
 			LocalSlug: "coolify", PublicSlug: "coolify",
 			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128171;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 41, EnableVar: "enable_coolify", GuideURL: "https://docs.kombify.io/guides/stackkits/services/coolify",
+			Icon: "&#128171;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 42, EnableVar: "enable_coolify", GuideURL: "https://docs.kombify.io/guides/stackkits/services/coolify",
 		},
 		{
 			Key: "point", Name: "point", ToolName: "kombify-point", ModuleSlug: "kombify-point",
@@ -468,6 +475,8 @@ func logoURLForKey(key, tool string) string {
 	case "traefik":
 		return "https://cdn.simpleicons.org/traefikproxy/ffffff"
 	case "dokploy":
+		return "https://cdn.simpleicons.org/docker/ffffff"
+	case "komodo":
 		return "https://cdn.simpleicons.org/docker/ffffff"
 	case "coolify":
 		return "https://cdn.simpleicons.org/coolify/ffffff"

@@ -40,6 +40,7 @@ func GenerateTFVarsJSON(spec *models.StackSpec, cr *CompositionResult) ([]byte, 
 		return nil, err
 	}
 	overlayEnableFlags(tfvars, cr.EnabledModules)
+	enforcePlatformFallback(tfvars)
 
 	data, err = json.MarshalIndent(tfvars, "", "  ")
 	if err != nil {
@@ -134,6 +135,7 @@ func overlayEnableFlags(tfvars map[string]any, enabledModules []string) {
 		"dokploy":     "enable_dokploy",
 		"dockge":      "enable_dockge",
 		"coolify":     "enable_coolify",
+		"komodo":      "enable_komodo",
 		"dashboard":   "enable_dashboard",
 		"homepage":    "enable_homepage",
 		"uptime-kuma": "enable_uptime_kuma",
@@ -150,13 +152,28 @@ func overlayEnableFlags(tfvars map[string]any, enabledModules []string) {
 		if enabledSet[module] {
 			if module == "traefik" {
 				backend, _ := tfvars["reverse_proxy_backend"].(string)
-				if backend != "" && backend != models.ReverseProxyStandalone {
+				if backend != "" && backend != models.ReverseProxyStandalone && backend != models.ReverseProxyStackKit {
 					continue
 				}
 			}
 			tfvars[tfvarKey] = true
 		}
 	}
+}
+
+func enforcePlatformFallback(tfvars map[string]any) {
+	enabled, _ := tfvars["enable_platform_fallback"].(bool)
+	if !enabled {
+		return
+	}
+	tfvars["enable_traefik"] = true
+	tfvars["enable_dokploy"] = false
+	tfvars["enable_dokploy_apps"] = false
+	tfvars["enable_dockge"] = false
+	tfvars["enable_coolify"] = false
+	tfvars["enable_komodo"] = false
+	tfvars["reverse_proxy_backend"] = models.ReverseProxyStandalone
+	tfvars["platform_fallback_mode"] = models.PlatformFallbackStandaloneCompose
 }
 
 func moduleIsEnabled(enabledModules []string, name string) bool {

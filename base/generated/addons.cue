@@ -4,7 +4,7 @@
 // This file is auto-generated from the kombify-admin database.
 // To modify add-ons, update the database and re-run the generator.
 //
-// Generated: 2026-02-11T13:27:29.105Z
+// Generated: 2026-05-22T08:50:42.495Z
 // Source: kombify-admin/prisma/seed.ts → AddOn table
 // =============================================================================
 
@@ -139,7 +139,7 @@ package base
   "vpn-overlay": {
     name:               "vpn-overlay"
     displayName:        "VPN Mesh Overlay"
-    description:        "Headscale/Tailscale mesh VPN for connecting nodes across networks"
+    description:        "Optional Headscale/Tailscale mesh VPN for connecting nodes across networks. Not required - identity stack (LLDAP+Step-CA+PocketID) is the recommended approach."
     category:           "networking"
     version:            "1.0.0"
     compatibleKits:     ["MODERN", "HA"]
@@ -150,8 +150,8 @@ package base
     minCpuCores:        0
     requiresGpu:        false
     includedTools:      ["headscale"]
-    autoActivate:       true
-    autoActivateCondition: "StackKit pattern is MODERN (always requires VPN overlay)"
+    autoActivate:       false
+    autoActivateCondition: "User explicitly enables VPN overlay addon"
   }
 
   // Observability

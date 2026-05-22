@@ -403,7 +403,7 @@ func baseKitImages(tier string) []string {
 			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
 			"ghcr.io/coollabsio/coolify:4.0.0",
 			"dokploy/dokploy:latest",
-			"curlimages/curl:latest",
+			"node:22-alpine",
 			"louislam/uptime-kuma:1",
 			"python:3.11-alpine",
 			"ghcr.io/dani-garcia/vaultwarden:latest",

@@ -12,6 +12,7 @@ import (
 // ModuleContract represents a full extracted #ModuleContract from a module's CUE definition.
 type ModuleContract struct {
 	Metadata     ModuleMetadata
+	Delivery     *ModuleDelivery
 	Requires     *RequiresSpec
 	Provides     *ProvidesSpec
 	Settings     *SettingsSpec
@@ -29,6 +30,12 @@ type ModuleMetadata struct {
 	Description   string
 	Core          bool
 	TestScenarios []string
+}
+
+// ModuleDelivery declares how a module reaches the runtime.
+type ModuleDelivery struct {
+	Type      string
+	ManagedBy string
 }
 
 // RequiresSpec declares what a module needs from other modules and infrastructure.
@@ -164,6 +171,11 @@ func (r *ModuleReader) extractContract(v cue.Value) (ModuleContract, error) {
 		mc.Metadata = r.extractMetadata(meta)
 	}
 
+	// Delivery
+	if delivery := v.LookupPath(cue.ParsePath("delivery")); delivery.Exists() {
+		mc.Delivery = r.extractDelivery(delivery)
+	}
+
 	// Enabled
 	if en := v.LookupPath(cue.ParsePath("enabled")); en.Exists() {
 		b, _ := en.Bool()
@@ -238,6 +250,13 @@ func (r *ModuleReader) extractMetadata(v cue.Value) ModuleMetadata {
 		}
 	}
 	return meta
+}
+
+func (r *ModuleReader) extractDelivery(v cue.Value) *ModuleDelivery {
+	return &ModuleDelivery{
+		Type:      stringField(v, "type"),
+		ManagedBy: stringField(v, "managedBy"),
+	}
 }
 
 func (r *ModuleReader) extractRequires(v cue.Value) *RequiresSpec {

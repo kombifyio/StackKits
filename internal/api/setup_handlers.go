@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -39,6 +40,113 @@ type setupDropResponse struct {
 	Runner      string `json:"runner,omitempty"`
 	Description string `json:"description,omitempty"`
 	Status      string `json:"status"`
+}
+
+type baseHubProtectionResponse struct {
+	Status               string `json:"status"`
+	Mode                 string `json:"mode,omitempty"`
+	Protected            bool   `json:"protected"`
+	Message              string `json:"message"`
+	TFVarsUpdated        bool   `json:"tfvarsUpdated,omitempty"`
+	DynamicConfigUpdated bool   `json:"dynamicConfigUpdated,omitempty"`
+}
+
+type baseHubProtectionState struct {
+	tfvarsPath        string
+	dynamicConfigPath string
+	tfvars            map[string]any
+	enableTinyAuth    bool
+	tfvarsProtected   bool
+	dynamicProtected  bool
+	dynamicExists     bool
+	networkMode       string
+}
+
+func (s *Server) handleGetBaseHubProtection(w http.ResponseWriter, r *http.Request) {
+	state, err := s.loadBaseHubProtectionState()
+	if err != nil {
+		writeStructuredError(w, r, http.StatusConflict, err)
+		return
+	}
+
+	protected := state.effectiveProtected()
+	resp := baseHubProtectionResponse{
+		Status:    baseHubProtectionStatus(protected),
+		Mode:      s.setupActionMode(),
+		Protected: protected,
+		Message:   baseHubProtectionMessage(protected),
+	}
+	writeSuccess(w, r, http.StatusOK, resp)
+}
+
+func (s *Server) handleProtectBaseHub(w http.ResponseWriter, r *http.Request) {
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
+
+	state, err := s.loadBaseHubProtectionState()
+	if err != nil {
+		writeStructuredError(w, r, http.StatusConflict, err)
+		return
+	}
+	mode := s.setupActionMode()
+	if mode != setupActionModeApply {
+		writeSuccess(w, r, http.StatusAccepted, baseHubProtectionResponse{
+			Status:    "ready",
+			Mode:      mode,
+			Protected: state.effectiveProtected(),
+			Message:   "Base Hub protection was validated but not applied because setup actions are in dry-run mode.",
+		})
+		return
+	}
+	if !state.enableTinyAuth {
+		writeStructuredError(w, r, http.StatusConflict, skerrors.NewValidationError(
+			"base_hub_protection_requires_tinyauth",
+			"Base Hub protection requires TinyAuth",
+			skerrors.WithSuggestion("Enable TinyAuth in the StackKit spec and re-apply before protecting Base Hub"),
+		))
+		return
+	}
+
+	state.tfvars["protect_base_hub"] = true
+	tfvarsData, marshalErr := json.MarshalIndent(state.tfvars, "", "  ")
+	if marshalErr != nil {
+		writeStructuredError(w, r, http.StatusInternalServerError, skerrors.NewDeploymentError(
+			"base_hub_protection_tfvars_marshal_failed",
+			"failed to persist Base Hub protection settings",
+			skerrors.WithCause(marshalErr),
+		))
+		return
+	}
+	tfvarsData = append(tfvarsData, '\n')
+
+	if writeErr := os.WriteFile(state.tfvarsPath, tfvarsData, 0600); writeErr != nil {
+		writeStructuredError(w, r, http.StatusInternalServerError, skerrors.NewDeploymentError(
+			"base_hub_protection_tfvars_write_failed",
+			"failed to persist Base Hub protection settings",
+			skerrors.WithField("path", state.tfvarsPath),
+			skerrors.WithCause(writeErr),
+		))
+		return
+	}
+	if writeErr := writeBaseHubProtectionDynamicConfig(state.dynamicConfigPath, state.networkMode, true); writeErr != nil {
+		writeStructuredError(w, r, http.StatusInternalServerError, skerrors.NewDeploymentError(
+			"base_hub_protection_dynamic_config_failed",
+			"failed to activate Base Hub protection in the local router",
+			skerrors.WithField("path", state.dynamicConfigPath),
+			skerrors.WithCause(writeErr),
+			skerrors.WithSuggestion("Re-run StackKit apply; the Base Hub protection setting has been persisted for the next rollout"),
+		))
+		return
+	}
+
+	writeSuccess(w, r, http.StatusOK, baseHubProtectionResponse{
+		Status:               "completed",
+		Mode:                 mode,
+		Protected:            true,
+		Message:              "Base Hub and the node-local API are now protected by TinyAuth.",
+		TFVarsUpdated:        true,
+		DynamicConfigUpdated: true,
+	})
 }
 
 func (s *Server) handleRunServiceSetup(w http.ResponseWriter, r *http.Request) {
@@ -184,6 +292,152 @@ func setupManifestCandidates(baseDir string) []string {
 		filepath.Join(baseDir, "deploy", "platform-apps", "manifest.json"),
 		filepath.Join(baseDir, "deploy", ".platform-apps-manifest.json"),
 	}
+}
+
+func (s *Server) loadBaseHubProtectionState() (baseHubProtectionState, *skerrors.StackKitError) {
+	tfvarsPath, tfvars, err := loadBaseHubTFVars(s.config.BaseDir)
+	if err != nil {
+		return baseHubProtectionState{}, skerrors.NewValidationError(
+			"base_hub_tfvars_unavailable",
+			"Base Hub protection requires generated StackKit inputs",
+			skerrors.WithCause(err),
+			skerrors.WithSuggestion("Run stackkit generate/apply so deploy/terraform.tfvars.json is present in the node workspace"),
+		)
+	}
+
+	dynamicConfigPath := baseHubDynamicConfigPath(tfvarsPath)
+	dynamicData, readErr := os.ReadFile(dynamicConfigPath)
+	dynamicExists := readErr == nil
+
+	return baseHubProtectionState{
+		tfvarsPath:        tfvarsPath,
+		dynamicConfigPath: dynamicConfigPath,
+		tfvars:            tfvars,
+		enableTinyAuth:    boolTFVar(tfvars, "enable_tinyauth", true),
+		tfvarsProtected:   boolTFVar(tfvars, "protect_base_hub", false),
+		dynamicProtected:  dynamicExists && bytes.Contains(dynamicData, []byte("forwardAuth:")),
+		dynamicExists:     dynamicExists,
+		networkMode:       stringTFVar(tfvars, "network_mode", "bridge"),
+	}, nil
+}
+
+func loadBaseHubTFVars(baseDir string) (string, map[string]any, error) {
+	var lastErr error
+	for _, candidate := range baseHubTFVarsCandidates(baseDir) {
+		data, err := os.ReadFile(candidate)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		var tfvars map[string]any
+		if err := json.Unmarshal(data, &tfvars); err != nil {
+			return "", nil, fmt.Errorf("parse %s: %w", candidate, err)
+		}
+		return candidate, tfvars, nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no tfvars path candidates")
+	}
+	return "", nil, lastErr
+}
+
+func baseHubTFVarsCandidates(baseDir string) []string {
+	if strings.TrimSpace(baseDir) == "" {
+		baseDir = "."
+	}
+	return []string{
+		filepath.Join(baseDir, "deploy", "terraform.tfvars.json"),
+		filepath.Join(baseDir, "terraform.tfvars.json"),
+	}
+}
+
+func baseHubDynamicConfigPath(tfvarsPath string) string {
+	return filepath.Join(filepath.Dir(tfvarsPath), "traefik-dynamic", "stackkit.yml")
+}
+
+func (s baseHubProtectionState) effectiveProtected() bool {
+	if s.dynamicExists {
+		return s.dynamicProtected
+	}
+	return s.tfvarsProtected
+}
+
+func baseHubProtectionStatus(protected bool) string {
+	if protected {
+		return "protected"
+	}
+	return "bootstrap_open"
+}
+
+func baseHubProtectionMessage(protected bool) string {
+	if protected {
+		return "Base Hub and the node-local API are protected by TinyAuth."
+	}
+	return "Base Hub is open for first setup. Use the protection action after the owner setup is complete."
+}
+
+func boolTFVar(tfvars map[string]any, key string, fallback bool) bool {
+	value, ok := tfvars[key]
+	if !ok {
+		return fallback
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "1", "true", "yes", "on":
+			return true
+		case "0", "false", "no", "off":
+			return false
+		}
+	}
+	return fallback
+}
+
+func stringTFVar(tfvars map[string]any, key, fallback string) string {
+	value, ok := tfvars[key]
+	if !ok {
+		return fallback
+	}
+	text := strings.TrimSpace(fmt.Sprint(value))
+	if text == "" {
+		return fallback
+	}
+	return text
+}
+
+func writeBaseHubProtectionDynamicConfig(path, networkMode string, protected bool) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(baseHubProtectionDynamicConfig(networkMode, protected)), 0640)
+}
+
+func baseHubProtectionDynamicConfig(networkMode string, protected bool) string {
+	if !protected {
+		return `http:
+  middlewares:
+    base-hub-auth:
+      headers:
+        customResponseHeaders:
+          X-StackKit-Base-Hub-Mode: "bootstrap"
+`
+	}
+	address := "http://tinyauth:3000/api/auth/traefik"
+	if strings.EqualFold(strings.TrimSpace(networkMode), "host") {
+		address = "http://127.0.0.1:3004/api/auth/traefik"
+	}
+	return fmt.Sprintf(`http:
+  middlewares:
+    base-hub-auth:
+      forwardAuth:
+        address: %q
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "X-User"
+          - "X-Email"
+`, address)
 }
 
 func findSetupApp(bundle platformdeploy.BundleManifest, service servicecatalog.Service) (platformdeploy.AppManifest, bool) {

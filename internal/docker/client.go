@@ -17,6 +17,8 @@ import (
 // containerNameRegex validates Docker container/network/volume names
 var containerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
+const dockerPSFormat = "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}"
+
 // validateName validates a Docker resource name (container, network, volume)
 func validateName(name string) error {
 	if name == "" {
@@ -144,9 +146,9 @@ func (c *Client) ListContainers(ctx context.Context, all bool) ([]ContainerInfo,
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	args := []string{"ps", "--format", "{{json .}}"}
+	args := []string{"ps", "--format", dockerPSFormat}
 	if all {
-		args = []string{"ps", "-a", "--format", "{{json .}}"}
+		args = []string{"ps", "-a", "--format", dockerPSFormat}
 	}
 
 	cmd := exec.CommandContext(ctx, c.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
@@ -155,35 +157,7 @@ func (c *Client) ListContainers(ctx context.Context, all bool) ([]ContainerInfo,
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	var containers []ContainerInfo
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		var info struct {
-			ID     string `json:"ID"`
-			Names  string `json:"Names"`
-			Image  string `json:"Image"`
-			State  string `json:"State"`
-			Status string `json:"Status"`
-			Ports  string `json:"Ports"`
-		}
-		if err := json.Unmarshal([]byte(line), &info); err != nil {
-			continue
-		}
-		containers = append(containers, ContainerInfo{
-			ID:    info.ID,
-			Name:  info.Names,
-			Image: info.Image,
-			State: ContainerState{
-				Status:  info.Status,
-				Running: info.State == "running",
-			},
-		})
-	}
-
-	return containers, nil
+	return parseDockerPSOutput(output), nil
 }
 
 // InspectContainer inspects a container
@@ -251,7 +225,7 @@ func (c *Client) GetStackKitContainers(ctx context.Context) ([]ContainerInfo, er
 	// #nosec G204 -- binary path is set at construction, not from user input
 	cmd := exec.CommandContext(ctx, c.binary, "ps", "-a",
 		"--filter", "label=stackkit.layer",
-		"--format", "{{json .}}")
+		"--format", dockerPSFormat)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -260,34 +234,31 @@ func (c *Client) GetStackKitContainers(ctx context.Context) ([]ContainerInfo, er
 		return []ContainerInfo{}, nil
 	}
 
+	return parseDockerPSOutput(output), nil
+}
+
+func parseDockerPSOutput(output []byte) []ContainerInfo {
 	var containers []ContainerInfo
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		var info struct {
-			ID     string `json:"ID"`
-			Names  string `json:"Names"`
-			Image  string `json:"Image"`
-			State  string `json:"State"`
-			Status string `json:"Status"`
-		}
-		if err := json.Unmarshal([]byte(line), &info); err != nil {
+		fields := strings.SplitN(line, "\t", 6)
+		if len(fields) < 5 {
 			continue
 		}
 		containers = append(containers, ContainerInfo{
-			ID:    info.ID,
-			Name:  info.Names,
-			Image: info.Image,
+			ID:    fields[0],
+			Name:  fields[1],
+			Image: fields[2],
 			State: ContainerState{
-				Status:  info.Status,
-				Running: info.State == "running",
+				Status:  fields[4],
+				Running: strings.EqualFold(fields[3], "running"),
 			},
 		})
 	}
-
-	return containers, nil
+	return containers
 }
 
 // NetworkExists checks if a network exists

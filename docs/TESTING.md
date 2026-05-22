@@ -18,6 +18,8 @@ Use the smallest gate that proves the changed surface, then broaden when a share
 | Website | `mise run test:website` | Cross-platform static website structure, installer scripts, Pages routing metadata, links, and build output. |
 | Agent docs and MCP | `mise run test:website`; `go test ./cmd/stackkit-mcp ./cmd/stackkit/commands ./internal/api` | Public `llms.txt`, prompt Markdown, schema/OpenAPI mirrors, CLI agent helpers, MCP tool gating, and node-local management endpoints. |
 | Release-note surface | `node --test scripts/release/changelog.test.mjs` | Parser coverage for website changelog JSON and public release notes. |
+| Release evidence surface | `node --test scripts/release/release-evidence.test.mjs scripts/release/verify-release-attestations.test.mjs scripts/release/check-l3-paas-contract.test.mjs` | Machine-readable Enterprise release evidence JSON rendering, artifact hashing, attestation verification subject selection, and default StackKit-owned L3 PaaS-intent checks. |
+| Default StackKit-owned L3 PaaS intent | `node scripts/release/check-l3-paas-contract.mjs --repo-root . --generated base-kit/templates/simple/main.tf` | Validates that generated BaseKit product-bundled L3 artifacts are PaaS-intended and do not start StackKit-owned L3 apps with direct Docker Compose. |
 | Public release-note export | `node --test scripts/release/changelog.test.mjs && npm --prefix website run build` | Public website release-note JSON and built changelog section. |
 | API/OpenAPI | `go test ./internal/api ./api/openapi/...` | API handler and OpenAPI embed behavior. |
 | Post-apply verification | `stackkit verify --json` | Read-only host validation. |
@@ -49,6 +51,8 @@ The orchestrator targets `STACKKIT_DEMO_DOCKER_HOST` (default `tcp://vm:2375`) a
 
 Do not add hand-authored demo `docker-compose.yml` rollout paths to the orchestrator. The only local user-facing Hub link for BaseKit is `http://base.home.localhost`; local demo links MUST NOT contain ports, hosts-file instructions, manual DNS mapping, browser proxy setup, trust-store setup, or invented per-kit Hub hostnames such as `modern.home.localhost` or `ha.home.localhost`.
 
+Do not add route shims to demos or tests. When the selected PaaS includes Traefik, the PaaS Traefik is the only valid StackKit routing path: Coolify's Traefik for Coolify, `dokploy-traefik` for Dokploy. `paas: komodo` is the current explicit exception and must prove the single StackKit-owned Traefik path. A second StackKit Traefik, Nginx bridge, host-side proxy, or mapped-port-only browser workaround invalidates local reachability evidence.
+
 For code, CUE, config, deployment, or user-facing behavior changes:
 
 ```bash
@@ -75,7 +79,9 @@ The preflight verifies:
 - Go tests in the exported public tree,
 - release and live-test workflow syntax through `actionlint`.
 - release archive installability via `scripts/release/validate-release-archives.sh` in the public workflow.
-- GitHub Artifact Attestations for public release files and the GHCR server image.
+- default StackKit-owned L3 PaaS-intent validation via `scripts/release/check-l3-paas-contract.mjs` and the `defaultL3PaaSDelivery` release evidence check.
+- GitHub Artifact Attestations for public release files and the GHCR server image, plus CI verification before evidence marks attestation status as passed.
+- SBOM generation plus `release-evidence.json` publication for Enterprise review.
 
 Use `-SkipCue`, `-SkipGoTests`, `-SkipWebsite`, or `-SkipActionlint` only for narrow local debugging. A release-candidate receipt should use the full command.
 
@@ -103,18 +109,42 @@ The fresh Ubuntu gate is no longer a pure liveness smoke. For BaseKit local
 defaults it must also prove:
 
 - fixed host ports are free before Docker resources are created,
-- `base.home.localhost` answers anonymous first-setup requests with the warning `Diese Seite ist aktuell ungeschützt.`,
+- `base.home.localhost` answers anonymous first-setup requests with the warning `Diese Seite ist aktuell ungeschützt.` and the `Base Hub schützen` action,
 - protected/default services other than the Base Hub do not answer anonymous requests with `2xx`,
+- `reverse_proxy_backend` matches the actual traffic path; if it is `coolify` or `dokploy`, service probes must traverse that PaaS Traefik and no separate StackKit Traefik/Nginx/host proxy may satisfy the route; if it is `stackkit` for explicit Komodo, probes must traverse the single StackKit-owned Traefik,
 - `stackkit-server` can read `deploy/.platform-apps-manifest.json`,
 - the Photos/Immich on-demand setup drop can execute from the node-local API,
 - expensive phases are logged so slow local runs show progress.
 
 Explicit `public-unauthenticated` L3 services are allowed, but they are a separate access-policy case and must not be inferred from the BaseKit default path.
 
-Known release blocker: the Cubi/Coolify-managed application-layer contract is
-tracked in Beads as `kombify-StackKits-85x`. Until that P0 is resolved, a local
-SK-S1 pass proves the current direct-compose fallback path plus auth/setup
-guards, not a complete Cubi-managed L3 rollout.
+Known release blocker: the Coolify-managed application-layer contract is
+tracked in Beads as `kombify-StackKits-85x`. A production-ready SK-S1 pass must
+show StackKit-owned/default L3 apps as PaaS-managed with external app IDs/status
+evidence; direct-compose starts for those product-bundled apps are invalid
+release evidence. User-installed apps outside StackKit manifests are allowed
+but state-unmanaged by StackKit.
+
+For Coolify SK-S1 evidence, the VM must additionally show that Coolify is
+API-ready and router-ready from the one-click bootstrap: root user/team exists,
+the API is enabled, `.stackkit/platform.json` contains endpoint/token plus
+project/environment/server/destination context, Coolify's Traefik/proxy is the
+active route for generated service URLs, and StackKit-owned L3 apps have
+Coolify service IDs/status. A healthy Coolify container with Vault/Photos
+running as direct Compose containers, or routes served by a separate
+StackKit-owned Traefik/Nginx shim, is a failed managed-app rollout.
+
+For Dokploy evidence, apply the same rule with `dokploy-traefik`:
+generated StackKit routes must attach to Dokploy's router. A separate
+StackKit-owned Traefik is valid only for a future adapter whose accepted PaaS
+contract explicitly has no integrated router.
+
+For Komodo evidence, the VM must show a UI-free bootstrap: Komodo Core,
+Periphery, and DB are healthy; the generated initial admin can log in;
+registration is closed; `.stackkit/platform.json` contains endpoint,
+`apiKey`, `apiSecret`, and server context; StackKit-owned/default L3 apps are
+created as Komodo Stack resources with external IDs/status; and generated
+routes are served through the declared StackKit-owned Traefik path.
 
 ## First BaseKit Live Test Sequence
 
@@ -127,9 +157,7 @@ Use this sequence for the first BaseKit live validation after the preflight pass
 5. Verify the `stackkit-SK-S1-homelab` artifact contains `status=success`, the Hub URL, browser URL, default service URLs, target metadata, and logs hint.
 6. Only after SK-S1 passes, run the tag publish path described in private release runbook.
 
-SvelteKit app rollouts are not StackKit release gates. StackKit validates the
-PaaS, routing baseline, generated handoff manifests, and status evidence; the
-selected PaaS owns user app deployment and lifecycle.
+Customer-owned SvelteKit app rollouts are not StackKit release gates. StackKit validates the PaaS, routing baseline, generated customer-app handoff manifests, and status evidence; the selected PaaS/Admin surface owns customer-app deployment and lifecycle. Product-bundled L3 use cases remain StackKit-owned and PaaS-intended by default; user-installed apps outside that path are state-unmanaged.
 
 ## Post-Deployment Verification
 

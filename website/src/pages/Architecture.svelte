@@ -31,7 +31,7 @@
       title: 'Runtime layer',
       subtitle: 'Docker + Traefik + Coolify',
       icon: 'lan',
-      body: 'BaseKit runs containers through Docker. Coolify is the target platform baseline; the current verified local path still uses a StackKit-owned routing fallback until Cubi/Coolify-managed L3 rollout is complete.',
+      body: 'BaseKit runs containers through Docker. Coolify is the target platform baseline; the current verified local path still uses a StackKit-owned routing fallback until Coolify-managed application-layer rollout is complete.',
     },
     {
       title: 'Node-local API',

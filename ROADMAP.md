@@ -8,8 +8,8 @@ operator documentation needed to build, install, inspect, and verify BaseKit.
 - BaseKit is the verified beta one-click path.
 - Modern Homelab and HA Kit remain alpha/scaffolding definitions until their
   rollout matrices graduate.
-- The current BaseKit proof covers the local fallback path plus auth/setup
-  guards. Complete Cubi/Coolify-managed L3 rollout remains a known blocker.
+- Product-bundled L3 applications are PaaS-intended by default. Complete
+  Coolify-managed application-layer evidence remains a known blocker.
 
 ## Release Priorities
 

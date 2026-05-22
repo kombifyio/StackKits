@@ -473,6 +473,60 @@ paths:
 
   # ── Node-local setup actions ────────────────────────────────────
 
+  /api/v1/setup/base-hub/protection:
+    get:
+      operationId: getBaseHubProtection
+      summary: Read Base Hub protection state
+      description: Used by the Node Hub to hide first-run bootstrap warnings once Base Hub is protected.
+      tags: [Setup]
+      responses:
+        "200":
+          description: Base Hub protection state
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/BaseHubProtectionResponse"
+        "409":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      operationId: protectBaseHub
+      summary: Protect Base Hub and the node-local API with TinyAuth
+      description: |
+        Used by the Node Hub `Base Hub schützen` action after owner setup.
+        The action persists the protection setting and updates the local Traefik
+        dynamic middleware so Base Hub and its node-local API are protected
+        without requiring the user to edit variables or run OpenTofu manually.
+      tags: [Setup]
+      responses:
+        "200":
+          description: Base Hub protection was activated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/BaseHubProtectionResponse"
+        "202":
+          description: Protection was validated but not executed in dry-run mode
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/BaseHubProtectionResponse"
+        "409":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/BadRequest"
+
   /api/v1/setup/services/{service}/run:
     post:
       operationId: runServiceSetup
@@ -1263,6 +1317,24 @@ components:
           type: string
         detail:
           type: string
+
+    BaseHubProtectionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [bootstrap_open, protected, ready, completed]
+        mode:
+          type: string
+          enum: [dry-run, apply]
+        protected:
+          type: boolean
+        message:
+          type: string
+        tfvarsUpdated:
+          type: boolean
+        dynamicConfigUpdated:
+          type: boolean
 
     ServiceSetupResponse:
       type: object

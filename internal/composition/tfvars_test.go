@@ -178,3 +178,34 @@ func TestGenerateTFVarsJSONDoesNotEnableStandaloneTraefikForPaaSManagedProxy(t *
 		t.Fatalf("enable_traefik = %v, want false because Dokploy owns the reverse proxy", tfvars["enable_traefik"])
 	}
 }
+
+func TestGenerateTFVarsJSONKeepsStackKitTraefikForKomodo(t *testing.T) {
+	spec := &models.StackSpec{
+		Name:     "basekit-komodo",
+		StackKit: "base-kit",
+		Context:  string(models.ContextLocal),
+		Domain:   models.DomainHomeLab,
+		PAAS:     models.PAASKomodo,
+	}
+	cr := &CompositionResult{EnabledModules: []string{"traefik", "komodo", "tinyauth", "pocketid"}}
+
+	data, err := GenerateTFVarsJSON(spec, cr)
+	if err != nil {
+		t.Fatalf("GenerateTFVarsJSON() error = %v", err)
+	}
+
+	var tfvars map[string]any
+	if err := json.Unmarshal(data, &tfvars); err != nil {
+		t.Fatalf("generated tfvars are not JSON: %v", err)
+	}
+
+	if tfvars["reverse_proxy_backend"] != models.ReverseProxyStackKit {
+		t.Fatalf("reverse_proxy_backend = %v, want %s", tfvars["reverse_proxy_backend"], models.ReverseProxyStackKit)
+	}
+	if tfvars["enable_komodo"] != true {
+		t.Fatalf("enable_komodo = %v, want true", tfvars["enable_komodo"])
+	}
+	if tfvars["enable_traefik"] != true {
+		t.Fatalf("enable_traefik = %v, want true because StackKit owns Komodo routing", tfvars["enable_traefik"])
+	}
+}

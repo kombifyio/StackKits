@@ -92,6 +92,7 @@ Platform decisions to cover:
 6. How does forward-auth protect Layer-3 services?
 7. How does the platform expose health and logs?
 8. How does the platform recover if an application deployment fails?
+9. Does any L3 app still start through OpenTofu `local-exec`, direct Docker Compose, or another non-PaaS fallback? If yes, the change violates the Golden Rules.
 
 ### Application
 
@@ -206,15 +207,16 @@ Development impact:
 
 ### Runtime And PaaS
 
-- Dokploy?
 - Coolify?
+- Komodo?
+- Dokploy?
 - Future adapter?
 - Constrained compose manager?
 - Standard Mode or Advanced Mode?
 
 Development impact:
 
-- Layer-3 application rollout should go through the selected platform adapter.
+- Layer-3 application rollout must go through the selected platform adapter. Compose files are allowed only as PaaS input; they must not be started directly by StackKit/OpenTofu for L3 apps.
 - Adapter choice affects route generation, secrets injection, deployment API, rollback, and verification.
 - A new adapter needs parity criteria before it can become default.
 
@@ -448,7 +450,7 @@ Every service should classify exposure.
 | public-authenticated | Internet reachable behind auth | Domain, TLS, auth gateway, service classification. |
 | public-unauthenticated | Internet reachable without auth | Must be intentionally allowed, usually websites or public endpoints only. |
 
-Default application services should not become public-unauthenticated. L3 can be public or unauthenticated only when the StackSpec/module policy explicitly says so; public websites are the common exception, not the default pattern.
+Default application services should not become public-unauthenticated. L3 can be public or unauthenticated only when the StackSpec/module policy explicitly says so; public websites are the common exception, not the default pattern. Authentication policy is separate from delivery: StackKit-owned/default L3 apps are PaaS-intended, while user-installed apps outside StackKit/PaaS manifests are state-unmanaged by StackKit.
 
 ## 10. Validation And Test Expectations
 

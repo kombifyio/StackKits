@@ -75,6 +75,25 @@ jobs:
             fi
           done
 
+  release-evidence:
+    name: Release Evidence Renderer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Test release evidence renderer
+        run: node --test scripts/release/release-evidence.test.mjs scripts/release/verify-release-attestations.test.mjs scripts/release/check-l3-paas-contract.test.mjs
+
+      - name: Validate default StackKit-owned L3 PaaS intent
+        run: node scripts/release/check-l3-paas-contract.mjs --repo-root . --generated base-kit/templates/simple/main.tf
+
   website:
     name: Website Validation
     runs-on: ubuntu-24.04

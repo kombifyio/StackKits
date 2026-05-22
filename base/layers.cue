@@ -64,7 +64,7 @@ package base
 // #PAASServiceType defines the standard PAAS platforms for normal StackKits.
 // Dockge and Portainer are compose/container managers, not required PaaS
 // adapters for L3 rollouts.
-#PAASServiceType: "dokploy" | "coolify"
+#PAASServiceType: "dokploy" | "coolify" | "komodo"
 
 // #PAASConfig is the main PAAS configuration block for Layer 2
 #PAASConfig: {
@@ -79,6 +79,9 @@ package base
 
 	// Coolify configuration (when type == "coolify")
 	coolify?: #CoolifyConfig
+
+	// Komodo configuration (when type == "komodo")
+	komodo?: #KomodoConfig
 
 	// Portainer configuration (when type == "portainer")
 	portainer?: #PortainerConfig
@@ -128,6 +131,32 @@ package base
 		tls:     bool | *true
 	}
 	resources?: #ResourceLimits
+}
+
+// #KomodoConfig defines Komodo PAAS settings
+#KomodoConfig: {
+	enabled: bool | *false
+	version: string | *"2"
+	image:   string | *"ghcr.io/moghtech/komodo-core"
+	port:    uint16 & >0 & <=65535 | *9120
+	database: {
+		external:          bool | *false
+		mongoVersion:      string | *"7"
+		connectionString?: string
+	}
+	traefik: {
+		// Komodo initially uses StackKit-owned Traefik for routing.
+		enabled: bool | *true
+		host?:   string
+		tls:     bool | *true
+	}
+	storage: {
+		dataVolume: string | *"komodo-mongo-data"
+		keyVolume:  string | *"komodo-keys"
+		backup:     bool | *true
+	}
+	resources?:   #ResourceLimits
+	environment?: [string]: string
 }
 
 // #PortainerConfig defines Portainer container management settings

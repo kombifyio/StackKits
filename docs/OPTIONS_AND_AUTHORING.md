@@ -20,7 +20,7 @@ version, rollout, and lifecycle state.
 | Concern | Release value |
 | --- | --- |
 | Default PaaS | `coolify` |
-| Explicit PaaS alternative | `dokploy` |
+| Explicit PaaS alternatives | `komodo`, `dokploy` |
 | Invalid normal PaaS values | `dockge`, `none` |
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Base/Modern/HA PaaS. |
 | Low compute tier | Keeps the Coolify platform contract and gates heavier apps; it does not switch to Dockge. |

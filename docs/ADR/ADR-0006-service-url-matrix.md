@@ -14,7 +14,7 @@ StackKits need to produce correct service URLs for every combination of domain m
 
 Currently only selected paths are implemented and verified. The normal matrix covers custom-domain, kombify.me, browser-native local defaults, and explicit local DNS across the supported routing backends.
 
-2026-05-17 status note: local SK-S1 currently proves the StackKit-owned routing fallback plus auth/setup product guards. The complete Cubi/Coolify-managed L3 application-layer path is a P0 implementation blocker and must not be inferred as verified from this ADR.
+2026-05-19 status note: the default BaseKit contract is Coolify-first. StackKit-owned system and L3 apps must be registered through the selected PaaS adapter, and the standalone StackKit-owned routing fallback is explicit opt-in only. Live release evidence must prove Coolify external IDs/routes before claiming the Coolify-managed application-layer path is production-ready.
 
 ## Decision
 

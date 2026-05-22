@@ -140,6 +140,12 @@ variable "enable_dokploy_apps" {
   default     = false
 }
 
+variable "enable_komodo" {
+  type        = bool
+  description = "Enable Komodo PAAS (explicit StackKits alternative)"
+  default     = false
+}
+
 variable "enable_dockge" {
   type        = bool
   description = "Enable experimental Dockge compose manager (nonstandard; does not replace the required PaaS)"
@@ -462,14 +468,31 @@ variable "enable_coolify" {
 
 variable "reverse_proxy_backend" {
   type        = string
-  description = "Which Traefik instance routes platform services: 'standalone' (own Traefik), 'dokploy' (Dokploy's Traefik), 'coolify' (Coolify's Traefik)"
+  description = "Which Traefik instance routes platform services: 'standalone' (own Traefik), 'stackkit' (StackKit-owned Traefik for adapters without router ownership), 'dokploy' (Dokploy's Traefik), 'coolify' (Coolify's Traefik)"
   default     = "coolify"
 }
 
 variable "paas" {
   type        = string
-  description = "Required PAAS platform selection: 'dokploy' or 'coolify'"
+  description = "Required PAAS platform selection: 'dokploy', 'coolify', or explicit 'komodo'"
   default     = "coolify"
+}
+
+variable "enable_platform_fallback" {
+  type        = bool
+  description = "Explicitly enable the standalone Compose fallback for StackKit-owned platform apps"
+  default     = false
+}
+
+variable "platform_fallback_mode" {
+  type        = string
+  description = "Platform fallback mode: 'disabled' or 'standalone-compose'"
+  default     = "disabled"
+
+  validation {
+    condition     = contains(["disabled", "standalone-compose"], var.platform_fallback_mode)
+    error_message = "platform_fallback_mode must be 'disabled' or 'standalone-compose'."
+  }
 }
 
 variable "server_lan_ip" {
@@ -486,34 +509,44 @@ locals {
   # Networking mode
   is_host        = var.network_mode == "host"
   workspace_root = abspath("${path.module}/..")
+  stackkit_state_dir = "${local.workspace_root}/.stackkit"
+  coolify_local_endpoint = "http://127.0.0.1:8000"
+  bridge_docker_host = replace(replace(var.docker_host, "tcp://127.0.0.1:", "tcp://host.docker.internal:"), "tcp://localhost:", "tcp://host.docker.internal:")
+  container_docker_host = trimspace(var.docker_host) != "" ? (local.is_host ? var.docker_host : local.bridge_docker_host) : "unix:///var/run/docker.sock"
 
   # Reverse proxy backend: determines which Traefik routes platform services
   # - "standalone": StackKit deploys its own Traefik (explicit fallback)
+  # - "stackkit": StackKit deploys Traefik for a PaaS adapter without router ownership
   # - "dokploy": platform services attach to Dokploy's Traefik network
   # - "coolify": platform services attach to Coolify's Traefik network (default)
   rp_standalone = var.reverse_proxy_backend == "standalone"
+  rp_stackkit   = var.reverse_proxy_backend == "stackkit"
   rp_dokploy    = var.reverse_proxy_backend == "dokploy"
   rp_coolify    = var.reverse_proxy_backend == "coolify"
-  # Coolify is the PaaS adapter, but StackKit owns the core/admin routing
-  # surface. Current Coolify installer releases expose the app on :8000 and do
-  # not reliably start a `coolify-proxy` container in one-click VPS flows.
-  coolify_stackkit_router  = local.rp_coolify
-  stackkit_traefik_enabled = var.enable_traefik || local.coolify_stackkit_router
-  direct_compose_deploy    = local.is_localhost_domain || local.rp_standalone || local.coolify_stackkit_router
-  platform_adapter         = (local.is_localhost_domain || local.rp_standalone) ? "none" : var.paas
+  platform_fallback_contract_valid = (
+    (!var.enable_platform_fallback && var.platform_fallback_mode == "disabled") ||
+    (var.enable_platform_fallback && var.platform_fallback_mode == "standalone-compose")
+  )
+  platform_fallback_standalone = var.enable_platform_fallback && var.platform_fallback_mode == "standalone-compose"
+  stackkit_traefik_enabled     = (var.enable_traefik && (local.rp_standalone || local.rp_stackkit)) || local.platform_fallback_standalone
+  dokploy_traefik_enabled      = var.enable_dokploy && local.rp_dokploy
+  direct_compose_deploy        = false
+  platform_adapter             = local.platform_fallback_standalone ? "none" : var.paas
+  l3_platform_adapter          = local.platform_fallback_standalone ? "none" : var.paas
   auth_middleware          = var.enable_tinyauth ? "tinyauth@docker" : ""
+  tinyauth_forwardauth_address = local.is_host ? "http://127.0.0.1:${local.host_ports.tinyauth}/api/auth/traefik" : "http://tinyauth:3000/api/auth/traefik"
   base_hub_bootstrap_open  = var.enable_dashboard && (local.is_localhost_domain || local.is_local_dns_domain) && !var.protect_base_hub
-  base_hub_auth_middleware = var.enable_tinyauth && !local.base_hub_bootstrap_open ? "tinyauth@docker" : ""
-  base_hub_unprotected     = var.enable_dashboard && (local.base_hub_auth_middleware == "")
-  # Local first setup must not depend on a platform API token. The Node Hub is
-  # directly generated for browser-native .localhost rollouts, but public
-  # service routes still go through TinyAuth when identity is enabled.
-  platform_hub_managed = var.enable_dashboard && local.rp_dokploy && !local.is_localhost_domain
-  platform_hub_fallback = var.enable_dashboard && !local.platform_hub_managed
+  base_hub_uses_dynamic_protection = var.enable_tinyauth && (local.is_localhost_domain || local.is_local_dns_domain)
+  base_hub_auth_middleware = var.enable_tinyauth ? (local.base_hub_uses_dynamic_protection ? "base-hub-auth@file" : "tinyauth@docker") : ""
+  base_hub_unprotected     = var.enable_dashboard && (local.base_hub_bootstrap_open || local.base_hub_auth_middleware == "")
+  stackkit_dynamic_middleware_enabled = local.stackkit_traefik_enabled || local.base_hub_uses_dynamic_protection
+  platform_hub_managed     = var.enable_dashboard
+  platform_hub_fallback    = false
 
   # The Docker network that platform services connect to for Traefik routing.
-  # Standalone: base_net. Dokploy: dokploy-network created by StackKit before
-  # Dokploy boots. Coolify: coolify network created by the Coolify installer.
+  # Standalone/StackKit: base_net. Dokploy: dokploy-network created by
+  # StackKit before Dokploy boots. Coolify: coolify network created by the
+  # Coolify installer.
   traefik_network_name = (
     local.rp_dokploy ? "dokploy-network" :
     local.rp_coolify ? "coolify" :
@@ -525,13 +558,16 @@ locals {
   routing_network = (
     local.is_host ? "" :
     local.rp_dokploy ? docker_network.dokploy_network[0].name :
-    (local.rp_standalone || local.coolify_stackkit_router) ? docker_network.base_net[0].name :
+    (local.rp_standalone || local.rp_stackkit || local.platform_fallback_standalone) ? docker_network.base_net[0].name :
     data.docker_network.paas_traefik[0].name
   )
 
   # Protocol and entrypoint: local-only StackKits use HTTP; kombify.me is HTTPS at the Cloudflare edge.
-  proto      = var.enable_https || local.is_kombify_me ? "https" : "http"
-  entrypoint = var.enable_https ? "websecure" : "web"
+  # Coolify's managed Traefik uses http/https entrypoints; StackKit/Dokploy Traefik uses web/websecure.
+  proto                    = var.enable_https || local.is_kombify_me ? "https" : "http"
+  traefik_http_entrypoint  = local.rp_coolify ? "http" : "web"
+  traefik_https_entrypoint = local.rp_coolify ? "https" : "websecure"
+  entrypoint               = var.enable_https ? local.traefik_https_entrypoint : local.traefik_http_entrypoint
   is_localhost_domain = var.domain == "localhost" || endswith(var.domain, ".localhost")
   is_local_dns_domain = !local.is_kombify_me && !local.is_localhost_domain && (
     var.domain == "home" ||
@@ -557,6 +593,10 @@ locals {
   tinyauth_session_secret_effective = var.enable_tinyauth ? (var.tinyauth_session_secret != "" ? var.tinyauth_session_secret : try(random_password.tinyauth_session_secret[0].result, "")) : ""
   vaultwarden_admin_token_effective = var.enable_vaultwarden ? (var.vaultwarden_admin_token != "" ? var.vaultwarden_admin_token : try(random_password.vaultwarden_admin[0].result, "")) : ""
   pocketid_internal_oidc_origin     = local.is_host ? "http://127.0.0.1:${local.host_ports.pocketid}" : "http://pocketid:1411"
+  coolify_api_endpoint              = "http://127.0.0.1:8000"
+  coolify_root_email                = var.admin_email
+  dokploy_api_endpoint              = "http://127.0.0.1:${local.host_ports.dokploy}"
+  komodo_api_endpoint               = "http://127.0.0.1:9120"
 
   # In host mode, all containers share the host network. Services that would
   # conflict on the same port need unique port assignments.
@@ -564,6 +604,7 @@ locals {
     tinyauth  = 3004  # TinyAuth moved from 3000; Dokploy v0.29.x has a bundled 3000 server constant
     pocketid  = 1411  # Pocket ID (set via PORT env)
     dokploy   = 3000  # Dokploy dashboard (current image listens on 3000)
+    komodo    = 9120  # Komodo Core UI/API
     dockge    = 5001  # Dockge native port (low compute tier)
     kuma      = 3001  # Kuma native port
     postgres  = 5432  # PostgreSQL standard
@@ -580,7 +621,7 @@ locals {
     immich_redis = 6380  # Immich Redis (6379 taken by Dokploy)
   }
 
-  setup_immich_url = local.is_host ? "http://127.0.0.1:${local.host_ports.immich}" : "http://immich:2283"
+  setup_immich_url = local.is_host ? "http://127.0.0.1:${local.host_ports.immich}" : (local.rp_coolify ? "http://immich-server:2283" : "http://immich:2283")
 
   # Host-mode hint for dashboard
   host_mode_hint = local.is_host ? "<div style=\"background:#78350F;border:1px solid #D97706;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#FEF3C7;\"><strong>&#9888; Host Networking Mode</strong> &mdash; Your VPS does not support Docker bridge networking. All containers run on the host network. For full network isolation, consider a KVM-based VPS (Hetzner, DigitalOcean, Linode).</div>" : ""
@@ -674,6 +715,9 @@ locals {
 %{if var.enable_dokploy~}
                 ("Dokploy", f"${local.proto}://dokploy.{domain}"),
 %{endif~}
+%{if var.enable_komodo~}
+                ("Komodo", f"${local.proto}://komodo.{domain}"),
+%{endif~}
 %{if var.enable_dockge~}
                 ("Dockge", f"${local.proto}://dockge.{domain}"),
 %{endif~}
@@ -721,6 +765,7 @@ locals {
           - traefik-network
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.kuma.rule=Host(`${local.domains.kuma}`)"
           - "traefik.http.routers.kuma.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
@@ -790,6 +835,9 @@ locals {
 %{endif~}
 %{if var.enable_dokploy~}
                 ("Dokploy", f"${local.proto}://dokploy.{domain}"),
+%{endif~}
+%{if var.enable_komodo~}
+                ("Komodo", f"${local.proto}://komodo.{domain}"),
 %{endif~}
 %{if var.enable_dockge~}
                 ("Dockge", f"${local.proto}://dockge.{domain}"),
@@ -864,6 +912,7 @@ locals {
           - traefik-network
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.whoami.rule=Host(`${local.domains.whoami}`)"
           - "traefik.http.routers.whoami.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
@@ -899,6 +948,7 @@ locals {
           - vaultwarden-data:/data
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.vaultwarden.rule=Host(`${local.domains.vault}`)"
           - "traefik.http.routers.vaultwarden.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
@@ -975,6 +1025,7 @@ locals {
           - ${var.media_path}:/media:ro
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.jellyfin.rule=Host(`${local.domains.media}`)"
           - "traefik.http.routers.jellyfin.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
@@ -1060,6 +1111,7 @@ locals {
           - /etc/localtime:/etc/localtime:ro
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.immich.rule=Host(`${local.domains.photos}`)"
           - "traefik.http.routers.immich.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
@@ -1377,7 +1429,7 @@ locals {
           <p class="intro">Use this node-local hub for first setup, recovery, service access, and the public guides for everything installed by this StackKit.</p>
         </header>
         ${local.is_kombify_me ? "<div class=\"banner\">Public access is using kombify.me routes. Keep service ownership and app-level admin setup tight before sharing links.</div>" : ""}
-        ${local.base_hub_unprotected ? "<div class=\"banner protection-banner\"><div><strong>Diese Seite ist aktuell ungeschützt.</strong> Base bleibt im Bootstrap absichtlich offen, damit PocketID und die ersten Setup-Aktionen erreichbar sind, bevor eine Identität existiert.</div><div class=\"banner-actions\"><a class=\"link-pill\" href=\"${local.proto}://${local.domains.id}/setup\" target=\"_blank\" rel=\"noreferrer\">PocketID Setup</a><span>Nach dem Owner-Setup <code>protect_base_hub=true</code> setzen und erneut anwenden, um Base hinter TinyAuth zu legen.</span></div></div>" : ""}
+        ${local.base_hub_unprotected ? "<div id=\"base-hub-protection-banner\" class=\"banner protection-banner\"><div><strong>Diese Seite ist aktuell ungeschützt.</strong> Base bleibt im Bootstrap offen, damit PocketID und die ersten Setup-Aktionen erreichbar sind, bevor eine Identität existiert.</div><div class=\"banner-actions\"><a class=\"link-pill\" href=\"${local.proto}://${local.domains.id}/setup\" target=\"_blank\" rel=\"noreferrer\">PocketID Setup</a><form class=\"setup-form\" data-base-hub-protection method=\"post\" action=\"/api/v1/setup/base-hub/protection\"><button class=\"setup-action\" type=\"submit\">Base Hub schützen</button><span class=\"setup-result\" aria-live=\"polite\"></span></form><span>Nach dem Owner-Setup klickst du hier. StackKit legt Base und die node-lokale API automatisch hinter TinyAuth.</span></div></div>" : ""}
         <section class="top-grid" aria-label="Getting started and node overview">
           <div class="panel">
             <h2>Getting Started</h2>
@@ -1406,7 +1458,7 @@ locals {
           <div class="links">
             <a class="quick-link" href="https://docs.kombify.io/guides/stackkits/node-hub" target="_blank" rel="noreferrer"><strong>Node Hub guide</strong><span>Recover, verify, and navigate the server</span></a>
             ${var.enable_homepage ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.home}\" target=\"_blank\" rel=\"noreferrer\"><strong>Homepage</strong><span>Secondary homelab start page</span></a>" : ""}
-            ${var.enable_dokploy ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.dokploy}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Dokploy</span></a>" : ""}${var.enable_coolify ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.coolify}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Coolify</span></a>" : ""}${var.enable_dockge ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.dockge}\" target=\"_blank\" rel=\"noreferrer\"><strong>Compose stacks</strong><span>Open Dockge</span></a>" : ""}
+            ${var.enable_dokploy ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.dokploy}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Dokploy</span></a>" : ""}${var.enable_komodo ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.komodo}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Komodo</span></a>" : ""}${var.enable_coolify ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.coolify}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Coolify</span></a>" : ""}${var.enable_dockge ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.dockge}\" target=\"_blank\" rel=\"noreferrer\"><strong>Compose stacks</strong><span>Open Dockge</span></a>" : ""}
             ${var.enable_uptime_kuma ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.kuma}\" target=\"_blank\" rel=\"noreferrer\"><strong>Status</strong><span>Open Uptime Kuma</span></a>" : ""}
           </div>
         </section>
@@ -1431,12 +1483,31 @@ locals {
       </main>
       <footer>Built with <a href="https://stackkits.io" target="_blank" rel="noreferrer">StackKits</a> &nbsp;&middot;&nbsp; ${var.domain}</footer>
       <script>
-        document.querySelectorAll('form[data-setup-action]').forEach(function(form) {
+        function markBaseHubProtected() {
+          var banner = document.getElementById('base-hub-protection-banner');
+          if (banner) banner.style.display = 'none';
+        }
+
+        async function refreshBaseHubProtection() {
+          var banner = document.getElementById('base-hub-protection-banner');
+          if (!banner) return;
+          try {
+            var response = await fetch('/api/v1/setup/base-hub/protection', { headers: { 'Accept': 'application/json' } });
+            var payload = await response.json().catch(function() { return {}; });
+            if (response.ok && payload.data && payload.data.protected) {
+              markBaseHubProtected();
+            }
+          } catch (error) {}
+        }
+
+        document.querySelectorAll('form[data-setup-action], form[data-base-hub-protection]').forEach(function(form) {
           form.addEventListener('submit', async function(event) {
             event.preventDefault();
             var button = form.querySelector('button');
             var result = form.querySelector('.setup-result');
             if (!button || !result) return;
+            var isBaseHubProtection = form.hasAttribute('data-base-hub-protection');
+            var keepDisabled = false;
             button.disabled = true;
             result.className = 'setup-result';
             result.textContent = 'Running';
@@ -1448,16 +1519,23 @@ locals {
                 throw new Error(message);
               }
               var data = payload.data || {};
-              result.textContent = data.status === 'completed' ? 'Done' : (data.status || 'Ready');
+              if (isBaseHubProtection && data.protected) {
+                result.textContent = 'Geschützt';
+                keepDisabled = true;
+                window.setTimeout(markBaseHubProtected, 700);
+              } else {
+                result.textContent = data.status === 'completed' ? 'Done' : (data.status || 'Ready');
+              }
               result.classList.add('ok');
             } catch (error) {
               result.textContent = error && error.message ? error.message : 'Setup failed';
               result.classList.add('err');
             } finally {
-              button.disabled = false;
+              if (!keepDisabled) button.disabled = false;
             }
           });
         });
+        refreshBaseHubProtection();
       </script>
     </body>
     </html>
@@ -1479,6 +1557,7 @@ locals {
           - "stackkit.layer=2-platform"
           - "stackkit.service=dashboard"
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.dashboard.rule=Host(`${local.domains.base}`)"
           - "traefik.http.routers.dashboard.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
@@ -1533,6 +1612,7 @@ locals {
           - "stackkit.layer=2-platform"
           - "stackkit.service=stackkit-server"
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.stackkit-server.rule=Host(`${local.domains.base}`) && (PathPrefix(`/api`) || Path(`/health`))"
           - "traefik.http.routers.stackkit-server.entrypoints=${local.entrypoint}"
           - "traefik.http.routers.stackkit-server.priority=100"
@@ -1541,12 +1621,6 @@ locals {
 %{endif~}
           - "traefik.http.routers.stackkit-server.middlewares=${local.base_hub_auth_middleware}"
           - "traefik.http.services.stackkit-server.loadbalancer.server.port=8082"
-        healthcheck:
-          test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8082/health || exit 1"]
-          interval: 30s
-          timeout: 5s
-          retries: 3
-          start_period: 10s
         networks:
           - stackkit
 
@@ -1587,6 +1661,7 @@ locals {
     base    = "dashboard"
     home    = "homepage"
     id      = "pocketid"
+    komodo  = "komodo-core"
     kuma    = "kuma"
     media   = "jellyfin"
     photos  = "immich"
@@ -1672,8 +1747,16 @@ locals {
 # =============================================================================
 
 provider "docker" {
-  # Uses local Docker socket (unix:///var/run/docker.sock by default)
-  # OpenTofu runs on the target server via SSH
+  host = var.docker_host != "" ? var.docker_host : "unix:///var/run/docker.sock"
+}
+
+resource "null_resource" "platform_fallback_contract" {
+  lifecycle {
+    precondition {
+      condition     = local.platform_fallback_contract_valid
+      error_message = "platform fallback settings are inconsistent: enable_platform_fallback=false requires platform_fallback_mode=\"disabled\"; enable_platform_fallback=true requires platform_fallback_mode=\"standalone-compose\"."
+    }
+  }
 }
 
 # =============================================================================
@@ -1724,7 +1807,7 @@ resource "docker_network" "dokploy_network" {
 # When using Coolify's Traefik, reference its existing Docker network.
 # Platform services connect to this network so their Traefik labels are discovered.
 data "docker_network" "paas_traefik" {
-  count      = (!local.is_host && local.rp_coolify && !local.coolify_stackkit_router) ? 1 : 0
+  count      = (!local.is_host && local.rp_coolify && !local.platform_fallback_standalone) ? 1 : 0
   name       = local.traefik_network_name
   depends_on = [null_resource.coolify_traefik_ready]
 }
@@ -1970,6 +2053,15 @@ resource "docker_container" "kombify_point" {
     label = "traefik.enable"
     value = "true"
   }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
   labels {
     label = "traefik.http.routers.kombify-point.rule"
     value = "Host(`${local.domains.point}`)"
@@ -2077,6 +2169,68 @@ resource "docker_volume" "dokploy_postgres_data" {
   }
 }
 
+# Layer 2: Platform (Komodo - explicit PaaS alternative)
+resource "docker_volume" "komodo_mongo_data" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-mongo-data"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_mongo_config" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-mongo-config"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_keys" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-keys"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_backups" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-backups"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_periphery_root" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-periphery-root"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+}
+
 # Layer 2: Platform (Dockge - optional experimental compose manager)
 resource "docker_volume" "dockge_data" {
   count = var.enable_dockge ? 1 : 0
@@ -2114,9 +2268,14 @@ resource "docker_image" "traefik" {
   name  = "traefik:v3"
 }
 
+resource "docker_image" "dokploy_traefik" {
+  count = local.dokploy_traefik_enabled ? 1 : 0
+  name  = "traefik:v3"
+}
+
 resource "local_file" "traefik_local_tls" {
   count           = local.use_step_ca ? 1 : 0
-  filename        = abspath("${path.module}/traefik-local-tls.yml")
+  filename        = abspath("${path.module}/traefik-dynamic/local-tls.yml")
   file_permission = "0440"
   content         = <<-EOT
     tls:
@@ -2131,9 +2290,69 @@ resource "local_file" "traefik_local_tls" {
   EOT
 }
 
+resource "local_file" "traefik_dynamic_stackkit" {
+  count           = local.stackkit_dynamic_middleware_enabled ? 1 : 0
+  filename        = abspath("${path.module}/traefik-dynamic/stackkit.yml")
+  file_permission = "0640"
+  content         = <<-EOT
+    http:
+%{if local.rp_coolify && var.enable_coolify~}
+      routers:
+        stackkit-coolify:
+          rule: "Host(`${local.domains.coolify}`)"
+          entryPoints:
+            - "${local.entrypoint}"
+%{if local.auth_middleware != ""~}
+          middlewares:
+            - "${local.auth_middleware}"
+%{endif~}
+          service: stackkit-coolify
+%{if var.enable_https~}
+          tls:
+%{if local.use_step_ca~}
+            options: default
+%{else~}
+            certResolver: letsencrypt
+%{endif~}
+%{endif~}
+      services:
+        stackkit-coolify:
+          loadBalancer:
+            servers:
+              - url: "http://coolify:8080"
+%{endif~}
+      middlewares:
+        base-hub-auth:
+%{if !var.enable_tinyauth || local.base_hub_bootstrap_open~}
+          headers:
+            customResponseHeaders:
+              X-StackKit-Base-Hub-Mode: "bootstrap"
+%{else~}
+          forwardAuth:
+            address: "${local.tinyauth_forwardauth_address}"
+            trustForwardHeader: true
+            authResponseHeaders:
+              - "X-User"
+              - "X-Email"
+%{endif~}
+  EOT
+}
+
+resource "local_file" "coolify_dynamic_stackkit" {
+  count           = local.rp_coolify && local.base_hub_uses_dynamic_protection ? 1 : 0
+  filename        = "/data/coolify/proxy/dynamic/stackkit.yml"
+  file_permission = "0640"
+  content         = local_file.traefik_dynamic_stackkit[0].content
+
+  depends_on = [
+    null_resource.coolify_install,
+    local_file.traefik_dynamic_stackkit,
+  ]
+}
+
 resource "docker_container" "traefik" {
   count      = local.stackkit_traefik_enabled ? 1 : 0
-  depends_on = [null_resource.step_ca_local_certificate, local_file.traefik_local_tls]
+  depends_on = [null_resource.step_ca_local_certificate, local_file.traefik_local_tls, local_file.traefik_dynamic_stackkit]
   name       = "traefik"
   image      = docker_image.traefik[0].image_id
 
@@ -2210,14 +2429,11 @@ resource "docker_container" "traefik" {
     }
   }
 
-  dynamic "mounts" {
-    for_each = local.use_step_ca ? [1] : []
-    content {
-      type      = "bind"
-      source    = local_file.traefik_local_tls[0].filename
-      target    = "/etc/traefik/local-tls.yml"
-      read_only = true
-    }
+  mounts {
+    type      = "bind"
+    source    = abspath("${path.module}/traefik-dynamic")
+    target    = "/etc/traefik/dynamic"
+    read_only = true
   }
 
   mounts {
@@ -2243,10 +2459,11 @@ resource "docker_container" "traefik" {
     "--entrypoints.web.http.redirections.entrypoint.to=websecure",
     "--entrypoints.web.http.redirections.entrypoint.scheme=https",
   ] : [],
-  # Static Step-CA certificate for local HTTPS.
-  local.use_step_ca ? [
-    "--providers.file.filename=/etc/traefik/local-tls.yml",
-  ] : [],
+  # Dynamic StackKit middleware plus optional local TLS config.
+  [
+    "--providers.file.directory=/etc/traefik/dynamic",
+    "--providers.file.watch=true",
+  ],
   # Let's Encrypt resolver for public custom domains only.
   var.enable_https && !local.use_step_ca ? [
     "--certificatesresolvers.letsencrypt.acme.email=${var.acme_email}",
@@ -2309,6 +2526,14 @@ resource "docker_container" "traefik" {
     value = "true"
   }
 
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
   labels {
     label = "traefik.http.routers.traefik.rule"
     value = "Host(`${local.domains.traefik}`)"
@@ -2346,12 +2571,127 @@ resource "docker_container" "traefik" {
   }
 }
 
+resource "null_resource" "dokploy_traefik_dynamic_dir" {
+  count = local.dokploy_traefik_enabled ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "mkdir -p \"${path.module}/traefik-dynamic\" && chmod 755 \"${path.module}/traefik-dynamic\""
+  }
+}
+
+resource "docker_container" "dokploy_traefik" {
+  count      = local.dokploy_traefik_enabled ? 1 : 0
+  depends_on = [docker_network.dokploy_network, null_resource.dokploy_traefik_dynamic_dir, local_file.traefik_dynamic_stackkit]
+  name       = "dokploy-traefik"
+  image      = docker_image.dokploy_traefik[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    drop = ["ALL"]
+    add  = ["NET_BIND_SERVICE"]
+  }
+
+  read_only = true
+
+  ports {
+    internal = 80
+    external = 80
+    protocol = "tcp"
+  }
+
+  ports {
+    internal = 443
+    external = 443
+    protocol = "tcp"
+  }
+
+  ports {
+    internal = 8080
+    external = 8080
+    protocol = "tcp"
+  }
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.dokploy_network[0].name
+    }
+  }
+
+  mounts {
+    type      = "bind"
+    source    = abspath("${path.module}/traefik-dynamic")
+    target    = "/etc/traefik/dynamic"
+    read_only = true
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/var/run/docker.sock"
+    source    = "/var/run/docker.sock"
+    read_only = true
+  }
+
+  command = concat([
+    "--api.dashboard=true",
+    "--api.insecure=true",
+    "--ping=true",
+    "--providers.docker=true",
+    "--providers.docker.exposedbydefault=false",
+    "--providers.docker.network=${local.traefik_network_name}",
+    "--entrypoints.web.address=:80",
+    "--entrypoints.websecure.address=:443",
+    "--providers.file.directory=/etc/traefik/dynamic",
+    "--providers.file.watch=true",
+    "--log.level=INFO",
+    "--accesslog=true",
+  ],
+  var.enable_https ? [
+    "--entrypoints.web.http.redirections.entrypoint.to=websecure",
+    "--entrypoints.web.http.redirections.entrypoint.scheme=https",
+  ] : [],
+  var.enable_https && !local.use_step_ca ? [
+    "--certificatesresolvers.letsencrypt.acme.email=${var.acme_email}",
+    "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme.json",
+  ] : [])
+
+  env = [
+    "TZ=Europe/Berlin",
+    "DOCKER_API_VERSION=1.44",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dokploy-traefik"
+  }
+
+  healthcheck {
+    test         = ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "10s"
+  }
+}
+
 # Gate resource: ensures the reverse proxy (whichever backend) is ready before
 # platform services start. Services depend on this instead of docker_container.traefik.
 resource "null_resource" "reverse_proxy_ready" {
   depends_on = [
     docker_container.traefik,
+    docker_container.dokploy_traefik,
     docker_container.dokploy,
+    docker_container.komodo_core,
     null_resource.coolify_traefik_ready,
   ]
 
@@ -2362,14 +2702,12 @@ resource "null_resource" "reverse_proxy_ready" {
       for i in $(seq 1 60); do
         if [ "${var.reverse_proxy_backend}" = "standalone" ]; then
           docker ps --filter "name=traefik" --filter "status=running" -q | grep -q . && echo "Traefik ready" && exit 0
+        elif [ "${var.reverse_proxy_backend}" = "stackkit" ]; then
+          docker ps --filter "name=traefik" --filter "status=running" -q | grep -q . && echo "StackKit Traefik ready" && exit 0
         elif [ "${var.reverse_proxy_backend}" = "dokploy" ]; then
-          docker ps --filter "name=dokploy" --filter "status=running" -q | grep -q . && echo "Dokploy Traefik ready" && exit 0
+          docker ps --filter "name=dokploy-traefik" --filter "status=running" -q | grep -q . && echo "Dokploy Traefik ready" && exit 0
         elif [ "${var.reverse_proxy_backend}" = "coolify" ]; then
-          if [ "${local.coolify_stackkit_router}" = "true" ]; then
-            docker ps --filter "name=traefik" --filter "status=running" -q | grep -q . && echo "StackKit Traefik ready for Coolify-backed routing" && exit 0
-          else
-            docker ps --filter "name=coolify-proxy" --filter "status=running" -q | grep -q . && echo "Coolify Traefik ready" && exit 0
-          fi
+          docker ps --filter "name=coolify-proxy" --filter "status=running" -q | grep -q . && echo "Coolify Traefik ready" && exit 0
         fi
         sleep 3
       done
@@ -2412,7 +2750,7 @@ resource "docker_container" "tinyauth" {
 
   # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
   dynamic "networks_advanced" {
-    for_each = (!local.is_host && !local.rp_standalone) ? [1] : []
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
       name = local.routing_network
     }
@@ -2470,6 +2808,14 @@ resource "docker_container" "tinyauth" {
     value = "true"
   }
 
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
   labels {
     label = "traefik.http.routers.tinyauth.rule"
     value = "Host(`${local.domains.auth}`)"
@@ -2496,7 +2842,7 @@ resource "docker_container" "tinyauth" {
   # ForwardAuth middleware
   labels {
     label = "traefik.http.middlewares.tinyauth.forwardauth.address"
-    value = local.is_host ? "http://127.0.0.1:${local.host_ports.tinyauth}/api/auth/traefik" : "http://tinyauth:3000/api/auth/traefik"
+    value = local.tinyauth_forwardauth_address
   }
 
   labels {
@@ -2569,7 +2915,7 @@ resource "docker_container" "pocketid" {
 
   # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
   dynamic "networks_advanced" {
-    for_each = (!local.is_host && !local.rp_standalone) ? [1] : []
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
       name = local.routing_network
     }
@@ -2602,6 +2948,14 @@ resource "docker_container" "pocketid" {
   labels {
     label = "traefik.enable"
     value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
   }
 
   labels {
@@ -2697,6 +3051,30 @@ resource "null_resource" "pocketid_tinyauth_oidc_client" {
 resource "random_password" "dokploy_db_password" {
   count   = var.enable_dokploy ? 1 : 0
   length  = 32
+  special = false
+}
+
+resource "random_password" "dokploy_better_auth_secret" {
+  count   = var.enable_dokploy ? 1 : 0
+  length  = 64
+  special = false
+}
+
+resource "random_password" "komodo_db_password" {
+  count   = var.enable_komodo ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "komodo_jwt_secret" {
+  count   = var.enable_komodo ? 1 : 0
+  length  = 64
+  special = false
+}
+
+resource "random_password" "komodo_webhook_secret" {
+  count   = var.enable_komodo ? 1 : 0
+  length  = 64
   special = false
 }
 
@@ -2891,6 +3269,8 @@ resource "local_file" "dokploy_env" {
     REDIS_HOST=${local.is_host ? "127.0.0.1" : "dokploy-redis"}
     REDIS_PORT=6379
     REDIS_URL=redis://${local.is_host ? "127.0.0.1" : "dokploy-redis"}:6379
+    BETTER_AUTH_SECRET=${try(random_password.dokploy_better_auth_secret[0].result, "")}
+    BETTER_AUTH_URL=${local.dokploy_api_endpoint}
     TRPC_PLAYGROUND=false
     LETSENCRYPT_EMAIL=${var.acme_email != "" ? var.acme_email : var.admin_email}
     TRAEFIK_ENABLED=true
@@ -2906,6 +3286,13 @@ resource "docker_container" "dokploy" {
   restart = "unless-stopped"
 
   user = "0:0"
+
+  ports {
+    internal = 3000
+    external = local.host_ports.dokploy
+    ip       = "127.0.0.1"
+    protocol = "tcp"
+  }
 
   security_opts = ["no-new-privileges:true"]
 
@@ -2954,6 +3341,8 @@ resource "docker_container" "dokploy" {
     "REDIS_HOST=${local.is_host ? "127.0.0.1" : "dokploy-redis"}",
     "REDIS_PORT=6379",
     "REDIS_URL=redis://${local.is_host ? "127.0.0.1" : "dokploy-redis"}:6379",
+    "BETTER_AUTH_SECRET=${try(random_password.dokploy_better_auth_secret[0].result, "")}",
+    "BETTER_AUTH_URL=${local.dokploy_api_endpoint}",
     "NODE_ENV=production",
     "PORT=${local.is_host ? tostring(local.host_ports.dokploy) : "3000"}",
     "TRPC_PLAYGROUND=false",
@@ -2975,6 +3364,14 @@ resource "docker_container" "dokploy" {
   labels {
     label = "traefik.enable"
     value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
   }
 
   labels {
@@ -3029,21 +3426,519 @@ resource "docker_container" "dokploy" {
 # =============================================================================
 # LAYER 2: PLATFORM - DOKPLOY ADMIN INIT
 # =============================================================================
-# One-shot container that creates the Dokploy admin user via its tRPC API.
-# Runs once after Dokploy starts, waits for health, then calls createAdmin.
+# Synchronous no-UI bootstrap that creates/confirms the owner, mints an API key,
+# and writes the StackKit platform contract. Secrets are passed via environment
+# and never printed by the script.
 
-resource "docker_image" "curl" {
+resource "null_resource" "dokploy_platform_config_dir" {
   count = var.enable_dokploy ? 1 : 0
-  name  = "curlimages/curl:latest"
+
+  provisioner "local-exec" {
+    command = "mkdir -p \"${path.module}/.stackkit\" && chmod 700 \"${path.module}/.stackkit\""
+  }
 }
 
-resource "docker_container" "init_dokploy" {
+resource "docker_image" "dokploy_bootstrap" {
   count = var.enable_dokploy ? 1 : 0
-  name  = "init-dokploy"
-  image = docker_image.curl[0].image_id
+  name  = "node:22-alpine"
+}
 
-  restart = "no"
-  rm      = true
+resource "local_sensitive_file" "dokploy_bootstrap_env" {
+  count               = var.enable_dokploy ? 1 : 0
+  filename            = "${path.module}/.stackkit/dokploy-bootstrap.env"
+  file_permission     = "0600"
+  directory_permission = "0700"
+  content             = <<-EOF
+    DOKPLOY_BOOTSTRAP_URL=http://${local.is_host ? "127.0.0.1" : "dokploy"}:${local.is_host ? local.host_ports.dokploy : 3000}
+    DOKPLOY_API_ENDPOINT=${local.dokploy_api_endpoint}
+    DOKPLOY_AUTH_ORIGIN=${local.dokploy_api_endpoint}
+    DOKPLOY_ADMIN_EMAIL=${var.admin_email}
+    DOKPLOY_ADMIN_PASSWORD=${var.admin_password_plaintext}
+    DOKPLOY_PLATFORM_CONFIG_PATH=/stackkit-out/platform.json
+  EOF
+
+  depends_on = [
+    null_resource.dokploy_platform_config_dir,
+  ]
+}
+
+resource "null_resource" "dokploy_platform_bootstrap" {
+  count = var.enable_dokploy ? 1 : 0
+
+  triggers = {
+    dokploy_container = docker_container.dokploy[0].id
+    bootstrap_version = "dokploy-headless-api-v4"
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      bootstrap_env="${local_sensitive_file.dokploy_bootstrap_env[0].filename}"
+      trap 'rm -f "$bootstrap_env"' EXIT
+      docker rm -f init-dokploy >/dev/null 2>&1 || true
+      docker run --name init-dokploy --rm -i \
+        --network "${local.is_host ? "host" : local.routing_network}" \
+        -v "${abspath("${path.module}/.stackkit")}:/stackkit-out" \
+        --env-file "$bootstrap_env" \
+        ${docker_image.dokploy_bootstrap[0].name} node <<'JS'
+      const fs = require("fs");
+      const path = require("path");
+
+      const baseUrl = requiredEnv("DOKPLOY_BOOTSTRAP_URL").replace(/\/+$/, "");
+      const apiEndpoint = requiredEnv("DOKPLOY_API_ENDPOINT").replace(/\/+$/, "");
+      const authOrigin = requiredEnv("DOKPLOY_AUTH_ORIGIN").replace(/\/+$/, "");
+      const adminEmail = requiredEnv("DOKPLOY_ADMIN_EMAIL");
+      const adminPassword = requiredEnv("DOKPLOY_ADMIN_PASSWORD");
+      const platformConfigPath = requiredEnv("DOKPLOY_PLATFORM_CONFIG_PATH");
+
+      function requiredEnv(name) {
+        const value = process.env[name];
+        if (!value) {
+          throw new Error(name + " is required for Dokploy bootstrap");
+        }
+        return value;
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function collectCookies(headers) {
+        const values = [];
+        if (typeof headers.getSetCookie === "function") {
+          values.push(...headers.getSetCookie());
+        }
+        const single = headers.get("set-cookie");
+        if (single) {
+          values.push(single);
+        }
+        return values.map((cookie) => cookie.split(";")[0]).filter(Boolean).join("; ");
+      }
+
+      async function request(method, requestPath, body, cookie) {
+        const headers = {
+          "Accept": "application/json",
+          "Origin": authOrigin,
+          "Referer": authOrigin + "/",
+        };
+        const options = { method, headers, redirect: "manual" };
+        if (body !== undefined) {
+          headers["Content-Type"] = "application/json";
+          options.body = JSON.stringify(body);
+        }
+        if (cookie) {
+          headers["Cookie"] = cookie;
+        }
+        const response = await fetch(baseUrl + requestPath, options);
+        const text = await response.text();
+        return {
+          ok: response.status >= 200 && response.status < 300,
+          status: response.status,
+          text,
+          cookie: collectCookies(response.headers),
+        };
+      }
+
+      function parseJSON(text) {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return undefined;
+        }
+      }
+
+      function findStringByKeys(value, keys) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const found = findStringByKeys(item, keys);
+            if (found) return found;
+          }
+          return "";
+        }
+        if (!value || typeof value !== "object") {
+          return "";
+        }
+        for (const key of keys) {
+          if (typeof value[key] === "string" && value[key].trim()) {
+            return value[key].trim();
+          }
+        }
+        for (const item of Object.values(value)) {
+          const found = findStringByKeys(item, keys);
+          if (found) return found;
+        }
+        return "";
+      }
+
+      function statusLabel(response) {
+        const code = findStringByKeys(parseJSON(response.text), ["code"]);
+        return String(response.status) + (code ? " (" + code + ")" : "");
+      }
+
+      function findNamedObject(value, name, idKeys) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const found = findNamedObject(item, name, idKeys);
+            if (found) return found;
+          }
+          return undefined;
+        }
+        if (!value || typeof value !== "object") {
+          return undefined;
+        }
+        if (value.name === name && findStringByKeys(value, idKeys)) {
+          return value;
+        }
+        for (const item of Object.values(value)) {
+          const found = findNamedObject(item, name, idKeys);
+          if (found) return found;
+        }
+        return undefined;
+      }
+
+      function defaultEnvironmentId(project) {
+        if (!project || typeof project !== "object") {
+          return "";
+        }
+        if (Array.isArray(project.environments)) {
+          const preferred = project.environments.find((environment) => environment && (environment.isDefault || environment.name === "production"));
+          return findStringByKeys(preferred || project.environments[0], ["environmentId"]);
+        }
+        return findStringByKeys(project, ["environmentId"]);
+      }
+
+      async function waitForDokploy() {
+        console.log("Waiting for Dokploy to be ready...");
+        for (let i = 0; i < 120; i += 1) {
+          try {
+            const response = await fetch(baseUrl + "/api/settings", { redirect: "manual" });
+            if (response.status >= 200 && response.status < 500) {
+              console.log("Dokploy is ready");
+              return;
+            }
+          } catch {}
+          await sleep(5000);
+        }
+        throw new Error("Dokploy API did not become ready");
+      }
+
+      async function ensureAdmin() {
+        const signUpPayload = {
+          email: adminEmail,
+          password: adminPassword,
+          name: "StackKit",
+          lastName: "Admin",
+        };
+        const legacyPayload = { email: adminEmail, password: adminPassword };
+        const attempts = [
+          ["/api/auth/sign-up/email", signUpPayload],
+          ["/api/trpc/auth.createAdmin?batch=1", { "0": { json: legacyPayload } }],
+          ["/api/auth.createAdmin", legacyPayload],
+        ];
+        for (const [requestPath, body] of attempts) {
+          try {
+            const response = await request("POST", requestPath, body, "");
+            if (response.ok) {
+              console.log("Dokploy admin user created or confirmed");
+              return;
+            }
+            console.log("Dokploy admin creation endpoint " + requestPath + " returned " + statusLabel(response));
+          } catch {}
+        }
+        console.log("Dokploy admin creation skipped or already completed");
+      }
+
+      async function login() {
+        const payload = { email: adminEmail, password: adminPassword };
+        const attempts = [
+          ["/api/auth.login", payload],
+          ["/api/trpc/auth.login?batch=1", { "0": { json: payload } }],
+          ["/api/auth/sign-in/email", payload],
+        ];
+        for (const [requestPath, body] of attempts) {
+          try {
+            const response = await request("POST", requestPath, body, "");
+            if (response.ok && response.cookie) {
+              console.log("Dokploy admin session established");
+              return response.cookie;
+            }
+            console.log("Dokploy login endpoint " + requestPath + " returned " + statusLabel(response));
+          } catch {}
+        }
+        throw new Error("Dokploy admin login did not return a session cookie");
+      }
+
+      async function resolveOrganizationId(cookie) {
+        const attempts = [
+          ["GET", "/api/auth/get-session", undefined],
+          ["GET", "/api/user.get", undefined],
+          ["GET", "/api/user.session", undefined],
+          ["GET", "/api/organization.all", undefined],
+          ["POST", "/api/trpc/user.session?batch=1", { "0": { json: null } }],
+          ["POST", "/api/trpc/user.get?batch=1", { "0": { json: null } }],
+          ["POST", "/api/trpc/organization.all?batch=1", { "0": { json: null } }],
+        ];
+        for (const [method, requestPath, body] of attempts) {
+          try {
+            const response = await request(method, requestPath, body, cookie);
+            if (!response.ok) {
+              console.log("Dokploy organization lookup endpoint " + requestPath + " returned " + statusLabel(response));
+              continue;
+            }
+            const value = parseJSON(response.text);
+            const organizationId = findStringByKeys(value, ["activeOrganizationId", "organizationId", "organization_id", "defaultOrganizationId"]);
+            if (organizationId) {
+              console.log("Dokploy organization id resolved via " + requestPath);
+              return organizationId;
+            }
+            console.log("Dokploy organization lookup endpoint " + requestPath + " did not return an organization id");
+          } catch {}
+        }
+        return "";
+      }
+
+      async function createAPIKey(cookie, organizationId) {
+        if (!organizationId) {
+          throw new Error("Dokploy session did not expose an organization id");
+        }
+        const metadata = { organizationId };
+        const payloads = [
+          {
+            name: "stackkit-platform-bootstrap",
+            prefix: "stackkit",
+            metadata,
+            rateLimitEnabled: false,
+          },
+        ];
+        const paths = [
+          (payload) => ["/api/user.createApiKey", payload],
+          (payload) => ["/api/trpc/user.createApiKey", { json: payload }],
+          (payload) => ["/api/trpc/user.createApiKey?batch=1", { "0": { json: payload } }],
+        ];
+        for (const payload of payloads) {
+          for (const build of paths) {
+            const [requestPath, body] = build(payload);
+            try {
+              const response = await request("POST", requestPath, body, cookie);
+              if (!response.ok) {
+                console.log("Dokploy API key endpoint " + requestPath + " returned " + statusLabel(response));
+                continue;
+              }
+              const apiKey = findStringByKeys(parseJSON(response.text), ["key", "apiKey", "api_key", "token"]);
+              if (apiKey) {
+                console.log("Dokploy API key created");
+                return apiKey;
+              }
+              console.log("Dokploy API key endpoint " + requestPath + " returned no key");
+            } catch {}
+          }
+        }
+        throw new Error("Dokploy API key response did not include a key");
+      }
+
+      async function lookupStackKitProject(cookie) {
+        const attempts = [
+          ["GET", "/api/project.all", undefined],
+          ["POST", "/api/trpc/project.all?batch=1", { "0": { json: null } }],
+        ];
+        for (const [method, requestPath, body] of attempts) {
+          try {
+            const response = await request(method, requestPath, body, cookie);
+            if (!response.ok) {
+              console.log("Dokploy project lookup endpoint " + requestPath + " returned " + statusLabel(response));
+              continue;
+            }
+            const value = parseJSON(response.text);
+            const project = findNamedObject(value, "StackKit", ["projectId"]);
+            if (project) {
+              const projectId = findStringByKeys(project, ["projectId"]);
+              const environmentId = defaultEnvironmentId(project);
+              if (projectId && environmentId) {
+                console.log("Dokploy StackKit project resolved via " + requestPath);
+                return { projectId, environmentId };
+              }
+            }
+            console.log("Dokploy project lookup endpoint " + requestPath + " did not return StackKit project metadata");
+          } catch {}
+        }
+        return { projectId: "", environmentId: "" };
+      }
+
+      async function createStackKitProject(cookie) {
+        const payload = {
+          name: "StackKit",
+          description: "Managed by StackKit",
+          env: "",
+        };
+        const attempts = [
+          ["/api/project.create", payload],
+          ["/api/trpc/project.create?batch=1", { "0": { json: payload } }],
+        ];
+        for (const [requestPath, body] of attempts) {
+          try {
+            const response = await request("POST", requestPath, body, cookie);
+            if (!response.ok) {
+              console.log("Dokploy project create endpoint " + requestPath + " returned " + statusLabel(response));
+              continue;
+            }
+            const value = parseJSON(response.text);
+            const projectId = findStringByKeys(value, ["projectId"]);
+            const environmentId = findStringByKeys(value, ["environmentId"]);
+            if (projectId && environmentId) {
+              console.log("Dokploy StackKit project created via " + requestPath);
+              return { projectId, environmentId };
+            }
+            console.log("Dokploy project create endpoint " + requestPath + " returned incomplete project metadata");
+          } catch {}
+        }
+        return { projectId: "", environmentId: "" };
+      }
+
+      async function ensureStackKitEnvironment(cookie) {
+        const existing = await lookupStackKitProject(cookie);
+        if (existing.projectId && existing.environmentId) {
+          return existing;
+        }
+        const created = await createStackKitProject(cookie);
+        if (created.projectId && created.environmentId) {
+          return created;
+        }
+        const retried = await lookupStackKitProject(cookie);
+        if (retried.projectId && retried.environmentId) {
+          return retried;
+        }
+        throw new Error("Dokploy StackKit project/environment bootstrap did not return an environment id");
+      }
+
+      function writePlatformConfig(apiKey, projectId, environmentId) {
+        fs.mkdirSync(path.dirname(platformConfigPath), { recursive: true });
+        const config = {
+          platform: "dokploy",
+          endpoint: apiEndpoint,
+          baseUrl: apiEndpoint,
+          token: apiKey,
+          apiKey,
+          projectId,
+          environmentId,
+          generatedBy: "stackkit",
+          generatedAt: new Date().toISOString(),
+        };
+        fs.writeFileSync(platformConfigPath, JSON.stringify(config) + "\n", { mode: 0o600 });
+        fs.chmodSync(platformConfigPath, 0o600);
+        console.log("Dokploy platform API config written to " + platformConfigPath);
+      }
+
+      async function main() {
+        if (fs.existsSync(platformConfigPath)) {
+          const existing = fs.readFileSync(platformConfigPath, "utf8");
+          if (existing.includes('"platform":"dokploy"') || existing.includes('"platform": "dokploy"')) {
+            if ((existing.includes('"token"') || existing.includes('"apiKey"')) && existing.includes('"environmentId"')) {
+              console.log("Dokploy platform API config already exists at " + platformConfigPath);
+              return;
+            }
+          }
+        }
+        await waitForDokploy();
+        await ensureAdmin();
+        const cookie = await login();
+        const organizationId = await resolveOrganizationId(cookie);
+        const apiKey = await createAPIKey(cookie, organizationId);
+        const stackKitEnvironment = await ensureStackKitEnvironment(cookie);
+        writePlatformConfig(apiKey, stackKitEnvironment.projectId, stackKitEnvironment.environmentId);
+      }
+
+      main().catch((error) => {
+        console.error("ERROR: " + error.message);
+        process.exit(1);
+      });
+      JS
+    EOT
+  }
+
+  depends_on = [
+    null_resource.dokploy_platform_config_dir,
+    docker_image.dokploy_bootstrap,
+    local_sensitive_file.dokploy_bootstrap_env,
+    docker_container.dokploy,
+  ]
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - KOMODO PAAS
+# =============================================================================
+
+resource "docker_image" "komodo_mongo" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "mongo:7"
+}
+
+resource "docker_image" "komodo_core" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "ghcr.io/moghtech/komodo-core:2"
+}
+
+resource "docker_image" "komodo_periphery" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "ghcr.io/moghtech/komodo-periphery:2"
+}
+
+resource "docker_container" "komodo_mongo" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-mongo"
+  image = docker_image.komodo_mongo[0].image_id
+
+  restart = "unless-stopped"
+
+  command = ["--quiet", "--wiredTigerCacheSizeGB", "0.25"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.internal_db[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_mongo_data[0].name
+    container_path = "/data/db"
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_mongo_config[0].name
+    container_path = "/data/configdb"
+  }
+
+  env = [
+    "MONGO_INITDB_ROOT_USERNAME=stackkit",
+    "MONGO_INITDB_ROOT_PASSWORD=${try(random_password.komodo_db_password[0].result, "")}",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "komodo-mongo"
+  }
+}
+
+resource "docker_container" "komodo_core" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-core"
+  image = docker_image.komodo_core[0].image_id
+
+  restart = "unless-stopped"
+
+  ports {
+    internal = 9120
+    external = local.host_ports.komodo
+    ip       = "127.0.0.1"
+    protocol = "tcp"
+  }
 
   network_mode = local.is_host ? "host" : null
 
@@ -3054,26 +3949,42 @@ resource "docker_container" "init_dokploy" {
     }
   }
 
-  command = [
-    "sh", "-c",
-    <<-EOT
-      DOKPLOY_HOST="${local.is_host ? "127.0.0.1" : "dokploy"}"
-      DOKPLOY_PORT="${local.is_host ? local.host_ports.dokploy : 3000}"
-      echo "Waiting for Dokploy to be ready..."
-      for i in $(seq 1 60); do
-        if curl -sf "http://$DOKPLOY_HOST:$DOKPLOY_PORT/api/settings" >/dev/null 2>&1; then
-          echo "Dokploy is ready"
-          break
-        fi
-        sleep 2
-      done
-      echo "Creating admin user..."
-      curl -sf -X POST \
-        -H "Content-Type: application/json" \
-        -d '{"0":{"json":{"email":"${var.admin_email}","password":"${var.admin_password_plaintext}"}}}' \
-        "http://$DOKPLOY_HOST:$DOKPLOY_PORT/api/trpc/auth.createAdmin?batch=1" && \
-      echo "Dokploy admin created" || echo "Dokploy admin creation skipped (may already exist)"
-    EOT
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.internal_db[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_keys[0].name
+    container_path = "/config/keys"
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_backups[0].name
+    container_path = "/backups"
+  }
+
+  env = [
+    "KOMODO_HOST=${local.proto}://${local.domains.komodo}",
+    "KOMODO_TITLE=StackKit Komodo",
+    "KOMODO_DATABASE_ADDRESS=${local.is_host ? "127.0.0.1:27017" : "komodo-mongo:27017"}",
+    "KOMODO_DATABASE_USERNAME=stackkit",
+    "KOMODO_DATABASE_PASSWORD=${try(random_password.komodo_db_password[0].result, "")}",
+    "KOMODO_DATABASE_DB_NAME=komodo",
+    "KOMODO_PERIPHERY_PUBLIC_KEY=file:/config/keys/periphery.pub",
+    "KOMODO_LOCAL_AUTH=true",
+    "KOMODO_INIT_ADMIN_USERNAME=stackkits-admin",
+    "KOMODO_INIT_ADMIN_PASSWORD=${var.admin_password_plaintext}",
+    "KOMODO_DISABLE_USER_REGISTRATION=true",
+    "KOMODO_ENABLE_NEW_USERS=false",
+    "KOMODO_DISABLE_NON_ADMIN_CREATE=true",
+    "KOMODO_FIRST_SERVER_NAME=stackkit-local",
+    "KOMODO_WEBHOOK_SECRET=${try(random_password.komodo_webhook_secret[0].result, "")}",
+    "KOMODO_JWT_SECRET=${try(random_password.komodo_jwt_secret[0].result, "")}",
+    "KOMODO_JWT_TTL=1-day",
+    "KOMODO_DISABLE_CONFIRM_DIALOG=true",
   ]
 
   labels {
@@ -3083,10 +3994,310 @@ resource "docker_container" "init_dokploy" {
 
   labels {
     label = "stackkit.service"
-    value = "init-dokploy"
+    value = "komodo"
   }
 
-  depends_on = [docker_container.dokploy]
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.rule"
+    value = "Host(`${local.domains.komodo}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.komodo.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.service"
+    value = "komodo"
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.middlewares"
+    value = var.enable_tinyauth ? "tinyauth@docker" : ""
+  }
+
+  labels {
+    label = "traefik.http.services.komodo.loadbalancer.server.port"
+    value = tostring(local.host_ports.komodo)
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "curl -sf http://localhost:9120/ >/dev/null || exit 1"]
+    interval     = "30s"
+    timeout      = "10s"
+    retries      = 5
+    start_period = "90s"
+  }
+
+  depends_on = [
+    docker_container.komodo_mongo,
+  ]
+}
+
+resource "docker_container" "komodo_periphery" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-periphery"
+  image = docker_image.komodo_periphery[0].image_id
+
+  restart = "unless-stopped"
+
+  user = "0:0"
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  dynamic "host" {
+    for_each = (!local.is_host && trimspace(var.docker_host) != "") ? [1] : []
+    content {
+      host = "host.docker.internal"
+      ip   = "host-gateway"
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_keys[0].name
+    container_path = "/config/keys"
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_periphery_root[0].name
+    container_path = "/etc/komodo"
+  }
+
+  mounts {
+    type   = "bind"
+    target = "/var/run/docker.sock"
+    source = "/var/run/docker.sock"
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/proc"
+    source    = "/proc"
+    read_only = true
+  }
+
+  env = [
+    "DOCKER_HOST=${local.container_docker_host}",
+    "PERIPHERY_CORE_ADDRESS=${local.is_host ? "ws://127.0.0.1:9120" : "ws://komodo-core:9120"}",
+    "PERIPHERY_CONNECT_AS=stackkit-local",
+    "PERIPHERY_CORE_PUBLIC_KEYS=file:/config/keys/core.pub",
+    "PERIPHERY_ROOT_DIRECTORY=/etc/komodo",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "komodo-periphery"
+  }
+
+  depends_on = [docker_container.komodo_core]
+}
+
+resource "null_resource" "komodo_platform_bootstrap" {
+  count = var.enable_komodo ? 1 : 0
+
+  triggers = {
+    endpoint = local.komodo_api_endpoint
+  }
+
+  provisioner "local-exec" {
+    environment = {
+      KOMODO_ADMIN_USERNAME = "stackkits-admin"
+      KOMODO_ADMIN_PASSWORD = var.admin_password_plaintext
+    }
+
+    command = <<-EOT
+      set -eu
+      PLATFORM_CONFIG_PATH="${path.module}/.stackkit/platform.json"
+      mkdir -p "${path.module}/.stackkit"
+      if [ -s "$PLATFORM_CONFIG_PATH" ] && grep -q '"platform"[[:space:]]*:[[:space:]]*"komodo"' "$PLATFORM_CONFIG_PATH" && grep -q '"apiKey"' "$PLATFORM_CONFIG_PATH" && grep -q '"apiSecret"' "$PLATFORM_CONFIG_PATH"; then
+        echo "Komodo platform API config already exists at $PLATFORM_CONFIG_PATH"
+        exit 0
+      fi
+
+      echo "Waiting for Komodo Core API..."
+      for i in $(seq 1 120); do
+        if curl -fsS "${local.komodo_api_endpoint}/" >/dev/null 2>&1; then
+          break
+        fi
+        if [ "$i" -eq 120 ]; then
+          echo "ERROR: Komodo Core API did not become ready at ${local.komodo_api_endpoint} after 10 minutes"
+          exit 1
+        fi
+        sleep 5
+      done
+
+      post_komodo_json() {
+        resource="$1"
+        request="$2"
+        params="$3"
+        auth="$${4:-}"
+        rpc_body="{\"type\":\"$request\",\"params\":$params}"
+
+        post_body() {
+          url="$1"
+          body="$2"
+          body_file="$(mktemp)"
+          chmod 600 "$body_file"
+          printf '%s' "$body" > "$body_file"
+          if [ -n "$auth" ]; then
+            response="$(curl -fsS -H "Content-Type: application/json" -H "Authorization: $auth" --data-binary "@$body_file" "$url" 2>/tmp/stackkit-komodo-api.err)" || {
+              rm -f "$body_file"
+              return 1
+            }
+          else
+            response="$(curl -fsS -H "Content-Type: application/json" --data-binary "@$body_file" "$url" 2>/tmp/stackkit-komodo-api.err)" || {
+              rm -f "$body_file"
+              return 1
+            }
+          fi
+          rm -f "$body_file"
+          printf '%s\n' "$response"
+          return 0
+        }
+
+        if [ "$resource" = "auth" ] && [ "$request" = "LoginLocalUser" ]; then
+          if post_body "${local.komodo_api_endpoint}/auth/login" "$rpc_body"; then
+            return 0
+          fi
+        fi
+        if post_body "${local.komodo_api_endpoint}/$resource" "$rpc_body"; then
+          return 0
+        fi
+        if post_body "${local.komodo_api_endpoint}/$resource/$request" "$params"; then
+          return 0
+        fi
+        cat /tmp/stackkit-komodo-api.err >&2 || true
+        return 1
+      }
+
+      json_field() {
+        field="$1"
+        payload="$2"
+        JSON_PAYLOAD="$payload" python3 - "$field" <<'PY'
+import json
+import os
+import sys
+
+field = sys.argv[1]
+try:
+    value = json.loads(os.environ.get("JSON_PAYLOAD", ""))
+except Exception:
+    sys.exit(2)
+
+for part in field.split("."):
+    if isinstance(value, dict):
+        value = value.get(part, "")
+    else:
+        value = ""
+        break
+
+if value is None:
+    value = ""
+if isinstance(value, (dict, list)):
+    print(json.dumps(value, separators=(",", ":")))
+else:
+    print(str(value))
+PY
+      }
+
+      echo "Creating Komodo API key for StackKit platform adapter..."
+      if ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: python3 is required for Komodo bootstrap JSON parsing"
+        exit 1
+      fi
+      LOGIN_PAYLOAD="$(python3 - <<'PY'
+import json
+import os
+
+print(json.dumps({
+  "username": os.environ["KOMODO_ADMIN_USERNAME"],
+  "password": os.environ["KOMODO_ADMIN_PASSWORD"],
+}, separators=(",", ":")))
+PY
+)"
+      KEY_PAYLOAD='${jsonencode({ name = "stackkit-platform-bootstrap", expires = 0 })}'
+      LOGIN_JSON=""
+      for i in $(seq 1 60); do
+        if LOGIN_JSON="$(post_komodo_json auth LoginLocalUser "$LOGIN_PAYLOAD")"; then
+          JWT="$(json_field data.jwt "$LOGIN_JSON")"
+          if [ -z "$JWT" ]; then
+            JWT="$(json_field jwt "$LOGIN_JSON")"
+          fi
+          if [ -n "$JWT" ]; then
+            break
+          fi
+        fi
+        if [ "$i" -eq 60 ]; then
+          echo "ERROR: Komodo local admin login did not return a JWT"
+          echo "Komodo login response redacted" >&2
+          exit 1
+        fi
+        sleep 5
+      done
+
+      KEY_JSON="$(post_komodo_json auth/manage CreateApiKey "$KEY_PAYLOAD" "$JWT")"
+      API_KEY="$(json_field data.key "$KEY_JSON")"
+      API_SECRET="$(json_field data.secret "$KEY_JSON")"
+      if [ -z "$API_KEY" ]; then
+        API_KEY="$(json_field key "$KEY_JSON")"
+      fi
+      if [ -z "$API_SECRET" ]; then
+        API_SECRET="$(json_field secret "$KEY_JSON")"
+      fi
+      if [ -z "$API_KEY" ] || [ -z "$API_SECRET" ]; then
+        echo "ERROR: Komodo API did not return api key JSON"
+        echo "Komodo API key response redacted" >&2
+        exit 1
+      fi
+      umask 077
+      cat > "$PLATFORM_CONFIG_PATH" <<JSON
+{"platform":"komodo","endpoint":"${local.komodo_api_endpoint}","baseUrl":"${local.komodo_api_endpoint}","apiKey":"$API_KEY","apiSecret":"$API_SECRET","serverId":"stackkit-local","generatedBy":"stackkit","generatedAt":"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"}
+JSON
+      chmod 600 "$PLATFORM_CONFIG_PATH"
+      echo "Komodo platform API config written to $PLATFORM_CONFIG_PATH"
+      echo "Waiting for Komodo Periphery server registration..."
+      sleep 15
+    EOT
+  }
+
+  depends_on = [
+    docker_container.komodo_core,
+    docker_container.komodo_periphery,
+  ]
 }
 
 # =============================================================================
@@ -3129,7 +4340,7 @@ resource "docker_container" "dockge" {
 
   # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
   dynamic "networks_advanced" {
-    for_each = (!local.is_host && !local.rp_standalone) ? [1] : []
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
       name = local.routing_network
     }
@@ -3170,6 +4381,14 @@ resource "docker_container" "dockge" {
   labels {
     label = "traefik.enable"
     value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
   }
 
   labels {
@@ -3219,15 +4438,26 @@ resource "docker_container" "dockge" {
 # network for routing (ADR-0006: Service URL Matrix).
 #
 # Note: Coolify is installed via its own installer script, not as a single
-# container. StackKits passes the generated admin identity to Coolify's ROOT_*
-# installer variables so the first-user registration screen is never exposed as
-# a manual setup task.
+# container. StackKits passes ROOT_* installer variables so the first-user
+# registration screen is never exposed as a manual setup task. Local-only
+# StackKit rollouts receive the same generated admin_email as every other
+# bootstrap surface; the composition engine uses a reserved example.com address
+# when no real admin email is supplied.
 
 resource "null_resource" "coolify_install" {
   count = var.enable_coolify ? 1 : 0
 
   provisioner "local-exec" {
     command = <<-EOT
+      if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+        echo "Preparing Docker CLI context for Coolify host access..."
+        (
+          unset DOCKER_HOST
+          mkdir -p "$HOME/.docker"
+          docker context inspect stackkit-host >/dev/null 2>&1 || docker context create stackkit-host --docker "host=${var.docker_host}" >/dev/null
+          docker context use default >/dev/null 2>&1 || true
+        )
+      fi
       if ! command -v coolify &> /dev/null && ! docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -q coolify; then
         if [ -z "${var.admin_email}" ] || [ -z "${var.admin_password_plaintext}" ]; then
           echo "ERROR: Coolify requires generated admin_email and admin_password_plaintext for root-user bootstrap"
@@ -3235,9 +4465,49 @@ resource "null_resource" "coolify_install" {
         fi
         echo "Installing Coolify..."
         COOLIFY_INSTALL_PATH="$PATH"
-        COOLIFY_SYSTEMCTL_SHIM=""
+        COOLIFY_SYSTEMCTL_SHIM="$(mktemp -d)"
+        COOLIFY_REAL_DOCKER="$(command -v docker)"
+        stackkit_docker() {
+          if [ -n "${var.docker_host}" ]; then
+            DOCKER_HOST="${var.docker_host}" "$COOLIFY_REAL_DOCKER" "$@"
+          else
+            "$COOLIFY_REAL_DOCKER" "$@"
+          fi
+        }
+        stackkit_preseed_coolify_image() {
+          target="$1"
+          mirror="$2"
+          if stackkit_docker image inspect "$target" >/dev/null 2>&1; then
+            return 0
+          fi
+          if stackkit_docker pull "$mirror" >/dev/null 2>&1; then
+            stackkit_docker tag "$mirror" "$target"
+          fi
+        }
+        stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine"
+        stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine"
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/docker" <<EOS
+#!/bin/sh
+real="$COOLIFY_REAL_DOCKER"
+image=""
+if [ "\$1" = "pull" ]; then
+  image="\$2"
+elif [ "\$1" = "image" ] && [ "\$2" = "pull" ]; then
+  image="\$3"
+fi
+case "\$image" in
+  "postgres:15-alpine"|"redis:7-alpine")
+    if "\$real" image inspect "\$image" >/dev/null 2>&1; then
+      echo "\$image already present locally for StackKit Coolify bootstrap"
+      exit 0
+    fi
+    ;;
+esac
+exec "\$real" "\$@"
+EOS
+        chmod +x "$COOLIFY_SYSTEMCTL_SHIM/docker"
+        COOLIFY_INSTALL_PATH="$COOLIFY_SYSTEMCTL_SHIM:$PATH"
         if [ ! -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
-          COOLIFY_SYSTEMCTL_SHIM="$(mktemp -d)"
           cat > "$COOLIFY_SYSTEMCTL_SHIM/systemctl" <<'EOS'
 #!/bin/sh
 case "$*" in
@@ -3248,12 +4518,11 @@ esac
 exit 0
 EOS
           chmod +x "$COOLIFY_SYSTEMCTL_SHIM/systemctl"
-          COOLIFY_INSTALL_PATH="$COOLIFY_SYSTEMCTL_SHIM:$PATH"
         fi
         env \
           PATH="$COOLIFY_INSTALL_PATH" \
           ROOT_USERNAME="stackkits-admin" \
-          ROOT_USER_EMAIL="${var.admin_email}" \
+          ROOT_USER_EMAIL="${local.coolify_root_email}" \
           ROOT_USER_PASSWORD="${var.admin_password_plaintext}" \
           DOCKER_HOST="${var.docker_host}" \
           DOCKER_ADDRESS_POOL_BASE="172.30.0.0/16" \
@@ -3264,122 +4533,302 @@ EOS
       else
         echo "Coolify already installed"
       fi
+      if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+        echo "Setting Docker CLI default context for Coolify runtime actions..."
+        (
+          unset DOCKER_HOST
+          docker context use stackkit-host >/dev/null
+        )
+      fi
     EOT
   }
 }
 
-# Wait for Coolify's routing surface to be ready before deploying platform services.
-# Current Coolify releases do not reliably start coolify-proxy during one-click
-# installs, so StackKit core/admin routes use StackKit's own Traefik while
-# Coolify remains the app platform adapter.
+# Wait for Coolify's routing surface to be ready before deploying platform
+# services. The platform bootstrap starts Coolify's own proxy synchronously; this
+# gate only verifies that strict Coolify-backed routing is actually available.
 resource "null_resource" "coolify_traefik_ready" {
   count = var.enable_coolify ? 1 : 0
 
   provisioner "local-exec" {
     command = <<-EOT
       echo "Waiting for Coolify routing backend..."
-      for i in $(seq 1 60); do
-        if [ "${local.coolify_stackkit_router}" = "true" ] && docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
-          echo "Coolify app is ready for StackKit routing"
-          exit 0
+      stackkit_docker() {
+        if [ -n "${var.docker_host}" ]; then
+          DOCKER_HOST="${var.docker_host}" docker "$@"
+        else
+          docker "$@"
         fi
-        if [ "${local.coolify_stackkit_router}" != "true" ] && docker ps --filter "name=coolify-proxy" --filter "status=running" -q | grep -q .; then
+      }
+      for i in $(seq 1 60); do
+        if stackkit_docker ps --filter "name=coolify-proxy" --filter "status=running" -q | grep -q .; then
           echo "Coolify Traefik is ready"
           exit 0
         fi
         sleep 5
       done
-      echo "WARNING: Coolify routing backend not detected after 5 minutes"
+      echo "ERROR: Coolify routing backend not detected after 5 minutes"
+      exit 1
     EOT
   }
 
-  depends_on = [null_resource.coolify_install]
-}
-
-resource "docker_image" "coolify_route_nginx" {
-  count = (!local.is_host && var.enable_coolify && local.rp_coolify) ? 1 : 0
-  name  = "nginx:alpine"
-}
-
-# Coolify's official installer exposes its UI on APP_PORT by default. StackKits
-# must still provide the user-facing portless name, so this small route target
-# is discovered by Coolify's Traefik and forwards coolify.<domain> to the
-# Coolify app container on the private coolify network.
-resource "docker_container" "coolify_dashboard_route" {
-  count = (!local.is_host && var.enable_coolify && local.rp_coolify) ? 1 : 0
-
-  name  = "stackkit-coolify-route"
-  image = docker_image.coolify_route_nginx[0].image_id
-
-  restart = "unless-stopped"
-
-  security_opts = ["no-new-privileges:true"]
-
-  networks_advanced {
-    name = local.coolify_stackkit_router ? docker_network.base_net[0].name : data.docker_network.paas_traefik[0].name
-  }
-
-  dynamic "networks_advanced" {
-    for_each = local.coolify_stackkit_router ? [1] : []
-    content {
-      name = local.traefik_network_name
-    }
-  }
-
-  command = [
-    "sh", "-c",
-    "cat > /etc/nginx/conf.d/default.conf <<'EOF'\nserver {\n  listen 80;\n  location / {\n    proxy_pass http://coolify:8080;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n  }\n}\nEOF\nexec nginx -g 'daemon off;'"
+  depends_on = [
+    null_resource.coolify_install,
+    null_resource.coolify_platform_bootstrap,
   ]
+}
 
-  labels {
-    label = "stackkit.layer"
-    value = "2-platform"
+# Bootstrap the Coolify API contract that StackKit uses for all subsequent
+# StackKit-owned app deployment. The token is created inside the freshly
+# installed Coolify instance, scoped to the root team, and persisted locally for
+# the post-OpenTofu `stackkit apply` platform adapter step.
+resource "local_file" "coolify_platform_bootstrap_php" {
+  count = var.enable_coolify && local.rp_coolify && !local.platform_fallback_standalone ? 1 : 0
+
+  filename        = "${path.module}/.stackkit/coolify-platform-bootstrap.php"
+  file_permission = "0600"
+  content         = <<-PHP
+<?php
+$rootEmail = getenv('STACKKIT_COOLIFY_ROOT_EMAIL') ?: '';
+$user = $rootEmail !== '' ? \App\Models\User::where('email', $rootEmail)->first() : null;
+if (!$user) {
+    $user = \App\Models\User::find(0);
+}
+if (!$user) {
+    $user = \App\Models\User::first();
+}
+if (!$user) {
+    $bootstrapEmail = $rootEmail !== '' ? $rootEmail : (env('ROOT_USER_EMAIL') ?: '${var.admin_email}');
+    $bootstrapName = env('ROOT_USERNAME') ?: 'stackkits-admin';
+    $bootstrapPassword = env('ROOT_USER_PASSWORD') ?: bin2hex(random_bytes(32));
+    $user = (new \App\Models\User)->forceFill([
+        'id' => 0,
+        'name' => $bootstrapName,
+        'email' => $bootstrapEmail,
+        'password' => \Illuminate\Support\Facades\Hash::make($bootstrapPassword),
+    ]);
+    $user->save();
+}
+
+$team = $user->teams()->wherePivot('role', 'owner')->first();
+if (!$team) {
+    $team = $user->teams()->first();
+}
+if (!$team) {
+    $team = $user->recreate_personal_team();
+}
+session(['currentTeam' => $team]);
+$team->forceFill(['show_boarding' => false])->save();
+
+\App\Models\InstanceSettings::updateOrCreate(['id' => 0], [
+    'is_api_enabled' => true,
+    'is_registration_enabled' => false,
+]);
+
+$server = \App\Models\Server::where('team_id', $team->id)->where('id', 0)->first();
+if (!$server) {
+    $server = \App\Models\Server::where('team_id', $team->id)->first();
+}
+if (!$server) {
+    throw new \RuntimeException('StackKit Coolify bootstrap could not find a Coolify server.');
+}
+
+$destination = $server->destinations()->first();
+if (!$destination) {
+    throw new \RuntimeException('StackKit Coolify bootstrap could not find a Coolify Docker destination.');
+}
+$server->settings()->updateOrCreate(['server_id' => $server->id], [
+    'is_reachable' => true,
+    'is_usable' => true,
+    'force_disabled' => false,
+    'is_build_server' => false,
+]);
+
+$project = \App\Models\Project::where('team_id', $team->id)->where('name', 'StackKit')->first();
+if (!$project) {
+    $project = \App\Models\Project::create([
+        'uuid' => (string) new \Visus\Cuid2\Cuid2,
+        'name' => 'StackKit',
+        'description' => 'Applications managed by StackKit.',
+        'team_id' => $team->id,
+    ]);
+}
+
+$environment = $project->environments()->where('name', 'production')->first();
+if (!$environment) {
+    $environment = \App\Models\Environment::create([
+        'uuid' => (string) new \Visus\Cuid2\Cuid2,
+        'name' => 'production',
+        'project_id' => $project->id,
+    ]);
+}
+
+$tokenName = getenv('STACKKIT_COOLIFY_TOKEN_NAME') ?: 'stackkit-platform-bootstrap';
+\App\Models\PersonalAccessToken::where('tokenable_type', get_class($user))
+    ->where('tokenable_id', $user->id)
+    ->where('name', $tokenName)
+    ->where('team_id', $team->id)
+    ->delete();
+$token = $user->createToken($tokenName, ['root']);
+
+if (!$server->proxyType() || $server->proxyType() === 'NONE') {
+    $server->proxy->set('type', \App\Enums\ProxyTypes::TRAEFIK->value);
+}
+$server->proxy->force_stop = false;
+$server->save();
+
+try {
+    \App\Actions\Proxy\StartProxy::run($server, async: false, force: true);
+} catch (\Throwable $e) {
+    throw new \RuntimeException('StackKit Coolify bootstrap could not start Coolify proxy: '.$e->getMessage(), 0, $e);
+}
+
+$config = [
+    'platform' => 'coolify',
+    'endpoint' => getenv('STACKKIT_COOLIFY_API_ENDPOINT') ?: 'http://127.0.0.1:8000',
+    'baseUrl' => getenv('STACKKIT_COOLIFY_API_ENDPOINT') ?: 'http://127.0.0.1:8000',
+    'token' => $token->plainTextToken,
+    'projectUuid' => $project->uuid,
+    'environmentId' => $environment->name,
+    'environmentUuid' => $environment->uuid,
+    'serverId' => $server->uuid,
+    'destinationUuid' => $destination->uuid,
+    'legacyDockerComposeApi' => false,
+    'proxyContainer' => 'coolify-proxy',
+    'generatedBy' => 'stackkit',
+    'generatedAt' => gmdate('c'),
+];
+echo 'STACKKIT_COOLIFY_PLATFORM_JSON='.json_encode($config, JSON_UNESCAPED_SLASHES).PHP_EOL;
+echo 'STACKKIT_COOLIFY_SERVER_PUBLIC_KEY='.str_replace(["\r", "\n"], '', $server->privateKey?->public_key ?? '').PHP_EOL;
+  PHP
+}
+
+resource "null_resource" "coolify_platform_bootstrap" {
+  count = var.enable_coolify && local.rp_coolify && !local.platform_fallback_standalone ? 1 : 0
+
+  triggers = {
+    bootstrap_script_hash = sha256(local_file.coolify_platform_bootstrap_php[0].content)
+    endpoint              = local.coolify_api_endpoint
+    root_email            = local.coolify_root_email
+    always                = timestamp()
   }
 
-  labels {
-    label = "stackkit.service"
-    value = "coolify-route"
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      echo "Bootstrapping Coolify API token for StackKit platform adapter..."
+      mkdir -p "${path.module}/.stackkit"
+      stackkit_docker() {
+        if [ -n "${var.docker_host}" ]; then
+          DOCKER_HOST="${var.docker_host}" docker "$@"
+        else
+          docker "$@"
+        fi
+      }
+      stackkit_redact() {
+        sed -E \
+          -e 's/(ROOT_USER_PASSWORD|PASSWORD|SECRET|TOKEN|KEY|COOKIE|SESSION|JWT|API_KEY|API_SECRET)=([^[:space:]]+)/\1=[redacted]/Ig' \
+          -e 's/(Bearer )[A-Za-z0-9._~+\/=-]+/\1[redacted]/Ig' \
+          -e 's/("token"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig' \
+          -e 's/("apiKey"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig' \
+          -e 's/("apiSecret"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig'
+      }
+      stackkit_coolify_http_ready() {
+        curl -fsS "${local.coolify_api_endpoint}/api/health" >/dev/null 2>&1 || \
+          curl -fsS "${local.coolify_api_endpoint}/health" >/dev/null 2>&1
+      }
+      stackkit_coolify_diagnostics() {
+        echo "Coolify readiness diagnostics (redacted):" >&2
+        echo "endpoint=${local.coolify_api_endpoint}" >&2
+        echo "docker_host=${var.docker_host}" >&2
+        docker context show 2>&1 | stackkit_redact | sed 's/^/docker_context=/g' >&2 || true
+        stackkit_docker ps -a --filter "name=coolify" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+        for container in coolify coolify-db coolify-redis coolify-realtime; do
+          if stackkit_docker ps -a --filter "name=^/$${container}$" --format '{{"{{"}}.Names{{"}}"}}' 2>/dev/null | grep -qx "$container"; then
+            stackkit_docker inspect "$container" --format 'container={{"{{"}}.Name{{"}}"}} status={{"{{"}}.State.Status{{"}}"}} health={{"{{"}}if .State.Health{{"}}"}}{{"{{"}}.State.Health.Status{{"}}"}}{{"{{"}}else{{"}}"}}none{{"{{"}}end{{"}}"}} ports={{"{{"}}json .NetworkSettings.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+            stackkit_docker logs --tail 80 "$container" 2>&1 | stackkit_redact | sed "s/^/$container logs: /" >&2 || true
+          else
+            echo "container=$container missing" >&2
+          fi
+        done
+        for path in /api/health /health; do
+          code="$(curl -sS -o /tmp/stackkit-coolify-health.out -w '%%{http_code}' "${local.coolify_api_endpoint}$path" 2>/tmp/stackkit-coolify-health.err || true)"
+          echo "curl $path status=$${code:-none}" >&2
+          if [ -s /tmp/stackkit-coolify-health.err ]; then
+            sed 's/^/curl stderr: /' /tmp/stackkit-coolify-health.err | stackkit_redact >&2 || true
+          fi
+        done
+        if command -v ss >/dev/null 2>&1; then
+          ss -ltnp 2>&1 | grep -E '(:8000|:8080)\b' | stackkit_redact >&2 || true
+        fi
+      }
+      for i in $(seq 1 360); do
+        if stackkit_coolify_http_ready && stackkit_docker exec coolify sh -lc 'cd /var/www/html && php artisan --version >/dev/null 2>&1'; then
+          break
+        fi
+        if [ "$i" -eq 360 ]; then
+          echo "ERROR: Coolify API did not become ready at ${local.coolify_api_endpoint} after 30 minutes"
+          stackkit_coolify_diagnostics
+          exit 1
+        fi
+        sleep 5
+      done
+      stackkit_docker cp "${local_file.coolify_platform_bootstrap_php[0].filename}" coolify:/tmp/stackkit-coolify-platform-bootstrap.php >/dev/null
+      stackkit_docker exec -u 0 coolify chmod 0644 /tmp/stackkit-coolify-platform-bootstrap.php
+      BOOTSTRAP_OUTPUT="$(stackkit_docker exec \
+        -e STACKKIT_COOLIFY_ROOT_EMAIL="${local.coolify_root_email}" \
+        -e STACKKIT_COOLIFY_API_ENDPOINT="${local.coolify_api_endpoint}" \
+        -e STACKKIT_COOLIFY_TOKEN_NAME="stackkit-platform-bootstrap" \
+        coolify sh -lc 'cd /var/www/html && php artisan tinker --execute="require \"/tmp/stackkit-coolify-platform-bootstrap.php\";"')"
+      SERVER_PUBLIC_KEY="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^STACKKIT_COOLIFY_SERVER_PUBLIC_KEY=//p' | tail -n 1)"
+      if [ -n "$SERVER_PUBLIC_KEY" ] && [ "$SERVER_PUBLIC_KEY" != "Error loading private key" ]; then
+        mkdir -p /root/.ssh
+        touch /root/.ssh/authorized_keys
+        if ! grep -qxF "$SERVER_PUBLIC_KEY" /root/.ssh/authorized_keys; then
+          printf '%s\n' "$SERVER_PUBLIC_KEY" >> /root/.ssh/authorized_keys
+        fi
+        chmod 700 /root/.ssh
+        chmod 600 /root/.ssh/authorized_keys
+      fi
+      if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+        PROXY_COMPOSE="/data/coolify/proxy/docker-compose.yml"
+        STACKKIT_PROXY_DOCKER_ENDPOINT="${var.docker_host}"
+        case "$STACKKIT_PROXY_DOCKER_ENDPOINT" in
+          tcp://127.0.0.1:*|tcp://localhost:*|tcp://0.0.0.0:*)
+            STACKKIT_PROXY_DOCKER_ENDPOINT="tcp://host.docker.internal:$${STACKKIT_PROXY_DOCKER_ENDPOINT##*:}"
+            ;;
+        esac
+        if [ ! -f "$PROXY_COMPOSE" ]; then
+          echo "ERROR: Coolify proxy compose file missing at $PROXY_COMPOSE"
+          exit 1
+        fi
+        if ! grep -q -- "--providers.docker.endpoint=" "$PROXY_COMPOSE"; then
+          tmp="$(mktemp)"
+          awk -v endpoint="$STACKKIT_PROXY_DOCKER_ENDPOINT" '{ print; if ($0 ~ /--providers\.docker=true/) print "      - --providers.docker.endpoint=" endpoint }' "$PROXY_COMPOSE" > "$tmp"
+          cat "$tmp" > "$PROXY_COMPOSE"
+          rm -f "$tmp"
+        fi
+        DOCKER_HOST="${var.docker_host}" docker compose -f "$PROXY_COMPOSE" up -d
+      fi
+      stackkit_docker exec coolify-db psql -U coolify -d coolify -c "update server_settings set is_reachable = true, is_usable = true, force_disabled = false, is_build_server = false where server_id = 0" >/dev/null
+      BOOTSTRAP_JSON="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^STACKKIT_COOLIFY_PLATFORM_JSON=//p' | tail -n 1)"
+      if [ -z "$BOOTSTRAP_JSON" ]; then
+        echo "ERROR: Coolify API token bootstrap did not return platform config JSON"
+        printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed 's/"token":"[^"]*"/"token":"[redacted]"/g' >&2
+        exit 1
+      fi
+      PLATFORM_CONFIG_PATH="${path.module}/.stackkit/platform.json"
+      umask 077
+      printf '%s\n' "$BOOTSTRAP_JSON" > "$PLATFORM_CONFIG_PATH"
+      chmod 600 "$PLATFORM_CONFIG_PATH"
+      echo "Coolify platform API config written to $PLATFORM_CONFIG_PATH"
+    EOT
   }
 
-  labels {
-    label = "traefik.enable"
-    value = "true"
-  }
-
-  labels {
-    label = "traefik.http.routers.coolify.rule"
-    value = "Host(`${local.domains.coolify}`)"
-  }
-
-  labels {
-    label = "traefik.http.routers.coolify.entrypoints"
-    value = local.entrypoint
-  }
-
-  dynamic "labels" {
-    for_each = var.enable_https ? [1] : []
-    content {
-      label = "traefik.http.routers.coolify.${local.tls_label_name}"
-      value = local.tls_label_value
-    }
-  }
-
-  labels {
-    label = "traefik.http.routers.coolify.service"
-    value = "coolify"
-  }
-
-  labels {
-    label = "traefik.http.routers.coolify.middlewares"
-    value = local.auth_middleware
-  }
-
-  labels {
-    label = "traefik.http.services.coolify.loadbalancer.server.port"
-    value = "80"
-  }
-
-  depends_on = [null_resource.coolify_traefik_ready]
+  depends_on = [
+    null_resource.coolify_install,
+    local_file.coolify_platform_bootstrap_php,
+  ]
 }
 
 # =============================================================================
@@ -3416,7 +4865,7 @@ resource "docker_container" "dashboard" {
 
   # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
   dynamic "networks_advanced" {
-    for_each = (!local.is_host && !local.rp_standalone) ? [1] : []
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
       name = local.routing_network
     }
@@ -3440,6 +4889,14 @@ resource "docker_container" "dashboard" {
   labels {
     label = "traefik.enable"
     value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
   }
 
   labels {
@@ -3503,7 +4960,7 @@ resource "docker_container" "stackkit_server" {
   }
 
   dynamic "networks_advanced" {
-    for_each = (!local.is_host && !local.rp_standalone) ? [1] : []
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
       name = local.routing_network
     }
@@ -3548,6 +5005,14 @@ resource "docker_container" "stackkit_server" {
   labels {
     label = "traefik.enable"
     value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
   }
 
   labels {
@@ -3733,7 +5198,7 @@ resource "docker_container" "homepage" {
 
   # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
   dynamic "networks_advanced" {
-    for_each = (!local.is_host && !local.rp_standalone) ? [1] : []
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
       name = local.routing_network
     }
@@ -3785,6 +5250,14 @@ resource "docker_container" "homepage" {
   labels {
     label = "traefik.enable"
     value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
   }
 
   labels {
@@ -3894,7 +5367,11 @@ resource "local_file" "platform_l3_manifest" {
   filename = "${path.module}/.platform-apps-manifest.json"
   content = jsonencode({
     version    = "stackkit.platform-apps/v2"
-    platform   = local.platform_adapter
+    platform   = local.l3_platform_adapter
+    fallback   = {
+      enabled = local.platform_fallback_standalone
+      mode    = var.platform_fallback_mode
+    }
     systemApps = concat(
       local.platform_hub_managed ? [{
         name        = "stackkit-hub"
@@ -3902,6 +5379,8 @@ resource "local_file" "platform_l3_manifest" {
         kind        = "compose"
         platform    = local.platform_adapter
         managedBy   = local.platform_adapter
+        host        = local.domains.base
+        url         = "${local.proto}://${local.domains.base}"
         composePath = local_file.stackkit_hub_compose[0].filename
         composeYAML = local.stackkit_hub_compose_content
       }] : [],
@@ -3911,6 +5390,8 @@ resource "local_file" "platform_l3_manifest" {
         kind        = "compose"
         platform    = local.platform_adapter
         managedBy   = local.platform_adapter
+        host        = local.domains.base
+        url         = "${local.proto}://${local.domains.base}/api"
         composePath = local_file.stackkit_server_compose[0].filename
         composeYAML = local.stackkit_server_compose_content
       }] : [],
@@ -3920,6 +5401,8 @@ resource "local_file" "platform_l3_manifest" {
         kind        = "compose"
         platform    = local.platform_adapter
         managedBy   = local.platform_adapter
+        host        = local.domains.kuma
+        url         = "${local.proto}://${local.domains.kuma}"
         composePath = local_file.kuma_compose[0].filename
         composeYAML = local.kuma_compose_content
         setupPolicy = "automatic"
@@ -3936,6 +5419,8 @@ resource "local_file" "platform_l3_manifest" {
         kind        = "compose"
         platform    = local.platform_adapter
         managedBy   = local.platform_adapter
+        host        = local.domains.whoami
+        url         = "${local.proto}://${local.domains.whoami}"
         composePath = local_file.whoami_compose[0].filename
         composeYAML = local.whoami_compose_content
         setupPolicy = "automatic"
@@ -3945,24 +5430,33 @@ resource "local_file" "platform_l3_manifest" {
       var.enable_vaultwarden ? [{
         name        = "vaultwarden"
         kind        = "compose"
-        platform    = local.platform_adapter
-        managedBy   = local.platform_adapter
+        ownership   = "stackkit"
+        platform    = local.l3_platform_adapter
+        managedBy   = local.l3_platform_adapter
+        host        = local.domains.vault
+        url         = "${local.proto}://${local.domains.vault}"
         composePath = local_file.vaultwarden_compose[0].filename
         composeYAML = local.vaultwarden_compose_content
       }] : [],
       var.enable_jellyfin ? [{
         name        = "jellyfin"
         kind        = "compose"
-        platform    = local.platform_adapter
-        managedBy   = local.platform_adapter
+        ownership   = "stackkit"
+        platform    = local.l3_platform_adapter
+        managedBy   = local.l3_platform_adapter
+        host        = local.domains.media
+        url         = "${local.proto}://${local.domains.media}"
         composePath = local_file.jellyfin_compose[0].filename
         composeYAML = local.jellyfin_compose_content
       }] : [],
       var.enable_immich ? [{
         name        = "immich"
         kind        = "compose"
-        platform    = local.platform_adapter
-        managedBy   = local.platform_adapter
+        ownership   = "stackkit"
+        platform    = local.l3_platform_adapter
+        managedBy   = local.l3_platform_adapter
+        host        = local.domains.photos
+        url         = "${local.proto}://${local.domains.photos}"
         composePath = local_file.immich_compose[0].filename
         composeYAML = local.immich_compose_content
         setupPolicy = "on_demand"
@@ -3990,7 +5484,7 @@ resource "local_file" "platform_l3_manifest" {
 # =============================================================================
 # PLATFORM APP HANDOFF
 # =============================================================================
-# Track system and L3 compose changes without bypassing Dokploy/Coolify. The
+# Track system and L3 compose changes without bypassing Dokploy/Komodo/Coolify. The
 # StackKit CLI consumes .platform-apps-manifest.json after apply and calls the
 # selected platform adapter.
 
@@ -4038,7 +5532,7 @@ resource "null_resource" "deploy_kuma" {
   }
 
   provisioner "local-exec" {
-    command     = local.direct_compose_deploy ? "DOCKER_HOST=${var.docker_host} docker compose -f ${local_file.kuma_compose[0].filename} -p stackkit-uptime-kuma up -d" : "echo StackKit platform adapter will deploy ${local_file.kuma_compose[0].filename}"
+    command     = "echo StackKit platform adapter will deploy ${local_file.kuma_compose[0].filename}"
     working_dir = path.module
   }
 
@@ -4058,7 +5552,7 @@ resource "null_resource" "deploy_whoami" {
   }
 
   provisioner "local-exec" {
-    command     = local.direct_compose_deploy ? "DOCKER_HOST=${var.docker_host} docker compose -f ${local_file.whoami_compose[0].filename} -p stackkit-whoami up -d" : "echo StackKit platform adapter will deploy ${local_file.whoami_compose[0].filename}"
+    command     = "echo StackKit platform adapter will deploy ${local_file.whoami_compose[0].filename}"
     working_dir = path.module
   }
 
@@ -4078,7 +5572,7 @@ resource "null_resource" "deploy_vaultwarden" {
   }
 
   provisioner "local-exec" {
-    command     = local.direct_compose_deploy ? "DOCKER_HOST=${var.docker_host} docker compose -f ${local_file.vaultwarden_compose[0].filename} -p stackkit-vaultwarden up -d" : "echo StackKit platform adapter will deploy ${local_file.vaultwarden_compose[0].filename}"
+    command     = "echo StackKit platform adapter will deploy ${local_file.vaultwarden_compose[0].filename}"
     working_dir = path.module
   }
 
@@ -4107,7 +5601,7 @@ resource "null_resource" "deploy_jellyfin" {
   }
 
   provisioner "local-exec" {
-    command     = local.direct_compose_deploy ? "DOCKER_HOST=${var.docker_host} docker compose -f ${local_file.jellyfin_compose[0].filename} -p stackkit-jellyfin up -d" : "echo StackKit platform adapter will deploy ${local_file.jellyfin_compose[0].filename}"
+    command     = "echo StackKit platform adapter will deploy ${local_file.jellyfin_compose[0].filename}"
     working_dir = path.module
   }
 
@@ -4127,7 +5621,7 @@ resource "null_resource" "deploy_immich" {
   }
 
   provisioner "local-exec" {
-    command     = local.direct_compose_deploy ? "DOCKER_HOST=${var.docker_host} docker compose -f ${local_file.immich_compose[0].filename} -p stackkit-immich up -d" : "echo StackKit platform adapter will deploy ${local_file.immich_compose[0].filename}"
+    command     = "echo StackKit platform adapter will deploy ${local_file.immich_compose[0].filename}"
     working_dir = path.module
   }
 
@@ -4157,6 +5651,7 @@ output "domains" {
     var.enable_homepage ? { home = local.domains.home } : {},
     local.enable_kombify_point_effective ? { point = local.domains.point } : {},
     var.enable_dokploy ? { dokploy = local.domains.dokploy } : {},
+    var.enable_komodo ? { komodo = local.domains.komodo } : {},
     var.enable_coolify ? { coolify = local.domains.coolify } : {},
     var.enable_dockge ? { dockge = local.domains.dockge } : {},
     var.enable_uptime_kuma ? { kuma = local.domains.kuma } : {},
@@ -4197,6 +5692,11 @@ output "dokploy_url" {
   value       = var.enable_dokploy ? "${local.proto}://${local.domains.dokploy}" : null
 }
 
+output "komodo_url" {
+  description = "Komodo UI URL (Layer 2 Platform)"
+  value       = var.enable_komodo ? "${local.proto}://${local.domains.komodo}" : null
+}
+
 output "dockge_url" {
   description = "Dockge UI URL (Layer 2 Platform, low compute tier)"
   value       = var.enable_dockge ? "${local.proto}://${local.domains.dockge}" : null
@@ -4207,10 +5707,16 @@ output "coolify_url" {
   value       = var.enable_coolify ? "${local.proto}://${local.domains.coolify}" : null
 }
 
+output "coolify_admin_email" {
+  description = "Coolify root email used for generated ROOT_USER_EMAIL bootstrap"
+  value       = var.enable_coolify ? local.coolify_root_email : null
+}
+
 output "paas_url" {
-  description = "PaaS manager URL (Dokploy or Coolify)"
+  description = "PaaS manager URL (Dokploy, Komodo, or Coolify)"
   value       = (
     var.enable_dokploy ? "${local.proto}://${local.domains.dokploy}" :
+    var.enable_komodo ? "${local.proto}://${local.domains.komodo}" :
     var.enable_coolify ? "${local.proto}://${local.domains.coolify}" :
     null
   )
@@ -4290,6 +5796,11 @@ output "dokploy_login_url" {
   value       = var.enable_dokploy ? "${local.proto}://${local.domains.dokploy}" : null
 }
 
+output "komodo_login_url" {
+  description = "Komodo login URL"
+  value       = var.enable_komodo ? "${local.proto}://${local.domains.komodo}" : null
+}
+
 output "architecture_summary" {
   description = "Base Kit Architecture Summary"
   value       = <<-EOT
@@ -4309,6 +5820,7 @@ output "architecture_summary" {
     ║    Reverse Proxy: ${var.reverse_proxy_backend}                      ║
     ║    ${local.stackkit_traefik_enabled ? "✓" : "✗"} Traefik     → ${local.proto}://${local.domains.traefik}        ║
     ${var.enable_dokploy ? format("║    ✓ Dokploy     → %s://%s        ║", local.proto, local.domains.dokploy) : ""}
+    ${var.enable_komodo ? format("║    ✓ Komodo      → %s://%s         ║", local.proto, local.domains.komodo) : ""}
     ${var.enable_coolify ? format("║    ✓ Coolify     → %s://%s        ║", local.proto, local.domains.coolify) : ""}
     ${var.enable_dockge ? format("║    ✓ Dockge      → %s://%s         ║", local.proto, local.domains.dockge) : ""}
     ║    ${var.enable_dashboard ? "✓" : "✗"} Node Hub   → ${local.proto}://${local.domains.base}      ║
@@ -4327,7 +5839,7 @@ output "architecture_summary" {
     ║  1. Login: ${local.proto}://${local.domains.auth}                          ║
     ║     Email: ${var.admin_email} / Password: <see output>           ║
     ║  2. Passkey: ${local.proto}://${local.domains.id}/setup               ║
-    ${(var.enable_dokploy || var.enable_coolify) ? format("║  3. PaaS: %s://%s                          ║", local.proto, var.enable_dokploy ? local.domains.dokploy : local.domains.coolify) : ""}
+    ${(var.enable_dokploy || var.enable_komodo || var.enable_coolify) ? format("║  3. PaaS: %s://%s                          ║", local.proto, var.enable_dokploy ? local.domains.dokploy : (var.enable_komodo ? local.domains.komodo : local.domains.coolify)) : ""}
     ║                                                                   ║
     ${var.subdomain_prefix != "" ? "║  DNS: Managed by kombify.me (Cloudflare wildcard)                   ║" : (local.enable_kombify_point_effective ? "║  DNS: *.${var.domain} -> ${local.kombify_point_target_ip} via Kombify Point       ║" : "║  DNS: direct host resolution; no LAN resolver started              ║")}
 ${local.enable_kombify_point_effective ? "║  Local DNS: Kombify Point running on port 53                       ║" : "║  Local DNS: not enabled                                             ║"}

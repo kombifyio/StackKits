@@ -1,0 +1,83 @@
+services:
+  - type: web
+    name: stackkit-website
+    runtime: static
+    buildCommand: npm --prefix website ci && npm --prefix website run build
+    staticPublishPath: website/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'self' https://kombify.io https://*.kombify.io"
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+
+      - path: /install
+        name: Content-Type
+        value: text/x-shellscript; charset=utf-8
+      - path: /base
+        name: Content-Type
+        value: text/x-shellscript; charset=utf-8
+      - path: /modern
+        name: Content-Type
+        value: text/x-shellscript; charset=utf-8
+      - path: /ha
+        name: Content-Type
+        value: text/x-shellscript; charset=utf-8
+
+      - path: /llms.txt
+        name: Content-Type
+        value: text/plain; charset=utf-8
+      - path: /llms-full.txt
+        name: Content-Type
+        value: text/plain; charset=utf-8
+      - path: /llms-snippets.txt
+        name: Content-Type
+        value: text/plain; charset=utf-8
+      - path: /getting-started/agents.md
+        name: Content-Type
+        value: text/markdown; charset=utf-8
+      - path: /getting-started/agents/*
+        name: Content-Type
+        value: text/markdown; charset=utf-8
+      - path: /mcp/stackkit-mcp.md
+        name: Content-Type
+        value: text/markdown; charset=utf-8
+      - path: /api/openapi.v1.yaml
+        name: Content-Type
+        value: application/yaml; charset=utf-8
+      - path: /schemas/*
+        name: Content-Type
+        value: application/schema+json; charset=utf-8
+
+      - path: /llms.txt
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /llms-full.txt
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /llms-snippets.txt
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /getting-started/agents.md
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /getting-started/agents/*
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /mcp/stackkit-mcp.md
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /api/openapi.v1.yaml
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /schemas/*
+        name: Content-Signal
+        value: search=yes, ai-input=yes
