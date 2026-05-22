@@ -26,12 +26,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -46,18 +46,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: 24
 
@@ -70,7 +70,7 @@ jobs:
             --output internal/registry/data/registry_snapshot.json
 
       - name: Build dry-run archive
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -112,18 +112,18 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: 24
 
@@ -166,7 +166,7 @@ jobs:
         run: syft "${IMAGE}:${TAG}" -o spdx-json=stackkits-server-image.spdx.json
 
       - name: Attest server image SBOM
-        uses: actions/attest-sbom@10926c72720ffc3f7b666661c8e55b1344e2a365
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b
         with:
           subject-name: ghcr.io/kombifyio/stackkits
           subject-digest: ${{ steps.image-digest.outputs.digest }}
@@ -174,7 +174,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest server image
-        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
         with:
           subject-name: ghcr.io/kombifyio/stackkits
           subject-digest: ${{ steps.image-digest.outputs.digest }}
