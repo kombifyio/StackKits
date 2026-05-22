@@ -65,7 +65,7 @@ jobs:
             --output internal/registry/data/registry_snapshot.json
 
       - name: Build dry-run archive
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89
         with:
           distribution: goreleaser
           version: "~> v2"
