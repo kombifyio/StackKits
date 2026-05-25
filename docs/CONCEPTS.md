@@ -96,11 +96,11 @@ The compact authoring and promotion matrix lives in [OPTIONS_AND_AUTHORING.md](O
 | Role | Meaning | Example |
 |------|---------|---------|
 | `default` | Ships enabled, pre-configured, immediately usable | Coolify in Base Kit |
-| `alternative` | Curated swap for a default (same category) | Dokploy as explicit alternative |
+| `alternative` | Curated swap for a default (same category) | Komodo as explicit PaaS alternative |
 | `optional` | Available but off by default, user enables | Game Server |
 | `addon` | Composable infrastructure capability (not a use case) | VPN Overlay, Backup |
 
-User swaps defaults: `stackkit generate --paas dokploy --monitoring beszel`
+User swaps defaults: `stackkit generate --paas komodo --monitoring beszel`
 User enables optionals: `stackkit generate --enable smart-home`
 
 ### 6. Use Case vs Add-On

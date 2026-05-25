@@ -22,8 +22,8 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 	}
 
 	platform := effectiveAppPlatform(spec)
-	if !models.IsStandardPAAS(platform) {
-		return fmt.Errorf("apps require a standard platform adapter, got %q", platform)
+	if !models.IsSupportedPAAS(platform) {
+		return fmt.Errorf("apps require a supported platform adapter, got %q", platform)
 	}
 
 	manifestDir := filepath.Join(outputDir, "platform-apps")
@@ -187,7 +187,11 @@ func renderPlatformCompose(appName string, app models.AppSpec, platform string) 
 		"com.kombify.stackkits.app.health": app.Health.Path,
 	}
 	if app.Route.Auth == routeAuthLogin {
-		labels[fmt.Sprintf("traefik.http.routers.%s.middlewares", routerName)] = "tinyauth@docker"
+		middleware := platformComposeAuthMiddleware(platform)
+		labels[fmt.Sprintf("traefik.http.routers.%s.middlewares", routerName)] = middleware
+		if platform == models.PAASCoolify {
+			labels["coolify.traefik.middlewares"] = middleware
+		}
 	}
 
 	var sb strings.Builder
@@ -209,6 +213,13 @@ func renderPlatformCompose(appName string, app models.AppSpec, platform string) 
 	fmt.Fprintf(&sb, "    name: %s\n", networkName)
 	sb.WriteString("    external: true\n")
 	return sb.String()
+}
+
+func platformComposeAuthMiddleware(platform string) string {
+	if platform == models.PAASCoolify {
+		return "tinyauth@file"
+	}
+	return "tinyauth@docker"
 }
 
 func platformComposeEntrypoint(platform string) string {

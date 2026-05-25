@@ -24,6 +24,7 @@ func TestCanonicalScenarioGenerationContracts(t *testing.T) {
 		}
 		t.Run(scenario.ID, func(t *testing.T) {
 			expected := scenario.Expected.Generation
+			setScenarioGenerationEnvironment(t, scenario)
 			setCapabilitiesHome(t, models.NodeContext(expected.Context))
 
 			spec := scenario.StackSpec
@@ -46,6 +47,17 @@ func TestCanonicalScenarioGenerationContracts(t *testing.T) {
 				assert.Equal(t, want, boolVar(t, vars, key), key)
 			}
 		})
+	}
+}
+
+func setScenarioGenerationEnvironment(t *testing.T, scenario testscenarios.Scenario) {
+	t.Helper()
+	t.Setenv("STACKKIT_ADMIN_EMAIL", "")
+	t.Setenv("KOMBIFY_USER_EMAIL", "")
+	for _, key := range scenario.Env.RequiredKeys {
+		if key == "KOMBIFY_USER_EMAIL" && scenario.Expected.Generation.AdminEmail != "" {
+			t.Setenv("KOMBIFY_USER_EMAIL", scenario.Expected.Generation.AdminEmail)
+		}
 	}
 }
 

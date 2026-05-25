@@ -16,7 +16,6 @@ metadata:
     - docker
     - traefik
     - komodo
-    - dokploy
     - professional
     - v6-draft
 
@@ -188,7 +187,7 @@ platform:
   paas:
     role: default
     defaultTool: coolify
-    alternatives: [komodo, dokploy]
+    alternatives: [komodo]
   monitoring:
     role: default
     defaultTool: uptime-kuma
@@ -261,7 +260,7 @@ changelog:
     date: "2025-01-27"
     changes:
       - "NEW: Coolify as default PaaS platform"
-      - "NEW: Komodo and Dokploy tracked as explicit PaaS alternatives"
+      - "NEW: Komodo tracked as the production PaaS alternative; Dokploy remains draft"
       - "NEW: Uptime Kuma for monitoring (default)"
       - "NEW: Beszel as alternative monitoring option"
       - "NEW: Whoami test container for verification"

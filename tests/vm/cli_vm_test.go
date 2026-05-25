@@ -193,7 +193,8 @@ func TestCLI_Generate_VerifySvelteKitAppResources(t *testing.T) {
 	require.NoError(t, err, "reading SvelteKit compose handoff failed: %s", compose)
 	assert.Contains(t, compose, `container_name: app-web`, "compose should name the app container predictably")
 	assert.Contains(t, compose, "Host(`app.stack.local`)", "compose should route the app through Traefik")
-	assert.Contains(t, compose, "tinyauth@docker", "login-gateway apps should use TinyAuth middleware")
+	assert.Contains(t, compose, "tinyauth@file", "Coolify login-gateway apps should use the shared TinyAuth file middleware")
+	assert.Contains(t, compose, "coolify.traefik.middlewares=tinyauth@file", "Coolify should attach the shared middleware to generated URL routers")
 	assert.Contains(t, compose, "fetch('http://127.0.0.1:3000/health')", "compose should healthcheck the configured path")
 
 	manifest, err := execInCli(t, "cat", vmWorkDir+"/deploy/platform-apps/manifest.json")

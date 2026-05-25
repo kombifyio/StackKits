@@ -117,9 +117,10 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 	if err := ensureKombifyMeRegistration(loader, spec, resolvedCtx); err != nil {
 		return err
 	}
+	generationSpec := specForGeneration(spec)
 
 	cueValidator := cueval.NewValidator(wd)
-	if specResult, valErr := cueValidator.ValidateSpec(spec); valErr != nil {
+	if specResult, valErr := cueValidator.ValidateSpec(generationSpec); valErr != nil {
 		return fmt.Errorf("spec validation failed: %w", valErr)
 	} else if !specResult.Valid {
 		for _, e := range specResult.Errors {
@@ -205,7 +206,7 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		}
 
 		// Run composition engine to determine enabled modules and identity config
-		engine := composition.NewCompositionEngine(contracts, stackkit, spec)
+		engine := composition.NewCompositionEngine(contracts, stackkit, generationSpec)
 		if result, resolveErr := engine.Resolve(); resolveErr != nil {
 			deployLog.Warn("composition.resolve",
 				slog.String("error", resolveErr.Error()),
@@ -264,7 +265,7 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 
 	// Generate terraform.tfvars.json from spec before fragment rendering so the
 	// fragment generator can declare and reference every runtime variable it uses.
-	tfvarsData, err := composition.GenerateTFVarsJSON(spec, compositionResult)
+	tfvarsData, err := composition.GenerateTFVarsJSON(generationSpec, compositionResult)
 	if err != nil {
 		return fmt.Errorf("failed to generate tfvars: %w", err)
 	}
@@ -316,7 +317,7 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 				slog.String("error", graphErr.Error()),
 			)
 		} else {
-			domain := spec.Domain
+			domain := generationSpec.Domain
 			if domain == "" {
 				domain = models.DomainHomeLab
 			}
@@ -353,7 +354,7 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		} else {
 			printInfo("Using stable Base Kit template generation")
 		}
-		err = copyOrRenderTemplates(templateDir, outputPath, spec, stackkit, catalog, domains)
+		err = copyOrRenderTemplates(templateDir, outputPath, generationSpec, stackkit, catalog, domains)
 		if err != nil {
 			return fmt.Errorf("failed to generate files: %w", err)
 		}
@@ -362,7 +363,7 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		mainTfPath := filepath.Join(outputPath, "main.tf")
 		if _, statErr := os.Stat(mainTfPath); os.IsNotExist(statErr) {
 			renderCtx := &template.RenderContext{
-				Spec:     spec,
+				Spec:     generationSpec,
 				StackKit: stackkit,
 				Catalog:  catalog,
 				Domains:  domains,
@@ -378,10 +379,10 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		}
 	}
 
-	if err := cueval.GenerateAppsTF(spec, outputPath); err != nil {
+	if err := cueval.GenerateAppsTF(generationSpec, outputPath); err != nil {
 		return fmt.Errorf("failed to generate platform app manifests: %w", err)
 	}
-	if len(spec.Apps) > 0 {
+	if len(generationSpec.Apps) > 0 {
 		printSuccess("Generated platform app manifests: apps.tf")
 	}
 
@@ -461,7 +462,47 @@ func buildModuleGraphFromComposition(contracts []cueval.ModuleContract, cr *comp
 }
 
 func generateTfvarsJSON(spec *models.StackSpec, cr *composition.CompositionResult) ([]byte, error) {
-	return composition.GenerateTFVarsJSON(spec, cr)
+	return composition.GenerateTFVarsJSON(specForGeneration(spec), cr)
+}
+
+func specForGeneration(spec *models.StackSpec) *models.StackSpec {
+	if spec == nil {
+		return nil
+	}
+	resolved := *spec
+	if shouldUseCloudOwnerEmailForGeneration(&resolved) {
+		if email := cloudOwnerEmailForGeneration(&resolved); email != "" {
+			resolved.AdminEmail = email
+		}
+	}
+	return &resolved
+}
+
+func shouldUseCloudOwnerEmailForGeneration(spec *models.StackSpec) bool {
+	if spec == nil {
+		return false
+	}
+	if !models.NeedsSyntheticAdminEmail(spec.AdminEmail) || strings.TrimSpace(spec.Email) != "" || strings.TrimSpace(spec.Owner.Email) != "" {
+		return false
+	}
+	return spec.Owner.EffectiveBootstrapMode() == models.OwnerBootstrapModeAuto &&
+		strings.EqualFold(strings.TrimSpace(spec.Owner.Source), models.OwnerSourceCloud)
+}
+
+func cloudOwnerEmailForGeneration(spec *models.StackSpec) string {
+	if spec != nil && spec.Environment != nil {
+		for _, key := range []string{"STACKKIT_ADMIN_EMAIL", "KOMBIFY_USER_EMAIL"} {
+			if email := strings.TrimSpace(spec.Environment[key]); email != "" && strings.Contains(email, "@") {
+				return email
+			}
+		}
+	}
+	for _, key := range []string{"STACKKIT_ADMIN_EMAIL", "KOMBIFY_USER_EMAIL"} {
+		if email := strings.TrimSpace(os.Getenv(key)); email != "" && strings.Contains(email, "@") {
+			return email
+		}
+	}
+	return ""
 }
 
 // pocketIDIsEnabled reports whether PocketID is part of the deployment per
@@ -621,7 +662,7 @@ func ensureKombifyMeRegistration(loader *config.Loader, spec *models.StackSpec, 
 		return nil
 	}
 
-	if models.NeedsSyntheticAdminEmail(spec.AdminEmail) && spec.Email == "" {
+	if models.NeedsSyntheticAdminEmail(spec.AdminEmail) && spec.Email == "" && !shouldUseCloudOwnerEmailForGeneration(spec) {
 		spec.AdminEmail = models.SyntheticAdminEmail(spec.Domain, spec.SubdomainPrefix)
 	}
 
@@ -648,6 +689,9 @@ func registerKombifyMeSubdomains(spec *models.StackSpec) error {
 		email := spec.AdminEmail
 		if models.NeedsSyntheticAdminEmail(email) {
 			email = spec.Email
+		}
+		if models.NeedsSyntheticAdminEmail(email) && shouldUseCloudOwnerEmailForGeneration(spec) {
+			email = cloudOwnerEmailForGeneration(spec)
 		}
 		if models.NeedsSyntheticAdminEmail(email) {
 			return fmt.Errorf("no KOMBIFY_API_KEY found and no adminEmail/email in spec for auto-registration")

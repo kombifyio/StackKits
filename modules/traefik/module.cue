@@ -1,6 +1,7 @@
 // Package traefik — Traefik configuration module.
 //
-// In production, Traefik is shipped by the PaaS (Dokploy or Coolify).
+// In production, Traefik is shipped by the selected router: Coolify's
+// integrated Traefik by default, or StackKit-owned Traefik for Komodo.
 // This module defines the middleware configuration, security headers,
 // and ForwardAuth setup that gets applied to the PaaS-shipped Traefik
 // via container labels and dynamic config.
@@ -98,7 +99,7 @@ Contract: base.#ModuleContract & {
 	}
 
 	// Service definition describes the PaaS-shipped Traefik's expected config.
-	// In production this container is managed by Dokploy/Coolify, not by StackKit.
+	// In production this container is managed by the selected router, not by StackKit.
 	// The service definition is used for: label generation, middleware config, tests.
 	services: traefik: base.#ServiceDefinition & {
 		name:     "traefik"

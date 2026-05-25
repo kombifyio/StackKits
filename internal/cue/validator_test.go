@@ -260,7 +260,7 @@ func TestValidateSpec(t *testing.T) {
 		assert.Contains(t, validationErrorPaths(result.Errors), "platformFallback.mode")
 	})
 
-	t.Run("accepts standard platform adapters", func(t *testing.T) {
+	t.Run("accepts supported platform adapters", func(t *testing.T) {
 		for _, paas := range []string{models.PAASDokploy, models.PAASCoolify, models.PAASKomodo} {
 			spec := &models.StackSpec{
 				Name:     "test",

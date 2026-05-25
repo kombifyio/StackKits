@@ -56,7 +56,7 @@
       "enableHTTPS": false,
       "stepCAEnabled": true,
       "enableKombifyPoint": false,
-      "adminEmail": "admin@sh-scenario-s2a.kombify.me",
+      "adminEmail": "tester@kombify.pro",
       "serviceFlags": {
         "enable_dashboard": true,
         "enable_tinyauth": true,

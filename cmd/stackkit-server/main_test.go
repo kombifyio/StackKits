@@ -1,7 +1,11 @@
 package main
 
 import (
+	"net/http"
 	"testing"
+	"time"
+
+	"github.com/kombifyio/stackkits/internal/api"
 )
 
 func TestResolveAPIKey(t *testing.T) {
@@ -98,6 +102,20 @@ func TestResolveAPIKey(t *testing.T) {
 			t.Fatalf("resolveAPIKey() key = %q, want empty", key)
 		}
 	})
+}
+
+func TestNewHTTPServer_AllowsBoundedRuntimeActions(t *testing.T) {
+	server := newHTTPServer(api.ServerConfig{Port: 8082}, http.NewServeMux())
+
+	if server.ReadTimeout != 30*time.Second {
+		t.Fatalf("ReadTimeout = %s, want 30s", server.ReadTimeout)
+	}
+	if server.WriteTimeout != 14*time.Minute+30*time.Second {
+		t.Fatalf("WriteTimeout = %s, want 14m30s", server.WriteTimeout)
+	}
+	if server.WriteTimeout > 15*time.Minute {
+		t.Fatalf("WriteTimeout = %s, exceeds 15m policy", server.WriteTimeout)
+	}
 }
 
 func TestResolveCORSOrigins(t *testing.T) {

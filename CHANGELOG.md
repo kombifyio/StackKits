@@ -4,26 +4,52 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.3.0] - 2026-05-22
+## [0.3.1] - 2026-05-25
 
 ### Highlights
 
-- **PaaS portfolio expansion**: Coolify remains the default PaaS, while Komodo and Dokploy are now explicit, VM-proven alternatives for BaseKit rollouts.
+- **Canonical live scenarios**: release work now focuses on SK-S1 local Coolify, SK-S2 kombify.me Komodo, and SK-S3 custom-domain Coolify, with installer gates split into bounded Start/Wait/Verify phases.
+- **Auth baseline**: BaseKit rollouts restore TinyAuth/PocketID provider registration and runtime checks so protected services expose PocketID login instead of falling back to password-only TinyAuth.
+- **Coolify routing**: generated Coolify rollouts now bootstrap, reconcile, and route StackKit-owned services through the managed proxy with service hostnames such as `base`, `id`, `photos`, and `kuma`.
+
+### Fixed
+
+- **Coolify proxy recovery**: fallback and reconciliation logic now restores file-provider routing, dynamic config mounts, proxy TLS settings, service routes, host-gateway access, and same-file dynamic-config sync handling.
+- **Cloudflare DNS-01**: custom-domain Coolify rollouts pass Cloudflare Global API Key credentials to Traefik as `CF_API_KEY` when `CLOUDFLARE_EMAIL` is present, while scoped API tokens still use `CF_DNS_API_TOKEN`.
+- **Installer readiness**: live installer jobs hand off VM state before verification and wait for routed services/certificates in bounded phases instead of relying on a single long-running job.
+- **Runtime metrics**: restore-drill host metrics preserve legitimate zero CPU values instead of dropping them as missing data.
+- **Release preflight**: `scripts/release/basekit-live-preflight.ps1` now fails closed when `go`, `node`, `npm`, `cue`, actionlint, or release helper commands return a non-zero exit code.
+- **Coolify endpoint contract**: generated BaseKit rollouts keep the persisted `.stackkit/platform.json` Coolify endpoint node-local at `http://127.0.0.1:8000`, while bootstrap and readiness probes can use a separate endpoint reachable from remote Docker targets.
+- **Archive validation**: release archive smoke validation now checks the current `coolify_platform_bootstrap` and `.stackkit/platform.json` contract from packaged contents instead of obsolete Coolify token API markers.
+- **Release state**: STATUS and ROADMAP now treat `v0.3.1` as the next public patch candidate and keep old `v0.2.8` follow-ups as historical evidence rather than current release blockers.
+
+### Release Notes
+
+- `v0.3.1` is the next intended Public OSS patch release. `v0.3.0` was a private failed release attempt and is not treated as a public release.
+- Production run `26420216004` on `f3419a54` was intentionally cancelled by operator request after API/Gateway, BaseKit preflight, Sim UI auth, and SK-S2 Start had passed. Complete SK-S1/SK-S2/SK-S3 end-to-end evidence should be rerun before making an Enterprise production-readiness claim.
+
+## [0.3.0] - 2026-05-22 (private tag; not public OSS release)
+
+> `v0.3.0` was tagged privately but did not complete the public publish path. Do not use it as public release evidence and do not retag it.
+
+### Highlights
+
+- **PaaS portfolio alignment**: Coolify remains the default PaaS, while Komodo is the production alternative for BaseKit rollouts. Dokploy remains draft until promoted.
 - **Komodo no-UI path**: generated rollouts install Komodo Core, Periphery, and DB, create the initial admin/API key without UI, close registration, persist `.stackkit/platform.json`, and deploy StackKit-owned Compose bundles as Komodo Stack resources through the API.
 - **Dokploy no-UI path**: generated rollouts set `BETTER_AUTH_SECRET`, create or confirm the first owner, establish a session, mint a non-rate-limited API key, persist both `token` and `apiKey`, deploy raw Compose resources through Dokploy, and route through `dokploy-traefik`.
-- **Forge Map/Admin sync**: Admin seed and generated CUE now carry Coolify as the PaaS standard with Komodo, Dokploy, and CapRover as alternatives.
+- **Forge Map/Admin sync**: Admin seed and generated CUE now carry Coolify as the PaaS standard with Komodo as the production alternative; Dokploy is tracked as draft.
 
 ### Changed
 
-- StackKit-owned L3 app deployment now has explicit selected-PaaS adapter contracts for Coolify, Komodo, and Dokploy.
-- Production Fresh-VM coverage now includes targeted explicit PaaS gates for `paas: komodo` and `paas: dokploy`.
-- Documentation, ADRs, StackSpec reference, website content, and Works-With metadata now describe the Coolify default plus Komodo/Dokploy alternatives honestly.
+- StackKit-owned L3 app deployment now has explicit selected-PaaS adapter contracts for Coolify and Komodo, with Dokploy kept behind draft adapter coverage.
+- Production E2E coverage is capped at SK-S1 local Coolify, SK-S2 kombify.me Komodo, and SK-S3 custom-domain Coolify.
+- Documentation, ADRs, StackSpec reference, website content, and Works-With metadata now describe the Coolify default, Komodo production alternative, and Dokploy draft status honestly.
 
 ### Fixed
 
 - Dokploy Compose creation now persists `sourceType: raw` through a follow-up update before deploy, avoiding accidental GitHub-source deployments.
 - Komodo adapter upserts now resolve canonical stack IDs on create conflicts before update/deploy evidence is recorded.
-- Generated Admin/CUE artifacts are back in sync for `paas.type` and `paas.alternatives`.
+- Generated Admin/CUE artifacts are back in sync for `paas.type` and the production/draft PaaS split.
 
 ## [0.2.8] - 2026-05-17
 

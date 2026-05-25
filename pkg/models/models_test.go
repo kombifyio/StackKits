@@ -499,11 +499,19 @@ func TestResolveReverseProxyForPAAS(t *testing.T) {
 }
 
 func TestPAASClassification(t *testing.T) {
-	assert.True(t, IsStandardPAAS(PAASDokploy))
 	assert.True(t, IsStandardPAAS(PAASCoolify))
 	assert.True(t, IsStandardPAAS(PAASKomodo))
+	assert.False(t, IsStandardPAAS(PAASDokploy))
 	assert.False(t, IsStandardPAAS(PAASDockge))
 	assert.False(t, IsStandardPAAS(PAASNone))
+
+	assert.True(t, IsDraftPAAS(PAASDokploy))
+	assert.False(t, IsDraftPAAS(PAASCoolify))
+
+	assert.True(t, IsSupportedPAAS(PAASDokploy))
+	assert.True(t, IsSupportedPAAS(PAASCoolify))
+	assert.True(t, IsSupportedPAAS(PAASKomodo))
+	assert.False(t, IsSupportedPAAS(PAASDockge))
 
 	assert.True(t, IsExperimentalPAAS(PAASDockge))
 	assert.False(t, IsExperimentalPAAS(PAASDokploy))

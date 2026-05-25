@@ -232,17 +232,13 @@ func coolifyServicePayload(manifest AppManifest, cfg HTTPConfig) map[string]any 
 	if cfg.DestinationUUID != "" {
 		payload["destination_uuid"] = cfg.DestinationUUID
 	}
-	if route := coolifyServiceRoute(manifest); route != "" && !composeDefinesTraefikRouter(compose) {
+	if route := coolifyServiceRoute(manifest); route != "" {
 		payload["urls"] = []map[string]string{{
 			"name": resourceName,
 			"url":  route,
 		}}
 	}
 	return payload
-}
-
-func composeDefinesTraefikRouter(compose string) bool {
-	return strings.Contains(compose, "traefik.http.routers.")
 }
 
 func coolifyServiceResourceName(appName, compose string) string {

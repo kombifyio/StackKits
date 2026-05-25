@@ -100,7 +100,7 @@ package base
     displayName:  "Platform-as-a-Service"
     layer:        "2"
     standardTool: "coolify"
-    alternatives: ["komodo", "dokploy", "caprover"]
+    alternatives: ["komodo"]
   }
   "platform-identity": {
     slug:         "platform-identity"
@@ -230,20 +230,6 @@ package base
     image:       "ghcr.io/coollabsio/coolify"
     defaultTag:  "latest"
     logoUrl:     "https://cdn.simpleicons.org/coolify/ffffff"
-
-    supportsArm: false
-    supportsX86: true
-    minMemoryMB: 0
-  }
-  "dokploy": {
-    name:        "dokploy"
-    displayName: "Dokploy"
-    description: "Self-hosted PaaS for deploying applications with Docker. StackKits tracks it as an explicit alternative while first-owner and API-key bootstrap are hardened."
-    layer:       "2"
-    category:    "paas"
-    image:       "dokploy/dokploy"
-    defaultTag:  "latest"
-    logoUrl:     "https://cdn.simpleicons.org/docker/ffffff"
 
     supportsArm: false
     supportsX86: true

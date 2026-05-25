@@ -13,7 +13,7 @@
 #
 # Common (all tiers):
 #   L1: Pocket ID (OIDC) + TinyAuth (ForwardAuth)
-#   L2: Dokploy/Coolify platform router + Dashboard
+#   L2: Selected PaaS platform router + Dashboard
 #
 # Security Principle: OpenTofu installs the platform; user app rollout belongs
 # to the selected PaaS, not StackKit.
@@ -197,7 +197,7 @@ variable "immich_postgres_image" {
 variable "immich_redis_image" {
   type        = string
   description = "Immich Redis-compatible cache image"
-  default     = "docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9"
+  default     = "ghcr.io/valkey-io/valkey:9"
 }
 
 variable "media_path" {
@@ -457,7 +457,7 @@ variable "enable_kombify_point" {
 variable "kombify_point_image" {
   type        = string
   description = "CoreDNS-based Kombify Point local DNS resolver image"
-  default     = "coredns/coredns:1.11.3"
+  default     = "registry.k8s.io/coredns/coredns:v1.11.3"
 }
 
 variable "enable_coolify" {
@@ -534,12 +534,15 @@ locals {
   platform_adapter             = local.platform_fallback_standalone ? "none" : var.paas
   l3_platform_adapter          = local.platform_fallback_standalone ? "none" : var.paas
   auth_middleware          = var.enable_tinyauth ? "tinyauth@docker" : ""
+  coolify_auth_middleware  = var.enable_tinyauth ? "tinyauth@file" : ""
+  service_auth_middleware  = local.rp_coolify ? local.coolify_auth_middleware : local.auth_middleware
   tinyauth_forwardauth_address = local.is_host ? "http://127.0.0.1:${local.host_ports.tinyauth}/api/auth/traefik" : "http://tinyauth:3000/api/auth/traefik"
   base_hub_bootstrap_open  = var.enable_dashboard && (local.is_localhost_domain || local.is_local_dns_domain) && !var.protect_base_hub
   base_hub_uses_dynamic_protection = var.enable_tinyauth && (local.is_localhost_domain || local.is_local_dns_domain)
   base_hub_auth_middleware = var.enable_tinyauth ? (local.base_hub_uses_dynamic_protection ? "base-hub-auth@file" : "tinyauth@docker") : ""
   base_hub_unprotected     = var.enable_dashboard && (local.base_hub_bootstrap_open || local.base_hub_auth_middleware == "")
-  stackkit_dynamic_middleware_enabled = local.stackkit_traefik_enabled || local.base_hub_uses_dynamic_protection
+  coolify_proxy_dynamic_enabled = local.rp_coolify && var.enable_coolify
+  stackkit_dynamic_middleware_enabled = local.stackkit_traefik_enabled || local.base_hub_uses_dynamic_protection || local.coolify_proxy_dynamic_enabled
   platform_hub_managed     = var.enable_dashboard
   platform_hub_fallback    = false
 
@@ -585,15 +588,17 @@ locals {
     local.is_localhost_domain ||
     local.is_local_dns_domain
   )
-  deploy_step_ca = var.step_ca_enabled && local.step_ca_domain_mode
-  use_step_ca    = local.deploy_step_ca && var.enable_https && !local.is_kombify_me
+  deploy_step_ca = var.step_ca_enabled && var.enable_https && !local.is_kombify_me && local.step_ca_domain_mode
+  use_step_ca    = local.deploy_step_ca
   tls_label_name  = local.use_step_ca ? "tls" : "tls.certresolver"
   tls_label_value = local.use_step_ca ? "true" : "letsencrypt"
 
   tinyauth_session_secret_effective = var.enable_tinyauth ? (var.tinyauth_session_secret != "" ? var.tinyauth_session_secret : try(random_password.tinyauth_session_secret[0].result, "")) : ""
   vaultwarden_admin_token_effective = var.enable_vaultwarden ? (var.vaultwarden_admin_token != "" ? var.vaultwarden_admin_token : try(random_password.vaultwarden_admin[0].result, "")) : ""
   pocketid_internal_oidc_origin     = local.is_host ? "http://127.0.0.1:${local.host_ports.pocketid}" : "http://pocketid:1411"
-  coolify_api_endpoint              = "http://127.0.0.1:8000"
+  coolify_docker_host_name          = startswith(var.docker_host, "tcp://") ? split(":", trimprefix(var.docker_host, "tcp://"))[0] : ""
+  coolify_api_endpoint              = local.coolify_local_endpoint
+  coolify_bootstrap_api_endpoint    = local.coolify_docker_host_name != "" ? "http://${local.coolify_docker_host_name}:8000" : local.coolify_api_endpoint
   coolify_root_email                = var.admin_email
   dokploy_api_endpoint              = "http://127.0.0.1:${local.host_ports.dokploy}"
   komodo_api_endpoint               = "http://127.0.0.1:9120"
@@ -636,7 +641,7 @@ locals {
   kuma_compose_host = <<-EOT
     services:
       uptime-kuma:
-        image: louislam/uptime-kuma:1
+        image: ghcr.io/louislam/uptime-kuma:2.0.2
         container_name: kuma
         restart: unless-stopped
         network_mode: host
@@ -650,7 +655,10 @@ locals {
           - "traefik.http.routers.kuma.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
           - "traefik.http.services.kuma.loadbalancer.server.port=${local.host_ports.kuma}"
-          - "traefik.http.routers.kuma.middlewares=tinyauth@docker"
+          - "traefik.http.routers.kuma.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
         healthcheck:
           test: ["CMD-SHELL", "curl -sf http://localhost:${local.host_ports.kuma}/ || exit 1"]
           interval: 30s
@@ -659,7 +667,7 @@ locals {
           start_period: 45s
 
       init-kuma:
-        image: python:3.11-alpine
+        image: public.ecr.aws/docker/library/python:3.11-alpine
         restart: "no"
         network_mode: host
         environment:
@@ -756,7 +764,7 @@ locals {
   kuma_compose_bridge = <<-EOT
     services:
       uptime-kuma:
-        image: louislam/uptime-kuma:1
+        image: ghcr.io/louislam/uptime-kuma:2.0.2
         container_name: kuma
         restart: unless-stopped
         volumes:
@@ -772,7 +780,10 @@ locals {
           - "traefik.http.routers.kuma.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
           - "traefik.http.services.kuma.loadbalancer.server.port=3001"
-          - "traefik.http.routers.kuma.middlewares=tinyauth@docker"
+          - "traefik.http.routers.kuma.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
         healthcheck:
           test: ["CMD-SHELL", "curl -sf http://localhost:3001/ || exit 1"]
           interval: 30s
@@ -781,7 +792,7 @@ locals {
           start_period: 45s
 
       init-kuma:
-        image: python:3.11-alpine
+        image: public.ecr.aws/docker/library/python:3.11-alpine
         restart: "no"
         environment:
           KUMA_URL: "http://uptime-kuma:3001"
@@ -886,7 +897,7 @@ locals {
   whoami_compose_host = <<-EOT
     services:
       whoami:
-        image: traefik/whoami:latest
+        image: ghcr.io/traefik/whoami:latest
         container_name: whoami
         restart: unless-stopped
         network_mode: host
@@ -899,13 +910,16 @@ locals {
           - "traefik.http.routers.whoami.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
           - "traefik.http.services.whoami.loadbalancer.server.port=${local.host_ports.whoami}"
-          - "traefik.http.routers.whoami.middlewares=tinyauth@docker"
+          - "traefik.http.routers.whoami.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
   EOT
 
   whoami_compose_bridge = <<-EOT
     services:
       whoami:
-        image: traefik/whoami:latest
+        image: ghcr.io/traefik/whoami:latest
         container_name: whoami
         restart: unless-stopped
         networks:
@@ -919,7 +933,10 @@ locals {
           - "traefik.http.routers.whoami.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
           - "traefik.http.services.whoami.loadbalancer.server.port=80"
-          - "traefik.http.routers.whoami.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.whoami.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
 
     networks:
       traefik-network:
@@ -954,7 +971,10 @@ locals {
 %{if var.enable_https~}
           - "traefik.http.routers.vaultwarden.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.vaultwarden.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.vaultwarden.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
           - "traefik.http.services.vaultwarden.loadbalancer.server.port=${local.host_ports.vaultwarden}"
         healthcheck:
           test: ["CMD-SHELL", "curl -sf http://localhost:${local.host_ports.vaultwarden}/alive || exit 1"]
@@ -982,12 +1002,16 @@ locals {
           - vaultwarden-data:/data
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.vaultwarden.rule=Host(`${local.domains.vault}`)"
           - "traefik.http.routers.vaultwarden.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
           - "traefik.http.routers.vaultwarden.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.vaultwarden.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.vaultwarden.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
           - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
         healthcheck:
           test: ["CMD-SHELL", "curl -sf http://localhost:80/alive || exit 1"]
@@ -1031,7 +1055,10 @@ locals {
 %{if var.enable_https~}
           - "traefik.http.routers.jellyfin.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.jellyfin.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.jellyfin.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
           - "traefik.http.services.jellyfin.loadbalancer.server.port=${local.host_ports.jellyfin}"
         healthcheck:
           test: ["CMD-SHELL", "curl -sf http://localhost:${local.host_ports.jellyfin}/health || exit 1"]
@@ -1060,12 +1087,16 @@ locals {
           - ${var.media_path}:/media:ro
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.jellyfin.rule=Host(`${local.domains.media}`)"
           - "traefik.http.routers.jellyfin.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
           - "traefik.http.routers.jellyfin.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.jellyfin.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.jellyfin.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
           - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
         healthcheck:
           test: ["CMD-SHELL", "curl -sf http://localhost:8096/health || exit 1"]
@@ -1117,7 +1148,10 @@ locals {
 %{if var.enable_https~}
           - "traefik.http.routers.immich.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.immich.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.immich.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
           - "traefik.http.services.immich.loadbalancer.server.port=${local.host_ports.immich}"
         depends_on:
           immich-postgres:
@@ -1202,12 +1236,16 @@ locals {
           - /etc/localtime:/etc/localtime:ro
         labels:
           - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.immich.rule=Host(`${local.domains.photos}`)"
           - "traefik.http.routers.immich.entrypoints=${local.entrypoint}"
 %{if var.enable_https~}
           - "traefik.http.routers.immich.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
-          - "traefik.http.routers.immich.middlewares=${local.auth_middleware}"
+          - "traefik.http.routers.immich.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
           - "traefik.http.services.immich.loadbalancer.server.port=2283"
         depends_on:
           immich-postgres:
@@ -1301,7 +1339,7 @@ locals {
   # Do NOT edit by hand — update CUE definitions and re-run stackkit generate.
   # Brand color (${var.brand_color}) and domain (${var.domain}) are injected at
   # generation time. No external deps — served by the platform-managed
-  # stackkit-hub system app at base.${var.domain} in normal Dokploy/Coolify
+  # stackkit-hub system app at base.${var.domain} in normal selected-PaaS mode
   # rollouts, with a direct container only for fallback standalone routing.
   # =============================================================================
   dashboard_html = <<-HTML
@@ -1544,7 +1582,7 @@ locals {
   stackkit_hub_compose_content = <<-EOT
     services:
       stackkit-hub:
-        image: nginx:alpine
+        image: public.ecr.aws/docker/library/nginx:alpine
         container_name: dashboard
         restart: unless-stopped
         command:
@@ -2265,12 +2303,12 @@ resource "docker_volume" "kuma_data" {
 
 resource "docker_image" "traefik" {
   count = local.stackkit_traefik_enabled ? 1 : 0
-  name  = "traefik:v3"
+  name  = "ghcr.io/traefik/traefik:v3"
 }
 
 resource "docker_image" "dokploy_traefik" {
   count = local.dokploy_traefik_enabled ? 1 : 0
-  name  = "traefik:v3"
+  name  = "ghcr.io/traefik/traefik:v3"
 }
 
 resource "local_file" "traefik_local_tls" {
@@ -2302,9 +2340,9 @@ resource "local_file" "traefik_dynamic_stackkit" {
           rule: "Host(`${local.domains.coolify}`)"
           entryPoints:
             - "${local.entrypoint}"
-%{if local.auth_middleware != ""~}
+%{if local.coolify_auth_middleware != ""~}
           middlewares:
-            - "${local.auth_middleware}"
+            - "${local.coolify_auth_middleware}"
 %{endif~}
           service: stackkit-coolify
 %{if var.enable_https~}
@@ -2322,6 +2360,15 @@ resource "local_file" "traefik_dynamic_stackkit" {
               - url: "http://coolify:8080"
 %{endif~}
       middlewares:
+%{if var.enable_tinyauth~}
+        tinyauth:
+          forwardAuth:
+            address: "${local.tinyauth_forwardauth_address}"
+            trustForwardHeader: true
+            authResponseHeaders:
+              - "X-User"
+              - "X-Email"
+%{endif~}
         base-hub-auth:
 %{if !var.enable_tinyauth || local.base_hub_bootstrap_open~}
           headers:
@@ -2339,7 +2386,7 @@ resource "local_file" "traefik_dynamic_stackkit" {
 }
 
 resource "local_file" "coolify_dynamic_stackkit" {
-  count           = local.rp_coolify && local.base_hub_uses_dynamic_protection ? 1 : 0
+  count           = local.coolify_proxy_dynamic_enabled ? 1 : 0
   filename        = "/data/coolify/proxy/dynamic/stackkit.yml"
   file_permission = "0640"
   content         = local_file.traefik_dynamic_stackkit[0].content
@@ -2488,8 +2535,9 @@ resource "docker_container" "traefik" {
     "TZ=Europe/Berlin",
     "DOCKER_API_VERSION=1.44",
   ],
-  # DNS provider API token for DNS-01 challenge (provider-specific env var names)
-  # Cloudflare: supports scoped API Token (CF_DNS_API_TOKEN) or Global API Key (CF_API_EMAIL + CF_API_KEY)
+  # DNS provider API token/key for DNS-01 challenge (provider-specific env var names).
+  # Cloudflare uses CF_API_KEY with an email for legacy Global API Key auth, and
+  # CF_DNS_API_TOKEN without an email for scoped API token auth.
   var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "cloudflare" && var.dns_api_email != "" ? [
     "CF_API_EMAIL=${var.dns_api_email}",
     "CF_API_KEY=${var.dns_api_token}",
@@ -2723,7 +2771,7 @@ resource "null_resource" "reverse_proxy_ready" {
 
 resource "docker_image" "tinyauth" {
   count = var.enable_tinyauth ? 1 : 0
-  name  = "ghcr.io/steveiliop56/tinyauth:v4"
+  name  = "ghcr.io/steveiliop56/tinyauth:v5.0.7"
 }
 
 resource "docker_container" "tinyauth" {
@@ -2748,7 +2796,7 @@ resource "docker_container" "tinyauth" {
     }
   }
 
-  # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
   dynamic "networks_advanced" {
     for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
@@ -2772,25 +2820,25 @@ resource "docker_container" "tinyauth" {
 
   env = concat([
     "TZ=${var.timezone}",
-    "APP_URL=${var.tinyauth_app_url}",
-    "USERS=${var.tinyauth_users}",
-    "SECRET=${local.tinyauth_session_secret_effective}",
-    "SECURE_COOKIE=${var.tinyauth_secure_cookie}",
-    "SESSION_EXPIRY=${var.tinyauth_session_expiry}",
+    "TINYAUTH_APPURL=${var.tinyauth_app_url}",
+    "TINYAUTH_AUTH_USERS=${var.tinyauth_users}",
+    "TINYAUTH_AUTH_SECURECOOKIE=${var.tinyauth_secure_cookie}",
+    "TINYAUTH_AUTH_SESSIONEXPIRY=${var.tinyauth_session_expiry}",
+    "TINYAUTH_DATABASE_PATH=/data/tinyauth.db",
+    "TINYAUTH_RESOURCES_PATH=/data/resources",
     "TINYAUTH_SERVER_PORT=${local.is_host ? tostring(local.host_ports.tinyauth) : "3000"}",
-    "PORT=${local.is_host ? tostring(local.host_ports.tinyauth) : "3000"}",
   ], var.tinyauth_oidc_enabled ? [
-    "PROVIDERS_POCKETID_CLIENT_ID=${var.tinyauth_oidc_client_id}",
-    "PROVIDERS_POCKETID_CLIENT_SECRET=${var.tinyauth_oidc_client_secret}",
-    "PROVIDERS_POCKETID_AUTH_URL=${var.tinyauth_oidc_issuer}/authorize",
-    "PROVIDERS_POCKETID_TOKEN_URL=${local.pocketid_internal_oidc_origin}/api/oidc/token",
-    "PROVIDERS_POCKETID_USER_INFO_URL=${local.pocketid_internal_oidc_origin}/api/oidc/userinfo",
-    "PROVIDERS_POCKETID_REDIRECT_URL=${var.tinyauth_app_url}/api/oauth/callback/pocketid",
-    "PROVIDERS_POCKETID_SCOPES=openid email profile groups",
-    "PROVIDERS_POCKETID_NAME=Pocket ID",
-    "PROVIDERS_POCKETID_INSECURE_SKIP_VERIFY=${local.use_step_ca ? "true" : "false"}",
-    "OAUTH_AUTO_REDIRECT=pocketid",
-    "OAUTH_WHITELIST=${var.tinyauth_oauth_whitelist}",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=${var.tinyauth_oidc_client_id}",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET=${var.tinyauth_oidc_client_secret}",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=${var.tinyauth_oidc_issuer}/authorize",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=${local.pocketid_internal_oidc_origin}/api/oidc/token",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=${local.pocketid_internal_oidc_origin}/api/oidc/userinfo",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=${var.tinyauth_app_url}/api/oauth/callback/pocketid",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES=openid email profile groups",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME=Pocket ID",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=${local.use_step_ca ? "true" : "false"}",
+    "TINYAUTH_OAUTH_AUTOREDIRECT=pocketid",
+    "TINYAUTH_OAUTH_WHITELIST=${var.tinyauth_oauth_whitelist}",
   ] : [])
 
   labels {
@@ -2913,7 +2961,7 @@ resource "docker_container" "pocketid" {
     }
   }
 
-  # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
   dynamic "networks_advanced" {
     for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
@@ -3104,7 +3152,7 @@ resource "random_password" "immich_db" {
 
 resource "docker_image" "dokploy_postgres" {
   count = var.enable_dokploy ? 1 : 0
-  name  = "postgres:16-alpine"
+  name  = "public.ecr.aws/docker/library/postgres:16-alpine"
 }
 
 resource "docker_container" "dokploy_postgres" {
@@ -3180,7 +3228,7 @@ resource "docker_container" "dokploy_postgres" {
 
 resource "docker_image" "dokploy_redis" {
   count = var.enable_dokploy ? 1 : 0
-  name  = "redis:7-alpine"
+  name  = "public.ecr.aws/docker/library/redis:7-alpine"
 }
 
 resource "docker_container" "dokploy_redis" {
@@ -3440,7 +3488,7 @@ resource "null_resource" "dokploy_platform_config_dir" {
 
 resource "docker_image" "dokploy_bootstrap" {
   count = var.enable_dokploy ? 1 : 0
-  name  = "node:22-alpine"
+  name  = "public.ecr.aws/docker/library/node:22-alpine"
 }
 
 resource "local_sensitive_file" "dokploy_bootstrap_env" {
@@ -3869,7 +3917,7 @@ resource "null_resource" "dokploy_platform_bootstrap" {
 
 resource "docker_image" "komodo_mongo" {
   count = var.enable_komodo ? 1 : 0
-  name  = "mongo:7"
+  name  = "public.ecr.aws/docker/library/mongo:7"
 }
 
 resource "docker_image" "komodo_core" {
@@ -4338,7 +4386,7 @@ resource "docker_container" "dockge" {
     }
   }
 
-  # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
   dynamic "networks_advanced" {
     for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
@@ -4472,21 +4520,30 @@ resource "null_resource" "coolify_install" {
           exit 1
         fi
         echo "Installing Coolify..."
-        COOLIFY_INSTALL_PATH="$PATH"
-        COOLIFY_SYSTEMCTL_SHIM="$(mktemp -d)"
-        stackkit_preseed_coolify_image() {
-          target="$1"
-          mirror="$2"
-          if stackkit_docker image inspect "$target" >/dev/null 2>&1; then
-            return 0
-          fi
-          if stackkit_docker pull "$mirror" >/dev/null 2>&1; then
-            stackkit_docker tag "$mirror" "$target"
-          fi
-        }
-        stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine"
-        stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine"
-        cat > "$COOLIFY_SYSTEMCTL_SHIM/docker" <<EOS
+        case "${var.docker_host}" in
+          ssh://*)
+            STACKKIT_REMOTE_SSH="${replace(var.docker_host, "ssh://", "")}"
+            ssh "$STACKKIT_REMOTE_SSH" "ROOT_USERNAME=\"stackkits-admin\" ROOT_USER_EMAIL=\"${local.coolify_root_email}\" ROOT_USER_PASSWORD=\"${var.admin_password_plaintext}\" DOCKER_ADDRESS_POOL_BASE=\"172.30.0.0/16\" DOCKER_ADDRESS_POOL_SIZE=\"24\" DOCKER_POOL_FORCE_OVERRIDE=true AUTOUPDATE=false bash -s" <<'EOS'
+set -eu
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+EOS
+            ;;
+          *)
+            COOLIFY_INSTALL_PATH="$PATH"
+            COOLIFY_SYSTEMCTL_SHIM="$(mktemp -d)"
+            stackkit_preseed_coolify_image() {
+              target="$1"
+              mirror="$2"
+              if stackkit_docker image inspect "$target" >/dev/null 2>&1; then
+                return 0
+              fi
+              if stackkit_docker pull "$mirror" >/dev/null 2>&1; then
+                stackkit_docker tag "$mirror" "$target"
+              fi
+            }
+            stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine"
+            stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine"
+            cat > "$COOLIFY_SYSTEMCTL_SHIM/docker" <<EOS
 #!/bin/sh
 real="$COOLIFY_REAL_DOCKER"
 image=""
@@ -4506,9 +4563,7 @@ esac
 exec "\$real" "\$@"
 EOS
         chmod +x "$COOLIFY_SYSTEMCTL_SHIM/docker"
-        COOLIFY_INSTALL_PATH="$COOLIFY_SYSTEMCTL_SHIM:$PATH"
-        if [ ! -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
-          cat > "$COOLIFY_SYSTEMCTL_SHIM/systemctl" <<'EOS'
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/systemctl" <<'EOS'
 #!/bin/sh
 case "$*" in
   "status ssh"|"status sshd"|"enable ssh"|"enable sshd"|"start ssh"|"start sshd"|"status docker"|"enable docker"|"start docker"|"restart docker"|"--now enable docker")
@@ -4517,8 +4572,29 @@ case "$*" in
 esac
 exit 0
 EOS
-          chmod +x "$COOLIFY_SYSTEMCTL_SHIM/systemctl"
-        fi
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/service" <<'EOS'
+#!/bin/sh
+case "$*" in
+  "ssh status"|"sshd status"|"ssh start"|"sshd start"|"docker status"|"docker start"|"docker restart")
+    exit 0
+    ;;
+esac
+exit 0
+EOS
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/rc-update" <<'EOS'
+#!/bin/sh
+exit 0
+EOS
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/sshd" <<'EOS'
+#!/bin/sh
+if [ "$1" = "-T" ]; then
+  echo "permitrootlogin yes"
+  exit 0
+fi
+exit 0
+EOS
+        chmod +x "$COOLIFY_SYSTEMCTL_SHIM/systemctl" "$COOLIFY_SYSTEMCTL_SHIM/service" "$COOLIFY_SYSTEMCTL_SHIM/rc-update" "$COOLIFY_SYSTEMCTL_SHIM/sshd"
+        COOLIFY_INSTALL_PATH="$COOLIFY_SYSTEMCTL_SHIM:$PATH"
         env \
           PATH="$COOLIFY_INSTALL_PATH" \
           ROOT_USERNAME="stackkits-admin" \
@@ -4530,6 +4606,8 @@ EOS
           DOCKER_POOL_FORCE_OVERRIDE=true \
           AUTOUPDATE=false \
           bash -c 'curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash'
+            ;;
+        esac
         if ! stackkit_docker ps -a --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
           echo "ERROR: Coolify installer exited without creating the coolify container"
           stackkit_docker ps -a --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' || true
@@ -4637,6 +4715,14 @@ if (!$server) {
 if (!$server) {
     throw new \RuntimeException('StackKit Coolify bootstrap could not find a Coolify server.');
 }
+$serverIP = getenv('STACKKIT_COOLIFY_SERVER_IP') ?: $server->ip;
+$serverUser = getenv('STACKKIT_COOLIFY_SERVER_USER') ?: ($server->user ?: 'root');
+$serverPort = (int) (getenv('STACKKIT_COOLIFY_SERVER_PORT') ?: ($server->port ?: 22));
+$server->forceFill([
+    'ip' => $serverIP,
+    'user' => $serverUser,
+    'port' => $serverPort,
+])->save();
 
 $destination = $server->destinations()->first();
 if (!$destination) {
@@ -4685,7 +4771,11 @@ $server->save();
 try {
     \App\Actions\Proxy\StartProxy::run($server, async: false, force: true);
 } catch (\Throwable $e) {
-    throw new \RuntimeException('StackKit Coolify bootstrap could not start Coolify proxy: '.$e->getMessage(), 0, $e);
+    $allowProxyFallback = filter_var(getenv('STACKKIT_COOLIFY_ALLOW_PROXY_FALLBACK') ?: 'false', FILTER_VALIDATE_BOOLEAN);
+    if (!$allowProxyFallback) {
+        throw new \RuntimeException('StackKit Coolify bootstrap could not start Coolify proxy: '.$e->getMessage(), 0, $e);
+    }
+    fwrite(STDERR, 'WARN: StackKit will start a Docker-level Coolify proxy fallback: '.$e->getMessage().PHP_EOL);
 }
 
 $config = [
@@ -4714,6 +4804,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
   triggers = {
     bootstrap_script_hash = sha256(local_file.coolify_platform_bootstrap_php[0].content)
     endpoint              = local.coolify_api_endpoint
+    bootstrap_endpoint    = local.coolify_bootstrap_api_endpoint
     root_email            = local.coolify_root_email
     always                = timestamp()
   }
@@ -4723,6 +4814,10 @@ resource "null_resource" "coolify_platform_bootstrap" {
       set -eu
       echo "Bootstrapping Coolify API token for StackKit platform adapter..."
       mkdir -p "${path.module}/.stackkit"
+      STACKKIT_REMOTE_SSH=""
+      case "${var.docker_host}" in
+        ssh://*) STACKKIT_REMOTE_SSH="${replace(var.docker_host, "ssh://", "")}" ;;
+      esac
       stackkit_docker() {
         if [ -n "${var.docker_host}" ]; then
           DOCKER_HOST="${var.docker_host}" docker "$@"
@@ -4738,13 +4833,43 @@ resource "null_resource" "coolify_platform_bootstrap" {
           -e 's/("apiKey"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig' \
           -e 's/("apiSecret"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig'
       }
+      stackkit_sync_coolify_dynamic_config() {
+        STACKKIT_COOLIFY_DYNAMIC="${local_file.coolify_dynamic_stackkit[0].filename}"
+        if [ ! -f "$STACKKIT_COOLIFY_DYNAMIC" ]; then
+          echo "ERROR: StackKit Coolify dynamic config is missing at $STACKKIT_COOLIFY_DYNAMIC" >&2
+          exit 1
+        fi
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          ssh "$STACKKIT_REMOTE_SSH" 'mkdir -p /data/coolify/proxy/dynamic'
+          ssh "$STACKKIT_REMOTE_SSH" 'cat > /data/coolify/proxy/dynamic/stackkit.yml && chmod 0640 /data/coolify/proxy/dynamic/stackkit.yml || true' < "$STACKKIT_COOLIFY_DYNAMIC"
+        elif [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+          stackkit_docker run --rm -i \
+            -v /data/coolify/proxy/dynamic:/target \
+            public.ecr.aws/docker/library/busybox:latest \
+            sh -c 'mkdir -p /target && cat > /target/stackkit.yml && chmod 0640 /target/stackkit.yml || true' < "$STACKKIT_COOLIFY_DYNAMIC"
+        else
+          mkdir -p /data/coolify/proxy/dynamic
+          STACKKIT_COOLIFY_DYNAMIC_TARGET="/data/coolify/proxy/dynamic/stackkit.yml"
+          STACKKIT_COOLIFY_DYNAMIC_SOURCE_REAL="$(readlink -f "$STACKKIT_COOLIFY_DYNAMIC" 2>/dev/null || printf '%s' "$STACKKIT_COOLIFY_DYNAMIC")"
+          STACKKIT_COOLIFY_DYNAMIC_TARGET_REAL="$(readlink -f "$STACKKIT_COOLIFY_DYNAMIC_TARGET" 2>/dev/null || printf '%s' "$STACKKIT_COOLIFY_DYNAMIC_TARGET")"
+          if [ "$STACKKIT_COOLIFY_DYNAMIC_SOURCE_REAL" != "$STACKKIT_COOLIFY_DYNAMIC_TARGET_REAL" ]; then
+            cp "$STACKKIT_COOLIFY_DYNAMIC" "$STACKKIT_COOLIFY_DYNAMIC_TARGET"
+          fi
+          chmod 0640 "$STACKKIT_COOLIFY_DYNAMIC_TARGET" || true
+        fi
+      }
       stackkit_coolify_http_ready() {
-        curl -fsS "${local.coolify_api_endpoint}/api/health" >/dev/null 2>&1 || \
-          curl -fsS "${local.coolify_api_endpoint}/health" >/dev/null 2>&1
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          ssh "$STACKKIT_REMOTE_SSH" "curl -fsS '${local.coolify_bootstrap_api_endpoint}/api/health' >/dev/null 2>&1 || curl -fsS '${local.coolify_bootstrap_api_endpoint}/health' >/dev/null 2>&1"
+        else
+          curl -fsS "${local.coolify_bootstrap_api_endpoint}/api/health" >/dev/null 2>&1 || \
+            curl -fsS "${local.coolify_bootstrap_api_endpoint}/health" >/dev/null 2>&1
+        fi
       }
       stackkit_coolify_diagnostics() {
         echo "Coolify readiness diagnostics (redacted):" >&2
         echo "endpoint=${local.coolify_api_endpoint}" >&2
+        echo "bootstrap_endpoint=${local.coolify_bootstrap_api_endpoint}" >&2
         echo "docker_host=${var.docker_host}" >&2
         docker context show 2>&1 | stackkit_redact | sed 's/^/docker_context=/g' >&2 || true
         stackkit_docker ps -a --filter "name=coolify" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
@@ -4757,13 +4882,19 @@ resource "null_resource" "coolify_platform_bootstrap" {
           fi
         done
         for path in /api/health /health; do
-          code="$(curl -sS -o /tmp/stackkit-coolify-health.out -w '%%{http_code}' "${local.coolify_api_endpoint}$path" 2>/tmp/stackkit-coolify-health.err || true)"
+          if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+            code="$(ssh "$STACKKIT_REMOTE_SSH" "curl -sS -o /tmp/stackkit-coolify-health.out -w '%%{http_code}' '${local.coolify_bootstrap_api_endpoint}$path' 2>/tmp/stackkit-coolify-health.err" || true)"
+          else
+            code="$(curl -sS -o /tmp/stackkit-coolify-health.out -w '%%{http_code}' "${local.coolify_bootstrap_api_endpoint}$path" 2>/tmp/stackkit-coolify-health.err || true)"
+          fi
           echo "curl $path status=$${code:-none}" >&2
           if [ -s /tmp/stackkit-coolify-health.err ]; then
             sed 's/^/curl stderr: /' /tmp/stackkit-coolify-health.err | stackkit_redact >&2 || true
           fi
         done
-        if command -v ss >/dev/null 2>&1; then
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          ssh "$STACKKIT_REMOTE_SSH" "ss -ltnp 2>/dev/null | grep -E '(:8000|:8080)\\b' || true" | stackkit_redact >&2 || true
+        elif command -v ss >/dev/null 2>&1; then
           ss -ltnp 2>&1 | grep -E '(:8000|:8080)\b' | stackkit_redact >&2 || true
         fi
       }
@@ -4777,7 +4908,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
           break
         fi
         if [ "$i" -eq 60 ]; then
-          echo "ERROR: Coolify API did not become ready at ${local.coolify_api_endpoint} after 5 minutes"
+          echo "ERROR: Coolify API did not become ready at ${local.coolify_bootstrap_api_endpoint} after 5 minutes"
           stackkit_coolify_diagnostics
           exit 1
         fi
@@ -4785,40 +4916,195 @@ resource "null_resource" "coolify_platform_bootstrap" {
       done
       stackkit_docker cp "${local_file.coolify_platform_bootstrap_php[0].filename}" coolify:/tmp/stackkit-coolify-platform-bootstrap.php >/dev/null
       stackkit_docker exec -u 0 coolify chmod 0644 /tmp/stackkit-coolify-platform-bootstrap.php
+      STACKKIT_COOLIFY_SERVER_IP="host.docker.internal"
+      if ! stackkit_docker exec coolify getent hosts "$STACKKIT_COOLIFY_SERVER_IP" >/dev/null 2>&1; then
+        STACKKIT_COOLIFY_SERVER_IP="$(stackkit_docker network inspect coolify --format '{{"{{"}}(index .IPAM.Config 0).Gateway{{"}}"}}' 2>/dev/null || true)"
+      fi
+      if [ -z "$STACKKIT_COOLIFY_SERVER_IP" ]; then
+        STACKKIT_COOLIFY_SERVER_IP="172.17.0.1"
+      fi
+      echo "Using Coolify server SSH target $STACKKIT_COOLIFY_SERVER_IP"
       BOOTSTRAP_OUTPUT="$(stackkit_docker exec \
         -e STACKKIT_COOLIFY_ROOT_EMAIL="${local.coolify_root_email}" \
         -e STACKKIT_COOLIFY_API_ENDPOINT="${local.coolify_api_endpoint}" \
+        -e STACKKIT_COOLIFY_ALLOW_PROXY_FALLBACK="true" \
+        -e STACKKIT_COOLIFY_SERVER_IP="$STACKKIT_COOLIFY_SERVER_IP" \
+        -e STACKKIT_COOLIFY_SERVER_USER="root" \
+        -e STACKKIT_COOLIFY_SERVER_PORT="22" \
         -e STACKKIT_COOLIFY_TOKEN_NAME="stackkit-platform-bootstrap" \
         coolify sh -lc 'cd /var/www/html && php artisan tinker --execute="require \"/tmp/stackkit-coolify-platform-bootstrap.php\";"')"
       SERVER_PUBLIC_KEY="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^STACKKIT_COOLIFY_SERVER_PUBLIC_KEY=//p' | tail -n 1)"
       if [ -n "$SERVER_PUBLIC_KEY" ] && [ "$SERVER_PUBLIC_KEY" != "Error loading private key" ]; then
-        mkdir -p /root/.ssh
-        touch /root/.ssh/authorized_keys
-        if ! grep -qxF "$SERVER_PUBLIC_KEY" /root/.ssh/authorized_keys; then
-          printf '%s\n' "$SERVER_PUBLIC_KEY" >> /root/.ssh/authorized_keys
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          printf '%s\n' "$SERVER_PUBLIC_KEY" | ssh "$STACKKIT_REMOTE_SSH" 'read -r key; mkdir -p /root/.ssh; touch /root/.ssh/authorized_keys; grep -qxF "$key" /root/.ssh/authorized_keys || printf "%s\n" "$key" >> /root/.ssh/authorized_keys; chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys'
+        elif [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+          printf '%s\n' "$SERVER_PUBLIC_KEY" | stackkit_docker run --rm -i \
+            -v /root/.ssh:/target-ssh \
+            public.ecr.aws/docker/library/busybox:latest \
+            sh -c 'read -r key; mkdir -p /target-ssh; touch /target-ssh/authorized_keys; grep -qxF "$key" /target-ssh/authorized_keys || printf "%s\n" "$key" >> /target-ssh/authorized_keys; chmod 700 /target-ssh; chmod 600 /target-ssh/authorized_keys'
+        else
+          mkdir -p /root/.ssh
+          touch /root/.ssh/authorized_keys
+          if ! grep -qxF "$SERVER_PUBLIC_KEY" /root/.ssh/authorized_keys; then
+            printf '%s\n' "$SERVER_PUBLIC_KEY" >> /root/.ssh/authorized_keys
+          fi
+          chmod 700 /root/.ssh
+          chmod 600 /root/.ssh/authorized_keys
         fi
-        chmod 700 /root/.ssh
-        chmod 600 /root/.ssh/authorized_keys
       fi
-      if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
-        PROXY_COMPOSE="/data/coolify/proxy/docker-compose.yml"
-        STACKKIT_PROXY_DOCKER_ENDPOINT="${var.docker_host}"
-        case "$STACKKIT_PROXY_DOCKER_ENDPOINT" in
-          tcp://127.0.0.1:*|tcp://localhost:*|tcp://0.0.0.0:*)
-            STACKKIT_PROXY_DOCKER_ENDPOINT="tcp://host.docker.internal:$${STACKKIT_PROXY_DOCKER_ENDPOINT##*:}"
-            ;;
-        esac
-        if [ ! -f "$PROXY_COMPOSE" ]; then
-          echo "ERROR: Coolify proxy compose file missing at $PROXY_COMPOSE"
+      stackkit_sync_coolify_dynamic_config
+      PROXY_COMPOSE="/data/coolify/proxy/docker-compose.yml"
+      stackkit_write_coolify_proxy_fallback() {
+        mkdir -p "$(dirname "$PROXY_COMPOSE")" /data/coolify/proxy/dynamic /data/coolify/proxy/acme
+        touch /data/coolify/proxy/acme/acme.json
+        chmod 600 /data/coolify/proxy/acme/acme.json || true
+        cat > "$PROXY_COMPOSE" <<'EOS'
+services:
+  coolify-proxy:
+    image: ghcr.io/traefik/traefik:v3
+    container_name: coolify-proxy
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=coolify
+      - --providers.file.directory=/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.http.address=:80
+      - --entrypoints.https.address=:443
+      - --log.level=INFO
+      - --accesslog=true
+%{if var.enable_https~}
+      - --entrypoints.http.http.redirections.entrypoint.to=https
+      - --entrypoints.http.http.redirections.entrypoint.scheme=https
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+      - --entrypoints.https.http.tls=true
+      - --entrypoints.https.http.tls.certresolver=letsencrypt
+      - --certificatesresolvers.letsencrypt.acme.email=${var.acme_email}
+      - --certificatesresolvers.letsencrypt.acme.storage=/traefik/acme/acme.json
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "http"~}
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "tls"~}
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${var.dns_provider}
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+%{endif~}
+    environment:
+      - DOCKER_API_VERSION=1.44
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "cloudflare" && var.dns_api_email != ""~}
+      - CF_API_EMAIL=${var.dns_api_email}
+      - CF_API_KEY=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "cloudflare" && var.dns_api_email == ""~}
+      - CF_DNS_API_TOKEN=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "hetzner"~}
+      - HETZNER_API_KEY=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "digitalocean"~}
+      - DO_AUTH_TOKEN=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "duckdns"~}
+      - DUCKDNS_TOKEN=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "namecheap"~}
+      - NAMECHEAP_API_KEY=${var.dns_api_token}
+      - NAMECHEAP_API_USER=${var.acme_email}
+%{endif~}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /data/coolify/proxy/dynamic:/traefik/dynamic:ro
+      - /data/coolify/proxy/acme:/traefik/acme
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
+EOS
+      }
+      stackkit_start_coolify_proxy_compose() {
+        STACKKIT_PROXY_COMPOSE_LOG="$(mktemp)"
+        if stackkit_docker compose -f "$PROXY_COMPOSE" up -d >"$STACKKIT_PROXY_COMPOSE_LOG" 2>&1; then
+          tail -n 40 "$STACKKIT_PROXY_COMPOSE_LOG" | stackkit_redact || true
+          rm -f "$STACKKIT_PROXY_COMPOSE_LOG"
+          return 0
+        fi
+        echo "WARN: Coolify proxy compose up failed" >&2
+        tail -n 200 "$STACKKIT_PROXY_COMPOSE_LOG" | stackkit_redact >&2 || true
+        stackkit_docker ps -a --filter "name=^/coolify-proxy$" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+        stackkit_docker logs --tail 120 coolify-proxy 2>&1 | stackkit_redact | sed 's/^/coolify-proxy logs: /' >&2 || true
+        rm -f "$STACKKIT_PROXY_COMPOSE_LOG"
+        return 1
+      }
+      stackkit_coolify_proxy_needs_reconcile() {
+        [ -f "$PROXY_COMPOSE" ] || return 0
+        grep -q -- "--providers.docker.endpoint=" "$PROXY_COMPOSE" && return 0
+        grep -q -- "--providers.file.directory=/traefik/dynamic" "$PROXY_COMPOSE" || return 0
+        grep -q -- "/data/coolify/proxy/dynamic:/traefik/dynamic:ro" "$PROXY_COMPOSE" || return 0
+%{if var.enable_https && !local.use_step_ca~}
+        grep -q -- "--entrypoints.https.http.tls=true" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--entrypoints.https.http.tls.certresolver=letsencrypt" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.storage=/traefik/acme/acme.json" "$PROXY_COMPOSE" || return 0
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "http"~}
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.httpchallenge=true" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http" "$PROXY_COMPOSE" || return 0
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "tls"~}
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.tlschallenge=true" "$PROXY_COMPOSE" || return 0
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.dnschallenge=true" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${var.dns_provider}" "$PROXY_COMPOSE" || return 0
+%{endif~}
+        return 1
+      }
+      if stackkit_coolify_proxy_needs_reconcile; then
+        if [ -f "$PROXY_COMPOSE" ]; then
+          echo "Coolify proxy compose is missing StackKit routing/TLS settings; replacing it with StackKit-managed proxy fallback"
+          cp "$PROXY_COMPOSE" "$PROXY_COMPOSE.stackkit.bak.$(date +%s)" || true
+        else
+          echo "Coolify proxy compose file missing at $PROXY_COMPOSE; creating StackKit-managed proxy fallback"
+        fi
+        stackkit_write_coolify_proxy_fallback
+        stackkit_docker rm -f coolify-proxy >/dev/null 2>&1 || true
+        if ! stackkit_start_coolify_proxy_compose; then
+          echo "ERROR: StackKit-managed Coolify proxy fallback failed" >&2
+          stackkit_docker ps -a --filter "name=^/coolify-proxy$" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+          stackkit_docker logs --tail 120 coolify-proxy 2>&1 | stackkit_redact | sed 's/^/coolify-proxy logs: /' >&2 || true
           exit 1
         fi
-        if ! grep -q -- "--providers.docker.endpoint=" "$PROXY_COMPOSE"; then
-          tmp="$(mktemp)"
-          awk -v endpoint="$STACKKIT_PROXY_DOCKER_ENDPOINT" '{ print; if ($0 ~ /--providers\.docker=true/) print "      - --providers.docker.endpoint=" endpoint }' "$PROXY_COMPOSE" > "$tmp"
-          cat "$tmp" > "$PROXY_COMPOSE"
-          rm -f "$tmp"
+      elif stackkit_docker ps --filter "name=^/coolify-proxy$" --filter "status=running" -q | grep -q .; then
+        echo "Coolify proxy is running with StackKit routing/TLS settings"
+      else
+        echo "Coolify proxy is not running; starting reconciled StackKit-managed proxy"
+        if ! stackkit_start_coolify_proxy_compose; then
+          echo "Coolify proxy compose failed; replacing with StackKit-managed proxy fallback" >&2
+          if [ -f "$PROXY_COMPOSE" ]; then
+            cp "$PROXY_COMPOSE" "$PROXY_COMPOSE.stackkit.bak.$(date +%s)" || true
+          fi
+          stackkit_docker rm -f coolify-proxy >/dev/null 2>&1 || true
+          stackkit_write_coolify_proxy_fallback
+          if ! stackkit_start_coolify_proxy_compose; then
+            echo "ERROR: StackKit-managed Coolify proxy fallback failed" >&2
+            stackkit_docker ps -a --filter "name=^/coolify-proxy$" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+            stackkit_docker logs --tail 120 coolify-proxy 2>&1 | stackkit_redact | sed 's/^/coolify-proxy logs: /' >&2 || true
+            exit 1
+          fi
         fi
-        DOCKER_HOST="${var.docker_host}" docker compose -f "$PROXY_COMPOSE" up -d
       fi
       stackkit_docker exec coolify-db psql -U coolify -d coolify -c "update server_settings set is_reachable = true, is_usable = true, force_disabled = false, is_build_server = false where server_id = 0" >/dev/null
       BOOTSTRAP_JSON="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^STACKKIT_COOLIFY_PLATFORM_JSON=//p' | tail -n 1)"
@@ -4837,6 +5123,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
 
   depends_on = [
     null_resource.coolify_install,
+    local_file.coolify_dynamic_stackkit,
     local_file.coolify_platform_bootstrap_php,
   ]
 }
@@ -4847,7 +5134,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
 
 resource "docker_image" "nginx" {
   count = local.platform_hub_fallback ? 1 : 0
-  name  = "nginx:alpine"
+  name  = "public.ecr.aws/docker/library/nginx:alpine"
 }
 
 resource "docker_image" "stackkit_server" {
@@ -4873,7 +5160,7 @@ resource "docker_container" "dashboard" {
     }
   }
 
-  # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
   dynamic "networks_advanced" {
     for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {
@@ -5107,7 +5394,7 @@ resource "local_file" "homepage_docker" {
 
 resource "docker_image" "homepage_socket_proxy" {
   count = var.enable_homepage ? 1 : 0
-  name  = "tecnativa/docker-socket-proxy:latest"
+  name  = "ghcr.io/tecnativa/docker-socket-proxy:latest"
 }
 
 resource "docker_container" "homepage_socket_proxy" {
@@ -5206,7 +5493,7 @@ resource "docker_container" "homepage" {
     }
   }
 
-  # Connect to PAAS Traefik network for label discovery (Dokploy/Coolify backend)
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
   dynamic "networks_advanced" {
     for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
     content {

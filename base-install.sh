@@ -19,6 +19,8 @@
 #   KOMBIFY_CONTEXT        Set to "cloud" to enable kombify.me domain mode
 #   STACKKIT_SERVICE_PROFILE
 #                          Optional BaseKit service profile: default or admin-only
+#   STACKKIT_PLATFORM / STACKKIT_PAAS
+#                          Optional selected PaaS: coolify or komodo. Dokploy is draft-only.
 #   STACKKIT_SERVER_IMAGE  Optional stackkit-server image override
 #   STACKKIT_ENABLE_DEV_APP_HANDOFF
 #                          Optional dev-only app handoff toggle
@@ -89,7 +91,7 @@ json_escape() {
 }
 platform_config_env_present() {
   for _stackkit_key in \
-    STACKKIT_PLATFORM STACKKIT_PAAS STACKKIT_PLATFORM_ENDPOINT STACKKIT_PLATFORM_TOKEN \
+    STACKKIT_PLATFORM_ENDPOINT STACKKIT_PLATFORM_TOKEN \
     STACKKIT_PLATFORM_API_KEY STACKKIT_PLATFORM_API_SECRET \
     STACKKIT_PLATFORM_ENVIRONMENT_ID STACKKIT_PLATFORM_ENVIRONMENT_NAME \
     STACKKIT_PLATFORM_SERVER_ID STACKKIT_PLATFORM_SERVER_UUID \
@@ -103,6 +105,59 @@ platform_config_env_present() {
     fi
   done
   return 1
+}
+selected_platform_name() {
+  _stackkit_platform="${STACKKIT_PLATFORM:-${STACKKIT_PAAS:-}}"
+  if [ -z "$_stackkit_platform" ]; then
+    return 0
+  fi
+  printf '%s' "$_stackkit_platform" | tr '[:upper:]' '[:lower:]'
+}
+configure_dns_tls_provider() {
+  if [ -z "${STACKKIT_DNS_TOKEN:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    export STACKKIT_DNS_TOKEN="$CLOUDFLARE_API_TOKEN"
+  fi
+  if [ -z "${STACKKIT_DNS_EMAIL:-}" ] && [ -n "${CLOUDFLARE_EMAIL:-}" ]; then
+    export STACKKIT_DNS_EMAIL="$CLOUDFLARE_EMAIL"
+  fi
+
+  DNS_PROVIDER="${STACKKIT_DNS_PROVIDER:-}"
+  if [ -z "$DNS_PROVIDER" ] && [ -n "${STACKKIT_DNS_TOKEN:-}" ]; then
+    DNS_PROVIDER="cloudflare"
+  fi
+  if [ -z "$DNS_PROVIDER" ]; then
+    return 0
+  fi
+
+  SPEC_FILE="$HOMELAB_DIR/stack-spec.yaml"
+  if [ ! -f "$SPEC_FILE" ] || grep -q '^tls:' "$SPEC_FILE"; then
+    return 0
+  fi
+  cat >> "$SPEC_FILE" <<EOF
+tls:
+  provider: $DNS_PROVIDER
+EOF
+  ok "  TLS DNS provider selected: $DNS_PROVIDER"
+}
+apply_platform_selection() {
+  PLATFORM_SELECTION="$(selected_platform_name)"
+  if [ -z "$PLATFORM_SELECTION" ]; then
+    return 0
+  fi
+  case "$PLATFORM_SELECTION" in
+    coolify|komodo|dokploy) ;;
+    *) die "Unsupported STACKKIT_PLATFORM '$PLATFORM_SELECTION'. Expected coolify, komodo, or draft-only dokploy." ;;
+  esac
+  SPEC_FILE="$HOMELAB_DIR/stack-spec.yaml"
+  if [ ! -f "$SPEC_FILE" ]; then
+    die "Cannot apply platform selection; missing $SPEC_FILE"
+  fi
+  if grep -q '^paas:' "$SPEC_FILE"; then
+    sed -i "s/^paas:.*/paas: $PLATFORM_SELECTION/" "$SPEC_FILE"
+  else
+    printf '\npaas: %s\n' "$PLATFORM_SELECTION" >> "$SPEC_FILE"
+  fi
+  ok "  PaaS selected: $PLATFORM_SELECTION"
 }
 write_platform_json_field() {
   _stackkit_json_name="$1"
@@ -162,7 +217,7 @@ persist_platform_config() {
       PLATFORM_SERVER_ID=$(first_env_value KOMODO_SERVER_ID STACKKIT_PLATFORM_SERVER_ID)
       ;;
     *)
-      die "Unsupported STACKKIT_PLATFORM '$PLATFORM_NAME'. Expected coolify, komodo, or dokploy."
+      die "Unsupported STACKKIT_PLATFORM '$PLATFORM_NAME'. Expected coolify, komodo, or draft-only dokploy."
       ;;
   esac
 
@@ -339,6 +394,8 @@ fi
 
 ok "  base-kit initialized in $HOMELAB_DIR"
 
+configure_dns_tls_provider
+apply_platform_selection
 persist_platform_config
 
 # --- Optional dev-only app handoff -------------------------------------------

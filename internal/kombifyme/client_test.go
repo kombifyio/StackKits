@@ -132,6 +132,37 @@ func TestListServices(t *testing.T) {
 	assert.Equal(t, "kuma", subs[1].Name)
 }
 
+func TestListSubdomains(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/subdomains", r.URL.Path)
+		assert.Equal(t, "test-api-key", r.Header.Get(apiKeyHeader))
+
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode([]Subdomain{
+			{ID: "base-1", Name: "sh-my-homelab-abc123", SubdomainKind: "base"},
+			{ID: "svc-1", Name: "sh-my-homelab-abc123-base", SubdomainKind: "service"},
+		})
+	})
+
+	subs, err := c.ListSubdomains()
+	require.NoError(t, err)
+	assert.Len(t, subs, 2)
+	assert.Equal(t, "base", subs[0].SubdomainKind)
+}
+
+func TestDeleteSubdomain(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "DELETE", r.Method)
+		assert.Equal(t, "/subdomains/base-1", r.URL.Path)
+		assert.Equal(t, "test-api-key", r.Header.Get(apiKeyHeader))
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	require.NoError(t, c.DeleteSubdomain("base-1"))
+}
+
 func TestBaseKitServices(t *testing.T) {
 	t.Run("standard tier defaults to coolify and generated default apps", func(t *testing.T) {
 		services := BaseKitServices("standard")

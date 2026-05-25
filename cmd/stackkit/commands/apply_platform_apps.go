@@ -52,7 +52,7 @@ func runPlatformAppDeployments(ctx context.Context, deployDir string, state *mod
 				continue
 			}
 			fallback := explicitStandaloneFallback(deployBundle)
-			if !models.IsStandardPAAS(deployBundle.Platform) && !fallback {
+			if !models.IsSupportedPAAS(deployBundle.Platform) && !fallback {
 				return fmt.Errorf("StackKit-owned platform app manifest targets %q without an explicit platformFallback standalone-compose contract", deployBundle.Platform)
 			}
 
@@ -61,7 +61,7 @@ func runPlatformAppDeployments(ctx context.Context, deployDir string, state *mod
 				return err
 			}
 			if !configured {
-				return fmt.Errorf("platform API config for %s is required for %d StackKit-owned app(s); self-managed rollouts must persist .stackkit/platform.json during PaaS bootstrap, Coolify/Dokploy require endpoint/token values, Komodo requires endpoint/apiKey/apiSecret values, or platformFallback.mode=standalone-compose must be enabled explicitly", deployBundle.Platform, deployCount)
+				return fmt.Errorf("platform API config for %s is required for %d StackKit-owned app(s); self-managed rollouts must persist .stackkit/platform.json during PaaS bootstrap, Coolify requires endpoint/token values, Komodo requires endpoint/apiKey/apiSecret values, draft Dokploy uses endpoint/token values, or platformFallback.mode=standalone-compose must be enabled explicitly", deployBundle.Platform, deployCount)
 			}
 
 			if fallback {

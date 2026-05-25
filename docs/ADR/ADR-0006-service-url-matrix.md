@@ -5,28 +5,28 @@ Status: Proposed
 
 ## Context
 
-StackKits need to produce correct service URLs for every combination of domain mode and reverse proxy backend. This is a Layer 2 (Platform) concern because it spans:
+StackKits need to produce correct service URLs for every supported domain mode and production reverse proxy backend. This is a Layer 2 (Platform) concern because it spans:
 
 - **Ingress** (Traefik configuration, TLS termination, routing rules)
-- **PAAS** (Dokploy/Coolify manage their own Traefik instances)
+- **PAAS** (Coolify manages its own Traefik instance; Komodo currently uses StackKit-owned Traefik)
 - **Identity** (TinyAuth ForwardAuth middleware URLs depend on the domain)
 - **DNS** (resolution differs: public DNS, kombify.me registry, local Kombify Point)
 
 Currently only selected paths are implemented and verified. The normal matrix covers custom-domain, kombify.me, browser-native local defaults, and explicit local DNS across the supported routing backends.
 
-2026-05-19 status note: the default BaseKit contract is Coolify-first. StackKit-owned system and L3 apps must be registered through the selected PaaS adapter, and the standalone StackKit-owned routing fallback is explicit opt-in only. Live release evidence must prove Coolify external IDs/routes before claiming the Coolify-managed application-layer path is production-ready.
+2026-05-24 status note: the default BaseKit contract is Coolify-first, with Komodo as the production alternative. StackKit-owned system and L3 apps must be registered through the selected PaaS adapter, and the standalone StackKit-owned routing fallback is explicit opt-in only. Dokploy remains draft and is not part of the canonical three-scenario E2E matrix. Live release evidence is intentionally capped at SK-S1 local Coolify, SK-S2 kombify.me Komodo, and SK-S3 custom-domain Coolify.
 
 ## Decision
 
 Implement the supported domain mode x reverse proxy backend combinations as part of the L2 Platform Layer. The URL generation, TLS strategy, and DNS resolution are determined at `stackkit generate` time based on the stack-spec.yaml.
 
-### The 9 Scenarios
+### URL Matrix Dimensions
 
 #### Domain Modes (rows)
 
 | Mode | Domain Example | TLS Strategy | DNS Resolution |
 |------|---------------|-------------|----------------|
-| **Custom wildcard** | `*.sk-<run>.kombify.pro` | ACME (TLS-ALPN-01 or DNS-01) | User manages DNS or StackKits automates the DNS provider |
+| **Custom domain** | `*.kombify.pro` for provided `kombify.pro` | ACME (TLS-ALPN-01 or DNS-01) | User manages DNS or StackKits automates exact service records |
 | **kombify.me** | `*.mylab.kombify.me` | Managed by kombify (Cloudflare wildcard) | kombify.me subdomain registry + tunnel/direct connect |
 | **Local default** | `*.home.localhost` | HTTP in local-only mode | Browser/OS `.localhost` handling on the current device |
 | **Explicit local DNS** | `*.stack.home` / `*.<name>.home` | HTTP or accepted local CA path | Kombify Point only when StackKit owns or verifies the resolver |
@@ -37,7 +37,8 @@ Implement the supported domain mode x reverse proxy backend combinations as part
 |---------|-----------|---------------|-------------------|
 | **Standalone Traefik** | Legacy/nonstandard modes only | StackKit-managed Traefik container | Docker labels |
 | **Coolify + Traefik** | Standard/default PAAS | Coolify-managed Traefik | Coolify routing + Docker labels |
-| **Dokploy + Traefik** | Explicit alternative PAAS (`paas: dokploy`) | Dokploy-managed Traefik | Dokploy routing + Docker labels |
+| **Komodo + StackKit Traefik** | Production alternative PaaS (`paas: komodo`) | StackKit-managed Traefik | Komodo Stack resources + StackKit route labels |
+| **Dokploy + Traefik** | Draft adapter only | Dokploy-managed Traefik | Dokploy routing + Docker labels |
 
 ### URL Generation Pattern
 
@@ -48,7 +49,7 @@ All three backends produce the same URL pattern for a given domain mode:
 ```
 
 Examples:
-- Custom: `kuma.sk-<run>.kombify.pro`, `base.sk-<run>.kombify.pro`
+- Custom: `kuma.kombify.pro`, `base.kombify.pro` for a provided `kombify.pro` domain
 - kombify.me: `mylab-kuma.kombify.me`, `mylab-base.kombify.me` (flat naming)
 - Local default: `kuma.home.localhost`, `base.home.localhost`
 - Explicit local DNS: `kuma.stack.home`, `base.family.home`
@@ -58,22 +59,23 @@ The difference is HOW the routing happens internally:
 | Backend | Routing Mechanism |
 |---------|-------------------|
 | Standalone Traefik | Docker labels on each container → Traefik routes by `Host()` |
-| Dokploy + Traefik | Dokploy creates Traefik config for its managed apps; StackKit services use Docker labels on Dokploy's Traefik |
+| Komodo + StackKit Traefik | Komodo owns stack resources; StackKit owns exactly one Traefik for generated service routes |
+| Dokploy + Traefik | Draft only until promoted; Dokploy creates Traefik config for its managed apps |
 | Coolify + Traefik | Coolify manages its own Traefik; StackKit platform services attach labels to Coolify's Traefik network |
 
 ### TLS Strategy Per Scenario
 
-| | Standalone Traefik | Dokploy + Traefik | Coolify + Traefik |
+| | Standalone Traefik | Komodo + StackKit Traefik | Coolify + Traefik |
 |---|---|---|---|
-| **Custom domain** | ACME cert resolver on StackKit Traefik | ACME on Dokploy's Traefik (wildcard via DNS-01) | ACME on Coolify's Traefik (wildcard via DNS-01) |
+| **Custom domain** | ACME cert resolver on StackKit Traefik | ACME on StackKit Traefik | ACME on Coolify's Traefik (DNS-01 for the provided service records) |
 | **kombify.me** | kombify manages TLS (Cloudflare) | kombify manages TLS | kombify manages TLS |
 | **Local** | HTTP local-only or accepted local CA path | HTTP local-only or accepted local CA path | HTTP local-only or accepted local CA path |
 
 ### DNS Resolution Per Scenario
 
-| | Standalone Traefik | Dokploy + Traefik | Coolify + Traefik |
+| | Standalone Traefik | Komodo + StackKit Traefik | Coolify + Traefik |
 |---|---|---|---|
-| **Custom domain** | User DNS (wildcard A record) | User DNS (wildcard A record) | User DNS (wildcard A record) |
+| **Custom domain** | User DNS or exact service A records | User DNS or exact service A records | User DNS or exact service A records |
 | **kombify.me** | kombify registry + tunnel/direct connect | kombify registry + tunnel/direct connect | kombify registry + tunnel/direct connect |
 | **Local default** | `.localhost` | `.localhost` | `.localhost` |
 | **Explicit local DNS** | Kombify Point | Kombify Point | Kombify Point |
@@ -88,20 +90,20 @@ The difference is HOW the routing happens internally:
 - [x] Explicit local DNS (`stack.home` / `<name>.home`) with Kombify Point + HTTP
 - [ ] kombify.me with Direct Connect registry
 
-### Phase 2: Dokploy + Traefik
+### Phase 2: Komodo + StackKit Traefik
 
-The key challenge: when Dokploy is the PAAS, it manages its OWN Traefik instance. StackKit platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) need to route through Dokploy's Traefik, not a separate one.
+Komodo is the production alternative. It owns stack resources, while the current adapter contract keeps exactly one StackKit-owned Traefik for generated service routes.
 
 Implementation:
-1. Detect when PAAS = Dokploy at standard tier
-2. Skip deploying a separate Traefik container
-3. Attach platform service Docker labels to Dokploy's Traefik network
-4. Configure ACME/DNS-01 on Dokploy's Traefik (not StackKit's)
+1. Detect when PAAS = Komodo at standard tier
+2. Bootstrap Komodo Core, Periphery, and DB without UI
+3. Persist endpoint, API key, API secret, and server context in `.stackkit/platform.json`
+4. Keep one StackKit-owned Traefik for generated service routes
 5. Kombify Point/local DNS is managed by StackKit only for explicit LAN-DNS mode
 
 ### Phase 3: Coolify + Traefik
 
-Same principle as Dokploy, but Coolify has different internals:
+Coolify has its own integrated router and API model:
 1. Coolify manages Traefik via its own config
 2. StackKit platform services join Coolify's network
 3. Service labels follow Coolify's conventions
@@ -125,12 +127,12 @@ Same principle as Dokploy, but Coolify has different internals:
 - Clear separation: domain/TLS is a platform concern (L2), not per-service
 
 ### Negative
-- 9 scenarios to test and maintain
-- Dokploy and Coolify Traefik integration requires understanding their internal networking
-- kombify.me + Coolify/Dokploy requires coordinating TLS between kombify and the PAAS-managed Traefik
+- The URL matrix is larger than the canonical E2E matrix, so contract tests must cover non-E2E combinations
+- Coolify Traefik integration requires understanding its internal networking
+- kombify.me + selected PaaS requires coordinating TLS between kombify and the selected router
 
 ## Alternatives Considered
 
-1. **Only support standalone Traefik** — Too limiting. Users who choose Coolify or Dokploy as their PAAS shouldn't lose domain flexibility.
+1. **Only support standalone Traefik** — Too limiting. Users who choose Coolify or Komodo as their PAAS shouldn't lose domain flexibility.
 2. **Always deploy a separate Traefik alongside PAAS Traefik** — Port conflicts (both want 80/443). Wasteful.
 3. **Only support custom domains with PAAS** — Breaks the principle that domain mode and PAAS are independent choices.

@@ -92,7 +92,7 @@ The atomic-snapshot step calls `kopia snapshot create` for each path in `--volum
 
 | Module | Typical host path |
 |---|---|
-| Postgres (Dokploy/Coolify) | `/var/lib/dokploy/postgres` or per-tenant `/var/lib/postgres-<slug>` |
+| Postgres (PaaS/application) | `/var/lib/dokploy/postgres` for draft Dokploy diagnostics or per-tenant `/var/lib/postgres-<slug>` |
 | Vaultwarden | `/var/lib/vaultwarden` |
 | Immich | `/var/lib/immich/upload` and `/var/lib/immich/db` |
 | Jellyfin | `/var/lib/jellyfin/config` (the `/media` library can be omitted if backed up elsewhere) |

@@ -1,6 +1,6 @@
 # StackKit Metadata - Modern Homelab
 # v4.0: Hybrid infrastructure pattern (local + cloud)
-# Docker Compose per node, coordinated by Coolify by default or Dokploy explicitly
+# Docker Compose per node, coordinated by Coolify by default or Komodo explicitly; Dokploy is draft
 apiVersion: stackkit/v1
 kind: StackKit
 
@@ -48,16 +48,16 @@ requirements:
 # =============================================================================
 # PaaS follows the current release contract:
 #   - omitted       -> Coolify
-#   - paas: dokploy -> explicit alternative
+#   - paas: komodo -> production alternative; Dokploy remains draft
 #   - dockge        -> invalid as normal PaaS; experimental service only
 paas:
   decision:
     coolify:
       when: "paas omitted"
       description: "Full-featured PaaS with multi-server support and git deployments"
-    dokploy:
-      when: "paas == 'dokploy'"
-      description: "Explicit alternative PaaS for advanced users"
+    komodo:
+      when: "paas == 'komodo'"
+      description: "Production alternative PaaS for programmable Compose stack deployment"
 
 # =============================================================================
 # DEPLOYMENT MODES
@@ -112,7 +112,7 @@ pattern:
   name: "hybrid-infrastructure"
   description: "Distributed services across local + cloud environments"
   containerRuntime: "docker-compose"      # Per node, no Swarm
-  coordination: "paas"                    # Coolify or Dokploy
+  coordination: "paas"                    # Coolify or Komodo in production
   networkModel: "identity-aware-proxy"    # Not VPN-first
   tunnelOptions:
     - cloudflare                          # Default: free, simple
@@ -200,7 +200,7 @@ changelog:
     date: "2026-02-11"
     changes:
       - "BREAKING: Removed Docker Swarm, now Docker Compose per node"
-      - "BREAKING: PaaS decision follows release contract (Coolify default, Dokploy explicit alternative)"
+      - "BREAKING: PaaS decision follows release contract (Coolify default, Komodo production alternative, Dokploy draft)"
       - "Removed Authentik, kept identity-aware proxy stack (LLDAP + Step-CA + TinyAuth)"
       - "VPN is optional, identity-aware proxies are default"
       - "Added tunnel add-on (Cloudflare Tunnel + Pangolin)"

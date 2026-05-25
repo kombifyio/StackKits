@@ -2,7 +2,7 @@
 
 > Last verified: 2026-05-17
 
-This is the current implementation overview for this repo. The public release docs use this page as their architecture overview. Normative product and module rules live in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md), [STACKKIT_DEVELOPMENT_DECISION_GUIDE.md](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md), and accepted ADRs.
+This is the current implementation overview for this repo. Normative product and module rules live in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md), [STACKKIT_DEVELOPMENT_DECISION_GUIDE.md](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md), and accepted ADRs.
 
 ## System Role
 
@@ -52,7 +52,7 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 
 ## Routing Ownership
 
-StackKit does not own a separate router when the selected PaaS already includes one. For Coolify, generated StackKit routes must be served by Coolify's Traefik/proxy. For Dokploy, generated StackKit routes must be served by Dokploy's Traefik. In those environments, the PaaS router is the StackKit router.
+StackKit does not own a separate router when the selected PaaS already includes one. For Coolify, generated StackKit routes must be served by Coolify's Traefik/proxy. In those environments, the PaaS router is the StackKit router. Dokploy has an integrated-router draft adapter, but it is not part of the production E2E standard until promoted.
 
 Komodo is the first explicit exception: the initial `paas: komodo` contract uses exactly one StackKit-owned Traefik while Komodo owns Compose Stack deployment. The generated dashboard/status output and release evidence must label that routing ownership as StackKit-owned, not Komodo-owned.
 

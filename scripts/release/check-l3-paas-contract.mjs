@@ -123,10 +123,15 @@ function collectStackOwnedGeneratedApps(text) {
 }
 
 function stripAllowedInfrastructureComposeCommands(text) {
-  return text.replace(
-    /DOCKER_HOST="\$\{var\.docker_host\}"\s+docker compose\s+-f\s+"\$PROXY_COMPOSE"\s+up\s+-d/g,
-    '',
-  );
+  return text
+    .replace(
+      /DOCKER_HOST="\$\{var\.docker_host\}"\s+docker compose\s+-f\s+"\$PROXY_COMPOSE"\s+up\s+-d/g,
+      '',
+    )
+    .replace(
+      /stackkit_docker\s+compose\s+-f\s+"\$PROXY_COMPOSE"\s+up\s+-d/g,
+      '',
+    );
 }
 
 async function validateGeneratedFiles(generatedFiles, failures) {
@@ -200,6 +205,12 @@ async function validateGeneratedFiles(generatedFiles, failures) {
       failures.push(`${file}: Coolify-routed Base Hub dynamic middleware must be written into Coolify's proxy dynamic config directory`);
     }
     if (
+      !/stackkit_sync_coolify_dynamic_config\(\)/.test(text) ||
+      !/cat > \/data\/coolify\/proxy\/dynamic\/stackkit\.yml/.test(text)
+    ) {
+      failures.push(`${file}: Coolify dynamic config must be synced onto remote Docker targets before proxy readiness is accepted`);
+    }
+    if (
       !/stackkit-coolify:/.test(text) ||
       !/rule:\s*"Host\(`\$\{local\.domains\.coolify\}`\)"/.test(text) ||
       !/service:\s*stackkit-coolify/.test(text) ||
@@ -210,11 +221,26 @@ async function validateGeneratedFiles(generatedFiles, failures) {
     if (!/setup_immich_url\s*=\s*local\.is_host\s*\?\s*"http:\/\/127\.0\.0\.1:\$\{local\.host_ports\.immich\}"\s*:\s*\(local\.rp_coolify\s*\?\s*"http:\/\/immich-server:2283"\s*:\s*"http:\/\/immich:2283"\)/.test(text)) {
       failures.push(`${file}: stackkit-server setup actions must use Coolify's immich-server network alias in strict Coolify mode`);
     }
-    if (!/coolify_api_endpoint\s*=\s*"http:\/\/127\.0\.0\.1:8000"/.test(text)) {
-      failures.push(`${file}: strict Coolify default must define the node-local Coolify API endpoint for bootstrap`);
+    if (!/coolify_local_endpoint\s*=\s*"http:\/\/127\.0\.0\.1:8000"/.test(text)) {
+      failures.push(`${file}: strict Coolify default must define the node-local Coolify API endpoint`);
     }
-    if (!/\$\{local\.coolify_api_endpoint\}\/api\/health/.test(text) || !/\$\{local\.coolify_api_endpoint\}\/health/.test(text)) {
-      failures.push(`${file}: Coolify readiness must tolerate both Coolify health endpoints during upstream/runtime drift`);
+    if (!/coolify_api_endpoint\s*=\s*local\.coolify_local_endpoint/.test(text)) {
+      failures.push(`${file}: strict Coolify default must persist the node-local Coolify API endpoint in platform.json`);
+    }
+    if (!/coolify_bootstrap_api_endpoint\s*=\s*local\.coolify_docker_host_name\s*!=\s*""\s*\?\s*"http:\/\/\$\{local\.coolify_docker_host_name\}:8000"\s*:\s*local\.coolify_api_endpoint/.test(text)) {
+      failures.push(`${file}: Coolify bootstrap must use a separate reachable endpoint for remote Docker probes`);
+    }
+    if (!/STACKKIT_COOLIFY_API_ENDPOINT="\$\{local\.coolify_api_endpoint\}"/.test(text)) {
+      failures.push(`${file}: Coolify bootstrap must write platform.json with the persisted node-local API endpoint`);
+    }
+    if (
+      !/--certificatesresolvers\.letsencrypt\.acme\.httpchallenge=true/.test(text) ||
+      !/--certificatesresolvers\.letsencrypt\.acme\.httpchallenge\.entrypoint=http/.test(text)
+    ) {
+      failures.push(`${file}: Coolify proxy fallback must enable Let's Encrypt HTTP challenge for public custom-domain TLS`);
+    }
+    if (!/\$\{local\.coolify_bootstrap_api_endpoint\}\/api\/health/.test(text) || !/\$\{local\.coolify_bootstrap_api_endpoint\}\/health/.test(text)) {
+      failures.push(`${file}: Coolify readiness must tolerate both Coolify health endpoints using the reachable bootstrap endpoint`);
     }
     if (!/stackkit_docker\(\)\s*\{[\s\S]*?DOCKER_HOST="\$\{var\.docker_host\}" docker "\$@"/.test(text)) {
       failures.push(`${file}: Coolify bootstrap must route docker CLI calls through var.docker_host for Fresh-VM Docker-in-Docker rollouts`);

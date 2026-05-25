@@ -949,8 +949,8 @@ func (s *StackSpec) ResolvePAAS() string {
 
 // ResolvePAASForContext is the canonical auto-selection policy for normal
 // StackKit platform adapters. Explicit user config wins; otherwise fresh
-// StackKit rollouts default to Coolify. Komodo and Dokploy are supported
-// explicit adapters while their live bootstrap gates mature separately.
+// StackKit rollouts default to Coolify. Komodo is the production alternative;
+// Dokploy remains draft adapter work outside canonical E2E dispatch.
 func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
 	if s.PAAS != "" {
 		return s.PAAS
@@ -963,10 +963,23 @@ func (s *StackSpec) resolvePAASByTier() string {
 	return PAASCoolify
 }
 
-// IsStandardPAAS reports whether the platform is allowed for normal StackKit
-// rollouts. Normal Base/Modern/HA kits must resolve to one of these.
+// IsStandardPAAS reports whether the platform is part of the production
+// StackKit PaaS standard. Draft adapters may still be supported by lower-level
+// contracts, but they are not standard rollout choices.
 func IsStandardPAAS(paas string) bool {
-	return paas == PAASDokploy || paas == PAASCoolify || paas == PAASKomodo
+	return paas == PAASCoolify || paas == PAASKomodo
+}
+
+// IsDraftPAAS reports whether the platform has adapter work but is not part of
+// the production PaaS standard or canonical E2E matrix.
+func IsDraftPAAS(paas string) bool {
+	return paas == PAASDokploy
+}
+
+// IsSupportedPAAS reports whether StackKit has a platform adapter contract for
+// the value. This includes draft adapters used by focused contract tests.
+func IsSupportedPAAS(paas string) bool {
+	return IsStandardPAAS(paas) || IsDraftPAAS(paas)
 }
 
 // IsExperimentalPAAS reports whether the platform exists only as a constrained

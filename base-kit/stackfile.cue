@@ -15,8 +15,8 @@
 // PaaS Selection (intent/domain-driven, M2):
 //   - explicit paas config wins
 //   - omitted paas → Coolify
-//   - Komodo is an explicit PoC-first alternative using StackKit-owned Traefik
-//   - Dokploy remains a supported explicit adapter
+//   - Komodo is the production alternative using StackKit-owned Traefik
+//   - Dokploy remains draft and outside the canonical E2E matrix
 //   - Dockge is a constrained compose-manager mode, not a normal PaaS default
 //
 // Use Cases:

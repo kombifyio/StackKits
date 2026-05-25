@@ -8,7 +8,7 @@
     "stackkit": "base-kit",
     "mode": "simple",
     "context": "cloud",
-    "domain": "sk-test.kombify.pro",
+    "domain": "kombify.pro",
     "email": "owner@kombify.pro",
     "adminEmail": "owner@kombify.pro",
     "network": {
@@ -37,7 +37,7 @@
   "expected": {
     "generation": {
       "context": "cloud",
-      "domain": "sk-test.kombify.pro",
+      "domain": "kombify.pro",
       "paas": "coolify",
       "reverseProxyBackend": "coolify",
       "enableHTTPS": true,
@@ -55,13 +55,18 @@
       }
     },
     "access": {
-      "hubUrl": "https://base.sk-test.kombify.pro",
+      "hubUrl": "https://base.kombify.pro",
       "browserUrlMode": "public",
       "services": [
-        {"key": "base", "host": "base.sk-test.kombify.pro", "scheme": "https"},
-        {"key": "auth", "host": "auth.sk-test.kombify.pro", "scheme": "https"},
-        {"key": "id", "host": "id.sk-test.kombify.pro", "scheme": "https"},
-        {"key": "coolify", "host": "coolify.sk-test.kombify.pro", "scheme": "https"}
+        {"key": "base", "host": "base.kombify.pro", "scheme": "https"},
+        {"key": "home", "host": "home.kombify.pro", "scheme": "https"},
+        {"key": "auth", "host": "auth.kombify.pro", "scheme": "https"},
+        {"key": "id", "host": "id.kombify.pro", "scheme": "https"},
+        {"key": "coolify", "host": "coolify.kombify.pro", "scheme": "https"},
+        {"key": "kuma", "host": "kuma.kombify.pro", "scheme": "https"},
+        {"key": "whoami", "host": "whoami.kombify.pro", "scheme": "https"},
+        {"key": "vault", "host": "vault.kombify.pro", "scheme": "https"},
+        {"key": "photos", "host": "photos.kombify.pro", "scheme": "https"}
       ]
     }
   }

@@ -64,13 +64,7 @@ func main() {
 
 	srv := api.NewServer(cfg)
 
-	httpServer := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      srv.Handler(),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
-	}
+	httpServer := newHTTPServer(cfg, srv.Handler())
 
 	// Start heartbeat if instance is registered with kombify
 	heartbeatCtx, heartbeatCancel := context.WithCancel(context.Background())
@@ -78,6 +72,16 @@ func main() {
 	startHeartbeat(heartbeatCtx, *instanceID)
 
 	runServer(httpServer)
+}
+
+func newHTTPServer(cfg api.ServerConfig, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.Port),
+		Handler:      handler,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 14*time.Minute + 30*time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
 }
 
 func setupLogging(logLevel string) {

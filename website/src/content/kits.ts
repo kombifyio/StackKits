@@ -28,7 +28,7 @@ export const kits: Kit[] = [
     statusLabel: 'verified beta',
     tagline: 'Single-environment default. The one-command path.',
     description:
-      'BaseKit is the verified beta single-environment StackKit. It bootstraps Docker, packaged OpenTofu, identity, dashboard, and the platform baseline on a fresh Ubuntu VM or host, and exposes everything over browser-native `*.home.localhost` links. Product-bundled L3 applications are PaaS-intended by default; Coolify remains the default PaaS while Komodo and Dokploy are explicit alternatives under validation. User-installed apps outside that path are state-unmanaged.',
+      'BaseKit is the verified beta single-environment StackKit. It bootstraps Docker, packaged OpenTofu, identity, dashboard, and the platform baseline on a fresh Ubuntu VM or host, and exposes everything over browser-native `*.home.localhost` links. Product-bundled L3 applications are PaaS-intended by default; Coolify remains the default PaaS while Komodo is the production alternative. Dokploy remains draft. User-installed apps outside that path are state-unmanaged.',
     oneLiner: 'curl -sSL https://base.stackkit.cc | sh',
     initCommand: 'stackkit init base-kit',
     features: [
@@ -39,7 +39,7 @@ export const kits: Kit[] = [
       { title: 'Backup ready', body: 'Local Kopia backup flows and a backup controller stub are installed with the CLI.', icon: 'cloud_sync' },
       { title: 'Agent-first surfaces', body: 'llms.txt, OpenAPI, JSON schemas, MCP connector, and prompt Markdown ship in every release.', icon: 'smart_toy' },
     ],
-    services: ['Coolify default PaaS', 'Komodo/Dokploy explicit alternatives', 'PocketID', 'TinyAuth', 'Homepage dashboard', 'Uptime Kuma', 'Vaultwarden via PaaS', 'Immich (Photos) via PaaS', 'stackkit-server (Node Hub API)'],
+    services: ['Coolify default PaaS', 'Komodo production alternative', 'Dokploy draft adapter', 'PocketID', 'TinyAuth', 'Homepage dashboard', 'Uptime Kuma', 'Vaultwarden via PaaS', 'Immich (Photos) via PaaS', 'stackkit-server (Node Hub API)'],
     notSuitableFor: ['Multi-node clusters with quorum failover (use HA Kit when graduated)', 'Hybrid cloud-plus-local deployments (use Modern Home Lab when graduated)'],
   },
   {

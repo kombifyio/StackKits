@@ -8,7 +8,7 @@
     "stackkit": "modern-homelab",
     "mode": "advanced",
     "context": "cloud",
-    "domain": "sk-hybrid.kombify.pro",
+    "domain": "kombify.pro",
     "email": "owner@kombify.pro",
     "adminEmail": "owner@kombify.pro",
     "network": {
@@ -46,7 +46,7 @@
     "generation": {
       "context": "cloud",
       "networkMode": "hybrid",
-      "domain": "sk-hybrid.kombify.pro",
+      "domain": "kombify.pro",
       "paas": "coolify",
       "reverseProxyBackend": "coolify",
       "enableHTTPS": true,

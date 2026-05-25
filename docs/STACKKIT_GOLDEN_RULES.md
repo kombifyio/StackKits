@@ -119,8 +119,8 @@ An application module is a use-case package. It MAY contain multiple tools, data
 1. Normal StackKit rollouts MUST resolve exactly one primary platform adapter.
 2. The default adapter selection MUST be deterministic:
    - omitted `paas` MUST resolve to Coolify for no-domain, local-only, pi, cloud-without-custom-domain, kombify-managed subdomain, and own public/custom-domain contexts.
-   - Komodo MAY be used only through an explicit `paas: komodo` selection until Fresh VM evidence proves headless admin/API-key bootstrap, Stack deployment, and routing ownership.
-   - Dokploy MAY be used only through an explicit `paas: dokploy` selection until its first-owner and SSO automation satisfy the default-platform bar.
+   - Komodo MAY be used only through an explicit `paas: komodo` selection and is the production alternative currently covered by the SK-S2 kombify.me E2E path.
+   - Dokploy is draft and MUST NOT be part of canonical E2E dispatch until it is promoted by replacing one of the three standard scenarios.
    - Modern Homelab and HA Kit contexts that require multi-node platform management SHOULD resolve to Coolify unless a newer accepted adapter contract supersedes it.
 3. `paas: none` is invalid for normal Base, Modern Homelab, and HA StackKits.
 4. Lightweight compose managers MAY exist for constrained or experimental modes, but MUST NOT be treated as the standard platform adapter unless they satisfy the same rollout, routing, auth, backup, and verification contract.

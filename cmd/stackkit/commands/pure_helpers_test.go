@@ -341,9 +341,9 @@ func TestBaseKitImagesByTier(t *testing.T) {
 	}
 	for _, image := range []string{
 		"ghcr.io/gethomepage/homepage:latest",
-		"tecnativa/docker-socket-proxy:latest",
-		"postgres:15-alpine",
-		"redis:7-alpine",
+		"ghcr.io/tecnativa/docker-socket-proxy:latest",
+		"public.ecr.aws/docker/library/postgres:15-alpine",
+		"public.ecr.aws/docker/library/redis:7-alpine",
 		"ghcr.io/coollabsio/coolify-helper:1.0.13",
 		"ghcr.io/coollabsio/coolify-realtime:1.0.13",
 		"ghcr.io/coollabsio/coolify:4.0.0",
@@ -351,7 +351,7 @@ func TestBaseKitImagesByTier(t *testing.T) {
 		"ghcr.io/immich-app/immich-server:release",
 		"ghcr.io/immich-app/immich-machine-learning:release",
 		"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
-		"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+		"ghcr.io/valkey-io/valkey:9",
 	} {
 		if !slices.Contains(standard, image) {
 			t.Fatalf("standard image set missing %s: %#v", image, standard)
@@ -373,20 +373,86 @@ func TestBaseKitImagesByTier(t *testing.T) {
 	}
 }
 
+func TestBaseKitImagesUsesSelectedPlatform(t *testing.T) {
+	t.Setenv("STACKKIT_SERVICE_PROFILE", "")
+	t.Setenv("STACKKIT_PLATFORM", "komodo")
+
+	images := baseKitImages(models.ComputeTierStandard)
+	for _, image := range []string{
+		"public.ecr.aws/docker/library/mongo:7",
+		"ghcr.io/moghtech/komodo-core:2",
+		"ghcr.io/moghtech/komodo-periphery:2",
+		"smallstep/step-ca:0.30.2",
+	} {
+		if !slices.Contains(images, image) {
+			t.Fatalf("komodo image set missing %s: %#v", image, images)
+		}
+	}
+	for _, image := range []string{
+		"ghcr.io/coollabsio/coolify:4.0.0",
+		"ghcr.io/coollabsio/coolify-helper:1.0.13",
+		"ghcr.io/coollabsio/coolify-realtime:1.0.13",
+	} {
+		if slices.Contains(images, image) {
+			t.Fatalf("komodo image set should not pre-pull Coolify image %s: %#v", image, images)
+		}
+	}
+}
+
+func TestPreparePrePullComputeTierDefaultsToStandard(t *testing.T) {
+	if got := preparePrePullComputeTier(nil); got != models.ComputeTierStandard {
+		t.Fatalf("nil spec pre-pull tier = %q, want %q", got, models.ComputeTierStandard)
+	}
+
+	if got := preparePrePullComputeTier(&models.StackSpec{}); got != models.ComputeTierStandard {
+		t.Fatalf("empty spec pre-pull tier = %q, want %q", got, models.ComputeTierStandard)
+	}
+
+	lowSpec := &models.StackSpec{}
+	lowSpec.Compute.Tier = models.ComputeTierLow
+	if got := preparePrePullComputeTier(lowSpec); got != models.ComputeTierLow {
+		t.Fatalf("explicit low pre-pull tier = %q, want %q", got, models.ComputeTierLow)
+	}
+
+	images := baseKitImages(preparePrePullComputeTier(nil))
+	if slices.Contains(images, "dokploy/dokploy:latest") || slices.Contains(images, "louislam/dockge:1") {
+		t.Fatalf("prepare without a spec must use the standard default image set, got %#v", images)
+	}
+}
+
+func TestShouldPrePullImagesHonorsEnv(t *testing.T) {
+	t.Setenv("STACKKIT_PREPULL_IMAGES", "")
+	t.Setenv("STACKKIT_IMAGE_PREPULL", "")
+	if !shouldPrePullImages() {
+		t.Fatal("image pre-pull should default to enabled")
+	}
+
+	t.Setenv("STACKKIT_PREPULL_IMAGES", "false")
+	if shouldPrePullImages() {
+		t.Fatal("STACKKIT_PREPULL_IMAGES=false should disable image pre-pull")
+	}
+
+	t.Setenv("STACKKIT_PREPULL_IMAGES", "")
+	t.Setenv("STACKKIT_IMAGE_PREPULL", "0")
+	if shouldPrePullImages() {
+		t.Fatal("legacy STACKKIT_IMAGE_PREPULL=0 should disable image pre-pull")
+	}
+}
+
 func TestBaseKitImagesAdminOnlyProfile(t *testing.T) {
 	t.Setenv("STACKKIT_SERVICE_PROFILE", "admin-only")
 
 	images := baseKitImages("")
 	for _, image := range []string{
 		"ghcr.io/gethomepage/homepage:latest",
-		"tecnativa/docker-socket-proxy:latest",
-		"postgres:15-alpine",
-		"redis:7-alpine",
+		"ghcr.io/tecnativa/docker-socket-proxy:latest",
+		"public.ecr.aws/docker/library/postgres:15-alpine",
+		"public.ecr.aws/docker/library/redis:7-alpine",
 		"ghcr.io/coollabsio/coolify-helper:1.0.13",
 		"ghcr.io/coollabsio/coolify-realtime:1.0.13",
 		"ghcr.io/coollabsio/coolify:4.0.0",
-		"louislam/uptime-kuma:1",
-		"traefik/whoami:latest",
+		"ghcr.io/louislam/uptime-kuma:2.0.2",
+		"ghcr.io/traefik/whoami:latest",
 	} {
 		if !slices.Contains(images, image) {
 			t.Fatalf("admin-only image set missing %s: %#v", image, images)
@@ -399,7 +465,7 @@ func TestBaseKitImagesAdminOnlyProfile(t *testing.T) {
 		"ghcr.io/immich-app/immich-server:release",
 		"ghcr.io/immich-app/immich-machine-learning:release",
 		"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
-		"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+		"ghcr.io/valkey-io/valkey:9",
 	} {
 		if slices.Contains(images, image) {
 			t.Fatalf("admin-only image set should not include %s: %#v", image, images)

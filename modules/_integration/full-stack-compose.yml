@@ -78,7 +78,7 @@ services:
     restart: unless-stopped
 
   # --- L2 Platform: Ingress (stand-in for PaaS Traefik) ---
-  # In production, the PaaS (Dokploy/Coolify) ships Traefik.
+  # In production, the selected router owns Traefik.
   # Here we use a standalone Traefik as test stand-in, routed through socket-proxy.
   traefik:
     image: traefik:v3.6

@@ -2,13 +2,13 @@
 //
 // Layer Architecture:
 //   Layer 1 (Foundation): System, security, core identity (LLDAP, Step-CA from base)
-//   Layer 2 (Platform): Traefik, PAAS (Coolify/Dokploy), Platform Identity (TinyAuth, PocketID), Uptime Kuma, Whoami
+//   Layer 2 (Platform): Traefik, PAAS (Coolify default, Komodo alternative, Dokploy draft), Platform Identity (TinyAuth, PocketID), Uptime Kuma, Whoami
 //   Layer 3 (Applications): Vaultwarden, Immich, Jellyfin, and other user applications
 //
 // PaaS Strategy:
 //   - Coolify (default): no-domain, local, pi, kombify.me, and own public/custom domain
-//   - Komodo: explicit PoC-first alternative, routed through StackKit Traefik
-//   - Dokploy: explicit supported alternative
+//   - Komodo: production alternative, routed through StackKit Traefik
+//   - Dokploy: draft adapter, not part of canonical E2E dispatch
 //   - Dockge: lightweight compose manager only; not the standard PaaS
 //
 // Variants:

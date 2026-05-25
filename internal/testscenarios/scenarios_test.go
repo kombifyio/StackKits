@@ -42,6 +42,23 @@ func TestLoadAllReturnsCanonicalScenarios(t *testing.T) {
 	}
 }
 
+func TestRunnableE2EScenariosStayOpinionatedToThree(t *testing.T) {
+	scenarios, err := LoadAll()
+	if err != nil {
+		t.Fatalf("LoadAll returned error: %v", err)
+	}
+	var runnableIDs []string
+	for _, scenario := range scenarios {
+		if scenario.HasRunnableHomelab() {
+			runnableIDs = append(runnableIDs, scenario.ID)
+		}
+	}
+	want := []string{"SK-S1", "SK-S2", "SK-S3"}
+	if !slices.Equal(runnableIDs, want) {
+		t.Fatalf("runnable E2E scenarios = %v, want %v", runnableIDs, want)
+	}
+}
+
 func TestByIDReturnsScenario(t *testing.T) {
 	scenario, err := ByID("SK-S2")
 	if err != nil {
@@ -52,6 +69,9 @@ func TestByIDReturnsScenario(t *testing.T) {
 	}
 	if scenario.StackSpec.Domain != "kombify.me" {
 		t.Fatalf("unexpected scenario domain: %q", scenario.StackSpec.Domain)
+	}
+	if scenario.StackSpec.PAAS != "komodo" {
+		t.Fatalf("unexpected scenario PaaS: %q", scenario.StackSpec.PAAS)
 	}
 }
 
@@ -94,6 +114,27 @@ func TestNewArtifactUsesPublicHubURLAsBrowserURL(t *testing.T) {
 	}
 	if artifact.BrowserURL != artifact.HubURL {
 		t.Fatalf("public artifact browserUrl = %q, want hubUrl %q", artifact.BrowserURL, artifact.HubURL)
+	}
+}
+
+func TestCustomDomainScenarioUsesProvidedDomainDirectly(t *testing.T) {
+	scenario, err := ByID("SK-S3")
+	if err != nil {
+		t.Fatalf("ByID returned error: %v", err)
+	}
+	if scenario.StackSpec.Domain != "kombify.pro" {
+		t.Fatalf("SK-S3 domain = %q, want kombify.pro", scenario.StackSpec.Domain)
+	}
+	if strings.Contains(scenario.Expected.Access.HubURL, "sk-") {
+		t.Fatalf("SK-S3 hubUrl must not use generated test subdomains: %q", scenario.Expected.Access.HubURL)
+	}
+	for _, svc := range scenario.Expected.Access.Services {
+		if !strings.HasSuffix(svc.Host, ".kombify.pro") {
+			t.Fatalf("SK-S3 service host = %q, want service.kombify.pro", svc.Host)
+		}
+		if strings.Contains(svc.Host, "sk-") {
+			t.Fatalf("SK-S3 service host must not include generated test prefix: %q", svc.Host)
+		}
 	}
 }
 

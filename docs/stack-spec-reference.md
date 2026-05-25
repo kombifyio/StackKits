@@ -80,7 +80,7 @@ compute:
   tier: string            # "low", "standard" (default), "high"
 
 # PAAS Platform (optional — Coolify if omitted)
-paas: string              # explicit override: "coolify", "komodo", or "dokploy"
+paas: string              # explicit production choices: "coolify" or "komodo"; "dokploy" is draft
 
 # Storage (optional — for devices with limited disk)
 storage:
@@ -118,16 +118,16 @@ StackKits support four domain access modes. Each determines how service URLs are
 
 ```yaml
 context: cloud
-domain: sk-<run-id>.kombify.pro
+domain: kombify.pro
 email: owner@kombify.pro
 tls:
   provider: cloudflare    # Required if device is behind NAT
 ```
 
-- **Service URLs:** `service.sk-<run-id>.kombify.pro` (e.g. `base.sk-<run-id>.kombify.pro`, `id.sk-<run-id>.kombify.pro`)
+- **Service URLs:** `service.kombify.pro` for a provided `kombify.pro` domain (e.g. `base.kombify.pro`, `id.kombify.pro`, `photos.kombify.pro`)
 - **Default PAAS:** `coolify` when `paas` is omitted
 - **TLS:** Let's Encrypt via ACME. TLS-ALPN-01 (default, needs public port 443) or DNS-01 (NAT-friendly, needs DNS provider API)
-- **DNS:** User manages DNS records, or StackKits automates supported providers such as Cloudflare (wildcard `*.sk-<run-id>.kombify.pro` → server IP)
+- **DNS:** User manages DNS records, or StackKits automates supported providers such as Cloudflare by creating the exact service records under the provided domain, e.g. `base.kombify.pro` -> server IP. StackKits must not invent an `sk-<run-id>` subdomain for a custom domain.
 - **Environment variables for DNS-01:**
   - `STACKKIT_DNS_TOKEN` — API key/token for the DNS provider
   - `STACKKIT_DNS_EMAIL` — Email for Cloudflare Global API Key auth (optional for scoped tokens)
@@ -208,14 +208,14 @@ DNS-01 is auto-selected when `tls.provider` is set. Supported providers:
 | Platform | When Used | Reverse Proxy |
 |----------|-----------|---------------|
 | `coolify` | Default when `paas` is omitted | Coolify's Traefik |
-| `komodo` | Explicit `paas: komodo` alternative; first PoC candidate | StackKit-owned Traefik |
-| `dokploy` | Explicit `paas: dokploy` alternative | `dokploy-traefik` |
+| `komodo` | Explicit production alternative via `paas: komodo` | StackKit-owned Traefik |
+| `dokploy` | Draft adapter, not a production/E2E standard | `dokploy-traefik` |
 
 `dockge` is a lightweight Compose manager, not a normal StackKit PaaS. It can exist as an experimental/constrained service mode, but `paas: dockge` and `paas: none` are invalid for normal Base/Modern/HA StackKits.
 
-User `apps:` require `coolify`, `komodo`, or `dokploy`. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local BaseKit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
+User `apps:` require a selected PaaS. Production choices are `coolify` and `komodo`; the Dokploy adapter remains draft until promoted. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local BaseKit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
 
-When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. Use `paas: komodo` only for the Komodo-first alternative PoC path. Use `paas: dokploy` only for the second explicit Dokploy alternative rollout.
+When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. Use `paas: komodo` for the supported production alternative path. Do not use `paas: dokploy` in standard production or canonical E2E rollouts until Dokploy is promoted from draft.
 
 During the current transition, `pkg/models.StackSpec.ResolvePAASForContext` is the canonical auto-selection resolver for omitted `paas` values. CUE remains the broader StackKit contract source, and the PaaS default should move fully back into CUE once the CUE export -> tfvars pipeline is complete.
 
@@ -223,9 +223,9 @@ Coolify bootstrap is part of the StackKits implementation. StackKits passes gene
 
 Komodo bootstrap is also generated when explicitly selected. StackKits installs Komodo Core, Periphery, and DB, creates the initial local admin with `KOMODO_INIT_ADMIN_USERNAME`/`KOMODO_INIT_ADMIN_PASSWORD`, disables public registration, creates a Komodo API key/secret through the HTTP API, and writes `.stackkit/platform.json` with `platform: "komodo"`, `apiKey`, `apiSecret`, and `serverId`. The first Komodo contract routes through StackKit-owned Traefik and deploys Compose bundles as Komodo Stack resources.
 
-Dokploy bootstrap is generated when explicitly selected. StackKits installs Dokploy, Postgres, Redis, and `dokploy-traefik`, sets `BETTER_AUTH_SECRET`, performs first-owner/session/API-key bootstrap without UI, writes `.stackkit/platform.json` with `platform: "dokploy"`, `token`, and `apiKey`, and deploys Compose bundles through Dokploy's `X-Api-Key` API path.
+Dokploy bootstrap exists only as draft adapter work. It is not part of the production PaaS standard or the canonical three-scenario E2E matrix until promoted.
 
-**Reverse proxy backend:** `reverse_proxy_backend` means the selected router owns the real traffic path. If the selected PaaS has integrated Traefik, that Traefik is the StackKit router for the environment: Coolify's Traefik for `paas: coolify`, `dokploy-traefik` for `paas: dokploy`. For `paas: komodo`, the accepted initial contract is exactly one StackKit-owned Traefik, and generated output/evidence must label that routing ownership clearly. StackKit must not run a second Traefik instance, Nginx bridge, host-side proxy, or test-only forwarding shim for PaaS-owned-router paths.
+**Reverse proxy backend:** `reverse_proxy_backend` means the selected router owns the real traffic path. If the selected PaaS has integrated Traefik, that Traefik is the StackKit router for the environment: Coolify's Traefik for `paas: coolify`. For `paas: komodo`, the accepted contract is exactly one StackKit-owned Traefik, and generated output/evidence must label that routing ownership clearly. StackKit must not run a second Traefik instance, Nginx bridge, host-side proxy, or test-only forwarding shim for PaaS-owned-router paths.
 
 Release evidence is valid only when generated service URLs are reachable through the declared router. In the default Coolify path, platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles attach to Coolify's Traefik. The standalone StackKit-owned routing fallback is disabled by default and is valid only when `platformFallback.enabled: true` and `platformFallback.mode: standalone-compose` are set explicitly.
 
@@ -281,7 +281,7 @@ name: mylab
 stackkit: base-kit
 mode: simple
 context: cloud
-domain: sk-<run-id>.kombify.pro
+domain: kombify.pro
 email: owner@kombify.pro
 tls:
   provider: cloudflare
@@ -352,7 +352,7 @@ name: mylab
 stackkit: base-kit
 mode: simple
 context: cloud
-domain: sk-<run-id>.kombify.pro
+domain: kombify.pro
 email: owner@kombify.pro
 paas: coolify
 tls:
@@ -376,7 +376,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `stackkit` must reference an existing StackKit (`base-kit`, `modern-homelab`, `ha-kit`)
 - `mode` must be `simple` or `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
-- `paas` must be `coolify`, `komodo`, or `dokploy` for normal StackKits (Coolify when omitted)
+- `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only
 - `tls.provider` auto-selects `challenge: dns` if set
 - `domain: home.localhost` is the local default and must generate portless links that open without hosts-file edits, DNS setup, or trust-store setup
 - `domain: stack.home` is explicit LAN-DNS mode and may enable Kombify Point only when StackKit owns or verifies the resolver path

@@ -171,7 +171,7 @@ func addAppToSpec(spec *models.StackSpec, opts appAddOptions) error {
 }
 
 func ensureStandardPAASForApps(spec *models.StackSpec) {
-	if spec.PAAS == "" || models.IsStandardPAAS(spec.PAAS) {
+	if spec.PAAS == "" || models.IsSupportedPAAS(spec.PAAS) {
 		return
 	}
 	spec.PAAS = models.PAASCoolify

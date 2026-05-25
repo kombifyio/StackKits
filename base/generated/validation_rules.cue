@@ -95,9 +95,9 @@ package base
       layer:         "2"
       fieldPath:     "paas.type"
       ruleType:      "constraint"
-      cueExpression: "paas.type =~ \"^(dokploy|coolify|komodo)$\""
-      errorMessage:  "PAAS type must be one of: coolify, komodo, dokploy"
-      hint:          "Use Coolify by default, or explicitly select Komodo/Dokploy where the adapter is supported"
+      cueExpression: "paas.type =~ \"^(coolify|komodo)$\""
+      errorMessage:  "PAAS type must be one of: coolify, komodo"
+      hint:          "Use Coolify by default, or explicitly select Komodo as the production alternative. Dokploy is draft."
       severity:      "error"
     },
     {

@@ -6,7 +6,7 @@
 // Filters Docker API: read-only endpoints enabled (containers, events, networks, info, ping, version),
 // all write operations blocked (POST, EXEC, BUILD, etc.).
 //
-// Exception: Dokploy/Coolify (PaaS) keeps direct docker.sock because it needs
+// Exception: the selected PaaS keeps direct docker.sock because it needs
 // full container lifecycle management (POST, EXEC). This is the only exception.
 //
 // Reference: NETWORK-SECURITY-STACKKITS_1.md §4.2

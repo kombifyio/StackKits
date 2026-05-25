@@ -8,7 +8,7 @@
   "dashboard_title": "sk-s4-modern-hybrid",
   "dns_fix_method": "",
   "dns_fixed": false,
-  "domain": "sk-hybrid.kombify.pro",
+  "domain": "kombify.pro",
   "enable_coolify": true,
   "enable_dashboard": true,
   "enable_dnsmasq": false,
@@ -38,7 +38,7 @@
   "step_ca_enabled": false,
   "storage_driver": "overlay2",
   "storage_driver_degraded": false,
-  "tinyauth_app_url": "https://auth.sk-hybrid.kombify.pro",
+  "tinyauth_app_url": "https://auth.kombify.pro",
   "tinyauth_users": "",
   "tls_provider": "letsencrypt"
 }

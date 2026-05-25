@@ -136,13 +136,28 @@ func (c *Client) ListServices(baseID string) ([]Subdomain, error) {
 	return subs, nil
 }
 
+// ListSubdomains lists all base and service subdomains owned by the API key.
+func (c *Client) ListSubdomains() ([]Subdomain, error) {
+	var subs []Subdomain
+	if err := c.get("/subdomains", &subs); err != nil {
+		return nil, fmt.Errorf("list subdomains: %w", err)
+	}
+	return subs, nil
+}
+
+// DeleteSubdomain deletes a subdomain by id. Deleting a base subdomain also
+// removes its service subdomains server-side.
+func (c *Client) DeleteSubdomain(id string) error {
+	return c.delete("/subdomains/" + id)
+}
+
 // ListServicesByPrefix lists all subdomains (base + services) for a given prefix.
 // It first looks up the base subdomain by name, then lists its services.
 func (c *Client) ListServicesByPrefix(prefix string) ([]Subdomain, error) {
 	// Fetch the user's subdomains and find the base by name
-	var allSubs []Subdomain
-	if err := c.get("/subdomains", &allSubs); err != nil {
-		return nil, fmt.Errorf("list subdomains: %w", err)
+	allSubs, err := c.ListSubdomains()
+	if err != nil {
+		return nil, err
 	}
 
 	var result []Subdomain

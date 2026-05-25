@@ -17,10 +17,10 @@
 //
 // PaaS Decision:
 //   - omitted       -> Coolify
-//   - paas: dokploy -> explicit alternative
+//   - paas: komodo -> production alternative; Dokploy remains draft
 //
 // Container Runtime: Docker Compose per node (no Swarm)
-//   Coolify/Dokploy coordinates multi-node deployments via SSH.
+//   Selected PaaS coordinates multi-node deployments via SSH.
 // =============================================================================
 
 package modern_homelab
@@ -41,7 +41,7 @@ import (
 	deploymentMode: *"simple" | "advanced"
 
 	// PaaS selection
-	paas: *"coolify" | "dokploy"
+	paas: *"coolify" | "komodo" | "dokploy"
 
 	// Domain configuration
 	domain: #DomainConfig

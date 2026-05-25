@@ -1,7 +1,7 @@
 {
   "acme_challenge": "tls",
-  "acme_email": "admin@sh-scenario-s2a.kombify.me",
-  "admin_email": "admin@sh-scenario-s2a.kombify.me",
+  "acme_email": "tester@kombify.pro",
+  "admin_email": "tester@kombify.pro",
   "admin_password_plaintext": "",
   "brand_color": "#F97316",
   "compute_tier": "standard",

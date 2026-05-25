@@ -191,11 +191,11 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 	// Normal StackKits must deploy through a supported platform adapter.
 	// Dockge is kept only as a constrained experimental compose manager, and
 	// "none" would allow platform bypasses.
-	if spec.PAAS != "" && !models.IsStandardPAAS(spec.PAAS) && !platformFallbackEnabled(spec) {
+	if spec.PAAS != "" && !models.IsSupportedPAAS(spec.PAAS) && !platformFallbackEnabled(spec) {
 		result.Valid = false
 		result.Errors = append(result.Errors, models.ValidationError{
 			Path:    "paas",
-			Message: fmt.Sprintf("invalid paas '%s': normal StackKits must use coolify, komodo, or dokploy; remove paas to use the default coolify resolver", spec.PAAS),
+			Message: fmt.Sprintf("invalid paas '%s': normal StackKits must use coolify or komodo; dokploy is draft-only; remove paas to use the default coolify resolver", spec.PAAS),
 			Code:    "INVALID_VALUE",
 		})
 	}

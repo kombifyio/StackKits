@@ -64,6 +64,7 @@ func TestGenerateAppsTF_SvelteKitContract(t *testing.T) {
 	assert.Contains(t, compose, `traefik.http.routers.app-web.rule=Host(`+"`"+`app.home.lab`+"`"+`)`)
 	assert.Contains(t, compose, `traefik.http.routers.app-web.entrypoints=web`)
 	assert.Contains(t, compose, `traefik.http.routers.app-web.middlewares=tinyauth@docker`)
+	assert.NotContains(t, compose, `coolify.traefik.middlewares`)
 	assert.Contains(t, compose, `name: dokploy-network`)
 
 	manifestData, err := os.ReadFile(filepath.Join(outputDir, "platform-apps", "manifest.json"))
@@ -99,8 +100,11 @@ func TestGenerateAppsTF_CoolifyDefaultUsesCoolifyRoutingContract(t *testing.T) {
 	require.NoError(t, err)
 	compose := string(composeData)
 	assert.Contains(t, compose, `stackkit.managed-by=coolify`)
+	assert.Contains(t, compose, `coolify.traefik.middlewares=tinyauth@file`)
 	assert.Contains(t, compose, `traefik.docker.network=coolify`)
 	assert.Contains(t, compose, `traefik.http.routers.app-web.entrypoints=http`)
+	assert.Contains(t, compose, `traefik.http.routers.app-web.middlewares=tinyauth@file`)
+	assert.NotContains(t, compose, `traefik.http.routers.app-web.middlewares=tinyauth@docker`)
 	assert.NotContains(t, compose, `traefik.http.routers.app-web.entrypoints=web`)
 	assert.Contains(t, compose, `name: coolify`)
 

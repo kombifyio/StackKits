@@ -352,11 +352,11 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		)
 
 		caps = testDockerDNS(ctx, caps)
-		computeTier := ""
-		if spec != nil {
-			computeTier = spec.Compute.Tier
+		if shouldPrePullImages() {
+			prePullImages(ctx, caps, preparePrePullComputeTier(spec))
+		} else {
+			printInfo("Skipping optional Docker image pre-pull (STACKKIT_PREPULL_IMAGES=false)")
 		}
-		prePullImages(ctx, caps, computeTier)
 		writeDockerCapabilities(caps)
 	}
 
@@ -807,6 +807,27 @@ func classifyCompatibilityTier(virtType string, unshareOK, bridgeOK, overlayOK b
 		slog.String("result", string(result)),
 	)
 	return result
+}
+
+func preparePrePullComputeTier(spec *models.StackSpec) string {
+	if spec == nil || strings.TrimSpace(spec.Compute.Tier) == "" {
+		return models.ComputeTierStandard
+	}
+	return spec.Compute.Tier
+}
+
+func shouldPrePullImages() bool {
+	value := os.Getenv("STACKKIT_PREPULL_IMAGES")
+	if value == "" {
+		value = os.Getenv("STACKKIT_IMAGE_PREPULL")
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "0", "false", "no", "off", "skip", "disabled":
+		return false
+	default:
+		return true
+	}
 }
 
 // ensurePackagedOpenTofu checks the StackKit-packaged OpenTofu binary.

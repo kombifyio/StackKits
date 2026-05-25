@@ -102,6 +102,12 @@ func TestGolden_TFVarsSnapshots(t *testing.T) {
 
 	for name, spec := range specs {
 		t.Run(name, func(t *testing.T) {
+			t.Setenv("STACKKIT_ADMIN_EMAIL", "")
+			t.Setenv("KOMBIFY_USER_EMAIL", "")
+			if spec.Owner.EffectiveBootstrapMode() == models.OwnerBootstrapModeAuto && spec.Owner.Source == models.OwnerSourceCloud {
+				t.Setenv("KOMBIFY_USER_EMAIL", "tester@kombify.pro")
+			}
+
 			// Determine context from spec characteristics
 			ctx := models.ContextLocal
 			if spec.Domain != "" && !models.IsLocalDomain(spec.Domain) {

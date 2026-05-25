@@ -372,57 +372,57 @@ func restartDockerForDNS(ctx context.Context) {
 // installer service profile scopes the prepare pass before a spec exists.
 func baseKitImages(tier string) []string {
 	adminOnly := strings.EqualFold(strings.TrimSpace(os.Getenv("STACKKIT_SERVICE_PROFILE")), "admin-only")
+	platform := selectedPrePullPlatform()
 
 	// Common images across all tiers
 	images := []string{
-		"traefik:v3",
-		"ghcr.io/steveiliop56/tinyauth:v4",
+		"ghcr.io/traefik/traefik:v3",
+		"ghcr.io/steveiliop56/tinyauth:v5.0.7",
 		"ghcr.io/pocket-id/pocket-id:v2",
-		"nginx:alpine",
+		"public.ecr.aws/docker/library/nginx:alpine",
 		"ghcr.io/gethomepage/homepage:latest",
-		"tecnativa/docker-socket-proxy:latest",
-		"traefik/whoami:latest",
-		"smallstep/step-ca:0.30.2",
-		"coredns/coredns:1.11.3",
+		"ghcr.io/tecnativa/docker-socket-proxy:latest",
+		"ghcr.io/traefik/whoami:latest",
+		"registry.k8s.io/coredns/coredns:v1.11.3",
 	}
 
 	if tier == models.ComputeTierLow {
 		// Low compute: keep diagnostics and the default identity stack, but skip
 		// heavier app images.
 		images = append(images,
-			"louislam/uptime-kuma:1",
-			"python:3.11-alpine",
+			"ghcr.io/louislam/uptime-kuma:2.0.2",
+			"public.ecr.aws/docker/library/python:3.11-alpine",
 		)
 	} else if tier == "" && !adminOnly {
 		// All images (for destroy/cleanup/recovery)
 		images = append(images,
-			"postgres:16-alpine",
-			"postgres:15-alpine",
-			"redis:7-alpine",
+			"public.ecr.aws/docker/library/postgres:16-alpine",
+			"public.ecr.aws/docker/library/postgres:15-alpine",
+			"public.ecr.aws/docker/library/redis:7-alpine",
 			"ghcr.io/coollabsio/coolify-helper:1.0.13",
 			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
 			"ghcr.io/coollabsio/coolify:4.0.0",
+			"public.ecr.aws/docker/library/mongo:7",
+			"ghcr.io/moghtech/komodo-core:2",
+			"ghcr.io/moghtech/komodo-periphery:2",
+			"smallstep/step-ca:0.30.2",
 			"dokploy/dokploy:latest",
-			"node:22-alpine",
-			"louislam/uptime-kuma:1",
-			"python:3.11-alpine",
+			"public.ecr.aws/docker/library/node:22-alpine",
+			"ghcr.io/louislam/uptime-kuma:2.0.2",
+			"public.ecr.aws/docker/library/python:3.11-alpine",
 			"ghcr.io/dani-garcia/vaultwarden:latest",
 			"ghcr.io/immich-app/immich-server:release",
 			"ghcr.io/immich-app/immich-machine-learning:release",
 			"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
-			"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+			"ghcr.io/valkey-io/valkey:9",
 			"louislam/dockge:1",
 		)
 	} else {
-		// Standard/high: platform baseline, monitoring, and Coolify runtime images.
+		// Standard/high: selected platform baseline, monitoring, and default apps.
+		images = append(images, platformPrePullImages(platform)...)
 		images = append(images,
-			"postgres:15-alpine",
-			"redis:7-alpine",
-			"ghcr.io/coollabsio/coolify-helper:1.0.13",
-			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
-			"ghcr.io/coollabsio/coolify:4.0.0",
-			"louislam/uptime-kuma:1",
-			"python:3.11-alpine",
+			"ghcr.io/louislam/uptime-kuma:2.0.2",
+			"public.ecr.aws/docker/library/python:3.11-alpine",
 		)
 		if !adminOnly {
 			images = append(images,
@@ -430,7 +430,7 @@ func baseKitImages(tier string) []string {
 				"ghcr.io/immich-app/immich-server:release",
 				"ghcr.io/immich-app/immich-machine-learning:release",
 				"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
-				"docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+				"ghcr.io/valkey-io/valkey:9",
 			)
 		}
 	}
@@ -440,6 +440,49 @@ func baseKitImages(tier string) []string {
 	}
 
 	return images
+}
+
+func selectedPrePullPlatform() string {
+	platform := strings.TrimSpace(os.Getenv("STACKKIT_PLATFORM"))
+	if platform == "" {
+		platform = strings.TrimSpace(os.Getenv("STACKKIT_PAAS"))
+	}
+	platform = strings.ToLower(platform)
+	switch platform {
+	case "komodo", "dokploy", "coolify", "none":
+		return platform
+	default:
+		return "coolify"
+	}
+}
+
+func platformPrePullImages(platform string) []string {
+	switch platform {
+	case "komodo":
+		return []string{
+			"public.ecr.aws/docker/library/mongo:7",
+			"ghcr.io/moghtech/komodo-core:2",
+			"ghcr.io/moghtech/komodo-periphery:2",
+			"smallstep/step-ca:0.30.2",
+		}
+	case "dokploy":
+		return []string{
+			"public.ecr.aws/docker/library/postgres:16-alpine",
+			"public.ecr.aws/docker/library/redis:7-alpine",
+			"dokploy/dokploy:latest",
+			"public.ecr.aws/docker/library/node:22-alpine",
+		}
+	case "none":
+		return nil
+	default:
+		return []string{
+			"public.ecr.aws/docker/library/postgres:15-alpine",
+			"public.ecr.aws/docker/library/redis:7-alpine",
+			"ghcr.io/coollabsio/coolify-helper:1.0.13",
+			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
+			"ghcr.io/coollabsio/coolify:4.0.0",
+		}
+	}
 }
 
 func shouldPrePullImage(image string) bool {

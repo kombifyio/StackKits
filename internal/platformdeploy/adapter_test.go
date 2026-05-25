@@ -479,7 +479,7 @@ func TestCoolifyAdapterNormalizesIndentedComposeBeforeUpload(t *testing.T) {
 	assert.Equal(t, "services:\n  vaultwarden:\n    image: vaultwarden/server:latest\n    ports:\n      - \"8080:80\"\n", string(decoded))
 }
 
-func TestCoolifyAdapterOmitsCoolifyURLRoutesWhenComposeDefinesTraefikRouters(t *testing.T) {
+func TestCoolifyAdapterIncludesURLRoutesWhenComposeDefinesTraefikRouters(t *testing.T) {
 	var calls []recordedCall
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls = append(calls, recordCall(t, r))
@@ -513,7 +513,13 @@ func TestCoolifyAdapterOmitsCoolifyURLRoutesWhenComposeDefinesTraefikRouters(t *
 
 	require.NoError(t, err)
 	require.Len(t, calls, 2)
-	assert.NotContains(t, calls[0].JSON, "urls")
+	urls, ok := calls[0].JSON["urls"].([]any)
+	require.True(t, ok)
+	require.Len(t, urls, 1)
+	route, ok := urls[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "whoami", route["name"])
+	assert.Equal(t, "http://whoami.home.localhost", route["url"])
 }
 
 func TestCoolifyAdapterApplyComposeUpdatesOnCreateConflict(t *testing.T) {

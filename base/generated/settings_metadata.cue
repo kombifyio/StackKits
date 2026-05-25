@@ -92,8 +92,8 @@ package base
         name:              "PAAS Type"
         settingType:       "perma"
         description:      "Platform-as-a-Service selection"
-        whyClassification: "Migrating applications between Coolify/Komodo/Dokploy requires manual export/import and adapter-specific evidence"
-        cueType:          "\"coolify\" | \"komodo\" | \"dokploy\""
+        whyClassification: "Migrating applications between Coolify and Komodo requires manual export/import and adapter-specific evidence; Dokploy is draft"
+        cueType:          "\"coolify\" | \"komodo\""
       },
       {
         layer:             "2"

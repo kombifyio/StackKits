@@ -32,11 +32,38 @@ func TestGenerateTfvarsJSON_LocalModeCoreDecisions(t *testing.T) {
 	assert.False(t, boolVar(t, vars, "enable_kombify_point"))
 	assert.False(t, boolVar(t, vars, "enable_https"))
 	assert.False(t, boolVar(t, vars, "step_ca_enabled"))
+	assert.Equal(t, "admin@example.com", stringVar(t, vars, "admin_email"))
 	assert.Equal(t, models.PAASCoolify, stringVar(t, vars, "paas"))
 	assert.False(t, boolVar(t, vars, "enable_dokploy"))
 	assert.False(t, boolVar(t, vars, "enable_dockge"))
 	assert.True(t, boolVar(t, vars, "enable_coolify"))
 	assert.True(t, boolVar(t, vars, "enable_dashboard"))
+}
+
+func TestGenerateTfvarsJSON_CloudAutoOwnerUsesKombifyUserEmailWithoutMutatingSpec(t *testing.T) {
+	setCapabilitiesHome(t, models.ContextCloud)
+	t.Setenv("KOMBIFY_USER_EMAIL", "tester@kombify.pro")
+	t.Setenv("STACKKIT_ADMIN_EMAIL", "")
+
+	spec := &models.StackSpec{
+		Name:            "sphere-lab",
+		Domain:          models.DomainKombifyMe,
+		SubdomainPrefix: "sh-sphere-abc123",
+		Context:         string(models.ContextCloud),
+		Owner: models.OwnerConfig{
+			BootstrapMode:       models.OwnerBootstrapModeAuto,
+			Source:              models.OwnerSourceCloud,
+			RecoveryMaterialRef: "techstack://recovery/scenarios/sk-s2",
+		},
+	}
+
+	vars := decodeTFVars(t, spec)
+
+	assert.Equal(t, "tester@kombify.pro", stringVar(t, vars, "admin_email"))
+	assert.Equal(t, "tester@kombify.pro", stringVar(t, vars, "acme_email"))
+	assert.Empty(t, spec.AdminEmail, "generation must not persist cloud owner identity into the public StackSpec")
+	assert.Empty(t, spec.Email, "generation must not persist cloud owner identity into the public StackSpec")
+	assert.Empty(t, spec.Owner.Email, "auto/cloud owner specs keep identity in env or private handoff")
 }
 
 func TestGenerateTfvarsJSON_PublicDomainEnablesManagedTLS(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/auth"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/tofu"
 )
 
@@ -24,6 +25,8 @@ const (
 	runtimeActionRollout = "stackkit_rollout"
 	runtimeActionVerify  = "verify_rollout"
 	runtimeActionRestore = "restore_drill"
+
+	runtimeActionExecutionTimeout = 14*time.Minute + 30*time.Second
 )
 
 type runtimeActionRequest struct {
@@ -51,16 +54,18 @@ type runtimeActionTarget struct {
 }
 
 type runtimeActionResponse struct {
-	Status          string                        `json:"status"`
-	Action          string                        `json:"action"`
-	StackID         string                        `json:"stack_id"`
-	StackName       string                        `json:"stack_name,omitempty"`
-	StackKit        string                        `json:"stackkit,omitempty"`
-	TofuDir         string                        `json:"tofu_dir,omitempty"`
-	UnifiedPath     string                        `json:"unified_path,omitempty"`
-	Mode            string                        `json:"mode"`
-	Checks          []runtimeActionCheck          `json:"checks,omitempty"`
-	StackKitOutputs *runtimeActionStackKitOutputs `json:"stackkit_outputs,omitempty"`
+	Status          string                         `json:"status"`
+	Action          string                         `json:"action"`
+	StackID         string                         `json:"stack_id"`
+	StackName       string                         `json:"stack_name,omitempty"`
+	StackKit        string                         `json:"stackkit,omitempty"`
+	TofuDir         string                         `json:"tofu_dir,omitempty"`
+	UnifiedPath     string                         `json:"unified_path,omitempty"`
+	Mode            string                         `json:"mode"`
+	Checks          []runtimeActionCheck           `json:"checks,omitempty"`
+	StackKitOutputs *runtimeActionStackKitOutputs  `json:"stackkit_outputs,omitempty"`
+	RuntimeMetrics  *runtimeActionRuntimeMetrics   `json:"runtime_metrics,omitempty"`
+	PlatformRefs    []platformdeploy.DeploymentRef `json:"platform_refs,omitempty"`
 }
 
 type runtimeActionCheck struct {
@@ -106,6 +111,14 @@ type runtimeActionLoginGateway struct {
 type runtimeActionServiceLink struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
+}
+
+type runtimeActionRuntimeMetrics struct {
+	CPUPercent    float64 `json:"cpu_percent"`
+	MemoryPercent float64 `json:"memory_percent"`
+	DiskPercent   float64 `json:"disk_percent"`
+	UptimeSeconds float64 `json:"uptime_seconds"`
+	UpdatedAt     string  `json:"updated_at,omitempty"`
 }
 
 func (s *Server) registerRuntimeActionRoutes() {
@@ -228,7 +241,7 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
 	}
 
-	includeStackKitOutputs := req.OwnerSpecBootstrap != nil
+	includeStackKitOutputs := true
 	if mode == runtimeActionModeDryRun {
 		resp.Status = dryRunStatus(req.Action)
 		if includeStackKitOutputs {
@@ -243,7 +256,7 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	case runtimeActionVerify:
 		return runOpenTofuVerify(ctx, resp, includeStackKitOutputs)
 	case runtimeActionRestore:
-		return runRestoreDrillVerifier(ctx, resp, s.config.RuntimeRestoreVerifierCommand)
+		return runRestoreDrillVerifier(ctx, resp, s.config.RuntimeRestoreVerifierCommand, req.RuntimeTarget)
 	default:
 		return resp, http.StatusBadRequest, skerrors.NewValidationError("invalid_runtime_action", "unsupported runtime action")
 	}
@@ -260,7 +273,7 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 	if remoteErr != nil {
 		return resp, http.StatusBadGateway, tofuActionError("runtime_target_prepare_failed", "Runtime target preparation failed", remoteErr, "")
 	}
-	opts := []tofu.ExecutorOption{tofu.WithWorkDir(resp.TofuDir), tofu.WithAutoApprove(true), tofu.WithTimeout(30 * time.Minute)}
+	opts := []tofu.ExecutorOption{tofu.WithWorkDir(resp.TofuDir), tofu.WithAutoApprove(true), tofu.WithTimeout(runtimeActionExecutionTimeout)}
 	if remote != nil {
 		opts = append(opts, tofu.WithEnv(remote.env...))
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "remote_docker_host", Status: "ok", Detail: remote.dockerHost})
@@ -274,6 +287,12 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 	}
 	resp.Status = "applied"
 	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_apply", Status: "ok"})
+	platformRefs, platformChecks, platformErr := runRuntimePlatformAppDeployments(ctx, resp.TofuDir)
+	resp.PlatformRefs = platformRefs
+	resp.Checks = append(resp.Checks, platformChecks...)
+	if platformErr != nil {
+		return resp, http.StatusBadGateway, tofuActionError("platform_apps_deploy_failed", "Platform app deployment failed", platformErr, "")
+	}
 	if includeStackKitOutputs {
 		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
 	}
@@ -283,6 +302,8 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 type preparedRuntimeTarget struct {
 	dockerHost string
 	env        []string
+	target     *runtimeActionTarget
+	keyPath    string
 }
 
 func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, target *runtimeActionTarget) (*preparedRuntimeTarget, func(), error) {
@@ -290,7 +311,7 @@ func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, targe
 	if target == nil {
 		return nil, nil, nil
 	}
-	keyPath, cleanup, err := materializeRuntimeTargetSSHKey(target)
+	keyPath, homeDir, cleanup, err := materializeRuntimeTargetSSHKey(target)
 	if err != nil {
 		return nil, cleanup, err
 	}
@@ -302,10 +323,13 @@ func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, targe
 		return nil, cleanup, err
 	}
 	env := []string{"DOCKER_HOST=" + dockerHost}
+	if homeDir != "" {
+		env = append(env, "HOME="+homeDir)
+	}
 	if keyPath != "" {
 		env = append(env, "DOCKER_SSH_COMMAND="+runtimeTargetSSHCommand(target, keyPath))
 	}
-	return &preparedRuntimeTarget{dockerHost: dockerHost, env: env}, cleanup, nil
+	return &preparedRuntimeTarget{dockerHost: dockerHost, env: env, target: target, keyPath: keyPath}, cleanup, nil
 }
 
 func normalizeRuntimeActionTarget(target *runtimeActionTarget) *runtimeActionTarget {
@@ -336,28 +360,89 @@ func normalizeRuntimeActionTarget(target *runtimeActionTarget) *runtimeActionTar
 	return &normalized
 }
 
-func materializeRuntimeTargetSSHKey(target *runtimeActionTarget) (string, func(), error) {
+func materializeRuntimeTargetSSHKey(target *runtimeActionTarget) (string, string, func(), error) {
 	key := firstRuntimeOutput(map[string]string{
 		"client_private_key": target.ClientPrivateKey,
 		"private_key":        target.PrivateKey,
 	}, "client_private_key", "private_key")
 	if key == "" {
 		if target.KeyPath != "" {
-			return target.KeyPath, nil, nil
+			return target.KeyPath, "", nil, nil
 		}
-		return "", nil, fmt.Errorf("runtime target SSH private key is required for remote Docker access")
+		return "", "", nil, fmt.Errorf("runtime target SSH private key is required for remote Docker access")
 	}
 	dir, err := os.MkdirTemp("", "stackkits-runtime-ssh-")
 	if err != nil {
-		return "", nil, fmt.Errorf("create runtime SSH key dir: %w", err)
+		return "", "", nil, fmt.Errorf("create runtime SSH key dir: %w", err)
 	}
-	cleanup := func() { _ = os.RemoveAll(dir) }
-	keyPath := filepath.Join(dir, "id_runtime")
+	sshDir := filepath.Join(dir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", "", nil, fmt.Errorf("create runtime SSH config dir: %w", err)
+	}
+	keyPath := filepath.Join(sshDir, "id_runtime")
 	if err := os.WriteFile(keyPath, []byte(strings.TrimSpace(key)+"\n"), 0600); err != nil {
-		cleanup()
-		return "", nil, fmt.Errorf("write runtime SSH key: %w", err)
+		_ = os.RemoveAll(dir)
+		return "", "", nil, fmt.Errorf("write runtime SSH key: %w", err)
 	}
-	return keyPath, cleanup, nil
+	config := runtimeSSHConfig(target, keyPath)
+	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(config), 0600); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", "", nil, fmt.Errorf("write runtime SSH config: %w", err)
+	}
+	restoreUserConfig, err := installRuntimeUserSSHConfig(target, keyPath)
+	if err != nil {
+		_ = os.RemoveAll(dir)
+		return "", "", nil, err
+	}
+	cleanup := func() {
+		if restoreUserConfig != nil {
+			restoreUserConfig()
+		}
+		_ = os.RemoveAll(dir)
+	}
+	return keyPath, dir, cleanup, nil
+}
+
+func runtimeSSHConfig(target *runtimeActionTarget, keyPath string) string {
+	return fmt.Sprintf(`Host %s
+  HostName %s
+  User %s
+  IdentityFile %s
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+  Port %d
+`, target.Host, target.Host, target.User, keyPath, target.Port)
+}
+
+func installRuntimeUserSSHConfig(target *runtimeActionTarget, keyPath string) (func(), error) {
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return nil, nil
+	}
+	sshDir := filepath.Join(home, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		return nil, fmt.Errorf("create user SSH config dir: %w", err)
+	}
+	configPath := filepath.Join(sshDir, "config")
+	previous, readErr := os.ReadFile(configPath)
+	existed := readErr == nil
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return nil, fmt.Errorf("read user SSH config: %w", readErr)
+	}
+	next := append([]byte(runtimeSSHConfig(target, keyPath)+"\n"), previous...)
+	if err := os.WriteFile(configPath, next, 0600); err != nil {
+		return nil, fmt.Errorf("write user SSH config: %w", err)
+	}
+	return func() {
+		if existed {
+			_ = os.WriteFile(configPath, previous, 0600)
+		} else {
+			_ = os.Remove(configPath)
+		}
+	}, nil
 }
 
 func bootstrapRuntimeTargetDocker(ctx context.Context, target *runtimeActionTarget, keyPath string) error {
@@ -367,12 +452,40 @@ func bootstrapRuntimeTargetDocker(ctx context.Context, target *runtimeActionTarg
 	args := runtimeTargetSSHArgs(target, keyPath)
 	script := `set -eu
 if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != "0" ]; then SUDO="sudo -n"; else SUDO=""; fi
+if command -v cloud-init >/dev/null 2>&1; then
+  timeout 300 cloud-init status --wait >/dev/null 2>&1 || true
+fi
+apt_busy() {
+  pgrep -x apt >/dev/null 2>&1 ||
+  pgrep -x apt-get >/dev/null 2>&1 ||
+  pgrep -x dpkg >/dev/null 2>&1 ||
+  pgrep -f unattended-upgrade >/dev/null 2>&1
+}
+wait_for_apt() {
+  for i in $(seq 1 90); do
+    if ! apt_busy; then return 0; fi
+    sleep 2
+  done
+  return 1
+}
+apt_get() {
+  wait_for_apt
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get "$@"
+}
+install_docker() {
+  for i in $(seq 1 12); do
+    wait_for_apt || true
+    if curl -fsSL https://get.docker.com | $SUDO sh; then return 0; fi
+    sleep 10
+  done
+  curl -fsSL https://get.docker.com | $SUDO sh
+}
 if ! command -v docker >/dev/null 2>&1; then
   if ! command -v curl >/dev/null 2>&1; then
-    $SUDO apt-get update
-    $SUDO apt-get install -y ca-certificates curl
+    apt_get update
+    apt_get install -y ca-certificates curl
   fi
-  curl -fsSL https://get.docker.com | $SUDO sh
+  install_docker
 fi
 if [ "$(id -u)" != "0" ]; then
   $SUDO usermod -aG docker "$(id -un)" || true
@@ -386,12 +499,27 @@ $SUDO docker info >/dev/null`
 	args = append(args, "sh", "-c", script)
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, "ssh", args...) // #nosec G204 -- command args are assembled without shell interpolation.
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("bootstrap remote Docker over SSH: %w: %s", err, strings.TrimSpace(string(output)))
+
+	var lastOutput string
+	var lastErr error
+	for attempt := 1; attempt <= 8; attempt++ {
+		cmd := exec.CommandContext(runCtx, "ssh", args...) // #nosec G204 -- command args are assembled without shell interpolation.
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		lastOutput = strings.TrimSpace(string(output))
+		if runCtx.Err() != nil {
+			break
+		}
+		select {
+		case <-runCtx.Done():
+			return fmt.Errorf("bootstrap remote Docker over SSH: %w: %s", lastErr, lastOutput)
+		case <-time.After(time.Duration(attempt) * 10 * time.Second):
+		}
 	}
-	return nil
+	return fmt.Errorf("bootstrap remote Docker over SSH: %w: %s", lastErr, lastOutput)
 }
 
 func writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost string) error {
@@ -512,17 +640,22 @@ func stackKitOutputsFromOpenTofu(resp runtimeActionResponse, values map[string]s
 	if ownerUsername == "" {
 		ownerUsername = "owner"
 	}
-	links := make([]runtimeActionServiceLink, 0, 4)
+	links := make([]runtimeActionServiceLink, 0, 10)
 	for _, candidate := range []struct {
 		name string
-		key  string
+		keys []string
 	}{
-		{name: "base", key: "homepage_url"},
-		{name: "auth", key: "tinyauth_login_url"},
-		{name: "coolify", key: "coolify_url"},
-		{name: "monitoring", key: "kuma_url"},
+		{name: "base", keys: []string{"dashboard_url"}},
+		{name: "homepage", keys: []string{"homepage_url"}},
+		{name: "auth", keys: []string{"tinyauth_login_url", "auth_url"}},
+		{name: "pocketid", keys: []string{"pocketid_url"}},
+		{name: "coolify", keys: []string{"coolify_url"}},
+		{name: "monitoring", keys: []string{"kuma_url"}},
+		{name: "whoami", keys: []string{"whoami_url"}},
+		{name: "vaultwarden", keys: []string{"vaultwarden_url"}},
+		{name: "immich", keys: []string{"immich_url"}},
 	} {
-		if url := firstRuntimeOutput(values, candidate.key); url != "" {
+		if url := firstRuntimeOutput(values, candidate.keys...); url != "" {
 			links = append(links, runtimeActionServiceLink{Name: candidate.name, URL: url})
 		}
 	}
@@ -587,16 +720,10 @@ func jsonNumber(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
-func runRestoreDrillVerifier(ctx context.Context, resp runtimeActionResponse, command string) (runtimeActionResponse, int, *skerrors.StackKitError) {
+func runRestoreDrillVerifier(ctx context.Context, resp runtimeActionResponse, command string, target *runtimeActionTarget) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	command = strings.TrimSpace(command)
 	if command == "" {
-		resp.Status = "skipped"
-		resp.Checks = append(resp.Checks, runtimeActionCheck{
-			Name:   "restore_drill_adapter",
-			Status: "skipped",
-			Detail: "set STACKKITS_RESTORE_DRILL_COMMAND to run a restore verifier in apply mode",
-		})
-		return resp, http.StatusOK, nil
+		return runBuiltInRestoreDrillVerifier(ctx, resp, target)
 	}
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
@@ -631,6 +758,203 @@ func runRestoreDrillVerifier(ctx context.Context, resp runtimeActionResponse, co
 	resp.Status = "verified"
 	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "restore_drill_verifier", Status: "ok", Detail: detail})
 	return resp, http.StatusOK, nil
+}
+
+func runBuiltInRestoreDrillVerifier(ctx context.Context, resp runtimeActionResponse, target *runtimeActionTarget) (runtimeActionResponse, int, *skerrors.StackKitError) {
+	if err := requireLocalTofuDir(resp.TofuDir); err != nil {
+		return resp, http.StatusBadRequest, err
+	}
+	resp.Checks = append(resp.Checks, runtimeActionCheck{
+		Name:   "restore_drill_adapter",
+		Status: "ok",
+		Detail: "using built-in runtime smoke restore verifier",
+	})
+
+	statePath := filepath.Join(filepath.Clean(resp.TofuDir), "terraform.tfstate")
+	info, err := os.Stat(statePath)
+	if err != nil || info.Size() == 0 {
+		detail := fmt.Sprintf("OpenTofu state missing or empty at %s", statePath)
+		if err != nil {
+			detail = detail + ": " + err.Error()
+		}
+		resp.Status = "failed"
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_state", Status: "failed", Detail: detail})
+		return resp, http.StatusBadGateway, tofuActionError("restore_drill_failed", "Restore drill verifier failed", fmt.Errorf("%s", detail), detail)
+	}
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_state", Status: "ok", Detail: statePath})
+
+	remote, cleanup, remoteErr := prepareRuntimeActionRemoteTarget(ctx, resp.TofuDir, target)
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if remoteErr != nil {
+		return resp, http.StatusBadGateway, tofuActionError("restore_drill_failed", "Restore drill verifier failed", remoteErr, "runtime target preparation failed")
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, "docker", "ps", "--format", "{{.Names}}\t{{.Status}}") // #nosec G204 -- static docker command.
+	cmd.Dir = filepath.Clean(resp.TofuDir)
+	cmd.Env = os.Environ()
+	if remote != nil {
+		cmd.Env = append(cmd.Env, remote.env...)
+	}
+	output, err := cmd.CombinedOutput()
+	detail := strings.TrimSpace(string(output))
+	if err != nil {
+		if detail == "" {
+			detail = err.Error()
+		} else {
+			detail = detail + ": " + err.Error()
+		}
+		resp.Status = "failed"
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "docker_runtime", Status: "failed", Detail: detail})
+		return resp, http.StatusBadGateway, tofuActionError("restore_drill_failed", "Restore drill verifier failed", err, detail)
+	}
+
+	running := runtimeDockerPSLines(detail)
+	if len(running) == 0 {
+		resp.Status = "failed"
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "docker_runtime", Status: "failed", Detail: "no running Docker containers"})
+		return resp, http.StatusBadGateway, tofuActionError("restore_drill_failed", "Restore drill verifier failed", fmt.Errorf("no running Docker containers"), detail)
+	}
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "docker_runtime", Status: "ok", Detail: fmt.Sprintf("%d running containers", len(running))})
+
+	if baseKitCoolifyEnabled(resp.TofuDir) {
+		if !runtimeDockerPSHasContainer(running, "coolify") {
+			resp.Status = "failed"
+			resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "coolify_runtime", Status: "failed", Detail: detail})
+			return resp, http.StatusBadGateway, tofuActionError("restore_drill_failed", "Restore drill verifier failed", fmt.Errorf("coolify container is not running"), detail)
+		}
+		platformPath := filepath.Join(filepath.Clean(resp.TofuDir), ".stackkit", "platform.json")
+		if info, err := os.Stat(platformPath); err != nil || info.Size() == 0 {
+			detail := fmt.Sprintf("Coolify platform config missing or empty at %s", platformPath)
+			if err != nil {
+				detail = detail + ": " + err.Error()
+			}
+			resp.Status = "failed"
+			resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "coolify_platform_config", Status: "failed", Detail: detail})
+			return resp, http.StatusBadGateway, tofuActionError("restore_drill_failed", "Restore drill verifier failed", fmt.Errorf("%s", detail), detail)
+		}
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "coolify_runtime", Status: "ok", Detail: "coolify container running"})
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "coolify_platform_config", Status: "ok", Detail: platformPath})
+	}
+
+	if metrics, err := collectRuntimeHostMetrics(ctx, remote); err != nil {
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_metrics", Status: "warning", Detail: err.Error()})
+	} else if metrics != nil {
+		resp.RuntimeMetrics = metrics
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_metrics", Status: "ok", Detail: "host resource metrics collected"})
+	}
+
+	resp.Status = "verified"
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "restore_drill_verifier", Status: "ok", Detail: "built-in runtime smoke restore verifier completed"})
+	return resp, http.StatusOK, nil
+}
+
+func collectRuntimeHostMetrics(ctx context.Context, remote *preparedRuntimeTarget) (*runtimeActionRuntimeMetrics, error) {
+	if remote == nil || remote.target == nil || strings.TrimSpace(remote.keyPath) == "" {
+		return nil, nil
+	}
+	args := append(runtimeTargetSSHArgs(remote.target, remote.keyPath), "sh", "-s")
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, "ssh", args...) // #nosec G204 -- command args are assembled without shell interpolation.
+	cmd.Stdin = strings.NewReader(runtimeHostMetricsScript())
+	output, err := cmd.CombinedOutput()
+	detail := strings.TrimSpace(string(output))
+	if err != nil {
+		if detail != "" {
+			return nil, fmt.Errorf("collect runtime host metrics: %w: %s", err, detail)
+		}
+		return nil, fmt.Errorf("collect runtime host metrics: %w", err)
+	}
+	return runtimeHostMetricsFromOutput(detail, time.Now().UTC())
+}
+
+func runtimeHostMetricsScript() string {
+	return `set -eu
+read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+total1=$((user + nice + system + idle + iowait + irq + softirq + steal))
+idle1=$((idle + iowait))
+sleep 1
+read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+total2=$((user + nice + system + idle + iowait + irq + softirq + steal))
+idle2=$((idle + iowait))
+cpu=$(awk -v t1="$total1" -v i1="$idle1" -v t2="$total2" -v i2="$idle2" 'BEGIN { dt=t2-t1; di=i2-i1; if (dt<=0) printf "0"; else printf "%.1f", (dt-di)*100/dt }')
+mem=$(awk '/MemTotal:/ {t=$2} /MemAvailable:/ {a=$2} END { if (t>0) printf "%.1f", (t-a)*100/t; else printf "0" }' /proc/meminfo)
+disk=$(df -P / | awk 'NR==2 { gsub("%","",$5); printf "%.1f", $5 }')
+uptime=$(awk '{ printf "%.0f", $1 }' /proc/uptime)
+printf 'cpu_percent=%s\nmemory_percent=%s\ndisk_percent=%s\nuptime_seconds=%s\n' "$cpu" "$mem" "$disk" "$uptime"
+`
+}
+
+func runtimeHostMetricsFromOutput(raw string, updatedAt time.Time) (*runtimeActionRuntimeMetrics, error) {
+	metrics := &runtimeActionRuntimeMetrics{}
+	parsed := 0
+	for _, line := range strings.Split(raw, "\n") {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if !ok {
+			continue
+		}
+		number, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse runtime host metric %s: %w", key, err)
+		}
+		switch strings.TrimSpace(key) {
+		case "cpu_percent":
+			metrics.CPUPercent = number
+			parsed++
+		case "memory_percent":
+			metrics.MemoryPercent = number
+			parsed++
+		case "disk_percent":
+			metrics.DiskPercent = number
+			parsed++
+		case "uptime_seconds":
+			metrics.UptimeSeconds = number
+			parsed++
+		}
+	}
+	if parsed == 0 {
+		return nil, fmt.Errorf("runtime host metrics output did not contain metrics")
+	}
+	metrics.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return metrics, nil
+}
+
+func runtimeDockerPSLines(output string) []string {
+	lines := []string{}
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+func runtimeDockerPSHasContainer(lines []string, name string) bool {
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == name {
+			return true
+		}
+	}
+	return false
+}
+
+func baseKitCoolifyEnabled(tofuDir string) bool {
+	data, err := os.ReadFile(filepath.Join(filepath.Clean(tofuDir), "terraform.tfvars.json"))
+	if err != nil {
+		return false
+	}
+	values := map[string]any{}
+	if err := json.Unmarshal(data, &values); err != nil {
+		return false
+	}
+	enabled, ok := values["enable_coolify"].(bool)
+	return ok && enabled
 }
 
 func (s *Server) runtimeActionMode() string {
@@ -724,5 +1048,18 @@ func resultStderr(result *tofu.Result) string {
 	if result == nil {
 		return ""
 	}
-	return result.Stderr
+	return compactRuntimeActionStderr(result.Stderr)
+}
+
+func compactRuntimeActionStderr(stderr string) string {
+	const maxRunes = 6000
+	trimmed := strings.TrimSpace(stderr)
+	if trimmed == "" {
+		return ""
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= maxRunes {
+		return trimmed
+	}
+	return fmt.Sprintf("[stderr truncated; showing last %d runes]\n%s", maxRunes, string(runes[len(runes)-maxRunes:]))
 }

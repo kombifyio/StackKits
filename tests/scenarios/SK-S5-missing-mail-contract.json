@@ -8,7 +8,7 @@
     "stackkit": "base-kit",
     "mode": "simple",
     "context": "cloud",
-    "domain": "sk-missing-mail.kombify.pro",
+    "domain": "kombify.pro",
     "network": {
       "mode": "public"
     },

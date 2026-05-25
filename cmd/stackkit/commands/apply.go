@@ -931,46 +931,44 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 		return
 	}
 
-	testHost, testURL := primaryServiceProbeTarget(spec, access)
+	probes := serviceURLProbeTargets(spec, access)
+	if len(probes) == 0 {
+		return
+	}
 	domain := spec.Domain
 	if access != nil && access.Domain != "" {
 		domain = access.Domain
 	}
 
-	// Try to resolve the hostname
-	_, err := net.LookupHost(testHost)
-	dnsOK := err == nil
-
-	// Try to reach the service
-	httpOK := false
-	if dnsOK {
-		checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		req, reqErr := http.NewRequestWithContext(checkCtx, http.MethodGet, testURL, nil)
-		if reqErr == nil {
-			client := &http.Client{Timeout: 5 * time.Second}
-			if strings.HasPrefix(testURL, "https://") && models.IsLocalDomain(domain) {
-				// #nosec G402 -- local Step-CA HTTPS uses a StackKit-managed
-				// trust root that is not installed in the system store during apply.
-				client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec
-			}
-			resp, httpErr := client.Do(req)
-			if httpErr == nil {
-				resp.Body.Close()
-				httpOK = resp.StatusCode < 500
-			}
+	reachable := 0
+	var firstFailure serviceURLProbe
+	var firstDNSOK bool
+	var firstFailureReason string
+	for _, probe := range probes {
+		dnsOK, httpOK, reason := checkServiceURLReachable(ctx, domain, probe)
+		if dnsOK && httpOK {
+			reachable++
+			continue
+		}
+		if firstFailure.URL == "" {
+			firstFailure = probe
+			firstDNSOK = dnsOK
+			firstFailureReason = reason
 		}
 	}
 
-	if dnsOK && httpOK {
-		printSuccess("Service URLs verified: %s is reachable", testURL)
+	if reachable == len(probes) {
+		printSuccess("Service URLs verified: %d URL(s) reachable", reachable)
 		return
 	}
 
 	// URLs are not reachable — provide actionable guidance
 	fmt.Println()
-	printWarning("Service URL check: %s is not reachable", testURL)
+	if len(probes) == 1 {
+		printWarning("Service URL check: %s is not reachable: %s", firstFailure.URL, firstFailureReason)
+	} else {
+		printWarning("Service URL check: %s is not reachable: %s (%d/%d reachable)", firstFailure.URL, firstFailureReason, reachable, len(probes))
+	}
 
 	caps := loadDockerCapabilities()
 	if caps != nil && netenv.NodeContextIsCloud(caps.ResolvedContext) {
@@ -989,8 +987,8 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 			fmt.Println("  stackkit generate --force")
 			fmt.Println("  stackkit apply --auto-approve")
 		}
-	} else if !dnsOK {
-		printInfo("DNS resolution failed for '%s'", testHost)
+	} else if !firstDNSOK {
+		printInfo("DNS resolution failed for '%s'", firstFailure.Host)
 		if models.IsLocalhostDomain(domain) {
 			printInfo("The .localhost mode is device-local. Open the URL on the machine that reaches this Docker host, or use --local-dns for LAN-wide names.")
 		} else if caps != nil && caps.PrivateIP != "" {
@@ -998,6 +996,83 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 			fmt.Printf("  %s\n", caps.PrivateIP)
 		}
 	}
+}
+
+type serviceURLProbe struct {
+	Host string
+	URL  string
+}
+
+func serviceURLProbeTargets(spec *models.StackSpec, access *accessSummary) []serviceURLProbe {
+	probes := []serviceURLProbe{}
+	seen := map[string]bool{}
+	add := func(host, rawURL string) {
+		rawURL = strings.TrimSpace(rawURL)
+		if rawURL == "" || seen[rawURL] {
+			return
+		}
+		host = normalizedProbeHost(host, rawURL)
+		if host == "" {
+			return
+		}
+		seen[rawURL] = true
+		probes = append(probes, serviceURLProbe{Host: host, URL: rawURL})
+	}
+
+	host, rawURL := primaryServiceProbeTarget(spec, access)
+	add(host, rawURL)
+	if access != nil {
+		add("", access.HubURL)
+		for _, svc := range access.Services {
+			add(svc.Host, svc.URL)
+		}
+	}
+	return probes
+}
+
+func normalizedProbeHost(host, rawURL string) string {
+	host = strings.TrimSpace(host)
+	if host != "" && !strings.Contains(host, ":") {
+		return host
+	}
+	if host != "" {
+		if splitHost, _, err := net.SplitHostPort(host); err == nil {
+			return splitHost
+		}
+	}
+	if parsed, err := url.Parse(rawURL); err == nil {
+		return parsed.Hostname()
+	}
+	return host
+}
+
+func checkServiceURLReachable(ctx context.Context, domain string, probe serviceURLProbe) (bool, bool, string) {
+	if _, err := net.LookupHost(probe.Host); err != nil {
+		return false, false, err.Error()
+	}
+
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, probe.URL, nil)
+	if err != nil {
+		return true, false, err.Error()
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	if strings.HasPrefix(probe.URL, "https://") && models.IsLocalDomain(domain) {
+		// #nosec G402 -- local Step-CA HTTPS uses a StackKit-managed trust root
+		// that is not installed in the system store during apply.
+		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return true, false, err.Error()
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 500 {
+		return true, false, fmt.Sprintf("HTTP %d", resp.StatusCode)
+	}
+	return true, true, ""
 }
 
 func primaryServiceProbeTarget(spec *models.StackSpec, access *accessSummary) (string, string) {

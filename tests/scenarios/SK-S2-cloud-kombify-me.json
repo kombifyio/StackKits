@@ -10,6 +10,7 @@
     "context": "cloud",
     "domain": "kombify.me",
     "subdomainPrefix": "sh-scenario-s2",
+    "paas": "komodo",
     "owner": {
       "bootstrapMode": "auto",
       "source": "cloud",
@@ -35,18 +36,21 @@
     "generation": {
       "context": "cloud",
       "domain": "kombify.me",
-      "paas": "coolify",
-      "reverseProxyBackend": "coolify",
+      "paas": "komodo",
+      "reverseProxyBackend": "stackkit",
       "enableHTTPS": false,
       "stepCAEnabled": true,
       "enableKombifyPoint": false,
-      "adminEmail": "admin@sh-scenario-s2.kombify.me",
+      "adminEmail": "tester@kombify.pro",
       "serviceFlags": {
         "enable_dashboard": true,
         "enable_tinyauth": true,
         "enable_pocketid": true,
-        "enable_coolify": true,
+        "enable_coolify": false,
+        "enable_komodo": true,
         "enable_dokploy": false,
+        "enable_dokploy_apps": false,
+        "enable_traefik": true,
         "enable_uptime_kuma": true,
         "enable_whoami": true,
         "enable_vaultwarden": true,
@@ -59,10 +63,13 @@
       "browserUrlMode": "public",
       "services": [
         {"key": "base", "host": "sh-scenario-s2-base.kombify.me", "scheme": "https"},
+        {"key": "home", "host": "sh-scenario-s2-home.kombify.me", "scheme": "https"},
         {"key": "auth", "host": "sh-scenario-s2-auth.kombify.me", "scheme": "https"},
         {"key": "id", "host": "sh-scenario-s2-id.kombify.me", "scheme": "https"},
-        {"key": "coolify", "host": "sh-scenario-s2-coolify.kombify.me", "scheme": "https"},
+        {"key": "traefik", "host": "sh-scenario-s2-traefik.kombify.me", "scheme": "https"},
+        {"key": "komodo", "host": "sh-scenario-s2-komodo.kombify.me", "scheme": "https"},
         {"key": "kuma", "host": "sh-scenario-s2-kuma.kombify.me", "scheme": "https"},
+        {"key": "whoami", "host": "sh-scenario-s2-whoami.kombify.me", "scheme": "https"},
         {"key": "vault", "host": "sh-scenario-s2-vault.kombify.me", "scheme": "https"},
         {"key": "photos", "host": "sh-scenario-s2-photos.kombify.me", "scheme": "https"}
       ]

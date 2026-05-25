@@ -28,6 +28,7 @@ Use the smallest gate that proves the changed surface, then broaden when a share
 | Vulnerability scan | `govulncheck ./...` | Reachable Go vulnerability detection. |
 | Docker build | `docker build .` | Server image build verification. |
 | BaseKit fresh Ubuntu VM | `mise run test:vm:local` | SK-S1 fresh target path: prepare, init, generate, apply, verify Hub and default services. |
+| BaseKit canonical E2E scenarios | `go test -v -tags production -run '^(TestProductionReadinessLocalHomeLocalhost|TestProductionReadinessKombifyMeSubdomains|TestInstallerCustomDomain)$' -timeout 14m ./tests/production` | The three full rollout scenarios: SK-S1 local Coolify, SK-S2 kombify.me Komodo, and SK-S3 custom-domain Coolify. |
 | Release archive toolchain | `bash scripts/release/validate-release-archives.sh dist` | Public archives must contain `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged `tofu`, root `cue.mod`, shared `base/`, kit definitions, and required `modules/`; the BaseKit and full CLI/catalog archives must run `init` and `generate` from extracted release content. |
 
 ## Local-First Rule
@@ -53,7 +54,7 @@ The orchestrator targets `STACKKIT_DEMO_DOCKER_HOST` (default `tcp://vm:2375`) a
 
 Do not add hand-authored demo `docker-compose.yml` rollout paths to the orchestrator. The only local user-facing Hub link for BaseKit is `http://base.home.localhost`; local demo links MUST NOT contain ports, hosts-file instructions, manual DNS mapping, browser proxy setup, trust-store setup, or invented per-kit Hub hostnames such as `modern.home.localhost` or `ha.home.localhost`.
 
-Do not add route shims to demos or tests. When the selected PaaS includes Traefik, the PaaS Traefik is the only valid StackKit routing path: Coolify's Traefik for Coolify, `dokploy-traefik` for Dokploy. `paas: komodo` is the current explicit exception and must prove the single StackKit-owned Traefik path. A second StackKit Traefik, Nginx bridge, host-side proxy, or mapped-port-only browser workaround invalidates local reachability evidence.
+Do not add route shims to demos or tests. When the selected PaaS includes Traefik, the PaaS Traefik is the only valid StackKit routing path: Coolify's Traefik for Coolify. `paas: komodo` is the current production alternative and must prove the single StackKit-owned Traefik path. Dokploy remains draft and outside canonical E2E dispatch. A second StackKit Traefik, Nginx bridge, host-side proxy, or mapped-port-only browser workaround invalidates local reachability evidence.
 
 For code, CUE, config, deployment, or user-facing behavior changes:
 
@@ -103,6 +104,7 @@ Important targets:
 
 - `TestProductionReadinessLocalHomeLocalhost`
 - `TestProductionReadinessKombifyMeSubdomains`
+- `TestInstallerCustomDomain`
 - `TestSimCloudSSORedirectConfigured`
 
 When Docker Hub rate-limits anonymous pulls, seed the Ubuntu VM target with either `STACKKIT_FRESH_VM_DOCKER_CONFIG` or `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON`.
@@ -113,7 +115,7 @@ defaults it must also prove:
 - fixed host ports are free before Docker resources are created,
 - `base.home.localhost` answers anonymous first-setup requests with the warning `Diese Seite ist aktuell ungeschützt.` and the `Base Hub schützen` action,
 - protected/default services other than the Base Hub do not answer anonymous requests with `2xx`,
-- `reverse_proxy_backend` matches the actual traffic path; if it is `coolify` or `dokploy`, service probes must traverse that PaaS Traefik and no separate StackKit Traefik/Nginx/host proxy may satisfy the route; if it is `stackkit` for explicit Komodo, probes must traverse the single StackKit-owned Traefik,
+- `reverse_proxy_backend` matches the actual traffic path; if it is `coolify`, service probes must traverse that PaaS Traefik and no separate StackKit Traefik/Nginx/host proxy may satisfy the route; if it is `stackkit` for explicit Komodo, probes must traverse the single StackKit-owned Traefik,
 - `stackkit-server` can read `deploy/.platform-apps-manifest.json`,
 - the Photos/Immich on-demand setup drop can execute from the node-local API,
 - expensive phases are logged so slow local runs show progress.
@@ -135,11 +137,6 @@ active route for generated service URLs, and StackKit-owned L3 apps have
 Coolify service IDs/status. A healthy Coolify container with Vault/Photos
 running as direct Compose containers, or routes served by a separate
 StackKit-owned Traefik/Nginx shim, is a failed managed-app rollout.
-
-For Dokploy evidence, apply the same rule with `dokploy-traefik`:
-generated StackKit routes must attach to Dokploy's router. A separate
-StackKit-owned Traefik is valid only for a future adapter whose accepted PaaS
-contract explicitly has no integrated router.
 
 For Komodo evidence, the VM must show a UI-free bootstrap: Komodo Core,
 Periphery, and DB are healthy; the generated initial admin can log in;

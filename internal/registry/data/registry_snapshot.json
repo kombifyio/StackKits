@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "source": "cue",
-  "generated_at": "2026-05-14T14:07:06.0092492Z",
+  "generated_at": "2026-05-25T22:16:49.303866883Z",
   "tools": [],
   "services": [
     {
@@ -31,7 +31,7 @@
     {
       "key": "base",
       "display_name": "StackKits Node Hub",
-      "description": "Node-local StackKits hub with onboarding, recovery, and service links",
+      "description": "Node-local StackKits bootstrap hub with protection warnings, onboarding, recovery, and service links",
       "tool_name": "dashboard",
       "module_slug": "dashboard",
       "local_slug": "base",
@@ -40,8 +40,8 @@
         "dashboard",
         "dash"
       ],
-      "identity_policy": "forwardauth",
-      "owner_provisioning_policy": "required",
+      "identity_policy": "none",
+      "owner_provisioning_policy": "none",
       "icon": "\u0026#128421;",
       "logo_url": "https://stackkit.cc/favicon.svg",
       "badge": "L2 · Node Hub",
@@ -68,7 +68,7 @@
       "badge": "L2 · PaaS",
       "layer": "L2-platform",
       "section": "Platform",
-      "order": 41,
+      "order": 42,
       "enable_var": "enable_coolify",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/coolify",
       "setup_policy": "automatic",
@@ -89,7 +89,7 @@
       "badge": "L2 · Compose Manager",
       "layer": "L2-platform",
       "section": "Platform",
-      "order": 42,
+      "order": 43,
       "enable_var": "enable_dockge",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/dockge",
       "setup_policy": "automatic",
@@ -163,6 +163,27 @@
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/pocketid",
       "setup_policy": "automatic",
       "default": true
+    },
+    {
+      "key": "komodo",
+      "display_name": "Komodo",
+      "description": "Programmable self-hosted PaaS for Compose stack deployment through API keys.",
+      "tool_name": "komodo",
+      "module_slug": "komodo",
+      "local_slug": "komodo",
+      "public_slug": "komodo",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#9881;",
+      "logo_url": "https://cdn.simpleicons.org/docker/ffffff",
+      "badge": "L2 · PaaS",
+      "layer": "L2-platform",
+      "section": "Platform",
+      "order": 41,
+      "enable_var": "enable_komodo",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/komodo",
+      "setup_policy": "automatic",
+      "default": false
     },
     {
       "key": "kuma",
@@ -385,9 +406,9 @@
       "slug": "dashboard",
       "display_name": "StackKits Node Hub",
       "version": "1.0.0",
-      "layer": "L3-application",
-      "description": "Node-local StackKits hub with onboarding, recovery, and service links",
-      "contract_hash": "e2a06fd75048790e83afce3401f4b710978f2578e53f558483ae6db0b73cdc61",
+      "layer": "L2-platform-diagnostics",
+      "description": "Node-local StackKits bootstrap hub with protection warnings, onboarding, recovery, and service links",
+      "contract_hash": "ae63abf17e2500b020dda84cd8f366bbf4841d0eabd3d830be2bf9efebe3a524",
       "supported_contexts": [
         "local",
         "cloud",
@@ -484,7 +505,7 @@
       "display_name": "LLDAP",
       "version": "1.0.0",
       "layer": "L1-foundation",
-      "description": "Lightweight LDAP directory for compatibility with LDAP-aware services",
+      "description": "Lightweight LDAP directory — source of truth for users and groups",
       "contract_hash": "351169277390ee14a4212b15a3aa095bca8c2a77ad9831f88f026e787a03b72e",
       "supported_contexts": [
         "local",

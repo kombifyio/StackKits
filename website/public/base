@@ -23,6 +23,8 @@ exec sh <<'STACKKIT_BASE'
 #   KOMBIFY_CONTEXT        Set to "cloud" to enable kombify.me domain mode
 #   STACKKIT_SERVICE_PROFILE
 #                          Optional BaseKit service profile: default or admin-only
+#   STACKKIT_PLATFORM / STACKKIT_PAAS
+#                          Optional selected PaaS: coolify or komodo. Dokploy is draft-only.
 #   STACKKIT_SERVER_IMAGE  Optional stackkit-server image override
 #   STACKKIT_ENABLE_DEV_APP_HANDOFF
 #                          Optional dev-only app handoff toggle
@@ -33,9 +35,11 @@ exec sh <<'STACKKIT_BASE'
 #   STACKKIT_APP_ENV       Optional comma-separated KEY=value app env entries
 #   STACKKIT_APP_SECRETS   Optional comma-separated KEY=env:NAME secret refs
 #   STACKKIT_PLATFORM_ENDPOINT / STACKKIT_PLATFORM_TOKEN
+#   STACKKIT_PLATFORM_API_KEY / STACKKIT_PLATFORM_API_SECRET
 #                          Optional advanced override for an external existing PaaS.
 #                          Default Coolify installs bootstrap .stackkit/platform.json automatically.
-#   DOKPLOY_* / COOLIFY_*  Provider-specific aliases for the advanced override only.
+#   DOKPLOY_* / COOLIFY_* / KOMODO_*
+#                          Provider-specific aliases for the advanced override only.
 #
 # Requirements: Linux or macOS, root/sudo access
 # =============================================================================
@@ -91,11 +95,13 @@ json_escape() {
 }
 platform_config_env_present() {
   for _stackkit_key in \
-    STACKKIT_PLATFORM STACKKIT_PAAS STACKKIT_PLATFORM_ENDPOINT STACKKIT_PLATFORM_TOKEN \
+    STACKKIT_PLATFORM_ENDPOINT STACKKIT_PLATFORM_TOKEN \
+    STACKKIT_PLATFORM_API_KEY STACKKIT_PLATFORM_API_SECRET \
     STACKKIT_PLATFORM_ENVIRONMENT_ID STACKKIT_PLATFORM_ENVIRONMENT_NAME \
     STACKKIT_PLATFORM_SERVER_ID STACKKIT_PLATFORM_SERVER_UUID \
     STACKKIT_PLATFORM_PROJECT_UUID STACKKIT_PLATFORM_ENVIRONMENT_UUID STACKKIT_PLATFORM_DESTINATION_UUID \
     DOKPLOY_API_URL DOKPLOY_API_KEY DOKPLOY_ENVIRONMENT_ID DOKPLOY_SERVER_ID \
+    KOMODO_API_URL KOMODO_API_KEY KOMODO_API_SECRET KOMODO_SERVER_ID \
     COOLIFY_API_URL COOLIFY_API_TOKEN COOLIFY_ENVIRONMENT_NAME COOLIFY_SERVER_UUID \
     COOLIFY_PROJECT_UUID COOLIFY_ENVIRONMENT_UUID COOLIFY_DESTINATION_UUID; do
     if [ -n "$(env_value "$_stackkit_key")" ]; then
@@ -103,6 +109,33 @@ platform_config_env_present() {
     fi
   done
   return 1
+}
+selected_platform_name() {
+  _stackkit_platform="${STACKKIT_PLATFORM:-${STACKKIT_PAAS:-}}"
+  if [ -z "$_stackkit_platform" ]; then
+    return 0
+  fi
+  printf '%s' "$_stackkit_platform" | tr '[:upper:]' '[:lower:]'
+}
+apply_platform_selection() {
+  PLATFORM_SELECTION="$(selected_platform_name)"
+  if [ -z "$PLATFORM_SELECTION" ]; then
+    return 0
+  fi
+  case "$PLATFORM_SELECTION" in
+    coolify|komodo|dokploy) ;;
+    *) die "Unsupported STACKKIT_PLATFORM '$PLATFORM_SELECTION'. Expected coolify, komodo, or draft-only dokploy." ;;
+  esac
+  SPEC_FILE="$HOMELAB_DIR/stack-spec.yaml"
+  if [ ! -f "$SPEC_FILE" ]; then
+    die "Cannot apply platform selection; missing $SPEC_FILE"
+  fi
+  if grep -q '^paas:' "$SPEC_FILE"; then
+    sed -i "s/^paas:.*/paas: $PLATFORM_SELECTION/" "$SPEC_FILE"
+  else
+    printf '\npaas: %s\n' "$PLATFORM_SELECTION" >> "$SPEC_FILE"
+  fi
+  ok "  PaaS selected: $PLATFORM_SELECTION"
 }
 write_platform_json_field() {
   _stackkit_json_name="$1"
@@ -127,6 +160,8 @@ persist_platform_config() {
   if [ -z "$PLATFORM_NAME" ]; then
     if [ -n "${COOLIFY_API_URL:-}" ] || [ -n "${COOLIFY_API_TOKEN:-}" ]; then
       PLATFORM_NAME="coolify"
+    elif [ -n "${KOMODO_API_URL:-}" ] || [ -n "${KOMODO_API_KEY:-}" ] || [ -n "${KOMODO_API_SECRET:-}" ]; then
+      PLATFORM_NAME="komodo"
     elif [ -n "${DOKPLOY_API_URL:-}" ] || [ -n "${DOKPLOY_API_KEY:-}" ]; then
       PLATFORM_NAME="dokploy"
     else
@@ -134,6 +169,11 @@ persist_platform_config() {
     fi
   fi
   PLATFORM_NAME=$(printf '%s' "$PLATFORM_NAME" | tr '[:upper:]' '[:lower:]')
+  PLATFORM_TOKEN=""
+  PLATFORM_API_KEY=""
+  PLATFORM_API_SECRET=""
+  PLATFORM_ENVIRONMENT_ID=""
+  PLATFORM_SERVER_ID=""
 
   case "$PLATFORM_NAME" in
     coolify)
@@ -148,12 +188,22 @@ persist_platform_config() {
       PLATFORM_ENVIRONMENT_ID=$(first_env_value DOKPLOY_ENVIRONMENT_ID STACKKIT_PLATFORM_ENVIRONMENT_ID)
       PLATFORM_SERVER_ID=$(first_env_value DOKPLOY_SERVER_ID STACKKIT_PLATFORM_SERVER_ID)
       ;;
+    komodo)
+      PLATFORM_ENDPOINT=$(first_env_value KOMODO_API_URL STACKKIT_PLATFORM_ENDPOINT)
+      PLATFORM_API_KEY=$(first_env_value KOMODO_API_KEY STACKKIT_PLATFORM_API_KEY STACKKIT_PLATFORM_TOKEN)
+      PLATFORM_API_SECRET=$(first_env_value KOMODO_API_SECRET STACKKIT_PLATFORM_API_SECRET)
+      PLATFORM_SERVER_ID=$(first_env_value KOMODO_SERVER_ID STACKKIT_PLATFORM_SERVER_ID)
+      ;;
     *)
-      die "Unsupported STACKKIT_PLATFORM '$PLATFORM_NAME'. Expected coolify or dokploy."
+      die "Unsupported STACKKIT_PLATFORM '$PLATFORM_NAME'. Expected coolify, komodo, or draft-only dokploy."
       ;;
   esac
 
-  if [ -z "$PLATFORM_ENDPOINT" ] || [ -z "$PLATFORM_TOKEN" ]; then
+  if [ "$PLATFORM_NAME" = "komodo" ]; then
+    if [ -z "$PLATFORM_ENDPOINT" ] || [ -z "$PLATFORM_API_KEY" ] || [ -z "$PLATFORM_API_SECRET" ]; then
+      die "Komodo platform config override is incomplete. Provide endpoint, api key, and api secret for an external existing Komodo."
+    fi
+  elif [ -z "$PLATFORM_ENDPOINT" ] || [ -z "$PLATFORM_TOKEN" ]; then
     die "Platform config override is incomplete. Remove the partial STACKKIT_PLATFORM_* / provider env vars, or provide endpoint and token for an external existing PaaS."
   fi
 
@@ -172,6 +222,8 @@ persist_platform_config() {
   write_platform_json_field "platform" "$PLATFORM_NAME" "$PLATFORM_JSON_TMP"
   write_platform_json_field "endpoint" "$PLATFORM_ENDPOINT" "$PLATFORM_JSON_TMP"
   write_platform_json_field "token" "$PLATFORM_TOKEN" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "apiKey" "$PLATFORM_API_KEY" "$PLATFORM_JSON_TMP"
+  write_platform_json_field "apiSecret" "$PLATFORM_API_SECRET" "$PLATFORM_JSON_TMP"
   write_platform_json_field "environmentId" "$PLATFORM_ENVIRONMENT_ID" "$PLATFORM_JSON_TMP"
   write_platform_json_field "serverId" "$PLATFORM_SERVER_ID" "$PLATFORM_JSON_TMP"
   write_platform_json_field "projectUuid" "$PLATFORM_PROJECT_UUID" "$PLATFORM_JSON_TMP"
@@ -320,6 +372,7 @@ fi
 
 ok "  base-kit initialized in $HOMELAB_DIR"
 
+apply_platform_selection
 persist_platform_config
 
 # --- Optional dev-only app handoff -------------------------------------------
@@ -456,6 +509,10 @@ if [ "$NETWORK_ENV" = "vps" ] || [ "$NETWORK_ENV" = "cloud" ]; then
 fi
 
 case "$PAAS" in
+  komodo)
+    PAAS_ROUTE="komodo"
+    PAAS_LABEL="Komodo"
+    ;;
   dokploy)
     PAAS_ROUTE="dokploy"
     PAAS_LABEL="Dokploy"

@@ -109,3 +109,5 @@ modules/*/cue.mod/
 
 # Git worktrees (Claude Code subagent-driven development)
 .worktrees/
+# RepoWise local development index/cache
+.repowise/

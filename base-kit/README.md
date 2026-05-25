@@ -11,7 +11,7 @@ As of 2026-05-17 the release default is the slice exercised by the fresh Ubuntu 
 | Docker API isolation | Docker socket via target daemon | generated |
 | Reverse proxy | `traefik` | enabled default |
 | Local access | browser-native `.localhost` names | enabled default for `*.home.localhost` |
-| PaaS | `coolify` | enabled default for local/kombify.me/custom-domain routing; `komodo` and `dokploy` are explicit alternatives |
+| PaaS | `coolify` | enabled default for local/kombify.me/custom-domain routing; `komodo` is the production alternative; `dokploy` remains draft |
 | Passkey identity | `pocketid` | mandatory default |
 | Login gateway | `tinyauth` | generated with PocketID OIDC provider config |
 | Node Hub | `dashboard` | StackKits node-local Getting Started, important links, service matrix, and public how-to links at `base.<domain>` |
@@ -85,9 +85,9 @@ TinyAuth receives a generated local break-glass password from the composition en
 
 Coolify receives a generated policy-compliant root password through its official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables. The root email is the same technical admin email rendered into the StackSpec; local-only rollouts synthesize the reserved `admin@example.com` address when no admin email is supplied. After Coolify is installed, the generated bootstrap disables public registration, clears Coolify onboarding, enables Coolify's API, creates a root-scoped StackKit platform token inside Coolify, resolves the StackKit project/environment/server/destination placement IDs, and writes `.stackkit/platform.json` for the app-deployment phase. The user must never be expected to discover or create a Coolify root account or API token manually after opening the generated links.
 
-Komodo is available only through explicit `paas: komodo`; Coolify remains the default. The generated rollout installs Komodo Core, Periphery, and MongoDB, creates the initial local admin from generated credentials, disables further registration, creates a Komodo API key through the HTTP API, and writes `.stackkit/platform.json` with `apiKey`/`apiSecret`. Initial Komodo routing is StackKit-owned Traefik, not a Komodo-owned router; the Core API host port is loopback-bound in bridge mode for node-local bootstrap.
+Komodo is the production alternative through explicit `paas: komodo`; Coolify remains the default. The generated rollout installs Komodo Core, Periphery, and MongoDB, creates the initial local admin from generated credentials, disables further registration, creates a Komodo API key through the HTTP API, and writes `.stackkit/platform.json` with `apiKey`/`apiSecret`. Initial Komodo routing is StackKit-owned Traefik, not a Komodo-owned router; the Core API host port is loopback-bound in bridge mode for node-local bootstrap.
 
-Dokploy is also explicit-only. Its generated bootstrap sets `BETTER_AUTH_SECRET`, creates or confirms the first admin without UI, establishes an admin session, creates a Dokploy API key, and writes `.stackkit/platform.json` with both `token` and `apiKey` so the existing Dokploy adapter can continue to send `X-Api-Key`.
+Dokploy is draft. Its generated adapter code may remain available for explicit development diagnostics, but it is not part of the production alternative set and is not a canonical E2E scenario until promoted.
 
 ## Current Gaps
 
@@ -95,7 +95,7 @@ These are deliberate scope boundaries, not hidden defaults:
 
 - PocketID/OIDC is mandatory for passkey-capable login. The TinyAuth OIDC client is provisioned automatically; full owner/passkey enrollment remains part of the first-run identity flow.
 - The Coolify-managed L3 application layer now has a strict generated bootstrap contract. Direct Docker Compose starts for StackKit-owned/default L3 apps are invalid managed release evidence; product-bundled L3 apps must be manageable selected-PaaS apps with platform external IDs in state. User-installed apps outside StackKit manifests are state-unmanaged.
-- Jellyfin/media, Komodo, Dokploy, and Dockge are opt-in until their first-run UX matches the default path. Uptime Kuma and Whoami are enabled in the default path for diagnostics and TinyAuth SSO routing.
+- Jellyfin/media, Dokploy, and Dockge are opt-in or draft until their first-run UX matches the default path. Komodo is covered by the kombify.me E2E path as the production alternative. Uptime Kuma and Whoami are enabled in the default path for diagnostics and TinyAuth SSO routing.
 - Vaultwarden has generated admin material, but end-user account provisioning is not yet a one-click flow.
 - The documented V6 target still requires `security-baseline`, `admin-bootstrap`, and `login-gateway` to become mandatory defaults.
 

@@ -129,12 +129,16 @@ smoke_basekit_init_generate() {
     fail "$label smoke did not enable Immich"
   grep -q '"enable_jellyfin": false' "$tfvars" ||
     fail "$label smoke did not keep Jellyfin opt-in"
-  grep -q 'resource "null_resource" "coolify_stackkit_bootstrap"' "$project_dir/deploy/main.tf" ||
+  grep -q 'resource "null_resource" "coolify_platform_bootstrap"' "$project_dir/deploy/main.tf" ||
     fail "$label smoke did not generate Coolify API bootstrap"
-  grep -q 'coolify-api-token' "$project_dir/deploy/main.tf" ||
-    fail "$label smoke did not persist Coolify adapter token path"
-  grep -q '/api/v1/projects' "$project_dir/deploy/main.tf" ||
-    fail "$label smoke did not create Coolify project context"
+  grep -q 'STACKKIT_COOLIFY_PLATFORM_JSON=' "$project_dir/deploy/main.tf" ||
+    fail "$label smoke did not emit Coolify platform config JSON"
+  grep -q 'PLATFORM_CONFIG_PATH="${path.module}/.stackkit/platform.json"' "$project_dir/deploy/main.tf" ||
+    fail "$label smoke did not persist Coolify adapter platform config"
+  grep -q 'coolify_api_endpoint              = local.coolify_local_endpoint' "$project_dir/deploy/main.tf" ||
+    fail "$label smoke did not persist the node-local Coolify endpoint"
+  grep -q 'coolify_bootstrap_api_endpoint' "$project_dir/deploy/main.tf" ||
+    fail "$label smoke did not generate the reachable Coolify bootstrap endpoint"
   node "$script_dir/check-l3-paas-contract.mjs" \
     --repo-root "$extract_dir" \
     --generated "$project_dir/deploy/main.tf" ||
