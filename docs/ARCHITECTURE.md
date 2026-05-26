@@ -2,7 +2,7 @@
 
 > Last verified: 2026-05-17
 
-This is the current implementation overview for this repo. Normative product and module rules live in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md), [STACKKIT_DEVELOPMENT_DECISION_GUIDE.md](STACKKIT_DEVELOPMENT_DECISION_GUIDE.md), and accepted ADRs.
+This is the current implementation overview for this repo. Normative product and module rules are summarized here and in accepted ADRs.
 
 ## System Role
 
@@ -78,7 +78,7 @@ Every StackKit resolves through the canonical layers:
 - `platform`: runtime, PaaS adapter, reverse proxy, DNS/TLS, identity provider, login gateway, service registration, logs, and health.
 - `application`: user-facing use-case modules such as photos, vault, media, files, smart home, dev, and AI.
 
-Layer definitions are enforced by CUE contracts and explained in [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md).
+Layer definitions are enforced by CUE contracts.
 
 ## API Surface
 

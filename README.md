@@ -22,7 +22,6 @@ curl -sSL https://install.stackkit.cc | sh
 - [Architecture](docs/ARCHITECTURE.md)
 - [Concepts](docs/CONCEPTS.md)
 - [Stack spec reference](docs/stack-spec-reference.md)
-- [Testing](docs/TESTING.md)
 
 ## Source Of Truth
 

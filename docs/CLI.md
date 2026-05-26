@@ -347,7 +347,6 @@ Prints version, commit, build date, Go version, and target OS/arch.
 ## Related Docs
 
 - [CONFIGURATION.md](CONFIGURATION.md)
-- [TESTING.md](TESTING.md)
 - [API.md](API.md)
 - [stack-spec-reference.md](stack-spec-reference.md)
 - [agent/agents.md](agent/agents.md)

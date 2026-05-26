@@ -216,7 +216,7 @@
       </div>
     </div>
     <div class="mt-10 pt-6 border-t border-outline-variant/50 text-xs text-on-surface-variant text-center">
-      © 2026 KombiverseLabs · Apache-2.0 License · Open source. Built for homelabs and self-hosters.
+      © 2026 kombify · Apache-2.0 License · Open source. Built for homelabs and self-hosters.
     </div>
   </div>
 </footer>

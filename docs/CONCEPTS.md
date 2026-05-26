@@ -6,7 +6,6 @@
 > This is the single-page reference for all StackKits concepts.
 > For full details, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 > V4 is the historical baseline; V5 evolves it.
-> For non-negotiable current rules, see [STACKKIT_GOLDEN_RULES.md](STACKKIT_GOLDEN_RULES.md).
 
 ---
 
