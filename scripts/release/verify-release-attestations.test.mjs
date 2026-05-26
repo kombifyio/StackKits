@@ -13,6 +13,7 @@ test('verify-release-attestations dry-run lists release subjects', async () => {
   const dist = path.join(dir, 'dist');
   await mkdir(dist);
   await writeFile(path.join(dist, 'stackkits_0.0.1_linux_amd64.tar.gz'), 'archive');
+  await writeFile(path.join(dist, 'kombify-stackkits_0.0.1_linux_amd64.deb'), 'package');
   await writeFile(path.join(dist, 'checksums.txt'), 'checksum');
   await writeFile(path.join(dist, 'stackkits_0.0.1_linux_amd64.tar.gz.spdx.json'), '{}');
   await writeFile(path.join(dist, 'release-evidence.json'), '{}');
@@ -31,6 +32,7 @@ test('verify-release-attestations dry-run lists release subjects', async () => {
   ]);
 
   assert.match(stdout, /file:.*stackkits_0\.0\.1_linux_amd64\.tar\.gz/);
+  assert.match(stdout, /file:.*kombify-stackkits_0\.0\.1_linux_amd64\.deb/);
   assert.match(stdout, /file:.*checksums\.txt/);
   assert.match(stdout, /file:.*release-evidence\.json/);
   assert.match(stdout, /file:.*\.spdx\.json/);
