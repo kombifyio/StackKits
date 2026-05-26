@@ -433,11 +433,13 @@ func installRuntimeUserSSHConfig(target *runtimeActionTarget, keyPath string) (f
 		return nil, fmt.Errorf("read user SSH config: %w", readErr)
 	}
 	next := append([]byte(runtimeSSHConfig(target, keyPath)+"\n"), previous...)
+	// #nosec G703 -- configPath is fixed to $HOME/.ssh/config for the local operator user.
 	if err := os.WriteFile(configPath, next, 0600); err != nil {
 		return nil, fmt.Errorf("write user SSH config: %w", err)
 	}
 	return func() {
 		if existed {
+			// #nosec G703 -- configPath is fixed to $HOME/.ssh/config for the local operator user.
 			_ = os.WriteFile(configPath, previous, 0600)
 		} else {
 			_ = os.Remove(configPath)

@@ -22,6 +22,8 @@ const (
 	SetupPolicyManual    = "manual"
 	SetupPolicyOnDemand  = "on_demand"
 	SetupPolicyAutomatic = "automatic"
+
+	dockerLogoURL = "https://cdn.simpleicons.org/docker/ffffff"
 )
 
 // Service is the canonical service-facing identity for one exposed StackKit
@@ -475,9 +477,9 @@ func logoURLForKey(key, tool string) string {
 	case "traefik":
 		return "https://cdn.simpleicons.org/traefikproxy/ffffff"
 	case "dokploy":
-		return "https://cdn.simpleicons.org/docker/ffffff"
+		return dockerLogoURL
 	case "komodo":
-		return "https://cdn.simpleicons.org/docker/ffffff"
+		return dockerLogoURL
 	case "coolify":
 		return "https://cdn.simpleicons.org/coolify/ffffff"
 	case "kuma":
@@ -491,7 +493,7 @@ func logoURLForKey(key, tool string) string {
 	case "photos":
 		return "https://cdn.simpleicons.org/immich/ffffff"
 	case "dockge":
-		return "https://cdn.simpleicons.org/docker/ffffff"
+		return dockerLogoURL
 	case "point":
 		return "https://cdn.simpleicons.org/cloudflare/ffffff"
 	default:

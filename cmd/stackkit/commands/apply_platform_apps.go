@@ -16,6 +16,8 @@ var newLocalComposeAdapter = func(deployDir string) platformdeploy.Adapter {
 	return platformdeploy.NewLocalComposeAdapter(deployDir)
 }
 
+const platformBoolEnabledTrueValue = "true"
+
 func runPlatformAppDeployments(ctx context.Context, deployDir string, state *models.DeploymentState) error {
 	manifestPaths := []string{
 		filepath.Join(deployDir, "platform-apps", "manifest.json"),
@@ -270,7 +272,7 @@ func writePlatformConfigFile(wd string, cfg platformConfigFile) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("create platform config directory: %w", err)
 	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ") // #nosec G117 -- platform credentials are persisted to an operator-owned 0600 config file.
 	if err != nil {
 		return fmt.Errorf("marshal platform config: %w", err)
 	}
@@ -421,62 +423,41 @@ func allPlatformConfigEnvKeys() []string {
 	return keys
 }
 
+var platformSpecificConfigEnvKeys = map[string]map[string][]string{
+	models.PAASCoolify: {
+		"endpoint":                  {"COOLIFY_API_URL", "STACKKIT_PLATFORM_ENDPOINT"},
+		"token":                     {"COOLIFY_API_TOKEN", "STACKKIT_PLATFORM_TOKEN"},
+		"environment_id":            {"COOLIFY_ENVIRONMENT_NAME", "STACKKIT_PLATFORM_ENVIRONMENT_NAME"},
+		"server_id":                 {"COOLIFY_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_ID"},
+		"legacy_docker_compose_api": {"COOLIFY_LEGACY_DOCKERCOMPOSE_API", "STACKKIT_PLATFORM_LEGACY_DOCKERCOMPOSE_API"},
+	},
+	models.PAASDokploy: {
+		"endpoint":       {"DOKPLOY_API_URL", "STACKKIT_PLATFORM_ENDPOINT"},
+		"token":          {"DOKPLOY_API_KEY", "STACKKIT_PLATFORM_TOKEN"},
+		"environment_id": {"DOKPLOY_ENVIRONMENT_ID", "STACKKIT_PLATFORM_ENVIRONMENT_ID"},
+		"server_id":      {"DOKPLOY_SERVER_ID", "STACKKIT_PLATFORM_SERVER_ID"},
+	},
+	models.PAASKomodo: {
+		"endpoint":   {"KOMODO_API_URL", "STACKKIT_PLATFORM_ENDPOINT"},
+		"api_key":    {"KOMODO_API_KEY", "STACKKIT_PLATFORM_API_KEY"},
+		"api_secret": {"KOMODO_API_SECRET", "STACKKIT_PLATFORM_API_SECRET"},
+		"server_id":  {"KOMODO_SERVER_ID", "STACKKIT_PLATFORM_SERVER_ID"},
+	},
+}
+
+var sharedPlatformConfigEnvKeys = map[string][]string{
+	"project_uuid":     {"COOLIFY_PROJECT_UUID", "STACKKIT_PLATFORM_PROJECT_UUID"},
+	"environment_uuid": {"COOLIFY_ENVIRONMENT_UUID", "STACKKIT_PLATFORM_ENVIRONMENT_UUID"},
+	"destination_uuid": {"COOLIFY_DESTINATION_UUID", "STACKKIT_PLATFORM_DESTINATION_UUID"},
+}
+
 func platformConfigEnvKeys(platform, field string) []string {
-	switch field {
-	case "endpoint":
-		if platform == models.PAASDokploy {
-			return []string{"DOKPLOY_API_URL", "STACKKIT_PLATFORM_ENDPOINT"}
-		}
-		if platform == models.PAASCoolify {
-			return []string{"COOLIFY_API_URL", "STACKKIT_PLATFORM_ENDPOINT"}
-		}
-		if platform == models.PAASKomodo {
-			return []string{"KOMODO_API_URL", "STACKKIT_PLATFORM_ENDPOINT"}
-		}
-	case "token":
-		if platform == models.PAASDokploy {
-			return []string{"DOKPLOY_API_KEY", "STACKKIT_PLATFORM_TOKEN"}
-		}
-		if platform == models.PAASCoolify {
-			return []string{"COOLIFY_API_TOKEN", "STACKKIT_PLATFORM_TOKEN"}
-		}
-	case "api_key":
-		if platform == models.PAASKomodo {
-			return []string{"KOMODO_API_KEY", "STACKKIT_PLATFORM_API_KEY"}
-		}
-	case "api_secret":
-		if platform == models.PAASKomodo {
-			return []string{"KOMODO_API_SECRET", "STACKKIT_PLATFORM_API_SECRET"}
-		}
-	case "environment_id":
-		if platform == models.PAASDokploy {
-			return []string{"DOKPLOY_ENVIRONMENT_ID", "STACKKIT_PLATFORM_ENVIRONMENT_ID"}
-		}
-		if platform == models.PAASCoolify {
-			return []string{"COOLIFY_ENVIRONMENT_NAME", "STACKKIT_PLATFORM_ENVIRONMENT_NAME"}
-		}
-	case "server_id":
-		if platform == models.PAASDokploy {
-			return []string{"DOKPLOY_SERVER_ID", "STACKKIT_PLATFORM_SERVER_ID"}
-		}
-		if platform == models.PAASCoolify {
-			return []string{"COOLIFY_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_UUID", "STACKKIT_PLATFORM_SERVER_ID"}
-		}
-		if platform == models.PAASKomodo {
-			return []string{"KOMODO_SERVER_ID", "STACKKIT_PLATFORM_SERVER_ID"}
-		}
-	case "project_uuid":
-		return []string{"COOLIFY_PROJECT_UUID", "STACKKIT_PLATFORM_PROJECT_UUID"}
-	case "environment_uuid":
-		return []string{"COOLIFY_ENVIRONMENT_UUID", "STACKKIT_PLATFORM_ENVIRONMENT_UUID"}
-	case "destination_uuid":
-		return []string{"COOLIFY_DESTINATION_UUID", "STACKKIT_PLATFORM_DESTINATION_UUID"}
-	case "legacy_docker_compose_api":
-		if platform == models.PAASCoolify {
-			return []string{"COOLIFY_LEGACY_DOCKERCOMPOSE_API", "STACKKIT_PLATFORM_LEGACY_DOCKERCOMPOSE_API"}
+	if fields := platformSpecificConfigEnvKeys[platform]; fields != nil {
+		if keys := fields[field]; len(keys) > 0 {
+			return keys
 		}
 	}
-	return nil
+	return sharedPlatformConfigEnvKeys[field]
 }
 
 func firstPlatformEnv(platform, field string) string {
@@ -494,7 +475,7 @@ func firstPlatformBoolEnv(platform, field string) (bool, bool) {
 
 func platformBoolValue(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "y", "on", "enabled":
+	case "1", platformBoolEnabledTrueValue, "yes", "y", "on", "enabled":
 		return true
 	default:
 		return false
@@ -563,25 +544,6 @@ func recordPlatformAppStateWithManagement(state *models.DeploymentState, bundle 
 			SetupDrops:   setupDropsToState(appSetupDrops[ref.AppName]),
 		}
 		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, appState)
-	}
-}
-
-func recordStackKitOwnedAppUnmanagedState(state *models.DeploymentState, bundle platformdeploy.BundleManifest) {
-	if state == nil {
-		return
-	}
-	for _, app := range bundle.Apps {
-		if !platformdeploy.IsStackKitOwnedApp(app) {
-			continue
-		}
-		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, models.PlatformAppState{
-			Name:        app.Name,
-			Platform:    firstNonEmpty(app.ManagedBy, app.Platform, bundle.Platform),
-			Management:  platformdeploy.AppManagementUnmanaged,
-			ComposePath: app.ComposePath,
-			SetupPolicy: app.SetupPolicy,
-			SetupDrops:  setupDropsToState(app.SetupDrops),
-		})
 	}
 }
 

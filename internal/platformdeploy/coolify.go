@@ -53,18 +53,7 @@ func (a *CoolifyAdapter) UpsertCompose(ctx context.Context, manifest AppManifest
 		if status != http.StatusConflict {
 			return DeploymentRef{}, fmt.Errorf("coolify service create %q: %w", manifest.Name, err)
 		}
-		uuid := idFromBody(body)
-		if uuid == "" {
-			return DeploymentRef{}, fmt.Errorf("coolify service create conflict %q did not include uuid", manifest.Name)
-		}
-		var updated map[string]any
-		if _, _, updateErr := a.client.doJSON(ctx, http.MethodPatch, "/api/v1/services/"+url.PathEscape(uuid), payload, &updated); updateErr != nil {
-			return DeploymentRef{}, fmt.Errorf("coolify service update %q: %w", manifest.Name, updateErr)
-		}
-		if id := firstString(updated, "uuid", "id"); id != "" {
-			uuid = id
-		}
-		return DeploymentRef{Platform: manifest.ManagedBy, AppName: manifest.Name, ExternalID: uuid}, nil
+		return a.updateConflictingService(ctx, manifest, payload, body, "service")
 	}
 	uuid := firstString(created, "uuid", "id")
 	if uuid == "" {
@@ -102,18 +91,7 @@ func (a *CoolifyAdapter) upsertLegacyDockerCompose(ctx context.Context, manifest
 		if status != http.StatusConflict {
 			return DeploymentRef{}, fmt.Errorf("coolify compose app create %q: %w", manifest.Name, err)
 		}
-		uuid := idFromBody(body)
-		if uuid == "" {
-			return DeploymentRef{}, fmt.Errorf("coolify compose app create conflict %q did not include uuid", manifest.Name)
-		}
-		var updated map[string]any
-		if _, _, updateErr := a.client.doJSON(ctx, http.MethodPatch, "/api/v1/services/"+url.PathEscape(uuid), payload, &updated); updateErr != nil {
-			return DeploymentRef{}, fmt.Errorf("coolify compose app update %q: %w", manifest.Name, updateErr)
-		}
-		if id := firstString(updated, "uuid", "id"); id != "" {
-			uuid = id
-		}
-		return DeploymentRef{Platform: manifest.ManagedBy, AppName: manifest.Name, ExternalID: uuid}, nil
+		return a.updateConflictingService(ctx, manifest, payload, body, "compose app")
 	}
 	uuid := firstString(created, "uuid", "id")
 	if uuid == "" {
@@ -122,42 +100,19 @@ func (a *CoolifyAdapter) upsertLegacyDockerCompose(ctx context.Context, manifest
 	return DeploymentRef{Platform: manifest.ManagedBy, AppName: manifest.Name, ExternalID: uuid}, nil
 }
 
-func normalizeCoolifyComposeYAML(composeYAML string) string {
-	composeYAML = strings.ReplaceAll(composeYAML, "\r\n", "\n")
-	composeYAML = strings.ReplaceAll(composeYAML, "\r", "\n")
-	lines := strings.Split(composeYAML, "\n")
-	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
-		lines = lines[1:]
+func (a *CoolifyAdapter) updateConflictingService(ctx context.Context, manifest AppManifest, payload map[string]any, body []byte, label string) (DeploymentRef, error) {
+	uuid := idFromBody(body)
+	if uuid == "" {
+		return DeploymentRef{}, fmt.Errorf("coolify %s create conflict %q did not include uuid", label, manifest.Name)
 	}
-	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
-		lines = lines[:len(lines)-1]
+	var updated map[string]any
+	if _, _, updateErr := a.client.doJSON(ctx, http.MethodPatch, "/api/v1/services/"+url.PathEscape(uuid), payload, &updated); updateErr != nil {
+		return DeploymentRef{}, fmt.Errorf("coolify %s update %q: %w", label, manifest.Name, updateErr)
 	}
-	if len(lines) == 0 {
-		return ""
+	if id := firstString(updated, "uuid", "id"); id != "" {
+		uuid = id
 	}
-
-	minIndent := -1
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		indent := 0
-		for indent < len(line) && line[indent] == ' ' {
-			indent++
-		}
-		if minIndent == -1 || indent < minIndent {
-			minIndent = indent
-		}
-	}
-	if minIndent > 0 {
-		for i, line := range lines {
-			if len(line) >= minIndent {
-				lines[i] = line[minIndent:]
-			}
-		}
-	}
-
-	return strings.Join(lines, "\n") + "\n"
+	return DeploymentRef{Platform: manifest.ManagedBy, AppName: manifest.Name, ExternalID: uuid}, nil
 }
 
 func (a *CoolifyAdapter) Deploy(ctx context.Context, ref DeploymentRef) (string, error) {

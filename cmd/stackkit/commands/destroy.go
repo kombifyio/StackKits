@@ -21,6 +21,8 @@ var (
 	removePurge       bool
 )
 
+const removeConfirmationValue = "yes"
+
 var removeCmd = &cobra.Command{
 	Use:   "remove",
 	Short: "Remove the deployed infrastructure",
@@ -73,11 +75,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		} else {
 			printError("WARNING: This will permanently remove all resources!")
 		}
-		fmt.Print("Type 'yes' to confirm: ")
+		fmt.Printf("Type %q to confirm: ", removeConfirmationValue)
 
 		var confirm string
 		_, _ = fmt.Scanln(&confirm)
-		if confirm != "yes" {
+		if confirm != removeConfirmationValue {
 			printInfo("Remove canceled")
 			return nil
 		}

@@ -13,6 +13,8 @@ import (
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
+const platformComposeCoolifyEntrypoint = "http"
+
 // GenerateAppsTF writes PaaS handoff manifests for user applications declared
 // in StackSpec.apps. StackKit produces the compose/manifest boundary; the
 // selected PaaS owns user app deployment and lifecycle.
@@ -224,7 +226,7 @@ func platformComposeAuthMiddleware(platform string) string {
 
 func platformComposeEntrypoint(platform string) string {
 	if platform == models.PAASCoolify {
-		return "http"
+		return platformComposeCoolifyEntrypoint
 	}
 	return "web"
 }

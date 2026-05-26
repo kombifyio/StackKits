@@ -4,6 +4,14 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.2] - 2026-05-26
+
+### Fixed
+
+- **Public release hygiene**: the public StackKits release now stays on the curated OSS export surface and release checks reject development-only paths, private workflows, internal runbooks, and test fixtures before publish.
+- **Release evidence**: package artifacts are included in build attestations and attestation verification retries handle GitHub propagation delay without hiding real failures.
+- **Security gates**: Go vulnerability dependencies are updated for `golang.org/x/crypto`, `golang.org/x/net`, and related `golang.org/x` modules, with lint/static/security checks restored to a clean state.
+
 ## [0.3.1] - 2026-05-25
 
 ### Highlights

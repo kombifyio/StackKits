@@ -32,6 +32,8 @@ var (
 	prepareForce      bool
 )
 
+const prePullImagesDisabledFalseValue = "false"
+
 var prepareCmd = &cobra.Command{
 	Use:     "prepare",
 	Aliases: []string{"prep"},
@@ -823,7 +825,7 @@ func shouldPrePullImages() bool {
 	}
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
-	case "0", "false", "no", "off", "skip", "disabled":
+	case "0", prePullImagesDisabledFalseValue, "no", "off", "skip", "disabled":
 		return false
 	default:
 		return true
