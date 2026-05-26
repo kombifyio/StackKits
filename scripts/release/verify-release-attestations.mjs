@@ -82,14 +82,26 @@ async function collectSubjects(opts) {
   return subjects;
 }
 
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function verifySubject(repo, subject) {
   const args = ['attestation', 'verify', subject.value, '-R', repo];
-  const result = spawnSync('gh', args, { stdio: 'inherit', shell: process.platform === 'win32' });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`gh ${args.join(' ')} failed with exit code ${result.status}`);
+  const attempts = 6;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = spawnSync('gh', args, { stdio: 'inherit', shell: process.platform === 'win32' });
+    if (result.error) {
+      throw result.error;
+    }
+    if (result.status === 0) {
+      return;
+    }
+    if (attempt === attempts) {
+      throw new Error(`gh ${args.join(' ')} failed with exit code ${result.status}`);
+    }
+    console.error(`attestation for ${subject.value} not ready yet; retrying (${attempt}/${attempts})`);
+    sleep(5000);
   }
 }
 
