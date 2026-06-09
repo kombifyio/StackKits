@@ -88,6 +88,18 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/release/generate-sboms.sh dist
+          bash scripts/release/package-browser-evidence.sh dist
+          browser_preflight_args=()
+          if [ -f artifacts/scenarios/SK-S1/browser-evidence-preflight.json ]; then
+            browser_preflight_args=(--browser-preflight artifacts/scenarios/SK-S1/browser-evidence-preflight.json)
+          fi
+          browser_evidence_args=()
+          if [ -f artifacts/scenarios/SK-S1/browser-evidence.json ]; then
+            browser_evidence_args=(
+              --browser-evidence artifacts/scenarios/SK-S1/browser-evidence.json
+              --browser-evidence-root .
+            )
+          fi
           node scripts/release/render-release-evidence.mjs \
             --tag "${GITHUB_REF_NAME}" \
             --commit "${GITHUB_SHA}" \
@@ -99,6 +111,8 @@ jobs:
             --release-url "https://github.com/kombifyio/stackKits/releases/tag/${GITHUB_REF_NAME}" \
             --dist dist \
             --output dist/release-evidence.json \
+            "${browser_preflight_args[@]}" \
+            "${browser_evidence_args[@]}" \
             --check "publicExport=pass,public tag workflow is running on exported contents" \
             --check "archiveValidation=pass,dry-run archive validation passed" \
             --check "defaultL3PaaSDelivery=pass,default StackKit-owned L3 apps are PaaS-intended" \

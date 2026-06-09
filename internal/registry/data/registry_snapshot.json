@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "source": "cue",
-  "generated_at": "2026-05-26T08:50:49.248029726Z",
+  "generated_at": "2026-05-26T18:21:35.2169822Z",
   "tools": [],
   "services": [
     {
@@ -115,6 +115,31 @@
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/dokploy",
       "setup_policy": "automatic",
       "default": false
+    },
+    {
+      "key": "files",
+      "display_name": "Files",
+      "description": "Document management and file sharing backed by Cloudreve",
+      "tool_name": "cloudreve",
+      "module_slug": "cloudreve",
+      "local_slug": "files",
+      "public_slug": "files",
+      "legacy_aliases": [
+        "cloudreve",
+        "nextcloud"
+      ],
+      "identity_policy": "self-auth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128193;",
+      "logo_url": "https://cdn.simpleicons.org/nextcloud/ffffff",
+      "badge": "L3 · Files",
+      "layer": "L3-application",
+      "section": "Applications",
+      "order": 60,
+      "enable_var": "enable_files",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/services/files",
+      "setup_policy": "automatic",
+      "default": true
     },
     {
       "key": "home",
@@ -267,8 +292,8 @@
       "order": 50,
       "enable_var": "enable_immich",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/immich",
-      "setup_policy": "on_demand",
-      "setup_action_label": "Do the setup for me",
+      "setup_policy": "automatic",
+      "setup_action_label": "Automatisierter Bootstrap",
       "default": true
     },
     {
@@ -334,7 +359,8 @@
       "order": 30,
       "enable_var": "enable_vaultwarden",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/vaultwarden",
-      "setup_policy": "manual",
+      "setup_policy": "automatic",
+      "setup_action_label": "Automatisierter Bootstrap",
       "default": true
     },
     {
@@ -381,6 +407,20 @@
       "layer": "L1-foundation",
       "description": "Bootstraps the initial admin user in LLDAP + PocketID. Initial password printed to CLI stdout, must be rotated on first login.",
       "contract_hash": "f84ecd93d165e80d57c68f731e4c4b08794eee2f498673f2bafa3773b000056c",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "cloudreve",
+      "display_name": "Cloudreve",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "Lightweight document management and file sharing",
+      "contract_hash": "43fa62a90dd9cfbeedb7693e78eaaa58a3486ce64828ad3dd589f088e520e8e1",
       "supported_contexts": [
         "local",
         "cloud",
@@ -549,6 +589,20 @@
       "layer": "L2-platform-ingress",
       "description": "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and Grafana dashboards",
       "contract_hash": "d2d7327e63d7c50295e9d5f80fb7301f8a89b6efbf900966a1e0a691ca7c6174",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
+      "slug": "nextcloud",
+      "display_name": "Nextcloud",
+      "version": "1.0.0",
+      "layer": "L3-application",
+      "description": "Document management and collaboration suite for the files use case",
+      "contract_hash": "171411bf0bcb0a536c0ac38b11d14213fb744b9942d9d6c6508d4a390031256e",
       "supported_contexts": [
         "local",
         "cloud",

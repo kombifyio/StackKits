@@ -21,7 +21,9 @@
   <url><loc>https://stackkit.cc/llms-full.txt</loc></url>
   <url><loc>https://stackkit.cc/llms-snippets.txt</loc></url>
   <url><loc>https://stackkit.cc/getting-started/agents.md</loc></url>
+  <url><loc>https://stackkit.cc/getting-started/installation-processes.md</loc></url>
   <url><loc>https://stackkit.cc/mcp/stackkit-mcp.md</loc></url>
+  <url><loc>https://stackkit.cc/openmcp.json</loc></url>
   <url><loc>https://stackkit.cc/api/openapi.v1.yaml</loc></url>
   <url><loc>https://stackkit.cc/schemas/stackkit-agent-run-manifest.schema.json</loc></url>
   <url><loc>https://stackkit.cc/schemas/stackkit-agent-functional-result.schema.json</loc></url>

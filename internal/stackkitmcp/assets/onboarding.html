@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StackKits Onboarding</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-soft: #f0f4f8;
+      --text: #1c2430;
+      --muted: #667383;
+      --line: #d7dee8;
+      --focus: #2563eb;
+      --accent: #0f766e;
+      --accent-soft: #d9f4ef;
+      --warn: #9a5b00;
+      --warn-soft: #fff1cd;
+      --error: #b42318;
+      --error-soft: #ffe2df;
+      --ok: #137a3c;
+      --ok-soft: #dff6e8;
+      --code: #111827;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f141a;
+        --panel: #171d24;
+        --panel-soft: #202832;
+        --text: #edf2f7;
+        --muted: #aab6c4;
+        --line: #2c3744;
+        --focus: #7aa2ff;
+        --accent: #39c5b7;
+        --accent-soft: #123a36;
+        --warn: #f0bd55;
+        --warn-soft: #3c2a0b;
+        --error: #ff8a80;
+        --error-soft: #3a1715;
+        --ok: #65d78d;
+        --ok-soft: #12351f;
+        --code: #f7fafc;
+        --shadow: none;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    main {
+      width: min(1040px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      margin: 5px 0 0;
+      color: var(--muted);
+      max-width: 680px;
+    }
+
+    .mode {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      white-space: nowrap;
+      box-shadow: var(--shadow);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warn);
+    }
+
+    .dot.ok { background: var(--ok); }
+    .dot.error { background: var(--error); }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .step-button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      text-align: left;
+      padding: 7px 9px;
+      box-shadow: var(--shadow);
+    }
+
+    .step-button strong {
+      display: block;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .step-button[aria-current="step"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+    }
+
+    .step-button.done strong::after {
+      content: " done";
+      color: var(--ok);
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 5px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 12px;
+      align-items: start;
+    }
+
+    section, aside {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .panel {
+      min-height: 490px;
+      padding: 16px;
+    }
+
+    .side {
+      padding: 14px;
+      position: sticky;
+      top: 12px;
+    }
+
+    .panel h2, .side h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .panel h3 {
+      margin: 16px 0 8px;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label, .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      padding: 8px 10px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 156px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: var(--code);
+    }
+
+    input:focus, select:focus, textarea:focus, button:focus-visible {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus), transparent 78%);
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .segmented.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .segmented label {
+      min-width: 0;
+    }
+
+    .segmented input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .segmented span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 6px 8px;
+      color: var(--muted);
+      background: var(--panel);
+      text-align: center;
+      font-size: 12px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .segmented input:checked + span {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+    }
+
+    .checks {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      color: var(--muted);
+    }
+
+    .check input {
+      width: 16px;
+      min-height: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      min-height: 36px;
+      border-radius: 7px;
+      padding: 0 11px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    button.warn {
+      border-color: var(--warn);
+      background: var(--warn-soft);
+      color: var(--text);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .summary {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 12px;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr);
+      gap: 8px;
+      align-items: baseline;
+      border-bottom: 1px solid color-mix(in srgb, var(--line), transparent 60%);
+      padding-bottom: 6px;
+    }
+
+    .summary-row span:first-child {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .summary-row span:last-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .run-list {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .run-list li {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 6px 8px;
+      background: var(--panel-soft);
+    }
+
+    .status-mark {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      background: var(--panel);
+    }
+
+    .state-ok .status-mark {
+      border-color: var(--ok);
+      background: var(--ok);
+    }
+
+    .state-error .status-mark {
+      border-color: var(--error);
+      background: var(--error);
+    }
+
+    .state-running .status-mark {
+      border-color: var(--warn);
+      background: var(--warn);
+    }
+
+    .state-skipped .status-mark {
+      border-color: var(--muted);
+      background: var(--panel);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 23px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .tag.ok {
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .tag.warn {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    .tag.error {
+      background: var(--error-soft);
+      color: var(--error);
+    }
+
+    .tag.skipped {
+      background: var(--panel);
+      color: var(--muted);
+    }
+
+    pre {
+      min-height: 190px;
+      max-height: 340px;
+      overflow: auto;
+      white-space: pre-wrap;
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel), #000 4%);
+      padding: 10px;
+      color: var(--code);
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 860px) {
+      main { padding: 12px; }
+      header, .layout { display: block; }
+      .mode { margin-top: 10px; }
+      .steps { grid-template-columns: 1fr; }
+      .step-button { min-height: 38px; }
+      .panel { min-height: 0; }
+      .side { position: static; margin-top: 12px; }
+      .fields { grid-template-columns: 1fr; }
+      .segmented, .segmented.three { grid-template-columns: 1fr 1fr; }
+      .checks { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>StackKits Onboarding</h1>
+        <p class="sub">Native local connector flow for contact, StackKit, core settings, domain, rollout, and evidence.</p>
+      </div>
+      <div class="mode" aria-live="polite">
+        <span id="writeDot" class="dot"></span>
+        <span id="writeStatus">Checking connector</span>
+      </div>
+    </header>
+
+    <nav class="steps" aria-label="Onboarding progress">
+      <button class="step-button" type="button" data-step="0"><strong>Contact</strong><span>Workspace</span></button>
+      <button class="step-button" type="button" data-step="1"><strong>StackKit</strong><span>Profile</span></button>
+      <button class="step-button" type="button" data-step="2"><strong>Domain</strong><span>Core</span></button>
+      <button class="step-button" type="button" data-step="3"><strong>Review</strong><span>Plan</span></button>
+      <button class="step-button" type="button" data-step="4"><strong>Rollout</strong><span>Evidence</span></button>
+    </nav>
+
+    <div class="layout">
+      <section class="panel" id="panel-contact">
+        <h2>Contact and Workspace</h2>
+        <div class="fields">
+          <label class="field">
+            <span>Email</span>
+            <input id="admin_email" name="admin_email" type="email" autocomplete="email" placeholder="admin@example.com">
+          </label>
+          <label class="field">
+            <span>Stack name</span>
+            <input id="name" name="name" autocomplete="off" placeholder="my-homelab">
+          </label>
+          <label class="field">
+            <span>Workspace</span>
+            <input id="base_dir" name="base_dir" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field">
+            <span>Spec path</span>
+            <input id="spec_path" name="spec_path" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+        <div class="actions">
+          <button type="button" id="loadConfig">Read Spec</button>
+          <button type="button" id="selfCheck">Host Check</button>
+          <button type="button" id="status">Server Status</button>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="panel-kit">
+        <h2>StackKit and Profile</h2>
+        <div class="fields">
+          <label class="field full">
+            <span>StackKit</span>
+            <select id="stackkit" name="stackkit">
+              <option value="base-kit">BaseKit</option>
+              <option value="modern-homelab">Modern Homelab alpha</option>
+              <option value="ha-kit">HA Kit alpha</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Install mode</span>
+            <select id="mode" name="mode">
+              <option value="bootstrapped">Bootstrapped</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Service profile</span>
+            <select id="service_profile" name="service_profile">
+              <option value="">Default</option>
+              <option value="admin-only">Admin only</option>
+            </select>
+          </label>
+          <div class="field full">
+            <span class="label">Context</span>
+            <div class="segmented three" role="radiogroup" aria-label="Context">
+              <label><input type="radio" name="context" value="local"><span>Local</span></label>
+              <label><input type="radio" name="context" value="cloud"><span>Cloud</span></label>
+              <label><input type="radio" name="context" value="pi"><span>Pi</span></label>
+            </div>
+          </div>
+          <div class="field full">
+            <span class="label">Compute</span>
+            <div class="segmented three" role="radiogroup" aria-label="Compute tier">
+              <label><input type="radio" name="compute_tier" value="low"><span>Low</span></label>
+              <label><input type="radio" name="compute_tier" value="standard"><span>Standard</span></label>
+              <label><input type="radio" name="compute_tier" value="high"><span>High</span></label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="panel-domain">
+        <h2>Domain and Core Settings</h2>
+        <div class="field full">
+          <span class="label">Domain mode</span>
+          <div class="segmented" role="radiogroup" aria-label="Domain mode">
+            <label><input type="radio" name="domain_strategy" value="local"><span>Local</span></label>
+            <label><input type="radio" name="domain_strategy" value="managed"><span>kombify.me</span></label>
+            <label><input type="radio" name="domain_strategy" value="custom"><span>Custom</span></label>
+            <label><input type="radio" name="domain_strategy" value="local_dns"><span>LAN DNS</span></label>
+          </div>
+        </div>
+        <div class="fields" style="margin-top: 12px;">
+          <label class="field" id="customDomainField">
+            <span>Domain</span>
+            <input id="custom_domain" name="custom_domain" inputmode="url" autocomplete="off" spellcheck="false" placeholder="apps.example.com">
+          </label>
+          <label class="field" id="localNameField">
+            <span>Local name</span>
+            <input id="local_name" name="local_name" autocomplete="off" spellcheck="false" placeholder="stack">
+          </label>
+          <label class="field">
+            <span>Target host</span>
+            <input id="host" name="host" autocomplete="off" spellcheck="false" placeholder="192.168.1.100">
+          </label>
+          <label class="field">
+            <span>SSH user</span>
+            <input id="ssh_user" name="ssh_user" autocomplete="username" spellcheck="false" placeholder="admin">
+          </label>
+          <label class="field full">
+            <span>SSH key path</span>
+            <input id="key_path" name="key_path" autocomplete="off" spellcheck="false" placeholder="~/.ssh/id_ed25519">
+          </label>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="panel-review">
+        <h2>Review and Plan</h2>
+        <div class="fields">
+          <label class="field">
+            <span>Domain</span>
+            <input id="resolved_domain" readonly>
+          </label>
+          <label class="field">
+            <span>Network</span>
+            <input id="network_mode" readonly>
+          </label>
+          <label class="check">
+            <input id="force" name="force" type="checkbox">
+            <span>Replace existing spec</span>
+          </label>
+          <label class="check">
+            <input id="skip_platform_apps" name="skip_platform_apps" type="checkbox">
+            <span>Skip platform apps</span>
+          </label>
+        </div>
+        <h3>Spec preview</h3>
+        <textarea id="spec_preview" spellcheck="false" aria-label="Spec preview"></textarea>
+        <div class="actions">
+          <button type="button" class="primary" id="createSpec">Create Spec</button>
+          <button type="button" id="saveSpecYaml">Save YAML</button>
+          <button type="button" id="validateSpec">Validate</button>
+          <button type="button" id="generatePreview">Preview</button>
+          <button type="button" id="planFlow">Run Plan</button>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="panel-rollout">
+        <h2>Rollout and Evidence</h2>
+        <ul class="run-list" id="runList" aria-live="polite"></ul>
+        <div class="checks">
+          <label class="check">
+            <input id="apply_auto_approve" name="apply_auto_approve" type="checkbox">
+            <span>Auto approve apply</span>
+          </label>
+          <label class="check">
+            <input id="verify_http" name="verify_http" type="checkbox">
+            <span>HTTP verify</span>
+          </label>
+        </div>
+        <div class="actions">
+          <button type="button" class="primary" id="runRollout">Run Rollout</button>
+          <button type="button" id="verify">Verify</button>
+          <button type="button" id="logs">Logs</button>
+          <button type="button" id="doctor">Doctor</button>
+        </div>
+      </section>
+
+      <aside class="side">
+        <h2>Current Selection</h2>
+        <div class="summary">
+          <div class="summary-row"><span>Email</span><span data-summary="admin_email"></span></div>
+          <div class="summary-row"><span>Workspace</span><span data-summary="workspace"></span></div>
+          <div class="summary-row"><span>StackKit</span><span data-summary="stackkit"></span></div>
+          <div class="summary-row"><span>Context</span><span data-summary="context"></span></div>
+          <div class="summary-row"><span>Compute</span><span data-summary="compute_tier"></span></div>
+          <div class="summary-row"><span>Domain</span><span data-summary="domain"></span></div>
+          <div class="summary-row"><span>Host</span><span data-summary="host"></span></div>
+        </div>
+        <h2>Tool Output</h2>
+        <pre id="output">Ready.</pre>
+        <div class="actions">
+          <button type="button" id="back">Back</button>
+          <button type="button" class="primary" id="next">Next</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const panels = ["contact", "kit", "domain", "review", "rollout"];
+    const runSteps = [
+      ["stackkit_init", "Init"],
+      ["stackkit_prepare", "Prepare"],
+      ["stackkit_validate_spec", "Validate"],
+      ["stackkit_generate", "Generate"],
+      ["stackkit_plan", "Plan"],
+      ["stackkit_apply", "Apply"],
+      ["stackkit_verify", "Verify"]
+    ];
+
+    const defaults = {
+      step: 0,
+      completed: {},
+      runState: {},
+      lastOutput: "Ready.",
+      form: {
+        admin_email: "",
+        name: "my-homelab",
+        base_dir: ".",
+        spec_path: "stack-spec.yaml",
+        stackkit: "base-kit",
+        mode: "bootstrapped",
+        service_profile: "",
+        context: "local",
+        compute_tier: "standard",
+        domain_strategy: "local",
+        custom_domain: "apps.example.com",
+        local_name: "stack",
+        host: "",
+        ssh_user: "admin",
+        key_path: "~/.ssh/id_ed25519",
+        force: false,
+        skip_platform_apps: true,
+        apply_auto_approve: false,
+        verify_http: true
+      }
+    };
+
+    let state = mergeState(defaults, window.openai?.widgetState || {});
+    let busy = false;
+
+    const output = document.getElementById("output");
+    const writeDot = document.getElementById("writeDot");
+    const writeStatus = document.getElementById("writeStatus");
+
+    function mergeState(base, incoming) {
+      return {
+        ...base,
+        ...incoming,
+        completed: { ...base.completed, ...(incoming.completed || {}) },
+        runState: { ...base.runState, ...(incoming.runState || {}) },
+        form: { ...base.form, ...(incoming.form || {}) }
+      };
+    }
+
+    function persist() {
+      window.openai?.setWidgetState?.(state);
+    }
+
+    function field(id) {
+      return document.getElementById(id);
+    }
+
+    function clean(value) {
+      return String(value || "").trim();
+    }
+
+    function setBusy(nextBusy) {
+      busy = nextBusy;
+      document.querySelectorAll("button").forEach((button) => {
+        if (button.id === "back" || button.id === "next") {
+          return;
+        }
+        button.disabled = busy || (button.dataset.write === "true" && !state.writeEnabled);
+      });
+    }
+
+    function setStep(step) {
+      state.step = Math.max(0, Math.min(panels.length - 1, step));
+      state.completed[panels[state.step]] = true;
+      persist();
+      render();
+    }
+
+    function selectedDomain() {
+      const strategy = state.form.domain_strategy;
+      if (strategy === "managed") {
+        return "kombify.me";
+      }
+      if (strategy === "custom") {
+        return clean(state.form.custom_domain);
+      }
+      if (strategy === "local_dns") {
+        const localName = clean(state.form.local_name) || "stack";
+        return localName.endsWith(".home") ? localName : `${localName}.home`;
+      }
+      return "home.localhost";
+    }
+
+    function networkMode() {
+      return state.form.domain_strategy === "local" || state.form.domain_strategy === "local_dns" ? "local" : "public";
+    }
+
+    function baseArgs() {
+      return prune({
+        base_dir: clean(state.form.base_dir) || ".",
+        spec_path: clean(state.form.spec_path) || "stack-spec.yaml"
+      });
+    }
+
+    function initArgs() {
+      const domainStrategy = state.form.domain_strategy;
+      return prune({
+        ...baseArgs(),
+        stackkit: state.form.stackkit,
+        admin_email: clean(state.form.admin_email),
+        mode: state.form.mode,
+        context: state.form.context,
+        domain: domainStrategy === "local_dns" ? "" : selectedDomain(),
+        compute_tier: state.form.compute_tier,
+        service_profile: state.form.service_profile,
+        force: !!state.form.force,
+        local_dns: domainStrategy === "local_dns",
+        local_name: domainStrategy === "local_dns" ? clean(state.form.local_name) : ""
+      });
+    }
+
+    function prepareArgs(dryRun) {
+      return prune({
+        ...baseArgs(),
+        dry_run: !!dryRun,
+        host: clean(state.form.host),
+        user: clean(state.form.ssh_user),
+        key_path: clean(state.form.key_path)
+      });
+    }
+
+    function rolloutArgs() {
+      return prune({
+        ...initArgs(),
+        host: clean(state.form.host),
+        user: clean(state.form.ssh_user),
+        key_path: clean(state.form.key_path),
+        skip_init: false,
+        prepare_dry_run: false,
+        apply_auto_approve: !!state.form.apply_auto_approve,
+        skip_platform_apps: !!state.form.skip_platform_apps,
+        verify_http: !!state.form.verify_http
+      });
+    }
+
+    function prune(value) {
+      const out = {};
+      for (const [key, item] of Object.entries(value)) {
+        if (item === "" || item === undefined || item === null) {
+          continue;
+        }
+        out[key] = item;
+      }
+      return out;
+    }
+
+    function specPreview() {
+      const lines = [
+        `name: ${clean(state.form.name) || "my-homelab"}`,
+        `stackkit: ${state.form.stackkit}`,
+        `mode: ${state.form.mode}`,
+        `context: ${state.form.context}`,
+        `domain: ${selectedDomain()}`
+      ];
+      const email = clean(state.form.admin_email);
+      if (email) {
+        lines.push(`email: ${email}`);
+        lines.push(`adminEmail: ${email}`);
+      }
+      lines.push("");
+      lines.push("network:");
+      lines.push(`  mode: ${networkMode()}`);
+      lines.push("");
+      lines.push("compute:");
+      lines.push(`  tier: ${state.form.compute_tier}`);
+      const host = clean(state.form.host);
+      if (host) {
+        lines.push("");
+        lines.push("ssh:");
+        lines.push(`  user: ${clean(state.form.ssh_user) || "admin"}`);
+        lines.push("  port: 22");
+        lines.push(`  keyPath: ${clean(state.form.key_path) || "~/.ssh/id_ed25519"}`);
+        lines.push("");
+        lines.push("nodes:");
+        lines.push("  - name: main");
+        lines.push("    role: standalone");
+        lines.push(`    ip: ${host}`);
+      }
+      return lines.join("\n") + "\n";
+    }
+
+    function setOutput(value) {
+      const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      state.lastOutput = text;
+      output.textContent = text;
+      persist();
+    }
+
+    async function callTool(name, args = {}) {
+      if (!window.openai || typeof window.openai.callTool !== "function") {
+        setOutput("This host does not expose Apps SDK tool calls in the widget context.");
+        return null;
+      }
+      setBusy(true);
+      markRun(name, "running");
+      try {
+        const result = await window.openai.callTool(name, args);
+        const success = !(result && result.isError);
+        markRun(name, success ? "ok" : "error");
+        setOutput(result);
+        return result;
+      } catch (error) {
+        markRun(name, "error");
+        setOutput({ tool: name, error: error?.message || String(error) });
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function markRun(tool, status) {
+      state.runState[tool] = status;
+      persist();
+      renderRunList();
+    }
+
+    function clearRunMarks(sequence) {
+      for (const [tool] of sequence) {
+        delete state.runState[tool];
+      }
+      persist();
+      renderRunList();
+    }
+
+    function toolSucceeded(result) {
+      return !!result && result.isError !== true;
+    }
+
+    function markSkippedAfter(sequence, failedTool) {
+      let skipped = false;
+      for (const [tool] of sequence) {
+        if (skipped) {
+          markRun(tool, "skipped");
+        }
+        if (tool === failedTool) {
+          skipped = true;
+        }
+      }
+    }
+
+    function structured(result) {
+      return result?.structuredContent || result?._meta?.structuredContent || null;
+    }
+
+    function hydrateFromConfig(result) {
+      const data = structured(result);
+      const parsed = data?.parsed;
+      if (!parsed || typeof parsed !== "object") {
+        return;
+      }
+      state.form.stackkit = parsed.stackkit || state.form.stackkit;
+      state.form.mode = parsed.mode || state.form.mode;
+      state.form.context = parsed.context || state.form.context;
+      state.form.admin_email = parsed.adminEmail || parsed.email || state.form.admin_email;
+      state.form.compute_tier = parsed.compute?.tier || state.form.compute_tier;
+      if (parsed.domain) {
+        state.form.custom_domain = parsed.domain;
+        if (parsed.domain === "home.localhost") {
+          state.form.domain_strategy = "local";
+        } else if (parsed.domain === "kombify.me") {
+          state.form.domain_strategy = "managed";
+        } else if (parsed.domain.endsWith(".home")) {
+          state.form.domain_strategy = "local_dns";
+          state.form.local_name = parsed.domain.replace(/\.home$/, "");
+        } else {
+          state.form.domain_strategy = "custom";
+        }
+      }
+      persist();
+      render();
+    }
+
+    async function runPlanFlow() {
+      const sequence = [
+        ["stackkit_init", initArgs()],
+        ["stackkit_prepare", prepareArgs(true)],
+        ["stackkit_validate_spec", baseArgs()],
+        ["stackkit_generate", { ...baseArgs(), force: true }],
+        ["stackkit_plan", baseArgs()]
+      ];
+      clearRunMarks(sequence);
+      for (const [tool, args] of sequence) {
+        const result = await callTool(tool, args);
+        if (!toolSucceeded(result)) {
+          markSkippedAfter(sequence, tool);
+          setOutput({
+            halted: true,
+            failed_tool: tool,
+            message: "Plan flow stopped after the first failed MCP step.",
+            result: result || null
+          });
+          return;
+        }
+      }
+    }
+
+    async function runRollout() {
+      const args = rolloutArgs();
+      if (!args.apply_auto_approve) {
+        setOutput({ blocked: true, error: "apply_auto_approve must be selected before running rollout from the widget" });
+        return;
+      }
+      await callTool("stackkit_rollout", args);
+    }
+
+    function renderRunList() {
+      const list = document.getElementById("runList");
+      list.innerHTML = "";
+      for (const [tool, label] of runSteps) {
+        const stateClass = state.runState[tool] ? `state-${state.runState[tool]}` : "";
+        const li = document.createElement("li");
+        li.className = stateClass;
+        const mark = document.createElement("span");
+        mark.className = "status-mark";
+        const text = document.createElement("span");
+        text.textContent = label;
+        const tag = document.createElement("span");
+        tag.className = `tag ${state.runState[tool] || ""}`;
+        tag.textContent = state.runState[tool] || "pending";
+        li.append(mark, text, tag);
+        list.appendChild(li);
+      }
+    }
+
+    function render() {
+      panels.forEach((panel, index) => {
+        document.getElementById(`panel-${panel}`).classList.toggle("hidden", index !== state.step);
+      });
+      document.querySelectorAll(".step-button").forEach((button) => {
+        const index = Number(button.dataset.step);
+        button.setAttribute("aria-current", index === state.step ? "step" : "false");
+        button.classList.toggle("done", !!state.completed[panels[index]]);
+      });
+
+      for (const [key, value] of Object.entries(state.form)) {
+        const el = field(key === "ssh_user" ? "ssh_user" : key);
+        if (!el) continue;
+        if (el.type === "checkbox") {
+          el.checked = !!value;
+        } else if (el.type !== "radio") {
+          el.value = value;
+        }
+      }
+
+      document.querySelectorAll("input[type=radio]").forEach((input) => {
+        input.checked = state.form[input.name] === input.value;
+      });
+
+      const custom = state.form.domain_strategy === "custom";
+      const localDNS = state.form.domain_strategy === "local_dns";
+      document.getElementById("customDomainField").classList.toggle("hidden", !custom);
+      document.getElementById("localNameField").classList.toggle("hidden", !localDNS);
+      field("resolved_domain").value = selectedDomain();
+      field("network_mode").value = networkMode();
+      field("spec_preview").value = specPreview();
+
+      document.querySelector('[data-summary="admin_email"]').textContent = clean(state.form.admin_email) || "not set";
+      document.querySelector('[data-summary="workspace"]').textContent = `${state.form.base_dir}/${state.form.spec_path}`;
+      document.querySelector('[data-summary="stackkit"]').textContent = state.form.stackkit;
+      document.querySelector('[data-summary="context"]').textContent = state.form.context;
+      document.querySelector('[data-summary="compute_tier"]').textContent = state.form.compute_tier;
+      document.querySelector('[data-summary="domain"]').textContent = selectedDomain();
+      document.querySelector('[data-summary="host"]').textContent = clean(state.form.host) || "local";
+
+      output.textContent = state.lastOutput;
+      renderRunList();
+      setBusy(busy);
+    }
+
+    document.querySelectorAll("input, select, textarea").forEach((el) => {
+      el.addEventListener("input", () => {
+        if (el.id === "spec_preview") {
+          return;
+        }
+        state.form[el.name || el.id] = el.type === "checkbox" ? el.checked : el.value;
+        persist();
+        render();
+      });
+      el.addEventListener("change", () => {
+        state.form[el.name || el.id] = el.type === "checkbox" ? el.checked : el.value;
+        persist();
+        render();
+      });
+    });
+
+    document.querySelectorAll(".step-button").forEach((button) => {
+      button.addEventListener("click", () => setStep(Number(button.dataset.step)));
+    });
+
+    document.getElementById("back").addEventListener("click", () => setStep(state.step - 1));
+    document.getElementById("next").addEventListener("click", () => setStep(state.step + 1));
+    document.getElementById("loadConfig").addEventListener("click", async () => hydrateFromConfig(await callTool("stackkit_config_get", baseArgs())));
+    document.getElementById("selfCheck").addEventListener("click", () => callTool("stackkit_self_check_plan"));
+    document.getElementById("status").addEventListener("click", () => callTool("stackkit_status"));
+    document.getElementById("createSpec").dataset.write = "true";
+    document.getElementById("createSpec").addEventListener("click", () => callTool("stackkit_init", initArgs()));
+    document.getElementById("saveSpecYaml").dataset.write = "true";
+    document.getElementById("saveSpecYaml").addEventListener("click", () => callTool("stackkit_config_set", { ...baseArgs(), yaml: field("spec_preview").value }));
+    document.getElementById("validateSpec").addEventListener("click", () => callTool("stackkit_validate_spec", baseArgs()));
+    document.getElementById("generatePreview").addEventListener("click", () => callTool("stackkit_generate_preview", baseArgs()));
+    document.getElementById("planFlow").dataset.write = "true";
+    document.getElementById("planFlow").addEventListener("click", runPlanFlow);
+    document.getElementById("runRollout").dataset.write = "true";
+    document.getElementById("runRollout").addEventListener("click", runRollout);
+    document.getElementById("verify").addEventListener("click", () => callTool("stackkit_verify", { http: !!state.form.verify_http }));
+    document.getElementById("logs").addEventListener("click", () => callTool("stackkit_logs_list"));
+    document.getElementById("doctor").addEventListener("click", () => callTool("stackkit_doctor"));
+
+    callTool("stackkit_onboarding_app").then((result) => {
+      const meta = structured(result);
+      state.writeEnabled = !!meta?.write_tools_enabled;
+      writeDot.classList.toggle("ok", state.writeEnabled);
+      writeDot.classList.toggle("error", !window.openai?.callTool);
+      writeStatus.textContent = state.writeEnabled ? "Write tools enabled" : "Read-only connector";
+      persist();
+      render();
+    }).catch(() => {
+      state.writeEnabled = false;
+      writeStatus.textContent = "Read-only connector";
+      render();
+    });
+
+    window.addEventListener("openai:set_globals", (event) => {
+      const next = event.detail?.globals?.widgetState;
+      if (next) {
+        state = mergeState(state, next);
+        render();
+      }
+    }, { passive: true });
+
+    render();
+  </script>
+</body>
+</html>

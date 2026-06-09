@@ -45,10 +45,15 @@ type ResourceSpec struct {
 	Disk int `yaml:"disk" json:"disk"`  // in GB
 }
 
-// Modes defines deployment modes
+// Modes defines deployment modes.
+//
+// The public install-mode contract is bare / bootstrapped / advanced. Simple
+// remains as a legacy stackkit.yaml key so older kit definitions keep loading.
 type Modes struct {
-	Simple   ModeSpec `yaml:"simple" json:"simple"`
-	Advanced ModeSpec `yaml:"advanced,omitempty" json:"advanced,omitempty"`
+	Bare         ModeSpec `yaml:"bare,omitempty" json:"bare,omitempty"`
+	Bootstrapped ModeSpec `yaml:"bootstrapped,omitempty" json:"bootstrapped,omitempty"`
+	Simple       ModeSpec `yaml:"simple,omitempty" json:"simple,omitempty"`
+	Advanced     ModeSpec `yaml:"advanced,omitempty" json:"advanced,omitempty"`
 }
 
 // ModeSpec defines a single deployment mode
@@ -76,6 +81,14 @@ const (
 	VirtOpenVZ = "openvz"
 
 	DNSFixNone = "none"
+
+	InstallModeBare         = "bare"
+	InstallModeBootstrapped = "bootstrapped"
+	InstallModeAdvanced     = "advanced"
+	InstallModeSimpleLegacy = "simple"
+	InstallModeTerramate    = "terramate"
+	InstallModeAdvancedTM   = "advanced-terramate"
+	InstallModeDefault      = InstallModeBootstrapped
 
 	// PAAS platform types
 	PAASDokploy = "dokploy"
@@ -119,6 +132,25 @@ const (
 	OwnerSourceFirstRun = "first-run"
 
 	BreakGlassScopeFullEmergencyAdmin = "full-emergency-admin"
+
+	BootstrapModeFullAuto = "full_auto"
+	BootstrapModeGuided   = "guided"
+	BootstrapModeMinimal  = "minimal"
+
+	SetupPolicyManual    = "manual"
+	SetupPolicyOnDemand  = "on_demand"
+	SetupPolicyAutomatic = "automatic"
+
+	SetupRunStatusRunning   = "running"
+	SetupRunStatusWaiting   = "waiting"
+	SetupRunStatusCompleted = "completed"
+	SetupRunStatusFailed    = "failed"
+
+	BootstrapPhaseDesired        = "desired"
+	BootstrapPhasePrepared       = "prepared"
+	BootstrapPhaseOwnerActivated = "owner_activated"
+	BootstrapPhaseConfigured     = "configured"
+	BootstrapPhaseVerified       = "verified"
 )
 
 // IsKombifyMeDomain returns true for the managed kombify.me shared domain.
@@ -310,6 +342,7 @@ type StackSpec struct {
 	Mode             string               `yaml:"mode,omitempty" json:"mode,omitempty"`
 	Runtime          string               `yaml:"runtime,omitempty" json:"runtime,omitempty"` // "docker" or "native"
 	Context          string               `yaml:"context,omitempty" json:"context,omitempty"`
+	Placement        PlacementSpec        `yaml:"placementMode,omitempty" json:"placementMode,omitempty"`
 	Domain           string               `yaml:"domain,omitempty" json:"domain,omitempty"`
 	SubdomainPrefix  string               `yaml:"subdomainPrefix,omitempty" json:"subdomainPrefix,omitempty"`
 	Email            string               `yaml:"email,omitempty" json:"email,omitempty"`
@@ -322,10 +355,12 @@ type StackSpec struct {
 	TLS              TLSSpec              `yaml:"tls,omitempty" json:"tls,omitempty"`
 	PAAS             string               `yaml:"paas,omitempty" json:"paas,omitempty"` // explicit platform adapter override; omitted resolves to Coolify
 	Addons           []string             `yaml:"addons,omitempty" json:"addons,omitempty"`
+	Application      map[string]any       `yaml:"application,omitempty" json:"application,omitempty"`
 	Services         map[string]any       `yaml:"services,omitempty" json:"services,omitempty"`
 	Apps             map[string]AppSpec   `yaml:"apps,omitempty" json:"apps,omitempty"`
 	PlatformFallback PlatformFallbackSpec `yaml:"platformFallback,omitempty" json:"platformFallback,omitempty"`
 	Environment      map[string]string    `yaml:"environment,omitempty" json:"environment,omitempty"`
+	Metadata         map[string]string    `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 	Identity         *IdentitySpec        `yaml:"identity,omitempty" json:"identity,omitempty"`
 
 	// Owner is set by `stackkit init` or orchestration handoff when owner
@@ -339,6 +374,15 @@ type StackSpec struct {
 	// specs can prove that break-glass is a separate full-emergency path rather
 	// than a second daily admin account.
 	BreakGlass BreakGlassConfig `yaml:"breakGlass,omitempty" json:"breakGlass,omitempty"`
+
+	// Bootstrap configures setup policy defaults. Install mode selects the
+	// automation surface; bootstrapped defaults to automatic platform setup and
+	// on-demand application setup.
+	Bootstrap BootstrapSpec `yaml:"bootstrap,omitempty" json:"bootstrap,omitempty"`
+
+	// DemoData controls optional seed content for app verification. It is off
+	// by default so L3 applications are not preconfigured unless requested.
+	DemoData DemoDataSpec `yaml:"demoData,omitempty" json:"demoData,omitempty"`
 
 	// Extended spec sections — derived from base-kit CUE schemas.
 	// These capture the full Zielbild that StackKits need to generate configs.
@@ -359,6 +403,53 @@ type StackSpec struct {
 type PlatformFallbackSpec struct {
 	Enabled bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	Mode    string `yaml:"mode,omitempty" json:"mode,omitempty"` // disabled or standalone-compose
+}
+
+// BootstrapSpec configures setup policy defaults for the selected install mode.
+// Mode is kept only as a legacy/scenario bootstrap selector; public install
+// mode remains StackSpec.Mode.
+type BootstrapSpec struct {
+	Mode                     string `yaml:"mode,omitempty" json:"mode,omitempty"` // legacy/scenario selector: full_auto, guided, minimal, or an explicit install-mode alias
+	PlatformPolicy           string `yaml:"platformPolicy,omitempty" json:"platformPolicy,omitempty"`
+	ApplicationDefaultPolicy string `yaml:"applicationDefaultPolicy,omitempty" json:"applicationDefaultPolicy,omitempty"`
+}
+
+func (b BootstrapSpec) EffectiveMode() string {
+	mode := strings.ToLower(strings.TrimSpace(b.Mode))
+	if mode == "" {
+		return BootstrapModeFullAuto
+	}
+	return mode
+}
+
+func IsKnownBootstrapMode(mode string) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", BootstrapModeFullAuto, BootstrapModeGuided, BootstrapModeMinimal:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsKnownBootstrapSelector(mode string) bool {
+	if IsKnownBootstrapMode(mode) {
+		return true
+	}
+	switch NormalizeInstallMode(mode) {
+	case InstallModeBare, InstallModeBootstrapped, InstallModeAdvanced:
+		return true
+	default:
+		return false
+	}
+}
+
+// DemoDataSpec controls optional sample content for beta onboarding.
+type DemoDataSpec struct {
+	Enabled *bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+}
+
+func (d DemoDataSpec) EffectiveEnabled() bool {
+	return d.Enabled != nil && *d.Enabled
 }
 
 // BreakGlassConfig describes the emergency account and server-recovery scope.
@@ -424,13 +515,14 @@ type AppSetupSpec struct {
 
 // SetupDropSpec describes a setup unit that can run separately from deploy.
 type SetupDropSpec struct {
-	Name        string            `yaml:"name" json:"name"`
-	Version     string            `yaml:"version,omitempty" json:"version,omitempty"`
-	Runner      string            `yaml:"runner,omitempty" json:"runner,omitempty"`
-	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Command     []string          `yaml:"command,omitempty" json:"command,omitempty"`
-	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
-	Secrets     map[string]string `yaml:"secrets,omitempty" json:"secrets,omitempty"`
+	Name          string            `yaml:"name" json:"name"`
+	Version       string            `yaml:"version,omitempty" json:"version,omitempty"`
+	Runner        string            `yaml:"runner,omitempty" json:"runner,omitempty"`
+	Description   string            `yaml:"description,omitempty" json:"description,omitempty"`
+	RollbackNotes []string          `yaml:"rollbackNotes,omitempty" json:"rollbackNotes,omitempty"`
+	Command       []string          `yaml:"command,omitempty" json:"command,omitempty"`
+	Env           map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
+	Secrets       map[string]string `yaml:"secrets,omitempty" json:"secrets,omitempty"`
 }
 
 // AppRouteSpec describes how an app is exposed through Traefik.
@@ -725,28 +817,48 @@ type ServiceState struct {
 
 // PlatformAppState records the external platform identity for a StackKit L3 app.
 type PlatformAppState struct {
-	Name         string          `yaml:"name" json:"name"`
-	Role         string          `yaml:"role,omitempty" json:"role,omitempty"`
-	Platform     string          `yaml:"platform" json:"platform"`
-	Management   string          `yaml:"management,omitempty" json:"management,omitempty"`
-	ExternalID   string          `yaml:"externalId" json:"externalId"`
-	DeploymentID string          `yaml:"deploymentId,omitempty" json:"deploymentId,omitempty"`
-	ComposePath  string          `yaml:"composePath,omitempty" json:"composePath,omitempty"`
-	SetupPolicy  string          `yaml:"setupPolicy,omitempty" json:"setupPolicy,omitempty"`
-	SetupDrops   []SetupDropSpec `yaml:"setupDrops,omitempty" json:"setupDrops,omitempty"`
-	LastDeployed time.Time       `yaml:"lastDeployed,omitempty" json:"lastDeployed,omitempty"`
+	Name           string          `yaml:"name" json:"name"`
+	Role           string          `yaml:"role,omitempty" json:"role,omitempty"`
+	Platform       string          `yaml:"platform" json:"platform"`
+	Management     string          `yaml:"management,omitempty" json:"management,omitempty"`
+	ExternalID     string          `yaml:"externalId" json:"externalId"`
+	DeploymentID   string          `yaml:"deploymentId,omitempty" json:"deploymentId,omitempty"`
+	ObservedStatus string          `yaml:"observedStatus,omitempty" json:"observedStatus,omitempty"`
+	ObservedAt     time.Time       `yaml:"observedAt,omitempty" json:"observedAt,omitempty"`
+	ComposePath    string          `yaml:"composePath,omitempty" json:"composePath,omitempty"`
+	SetupPolicy    string          `yaml:"setupPolicy,omitempty" json:"setupPolicy,omitempty"`
+	SetupDrops     []SetupDropSpec `yaml:"setupDrops,omitempty" json:"setupDrops,omitempty"`
+	LastDeployed   time.Time       `yaml:"lastDeployed,omitempty" json:"lastDeployed,omitempty"`
 }
 
 // SetupRunState records an explicit setup-drop execution. Manual setup drops
 // remain absent from this list until a user requests a run.
 type SetupRunState struct {
-	AppName       string    `yaml:"appName" json:"appName"`
-	DropName      string    `yaml:"dropName" json:"dropName"`
-	Policy        string    `yaml:"policy,omitempty" json:"policy,omitempty"`
-	Status        string    `yaml:"status" json:"status"`
-	LastRequested time.Time `yaml:"lastRequested,omitempty" json:"lastRequested,omitempty"`
-	LastStarted   time.Time `yaml:"lastStarted,omitempty" json:"lastStarted,omitempty"`
-	LastFinished  time.Time `yaml:"lastFinished,omitempty" json:"lastFinished,omitempty"`
+	RunID         string             `yaml:"runId,omitempty" json:"runId,omitempty"`
+	ServiceKey    string             `yaml:"serviceKey,omitempty" json:"serviceKey,omitempty"`
+	AppName       string             `yaml:"appName" json:"appName"`
+	DropName      string             `yaml:"dropName" json:"dropName"`
+	Policy        string             `yaml:"policy,omitempty" json:"policy,omitempty"`
+	Status        string             `yaml:"status" json:"status"`
+	Phase         string             `yaml:"phase,omitempty" json:"phase,omitempty"`
+	Attempts      int                `yaml:"attempts,omitempty" json:"attempts,omitempty"`
+	Message       string             `yaml:"message,omitempty" json:"message,omitempty"`
+	Error         string             `yaml:"error,omitempty" json:"error,omitempty"`
+	FailureClass  string             `yaml:"failureClass,omitempty" json:"failureClass,omitempty"`
+	Evidence      map[string]string  `yaml:"evidence,omitempty" json:"evidence,omitempty"`
+	Logs          []SetupRunLogEntry `yaml:"logs,omitempty" json:"logs,omitempty"`
+	RollbackNotes []string           `yaml:"rollbackNotes,omitempty" json:"rollbackNotes,omitempty"`
+	LastRequested time.Time          `yaml:"lastRequested,omitempty" json:"lastRequested,omitempty"`
+	LastStarted   time.Time          `yaml:"lastStarted,omitempty" json:"lastStarted,omitempty"`
+	LastFinished  time.Time          `yaml:"lastFinished,omitempty" json:"lastFinished,omitempty"`
+}
+
+// SetupRunLogEntry records a bounded, user-facing setup phase event.
+type SetupRunLogEntry struct {
+	Timestamp time.Time `yaml:"timestamp,omitempty" json:"timestamp,omitempty"`
+	Phase     string    `yaml:"phase,omitempty" json:"phase,omitempty"`
+	Level     string    `yaml:"level,omitempty" json:"level,omitempty"`
+	Message   string    `yaml:"message,omitempty" json:"message,omitempty"`
 }
 
 // ServiceStatus represents service status
@@ -803,7 +915,7 @@ const (
 type NodeContext string
 
 const (
-	// ContextLocal means a home/office server (behind NAT, no public IP).
+	// ContextLocal means a local/private target (behind NAT, no public IP).
 	ContextLocal NodeContext = "local"
 	// ContextCloud means a VPS, dedicated server, or kombify Cloud instance (public IP).
 	ContextCloud NodeContext = "cloud"
@@ -816,7 +928,7 @@ const (
 type NetworkEnvironment string
 
 const (
-	// NetEnvHome means the server is on a home/office LAN behind NAT.
+	// NetEnvHome means the target is on a private/local network behind NAT.
 	NetEnvHome NetworkEnvironment = "home"
 	// NetEnvVPS means the server is a VPS/dedicated server with a public IP.
 	NetEnvVPS NetworkEnvironment = "vps"
@@ -869,7 +981,7 @@ type DockerCapabilities struct {
 	NetworkEnv         NetworkEnvironment `json:"networkEnv,omitempty"`         // "home", "vps", "cloud", "unknown"
 	PublicIP           string             `json:"publicIP,omitempty"`           // External IP (empty if detection failed)
 	PrivateIP          string             `json:"privateIP,omitempty"`          // LAN/internal IP
-	IsNAT              bool               `json:"isNAT,omitempty"`              // true if behind NAT (home network)
+	IsNAT              bool               `json:"isNAT,omitempty"`              // true if behind NAT (private/local target)
 	HasPublicInterface bool               `json:"hasPublicInterface,omitempty"` // true if a network interface has a public IP directly
 
 	// Block devices and storage resolution

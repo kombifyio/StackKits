@@ -1,9 +1,15 @@
 services:
+  # StackKits public landing page (stackkit.cc) — built from kombify-StackKits/website.
+  # Mirrors the live Render service (srv-d78f7d6dqaus73ctl350) in project kombify-websites.
   - type: web
-    name: stackkit-website
+    name: stackkit-cc
     runtime: static
-    buildCommand: npm --prefix website ci && npm --prefix website run build
-    staticPublishPath: website/dist
+    rootDir: website
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    domains:
+      - stackkit.cc
+      - www.stackkit.cc
     routes:
       - type: rewrite
         source: /*
@@ -11,7 +17,7 @@ services:
     headers:
       - path: /*
         name: Content-Security-Policy
-        value: "frame-ancestors 'self' https://kombify.io https://*.kombify.io"
+        value: "frame-ancestors 'self' https://kombify.io"
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
@@ -44,12 +50,18 @@ services:
       - path: /getting-started/agents.md
         name: Content-Type
         value: text/markdown; charset=utf-8
+      - path: /getting-started/installation-processes.md
+        name: Content-Type
+        value: text/markdown; charset=utf-8
       - path: /getting-started/agents/*
         name: Content-Type
         value: text/markdown; charset=utf-8
       - path: /mcp/stackkit-mcp.md
         name: Content-Type
         value: text/markdown; charset=utf-8
+      - path: /openmcp.json
+        name: Content-Type
+        value: application/json; charset=utf-8
       - path: /api/openapi.v1.yaml
         name: Content-Type
         value: application/yaml; charset=utf-8
@@ -69,10 +81,16 @@ services:
       - path: /getting-started/agents.md
         name: Content-Signal
         value: search=yes, ai-input=yes
+      - path: /getting-started/installation-processes.md
+        name: Content-Signal
+        value: search=yes, ai-input=yes
       - path: /getting-started/agents/*
         name: Content-Signal
         value: search=yes, ai-input=yes
       - path: /mcp/stackkit-mcp.md
+        name: Content-Signal
+        value: search=yes, ai-input=yes
+      - path: /openmcp.json
         name: Content-Signal
         value: search=yes, ai-input=yes
       - path: /api/openapi.v1.yaml

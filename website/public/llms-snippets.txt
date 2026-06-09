@@ -27,6 +27,37 @@ stackkit doctor --json
 stackkit agent mcp-config --client codex --mode docs,local,server
 ```
 
+Website discovery:
+
+```text
+GET https://stackkit.cc/openmcp.json
+GET https://stackkit.cc/getting-started/installation-processes.md
+```
+
+Native local connector:
+
+```text
+[mcp_servers.stackkit]
+command = "stackkit-mcp"
+args = ["--mode", "docs,local,server"]
+```
+
+Local endpoint exposed by stackkit-server after install:
+
+```text
+POST http://localhost:8082/mcp
+GET  http://localhost:8082/openmcp.json
+```
+
+Protected remote MCP target:
+
+```text
+POST https://<protected-target>/mcp
+GET  https://<protected-target>/openmcp.json
+```
+
+Agents should configure one MCP connection named `stackkit`. Remote MCP is the same connector for installed StackKit day-2 operations through Streamable HTTP. WebSocket would be a custom gateway, not the default StackKits surface.
+
 ## Published Prompts
 
 - /getting-started/agents/basekit-autonomous-rollout.md
@@ -34,4 +65,3 @@ stackkit agent mcp-config --client codex --mode docs,local,server
 - /getting-started/agents/diagnose-failed-rollout.md
 - /getting-started/agents/enable-monitoring-addon.md
 - /getting-started/agents/ssh-rollout.md
-

@@ -47,7 +47,7 @@ const passphraseAttempts = 3
 // log the resolved path without reaching into the identity package.
 const defaultBundleDir = "/var/lib/stackkit/recovery"
 
-// defaultTinyAuthEnvPath is where TinyAuth's static USERS env line lives on
+// defaultTinyAuthEnvPath is where TinyAuth's static users env line lives on
 // the homelab node. Templated by the TinyAuth container module to be loaded
 // via env_file. Only used when OwnerBootstrapInput.TinyAuthEnvPath is empty.
 const defaultTinyAuthEnvPath = "/etc/tinyauth/users.env"
@@ -119,7 +119,7 @@ type OwnerBootstrapInput struct {
 	// Defaults to defaultBundleDir when empty.
 	BundleDir string
 
-	// TinyAuthEnvPath is the file the TinyAuth USERS env line is written
+	// TinyAuthEnvPath is the file the TinyAuth users env line is written
 	// to. Defaults to defaultTinyAuthEnvPath when empty.
 	TinyAuthEnvPath string
 
@@ -190,7 +190,7 @@ const adminsGroupFriendlyName = "Admins"
 //  4. Provision the daily-admin owner (CreateUser + group + setup URL).
 //  5. Generate the per-node break-glass admin (CreateUser + group + token).
 //  6. Generate the per-node TinyAuth static credential (random pwd + bcrypt).
-//  7. Write USERS=username:bcrypt-hash into TinyAuthEnvPath.
+//  7. Write TINYAUTH_AUTH_USERS=username:bcrypt-hash into TinyAuthEnvPath.
 //  8. Confirm the recovery passphrase at the terminal (third factor).
 //  9. Build the recovery bundle and write the .age + .txt files.
 //
@@ -260,7 +260,7 @@ func Run(ctx context.Context, in OwnerBootstrapInput) (*OwnerBootstrapResult, er
 		return nil, fmt.Errorf("generate tinyauth-static: %w", err)
 	}
 
-	// Step 7: Write the TinyAuth USERS env-file. The container reads it via
+	// Step 7: Write the TinyAuth users env-file. The container reads it via
 	// env_file, so the orchestrator's job is to land the file at a stable
 	// path with restrictive perms.
 	if err := writeTinyAuthEnv(in.TinyAuthEnvPath, taCred); err != nil {
@@ -421,7 +421,7 @@ func writeTinyAuthEnv(path string, cred *identity.TinyAuthStaticCredential) erro
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
-	line := "USERS=" + cred.ToEnvValue() + "\n"
+	line := "TINYAUTH_AUTH_USERS=" + cred.ToEnvValue() + "\n"
 	if err := os.WriteFile(path, []byte(line), 0o640); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}

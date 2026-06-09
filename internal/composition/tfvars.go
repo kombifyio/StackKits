@@ -2,6 +2,7 @@ package composition
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -10,6 +11,7 @@ import (
 
 	cueval "github.com/kombifyio/stackkits/internal/cue"
 	"github.com/kombifyio/stackkits/pkg/models"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -41,6 +43,7 @@ func GenerateTFVarsJSON(spec *models.StackSpec, cr *CompositionResult) ([]byte, 
 	}
 	overlayEnableFlags(tfvars, cr.EnabledModules)
 	enforcePlatformFallback(tfvars)
+	enforceInstallMode(tfvars, spec)
 
 	data, err = json.MarshalIndent(tfvars, "", "  ")
 	if err != nil {
@@ -67,16 +70,49 @@ func overlayRuntimeTemplateVars(tfvars map[string]any, spec *models.StackSpec, c
 	}
 
 	if moduleIsEnabled(cr.EnabledModules, "vaultwarden") {
-		if existing, ok := tfvars["vaultwarden_admin_token"].(string); !ok || existing == "" {
-			token, err := GenerateRandomPassword(48)
+		token, _ := tfvars["vaultwarden_admin_token"].(string)
+		if token == "" {
+			var err error
+			token, err = GenerateRandomPassword(48)
 			if err != nil {
 				return fmt.Errorf("generate vaultwarden admin token: %w", err)
 			}
 			tfvars["vaultwarden_admin_token"] = token
 		}
+		if phc, _ := tfvars["vaultwarden_admin_token_phc"].(string); phc == "" {
+			hash, err := Argon2IDPHCString(token)
+			if err != nil {
+				return fmt.Errorf("hash vaultwarden admin token: %w", err)
+			}
+			tfvars["vaultwarden_admin_token_phc"] = hash
+			tfvars["vaultwarden_admin_token_phc_b64"] = base64.RawStdEncoding.EncodeToString([]byte(hash))
+		} else if b64, _ := tfvars["vaultwarden_admin_token_phc_b64"].(string); b64 == "" {
+			tfvars["vaultwarden_admin_token_phc_b64"] = base64.RawStdEncoding.EncodeToString([]byte(phc))
+		}
 	}
 
 	return nil
+}
+
+func Argon2IDPHCString(password string) (string, error) {
+	if password == "" {
+		return "", fmt.Errorf("password must not be empty")
+	}
+	const (
+		memory     uint32 = 19456
+		iterations uint32 = 2
+		threads    uint8  = 1
+		keyLength         = 32
+		saltLength        = 16
+	)
+	salt := make([]byte, saltLength)
+	if _, err := rand.Read(salt); err != nil {
+		return "", fmt.Errorf("generate argon2 salt: %w", err)
+	}
+	key := argon2.IDKey([]byte(password), salt, iterations, memory, threads, keyLength)
+	encodedSalt := base64.RawStdEncoding.EncodeToString(salt)
+	encodedKey := base64.RawStdEncoding.EncodeToString(key)
+	return fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s", memory, iterations, threads, encodedSalt, encodedKey), nil
 }
 
 func stackKitServerImageOverride(spec *models.StackSpec) string {
@@ -143,6 +179,9 @@ func overlayEnableFlags(tfvars map[string]any, enabledModules []string) {
 		"vaultwarden": "enable_vaultwarden",
 		"jellyfin":    "enable_jellyfin",
 		"immich":      "enable_immich",
+		"cloudreve":   "enable_cloudreve",
+		"nextcloud":   "enable_nextcloud",
+		"files":       "enable_files",
 	}
 	enabledSet := make(map[string]bool, len(enabledModules))
 	for _, name := range enabledModules {
@@ -174,6 +213,22 @@ func enforcePlatformFallback(tfvars map[string]any) {
 	tfvars["enable_komodo"] = false
 	tfvars["reverse_proxy_backend"] = models.ReverseProxyStandalone
 	tfvars["platform_fallback_mode"] = models.PlatformFallbackStandaloneCompose
+}
+
+func enforceInstallMode(tfvars map[string]any, spec *models.StackSpec) {
+	if spec == nil || spec.EffectiveInstallMode() != models.InstallModeBare {
+		return
+	}
+	tfvars["enable_dashboard"] = false
+	tfvars["enable_homepage"] = false
+	tfvars["demo_data_enabled"] = false
+	tfvars["setup_policy_platform"] = models.SetupPolicyManual
+	tfvars["setup_policy_application_default"] = models.SetupPolicyManual
+	tfvars["setup_policy_kuma"] = models.SetupPolicyManual
+	tfvars["setup_policy_whoami"] = models.SetupPolicyManual
+	tfvars["setup_policy_vaultwarden"] = models.SetupPolicyManual
+	tfvars["setup_policy_immich"] = models.SetupPolicyManual
+	tfvars["setup_policy_files"] = models.SetupPolicyManual
 }
 
 func moduleIsEnabled(enabledModules []string, name string) bool {

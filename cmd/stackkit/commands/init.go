@@ -75,7 +75,7 @@ func init() {
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
 	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "Use Kombify Point local DNS names; optionally combine with --local-name")
 	initCmd.Flags().StringVar(&initLocalName, "local-name", "", "Local DNS short name for --local-dns (e.g. family -> family.home)")
-	initCmd.Flags().StringVar(&initMode, "mode", "", "Deployment mode (simple, advanced)")
+	initCmd.Flags().StringVar(&initMode, "mode", "", "Installation mode (bare, bootstrapped, advanced)")
 	initCmd.Flags().StringVarP(&initOutputDir, "output", "o", "deploy", "Output directory for generated files")
 	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing files")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (fail if input is required)")
@@ -128,9 +128,24 @@ func selectStackKit(p *prompter, availableKits []*models.StackKit, wd string) (s
 func selectMode(p *prompter, stackkit *models.StackKit) (string, error) {
 	if initMode == "" && p != nil {
 		var modeChoices []choice
-		if stackkit.Modes.Simple.Name != "" {
+		if stackkit.Modes.Bare.Name != "" {
 			modeChoices = append(modeChoices, choice{
-				Key:         "simple",
+				Key:         models.InstallModeBare,
+				Display:     stackkit.Modes.Bare.Name,
+				Description: stackkit.Modes.Bare.Description,
+				IsDefault:   stackkit.Modes.Bare.Default,
+			})
+		}
+		if stackkit.Modes.Bootstrapped.Name != "" {
+			modeChoices = append(modeChoices, choice{
+				Key:         models.InstallModeBootstrapped,
+				Display:     stackkit.Modes.Bootstrapped.Name,
+				Description: stackkit.Modes.Bootstrapped.Description,
+				IsDefault:   stackkit.Modes.Bootstrapped.Default,
+			})
+		} else if stackkit.Modes.Simple.Name != "" {
+			modeChoices = append(modeChoices, choice{
+				Key:         models.InstallModeBootstrapped,
 				Display:     stackkit.Modes.Simple.Name,
 				Description: stackkit.Modes.Simple.Description,
 				IsDefault:   stackkit.Modes.Simple.Default,
@@ -138,7 +153,7 @@ func selectMode(p *prompter, stackkit *models.StackKit) (string, error) {
 		}
 		if stackkit.Modes.Advanced.Name != "" {
 			modeChoices = append(modeChoices, choice{
-				Key:         "advanced",
+				Key:         models.InstallModeAdvanced,
 				Display:     stackkit.Modes.Advanced.Name,
 				Description: stackkit.Modes.Advanced.Description,
 				IsDefault:   stackkit.Modes.Advanced.Default,
@@ -155,8 +170,15 @@ func selectMode(p *prompter, stackkit *models.StackKit) (string, error) {
 		}
 	}
 	if initMode == "" {
-		initMode = "simple"
+		initMode = models.InstallModeBootstrapped
 	}
+	if !models.IsKnownInstallMode(initMode) {
+		return "", fmt.Errorf("invalid --mode %q (use bare, bootstrapped, or advanced)", initMode)
+	}
+	if models.IsLegacyInstallMode(initMode) {
+		printWarning("Mode %q is legacy; using %q.", initMode, models.NormalizeInstallMode(initMode))
+	}
+	initMode = models.NormalizeInstallMode(initMode)
 	return initMode, nil
 }
 
@@ -318,9 +340,28 @@ func applyNonInteractiveDefaults(stackkitName string, availableKits []*models.St
 		initComputeTier = models.ComputeTierStandard
 	}
 	if initMode == "" {
-		initMode = "simple"
+		initMode = models.InstallModeBootstrapped
 	}
+	if !models.IsKnownInstallMode(initMode) {
+		return fmt.Errorf("invalid --mode %q (use bare, bootstrapped, or advanced)", initMode)
+	}
+	initMode = models.NormalizeInstallMode(initMode)
 	return nil
+}
+
+func bootstrapDefaultsForInitMode(mode string) models.BootstrapSpec {
+	switch models.NormalizeInstallMode(mode) {
+	case models.InstallModeBare:
+		return models.BootstrapSpec{
+			PlatformPolicy:           models.SetupPolicyManual,
+			ApplicationDefaultPolicy: models.SetupPolicyManual,
+		}
+	default:
+		return models.BootstrapSpec{
+			PlatformPolicy:           models.SetupPolicyAutomatic,
+			ApplicationDefaultPolicy: models.SetupPolicyOnDemand,
+		}
+	}
 }
 
 // loadStackKit finds and loads a StackKit definition, falling back to the
@@ -576,9 +617,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Compute: models.ComputeSpec{
 			Tier: computeTier,
 		},
-		SSH:      sshSpec,
-		Services: services,
-		Owner:    ownerCfg,
+		SSH:       sshSpec,
+		Services:  services,
+		Bootstrap: bootstrapDefaultsForInitMode(mode),
+		Owner:     ownerCfg,
 	}
 	if hasOwnerData {
 		deployLog.Event("init.owner_persisted",
@@ -623,6 +665,7 @@ func baseKitLocalReleaseDefaultServices() map[string]any {
 		"vaultwarden": map[string]any{"enabled": true},
 		"jellyfin":    map[string]any{"enabled": false},
 		"immich":      map[string]any{"enabled": true},
+		"files":       map[string]any{"enabled": true, "provider": "cloudreve"},
 	}
 }
 
@@ -655,6 +698,7 @@ func baseKitAdminOnlyServices() map[string]any {
 		"jellyfin":    map[string]any{"enabled": false},
 		"photos":      map[string]any{"enabled": false},
 		"immich":      map[string]any{"enabled": false},
+		"files":       map[string]any{"enabled": false},
 	}
 }
 

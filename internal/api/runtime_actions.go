@@ -15,29 +15,30 @@ import (
 	"github.com/kombifyio/stackkits/internal/auth"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeaction"
 	"github.com/kombifyio/stackkits/internal/tofu"
 )
 
 const (
-	runtimeActionModeDryRun = "dry-run"
-	runtimeActionModeApply  = "apply"
+	runtimeActionModeDryRun = runtimeaction.ModeDryRun
+	runtimeActionModeApply  = runtimeaction.ModeApply
 
-	runtimeActionRollout = "stackkit_rollout"
-	runtimeActionVerify  = "verify_rollout"
-	runtimeActionRestore = "restore_drill"
+	runtimeActionRollout = runtimeaction.ActionStackKitRollout
+	runtimeActionVerify  = runtimeaction.ActionVerifyRollout
+	runtimeActionRestore = runtimeaction.ActionRestoreDrill
 
 	runtimeActionExecutionTimeout = 14*time.Minute + 30*time.Second
 )
 
 type runtimeActionRequest struct {
-	Action             string                           `json:"action"`
-	StackID            string                           `json:"stack_id"`
-	StackName          string                           `json:"stack_name,omitempty"`
-	StackKit           string                           `json:"stackkit,omitempty"`
-	TofuDir            string                           `json:"tofu_dir,omitempty"`
-	UnifiedPath        string                           `json:"unified_path,omitempty"`
-	OwnerSpecBootstrap *runtimeActionOwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
-	RuntimeTarget      *runtimeActionTarget             `json:"runtime_target,omitempty"`
+	Action             runtimeaction.Action              `json:"action"`
+	StackID            string                            `json:"stack_id"`
+	StackName          string                            `json:"stack_name,omitempty"`
+	StackKit           string                            `json:"stackkit,omitempty"`
+	TofuDir            string                            `json:"tofu_dir,omitempty"`
+	UnifiedPath        string                            `json:"unified_path,omitempty"`
+	OwnerSpecBootstrap *runtimeaction.OwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
+	RuntimeTarget      *runtimeActionTarget              `json:"runtime_target,omitempty"`
 }
 
 type runtimeActionTarget struct {
@@ -54,64 +55,27 @@ type runtimeActionTarget struct {
 }
 
 type runtimeActionResponse struct {
-	Status          string                         `json:"status"`
-	Action          string                         `json:"action"`
+	Status          runtimeaction.Status           `json:"status"`
+	Action          runtimeaction.Action           `json:"action"`
 	StackID         string                         `json:"stack_id"`
 	StackName       string                         `json:"stack_name,omitempty"`
 	StackKit        string                         `json:"stackkit,omitempty"`
 	TofuDir         string                         `json:"tofu_dir,omitempty"`
 	UnifiedPath     string                         `json:"unified_path,omitempty"`
-	Mode            string                         `json:"mode"`
+	Mode            runtimeaction.Mode             `json:"mode"`
 	Checks          []runtimeActionCheck           `json:"checks,omitempty"`
 	StackKitOutputs *runtimeActionStackKitOutputs  `json:"stackkit_outputs,omitempty"`
 	RuntimeMetrics  *runtimeActionRuntimeMetrics   `json:"runtime_metrics,omitempty"`
 	PlatformRefs    []platformdeploy.DeploymentRef `json:"platform_refs,omitempty"`
 }
 
-type runtimeActionCheck struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Detail string `json:"detail,omitempty"`
-}
-
-type runtimeActionOwnerSpecBootstrap struct {
-	Endpoint  string   `json:"endpoint"`
-	Token     string   `json:"token"`
-	ExpiresAt string   `json:"expires_at"`
-	Scopes    []string `json:"scopes,omitempty"`
-}
-
-type runtimeActionStackKitOutputs struct {
-	Identity     runtimeActionIdentityOutputs `json:"identity"`
-	LoginGateway runtimeActionLoginGateway    `json:"login_gateway"`
-	ServiceLinks []runtimeActionServiceLink   `json:"service_links,omitempty"`
-}
-
-type runtimeActionIdentityOutputs struct {
-	Owner    runtimeActionOwnerOutput    `json:"owner"`
-	Recovery runtimeActionRecoveryOutput `json:"recovery"`
-}
-
-type runtimeActionOwnerOutput struct {
-	Username    string `json:"username,omitempty"`
-	Email       string `json:"email,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
-}
-
-type runtimeActionRecoveryOutput struct {
-	BundleRef             string `json:"bundle_ref,omitempty"`
-	PassphraseHashPresent bool   `json:"passphrase_hash_present,omitempty"`
-}
-
-type runtimeActionLoginGateway struct {
-	URL   string `json:"url"`
-	Label string `json:"label,omitempty"`
-}
-
-type runtimeActionServiceLink struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
+type runtimeActionCheck = runtimeaction.Check
+type runtimeActionStackKitOutputs = runtimeaction.StackKitOutputs
+type runtimeActionIdentityOutputs = runtimeaction.IdentityOutputs
+type runtimeActionOwnerOutput = runtimeaction.OwnerIdentity
+type runtimeActionRecoveryOutput = runtimeaction.RecoveryOutput
+type runtimeActionLoginGateway = runtimeaction.LoginGatewayOutput
+type runtimeActionServiceLink = runtimeaction.ServiceOutput
 
 type runtimeActionRuntimeMetrics struct {
 	CPUPercent    float64 `json:"cpu_percent"`
@@ -175,7 +139,7 @@ func (s *Server) requireRuntimeActionServiceAuth(next http.Handler) http.Handler
 	})
 }
 
-func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, expectedAction string) {
+func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, expectedAction runtimeaction.Action) {
 	var req runtimeActionRequest
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := decoder.Decode(&req); err != nil {
@@ -187,7 +151,7 @@ func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, exp
 		return
 	}
 
-	req.Action = normalizeRuntimeAction(req.Action)
+	req.Action = runtimeaction.NormalizeAction(string(req.Action))
 	if req.Action == "" {
 		req.Action = expectedAction
 	}
@@ -220,7 +184,7 @@ func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, exp
 func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequest) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	mode := s.runtimeActionMode()
 	resp := runtimeActionResponse{
-		Status:      "accepted",
+		Status:      runtimeaction.StatusAccepted,
 		Action:      req.Action,
 		StackID:     req.StackID,
 		StackName:   strings.TrimSpace(req.StackName),
@@ -229,13 +193,13 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 		UnifiedPath: strings.TrimSpace(req.UnifiedPath),
 		Mode:        mode,
 	}
-	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "request", Status: "ok", Detail: "runtime action payload decoded"})
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "request", Status: runtimeaction.CheckStatusOK, Detail: "runtime action payload decoded"})
 	resp.Checks = appendPathCheck(resp.Checks, "tofu_dir", resp.TofuDir, true)
 	resp.Checks = appendPathCheck(resp.Checks, "unified_path", resp.UnifiedPath, false)
 	if resp.StackKit == "" {
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: "warning", Detail: "stackkit name not provided"})
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: runtimeaction.CheckStatusWarning, Detail: "stackkit name not provided"})
 	} else {
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: "ok", Detail: resp.StackKit})
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: runtimeaction.CheckStatusOK, Detail: resp.StackKit})
 	}
 	if target := normalizeRuntimeActionTarget(req.RuntimeTarget); target != nil {
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
@@ -285,9 +249,9 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 	if result, err := exec.Apply(ctx, ""); err != nil || !result.Success {
 		return resp, http.StatusBadGateway, tofuActionError("opentofu_apply_failed", "OpenTofu apply failed", err, resultStderr(result))
 	}
-	resp.Status = "applied"
-	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_apply", Status: "ok"})
-	platformRefs, platformChecks, platformErr := runRuntimePlatformAppDeployments(ctx, resp.TofuDir)
+	resp.Status = runtimeaction.StatusApplied
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_apply", Status: runtimeaction.CheckStatusOK})
+	platformRefs, platformChecks, platformErr := runRuntimePlatformAppDeployments(ctx, resp.TofuDir, runtimePlatformDeployOptions{Remote: remote})
 	resp.PlatformRefs = platformRefs
 	resp.Checks = append(resp.Checks, platformChecks...)
 	if platformErr != nil {
@@ -587,8 +551,8 @@ func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse, includeS
 	if result, err := exec.State(ctx); err != nil || !result.Success {
 		return resp, http.StatusBadGateway, tofuActionError("opentofu_state_failed", "OpenTofu state verification failed", err, resultStderr(result))
 	}
-	resp.Status = "verified"
-	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_state", Status: "ok"})
+	resp.Status = runtimeaction.StatusVerified
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_state", Status: runtimeaction.CheckStatusOK})
 	if includeStackKitOutputs {
 		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
 	}
@@ -656,27 +620,31 @@ func stackKitOutputsFromOpenTofu(resp runtimeActionResponse, values map[string]s
 		{name: "whoami", keys: []string{"whoami_url"}},
 		{name: "vaultwarden", keys: []string{"vaultwarden_url"}},
 		{name: "immich", keys: []string{"immich_url"}},
+		{name: "files", keys: []string{"files_url"}},
 	} {
 		if url := firstRuntimeOutput(values, candidate.keys...); url != "" {
 			links = append(links, runtimeActionServiceLink{Name: candidate.name, URL: url})
 		}
 	}
 	return &runtimeActionStackKitOutputs{
-		Identity: runtimeActionIdentityOutputs{
-			Owner: runtimeActionOwnerOutput{
+		Identity: &runtimeActionIdentityOutputs{
+			Owner: &runtimeActionOwnerOutput{
 				Username:    ownerUsername,
 				Email:       ownerEmail,
 				DisplayName: "Owner",
 			},
-			Recovery: runtimeActionRecoveryOutput{
+			Recovery: &runtimeActionRecoveryOutput{
 				BundleRef: "techstack://recovery/stacks/" + resp.StackID,
 			},
 		},
-		LoginGateway: runtimeActionLoginGateway{
+		LoginGateway: &runtimeActionLoginGateway{
 			URL:   loginURL,
 			Label: "Open first login",
 		},
-		ServiceLinks: links,
+		Recovery: &runtimeActionRecoveryOutput{
+			BundleRef: "techstack://recovery/stacks/" + resp.StackID,
+		},
+		Services: links,
 	}
 }
 
@@ -739,7 +707,7 @@ func runRestoreDrillVerifier(ctx context.Context, resp runtimeActionResponse, co
 		cmd.Dir = filepath.Clean(resp.TofuDir)
 	}
 	cmd.Env = append(os.Environ(),
-		"STACKKIT_RUNTIME_ACTION="+resp.Action,
+		"STACKKIT_RUNTIME_ACTION="+string(resp.Action),
 		"STACKKIT_STACK_ID="+resp.StackID,
 		"STACKKIT_STACK_NAME="+resp.StackName,
 		"STACKKIT_STACKKIT="+resp.StackKit,
@@ -752,13 +720,13 @@ func runRestoreDrillVerifier(ctx context.Context, resp runtimeActionResponse, co
 		detail = "restore verifier completed"
 	}
 	if err != nil {
-		resp.Status = "failed"
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "restore_drill_verifier", Status: "failed", Detail: detail})
+		resp.Status = runtimeaction.StatusFailed
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "restore_drill_verifier", Status: runtimeaction.CheckStatusFailed, Detail: detail})
 		return resp, http.StatusBadGateway, tofuActionError("restore_drill_failed", "Restore drill verifier failed", err, detail)
 	}
 
-	resp.Status = "verified"
-	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "restore_drill_verifier", Status: "ok", Detail: detail})
+	resp.Status = runtimeaction.StatusVerified
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "restore_drill_verifier", Status: runtimeaction.CheckStatusOK, Detail: detail})
 	return resp, http.StatusOK, nil
 }
 
@@ -959,9 +927,9 @@ func baseKitCoolifyEnabled(tofuDir string) bool {
 	return ok && enabled
 }
 
-func (s *Server) runtimeActionMode() string {
+func (s *Server) runtimeActionMode() runtimeaction.Mode {
 	switch strings.ToLower(strings.TrimSpace(s.config.RuntimeActionMode)) {
-	case runtimeActionModeApply:
+	case string(runtimeActionModeApply):
 		return runtimeActionModeApply
 	default:
 		return runtimeActionModeDryRun
@@ -977,41 +945,35 @@ func hasAnySecret(secrets []string) bool {
 	return false
 }
 
-func normalizeRuntimeAction(action string) string {
-	action = strings.ToLower(strings.TrimSpace(action))
-	action = strings.ReplaceAll(action, "-", "_")
-	return action
-}
-
-func dryRunStatus(action string) string {
+func dryRunStatus(action runtimeaction.Action) runtimeaction.Status {
 	switch action {
 	case runtimeActionRollout:
-		return "ready"
+		return runtimeaction.StatusReady
 	case runtimeActionVerify:
-		return "verified"
+		return runtimeaction.StatusVerified
 	case runtimeActionRestore:
-		return "skipped"
+		return runtimeaction.StatusSkipped
 	default:
-		return "accepted"
+		return runtimeaction.StatusAccepted
 	}
 }
 
 func appendPathCheck(checks []runtimeActionCheck, name, path string, wantDir bool) []runtimeActionCheck {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return append(checks, runtimeActionCheck{Name: name, Status: "missing"})
+		return append(checks, runtimeActionCheck{Name: name, Status: runtimeaction.CheckStatusMissing})
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return append(checks, runtimeActionCheck{Name: name, Status: "reference", Detail: path})
+		return append(checks, runtimeActionCheck{Name: name, Status: runtimeaction.CheckStatusReference, Detail: path})
 	}
 	if wantDir && !info.IsDir() {
-		return append(checks, runtimeActionCheck{Name: name, Status: "warning", Detail: "path is not a directory"})
+		return append(checks, runtimeActionCheck{Name: name, Status: runtimeaction.CheckStatusWarning, Detail: "path is not a directory"})
 	}
 	if !wantDir && info.IsDir() {
-		return append(checks, runtimeActionCheck{Name: name, Status: "warning", Detail: "path is a directory"})
+		return append(checks, runtimeActionCheck{Name: name, Status: runtimeaction.CheckStatusWarning, Detail: "path is a directory"})
 	}
-	return append(checks, runtimeActionCheck{Name: name, Status: "ok", Detail: path})
+	return append(checks, runtimeActionCheck{Name: name, Status: runtimeaction.CheckStatusOK, Detail: path})
 }
 
 func requireLocalTofuDir(dir string) *skerrors.StackKitError {

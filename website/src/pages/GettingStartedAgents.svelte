@@ -61,7 +61,7 @@
         Short prompts. Full context. Real rollouts.
       </h1>
       <p class="max-w-2xl text-lg leading-relaxed text-on-surface-variant">
-        Drop a one-liner into your agent. It reads <a href="/llms-full.txt" class="text-primary hover:underline">llms-full.txt</a>, the <a href="/api/openapi.v1.yaml" class="text-primary hover:underline">OpenAPI contract</a>, the <a href="/schemas/stackkit-agent-run-manifest.schema.json" class="text-primary hover:underline">run-manifest schema</a>, and uses <code class="font-mono text-base bg-surface-container-high px-1.5 py-0.5 rounded">stackkit-mcp</code> locally to drive a verified rollout. Copy the full prompt when you want the exhaustive playbook, or click into details when you want to tune it.
+        Drop a one-liner into your agent. It reads <a href="/llms-full.txt" class="text-primary hover:underline">llms-full.txt</a>, the <a href="/api/openapi.v1.yaml" class="text-primary hover:underline">OpenAPI contract</a>, the <a href="/schemas/stackkit-agent-run-manifest.schema.json" class="text-primary hover:underline">run-manifest schema</a>, and uses one <code class="font-mono text-base bg-surface-container-high px-1.5 py-0.5 rounded">stackkit</code> MCP connection to drive a verified rollout. Copy the full prompt when you want the exhaustive playbook, or click into details when you want to tune it.
       </p>
     </div>
     <div class="relative min-h-72 overflow-hidden rounded-2xl bg-surface-container-low border border-outline-variant p-6">
@@ -147,17 +147,17 @@
           <li><span class="font-bold text-secondary">1.</span> Start at <a href="/" class="font-bold text-secondary hover:underline">stackkit.cc</a>.</li>
           <li><span class="font-bold text-secondary">2.</span> Read <a href="/llms.txt" class="font-bold text-secondary hover:underline">/llms.txt</a> + <a href="/llms-full.txt" class="font-bold text-secondary hover:underline">/llms-full.txt</a> for full agent-readable context.</li>
           <li><span class="font-bold text-secondary">3.</span> Use <a href="/api/openapi.v1.yaml" class="font-bold text-secondary hover:underline">/api/openapi.v1.yaml</a> + <a href="/schemas/stackkit-agent-run-manifest.schema.json" class="font-bold text-secondary hover:underline">run-manifest schema</a> for the node-local API contract.</li>
-          <li><span class="font-bold text-secondary">4.</span> Drive the rollout via <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded text-on-surface">stackkit-mcp</code> or the CLI; do not hand-edit generated artifacts.</li>
+          <li><span class="font-bold text-secondary">4.</span> Drive the rollout via the <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded text-on-surface">stackkit</code> MCP connection or the CLI; do not hand-edit generated artifacts.</li>
         </ol>
       </div>
     </div>
 
     <div class="rounded-2xl border border-outline-variant bg-surface-container-low p-8">
       <div class="mb-3 text-xs font-bold uppercase tracking-widest text-primary">MCP setup</div>
-      <h2 class="mb-5 text-2xl font-bold text-on-surface">Add StackKits as a local MCP server.</h2>
+      <h2 class="mb-5 text-2xl font-bold text-on-surface">Add one StackKits MCP connection.</h2>
       <pre class="overflow-x-auto rounded-xl border border-outline-variant bg-surface-container-lowest p-5 text-xs text-on-surface font-mono"><code>{mcpConfig}</code></pre>
       <p class="mt-5 text-sm leading-relaxed text-on-surface-variant">
-        <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit-mcp</code> ships beside <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit</code> and <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit-server</code>. Get a ready-to-paste config with <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit agent mcp-config</code>. Write tools stay disabled unless you set <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">STACKKIT_MCP_ALLOW_WRITE=true</code>.
+        The connection is named <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit</code>. Locally it starts the <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit-mcp</code> adapter; after install the same connector can be exposed as protected <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit-server /mcp</code>. Get a ready-to-paste config with <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">stackkit agent mcp-config</code>. Write tools stay disabled unless you set <code class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">STACKKIT_MCP_ALLOW_WRITE=true</code>.
       </p>
     </div>
   </section>

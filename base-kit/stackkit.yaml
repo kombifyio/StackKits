@@ -37,32 +37,43 @@ requirements:
     disk: 20
 
 # =============================================================================
-# DEPLOYMENT MODES (Available for all StackKits)
+# INSTALLATION MODES (Available for all StackKits)
 # =============================================================================
 modes:
-  # Simple Mode: OpenTofu-only with Go integration
-  simple:
-    description: "OpenTofu-only deployment via kombify Stack Core"
+  bare:
+    description: "OpenTofu-only deployment without Base Hub or setup automation"
     templateDir: "templates/simple"
     engine: "opentofu"
     features:
       - "Direct OpenTofu execution"
-      - "Go-based state management"
-      - "Simple rollback via state"
+      - "No Base Hub UI"
+      - "Manual application setup"
+    recommended_for:
+      - "Operators who only want generated infrastructure and tool rollouts"
+
+  bootstrapped:
+    description: "Default Base Hub rollout with one-click setup actions"
+    templateDir: "templates/simple"
+    engine: "opentofu"
+    recommended: true
+    features:
+      - "Base Hub and node-local API"
+      - "Automatic L1/L2 setup"
+      - "On-demand L3 setup actions"
     recommended_for:
       - "Single node deployments"
-      - "Quick setup without drift detection"
-      - "Users new to infrastructure-as-code"
-      - "Development and testing"
+      - "Guided setup without automatic L3 preconfiguration"
+      - "Development, testing, and normal homelab rollouts"
 
-  # Advanced Mode: Terramate with drift detection
+  # Advanced Mode: Terramate with drift detection.
+  # Advanced is never selected by the standard installer defaults; it is reserved
+  # for explicit Advanced Configuration / Techstack Runtime rollouts.
   advanced:
-    description: "Terramate-orchestrated deployment with drift detection"
+    description: "Advanced Configuration rollout orchestrated by Terramate"
     templateDir: "templates/advanced"
     engine: "terramate"
-    requires:
-      - "terramate >= 0.5.0"
     features:
+      - "Techstack Runtime / Stackets orchestration path"
       - "Drift detection on schedule"
       - "Granular stack orchestration"
       - "Day-2 operations support"
@@ -90,7 +101,7 @@ autoSelect:
     - "driftDetection.enabled == true"
     - "autoUpdates.enabled == true"
     - "compliance.required == true"
-  default: simple
+  default: bootstrapped
 
 # =============================================================================
 # APPLICATION LAYER (L3 — use cases)
@@ -123,7 +134,7 @@ application:
     alternatives: []
     description: "Home automation with IoT device control"
   files:
-    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
+    role: default
     defaultTool: cloudreve
     alternatives: [nextcloud]
     description: "File sharing and cloud storage"

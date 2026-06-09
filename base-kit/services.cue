@@ -7,7 +7,7 @@
 //
 // PaaS Strategy:
 //   - Coolify (default): no-domain, local, pi, kombify.me, and own public/custom domain
-//   - Komodo: production alternative, routed through StackKit Traefik
+//   - Komodo: beta-supported alternative, routed through StackKit Traefik
 //   - Dokploy: draft adapter, not part of canonical E2E dispatch
 //   - Dockge: lightweight compose manager only; not the standard PaaS
 //
@@ -30,7 +30,9 @@
 
 package base_kit
 
-import "github.com/kombifyio/stackkits/base"
+import (
+	"github.com/kombifyio/stackkits/base"
+)
 
 // =============================================================================
 // CORE SERVICES (Always Required)
@@ -142,7 +144,7 @@ import "github.com/kombifyio/stackkits/base"
 	required:    false
 	enabled:     false // Disabled by default in base-kit
 	image:       "ghcr.io/steveiliop56/tinyauth"
-	tag:         "v4"
+	tag:         "v5.0.7"
 	description: "ForwardAuth gateway. Protects all services via TinyAuth middleware backed by Pocket ID."
 	needs: ["traefik"]
 
@@ -180,11 +182,25 @@ import "github.com/kombifyio/stackkits/base"
 	]
 
 	environment: {
-		"TZ":             "Europe/Berlin"
-		"APP_URL":        "https://auth.{{.domain}}"
-		"USERS":          "{{.tinyauth_users}}"
-		"SECURE_COOKIE":  "{{.tinyauth_secure_cookie}}"
-		"SESSION_EXPIRY": "{{.tinyauth_session_expiry}}"
+		"TZ":                                             "Europe/Berlin"
+		"TINYAUTH_APPURL":                                "https://auth.{{.domain}}"
+		"TINYAUTH_AUTH_USERS":                            "{{.tinyauth_users}}"
+		"TINYAUTH_AUTH_SECURECOOKIE":                     "{{.tinyauth_secure_cookie}}"
+		"TINYAUTH_AUTH_SESSIONEXPIRY":                    "{{.tinyauth_session_expiry}}"
+		"TINYAUTH_DATABASE_PATH":                         "/data/tinyauth.db"
+		"TINYAUTH_RESOURCES_PATH":                        "/data/resources"
+		"TINYAUTH_SERVER_PORT":                           "3000"
+		"TINYAUTH_OAUTH_AUTOREDIRECT":                    "pocketid"
+		"TINYAUTH_OAUTH_WHITELIST":                       "{{.tinyauth_oauth_whitelist}}"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID":     "{{.tinyauth_oidc_client_id}}"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET": "{{.tinyauth_oidc_client_secret}}"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL":      "{{.tinyauth_oidc_issuer}}/authorize"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL":     "http://pocketid:1411/api/oidc/token"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL":  "http://pocketid:1411/api/oidc/userinfo"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL":  "https://auth.{{.domain}}/api/oauth/callback/pocketid"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES":       "openid,email,profile,groups"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME":         "Pocket ID"
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE":     "false"
 	}
 
 	healthCheck: {
@@ -210,7 +226,7 @@ import "github.com/kombifyio/stackkits/base"
 		"traefik.http.services.tinyauth.loadbalancer.server.port":           "3000"
 		"traefik.http.middlewares.tinyauth.forwardauth.address":             "http://tinyauth:3000/api/auth/traefik"
 		"traefik.http.middlewares.tinyauth.forwardauth.trustForwardHeader":  "true"
-		"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders": "remote-user,remote-sub,remote-name,remote-email,remote-groups"
+		"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders": "X-User,X-Email,remote-user,remote-sub,remote-name,remote-email,remote-groups"
 		// Layer classification
 		"stackkit.layer":      "2-platform"
 		"stackkit.managed-by": "terraform"
@@ -237,7 +253,7 @@ import "github.com/kombifyio/stackkits/base"
 	required:    false
 	enabled:     false // Disabled by default
 	image:       "ghcr.io/pocket-id/pocket-id"
-	tag:         "v1"
+	tag:         "v2.7.0"
 	description: "OIDC identity provider with passkey authentication. Manage users and SSO clients."
 	needs: ["traefik"]
 
@@ -460,10 +476,10 @@ import "github.com/kombifyio/stackkits/base"
 	]
 
 	environment: {
-		"KOMODO_LOCAL_AUTH":                  "true"
-		"KOMODO_DISABLE_USER_REGISTRATION":  "true"
-		"KOMODO_DISABLE_NON_ADMIN_CREATE":   "true"
-		"KOMODO_FIRST_SERVER_NAME":          "stackkit-local"
+		"KOMODO_LOCAL_AUTH":                "true"
+		"KOMODO_DISABLE_USER_REGISTRATION": "true"
+		"KOMODO_DISABLE_NON_ADMIN_CREATE":  "true"
+		"KOMODO_FIRST_SERVER_NAME":         "stackkit-local"
 	}
 
 	healthCheck: {
@@ -520,7 +536,7 @@ import "github.com/kombifyio/stackkits/base"
 	required:    false
 	enabled:     true
 	image:       "ghcr.io/coollabsio/coolify"
-	tag:         "latest"
+	tag:         "4.1.0"
 	description: "Self-hosted Heroku/Vercel alternative with Git deployment and auto-HTTPS."
 	needs: ["traefik"]
 
@@ -650,6 +666,10 @@ import "github.com/kombifyio/stackkits/base"
 		},
 	]
 
+	environment: {
+		"UPTIME_KUMA_DB_TYPE": "sqlite"
+	}
+
 	healthCheck: {
 		enabled: true
 		http: {
@@ -684,7 +704,8 @@ import "github.com/kombifyio/stackkits/base"
 		url:         "https://kuma.{{.domain}}"
 		description: "Uptime Kuma - Service status and monitoring"
 		credentials: {
-			note: "Create admin account on first access"
+			defaultUser: "admin"
+			note:        "Bootstrap creates the admin account and disables Kuma app auth behind TinyAuth/PocketID"
 		}
 	}
 

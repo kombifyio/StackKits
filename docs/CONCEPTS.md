@@ -44,7 +44,7 @@ Auto-detected during `stackkit prepare` from the runtime environment. Drives inf
 
 | Context | Detection | Effects |
 |---------|-----------|---------|
-| `local` | Home/office network (private IP, no cloud metadata) | Browser-native `.localhost` links, Coolify, overlay2 |
+| `local` | Local/private target (private IP or NAT, no cloud metadata) | Browser-native `.localhost` links, Coolify, overlay2 |
 | `cloud` | Cloud provider metadata or VPS detected (public IP, cloud signatures) | Let's Encrypt, Coolify, public IP routing |
 | `pi` | ARM64 architecture + low resources (<4 cores or <4 GB RAM) | Standard PaaS contract remains Coolify unless explicitly overridden; heavy modules are gated and lightweight managers remain experimental |
 
@@ -52,7 +52,7 @@ Auto-detected during `stackkit prepare` from the runtime environment. Drives inf
 
 1. Network environment detection (`netenv.Detect()`) checks cloud metadata endpoints, public/private IPs, and environment variables to classify as `home`, `vps`, or `cloud`.
 2. Hardware detection identifies CPU architecture (amd64/arm64) and resource levels (cores, RAM).
-3. `ResolveNodeContext()` combines both signals: ARM64 + low resources → `pi`, cloud/VPS → `cloud`, home network → `local`.
+3. `ResolveNodeContext()` combines both signals: ARM64 + low resources → `pi`, cloud/VPS → `cloud`, private/local target → `local`.
 4. The `--context` CLI flag can override auto-detection (e.g., `--context pi` on an old laptop).
 
 Context does NOT determine which use cases are available. That's the StackKit's job + Compute Tier gating.
@@ -198,6 +198,9 @@ Replaced by the per-tool role system:
 | Modern Homelab + nodes | Register node, Placement Engine distributes services. |
 
 Service placement rules:
+
+> Hinweis: „placement" hier = Node-Scheduling (`#ServiceDefinition.placement.nodeType`), nicht die `placementMode`-Achse (`docs/placement/`).
+
 1. Platform services (Traefik, Auth, PAAS) stay on primary node
 2. Use case services distributed by hardware requirements (GPU, storage)
 3. User can explicitly assign: `services.media.node: server-2` in stack-spec.yaml

@@ -26,6 +26,11 @@ type TerraformBridge struct {
 // TFVars represents the complete structure of terraform.tfvars.json,
 // matching all variables declared in base-kit/templates/simple/main.tf.
 type TFVars struct {
+	InstallMode string `json:"installation_mode"`
+
+	// Legacy variable name consumed by existing platform bootstrap scripts.
+	BootstrapMode string `json:"bootstrap_mode"`
+
 	// Domain for Traefik routing (e.g. "stack.local")
 	Domain string `json:"domain"`
 
@@ -59,23 +64,36 @@ type TFVars struct {
 	PlatformFallbackMode   string `json:"platform_fallback_mode"`
 
 	// Service enable flags
-	EnableTraefik     bool `json:"enable_traefik"`
-	EnableTinyauth    bool `json:"enable_tinyauth"`
-	EnablePocketID    bool `json:"enable_pocketid"`
-	EnableDokploy     bool `json:"enable_dokploy"`
-	EnableDokployApps bool `json:"enable_dokploy_apps"`
-	EnableDockge      bool `json:"enable_dockge"`
-	EnableCoolify     bool `json:"enable_coolify"`
-	EnableKomodo      bool `json:"enable_komodo"`
-	EnableDashboard   bool `json:"enable_dashboard"`
-	EnableHomepage    bool `json:"enable_homepage"`
-	EnableUptimeKuma  bool `json:"enable_uptime_kuma"`
-	EnableWhoami      bool `json:"enable_whoami"`
-	EnableVaultwarden bool `json:"enable_vaultwarden"`
-	EnableJellyfin    bool `json:"enable_jellyfin"`
-	EnableImmich      bool `json:"enable_immich"`
+	EnableTraefik     bool   `json:"enable_traefik"`
+	EnableTinyauth    bool   `json:"enable_tinyauth"`
+	EnablePocketID    bool   `json:"enable_pocketid"`
+	EnableDokploy     bool   `json:"enable_dokploy"`
+	EnableDokployApps bool   `json:"enable_dokploy_apps"`
+	EnableDockge      bool   `json:"enable_dockge"`
+	EnableCoolify     bool   `json:"enable_coolify"`
+	EnableKomodo      bool   `json:"enable_komodo"`
+	EnableDashboard   bool   `json:"enable_dashboard"`
+	EnableHomepage    bool   `json:"enable_homepage"`
+	EnableUptimeKuma  bool   `json:"enable_uptime_kuma"`
+	EnableWhoami      bool   `json:"enable_whoami"`
+	EnableVaultwarden bool   `json:"enable_vaultwarden"`
+	EnableJellyfin    bool   `json:"enable_jellyfin"`
+	EnableImmich      bool   `json:"enable_immich"`
+	EnableFiles       bool   `json:"enable_files"`
+	FilesProvider     string `json:"files_provider"`
+	EnableCloudreve   bool   `json:"enable_cloudreve"`
+	EnableNextcloud   bool   `json:"enable_nextcloud"`
 
 	MediaPath string `json:"media_path"`
+
+	DemoDataEnabled               bool   `json:"demo_data_enabled"`
+	SetupPolicyPlatform           string `json:"setup_policy_platform"`
+	SetupPolicyApplicationDefault string `json:"setup_policy_application_default"`
+	SetupPolicyKuma               string `json:"setup_policy_kuma"`
+	SetupPolicyWhoami             string `json:"setup_policy_whoami"`
+	SetupPolicyVaultwarden        string `json:"setup_policy_vaultwarden"`
+	SetupPolicyImmich             string `json:"setup_policy_immich"`
+	SetupPolicyFiles              string `json:"setup_policy_files"`
 
 	// TinyAuth configuration
 	AdminEmail             string `json:"admin_email"`
@@ -148,6 +166,18 @@ func (b *TerraformBridge) GenerateTFVarsBytesFromSpec(spec *models.StackSpec) ([
 func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) {
 	tfvars := newDefaultTFVars()
 
+	resolver := models.NewSetupPolicyResolver(spec)
+	tfvars.InstallMode = resolver.InstallMode()
+	tfvars.BootstrapMode = resolver.InstallMode()
+	tfvars.SetupPolicyPlatform = resolver.PlatformPolicy()
+	tfvars.SetupPolicyApplicationDefault = resolver.ApplicationDefaultPolicy()
+	tfvars.SetupPolicyKuma = resolver.EffectivePlatformServicePolicy("uptime-kuma", "kuma")
+	tfvars.SetupPolicyWhoami = resolver.EffectivePlatformServicePolicy("whoami")
+	tfvars.SetupPolicyVaultwarden = resolver.EffectiveApplicationPolicy("vault", "vaultwarden", "vault")
+	tfvars.SetupPolicyImmich = resolver.EffectiveApplicationPolicy("photos", "immich")
+	tfvars.SetupPolicyFiles = resolver.EffectiveApplicationPolicy("files", "files", "cloudreve", "nextcloud")
+	tfvars.DemoDataEnabled = spec.DemoData.EffectiveEnabled()
+
 	domain := models.DomainHomelab
 	if spec.Domain != "" {
 		domain = spec.Domain
@@ -195,6 +225,7 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 
 	b.configurePaaS(spec, tfvars, resolvedCtx)
 	b.configureServiceDefaults(tfvars, tier)
+	b.applyInstallModeDefaults(spec, tfvars)
 
 	tfvars.AdminEmail = models.ResolveAdminEmailForDomain(spec, tfvars.Domain)
 
@@ -208,6 +239,13 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 	if spec.Services != nil {
 		b.applyServiceEnables(spec.Services, tfvars)
 	}
+	if spec.Application != nil {
+		b.applyApplicationEnables(spec.Application, tfvars)
+	}
+	if err := b.applyFilesProviderFromConfig(spec.Services, spec.Application, tfvars); err != nil {
+		return nil, err
+	}
+	b.applyInstallModeDefaults(spec, tfvars)
 	if tfvars.EnablePlatformFallback {
 		enforcePlatformFallback(tfvars)
 	}
@@ -217,6 +255,26 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 	}
 
 	return tfvars, nil
+}
+
+func (b *TerraformBridge) applyInstallModeDefaults(spec *models.StackSpec, tfvars *TFVars) {
+	mode := models.InstallModeDefault
+	if spec != nil {
+		mode = spec.EffectiveInstallMode()
+	}
+	if mode != models.InstallModeBare {
+		return
+	}
+	tfvars.EnableDashboard = false
+	tfvars.EnableHomepage = false
+	tfvars.DemoDataEnabled = false
+	tfvars.SetupPolicyPlatform = models.SetupPolicyManual
+	tfvars.SetupPolicyApplicationDefault = models.SetupPolicyManual
+	tfvars.SetupPolicyKuma = models.SetupPolicyManual
+	tfvars.SetupPolicyWhoami = models.SetupPolicyManual
+	tfvars.SetupPolicyVaultwarden = models.SetupPolicyManual
+	tfvars.SetupPolicyImmich = models.SetupPolicyManual
+	tfvars.SetupPolicyFiles = models.SetupPolicyManual
 }
 
 // configureHTTPS sets TLS/ACME configuration based on domain mode.
@@ -364,6 +422,10 @@ func (b *TerraformBridge) configureServiceDefaults(tfvars *TFVars, tier string) 
 	isStandardPlus := tier == models.ComputeTierStandard || tier == models.ComputeTierHigh
 	tfvars.EnableJellyfin = false
 	tfvars.EnableImmich = isStandardPlus
+	tfvars.EnableFiles = true
+	tfvars.FilesProvider = "cloudreve"
+	tfvars.EnableCloudreve = true
+	tfvars.EnableNextcloud = false
 	tfvars.MediaPath = "/opt/media"
 }
 
@@ -429,6 +491,9 @@ func (b *TerraformBridge) applyServiceEnables(services map[string]any, tfvars *T
 		"vaultwarden":       &tfvars.EnableVaultwarden,
 		"jellyfin":          &tfvars.EnableJellyfin,
 		"immich":            &tfvars.EnableImmich,
+		"files":             &tfvars.EnableFiles,
+		"cloudreve":         &tfvars.EnableCloudreve,
+		"nextcloud":         &tfvars.EnableNextcloud,
 	}
 	// Alias: CUE modules use "uptime-kuma" but TFVars uses "uptime_kuma"
 	enables["uptime-kuma"] = enables["uptime_kuma"]
@@ -451,21 +516,147 @@ func (b *TerraformBridge) applyServiceEnables(services map[string]any, tfvars *T
 	}
 }
 
+func (b *TerraformBridge) applyApplicationEnables(application map[string]any, tfvars *TFVars) {
+	if len(application) == 0 {
+		return
+	}
+	filesConfig, ok := application["files"]
+	if !ok {
+		return
+	}
+	config, ok := filesConfig.(map[string]any)
+	if !ok {
+		return
+	}
+	if enabled, ok := config["enabled"].(bool); ok {
+		tfvars.EnableFiles = enabled
+	}
+}
+
+func (b *TerraformBridge) applyFilesProviderFromConfig(services, application map[string]any, tfvars *TFVars) error {
+	var providers []string
+	disabledProviders := map[string]bool{}
+	for _, key := range []string{"files", "cloudreve", "nextcloud"} {
+		raw, ok := services[key]
+		if !ok {
+			continue
+		}
+		config, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch key {
+		case "cloudreve", "nextcloud":
+			if enabled, ok := config["enabled"].(bool); ok {
+				if enabled {
+					providers = append(providers, key)
+				} else {
+					disabledProviders[key] = true
+				}
+			}
+		}
+		for _, providerKey := range []string{"provider", "tool", "defaultTool"} {
+			if provider, ok := stringFromAny(config[providerKey]); ok {
+				providers = append(providers, provider)
+			}
+		}
+	}
+	if raw, ok := application["files"]; ok {
+		if config, ok := raw.(map[string]any); ok {
+			for _, providerKey := range []string{"tool", "provider", "defaultTool"} {
+				if provider, ok := stringFromAny(config[providerKey]); ok {
+					providers = append(providers, provider)
+				}
+			}
+		}
+	}
+	if len(providers) == 0 {
+		if tfvars.EnableNextcloud && !tfvars.EnableCloudreve {
+			providers = append(providers, "nextcloud")
+		} else {
+			providers = append(providers, "cloudreve")
+		}
+	}
+	normalized := ""
+	for _, provider := range providers {
+		original := provider
+		provider = normalizeFilesProvider(original)
+		if provider == "" {
+			return fmt.Errorf("unsupported files provider %q; expected cloudreve or nextcloud", original)
+		}
+		if normalized != "" && provider != normalized {
+			return fmt.Errorf("conflicting files providers %q and %q", normalized, provider)
+		}
+		normalized = provider
+	}
+	if tfvars.EnableFiles && disabledProviders[normalized] {
+		return fmt.Errorf("conflicting files providers: %q is selected but explicitly disabled", normalized)
+	}
+	if normalized == "nextcloud" && tfvars.EnableFiles && tfvars.ComputeTier != models.ComputeTierStandard && tfvars.ComputeTier != models.ComputeTierHigh {
+		return fmt.Errorf("files provider nextcloud requires standard or high compute tier")
+	}
+	return setFilesProvider(tfvars, normalized)
+}
+
+func setFilesProvider(tfvars *TFVars, provider string) error {
+	provider = normalizeFilesProvider(provider)
+	if provider == "" {
+		return fmt.Errorf("unsupported files provider %q; expected cloudreve or nextcloud", provider)
+	}
+	tfvars.FilesProvider = provider
+	tfvars.EnableCloudreve = provider == "cloudreve" && tfvars.EnableFiles
+	tfvars.EnableNextcloud = provider == "nextcloud" && tfvars.EnableFiles
+	return nil
+}
+
+func normalizeFilesProvider(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "cloudreve", "":
+		return "cloudreve"
+	case "nextcloud":
+		return "nextcloud"
+	default:
+		return ""
+	}
+}
+
+func stringFromAny(value any) (string, bool) {
+	text, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	text = strings.TrimSpace(text)
+	return text, text != ""
+}
+
 // newDefaultTFVars returns TFVars with defaults matching main.tf variable defaults.
 func newDefaultTFVars() *TFVars {
 	return &TFVars{
-		EnableTraefik:          true,
-		EnableTinyauth:         true,
-		EnablePocketID:         true,
-		ComputeTier:            models.ComputeTierStandard,
-		Paas:                   models.PAASCoolify,
-		ReverseProxyBackend:    models.ReverseProxyCoolify,
-		EnablePlatformFallback: false,
-		PlatformFallbackMode:   models.PlatformFallbackDisabled,
-		EnableCoolify:          true,
-		EnableDashboard:        true,
-		EnableHomepage:         true,
-		EnableWhoami:           true,
+		InstallMode:                   models.InstallModeBootstrapped,
+		BootstrapMode:                 models.InstallModeBootstrapped,
+		EnableTraefik:                 true,
+		EnableTinyauth:                true,
+		EnablePocketID:                true,
+		ComputeTier:                   models.ComputeTierStandard,
+		Paas:                          models.PAASCoolify,
+		ReverseProxyBackend:           models.ReverseProxyCoolify,
+		EnablePlatformFallback:        false,
+		PlatformFallbackMode:          models.PlatformFallbackDisabled,
+		EnableCoolify:                 true,
+		EnableDashboard:               true,
+		EnableHomepage:                true,
+		EnableWhoami:                  true,
+		EnableFiles:                   true,
+		FilesProvider:                 "cloudreve",
+		EnableCloudreve:               true,
+		DemoDataEnabled:               false,
+		SetupPolicyPlatform:           models.SetupPolicyAutomatic,
+		SetupPolicyApplicationDefault: models.SetupPolicyOnDemand,
+		SetupPolicyKuma:               models.SetupPolicyAutomatic,
+		SetupPolicyWhoami:             models.SetupPolicyAutomatic,
+		SetupPolicyVaultwarden:        models.SetupPolicyOnDemand,
+		SetupPolicyImmich:             models.SetupPolicyOnDemand,
+		SetupPolicyFiles:              models.SetupPolicyOnDemand,
 	}
 }
 

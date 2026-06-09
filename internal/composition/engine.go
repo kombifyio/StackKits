@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	cueval "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/placement"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -31,6 +32,9 @@ type CompositionResult struct {
 	Warnings []string
 	// Identity holds the resolved identity configuration.
 	Identity *IdentityConfig
+	// Placement holds the resolved S1 capability bindings (nil for S2/S3
+	// placements, which StackKits-OSS does not realize — see Warnings).
+	Placement *placement.Result
 }
 
 // IdentityConfig holds the resolved identity stack configuration.
@@ -82,6 +86,7 @@ func NewCompositionEngine(contracts []cueval.ModuleContract, stackkit *models.St
 //  5. Validate and topologically sort
 //  6. Propagate settings with context overrides
 //  7. Resolve identity configuration
+//  8. Resolve S1 placement capability bindings
 func (e *CompositionEngine) Resolve() (*CompositionResult, error) {
 	result := &CompositionResult{
 		ModuleSettings: make(map[string]map[string]any),
@@ -120,6 +125,15 @@ func (e *CompositionEngine) Resolve() (*CompositionResult, error) {
 	// Step 8: Resolve identity configuration
 	if err := e.resolveIdentity(result); err != nil {
 		return nil, fmt.Errorf("identity resolution: %w", err)
+	}
+
+	// Step 9: Resolve S1 placement capability bindings (additive, non-breaking).
+	// S2/S3 placements (managed-serverless/coupled) are not realized here; they
+	// surface as a warning rather than failing the resolve.
+	if pr, perr := placement.ResolveS1(e.spec); perr != nil {
+		result.Warnings = append(result.Warnings, perr.Error())
+	} else {
+		result.Placement = pr
 	}
 
 	return result, nil
@@ -575,7 +589,7 @@ func generateAdminPassword(length int) (string, error) {
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 		"abcdefghijklmnopqrstuvwxyz",
 		"0123456789",
-		"!@#$%^&*()-_=+",
+		"!@#%^&*()-_=+",
 	}
 	all := strings.Join(classes, "")
 	out := make([]byte, 0, length)

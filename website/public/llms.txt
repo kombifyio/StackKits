@@ -9,9 +9,13 @@ Agent entrypoints:
 - Full context: /llms-full.txt
 - Snippets and prompts: /llms-snippets.txt
 - Agent guide: /getting-started/agents.md
+- Installation process comparison: /getting-started/installation-processes.md
 - MCP guide: /mcp/stackkit-mcp.md
+- OpenMCP discovery: /openmcp.json
 - OpenAPI: /api/openapi.v1.yaml
 - Run manifest schema: /schemas/stackkit-agent-run-manifest.schema.json
 - Functional result schema: /schemas/stackkit-agent-functional-result.schema.json
+
+MCP model: configure one connection named `stackkit`. `stackkit-mcp` is the local adapter; `stackkit-server /mcp` is the protected durable endpoint after install.
 
 Canonical local BaseKit Hub URL: http://base.home.localhost

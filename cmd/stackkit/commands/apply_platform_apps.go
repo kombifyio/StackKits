@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -80,6 +81,7 @@ func runPlatformAppDeployments(ctx context.Context, deployDir string, state *mod
 				management = platformdeploy.AppManagementFallback
 			}
 			recordPlatformAppStateWithManagement(state, deployBundle, refs, management)
+			recordAutomaticComposeProvisionerSetupRuns(state, deployBundle)
 			if fallback {
 				printSuccess("Standalone Compose fallback rollout complete")
 			} else {
@@ -195,33 +197,36 @@ func explicitStandaloneFallback(bundle platformdeploy.BundleManifest) bool {
 }
 
 type platformConfigFile struct {
-	Platform               string `json:"platform,omitempty"`
-	Endpoint               string `json:"endpoint,omitempty"`
-	BaseURL                string `json:"baseUrl,omitempty"`
-	Token                  string `json:"token,omitempty"`
-	APIKey                 string `json:"apiKey,omitempty"`
-	APISecret              string `json:"apiSecret,omitempty"`
-	EnvironmentID          string `json:"environmentId,omitempty"`
-	ServerID               string `json:"serverId,omitempty"`
-	ProjectUUID            string `json:"projectUuid,omitempty"`
-	EnvironmentUUID        string `json:"environmentUuid,omitempty"`
-	DestinationUUID        string `json:"destinationUuid,omitempty"`
-	LegacyDockerComposeAPI bool   `json:"legacyDockerComposeApi,omitempty"`
+	Platform                    string                           `json:"platform,omitempty"`
+	Endpoint                    string                           `json:"endpoint,omitempty"`
+	BaseURL                     string                           `json:"baseUrl,omitempty"`
+	Token                       string                           `json:"token,omitempty"`
+	APIKey                      string                           `json:"apiKey,omitempty"`
+	APISecret                   string                           `json:"apiSecret,omitempty"`
+	EnvironmentID               string                           `json:"environmentId,omitempty"`
+	ServerID                    string                           `json:"serverId,omitempty"`
+	ProjectUUID                 string                           `json:"projectUuid,omitempty"`
+	EnvironmentUUID             string                           `json:"environmentUuid,omitempty"`
+	DestinationUUID             string                           `json:"destinationUuid,omitempty"`
+	LegacyDockerComposeAPI      bool                             `json:"legacyDockerComposeApi,omitempty"`
+	DisableDockerRuntimeObserve bool                             `json:"disableDockerRuntimeObserve,omitempty"`
+	BootstrapEvidence           platformdeploy.BootstrapEvidence `json:"bootstrapEvidence,omitempty"`
 }
 
 func platformHTTPConfigForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.HTTPConfig, bool) {
 	persisted := loadPlatformConfigFile(bundle.Platform, deployDir)
 	cfg := platformdeploy.HTTPConfig{
-		BaseURL:                firstNonEmpty(firstPlatformEnv(bundle.Platform, "endpoint"), persisted.endpoint()),
-		Token:                  firstNonEmpty(firstPlatformEnv(bundle.Platform, "token"), persisted.Token),
-		APIKey:                 firstNonEmpty(firstPlatformEnv(bundle.Platform, "api_key"), persisted.APIKey, persisted.Token),
-		Secret:                 firstNonEmpty(firstPlatformEnv(bundle.Platform, "api_secret"), persisted.APISecret),
-		EnvironmentID:          firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_id"), persisted.EnvironmentID),
-		ServerID:               firstNonEmpty(firstPlatformEnv(bundle.Platform, "server_id"), persisted.ServerID),
-		ProjectUUID:            firstNonEmpty(firstPlatformEnv(bundle.Platform, "project_uuid"), persisted.ProjectUUID),
-		EnvironmentUUID:        firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_uuid"), persisted.EnvironmentUUID),
-		DestinationUUID:        firstNonEmpty(firstPlatformEnv(bundle.Platform, "destination_uuid"), persisted.DestinationUUID),
-		LegacyDockerComposeAPI: persisted.LegacyDockerComposeAPI,
+		BaseURL:                     firstNonEmpty(firstPlatformEnv(bundle.Platform, "endpoint"), persisted.endpoint()),
+		Token:                       firstNonEmpty(firstPlatformEnv(bundle.Platform, "token"), persisted.Token),
+		APIKey:                      firstNonEmpty(firstPlatformEnv(bundle.Platform, "api_key"), persisted.APIKey, persisted.Token),
+		Secret:                      firstNonEmpty(firstPlatformEnv(bundle.Platform, "api_secret"), persisted.APISecret),
+		EnvironmentID:               firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_id"), persisted.EnvironmentID),
+		ServerID:                    firstNonEmpty(firstPlatformEnv(bundle.Platform, "server_id"), persisted.ServerID),
+		ProjectUUID:                 firstNonEmpty(firstPlatformEnv(bundle.Platform, "project_uuid"), persisted.ProjectUUID),
+		EnvironmentUUID:             firstNonEmpty(firstPlatformEnv(bundle.Platform, "environment_uuid"), persisted.EnvironmentUUID),
+		DestinationUUID:             firstNonEmpty(firstPlatformEnv(bundle.Platform, "destination_uuid"), persisted.DestinationUUID),
+		LegacyDockerComposeAPI:      persisted.LegacyDockerComposeAPI,
+		DisableDockerRuntimeObserve: persisted.DisableDockerRuntimeObserve,
 	}
 	if value, ok := firstPlatformBoolEnv(bundle.Platform, "legacy_docker_compose_api"); ok {
 		cfg.LegacyDockerComposeAPI = value
@@ -310,22 +315,24 @@ func persistPlatformConfigFromSpecEnvironment(spec *models.StackSpec, wd string)
 func platformConfigFromValueMap(defaultPlatform string, values map[string]string) (platformConfigFile, bool) {
 	platform, platformSeen := platformFromValueMap(defaultPlatform, values)
 	cfg := platformConfigFile{
-		Platform:               platform,
-		Endpoint:               firstPlatformValue(platform, values, "endpoint"),
-		Token:                  firstPlatformValue(platform, values, "token"),
-		APIKey:                 firstPlatformValue(platform, values, "api_key"),
-		APISecret:              firstPlatformValue(platform, values, "api_secret"),
-		EnvironmentID:          firstPlatformValue(platform, values, "environment_id"),
-		ServerID:               firstPlatformValue(platform, values, "server_id"),
-		ProjectUUID:            firstPlatformValue(platform, values, "project_uuid"),
-		EnvironmentUUID:        firstPlatformValue(platform, values, "environment_uuid"),
-		DestinationUUID:        firstPlatformValue(platform, values, "destination_uuid"),
-		LegacyDockerComposeAPI: platformBoolValue(firstPlatformValue(platform, values, "legacy_docker_compose_api")),
+		Platform:                    platform,
+		Endpoint:                    firstPlatformValue(platform, values, "endpoint"),
+		Token:                       firstPlatformValue(platform, values, "token"),
+		APIKey:                      firstPlatformValue(platform, values, "api_key"),
+		APISecret:                   firstPlatformValue(platform, values, "api_secret"),
+		EnvironmentID:               firstPlatformValue(platform, values, "environment_id"),
+		ServerID:                    firstPlatformValue(platform, values, "server_id"),
+		ProjectUUID:                 firstPlatformValue(platform, values, "project_uuid"),
+		EnvironmentUUID:             firstPlatformValue(platform, values, "environment_uuid"),
+		DestinationUUID:             firstPlatformValue(platform, values, "destination_uuid"),
+		LegacyDockerComposeAPI:      platformBoolValue(firstPlatformValue(platform, values, "legacy_docker_compose_api")),
+		DisableDockerRuntimeObserve: platformBoolValue(firstPlatformValue(platform, values, "disable_docker_runtime_observe")),
 	}
 	return cfg, platformSeen || cfg.endpoint() != "" || cfg.Token != "" ||
 		cfg.APIKey != "" || cfg.APISecret != "" ||
 		cfg.EnvironmentID != "" || cfg.ServerID != "" || cfg.ProjectUUID != "" ||
-		cfg.EnvironmentUUID != "" || cfg.DestinationUUID != "" || cfg.LegacyDockerComposeAPI
+		cfg.EnvironmentUUID != "" || cfg.DestinationUUID != "" || cfg.LegacyDockerComposeAPI ||
+		cfg.DisableDockerRuntimeObserve
 }
 
 func platformFromValueMap(defaultPlatform string, values map[string]string) (string, bool) {
@@ -515,16 +522,18 @@ func recordPlatformAppStateWithManagement(state *models.DeploymentState, bundle 
 		role, ok := systemRoles[ref.AppName]
 		if ok {
 			appState := models.PlatformAppState{
-				Name:         ref.AppName,
-				Platform:     ref.Platform,
-				Management:   management,
-				ExternalID:   ref.ExternalID,
-				DeploymentID: ref.DeploymentID,
-				LastDeployed: ref.LastDeployed,
-				Role:         role,
-				ComposePath:  systemComposePaths[ref.AppName],
-				SetupPolicy:  systemSetupPolicies[ref.AppName],
-				SetupDrops:   setupDropsToState(systemSetupDrops[ref.AppName]),
+				Name:           ref.AppName,
+				Platform:       ref.Platform,
+				Management:     management,
+				ExternalID:     ref.ExternalID,
+				DeploymentID:   ref.DeploymentID,
+				ObservedStatus: ref.ObservedStatus,
+				ObservedAt:     ref.ObservedAt,
+				LastDeployed:   ref.LastDeployed,
+				Role:           role,
+				ComposePath:    systemComposePaths[ref.AppName],
+				SetupPolicy:    systemSetupPolicies[ref.AppName],
+				SetupDrops:     setupDropsToState(systemSetupDrops[ref.AppName]),
 			}
 			state.PlatformSystemApps = upsertPlatformAppState(state.PlatformSystemApps, appState)
 			continue
@@ -533,15 +542,17 @@ func recordPlatformAppStateWithManagement(state *models.DeploymentState, bundle 
 			continue
 		}
 		appState := models.PlatformAppState{
-			Name:         ref.AppName,
-			Platform:     ref.Platform,
-			Management:   management,
-			ExternalID:   ref.ExternalID,
-			DeploymentID: ref.DeploymentID,
-			LastDeployed: ref.LastDeployed,
-			ComposePath:  appComposePaths[ref.AppName],
-			SetupPolicy:  appSetupPolicies[ref.AppName],
-			SetupDrops:   setupDropsToState(appSetupDrops[ref.AppName]),
+			Name:           ref.AppName,
+			Platform:       ref.Platform,
+			Management:     management,
+			ExternalID:     ref.ExternalID,
+			DeploymentID:   ref.DeploymentID,
+			ObservedStatus: ref.ObservedStatus,
+			ObservedAt:     ref.ObservedAt,
+			LastDeployed:   ref.LastDeployed,
+			ComposePath:    appComposePaths[ref.AppName],
+			SetupPolicy:    appSetupPolicies[ref.AppName],
+			SetupDrops:     setupDropsToState(appSetupDrops[ref.AppName]),
 		}
 		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, appState)
 	}
@@ -580,16 +591,164 @@ func setupDropsToState(drops []platformdeploy.SetupDropManifest) []models.SetupD
 	stateDrops := make([]models.SetupDropSpec, 0, len(drops))
 	for _, drop := range drops {
 		stateDrops = append(stateDrops, models.SetupDropSpec{
-			Name:        drop.Name,
-			Version:     drop.Version,
-			Runner:      drop.Runner,
-			Description: drop.Description,
-			Command:     append([]string(nil), drop.Command...),
-			Env:         drop.Env,
-			Secrets:     drop.Secrets,
+			Name:          drop.Name,
+			Version:       drop.Version,
+			Runner:        drop.Runner,
+			Description:   drop.Description,
+			RollbackNotes: append([]string(nil), drop.RollbackNotes...),
+			Command:       append([]string(nil), drop.Command...),
+			Env:           drop.Env,
+			Secrets:       drop.Secrets,
 		})
 	}
 	return stateDrops
+}
+
+func recordAutomaticComposeProvisionerSetupRuns(state *models.DeploymentState, bundle platformdeploy.BundleManifest) {
+	if state == nil {
+		return
+	}
+	for _, systemApp := range bundle.SystemApps {
+		recordAutomaticComposeProvisionerSetupRunsForApp(state, systemApp.AppManifest)
+	}
+	for _, app := range bundle.Apps {
+		if !platformdeploy.IsStackKitOwnedApp(app) {
+			continue
+		}
+		recordAutomaticComposeProvisionerSetupRunsForApp(state, app)
+	}
+}
+
+func recordAutomaticComposeProvisionerSetupRunsForApp(state *models.DeploymentState, app platformdeploy.AppManifest) {
+	if app.SetupPolicy != platformdeploy.SetupPolicyAutomatic {
+		return
+	}
+	serviceKey := setupRunServiceKey(app)
+	for _, drop := range app.SetupDrops {
+		if drop.Runner != "compose-provisioner" {
+			continue
+		}
+		upsertCompletedAutomaticSetupRun(state, serviceKey, app.Name, app.SetupPolicy, drop)
+	}
+}
+
+func upsertCompletedAutomaticSetupRun(state *models.DeploymentState, serviceKey, appName, policy string, drop platformdeploy.SetupDropManifest) {
+	now := time.Now().UTC()
+	idx := findDeploymentSetupRunIndex(state.SetupRuns, serviceKey, appName, drop.Name)
+	run := models.SetupRunState{
+		RunID:         automaticSetupRunID(serviceKey, appName, drop.Name),
+		ServiceKey:    serviceKey,
+		AppName:       appName,
+		DropName:      drop.Name,
+		Policy:        policy,
+		Status:        models.SetupRunStatusCompleted,
+		Phase:         models.BootstrapPhaseVerified,
+		Attempts:      1,
+		Message:       "Automatic compose-provisioner setup completed during platform app rollout.",
+		RollbackNotes: append([]string(nil), drop.RollbackNotes...),
+		Evidence:      automaticComposeProvisionerEvidence(serviceKey, appName, drop.Name),
+		LastRequested: now,
+		LastStarted:   now,
+		LastFinished:  now,
+		Logs: []models.SetupRunLogEntry{{
+			Timestamp: now,
+			Phase:     models.BootstrapPhaseVerified,
+			Level:     "info",
+			Message:   "Compose provisioner completed as part of platform app rollout.",
+		}},
+	}
+	if idx >= 0 {
+		existing := state.SetupRuns[idx]
+		if existing.RunID != "" {
+			run.RunID = existing.RunID
+		}
+		run.Attempts = existing.Attempts + 1
+		if run.Attempts < 1 {
+			run.Attempts = 1
+		}
+		run.Logs = append(existing.Logs, run.Logs...)
+		state.SetupRuns[idx] = run
+		return
+	}
+	state.SetupRuns = append(state.SetupRuns, run)
+}
+
+func automaticComposeProvisionerEvidence(serviceKey, appName, dropName string) map[string]string {
+	switch {
+	case serviceKey == "files" && appName == "cloudreve" && dropName == "cloudreve-owner-bootstrap":
+		return map[string]string{
+			"credentialRole":          "technical-admin-bootstrap",
+			"appLocalAccount":         "stackkit-admin-created",
+			"demoData":                "seeded-when-enabled",
+			"outerAuthBoundary":       "tinyauth-pocketid",
+			"ownerLogin":              "pocketid-passkey",
+			"identityBridge":          "stackkit-cloudreve-local-session",
+			"appLocalSessionHandoff":  "stackkit-session-bridge-prepared",
+			"readyToUseContentStatus": "pending-browser-evidence",
+		}
+	case serviceKey == "kuma" && appName == "uptime-kuma" && dropName == "kuma-platform-bootstrap":
+		return map[string]string{
+			"credentialRole":    "technical-admin-bootstrap",
+			"outerAuthBoundary": "tinyauth-pocketid",
+			"monitoring":        "default-service-monitors-prepared",
+		}
+	default:
+		return nil
+	}
+}
+
+func findDeploymentSetupRunIndex(runs []models.SetupRunState, serviceKey, appName, dropName string) int {
+	for i, run := range runs {
+		if run.ServiceKey == serviceKey && run.AppName == appName && run.DropName == dropName {
+			return i
+		}
+	}
+	return -1
+}
+
+func setupRunServiceKey(app platformdeploy.AppManifest) string {
+	if strings.TrimSpace(app.ServiceKey) != "" {
+		return app.ServiceKey
+	}
+	switch app.Name {
+	case "uptime-kuma":
+		return "kuma"
+	case "vaultwarden":
+		return "vault"
+	case "immich":
+		return "photos"
+	case "cloudreve", "nextcloud":
+		return "files"
+	case "stackkit-hub":
+		return "home"
+	default:
+		return app.Name
+	}
+}
+
+func automaticSetupRunID(parts ...string) string {
+	normalized := make([]string, 0, len(parts)+1)
+	normalized = append(normalized, "automatic")
+	for _, part := range parts {
+		part = strings.ToLower(strings.TrimSpace(part))
+		part = strings.Map(func(r rune) rune {
+			switch {
+			case r >= 'a' && r <= 'z':
+				return r
+			case r >= '0' && r <= '9':
+				return r
+			case r == '-' || r == '_':
+				return r
+			default:
+				return '-'
+			}
+		}, part)
+		part = strings.Trim(part, "-")
+		if part != "" {
+			normalized = append(normalized, part)
+		}
+	}
+	return strings.Join(normalized, "-")
 }
 
 func firstNonEmpty(values ...string) string {

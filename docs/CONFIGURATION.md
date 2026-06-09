@@ -1,6 +1,6 @@
 # StackKits Configuration
 
-> Last verified: 2026-05-19
+> Last verified: 2026-06-02
 
 This document collects the runtime configuration surfaces for StackKits. CUE remains the technical contract source of truth; `stack-spec.yaml`, CLI flags, environment variables, registry snapshots, and server settings are inputs or mirrors, not replacements for CUE contracts.
 
@@ -21,9 +21,12 @@ The default spec path is `stack-spec.yaml`. `kombination.yaml` is accepted when 
 
 ```yaml
 stackkit: base-kit
-mode: simple
+mode: bootstrapped
 domain: home.localhost
 adminEmail: admin@example.com
+bootstrap:
+  platformPolicy: automatic
+  applicationDefaultPolicy: on_demand
 compute:
   tier: standard
 context: local
@@ -72,30 +75,44 @@ Generated platform app manifests use `stackkit.platform-apps/v2`. The manifest s
 Each platform app may also carry first-run setup metadata:
 
 - `setupPolicy: "manual"` leaves setup in the app UI and records no setup run by default.
-- `setupPolicy: "on_demand"` is reserved for explicit user-triggered setup drops.
-- `setupPolicy: "automatic"` runs during rollout or is already represented by a platform compose provisioner in the generated handoff.
+- `setupPolicy: "on_demand"` generates a setup drop and exposes it as a Base Hub one-click action.
+- `setupPolicy: "automatic"` runs during rollout when the drop is a compose provisioner, or through the node-local setup endpoint with persistent, idempotent `SetupRun` state.
 
 Any other setup policy is rejected during spec validation.
 
 Layer rules are part of the public service contract:
 
-- The Base Node Hub is the bootstrap entrypoint. Local `.localhost` and managed LAN-DNS Base routes are open by default so first setup is reachable before a PocketID user exists. They must show `Diese Seite ist aktuell ungeschützt.` while bootstrap-open; after owner setup, use the `Base Hub schützen` button in the Hub to persist the protection setting and move local Base behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled.
+- The Base Node Hub is the bootstrap entrypoint. Local `.localhost` and managed LAN-DNS Base routes are open by default so first setup is reachable before a PocketID user exists. They must show `This page is currently unprotected.` while bootstrap-open; after owner setup, use the `Protect Base Hub` button in the Hub to persist the protection setting and move local Base behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled. The onboarding panel is hidden on later page loads once the one-time technical bootstrap credentials have been revealed.
 - Other L1/L2 platform services must be complete after rollout. The user must not land in a required upstream setup wizard for the identity layer, reverse proxy, selected PaaS, Uptime Kuma, or routing diagnostics.
-- Uptime Kuma and Whoami are L2 platform services, not L3 apps. Uptime Kuma is bootstrapped automatically and registers monitors for enabled L1/L2/L3 services.
-- StackKit-owned/default L3 application tools are PaaS-intended. They may keep app-local first-run setup after deployment; when StackKits has a supported setup drop, the Node Hub can expose `Do the setup for me`; otherwise it exposes the public How-to guide. User-installed L3 apps outside this manifest path remain unmanaged state.
+- Uptime Kuma and Whoami are L2 platform services, not L3 apps. Uptime Kuma is bootstrapped automatically and registers monitors for enabled L1/L2/L3 services. Kuma v2 bootstraps use SQLite explicitly, create the local `admin` app account only for setup, disable app auth behind TinyAuth/PocketID, and upsert monitors by name instead of duplicating them. In the Coolify router path, Kuma checks the router-internal endpoint (`coolify-proxy`) with the public service `Host` header instead of relying on container DNS for `*.home.localhost`.
+- StackKit-owned/default L3 application tools are PaaS-intended. In `bootstrapped` mode the default path is `on_demand` for Photos, Files, and Vault: the Node Hub exposes setup actions, but `stackkit apply` does not preconfigure them unless the spec sets the use case or tool policy to `automatic`. User-installed L3 apps outside this manifest path remain unmanaged state.
 
-BaseKit records `immich-owner-bootstrap` as an `on_demand` setup drop for Immich. The Node Hub exposes this as a user-triggered setup action instead of pretending that Immich is fully configured at deploy time.
+Files is part of the BaseKit default. `application.files.enabled` controls the use case, and `application.files.tool` selects `cloudreve` or `nextcloud`. Compatible `services.files.*` aliases are accepted only when they do not conflict with the public `application.files.*` values. Generated rollout values set `enable_files`, `files_provider`, and exactly one provider flag (`enable_cloudreve` or `enable_nextcloud`). Cloudreve is the default provider in all BaseKit tiers; Nextcloud is allowed only for `standard` and `high` tiers.
+
+BaseKit records `immich-owner-bootstrap`, `vaultwarden-admin-handoff`, and the Files provider owner bootstrap as setup drops when their effective policy is `on_demand` or `automatic`. `stackkit apply` preserves existing setup-run evidence before rewriting `.stackkit/state.yaml`, records completed automatic `compose-provisioner` drops such as Kuma during platform app rollout, then triggers only `automatic` node-local `stackkit-script` drops through the Base Hub setup API and reloads persisted state. `POST /api/v1/setup/services/{service}/run` remains the one-click/retry path and skips the runner on completed re-runs. Persisted runs include stable `runId`, attempt count, phase logs, machine-readable evidence, stable failure classes, retry timestamps, and rollback notes from the generated manifest. Immich seeds a beta demo image when `demoData.enabled` is true and the library is empty. Cloudreve seeds `StackKit Demo/README.txt` through the native Cloudreve v4 API when `demoData.enabled` is true and updates that file idempotently on retry. Vaultwarden verifies the admin endpoint with generated material, requires PHC+B64 runtime token transport, rejects plaintext `ADMIN_TOKEN` environment persistence, keeps app-local signups disabled, and records the resulting break-glass posture without treating the admin token as the PocketID Owner login.
 
 `stackkit-server` reads the generated platform-app manifest from `<base-dir>/.platform-apps-manifest.json` or `<base-dir>/platform-apps/manifest.json`. In BaseKit deployments it is mounted at `/workspace` so the Dashboard action and the generated manifest share one rollout source of truth.
 
 | Variable | Purpose |
 | --- | --- |
 | `STACKKITS_SETUP_ACTION_MODE` | `dry-run` validates the setup drop; `apply` executes implemented node-local drops. |
-| `STACKKIT_ADMIN_EMAIL` | Admin email used by supported owner-bootstrap drops. |
-| `STACKKIT_ADMIN_PASSWORD` | Admin password used by supported owner-bootstrap drops. |
+| `STACKKIT_ADMIN_EMAIL` | Technical bootstrap admin email used by supported setup drops. This is not the PocketID Owner login. |
+| `STACKKIT_ADMIN_PASSWORD` | Technical bootstrap admin password used by supported setup drops. This is not a PocketID password. |
 | `STACKKIT_SETUP_IMMICH_URL` | Internal Immich URL for `immich-owner-bootstrap`; defaults to `http://immich:2283`. |
 
-The StackKits service catalog and registry snapshot also mirror tool UI metadata (`layer`, `logo_url`, `setup_policy`, and `setup_action_label`). The kombify DB must keep the same fields on the canonical tool/service rows so generated Node Hub cards and product UI use one repeatable metadata source.
+The StackKits service catalog and registry snapshot also mirror tool UI metadata (`layer`, `logo_url`, `setup_policy`, `setup_action_label`) plus v0.4 bootstrap metadata (`role`, `default_tool`, `alternatives`, `delivery.managedBy`, `bootstrap_provider`). The kombify DB must keep the same fields on the canonical tool/service rows so generated Node Hub cards and product UI use one repeatable metadata source.
+
+## Install Modes and Bootstrap
+
+`mode` selects the installation automation level:
+
+- `bare` deploys infrastructure and selected StackKit tools without Base Hub, `stackkit-server`, SetupRuns, or demo data. Setup policy is forced to `manual`.
+- `bootstrapped` is the default. Base Hub, owner/identity, monitoring baseline, and L1/L2 platform setup are automatic. L3 applications default to `on_demand`.
+- `advanced` includes the bootstrapped surface plus Terramate/day-2 lifecycle and runtime-intelligence metadata. L3 remains `on_demand` unless the TechStack/kombify-Desk path or the spec sets `automatic`.
+
+`bootstrap` configures setup policy defaults; it is not a second install mode. `bootstrap.platformPolicy` defaults to `automatic` outside `bare`, and `bootstrap.applicationDefaultPolicy` defaults to `on_demand`. More specific policies override in this order: `services.<tool>.setup.policy`, then `application.<useCase>.setup.policy`, then the bootstrap default, then the mode default. Valid policy values are `manual`, `on_demand`, and `automatic`.
+
+`demoData.enabled` defaults to `false`. Setup packs seed first-login sample content only when this is explicitly enabled.
 
 ## Owner Bootstrap Contract
 
@@ -141,7 +158,7 @@ Persisted platform config shape:
 }
 ```
 
-Coolify is the default platform. StackKits bootstraps its root user during installation from generated `admin_password_plaintext` and the same technical admin email rendered into `adminEmail` by passing Coolify's official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables, then creates the API token required for StackKit-owned `systemApps` and product-bundled L3 `apps`. Local-only rollouts synthesize `admin@example.com` when no admin email is supplied; local tests must not use Kombify-owned domains for synthetic users. The bootstrap disables Coolify public registration and clears Coolify onboarding before the rollout can pass. Komodo is the production alternative. Dokploy remains a draft adapter and is not part of the canonical E2E matrix. If strict PaaS mode reaches `stackkit apply` without a complete platform config, the apply fails; it must not fall through to standalone Compose unless `platformFallback.mode: "standalone-compose"` is explicitly enabled. Customer-owned user `apps` remain handoff metadata and do not make `stackkit apply` responsible for app deployment.
+Coolify is the default platform. StackKits bootstraps its root user during installation from generated `admin_password_plaintext` and the same technical admin email rendered into `adminEmail` by passing Coolify's official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables, then creates the API token required for StackKit-owned `systemApps` and product-bundled L3 `apps`. Local-only rollouts synthesize `admin@example.com` when no admin email is supplied; local tests must not use Kombify-owned domains for synthetic users. The bootstrap disables Coolify public registration and clears Coolify onboarding before the rollout can pass. Komodo is the beta-supported alternative. Dokploy remains a draft adapter and is not part of the canonical E2E matrix. If strict PaaS mode reaches `stackkit apply` without a complete platform config, the apply fails; it must not fall through to standalone Compose unless `platformFallback.mode: "standalone-compose"` is explicitly enabled. Customer-owned user `apps` remain handoff metadata and do not make `stackkit apply` responsible for app deployment.
 
 ## Dev PaaS App Handoff Env
 
@@ -228,5 +245,7 @@ Registry heartbeat additionally requires `KOMBIFY_API_KEY`.
 | SSH/proxy jump | `KOMBIFY_PROXY_JUMP`, `KOMBIFY_PROXY_JUMP_KEY`, `KOMBIFY_PROXY_JUMP_KEY_PEM`, `KOMBIFY_PROXY_JUMP_PASSWORD`, `KOMBIFY_SSH_KEY_PATH`, `KOMBIFY_SSH_PASSWORD` |
 
 Fresh-VM release smoke requires Docker authentication when anonymous Docker Hub pulls are rate-limited. Use either `STACKKIT_FRESH_VM_DOCKER_CONFIG` to point to a Docker config file or `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON` to pass the JSON content directly.
+
+When `STACKKIT_FRESH_VM_HTTP_PORT`, `STACKKIT_FRESH_VM_HTTPS_PORT`, `STACKKIT_FRESH_VM_SSH_PORT`, and `STACKKIT_FRESH_VM_TRAEFIK_PORT` are unset, the local Fresh-VM harness lets Docker allocate isolated host ports and then discovers the mapped ports for SSH and HTTP probes. Set these variables only when a fixed local port is intentionally needed for manual inspection or a dedicated runner.
 
 Cloud production tests default to the `digitalocean-managed` Sim provider with region `fra1` because that is the currently available live-node runner. The same StackKit readiness contract can be run against another managed provider by setting `STACKKIT_E2E_CLOUD_NODE_ENGINE` and, when needed, `STACKKIT_E2E_CLOUD_NODE_REGION`. Provider profiles must stay below the Node contract: StackKit assertions should verify OS, SSH, Docker, public origin, ports, generated service URLs, and registry state rather than provider-specific implementation details.

@@ -46,6 +46,13 @@ breakGlass:
   tinyauthStatic: bool    # default true
   serverRecovery: bool    # default true
 
+bootstrap:
+  platformPolicy: string  # "automatic" default for L1/L2 outside bare
+  applicationDefaultPolicy: string # "on_demand" default for L3 outside bare
+
+demoData:
+  enabled: bool           # default false; opt in for sample Photos/Files content
+
 # Optional PaaS user-app handoff metadata. StackKit does not deploy or manage
 # these customer-owned apps; the selected PaaS owns their lifecycle.
 apps:
@@ -104,6 +111,12 @@ addons: [string]          # Add-on names (e.g. ["monitoring", "vpn-overlay"])
 # Service overrides (advanced)
 services:
   <name>: any             # Per-service config overrides
+
+# Use-case selection
+application:
+  files:
+    enabled: bool          # BaseKit default: true
+    tool: string           # "cloudreve" (default) or "nextcloud"
 
 # Environment variables passed to deployment
 environment:
@@ -165,6 +178,8 @@ domain: home.localhost
 - **Default PAAS:** `coolify` for local-only/no-domain local and pi StackKits. Low-resource mode still reduces heavy apps, but does not switch to Dockge by default.
 - **TLS:** HTTP in local-only mode. Use a public/custom domain for real certificates.
 - **DNS:** Browser/OS `.localhost` handling resolves names to loopback.
+
+> Hinweis: „local-only" hier = informeller Deployment-Kontext (kein Domain / pi). Die CUE-Achse `placementMode: "local-only"` (eigene Semantik: exposure=private, coupling=cloudless) ist davon verschieden — siehe `docs/placement/`.
 - **Requires:** no hosts-file edits, no router/client DNS setup, no trust-store setup, and no port suffixes in generated user links.
 
 ### Mode 4: Explicit Named Local DNS
@@ -208,14 +223,14 @@ DNS-01 is auto-selected when `tls.provider` is set. Supported providers:
 | Platform | When Used | Reverse Proxy |
 |----------|-----------|---------------|
 | `coolify` | Default when `paas` is omitted | Coolify's Traefik |
-| `komodo` | Explicit production alternative via `paas: komodo` | StackKit-owned Traefik |
-| `dokploy` | Draft adapter, not a production/E2E standard | `dokploy-traefik` |
+| `komodo` | Explicit beta-supported alternative via `paas: komodo` | StackKit-owned Traefik |
+| `dokploy` | Draft adapter, not a beta/E2E standard | `dokploy-traefik` |
 
 `dockge` is a lightweight Compose manager, not a normal StackKit PaaS. It can exist as an experimental/constrained service mode, but `paas: dockge` and `paas: none` are invalid for normal Base/Modern/HA StackKits.
 
-User `apps:` require a selected PaaS. Production choices are `coolify` and `komodo`; the Dokploy adapter remains draft until promoted. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local BaseKit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
+User `apps:` require a selected PaaS. Beta-supported choices are `coolify` and `komodo`; the Dokploy adapter remains draft until promoted. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local BaseKit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
 
-When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. Use `paas: komodo` for the supported production alternative path. Do not use `paas: dokploy` in standard production or canonical E2E rollouts until Dokploy is promoted from draft.
+When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. Use `paas: komodo` for the supported beta alternative path. Do not use `paas: dokploy` in standard beta or canonical E2E rollouts until Dokploy is promoted from draft.
 
 During the current transition, `pkg/models.StackSpec.ResolvePAASForContext` is the canonical auto-selection resolver for omitted `paas` values. CUE remains the broader StackKit contract source, and the PaaS default should move fully back into CUE once the CUE export -> tfvars pipeline is complete.
 
@@ -224,6 +239,10 @@ Coolify bootstrap is part of the StackKits implementation. StackKits passes gene
 Komodo bootstrap is also generated when explicitly selected. StackKits installs Komodo Core, Periphery, and DB, creates the initial local admin with `KOMODO_INIT_ADMIN_USERNAME`/`KOMODO_INIT_ADMIN_PASSWORD`, disables public registration, creates a Komodo API key/secret through the HTTP API, and writes `.stackkit/platform.json` with `platform: "komodo"`, `apiKey`, `apiSecret`, and `serverId`. The first Komodo contract routes through StackKit-owned Traefik and deploys Compose bundles as Komodo Stack resources.
 
 Dokploy bootstrap exists only as draft adapter work. It is not part of the production PaaS standard or the canonical three-scenario E2E matrix until promoted.
+
+`mode` is the StackKit installation automation contract: `bare`, `bootstrapped`, or `advanced`. Legacy `simple` is accepted as an alias for `bootstrapped`.
+
+`bootstrap` configures setup policy defaults, not a second mode. `bootstrap.platformPolicy` controls L1/L2 platform services and defaults to `automatic` outside `bare`. `bootstrap.applicationDefaultPolicy` controls L3 tools and defaults to `on_demand` in `bootstrapped` and `advanced`. More specific policies win in this order: `services.<tool>.setup.policy`, `application.<useCase>.setup.policy`, bootstrap default, mode default. Valid values are `manual`, `on_demand`, and `automatic`. `demoData.enabled` defaults to `false`.
 
 **Reverse proxy backend:** `reverse_proxy_backend` means the selected router owns the real traffic path. If the selected PaaS has integrated Traefik, that Traefik is the StackKit router for the environment: Coolify's Traefik for `paas: coolify`. For `paas: komodo`, the accepted contract is exactly one StackKit-owned Traefik, and generated output/evidence must label that routing ownership clearly. StackKit must not run a second Traefik instance, Nginx bridge, host-side proxy, or test-only forwarding shim for PaaS-owned-router paths.
 
@@ -279,7 +298,7 @@ owner:
 ```yaml
 name: mylab
 stackkit: base-kit
-mode: simple
+mode: bootstrapped
 context: cloud
 domain: kombify.pro
 email: owner@kombify.pro
@@ -310,7 +329,7 @@ stackkit generate && stackkit apply --auto-approve
 ```yaml
 name: homelab
 stackkit: base-kit
-mode: simple
+mode: bootstrapped
 context: local
 domain: home.localhost
 compute:
@@ -329,7 +348,7 @@ nodes:
 ```yaml
 name: mylab
 stackkit: base-kit
-mode: simple
+mode: bootstrapped
 context: cloud
 domain: kombify.me
 subdomainPrefix: mylab
@@ -350,7 +369,7 @@ nodes:
 ```yaml
 name: mylab
 stackkit: base-kit
-mode: simple
+mode: bootstrapped
 context: cloud
 domain: kombify.pro
 email: owner@kombify.pro
@@ -368,7 +387,7 @@ nodes:
     ip: 10.0.0.5
 ```
 
-Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles are registered through Coolify and route through Coolify's Traefik, with no separate StackKit Traefik in the default path. The fallback path must be explicitly enabled and records fallback state rather than managed Coolify evidence.
+Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles are registered through Coolify and route through Coolify's Traefik, with no separate StackKit Traefik in the default path. Files is enabled by default at `http(s)://files.<domain>` with Cloudreve as the standard provider; Nextcloud is the explicit standard/high-tier alternative and must not run in parallel with Cloudreve. Uptime Kuma is automatically bootstrapped with monitors for enabled default services, including Node Hub, StackKit API, Homepage, PocketID, TinyAuth, Coolify, Whoami, Vaultwarden, Immich, and Files. In the Coolify path, those monitors target `coolify-proxy` with the service `Host` header so they validate the real router path without depending on `*.home.localhost` DNS inside the Kuma container. The fallback path must be explicitly enabled and records fallback state rather than managed Coolify evidence.
 
 ## Validation Rules
 
@@ -377,6 +396,8 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `mode` must be `simple` or `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
 - `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only
+- `application.files.tool` must be `cloudreve` or `nextcloud`; contradictory `application.files.*` and `services.files.*` provider values fail validation
+- `nextcloud` is valid only for `standard` and `high` compute tiers; low-tier BaseKit keeps Cloudreve when Files is enabled
 - `tls.provider` auto-selects `challenge: dns` if set
 - `domain: home.localhost` is the local default and must generate portless links that open without hosts-file edits, DNS setup, or trust-store setup
 - `domain: stack.home` is explicit LAN-DNS mode and may enable Kombify Point only when StackKit owns or verifies the resolver path

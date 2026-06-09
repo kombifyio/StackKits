@@ -36,6 +36,9 @@ type Service struct {
 	Description             string   `json:"description,omitempty"`
 	ToolName                string   `json:"tool_name"`
 	ModuleSlug              string   `json:"module_slug"`
+	Role                    string   `json:"role,omitempty"`
+	DefaultTool             string   `json:"default_tool,omitempty"`
+	Alternatives            []string `json:"alternatives,omitempty"`
 	LocalSlug               string   `json:"local_slug"`
 	PublicSlug              string   `json:"public_slug"`
 	LegacyAliases           []string `json:"legacy_aliases,omitempty"`
@@ -51,6 +54,8 @@ type Service struct {
 	GuideURL                string   `json:"guide_url,omitempty"`
 	SetupPolicy             string   `json:"setup_policy,omitempty"`
 	SetupActionLabel        string   `json:"setup_action_label,omitempty"`
+	Delivery                Delivery `json:"delivery,omitempty"`
+	BootstrapProvider       string   `json:"bootstrap_provider,omitempty"`
 	Default                 bool     `json:"default"`
 
 	// Template-compat fields used by the existing monolithic Base Kit template.
@@ -58,6 +63,10 @@ type Service struct {
 	// generated from the registry service shape.
 	Nested string `json:"-"`
 	Flat   string `json:"-"`
+}
+
+type Delivery struct {
+	ManagedBy string `json:"managedBy,omitempty"`
 }
 
 // Default returns the OSS-safe canonical service catalog used when the Admin
@@ -110,7 +119,7 @@ func Default() []Service {
 			Key: "komodo", Name: "komodo", ToolName: "komodo", ModuleSlug: "komodo",
 			DisplayName: "Komodo", Description: "Programmable self-hosted PaaS for Compose stack deployment through API keys.",
 			LocalSlug: "komodo", PublicSlug: "komodo",
-			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
+			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired, Alternatives: []string{"coolify"},
 			Icon: "&#9881;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 41, EnableVar: "enable_komodo", GuideURL: "https://docs.kombify.io/guides/stackkits/services/komodo", Default: false,
 		},
 		{
@@ -132,7 +141,7 @@ func Default() []Service {
 			DisplayName: "Vaultwarden", Description: "Bitwarden-compatible password vault with its own app login.",
 			LocalSlug: "vault", PublicSlug: "vault", LegacyAliases: []string{"vaultwarden"},
 			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningNone,
-			Icon: "&#128272;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 30, EnableVar: "enable_vaultwarden", GuideURL: "https://docs.kombify.io/guides/stackkits/services/vaultwarden", Default: true,
+			Icon: "&#128272;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 30, EnableVar: "enable_vaultwarden", GuideURL: "https://docs.kombify.io/guides/stackkits/services/vaultwarden", SetupPolicy: SetupPolicyOnDemand, SetupActionLabel: "Automatisierter Bootstrap", Default: true,
 		},
 		{
 			Key: "media", Name: "media", ToolName: "jellyfin", ModuleSlug: "jellyfin",
@@ -146,7 +155,14 @@ func Default() []Service {
 			DisplayName: "Immich", Description: "Photo and video management with its own app login.",
 			LocalSlug: "photos", PublicSlug: "photos", LegacyAliases: []string{"immich"},
 			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128247;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 50, EnableVar: "enable_immich", GuideURL: "https://docs.kombify.io/guides/stackkits/services/immich", Default: true,
+			Icon: "&#128247;", Badge: "L3 \u00b7 App login", Section: "Applications", Order: 50, EnableVar: "enable_immich", GuideURL: "https://docs.kombify.io/guides/stackkits/services/immich", SetupPolicy: SetupPolicyOnDemand, SetupActionLabel: "Automatisierter Bootstrap", Default: true,
+		},
+		{
+			Key: "files", Name: "files", ToolName: "cloudreve", ModuleSlug: "cloudreve",
+			DisplayName: "Files", Description: "Document management and file sharing, backed by Cloudreve by default.",
+			LocalSlug: "files", PublicSlug: "files", LegacyAliases: []string{"cloudreve", "nextcloud"},
+			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
+			Icon: "&#128193;", Badge: "L3 \u00b7 Files", Section: "Applications", Order: 60, EnableVar: "enable_files", GuideURL: "https://docs.kombify.io/guides/stackkits/services/files", SetupPolicy: SetupPolicyOnDemand, Alternatives: []string{"nextcloud"}, Default: true,
 		},
 		{
 			Key: "dockge", Name: "dockge", ToolName: "dockge", ModuleSlug: "dockge",
@@ -159,7 +175,7 @@ func Default() []Service {
 			Key: "coolify", Name: "coolify", ToolName: "coolify", ModuleSlug: "coolify",
 			DisplayName: "Coolify", Description: "Self-hosted deployment platform.",
 			LocalSlug: "coolify", PublicSlug: "coolify",
-			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
+			IdentityPolicy: IdentityPolicyForwardAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired, Alternatives: []string{"komodo"},
 			Icon: "&#128171;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 42, EnableVar: "enable_coolify", GuideURL: "https://docs.kombify.io/guides/stackkits/services/coolify",
 		},
 		{
@@ -215,6 +231,9 @@ func FromCUE(entries []cueval.CatalogEntry) []Service {
 			services = append(services, svc)
 			continue
 		}
+		if key == "files" && entry.ToolName != "" && services[idx].ToolName != "" && entry.ToolName != services[idx].ToolName {
+			continue
+		}
 		overlayFromCUE(&services[idx], entry)
 	}
 
@@ -246,6 +265,9 @@ func FromRegistry(entries []registry.Service) []Service {
 			Description:             entry.Description,
 			ToolName:                entry.ToolName,
 			ModuleSlug:              entry.ModuleSlug,
+			Role:                    entry.Role,
+			DefaultTool:             entry.DefaultTool,
+			Alternatives:            append([]string(nil), entry.Alternatives...),
 			LocalSlug:               entry.LocalSlug,
 			PublicSlug:              entry.PublicSlug,
 			LegacyAliases:           append([]string(nil), entry.LegacyAliases...),
@@ -261,6 +283,8 @@ func FromRegistry(entries []registry.Service) []Service {
 			GuideURL:                entry.GuideURL,
 			SetupPolicy:             entry.SetupPolicy,
 			SetupActionLabel:        entry.SetupActionLabel,
+			Delivery:                Delivery{ManagedBy: entry.Delivery.ManagedBy},
+			BootstrapProvider:       entry.BootstrapProvider,
 			Default:                 entry.Default,
 		}
 		normalize(&svc)
@@ -362,6 +386,21 @@ func mergeMissingDefaultFields(svc *Service, fallback Service) {
 	if svc.Layer == "" {
 		svc.Layer = fallback.Layer
 	}
+	if svc.Role == "" {
+		svc.Role = fallback.Role
+	}
+	if svc.DefaultTool == "" {
+		svc.DefaultTool = fallback.DefaultTool
+	}
+	if len(svc.Alternatives) == 0 {
+		svc.Alternatives = append([]string(nil), fallback.Alternatives...)
+	}
+	if svc.Delivery.ManagedBy == "" {
+		svc.Delivery = fallback.Delivery
+	}
+	if svc.BootstrapProvider == "" {
+		svc.BootstrapProvider = fallback.BootstrapProvider
+	}
 	if svc.SetupPolicy == "" {
 		svc.SetupPolicy = fallback.SetupPolicy
 	}
@@ -394,6 +433,9 @@ func normalize(svc *Service) {
 	if svc.ModuleSlug == "" {
 		svc.ModuleSlug = svc.ToolName
 	}
+	if svc.DefaultTool == "" {
+		svc.DefaultTool = svc.ToolName
+	}
 	if svc.LocalSlug == "" {
 		svc.LocalSlug = svc.Key
 	}
@@ -416,11 +458,18 @@ func normalize(svc *Service) {
 			svc.SetupPolicy = SetupPolicyManual
 		}
 	}
-	if svc.Key == "photos" {
-		svc.SetupPolicy = SetupPolicyOnDemand
+	if (svc.SetupPolicy == SetupPolicyOnDemand || svc.SetupPolicy == SetupPolicyAutomatic) &&
+		svc.Section == "Applications" && svc.SetupActionLabel == "" {
+		svc.SetupActionLabel = "Automatisierter Bootstrap"
 	}
-	if svc.SetupPolicy == SetupPolicyOnDemand && svc.SetupActionLabel == "" {
-		svc.SetupActionLabel = "Do the setup for me"
+	if svc.Role == "" {
+		svc.Role = roleForService(*svc)
+	}
+	if svc.Delivery.ManagedBy == "" {
+		svc.Delivery.ManagedBy = deliveryManagerForService(*svc)
+	}
+	if svc.BootstrapProvider == "" {
+		svc.BootstrapProvider = bootstrapProviderForService(*svc)
 	}
 	if svc.LogoURL == "" {
 		svc.LogoURL = logoURLForKey(svc.Key, svc.ToolName)
@@ -464,6 +513,71 @@ func hasL3Badge(value string) bool {
 	return len(value) >= 2 && value[:2] == "L3"
 }
 
+func roleForService(svc Service) string {
+	switch svc.Key {
+	case "base":
+		return "node-hub"
+	case "auth":
+		return "auth-gateway"
+	case "id":
+		return "identity-provider"
+	case "traefik":
+		return "router"
+	case "coolify", "komodo", "dokploy":
+		return "paas"
+	case "kuma":
+		return "monitoring"
+	case "whoami":
+		return "routing-diagnostic"
+	case "vault":
+		return "vault"
+	case "photos":
+		return "photos"
+	case "files":
+		return "files"
+	default:
+		if svc.Section == "Applications" {
+			return "application"
+		}
+		return "platform"
+	}
+}
+
+func deliveryManagerForService(svc Service) string {
+	switch svc.Key {
+	case "base", "auth", "id", "traefik", "coolify", "komodo", "dokploy", "point":
+		return "stackkit"
+	case "home", "kuma", "whoami", "vault", "photos", "files", "media":
+		return "selected-paas"
+	default:
+		if svc.Section == "Applications" {
+			return "selected-paas"
+		}
+		return "stackkit"
+	}
+}
+
+func bootstrapProviderForService(svc Service) string {
+	switch svc.Key {
+	case "coolify":
+		return "coolify"
+	case "komodo":
+		return "komodo"
+	case "dokploy":
+		return "dokploy-draft"
+	case "vault":
+		return "vaultwarden-admin-handoff"
+	case "photos":
+		return "immich-owner-bootstrap"
+	case "files":
+		return svc.ToolName + "-owner-bootstrap"
+	case "kuma":
+		return "kuma-platform-bootstrap"
+	default:
+		return svc.ToolName
+	}
+}
+
 func logoURLForKey(key, tool string) string {
 	switch key {
 	case "base":
@@ -492,6 +606,8 @@ func logoURLForKey(key, tool string) string {
 		return "https://cdn.simpleicons.org/jellyfin/ffffff"
 	case "photos":
 		return "https://cdn.simpleicons.org/immich/ffffff"
+	case "files":
+		return "https://cdn.simpleicons.org/nextcloud/ffffff"
 	case "dockge":
 		return dockerLogoURL
 	case "point":
@@ -506,6 +622,8 @@ func logoURLForKey(key, tool string) string {
 			return "https://cdn.simpleicons.org/immich/ffffff"
 		case "vaultwarden":
 			return "https://cdn.simpleicons.org/bitwarden/ffffff"
+		case "nextcloud":
+			return "https://cdn.simpleicons.org/nextcloud/ffffff"
 		default:
 			return ""
 		}

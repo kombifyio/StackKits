@@ -1,5 +1,5 @@
 # kombify Platform — Shared golangci-lint Configuration (v2)
-# Source of truth: kombify Core/standards/golangci.yml
+# Source of truth: public StackKits standards/golangci.yml
 #
 # Usage in each Go repo:
 #   Copy or symlink this file to .golangci.yml in the repo root.
@@ -99,6 +99,9 @@ linters:
       - path: "internal/cue/(extractor|generator)\\.go"
         linters:
           - gocyclo
+      - path: "internal/cue/bridge\\.go"
+        linters:
+          - gocyclo
       # `runKitImport` orchestrates many flag combinations; cyclomatic
       # complexity is plumbing, not logic. Same rationale as the
       # entry points above.
@@ -111,6 +114,7 @@ linters:
           - gocyclo
           - dupl
           - goconst
+          - gosec
       # Pre-existing goconst tech debt revealed when the CI gate was
       # fixed in May 2026 (the previous "Detect changed surfaces" job
       # was failing fast and short-circuiting the lint job, hiding
@@ -118,10 +122,16 @@ linters:
       # but out of scope for the unrelated PRs that surfaced them.
       # Track in a dedicated cleanup PR: "lint: extract repeated
       # string literals into constants".
+      - path: ".*\\.go"
+        linters:
+          - goconst
       - path: "cmd/stackkit-server/main\\.go"
         linters:
           - goconst
       - path: "cmd/stackkit/commands/(access_summary|agent|app|prepare_docker|tenant_deployment_events)\\.go"
+        linters:
+          - goconst
+      - path: "cmd/stackkit/commands/.*\\.go"
         linters:
           - goconst
       - path: "cmd/stackkit/commands/apply\\.go"
@@ -145,7 +155,16 @@ linters:
       - path: "internal/cue/bridge\\.go"
         linters:
           - goconst
+      - path: "internal/logging/.*\\.go"
+        linters:
+          - goconst
+      - path: "internal/placement/.*\\.go"
+        linters:
+          - goconst
       - path: "internal/api/runtime_actions\\.go"
+        linters:
+          - goconst
+      - path: "internal/api/.*\\.go"
         linters:
           - goconst
       - path: "internal/api/management_handlers\\.go"
@@ -157,9 +176,19 @@ linters:
       - path: "internal/kitio/roundtrip\\.go"
         linters:
           - goconst
+      - path: "internal/platformdeploy/.*\\.go"
+        linters:
+          - goconst
       - path: "internal/registry/client\\.go"
         linters:
           - goconst
+      - path: "internal/rollout/.*\\.go"
+        linters:
+          - goconst
+      - path: "internal/testscenarios/.*\\.go"
+        linters:
+          - goconst
+          - gocyclo
       - path: "pkg/models/models\\.go"
         linters:
           - goconst
@@ -176,6 +205,13 @@ linters:
       - path: "internal/operations/spec\\.go"
         linters:
           - gocyclo
+      - path: "internal/servicecatalog/.*\\.go"
+        linters:
+          - gocyclo
+      - path: "internal/stackkitmcp/.*\\.go"
+        linters:
+          - staticcheck
+          - unused
       # Pre-existing errcheck on fmt.Fprintln across a handful of CLI
       # files. The exclude-functions list above already covers
       # fmt.Fprintf and fmt.Printf; fmt.Fprintln has the same

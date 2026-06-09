@@ -232,8 +232,8 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		}
 	}
 
-	// Determine template directory: runtime overrides mode for native deployments
-	templateKey := spec.Mode
+	// Determine template directory: runtime overrides install mode for native deployments.
+	templateKey := templateKeyForInstallMode(spec.Mode)
 	if spec.Runtime == models.RuntimeNative {
 		templateKey = models.RuntimeNative
 	}
@@ -427,6 +427,15 @@ func copyOrRenderTemplates(srcDir, dstDir string, spec *models.StackSpec, stackk
 	return renderer.Render(renderCtx)
 }
 
+func templateKeyForInstallMode(mode string) string {
+	switch models.NormalizeInstallMode(mode) {
+	case models.InstallModeAdvanced:
+		return models.InstallModeAdvanced
+	default:
+		return models.InstallModeSimpleLegacy
+	}
+}
+
 func resolveModulesDir(stackkitDir, workDir string) string {
 	candidates := []string{
 		filepath.Join(stackkitDir, "modules"),
@@ -470,6 +479,7 @@ func specForGeneration(spec *models.StackSpec) *models.StackSpec {
 		return nil
 	}
 	resolved := *spec
+	resolved.Mode = models.NormalizeInstallMode(resolved.Mode)
 	if shouldUseCloudOwnerEmailForGeneration(&resolved) {
 		if email := cloudOwnerEmailForGeneration(&resolved); email != "" {
 			resolved.AdminEmail = email

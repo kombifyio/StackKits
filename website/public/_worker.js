@@ -7,7 +7,7 @@ const installerHosts = new Map([
 
 const installerPaths = new Set(["/install", "/base", "/modern", "/ha"]);
 
-const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io https://*.kombify.io";
+const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io";
 
 const siteHeaders = {
   "Content-Security-Policy": embedFrameAncestors,

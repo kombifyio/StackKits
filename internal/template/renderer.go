@@ -131,9 +131,9 @@ func (r *Renderer) findTemplates() ([]string, error) {
 		if info.IsDir() {
 			return nil
 		}
-		// Include .tf, .tf.tmpl, .tmpl files
+		// Include Terraform and Terramate template files.
 		ext := filepath.Ext(path)
-		if ext == ".tf" || ext == ".tmpl" || strings.HasSuffix(path, ".tf.tmpl") {
+		if ext == ".tf" || ext == ".tmpl" || strings.HasSuffix(path, ".tf.tmpl") || strings.HasSuffix(path, ".tm.hcl") {
 			templates = append(templates, path)
 		}
 		return nil
@@ -205,6 +205,7 @@ func (r *Renderer) defaultFuncMap() template.FuncMap {
 		"publicGuideURL":       publicGuideURL,
 		"serviceHint":          serviceHint,
 		"setupActionAvailable": setupActionAvailable,
+		"setupActionForm":      setupActionForm,
 	}
 }
 
@@ -399,7 +400,47 @@ func serviceHint(e servicecatalog.Service) string {
 }
 
 func setupActionAvailable(e servicecatalog.Service) bool {
-	return e.SetupPolicy == servicecatalog.SetupPolicyOnDemand
+	return (e.SetupPolicy == servicecatalog.SetupPolicyOnDemand ||
+		e.SetupPolicy == servicecatalog.SetupPolicyAutomatic) &&
+		strings.TrimSpace(e.SetupActionLabel) != ""
+}
+
+func setupActionForm(e servicecatalog.Service) string {
+	if !setupActionAvailable(e) {
+		return ""
+	}
+	form := fmt.Sprintf(`<form class="setup-form" data-setup-action method="post" action="/api/v1/setup/services/%s/run"><button class="setup-action" type="submit">%s</button><span class="setup-result" aria-live="polite"></span></form>`,
+		htmlAttr(e.Key),
+		htmlText(e.SetupActionLabel),
+	)
+	policyVar := setupPolicyVar(e)
+	if policyVar == "" {
+		return form
+	}
+	return fmt.Sprintf(`${var.%s != "manual" ? "%s" : ""}`, policyVar, hclStringContent(form))
+}
+
+func setupPolicyVar(e servicecatalog.Service) string {
+	switch strings.TrimSpace(e.Key) {
+	case "kuma":
+		return "setup_policy_kuma"
+	case "whoami":
+		return "setup_policy_whoami"
+	case "vault":
+		return "setup_policy_vaultwarden"
+	case "photos":
+		return "setup_policy_immich"
+	case "files":
+		return "setup_policy_files"
+	default:
+		return ""
+	}
+}
+
+func hclStringContent(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return value
 }
 
 // validateHCLValue checks that a string is safe to embed in HCL.

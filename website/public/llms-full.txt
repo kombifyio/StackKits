@@ -35,15 +35,33 @@ stackkit doctor --json
 
 Never hand-edit generated rollout artifacts. Change StackSpec, CUE, or Go source, then regenerate.
 
+Installation process comparison: /getting-started/installation-processes.md
+
+Choose by three pillars:
+
+- configuration and individualization degree;
+- access options and authority boundary;
+- automation degree.
+
+Path boundary shorthand:
+
+- `P0`: website/OpenMCP discovery only; no target authority.
+- `P4`: external agent executes installer/CLI through SSH; SSH is the authority.
+- `P5`: protected remote endpoint for the same `stackkit` MCP connection after install; target day-2 capability, not the default first-install path.
+- `P6`: local adapter for the same `stackkit` MCP connection through `stackkit-mcp`; same-machine process authority.
+
 ## Local API
 
 `stackkit-server` is the node-local API surface. It is not a required hosted cloud service. Read-only management endpoints include status, verify, doctor, plan preview, logs, and run evidence. Mutating management APIs are disabled by default.
 
 OpenAPI mirror: /api/openapi.v1.yaml
+OpenMCP discovery: /openmcp.json
 
 ## MCP
 
-`stackkit-mcp` is installed with the CLI and runs as a local agent bridge. Default transport is stdio. HTTP transport binds to loopback by default. Write tools require `STACKKIT_MCP_ALLOW_WRITE=true`.
+Website MCP discovery is read-only. Use `/openmcp.json` for public installer/docs/schema discovery.
+
+Agents should configure one MCP connection named `stackkit`. Locally it starts the `stackkit-mcp` adapter. After install, the same connector can be exposed by `stackkit-server` at `POST /mcp` and `GET /openmcp.json`. Write tools require `STACKKIT_MCP_ALLOW_WRITE=true` and are local CLI-equivalent operations only. `stackkit_apply` and `stackkit_rollout` skip platform app lifecycle by default; this MCP surface does not run `stackkit app add`, customer app rollout, or managed-serverless provisioning. Remote MCP should use Streamable HTTP through a protected endpoint, tunnel, VPN, or private network; WebSocket is only a custom transport/gateway option.
 
 ## Evidence
 

@@ -25,7 +25,7 @@
 
     <section class="prose-stackkit">
       <h2>1 · Install the CLI</h2>
-      <p>The shared installer downloads <code>stackkit</code>, <code>stackkit-server</code>, <code>stackkit-mcp</code>, packaged OpenTofu, and the public kit catalog into <code>~/.stackkits</code>. Works on Linux and macOS (amd64 + arm64).</p>
+      <p>The shared installer downloads <code>stackkit</code>, <code>stackkit-server</code>, the <code>stackkit-mcp</code> local adapter for the single <code>stackkit</code> MCP connection, packaged OpenTofu, and the public kit catalog into <code>~/.stackkits</code>. Works on Linux and macOS (amd64 + arm64).</p>
     </section>
 
     <div class="my-6">

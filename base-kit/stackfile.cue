@@ -8,14 +8,16 @@
 //   One homelab/trust domain has exactly one main node and optional
 //   worker/storage nodes.
 //
-// Deployment Modes:
-//   - simple:   OpenTofu Day-1 only (initial provisioning)
-//   - advanced: OpenTofu + Terramate Day-1 + Day-2 (drift, updates, lifecycle)
+// Installation Modes:
+//   - bare:         OpenTofu Day-1 only, no Base Hub setup automation
+//   - bootstrapped: Base Hub + automatic L1/L2 + on-demand L3 setup
+//   - advanced:     bootstrapped + Terramate Day-2 lifecycle
+//   - simple:       legacy alias for bootstrapped
 //
 // PaaS Selection (intent/domain-driven, M2):
 //   - explicit paas config wins
 //   - omitted paas → Coolify
-//   - Komodo is the production alternative using StackKit-owned Traefik
+//   - Komodo is the beta-supported alternative using StackKit-owned Traefik
 //   - Dokploy remains draft and outside the canonical E2E matrix
 //   - Dockge is a constrained compose-manager mode, not a normal PaaS default
 //
@@ -52,7 +54,7 @@ import (
 	meta: #StackMeta
 
 	// Canonical v5 deployment surface
-	mode:     *"simple" | "advanced"
+	mode:     *"bootstrapped" | "bare" | "advanced" | "simple"
 	runtime?: *"docker" | "native"
 	context?: *"local" | "cloud" | "pi"
 	// Optional explicit override. When omitted, the StackSpec intent resolver
@@ -116,8 +118,8 @@ import (
 
 	// Deployment config (auto-generated based on mode)
 	_deployment: #DeploymentConfig & {
-		if mode == "simple" {
-			mode: "simple"
+		if mode == "bare" || mode == "bootstrapped" || mode == "simple" {
+			mode: mode
 			day1: {
 				engine: "opentofu"
 				actions: ["init", "plan", "apply"]
@@ -159,7 +161,7 @@ import (
 // =============================================================================
 
 #DeploymentConfig: {
-	mode: "simple" | "advanced"
+	mode: "bare" | "bootstrapped" | "advanced" | "simple"
 
 	day1: {
 		engine: "opentofu"

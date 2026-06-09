@@ -14,7 +14,7 @@ StackKits need to produce correct service URLs for every supported domain mode a
 
 Currently only selected paths are implemented and verified. The normal matrix covers custom-domain, kombify.me, browser-native local defaults, and explicit local DNS across the supported routing backends.
 
-2026-05-24 status note: the default BaseKit contract is Coolify-first, with Komodo as the production alternative. StackKit-owned system and L3 apps must be registered through the selected PaaS adapter, and the standalone StackKit-owned routing fallback is explicit opt-in only. Dokploy remains draft and is not part of the canonical three-scenario E2E matrix. Live release evidence is intentionally capped at SK-S1 local Coolify, SK-S2 kombify.me Komodo, and SK-S3 custom-domain Coolify.
+2026-06-02 status note: the default BaseKit contract is Coolify-first, with Komodo as the beta-supported alternative. StackKit-owned system and L3 apps must be registered through the selected PaaS adapter, and the standalone StackKit-owned routing fallback is explicit opt-in only. Dokploy remains draft and is not part of the canonical three-scenario E2E matrix. Live release evidence is intentionally capped at SK-S1 `bootstrapped` local Docker Desktop/Fresh Ubuntu Coolify, SK-S2 `advanced` TechStack Lease kombify.me Komodo plus Runtime Action servicecall coverage, and SK-S3 `bare` BYO/GCP/local-server custom-domain Coolify.
 
 ## Decision
 
@@ -92,7 +92,7 @@ The difference is HOW the routing happens internally:
 
 ### Phase 2: Komodo + StackKit Traefik
 
-Komodo is the production alternative. It owns stack resources, while the current adapter contract keeps exactly one StackKit-owned Traefik for generated service routes.
+Komodo is the beta-supported alternative. It owns stack resources, while the current adapter contract keeps exactly one StackKit-owned Traefik for generated service routes.
 
 Implementation:
 1. Detect when PAAS = Komodo at standard tier
@@ -111,7 +111,7 @@ Coolify has its own integrated router and API model:
 
 ### Cross-Cutting Concerns
 
-**ForwardAuth (TinyAuth):** The `tinyauth` middleware must reference the correct TinyAuth URL regardless of which Traefik manages the routing. The `APP_URL` and ForwardAuth address URL change based on domain mode.
+**ForwardAuth (TinyAuth):** The `tinyauth` middleware must reference the correct TinyAuth URL regardless of which Traefik manages the routing. The `TINYAUTH_APPURL` and ForwardAuth address URL change based on domain mode.
 
 **PocketID:** The `PUBLIC_APP_URL` must match the actual accessible URL for the domain mode.
 

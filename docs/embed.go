@@ -3,7 +3,7 @@ package docs
 
 import "embed"
 
-// FS exposes public documentation to local agent surfaces such as stackkit-mcp.
+// FS exposes public documentation to the StackKits MCP runtime and local agents.
 //
 //go:embed CLI.md API.md stack-spec-reference.md agent
 var FS embed.FS

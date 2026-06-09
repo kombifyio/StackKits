@@ -72,7 +72,37 @@ func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([
 		}
 		refs = append(refs, ref)
 	}
+	if len(refs) > 0 {
+		var err error
+		refs, err = observeDeployments(ctx, adapter, refs)
+		if err != nil {
+			return refs, err
+		}
+	}
 	return refs, nil
+}
+
+func observeDeployments(ctx context.Context, adapter Adapter, refs []DeploymentRef) ([]DeploymentRef, error) {
+	if observer, ok := adapter.(DeploymentBatchObserver); ok {
+		observed, err := observer.ObserveDeployments(ctx, refs)
+		if err != nil {
+			return observed, fmt.Errorf("observe platform app starts: %w", err)
+		}
+		return observed, nil
+	}
+	observer, ok := adapter.(DeploymentObserver)
+	if !ok {
+		return refs, nil
+	}
+	observed := make([]DeploymentRef, 0, len(refs))
+	for _, ref := range refs {
+		next, err := observer.ObserveDeployment(ctx, ref)
+		if err != nil {
+			return observed, fmt.Errorf("observe platform app %q: %w", ref.AppName, err)
+		}
+		observed = append(observed, next)
+	}
+	return observed, nil
 }
 
 // IsStackKitOwnedApp reports whether this L3 app belongs to the StackKit-owned

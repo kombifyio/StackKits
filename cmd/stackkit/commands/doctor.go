@@ -225,6 +225,11 @@ func buildDoctorReport(spec *models.StackSpec) doctorReport {
 		} else {
 			add("vault", "pass", "Vaultwarden reference use case selected")
 		}
+		if serviceExplicitlyDisabled(spec.Services, "files") {
+			add("files", "fail", "Base Kit production reference requires Files/Cloudreve")
+		} else {
+			add("files", "pass", "Files/Cloudreve reference use case selected")
+		}
 	}
 
 	return report

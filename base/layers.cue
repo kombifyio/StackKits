@@ -255,7 +255,7 @@ package base
 		enabled:             bool | *true
 		middlewareName:      string | *"tinyauth"
 		authUrl?:            string
-		authResponseHeaders: [...string] | *["X-User", "X-Email"]
+		authResponseHeaders: [...string] | *["X-User", "X-Email", "remote-user", "remote-sub", "remote-name", "remote-email", "remote-groups"]
 	}
 	storage: {
 		dataVolume: string | *"tinyauth-data"

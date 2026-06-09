@@ -131,12 +131,23 @@ Contract: base.#ModuleContract & {
 		}]
 
 		environment: {
-			TZ:             "{{.timezone}}"
-			APP_URL:        "https://auth.{{.domain}}"
-			USERS:          "{{.tinyauth_users}}"
-			SECURE_COOKIE:  "{{.tinyauth_secure_cookie}}"
-			SESSION_EXPIRY: "{{.tinyauth_session_expiry}}"
-			DOCKER_HOST:    "tcp://socket-proxy:2375"
+			TZ:                                      "{{.timezone}}"
+			APP_URL:                                 "https://auth.{{.domain}}"
+			USERS:                                   "{{.tinyauth_users}}"
+			SECURE_COOKIE:                           "{{.tinyauth_secure_cookie}}"
+			SESSION_EXPIRY:                          "{{.tinyauth_session_expiry}}"
+			DOCKER_HOST:                             "tcp://socket-proxy:2375"
+			OAUTH_AUTO_REDIRECT:                     "pocketid"
+			OAUTH_WHITELIST:                         "{{.tinyauth_oauth_whitelist}}"
+			PROVIDERS_POCKETID_CLIENT_ID:            "{{.tinyauth_oidc_client_id}}"
+			PROVIDERS_POCKETID_CLIENT_SECRET:        "{{.tinyauth_oidc_client_secret}}"
+			PROVIDERS_POCKETID_AUTH_URL:             "{{.tinyauth_oidc_issuer}}/authorize"
+			PROVIDERS_POCKETID_TOKEN_URL:            "http://pocketid:1411/api/oidc/token"
+			PROVIDERS_POCKETID_USER_INFO_URL:        "http://pocketid:1411/api/oidc/userinfo"
+			PROVIDERS_POCKETID_REDIRECT_URL:         "https://auth.{{.domain}}/api/oauth/callback/pocketid"
+			PROVIDERS_POCKETID_SCOPES:               "openid,email,profile,groups"
+			PROVIDERS_POCKETID_NAME:                 "Pocket ID"
+			PROVIDERS_POCKETID_INSECURE_SKIP_VERIFY: "false"
 		}
 
 		healthCheck: {

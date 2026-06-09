@@ -1,6 +1,6 @@
 name: otlp-vm-lab
 stackkit: base-kit
-mode: simple
+mode: bootstrapped
 context: cloud
 domain: observability.example.com
 email: admin@example.com

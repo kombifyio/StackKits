@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # =============================================================================
 # StackKit CLI Docker Image
 # =============================================================================
@@ -16,7 +17,22 @@ WORKDIR /build
 
 # Copy go module files
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=secret,id=GITHUB_TOKEN,required=false \
+    set -eu; \
+    token=""; \
+    if [ -f /run/secrets/GITHUB_TOKEN ]; then \
+      token="$(cat /run/secrets/GITHUB_TOKEN)"; \
+    fi; \
+    git_config=""; \
+    if [ -n "$token" ]; then \
+      git_config="$(mktemp)"; \
+      export GIT_CONFIG_GLOBAL="$git_config"; \
+      git config --global url."https://x-access-token:${token}@github.com/".insteadOf "https://github.com/"; \
+    fi; \
+    go mod download; \
+    if [ -n "$git_config" ]; then \
+      rm -f "$git_config"; \
+    fi
 
 # Copy source code
 COPY . .

@@ -1,6 +1,6 @@
 // Package pocketid is a thin HTTP client for the PocketID admin API.
 //
-// API surface notes (verified against ghcr.io/pocket-id/pocket-id:v2,
+// API surface notes (verified against ghcr.io/pocket-id/pocket-id:v2.7.0,
 // upstream v2.6.2 — Step 5.0 of Phase 1 / Task 5):
 //
 //   - Auth header is `X-API-Key` (case-insensitive). PocketID does NOT use

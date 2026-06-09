@@ -42,6 +42,11 @@ deploy/.terraform.lock.hcl
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage/
+
+# Python bytecode caches from local helper scripts
+__pycache__/
+**/__pycache__/
 
 # Dependency directories (remove the comment below to include it)
 vendor/
@@ -90,6 +95,7 @@ website-v2/blob-report/
 .beads/export-state.json
 .wrangler/cache/
 modules/*/tests/artifacts/
+artifacts/local-builds/
 artifacts/release-smoke/
 artifacts/scenarios/
 

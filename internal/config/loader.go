@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -254,7 +255,12 @@ func validateStackKit(sk *models.StackKit) error {
 // applySpecDefaults applies default values to a stack spec
 func applySpecDefaults(spec *models.StackSpec) {
 	if spec.Mode == "" {
-		spec.Mode = "simple"
+		spec.Mode = models.InstallModeBootstrapped
+	} else {
+		if models.IsLegacyInstallMode(spec.Mode) {
+			slog.Warn("legacy stackkit install mode normalized", "from", spec.Mode, "to", models.NormalizeInstallMode(spec.Mode))
+		}
+		spec.Mode = models.NormalizeInstallMode(spec.Mode)
 	}
 	if spec.Network.Mode == "" {
 		spec.Network.Mode = "local"
@@ -267,6 +273,10 @@ func applySpecDefaults(spec *models.StackSpec) {
 	}
 	if spec.SSH.User == "" {
 		spec.SSH.User = "root"
+	}
+	if spec.DemoData.Enabled == nil {
+		enabled := false
+		spec.DemoData.Enabled = &enabled
 	}
 	for name, app := range spec.Apps {
 		if app.Kind == "" {

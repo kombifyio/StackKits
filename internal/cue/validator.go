@@ -133,6 +133,15 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 		})
 	}
 
+	if !models.IsKnownInstallMode(spec.Mode) {
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    "mode",
+			Message: fmt.Sprintf("invalid install mode %q (use bare, bootstrapped, or advanced)", spec.Mode),
+			Code:    "INVALID_VALUE",
+		})
+	}
+
 	if spec.StackKit == "" {
 		result.Valid = false
 		result.Errors = append(result.Errors, models.ValidationError{
@@ -186,6 +195,8 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 
 	validateOwnerConfig(spec.Owner, result)
 	validateBreakGlassConfig(spec.BreakGlass, result)
+	validateBootstrapConfig(spec.Bootstrap, result)
+	validateSetupPolicyMaps(spec, result)
 	validatePlatformFallback(spec, result)
 
 	// Normal StackKits must deploy through a supported platform adapter.
@@ -382,6 +393,77 @@ func validateBreakGlassConfig(breakGlass models.BreakGlassConfig, result *models
 			Code:    "INVALID_VALUE",
 		})
 	}
+}
+
+func validateBootstrapConfig(bootstrap models.BootstrapSpec, result *models.ValidationResult) {
+	if !models.IsKnownBootstrapSelector(bootstrap.Mode) {
+		result.Valid = false
+		result.Errors = append(result.Errors, models.ValidationError{
+			Path:    "bootstrap.mode",
+			Message: fmt.Sprintf("invalid bootstrap mode %q (use full_auto, guided, minimal, or install mode bare, bootstrapped, advanced)", bootstrap.Mode),
+			Code:    "INVALID_VALUE",
+		})
+	}
+	if !models.IsKnownSetupPolicy(bootstrap.PlatformPolicy) {
+		addSetupPolicyError(result, "bootstrap.platformPolicy", bootstrap.PlatformPolicy)
+	}
+	if !models.IsKnownSetupPolicy(bootstrap.ApplicationDefaultPolicy) {
+		addSetupPolicyError(result, "bootstrap.applicationDefaultPolicy", bootstrap.ApplicationDefaultPolicy)
+	}
+}
+
+func validateSetupPolicyMaps(spec *models.StackSpec, result *models.ValidationResult) {
+	validateSetupPolicyMap("application", spec.Application, result)
+	validateSetupPolicyMap("services", spec.Services, result)
+}
+
+func validateSetupPolicyMap(section string, values map[string]any, result *models.ValidationResult) {
+	for name, raw := range values {
+		if policy, ok := setupPolicyFromRaw(raw); ok && !models.IsKnownSetupPolicy(policy) {
+			addSetupPolicyError(result, fmt.Sprintf("%s.%s.setup.policy", section, name), policy)
+		}
+	}
+}
+
+func setupPolicyFromRaw(raw any) (string, bool) {
+	switch value := raw.(type) {
+	case string:
+		value = strings.TrimSpace(value)
+		return value, value != ""
+	case map[string]any:
+		return setupPolicyFromMap(value)
+	case map[any]any:
+		converted := make(map[string]any, len(value))
+		for k, v := range value {
+			if key, ok := k.(string); ok {
+				converted[key] = v
+			}
+		}
+		return setupPolicyFromMap(converted)
+	default:
+		return "", false
+	}
+}
+
+func setupPolicyFromMap(values map[string]any) (string, bool) {
+	for _, key := range []string{"policy", "setupPolicy"} {
+		if policy, ok := values[key].(string); ok && strings.TrimSpace(policy) != "" {
+			return policy, true
+		}
+	}
+	if setup, ok := values["setup"]; ok {
+		return setupPolicyFromRaw(setup)
+	}
+	return "", false
+}
+
+func addSetupPolicyError(result *models.ValidationResult, path, policy string) {
+	result.Valid = false
+	result.Errors = append(result.Errors, models.ValidationError{
+		Path:    path,
+		Message: fmt.Sprintf("setup policy must be 'manual', 'on_demand', or 'automatic' (got %q)", policy),
+		Code:    "INVALID_VALUE",
+	})
 }
 
 func validatePlatformFallback(spec *models.StackSpec, result *models.ValidationResult) {

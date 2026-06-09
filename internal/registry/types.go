@@ -100,6 +100,9 @@ type Service struct {
 	Description             string   `json:"description,omitempty"`
 	ToolName                string   `json:"tool_name"`
 	ModuleSlug              string   `json:"module_slug"`
+	Role                    string   `json:"role,omitempty"`
+	DefaultTool             string   `json:"default_tool,omitempty"`
+	Alternatives            []string `json:"alternatives,omitempty"`
 	LocalSlug               string   `json:"local_slug"`
 	PublicSlug              string   `json:"public_slug"`
 	LegacyAliases           []string `json:"legacy_aliases,omitempty"`
@@ -115,7 +118,13 @@ type Service struct {
 	GuideURL                string   `json:"guide_url,omitempty"`
 	SetupPolicy             string   `json:"setup_policy,omitempty"`
 	SetupActionLabel        string   `json:"setup_action_label,omitempty"`
+	Delivery                Delivery `json:"delivery,omitempty"`
+	BootstrapProvider       string   `json:"bootstrap_provider,omitempty"`
 	Default                 bool     `json:"default"`
+}
+
+type Delivery struct {
+	ManagedBy string `json:"managedBy,omitempty"`
 }
 
 // Module is the CLI-visible projection of one released sk_module_version.

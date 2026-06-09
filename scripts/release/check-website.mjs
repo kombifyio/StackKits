@@ -49,6 +49,7 @@ const commonStaticFiles = [
   'getting-started/agents/enable-monitoring-addon.md',
   'getting-started/agents/ssh-rollout.md',
   'mcp/stackkit-mcp.md',
+  'openmcp.json',
   'api/openapi.v1.yaml',
   'schemas/stackkit-agent-run-manifest.schema.json',
   'schemas/stackkit-agent-functional-result.schema.json',
@@ -83,14 +84,16 @@ const llms = await readStatic('llms.txt');
 const llmsFull = await readStatic('llms-full.txt');
 const snippets = await readStatic('llms-snippets.txt');
 const agents = await readStatic('getting-started/agents.md');
+const installationProcesses = await readStatic('getting-started/installation-processes.md');
 const mcp = await readStatic('mcp/stackkit-mcp.md');
+const openMCP = JSON.parse(await readStatic('openmcp.json'));
 const siteOpenAPI = await readStatic('api/openapi.v1.yaml');
 const canonicalOpenAPI = await readRepo('api/openapi/stackkits-v1.yaml');
 const runManifestSchema = JSON.parse(await readStatic('schemas/stackkit-agent-run-manifest.schema.json'));
 const functionalResultSchema = JSON.parse(await readStatic('schemas/stackkit-agent-functional-result.schema.json'));
 const sitemap = await readStatic('sitemap.xml');
 const renderBlueprint = await readRepo('render.yaml');
-const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io https://*.kombify.io";
+const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io";
 const rootInstall = await readRepo('install.sh');
 
 for (const [name, content] of Object.entries({ install, base, modern, ha })) {
@@ -108,9 +111,10 @@ for (const route of ['/install', '/base', '/modern', '/ha']) {
   assert(headers.includes(route), `_headers must include ${route}`);
 }
 assert(headers.includes('text/x-shellscript'), '_headers must force shell content type');
-assert(headers.includes(embedFrameAncestors), '_headers must allow Kombify Cloud embedding via CSP frame-ancestors');
+assert(headers.includes(embedFrameAncestors), '_headers must allow Kombify portal embedding via CSP frame-ancestors');
+assert(!headers.includes("https://*.kombify.io"), '_headers must not contain wildcard kombify.io frame origins');
 assert(!/X-Frame-Options/i.test(headers), '_headers must not set X-Frame-Options for embedded mode');
-for (const route of ['/llms.txt', '/llms-full.txt', '/llms-snippets.txt', '/getting-started/agents.md', '/mcp/stackkit-mcp.md', '/api/openapi.v1.yaml', '/schemas/*']) {
+for (const route of ['/llms.txt', '/llms-full.txt', '/llms-snippets.txt', '/getting-started/agents.md', '/getting-started/installation-processes.md', '/mcp/stackkit-mcp.md', '/openmcp.json', '/api/openapi.v1.yaml', '/schemas/*']) {
   assert(headers.includes(route), `_headers must include ${route}`);
 }
 assert(headers.includes('Content-Signal: search=yes, ai-input=yes'), '_headers must allow search and AI input for public agent docs');
@@ -121,30 +125,79 @@ for (const host of ['install.stackkit.cc', 'base.stackkit.cc', 'modern.stackkit.
 }
 assert(worker.includes('env.ASSETS.fetch'), '_worker.js must serve static assets through ASSETS');
 assert(worker.includes('text/x-shellscript'), '_worker.js must set shell content type');
-assert(worker.includes(embedFrameAncestors), '_worker.js must allow Kombify Cloud embedding via CSP frame-ancestors');
+assert(worker.includes(embedFrameAncestors), '_worker.js must allow Kombify portal embedding via CSP frame-ancestors');
+assert(!worker.includes("https://*.kombify.io"), '_worker.js must not contain wildcard kombify.io frame origins');
 assert(worker.includes('headers.delete("X-Frame-Options")'), '_worker.js must strip inherited X-Frame-Options for embedded mode');
 
 assert(renderBlueprint.includes('runtime: static'), 'render.yaml must define the static website service');
-assert(renderBlueprint.includes('staticPublishPath: website/dist'), 'render.yaml must publish website/dist');
-assert(renderBlueprint.includes(embedFrameAncestors), 'render.yaml must allow Kombify Cloud embedding via CSP frame-ancestors');
+assert(renderBlueprint.includes('rootDir: website'), 'render.yaml must build from the website rootDir');
+assert(renderBlueprint.includes('staticPublishPath: ./dist'), 'render.yaml must publish ./dist from the website rootDir');
+assert(renderBlueprint.includes(embedFrameAncestors), 'render.yaml must allow Kombify portal embedding via CSP frame-ancestors');
+assert(!renderBlueprint.includes("https://*.kombify.io"), 'render.yaml must not contain wildcard kombify.io frame origins');
 assert(!/name:\s*X-Frame-Options/i.test(renderBlueprint), 'render.yaml must not set X-Frame-Options for embedded mode');
 for (const route of ['/install', '/base', '/modern', '/ha']) {
   assert(renderBlueprint.includes(`path: ${route}`), `render.yaml must include ${route} headers`);
 }
+assert(renderBlueprint.includes('path: /openmcp.json'), 'render.yaml must include /openmcp.json headers');
 
 assert(llms.includes('/llms-full.txt'), 'llms.txt must point to full context');
 assert(llms.includes('/api/openapi.v1.yaml'), 'llms.txt must point to OpenAPI mirror');
+assert(llms.includes('/openmcp.json'), 'llms.txt must point to OpenMCP discovery');
+assert(llms.includes('MCP model: configure one connection named `stackkit`'), 'llms.txt must document the single stackkit MCP model');
 assert(llmsFull.includes('BaseKit'), 'llms-full must mention BaseKit');
 assert(llmsFull.includes('Modern Homelab and HA Kit are alpha/scaffolding'), 'llms-full must state alpha stance for Modern and HA Kit');
+assert(llmsFull.includes('/openmcp.json'), 'llms-full must mention OpenMCP discovery');
+assert(llmsFull.includes('/getting-started/installation-processes.md'), 'llms-full must mention installation process comparison');
+assert(llmsFull.includes('Agents should configure one MCP connection named `stackkit`'), 'llms-full must document one stackkit MCP connection');
 assert(snippets.includes('stackkit verify --http --json'), 'snippets must include verify JSON command');
+assert(snippets.includes('POST http://localhost:8082/mcp'), 'snippets must include native local MCP endpoint');
+assert(snippets.includes('/getting-started/installation-processes.md'), 'snippets must include installation process comparison');
+assert(snippets.includes('[mcp_servers.stackkit]'), 'snippets must include the single stackkit MCP config name');
+assert(snippets.includes('Agents should configure one MCP connection named `stackkit`'), 'snippets must describe the single stackkit MCP model');
 assert(agents.includes('stackkit agent prompt'), 'agent guide must document CLI prompt helper');
+assert(agents.includes('/getting-started/installation-processes.md'), 'agent guide must link installation process comparison');
+for (const expected of [
+  'Three-Pillar Comparison',
+  'Configuration / individualization',
+  'Access options',
+  'Automation degree',
+  'Core Decisions',
+  'StackKits config can express',
+  'Decision Tree',
+  'CLI',
+  'Native MCP',
+  'WebMCP / website discovery',
+  'External SSH',
+  'On-server coding agent',
+  'User-facing MCP model: configure one MCP connection named `stackkit`',
+  'P0 discovery -> P1/P2/P3/P4 initial install -> optional P5 day-2 connector',
+  'WebSocket would be a custom transport/gateway',
+  'not the default first-install path',
+]) {
+  assert(installationProcesses.includes(expected), `installation process guide must include ${expected}`);
+}
 assert(mcp.includes('STACKKIT_MCP_ALLOW_WRITE=true'), 'MCP guide must document write gate');
+assert(mcp.includes('ui://stackkits/onboarding.html'), 'MCP guide must document the onboarding app resource');
+assert(mcp.includes('one user-facing MCP connection named `stackkit`'), 'MCP guide must document the consolidated single StackKits MCP connection model');
+assert(openMCP.name === 'stackkit-cc', 'openmcp.json must identify the website surface');
+assert(openMCP.readOnly === true, 'website openmcp.json must be read-only');
+assert(openMCP.userFacingMcp?.connectionName === 'stackkit', 'openmcp.json must describe the single user-facing StackKits MCP connection');
+assert(openMCP.policy && openMCP.policy.serverActions === false, 'website openmcp.json must not allow server actions');
+assert(openMCP.installers && openMCP.installers.cli === 'https://stackkit.cc/install', 'openmcp.json must include installer URLs');
+assert(openMCP.localConnector?.streamableHttp?.endpoint === 'http://localhost:8082/mcp', 'openmcp.json must point to local /mcp');
+assert(openMCP.localConnector?.streamableHttp?.remoteAccess?.includes('target-day2-only'), 'openmcp.json must describe protected remote MCP as target day-2 only');
+assert(openMCP.localConnector?.mcpAppResource === 'ui://stackkits/onboarding.html', 'openmcp.json must advertise the MCP app resource');
+assert(openMCP.appResources?.some((resource) => resource.uri === 'ui://stackkits/onboarding.html' && resource.callsToolsFromWidget === true), 'openmcp.json must describe the onboarding MCP app resource');
+assert(JSON.stringify(openMCP.appResources).includes('domain-and-core-settings'), 'openmcp.json must include onboarding app domain/core settings step');
+for (const resource of ['/llms.txt', '/mcp/stackkit-mcp.md', '/api/openapi.v1.yaml', '/schemas/stackkit-agent-run-manifest.schema.json']) {
+  assert(JSON.stringify(openMCP).includes(resource), `openmcp.json must include ${resource}`);
+}
 assert(siteOpenAPI === canonicalOpenAPI, 'website OpenAPI mirror must match api/openapi/stackkits-v1.yaml');
 assert(runManifestSchema.properties.checkedViaAgent.const === true, 'run manifest schema must require checkedViaAgent true');
 assert(runManifestSchema.properties.noHandEditedGeneratedArtifacts.const === true, 'run manifest schema must forbid hand-edited generated artifacts');
 assert(functionalResultSchema.properties.status.enum.includes('pass'), 'functional result schema must require pass status');
 assert(functionalResultSchema.properties.checkedViaAgent.const === true, 'functional result schema must require checkedViaAgent true');
-for (const route of ['/llms.txt', '/llms-full.txt', '/llms-snippets.txt', '/getting-started/agents.md', '/mcp/stackkit-mcp.md', '/api/openapi.v1.yaml']) {
+for (const route of ['/llms.txt', '/llms-full.txt', '/llms-snippets.txt', '/getting-started/agents.md', '/getting-started/installation-processes.md', '/mcp/stackkit-mcp.md', '/openmcp.json', '/api/openapi.v1.yaml']) {
   assert(sitemap.includes(`https://stackkit.cc${route}`), `sitemap must include ${route}`);
 }
 
@@ -153,6 +206,7 @@ if (mode === 'source') {
   assert(/kombify StackKits/i.test(indexHtml), 'index.html must brand as kombify StackKits');
   assert(indexHtml.includes('rel="alternate"'), 'index.html must expose <link rel="alternate"> agent surfaces');
   assert(indexHtml.includes('href="/llms.txt"'), 'index.html must alternate-link llms.txt');
+  assert(indexHtml.includes('href="/openmcp.json"'), 'index.html must alternate-link OpenMCP discovery');
   assert(indexHtml.includes('href="/api/openapi.v1.yaml"'), 'index.html must alternate-link the OpenAPI mirror');
   assert(indexHtml.includes('href="/getting-started/agents.md"'), 'index.html must alternate-link the agent guide');
 

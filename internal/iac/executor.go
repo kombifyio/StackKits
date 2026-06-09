@@ -93,7 +93,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		WorkDir:     ".",
 		Mode:        ModeOpenTofu,
-		Timeout:     60 * time.Minute,
+		Timeout:     14 * time.Minute,
 		Parallelism: 1,
 		AutoApprove: false,
 	}
@@ -120,9 +120,9 @@ func NewExecutorFromSpec(spec *models.StackSpec, workDir string) (Executor, erro
 	cfg := DefaultConfig()
 	cfg.WorkDir = workDir
 
-	// Determine mode from spec - Mode is a string field ("simple", "advanced")
-	// For engine selection, we use a convention: "terramate" prefix means use Terramate
-	if spec.Mode == "terramate" || spec.Mode == "advanced-terramate" {
+	// Determine engine from the normalized install mode. runtime:native is
+	// handled before IaC execution and remains separate from this selector.
+	if spec.UsesAdvancedIAC() {
 		cfg.Mode = ModeTerramate
 	} else {
 		cfg.Mode = ModeOpenTofu

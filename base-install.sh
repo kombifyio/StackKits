@@ -17,6 +17,7 @@
 #   CLOUDFLARE_API_TOKEN   Required for custom domain with Let's Encrypt
 #   KOMBIFY_API_KEY        Required for kombify.me subdomain registration
 #   KOMBIFY_CONTEXT        Set to "cloud" to enable kombify.me domain mode
+#   STACKKIT_MODE          Optional install mode: bare, bootstrapped, or advanced
 #   STACKKIT_SERVICE_PROFILE
 #                          Optional BaseKit service profile: default or admin-only
 #   STACKKIT_PLATFORM / STACKKIT_PAAS
@@ -302,6 +303,26 @@ EOF
   ok "  StackKit API image: $STACKKIT_SERVER_IMAGE"
 }
 
+STACKKIT_MODE_VALUE="${STACKKIT_MODE:-${INSTALL_MODE:-}}"
+if [ -n "$STACKKIT_MODE_VALUE" ]; then
+  STACKKIT_MODE_VALUE=$(printf '%s' "$STACKKIT_MODE_VALUE" | tr '[:upper:]' '[:lower:]')
+  case "$STACKKIT_MODE_VALUE" in
+    bare|bootstrapped|advanced)
+      ;;
+    simple)
+      warn "Legacy STACKKIT_MODE=simple selected; using bootstrapped."
+      STACKKIT_MODE_VALUE="bootstrapped"
+      ;;
+    terramate|advanced-terramate)
+      warn "Legacy advanced install mode '$STACKKIT_MODE_VALUE' selected; using advanced."
+      STACKKIT_MODE_VALUE="advanced"
+      ;;
+    *)
+      die "Unsupported STACKKIT_MODE '$STACKKIT_MODE_VALUE'. Expected bare, bootstrapped, or advanced."
+      ;;
+  esac
+fi
+
 # --- Admin email --------------------------------------------------------------
 
 ADMIN_EMAIL="${STACKKIT_ADMIN_EMAIL:-${KOMBIFY_USER_EMAIL:-}}"
@@ -372,6 +393,9 @@ mkdir -p "$HOMELAB_DIR"
 cd "$HOMELAB_DIR"
 
 set -- init base-kit --force
+if [ -n "$STACKKIT_MODE_VALUE" ]; then
+  set -- "$@" --mode "$STACKKIT_MODE_VALUE"
+fi
 if [ -n "$ADMIN_EMAIL" ]; then
   set -- "$@" --admin-email "$ADMIN_EMAIL"
 fi
@@ -476,10 +500,21 @@ fi
 # Read subdomain prefix from tfvars (kombify.me mode)
 SUBDOMAIN_PREFIX=""
 PAAS="coolify"
+INSTALLATION_MODE="bootstrapped"
+ENABLE_DASHBOARD="true"
+ENABLE_HOMEPAGE="true"
 if [ -f "$HOMELAB_DIR/deploy/terraform.tfvars.json" ]; then
   SUBDOMAIN_PREFIX=$(grep '"subdomain_prefix"' "$HOMELAB_DIR/deploy/terraform.tfvars.json" | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/' || true)
   _paas=$(grep '"paas"' "$HOMELAB_DIR/deploy/terraform.tfvars.json" | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/' || true)
   if [ -n "$_paas" ]; then PAAS="$_paas"; fi
+  _installation_mode=$(grep '"installation_mode"' "$HOMELAB_DIR/deploy/terraform.tfvars.json" | head -1 | sed -E 's/.*: *"([^"]+)".*/\1/' || true)
+  if [ -n "$_installation_mode" ]; then INSTALLATION_MODE="$_installation_mode"; fi
+  if grep -q '"enable_dashboard"[[:space:]]*:[[:space:]]*false' "$HOMELAB_DIR/deploy/terraform.tfvars.json"; then
+    ENABLE_DASHBOARD="false"
+  fi
+  if grep -q '"enable_homepage"[[:space:]]*:[[:space:]]*false' "$HOMELAB_DIR/deploy/terraform.tfvars.json"; then
+    ENABLE_HOMEPAGE="false"
+  fi
 fi
 
 ENABLE_HTTPS="false"
@@ -550,6 +585,7 @@ esac
 if [ -n "$SUBDOMAIN_PREFIX" ] && [ "$DOMAIN" = "kombify.me" ]; then
   PROTO="https"
   DASH_URL="${PROTO}://${SUBDOMAIN_PREFIX}-base.${DOMAIN}"
+  HOME_URL="${PROTO}://${SUBDOMAIN_PREFIX}-home.${DOMAIN}"
   TRAEFIK_URL="${PROTO}://${SUBDOMAIN_PREFIX}-traefik.${DOMAIN}"
   PAAS_URL="${PROTO}://${SUBDOMAIN_PREFIX}-${PAAS_ROUTE}.${DOMAIN}"
   KUMA_URL="${PROTO}://${SUBDOMAIN_PREFIX}-kuma.${DOMAIN}"
@@ -562,6 +598,7 @@ else
     PROTO="https"
   fi
   DASH_URL="${PROTO}://base.${DOMAIN}"
+  HOME_URL="${PROTO}://home.${DOMAIN}"
   TRAEFIK_URL="${PROTO}://traefik.${DOMAIN}"
   PAAS_URL="${PROTO}://${PAAS_ROUTE}.${DOMAIN}"
   KUMA_URL="${PROTO}://kuma.${DOMAIN}"
@@ -574,17 +611,30 @@ echo ""
 ok "Your homelab is running!"
 echo ""
 printf '\033[38;5;208m'
-echo "  Dashboard:  ${DASH_URL}"
+if [ "$ENABLE_DASHBOARD" = "true" ]; then
+  echo "  Dashboard:  ${DASH_URL}"
+else
+  echo "  Install mode: ${INSTALLATION_MODE}"
+  echo "  Primary service: ${PAAS_URL}"
+fi
 printf '\033[0m'
 echo ""
 echo "  All services accessible at ${URL_PATTERN}:"
-echo "    ${DASH_URL}         Dashboard"
-echo "    ${TRAEFIK_URL}      Reverse proxy"
+if [ "$ENABLE_DASHBOARD" = "true" ]; then
+  echo "    ${DASH_URL}         Dashboard"
+fi
+if [ "$ENABLE_HOMEPAGE" = "true" ]; then
+  echo "    ${HOME_URL}         Homepage"
+fi
+if [ "$PAAS" = "komodo" ]; then
+  echo "    ${TRAEFIK_URL}      Reverse proxy"
+fi
 echo "    ${PAAS_URL}      ${PAAS_LABEL} controller"
 echo "    ${KUMA_URL}         Uptime monitoring"
 echo "    ${AUTH_URL}         Authentication"
 echo ""
-echo "  Login credentials:"
+echo "  Initial admin login credentials:"
+echo "    Use for: TinyAuth gateway and ${PAAS_LABEL} initial admin"
 echo "    Email:    ${ADMIN_EMAIL}"
 if [ -n "$ADMIN_PASSWORD" ]; then
   echo "    Password: ${ADMIN_PASSWORD}"
@@ -607,7 +657,10 @@ else
     *.kombify|*.local|*.lab|*.lan|*.home|*.internal|*.test|stack.local|home|home.lab)
       echo "  Local DNS: Kombify Point resolves *.${DOMAIN} inside your home network."
       echo "  Temporary workstation hosts entries:"
-      echo "    ${SERVER_IP}  base.${DOMAIN} traefik.${DOMAIN} dokploy.${DOMAIN}"
+      if [ "$ENABLE_DASHBOARD" = "true" ]; then
+        echo "    ${SERVER_IP}  base.${DOMAIN} home.${DOMAIN}"
+      fi
+      echo "    ${SERVER_IP}  traefik.${DOMAIN} dokploy.${DOMAIN}"
       echo "    ${SERVER_IP}  kuma.${DOMAIN} auth.${DOMAIN} whoami.${DOMAIN}"
       echo ""
       ;;

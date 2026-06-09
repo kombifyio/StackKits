@@ -356,6 +356,9 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		caps = testDockerDNS(ctx, caps)
 		if shouldPrePullImages() {
 			prePullImages(ctx, caps, preparePrePullComputeTier(spec))
+			if len(caps.PrePullFailed) > 0 && dockerPrePullRequired() {
+				return fmt.Errorf("docker image pre-pull failed for %d required images", len(caps.PrePullFailed))
+			}
 		} else {
 			printInfo("Skipping optional Docker image pre-pull (STACKKIT_PREPULL_IMAGES=false)")
 		}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -34,6 +36,12 @@ type ServerConfig struct {
 	SetupAdminEmail               string
 	SetupAdminPassword            string
 	SetupImmichURL                string
+	SetupPocketIDURL              string
+	SetupVaultwardenURL           string
+	SetupCloudreveURL             string
+	FilesSessionBridgeToken       string
+	MCPToken                      string
+	MCPAllowWrite                 bool
 	// TrustedProxies may provide X-Forwarded-For for rate-limit identity.
 	// Empty means X-Forwarded-For is ignored.
 	TrustedProxies []string
@@ -94,6 +102,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	s.mux.HandleFunc("GET /api/v1/capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("GET /api/v1/openapi.yaml", s.handleOpenAPISpec)
+	s.registerMCPRoutes()
 
 	s.registerRuntimeActionRoutes()
 
@@ -127,12 +136,41 @@ func (s *Server) routes() {
 	// Node-local setup actions
 	s.mux.HandleFunc("GET /api/v1/setup/base-hub/protection", s.handleGetBaseHubProtection)
 	s.mux.HandleFunc("POST /api/v1/setup/base-hub/protection", s.handleProtectBaseHub)
+	s.mux.HandleFunc("GET /api/v1/setup/initial-access", s.handleGetInitialAccess)
+	s.mux.HandleFunc("POST /api/v1/setup/initial-access/reveal", s.handleRevealInitialAccess)
 	s.mux.HandleFunc("POST /api/v1/setup/services/{service}/run", s.handleRunServiceSetup)
+	s.mux.HandleFunc("GET /stackkit/files/session", s.handleFilesSessionBridge)
 
 	// Direct Connect registry
 	s.mux.HandleFunc("POST /api/v1/registry/instances", s.handleRegisterInstance)
 	s.mux.HandleFunc("DELETE /api/v1/registry/instances/{instanceId}", s.handleDeregisterInstance)
 	s.mux.HandleFunc("PUT /api/v1/registry/instances/{instanceId}/heartbeat", s.handleRegistryHeartbeat)
+}
+
+func (s *Server) registerMCPRoutes() {
+	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Port)
+	app := stackkitmcp.New(stackkitmcp.Options{
+		Modes:      stackkitmcp.ParseModes("docs,local,server,actions"),
+		ServerURL:  serverURL,
+		APIKey:     s.config.APIKey,
+		MCPToken:   s.config.MCPToken,
+		AllowWrite: s.config.MCPAllowWrite,
+		BaseDir:    s.config.BaseDir,
+	})
+	mcpHandler := app.ProtectedStreamableHTTPHandler()
+	s.mux.Handle("POST /mcp", withoutWriteDeadline(mcpHandler))
+	s.mux.HandleFunc("GET /openmcp.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(app.OpenMCPJSON())
+	})
+}
+
+func withoutWriteDeadline(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ── Response helpers ──────────────────────────────────────────────
@@ -460,7 +498,12 @@ func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Allow health and OpenAPI spec without auth
-			if r.URL.Path == "/health" || r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/openapi.yaml" || strings.HasPrefix(r.URL.Path, "/api/v1/internal/") {
+			if r.URL.Path == "/health" ||
+				r.URL.Path == "/api/v1/health" ||
+				r.URL.Path == "/api/v1/openapi.yaml" ||
+				r.URL.Path == "/openmcp.json" ||
+				r.URL.Path == "/mcp" ||
+				strings.HasPrefix(r.URL.Path, "/api/v1/internal/") {
 				next.ServeHTTP(w, r)
 				return
 			}

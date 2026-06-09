@@ -92,6 +92,10 @@ Contract: base.#ModuleContract & {
 			description: "Uptime Kuma database and config"
 		}]
 
+		environment: {
+			"UPTIME_KUMA_DB_TYPE": "sqlite"
+		}
+
 		healthCheck: {
 			enabled: true
 			http: {
@@ -147,7 +151,7 @@ Contract: base.#ModuleContract & {
 		networks: ["base_net"]
 		environment: {
 			KUMA_URL:  "http://uptime-kuma:3001"
-			KUMA_USER: "{{.adminEmail}}"
+			KUMA_USER: "admin"
 			KUMA_PASS: "{{.kumaAdminPassword}}"
 			DOMAIN:    "{{.domain}}"
 		}

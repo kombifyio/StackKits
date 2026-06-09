@@ -35,23 +35,31 @@ type EnvContract struct {
 type ExpectedContract struct {
 	Generation GenerationExpectation `json:"generation,omitempty"`
 	Access     AccessExpectation     `json:"access,omitempty"`
+	Target     TargetExpectation     `json:"target,omitempty"`
+	Automation AutomationExpectation `json:"automation,omitempty"`
 	Placement  PlacementExpectation  `json:"placement,omitempty"`
 	Failure    FailureExpectation    `json:"failure,omitempty"`
+	Profile    ProfileExpectation    `json:"profile,omitempty"`
+	Simulation SimulationExpectation `json:"simulation,omitempty"`
 }
 
 type GenerationExpectation struct {
-	Context             string          `json:"context,omitempty"`
-	NetworkMode         string          `json:"networkMode,omitempty"`
-	Domain              string          `json:"domain,omitempty"`
-	PAAS                string          `json:"paas,omitempty"`
-	ReverseProxyBackend string          `json:"reverseProxyBackend,omitempty"`
-	EnableHTTPS         bool            `json:"enableHTTPS,omitempty"`
-	StepCAEnabled       bool            `json:"stepCAEnabled,omitempty"`
-	EnableKombifyPoint  bool            `json:"enableKombifyPoint,omitempty"`
-	AdminEmail          string          `json:"adminEmail,omitempty"`
-	ACMEChallenge       string          `json:"acmeChallenge,omitempty"`
-	DNSProvider         string          `json:"dnsProvider,omitempty"`
-	ServiceFlags        map[string]bool `json:"serviceFlags,omitempty"`
+	Context             string            `json:"context,omitempty"`
+	NetworkMode         string            `json:"networkMode,omitempty"`
+	Domain              string            `json:"domain,omitempty"`
+	PAAS                string            `json:"paas,omitempty"`
+	InstallMode         string            `json:"installMode,omitempty"`
+	BootstrapMode       string            `json:"bootstrapMode,omitempty"`
+	DemoDataEnabled     bool              `json:"demoDataEnabled,omitempty"`
+	ReverseProxyBackend string            `json:"reverseProxyBackend,omitempty"`
+	EnableHTTPS         bool              `json:"enableHTTPS,omitempty"`
+	StepCAEnabled       bool              `json:"stepCAEnabled,omitempty"`
+	EnableKombifyPoint  bool              `json:"enableKombifyPoint,omitempty"`
+	AdminEmail          string            `json:"adminEmail,omitempty"`
+	ACMEChallenge       string            `json:"acmeChallenge,omitempty"`
+	DNSProvider         string            `json:"dnsProvider,omitempty"`
+	ServiceFlags        map[string]bool   `json:"serviceFlags,omitempty"`
+	SetupPolicies       map[string]string `json:"setupPolicies,omitempty"`
 }
 
 type AccessExpectation struct {
@@ -60,10 +68,30 @@ type AccessExpectation struct {
 	Services       []ExpectedService `json:"services,omitempty"`
 }
 
+type TargetExpectation struct {
+	Lane             string   `json:"lane,omitempty"`
+	Provisioner      string   `json:"provisioner,omitempty"`
+	Runtime          string   `json:"runtime,omitempty"`
+	Provider         string   `json:"provider,omitempty"`
+	AllowedProviders []string `json:"allowedProviders,omitempty"`
+	HostSource       string   `json:"hostSource,omitempty"`
+}
+
+type AutomationExpectation struct {
+	RolloutTrigger         string   `json:"rolloutTrigger,omitempty"`
+	RuntimeActionMode      string   `json:"runtimeActionMode,omitempty"`
+	ServiceCaller          string   `json:"serviceCaller,omitempty"`
+	ServiceAudience        string   `json:"serviceAudience,omitempty"`
+	LeaseAPIEndpoints      []string `json:"leaseApiEndpoints,omitempty"`
+	RuntimeActionEndpoints []string `json:"runtimeActionEndpoints,omitempty"`
+	ManagedCleanup         bool     `json:"managedCleanup,omitempty"`
+}
+
 type ExpectedService struct {
 	Key    string `json:"key"`
 	Host   string `json:"host"`
 	Scheme string `json:"scheme"`
+	Path   string `json:"path,omitempty"`
 }
 
 type PlacementExpectation struct {
@@ -75,6 +103,23 @@ type PlacementExpectation struct {
 type FailureExpectation struct {
 	NonInteractive  bool   `json:"nonInteractive,omitempty"`
 	MessageContains string `json:"messageContains,omitempty"`
+}
+
+type ProfileExpectation struct {
+	AdminProfileKey string `json:"adminProfileKey,omitempty"`
+	Domain          string `json:"domain,omitempty"`
+	MailMode        string `json:"mailMode,omitempty"`
+	OwnerMode       string `json:"ownerMode,omitempty"`
+	OwnerSource     string `json:"ownerSource,omitempty"`
+	PAAS            string `json:"paas,omitempty"`
+	BootstrapMode   string `json:"bootstrapMode,omitempty"`
+	DemoDataEnabled bool   `json:"demoDataEnabled,omitempty"`
+}
+
+type SimulationExpectation struct {
+	SetupActions  []string `json:"setupActions,omitempty"`
+	SeededContent []string `json:"seededContent,omitempty"`
+	HealthChecks  []string `json:"healthChecks,omitempty"`
 }
 
 type ObservedAccess struct {
@@ -107,16 +152,18 @@ type Target struct {
 }
 
 type Artifact struct {
-	ScenarioID   string            `json:"scenarioId"`
-	ScenarioName string            `json:"scenarioName"`
-	RunID        string            `json:"runId"`
-	Status       string            `json:"status"`
-	HubURL       string            `json:"hubUrl"`
-	BrowserURL   string            `json:"browserUrl"`
-	Services     []ObservedService `json:"services"`
-	Target       Target            `json:"target"`
-	LogsHint     string            `json:"logsHint,omitempty"`
-	GeneratedAt  time.Time         `json:"generatedAt"`
+	ScenarioID   string                `json:"scenarioId"`
+	ScenarioName string                `json:"scenarioName"`
+	RunID        string                `json:"runId"`
+	Status       string                `json:"status"`
+	HubURL       string                `json:"hubUrl"`
+	BrowserURL   string                `json:"browserUrl"`
+	Profile      ProfileExpectation    `json:"profile,omitempty"`
+	Simulation   SimulationExpectation `json:"simulation,omitempty"`
+	Services     []ObservedService     `json:"services"`
+	Target       Target                `json:"target"`
+	LogsHint     string                `json:"logsHint,omitempty"`
+	GeneratedAt  time.Time             `json:"generatedAt"`
 }
 
 func LoadAll() ([]Scenario, error) {
@@ -196,19 +243,28 @@ func NewArtifact(s Scenario, runID, status string, access ObservedAccess, target
 	if hubURL == "" {
 		hubURL = s.Expected.Access.HubURL
 	}
+	browserURL := browserURLForScenario(s, hubURL, target)
+	if browserURL == "" {
+		browserURL = firstObservedAccessURL(access.Services)
+	}
+	if browserURL == "" {
+		browserURL = firstExpectedAccessURL(s.Expected.Access.Services)
+	}
+	if browserURL == "" {
+		browserURL = hubURL
+	}
 	artifact := Artifact{
 		ScenarioID:   s.ID,
 		ScenarioName: s.Name,
 		RunID:        runID,
 		Status:       status,
 		HubURL:       hubURL,
-		BrowserURL:   browserURLForScenario(s, hubURL, target),
+		BrowserURL:   browserURL,
+		Profile:      s.Expected.Profile,
+		Simulation:   s.Expected.Simulation,
 		Services:     append([]ObservedService(nil), access.Services...),
 		Target:       target,
 		GeneratedAt:  time.Now().UTC(),
-	}
-	if artifact.BrowserURL == "" {
-		artifact.BrowserURL = hubURL
 	}
 	return artifact
 }
@@ -259,8 +315,13 @@ func validateScenarios(scenarios []Scenario) error {
 		if scenario.StackSpec.StackKit == "" {
 			return fmt.Errorf("%s has empty stackkit", scenario.ID)
 		}
-		if scenario.HasRunnableHomelab() && scenario.Expected.Access.HubURL == "" {
-			return fmt.Errorf("%s runnable scenario has empty expected hubUrl", scenario.ID)
+		if scenario.HasRunnableHomelab() {
+			if len(scenario.Expected.Access.Services) == 0 {
+				return fmt.Errorf("%s runnable scenario has empty expected services", scenario.ID)
+			}
+			if scenario.Expected.Access.HubURL == "" && scenario.Expected.Generation.InstallMode != string(models.InstallModeBare) {
+				return fmt.Errorf("%s runnable non-bare scenario has empty expected hubUrl", scenario.ID)
+			}
 		}
 	}
 	return nil
@@ -268,4 +329,23 @@ func validateScenarios(scenarios []Scenario) error {
 
 func browserURLForScenario(s Scenario, hubURL string, target Target) string {
 	return hubURL
+}
+
+func firstObservedAccessURL(services []ObservedService) string {
+	for _, svc := range services {
+		if strings.TrimSpace(svc.URL) != "" {
+			return strings.TrimSpace(svc.URL)
+		}
+	}
+	return ""
+}
+
+func firstExpectedAccessURL(services []ExpectedService) string {
+	for _, svc := range services {
+		if strings.TrimSpace(svc.Host) == "" || strings.TrimSpace(svc.Scheme) == "" {
+			continue
+		}
+		return svc.Scheme + "://" + svc.Host + svc.Path
+	}
+	return ""
 }

@@ -246,7 +246,7 @@
       "order": 50,
       "enable_var": "enable_immich",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/immich",
-      "setup_policy": "on_demand",
+      "setup_policy": "automatic",
       "setup_action_label": "Do the setup for me",
       "default": true
     },
@@ -313,7 +313,8 @@
       "order": 30,
       "enable_var": "enable_vaultwarden",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/vaultwarden",
-      "setup_policy": "manual",
+      "setup_policy": "automatic",
+      "setup_action_label": "Automatisierter Bootstrap",
       "default": true
     },
     {

@@ -17,6 +17,11 @@ works from a clean directory without a repo checkout. BaseKit is the verified
 beta one-click path; Modern Home Lab and HA Kit are packaged as
 alpha/scaffolding definitions until their rollout matrices graduate.
 
+For the full process taxonomy, including website prompting, one-line install,
+direct CLI, on-server agents, SSH agents, local MCP fallback, protected remote
+MCP day-2 target operation, automation levels, and individualization levels,
+see [INSTALLATION_PROCESSES.md](INSTALLATION_PROCESSES.md).
+
 Build from source:
 
 ```bash
@@ -60,6 +65,7 @@ stackkit verify --http --json
 | `remove` | Destroy a StackKit deployment. |
 | `status` | Show deployment state and service health. |
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
+| `app` | Write optional PaaS app handoff metadata for dev/customer-owned apps. |
 | `addon` | Manage add-ons in `stack-spec.yaml`. |
 | `backup` | Operate local Kopia backup flows and controller enrollment stubs. |
 | `break-glass` | Inspect and rotate break-glass recovery bundles. |
@@ -198,6 +204,28 @@ Reads local deployment state and reports service health from generated outputs a
 
 Validates `stack-spec.yaml` by default. It also validates CUE and generated OpenTofu output when those files are present.
 
+### `stackkit app`
+
+Writes optional PaaS app handoff metadata to `stack-spec.yaml`. This is a
+dev/handoff helper for customer-owned apps; it does not make the app
+StackKit-owned, and `stackkit apply` records handoff state rather than
+deploying or managing the customer app lifecycle.
+
+Subcommands:
+
+- `app add <name>`
+
+Common flags for `app add`:
+
+- `--image`
+- `--kind` (`sveltekit` currently)
+- `--port`
+- `--host`
+- `--auth` (`login-gateway` or `public`)
+- `--health-path`
+- `--env KEY=value`
+- `--secret KEY=env:NAME|doppler:NAME|vault:NAME|file:PATH`
+
 ### `stackkit addon`
 
 Subcommands:
@@ -255,7 +283,7 @@ Subcommands:
 - `agent install-plan` prints a non-interactive BaseKit rollout plan. Use `--json` for machine-readable output.
 - `agent self-check` prints local binary, server, and MCP gate checks. Use `--json` for machine-readable output.
 - `agent prompt <scenario>` prints copy-ready prompts. Use `--list` to see scenarios.
-- `agent mcp-config` prints `stackkit-mcp` client configuration for `generic`, `codex`, or `claude`.
+- `agent mcp-config` prints one `stackkit` MCP client connection for `generic`, `codex`, or `claude`.
 
 Examples:
 
@@ -265,7 +293,9 @@ stackkit agent prompt basekit-autonomous-rollout
 stackkit agent mcp-config --client codex --mode docs,local,server
 ```
 
-`stackkit-mcp` is a separate installed binary. It defaults to stdio transport, supports `docs`, `local`, `server`, and optional `actions` modes, and keeps write tools disabled unless `STACKKIT_MCP_ALLOW_WRITE=true`.
+`stackkit-server` also mounts the native local MCP connector at `POST /mcp` and publishes local discovery at `GET /openmcp.json`. `stackkit-mcp` is the local stdio or loopback adapter for the same user-facing `stackkit` MCP connection and uses the same registration. Both runtime forms support `docs`, `local`, `server`, and optional `actions` modes. Write tools stay disabled unless `STACKKIT_MCP_ALLOW_WRITE=true` or `stackkit-server --mcp-allow-write` is set. MCP HTTP auth uses `STACKKIT_MCP_TOKEN` or `stackkit-server --mcp-token`. Non-loopback MCP access is a protected day-2 target posture, not the default first-install path.
+
+The write-capable MCP tools execute local CLI-equivalent StackKits operations. `stackkit_apply` and `stackkit_rollout` use `--skip-platform-apps` by default so the connector manages StackKits rollout and evidence, not customer app or managed-serverless orchestration.
 
 ### `stackkit kit`
 
@@ -347,6 +377,7 @@ Prints version, commit, build date, Go version, and target OS/arch.
 ## Related Docs
 
 - [CONFIGURATION.md](CONFIGURATION.md)
+- [INSTALLATION_PROCESSES.md](INSTALLATION_PROCESSES.md)
 - [API.md](API.md)
 - [stack-spec-reference.md](stack-spec-reference.md)
 - [agent/agents.md](agent/agents.md)

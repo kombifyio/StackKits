@@ -54,11 +54,17 @@ requirements:
 # DEPLOYMENT MODES
 # =============================================================================
 modes:
-  simple:
-    description: "OpenTofu-only deployment via kombify Stack Core"
+  bare:
+    description: "OpenTofu-only deployment without Base Hub setup automation"
     templateDir: "templates/simple"
     engine: "opentofu"
     recommended: false  # Not recommended for HA
+
+  bootstrapped:
+    description: "OpenTofu deployment with Base Hub and one-click setup actions"
+    templateDir: "templates/simple"
+    engine: "opentofu"
+    recommended: false  # Advanced remains recommended for HA
 
   advanced:
     description: "Terramate-orchestrated deployment with drift detection"

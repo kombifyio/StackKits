@@ -195,7 +195,12 @@ var agentPromptCmd = &cobra.Command{
 
 var agentMCPConfigCmd = &cobra.Command{
 	Use:   "mcp-config",
-	Short: "Print local MCP client configuration for stackkit-mcp",
+	Short: "Print one StackKits MCP client connection config",
+	Long: `Print a ready-to-paste MCP client configuration named "stackkit".
+
+For users this is one StackKits MCP connection. Locally it starts the
+stackkit-mcp adapter; after install the same connector can also be reached as
+stackkit-server /mcp when a protected endpoint is explicitly enabled.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mode := normalizeAgentMode(agentMode)
 		serverURL := strings.TrimSpace(agentServerURL)
@@ -266,7 +271,7 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 		Target:    target,
 		Workspace: workspace,
 		Commands: []agentCommandStep{
-			{Command: "curl -sSL https://base.stackkit.cc | sh", Purpose: "install stackkit, stackkit-server, stackkit-mcp, packaged OpenTofu, and BaseKit definitions", Mutation: true},
+			{Command: "curl -sSL https://base.stackkit.cc | sh", Purpose: "install StackKits CLI, server, local MCP adapter, packaged OpenTofu, and BaseKit definitions", Mutation: true},
 			{Command: "mkdir -p " + workspace + " && cd " + workspace, Purpose: "create a clean workspace", Mutation: true},
 			{Command: "stackkit init " + kit + " --non-interactive --admin-email <operator-email>", Purpose: "write stack-spec.yaml from the release-ready kit", Mutation: true},
 			{Command: "stackkit prepare --dry-run", Purpose: "check host prerequisites without changing the host", Mutation: false},
@@ -292,7 +297,7 @@ func buildAgentSelfChecks(serverURL string) []agentSelfCheck {
 		binaryCheck("stackkit"),
 		binaryCheck("stackkit-server"),
 		binaryCheck("stackkit-mcp"),
-		{Name: "server-url", Status: "info", Target: serverURL, Message: "use with stackkit-server read-only management endpoints"},
+		{Name: "server-url", Status: "info", Target: serverURL, Message: "used by the single StackKits MCP connection when local server tools are enabled"},
 		{Name: "mcp-write-gate", Status: "info", Target: "STACKKIT_MCP_ALLOW_WRITE", Message: "write tools are disabled unless this variable is true"},
 		{Name: "mcp-http-token", Status: "info", Target: "STACKKIT_MCP_TOKEN", Message: "required when management/write tools are exposed beyond loopback"},
 	}
@@ -337,6 +342,7 @@ func mcpConfigMap(mode, serverURL string) map[string]any {
 		args = append(args, "--server-url", strings.TrimSpace(serverURL))
 	}
 	return map[string]any{
+		"name":    "stackkit",
 		"command": "stackkit-mcp",
 		"args":    args,
 	}

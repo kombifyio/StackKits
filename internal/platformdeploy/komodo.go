@@ -29,6 +29,22 @@ func NewKomodoAdapter(cfg HTTPConfig) *KomodoAdapter {
 	}
 }
 
+func (a *KomodoAdapter) BootstrapProviderName() string {
+	return "komodo"
+}
+
+func (a *KomodoAdapter) BootstrapCapabilities() []BootstrapCapability {
+	return []BootstrapCapability{
+		BootstrapCapabilityProxyRouting,
+		BootstrapCapabilityAPIAccess,
+		BootstrapCapabilityTeamManagement,
+		BootstrapCapabilityBackups,
+		BootstrapCapabilitySecrets,
+		BootstrapCapabilityHealthchecks,
+		BootstrapCapabilityServiceHandoff,
+	}
+}
+
 func (a *KomodoAdapter) ApplyCompose(ctx context.Context, manifest AppManifest) (DeploymentRef, error) {
 	ref, err := a.UpsertStack(ctx, manifest)
 	if err != nil {

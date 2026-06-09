@@ -57,6 +57,7 @@ package base_kit
 		vaultwarden:   true
 		jellyfin:      false
 		immich:        true
+		files:         true
 	}
 }
 
@@ -184,11 +185,12 @@ package base_kit
 	}
 
 	// Low tier: <4 CPU OR <8 GB RAM
-	if cpu < 4 || memory < 8 {
-		tier: "low"
-	}
+	if cpu < 4 || memory < 8
 
 	// Standard is the default (4-7 CPU, 8-15 GB)
+	{
+		tier: "low"
+	}
 }
 
 // #DomainConfig provides domain configuration defaults.
@@ -218,6 +220,7 @@ package base_kit
 		vault: {nested: "vault", flat: "vault"}
 		media: {nested: "media", flat: "media"}
 		photos: {nested: "photos", flat: "photos"}
+		files: {nested: "files", flat: "files"}
 		logs: {nested: "logs", flat: "logs"}
 		monitor: {nested: "monitor", flat: "monitor"}
 		portainer: {nested: "portainer", flat: "portainer"}
@@ -287,6 +290,7 @@ package base_kit
 				"vault.\(domain)",
 				"media.\(domain)",
 				"photos.\(domain)",
+				"files.\(domain)",
 				"logs.\(domain)",
 			]
 		},

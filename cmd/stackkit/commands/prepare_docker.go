@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -378,7 +379,7 @@ func baseKitImages(tier string) []string {
 	images := []string{
 		"ghcr.io/traefik/traefik:v3",
 		"ghcr.io/steveiliop56/tinyauth:v5.0.7",
-		"ghcr.io/pocket-id/pocket-id:v2",
+		"ghcr.io/pocket-id/pocket-id:v2.7.0",
 		"public.ecr.aws/docker/library/nginx:alpine",
 		"ghcr.io/gethomepage/homepage:latest",
 		"ghcr.io/tecnativa/docker-socket-proxy:latest",
@@ -393,15 +394,22 @@ func baseKitImages(tier string) []string {
 			"ghcr.io/louislam/uptime-kuma:2.0.2",
 			"public.ecr.aws/docker/library/python:3.11-alpine",
 		)
+		if !adminOnly {
+			images = append(images,
+				"cloudreve/cloudreve:latest",
+			)
+		}
 	} else if tier == "" && !adminOnly {
 		// All images (for destroy/cleanup/recovery)
 		images = append(images,
 			"public.ecr.aws/docker/library/postgres:16-alpine",
 			"public.ecr.aws/docker/library/postgres:15-alpine",
 			"public.ecr.aws/docker/library/redis:7-alpine",
+			"public.ecr.aws/docker/library/busybox:latest",
 			"ghcr.io/coollabsio/coolify-helper:1.0.13",
-			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
-			"ghcr.io/coollabsio/coolify:4.0.0",
+			"ghcr.io/coollabsio/coolify-realtime:1.0.16",
+			"ghcr.io/coollabsio/sentinel:0.0.21",
+			"ghcr.io/coollabsio/coolify:4.1.2",
 			"public.ecr.aws/docker/library/mongo:7",
 			"ghcr.io/moghtech/komodo-core:2",
 			"ghcr.io/moghtech/komodo-periphery:2",
@@ -411,6 +419,10 @@ func baseKitImages(tier string) []string {
 			"ghcr.io/louislam/uptime-kuma:2.0.2",
 			"public.ecr.aws/docker/library/python:3.11-alpine",
 			"ghcr.io/dani-garcia/vaultwarden:latest",
+			"cloudreve/cloudreve:latest",
+			"nextcloud:30-apache",
+			"mariadb:11",
+			"redis:7-alpine",
 			"ghcr.io/immich-app/immich-server:release",
 			"ghcr.io/immich-app/immich-machine-learning:release",
 			"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
@@ -419,6 +431,14 @@ func baseKitImages(tier string) []string {
 		)
 	} else {
 		// Standard/high: selected platform baseline, monitoring, and default apps.
+		if !adminOnly {
+			images = append(images,
+				"ghcr.io/immich-app/immich-server:release",
+				"ghcr.io/immich-app/immich-machine-learning:release",
+				"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
+				"ghcr.io/valkey-io/valkey:9",
+			)
+		}
 		images = append(images, platformPrePullImages(platform)...)
 		images = append(images,
 			"ghcr.io/louislam/uptime-kuma:2.0.2",
@@ -427,10 +447,7 @@ func baseKitImages(tier string) []string {
 		if !adminOnly {
 			images = append(images,
 				"ghcr.io/dani-garcia/vaultwarden:latest",
-				"ghcr.io/immich-app/immich-server:release",
-				"ghcr.io/immich-app/immich-machine-learning:release",
-				"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
-				"ghcr.io/valkey-io/valkey:9",
+				"cloudreve/cloudreve:latest",
 			)
 		}
 	}
@@ -439,7 +456,42 @@ func baseKitImages(tier string) []string {
 		images = append(images, image)
 	}
 
+	images = prioritizePrePullImages(images)
 	return images
+}
+
+func prioritizePrePullImages(images []string) []string {
+	priority := []string{
+		"ghcr.io/immich-app/immich-server:release",
+		"ghcr.io/immich-app/immich-machine-learning:release",
+		"ghcr.io/coollabsio/coolify:4.1.2",
+		"ghcr.io/gethomepage/homepage:latest",
+		"cloudreve/cloudreve:latest",
+		"ghcr.io/dani-garcia/vaultwarden:latest",
+		"ghcr.io/louislam/uptime-kuma:2.0.2",
+		"ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0",
+		"ghcr.io/coollabsio/coolify-helper:1.0.13",
+		"ghcr.io/coollabsio/coolify-realtime:1.0.16",
+		"ghcr.io/coollabsio/sentinel:0.0.21",
+	}
+	available := make(map[string]bool, len(images))
+	for _, image := range images {
+		available[image] = true
+	}
+	prioritized := make([]string, 0, len(images))
+	used := make(map[string]bool, len(images))
+	for _, image := range priority {
+		if available[image] {
+			prioritized = append(prioritized, image)
+			used[image] = true
+		}
+	}
+	for _, image := range images {
+		if !used[image] {
+			prioritized = append(prioritized, image)
+		}
+	}
+	return prioritized
 }
 
 func selectedPrePullPlatform() string {
@@ -478,9 +530,11 @@ func platformPrePullImages(platform string) []string {
 		return []string{
 			"public.ecr.aws/docker/library/postgres:15-alpine",
 			"public.ecr.aws/docker/library/redis:7-alpine",
+			"public.ecr.aws/docker/library/busybox:latest",
 			"ghcr.io/coollabsio/coolify-helper:1.0.13",
-			"ghcr.io/coollabsio/coolify-realtime:1.0.13",
-			"ghcr.io/coollabsio/coolify:4.0.0",
+			"ghcr.io/coollabsio/coolify-realtime:1.0.16",
+			"ghcr.io/coollabsio/sentinel:0.0.21",
+			"ghcr.io/coollabsio/coolify:4.1.2",
 		}
 	}
 }
@@ -496,52 +550,62 @@ func shouldPrePullImage(image string) bool {
 // prePullImages pulls all base-kit Docker images from the host network.
 // This is critical on restricted VPS where container DNS is broken — the host
 // network has working DNS, so `docker pull` from the host succeeds.
+const (
+	defaultPrePullImageTimeout = 2 * time.Minute
+	defaultPrePullPhaseBudget  = 10 * time.Minute
+	defaultPrePullConcurrency  = 3
+	defaultPrePullRetries      = 1
+)
+
+type prePullResult struct {
+	index    int
+	image    string
+	pulled   bool
+	failed   bool
+	diskFull bool
+	message  string
+}
+
 func prePullImages(ctx context.Context, caps *models.DockerCapabilities, computeTier string) {
 	images := baseKitImages(computeTier)
-	printInfo("Pre-pulling %d Docker images...", len(images))
+	perImageTimeout := dockerPrePullImageTimeout()
+	phaseBudget := dockerPrePullPhaseBudget()
+	concurrency := dockerPrePullConcurrency(len(images))
+	retries := dockerPrePullRetries()
+	printInfo("Pre-pulling %d Docker images (budget %s, per image %s, concurrency %d, retries %d)...", len(images), phaseBudget, perImageTimeout, concurrency, retries)
+
+	phaseCtx, phaseCancel := context.WithTimeout(ctx, phaseBudget)
+	defer phaseCancel()
+
+	resultsByIndex := make([]prePullResult, len(images))
+	indexes := make([]int, 0, len(images))
+	for index := range images {
+		indexes = append(indexes, index)
+	}
+	diskFull := false
+	_ = runPrePullPass(phaseCtx, images, indexes, concurrency, perImageTimeout, retries, func(result prePullResult) {
+		resultsByIndex[result.index] = result
+		if result.diskFull {
+			diskFull = true
+			phaseCancel()
+		}
+		if result.pulled {
+			fmt.Printf("  [%d/%d] %s ✓\n", result.index+1, len(images), result.image)
+			return
+		}
+		fmt.Printf("  [%d/%d] %s ✗\n", result.index+1, len(images), result.image)
+		if result.message != "" {
+			printWarning("    Failed: %s", result.message)
+		}
+	})
 
 	pulled := []string{}
 	failed := []string{}
-	diskFull := false
-
-	for i, image := range images {
-		// Check available disk space before each pull
-		if availGB, _, _ := getDiskSpace(); availGB > 0 && availGB < 1.0 {
-			diskFull = true
-			fmt.Printf("  [%d/%d] %s ✗ (skipped — %.0f MB disk remaining)\n", i+1, len(images), image, availGB*1024)
-			failed = append(failed, image)
-			// Skip remaining images too
-			for j := i + 1; j < len(images); j++ {
-				failed = append(failed, images[j])
-			}
-			break
-		}
-
-		fmt.Printf("  [%d/%d] %s ", i+1, len(images), image)
-
-		pullCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-		cmd := exec.CommandContext(pullCtx, "docker", "pull", image) // #nosec G204
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		if err := cmd.Run(); err != nil {
-			cancel()
-			fmt.Printf("✗\n")
-			errMsg := strings.TrimSpace(stderr.String())
-			printWarning("    Failed: %s", errMsg)
-			failed = append(failed, image)
-
-			// Detect disk full — abort remaining pulls immediately
-			if isNoSpaceError(errMsg) {
-				diskFull = true
-				for j := i + 1; j < len(images); j++ {
-					failed = append(failed, images[j])
-				}
-				break
-			}
-		} else {
-			cancel()
-			fmt.Printf("✓\n")
-			pulled = append(pulled, image)
+	for _, result := range resultsByIndex {
+		if result.pulled {
+			pulled = append(pulled, result.image)
+		} else if result.failed {
+			failed = append(failed, result.image)
 		}
 	}
 
@@ -566,6 +630,303 @@ func prePullImages(ctx context.Context, caps *models.DockerCapabilities, compute
 	} else {
 		printWarning("%d images pulled, %d failed", len(pulled), len(failed))
 	}
+}
+
+func runPrePullPass(ctx context.Context, images []string, indexes []int, concurrency int, perImageTimeout time.Duration, retries int, onResult func(prePullResult)) []prePullResult {
+	if len(indexes) == 0 {
+		return nil
+	}
+	if concurrency > len(indexes) {
+		concurrency = len(indexes)
+	}
+	jobs := make(chan int, len(indexes))
+	results := make(chan prePullResult, len(indexes))
+	for worker := 0; worker < concurrency; worker++ {
+		go func() {
+			for index := range jobs {
+				results <- pullDockerImage(ctx, index, images[index], perImageTimeout, retries)
+			}
+		}()
+	}
+	for _, index := range indexes {
+		jobs <- index
+	}
+	close(jobs)
+
+	passResults := make([]prePullResult, 0, len(indexes))
+	for range indexes {
+		result := <-results
+		if onResult != nil {
+			onResult(result)
+		}
+		passResults = append(passResults, result)
+	}
+	return passResults
+}
+
+func retryablePrePullFailure(ctx context.Context, result prePullResult) bool {
+	if !result.failed || result.diskFull || ctx.Err() != nil {
+		return false
+	}
+	message := strings.ToLower(result.message)
+	if strings.Contains(message, "pre-pull budget exhausted") ||
+		strings.Contains(message, "manifest unknown") ||
+		strings.Contains(message, "pull access denied") ||
+		strings.Contains(message, "repository does not exist") {
+		return false
+	}
+	return true
+}
+
+var (
+	dockerImagePull = pullDockerImageOnce
+	dockerImageTag  = tagDockerImage
+)
+
+func pullDockerImage(ctx context.Context, index int, image string, perImageTimeout time.Duration, retries int) prePullResult {
+	result := pullDockerImageWithRetries(ctx, index, image, perImageTimeout, retries)
+	if result.pulled || !rateLimitedPrePullFailure(result) || ctx.Err() != nil {
+		return result
+	}
+	for _, mirror := range prePullMirrorImages(image) {
+		mirrorResult := pullDockerImageWithRetries(ctx, index, mirror, perImageTimeout, retries)
+		if !mirrorResult.pulled {
+			if mirrorResult.message != "" {
+				result.message = fmt.Sprintf("%s; mirror %s failed: %s", result.message, mirror, mirrorResult.message)
+			}
+			continue
+		}
+		if err := dockerImageTag(ctx, mirror, image); err != nil {
+			return prePullResult{
+				index:   index,
+				image:   image,
+				failed:  true,
+				message: fmt.Sprintf("docker tag mirror %s as %s failed: %v", mirror, image, err),
+			}
+		}
+		return prePullResult{index: index, image: image, pulled: true}
+	}
+	return result
+}
+
+func pullDockerImageWithRetries(ctx context.Context, index int, image string, perImageTimeout time.Duration, retries int) prePullResult {
+	var result prePullResult
+	for attempt := 0; attempt <= retries; attempt++ {
+		result = dockerImagePull(ctx, index, image, perImageTimeout)
+		if result.pulled || !retryablePrePullFailure(ctx, result) || attempt == retries {
+			return result
+		}
+	}
+	return result
+}
+
+func rateLimitedPrePullFailure(result prePullResult) bool {
+	if !result.failed {
+		return false
+	}
+	message := strings.ToLower(result.message)
+	return strings.Contains(message, "toomanyrequests") ||
+		strings.Contains(message, "rate exceeded") ||
+		strings.Contains(message, "pull rate limit") ||
+		strings.Contains(message, "rate limit reached")
+}
+
+func prePullMirrorImages(image string) []string {
+	const dockerLibraryECRPrefix = "public.ecr.aws/docker/library/"
+	image = strings.TrimSpace(image)
+	if strings.HasPrefix(image, dockerLibraryECRPrefix) {
+		mirror := strings.TrimPrefix(image, dockerLibraryECRPrefix)
+		if mirror != "" {
+			return []string{mirror}
+		}
+		return nil
+	}
+	if strings.Contains(image, "/") {
+		return nil
+	}
+	name := officialLibraryImageName(image)
+	if _, ok := officialLibraryMirrorNames[name]; ok {
+		return []string{dockerLibraryECRPrefix + image}
+	}
+	return nil
+}
+
+func officialLibraryImageName(image string) string {
+	name := strings.SplitN(image, "@", 2)[0]
+	if index := strings.Index(name, ":"); index >= 0 {
+		name = name[:index]
+	}
+	return name
+}
+
+var officialLibraryMirrorNames = map[string]struct{}{
+	"busybox":   {},
+	"mariadb":   {},
+	"mongo":     {},
+	"nextcloud": {},
+	"nginx":     {},
+	"node":      {},
+	"postgres":  {},
+	"python":    {},
+	"redis":     {},
+}
+
+func pullDockerImageOnce(ctx context.Context, index int, image string, perImageTimeout time.Duration) prePullResult {
+	result := prePullResult{index: index, image: image}
+	if ctx.Err() != nil {
+		result.failed = true
+		result.message = "pre-pull budget exhausted"
+		return result
+	}
+
+	if availGB, _, _ := getDiskSpace(); availGB > 0 && availGB < 1.0 {
+		result.failed = true
+		result.diskFull = true
+		result.message = fmt.Sprintf("skipped — %.0f MB disk remaining", availGB*1024)
+		return result
+	}
+
+	pullTimeout := perImageTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			result.failed = true
+			result.message = "pre-pull budget exhausted"
+			return result
+		}
+		if remaining < pullTimeout {
+			pullTimeout = remaining
+		}
+	}
+
+	pullCtx, cancel := context.WithTimeout(ctx, pullTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(pullCtx, "docker", "pull", image) // #nosec G204
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		result.failed = true
+		errMsg := strings.TrimSpace(stderr.String())
+		switch {
+		case ctx.Err() == context.DeadlineExceeded:
+			errMsg = "pre-pull budget exhausted"
+		case pullCtx.Err() == context.DeadlineExceeded:
+			errMsg = fmt.Sprintf("docker pull timed out after %s", pullTimeout)
+		case pullCtx.Err() == context.Canceled:
+			errMsg = "pre-pull canceled"
+		}
+		result.message = errMsg
+		result.diskFull = isNoSpaceError(errMsg)
+		return result
+	}
+
+	result.pulled = true
+	return result
+}
+
+func tagDockerImage(ctx context.Context, source, target string) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	tagCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(tagCtx, "docker", "tag", source, target) // #nosec G204
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		switch {
+		case ctx.Err() == context.DeadlineExceeded:
+			errMsg = "pre-pull budget exhausted"
+		case tagCtx.Err() == context.DeadlineExceeded:
+			errMsg = "docker tag timed out after 30s"
+		case tagCtx.Err() == context.Canceled:
+			errMsg = "docker tag canceled"
+		}
+		if errMsg != "" {
+			return fmt.Errorf("%w: %s", err, errMsg)
+		}
+		return err
+	}
+	return nil
+}
+
+func dockerPrePullImageTimeout() time.Duration {
+	return durationFromEnv(defaultPrePullImageTimeout, "STACKKIT_PREPULL_IMAGE_TIMEOUT", "STACKKIT_PREPULL_IMAGE_TIMEOUT_SECONDS")
+}
+
+func dockerPrePullPhaseBudget() time.Duration {
+	return durationFromEnv(defaultPrePullPhaseBudget, "STACKKIT_PREPULL_BUDGET", "STACKKIT_PREPULL_BUDGET_SECONDS")
+}
+
+func dockerPrePullConcurrency(imageCount int) int {
+	if imageCount <= 0 {
+		return 1
+	}
+	value := strings.TrimSpace(os.Getenv("STACKKIT_PREPULL_CONCURRENCY"))
+	if value == "" {
+		if imageCount < defaultPrePullConcurrency {
+			return imageCount
+		}
+		return defaultPrePullConcurrency
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 1 {
+		printWarning("Ignoring invalid STACKKIT_PREPULL_CONCURRENCY=%q", value)
+		return defaultPrePullConcurrency
+	}
+	if parsed > 8 {
+		parsed = 8
+	}
+	if parsed > imageCount {
+		return imageCount
+	}
+	return parsed
+}
+
+func dockerPrePullRetries() int {
+	value := strings.TrimSpace(os.Getenv("STACKKIT_PREPULL_RETRIES"))
+	if value == "" {
+		return defaultPrePullRetries
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
+		printWarning("Ignoring invalid STACKKIT_PREPULL_RETRIES=%q", value)
+		return defaultPrePullRetries
+	}
+	if parsed > 3 {
+		return 3
+	}
+	return parsed
+}
+
+func dockerPrePullRequired() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("STACKKIT_PREPULL_REQUIRED")))
+	switch value {
+	case "1", "true", "yes", "required", "strict":
+		return true
+	default:
+		return false
+	}
+}
+
+func durationFromEnv(fallback time.Duration, names ...string) time.Duration {
+	for _, name := range names {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value == "" {
+			continue
+		}
+		if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+		if duration, err := time.ParseDuration(value); err == nil && duration > 0 {
+			return duration
+		}
+		printWarning("Ignoring invalid duration %s=%q", name, value)
+	}
+	return fallback
 }
 
 // loadDockerKernelModules loads kernel modules required by Docker networking and storage.

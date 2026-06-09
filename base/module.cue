@@ -196,6 +196,14 @@ package base
 	// Per-context overrides
 	contexts?: #ContextOverrides
 
+	// Placement eligibility (publishable metadata) + optional per-unit override.
+	// MS/coupled realization is Control-Plane, not OSS. See base/placement.cue.
+	placementSupport?: #PlacementSupport
+	// Mode-only shorthand (NOT #PlacementIntent like #BaseStackKit.placementMode):
+	// at module level the sub-dimensions (exposure/coupling) are StackKit-managed,
+	// so the per-unit override is mode-only.
+	placementMode?: #PlacementMode
+
 	// The service definition(s) this module deploys
 	services: [string]: #ServiceDefinition
 

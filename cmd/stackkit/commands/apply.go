@@ -34,6 +34,7 @@ var (
 	applyVerify            bool
 	applyVerifyHTTP        bool
 	applyVerifyStrict      bool
+	applySkipPlatformApps  bool
 )
 
 var applyCmd = &cobra.Command{
@@ -60,6 +61,7 @@ func init() {
 	applyCmd.Flags().BoolVar(&applyVerify, "verify", false, "Run stackkit verify after a successful apply")
 	applyCmd.Flags().BoolVar(&applyVerifyHTTP, "verify-http", false, "Include HTTP route checks in post-apply verification")
 	applyCmd.Flags().BoolVar(&applyVerifyStrict, "verify-strict", false, "Treat post-apply verification warnings as failures")
+	applyCmd.Flags().BoolVar(&applySkipPlatformApps, "skip-platform-apps", false, "Skip platform app lifecycle handoff and automatic app setup actions")
 }
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
@@ -295,11 +297,15 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "succeeded", "OpenTofu apply succeeded", "")
 
 	// Update deployment state
+	stateFile := filepath.Join(wd, ".stackkit", "state.yaml")
 	state := &models.DeploymentState{
 		StackKit:    spec.StackKit,
 		Mode:        spec.Mode,
 		Status:      models.StatusRunning,
 		LastApplied: time.Now(),
+	}
+	if stateErr := preserveExistingSetupRuns(loader, stateFile, state); stateErr != nil {
+		printWarning("Could not load existing deployment state for setup-run preservation: %v", stateErr)
 	}
 
 	access, accessErr := buildAccessSummary(wd, spec)
@@ -321,21 +327,42 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		}
 	}
 
-	rolloutEvent("platform_apps", "started", "platform app handoff processing started", nil)
-	recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "started", "platform app handoff processing started", "")
-	if err := runPlatformAppDeployments(ctx, deployDir, state); err != nil {
-		rolloutFailure("platform_apps", err)
-		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
-		return fmt.Errorf("platform app handoff processing: %w", err)
+	if shouldSkipPlatformApps() {
+		printInfo("Skipping platform app lifecycle and automatic app setup actions")
+		rolloutEvent("platform_apps", "skipped", "platform app handoff skipped", nil)
+		rolloutEvent("setup_actions", "skipped", "automatic setup actions skipped", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "skipped", "platform app handoff skipped", "")
+		recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "skipped", "automatic setup actions skipped", "")
+	} else {
+		rolloutEvent("platform_apps", "started", "platform app handoff processing started", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "started", "platform app handoff processing started", "")
+		if err := runPlatformAppDeployments(ctx, deployDir, state); err != nil {
+			rolloutFailure("platform_apps", err)
+			recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
+			return fmt.Errorf("platform app handoff processing: %w", err)
+		}
+		rolloutEvent("platform_apps", "succeeded", "platform app handoff processing succeeded", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "succeeded", "platform app handoff processing succeeded", "")
+
+		rolloutEvent("setup_actions", "started", "automatic setup action processing started", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "started", "automatic setup action processing started", "")
+		updatedState, setupActionErr := runAutomaticNodeSetupActions(ctx, access, state, loader, stateFile)
+		if setupActionErr != nil {
+			rolloutFailure("setup_actions", setupActionErr)
+			recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "failed", setupActionErr.Error(), rollout.ClassifyFailure(setupActionErr.Error()))
+			return fmt.Errorf("automatic setup actions: %w", setupActionErr)
+		}
+		if updatedState != nil {
+			state = updatedState
+		}
+		rolloutEvent("setup_actions", "succeeded", "automatic setup action processing succeeded", nil)
+		recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "succeeded", "automatic setup action processing succeeded", "")
 	}
-	rolloutEvent("platform_apps", "succeeded", "platform app handoff processing succeeded", nil)
-	recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "succeeded", "platform app handoff processing succeeded", "")
 
 	deployLog.Event("apply.success",
 		slog.Duration("duration", duration),
 	)
 
-	stateFile := filepath.Join(wd, ".stackkit", "state.yaml")
 	if mkdirErr := os.MkdirAll(filepath.Dir(stateFile), 0750); mkdirErr != nil {
 		deployLog.Warn("state.saved",
 			slog.String("status", "failed"),
@@ -425,6 +452,34 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	return nil
+}
+
+func preserveExistingSetupRuns(loader *config.Loader, stateFile string, state *models.DeploymentState) error {
+	if loader == nil || state == nil {
+		return nil
+	}
+	existingState, err := loader.LoadDeploymentState(stateFile)
+	if err != nil {
+		return err
+	}
+	if existingState == nil || len(existingState.SetupRuns) == 0 {
+		return nil
+	}
+	state.SetupRuns = append([]models.SetupRunState(nil), existingState.SetupRuns...)
+	return nil
+}
+
+func shouldSkipPlatformApps() bool {
+	if applySkipPlatformApps {
+		return true
+	}
+	for _, key := range []string{"STACKKIT_SKIP_PLATFORM_APPS", "STACKKIT_NO_APP_ORCHESTRATION"} {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+		case "1", "true", "yes", "y", "on", "enabled":
+			return true
+		}
+	}
+	return false
 }
 
 // reportTenantDeploymentState PATCHes sk_tenant_deployment with a lifecycle

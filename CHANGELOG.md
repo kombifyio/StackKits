@@ -4,6 +4,20 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.4] - 2026-06-08
+
+### Highlights
+
+- **Native MCP surface**: StackKits now publishes one user-facing `stackkit` MCP connection, with `stackkit-mcp` as the local adapter and `stackkit-server /mcp` as the protected durable endpoint after install.
+- **TechStack rollout readiness**: release archives include the MCP/server pieces needed for kombify-TechStack managed installs, plus bounded MCP rollout and Fresh Ubuntu phase gates.
+- **Agent discovery**: stackkit.cc now ships OpenMCP metadata, `llms.txt` updates, and installation-process guidance for local, SSH, and protected durable MCP paths.
+
+### Fixed
+
+- **OSS release hygiene**: the StackKits runtime-action wire contract is now local to this repo, so public release builds no longer depend on private kombify Go modules.
+- **Release export**: the Docker image build no longer emits private module-auth configuration into the curated public release surface.
+- **Local gates**: Beads sync, local build timing, website checks, MCP smoke tests, and timeout-budget checks are all bounded by the 15-minute command policy.
+
 ## [0.3.2] - 2026-05-26
 
 ### Fixed

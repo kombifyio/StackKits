@@ -188,7 +188,7 @@
       <span class="text-[11px] font-bold tracking-widest uppercase text-primary">For agents &amp; LLMs</span>
       <h2 class="text-3xl md:text-4xl font-bold text-on-surface mt-2 mb-3">First-class autonomous rollout.</h2>
       <p class="text-on-surface-variant max-w-2xl mx-auto mb-7 leading-relaxed">
-        Every release ships <code class="font-mono text-sm bg-surface-container px-2 py-0.5 rounded">llms.txt</code>, prompt Markdown, OpenAPI, JSON schemas, and a local MCP connector. Agents get a deterministic, idempotent path from zero to a verified rollout.
+        Every release ships <code class="font-mono text-sm bg-surface-container px-2 py-0.5 rounded">llms.txt</code>, prompt Markdown, OpenAPI, JSON schemas, and one <code class="font-mono text-sm bg-surface-container px-2 py-0.5 rounded">stackkit</code> MCP connection through the local adapter. Agents get a deterministic, idempotent path from zero to a verified rollout.
       </p>
       <div class="flex flex-wrap items-center justify-center gap-3">
         <button onclick={() => navigate('/getting-started/agents')} class="inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-3 rounded-lg text-sm font-semibold cursor-pointer hover:shadow-lg hover:shadow-primary/20 transition-all">

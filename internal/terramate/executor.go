@@ -75,7 +75,7 @@ func NewExecutor(opts ...ExecutorOption) *Executor {
 	e := &Executor{
 		workDir:      ".",
 		binary:       "terramate",
-		timeout:      30 * time.Minute,
+		timeout:      14 * time.Minute,
 		changeDetect: true,
 		parallelism:  1,
 		tofuBinary:   "tofu",
@@ -213,7 +213,7 @@ func (e *Executor) RunPlan(ctx context.Context) (*Result, error) {
 		args = append(args, "--changed")
 	}
 	args = append(args, "--", e.tofuBinary, "plan", "-input=false", "-detailed-exitcode")
-	return e.run(ctx, args...)
+	return e.runAllowingExitCodes(ctx, []int{2}, args...)
 }
 
 // RunApply runs tofu apply on all stacks
@@ -363,6 +363,10 @@ func (e *Executor) Generate(ctx context.Context) (*Result, error) {
 
 // run executes a terramate command
 func (e *Executor) run(ctx context.Context, args ...string) (*Result, error) {
+	return e.runAllowingExitCodes(ctx, nil, args...)
+}
+
+func (e *Executor) runAllowingExitCodes(ctx context.Context, allowedNonZero []int, args ...string) (*Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 
@@ -393,6 +397,12 @@ func (e *Executor) run(ctx context.Context, args ...string) (*Result, error) {
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
+			for _, allowed := range allowedNonZero {
+				if result.ExitCode == allowed {
+					result.Success = true
+					return result, nil
+				}
+			}
 		} else {
 			result.ExitCode = 1
 		}

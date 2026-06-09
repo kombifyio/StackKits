@@ -3,7 +3,17 @@
   "$id": "https://stackkit.cc/schemas/release-evidence.schema.json",
   "title": "StackKits Release Evidence",
   "type": "object",
-  "required": ["schemaVersion", "generatedAt", "release", "artifacts", "checks", "knownLimitations"],
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "release",
+    "artifacts",
+    "checks",
+    "scenarioEvidence",
+    "pendingGates",
+    "knownLimitations",
+    "missingAlternatives"
+  ],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
@@ -40,6 +50,8 @@
         "securityScans",
         "liveInstallerSmoke",
         "freshUbuntuBaseKit",
+        "browserPreflight",
+        "browserEvidence",
         "upgradeRollbackVm",
         "defaultL3PaaSDelivery",
         "attestationVerification"
@@ -51,17 +63,45 @@
         "securityScans": { "$ref": "#/$defs/check" },
         "liveInstallerSmoke": { "$ref": "#/$defs/check" },
         "freshUbuntuBaseKit": { "$ref": "#/$defs/check" },
+        "browserPreflight": { "$ref": "#/$defs/check" },
+        "browserEvidence": { "$ref": "#/$defs/check" },
         "upgradeRollbackVm": { "$ref": "#/$defs/check" },
         "defaultL3PaaSDelivery": { "$ref": "#/$defs/check" },
         "attestationVerification": { "$ref": "#/$defs/check" }
       }
     },
+    "scenarioEvidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/scenarioEvidence" }
+    },
+    "pendingGates": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "knownLimitations": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "missingAlternatives": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     }
   },
   "$defs": {
+    "scenarioEvidence": {
+      "type": "object",
+      "required": ["scenarioId", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "scenarioId": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "pending", "not_applicable"]
+        },
+        "summary": { "type": "string" },
+        "url": { "type": "string" }
+      }
+    },
     "artifact": {
       "type": "object",
       "required": ["name", "kind", "sha256", "sizeBytes"],

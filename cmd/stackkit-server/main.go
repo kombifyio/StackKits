@@ -34,6 +34,8 @@ import (
 // Version is set at build time via ldflags.
 var Version = "dev"
 
+const apiWriteTimeout = 14*time.Minute + 30*time.Second
+
 func main() {
 	port := flag.Int("port", 8082, "HTTP server port")
 	baseDir := flag.String("base-dir", "", "Base directory for StackKit definitions (default: executable directory)")
@@ -46,11 +48,13 @@ func main() {
 	logDir := flag.String("log-dir", "", "Directory containing deploy logs (or set STACKKITS_LOG_DIR)")
 	logLevel := flag.String("log-level", "info", "Log level: debug, info, warn, error")
 	instanceID := flag.String("instance-id", "", "Instance ID for kombify registry heartbeat (or set STACKKITS_INSTANCE_ID)")
+	mcpToken := flag.String("mcp-token", "", "Bearer token for POST /mcp (or set STACKKIT_MCP_TOKEN)")
+	mcpAllowWrite := flag.Bool("mcp-allow-write", false, "Enable mutating MCP tools (or set STACKKIT_MCP_ALLOW_WRITE=true)")
 	flag.Parse()
 
 	setupLogging(*logLevel)
 
-	cfg, cfgErr := resolveConfig(*port, *baseDir, *apiKey, *corsOrigins, *rateLimit, *logDir, *trustedProxies, *allowUnauthenticated, *allowWildcardCORS)
+	cfg, cfgErr := resolveConfig(*port, *baseDir, *apiKey, *corsOrigins, *rateLimit, *logDir, *trustedProxies, *mcpToken, *mcpAllowWrite, *allowUnauthenticated, *allowWildcardCORS)
 	if cfgErr != nil {
 		slog.Error(cfgErr.Error())
 		os.Exit(1)
@@ -76,11 +80,12 @@ func main() {
 
 func newHTTPServer(cfg api.ServerConfig, handler http.Handler) *http.Server {
 	return &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 14*time.Minute + 30*time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:              fmt.Sprintf(":%d", cfg.Port),
+		Handler:           handler,
+		ReadHeaderTimeout: 15 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      apiWriteTimeout,
+		IdleTimeout:       120 * time.Second,
 	}
 }
 
@@ -100,7 +105,7 @@ func setupLogging(logLevel string) {
 	slog.SetDefault(logger)
 }
 
-func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int, logDir, trustedProxies string, allowUnauthenticated, allowWildcardCORS bool) (api.ServerConfig, error) {
+func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int, logDir, trustedProxies, mcpToken string, mcpAllowWrite, allowUnauthenticated, allowWildcardCORS bool) (api.ServerConfig, error) {
 	dir := resolveBaseDir(baseDir)
 	runtimeProfile := resolveRuntimeProfile()
 	productionGuards := runtimeProfileRequiresProductionGuards(runtimeProfile)
@@ -115,6 +120,11 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 	rl := resolveRateLimit(rateLimit)
 	ld := resolveLogDir(logDir, dir)
 	proxies := resolveTrustedProxies(trustedProxies)
+	mcpTok := firstNonEmpty(mcpToken, os.Getenv("STACKKIT_MCP_TOKEN"), key)
+	mcpWrite := mcpAllowWrite || envBool("STACKKIT_MCP_ALLOW_WRITE")
+	if mcpWrite {
+		slog.Warn("StackKits MCP write tools are enabled")
+	}
 
 	return api.ServerConfig{
 		Port:                          port,
@@ -133,6 +143,12 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		SetupAdminEmail:               strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_EMAIL")),
 		SetupAdminPassword:            strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_PASSWORD")),
 		SetupImmichURL:                strings.TrimSpace(os.Getenv("STACKKIT_SETUP_IMMICH_URL")),
+		SetupPocketIDURL:              strings.TrimSpace(os.Getenv("STACKKIT_SETUP_POCKETID_URL")),
+		SetupVaultwardenURL:           strings.TrimSpace(os.Getenv("STACKKIT_SETUP_VAULTWARDEN_URL")),
+		SetupCloudreveURL:             strings.TrimSpace(os.Getenv("STACKKIT_SETUP_CLOUDREVE_URL")),
+		FilesSessionBridgeToken:       strings.TrimSpace(os.Getenv("STACKKIT_FILES_SESSION_BRIDGE_TOKEN")),
+		MCPToken:                      mcpTok,
+		MCPAllowWrite:                 mcpWrite,
 	}, nil
 }
 
@@ -297,6 +313,15 @@ func envBool(name string) bool {
 	default:
 		return false
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func resolveRateLimit(flagVal int) int {

@@ -3,11 +3,12 @@
 Agent-facing StackKits references:
 
 - `docs/agent/agents.md`: autonomous workflow and evidence contract.
-- `docs/agent/stackkit-mcp.md`: local MCP connector modes and security gates.
+- `docs/agent/stackkit-mcp.md`: single StackKits MCP connection, local adapter, durable endpoint, and security gates.
 - `docs/API.md`: node-local API summary.
 - `docs/CLI.md`: CLI reference.
+- `docs/INSTALLATION_PROCESSES.md`: CLI, MCP, WebMCP, SSH, and on-server agent install method comparison with decision tree.
 - `docs/stack-spec-reference.md`: StackSpec field reference.
 - `docs/agent/monitoring.md`: status, logs, verification, and evidence surfaces.
-- `api/openapi.v1.yaml`: OpenAPI mirror embedded by `stackkit-mcp`.
+- `api/openapi.v1.yaml`: OpenAPI mirror embedded by the StackKits MCP runtime.
 
-BaseKit is the verified beta one-click path. Modern Homelab and HA Kit remain alpha/scaffolding until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; the complete Coolify-managed application-layer evidence for ready-to-use use cases remains a blocker. User-installed apps outside that path are state-unmanaged.
+BaseKit is the current beta one-click path and v0.4.0 is the BaseKit beta-hardening release. Modern Homelab and HA Kit remain alpha/scaffolding until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; v0.4 evidence focuses on owner/passkey activation, selected-PaaS setup, protected app health, retryable L3 setup actions, and seeded beta content only when demo data is explicitly enabled. User-installed apps outside that path are state-unmanaged.

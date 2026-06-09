@@ -16,6 +16,10 @@ package base
 	// Deployment mode (simple/advanced)
 	deploymentMode?: string
 
+	// Placement axis (Stack-Default intent). Per-unit override at #Module.
+	// Optional, so existing specs stay valid (non-breaking). See base/placement.cue.
+	placementMode?: #PlacementIntent
+
 	// System configuration (host-level)
 	system: #SystemConfig
 

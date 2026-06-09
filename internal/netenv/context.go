@@ -68,7 +68,7 @@ func ResolveFromResult(result *Result, cpuCores int, memoryGB float64) models.No
 func FormatNodeContext(ctx models.NodeContext) string {
 	switch ctx {
 	case models.ContextLocal:
-		return "local (home/office server)"
+		return "local (isolated/private target)"
 	case models.ContextCloud:
 		return "cloud (VPS/dedicated/managed)"
 	case models.ContextPi:
@@ -112,7 +112,7 @@ func SuggestDomainForContext(ctx models.NodeContext, currentDomain string) (doma
 		return currentDomain, ""
 	case models.ContextLocal, models.ContextPi:
 		if currentDomain == "" {
-			return DefaultLocalDomain(), "local/home network detected — using configured local domain"
+			return DefaultLocalDomain(), "local/private target detected — using configured local domain"
 		}
 		return currentDomain, ""
 	default:

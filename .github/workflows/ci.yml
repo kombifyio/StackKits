@@ -89,7 +89,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Test release evidence renderer
-        run: node --test scripts/release/release-evidence.test.mjs scripts/release/verify-release-attestations.test.mjs scripts/release/check-l3-paas-contract.test.mjs
+        run: node --test scripts/release/release-evidence.test.mjs scripts/release/verify-release-attestations.test.mjs scripts/release/check-l3-paas-contract.test.mjs scripts/evidence/capture-basekit-browser-evidence.test.mjs
 
       - name: Validate default StackKit-owned L3 PaaS intent
         run: node scripts/release/check-l3-paas-contract.mjs --repo-root . --generated base-kit/templates/simple/main.tf

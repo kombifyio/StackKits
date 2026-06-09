@@ -147,13 +147,14 @@ func appSetupDropsToManifest(drops []models.SetupDropSpec) []platformdeploy.Setu
 	manifestDrops := make([]platformdeploy.SetupDropManifest, 0, len(drops))
 	for _, drop := range drops {
 		manifestDrops = append(manifestDrops, platformdeploy.SetupDropManifest{
-			Name:        drop.Name,
-			Version:     drop.Version,
-			Runner:      drop.Runner,
-			Description: drop.Description,
-			Command:     append([]string(nil), drop.Command...),
-			Env:         drop.Env,
-			Secrets:     drop.Secrets,
+			Name:          drop.Name,
+			Version:       drop.Version,
+			Runner:        drop.Runner,
+			Description:   drop.Description,
+			RollbackNotes: append([]string(nil), drop.RollbackNotes...),
+			Command:       append([]string(nil), drop.Command...),
+			Env:           drop.Env,
+			Secrets:       drop.Secrets,
 		})
 	}
 	return manifestDrops

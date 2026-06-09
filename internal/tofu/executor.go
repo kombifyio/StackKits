@@ -70,7 +70,7 @@ func NewExecutor(opts ...ExecutorOption) *Executor {
 	e := &Executor{
 		workDir: ".",
 		binary:  DefaultBinary(),
-		timeout: 30 * time.Minute,
+		timeout: 14 * time.Minute,
 	}
 
 	for _, opt := range opts {

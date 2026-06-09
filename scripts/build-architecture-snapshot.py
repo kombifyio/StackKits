@@ -112,6 +112,32 @@ def parse_disjunction(text: str) -> list[str]:
     return [p.replace("*", "") for p in parts if p]
 
 
+def extract_placement(cue_path: Path) -> dict[str, Any]:
+    """Per-module/addon placement eligibility (PUBLISHABLE metadata).
+    Reads #PlacementSupport if declared; defaults otherwise. Eligibility is NOT
+    realization — MS config stays in the Control-Plane catalog."""
+    raw = run_cue_eval("placementSupport", cue_path) or ""
+    parsed = parse_cue_kv(raw) if raw else {}
+
+    def as_bool(value: Any, default: bool) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() == "true"
+        return default
+
+    supports = {
+        "local_only": as_bool(parsed.get("local_only"), True),
+        "standard": as_bool(parsed.get("standard"), True),
+        "managed_serverless": as_bool(parsed.get("managed_serverless"), False),
+    }
+    return {
+        "supports": supports,
+        "cf_fit": supports["managed_serverless"],
+        "rejection_reason": parsed.get("rejection_reason") or None,
+    }
+
+
 def extract_addons() -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for addon_cue in sorted(ADDONS_DIR.glob("*/addon.cue")):
@@ -126,6 +152,7 @@ def extract_addons() -> list[dict[str, Any]]:
                 "layer": parsed.get("layer") or "ADDON",
                 "description": parsed.get("description") or "",
                 "source_path": str(addon_cue.relative_to(REPO_ROOT)).replace("\\", "/"),
+                "placement": extract_placement(addon_cue),
             }
         )
     return out
@@ -150,6 +177,7 @@ def extract_modules() -> list[dict[str, Any]]:
                 "layer": parsed.get("layer") or "MODULE",
                 "description": parsed.get("description") or "",
                 "source_path": str(module_cue.relative_to(REPO_ROOT)).replace("\\", "/"),
+                "placement": extract_placement(module_cue),
             }
         )
     return out
@@ -352,12 +380,27 @@ def build_snapshot() -> dict[str, Any]:
             "recommendations in the curated kombify-StackKits patterns. "
             "Do not hand-edit — re-run the script after modifying the CUE."
         ),
-        "schema_version": "2.0.0",
+        "schema_version": "2.1.0",
         "generated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": {
             "repo": "kombifyio/stackKits",
             "ref": "main",
             "commit": git_sha(),
+        },
+        "placement_model": {
+            "axis": "placementMode",
+            "modes": ["local-only", "standard", "managed-serverless"],
+            "sub_dimensions": {
+                "exposure": ["private", "public"],
+                "coupling": ["cloudless", "coupled"],
+            },
+            "oss_realized": ["local-only", "standard+cloudless"],
+            "control_plane_only": ["standard+coupled", "managed-serverless"],
+            "note": (
+                "OSS publishes eligibility; realization of coupled/managed-serverless "
+                "lives in the Control-Plane catalog (kombify-admin-DB), never in OSS."
+            ),
+            "source_standard": "public StackKits standards/PLACEMENT-MODE-STANDARD.md@v1.1",
         },
         "architecture_patterns": {
             "access_profiles": extract_access_profiles(),

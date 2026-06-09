@@ -1,6 +1,7 @@
 # StackKits Agent Monitoring Notes
 
 StackKits v1 does not expose a separate permanent MCP monitoring server.
+The durable day-2 surface is the same user-facing `stackkit` MCP connection backed by `stackkit-server /mcp`, not a second monitoring-specific connector.
 
 Use the node-local `stackkit-server` read-only API surface for agent-visible rollout state:
 
@@ -13,4 +14,4 @@ Use the node-local `stackkit-server` read-only API surface for agent-visible rol
 
 BaseKit may deploy Uptime Kuma and generated service URLs, but autonomous release evidence should still include `stackkit verify --http --json` and `.stackkit/runs/<runID>/` evidence.
 
-If remote monitoring later needs agent access, add an optional read-only agent bridge sidecar after the local MCP and management API are proven.
+If remote monitoring later needs agent access, extend the protected `stackkit-server /mcp` day-2 endpoint with read-only monitoring tools after the local MCP and management API are proven.

@@ -118,7 +118,7 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 			RouteSlug:     routeSlug,
 			Section:       entry.Section,
 			Host:          host,
-			URL:           proto + "://" + host,
+			URL:           accessURLForEntry(entry, proto, host, tfvars),
 			Status:        string(models.ServiceStatusRunning),
 			LegacyAliases: append([]string(nil), entry.LegacyAliases...),
 		}
@@ -129,6 +129,27 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 	}
 
 	return summary
+}
+
+func accessURLForEntry(entry servicecatalog.Service, proto, host string, tfvars map[string]any) string {
+	raw := proto + "://" + host
+	if entry.Key == "files" && cloudreveSessionBridgeEnabled(tfvars) {
+		return raw + "/stackkit/files/session"
+	}
+	return raw
+}
+
+func cloudreveSessionBridgeEnabled(tfvars map[string]any) bool {
+	if !boolInput(tfvars, "enable_tinyauth", true) {
+		return false
+	}
+	provider := strings.ToLower(stringInput(tfvars, "files_provider", "cloudreve"))
+	cloudreveEnabled := boolInput(tfvars, "enable_cloudreve", true)
+	nextcloudEnabled := boolInput(tfvars, "enable_nextcloud", false)
+	if provider == "nextcloud" || (!cloudreveEnabled && nextcloudEnabled) {
+		return false
+	}
+	return cloudreveEnabled
 }
 
 func entryEnabled(entry servicecatalog.Service, tfvars map[string]any) bool {
@@ -172,6 +193,8 @@ func defaultEnableVar(key string) string {
 		return "enable_jellyfin"
 	case "photos":
 		return "enable_immich"
+	case "files":
+		return "enable_files"
 	default:
 		return ""
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -130,6 +131,18 @@ func explicitServiceEnable(svc servicecatalog.Service, spec *models.StackSpec) (
 			return enabled, true
 		}
 	}
+	seenDisabledAlias := false
+	for _, key := range svc.LegacyAliases {
+		if enabled, ok := serviceEnabled(spec.Services[key]); ok {
+			if enabled {
+				return true, true
+			}
+			seenDisabledAlias = true
+		}
+	}
+	if seenDisabledAlias {
+		return false, true
+	}
 	return false, false
 }
 
@@ -223,13 +236,11 @@ func RegisterAllWithServices(apiKey, homelabName, fingerprint, tier string, extr
 func RegisterAllForSpec(apiKey, homelabName, fingerprint string, spec *models.StackSpec, extraServices []ServiceDef) (*RegisterResult, error) {
 	client := NewClient(apiKey)
 
-	// Detect public IP for target_addr.
-	// kombify.me terminates public HTTPS at Cloudflare and proxies to the
-	// StackKit origin over port 80. Step-CA still runs on the origin as the
-	// local control-plane CA, but the public worker cannot trust a private CA
-	// certificate for an IP-derived origin alias.
+	// Detect public IP as a fallback for direct StackKit CLI runs. Orchestrated
+	// rollouts pass the actual managed runtime target in the StackSpec metadata
+	// and node fields, which must win over the CLI host environment.
 	detected := netenv.Detect(context.Background())
-	targetAddr := proxyTargetAddr(detected.PublicIP)
+	targetAddr := registrationTargetAddr(spec, detected.PublicIP)
 
 	// 1. Register base subdomain
 	base, err := client.AutoRegister(homelabName, fingerprint, "StackKit: base-kit")
@@ -286,8 +297,78 @@ func MergeServiceRegistrations(primary, extra []ServiceDef) []ServiceDef {
 }
 
 func proxyTargetAddr(publicIP string) string {
-	if publicIP == "" {
+	target := strings.TrimSpace(publicIP)
+	if target == "" {
 		return "http://localhost:80"
 	}
-	return fmt.Sprintf("http://%s:80", publicIP)
+	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+		return target
+	}
+	if _, _, err := net.SplitHostPort(target); err == nil {
+		return "http://" + target
+	}
+	return fmt.Sprintf("http://%s:80", target)
+}
+
+func registrationTargetAddr(spec *models.StackSpec, detectedPublicIP string) string {
+	return proxyTargetAddr(registrationTargetHost(spec, detectedPublicIP))
+}
+
+func registrationTargetHost(spec *models.StackSpec, detectedPublicIP string) string {
+	for _, candidate := range registrationTargetCandidates(spec) {
+		if publicOriginHost(candidate) {
+			return strings.TrimSpace(candidate)
+		}
+	}
+	return strings.TrimSpace(detectedPublicIP)
+}
+
+func registrationTargetCandidates(spec *models.StackSpec) []string {
+	if spec == nil {
+		return nil
+	}
+	var out []string
+	if spec.Metadata != nil {
+		for _, key := range []string{
+			"kombify_me_target_addr",
+			"target_addr",
+			"runtime_public_ip",
+			"node_public_ip",
+			"public_ip",
+			"runtime_ssh_host",
+			"ssh_host",
+			"host",
+		} {
+			if value := strings.TrimSpace(spec.Metadata[key]); value != "" {
+				out = append(out, value)
+			}
+		}
+	}
+	for _, node := range spec.Nodes {
+		if value := strings.TrimSpace(node.IP); value != "" {
+			out = append(out, value)
+		}
+		if value := strings.TrimSpace(node.Host); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func publicOriginHost(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
+		return true
+	}
+	host := value
+	if parsedHost, _, err := net.SplitHostPort(value); err == nil {
+		host = parsedHost
+	}
+	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
+		return !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsUnspecified() && !ip.IsLinkLocalUnicast()
+	}
+	return strings.Contains(host, ".")
 }

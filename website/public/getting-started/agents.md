@@ -1,10 +1,12 @@
 # StackKits Agent Guide
 
-StackKits is agent-ready through static public docs, deterministic CLI commands, a node-local API surface, and a local MCP connector installed beside the CLI.
+StackKits is agent-ready through static public docs, deterministic CLI commands, a node-local API surface, and one user-facing MCP connection named `stackkit`.
 
 BaseKit is the verified beta one-click path. Modern Homelab and HA Kit are alpha/scaffolding definitions until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; Coolify-managed application-layer evidence for ready-to-use use cases remains a documented blocker. User-installed apps outside that path are state-unmanaged.
 
-Use `stackkit agent prompt <scenario>` for copy-ready prompts and `stackkit agent mcp-config` for local connector configuration.
+Use `stackkit agent prompt <scenario>` for copy-ready prompts and `stackkit agent mcp-config` for one ready-to-paste `stackkit` MCP connection.
+
+Use [Installation processes](/getting-started/installation-processes.md) to choose between website discovery, full installer, direct CLI, on-server agent, SSH agent, native MCP, and local MCP fallback by configuration/individualization, access options, and automation degree. Website discovery is read-only; SSH is the external bootstrap authority; `stackkit-mcp` is the local adapter for the single `stackkit` connection; protected remote `/mcp` is a target day-2 capability after install.
 
 Core autonomous flow:
 

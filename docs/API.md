@@ -1,6 +1,6 @@
 # StackKits API
 
-> Last verified: 2026-05-17
+> Last verified: 2026-05-27
 
 This document summarizes the StackKits HTTP API for operators, TechStack integrations, and AI agents. The contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml); the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server) and [internal/api](../internal/api).
 
@@ -31,7 +31,7 @@ Set `STACKKITS_RUNTIME_PROFILE=production`, `public`, `managed`, or
 to start with unauthenticated API access or wildcard CORS, even if the local
 development flags are present.
 
-Internal runtime-action endpoints under `/api/v1/internal/runtime-actions/*` are not browser/API-key endpoints. They require `X-Kombify-Service-Auth` with caller `techstack` and audience `stackkits`; configure `SERVICE_AUTH_SECRET` and optional `SERVICE_AUTH_SECRET_NEXT` on the server. The endpoints default to `STACKKITS_RUNTIME_ACTION_MODE=dry-run`; `apply` mode runs local OpenTofu commands against the supplied `tofu_dir` and can run a configured restore verifier via `STACKKITS_RESTORE_DRILL_COMMAND`.
+Internal runtime-action endpoints under `/api/v1/internal/runtime-actions/*` are not browser/API-key endpoints. They require `X-Kombify-Service-Auth` with caller `techstack` and audience `stackkits`; configure `SERVICE_AUTH_SECRET` and optional `SERVICE_AUTH_SECRET_NEXT` on the server. The wire contract is `github.com/kombify/kombify-go-common/runtimeaction`; local OpenAPI schemas document the service surface but are not a separate source of truth. The endpoints default to `STACKKITS_RUNTIME_ACTION_MODE=dry-run`; `apply` mode runs local OpenTofu commands against the supplied `tofu_dir` and can run a configured restore verifier via `STACKKITS_RESTORE_DRILL_COMMAND`.
 
 ## Response Model
 
@@ -71,6 +71,8 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `GET` | `/api/v1/logs/{runID}/stream` | Stream deploy log events via SSE. | Yes |
 | `GET` | `/api/v1/setup/base-hub/protection` | Read Base Hub protection state. | Yes |
 | `POST` | `/api/v1/setup/base-hub/protection` | Protect Base Hub and the node-local API with TinyAuth. | Yes |
+| `GET` | `/api/v1/setup/initial-access` | Read whether one-time technical bootstrap credential reveal is available. | Yes |
+| `POST` | `/api/v1/setup/initial-access/reveal` | Reveal technical bootstrap credentials once after Base Hub is protected. | Yes |
 | `POST` | `/api/v1/setup/services/{service}/run` | Validate or execute a node-local first-run setup drop for a service. | Yes |
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-rollout` | Run/dry-run StackKits rollout for TechStack. | Servicecall |
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-verify` | Verify StackKits rollout state for TechStack. | Servicecall |
@@ -81,7 +83,7 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 
 ## Management
 
-The management endpoints are for node-local agents, dashboards, and `stackkit-mcp`. They are read-only in v1:
+The management endpoints are for node-local agents, dashboards, and the single user-facing `stackkit` MCP connection through the local `stackkit-mcp` adapter or `stackkit-server /mcp`. They are read-only in v1:
 
 - `GET /api/v1/status` loads local `stack-spec.yaml`, `.stackkit/state.yaml`, log metadata, and mutation policy.
 - `POST /api/v1/verify` runs the same verifier shape as `stackkit verify`; pass `{"http":true,"strict":true}` to include URL probes and promote warnings to failures.
@@ -97,15 +99,26 @@ Deploy logs are read from `STACKKITS_LOG_DIR` or from `<base-dir>/.stackkit/logs
 
 ## Setup Actions
 
-The Node Hub exposes `Base Hub schützen` at `POST /api/v1/setup/base-hub/protection`.
+The Node Hub exposes `Protect Base Hub` at `POST /api/v1/setup/base-hub/protection`.
 This is the supported first-run path after owner setup: it persists the Base Hub
 protection flag and updates the local Traefik dynamic middleware so Base Hub and
 the node-local API move behind TinyAuth without asking the user to edit
 variables or run OpenTofu manually.
 
-The Node Hub posts `Do the setup for me` actions to `POST /api/v1/setup/services/{service}/run`. The server resolves the service through the StackKits service catalog, loads the generated `.platform-apps-manifest.json`, and only executes drops whose manifest policy is `on_demand`.
+After Base Hub is protected, the Node Hub can call
+`POST /api/v1/setup/initial-access/reveal` to show the generated technical
+bootstrap credentials once. These credentials are for TinyAuth/PaaS/service
+setup only; the Owner login remains the PocketID passkey account. The status and
+reveal payload expose `credentialRole`, `ownerLogin`, and `credentialBoundary`
+so Admin, Hub, and recovery surfaces do not mix technical admin material with
+the Owner. The endpoint refuses to reveal while Base is bootstrap-open, writes
+`.stackkit/initial-access.revealed.json` on first reveal, and stores only the
+role/boundary metadata plus selected PaaS in that marker, never the plaintext
+password.
 
-`STACKKITS_SETUP_ACTION_MODE=dry-run` validates the manifest and returns the planned drop. `STACKKITS_SETUP_ACTION_MODE=apply` runs implemented node-local drops. BaseKit currently implements `immich-owner-bootstrap`; it uses `STACKKIT_ADMIN_EMAIL`, `STACKKIT_ADMIN_PASSWORD`, and `STACKKIT_SETUP_IMMICH_URL` to create or complete the Immich owner onboarding.
+The Node Hub posts setup/retry actions to `POST /api/v1/setup/services/{service}/run`. The server resolves the service through the StackKits service catalog, loads the generated `.platform-apps-manifest.json`, and executes matching L3 drops whose manifest policy is `automatic` or `on_demand`.
+
+`STACKKITS_SETUP_ACTION_MODE=dry-run` validates the manifest and returns the planned drop. `STACKKITS_SETUP_ACTION_MODE=apply` runs implemented node-local drops, persists each `SetupRun` in `.stackkit/state.yaml`, and treats completed drops as idempotent on re-run. Each persisted run records a stable `runId`, current phase, attempts, timestamps, phase logs, machine-readable `evidence`, a stable `failureClass` for failed runs, and manifest-provided `rollbackNotes` so the Node Hub can show retry-safe diagnostics. BaseKit currently implements `immich-owner-bootstrap` and `vaultwarden-admin-handoff`; rollout-owned drops such as Kuma and Files bootstrap are also persisted as setup-run evidence during apply. Immich uses `STACKKIT_ADMIN_EMAIL`, `STACKKIT_ADMIN_PASSWORD`, and `STACKKIT_SETUP_IMMICH_URL` to create or complete the owner onboarding. Vaultwarden verifies the generated admin endpoint/token, proves `ADMIN_TOKEN_B64`/PHC runtime storage, keeps app-local signups disabled, and records that its admin token is break-glass material while the Owner login remains PocketID/passkey.
 
 ## Runtime Actions
 
@@ -118,7 +131,13 @@ TechStack calls the internal runtime-action endpoints during managed wizard roll
   "stack_name": "Managed Base",
   "stackkit": "base-kit",
   "tofu_dir": "/shared/stacks/stack-123/tofu",
-  "unified_path": "/shared/stacks/stack-123/unified-spec.yaml"
+  "unified_path": "/shared/stacks/stack-123/unified-spec.yaml",
+  "owner_spec_bootstrap": {
+    "endpoint": "/api/v1/stacks/stack-123/owner-spec",
+    "token": "short-lived-token",
+    "expires_at": "2026-05-14T10:15:00Z",
+    "scopes": ["read:owner-spec"]
+  }
 }
 ```
 
@@ -126,7 +145,7 @@ Supported `action` values are `stackkit_rollout`, `verify_rollout`, and `restore
 
 ## Registry
 
-Registry endpoints are for Direct Connect lifecycle state. They are present in the OpenAPI contract and capability map; local server route wiring is tracked separately. Instance heartbeat also requires `KOMBIFY_API_KEY` when running the server heartbeat loop with `STACKKITS_INSTANCE_ID` or `--instance-id`.
+Registry endpoints are for Direct Connect lifecycle state. They are present in the OpenAPI contract, capability map, and `internal/api/server.go` route registration. Instance heartbeat also requires `KOMBIFY_API_KEY` when running the server heartbeat loop with `STACKKITS_INSTANCE_ID` or `--instance-id`.
 
 ## Rate Limits
 

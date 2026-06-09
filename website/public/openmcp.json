@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "2026-06-08",
+  "name": "stackkit-cc",
+  "title": "StackKits Website MCP Discovery",
+  "description": "Read-only public discovery surface for StackKits docs, installers, schemas, OpenAPI, prompts, and local native MCP connector guidance.",
+  "surface": "website",
+  "readOnly": true,
+  "userFacingMcp": {
+    "connectionName": "stackkit",
+    "model": "one StackKits MCP connection; stackkit-mcp is the local adapter, stackkit-server /mcp is the protected durable endpoint after install",
+    "mcpUse": "app authoring/build layer only, not a production connector"
+  },
+  "policy": {
+    "serverActions": false,
+    "mutatingTools": false,
+    "managedServerless": "out-of-scope",
+    "nativeConnector": "Use local stackkit-mcp or stackkit-server POST /mcp after installation. Durable remote MCP access is a protected day-2 target capability, not a website-executed first-install path."
+  },
+  "installers": {
+    "cli": "https://stackkit.cc/install",
+    "baseKit": "https://base.stackkit.cc",
+    "modernHomelab": "https://modern.stackkit.cc",
+    "haKit": "https://ha.stackkit.cc",
+    "githubReleases": "https://github.com/kombifyio/stackKits/releases/latest"
+  },
+  "localConnector": {
+    "stdio": {
+      "command": "stackkit-mcp",
+      "args": ["--mode", "docs,local,server"]
+    },
+    "streamableHttp": {
+      "endpoint": "http://localhost:8082/mcp",
+      "discovery": "http://localhost:8082/openmcp.json",
+      "writeGate": "STACKKIT_MCP_ALLOW_WRITE=true",
+      "token": "STACKKIT_MCP_TOKEN",
+      "remoteAccess": "target-day2-only; require tunnel, VPN, private network, mTLS/reverse proxy, or OAuth-aware gateway for non-loopback access"
+    },
+    "mcpAppResource": "ui://stackkits/onboarding.html"
+  },
+  "appResources": [
+    {
+      "uri": "ui://stackkits/onboarding.html",
+      "mimeType": "text/html;profile=mcp-app",
+      "description": "Stateful local onboarding app for contact, StackKit selection, core settings, domain choice, rollout progress, and evidence review.",
+      "steps": [
+        "contact-and-workspace",
+        "stackkit-select",
+        "domain-and-core-settings",
+        "review-and-plan",
+        "rollout-and-evidence"
+      ],
+      "callsToolsFromWidget": true,
+      "localOnly": true
+    }
+  ],
+  "resources": [
+    {
+      "uri": "https://stackkit.cc/llms.txt",
+      "mimeType": "text/plain",
+      "description": "Agent index"
+    },
+    {
+      "uri": "https://stackkit.cc/llms-full.txt",
+      "mimeType": "text/plain",
+      "description": "Full agent context"
+    },
+    {
+      "uri": "https://stackkit.cc/llms-snippets.txt",
+      "mimeType": "text/plain",
+      "description": "Copy-paste CLI and agent snippets"
+    },
+    {
+      "uri": "https://stackkit.cc/getting-started/agents.md",
+      "mimeType": "text/markdown",
+      "description": "Agent guide"
+    },
+    {
+      "uri": "https://stackkit.cc/mcp/stackkit-mcp.md",
+      "mimeType": "text/markdown",
+      "description": "MCP connector guide"
+    },
+    {
+      "uri": "https://stackkit.cc/api/openapi.v1.yaml",
+      "mimeType": "application/yaml",
+      "description": "StackKits Server OpenAPI mirror"
+    },
+    {
+      "uri": "https://stackkit.cc/schemas/stackkit-agent-run-manifest.schema.json",
+      "mimeType": "application/schema+json",
+      "description": "Agent run manifest schema"
+    },
+    {
+      "uri": "https://stackkit.cc/schemas/stackkit-agent-functional-result.schema.json",
+      "mimeType": "application/schema+json",
+      "description": "Agent functional result schema"
+    }
+  ],
+  "tools": [
+    {
+      "name": "stackkit_website_discovery",
+      "description": "Read-only discovery of public StackKits installers, docs, schemas, and local connector configuration.",
+      "annotations": {
+        "readOnly": true,
+        "idempotent": true,
+        "destructive": false,
+        "openWorld": false
+      }
+    }
+  ],
+  "prompts": [
+    "stackkit_basekit_autonomous_rollout",
+    "stackkit_inspect_existing_rollout",
+    "stackkit_diagnose_failed_rollout",
+    "stackkit_enable_monitoring_addon",
+    "stackkit_ssh_rollout"
+  ]
+}

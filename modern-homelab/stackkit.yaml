@@ -63,14 +63,23 @@ paas:
 # DEPLOYMENT MODES
 # =============================================================================
 modes:
-  simple:
-    description: "OpenTofu-only Day-1 provisioning"
+  bare:
+    description: "OpenTofu-only Day-1 provisioning without Base Hub setup automation"
     templateDir: "templates/simple"
     engine: "opentofu"
     features:
       - "Direct OpenTofu execution"
+      - "Manual application setup"
+
+  bootstrapped:
+    description: "Default Base Hub rollout with one-click setup actions"
+    templateDir: "templates/simple"
+    engine: "opentofu"
+    recommended: true
+    features:
+      - "Direct OpenTofu execution"
       - "Go-based state management"
-      - "Simple rollback via state"
+      - "On-demand L3 setup actions"
 
   advanced:
     description: "Terramate-orchestrated with drift detection"

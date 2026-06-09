@@ -1,8 +1,10 @@
 # StackKits Agent Guide
 
-StackKits is agent-ready through static public docs, deterministic CLI commands, a node-local API surface, and a local MCP connector installed beside the CLI.
+StackKits is agent-ready through static public docs, deterministic CLI commands, a node-local API surface, and one user-facing MCP connection named `stackkit`.
 
-BaseKit is the verified beta one-click path. Modern Homelab and HA Kit are alpha/scaffolding definitions until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; Coolify-managed application-layer evidence for ready-to-use use cases remains a documented blocker. User-installed apps outside that path are state-unmanaged.
+BaseKit is the current beta one-click path and v0.4.0 hardens that path for real beta users. Modern Homelab and HA Kit are alpha/scaffolding definitions until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; v0.4 BaseKit evidence must prove owner/passkey activation, selected-PaaS setup, protected app health, retryable L3 setup actions, and seeded beta content only when demo data is explicitly enabled. User-installed apps outside that path are state-unmanaged.
+
+For choosing the right install path, use [../INSTALLATION_PROCESSES.md](../INSTALLATION_PROCESSES.md). It classifies website prompting, full installer, direct CLI, on-server agent, external SSH agent, native MCP, and stdio MCP fallback by three pillars: configuration/individualization, access options/authority boundary, and automation degree (`A0-A4`). Treat website discovery as the read-only start, SSH as the external bootstrap authority, `stackkit-mcp` as the local adapter for the single `stackkit` connection, and protected remote `/mcp` as a target StackKit-owned day-2 capability after install.
 
 ## Agent Contract
 
@@ -44,6 +46,6 @@ Release-hardening and autonomous-agent runs should produce:
 
 The canonical local BaseKit Hub URL is `http://base.home.localhost`.
 
-## Local MCP
+## StackKits MCP
 
-`stackkit-mcp` is shipped as a separate binary next to `stackkit` and `stackkit-server`. The default transport is stdio. HTTP transport binds to loopback by default. Management and write-capable modes require explicit operator opt-in.
+Agents should configure one MCP server named `stackkit`. On local machines this starts `stackkit-mcp` as an adapter. On installed targets the same connector can later be reached through protected `stackkit-server /mcp`. Management and write-capable modes require explicit operator opt-in.

@@ -1,6 +1,6 @@
 # Architecture — kombify StackKits
 
-> Last verified: 2026-05-17
+> Last verified: 2026-05-27
 
 This is the current implementation overview for this repo. Normative product and module rules are summarized here and in accepted ADRs.
 
@@ -36,7 +36,7 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 | Composition/generation | `internal/cue`, `internal/composition`, `internal/iac`, `internal/tofu`, `internal/terramate` | Bind CUE/spec data into generated deployment artifacts and execution adapters. |
 | Backup binaries | `cmd/stackkit-backup-agent`, `cmd/stackkit-backup-controller`, `internal/backup-controller` | Host backup and SaaS/controller integration surfaces. |
 | Static website | `website/` | OSS landing page and CLI docs for `stackkit.cc`. |
-| Release automation | `.github/workflows`, `.goreleaser.yaml`, `scripts/sync-public.sh` | CI, release, server image, website validation, and curated OSS mirror sync. |
+| Release automation | `.github/workflows`, `.goreleaser.yaml`, `scripts/public/` | CI, release, server image, website validation, and curated OSS mirror sync. The old `scripts/sync-public.sh` path is intentionally deprecated. |
 
 ## Core Data Flow
 
@@ -46,7 +46,7 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 4. `stackkit generate` writes generated rollout artifacts under `deploy/`.
 5. `stackkit plan` and `stackkit apply` execute OpenTofu through the Go adapter.
 6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest. StackKit may operate StackKit-owned system apps and StackKit-owned L3 application use cases through the platform adapter, but customer-owned user apps remain PaaS handoff metadata and are deployed, updated, and operated by the selected external PaaS tooling.
-7. First-run setup is represented separately from deployment as setup-drop metadata. Local Base Node Hub routes are intentionally bootstrap-open until the operator clicks `Base Hub schützen` after owner setup; that action persists the protection setting and switches the local router behind TinyAuth. Public/non-local Base routes stay protected when TinyAuth is enabled. Other L1/L2 platform services use `automatic` setup and must be usable after rollout, while L3 apps use `manual` or `on_demand` depending on whether StackKits has a supported bootstrap drop.
+7. First-run setup is represented separately from deployment as setup-drop metadata. Local Base Node Hub routes are intentionally bootstrap-open until the operator clicks `Protect Base Hub` after owner setup; that action persists the protection setting and switches the local router behind TinyAuth. Public/non-local Base routes stay protected when TinyAuth is enabled. The default `bootstrapped` mode uses `automatic` setup for L1/L2 platform services and `on_demand` setup actions for L3 applications; `bare` forces manual setup and `advanced` adds day-2 lifecycle/runtime-intelligence surfaces.
 8. `stackkit verify` performs read-only host checks and optional HTTP URL checks.
 9. `stackkit-server` exposes the same catalog, validation, generation-preview, log, and registry concepts over HTTP and is deployed as a platform-managed system app in the normal BaseKit path.
 

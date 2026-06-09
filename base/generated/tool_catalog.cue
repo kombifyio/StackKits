@@ -51,6 +51,9 @@ package base
   description?:            string
   toolName:                string
   moduleSlug:              string
+  role?:                   string
+  defaultTool?:            string
+  alternatives?:           [...string]
   localSlug:               string
   publicSlug:              string
   legacyAliases:           [...string]
@@ -66,6 +69,10 @@ package base
   guideUrl?:               string
   setupPolicy?:            #SetupPolicy
   setupActionLabel?:       string
+  delivery?: {
+    managedBy: string
+  }
+  bootstrapProvider?:      string
   default:                 bool | *false
 }
 
@@ -375,6 +382,34 @@ package base
     supportsX86: true
     minMemoryMB: 0
   }
+  "cloudreve": {
+    name:        "cloudreve"
+    displayName: "Cloudreve"
+    description: "Lightweight document management and file sharing"
+    layer:       "3"
+    category:    "utility"
+    image:       "cloudreve/cloudreve"
+    defaultTag:  "latest"
+    logoUrl:     "https://cdn.simpleicons.org/nextcloud/ffffff"
+
+    supportsArm: false
+    supportsX86: true
+    minMemoryMB: 0
+  }
+  "nextcloud": {
+    name:        "nextcloud"
+    displayName: "Nextcloud"
+    description: "Document management and collaboration suite"
+    layer:       "3"
+    category:    "utility"
+    image:       "nextcloud"
+    defaultTag:  "30-apache"
+    logoUrl:     "https://cdn.simpleicons.org/nextcloud/ffffff"
+
+    supportsArm: false
+    supportsX86: true
+    minMemoryMB: 0
+  }
 }
 
 // =============================================================================
@@ -388,6 +423,8 @@ package base
     description:             "Bitwarden-compatible password vault"
     toolName:                "vaultwarden"
     moduleSlug:              "vaultwarden"
+    role:                    "vault"
+    defaultTool:             "vaultwarden"
     localSlug:               "vault"
     publicSlug:              "vault"
     legacyAliases:           ["vaultwarden"]
@@ -401,8 +438,10 @@ package base
     order:                   30
     enableVar:              "enable_vaultwarden"
     guideUrl:               "https://docs.kombify.io/guides/stackkits/services/vaultwarden"
-    setupPolicy:            "manual"
-
+    setupPolicy:            "automatic"
+    setupActionLabel:       "Bootstrap erneut ausfuehren"
+    delivery: { managedBy: "selected-paas" }
+    bootstrapProvider:      "vaultwarden-admin-handoff"
     default:                 true
   }
   "media": {
@@ -426,7 +465,7 @@ package base
     guideUrl:               "https://docs.kombify.io/guides/stackkits/services/jellyfin"
     setupPolicy:            "manual"
 
-    default:                 true
+    default:                 false
   }
   "photos": {
     key:                     "photos"
@@ -434,6 +473,8 @@ package base
     description:             "Photo and video management with mobile backup"
     toolName:                "immich"
     moduleSlug:              "immich"
+    role:                    "photos"
+    defaultTool:             "immich"
     localSlug:               "photos"
     publicSlug:              "photos"
     legacyAliases:           ["immich"]
@@ -447,8 +488,38 @@ package base
     order:                   50
     enableVar:              "enable_immich"
     guideUrl:               "https://docs.kombify.io/guides/stackkits/services/immich"
-    setupPolicy:            "on_demand"
-    setupActionLabel:       "Do the setup for me"
+    setupPolicy:            "automatic"
+    setupActionLabel:       "Bootstrap erneut ausfuehren"
+    delivery: { managedBy: "selected-paas" }
+    bootstrapProvider:      "immich-owner-bootstrap"
+    default:                 true
+  }
+  "files": {
+    key:                     "files"
+    displayName:             "Files"
+    description:             "Document management and file sharing backed by Cloudreve"
+    toolName:                "cloudreve"
+    moduleSlug:              "cloudreve"
+    role:                    "files"
+    defaultTool:             "cloudreve"
+    alternatives:            ["nextcloud"]
+    localSlug:               "files"
+    publicSlug:              "files"
+    legacyAliases:           ["cloudreve", "nextcloud"]
+    identityPolicy:          "self-auth"
+    ownerProvisioningPolicy: "required"
+    icon:                   "&#128193;"
+    logoUrl:                "https://cdn.simpleicons.org/nextcloud/ffffff"
+    badge:                  "L3 - Files"
+    layer:                  "L3-application"
+    section:                "Applications"
+    order:                   60
+    enableVar:              "enable_files"
+    guideUrl:               "https://docs.kombify.io/guides/stackkits/services/files"
+    setupPolicy:            "automatic"
+    setupActionLabel:       "Bootstrap erneut ausfuehren"
+    delivery: { managedBy: "selected-paas" }
+    bootstrapProvider:      "cloudreve-owner-bootstrap"
     default:                 true
   }
   "base": {
@@ -641,6 +712,9 @@ package base
     description:             "Programmable self-hosted PaaS for Compose stack deployment through API keys"
     toolName:                "komodo"
     moduleSlug:              "komodo"
+    role:                    "paas"
+    defaultTool:             "komodo"
+    alternatives:            ["coolify"]
     localSlug:               "komodo"
     publicSlug:              "komodo"
     legacyAliases:           []
@@ -655,7 +729,8 @@ package base
     enableVar:              "enable_komodo"
     guideUrl:               "https://docs.kombify.io/guides/stackkits/services/komodo"
     setupPolicy:            "automatic"
-
+    delivery: { managedBy: "stackkit" }
+    bootstrapProvider:      "komodo"
     default:                 false
   }
   "coolify": {
@@ -664,6 +739,9 @@ package base
     description:             "Self-hosted deployment platform"
     toolName:                "coolify"
     moduleSlug:              "coolify"
+    role:                    "paas"
+    defaultTool:             "coolify"
+    alternatives:            ["komodo"]
     localSlug:               "coolify"
     publicSlug:              "coolify"
     legacyAliases:           []
@@ -678,7 +756,8 @@ package base
     enableVar:              "enable_coolify"
     guideUrl:               "https://docs.kombify.io/guides/stackkits/services/coolify"
     setupPolicy:            "automatic"
-
+    delivery: { managedBy: "stackkit" }
+    bootstrapProvider:      "coolify"
     default:                 false
   }
   "dockge": {

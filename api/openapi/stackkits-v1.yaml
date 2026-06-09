@@ -496,7 +496,7 @@ paths:
       operationId: protectBaseHub
       summary: Protect Base Hub and the node-local API with TinyAuth
       description: |
-        Used by the Node Hub `Base Hub schützen` action after owner setup.
+        Used by the Node Hub `Protect Base Hub` action after owner setup.
         The action persists the protection setting and updates the local Traefik
         dynamic middleware so Base Hub and its node-local API are protected
         without requiring the user to edit variables or run OpenTofu manually.
@@ -527,6 +527,60 @@ paths:
         "500":
           $ref: "#/components/responses/BadRequest"
 
+  /api/v1/setup/initial-access:
+    get:
+      operationId: getInitialAccess
+      summary: Read one-time technical bootstrap credential reveal state
+      description: |
+        Used by the Node Hub after Base Hub protection. The response never
+        includes the plaintext password, but it labels the credential boundary
+        so clients do not confuse technical bootstrap admin material with the
+        PocketID Owner/passkey login.
+      tags: [Setup]
+      responses:
+        "200":
+          description: Technical bootstrap credential reveal state
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/InitialAccessResponse"
+        "409":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/setup/initial-access/reveal:
+    post:
+      operationId: revealInitialAccess
+      summary: Reveal technical bootstrap credentials once
+      description: |
+        Reveals generated TinyAuth/PaaS/service bootstrap credentials one time
+        after Base Hub is protected. The Owner login remains PocketID passkey.
+        The persisted marker records role and boundary metadata, never the
+        plaintext password.
+      tags: [Setup]
+      responses:
+        "200":
+          description: Technical bootstrap credentials were revealed and marked consumed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/InitialAccessResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/BadRequest"
+
   /api/v1/setup/services/{service}/run:
     post:
       operationId: runServiceSetup
@@ -534,9 +588,12 @@ paths:
       description: |
         Used by the StackKits Node Hub `Do the setup for me` action. L1/L2
         platform services report that setup is already automatic; L3 services
-        with `setupPolicy: on_demand` are matched against the generated
-        platform-app manifest and executed only when stackkit-server is running
-        with `STACKKITS_SETUP_ACTION_MODE=apply`.
+        with `setupPolicy: automatic` or `setupPolicy: on_demand` are matched
+        against the generated platform-app manifest and executed only when
+        stackkit-server is running with `STACKKITS_SETUP_ACTION_MODE=apply`.
+        Every runner attempt persists a `SetupRun` with phase logs,
+        machine-readable evidence, failure class, retry timestamps, and
+        rollback notes in `.stackkit/state.yaml`.
       tags: [Setup]
       parameters:
         - name: service
@@ -547,7 +604,7 @@ paths:
           example: photos
       responses:
         "200":
-          description: Automatic setup was already present or an on-demand drop completed
+          description: Automatic setup was already present or a setup drop completed
           content:
             application/json:
               schema:
@@ -557,7 +614,7 @@ paths:
                       data:
                         $ref: "#/components/schemas/ServiceSetupResponse"
         "202":
-          description: On-demand setup was validated but not executed in dry-run mode
+          description: Setup was validated but not executed in dry-run mode
           content:
             application/json:
               schema:
@@ -1282,14 +1339,34 @@ components:
           type: string
         unified_path:
           type: string
+        owner_spec_bootstrap:
+          $ref: "#/components/schemas/RuntimeActionOwnerSpecBootstrap"
+
+    RuntimeActionOwnerSpecBootstrap:
+      type: object
+      required: [endpoint, token, expires_at]
+      properties:
+        endpoint:
+          type: string
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        scopes:
+          type: array
+          items:
+            type: string
 
     RuntimeActionResponse:
       type: object
       properties:
         status:
           type: string
+          enum: [accepted, ready, applied, verified, skipped, failed]
         action:
           type: string
+          enum: [stackkit_rollout, verify_rollout, restore_drill]
         stack_id:
           type: string
         stack_name:
@@ -1307,6 +1384,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RuntimeActionCheck"
+        stackkit_outputs:
+          $ref: "#/components/schemas/RuntimeActionStackKitOutputs"
 
     RuntimeActionCheck:
       type: object
@@ -1315,8 +1394,85 @@ components:
           type: string
         status:
           type: string
+          enum: [ok, warning, missing, reference, skipped, failed]
         detail:
           type: string
+
+    RuntimeActionStackKitOutputs:
+      type: object
+      properties:
+        identity:
+          $ref: "#/components/schemas/RuntimeActionIdentityOutputs"
+        login_gateway:
+          $ref: "#/components/schemas/RuntimeActionLoginGatewayOutput"
+        recovery:
+          $ref: "#/components/schemas/RuntimeActionRecoveryOutput"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeActionServiceOutput"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    RuntimeActionIdentityOutputs:
+      type: object
+      properties:
+        owner:
+          $ref: "#/components/schemas/RuntimeActionOwnerIdentity"
+        recovery:
+          $ref: "#/components/schemas/RuntimeActionRecoveryOutput"
+
+    RuntimeActionOwnerIdentity:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        display_name:
+          type: string
+        subject:
+          type: string
+        provider:
+          type: string
+
+    RuntimeActionLoginGatewayOutput:
+      type: object
+      properties:
+        url:
+          type: string
+        label:
+          type: string
+        admin_url:
+          type: string
+
+    RuntimeActionRecoveryOutput:
+      type: object
+      properties:
+        bundle_ref:
+          type: string
+        secret_ref:
+          type: string
+        machine_secret_ref:
+          type: string
+        passphrase_hash_present:
+          type: boolean
+
+    RuntimeActionServiceOutput:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        admin_url:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
 
     BaseHubProtectionResponse:
       type: object
@@ -1335,6 +1491,63 @@ components:
           type: boolean
         dynamicConfigUpdated:
           type: boolean
+
+    InitialAccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [available, consumed, unavailable, protected_required]
+        mode:
+          type: string
+          enum: [one-time]
+        protected:
+          type: boolean
+        available:
+          type: boolean
+        consumed:
+          type: boolean
+        credentialRole:
+          type: string
+          enum: [technical-admin]
+        ownerLogin:
+          type: string
+          enum: [pocketid-passkey]
+        credentialBoundary:
+          type: string
+          example: Bootstrap/service setup credentials; Owner login stays PocketID passkey.
+        message:
+          type: string
+        credentials:
+          $ref: "#/components/schemas/InitialAccessCredentials"
+
+    InitialAccessCredentials:
+      type: object
+      properties:
+        adminEmail:
+          type: string
+          format: email
+          description: Technical bootstrap admin email, not the PocketID Owner login.
+        adminPassword:
+          type: string
+          format: password
+          description: One-time technical bootstrap password. Only present on reveal.
+        selectedPaaS:
+          type: string
+          example: Coolify
+        credentialRole:
+          type: string
+          enum: [technical-admin]
+        ownerLogin:
+          type: string
+          enum: [pocketid-passkey]
+        credentialBoundary:
+          type: string
+        intendedFor:
+          type: array
+          items:
+            type: string
+          example: [TinyAuth gateway technical admin, Coolify technical admin]
 
     ServiceSetupResponse:
       type: object
@@ -1359,7 +1572,7 @@ components:
           enum: [dry-run, apply]
         status:
           type: string
-          enum: [already_automatic, ready, completed]
+          enum: [already_automatic, ready, waiting, completed]
         message:
           type: string
         drops:
@@ -1373,6 +1586,9 @@ components:
         name:
           type: string
           example: immich-owner-bootstrap
+        runId:
+          type: string
+          description: Persistent SetupRun id from .stackkit/state.yaml when executed.
         version:
           type: string
           example: 0.1.0
@@ -1383,7 +1599,58 @@ components:
           type: string
         status:
           type: string
-          enum: [ready, completed]
+          enum: [ready, running, waiting, completed, failed]
+        phase:
+          type: string
+          enum: [desired, prepared, owner_activated, configured, verified]
+        attempts:
+          type: integer
+          minimum: 1
+          description: Number of persisted runner attempts for this setup drop.
+        message:
+          type: string
+        error:
+          type: string
+        failureClass:
+          type: string
+          example: setup_credentials_missing
+        evidence:
+          type: object
+          additionalProperties:
+            type: string
+          description: Machine-readable setup proof such as credential boundaries, token posture, seeded content, or verified handoff state. Secret values are never included.
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/SetupRunLogEntry"
+        rollbackNotes:
+          type: array
+          items:
+            type: string
+        lastRequested:
+          type: string
+          format: date-time
+        lastStarted:
+          type: string
+          format: date-time
+        lastFinished:
+          type: string
+          format: date-time
+
+    SetupRunLogEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        phase:
+          type: string
+          enum: [desired, prepared, owner_activated, configured, verified]
+        level:
+          type: string
+          enum: [info, warning, error]
+        message:
+          type: string
 
     LogRunSummary:
       type: object

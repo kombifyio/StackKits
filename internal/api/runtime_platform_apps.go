@@ -4,29 +4,53 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
 )
 
 type runtimePlatformConfigFile struct {
-	Platform               string `json:"platform,omitempty"`
-	Endpoint               string `json:"endpoint,omitempty"`
-	BaseURL                string `json:"baseUrl,omitempty"`
-	Token                  string `json:"token,omitempty"`
-	APIKey                 string `json:"apiKey,omitempty"`
-	APISecret              string `json:"apiSecret,omitempty"`
-	EnvironmentID          string `json:"environmentId,omitempty"`
-	ServerID               string `json:"serverId,omitempty"`
-	ProjectUUID            string `json:"projectUuid,omitempty"`
-	EnvironmentUUID        string `json:"environmentUuid,omitempty"`
-	DestinationUUID        string `json:"destinationUuid,omitempty"`
-	LegacyDockerComposeAPI bool   `json:"legacyDockerComposeApi,omitempty"`
+	Platform                    string                           `json:"platform,omitempty"`
+	Endpoint                    string                           `json:"endpoint,omitempty"`
+	BaseURL                     string                           `json:"baseUrl,omitempty"`
+	Token                       string                           `json:"token,omitempty"`
+	APIKey                      string                           `json:"apiKey,omitempty"`
+	APISecret                   string                           `json:"apiSecret,omitempty"`
+	EnvironmentID               string                           `json:"environmentId,omitempty"`
+	ServerID                    string                           `json:"serverId,omitempty"`
+	ProjectUUID                 string                           `json:"projectUuid,omitempty"`
+	EnvironmentUUID             string                           `json:"environmentUuid,omitempty"`
+	DestinationUUID             string                           `json:"destinationUuid,omitempty"`
+	LegacyDockerComposeAPI      bool                             `json:"legacyDockerComposeApi,omitempty"`
+	DisableDockerRuntimeObserve bool                             `json:"disableDockerRuntimeObserve,omitempty"`
+	BootstrapEvidence           platformdeploy.BootstrapEvidence `json:"bootstrapEvidence,omitempty"`
 }
 
-func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string) ([]platformdeploy.DeploymentRef, []runtimeActionCheck, error) {
+type runtimePlatformDeployOptions struct {
+	Remote *preparedRuntimeTarget
+}
+
+type runtimePlatformAdapterResult struct {
+	Adapter    platformdeploy.Adapter
+	Configured bool
+	Checks     []runtimeActionCheck
+	Cleanup    func()
+}
+
+var startRuntimePlatformSSHTunnel = startRuntimePlatformSSHTunnelDefault
+
+func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string, opts ...runtimePlatformDeployOptions) ([]platformdeploy.DeploymentRef, []runtimeActionCheck, error) {
+	options := runtimePlatformDeployOptions{}
+	if len(opts) > 0 {
+		options = opts[0]
+	}
 	manifestPaths := []string{
 		filepath.Join(deployDir, "platform-apps", "manifest.json"),
 		filepath.Join(deployDir, ".platform-apps-manifest.json"),
@@ -55,15 +79,19 @@ func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string) ([]
 				continue
 			}
 
-			adapter, configured, err := runtimePlatformAdapterForBundle(deployBundle, deployDir)
+			adapterResult, err := runtimePlatformAdapterForBundle(ctx, deployBundle, deployDir, options)
 			if err != nil {
 				return refs, checks, err
 			}
-			if !configured {
+			checks = append(checks, adapterResult.Checks...)
+			if !adapterResult.Configured {
 				return refs, checks, fmt.Errorf("platform API config for %s is required for %d StackKit-owned app(s)", deployBundle.Platform, deployCount)
 			}
+			if adapterResult.Cleanup != nil {
+				defer adapterResult.Cleanup()
+			}
 
-			deployed, err := platformdeploy.ApplyBundle(ctx, adapter, deployBundle)
+			deployed, err := platformdeploy.ApplyBundle(ctx, adapterResult.Adapter, deployBundle)
 			if err != nil {
 				return refs, checks, err
 			}
@@ -143,54 +171,79 @@ func runtimeStackKitOwnedAppCount(apps []platformdeploy.AppManifest) int {
 	return count
 }
 
-func runtimePlatformAdapterForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.Adapter, bool, error) {
+func runtimePlatformAdapterForBundle(ctx context.Context, bundle platformdeploy.BundleManifest, deployDir string, options runtimePlatformDeployOptions) (runtimePlatformAdapterResult, error) {
 	switch strings.ToLower(strings.TrimSpace(bundle.Platform)) {
 	case "", "none":
 		if bundle.Fallback.Enabled && bundle.Fallback.Mode == "standalone-compose" {
-			return platformdeploy.NewLocalComposeAdapter(deployDir), true, nil
+			return runtimePlatformAdapterResult{Adapter: platformdeploy.NewLocalComposeAdapter(deployDir), Configured: true}, nil
 		}
-		return nil, false, fmt.Errorf("local compose adapter requires platformFallback.mode=standalone-compose")
+		return runtimePlatformAdapterResult{}, fmt.Errorf("local compose adapter requires platformFallback.mode=standalone-compose")
 	case "coolify":
-		cfg, configured := runtimePlatformHTTPConfigForBundle(bundle, deployDir)
-		if !configured {
-			return nil, false, nil
+		cfg, configured, checks, cleanup, err := runtimePlatformHTTPConfigForBundle(ctx, bundle, deployDir, options)
+		if err != nil {
+			return runtimePlatformAdapterResult{}, err
 		}
-		return platformdeploy.NewCoolifyAdapter(cfg), true, nil
+		if !configured {
+			return runtimePlatformAdapterResult{Checks: checks}, nil
+		}
+		return runtimePlatformAdapterResult{Adapter: platformdeploy.NewCoolifyAdapter(cfg), Configured: true, Checks: checks, Cleanup: cleanup}, nil
 	case "dokploy":
-		cfg, configured := runtimePlatformHTTPConfigForBundle(bundle, deployDir)
-		if !configured {
-			return nil, false, nil
+		cfg, configured, checks, cleanup, err := runtimePlatformHTTPConfigForBundle(ctx, bundle, deployDir, options)
+		if err != nil {
+			return runtimePlatformAdapterResult{}, err
 		}
-		return platformdeploy.NewDokployAdapter(cfg), true, nil
+		if !configured {
+			return runtimePlatformAdapterResult{Checks: checks}, nil
+		}
+		return runtimePlatformAdapterResult{Adapter: platformdeploy.NewDokployAdapter(cfg), Configured: true, Checks: checks, Cleanup: cleanup}, nil
 	case "komodo":
-		cfg, configured := runtimePlatformHTTPConfigForBundle(bundle, deployDir)
-		if !configured {
-			return nil, false, nil
+		cfg, configured, checks, cleanup, err := runtimePlatformHTTPConfigForBundle(ctx, bundle, deployDir, options)
+		if err != nil {
+			return runtimePlatformAdapterResult{}, err
 		}
-		return platformdeploy.NewKomodoAdapter(cfg), true, nil
+		if !configured {
+			return runtimePlatformAdapterResult{Checks: checks}, nil
+		}
+		return runtimePlatformAdapterResult{Adapter: platformdeploy.NewKomodoAdapter(cfg), Configured: true, Checks: checks, Cleanup: cleanup}, nil
 	default:
-		return nil, false, fmt.Errorf("unsupported platform app adapter %q", bundle.Platform)
+		return runtimePlatformAdapterResult{}, fmt.Errorf("unsupported platform app adapter %q", bundle.Platform)
 	}
 }
 
-func runtimePlatformHTTPConfigForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.HTTPConfig, bool) {
+func runtimePlatformHTTPConfigForBundle(ctx context.Context, bundle platformdeploy.BundleManifest, deployDir string, options runtimePlatformDeployOptions) (platformdeploy.HTTPConfig, bool, []runtimeActionCheck, func(), error) {
 	persisted := runtimeLoadPlatformConfigFile(deployDir)
 	cfg := platformdeploy.HTTPConfig{
-		BaseURL:                runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "endpoint"), persisted.endpoint()),
-		Token:                  runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "token"), persisted.Token),
-		APIKey:                 runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "api_key"), persisted.APIKey, persisted.Token),
-		Secret:                 runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "api_secret"), persisted.APISecret),
-		EnvironmentID:          runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "environment_id"), persisted.EnvironmentID),
-		ServerID:               runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "server_id"), persisted.ServerID),
-		ProjectUUID:            runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "project_uuid"), persisted.ProjectUUID),
-		EnvironmentUUID:        runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "environment_uuid"), persisted.EnvironmentUUID),
-		DestinationUUID:        runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "destination_uuid"), persisted.DestinationUUID),
-		LegacyDockerComposeAPI: persisted.LegacyDockerComposeAPI,
+		BaseURL:                     runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "endpoint"), persisted.endpoint()),
+		Token:                       runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "token"), persisted.Token),
+		APIKey:                      runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "api_key"), persisted.APIKey, persisted.Token),
+		Secret:                      runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "api_secret"), persisted.APISecret),
+		EnvironmentID:               runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "environment_id"), persisted.EnvironmentID),
+		ServerID:                    runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "server_id"), persisted.ServerID),
+		ProjectUUID:                 runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "project_uuid"), persisted.ProjectUUID),
+		EnvironmentUUID:             runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "environment_uuid"), persisted.EnvironmentUUID),
+		DestinationUUID:             runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "destination_uuid"), persisted.DestinationUUID),
+		LegacyDockerComposeAPI:      persisted.LegacyDockerComposeAPI,
+		DisableDockerRuntimeObserve: persisted.DisableDockerRuntimeObserve,
+	}
+	checks := []runtimeActionCheck{}
+	cleanup := func() {}
+	tunnelURL, tunnelCleanup, tunnelErr := runtimePlatformTunnelEndpoint(ctx, bundle.Platform, cfg.BaseURL, options.Remote)
+	if tunnelErr != nil {
+		return cfg, false, checks, nil, tunnelErr
+	}
+	if tunnelURL != "" {
+		cfg.BaseURL = tunnelURL
+		cleanup = tunnelCleanup
+		checks = append(checks, runtimeActionCheck{
+			Name:   "platform_api_tunnel",
+			Status: "ok",
+			Detail: fmt.Sprintf("%s API endpoint forwarded to remote runtime target", strings.ToLower(strings.TrimSpace(bundle.Platform))),
+		})
 	}
 	if bundle.Platform == "komodo" {
-		return cfg, cfg.BaseURL != "" && cfg.APIKey != "" && cfg.Secret != ""
+		return cfg, cfg.BaseURL != "" && cfg.APIKey != "" && cfg.Secret != "", checks, cleanup, nil
 	}
-	return cfg, cfg.BaseURL != "" && cfg.Token != ""
+	return cfg, cfg.BaseURL != "" && cfg.Token != "", checks, cleanup, nil
 }
 
 func runtimeLoadPlatformConfigFile(deployDir string) runtimePlatformConfigFile {
@@ -226,4 +279,102 @@ func runtimeFirstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func runtimePlatformTunnelEndpoint(ctx context.Context, platform, endpoint string, remote *preparedRuntimeTarget) (string, func(), error) {
+	if remote == nil || remote.target == nil || strings.TrimSpace(remote.keyPath) == "" {
+		return "", nil, nil
+	}
+	remoteHost, remotePort, ok := runtimePlatformLoopbackEndpoint(endpoint)
+	if !ok {
+		return "", nil, nil
+	}
+	localURL, cleanup, err := startRuntimePlatformSSHTunnel(ctx, remote, remoteHost, remotePort)
+	if err != nil {
+		return "", nil, fmt.Errorf("%s platform API endpoint %q is node-local but SSH tunnel setup failed: %w", strings.ToLower(strings.TrimSpace(platform)), endpoint, err)
+	}
+	return localURL, cleanup, nil
+}
+
+func runtimePlatformLoopbackEndpoint(endpoint string) (string, string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil || parsed.Scheme == "" {
+		return "", "", false
+	}
+	host := strings.ToLower(strings.Trim(parsed.Hostname(), "[]"))
+	if host != "localhost" && host != "127.0.0.1" && host != "::1" {
+		return "", "", false
+	}
+	port := parsed.Port()
+	if port == "" {
+		switch parsed.Scheme {
+		case "http":
+			port = "80"
+		case "https":
+			port = "443"
+		default:
+			return "", "", false
+		}
+	}
+	return "127.0.0.1", port, true
+}
+
+func startRuntimePlatformSSHTunnelDefault(ctx context.Context, remote *preparedRuntimeTarget, remoteHost, remotePort string) (string, func(), error) {
+	if remote == nil || remote.target == nil || strings.TrimSpace(remote.keyPath) == "" {
+		return "", nil, fmt.Errorf("runtime target SSH material is required")
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", nil, fmt.Errorf("reserve local tunnel port: %w", err)
+	}
+	localPort := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+
+	tunnelCtx, cancel := context.WithCancel(ctx)
+	args := append(runtimeTargetSSHBaseArgs(remote.target, remote.keyPath),
+		"-N",
+		"-L", "127.0.0.1:"+strconv.Itoa(localPort)+":"+remoteHost+":"+remotePort,
+		remote.target.User+"@"+remote.target.Host,
+	)
+	cmd := exec.CommandContext(tunnelCtx, "ssh", args...) // #nosec G204 -- SSH args are assembled without shell interpolation.
+	var output strings.Builder
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return "", nil, fmt.Errorf("start ssh tunnel: %w", err)
+	}
+	cleanup := func() {
+		cancel()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	}
+	if err := waitForRuntimePlatformTunnel(ctx, localPort, &output); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return "http://127.0.0.1:" + strconv.Itoa(localPort), cleanup, nil
+}
+
+func waitForRuntimePlatformTunnel(ctx context.Context, localPort int, output *strings.Builder) error {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(localPort), 300*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		if time.Now().After(deadline) {
+			detail := strings.TrimSpace(output.String())
+			if detail != "" {
+				return fmt.Errorf("wait for ssh tunnel: %s", detail)
+			}
+			return fmt.Errorf("wait for ssh tunnel on 127.0.0.1:%d: %w", localPort, err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }

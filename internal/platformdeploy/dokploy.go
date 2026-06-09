@@ -22,6 +22,17 @@ func NewDokployAdapter(cfg HTTPConfig) *DokployAdapter {
 	}
 }
 
+func (a *DokployAdapter) BootstrapProviderName() string {
+	return "dokploy-draft"
+}
+
+func (a *DokployAdapter) BootstrapCapabilities() []BootstrapCapability {
+	return []BootstrapCapability{
+		BootstrapCapabilityAPIAccess,
+		BootstrapCapabilityServiceHandoff,
+	}
+}
+
 func (a *DokployAdapter) ApplyCompose(ctx context.Context, manifest AppManifest) (DeploymentRef, error) {
 	ref, err := a.UpsertCompose(ctx, manifest)
 	if err != nil {

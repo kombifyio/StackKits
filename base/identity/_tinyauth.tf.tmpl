@@ -269,7 +269,7 @@ resource "docker_container" "tinyauth" {
 
   labels {
     label = "traefik.http.middlewares.${var.tinyauth_middleware_name}.forwardauth.authResponseHeaders"
-    value = "X-User,X-Email"
+    value = "X-User,X-Email,remote-user,remote-sub,remote-name,remote-email,remote-groups"
   }
 
   # StackKit classification labels

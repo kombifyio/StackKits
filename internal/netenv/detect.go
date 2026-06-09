@@ -50,11 +50,11 @@ func Detect(ctx context.Context) *Result {
 		r.Environment = models.NetEnvVPS
 		r.IsNAT = false
 	} else if r.PublicIP != "" && !r.HasPublicInterface {
-		// Public IP exists but is not on any interface — behind NAT (home network)
+		// Public IP exists but is not on any interface: private/local target behind NAT.
 		r.Environment = models.NetEnvHome
 		r.IsNAT = true
 	} else if r.PublicIP == "" && r.PrivateIP != "" {
-		// No public IP reachable — likely home network without internet or isolated env
+		// No public IP reachable: private/local or isolated target.
 		r.Environment = models.NetEnvHome
 		r.IsNAT = true
 	}
@@ -227,7 +227,7 @@ func isPrivateIP(ip net.IP) bool {
 func FormatEnvironment(env models.NetworkEnvironment) string {
 	switch env {
 	case models.NetEnvHome:
-		return "Home/office network (behind NAT)"
+		return "Local/private target (behind NAT)"
 	case models.NetEnvVPS:
 		return "VPS/dedicated server (public IP)"
 	case models.NetEnvCloud:
@@ -249,7 +249,7 @@ func SuggestDomain(env models.NetworkEnvironment, currentDomain string) (domain 
 		return currentDomain, ""
 	case models.NetEnvHome:
 		if currentDomain == "" {
-			return DefaultLocalDomain(), "home network detected — using configured local domain"
+			return DefaultLocalDomain(), "local/private target detected — using configured local domain"
 		}
 		return currentDomain, ""
 	default:
