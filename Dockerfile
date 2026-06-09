@@ -46,7 +46,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/stackkit-server
 # -----------------------------------------------------------------------------
 # Stage 2: Install OpenTofu (pinned version, no piped shell script)
 # -----------------------------------------------------------------------------
-FROM alpine:3.22 AS tofu-installer
+FROM alpine:3.23 AS tofu-installer
 
 ARG TOFU_VERSION=1.11.5
 
@@ -61,7 +61,7 @@ RUN apk add --no-cache curl && \
 # -----------------------------------------------------------------------------
 # Stage 3: Final Runtime Image
 # -----------------------------------------------------------------------------
-FROM alpine:3.22
+FROM alpine:3.23
 
 # Install runtime dependencies
 RUN apk add --no-cache \
