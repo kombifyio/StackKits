@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "source": "cue",
-  "generated_at": "2026-05-26T18:21:35.2169822Z",
+  "generated_at": "2026-06-09T15:15:24.43080668Z",
   "tools": [],
   "services": [
     {
@@ -26,6 +26,7 @@
       "enable_var": "enable_tinyauth",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/tinyauth",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": true
     },
     {
@@ -51,6 +52,7 @@
       "enable_var": "enable_dashboard",
       "guide_url": "https://docs.kombify.io/guides/stackkits/node-hub",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": true
     },
     {
@@ -72,6 +74,7 @@
       "enable_var": "enable_coolify",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/coolify",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": false
     },
     {
@@ -93,6 +96,7 @@
       "enable_var": "enable_dockge",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/dockge",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": false
     },
     {
@@ -114,6 +118,7 @@
       "enable_var": "enable_dokploy",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/dokploy",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": false
     },
     {
@@ -138,7 +143,9 @@
       "order": 60,
       "enable_var": "enable_files",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/files",
-      "setup_policy": "automatic",
+      "setup_policy": "on_demand",
+      "setup_action_label": "Automatisierter Bootstrap",
+      "delivery": {},
       "default": true
     },
     {
@@ -163,6 +170,7 @@
       "enable_var": "enable_homepage",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/homepage",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": true
     },
     {
@@ -187,6 +195,7 @@
       "enable_var": "enable_pocketid",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/pocketid",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": true
     },
     {
@@ -208,6 +217,7 @@
       "enable_var": "enable_komodo",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/komodo",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": false
     },
     {
@@ -232,6 +242,7 @@
       "enable_var": "enable_uptime_kuma",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/uptime-kuma",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": true
     },
     {
@@ -245,6 +256,7 @@
       "identity_policy": "forwardauth",
       "owner_provisioning_policy": "required",
       "setup_policy": "manual",
+      "delivery": {},
       "default": false
     },
     {
@@ -269,6 +281,7 @@
       "enable_var": "enable_jellyfin",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/jellyfin",
       "setup_policy": "manual",
+      "delivery": {},
       "default": false
     },
     {
@@ -292,8 +305,9 @@
       "order": 50,
       "enable_var": "enable_immich",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/immich",
-      "setup_policy": "automatic",
+      "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
+      "delivery": {},
       "default": true
     },
     {
@@ -315,6 +329,7 @@
       "enable_var": "enable_kombify_point",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/kombify-point",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": false
     },
     {
@@ -336,6 +351,7 @@
       "enable_var": "enable_traefik",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/traefik",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": true
     },
     {
@@ -359,8 +375,9 @@
       "order": 30,
       "enable_var": "enable_vaultwarden",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/vaultwarden",
-      "setup_policy": "automatic",
+      "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
+      "delivery": {},
       "default": true
     },
     {
@@ -382,6 +399,7 @@
       "enable_var": "enable_whoami",
       "guide_url": "https://docs.kombify.io/guides/stackkits/services/whoami",
       "setup_policy": "automatic",
+      "delivery": {},
       "default": true
     }
   ],
@@ -714,7 +732,7 @@
       "version": "1.0.0",
       "layer": "L2-platform-observability",
       "description": "Self-hosted uptime monitoring with status pages and notifications",
-      "contract_hash": "8634541b1f1dfa7c99282954e68f994c001b6c08e37798c8bb2d3a0c93c9d595",
+      "contract_hash": "f5841f340a7e2452be24c57dd7a39d5146e1f70252b87b8d98a1b660b9794259",
       "supported_contexts": [
         "local",
         "cloud",
