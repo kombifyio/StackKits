@@ -4,6 +4,25 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-06-21
+
+### Highlights
+
+- **Public BaseKit beta**: promotes the v0.4 BaseKit beta line from pinned prerelease testing to the public `latest` release channel.
+- **Clean OSS surface**: the public repository is restricted to the BaseKit beta contract, CLI/API/runtime sources, website, public docs, module catalog, and release tooling.
+- **Agent-ready public docs**: public agent docs, OpenMCP metadata, installer endpoints, and schemas describe one BaseKit beta install path and one user-facing `stackkit` MCP connection.
+
+### Fixed
+
+- **Removed unreleased surfaces from public export**: unreleased kit directories, add-on catalogs, backup agent/controller scaffolds, internal scenario packages, upgrade/rollback internals, and unpublished static website routes are excluded from `kombifyio/stackKits`.
+- **Public guardrails**: export checks now fail if unreleased kit slugs, add-on command surfaces, internal backup-controller paths, private runbooks, or removed installer routes re-enter the public tree.
+- **Visible release state**: `v0.4.0` is now the final public tag for the BaseKit beta release; older `v0.4.0-beta.*` tags remain prerelease history.
+
+### Release Notes
+
+- `v0.4.0` is a BaseKit public beta release. It does not claim Enterprise production readiness for unreleased kit definitions or optional extension catalogs.
+- Unpinned installers may resolve to `v0.4.0` once the public GitHub release is published as latest; use `STACKKIT_RELEASE_VERSION` only when pinning a specific prerelease.
+
 ## [0.4.0-beta.2] - 2026-06-21
 
 ### Highlights
