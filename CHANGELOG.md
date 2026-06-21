@@ -4,6 +4,25 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0-beta.1] - 2026-06-21
+
+### Highlights
+
+- **Public BaseKit beta candidate**: ships the v0.4 BaseKit release candidate as a pinned prerelease for official-installer testing with `STACKKIT_RELEASE_VERSION=v0.4.0-beta.1`.
+- **Released-content gates**: production workflows now include explicit released-installer SK-S1 coverage, scenario evidence import, and diagnostic artifacts for skipped SK-S2/SK-S3 paths.
+- **Local E2E evidence**: the Docker Desktop Fresh Ubuntu SK-S1 gate is split into bounded Start, Wait, Verify, and browser-evidence phases under the 15-minute policy.
+
+### Fixed
+
+- **Public export manifest**: includes the homelab setup-action evidence scripts required by the public surface checker and release CI.
+- **Prerelease installer semantics**: installer tests prove prereleases are used only when `STACKKIT_RELEASE_VERSION` pins the beta tag; unpinned installs remain on stable latest.
+- **Release diagnostics**: skipped or blocked production scenarios now emit explicit diagnostics instead of failing later during artifact upload.
+
+### Release Notes
+
+- This is a BaseKit public beta prerelease, not stable GA. Do not promote unpinned `latest` until released-content SK-S1, SK-S2, and SK-S3 pass or the public beta scope is narrowed explicitly.
+- Current broader scenario blockers are tracked separately: SK-S2 service-auth preflight and SK-S3 BYO DNS/SSH prerequisites must pass before claiming multi-use-case beta readiness.
+
 ## [0.3.4] - 2026-06-08
 
 ### Highlights
