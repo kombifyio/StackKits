@@ -39,11 +39,9 @@
   const scopeColor = (scope: string) =>
     scope === 'read-only'
       ? 'bg-tertiary-container text-on-tertiary-container'
-      : scope === 'addon'
+      : scope === 'remote'
         ? 'bg-secondary-container text-on-secondary-container'
-        : scope === 'remote'
-          ? 'bg-secondary-container text-on-secondary-container'
-          : 'bg-warning-container text-on-warning-container'
+        : 'bg-warning-container text-on-warning-container'
 </script>
 
 <main class="pt-24 md:pt-32 pb-20 px-6">

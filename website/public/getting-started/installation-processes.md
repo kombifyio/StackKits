@@ -20,7 +20,7 @@ Every install path should collect the same decisions:
 
 | Decision | Typical choices |
 | --- | --- |
-| StackKit | `base-kit` beta; Modern Homelab and HA Kit alpha/scaffolding |
+| StackKit | `base-kit` beta only |
 | Owner/admin email | Operator email, tenant owner, or synthetic local-only test email |
 | Install mode | `bare`, `bootstrapped`, `advanced` |
 | Context | `local`, `cloud`, `pi` |
@@ -52,7 +52,7 @@ Individualization:
 | `I1` | Email, stack name, workspace, and spec path. |
 | `I2` | Kit, install mode, context, compute tier, service profile. |
 | `I3` | Domain strategy, SSH target, DNS/TLS, selected PaaS. |
-| `I4` | Add-ons, advanced owner/recovery policy, update/rollback, advanced composition. |
+| `I4` | Advanced owner/recovery policy, update/rollback, advanced composition. |
 
 ## Process Matrix
 
@@ -82,7 +82,7 @@ Expanded internal comparison:
 | --- | --- | --- | --- |
 | `P0` Website and Web-MCP discovery | Broad planning only. Agent can collect email, kit, mode, domain, target, and approval intent. | Public website, browser, read-only OpenMCP. No target authority. | Discovery only. |
 | `P1` Full BaseKit one-line installer | Low to medium. Defaults plus env vars for email, mode, service profile, domain, context, PaaS. | Direct target shell, on-server agent, or external agent over SSH. Needs root/sudo for preparation. | One approved command runs the main lifecycle. |
-| `P2` Shared CLI installer plus direct CLI | Full range. Best for StackSpec review, plan review, add-ons, custom network/platform, advanced owner/recovery choices. | Local shell on target or operator-controlled shell. | Manual or guided step-by-step. |
+| `P2` Shared CLI installer plus direct CLI | Full range. Best for StackSpec review, plan review, custom network/platform, advanced owner/recovery choices. | Local shell on target or operator-controlled shell. | Manual or guided step-by-step. |
 | `P3` Agent already on target server | Full range if the agent has local context and approval. | Agent has target-shell authority. Website is guidance only. | Guided to autonomous. |
 | `P4` External agent through SSH | Medium to full. Strong for remote host, SSH, email, domain, custom mode, remote evidence. | Agent outside server with SSH/remote-shell authority. | Guided remote bootstrap. |
 | `P5` Protected durable StackKits MCP endpoint | Medium to full through typed tools and MCP App onboarding. Best for day-2 config/update/verify/log workflows. | Agent connects to an already-running target `stackkit-server /mcp` through a protected endpoint, tunnel, VPN, or private network. Token and write gate required for mutation. | Target durable connector operation, not the default first-install path. |

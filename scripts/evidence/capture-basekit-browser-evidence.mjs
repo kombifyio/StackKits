@@ -14,7 +14,7 @@ const MAX_TIMEOUT_MS = 15 * 60 * 1000;
 const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
 const DEFAULT_TOTAL_TIMEOUT_MS = 14 * 60 * 1000;
 const DEFAULT_PER_CHECK_TIMEOUT_MS = 2 * 60 * 1000;
-const SETUP_ACTION_PER_SERVICE_TIMEOUT_MS = 2 * 60 * 1000;
+const SETUP_ACTION_PER_SERVICE_TIMEOUT_MS = 6 * 60 * 1000;
 const SETUP_ACTION_RETRY_DELAY_MS = 2000;
 const DEFAULT_VIEWPORT = { width: 1440, height: 1000 };
 const LOCAL_PORT_MAPPED_URL_FIELDS = ['browserUrl', 'ownerSetupUrl', 'authUrl', 'photosUrl', 'filesUrl', 'vaultUrl'];
@@ -2097,6 +2097,7 @@ export {
   MAX_TIMEOUT_MS,
   MAX_TIMEOUT_SECONDS,
   REQUIRED_CHECKS,
+  SETUP_ACTION_PER_SERVICE_TIMEOUT_MS,
   assertOwnerSetupActions,
   buildChecks,
   browserChannelLabel,

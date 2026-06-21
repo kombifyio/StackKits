@@ -78,20 +78,6 @@ stackkit verify --http --json
 stackkit status --json
 
 Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or-dns, generated-config, opentofu-plan, opentofu-apply, service-health, or unknown.`,
-	"enable-monitoring-addon": `Enable monitoring for an existing BaseKit rollout only after operator approval.
-
-Inspect first:
-stackkit status --json
-stackkit verify --http --json
-stackkit addon list
-
-After approval:
-stackkit addon add monitoring
-stackkit validate
-stackkit generate --force
-stackkit plan
-stackkit apply
-stackkit verify --http --json`,
 	"ssh-rollout": `Roll out BaseKit to a reachable SSH target. Keep the workflow non-interactive and evidence-based.
 
 Confirm target host, SSH user, SSH key path, admin email, and whether the host is dedicated to StackKits.
@@ -288,7 +274,7 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 			"manifest matching stackkit-agent-run-manifest.schema.json",
 			"functional result matching stackkit-agent-functional-result.schema.json",
 		},
-		ReadinessNote: "BaseKit is release-ready; Modern Homelab and HA Kit remain alpha/scaffolding.",
+		ReadinessNote: "BaseKit is release-ready; unreleased kit definitions remain outside the public beta release matrix.",
 	}
 }
 

@@ -58,7 +58,7 @@ The authoring package lives in `mcp-use/stackkits-app/`. The production runtime 
 The app flow is:
 
 1. Contact and workspace: collect owner/admin email, stack name, workspace, and spec path.
-2. StackKit and profile: choose BaseKit, Modern Homelab, or HA Kit plus install context, compute tier, and service profile.
+2. StackKit and profile: choose the published BaseKit beta profile plus install context, compute tier, and service profile.
 3. Domain and core settings: choose local `home.localhost`, managed `kombify.me`, a custom domain, or LAN DNS.
 4. Review and plan: render a StackSpec preview, optionally save YAML with `stackkit_config_set`, create a spec with `stackkit_init`, validate, preview generation, and run a bounded plan flow.
 5. Rollout and evidence: run gated rollout/apply, verify, doctor, and logs while the widget shows step progress.

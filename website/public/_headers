@@ -11,14 +11,6 @@
   Content-Type: text/x-shellscript; charset=utf-8
   X-Content-Type-Options: nosniff
 
-/modern
-  Content-Type: text/x-shellscript; charset=utf-8
-  X-Content-Type-Options: nosniff
-
-/ha
-  Content-Type: text/x-shellscript; charset=utf-8
-  X-Content-Type-Options: nosniff
-
 /llms.txt
   Content-Type: text/plain; charset=utf-8
   Content-Signal: search=yes, ai-input=yes

@@ -44,7 +44,7 @@ type KitDefinition struct {
 	Outputs      map[string]interface{}    `yaml:"outputs,omitempty" json:"outputs,omitempty"`
 	Changelog    []ChangelogEntry          `yaml:"changelog,omitempty" json:"changelog,omitempty"`
 
-	// Modern-Homelab specific
+	// Multi-node kit fields
 	NodeTypes map[string]NodeTypeDef `yaml:"nodeTypes,omitempty" json:"nodeTypes,omitempty"`
 	Addons    AddonsDef              `yaml:"addons,omitempty" json:"addons,omitempty"`
 	Identity  map[string]interface{} `yaml:"identity,omitempty" json:"identity,omitempty"`
@@ -52,7 +52,7 @@ type KitDefinition struct {
 	PaaS      map[string]interface{} `yaml:"paas,omitempty" json:"paas,omitempty"`
 	Secrets   map[string]interface{} `yaml:"secrets,omitempty" json:"secrets,omitempty"`
 
-	// HA-Kit specific
+	// Cluster-oriented kit fields
 	Swarm    map[string]interface{} `yaml:"swarm,omitempty" json:"swarm,omitempty"`
 	Services []ServiceSpecDef       `yaml:"services,omitempty" json:"services,omitempty"`
 	Extends  string                 `yaml:"extends,omitempty" json:"extends,omitempty"`
@@ -77,7 +77,7 @@ type KitDefinition struct {
 //	  traefik: { role: default }
 //	  paas: { role: optional, defaultTool: coolify }
 //
-// In modern-homelab and ha-kit it is a single string:
+// In future kit definitions it may be represented as a single string:
 //
 //	platform: docker
 //
@@ -211,7 +211,7 @@ type ResourceRequirements struct {
 	Memory   int    `yaml:"memory,omitempty" json:"memory,omitempty"`
 	Disk     int    `yaml:"disk,omitempty" json:"disk,omitempty"`
 	DiskType string `yaml:"diskType,omitempty" json:"diskType,omitempty"`
-	// Multi-node (HA-kit)
+	// Multi-node
 	ManagerNodes int `yaml:"managerNodes,omitempty" json:"managerNodes,omitempty"`
 	WorkerNodes  int `yaml:"workerNodes,omitempty" json:"workerNodes,omitempty"`
 	Nodes        int `yaml:"nodes,omitempty" json:"nodes,omitempty"`
@@ -224,7 +224,7 @@ type ChangelogEntry struct {
 	Changes []string `yaml:"changes,omitempty" json:"changes,omitempty"`
 }
 
-// NodeTypeDef is used by modern-homelab to describe local/cloud node roles.
+// NodeTypeDef describes local/cloud node roles in multi-node kit definitions.
 type NodeTypeDef struct {
 	Description  string                 `yaml:"description,omitempty" json:"description,omitempty"`
 	Access       string                 `yaml:"access,omitempty" json:"access,omitempty"`
@@ -239,7 +239,7 @@ type AddonsDef struct {
 	Optional      []string `yaml:"optional,omitempty" json:"optional,omitempty"`
 }
 
-// ServiceSpecDef is used by HA-kit to declare deployment overrides per service.
+// ServiceSpecDef declares deployment overrides per service.
 type ServiceSpecDef struct {
 	Name        string                 `yaml:"name" json:"name"`
 	Required    bool                   `yaml:"required,omitempty" json:"required,omitempty"`

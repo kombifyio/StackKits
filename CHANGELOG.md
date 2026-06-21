@@ -4,6 +4,25 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0-beta.2] - 2026-06-21
+
+### Highlights
+
+- **Ephemeral provider-server E2E contract**: SK-S3 now provisions a fresh provider-leased Ubuntu server through the Sim/Lease API, runs the custom-domain installer over provisioned SSH, captures state/evidence, and deletes the simulation/server during cleanup.
+- **Uniform beta provider lane**: provider selection now uses `STACKKIT_E2E_SERVER_PROVIDER`, then `STACKKIT_E2E_CLOUD_NODE_ENGINE`, then `STACKKIT_TECHSTACK_LEASE_PROVIDER`, and finally `centron-managed`; beta providers remain `centron-managed` and `ionos-managed`.
+- **Release cleanup discipline**: SK-S3 production workflow phases now preflight service auth, provider readiness, and Cloudflare DNS credentials, then run an `always()` cleanup phase that emits explicit diagnostics even when provisioning or verification fails.
+
+### Fixed
+
+- **BYO SSH blocker removed from canonical SK-S3**: fixed-host SSH is now an explicit local debug override via `STACKKIT_SK_S3_DEBUG_FIXED_SSH=1`, not release evidence or CI prerequisite material.
+- **Scenario state and artifacts**: SK-S2/SK-S3 artifacts now record provider metadata, and SK-S3 staged state persists simulation ID, node ID, SSH material, public IP, service hosts, DNS zone, and provider for follow-up phases and cleanup.
+- **Production workflow diagnostics**: isolated SK-S3 Wait/Verify/Cleanup phases skip cleanly when no Start state exists, while workflow jobs upload blocked/skipped diagnostics instead of failing later on missing artifacts.
+
+### Release Notes
+
+- This is the release-candidate lane for public BaseKit beta testing through a pinned prerelease: `STACKKIT_RELEASE_VERSION=v0.4.0-beta.2`.
+- Stable `latest` remains `v0.3.4` until released-content SK-S1, SK-S2, and SK-S3 evidence is clean or the beta claim is explicitly narrowed.
+
 ## [0.4.0-beta.1] - 2026-06-21
 
 ### Highlights
@@ -21,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Release Notes
 
 - This is a BaseKit public beta prerelease, not stable GA. Do not promote unpinned `latest` until released-content SK-S1, SK-S2, and SK-S3 pass or the public beta scope is narrowed explicitly.
-- Current broader scenario blockers are tracked separately: SK-S2 service-auth preflight and SK-S3 BYO DNS/SSH prerequisites must pass before claiming multi-use-case beta readiness.
+- Current broader scenario blockers are tracked separately: SK-S2 service-auth preflight and SK-S3 provider-lease/DNS prerequisites must pass before claiming multi-use-case beta readiness.
 
 ## [0.3.4] - 2026-06-08
 

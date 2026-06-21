@@ -20,7 +20,7 @@ var registryVerifyParityCmd = &cobra.Command{
 against locally computed canonical hashes of each kit's stackkit.yaml.
 
 Only kits that carry at least one spec_profile with a kit_definition_hash
-are checked. Kits without profiles (e.g. ha-kit, modern-homelab) are skipped.
+are checked. Kits without profiles are skipped.
 
 Exit codes:
   0 — all hashes match (or no profiles to check)

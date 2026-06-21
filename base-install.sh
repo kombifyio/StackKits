@@ -692,7 +692,7 @@ else
 fi
 echo "  Commands:"
 echo "    stackkit status       Check service health"
-echo "    stackkit addon list   Available add-ons"
+echo "    stackkit status       Check service health"
 echo "    stackkit remove       Tear down everything"
 echo ""
 if [ -f "$HOMELAB_DIR/.stackkit/access.json" ]; then

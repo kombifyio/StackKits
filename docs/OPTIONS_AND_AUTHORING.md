@@ -13,7 +13,6 @@ version, rollout, and lifecycle state.
 | `default` | Enabled by the kit without user action. | Fresh-target smoke, first-run path, auth/routing, backup classification, upgrade notes, and registry/CUE hash parity. |
 | `alternative` | Curated swap for a default in the same group. | Same generated contract shape as the default, documented migration/limits, and explicit user selection. |
 | `optional` | Available but off by default. | CUE validation, generate path, documented enablement, and known gaps. |
-| `addon` | Cross-cutting capability, not a user-facing use case. | Clear dependency surface, no hidden default activation, and tests for the generated fragments it adds. |
 
 ## Current BaseKit Platform Matrix
 
@@ -23,7 +22,7 @@ version, rollout, and lifecycle state.
 | Production PaaS alternative | `komodo` |
 | Draft PaaS adapter | `dokploy` |
 | Invalid normal PaaS values | `dockge`, `none` |
-| Dockge status | Experimental/constrained Compose manager service only; not a normal Base/Modern/HA PaaS. |
+| Dockge status | Experimental/constrained Compose manager service only; not a normal BaseKit PaaS. |
 | Low compute tier | Keeps the Coolify platform contract and gates heavier apps; it does not switch to Dockge. |
 
 When the PaaS contract changes, update all of these together:
@@ -33,8 +32,8 @@ release archive smoke expectations.
 
 ## Authoring Flow
 
-1. Define or update the CUE/module contract first under `modules/`, `addons/`,
-   the relevant kit directory, or `base/`.
+1. Define or update the CUE/module contract first under `modules/`, the
+   relevant kit directory, or `base/`.
 2. Classify the role in kit metadata with `role`, `defaultTool`, and
    `alternatives` where applicable.
 3. Add resolver or generator code only when CUE cannot express the behavior
@@ -52,17 +51,13 @@ release archive smoke expectations.
 | Alternative to default | Fresh-target smoke, release archive smoke, identity/secret checks, `stackkit verify` coverage, rollback/update notes. |
 | Kit to release-ready | Public installer smoke, full archive validation, live BaseKit-style scenario evidence, and no HTML fallback on one-line endpoints. |
 
-Modern Homelab and HA Kit currently remain alpha/scaffolding. They can stay in
-the full archive and kit catalog, but they must not be presented as
-production-ready one-click installers until their scenario matrix entries pass.
-
 ## Required Release Checks
 
 For any option, installer, or kit-default change:
 
 ```bash
 go test ./...
-cue vet ./base/... ./base-kit/... ./modern-homelab/... ./ha-kit/...
+cue vet ./base/... ./base-kit/...
 mise run test:cue-binding
 mise run test:website
 ```

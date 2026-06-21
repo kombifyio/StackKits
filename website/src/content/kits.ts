@@ -7,7 +7,7 @@ export type KitFeature = {
 }
 
 export type Kit = {
-  id: 'base' | 'modern' | 'ha'
+  id: 'base'
   name: string
   status: KitStatus
   statusLabel: string
@@ -40,43 +40,7 @@ export const kits: Kit[] = [
       { title: 'Agent-first surfaces', body: 'llms.txt, OpenAPI, JSON schemas, MCP connector, and prompt Markdown ship in every release.', icon: 'smart_toy' },
     ],
     services: ['Coolify default PaaS', 'Komodo beta-supported alternative', 'Dokploy draft adapter', 'PocketID', 'TinyAuth', 'Homepage dashboard', 'Uptime Kuma', 'Vaultwarden via PaaS', 'Immich (Photos) via PaaS', 'stackkit-server (Node Hub API)'],
-    notSuitableFor: ['Multi-node clusters with quorum failover (use HA Kit when graduated)', 'Hybrid cloud-plus-local deployments (use Modern Home Lab when graduated)'],
-  },
-  {
-    id: 'modern',
-    name: 'Modern Home Lab',
-    status: 'alpha',
-    statusLabel: 'alpha · scaffolding',
-    tagline: 'Hybrid local + cloud direction. Preview only.',
-    description:
-      'Modern Home Lab is the in-progress StackKit for hybrid local-plus-cloud deployments. Its rollout matrix and one-click apply path are still being implemented — the CUE definitions are packaged for preview work, but production rollout via this kit is not yet supported.',
-    oneLiner: 'stackkit init modern-homelab',
-    initCommand: 'stackkit init modern-homelab',
-    features: [
-      { title: 'Hybrid by design', body: 'Targets a mix of local home-lab nodes and cloud-managed services.', icon: 'cloud_sync' },
-      { title: 'CUE-first definitions', body: 'Same CUE contract source as BaseKit, packaged for inspection and preview.', icon: 'integration_instructions' },
-      { title: 'Definition preview', body: 'Use to read, validate, and experiment with the modern composition.', icon: 'visibility' },
-    ],
-    services: ['Definitions only — no verified rollout path in current release'],
-    notSuitableFor: ['Production deployments today (use BaseKit)', 'One-click first-run installs (matrix scenarios not yet implemented)'],
-  },
-  {
-    id: 'ha',
-    name: 'High Availability Kit',
-    status: 'alpha',
-    statusLabel: 'alpha · scaffolding',
-    tagline: 'Cluster-first redundancy. Preview only.',
-    description:
-      'The High Availability Kit defines a cluster-first composition with redundancy, quorum, and failover for self-hosted production workloads. The contract is packaged in the release, but the rollout matrix and production gates are not yet implemented.',
-    oneLiner: 'stackkit init ha-kit',
-    initCommand: 'stackkit init ha-kit',
-    features: [
-      { title: 'Cluster-first', body: 'Multi-node membership, quorum, and failover modeled in CUE.', icon: 'hub' },
-      { title: 'Redundant identity & storage', body: 'Replicated identity and storage layers across cluster members.', icon: 'lan' },
-      { title: 'Preview only', body: 'Apply path remains scaffolding until production gates land.', icon: 'science' },
-    ],
-    services: ['Cluster membership contracts', 'Replication primitives (preview)'],
-    notSuitableFor: ['Production deployments today (use BaseKit)', 'Single-node homelab installs (use BaseKit)'],
+    notSuitableFor: ['Multi-node clusters with quorum failover', 'Hybrid cloud-plus-local deployments'],
   },
 ]
 

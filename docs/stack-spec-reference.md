@@ -18,7 +18,7 @@
 ```yaml
 # stack-spec.yaml — StackKit Deployment Specification
 name: string              # Stack identifier (DNS-compatible, e.g. "mylab")
-stackkit: string          # StackKit name: "base-kit", "modern-homelab", "ha-kit"
+stackkit: string          # StackKit name: "base-kit"
 mode: string              # Install mode: "bare", "bootstrapped" (default), or "advanced"; legacy "simple" normalizes to "bootstrapped"
 runtime: string           # "docker" (default) or "native"
 context: string           # Auto-detected: "local", "cloud", "pi" (rarely set manually)
@@ -104,9 +104,6 @@ nodes:
   - name: string          # Node identifier
     role: string          # "standalone", "main", "worker"
     ip: string            # Node IP address
-
-# Add-ons
-addons: [string]          # Add-on names (e.g. ["monitoring", "vpn-overlay"])
 
 # Service overrides (advanced)
 services:
@@ -392,7 +389,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 ## Validation Rules
 
 - `name` must be DNS-compatible: `^[a-z][a-z0-9-]+$`
-- `stackkit` must reference an existing StackKit (`base-kit`, `modern-homelab`, `ha-kit`)
+- `stackkit` must reference an existing public StackKit (`base-kit`)
 - `mode` must be `bare`, `bootstrapped`, or `advanced`; legacy `simple` is accepted and normalizes to `bootstrapped`
 - `compute.tier` must be `low`, `standard`, or `high`
 - `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only

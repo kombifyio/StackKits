@@ -134,16 +134,6 @@
                 <div class="font-medium flex items-center gap-2">BaseKit <span class="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded bg-success-container text-on-success-container">stable</span></div>
                 <div class="text-xs text-on-surface-variant mt-0.5">Release-ready single-environment default</div>
               </a>
-              <a href="/kits/modern" onclick={(e) => handleLink(e, '/kits/modern')} role="menuitem"
-                 class="block px-4 py-2.5 no-underline text-sm transition-colors {currentPath === '/kits/modern' ? 'bg-primary-container/40 text-on-primary-container font-semibold' : 'text-on-surface hover:bg-surface-container-high'}">
-                <div class="font-medium flex items-center gap-2">Modern Home Lab <span class="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded bg-warning-container text-on-warning-container">alpha</span></div>
-                <div class="text-xs text-on-surface-variant mt-0.5">Hybrid local + cloud direction</div>
-              </a>
-              <a href="/kits/ha" onclick={(e) => handleLink(e, '/kits/ha')} role="menuitem"
-                 class="block px-4 py-2.5 no-underline text-sm transition-colors {currentPath === '/kits/ha' ? 'bg-primary-container/40 text-on-primary-container font-semibold' : 'text-on-surface hover:bg-surface-container-high'}">
-                <div class="font-medium flex items-center gap-2">High Availability <span class="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded bg-warning-container text-on-warning-container">alpha</span></div>
-                <div class="text-xs text-on-surface-variant mt-0.5">Cluster-first redundancy &amp; failover</div>
-              </a>
             </div>
           {/if}
         </div>

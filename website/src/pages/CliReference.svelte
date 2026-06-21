@@ -7,7 +7,7 @@
 
   const cliInstallOneLiner = __STACKKIT_CLI_INSTALL_ONELINER__
 
-  const categories: CliCommand['category'][] = ['core', 'lifecycle', 'inspect', 'addon', 'agent', 'release', 'utility']
+  const categories: CliCommand['category'][] = ['core', 'lifecycle', 'inspect', 'agent', 'release', 'utility']
   const grouped = categories.map((cat) => ({ cat, commands: cliCommands.filter((c) => c.category === cat) }))
 </script>
 

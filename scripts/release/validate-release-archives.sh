@@ -42,8 +42,6 @@ for path in \
   schemas/release-evidence.schema.json \
   base/stackkit.cue \
   base-kit/stackkit.yaml \
-  ha-kit/stackkit.yaml \
-  modern-homelab/stackkit.yaml \
   modules/tinyauth/module.cue \
   modules/pocketid/module.cue; do
   require_file "$tmp/full-files.txt" "$path"
@@ -158,7 +156,7 @@ full_home="$tmp/full-home"
 full_project="$tmp/full-project"
 mkdir -p "$full_extract"
 tar xzf "$full_archive" -C "$full_extract"
-stage_stackkits_home "$full_extract" "$full_home" base-kit ha-kit modern-homelab
+stage_stackkits_home "$full_extract" "$full_home" base-kit
 smoke_basekit_init_generate "full-archive-cli-catalog" "$full_extract" "$full_home" "$full_project"
 
 printf 'release archive validation passed\n'

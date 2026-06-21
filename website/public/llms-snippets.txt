@@ -63,5 +63,4 @@ Agents should configure one MCP connection named `stackkit`. Remote MCP is the s
 - /getting-started/agents/basekit-autonomous-rollout.md
 - /getting-started/agents/inspect-existing-rollout.md
 - /getting-started/agents/diagnose-failed-rollout.md
-- /getting-started/agents/enable-monitoring-addon.md
 - /getting-started/agents/ssh-rollout.md

@@ -11,8 +11,8 @@ required evidence item below is present for the exact public release tag.
 
 StackKits is not yet Enterprise production-ready for broad Public OSS use.
 The supported Enterprise hardening target is BaseKit only, from released
-artifacts, with explicit limitations. Modern Homelab and HA Kit remain
-alpha/scaffolding until their rollout matrices graduate.
+artifacts, with explicit limitations. Unreleased kit definitions stay outside
+the public beta install surface until their rollout matrices graduate.
 
 ## Supported Production Scope
 
@@ -27,7 +27,7 @@ alpha/scaffolding until their rollout matrices graduate.
 
 ## Non-Goals
 
-- No Enterprise claim for Modern Homelab or HA Kit.
+- No Enterprise claim for unreleased kit definitions.
 - No claim that any non-PaaS fallback proves the Coolify-managed application-layer rollout.
 - No unsupported public release path from the private development repo.
 - No production claim for backup controller or backup agent scaffolds until durable storage, queueing, enrollment, and OIDC operator auth land.

@@ -1,6 +1,6 @@
 # Prompt: Autonomous BaseKit Rollout
 
-You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only. Modern Homelab and HA Kit are alpha/scaffolding and must not be treated as release-ready.
+You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only. Unreleased kit definitions must not be treated as release-ready.
 
 Follow this contract:
 
@@ -23,4 +23,3 @@ Expected final evidence:
 - `no_hand_edited_generated_artifacts=true`
 - a manifest matching `stackkit-agent-run-manifest.schema.json`
 - a functional result matching `stackkit-agent-functional-result.schema.json`
-

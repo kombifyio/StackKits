@@ -1,11 +1,9 @@
 const installerHosts = new Map([
   ["install.stackkit.cc", "/install"],
   ["base.stackkit.cc", "/base"],
-  ["modern.stackkit.cc", "/modern"],
-  ["ha.stackkit.cc", "/ha"],
 ]);
 
-const installerPaths = new Set(["/install", "/base", "/modern", "/ha"]);
+const installerPaths = new Set(["/install", "/base"]);
 
 const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io";
 

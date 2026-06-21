@@ -4,7 +4,7 @@
   import FeatureGrid from '../lib/FeatureGrid.svelte'
 
   type Props = {
-    kit: 'base' | 'modern' | 'ha'
+    kit: 'base'
     navigate: (path: string) => void
   }
   const { kit: kitId, navigate }: Props = $props()

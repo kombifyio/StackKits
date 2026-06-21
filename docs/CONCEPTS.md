@@ -33,8 +33,6 @@ A StackKit defines HOW infrastructure is organized AND WHICH use cases ship as d
 | StackKit | Pattern | Default Scope |
 |----------|---------|---------------|
 | **Base Kit** | Single environment 1..N | Platform + verified default application modules; heavier modules are enabled only after their first-run path passes release gates |
-| **Modern Homelab** | Hybrid (local+cloud) | Platform + use cases split across public-facing and local-first nodes |
-| **HA Kit** | HA Cluster (3+ nodes) | Platform + reliability-focused defaults. Use cases opt-in unless they satisfy HA placement, backup, and failover rules. |
 
 Platform target = routing + identity implementation + access gateway + PaaS adapter + platform observability. Current release gates may keep individual platform services opt-in until their first-run UX and verification path are ready.
 
@@ -97,22 +95,20 @@ The compact authoring and promotion matrix lives in [OPTIONS_AND_AUTHORING.md](O
 | `default` | Ships enabled, pre-configured, immediately usable | Coolify in Base Kit |
 | `alternative` | Curated swap for a default (same category) | Komodo as explicit PaaS alternative |
 | `optional` | Available but off by default, user enables | Game Server |
-| `addon` | Composable infrastructure capability (not a use case) | VPN Overlay, Backup |
 
 User swaps defaults: `stackkit generate --paas komodo --monitoring beszel`
 User enables optionals: `stackkit generate --enable smart-home`
 
-### 6. Use Case vs Add-On
+### 6. Use Case vs Optional Module
 
 **Use Case** (role: default / alternative / optional):
 - WHY someone installs a StackKit
 - A real-world scenario with a default tool + curated alternatives
 - Ships pre-configured, immediately usable with admin account
 
-**Add-On** (role: addon):
-- Infrastructure capability extension (horizontal cross-cut)
-- Makes use cases work BETTER, but nobody installs a StackKit because of an add-on
-- Examples: VPN Overlay, Backup, Full Monitoring Stack, Tunnel, GPU Passthrough
+Optional modules stay off by default and must have documented enablement,
+resource limits, and generated-output behavior before they are exposed through
+the public OSS surface.
 
 ---
 
@@ -139,7 +135,7 @@ The admin-center tool evaluation decides which alternatives we offer.
 ## Resolution Hierarchy
 
 ```
-StackKit selected (Base Kit / Modern Homelab / HA Kit)
+StackKit selected (Base Kit)
     |
     v
 Deployment mode and resource profile applied
@@ -162,9 +158,6 @@ User overrides applied (--paas coolify, --enable photos, etc.)
     |
     v
 Compute Tier gating (disable tools that exceed hardware)
-    |
-    v
-Add-ons resolved (explicit + auto-activated)
     |
     v
 CUE unification + validation
@@ -193,9 +186,8 @@ Replaced by the per-tool role system:
 |-----------|----------|
 | Base Kit + 1 local node | Services run on the primary node. Base Kit stays. |
 | Base Kit + additional worker/storage nodes in the same trust domain | Base Kit stays; placement is used for capacity, storage, backup, or device-specific workloads. |
-| Base Kit + separate cloud/local trust domains | Recommend upgrade to Modern Homelab (hybrid pattern). |
-| Base Kit + 3+ nodes | Recommend HA Kit if high availability needed. |
-| Modern Homelab + nodes | Register node, Placement Engine distributes services. |
+| Base Kit + separate cloud/local trust domains | Out of public OSS scope for this release line. |
+| Base Kit + 3+ nodes | Out of public OSS scope for this release line. |
 
 Service placement rules:
 
@@ -209,8 +201,8 @@ Service placement rules:
 
 ## If In Doubt
 
-- **Use cases are NOT add-ons.** Use cases are the reason to install a StackKit.
-- **Variants are DEAD.** Use the role system (default/alternative/optional/addon).
+- **Use cases are the reason to install a StackKit.**
+- **Variants are DEAD.** Use the role system (default/alternative/optional).
 - **V4 is the baseline.** V5 evolves V4, never contradicts it.
 - **CUE is the technical contract source of truth; DB is the registry and operations mirror.** Never edit generated files.
 - **OpenTofu, never Terraform.** Licensing violation.

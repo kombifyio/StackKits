@@ -119,7 +119,7 @@ func (s *Server) handleManagementDoctor(w http.ResponseWriter, r *http.Request) 
 		if spec.StackKit == "base-kit" {
 			add("release-kit", "pass", spec.StackKit, "BaseKit is the release-ready one-click path")
 		} else {
-			add("release-kit", "warn", spec.StackKit, "Modern Homelab and HA Kit are alpha/scaffolding until their matrices graduate")
+			add("release-kit", "warn", spec.StackKit, "Unreleased kit definitions remain outside the public beta release matrix")
 		}
 	}
 

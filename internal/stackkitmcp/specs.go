@@ -103,8 +103,6 @@ func promptText(name string) string {
 		return embeddedPrompt("docs/agent/inspect-existing-rollout.md")
 	case "stackkit_diagnose_failed_rollout":
 		return embeddedPrompt("docs/agent/diagnose-failed-rollout.md")
-	case "stackkit_enable_monitoring_addon":
-		return embeddedPrompt("docs/agent/enable-monitoring-addon.md")
 	case "stackkit_ssh_rollout":
 		return embeddedPrompt("docs/agent/ssh-rollout.md")
 	default:

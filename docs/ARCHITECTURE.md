@@ -30,11 +30,10 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 
 | Container | Location | Responsibility |
 | --- | --- | --- |
-| CLI | `cmd/stackkit`, `internal/*` | Operator workflow: init, prepare, validate, generate, plan, apply, verify, update, registry, logs, backup, and recovery commands. |
+| CLI | `cmd/stackkit`, `internal/*` | Operator workflow: init, prepare, validate, generate, plan, apply, verify, update, registry, logs, and recovery commands. |
 | API server | `cmd/stackkit-server`, `internal/api` | HTTP surface for catalog, schema, validation, generation preview, logs, capabilities, OpenAPI, and Direct Connect registry lifecycle. |
-| CUE contracts | `base/`, `base-kit/`, `modern-homelab/`, `ha-kit/`, `modules/`, `addons/` | Schemas, defaults, constraints, module contracts, and deployment shape. |
+| CUE contracts | `base/`, `base-kit/`, `modules/` | Schemas, defaults, constraints, module contracts, and deployment shape. |
 | Composition/generation | `internal/cue`, `internal/composition`, `internal/iac`, `internal/tofu`, `internal/terramate` | Bind CUE/spec data into generated deployment artifacts and execution adapters. |
-| Backup binaries | `cmd/stackkit-backup-agent`, `cmd/stackkit-backup-controller`, `internal/backup-controller` | Host backup and SaaS/controller integration surfaces. |
 | Static website | `website/` | OSS landing page and CLI docs for `stackkit.cc`. |
 | Release automation | `.github/workflows`, `.goreleaser.yaml`, `scripts/public/` | CI, release, server image, website validation, and curated OSS mirror sync. The old `scripts/sync-public.sh` path is intentionally deprecated. |
 
@@ -103,7 +102,7 @@ Protected endpoints cover:
 
 The implemented top-level command groups are documented in [CLI.md](CLI.md):
 
-`init`, `prepare`, `generate`, `plan`, `apply`, `verify`, `remove`, `status`, `validate`, `addon`, `backup`, `break-glass`, `cluster`, `compat`, `doctor`, `kit`, `logs`, `module`, `registry`, `wizard`, `completion`, and `version`.
+`init`, `prepare`, `generate`, `plan`, `apply`, `verify`, `remove`, `status`, `validate`, `app`, `break-glass`, `cluster`, `compat`, `doctor`, `kit`, `logs`, `module`, `registry`, `wizard`, `completion`, and `version`.
 
 ## Source Of Truth Boundaries
 

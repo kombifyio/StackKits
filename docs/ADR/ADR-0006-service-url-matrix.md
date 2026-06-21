@@ -14,7 +14,7 @@ StackKits need to produce correct service URLs for every supported domain mode a
 
 Currently only selected paths are implemented and verified. The normal matrix covers custom-domain, kombify.me, browser-native local defaults, and explicit local DNS across the supported routing backends.
 
-2026-06-02 status note: the default BaseKit contract is Coolify-first, with Komodo as the beta-supported alternative. StackKit-owned system and L3 apps must be registered through the selected PaaS adapter, and the standalone StackKit-owned routing fallback is explicit opt-in only. Dokploy remains draft and is not part of the canonical three-scenario E2E matrix. Live release evidence is intentionally capped at SK-S1 `bootstrapped` local Docker Desktop/Fresh Ubuntu Coolify, SK-S2 `advanced` TechStack Lease kombify.me Komodo plus Runtime Action servicecall coverage, and SK-S3 `bare` BYO/GCP/local-server custom-domain Coolify.
+2026-06-02 status note, updated 2026-06-21: the default BaseKit contract is Coolify-first, with Komodo as the beta-supported alternative. StackKit-owned system and L3 apps must be registered through the selected PaaS adapter, and the standalone StackKit-owned routing fallback is explicit opt-in only. Dokploy remains draft and is not part of the canonical three-scenario E2E matrix. Live release evidence is intentionally capped at SK-S1 `bootstrapped` local Docker Desktop/Fresh Ubuntu Coolify, SK-S2 `advanced` TechStack Lease kombify.me Komodo plus Runtime Action servicecall coverage, and SK-S3 `bare` provider-leased custom-domain Coolify with managed cleanup.
 
 ## Decision
 

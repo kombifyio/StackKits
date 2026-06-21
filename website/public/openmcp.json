@@ -19,8 +19,6 @@
   "installers": {
     "cli": "https://stackkit.cc/install",
     "baseKit": "https://base.stackkit.cc",
-    "modernHomelab": "https://modern.stackkit.cc",
-    "haKit": "https://ha.stackkit.cc",
     "githubReleases": "https://github.com/kombifyio/stackKits/releases/latest"
   },
   "localConnector": {
@@ -111,7 +109,6 @@
     "stackkit_basekit_autonomous_rollout",
     "stackkit_inspect_existing_rollout",
     "stackkit_diagnose_failed_rollout",
-    "stackkit_enable_monitoring_addon",
     "stackkit_ssh_rollout"
   ]
 }

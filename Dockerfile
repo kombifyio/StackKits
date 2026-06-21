@@ -102,8 +102,6 @@ ENV STACKKITS_BASE_DIR=/workspace
 COPY cue.mod/ /workspace/cue.mod/
 COPY base/ /workspace/base/
 COPY base-kit/ /workspace/base-kit/
-COPY modern-homelab/ /workspace/modern-homelab/
-COPY ha-kit/ /workspace/ha-kit/
 
 # Set ownership and switch to non-root user
 RUN chown -R stackkit:stackkit /workspace

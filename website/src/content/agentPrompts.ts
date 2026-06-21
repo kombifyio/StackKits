@@ -1,10 +1,9 @@
 import basekitAutonomousRollout from './agent-prompts/basekit-autonomous-rollout.md?raw'
 import inspectExistingRollout from './agent-prompts/inspect-existing-rollout.md?raw'
 import diagnoseFailedRollout from './agent-prompts/diagnose-failed-rollout.md?raw'
-import enableMonitoringAddon from './agent-prompts/enable-monitoring-addon.md?raw'
 import sshRollout from './agent-prompts/ssh-rollout.md?raw'
 
-export type PromptScope = 'mutates' | 'read-only' | 'addon' | 'remote'
+export type PromptScope = 'mutates' | 'read-only' | 'remote'
 
 export type AgentPrompt = {
   id: string
@@ -61,13 +60,6 @@ export const agentPrompts: AgentPrompt[] = [
     'Triage broken applies — collect logs, classify the failure, propose a recovery plan, do not mutate.',
     ['read-only'],
     diagnoseFailedRollout,
-  ),
-  definePrompt(
-    'enable-monitoring-addon',
-    'Enable the monitoring add-on',
-    'Idempotent flow to turn monitoring on for an existing BaseKit rollout.',
-    ['addon', 'mutates'],
-    enableMonitoringAddon,
   ),
   definePrompt(
     'ssh-rollout',

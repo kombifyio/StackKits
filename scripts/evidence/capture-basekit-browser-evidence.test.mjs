@@ -10,6 +10,7 @@ import {
   MAX_TIMEOUT_MS,
   MAX_TIMEOUT_SECONDS,
   REQUIRED_CHECKS,
+  SETUP_ACTION_PER_SERVICE_TIMEOUT_MS,
   assertOwnerSetupActions,
   buildChecks,
   browserChannelLabel,
@@ -57,6 +58,7 @@ test('default config targets the SK-S1 local BaseKit browser surface', () => {
   assert.deepEqual(config.setupServices, ['photos', 'files', 'vault']);
   assert.equal(config.perCheckTimeoutMs, DEFAULT_PER_CHECK_TIMEOUT_MS);
   assert.equal(config.totalTimeoutMs, DEFAULT_TOTAL_TIMEOUT_MS);
+  assert.equal(SETUP_ACTION_PER_SERVICE_TIMEOUT_MS, 6 * 60 * 1000);
 });
 
 test('default config uses the canonical SK-S1 synthetic admin email when no owner is supplied', () => {

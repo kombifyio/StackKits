@@ -10,7 +10,7 @@ BaseKit is the verified beta path for the current one-click OSS surface:
 curl -sSL https://base.stackkit.cc | sh
 ```
 
-Modern Homelab and HA Kit are alpha/scaffolding definitions. They are visible for exploration, not production one-click deployment.
+Unreleased kit definitions and optional add-on catalogs are not part of the public OSS release surface.
 
 Product-bundled L3 applications are PaaS-intended by default. The complete Coolify-managed application-layer path for ready-to-use use cases remains a documented blocker and must not be treated as verified rollout evidence until external app IDs/status are captured. User-installed apps outside that path are state-unmanaged by StackKit.
 

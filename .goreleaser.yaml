@@ -71,48 +71,8 @@ builds:
     ldflags:
       - -s -w
 
-  # Per-host backup agent (Phase 4 of the backup rollout — see
-  # docs/plans/2026-05-01-backup-rollout.md). Linux-only because the
-  # agent only runs on backed-up hosts, which are always Linux Docker
-  # nodes in our supported StackKit set. Windows/macOS would only be
-  # operator workstations, and the operator surface is the main
-  # `stackkit backup` subcommand, not this binary.
-  - id: stackkit-backup-agent
-    main: ./cmd/stackkit-backup-agent
-    binary: stackkit-backup-agent
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-      - -X main.Version={{ .Version }}
-      - -X main.GitCommit={{ .Commit }}
-      - -X main.BuildDate={{ .Date }}
-
-  # Controller host binary (also Phase 4). Hosts the kombify-Backup
-  # HTTP API that the kombify-TechStack web UI integrates against.
-  # Linux-only; deployed via systemd/Docker on the SaaS infra side,
-  # never on customer machines.
-  - id: stackkit-backup-controller
-    main: ./cmd/stackkit-backup-controller
-    binary: stackkit-backup-controller
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-      - -X main.Version={{ .Version }}
-
 archives:
-  # Full bundle — all kits + CLI (for users who want everything)
+  # Default public bundle — CLI + BaseKit catalog.
   - id: default
     ids:
       - stackkit
@@ -141,8 +101,6 @@ archives:
       - base-kit/**
       - base/**
       - modules/**
-      - ha-kit/**
-      - modern-homelab/**
 
   # Per-kit archives — CLI + specific kit + base schemas
   - id: base-kit
@@ -173,39 +131,6 @@ archives:
       - base-kit/**
       - base/**
       - modules/**
-
-  # TODO: add ha-kit and modern-homelab per-kit archives when they graduate from alpha
-  # - id: ha-kit
-  # - id: modern-homelab
-
-  # Backup agent ships standalone — small footprint, Linux-only, no
-  # kits or docs bundled. Operators install this on each host of a
-  # fleet alongside their existing StackKit deployment.
-  - id: backup-agent
-    ids:
-      - stackkit-backup-agent
-    formats:
-      - tar.gz
-    name_template: >-
-      stackkit-backup-agent_{{ .Version }}_{{ .Os }}_{{ .Arch }}
-    files:
-      - LICENSE
-      - cmd/stackkit-backup-agent/README.md
-      - internal/backup-controller/README.md
-
-  # Controller host binary — same shape as the agent archive. Lands
-  # on the SaaS infra side (kombify-TechStack), not on customer hosts.
-  - id: backup-controller
-    ids:
-      - stackkit-backup-controller
-    formats:
-      - tar.gz
-    name_template: >-
-      stackkit-backup-controller_{{ .Version }}_{{ .Os }}_{{ .Arch }}
-    files:
-      - LICENSE
-      - cmd/stackkit-backup-controller/README.md
-      - internal/backup-controller/README.md
 
 nfpms:
   - id: deb
@@ -283,7 +208,7 @@ release:
 
     | Archive | Contents |
     |---------|----------|
-    | `stackkits_*` | Full bundle — CLI + all kits |
+    | `stackkits_*` | CLI + BaseKit catalog |
     | `stackkits-base-kit_*` | CLI + base-kit only |
   footer: |
     **Full Changelog**: https://github.com/kombifyio/stackKits/compare/{{ .PreviousTag }}...{{ .Tag }}

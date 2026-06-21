@@ -790,7 +790,7 @@ components:
       name: name
       in: path
       required: true
-      description: StackKit name (e.g., base-kit, ha-kit)
+      description: StackKit name (e.g., base-kit)
       schema:
         type: string
         pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"

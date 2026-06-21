@@ -78,15 +78,11 @@
       <h2 class="text-xl font-bold text-on-surface mb-4">Repository layout</h2>
       <pre class="font-mono text-sm text-on-surface bg-surface-container border border-outline-variant rounded-xl px-5 py-4 overflow-x-auto leading-relaxed"><code>base/                 shared CUE schemas and foundation contracts
 base-kit/             verified single-environment StackKit
-modern-homelab/       hybrid local + cloud workstream
-ha-kit/               high-availability workstream
 modules/              atomic service module contracts
-addons/               optional composable capabilities
-cmd/                  stackkit, stackkit-server, stackkit-mcp, backup binaries
+cmd/                  stackkit, stackkit-server, stackkit-mcp
 internal/             Go implementation packages
 api/openapi/          OpenAPI contract source for stackkit-server
 docs/                 Tier-3 repo documentation
-tests/                integration, VM, production-style, scenario tests
 website/              static stackkit.cc source</code></pre>
     </section>
 

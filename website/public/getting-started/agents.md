@@ -2,7 +2,7 @@
 
 StackKits is agent-ready through static public docs, deterministic CLI commands, a node-local API surface, and one user-facing MCP connection named `stackkit`.
 
-BaseKit is the verified beta one-click path. Modern Homelab and HA Kit are alpha/scaffolding definitions until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; Coolify-managed application-layer evidence for ready-to-use use cases remains a documented blocker. User-installed apps outside that path are state-unmanaged.
+BaseKit is the only public OSS kit surface for this release line. Product-bundled L3 applications are PaaS-intended by default; Coolify-managed application-layer evidence for ready-to-use use cases remains a documented blocker. User-installed apps outside that path are state-unmanaged.
 
 Use `stackkit agent prompt <scenario>` for copy-ready prompts and `stackkit agent mcp-config` for one ready-to-paste `stackkit` MCP connection.
 
@@ -27,5 +27,4 @@ Published prompts:
 - [Autonomous BaseKit rollout](/getting-started/agents/basekit-autonomous-rollout.md)
 - [Inspect existing rollout](/getting-started/agents/inspect-existing-rollout.md)
 - [Diagnose failed rollout](/getting-started/agents/diagnose-failed-rollout.md)
-- [Enable monitoring add-on](/getting-started/agents/enable-monitoring-addon.md)
 - [Generate and apply through SSH](/getting-started/agents/ssh-rollout.md)

@@ -5,21 +5,15 @@
 # Usage (direct):
 #   curl -sSL https://install.stackkit.cc | sh                   # CLI + public kit catalog
 #   curl -sSL https://install.stackkit.cc | sh -s -- base-kit    # CLI + base-kit
-#   curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab
-#   curl -sSL https://install.stackkit.cc | sh -s -- ha-kit
-#   curl -sSL https://install.stackkit.cc | sh -s -- all         # CLI + all kits
 #
-# Called by the short website entrypoints (`base.stackkit.cc`, `modern.stackkit.cc`, `ha.stackkit.cc`) to
-# provide the shared install + kit-download step before the kit-specific flow.
+# Called by the short website entrypoint (`base.stackkit.cc`) to provide the
+# shared install + kit-download step before the BaseKit-specific flow.
 # =============================================================================
 set -eu
 
 # KIT_NAME controls which kit definitions are downloaded alongside the binary.
-# ""         → CLI + all public kit definitions
+# ""         → CLI + the public BaseKit definitions
 # "base-kit" → CLI + base-kit definitions
-# "modern-homelab" → CLI + modern-homelab definitions
-# "ha-kit"   → CLI + ha-kit definitions
-# "all"      → CLI + all available kit definitions
 KIT_NAME="${1:-}"
 
 # Allow callers (e.g. base-install.sh) to suppress the banner.
@@ -117,33 +111,23 @@ fi
 echo "  -> v${LATEST} (${OS}/${ARCH})"
 
 # --- Select archive -----------------------------------------------------------
-# Kit bundles include the binary plus kit definitions. The default archive
-# contains every current StackKit; kit-specific install modes simply choose
-# which definitions are copied into ~/.stackkits/.
+# Kit bundles include the binary plus public BaseKit definitions.
 
 case "$KIT_NAME" in
   base-kit)
     ARCHIVE="stackkits-base-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
     INSTALL_KITS="base-kit"
     ;;
-  modern-homelab)
-    ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="modern-homelab"
-    ;;
-  ha-kit)
-    ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="ha-kit"
-    ;;
   all)
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="base-kit ha-kit modern-homelab"
+    INSTALL_KITS="base-kit"
     ;;
   "")
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="base-kit ha-kit modern-homelab"
+    INSTALL_KITS="base-kit"
     ;;
   *)
-    echo "Error: unknown kit '${KIT_NAME}'. Available: base-kit, modern-homelab, ha-kit, all" >&2
+    echo "Error: unknown kit '${KIT_NAME}'. Available: base-kit, all" >&2
     exit 1
     ;;
 esac
@@ -284,7 +268,7 @@ if [ -n "$INSTALL_KITS" ]; then
   echo ""
   echo "  Get started manually:"
   echo "    mkdir my-homelab && cd my-homelab"
-  if [ "$KIT_NAME" = "base-kit" ] || [ "$KIT_NAME" = "modern-homelab" ] || [ "$KIT_NAME" = "ha-kit" ]; then
+  if [ "$KIT_NAME" = "base-kit" ]; then
     echo "    stackkit init $KIT_NAME     # continue with this StackKit"
   else
     echo "    stackkit init               # interactive kit selection"
@@ -294,10 +278,6 @@ if [ -n "$INSTALL_KITS" ]; then
   echo "  Shortcut install entrypoints:"
   echo "    curl -sSL https://install.stackkit.cc | sh"
   echo "    curl -sSL https://base.stackkit.cc | sh"
-  echo ""
-  echo "  Alpha/scaffolding preview entrypoints:"
-  echo "    curl -sSL https://modern.stackkit.cc | sh"
-  echo "    curl -sSL https://ha.stackkit.cc | sh"
 else
   echo ""
   echo "  Get started:"

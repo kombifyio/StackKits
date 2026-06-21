@@ -1,7 +1,7 @@
 export type CliCommand = {
   name: string
   shortName?: string
-  category: 'core' | 'lifecycle' | 'inspect' | 'addon' | 'agent' | 'release' | 'utility'
+  category: 'core' | 'lifecycle' | 'inspect' | 'agent' | 'release' | 'utility'
   purpose: string
 }
 
@@ -15,7 +15,6 @@ export const cliCommands: CliCommand[] = [
   { name: 'remove', category: 'lifecycle', purpose: 'Destroy a StackKit deployment.' },
   { name: 'status', category: 'inspect', purpose: 'Show deployment state and service health.' },
   { name: 'validate', category: 'inspect', purpose: 'Validate stack specs, CUE files, and generated OpenTofu output where present.' },
-  { name: 'addon', category: 'addon', purpose: 'Manage add-ons in stack-spec.yaml.' },
   { name: 'backup', category: 'lifecycle', purpose: 'Operate local Kopia backup flows and controller enrollment stubs.' },
   { name: 'break-glass', category: 'lifecycle', purpose: 'Inspect and rotate break-glass recovery bundles.' },
   { name: 'cluster', category: 'lifecycle', purpose: 'Manage multi-node cluster membership.' },
@@ -44,7 +43,6 @@ export const categoryLabels: Record<CliCommand['category'], string> = {
   core: 'Core workflow',
   lifecycle: 'Lifecycle',
   inspect: 'Inspect & diagnose',
-  addon: 'Add-ons',
   agent: 'Agent surfaces',
   release: 'Release & catalog',
   utility: 'Utility',

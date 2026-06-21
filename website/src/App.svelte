@@ -46,10 +46,6 @@
     <GettingStartedAgentPrompt promptID={path.split('/').filter(Boolean).pop() ?? ''} {navigate} />
   {:else if path === '/kits/base' || path === '/kits/base/'}
     <KitDetail kit="base" {navigate} />
-  {:else if path === '/kits/modern' || path === '/kits/modern/'}
-    <KitDetail kit="modern" {navigate} />
-  {:else if path === '/kits/ha' || path === '/kits/ha/'}
-    <KitDetail kit="ha" {navigate} />
   {:else if path === '/cli' || path === '/cli/'}
     <CliReference {navigate} />
   {:else if path === '/architecture' || path === '/architecture/'}

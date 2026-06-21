@@ -37,8 +37,6 @@ const commonStaticFiles = [
   '_worker.js',
   'install',
   'base',
-  'modern',
-  'ha',
   'llms.txt',
   'llms-full.txt',
   'llms-snippets.txt',
@@ -46,7 +44,6 @@ const commonStaticFiles = [
   'getting-started/agents/basekit-autonomous-rollout.md',
   'getting-started/agents/inspect-existing-rollout.md',
   'getting-started/agents/diagnose-failed-rollout.md',
-  'getting-started/agents/enable-monitoring-addon.md',
   'getting-started/agents/ssh-rollout.md',
   'mcp/stackkit-mcp.md',
   'openmcp.json',
@@ -76,8 +73,6 @@ if (mode === 'build') {
 
 const install = await readStatic('install');
 const base = await readStatic('base');
-const modern = await readStatic('modern');
-const ha = await readStatic('ha');
 const headers = await readStatic('_headers');
 const worker = await readStatic('_worker.js');
 const llms = await readStatic('llms.txt');
@@ -96,10 +91,18 @@ const renderBlueprint = await readRepo('render.yaml');
 const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io";
 const rootInstall = await readRepo('install.sh');
 const rootBaseInstall = await readRepo('base-install.sh');
+const blockedPublicKitSlugs = [
+  ['modern', 'homelab'].join('-'),
+  ['ha', 'kit'].join('-'),
+];
+const blockedPublicKitNames = [
+  ['Modern', 'Home Lab'].join(' '),
+  ['High', 'Availability'].join(' '),
+];
 
 await assertNoFrameworkAnalyticsSurface();
 
-for (const [name, content] of Object.entries({ install, base, modern, ha })) {
+for (const [name, content] of Object.entries({ install, base })) {
   assert(content.startsWith('#!/bin/sh'), `${name} must start with #!/bin/sh`);
   assert(!content.trimStart().startsWith('<!DOCTYPE html'), `${name} must not be HTML`);
 }
@@ -109,11 +112,15 @@ assert(install === rootInstall, 'install endpoint must be the self-contained roo
 assert(base.includes('StackKits Base Installer'), 'base endpoint must identify the Base installer');
 assertBaseInstallerLocalServerImage(base, 'base endpoint');
 assertBaseInstallerLocalServerImage(rootBaseInstall, 'root base-install.sh');
-assert(modern.includes('alpha/scaffolding'), 'modern endpoint must warn that it is alpha/scaffolding');
-assert(ha.includes('alpha/scaffolding'), 'ha endpoint must warn that it is alpha/scaffolding');
+for (const slug of blockedPublicKitSlugs) {
+  assert(!install.includes(slug), `install endpoint must not expose ${slug}`);
+}
 
-for (const route of ['/install', '/base', '/modern', '/ha']) {
+for (const route of ['/install', '/base']) {
   assert(headers.includes(route), `_headers must include ${route}`);
+}
+for (const route of ['/modern', '/ha']) {
+  assert(!headers.includes(route), `_headers must not include ${route}`);
 }
 assert(headers.includes('text/x-shellscript'), '_headers must force shell content type');
 assert(headers.includes(embedFrameAncestors), '_headers must allow Kombify portal embedding via CSP frame-ancestors');
@@ -125,8 +132,11 @@ for (const route of ['/llms.txt', '/llms-full.txt', '/llms-snippets.txt', '/gett
 assert(headers.includes('Content-Signal: search=yes, ai-input=yes'), '_headers must allow search and AI input for public agent docs');
 assert(!headers.includes('ai-train=yes'), '_headers must not grant AI training rights');
 
-for (const host of ['install.stackkit.cc', 'base.stackkit.cc', 'modern.stackkit.cc', 'ha.stackkit.cc']) {
+for (const host of ['install.stackkit.cc', 'base.stackkit.cc']) {
   assert(worker.includes(host), `_worker.js must route ${host}`);
+}
+for (const host of ['modern.stackkit.cc', 'ha.stackkit.cc']) {
+  assert(!worker.includes(host), `_worker.js must not route ${host}`);
 }
 assert(worker.includes('env.ASSETS.fetch'), '_worker.js must serve static assets through ASSETS');
 assert(worker.includes('text/x-shellscript'), '_worker.js must set shell content type');
@@ -140,8 +150,11 @@ assert(renderBlueprint.includes('staticPublishPath: ./dist'), 'render.yaml must 
 assert(renderBlueprint.includes(embedFrameAncestors), 'render.yaml must allow Kombify portal embedding via CSP frame-ancestors');
 assert(!renderBlueprint.includes("https://*.kombify.io"), 'render.yaml must not contain wildcard kombify.io frame origins');
 assert(!/name:\s*X-Frame-Options/i.test(renderBlueprint), 'render.yaml must not set X-Frame-Options for embedded mode');
-for (const route of ['/install', '/base', '/modern', '/ha']) {
+for (const route of ['/install', '/base']) {
   assert(renderBlueprint.includes(`path: ${route}`), `render.yaml must include ${route} headers`);
+}
+for (const route of ['/modern', '/ha']) {
+  assert(!renderBlueprint.includes(`path: ${route}`), `render.yaml must not include ${route} headers`);
 }
 assert(renderBlueprint.includes('path: /openmcp.json'), 'render.yaml must include /openmcp.json headers');
 
@@ -150,7 +163,7 @@ assert(llms.includes('/api/openapi.v1.yaml'), 'llms.txt must point to OpenAPI mi
 assert(llms.includes('/openmcp.json'), 'llms.txt must point to OpenMCP discovery');
 assert(llms.includes('MCP model: configure one connection named `stackkit`'), 'llms.txt must document the single stackkit MCP model');
 assert(llmsFull.includes('BaseKit'), 'llms-full must mention BaseKit');
-assert(llmsFull.includes('Modern Homelab and HA Kit are alpha/scaffolding'), 'llms-full must state alpha stance for Modern and HA Kit');
+assert(llmsFull.includes('Unreleased kit definitions and optional add-on catalogs are not part of the public OSS release surface'), 'llms-full must state the BaseKit-only public stance');
 assert(llmsFull.includes('/openmcp.json'), 'llms-full must mention OpenMCP discovery');
 assert(llmsFull.includes('/getting-started/installation-processes.md'), 'llms-full must mention installation process comparison');
 assert(llmsFull.includes('Agents should configure one MCP connection named `stackkit`'), 'llms-full must document one stackkit MCP connection');
@@ -217,9 +230,8 @@ if (mode === 'source') {
 
   const kitsTs = await readFile(path.join(websiteDir, 'src/content/kits.ts'), 'utf8');
   assert(kitsTs.includes("id: 'base'"), 'kits.ts must define BaseKit');
-  assert(kitsTs.includes("id: 'modern'"), 'kits.ts must define Modern Home Lab');
-  assert(kitsTs.includes("id: 'ha'"), 'kits.ts must define HA Kit');
-  assert(/status:\s*'alpha'/.test(kitsTs), 'kits.ts must keep alpha status for Modern/HA');
+  assert(!kitsTs.includes("id: 'modern'"), `kits.ts must not define ${blockedPublicKitNames[0]} in public website`);
+  assert(!kitsTs.includes("id: 'ha'"), 'kits.ts must not define unreleased HA kit in public website');
 
   const cliCommandsTs = await readFile(path.join(websiteDir, 'src/content/cliCommands.ts'), 'utf8');
   for (const cmd of ['init', 'prepare', 'generate', 'plan', 'apply', 'verify', 'agent']) {
@@ -242,8 +254,11 @@ if (mode === 'build') {
   const jsFiles = assetFiles.filter((f) => f.endsWith('.js'));
   assert(jsFiles.length > 0, 'built dist/assets must contain at least one JS bundle');
   const bundle = await readFile(path.join(assetsDir, jsFiles[0]), 'utf8');
-  for (const needle of ['stackkit init base-kit', 'stackkit apply', 'BaseKit', 'Modern Home Lab', 'High Availability']) {
+  for (const needle of ['stackkit init base-kit', 'stackkit apply', 'BaseKit']) {
     assert(bundle.includes(needle), `JS bundle must include "${needle}"`);
+  }
+  for (const needle of blockedPublicKitNames) {
+    assert(!bundle.includes(needle), `JS bundle must not include "${needle}"`);
   }
 }
 
@@ -277,9 +292,6 @@ async function assertNoFrameworkAnalyticsSurface() {
     'schemas',
     'base',
     'base-kit',
-    'ha-kit',
-    'modern-homelab',
-    'addons',
     'modules',
     'platforms',
     'cue.mod',

@@ -2568,7 +2568,7 @@ test('render-release-evidence keeps required v0.4 missing alternatives by defaul
   ]);
   assert.deepEqual(evidence.knownLimitations, [
     'v0.4 is a BaseKit beta-hardening release and does not claim production readiness.',
-    'Modern Homelab and HA Kit remain out of v0.4 scope.',
+    'Unreleased kit definitions remain out of v0.4 scope.',
     'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
     'v0.4 browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and default L3 app content; Immich StackKit demo photo and Cloudreve StackKit Demo/README.txt need live browser proof.',
   ]);

@@ -109,8 +109,6 @@ artifacts/scenarios/
 # like `github.com/kombifyio/stackkits/base` from base-kit. The root module
 # is the single source of truth — nested cue.mod dirs must not be committed.
 base-kit/cue.mod/
-modern-homelab/cue.mod/
-ha-kit/cue.mod/
 modules/*/cue.mod/
 
 # Git worktrees (Claude Code subagent-driven development)

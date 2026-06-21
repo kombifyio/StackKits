@@ -8,7 +8,7 @@ This document collects the runtime configuration surfaces for StackKits. CUE rem
 
 | Surface | Owner | Purpose |
 | --- | --- | --- |
-| CUE files under `base/`, `base-kit/`, `modules/`, `addons/` | Developers | Schemas, defaults, constraints, and deployment shape. |
+| CUE files under `base/`, `base-kit/`, and `modules/` | Developers | Schemas, defaults, constraints, and deployment shape. |
 | `stack-spec.yaml` | Operators or TechStack | User intent and selected defaults for one deployment. |
 | CLI flags | Operators or CI | One-run overrides for init, generate, apply, verify, and registry operations. |
 | `stackkit-server` flags/env | Operators or platform | API auth, CORS, rate limits, log directory, and registry heartbeat. |
@@ -30,7 +30,6 @@ bootstrap:
 compute:
   tier: standard
 context: local
-addons: []
 nodes:
   - name: main
     role: main
@@ -243,11 +242,11 @@ Registry heartbeat additionally requires `KOMBIFY_API_KEY`.
 | kombify API | `KOMBIFY_API_URL`, `KOMBIFY_API_KEY`, `KOMBIFY_JWT_TOKEN` |
 | kombify Simulate | `KOMBIFY_SIM_BASE_URL`, `KOMBIFY_SIM_CLIENT_ID`, `KOMBISIM_AUTH_CLOUD_CLIENT_ID`, `KOMBIFY_SIM_REDIRECT_URL`, `KOMBISIM_AUTH_CLOUD_REDIRECT_URL` |
 | Cloudflare DNS tests | `STACKKIT_DNS_TOKEN`, `STACKKIT_DNS_ZONE_ID`, `STACKKIT_DNS_ZONE`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_EMAIL` |
-| Cloud node defaults | `STACKKIT_E2E_CLOUD_NODE_ENGINE`, `STACKKIT_E2E_CLOUD_NODE_IMAGE`, `STACKKIT_E2E_CLOUD_NODE_REGION` |
+| Cloud node defaults | `STACKKIT_E2E_SERVER_PROVIDER`, `STACKKIT_E2E_CLOUD_NODE_ENGINE`, `STACKKIT_TECHSTACK_LEASE_PROVIDER`, `STACKKIT_E2E_CLOUD_NODE_IMAGE`, `STACKKIT_E2E_CLOUD_NODE_REGION` |
 | SSH/proxy jump | `KOMBIFY_PROXY_JUMP`, `KOMBIFY_PROXY_JUMP_KEY`, `KOMBIFY_PROXY_JUMP_KEY_PEM`, `KOMBIFY_PROXY_JUMP_PASSWORD`, `KOMBIFY_SSH_KEY_PATH`, `KOMBIFY_SSH_PASSWORD` |
 
 Fresh-VM release smoke requires Docker authentication when anonymous Docker Hub pulls are rate-limited. Use either `STACKKIT_FRESH_VM_DOCKER_CONFIG` to point to a Docker config file or `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON` to pass the JSON content directly.
 
 When `STACKKIT_FRESH_VM_HTTP_PORT`, `STACKKIT_FRESH_VM_HTTPS_PORT`, `STACKKIT_FRESH_VM_SSH_PORT`, and `STACKKIT_FRESH_VM_TRAEFIK_PORT` are unset, the local Fresh-VM harness lets Docker allocate isolated host ports and then discovers the mapped ports for SSH and HTTP probes. Set these variables only when a fixed local port is intentionally needed for manual inspection or a dedicated runner.
 
-Cloud production tests default to the `digitalocean-managed` Sim provider with region `fra1` because that is the currently available live-node runner. The same StackKit readiness contract can be run against another managed provider by setting `STACKKIT_E2E_CLOUD_NODE_ENGINE` and, when needed, `STACKKIT_E2E_CLOUD_NODE_REGION`. Provider profiles must stay below the Node contract: StackKit assertions should verify OS, SSH, Docker, public origin, ports, generated service URLs, and registry state rather than provider-specific implementation details.
+Cloud production tests default to the `centron-managed` Sim/Lease provider. Provider selection uses `STACKKIT_E2E_SERVER_PROVIDER`, then `STACKKIT_E2E_CLOUD_NODE_ENGINE`, then `STACKKIT_TECHSTACK_LEASE_PROVIDER`, then `centron-managed`; set `STACKKIT_E2E_CLOUD_NODE_REGION` only when a provider requires an explicit region. Provider profiles must stay below the Node contract: StackKit assertions should verify OS, SSH, Docker, public origin, ports, generated service URLs, cleanup, and registry state rather than provider-specific implementation details.

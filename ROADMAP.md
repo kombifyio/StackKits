@@ -5,9 +5,7 @@ operator documentation needed to build, install, inspect, and verify BaseKit.
 
 ## Current Focus
 
-- BaseKit is the verified beta one-click path.
-- Modern Homelab and HA Kit remain alpha/scaffolding definitions until their
-  rollout matrices graduate.
+- BaseKit is the only public OSS kit surface for this release line.
 - Product-bundled L3 applications are PaaS-intended by default. Complete
   Coolify-managed application-layer evidence remains a known blocker.
 

@@ -50,18 +50,18 @@ type BundleNode struct {
 // BreakGlassSection holds the recovery layers.
 //
 // PocketIDAdmin and TinyAuthStatic are mandatory — every node has them.
-// BackupEncryptionKey is optional: it is only populated when the
-// addons/backup add-on is enabled and the operator has chosen to escrow
+// BackupEncryptionKey is optional: it is only populated when a rollout has
+// an encrypted snapshot repository and the operator has chosen to escrow
 // the Kopia encryption passphrase here. Without that escrow, "lost host"
-// equals "lost backups", which defeats the addon's purpose.
+// equals "lost backups", which defeats the snapshot policy.
 type BreakGlassSection struct {
 	PocketIDAdmin       PocketIDAdminPayload        `yaml:"pocketidAdmin"`
 	TinyAuthStatic      TinyAuthStaticPayload       `yaml:"tinyauthStatic"`
 	BackupEncryptionKey *BackupEncryptionKeyPayload `yaml:"backupEncryptionKey,omitempty"`
 }
 
-// BackupEncryptionKeyPayload escrows the Kopia repository passphrase that
-// addons/backup uses to encrypt every snapshot. It is the only path back
+// BackupEncryptionKeyPayload escrows the Kopia repository passphrase used
+// to encrypt snapshots. It is the only path back
 // to the data if the host disk is lost: an operator decrypts the bundle
 // and re-attaches the offsite repo with this passphrase.
 //
@@ -70,7 +70,7 @@ type BreakGlassSection struct {
 // passphrase on the .age file are the same protections used for the
 // other layers.
 type BackupEncryptionKeyPayload struct {
-	// Engine is the addon engine that owns the passphrase. "kopia" today;
+	// Engine is the snapshot engine that owns the passphrase. "kopia" today;
 	// the field is here so a future engine swap (extremely unlikely given
 	// ADR-0016) does not require a bundle-format break.
 	Engine string `yaml:"engine"`
@@ -153,8 +153,8 @@ type BundleBuilder struct {
 	TinyAuthStatic *TinyAuthStaticCredential
 
 	// BackupEncryptionKey escrows the Kopia repository passphrase used by
-	// the addons/backup add-on. Optional — only populated when the addon
-	// is enabled. nil leaves the BackupEncryptionKey field out of the
+	// the snapshot repository. Optional — only populated when snapshot
+	// encryption is enabled. nil leaves the BackupEncryptionKey field out of the
 	// emitted YAML entirely (yaml:"...,omitempty").
 	BackupEncryptionKey *BackupEncryptionKeyCredential
 

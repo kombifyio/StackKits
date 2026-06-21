@@ -115,11 +115,11 @@
 
   <section class="max-w-7xl mx-auto px-6 mb-20 md:mb-24">
     <div class="text-center mb-10 md:mb-12">
-      <span class="text-[11px] font-bold tracking-widest uppercase text-primary">Choose your StackKit</span>
-      <h2 class="text-3xl md:text-4xl font-bold text-on-surface mt-2 mb-3">Three compositions, one CLI.</h2>
-      <p class="text-on-surface-variant max-w-2xl mx-auto">BaseKit is the verified one-click path for this release. Modern and HA Kit ship as alpha definitions for preview while their rollout matrices graduate.</p>
+      <span class="text-[11px] font-bold tracking-widest uppercase text-primary">Public StackKit</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-on-surface mt-2 mb-3">BaseKit, one CLI.</h2>
+      <p class="text-on-surface-variant max-w-2xl mx-auto">BaseKit is the only public OSS kit surface for this release line.</p>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+    <div class="grid grid-cols-1 gap-5 max-w-xl mx-auto">
       {#each kits as kit}
         <KitCard {kit} {navigate} />
       {/each}

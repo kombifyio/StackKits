@@ -148,7 +148,6 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(appCmd)
-	rootCmd.AddCommand(addonCmd)
 	rootCmd.AddCommand(compatCmd)
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(doctorCmd)

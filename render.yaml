@@ -31,12 +31,6 @@ services:
       - path: /base
         name: Content-Type
         value: text/x-shellscript; charset=utf-8
-      - path: /modern
-        name: Content-Type
-        value: text/x-shellscript; charset=utf-8
-      - path: /ha
-        name: Content-Type
-        value: text/x-shellscript; charset=utf-8
 
       - path: /llms.txt
         name: Content-Type

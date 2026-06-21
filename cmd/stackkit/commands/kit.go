@@ -58,7 +58,7 @@ var kitImportCmd = &cobra.Command{
 }
 
 func init() {
-	kitImportCmd.Flags().StringVar(&kitImportPath, "kit", "", "Kit directory (e.g. base-kit, modern-homelab, ha-kit). Required.")
+	kitImportCmd.Flags().StringVar(&kitImportPath, "kit", "", "Kit directory (e.g. base-kit). Required.")
 	kitImportCmd.Flags().StringVar(&kitImportEndpoint, "endpoint", "", "Admin API base URL. Defaults to $STACKKIT_ADMIN_ENDPOINT.")
 	kitImportCmd.Flags().StringVar(&kitImportToken, "token", "", "Bearer token. Defaults to $STACKKIT_ADMIN_TOKEN.")
 	kitImportCmd.Flags().StringVar(&kitImportBy, "imported-by", "", "Identifier of the importer. Defaults to $USER or 'cli'.")

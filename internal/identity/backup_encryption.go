@@ -7,16 +7,16 @@ import (
 )
 
 // BackupEncryptionKeyCredential carries the Kopia repository passphrase
-// that the addons/backup add-on uses to encrypt every snapshot. It is
+// used to encrypt snapshots. It is
 // the third break-glass layer (after PocketID-admin and TinyAuth-static)
 // and lives in the recovery bundle so a host loss does not equal a data
 // loss.
 //
 // Unlike the other layers, this credential is OPTIONAL: a node that has
-// not enabled the backup add-on does not have one, and the bundle's
+// not enabled the rollout does not have one, and the bundle's
 // BackupEncryptionKey field is omitted entirely.
 type BackupEncryptionKeyCredential struct {
-	// Engine is the addon engine name. Always "kopia" today; here so a
+	// Engine is the snapshot engine name. Always "kopia" today; here so a
 	// future format change does not require a bundle break.
 	Engine string
 

@@ -12,11 +12,9 @@ StackKits is designed around safe defaults and release evidence:
 
 ## Supported Security Scope
 
-The production-oriented public OSS scope is BaseKit only. Modern Homelab and
-HA Kit remain alpha/scaffolding until their rollout matrices graduate. Backup
-agent/controller binaries are shipped for operator visibility, but their
-multi-tenant controller path is not part of a production support claim until
-durable storage, queueing, enrollment, and OIDC operator auth are complete.
+The public OSS scope is BaseKit only. Unreleased kit definitions, optional
+extension catalogs, public release workflows, and operator-only controller paths
+are intentionally excluded from the public repository and release archives.
 
 ## Release Evidence
 

@@ -14,8 +14,7 @@ stackkit version
 The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu,
 and the public kit catalog under `~/.stackkits`, so `stackkit init base-kit`
 works from a clean directory without a repo checkout. BaseKit is the verified
-beta one-click path; Modern Home Lab and HA Kit are packaged as
-alpha/scaffolding definitions until their rollout matrices graduate.
+beta one-click path and the only public OSS kit surface for this release line.
 
 For the full process taxonomy, including website prompting, one-line install,
 direct CLI, on-server agents, SSH agents, local MCP fallback, protected remote
@@ -66,8 +65,6 @@ stackkit verify --http --json
 | `status` | Show deployment state and service health. |
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
 | `app` | Write optional PaaS app handoff metadata for dev/customer-owned apps. |
-| `addon` | Manage add-ons in `stack-spec.yaml`. |
-| `backup` | Operate local Kopia backup flows and controller enrollment stubs. |
 | `break-glass` | Inspect and rotate break-glass recovery bundles. |
 | `cluster` | Manage multi-node cluster membership. |
 | `compat` | Run a non-destructive VPS compatibility check. |
@@ -235,28 +232,6 @@ Common flags for `app add`:
 - `--health-path`
 - `--env KEY=value`
 - `--secret KEY=env:NAME|doppler:NAME|vault:NAME|file:PATH`
-
-### `stackkit addon`
-
-Subcommands:
-
-- `addon list`
-- `addon add <addon-name>`
-- `addon remove <addon-name>`
-
-### `stackkit backup`
-
-Subcommands:
-
-- `backup init`
-- `backup run`
-- `backup list`
-- `backup restore <snapshot-id>`
-- `backup verify`
-- `backup migrate-from-restic`
-- `backup enroll`
-
-`backup enroll` is a scaffolded controller path until the controller endpoint is operational.
 
 ### `stackkit break-glass`
 

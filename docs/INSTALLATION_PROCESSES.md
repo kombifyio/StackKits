@@ -50,7 +50,7 @@ Source-of-truth rules:
 - Generated `deploy/`, OpenTofu state, `.stackkit/state.yaml`, logs, run evidence, and snapshots are outputs.
 - Agents must not hand-edit generated rollout artifacts.
 - BaseKit is the verified beta one-click path.
-- Modern Homelab and HA Kit are packaged as alpha/scaffolding definitions until their rollout matrices graduate.
+- Unreleased kit definitions stay outside the public beta install surface until their rollout matrices graduate.
 
 Minimum user intent:
 
@@ -81,7 +81,7 @@ Every StackKits installation path should collect the same small set of decisions
 | --- | --- | --- |
 | Execution place | Defines who can mutate the target | Website-only planning, local CLI, on-server agent, external SSH agent, local MCP, protected target MCP |
 | Authority boundary | Defines the security model | No target authority, local shell, SSH user, local process, token-protected target MCP |
-| StackKit | Selects the CUE contract and rollout matrix | `base-kit` beta; `modern-homelab` and `ha-kit` alpha/scaffolding |
+| StackKit | Selects the CUE contract and rollout matrix | `base-kit` beta |
 | Install mode | Controls bootstrap depth and default setup policy | `bare`, `bootstrapped`, `advanced` |
 | Target context | Selects environment defaults, not a private-network assumption | `local`, `cloud`, `pi` |
 | Domain strategy | Determines routing, access links, and DNS/TLS evidence | browser-native `.localhost`, `kombify.me`, custom domain, LAN DNS |
@@ -410,7 +410,7 @@ Do not use when:
 
 - the operator needs a preview-only plan before any mutation;
 - the target already has important services and needs manual compatibility review first;
-- the desired kit is Modern Homelab or HA Kit as a production rollout.
+- the desired rollout is outside the published BaseKit beta scope.
 
 ## P2: Shared CLI Installer Plus Direct CLI
 
@@ -433,8 +433,6 @@ The shared installer supports kit arguments:
 
 ```bash
 curl -sSL https://install.stackkit.cc | sh -s -- base-kit
-curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab
-curl -sSL https://install.stackkit.cc | sh -s -- ha-kit
 curl -sSL https://install.stackkit.cc | sh -s -- all
 ```
 

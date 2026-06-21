@@ -2068,7 +2068,7 @@ async function main() {
         ? opts.knownLimitations
         : [
             'v0.4 is a BaseKit beta-hardening release and does not claim production readiness.',
-            'Modern Homelab and HA Kit remain out of v0.4 scope.',
+            'Unreleased kit definitions remain out of v0.4 scope.',
             'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
           ],
       browserEvidence?.status === 'pass',

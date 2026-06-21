@@ -196,7 +196,7 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 		"steps":    steps,
 		"notes": []string{
 			"BaseKit is release-ready.",
-			"Modern Homelab and HA Kit remain alpha/scaffolding.",
+			"Unreleased kit definitions are outside this public install plan.",
 			"Do not hand-edit generated rollout artifacts.",
 		},
 	}
@@ -324,8 +324,6 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 		},
 		"stackkits": []map[string]string{
 			{"id": "base-kit", "status": "beta"},
-			{"id": "modern-homelab", "status": "alpha"},
-			{"id": "ha-kit", "status": "alpha"},
 		},
 		"write_tools_enabled": a.opts.AllowWrite,
 		"server_url":          a.opts.ServerURL,

@@ -55,8 +55,8 @@ Contract: base.#ModuleContract & {
 			// API access flags — set at deploy, changing requires redeploy
 			containers: *true | bool // Traefik, Dozzle need container listing
 			networks:   *true | bool // Traefik needs network info
-			services:   *true | bool // Swarm service discovery (future High Availability Kit)
-			tasks:      *true | bool // Swarm task info (future High Availability Kit)
+			services:   *true | bool // Swarm service discovery for future multi-node topologies
+			tasks:      *true | bool // Swarm task info for future multi-node topologies
 			info:       *true | bool // Docker info endpoint
 			// Write operations — all blocked by default
 			post:    *false | bool
