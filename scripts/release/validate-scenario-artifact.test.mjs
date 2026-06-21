@@ -17,6 +17,12 @@ test('validate-scenario-artifact accepts a canonical passing SK-S2 artifact', ()
   assert.deepEqual(errors, []);
 });
 
+test('validate-scenario-artifact accepts a canonical passing SK-S5 negative guard artifact', () => {
+  const errors = [];
+  validateScenarioArtifact(errors, validSKS5Artifact(), canonicalSKS5Scenario());
+  assert.deepEqual(errors, []);
+});
+
 test('validate-scenario-artifact rejects Admin profile drift', () => {
   const artifact = validArtifact({
     profile: {
@@ -294,6 +300,50 @@ function validArtifact(overrides = {}) {
       publicIp: '203.0.113.10',
     },
     generatedAt: '2026-06-13T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function canonicalSKS5Scenario() {
+  return {
+    id: 'SK-S5',
+    name: 'Missing Mail Contract',
+    stage: 'negative',
+    expected: {
+      failure: {
+        nonInteractive: true,
+        messageContains: 'owner/admin email is required',
+      },
+      profile: {
+        adminProfileKey: 'no-owner-byos',
+        domain: 'kombify.pro',
+        mailMode: 'none',
+        ownerMode: 'none',
+        bootstrapMode: 'full_auto',
+        demoDataEnabled: true,
+      },
+      simulation: {
+        setupActions: [],
+        seededContent: [],
+        healthChecks: [],
+      },
+    },
+  };
+}
+
+function validSKS5Artifact(overrides = {}) {
+  return {
+    scenarioId: 'SK-S5',
+    scenarioName: 'Missing Mail Contract',
+    runId: 'run-123',
+    status: 'passed',
+    generatedAt: '2026-06-21T08:00:00.000Z',
+    profile: canonicalSKS5Scenario().expected.profile,
+    simulation: canonicalSKS5Scenario().expected.simulation,
+    negativeGuard: {
+      nonInteractive: true,
+      messageContains: 'owner/admin email is required',
+    },
     ...overrides,
   };
 }

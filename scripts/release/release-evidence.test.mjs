@@ -108,6 +108,7 @@ test('publish-oss can import production scenario evidence artifacts', async () =
   assert.match(workflow, /stackkit-SK-S1-released-homelab/);
   assert.match(workflow, /stackkit-SK-S2-homelab/);
   assert.match(workflow, /stackkit-SK-S3-homelab/);
+  assert.match(workflow, /stackkit-SK-S5-homelab/);
   assert.match(workflow, /artifacts\/scenarios\/\$\{scenario_id\}\/homelab\.json/);
 });
 
