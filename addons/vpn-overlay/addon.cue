@@ -236,3 +236,12 @@ package vpnoverlay
 	// Tags applied to this node
 	tags: [...string]
 }
+
+// Placement eligibility (PUBLISHABLE metadata, base/placement.cue
+// #PlacementSupport). Explicit safe-open S1 defaults; managed-serverless
+// stays opt-in via Control-Plane enablement.
+placementSupport: {
+	local_only:         true
+	standard:           true
+	managed_serverless: false
+}

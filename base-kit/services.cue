@@ -46,7 +46,7 @@ import (
 	type:        "reverse-proxy"
 	required:    true
 	image:       "traefik"
-	tag:         "v3.3"
+	tag:         "v3.6.13"
 	description: "Routes all traffic across services. View active routes, middlewares, and upstreams."
 
 	subdomain: {key: "traefik", nested: "traefik", flat: "traefik"}
@@ -142,7 +142,7 @@ import (
 	category:    "platform-identity"
 	type:        "auth"
 	required:    false
-	enabled:     false // Disabled by default in base-kit
+	enabled:     true // Release default: generated with PocketID OIDC provider config (engine default EnableTinyauth=true)
 	image:       "ghcr.io/steveiliop56/tinyauth"
 	tag:         "v5.0.7"
 	description: "ForwardAuth gateway. Protects all services via TinyAuth middleware backed by Pocket ID."
@@ -161,6 +161,11 @@ import (
 			tls:     true
 			port:    3000
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "self"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -251,7 +256,7 @@ import (
 	category:    "platform-identity"
 	type:        "auth"
 	required:    false
-	enabled:     false // Disabled by default
+	enabled:     true // Mandatory passkey identity default; the engine refuses to disable PocketID (internal/cue/bridge.go)
 	image:       "ghcr.io/pocket-id/pocket-id"
 	tag:         "v2.7.0"
 	description: "OIDC identity provider with passkey authentication. Manage users and SSO clients."
@@ -270,6 +275,11 @@ import (
 			tls:     true
 			port:    80
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "self"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -360,6 +370,11 @@ import (
 			tls:     true
 			port:    3000
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -458,6 +473,11 @@ import (
 		}
 	}
 
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
+	}
+
 	volumes: [
 		{
 			source:      "komodo-mongo-data"
@@ -536,7 +556,7 @@ import (
 	required:    false
 	enabled:     true
 	image:       "ghcr.io/coollabsio/coolify"
-	tag:         "4.1.0"
+	tag:         "4.1.2"
 	description: "Self-hosted Heroku/Vercel alternative with Git deployment and auto-HTTPS."
 	needs: ["traefik"]
 
@@ -555,6 +575,11 @@ import (
 			tls:     true
 			port:    8000
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -636,8 +661,8 @@ import (
 	type:        "uptime"
 	required:    false
 	enabled:     true // Default monitoring choice
-	image:       "louislam/uptime-kuma"
-	tag:         "1"
+	image:       "ghcr.io/louislam/uptime-kuma"
+	tag:         "2.0.2"
 	description: "Service uptime monitoring and status pages for all homelab services."
 	needs: ["traefik"]
 
@@ -654,6 +679,12 @@ import (
 			tls:     true
 			port:    3001
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "disabled-after-bootstrap"
+		reason:    "BaseKit protects kuma.<domain> with TinyAuth/PocketID, then init-kuma disables the Kuma app login to avoid a second login prompt."
 	}
 
 	volumes: [
@@ -739,6 +770,11 @@ import (
 		}
 	}
 
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
+	}
+
 	volumes: [
 		{
 			source:      "beszel-data"
@@ -821,6 +857,12 @@ import (
 		}
 	}
 
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "none"
+		reason:    "Log viewer with no own authentication; relies on the gateway."
+	}
+
 	volumes: [
 		{
 			source:      "/var/run/docker.sock"
@@ -866,7 +908,7 @@ import (
 		url:         "https://logs.{{.domain}}"
 		description: "Dozzle - Real-time container logs"
 		credentials: {
-			note: "No authentication by default (use Traefik middleware)"
+			note: "No own app login; route is protected by the TinyAuth/PocketID gateway (see accessPolicy)"
 		}
 	}
 
@@ -903,6 +945,12 @@ import (
 			tls:     true
 			port:    80
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "none"
+		reason:    "Routing/auth diagnostic endpoint; only meaningful behind the gateway."
 	}
 
 	healthCheck: {
@@ -978,6 +1026,11 @@ import (
 		}
 	}
 
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
+	}
+
 	volumes: [
 		{
 			source:      "vaultwarden-data"
@@ -991,7 +1044,9 @@ import (
 	environment: {
 		"DOMAIN":          "https://vault.{{.domain}}"
 		"SIGNUPS_ALLOWED": "false"
-		"ADMIN_TOKEN":     "{{.vaultwarden_admin_token}}"
+		// Hardened contract: only the base64-encoded Argon2id PHC hash is
+		// persisted; the runtime decodes it into ADMIN_TOKEN at start.
+		"ADMIN_TOKEN_B64": "{{.vaultwarden_admin_token_phc_b64}}"
 	}
 
 	healthCheck: {
@@ -1060,6 +1115,11 @@ import (
 			tls:     true
 			port:    8096
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -1135,7 +1195,7 @@ import (
 	category:    "application"
 	type:        "photos"
 	required:    false
-	enabled:     false // Standard+ tiers only
+	enabled:     true // Release default for standard+ compute tiers; the engine disables it on low tier (EnableImmich = isStandardPlus)
 	image:       "ghcr.io/immich-app/immich-server"
 	tag:         "release"
 	description: "Self-hosted photo and video management with its own app login, AI-powered search, facial recognition, and mobile backup."
@@ -1157,6 +1217,11 @@ import (
 			tls:     true
 			port:    2283
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -1234,7 +1299,7 @@ import (
 	category:    "management"
 	type:        "compose-manager"
 	required:    false
-	enabled:     false // Only in minimal variant
+	enabled:     false // Opt-in via explicit service toggle
 	image:       "louislam/dockge"
 	tag:         "1"
 	description: "Lightweight Docker Compose manager. Create and manage compose stacks with a simple UI."
@@ -1253,6 +1318,11 @@ import (
 			tls:     true
 			port:    5001
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -1332,7 +1402,7 @@ import (
 	category:    "management"
 	type:        "container-manager"
 	required:    false
-	enabled:     false // Only in minimal variant
+	enabled:     false // Opt-in via explicit service toggle
 	image:       "portainer/portainer-ce"
 	tag:         "latest"
 	description: "Full-featured Docker management UI"
@@ -1351,6 +1421,11 @@ import (
 			tls:     true
 			port:    9000
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -1419,7 +1494,7 @@ import (
 	category:    "monitoring"
 	type:        "metrics"
 	required:    false
-	enabled:     false // Only in minimal variant
+	enabled:     false // Opt-in via explicit service toggle
 	image:       "netdata/netdata"
 	tag:         "stable"
 	description: "Real-time system monitoring with detailed metrics"
@@ -1437,6 +1512,12 @@ import (
 			tls:     true
 			port:    19999
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "none"
+		reason:    "Netdata ships without an own login; the TinyAuth/PocketID gateway protects the route."
 	}
 
 	volumes: [
@@ -1519,7 +1600,7 @@ import (
 		url:         "https://netdata.{{.domain}}"
 		description: "Netdata - System Monitoring"
 		credentials: {
-			note: "No authentication by default"
+			note: "No own app login; route is protected by the TinyAuth/PocketID gateway (see accessPolicy)"
 		}
 	}
 
@@ -1567,7 +1648,7 @@ import (
 	whoami:     #WhoamiService
 }
 
-// #MinimalServices - Minimal variant (Coolify + optional Dockge/Portainer)
+// #MinimalServices - Lightweight compose-manager service set (opt-in)
 #MinimalServices: {
 	traefik:   #TraefikService
 	dockge:    #DockgeService

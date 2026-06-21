@@ -83,16 +83,15 @@ package base
 	// Komodo configuration (when type == "komodo")
 	komodo?: #KomodoConfig
 
-	// Portainer configuration (when type == "portainer")
-	portainer?: #PortainerConfig
-
-	// Dockge configuration (when type == "dockge")
-	dockge?: #DockgeConfig
+	// Portainer/Dockge are compose/container managers, not PaaS adapters
+	// (they are not part of #PAASServiceType). Their configs live outside
+	// the PaaS selection: see #PortainerConfig / #DockgeConfig.
 }
 
-// #DokployConfig defines Dokploy PAAS settings
+// #DokployConfig defines Dokploy PAAS settings.
+// Dokploy is draft (Golden Rules §5.2): never enabled by default.
 #DokployConfig: {
-	enabled: bool | *true
+	enabled: bool | *false
 	version: string | *"latest"
 	image:   string | *"dokploy/dokploy"
 	port:    uint16 & >0 & <=65535 | *3000
@@ -102,23 +101,25 @@ package base
 		connectionString?: string
 	}
 	traefik: {
-		enabled:      bool | *true
-		host?:        string
-		tls:          bool | *true
+		enabled: bool | *true
+		host?:   string
+		tls:     bool | *true
 		middlewares?: [...string]
 	}
 	storage: {
 		dataVolume: string | *"dokploy-data"
 		backup:     bool | *true
 	}
-	resources?:   #ResourceLimits
+	resources?: #ResourceLimits
 	environment?: [string]: string
 }
 
 // #CoolifyConfig defines Coolify PAAS settings
 #CoolifyConfig: {
-	enabled: bool | *false
-	version: string | *"latest"
+	// Coolify is the default PaaS adapter (Golden Rules §5.2)
+	enabled: bool | *true
+	// Pin matches base-kit/services.cue and the release pre-pull list
+	version: string | *"4.1.2"
 	image:   string | *"ghcr.io/coollabsio/coolify"
 	port:    uint16 & >0 & <=65535 | *8000
 	storage: {
@@ -155,7 +156,7 @@ package base
 		keyVolume:  string | *"komodo-keys"
 		backup:     bool | *true
 	}
-	resources?:   #ResourceLimits
+	resources?: #ResourceLimits
 	environment?: [string]: string
 }
 
@@ -217,7 +218,7 @@ package base
 // #TinyAuthConfig defines TinyAuth identity proxy settings
 #TinyAuthConfig: {
 	enabled:       bool | *true
-	version:       string | *"v3"
+	version:       string | *"v5.0.7"
 	image:         string | *"ghcr.io/steveiliop56/tinyauth"
 	port:          uint16 & >0 & <=65535 | *3000
 	installMethod: #InstallMethod | *"container"
@@ -252,9 +253,9 @@ package base
 		}
 	}
 	traefik: {
-		enabled:             bool | *true
-		middlewareName:      string | *"tinyauth"
-		authUrl?:            string
+		enabled:        bool | *true
+		middlewareName: string | *"tinyauth"
+		authUrl?:       string
 		authResponseHeaders: [...string] | *["X-User", "X-Email", "remote-user", "remote-sub", "remote-name", "remote-email", "remote-groups"]
 	}
 	storage: {
@@ -266,9 +267,10 @@ package base
 
 // #PocketIDConfig defines PocketID OIDC provider settings
 #PocketIDConfig: {
-	enabled:       bool | *false
-	version:       string | *"latest"
-	image:         string | *"stonith404/pocket-id"
+	enabled: bool | *false
+	// Pin matches modules/pocketid/module.cue and the release pre-pull list.
+	version:       string | *"v2.7.0"
+	image:         string | *"ghcr.io/pocket-id/pocket-id"
 	port:          uint16 & >0 & <=65535 | *3000
 	installMethod: #InstallMethod | *"container"
 	publicAppUrl:  string
@@ -291,7 +293,7 @@ package base
 		tls:      "starttls" | "tls" | "none" | *"starttls"
 	}
 	oidc: {
-		issuerUrl?:           string
+		issuerUrl?: string
 		defaultScopes: [...string] | *["openid", "profile", "email"]
 		accessTokenLifetime:  int | *60
 		refreshTokenLifetime: int | *30
@@ -351,8 +353,8 @@ package base
 	accessControl: {
 		defaultPolicy: "deny" | "one_factor" | "two_factor" | *"deny"
 		rules?: [...{
-			domain:  string
-			policy:  "bypass" | "one_factor" | "two_factor"
+			domain: string
+			policy: "bypass" | "one_factor" | "two_factor"
 			subject?: [...string]
 		}]
 	}
@@ -371,8 +373,8 @@ package base
 	port:           uint16 & >0 & <=65535 | *9443
 	installMethod:  #InstallMethod | *"container"
 	database: {
-		bundled:              bool | *true
-		externalConnection?:  string
+		bundled:             bool | *true
+		externalConnection?: string
 	}
 	redis: {
 		bundled: bool | *true
@@ -410,17 +412,17 @@ package base
 		firewall: #FirewallPolicy
 	}
 
-	// Identity services MUST be configured (Zero-Trust requirement)
+	// Identity policy: Foundation requires that identity is configured,
+	// but the default identity implementation is TinyAuth + PocketID at
+	// the Platform layer (Golden Rules §4.2). LLDAP and Step-CA are
+	// explicit opt-in alternatives (LAN-DNS/local-CA paths), not a
+	// mandatory L1 baseline.
 	identity: {
-		// LLDAP for directory services - REQUIRED and MUST be enabled
-		lldap: #LLDAPConfig & {
-			enabled: true // Zero-Trust: LLDAP MUST be enabled for all StackKits
-		}
+		// LLDAP directory service - opt-in alternative
+		lldap: #LLDAPConfig
 
-		// Step-CA for certificate authority - REQUIRED and MUST be enabled
-		stepCA: #StepCAConfig & {
-			enabled: true // Zero-Trust: Step-CA MUST be enabled for mTLS
-		}
+		// Step-CA certificate authority - opt-in (local-CA path)
+		stepCA: #StepCAConfig
 	}
 
 	// Virtualization environment MUST be declared
@@ -467,7 +469,7 @@ package base
 
 	// Ingress controller (Traefik is default)
 	ingress?: {
-		type:  "traefik" | "nginx" | "caddy" | *"traefik"
+		type: "traefik" | "nginx" | "caddy" | *"traefik"
 		traefik?: {
 			enabled: bool | *true
 			version: string | *"v3.1"
@@ -536,8 +538,8 @@ package base
 
 // #LayerValidationResult contains validation results
 #LayerValidationResult: {
-	valid:  bool
-	layer:  "1" | "2" | "3" | "all"
+	valid: bool
+	layer: "1" | "2" | "3" | "all"
 	errors: [...#LayerValidationError]
 }
 
@@ -568,9 +570,9 @@ package base
 	layer1: #LayerMetadata & {
 		name:        "foundation"
 		version:     "1.0.0"
-		description: "System configuration, packages, security, Layer 1 identity (LLDAP, Step-CA), and virtualization requirements"
-		required: ["system", "packages", "security.ssh", "security.firewall", "identity.lldap", "identity.stepCA", "virtualization"]
-		optional: ["security.container", "security.secrets", "security.tls", "security.audit", "identity.provider", "identity.pki", "identity.rbac"]
+		description: "System configuration, packages, security, identity policy, and virtualization requirements"
+		required: ["system", "packages", "security.ssh", "security.firewall", "virtualization"]
+		optional: ["security.container", "security.secrets", "security.tls", "security.audit", "identity.lldap", "identity.stepCA", "identity.provider", "identity.pki", "identity.rbac"]
 	}
 
 	layer2: #LayerMetadata & {
@@ -579,13 +581,13 @@ package base
 		description: "Container runtime, networking platform, PAAS management, and platform identity (TinyAuth, PocketID)"
 		required: ["platform", "network.defaults"]
 		optional: [
-			"container",           // Optional for bare-metal platform
-			"bareMetal",           // Required when platform is bare-metal
-			"paas",                // PAAS management (Dokploy, Coolify, etc.)
-			"identity.tinyauth",   // Platform identity proxy
-			"identity.pocketid",   // Platform OIDC provider
-			"identity.authelia",   // Advanced auth
-			"ingress",             // Ingress controller
+			"container",         // Optional for bare-metal platform
+			"bareMetal",         // Required when platform is bare-metal
+			"paas",              // PAAS management (Dokploy, Coolify, etc.)
+			"identity.tinyauth", // Platform identity proxy
+			"identity.pocketid", // Platform OIDC provider
+			"identity.authelia", // Advanced auth
+			"ingress",           // Ingress controller
 			"network.dns",
 			"network.ntp",
 			"network.vpn",

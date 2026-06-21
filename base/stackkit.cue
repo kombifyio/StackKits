@@ -7,9 +7,6 @@ package base
 	// StackKit metadata (required)
 	metadata: #StackKitMetadata
 
-	// Variant selection (optional, defined by extending StackKits)
-	variant?: string
-
 	// Node context (auto-detected or user-specified via --context flag)
 	context?: #NodeContext
 
@@ -172,8 +169,11 @@ package base
 	// Container image
 	image: string
 
-	// Image tag
-	tag: string | *"latest"
+	// Image tag. Deliberately has no default: every service must pin its
+	// tag explicitly. A silent *"latest" default contradicts deterministic
+	// Day-1 deployments (Golden Rules §7.1) and caused real pre-pull
+	// failures in release gates.
+	tag: string
 
 	// Service description
 	description?: string
@@ -195,6 +195,15 @@ package base
 
 	// Security context (overrides default)
 	securityContext?: #ContainerSecurityContext
+
+	// Access policy. Required for every Traefik-routed service: no
+	// exposure without an explicit policy (Golden Rules §4.1/§4.8).
+	accessPolicy?: #AccessPolicy
+	if network.traefik != _|_ {
+		if network.traefik.enabled {
+			accessPolicy: #AccessPolicy
+		}
+	}
 
 	// Environment variables
 	environment?: [string]: string
@@ -365,8 +374,8 @@ package base
 	// Display name
 	displayName?: string
 
-	// Node role
-	role: "main" | "worker" | "edge" | *"main"
+	// Node role (canonical multi-node vocabulary, see #ClusterNodeRole)
+	role: #ClusterNodeRole | *"main"
 
 	// Node type
 	type: "local" | "cloud" | "hybrid" | *"local"

@@ -16,6 +16,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.1.0"
 		layer:       "L3-application"
 		description: "Real-time Docker container log viewer"
+		maturity:    "opt-in"
 		testScenarios: ["SK-S2", "SK-S3"]
 	}
 
@@ -86,6 +87,12 @@ Contract: base.#ModuleContract & {
 				port:    8080
 			}
 			networks: ["frontend", "socket-proxy-net"]
+		}
+
+		accessPolicy: {
+			outerAuth: "tinyauth-pocketid"
+			appAuth:   "none"
+			reason:    "Log viewer with no own authentication; relies on the gateway."
 		}
 
 		// No docker.sock — uses DOCKER_HOST=tcp://socket-proxy:2375

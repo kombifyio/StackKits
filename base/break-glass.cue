@@ -58,7 +58,7 @@ package base
 	node: {
 		name:        string
 		hostname:    string
-		clusterRole: "main" | "worker" | "storage"
+		clusterRole: #ClusterNodeRole
 		pocketidUrl: string
 	}
 	breakGlass: {

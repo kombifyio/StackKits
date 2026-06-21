@@ -28,7 +28,7 @@ package backup
 		schedule: string | *"0 5 * * 0" // Sunday 05:00
 		// Read a fraction of the data to detect bit-rot without
 		// pulling the entire repo every week.
-		readDataPercent: int | *2 & >=0 & <=100
+		readDataPercent: *2 | (int & >=0 & <=100)
 	}
 
 	// Monthly restore drill (see #RestoreDrillConfig in addon.cue).

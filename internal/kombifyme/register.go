@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 
@@ -361,14 +362,28 @@ func publicOriginHost(value string) bool {
 		return false
 	}
 	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
-		return true
+		parsed, err := url.Parse(value)
+		if err != nil || strings.TrimSpace(parsed.Host) == "" {
+			return false
+		}
+		return publicOriginHost(parsed.Host)
 	}
 	host := value
 	if parsedHost, _, err := net.SplitHostPort(value); err == nil {
 		host = parsedHost
 	}
-	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	lowerHost := strings.ToLower(host)
+	if lowerHost == "localhost" ||
+		strings.HasSuffix(lowerHost, ".localhost") ||
+		strings.HasSuffix(lowerHost, ".local") ||
+		strings.HasSuffix(lowerHost, ".internal") ||
+		strings.HasSuffix(lowerHost, ".test") ||
+		strings.HasSuffix(lowerHost, ".invalid") {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
 		return !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsUnspecified() && !ip.IsLinkLocalUnicast()
 	}
-	return strings.Contains(host, ".")
+	return strings.Contains(lowerHost, ".")
 }

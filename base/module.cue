@@ -27,8 +27,23 @@ package base
 	// Whether this is a core module (ships with StackKits)
 	core: bool | *true
 
-	// Canonical StackKit scenarios that cover this module in fast, VM, or live gates
+	// Release maturity of the module (Golden Rules §5.2/§10):
+	// "default": part of a kit's release default set; first-run path is
+	//   automated and covered by the canonical E2E gates.
+	// "opt-in": curated and selectable, but not enabled by default.
+	// "draft": exists for development/evaluation; MUST NOT be part of the
+	//   default set or the canonical E2E dispatch.
+	// No silent default: every module must classify itself explicitly.
+	maturity: "default" | "opt-in" | "draft"
+
+	// Canonical StackKit scenarios that cover this module in fast, VM, or live gates.
+	// Draft modules MUST NOT claim canonical scenarios (enforced below).
 	testScenarios?: [...#CanonicalScenarioID]
+
+	// Draft modules stay out of canonical E2E dispatch (Golden Rules §5.2).
+	if maturity == "draft" {
+		testScenarios?: []
+	}
 }
 
 // #CanonicalScenarioID enumerates the canonical rollout scenarios in the private StackKit scenario catalog.

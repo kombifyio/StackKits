@@ -28,6 +28,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-ingress"
 		description: "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and Grafana dashboards"
+		maturity:    "opt-in"
 		testScenarios: ["SK-S1", "SK-S4"]
 	}
 

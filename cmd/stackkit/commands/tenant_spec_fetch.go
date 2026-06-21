@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -50,7 +51,26 @@ type tenantSpecEnvelope struct {
 	} `json:"deployment"`
 	Spec              models.StackSpec                    `json:"spec"`
 	Bindings          []tenantSpecBindng                  `json:"bindings"`
+	Telemetry         tenantSpecTelemetry                 `json:"telemetry,omitempty"`
 	IdentityBootstrap *models.OwnerAdminBootstrapEnvelope `json:"identityBootstrap,omitempty"`
+}
+
+type tenantSpecTelemetry struct {
+	SentryDSN    string            `json:"sentryDsn,omitempty"`
+	OTLPEndpoint string            `json:"otlpEndpoint,omitempty"`
+	OTLPHeaders  map[string]string `json:"otlpHeaders,omitempty"`
+	Environment  string            `json:"environment,omitempty"`
+	Release      string            `json:"release,omitempty"`
+	RolloutMode  string            `json:"rolloutMode,omitempty"`
+}
+
+type tenantTelemetryMetadata struct {
+	SentryDSNConfigured bool     `json:"sentryDsnConfigured,omitempty"`
+	OTLPEndpointSet     bool     `json:"otlpEndpointConfigured,omitempty"`
+	OTLPHeaderKeys      []string `json:"otlpHeaderKeys,omitempty"`
+	Environment         string   `json:"environment,omitempty"`
+	Release             string   `json:"release,omitempty"`
+	RolloutMode         string   `json:"rolloutMode,omitempty"`
 }
 
 type tenantSpecBindng struct {
@@ -164,6 +184,9 @@ func fetchTenantSpec(ctx context.Context, deploymentID, wd string) (*models.Stac
 	if err := persistIdentityBootstrapEnvelope(wd, env.IdentityBootstrap); err != nil {
 		return nil, err
 	}
+	if err := persistTenantTelemetryMetadata(wd, env.Telemetry); err != nil {
+		return nil, err
+	}
 
 	yamlBytes, err := yaml.Marshal(&env.Spec)
 	if err != nil {
@@ -235,6 +258,50 @@ func persistIdentityBootstrapEnvelope(wd string, env *models.OwnerAdminBootstrap
 		return fmt.Errorf("write identity bootstrap envelope: %w", err)
 	}
 	return nil
+}
+
+func persistTenantTelemetryMetadata(wd string, telemetry tenantSpecTelemetry) error {
+	if !tenantTelemetryConfigured(telemetry) {
+		return nil
+	}
+	keys := make([]string, 0, len(telemetry.OTLPHeaders))
+	for key := range telemetry.OTLPHeaders {
+		key = strings.TrimSpace(key)
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	metadata := tenantTelemetryMetadata{
+		SentryDSNConfigured: strings.TrimSpace(telemetry.SentryDSN) != "",
+		OTLPEndpointSet:     strings.TrimSpace(telemetry.OTLPEndpoint) != "",
+		OTLPHeaderKeys:      keys,
+		Environment:         strings.TrimSpace(telemetry.Environment),
+		Release:             strings.TrimSpace(telemetry.Release),
+		RolloutMode:         strings.TrimSpace(telemetry.RolloutMode),
+	}
+	path := filepath.Join(wd, ".stackkit", "tenant-telemetry.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return fmt.Errorf("mkdir tenant telemetry dir: %w", err)
+	}
+	data, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal tenant telemetry metadata: %w", err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write tenant telemetry metadata: %w", err)
+	}
+	return nil
+}
+
+func tenantTelemetryConfigured(telemetry tenantSpecTelemetry) bool {
+	return strings.TrimSpace(telemetry.SentryDSN) != "" ||
+		strings.TrimSpace(telemetry.OTLPEndpoint) != "" ||
+		len(telemetry.OTLPHeaders) > 0 ||
+		strings.TrimSpace(telemetry.Environment) != "" ||
+		strings.TrimSpace(telemetry.Release) != "" ||
+		strings.TrimSpace(telemetry.RolloutMode) != ""
 }
 
 func validateTenantSpecEnvelope(deploymentID string, env *tenantSpecEnvelope) error {

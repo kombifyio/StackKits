@@ -3,7 +3,7 @@
 // Publishable vocabulary for the placement axis. Realization is LAYERED:
 // StackKits-OSS realizes ONLY S1 (local-only, standard+cloudless). managed-
 // serverless / coupled are NOT StackKit-native — their config lives in the
-// Control-Plane catalog (kombify-admin-DB), never in this OSS repo.
+// Control-Plane catalog (kombify-DB sk_*), never in this OSS repo.
 // See docs/placement/ and public StackKits standards/PRODUCT-SEGMENTATION.md.
 //
 // Run via: cue vet ./base/...

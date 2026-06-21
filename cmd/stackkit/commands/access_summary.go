@@ -20,6 +20,7 @@ type accessSummary struct {
 	SubdomainPrefix string          `json:"subdomainPrefix,omitempty"`
 	HubURL          string          `json:"hubUrl"`
 	Services        []accessService `json:"services"`
+	SetupActions    []string        `json:"setupActions,omitempty"`
 	GeneratedAt     time.Time       `json:"generatedAt"`
 }
 
@@ -249,6 +250,36 @@ func writeAccessSummary(wd string, summary *accessSummary) error {
 		return fmt.Errorf("write access summary: %w", err)
 	}
 	return nil
+}
+
+func attachObservedSetupActions(summary *accessSummary, state *models.DeploymentState) {
+	if summary == nil {
+		return
+	}
+	summary.SetupActions = observedSetupActionsFromState(state)
+}
+
+func observedSetupActionsFromState(state *models.DeploymentState) []string {
+	if state == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	actions := []string{}
+	for _, run := range state.SetupRuns {
+		drop := strings.TrimSpace(run.DropName)
+		if drop == "" || seen[drop] {
+			continue
+		}
+		if strings.TrimSpace(run.Status) != models.SetupRunStatusCompleted {
+			continue
+		}
+		if strings.TrimSpace(run.Phase) != models.BootstrapPhaseVerified {
+			continue
+		}
+		seen[drop] = true
+		actions = append(actions, drop)
+	}
+	return actions
 }
 
 func serviceStatesFromAccessSummary(summary *accessSummary) []models.ServiceState {

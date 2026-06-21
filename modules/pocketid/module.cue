@@ -13,6 +13,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-identity"
 		description: "Self-hosted OIDC provider for single sign-on with passkeys"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S5"]
 	}
 
@@ -84,7 +85,7 @@ Contract: base.#ModuleContract & {
 		// integration test (tests/integration/pocketid_e2e_test.go) docker-runs
 		// v2 directly, so this pin keeps the rendered TF and the integration
 		// harness on the same image.
-		tag:      "v2"
+		tag:      "v2.7.0"
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]
@@ -101,6 +102,12 @@ Contract: base.#ModuleContract & {
 				port:    1411
 			}
 			networks: ["base_net"]
+		}
+
+		accessPolicy: {
+			outerAuth:      "self"
+			appAuth:        "self-auth"
+			ownerBootstrap: "StackKits creates the Owner user record plus a one-time passkey setup URL; PocketID is passkey-only."
 		}
 
 		volumes: [

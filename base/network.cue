@@ -3,8 +3,10 @@ package base
 
 // #NetworkDefaults defines default network settings
 #NetworkDefaults: {
-	// Primary domain for the homelab
-	domain: string | *"local"
+	// Primary domain for the homelab. The local default MUST be a
+	// browser-native portless name (Golden Rules §1.10/§1.11); LAN zones
+	// like .local/.lan/.home are explicit opt-in modes.
+	domain: string | *"home.localhost"
 
 	// Subnet for internal services
 	subnet: string | *"172.20.0.0/16"
@@ -51,10 +53,10 @@ package base
 
 // #DNSRecord defines a custom DNS record
 #DNSRecord: {
-	name:   string
-	type:   "A" | "AAAA" | "CNAME" | "TXT" | "MX" | *"A"
-	value:  string
-	ttl:    int | *300
+	name:    string
+	type:    "A" | "AAAA" | "CNAME" | "TXT" | "MX" | *"A"
+	value:   string
+	ttl:     int | *300
 	weight?: int
 }
 
@@ -86,10 +88,10 @@ package base
 
 	// Headscale-specific
 	headscale?: {
-		serverUrl:   string
-		authKey?:    =~"^secret://"
-		namespace:   string | *"default"
-		exitNode:    bool | *false
+		serverUrl: string
+		authKey?:  =~"^secret://"
+		namespace: string | *"default"
+		exitNode:  bool | *false
 		advertiseRoutes?: [...string]
 	}
 
@@ -104,8 +106,8 @@ package base
 
 // #WireGuardPeer defines a WireGuard peer
 #WireGuardPeer: {
-	publicKey:  string
-	endpoint?:  string
+	publicKey: string
+	endpoint?: string
 	allowedIPs: [...string]
 	keepAlive?: int
 }

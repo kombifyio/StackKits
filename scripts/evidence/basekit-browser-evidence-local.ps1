@@ -53,12 +53,144 @@ $script:PreflightChecks = [System.Collections.Generic.List[object]]::new()
 $script:CurrentPhase = "wrapper"
 $script:LastNativeCommand = $null
 $script:LastFailedNativeCommand = $null
+$script:BrowserCaptureUrls = $null
 
 function Set-WrapperPhase {
   param([string]$Phase)
   if ($Phase) {
     $script:CurrentPhase = $Phase
   }
+}
+
+function ConvertTo-NativeArgument {
+  param([AllowNull()][string]$Argument)
+  $value = [string]$Argument
+  if ($value.Length -eq 0) {
+    return '""'
+  }
+  if ($value -notmatch '[\s"]') {
+    return $value
+  }
+  $result = '"'
+  $backslashes = 0
+  foreach ($char in $value.ToCharArray()) {
+    if ($char -eq '\') {
+      $backslashes += 1
+      continue
+    }
+    if ($char -eq '"') {
+      if ($backslashes -gt 0) {
+        $result += ('\' * ($backslashes * 2))
+        $backslashes = 0
+      }
+      $result += '\"'
+      continue
+    }
+    if ($backslashes -gt 0) {
+      $result += ('\' * $backslashes)
+      $backslashes = 0
+    }
+    $result += $char
+  }
+  if ($backslashes -gt 0) {
+    $result += ('\' * ($backslashes * 2))
+  }
+  $result += '"'
+  return $result
+}
+
+function Join-NativeArguments {
+  param([string[]]$Arguments = @())
+  return (($Arguments | ForEach-Object { ConvertTo-NativeArgument -Argument $_ }) -join " ")
+}
+
+function Resolve-NativeCommandPath {
+  param([string]$FilePath)
+  $commands = @(Get-Command $FilePath -All -ErrorAction SilentlyContinue)
+  $nativeCommand = $commands |
+    Where-Object { $_.CommandType -eq "Application" -and $_.Source } |
+    Sort-Object @{
+      Expression = {
+        $extension = [System.IO.Path]::GetExtension([string]$_.Source).ToLowerInvariant()
+        if ($extension -eq ".exe") { 0 }
+        elseif ($extension -eq ".cmd") { 1 }
+        elseif ($extension -eq ".bat") { 2 }
+        else { 3 }
+      }
+    } |
+    Select-Object -First 1
+  if ($nativeCommand -and $nativeCommand.Source) {
+    return [string]$nativeCommand.Source
+  }
+  $scriptCommand = $commands | Where-Object { $_.Source } | Select-Object -First 1
+  if ($scriptCommand -and $scriptCommand.Source) {
+    return [string]$scriptCommand.Source
+  }
+  return $FilePath
+}
+
+function Get-ProcessStartInfoCommand {
+  param(
+    [string]$FilePath,
+    [string[]]$Arguments = @()
+  )
+  $resolvedPath = Resolve-NativeCommandPath -FilePath $FilePath
+  $extension = [System.IO.Path]::GetExtension($resolvedPath).ToLowerInvariant()
+  if ($extension -eq ".cmd" -or $extension -eq ".bat") {
+    $cmdLine = ConvertTo-NativeArgument -Argument $resolvedPath
+    $joinedArguments = Join-NativeArguments -Arguments $Arguments
+    if ($joinedArguments) {
+      $cmdLine = "$cmdLine $joinedArguments"
+    }
+    $commandProcessor = if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" }
+    return [ordered]@{
+      filePath = $commandProcessor
+      arguments = @("/d", "/s", "/c", $cmdLine)
+      argumentsString = '/d /s /c "' + $cmdLine + '"'
+      resolvedFilePath = $resolvedPath
+    }
+  }
+  if ($extension -eq ".ps1") {
+    $powerShellPath = Resolve-NativeCommandPath -FilePath "powershell"
+    return [ordered]@{
+      filePath = $powerShellPath
+      arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $resolvedPath) + @($Arguments)
+      resolvedFilePath = $resolvedPath
+    }
+  }
+  return [ordered]@{
+    filePath = $resolvedPath
+    arguments = @($Arguments)
+    resolvedFilePath = $resolvedPath
+  }
+}
+
+function Write-JsonFileNoBom {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path,
+    [Parameter(Mandatory = $true)]
+    [object]$Value,
+    [int]$Depth = 8
+  )
+  $json = ($Value | ConvertTo-Json -Depth $Depth) + [Environment]::NewLine
+  $encoding = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($Path, $json, $encoding)
+}
+
+function Get-CommandMapValue {
+  param(
+    [object]$Command,
+    [string]$Key
+  )
+  if ($Command -is [System.Collections.IDictionary] -and $Command.Contains($Key)) {
+    return $Command[$Key]
+  }
+  $property = $Command.PSObject.Properties[$Key]
+  if ($property) {
+    return $property.Value
+  }
+  return $null
 }
 
 function Invoke-BoundedNative {
@@ -74,16 +206,33 @@ function Invoke-BoundedNative {
 
   Write-Host ""
   Write-Host "==> $Name"
+  $startCommand = Get-ProcessStartInfoCommand -FilePath $FilePath -Arguments $Arguments
+  $startFilePath = [string](Get-CommandMapValue -Command $startCommand -Key "filePath")
+  $startArguments = @((Get-CommandMapValue -Command $startCommand -Key "arguments"))
+  $startResolvedFilePath = [string](Get-CommandMapValue -Command $startCommand -Key "resolvedFilePath")
+  $startArgumentsString = [string](Get-CommandMapValue -Command $startCommand -Key "argumentsString")
   $script:LastNativeCommand = [ordered]@{
     name = $Name
     filePath = $FilePath
     arguments = @($Arguments)
     timeoutSeconds = $TimeoutSeconds
   }
+  if ($startResolvedFilePath -and $startResolvedFilePath -ne $FilePath) {
+    $script:LastNativeCommand["resolvedFilePath"] = $startResolvedFilePath
+  }
+  if ($startArgumentsString) {
+    $script:LastNativeCommand["argumentsString"] = $startArgumentsString
+  }
   $psi = [System.Diagnostics.ProcessStartInfo]::new()
-  $psi.FileName = $FilePath
-  foreach ($Argument in $Arguments) {
-    [void]$psi.ArgumentList.Add($Argument)
+  $psi.FileName = $startFilePath
+  if ($startArgumentsString) {
+    $psi.Arguments = $startArgumentsString
+  } elseif ($psi.GetType().GetProperty("ArgumentList")) {
+    foreach ($Argument in $startArguments) {
+      [void]$psi.ArgumentList.Add($Argument)
+    }
+  } else {
+    $psi.Arguments = Join-NativeArguments -Arguments $startArguments
   }
   $psi.WorkingDirectory = $RepoRoot
   $psi.UseShellExecute = $false
@@ -226,14 +375,14 @@ function Write-PreflightReport {
     phaseTimeoutSeconds = $PhaseTimeoutSeconds
     checks = $script:PreflightChecks.ToArray()
   }
-  $failedChecks = Get-PreflightFailures
+  $failedChecks = @(Get-PreflightFailures)
   if ($failedChecks.Count -gt 0) {
     $report["failedChecks"] = @($failedChecks | ForEach-Object { $_.name })
   }
   if ($ErrorMessage) {
     $report["error"] = $ErrorMessage
   }
-  $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $PreflightReportPath -Encoding UTF8
+  Write-JsonFileNoBom -Path $PreflightReportPath -Value $report -Depth 8
 }
 
 function Write-BrowserEvidenceFailure {
@@ -247,6 +396,15 @@ function Write-BrowserEvidenceFailure {
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
   }
   $BrowserChannelLabel = if ($BrowserChannel) { $BrowserChannel } else { "playwright-chromium" }
+  $FailureBrowserUrl = "http://base.home.localhost"
+  if ($script:BrowserCaptureUrls -and $script:BrowserCaptureUrls.browserUrl) {
+    $FailureBrowserUrl = [string]$script:BrowserCaptureUrls.browserUrl
+  }
+  $wrapperDiagnostics = New-BrowserWrapperDiagnostics -Phase $Phase
+  $existingRunnerFailure = Preserve-BrowserCaptureFailure -Phase $Phase -ErrorMessage $ErrorMessage -BrowserChannelLabel $BrowserChannelLabel -FailureBrowserUrl $FailureBrowserUrl -WrapperDiagnostics $wrapperDiagnostics
+  if ($existingRunnerFailure) {
+    return
+  }
   $report = [ordered]@{
     scenarioId = "SK-S1"
     runId = $BrowserEvidenceRunId
@@ -255,26 +413,133 @@ function Write-BrowserEvidenceFailure {
     ownerEmail = $OwnerEmail
     ownerUsername = $OwnerUsername
     browserChannel = $BrowserChannelLabel
-    browserUrl = "http://base.home.localhost"
+    browserUrl = $FailureBrowserUrl
     error = $ErrorMessage
     failurePhase = $Phase
     checks = @()
     screenshots = @()
     diagnostics = [ordered]@{
-      wrapper = [ordered]@{
-        phase = $Phase
-        evidenceRoot = $EvidenceRootPath
-        preflightReportPath = $PreflightReportPath
-        homelabPath = $HomelabPath
-      }
+      wrapper = $wrapperDiagnostics
     }
   }
-  if ($script:LastFailedNativeCommand) {
-    $report.diagnostics.wrapper["nativeCommand"] = $script:LastFailedNativeCommand
-  } elseif ($script:LastNativeCommand) {
-    $report.diagnostics.wrapper["nativeCommand"] = $script:LastNativeCommand
+  Write-JsonFileNoBom -Path $BrowserEvidencePath -Value $report -Depth 8
+}
+
+function New-BrowserWrapperDiagnostics {
+  param([string]$Phase)
+  $wrapper = [ordered]@{
+    phase = $Phase
+    evidenceRoot = $EvidenceRootPath
+    preflightReportPath = $PreflightReportPath
+    homelabPath = $HomelabPath
   }
-  $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $BrowserEvidencePath -Encoding UTF8
+  if ($script:LastFailedNativeCommand) {
+    $wrapper["nativeCommand"] = $script:LastFailedNativeCommand
+  } elseif ($script:LastNativeCommand) {
+    $wrapper["nativeCommand"] = $script:LastNativeCommand
+  }
+  if ($script:BrowserCaptureUrls) {
+    $wrapper["captureUrls"] = $script:BrowserCaptureUrls
+  }
+  return $wrapper
+}
+
+function Preserve-BrowserCaptureFailure {
+  param(
+    [string]$Phase,
+    [string]$ErrorMessage,
+    [string]$BrowserChannelLabel,
+    [string]$FailureBrowserUrl,
+    [object]$WrapperDiagnostics
+  )
+  if (-not (Test-Path -LiteralPath $BrowserEvidencePath)) {
+    return $false
+  }
+  try {
+    $existing = Get-Content -Raw -LiteralPath $BrowserEvidencePath | ConvertFrom-Json
+  } catch {
+    return $false
+  }
+  $existingStatus = [string](Get-JsonProperty -Target $existing -Name "status")
+  if ($existingStatus -eq "pass") {
+    Write-Host "Preserving existing passing browser evidence manifest after $Phase failure."
+    return $true
+  }
+  if ($existingStatus -ne "fail") {
+    return $false
+  }
+
+  Set-JsonProperty -Target $existing -Name "scenarioId" -Value "SK-S1"
+  if (-not [string](Get-JsonProperty -Target $existing -Name "runId")) {
+    Set-JsonProperty -Target $existing -Name "runId" -Value $BrowserEvidenceRunId
+  }
+  if (-not [string](Get-JsonProperty -Target $existing -Name "generatedAt")) {
+    Set-JsonProperty -Target $existing -Name "generatedAt" -Value (Get-Date).ToUniversalTime().ToString("o")
+  }
+  if (-not [string](Get-JsonProperty -Target $existing -Name "error")) {
+    Set-JsonProperty -Target $existing -Name "error" -Value $ErrorMessage
+  }
+  Set-JsonProperty -Target $existing -Name "failurePhase" -Value $Phase
+  if (-not [string](Get-JsonProperty -Target $existing -Name "ownerEmail")) {
+    Set-JsonProperty -Target $existing -Name "ownerEmail" -Value $OwnerEmail
+  }
+  if (-not [string](Get-JsonProperty -Target $existing -Name "ownerUsername")) {
+    Set-JsonProperty -Target $existing -Name "ownerUsername" -Value $OwnerUsername
+  }
+  if (-not [string](Get-JsonProperty -Target $existing -Name "browserChannel")) {
+    Set-JsonProperty -Target $existing -Name "browserChannel" -Value $BrowserChannelLabel
+  }
+  if (-not [string](Get-JsonProperty -Target $existing -Name "browserUrl")) {
+    Set-JsonProperty -Target $existing -Name "browserUrl" -Value $FailureBrowserUrl
+  }
+  if ($null -eq (Get-JsonProperty -Target $existing -Name "checks")) {
+    Set-JsonProperty -Target $existing -Name "checks" -Value @()
+  }
+  if ($null -eq (Get-JsonProperty -Target $existing -Name "screenshots")) {
+    Set-JsonProperty -Target $existing -Name "screenshots" -Value @()
+  }
+  if ($null -eq (Get-JsonProperty -Target $existing -Name "diagnostics")) {
+    Set-JsonProperty -Target $existing -Name "diagnostics" -Value ([pscustomobject]@{})
+  }
+  $diagnostics = Get-JsonProperty -Target $existing -Name "diagnostics"
+  Set-JsonProperty -Target $diagnostics -Name "wrapper" -Value $WrapperDiagnostics
+  Write-JsonFileNoBom -Path $BrowserEvidencePath -Value $existing -Depth 8
+  return $true
+}
+
+function Get-JsonProperty {
+  param(
+    [Parameter(Mandatory = $true)]
+    [object]$Target,
+    [Parameter(Mandatory = $true)]
+    [string]$Name
+  )
+  if ($Target -is [System.Collections.IDictionary]) {
+    if ($Target.Contains($Name)) {
+      return $Target[$Name]
+    }
+    return $null
+  }
+  $property = $Target.PSObject.Properties[$Name]
+  if ($property) {
+    return $property.Value
+  }
+  return $null
+}
+
+function Set-JsonProperty {
+  param(
+    [Parameter(Mandatory = $true)]
+    [object]$Target,
+    [Parameter(Mandatory = $true)]
+    [string]$Name,
+    [object]$Value
+  )
+  if ($Target -is [System.Collections.IDictionary]) {
+    $Target[$Name] = $Value
+    return
+  }
+  $Target | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
 }
 
 function Invoke-PreflightReportValidation {
@@ -319,7 +584,7 @@ function Get-PreflightFailures {
 
 function Assert-NoPreflightFailures {
   param([string]$Context)
-  $failedChecks = Get-PreflightFailures
+  $failedChecks = @(Get-PreflightFailures)
   if ($failedChecks.Count -eq 0) {
     return
   }
@@ -357,7 +622,7 @@ function Get-InvalidPreflightSkips {
 function Assert-ReleaseReadyPreflight {
   param([string]$Context)
   Assert-NoPreflightFailures -Context $Context
-  $invalidSkips = Get-InvalidPreflightSkips
+  $invalidSkips = @(Get-InvalidPreflightSkips)
   if ($invalidSkips.Count -eq 0) {
     return
   }
@@ -414,10 +679,11 @@ function Invoke-RecordedPreflightOutputEquals {
     [string]$FilePath,
     [string[]]$Arguments = @(),
     [Parameter(Mandatory = $true)]
-    [string]$ExpectedOutput,
+    [string[]]$ExpectedOutput,
     [int]$TimeoutSeconds = $PhaseTimeoutSeconds
   )
 
+  $expectedLabel = $ExpectedOutput -join "|"
   $actual = ""
   try {
     $stdout = Invoke-BoundedNative `
@@ -426,16 +692,16 @@ function Invoke-RecordedPreflightOutputEquals {
       -Arguments $Arguments `
       -TimeoutSeconds $TimeoutSeconds
     $actual = ($stdout -replace "`r", "").Trim()
-    if ($actual -ne $ExpectedOutput) {
-      throw "$Name returned '$actual', want '$ExpectedOutput'"
+    if ($ExpectedOutput -notcontains $actual) {
+      throw "$Name returned '$actual', want '$expectedLabel'"
     }
     Add-PreflightCheck -Name $Name -Status "pass" -TimeoutSeconds $TimeoutSeconds -Evidence @{
       output = $actual
-      expected = $ExpectedOutput
+      expected = $expectedLabel
     }
   } catch {
     $message = [string]$_
-    $evidence = @{ expected = $ExpectedOutput }
+    $evidence = @{ expected = $expectedLabel }
     if ($actual) {
       $evidence["output"] = $actual
     }
@@ -459,11 +725,13 @@ function Invoke-BrowserEvidencePreflight {
     -Arguments @("version") `
     -TimeoutSeconds 60
 
+  # Docker Desktop reports desktop-linux; plain Docker Engine hosts (CI
+  # runners, Linux servers) report default. Both are usable Linux engines.
   Invoke-RecordedPreflightOutputEquals `
     -Name "Docker Desktop context" `
     -FilePath "docker" `
     -Arguments @("context", "show") `
-    -ExpectedOutput "desktop-linux" `
+    -ExpectedOutput @("desktop-linux", "default") `
     -TimeoutSeconds 60
 
   if (-not $NoInstallPlaywright) {
@@ -563,6 +831,133 @@ function Export-SetupRunState {
   }
 }
 
+function Update-HomelabArtifactSetupActionsFromBrowserEvidence {
+  if (-not (Test-Path -LiteralPath $HomelabPath) -or -not (Test-Path -LiteralPath $BrowserEvidencePath)) {
+    return
+  }
+  Invoke-BoundedNative `
+    -Name "Update SK-S1 homelab setup-action status" `
+    -FilePath "node" `
+    -Arguments @(
+      "scripts/evidence/update-homelab-setup-actions.mjs",
+      "--homelab", $HomelabPath,
+      "--browser-evidence", $BrowserEvidencePath
+    ) `
+    -TimeoutSeconds 120 | Out-Null
+}
+
+function Get-HomelabArtifact {
+  if (-not (Test-Path -LiteralPath $HomelabPath)) {
+    throw "Missing SK-S1 homelab artifact: $HomelabPath"
+  }
+  return Get-Content -Raw -LiteralPath $HomelabPath | ConvertFrom-Json
+}
+
+function Get-DemoDataMode {
+  param([object]$HomelabArtifact)
+  # The generated tfvars carry the rollout's demoData decision. Default to the
+  # strict "enabled" evidence path when the value cannot be read, so a broken
+  # lookup can only over-require demo proof, never weaken the gate.
+  try {
+    $container = [string]$HomelabArtifact.target.containerName
+    if (-not $container -or -not $container.StartsWith("stackkits-e2e-")) {
+      return "enabled"
+    }
+    $raw = & docker exec $container cat /root/my-homelab/deploy/terraform.tfvars.json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $raw) {
+      return "enabled"
+    }
+    $tfvars = ($raw -join "`n") | ConvertFrom-Json
+    $property = $tfvars.PSObject.Properties["demo_data_enabled"]
+    if ($property -and $property.Value -eq $false) {
+      return "disabled"
+    }
+    return "enabled"
+  } catch {
+    return "enabled"
+  }
+}
+
+function Get-TargetPort {
+  param(
+    [object]$Target,
+    [string]$PropertyName
+  )
+  if (-not $Target) {
+    return 0
+  }
+  $property = $Target.PSObject.Properties[$PropertyName]
+  if (-not $property) {
+    return 0
+  }
+  $raw = [string]$property.Value
+  if (-not $raw.Trim()) {
+    return 0
+  }
+  try {
+    return [int]$raw
+  } catch {
+    return 0
+  }
+}
+
+function Add-TargetPortToUrl {
+  param(
+    [string]$RawUrl,
+    [object]$Target,
+    [string]$PathOverride = ""
+  )
+  if (-not $RawUrl.Trim()) {
+    throw "Cannot build browser capture URL from an empty service URL."
+  }
+  try {
+    $builder = [System.UriBuilder]::new([System.Uri]$RawUrl)
+  } catch {
+    throw "Cannot parse browser capture URL '$RawUrl': $_"
+  }
+  if ($PathOverride) {
+    $builder.Path = $PathOverride.TrimStart("/")
+  }
+  $scheme = $builder.Scheme.ToLowerInvariant()
+  $targetPort = 0
+  if ($scheme -eq "http") {
+    $targetPort = Get-TargetPort -Target $Target -PropertyName "httpPort"
+  } elseif ($scheme -eq "https") {
+    $targetPort = Get-TargetPort -Target $Target -PropertyName "httpsPort"
+  }
+  if ($targetPort -gt 0) {
+    $builder.Port = $targetPort
+  }
+  return $builder.Uri.AbsoluteUri
+}
+
+function Get-ServiceUrl {
+  param(
+    [object]$Artifact,
+    [string]$ServiceKey,
+    [string]$FallbackUrl
+  )
+  foreach ($service in @($Artifact.services)) {
+    if ([string]$service.key -eq $ServiceKey -and [string]$service.url) {
+      return [string]$service.url
+    }
+  }
+  return $FallbackUrl
+}
+
+function Get-BrowserCaptureUrls {
+  $artifact = Get-HomelabArtifact
+  $target = $artifact.target
+  return [ordered]@{
+    browserUrl = Add-TargetPortToUrl -RawUrl (Get-ServiceUrl -Artifact $artifact -ServiceKey "base" -FallbackUrl "http://base.home.localhost") -Target $target
+    ownerSetupUrl = Add-TargetPortToUrl -RawUrl (Get-ServiceUrl -Artifact $artifact -ServiceKey "id" -FallbackUrl "http://id.home.localhost") -Target $target -PathOverride "/setup"
+    authUrl = Add-TargetPortToUrl -RawUrl (Get-ServiceUrl -Artifact $artifact -ServiceKey "auth" -FallbackUrl "http://auth.home.localhost") -Target $target
+    photosUrl = Add-TargetPortToUrl -RawUrl (Get-ServiceUrl -Artifact $artifact -ServiceKey "photos" -FallbackUrl "http://photos.home.localhost") -Target $target -PathOverride "/photos"
+    filesUrl = Add-TargetPortToUrl -RawUrl (Get-ServiceUrl -Artifact $artifact -ServiceKey "files" -FallbackUrl "http://files.home.localhost/stackkit/files/session") -Target $target
+    vaultUrl = Add-TargetPortToUrl -RawUrl (Get-ServiceUrl -Artifact $artifact -ServiceKey "vault" -FallbackUrl "http://vault.home.localhost") -Target $target
+  }
+}
+
 Push-Location $RepoRoot
 try {
   Set-WrapperPhase "command-preflight"
@@ -600,6 +995,13 @@ try {
     if ($DockerConfigPath) {
       $freshEnv["STACKKIT_FRESH_VM_DOCKER_CONFIG"] = $DockerConfigPath
     }
+    Set-WrapperPhase "fresh-vm-image-cache"
+    Invoke-BoundedNative `
+      -Name "SK-S1 Fresh Ubuntu image cache seed" `
+      -FilePath "go" `
+      -Arguments @("test", "-v", "-tags", "production", "-run", "^TestSeedFreshVMImageCacheHost$", "-timeout", "14m", "./tests/production") `
+      -Environment $freshEnv
+    Set-WrapperPhase "fresh-vm-rollout"
     Invoke-BoundedNative `
       -Name "SK-S1 Fresh Ubuntu rollout" `
       -FilePath "go" `
@@ -610,8 +1012,14 @@ try {
   Export-SetupRunState
 
   Set-WrapperPhase "homelab-artifact"
-  if (-not (Test-Path -LiteralPath $HomelabPath)) {
-    throw "Missing SK-S1 homelab artifact: $HomelabPath"
+  $homelabArtifact = Get-HomelabArtifact
+  $DemoDataMode = Get-DemoDataMode -HomelabArtifact $homelabArtifact
+  Write-Host "SK-S1 demo-data evidence mode: $DemoDataMode"
+  $script:BrowserCaptureUrls = Get-BrowserCaptureUrls
+  Write-Host ""
+  Write-Host "SK-S1 browser capture URLs:"
+  foreach ($entry in $script:BrowserCaptureUrls.GetEnumerator()) {
+    Write-Host "  $($entry.Name)=$($entry.Value)"
   }
 
   $captureArgs = @(
@@ -619,13 +1027,23 @@ try {
     "--owner-email", $OwnerEmail,
     "--owner-username", $OwnerUsername,
     "--owner-display-name", $OwnerDisplayName,
+    "--browser-url", $script:BrowserCaptureUrls.browserUrl,
+    "--owner-setup-url", $script:BrowserCaptureUrls.ownerSetupUrl,
+    "--auth-url", $script:BrowserCaptureUrls.authUrl,
+    "--photos-url", $script:BrowserCaptureUrls.photosUrl,
+    "--files-url", $script:BrowserCaptureUrls.filesUrl,
+    "--vault-url", $script:BrowserCaptureUrls.vaultUrl,
     "--output", $BrowserEvidencePath,
     "--screenshot-dir", (Join-Path $ScenarioDir "screenshots"),
     "--evidence-root", $EvidenceRootPath,
     "--setup-state-path", $SetupStatePath,
     "--total-timeout-ms", "840000",
-    "--per-check-timeout-ms", "120000"
+    "--per-check-timeout-ms", "120000",
+    "--demo-data", $DemoDataMode
   )
+  if ($homelabArtifact.target -and [string]$homelabArtifact.target.containerName) {
+    $captureArgs += @("--fresh-vm-container", [string]$homelabArtifact.target.containerName)
+  }
   if ($BrowserChannel) {
     $captureArgs += @("--browser-channel", $BrowserChannel)
   }
@@ -658,6 +1076,7 @@ try {
       STACKKIT_BROWSER_EVIDENCE_ROOT = $EvidenceRootPath
     } `
     -TimeoutSeconds 120
+  Update-HomelabArtifactSetupActionsFromBrowserEvidence
 
   Write-Host ""
   Write-Host "BaseKit browser evidence is ready:"
@@ -666,10 +1085,23 @@ try {
   $message = [string]$_
   if (-not $PreflightOnly) {
     Write-BrowserEvidenceFailure -Phase $script:CurrentPhase -ErrorMessage $message
+    $browserEvidenceStatus = ""
     try {
-      Invoke-BrowserEvidenceFailureValidationIfAvailable
+      if (Test-Path -LiteralPath $BrowserEvidencePath) {
+        $browserEvidence = Get-Content -Raw -LiteralPath $BrowserEvidencePath | ConvertFrom-Json
+        $browserEvidenceStatus = [string](Get-JsonProperty -Target $browserEvidence -Name "status")
+      }
     } catch {
-      throw "${message}; browser failure evidence validation failed: $_"
+      $browserEvidenceStatus = ""
+    }
+    if ($browserEvidenceStatus -eq "fail") {
+      try {
+        Invoke-BrowserEvidenceFailureValidationIfAvailable
+      } catch {
+        throw "${message}; browser failure evidence validation failed: $_"
+      }
+    } elseif ($browserEvidenceStatus -eq "pass") {
+      Write-Host "Skipping browser failure evidence validation because passing browser evidence was preserved."
     }
   }
   throw

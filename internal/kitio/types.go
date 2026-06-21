@@ -54,7 +54,6 @@ type KitDefinition struct {
 
 	// HA-Kit specific
 	Swarm    map[string]interface{} `yaml:"swarm,omitempty" json:"swarm,omitempty"`
-	Variants map[string]VariantDef  `yaml:"variants,omitempty" json:"variants,omitempty"`
 	Services []ServiceSpecDef       `yaml:"services,omitempty" json:"services,omitempty"`
 	Extends  string                 `yaml:"extends,omitempty" json:"extends,omitempty"`
 
@@ -238,13 +237,6 @@ type NodeTypeDef struct {
 type AddonsDef struct {
 	AutoActivated []string `yaml:"autoActivated,omitempty" json:"autoActivated,omitempty"`
 	Optional      []string `yaml:"optional,omitempty" json:"optional,omitempty"`
-}
-
-// VariantDef defines a pre-built service combination (HA-kit).
-type VariantDef struct {
-	Name        string   `yaml:"name,omitempty" json:"name,omitempty"`
-	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Services    []string `yaml:"services,omitempty" json:"services,omitempty"`
 }
 
 // ServiceSpecDef is used by HA-kit to declare deployment overrides per service.

@@ -4,6 +4,7 @@ package cue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/placement"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -30,6 +32,11 @@ type TFVars struct {
 
 	// Legacy variable name consumed by existing platform bootstrap scripts.
 	BootstrapMode string `json:"bootstrap_mode"`
+
+	PlacementMode         string                       `json:"placement_mode,omitempty"`
+	PlacementExposure     string                       `json:"placement_exposure,omitempty"`
+	PlacementCoupling     string                       `json:"placement_coupling,omitempty"`
+	PlacementCapabilities map[string]map[string]string `json:"placement_capabilities,omitempty"`
 
 	// Domain for Traefik routing (e.g. "stack.local")
 	Domain string `json:"domain"`
@@ -118,6 +125,7 @@ type TFVars struct {
 
 	// Runtime system app images
 	StackKitServerImage string `json:"stackkit_server_image,omitempty"`
+	Timezone            string `json:"timezone,omitempty"`
 
 	NetworkMode           string `json:"network_mode"`
 	DNSFixed              bool   `json:"dns_fixed"`
@@ -177,6 +185,9 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 	tfvars.SetupPolicyImmich = resolver.EffectiveApplicationPolicy("photos", "immich")
 	tfvars.SetupPolicyFiles = resolver.EffectiveApplicationPolicy("files", "files", "cloudreve", "nextcloud")
 	tfvars.DemoDataEnabled = spec.DemoData.EffectiveEnabled()
+	if err := applyPlacementFromSpec(spec, tfvars); err != nil {
+		return nil, err
+	}
 
 	domain := models.DomainHomelab
 	if spec.Domain != "" {
@@ -225,6 +236,7 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 
 	b.configurePaaS(spec, tfvars, resolvedCtx)
 	b.configureServiceDefaults(tfvars, tier)
+	b.configureSystemStorage(spec, tfvars)
 	b.applyInstallModeDefaults(spec, tfvars)
 
 	tfvars.AdminEmail = models.ResolveAdminEmailForDomain(spec, tfvars.Domain)
@@ -275,6 +287,18 @@ func (b *TerraformBridge) applyInstallModeDefaults(spec *models.StackSpec, tfvar
 	tfvars.SetupPolicyVaultwarden = models.SetupPolicyManual
 	tfvars.SetupPolicyImmich = models.SetupPolicyManual
 	tfvars.SetupPolicyFiles = models.SetupPolicyManual
+}
+
+func (b *TerraformBridge) configureSystemStorage(spec *models.StackSpec, tfvars *TFVars) {
+	if spec == nil {
+		return
+	}
+	if spec.System != nil && strings.TrimSpace(spec.System.Timezone) != "" {
+		tfvars.Timezone = strings.TrimSpace(spec.System.Timezone)
+	}
+	if strings.TrimSpace(spec.Storage.MediaPath) != "" {
+		tfvars.MediaPath = strings.TrimSpace(spec.Storage.MediaPath)
+	}
 }
 
 // configureHTTPS sets TLS/ACME configuration based on domain mode.
@@ -363,6 +387,10 @@ func (b *TerraformBridge) configurePaaS(spec *models.StackSpec, tfvars *TFVars, 
 		return
 	}
 
+	applyPAASPlatformFlags(tfvars, paas)
+}
+
+func applyPAASPlatformFlags(tfvars *TFVars, paas string) {
 	switch paas {
 	case models.PAASDockge:
 		tfvars.EnableDokploy = false
@@ -629,6 +657,48 @@ func stringFromAny(value any) (string, bool) {
 	return text, text != ""
 }
 
+func applyPlacementFromSpec(spec *models.StackSpec, tfvars *TFVars) error {
+	if !hasPlacementIntent(spec) {
+		return nil
+	}
+	resolved, err := placement.ResolveS1(spec)
+	if err != nil {
+		var notS1 placement.ErrNotS1
+		if errors.As(err, &notS1) {
+			return nil
+		}
+		return fmt.Errorf("resolve placement: %w", err)
+	}
+	applyPlacementResult(tfvars, resolved)
+	return nil
+}
+
+func hasPlacementIntent(spec *models.StackSpec) bool {
+	if spec == nil {
+		return false
+	}
+	return strings.TrimSpace(spec.Placement.Mode) != "" ||
+		strings.TrimSpace(spec.Placement.Exposure) != "" ||
+		strings.TrimSpace(spec.Placement.Coupling) != ""
+}
+
+func applyPlacementResult(tfvars *TFVars, resolved *placement.Result) {
+	if tfvars == nil || resolved == nil {
+		return
+	}
+	tfvars.PlacementMode = resolved.Mode
+	tfvars.PlacementExposure = resolved.Exposure
+	tfvars.PlacementCoupling = resolved.Coupling
+	caps := make(map[string]map[string]string, len(resolved.Capabilities))
+	for name, binding := range resolved.Capabilities {
+		caps[name] = map[string]string{
+			"provider": binding.Provider,
+			"target":   binding.Target,
+		}
+	}
+	tfvars.PlacementCapabilities = caps
+}
+
 // newDefaultTFVars returns TFVars with defaults matching main.tf variable defaults.
 func newDefaultTFVars() *TFVars {
 	return &TFVars{
@@ -692,9 +762,7 @@ func (b *TerraformBridge) GenerateTFVars(outputDir string) error {
 func (b *TerraformBridge) extractTFVars(value cue.Value) (*TFVars, error) {
 	tfvars := newDefaultTFVars()
 
-	if network := value.LookupPath(cue.ParsePath("network")); network.Exists() {
-		b.extractNetwork(network, tfvars)
-	}
+	b.extractFromStack(value, tfvars)
 
 	if stack := value.LookupPath(cue.ParsePath("stack")); stack.Exists() {
 		b.extractFromStack(stack, tfvars)
@@ -723,9 +791,219 @@ func (b *TerraformBridge) extractNetwork(network cue.Value, tfvars *TFVars) {
 
 // extractFromStack extracts configuration from a stack definition.
 func (b *TerraformBridge) extractFromStack(stack cue.Value, tfvars *TFVars) {
+	b.extractInstallMode(stack, tfvars)
+	b.extractCompute(stack, tfvars)
+	b.extractPAAS(stack, tfvars)
+	b.extractBootstrap(stack, tfvars)
+	b.extractDemoData(stack, tfvars)
+	b.extractSystemStorage(stack, tfvars)
 	if network := stack.LookupPath(cue.ParsePath("network")); network.Exists() {
 		b.extractNetwork(network, tfvars)
 	}
+	b.extractPlacement(stack, tfvars)
+	b.extractServices(stack, tfvars)
+	if tfvars.InstallMode == models.InstallModeBare {
+		b.applyInstallModeDefaults(&models.StackSpec{Mode: models.InstallModeBare}, tfvars)
+	}
+}
+
+func (b *TerraformBridge) extractInstallMode(stack cue.Value, tfvars *TFVars) {
+	mode := cueStringAt(stack, "mode")
+	if mode == "" {
+		mode = cueStringAt(stack, "deploymentMode")
+	}
+	if mode == "" {
+		return
+	}
+	mode = models.NormalizeInstallMode(mode)
+	tfvars.InstallMode = mode
+	tfvars.BootstrapMode = mode
+}
+
+func (b *TerraformBridge) extractCompute(stack cue.Value, tfvars *TFVars) {
+	compute := cueFieldAt(stack, "compute")
+	if !compute.Exists() {
+		return
+	}
+	if tier := cueStringAt(compute, "tier"); tier != "" {
+		tfvars.ComputeTier = tier
+	}
+}
+
+func (b *TerraformBridge) extractPAAS(stack cue.Value, tfvars *TFVars) {
+	paas := cueStringAt(stack, "paas")
+	if paas == "" {
+		return
+	}
+	tfvars.Paas = paas
+	tfvars.ReverseProxyBackend = models.ResolveReverseProxyForPAAS(paas)
+	tfvars.EnableTraefik = tfvars.ReverseProxyBackend == models.ReverseProxyStandalone ||
+		tfvars.ReverseProxyBackend == models.ReverseProxyStackKit
+	applyPAASPlatformFlags(tfvars, paas)
+}
+
+func (b *TerraformBridge) extractBootstrap(stack cue.Value, tfvars *TFVars) {
+	bootstrap := cueFieldAt(stack, "bootstrap")
+	if !bootstrap.Exists() {
+		return
+	}
+	if policy := normalizeKnownSetupPolicy(cueStringAt(bootstrap, "platformPolicy")); policy != "" {
+		tfvars.SetupPolicyPlatform = policy
+	}
+	if policy := normalizeKnownSetupPolicy(cueStringAt(bootstrap, "applicationDefaultPolicy")); policy != "" {
+		tfvars.SetupPolicyApplicationDefault = policy
+	}
+}
+
+func normalizeKnownSetupPolicy(policy string) string {
+	policy = models.NormalizeSetupPolicy(policy)
+	if !models.IsKnownSetupPolicy(policy) || policy == "" {
+		return ""
+	}
+	return policy
+}
+
+func (b *TerraformBridge) extractDemoData(stack cue.Value, tfvars *TFVars) {
+	demoData := cueFieldAt(stack, "demoData")
+	if !demoData.Exists() {
+		return
+	}
+	if enabled, ok := cueBoolAt(demoData, "enabled"); ok {
+		tfvars.DemoDataEnabled = enabled
+	}
+}
+
+func (b *TerraformBridge) extractSystemStorage(stack cue.Value, tfvars *TFVars) {
+	system := cueFieldAt(stack, "system")
+	if system.Exists() {
+		if timezone := cueStringAt(system, "timezone"); timezone != "" {
+			tfvars.Timezone = timezone
+		}
+	}
+	storage := cueFieldAt(stack, "storage")
+	if storage.Exists() {
+		if mediaPath := cueStringAt(storage, "mediaPath"); mediaPath != "" {
+			tfvars.MediaPath = mediaPath
+		}
+	}
+}
+
+func (b *TerraformBridge) extractPlacement(stack cue.Value, tfvars *TFVars) {
+	placementValue := cueFieldAt(stack, "placementMode")
+	if !placementValue.Exists() {
+		return
+	}
+
+	spec := &models.StackSpec{}
+	if mode, err := placementValue.String(); err == nil && strings.TrimSpace(mode) != "" {
+		spec.Placement.Mode = mode
+	} else if mode := cueStringAt(placementValue, "mode"); mode != "" {
+		spec.Placement.Mode = mode
+	}
+	if exposure := cueStringAt(placementValue, "exposure"); exposure != "" {
+		spec.Placement.Exposure = exposure
+	}
+	if coupling := cueStringAt(placementValue, "coupling"); coupling != "" {
+		spec.Placement.Coupling = coupling
+	}
+	_ = applyPlacementFromSpec(spec, tfvars)
+}
+
+func (b *TerraformBridge) extractServices(stack cue.Value, tfvars *TFVars) {
+	services := cueFieldAt(stack, "services")
+	if !services.Exists() {
+		return
+	}
+	enables := map[string]*bool{
+		"traefik":           &tfvars.EnableTraefik,
+		"tinyauth":          &tfvars.EnableTinyauth,
+		"pocketid":          &tfvars.EnablePocketID,
+		"id":                &tfvars.EnablePocketID,
+		"dokploy":           &tfvars.EnableDokploy,
+		"dockge":            &tfvars.EnableDockge,
+		"coolify":           &tfvars.EnableCoolify,
+		"komodo":            &tfvars.EnableKomodo,
+		"dashboard":         &tfvars.EnableDashboard,
+		"base":              &tfvars.EnableDashboard,
+		"homepage":          &tfvars.EnableHomepage,
+		"home":              &tfvars.EnableHomepage,
+		"homelab-dashboard": &tfvars.EnableHomepage,
+		"uptime_kuma":       &tfvars.EnableUptimeKuma,
+		"uptime-kuma":       &tfvars.EnableUptimeKuma,
+		"whoami":            &tfvars.EnableWhoami,
+		"vaultwarden":       &tfvars.EnableVaultwarden,
+		"jellyfin":          &tfvars.EnableJellyfin,
+		"immich":            &tfvars.EnableImmich,
+		"files":             &tfvars.EnableFiles,
+		"cloudreve":         &tfvars.EnableCloudreve,
+		"nextcloud":         &tfvars.EnableNextcloud,
+	}
+	for name, ptr := range enables {
+		service := cueFieldAt(services, name)
+		if !service.Exists() {
+			continue
+		}
+		enabled, ok := cueBoolAt(service, "enabled")
+		if !ok {
+			continue
+		}
+		if (name == "pocketid" || name == "id") && !enabled {
+			continue
+		}
+		*ptr = enabled
+	}
+	b.extractFilesProvider(services, tfvars)
+}
+
+func (b *TerraformBridge) extractFilesProvider(services cue.Value, tfvars *TFVars) {
+	provider := ""
+	files := cueFieldAt(services, "files")
+	if files.Exists() {
+		for _, field := range []string{"provider", "tool", "defaultTool"} {
+			if value := cueStringAt(files, field); value != "" {
+				provider = value
+				break
+			}
+		}
+	}
+	for _, candidate := range []string{"cloudreve", "nextcloud"} {
+		service := cueFieldAt(services, candidate)
+		if !service.Exists() {
+			continue
+		}
+		if enabled, ok := cueBoolAt(service, "enabled"); ok && enabled {
+			provider = candidate
+		}
+	}
+	if provider == "" {
+		return
+	}
+	_ = setFilesProvider(tfvars, provider)
+}
+
+func cueFieldAt(value cue.Value, name string) cue.Value {
+	return value.LookupPath(cue.MakePath(cue.Str(name)))
+}
+
+func cueStringAt(value cue.Value, path string) string {
+	field := value.LookupPath(cue.ParsePath(path))
+	if !field.Exists() {
+		return ""
+	}
+	text, err := field.String()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+func cueBoolAt(value cue.Value, path string) (bool, bool) {
+	field := value.LookupPath(cue.ParsePath(path))
+	if !field.Exists() {
+		return false, false
+	}
+	enabled, err := field.Bool()
+	return enabled, err == nil
 }
 
 // writeTFVars writes terraform.tfvars.json to the output directory

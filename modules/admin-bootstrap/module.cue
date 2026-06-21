@@ -20,7 +20,8 @@ Contract: base.#ModuleContract & {
 		version:     "0.1.0"
 		layer:       "L1-foundation"
 		description: "Bootstraps the initial admin user in LLDAP + PocketID. Initial password printed to CLI stdout, must be rotated on first login."
-		testScenarios: ["SK-S3", "SK-S4", "SK-S5"]
+		// Draft: provisioners are echo placeholders ("Phase 2 implementation pending").
+		maturity: "draft"
 	}
 
 	requires: {

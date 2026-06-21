@@ -4,12 +4,12 @@
 
 ## Current Release Default
 
-As of 2026-05-17 the release default is the slice exercised by the fresh Ubuntu VM gate inside Docker Desktop:
+As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu VM gate inside Docker Desktop:
 
 | Area | Service | Status |
 |------|---------|--------|
 | Docker API isolation | Docker socket via target daemon | generated |
-| Reverse proxy | `traefik` | enabled default |
+| Reverse proxy | Coolify Traefik/proxy | the selected PaaS router owns the traffic path (default `paas: coolify`); a StackKit-owned Traefik runs only for explicit `paas: komodo` |
 | Local access | browser-native `.localhost` names | enabled default for `*.home.localhost` |
 | PaaS | `coolify` | enabled default for local/kombify.me/custom-domain routing; `komodo` is the beta-supported alternative; `dokploy` remains draft |
 | Passkey identity | `pocketid` | mandatory default |
@@ -85,7 +85,7 @@ For named LAN zones, initialize with `stackkit init base-kit --local-dns --local
 
 TinyAuth receives a generated local break-glass password from the composition engine and is also preconfigured for PocketID OIDC. There is no static `admin/admin123` credential. During local generation the generated values are written to `terraform.tfvars.json`; treat that file as sensitive build output and do not commit it.
 
-Coolify receives a generated policy-compliant root password through its official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables. The root email is the same technical admin email rendered into the StackSpec; local-only rollouts synthesize the reserved `admin@example.com` address when no admin email is supplied. After Coolify is installed, the generated bootstrap disables public registration, clears Coolify onboarding, enables Coolify's API, creates a root-scoped StackKit platform token inside Coolify, resolves the StackKit project/environment/server/destination placement IDs, starts/reconciles the Coolify proxy, and writes `.stackkit/platform.json` for the app-deployment phase. That file includes `bootstrapEvidence` for API access, team management, proxy routing, secrets, backup preparedness, health checks, and service handoff. The user must never be expected to discover or create a Coolify root account or API token manually after opening the generated links.
+Coolify receives a generated policy-compliant root password through its official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables. The root email is the same technical admin email rendered into the StackSpec; local-only rollouts synthesize the reserved `admin@example.com` address when no admin email is supplied. After Coolify is installed, the generated bootstrap disables public registration, clears Coolify onboarding, enables Coolify's API, creates a root-scoped StackKit platform token inside Coolify, resolves the StackKit project/environment/server/destination placement IDs, starts/reconciles the Coolify proxy, and writes `.stackkit/platform.json` for the app-deployment phase. That file includes `bootstrapEvidence` for API access, team management, proxy routing, secrets, backup volume labels plus restore-drill handoff, health checks, and service handoff. The user must never be expected to discover or create a Coolify root account or API token manually after opening the generated links.
 
 Komodo is the beta-supported alternative through explicit `paas: komodo`; Coolify remains the default. The generated rollout installs Komodo Core, Periphery, and MongoDB, creates the initial local admin from generated technical bootstrap credentials, disables further registration, creates a Komodo API key through the HTTP API, and writes `.stackkit/platform.json` with `apiKey`/`apiSecret` plus the same bootstrap-evidence shape. Initial Komodo routing is StackKit-owned Traefik, not a Komodo-owned router; the Core API host port is loopback-bound in bridge mode for node-local bootstrap.
 
@@ -101,7 +101,7 @@ These are deliberate scope boundaries, not hidden defaults:
 - Vaultwarden is enabled by default, receives a generated admin token, verifies that token through the admin endpoint, uses PHC+B64 runtime storage, and records a controlled break-glass posture in `SetupRun` evidence. Native app-local Owner account provisioning remains a beta limitation; the default access boundary is TinyAuth/PocketID in front of the app, and the admin token is not the PocketID Owner login.
 - Jellyfin/media and Dockge are opt-in/manual until their first-run UX matches the default path.
 - The Coolify-managed L3 application layer now has a strict generated bootstrap contract. Direct Docker Compose starts for StackKit-owned/default L3 apps are invalid managed release evidence; product-bundled L3 apps must be manageable selected-PaaS apps with platform external IDs in state. User-installed apps outside StackKit manifests are state-unmanaged.
-- The documented V6 target still requires `security-baseline`, `admin-bootstrap`, and `login-gateway` to become mandatory defaults.
+- `security-baseline`, `admin-bootstrap`, and `login-gateway` are planned to become mandatory defaults; the roadmap for that lives in the accepted ADRs (the former "V6 target" document was folded into them).
 
 ## Architecture
 
@@ -109,17 +109,23 @@ These are deliberate scope boundaries, not hidden defaults:
 LAN / browser
       |
       v
-Traefik :80
+Coolify Traefik/proxy :80        (PaaS router = StackKit router; Golden Rules §3/§5.6)
       |
-      +--> PocketID      id.home.localhost
-      +--> TinyAuth      auth.home.localhost
-      +--> Node Hub      base.home.localhost
-      +--> Homepage      home.home.localhost
-      +--> Whoami        whoami.home.localhost
-      +--> Vaultwarden   vault.home.localhost
-      +--> Immich        photos.home.localhost
+      +--> Coolify        coolify.home.localhost   (platform management)
+      +--> PocketID       id.home.localhost
+      +--> TinyAuth       auth.home.localhost
+      +--> Node Hub       base.home.localhost
+      +--> Homepage       home.home.localhost
+      +--> Whoami         whoami.home.localhost
+      +--> Uptime Kuma    kuma.home.localhost
+      +--> Vaultwarden    vault.home.localhost
+      +--> Immich         photos.home.localhost
+      +--> Files          files.home.localhost     (Cloudreve default)
       |
-      +--> socket-proxy  internal Docker API, never public
+      +--> socket-proxy   internal Docker API, never public
+
+With explicit `paas: komodo`, exactly one StackKit-owned Traefik replaces the
+Coolify proxy as the router (accepted adapter exception).
 ```
 
 Security defaults currently covered by generated resources:

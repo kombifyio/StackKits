@@ -198,6 +198,29 @@ func (a *KomodoAdapter) Status(ctx context.Context, ref DeploymentRef) error {
 	return nil
 }
 
+func (a *KomodoAdapter) ObserveDeployment(ctx context.Context, ref DeploymentRef) (DeploymentRef, error) {
+	if err := a.validateConfig(); err != nil {
+		return ref, err
+	}
+	if ref.ExternalID == "" {
+		return ref, fmt.Errorf("komodo stack observe requires external id")
+	}
+	var stack map[string]any
+	if _, _, err := a.client.postJSON(ctx, "/read/GetStack", map[string]any{"stack": ref.ExternalID}, &stack); err != nil {
+		return ref, fmt.Errorf("komodo stack observe %q: %w", ref.AppName, err)
+	}
+	status := komodoStackObservedStatus(stack)
+	if status == "" {
+		return ref, fmt.Errorf("komodo stack %q (externalId=%s) observedStatus is missing", ref.AppName, ref.ExternalID)
+	}
+	if !komodoStackObservedStatusRunning(status) {
+		return ref, fmt.Errorf("komodo stack %q (externalId=%s) observedStatus=%q, want running", ref.AppName, ref.ExternalID, status)
+	}
+	ref.ObservedStatus = status
+	ref.ObservedAt = time.Now().UTC()
+	return ref, nil
+}
+
 func (a *KomodoAdapter) validateConfig() error {
 	if strings.TrimSpace(a.cfg.BaseURL) == "" {
 		return fmt.Errorf("komodo adapter requires base URL")
@@ -298,6 +321,34 @@ func isKomodoOperationComplete(values map[string]any) bool {
 	default:
 		return false
 	}
+}
+
+func komodoStackObservedStatus(values map[string]any) string {
+	if values == nil {
+		return ""
+	}
+	if status := firstString(values, "status", "state", "deployment_status", "deploymentState"); status != "" {
+		return strings.TrimSpace(status)
+	}
+	for _, key := range []string{"info", "status_info", "deployment", "resource"} {
+		nested, ok := values[key].(map[string]any)
+		if !ok {
+			continue
+		}
+		if status := firstString(nested, "status", "state", "deployment_status", "deploymentState"); status != "" {
+			return strings.TrimSpace(status)
+		}
+	}
+	return ""
+}
+
+func komodoStackObservedStatusRunning(status string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	return strings.HasPrefix(normalized, "running") ||
+		normalized == "active" ||
+		normalized == "healthy" ||
+		normalized == "deployed" ||
+		normalized == "ok"
 }
 
 func boolValue(value any) (bool, bool) {

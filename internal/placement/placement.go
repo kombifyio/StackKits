@@ -7,7 +7,8 @@
 // StackKits-OSS realizes only S1 — local-only and standard+cloudless. The
 // managed-serverless mode and any coupled placement are S2/S3 (TechStack /
 // Control-Plane) and are rejected here with ErrNotS1; their per-deployment
-// bindings live in the kombify-admin catalog, never in this repo.
+// bindings live in the kombify-DB sk_* catalog (Control Plane), never in
+// this repo.
 package placement
 
 import (

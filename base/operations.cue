@@ -15,7 +15,7 @@ package base
 }
 
 #ApprovalPolicy: {
-	mode: #ApprovalMode
+	mode:    #ApprovalMode
 	reason?: string
 }
 
@@ -28,13 +28,13 @@ package base
 // operations. TechStack may orchestrate these operations, but StackKits owns
 // the declaration and the resource ownership boundary.
 #OperationSpec: {
-	name:     =~"^[a-z][a-z0-9-]+$"
-	phase:    #OperationPhase
-	executor: #OperationExecutor
-	stateful: bool
-	owner:    #ResourceOwner
+	name:      =~"^[a-z][a-z0-9-]+$"
+	phase:     #OperationPhase
+	executor:  #OperationExecutor
+	stateful:  bool
+	owner:     #ResourceOwner
 	provider?: string
-	inputs?: [string]: #OperationValue
+	inputs?: [string]:  #OperationValue
 	outputs?: [string]: #OperationValue
 	secret_refs?: [...=~"^secret://"]
 	approval_policy: #ApprovalPolicy

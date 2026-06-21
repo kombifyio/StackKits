@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	cueval "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/placement"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/bcrypt"
@@ -42,6 +43,7 @@ func GenerateTFVarsJSON(spec *models.StackSpec, cr *CompositionResult) ([]byte, 
 		return nil, err
 	}
 	overlayEnableFlags(tfvars, cr.EnabledModules)
+	overlayPlacement(tfvars, cr.Placement)
 	enforcePlatformFallback(tfvars)
 	enforceInstallMode(tfvars, spec)
 
@@ -198,6 +200,28 @@ func overlayEnableFlags(tfvars map[string]any, enabledModules []string) {
 			tfvars[tfvarKey] = true
 		}
 	}
+}
+
+// overlayPlacement projects the resolved S1 placement block into tfvars so the
+// generated plan is a pure function of the placement resolution (capability
+// bindings like sqlite vs postgres) instead of implicit template defaults.
+// S2/S3 placements arrive as nil (the engine already warned) and leave the
+// template defaults untouched.
+func overlayPlacement(tfvars map[string]any, p *placement.Result) {
+	if p == nil {
+		return
+	}
+	tfvars["placement_mode"] = p.Mode
+	tfvars["placement_exposure"] = p.Exposure
+	tfvars["placement_coupling"] = p.Coupling
+	caps := make(map[string]map[string]string, len(p.Capabilities))
+	for name, binding := range p.Capabilities {
+		caps[name] = map[string]string{
+			"provider": binding.Provider,
+			"target":   binding.Target,
+		}
+	}
+	tfvars["placement_capabilities"] = caps
 }
 
 func enforcePlatformFallback(tfvars map[string]any) {

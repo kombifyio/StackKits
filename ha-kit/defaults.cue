@@ -71,11 +71,12 @@ package ha_kit
 }
 
 // =============================================================================
-// SERVICE DEFAULTS PER VARIANT
+// NAMED SERVICE-SET PROFILES (module composition presets; the legacy variant
+// enum was removed, StackKits-x2u — select services explicitly or via these)
 // =============================================================================
 
-// #DefaultVariantServices - Full monitoring + Dokploy
-#DefaultVariantServices: #HAServiceSet & {
+// #FullMonitoringProfile - Full monitoring + Dokploy
+#FullMonitoringProfile: #HAServiceSet & {
 	traefik:    {enabled: true, mode: "global"}
 	keepalived: {enabled: true}
 	dokploy:    {enabled: true}
@@ -88,8 +89,8 @@ package ha_kit
 	restic:     {enabled: true}
 }
 
-// #MinimalVariantServices - Basic HA + Dokploy
-#MinimalVariantServices: #HAServiceSet & {
+// #LightweightProfile - Basic HA + Dokploy
+#LightweightProfile: #HAServiceSet & {
 	traefik:    {enabled: true, mode: "global"}
 	keepalived: {enabled: true}
 	dokploy:    {enabled: true}
@@ -98,8 +99,8 @@ package ha_kit
 	dozzle:     {enabled: true, mode: "global"}
 }
 
-// #EnterpriseVariantServices - Full enterprise stack
-#EnterpriseVariantServices: #HAServiceSet & {
+// #EnterpriseStorageProfile - Full stack incl. Thanos + Ceph (needs >=5 nodes)
+#EnterpriseStorageProfile: #HAServiceSet & {
 	traefik:      {enabled: true, mode: "global"}
 	keepalived:   {enabled: true}
 	dokploy:      {enabled: true}

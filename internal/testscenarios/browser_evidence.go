@@ -35,6 +35,17 @@ var RequiredBaseKitBetaBrowserChecks = []string{
 	"vault-auth-boundary",
 }
 
+var requiredBaseKitBetaBrowserCheckRoutes = map[string]struct {
+	host  string
+	paths []string
+}{
+	"pocketid-owner-passkey": {host: "id.home.localhost", paths: []string{"/setup", "/settings/account"}},
+	"tinyauth-owner-session": {host: "auth.home.localhost", paths: []string{"/", "/logout"}},
+	"photos-demo-content":    {host: "photos.home.localhost", paths: []string{"/photos"}},
+	"files-demo-content":     {host: "files.home.localhost", paths: []string{"/stackkit/files/session", "/home"}},
+	"vault-auth-boundary":    {host: "vault.home.localhost"},
+}
+
 var RequiredBaseKitBetaSetupDrops = []string{
 	"kuma-platform-bootstrap",
 	"cloudreve-owner-bootstrap",
@@ -201,7 +212,7 @@ func ValidateBaseKitBetaBrowserEvidence(e BrowserEvidence) error {
 	if strings.TrimSpace(e.BrowserChannel) == "" {
 		return fmt.Errorf("browser evidence must include browserChannel")
 	}
-	if err := requireBrowserURL("browserUrl", e.BrowserURL); err != nil {
+	if err := requireBaseKitLocalBrowserURL("browserUrl", e.BrowserURL); err != nil {
 		return err
 	}
 
@@ -225,12 +236,12 @@ func ValidateBaseKitBetaBrowserEvidence(e BrowserEvidence) error {
 		}
 	}
 
-	screenshotsByPath := map[string]bool{}
+	screenshotsByPath := map[string]BrowserScreenshot{}
 	for _, screenshot := range e.Screenshots {
 		if err := validateBrowserScreenshot(screenshot); err != nil {
 			return err
 		}
-		screenshotsByPath[strings.TrimSpace(screenshot.Path)] = true
+		screenshotsByPath[strings.TrimSpace(screenshot.Path)] = screenshot
 		if screenshot.URL != "" {
 			if err := requireBrowserURL("screenshot "+screenshot.Name+" url", screenshot.URL); err != nil {
 				return err
@@ -238,11 +249,18 @@ func ValidateBaseKitBetaBrowserEvidence(e BrowserEvidence) error {
 		}
 	}
 	for _, check := range checksByName {
-		if check.Screenshot == "" {
+		screenshotPath := strings.TrimSpace(check.Screenshot)
+		if screenshotPath == "" {
 			return fmt.Errorf("browser evidence check %q must reference a screenshot", check.Name)
 		}
-		if !screenshotsByPath[check.Screenshot] {
-			return fmt.Errorf("browser evidence check %q references missing screenshot %q", check.Name, check.Screenshot)
+		screenshot, ok := screenshotsByPath[screenshotPath]
+		if !ok {
+			return fmt.Errorf("browser evidence check %q references missing screenshot %q", check.Name, screenshotPath)
+		}
+		if strings.TrimSpace(screenshot.URL) != "" {
+			if err := requireBaseKitLocalCheckURL(check.Name, screenshot.URL); err != nil {
+				return fmt.Errorf("browser evidence screenshot %q for check %q: %w", screenshot.Name, check.Name, err)
+			}
 		}
 	}
 	if err := validateBrowserDiagnostics(e.Diagnostics, e.BrowserChannel); err != nil {
@@ -274,7 +292,7 @@ func ValidateBaseKitBetaBrowserEvidenceFailure(e BrowserEvidence) error {
 	if strings.TrimSpace(e.BrowserChannel) == "" {
 		return fmt.Errorf("browser evidence failure must include browserChannel")
 	}
-	if err := requireBrowserURL("browser failure browserUrl", e.BrowserURL); err != nil {
+	if err := requireBaseKitLocalBrowserURL("browser failure browserUrl", e.BrowserURL); err != nil {
 		return err
 	}
 	if strings.TrimSpace(e.Error) == "" && !hasFailedBrowserCheck(e.Checks) {
@@ -350,6 +368,9 @@ func validateBrowserCheck(check BrowserEvidenceCheck, ownerEmail string) error {
 	if err := requireBrowserURL("check "+check.Name+" url", check.URL); err != nil {
 		return err
 	}
+	if err := requireBaseKitLocalCheckURL(check.Name, check.URL); err != nil {
+		return err
+	}
 	if check.DurationSeconds <= 0 {
 		return fmt.Errorf("browser evidence check %q must record durationSeconds", check.Name)
 	}
@@ -419,6 +440,31 @@ func validateBrowserCheckContentEvidence(check BrowserEvidenceCheck, ownerEmail 
 			return err
 		}
 	case "photos-demo-content":
+		demoMode, err := browserEvidenceDemoDataMode(check)
+		if err != nil {
+			return err
+		}
+		if demoMode == "disabled" {
+			if check.Evidence["demoContent"] != "immich-owner-session" {
+				return fmt.Errorf("browser evidence check %q with demoData=disabled must prove the Immich Owner session", check.Name)
+			}
+			if check.Evidence["verification"] != "immich-users-me" {
+				return fmt.Errorf("browser evidence check %q with demoData=disabled must prove the Owner through /api/users/me", check.Name)
+			}
+			if check.Evidence["ownerVerification"] != "immich-users-me" {
+				return fmt.Errorf("browser evidence check %q must prove the Immich browser session Owner through /api/users/me", check.Name)
+			}
+			sessionOwnerEmail := strings.TrimSpace(check.Evidence["immichOwnerEmail"])
+			if sessionOwnerEmail == "" || !strings.EqualFold(sessionOwnerEmail, strings.TrimSpace(ownerEmail)) {
+				return fmt.Errorf("browser evidence check %q immichOwnerEmail = %q, want Owner %q", check.Name, sessionOwnerEmail, ownerEmail)
+			}
+			for _, field := range []string{"immichDemoAssets", "demoAssetDeviceId", "demoAssetDeviceAssetId", "demoAssetFile"} {
+				if strings.TrimSpace(check.Evidence[field]) != "" {
+					return fmt.Errorf("browser evidence check %q with demoData=disabled must not carry demo-asset evidence %q", check.Name, field)
+				}
+			}
+			return nil
+		}
 		if check.Evidence["demoContent"] != "immich-demo-assets" {
 			return fmt.Errorf("browser evidence check %q must prove Immich seeded demo assets", check.Name)
 		}
@@ -445,6 +491,33 @@ func validateBrowserCheckContentEvidence(check BrowserEvidenceCheck, ownerEmail 
 			return fmt.Errorf("browser evidence check %q immichDemoAssets = %d, want >= 1", check.Name, count)
 		}
 	case "files-demo-content":
+		demoMode, err := browserEvidenceDemoDataMode(check)
+		if err != nil {
+			return err
+		}
+		if demoMode == "disabled" {
+			if check.Evidence["demoContent"] != "cloudreve-owner-session" {
+				return fmt.Errorf("browser evidence check %q with demoData=disabled must prove the bridge-created Cloudreve Owner session", check.Name)
+			}
+			if check.Evidence["verification"] != "cloudreve-browser-session-api" {
+				return fmt.Errorf("browser evidence check %q must prove Cloudreve content through the browser session API", check.Name)
+			}
+			if check.Evidence["identityBridge"] != "stackkit-cloudreve-local-session" ||
+				check.Evidence["bridgeVerification"] != "stackkit-cloudreve-session-bridge" {
+				return fmt.Errorf("browser evidence check %q must prove the StackKit Files session bridge created the Cloudreve session", check.Name)
+			}
+			bridgeUser := strings.TrimSpace(check.Evidence["bridgeCurrentUser"])
+			sessionUser := strings.TrimSpace(check.Evidence["cloudreveSessionUser"])
+			if bridgeUser == "" || sessionUser == "" || bridgeUser != sessionUser {
+				return fmt.Errorf("browser evidence check %q bridgeCurrentUser = %q and cloudreveSessionUser = %q must match", check.Name, bridgeUser, sessionUser)
+			}
+			for _, field := range []string{"seededFolder", "seededFile"} {
+				if strings.TrimSpace(check.Evidence[field]) != "" {
+					return fmt.Errorf("browser evidence check %q with demoData=disabled must not carry seeded-content evidence %q", check.Name, field)
+				}
+			}
+			return nil
+		}
 		if check.Evidence["demoContent"] != "cloudreve-demo-file" ||
 			check.Evidence["seededFolder"] != "StackKit Demo" ||
 			check.Evidence["seededFile"] != "README.txt" {
@@ -486,6 +559,21 @@ func validateBrowserCheckContentEvidence(check BrowserEvidenceCheck, ownerEmail 
 		}
 	}
 	return nil
+}
+
+// browserEvidenceDemoDataMode resolves the recorded demo-data evidence mode.
+// A missing value keeps the original strict seeded-content contract so older
+// manifests cannot silently downgrade to the owner-session-only proof.
+func browserEvidenceDemoDataMode(check BrowserEvidenceCheck) (string, error) {
+	mode := strings.TrimSpace(check.Evidence["demoData"])
+	switch mode {
+	case "", "enabled":
+		return "enabled", nil
+	case "disabled":
+		return "disabled", nil
+	default:
+		return "", fmt.Errorf("browser evidence check %q demoData = %q, want enabled or disabled", check.Name, mode)
+	}
 }
 
 func validateBrowserDiagnostics(diagnostics BrowserDiagnostics, browserChannel string) error {
@@ -857,6 +945,13 @@ func validateBrowserSetupStateEvidence(label, dropName string, evidence map[stri
 			return fmt.Errorf("%s evidence[oidcIssuer] = %q, want URL evidence", label, evidence["oidcIssuer"])
 		}
 	}
+	if dropName == "vaultwarden-admin-handoff" {
+		for _, key := range []string{"appLocalOwner", "ownerProvisioning", "appLocalSessionHandoff", "readyToUseContentStatus"} {
+			if strings.TrimSpace(evidence[key]) != "" {
+				return fmt.Errorf("%s evidence[%s] must be absent for v0.4 Vaultwarden break-glass-only handoff", label, key)
+			}
+		}
+	}
 	return nil
 }
 
@@ -1163,6 +1258,50 @@ func requireBrowserURL(field, raw string) error {
 		return fmt.Errorf("%s scheme = %q, want http or https", field, parsed.Scheme)
 	}
 	return nil
+}
+
+func requireBaseKitLocalBrowserURL(field, raw string) error {
+	if err := requireBrowserURL(field, raw); err != nil {
+		return err
+	}
+	parsed, _ := url.Parse(strings.TrimSpace(raw))
+	if parsed.Scheme != "http" {
+		return fmt.Errorf("%s scheme = %q, want http for SK-S1 local Base Hub", field, parsed.Scheme)
+	}
+	if parsed.Hostname() != "base.home.localhost" {
+		return fmt.Errorf("%s host = %q, want base.home.localhost", field, parsed.Hostname())
+	}
+	if parsed.EscapedPath() != "" && parsed.EscapedPath() != "/" {
+		return fmt.Errorf("%s path = %q, want /", field, parsed.EscapedPath())
+	}
+	return nil
+}
+
+func requireBaseKitLocalCheckURL(checkName, raw string) error {
+	route, ok := requiredBaseKitBetaBrowserCheckRoutes[strings.TrimSpace(checkName)]
+	if !ok {
+		return nil
+	}
+	parsed, _ := url.Parse(strings.TrimSpace(raw))
+	if parsed.Scheme != "http" {
+		return fmt.Errorf("browser evidence check %q url scheme = %q, want http", checkName, parsed.Scheme)
+	}
+	if parsed.Hostname() != route.host {
+		return fmt.Errorf("browser evidence check %q url host = %q, want %s", checkName, parsed.Hostname(), route.host)
+	}
+	path := parsed.EscapedPath()
+	if len(route.paths) == 0 {
+		if path != "" && path != "/" {
+			return fmt.Errorf("browser evidence check %q url path = %q, want /", checkName, path)
+		}
+		return nil
+	}
+	for _, allowedPath := range route.paths {
+		if path == allowedPath || (allowedPath == "/" && path == "") {
+			return nil
+		}
+	}
+	return fmt.Errorf("browser evidence check %q url path = %q, want %s", checkName, path, strings.Join(route.paths, " or "))
 }
 
 func requireRFC3339(field, raw string) error {

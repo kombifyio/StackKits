@@ -17,6 +17,7 @@ Contract: base.#ModuleContract & {
 		version:     "4.1.0"
 		layer:       "L2-platform-identity"
 		description: "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth support"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S5"]
 	}
 
@@ -99,10 +100,11 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: tinyauth: base.#ServiceDefinition & {
-		name:     "tinyauth"
-		type:     "auth"
+		name: "tinyauth"
+		type: "auth"
+		// Pin matches base-kit/services.cue and the release pre-pull list.
 		image:    "ghcr.io/steveiliop56/tinyauth"
-		tag:      "v4"
+		tag:      "v5.0.7"
 		required: true
 		status:   "implemented"
 		needs: ["traefik", "socket-proxy"]
@@ -119,6 +121,13 @@ Contract: base.#ModuleContract & {
 				port:    3000
 			}
 			networks: ["frontend", "socket-proxy-net"]
+		}
+
+		// TinyAuth IS the login gateway — it must stay anonymously reachable
+		// for login flows and keeps its own auth surface.
+		accessPolicy: {
+			outerAuth: "self"
+			appAuth:   "self-auth"
 		}
 
 		// No docker.sock — uses DOCKER_HOST=tcp://socket-proxy:2375 for label-based access control
@@ -168,7 +177,9 @@ Contract: base.#ModuleContract & {
 			noNewPrivileges: true
 			capDrop: ["ALL"]
 			readOnly: true
-			tmpfs: ["/tmp", "/data"]
+			// /data is the persistent tinyauth-data volume (SQLite user store,
+			// backup: true) and must NOT be tmpfs-overlaid.
+			tmpfs: ["/tmp"]
 		}
 
 		labels: {

@@ -67,7 +67,3 @@ func EnvBoolValue(value string) bool {
 		return false
 	}
 }
-
-func envBoolValue(value string) bool {
-	return EnvBoolValue(value)
-}

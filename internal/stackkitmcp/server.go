@@ -348,10 +348,6 @@ func IsLoopbackListenAddr(addr string) bool {
 	return strings.EqualFold(host, "localhost")
 }
 
-func isLoopbackListenAddr(addr string) bool {
-	return IsLoopbackListenAddr(addr)
-}
-
 // RequireMCPToken requires a bearer or X-StackKit-MCP-Token value.
 func RequireMCPToken(token string, next http.Handler) http.Handler {
 	token = strings.TrimSpace(token)
@@ -366,10 +362,6 @@ func RequireMCPToken(token string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-func requireMCPToken(token string, next http.Handler) http.Handler {
-	return RequireMCPToken(token, next)
 }
 
 func mcpTokenMatches(expected, presented string) bool {

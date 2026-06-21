@@ -21,7 +21,8 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-ingress"
 		description: "Behavioral IDS + WAF with crowd-sourced threat intel and Traefik bouncer"
-		testScenarios: ["SK-S2", "SK-S3"]
+		// Draft: the crowdsec service is status "planned".
+		maturity: "draft"
 	}
 
 	requires: {

@@ -90,8 +90,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	access, accessErr := buildAccessSummary(wd, spec)
 	if accessErr != nil {
 		printWarning("Could not build access summary: %v", accessErr)
-	} else if err := writeAccessSummary(wd, access); err != nil {
-		printWarning("Could not write access summary: %v", err)
+	} else {
+		attachObservedSetupActions(access, state)
+		if err := writeAccessSummary(wd, access); err != nil {
+			printWarning("Could not write access summary: %v", err)
+		}
 	}
 	urls := urlAliases(access)
 	for _, c := range containers {
@@ -175,6 +178,7 @@ func buildStatusJSONOutput(spec *models.StackSpec, state *models.DeploymentState
 		output["platformApps"] = state.PlatformApps
 	}
 	if access != nil {
+		attachObservedSetupActions(access, state)
 		output["hubUrl"] = access.HubURL
 		output["access"] = access
 	}

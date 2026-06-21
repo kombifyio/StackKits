@@ -47,6 +47,24 @@ MODERN_HOMELAB_DIR = REPO_ROOT / "modern-homelab"
 SCHEMAS_DIR = REPO_ROOT / "schemas"
 
 
+def run_cue_eval_json(expr: str, pkg_dir: Path) -> Any | None:
+    """Evaluate a CUE expression against a package dir as JSON. None on error."""
+    rel = "./" + pkg_dir.relative_to(REPO_ROOT).as_posix()
+    try:
+        result = subprocess.run(
+            ["cue", "eval", rel, "-e", expr, "--out", "json"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return None
+        return json.loads(result.stdout)
+    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
 def run_cue_eval(expr: str, path: Path) -> str | None:
     """Evaluate a CUE expression against a file. Returns stdout or None on error."""
     try:
@@ -210,6 +228,26 @@ def extract_stackkits() -> list[dict[str, Any]]:
                 "source_path": str(stackfile.relative_to(REPO_ROOT)).replace("\\", "/"),
             }
         )
+    return out
+
+
+def extract_mode_matrix() -> dict[str, Any]:
+    """Per-kit mode-support matrix (base/mode_matrix.cue #KitModeSupport).
+
+    Fail-closed: every kit (top-level dir with a stackfile.cue) MUST declare a
+    modeMatrix — a kit without one aborts the build rather than silently
+    disappearing from the downstream contract."""
+    out: dict[str, Any] = {}
+    for stackfile in sorted(REPO_ROOT.glob("*/stackfile.cue")):
+        kit_dir = stackfile.parent
+        slug = kit_dir.name
+        matrix = run_cue_eval_json("modeMatrix", kit_dir)
+        if matrix is None:
+            raise SystemExit(
+                f"ERROR: kit {slug!r} declares no modeMatrix "
+                f"(expected {slug}/mode_matrix.cue conforming to base/mode_matrix.cue #KitModeSupport)"
+            )
+        out[slug] = matrix
     return out
 
 
@@ -380,7 +418,7 @@ def build_snapshot() -> dict[str, Any]:
             "recommendations in the curated kombify-StackKits patterns. "
             "Do not hand-edit — re-run the script after modifying the CUE."
         ),
-        "schema_version": "2.1.0",
+        "schema_version": "2.2.0",
         "generated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": {
             "repo": "kombifyio/stackKits",
@@ -398,7 +436,7 @@ def build_snapshot() -> dict[str, Any]:
             "control_plane_only": ["standard+coupled", "managed-serverless"],
             "note": (
                 "OSS publishes eligibility; realization of coupled/managed-serverless "
-                "lives in the Control-Plane catalog (kombify-admin-DB), never in OSS."
+                "lives in the Control-Plane catalog (kombify-DB sk_*), never in OSS."
             ),
             "source_standard": "public StackKits standards/PLACEMENT-MODE-STANDARD.md@v1.1",
         },
@@ -410,6 +448,16 @@ def build_snapshot() -> dict[str, Any]:
         "wizard_schema": extract_wizard_schema(),
         "contexts": extract_contexts(),
         "stackkits": extract_stackkits(),
+        "mode_matrix": {
+            "levels": ["supported", "scaffolding", "unsupported", "control-plane"],
+            "paas_statuses": ["default", "supported", "draft", "experimental"],
+            "note": (
+                "Declared per kit in <kit>/mode_matrix.cue (#KitModeSupport). "
+                "'supported' requires cited evidence; managed-serverless cells "
+                "are schema-forced to control-plane in OSS."
+            ),
+            "kits": extract_mode_matrix(),
+        },
         "service_groups": extract_service_groups(),
         "modules": extract_modules(),
         "addons": extract_addons(),

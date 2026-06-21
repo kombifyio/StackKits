@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,7 +18,9 @@ import (
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/runtimeaction"
+	"github.com/kombifyio/stackkits/internal/telemetry"
 	"github.com/kombifyio/stackkits/internal/tofu"
+	"github.com/kombifyio/stackkits/pkg/models"
 )
 
 const (
@@ -55,18 +59,20 @@ type runtimeActionTarget struct {
 }
 
 type runtimeActionResponse struct {
-	Status          runtimeaction.Status           `json:"status"`
-	Action          runtimeaction.Action           `json:"action"`
-	StackID         string                         `json:"stack_id"`
-	StackName       string                         `json:"stack_name,omitempty"`
-	StackKit        string                         `json:"stackkit,omitempty"`
-	TofuDir         string                         `json:"tofu_dir,omitempty"`
-	UnifiedPath     string                         `json:"unified_path,omitempty"`
-	Mode            runtimeaction.Mode             `json:"mode"`
-	Checks          []runtimeActionCheck           `json:"checks,omitempty"`
-	StackKitOutputs *runtimeActionStackKitOutputs  `json:"stackkit_outputs,omitempty"`
-	RuntimeMetrics  *runtimeActionRuntimeMetrics   `json:"runtime_metrics,omitempty"`
-	PlatformRefs    []platformdeploy.DeploymentRef `json:"platform_refs,omitempty"`
+	Status             runtimeaction.Status           `json:"status"`
+	Action             runtimeaction.Action           `json:"action"`
+	StackID            string                         `json:"stack_id"`
+	StackName          string                         `json:"stack_name,omitempty"`
+	StackKit           string                         `json:"stackkit,omitempty"`
+	TofuDir            string                         `json:"tofu_dir,omitempty"`
+	UnifiedPath        string                         `json:"unified_path,omitempty"`
+	Mode               runtimeaction.Mode             `json:"mode"`
+	Checks             []runtimeActionCheck           `json:"checks,omitempty"`
+	StackKitOutputs    *runtimeActionStackKitOutputs  `json:"stackkit_outputs,omitempty"`
+	RuntimeMetrics     *runtimeActionRuntimeMetrics   `json:"runtime_metrics,omitempty"`
+	PlatformRefs       []platformdeploy.DeploymentRef `json:"platform_refs,omitempty"`
+	PlatformSystemApps []models.PlatformAppState      `json:"platform_system_apps,omitempty"`
+	PlatformApps       []models.PlatformAppState      `json:"platform_apps,omitempty"`
 }
 
 type runtimeActionCheck = runtimeaction.Check
@@ -181,9 +187,9 @@ func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, exp
 	writeSuccess(w, r, http.StatusOK, resp)
 }
 
-func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequest) (runtimeActionResponse, int, *skerrors.StackKitError) {
+func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequest) (resp runtimeActionResponse, status int, stackErr *skerrors.StackKitError) {
 	mode := s.runtimeActionMode()
-	resp := runtimeActionResponse{
+	resp = runtimeActionResponse{
 		Status:      runtimeaction.StatusAccepted,
 		Action:      req.Action,
 		StackID:     req.StackID,
@@ -204,6 +210,11 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	if target := normalizeRuntimeActionTarget(req.RuntimeTarget); target != nil {
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
 	}
+
+	ctx, span := startRuntimeActionSpan(ctx, resp)
+	defer func() {
+		finishRuntimeActionSpan(span, resp, status, stackErr)
+	}()
 
 	includeStackKitOutputs := true
 	if mode == runtimeActionModeDryRun {
@@ -226,6 +237,98 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	}
 }
 
+func startRuntimeActionSpan(ctx context.Context, resp runtimeActionResponse) (context.Context, telemetry.SpanHandle) {
+	action := strings.TrimSpace(string(resp.Action))
+	if action == "" {
+		action = "unknown"
+	}
+	return telemetry.StartSpan(ctx, "stackkit.server.runtime_action."+action, runtimeActionSpanAttributes(resp, 0, nil))
+}
+
+func finishRuntimeActionSpan(span telemetry.SpanHandle, resp runtimeActionResponse, status int, stackErr *skerrors.StackKitError) {
+	if status == 0 {
+		status = http.StatusInternalServerError
+	}
+	span.SetAttributes(runtimeActionSpanAttributes(resp, status, stackErr))
+	if stackErr != nil {
+		span.RecordError(stackErr)
+		span.SetRolloutStatus("failed", stackErr.Message)
+		span.End()
+		return
+	}
+	if status >= http.StatusBadRequest || resp.Status == runtimeaction.StatusFailed {
+		span.SetRolloutStatus("failed", string(resp.Status))
+	} else {
+		span.SetRolloutStatus("succeeded", "")
+	}
+	span.End()
+}
+
+func runtimeActionSpanAttributes(resp runtimeActionResponse, status int, stackErr *skerrors.StackKitError) map[string]string {
+	attrs := map[string]string{
+		"stackkit.runtime_action":        string(resp.Action),
+		"stackkit.runtime_action.status": string(resp.Status),
+		"stackkit.runtime_action.mode":   string(resp.Mode),
+	}
+	if status > 0 {
+		attrs["http.status_code"] = strconv.Itoa(status)
+	}
+	if strings.TrimSpace(resp.StackID) != "" {
+		attrs["stackkit.stack_id"] = resp.StackID
+	}
+	if strings.TrimSpace(resp.StackName) != "" {
+		attrs["stackkit.stack_name"] = resp.StackName
+	}
+	if strings.TrimSpace(resp.StackKit) != "" {
+		attrs["stackkit.stackkit"] = resp.StackKit
+	}
+	if stackErr != nil {
+		attrs["stackkit.failure_class"] = stackErr.Code
+		attrs["stackkit.error_category"] = string(stackErr.Category)
+	}
+	return attrs
+}
+
+func startRuntimeOperationSpan(ctx context.Context, resp runtimeActionResponse, operation string) (context.Context, telemetry.SpanHandle) {
+	attrs := runtimeActionSpanAttributes(resp, 0, nil)
+	attrs["stackkit.runtime_action.operation"] = operation
+	return telemetry.StartSpan(ctx, "stackkit.server.runtime_action."+operation, attrs)
+}
+
+func finishRuntimeOperationSpan(span telemetry.SpanHandle, resp runtimeActionResponse, operation string, err error) {
+	attrs := runtimeActionSpanAttributes(resp, 0, nil)
+	attrs["stackkit.runtime_action.operation"] = operation
+	if err != nil {
+		attrs["stackkit.runtime_action.operation_status"] = "failed"
+		span.SetAttributes(attrs)
+		span.RecordError(err)
+		span.SetRolloutStatus("failed", err.Error())
+		span.End()
+		return
+	}
+	attrs["stackkit.runtime_action.operation_status"] = "succeeded"
+	span.SetAttributes(attrs)
+	span.SetRolloutStatus("succeeded", "")
+	span.End()
+}
+
+func runtimeOperationResultError(operation string, result *tofu.Result, err error) error {
+	if err != nil {
+		return err
+	}
+	if result == nil {
+		return fmt.Errorf("%s did not return a result", operation)
+	}
+	if !result.Success {
+		detail := resultStderr(result)
+		if strings.TrimSpace(detail) == "" {
+			detail = fmt.Sprintf("%s exited with code %d", operation, result.ExitCode)
+		}
+		return fmt.Errorf("%s failed: %s", operation, detail)
+	}
+	return nil
+}
+
 func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool, target *runtimeActionTarget) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	if err := requireLocalTofuDir(resp.TofuDir); err != nil {
 		return resp, http.StatusBadRequest, err
@@ -243,31 +346,57 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "remote_docker_host", Status: "ok", Detail: remote.dockerHost})
 	}
 	exec := tofu.NewExecutor(opts...)
-	if result, err := exec.Init(ctx); err != nil || !result.Success {
+	var result *tofu.Result
+	var err error
+	ctx, initSpan := startRuntimeOperationSpan(ctx, resp, "tofu_init")
+	result, err = exec.Init(ctx)
+	initErr := runtimeOperationResultError("tofu_init", result, err)
+	finishRuntimeOperationSpan(initSpan, resp, "tofu_init", initErr)
+	if initErr != nil {
 		return resp, http.StatusBadGateway, tofuActionError("opentofu_init_failed", "OpenTofu init failed", err, resultStderr(result))
 	}
-	if result, err := exec.Apply(ctx, ""); err != nil || !result.Success {
+	ctx, applySpan := startRuntimeOperationSpan(ctx, resp, "tofu_apply")
+	result, err = exec.Apply(ctx, "")
+	applyErr := runtimeOperationResultError("tofu_apply", result, err)
+	finishRuntimeOperationSpan(applySpan, resp, "tofu_apply", applyErr)
+	if applyErr != nil {
 		return resp, http.StatusBadGateway, tofuActionError("opentofu_apply_failed", "OpenTofu apply failed", err, resultStderr(result))
 	}
 	resp.Status = runtimeaction.StatusApplied
 	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_apply", Status: runtimeaction.CheckStatusOK})
-	platformRefs, platformChecks, platformErr := runRuntimePlatformAppDeployments(ctx, resp.TofuDir, runtimePlatformDeployOptions{Remote: remote})
-	resp.PlatformRefs = platformRefs
+	if remote != nil {
+		ctx, syncSpan := startRuntimeOperationSpan(ctx, resp, "runtime_workspace_sync")
+		syncErr := syncRuntimeTargetWorkspace(ctx, remote, resp.TofuDir)
+		finishRuntimeOperationSpan(syncSpan, resp, "runtime_workspace_sync", syncErr)
+		if syncErr != nil {
+			return resp, http.StatusBadGateway, tofuActionError("runtime_target_sync_failed", "Runtime target workspace sync failed", syncErr, "")
+		}
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_workspace_sync", Status: runtimeaction.CheckStatusOK, Detail: remote.workspaceRoot})
+	}
+	ctx, platformSpan := startRuntimeOperationSpan(ctx, resp, "platform_apps_deploy")
+	platformEvidence, platformChecks, platformErr := runRuntimePlatformAppDeployments(ctx, resp.TofuDir, runtimePlatformDeployOptions{Remote: remote})
+	finishRuntimeOperationSpan(platformSpan, resp, "platform_apps_deploy", platformErr)
+	resp.PlatformRefs = platformEvidence.Refs
+	resp.PlatformSystemApps = platformEvidence.SystemApps
+	resp.PlatformApps = platformEvidence.Apps
 	resp.Checks = append(resp.Checks, platformChecks...)
 	if platformErr != nil {
 		return resp, http.StatusBadGateway, tofuActionError("platform_apps_deploy_failed", "Platform app deployment failed", platformErr, "")
 	}
 	if includeStackKitOutputs {
+		ctx, outputSpan := startRuntimeOperationSpan(ctx, resp, "stackkit_outputs")
 		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
+		finishRuntimeOperationSpan(outputSpan, resp, "stackkit_outputs", nil)
 	}
 	return resp, http.StatusOK, nil
 }
 
 type preparedRuntimeTarget struct {
-	dockerHost string
-	env        []string
-	target     *runtimeActionTarget
-	keyPath    string
+	dockerHost    string
+	env           []string
+	target        *runtimeActionTarget
+	keyPath       string
+	workspaceRoot string
 }
 
 func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, target *runtimeActionTarget) (*preparedRuntimeTarget, func(), error) {
@@ -283,7 +412,8 @@ func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, targe
 		return nil, cleanup, err
 	}
 	dockerHost := runtimeTargetDockerHost(target)
-	if err := writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost); err != nil {
+	workspaceRoot := runtimeTargetWorkspaceRoot(tofuDir)
+	if err := writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost, workspaceRoot); err != nil {
 		return nil, cleanup, err
 	}
 	env := []string{"DOCKER_HOST=" + dockerHost}
@@ -293,7 +423,7 @@ func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, targe
 	if keyPath != "" {
 		env = append(env, "DOCKER_SSH_COMMAND="+runtimeTargetSSHCommand(target, keyPath))
 	}
-	return &preparedRuntimeTarget{dockerHost: dockerHost, env: env, target: target, keyPath: keyPath}, cleanup, nil
+	return &preparedRuntimeTarget{dockerHost: dockerHost, env: env, target: target, keyPath: keyPath, workspaceRoot: workspaceRoot}, cleanup, nil
 }
 
 func normalizeRuntimeActionTarget(target *runtimeActionTarget) *runtimeActionTarget {
@@ -488,7 +618,7 @@ $SUDO docker info >/dev/null`
 	return fmt.Errorf("bootstrap remote Docker over SSH: %w: %s", lastErr, lastOutput)
 }
 
-func writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost string) error {
+func writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost string, workspaceRoot ...string) error {
 	tfvarsPath := filepath.Join(filepath.Clean(tofuDir), "terraform.tfvars.json")
 	values := map[string]any{}
 	if data, err := os.ReadFile(tfvarsPath); err == nil && len(strings.TrimSpace(string(data))) > 0 {
@@ -499,6 +629,9 @@ func writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost string) error {
 		return fmt.Errorf("read terraform.tfvars.json: %w", err)
 	}
 	values["docker_host"] = dockerHost
+	if len(workspaceRoot) > 0 && strings.TrimSpace(workspaceRoot[0]) != "" {
+		values["workspace_root"] = strings.TrimSpace(workspaceRoot[0])
+	}
 	data, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal terraform.tfvars.json: %w", err)
@@ -508,6 +641,13 @@ func writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost string) error {
 		return fmt.Errorf("write terraform.tfvars.json: %w", err)
 	}
 	return nil
+}
+
+func runtimeTargetWorkspaceRoot(tofuDir string) string {
+	workspaceDir := filepath.Clean(filepath.Join(filepath.Clean(tofuDir), ".."))
+	sum := sha256.Sum256([]byte(workspaceDir))
+	hash := fmt.Sprintf("%x", sum[:])
+	return "/opt/stackkits/runtime-workspaces/" + hash[:16]
 }
 
 func runtimeTargetDockerHost(target *runtimeActionTarget) string {
@@ -532,6 +672,95 @@ func runtimeTargetSSHArgs(target *runtimeActionTarget, keyPath string) []string 
 	return append(runtimeTargetSSHBaseArgs(target, keyPath), target.User+"@"+target.Host)
 }
 
+func syncRuntimeTargetWorkspace(ctx context.Context, remote *preparedRuntimeTarget, tofuDir string) error {
+	if remote == nil || remote.target == nil || strings.TrimSpace(remote.keyPath) == "" || strings.TrimSpace(remote.workspaceRoot) == "" {
+		return nil
+	}
+	workspaceDir := filepath.Clean(filepath.Join(filepath.Clean(tofuDir), ".."))
+	info, err := os.Stat(workspaceDir)
+	if err != nil {
+		return fmt.Errorf("stat local runtime workspace: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("local runtime workspace %q is not a directory", workspaceDir)
+	}
+
+	syncCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	tarCmd := exec.CommandContext(syncCtx, "tar", runtimeTargetWorkspaceArchiveArgs(workspaceDir)...) // #nosec G204 -- workspaceDir is a local path, passed as an argv value.
+	pipe, err := tarCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("prepare runtime workspace archive: %w", err)
+	}
+
+	script := runtimeTargetWorkspaceSyncScript(remote.workspaceRoot)
+	sshArgs := append(runtimeTargetSSHArgs(remote.target, remote.keyPath), "sh", "-c", shellQuote(script))
+	sshCmd := exec.CommandContext(syncCtx, "ssh", sshArgs...) // #nosec G204 -- command args are assembled without shell interpolation except a quoted constant path.
+	sshCmd.Stdin = pipe
+
+	var tarErr bytes.Buffer
+	var sshErr bytes.Buffer
+	tarCmd.Stderr = &tarErr
+	sshCmd.Stderr = &sshErr
+
+	if err := sshCmd.Start(); err != nil {
+		return fmt.Errorf("start runtime workspace sync target: %w", err)
+	}
+	if err := tarCmd.Start(); err != nil {
+		_ = sshCmd.Process.Kill()
+		return fmt.Errorf("start runtime workspace archive: %w", err)
+	}
+	tarWaitErr := tarCmd.Wait()
+	sshWaitErr := sshCmd.Wait()
+	if tarWaitErr != nil {
+		return fmt.Errorf("archive runtime workspace: %w: %s", tarWaitErr, strings.TrimSpace(tarErr.String()))
+	}
+	if sshWaitErr != nil {
+		return fmt.Errorf("copy runtime workspace to target: %w: %s", sshWaitErr, strings.TrimSpace(sshErr.String()))
+	}
+	return nil
+}
+
+func runtimeTargetWorkspaceArchiveArgs(workspaceDir string) []string {
+	excludes := []string{
+		".git",
+		"*/.git",
+		".terraform",
+		"*/.terraform",
+		"terraform.tfstate",
+		"terraform.tfstate.backup",
+		"*.tfstate",
+		"*.tfstate.backup",
+		"node_modules",
+		"*/node_modules",
+		".stackkit/logs",
+		"*/.stackkit/logs",
+		"artifacts",
+		"*/artifacts",
+		"coverage",
+		"*/coverage",
+		"dist",
+		"*/dist",
+		"build",
+		"*/build",
+	}
+	args := []string{"-C", workspaceDir}
+	for _, exclude := range excludes {
+		args = append(args, "--exclude="+exclude)
+	}
+	return append(args, "-cf", "-", ".")
+}
+
+func runtimeTargetWorkspaceSyncScript(workspaceRoot string) string {
+	remotePath := shellQuote(workspaceRoot)
+	return "rm -rf -- " + remotePath + " && mkdir -p " + remotePath + " && tar -C " + remotePath + " -xf -"
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
 func runtimeTargetSSHBaseArgs(target *runtimeActionTarget, keyPath string) []string {
 	return []string{
 		"-i", keyPath,
@@ -548,13 +777,19 @@ func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse, includeS
 		return resp, http.StatusBadRequest, err
 	}
 	exec := tofu.NewExecutor(tofu.WithWorkDir(resp.TofuDir), tofu.WithTimeout(5*time.Minute))
-	if result, err := exec.State(ctx); err != nil || !result.Success {
+	ctx, stateSpan := startRuntimeOperationSpan(ctx, resp, "tofu_state")
+	result, err := exec.State(ctx)
+	stateErr := runtimeOperationResultError("tofu_state", result, err)
+	finishRuntimeOperationSpan(stateSpan, resp, "tofu_state", stateErr)
+	if stateErr != nil {
 		return resp, http.StatusBadGateway, tofuActionError("opentofu_state_failed", "OpenTofu state verification failed", err, resultStderr(result))
 	}
 	resp.Status = runtimeaction.StatusVerified
 	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "opentofu_state", Status: runtimeaction.CheckStatusOK})
 	if includeStackKitOutputs {
+		ctx, outputSpan := startRuntimeOperationSpan(ctx, resp, "stackkit_outputs")
 		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
+		finishRuntimeOperationSpan(outputSpan, resp, "stackkit_outputs", nil)
 	}
 	return resp, http.StatusOK, nil
 }

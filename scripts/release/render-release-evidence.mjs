@@ -31,6 +31,14 @@ const REQUIRED_BROWSER_EVIDENCE_CHECKS = [
   'vault-auth-boundary',
 ];
 
+const REQUIRED_BROWSER_CHECK_ROUTES = {
+  'pocketid-owner-passkey': { host: 'id.home.localhost', path: '/setup' },
+  'tinyauth-owner-session': { host: 'auth.home.localhost', path: '' },
+  'photos-demo-content': { host: 'photos.home.localhost', path: '/photos' },
+  'files-demo-content': { host: 'files.home.localhost', path: '/stackkit/files/session' },
+  'vault-auth-boundary': { host: 'vault.home.localhost', path: '' },
+};
+
 const MAX_BROWSER_CHECK_DURATION_SECONDS = 15 * 60;
 const MIN_BROWSER_SCREENSHOT_WIDTH = 320;
 const MIN_BROWSER_SCREENSHOT_HEIGHT = 240;
@@ -67,6 +75,33 @@ const REQUIRED_OWNER_SETUP_DROPS_BY_SERVICE = {
   vault: 'vaultwarden-admin-handoff',
 };
 
+const CANONICAL_SCENARIOS = [
+  {
+    id: 'SK-S1',
+    label: 'SK-S1 local no-mail Coolify beta',
+    pendingSummary: 'SK-S1 local no-mail Coolify beta scenario artifact has not been attached to release evidence.',
+    pendingGate: 'SK-S1 local no-mail Coolify beta scenario is pending released-archive evidence.',
+  },
+  {
+    id: 'SK-S2',
+    label: 'SK-S2 kombify.me cloud-owner Komodo beta',
+    pendingSummary: 'SK-S2 kombify.me cloud-owner Komodo beta scenario artifact has not been attached to release evidence.',
+    pendingGate: 'SK-S2 kombify.me cloud-owner Komodo beta scenario is pending released-archive evidence.',
+  },
+  {
+    id: 'SK-S3',
+    label: 'SK-S3 custom-domain explicit-owner Coolify beta',
+    pendingSummary: 'SK-S3 custom-domain explicit-owner Coolify beta scenario artifact has not been attached to release evidence.',
+    pendingGate: 'SK-S3 custom-domain explicit-owner Coolify beta scenario is pending released-archive evidence.',
+  },
+  {
+    id: 'SK-S5',
+    label: 'SK-S5 missing-mail negative',
+    pendingSummary: 'SK-S5 missing-mail negative scenario artifact has not been attached to release evidence.',
+    pendingGate: 'SK-S5 missing-mail negative scenario is pending released-archive evidence.',
+  },
+];
+
 const ALLOWED_BROWSER_FAILURE_PHASES = new Set([
   'wrapper',
   'command-preflight',
@@ -84,6 +119,7 @@ function parseArgs(argv) {
     knownLimitations: [],
     missingAlternatives: [],
     pendingGates: [],
+    scenarioArtifacts: [],
     scenarioEvidence: [],
     browserEvidence: '',
     browserPreflight: '',
@@ -156,6 +192,10 @@ function parseArgs(argv) {
         opts.scenarioEvidence.push(parseScenarioEvidence(next));
         i += 1;
         break;
+      case '--scenario-artifact':
+        opts.scenarioArtifacts.push(next);
+        i += 1;
+        break;
       case '--browser-evidence':
         opts.browserEvidence = next;
         i += 1;
@@ -203,6 +243,103 @@ function parseScenarioEvidence(value) {
     scenarioId,
     status,
     ...(summaryParts.length ? { summary: summaryParts.join(',').trim() } : {}),
+  };
+}
+
+function normalizeScenarioArtifactStatus(value) {
+  const status = String(value || '').trim().toLowerCase();
+  if (['pass', 'passed', 'success', 'succeeded'].includes(status)) return 'pass';
+  if (['fail', 'failed', 'failure', 'error'].includes(status)) return 'fail';
+  if (status === 'pending') return 'pending';
+  if (status === 'not_applicable') return 'not_applicable';
+  return '';
+}
+
+async function loadScenarioArtifactEvidence(artifactPath) {
+  let artifact;
+  try {
+    artifact = JSON.parse(await readFile(artifactPath, 'utf8'));
+  } catch (error) {
+    return {
+      scenarioId: 'unknown',
+      status: 'fail',
+      summary: `scenario artifact is unreadable; ${error.code || error.message}.`,
+      url: artifactPath,
+    };
+  }
+
+  const scenarioId = String(artifact.scenarioId || '').trim() || 'unknown';
+  const status = normalizeScenarioArtifactStatus(artifact.status);
+  const simulation = artifact.simulation || {};
+  const expectedHealthChecks = Array.isArray(simulation.healthChecks)
+    ? simulation.healthChecks.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  const expectedSetupActions = Array.isArray(simulation.setupActions)
+    ? simulation.setupActions.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  const simulationStatus = artifact.simulationStatus;
+  const platformAppRefCount = [
+    ...(Array.isArray(artifact.platformSystemApps) ? artifact.platformSystemApps : []),
+    ...(Array.isArray(artifact.platformApps) ? artifact.platformApps : []),
+  ].filter((app) => String(app?.externalId || '').trim()).length;
+  const issues = [];
+  if (scenarioId === 'unknown') {
+    issues.push('scenarioId is missing');
+  }
+  if (!status) {
+    issues.push(`status is ${artifact.status || 'missing'}`);
+  }
+  if (!String(artifact.runId || '').trim()) {
+    issues.push('runId is missing');
+  }
+  if (expectedHealthChecks.length > 0 || expectedSetupActions.length > 0) {
+    if (!simulationStatus || typeof simulationStatus !== 'object' || Array.isArray(simulationStatus)) {
+      issues.push('simulationStatus is missing');
+    } else {
+      const simulationStatusValue = String(simulationStatus.status || '').trim();
+      const observedSetupActions = Array.isArray(simulationStatus.observedSetupActions)
+        ? simulationStatus.observedSetupActions.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      const missingSetupActions = Array.isArray(simulationStatus.missingSetupActions)
+        ? simulationStatus.missingSetupActions.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      const observedHealthChecks = Array.isArray(simulationStatus.observedHealthChecks)
+        ? simulationStatus.observedHealthChecks.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      const missingHealthChecks = Array.isArray(simulationStatus.missingHealthChecks)
+        ? simulationStatus.missingHealthChecks.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      if (simulationStatusValue !== 'pass') {
+        issues.push(`simulationStatus is ${simulationStatusValue || 'missing'}`);
+      }
+      if (missingSetupActions.length > 0) {
+        issues.push(`missingSetupActions=${missingSetupActions.join(',')}`);
+      }
+      if (missingHealthChecks.length > 0) {
+        issues.push(`missingHealthChecks=${missingHealthChecks.join(',')}`);
+      }
+      const observedSetup = new Set(observedSetupActions);
+      const unobservedSetupActions = expectedSetupActions.filter((action) => !observedSetup.has(action));
+      if (simulationStatusValue === 'pass' && unobservedSetupActions.length > 0) {
+        issues.push(`observedSetupActions missing ${unobservedSetupActions.join(',')}`);
+      }
+      const observed = new Set(observedHealthChecks);
+      const unobserved = expectedHealthChecks.filter((check) => !observed.has(check));
+      if (simulationStatusValue === 'pass' && unobserved.length > 0) {
+        issues.push(`observedHealthChecks missing ${unobserved.join(',')}`);
+      }
+    }
+  }
+
+  const passed = status === 'pass' && issues.length === 0;
+  return {
+    scenarioId,
+    source: 'homelab-artifact',
+    status: passed ? 'pass' : 'fail',
+    summary: passed
+      ? `${scenarioId} Homelab artifact passed with ${expectedHealthChecks.length} observed simulation health checks, ${expectedSetupActions.length} observed setup actions, and ${platformAppRefCount} platform app refs.`
+      : `${scenarioId} Homelab artifact is incomplete or failing; ${issues.join('; ')}.`,
+    url: artifactPath,
   };
 }
 
@@ -301,6 +438,69 @@ function mergeRequiredKnownLimitations(values, browserEvidencePassed = false) {
   return result;
 }
 
+function mergeRequiredScenarioEvidence(values) {
+  const canonicalIDs = new Set(CANONICAL_SCENARIOS.map((scenario) => scenario.id));
+  const byID = new Map();
+  const nonCanonicalOrder = [];
+
+  for (const value of values) {
+    const scenarioId = String(value.scenarioId || '').trim();
+    if (!scenarioId) continue;
+    if (!byID.has(scenarioId) && !canonicalIDs.has(scenarioId)) {
+      nonCanonicalOrder.push(scenarioId);
+    }
+    byID.set(scenarioId, { ...value, scenarioId });
+  }
+
+  const result = [];
+  for (const scenario of CANONICAL_SCENARIOS) {
+    if (byID.has(scenario.id)) {
+      result.push(byID.get(scenario.id));
+    } else {
+      result.push({
+        scenarioId: scenario.id,
+        status: 'pending',
+        summary: scenario.pendingSummary,
+      });
+    }
+  }
+  for (const scenarioId of nonCanonicalOrder) {
+    result.push(byID.get(scenarioId));
+  }
+  return result;
+}
+
+function mergePendingGates(values, scenarioEvidence) {
+  const result = [];
+  const seen = new Set();
+  const add = (value) => {
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    result.push(value);
+  };
+
+  for (const value of values) {
+    add(value);
+  }
+
+  for (const scenario of CANONICAL_SCENARIOS) {
+    const evidence = scenarioEvidence.find((item) => item.scenarioId === scenario.id);
+    if (!evidence || evidence.status === 'pass') continue;
+    const alreadyCovered = result.some((gate) => gate.toLowerCase().includes(scenario.id.toLowerCase()));
+    if (alreadyCovered) continue;
+    if (evidence.status === 'pending') {
+      add(scenario.pendingGate);
+    } else {
+      add(
+        `${scenario.label} scenario evidence is ${evidence.status}; ${
+          evidence.summary || 'inspect release-evidence scenarioEvidence.'
+        }`,
+      );
+    }
+  }
+  return result;
+}
+
 async function loadBrowserEvidence(
   browserEvidencePath,
   browserEvidenceRoot,
@@ -313,7 +513,13 @@ async function loadBrowserEvidence(
   const evidence = JSON.parse(data);
   const checks = Array.isArray(evidence.checks) ? evidence.checks : [];
   const screenshots = Array.isArray(evidence.screenshots) ? evidence.screenshots : [];
-  const screenshotPaths = new Set(screenshots.map((screenshot) => String(screenshot.path || '').trim()).filter(Boolean));
+  const screenshotsByPath = new Map();
+  for (const screenshot of screenshots) {
+    const screenshotPath = String(screenshot?.path || '').trim();
+    if (screenshotPath) {
+      screenshotsByPath.set(screenshotPath, screenshot);
+    }
+  }
   const ownerUsername = String(evidence.ownerUsername || '').trim();
   const ownerEmail = String(evidence.ownerEmail || '').trim();
   const runId = String(evidence.runId || '').trim();
@@ -349,7 +555,7 @@ async function loadBrowserEvidence(
   if (rootMismatch) {
     issues.push(rootMismatch);
   }
-  const browserURLIssue = validateBrowserURL(evidence.browserUrl);
+  const browserURLIssue = validateBaseKitBrowserURL(evidence.browserUrl);
   if (browserURLIssue) {
     issues.push(`browserUrl ${browserURLIssue}`);
   }
@@ -391,10 +597,11 @@ async function loadBrowserEvidence(
       issues.push(`${check.name} does not reference a screenshot`);
       continue;
     }
-    if (!screenshotPaths.has(screenshotPath)) {
+    if (!screenshotsByPath.has(screenshotPath)) {
       issues.push(`${check.name} references screenshot ${screenshotPath} missing from screenshots[]`);
       continue;
     }
+    const screenshot = screenshotsByPath.get(screenshotPath);
     const checkIssue = validateBrowserCheckContract(check);
     if (checkIssue) {
       issues.push(`${check.name}: ${checkIssue}`);
@@ -402,6 +609,18 @@ async function loadBrowserEvidence(
     const validation = await validateBrowserEvidenceScreenshot(browserEvidenceRoot, screenshotPath);
     if (validation) {
       issues.push(`${check.name} screenshot ${screenshotPath}: ${validation}`);
+    }
+    const screenshotURL = String(screenshot?.url || '').trim();
+    if (screenshotURL) {
+      const screenshotURLIssue = validateBrowserURL(screenshotURL);
+      if (screenshotURLIssue) {
+        issues.push(`${check.name} screenshot ${screenshotPath}: url ${screenshotURLIssue}`);
+      } else {
+        const screenshotRouteIssue = validateBaseKitBrowserCheckURL(check.name, screenshotURL);
+        if (screenshotRouteIssue) {
+          issues.push(`${check.name} screenshot ${screenshotPath}: url ${screenshotRouteIssue}`);
+        }
+      }
     }
     const contentValidation = validateBrowserEvidenceCheckContent(check, ownerEmail);
     if (contentValidation) {
@@ -714,8 +933,11 @@ function validateBrowserPreflightRequiredStatus(check, browserChannel = '') {
 function validateBrowserPreflightRequiredEvidence(check, browserChannel = '') {
   if (String(check?.status || '').trim() !== 'pass') return '';
   const evidence = check?.evidence && typeof check.evidence === 'object' ? check.evidence : {};
-  if (check.name === 'Docker Desktop context' && String(evidence.output || '').trim() !== 'desktop-linux') {
-    return `${check.name} output ${evidence.output || 'missing'}, want desktop-linux`;
+  // Docker Desktop reports desktop-linux; plain Docker Engine hosts (CI
+  // runners, Linux servers) report default. Both are usable Linux engines.
+  const dockerContext = String(evidence.output || '').trim();
+  if (check.name === 'Docker Desktop context' && dockerContext !== 'desktop-linux' && dockerContext !== 'default') {
+    return `${check.name} output ${evidence.output || 'missing'}, want desktop-linux or default`;
   }
   if (check.name === 'Playwright package availability' && String(evidence.output || '').trim() !== 'playwright=available') {
     return `${check.name} output ${evidence.output || 'missing'}, want playwright=available`;
@@ -892,6 +1114,10 @@ function validateBrowserCheckContract(check) {
   if (urlIssue) {
     return `url ${urlIssue}`;
   }
+  const routeIssue = validateBaseKitBrowserCheckURL(check.name, check.url);
+  if (routeIssue) {
+    return `url ${routeIssue}`;
+  }
   const duration = Number(check.durationSeconds || 0);
   if (!Number.isInteger(duration) || duration <= 0) {
     return 'must record durationSeconds';
@@ -920,6 +1146,44 @@ function validateBrowserURL(raw) {
   }
   if (!parsed.host) {
     return 'must include a host';
+  }
+  return '';
+}
+
+function validateBaseKitBrowserURL(raw) {
+  const urlIssue = validateBrowserURL(raw);
+  if (urlIssue) return urlIssue;
+  const parsed = new URL(String(raw || '').trim());
+  if (parsed.protocol !== 'http:') {
+    return `scheme is ${parsed.protocol.replace(/:$/, '') || 'missing'}, want http for SK-S1 local Base Hub`;
+  }
+  if (parsed.hostname !== 'base.home.localhost') {
+    return `host is ${parsed.hostname || 'missing'}, want base.home.localhost`;
+  }
+  if (parsed.pathname && parsed.pathname !== '/') {
+    return `path is ${parsed.pathname}, want /`;
+  }
+  return '';
+}
+
+function validateBaseKitBrowserCheckURL(checkName, raw) {
+  const route = REQUIRED_BROWSER_CHECK_ROUTES[String(checkName || '').trim()];
+  if (!route) return '';
+  const parsed = new URL(String(raw || '').trim());
+  if (parsed.protocol !== 'http:') {
+    return `scheme is ${parsed.protocol.replace(/:$/, '') || 'missing'}, want http`;
+  }
+  if (parsed.hostname !== route.host) {
+    return `host is ${parsed.hostname || 'missing'}, want ${route.host}`;
+  }
+  if (route.path) {
+    if (parsed.pathname !== route.path) {
+      return `path is ${parsed.pathname || '/'}, want ${route.path}`;
+    }
+    return '';
+  }
+  if (parsed.pathname && parsed.pathname !== '/') {
+    return `path is ${parsed.pathname}, want /`;
   }
   return '';
 }
@@ -1236,6 +1500,13 @@ function validateBrowserSetupStateEvidence(label, dropName, evidence) {
       return `${label} evidence[oidcIssuer] is ${evidence.oidcIssuer || 'missing'}, want URL evidence`;
     }
   }
+  if (dropName === 'vaultwarden-admin-handoff') {
+    for (const key of ['appLocalOwner', 'ownerProvisioning', 'appLocalSessionHandoff', 'readyToUseContentStatus']) {
+      if (String(evidence[key] || '').trim()) {
+        return `${label} evidence[${key}] must be absent for v0.4 Vaultwarden break-glass-only handoff`;
+      }
+    }
+  }
   return '';
 }
 
@@ -1404,43 +1675,86 @@ function validateBrowserEvidenceCheckContent(check, ownerEmail = '') {
     }
   }
   if (check.name === 'photos-demo-content') {
-    const count = Number(evidence.immichDemoAssets || 0);
-    if (evidence.demoContent !== 'immich-demo-assets' || !Number.isInteger(count) || count < 1) {
-      return 'missing Immich seeded demo asset evidence';
-    }
-    if (evidence.verification !== 'immich-search-metadata') {
-      return 'missing Immich StackKit demo asset metadata-search evidence';
-    }
-    if (evidence.ownerVerification !== 'immich-users-me') {
-      return 'missing Immich Owner browser-session evidence from /api/users/me';
-    }
-    const sessionOwnerEmail = String(evidence.immichOwnerEmail || '').trim();
-    if (!sessionOwnerEmail || sessionOwnerEmail.toLowerCase() !== String(ownerEmail || '').trim().toLowerCase()) {
-      return `Immich immichOwnerEmail ${sessionOwnerEmail || 'missing'} must match Owner ${ownerEmail || 'missing'}`;
-    }
-    if (
-      evidence.demoAssetDeviceId !== 'stackkit-demo' ||
-      evidence.demoAssetDeviceAssetId !== 'stackkit-demo-photo-1' ||
-      evidence.demoAssetFile !== 'stackkit-demo-photo.png'
-    ) {
-      return 'missing StackKit Immich demo photo identity evidence';
+    const demoModeIssue = browserDemoDataModeIssue(evidence);
+    if (demoModeIssue) return demoModeIssue;
+    if (String(evidence.demoData || '').trim() === 'disabled') {
+      if (evidence.demoContent !== 'immich-owner-session' || evidence.verification !== 'immich-users-me') {
+        return 'missing Immich Owner-session evidence for the demoData=disabled rollout';
+      }
+      if (evidence.ownerVerification !== 'immich-users-me') {
+        return 'missing Immich Owner browser-session evidence from /api/users/me';
+      }
+      const sessionOwnerEmail = String(evidence.immichOwnerEmail || '').trim();
+      if (!sessionOwnerEmail || sessionOwnerEmail.toLowerCase() !== String(ownerEmail || '').trim().toLowerCase()) {
+        return `Immich immichOwnerEmail ${sessionOwnerEmail || 'missing'} must match Owner ${ownerEmail || 'missing'}`;
+      }
+      for (const field of ['immichDemoAssets', 'demoAssetDeviceId', 'demoAssetDeviceAssetId', 'demoAssetFile']) {
+        if (String(evidence[field] || '').trim()) {
+          return `demoData=disabled Photos evidence must not carry demo-asset field ${field}`;
+        }
+      }
+    } else {
+      const count = Number(evidence.immichDemoAssets || 0);
+      if (evidence.demoContent !== 'immich-demo-assets' || !Number.isInteger(count) || count < 1) {
+        return 'missing Immich seeded demo asset evidence';
+      }
+      if (evidence.verification !== 'immich-search-metadata') {
+        return 'missing Immich StackKit demo asset metadata-search evidence';
+      }
+      if (evidence.ownerVerification !== 'immich-users-me') {
+        return 'missing Immich Owner browser-session evidence from /api/users/me';
+      }
+      const sessionOwnerEmail = String(evidence.immichOwnerEmail || '').trim();
+      if (!sessionOwnerEmail || sessionOwnerEmail.toLowerCase() !== String(ownerEmail || '').trim().toLowerCase()) {
+        return `Immich immichOwnerEmail ${sessionOwnerEmail || 'missing'} must match Owner ${ownerEmail || 'missing'}`;
+      }
+      if (
+        evidence.demoAssetDeviceId !== 'stackkit-demo' ||
+        evidence.demoAssetDeviceAssetId !== 'stackkit-demo-photo-1' ||
+        evidence.demoAssetFile !== 'stackkit-demo-photo.png'
+      ) {
+        return 'missing StackKit Immich demo photo identity evidence';
+      }
     }
   }
   if (check.name === 'files-demo-content') {
-    if (
-      evidence.demoContent !== 'cloudreve-demo-file' ||
-      evidence.seededFolder !== 'StackKit Demo' ||
-      evidence.seededFile !== 'README.txt' ||
-      evidence.verification !== 'cloudreve-browser-session-api' ||
-      evidence.identityBridge !== 'stackkit-cloudreve-local-session' ||
-      evidence.bridgeVerification !== 'stackkit-cloudreve-session-bridge'
-    ) {
-      return 'missing Cloudreve StackKit Demo/README.txt StackKit session-bridge evidence';
-    }
-    const bridgeUser = String(evidence.bridgeCurrentUser || '').trim();
-    const sessionUser = String(evidence.cloudreveSessionUser || '').trim();
-    if (!bridgeUser || !sessionUser || bridgeUser !== sessionUser) {
-      return `Cloudreve StackKit bridgeCurrentUser ${bridgeUser || 'missing'} and cloudreveSessionUser ${sessionUser || 'missing'} must match`;
+    const demoModeIssue = browserDemoDataModeIssue(evidence);
+    if (demoModeIssue) return demoModeIssue;
+    if (String(evidence.demoData || '').trim() === 'disabled') {
+      if (
+        evidence.demoContent !== 'cloudreve-owner-session' ||
+        evidence.verification !== 'cloudreve-browser-session-api' ||
+        evidence.identityBridge !== 'stackkit-cloudreve-local-session' ||
+        evidence.bridgeVerification !== 'stackkit-cloudreve-session-bridge'
+      ) {
+        return 'missing Cloudreve Owner-session StackKit session-bridge evidence for the demoData=disabled rollout';
+      }
+      const bridgeUser = String(evidence.bridgeCurrentUser || '').trim();
+      const sessionUser = String(evidence.cloudreveSessionUser || '').trim();
+      if (!bridgeUser || !sessionUser || bridgeUser !== sessionUser) {
+        return `Cloudreve StackKit bridgeCurrentUser ${bridgeUser || 'missing'} and cloudreveSessionUser ${sessionUser || 'missing'} must match`;
+      }
+      for (const field of ['seededFolder', 'seededFile']) {
+        if (String(evidence[field] || '').trim()) {
+          return `demoData=disabled Files evidence must not carry seeded-content field ${field}`;
+        }
+      }
+    } else {
+      if (
+        evidence.demoContent !== 'cloudreve-demo-file' ||
+        evidence.seededFolder !== 'StackKit Demo' ||
+        evidence.seededFile !== 'README.txt' ||
+        evidence.verification !== 'cloudreve-browser-session-api' ||
+        evidence.identityBridge !== 'stackkit-cloudreve-local-session' ||
+        evidence.bridgeVerification !== 'stackkit-cloudreve-session-bridge'
+      ) {
+        return 'missing Cloudreve StackKit Demo/README.txt StackKit session-bridge evidence';
+      }
+      const bridgeUser = String(evidence.bridgeCurrentUser || '').trim();
+      const sessionUser = String(evidence.cloudreveSessionUser || '').trim();
+      if (!bridgeUser || !sessionUser || bridgeUser !== sessionUser) {
+        return `Cloudreve StackKit bridgeCurrentUser ${bridgeUser || 'missing'} and cloudreveSessionUser ${sessionUser || 'missing'} must match`;
+      }
     }
   }
   if (check.name === 'vault-auth-boundary') {
@@ -1464,6 +1778,14 @@ function validateBrowserEvidenceCheckContent(check, ownerEmail = '') {
     }
   }
   return '';
+}
+
+// A missing demoData value keeps the original strict seeded-content contract
+// so older manifests cannot silently downgrade to owner-session-only proof.
+function browserDemoDataModeIssue(evidence) {
+  const mode = String(evidence.demoData || '').trim();
+  if (mode === '' || mode === 'enabled' || mode === 'disabled') return '';
+  return `browser evidence demoData ${mode} must be enabled or disabled`;
 }
 
 async function validateBrowserEvidenceScreenshot(root, screenshotPath) {
@@ -1688,6 +2010,9 @@ async function main() {
     browserPreflight?.runId || '',
   );
   const scenarioEvidence = [...opts.scenarioEvidence];
+  for (const artifactPath of opts.scenarioArtifacts) {
+    scenarioEvidence.push(await loadScenarioArtifactEvidence(artifactPath));
+  }
   if (browserPreflight) {
     scenarioEvidence.push({
       scenarioId: `${browserPreflight.scenarioId}-browser-preflight`,
@@ -1704,6 +2029,7 @@ async function main() {
       url: browserEvidence.path,
     });
   }
+  const mergedScenarioEvidence = mergeRequiredScenarioEvidence(scenarioEvidence);
   const evidence = {
     schemaVersion: '1.0.0',
     generatedAt: new Date().toISOString(),
@@ -1734,15 +2060,8 @@ async function main() {
       defaultL3PaaSDelivery: checkFromMap(opts.checks, 'defaultL3PaaSDelivery', 'pending'),
       attestationVerification: checkFromMap(opts.checks, 'attestationVerification', 'pending'),
     },
-    scenarioEvidence,
-    pendingGates: opts.pendingGates.length
-      ? opts.pendingGates
-      : [
-          'SK-S1 local no-mail Coolify beta scenario is pending released-archive evidence.',
-          'SK-S2 kombify.me cloud-owner Komodo beta scenario is pending released-archive evidence.',
-          'SK-S3 custom-domain explicit-owner Coolify beta scenario is pending released-archive evidence.',
-          'SK-S5 missing-mail negative scenario is pending released-archive evidence.',
-        ],
+    scenarioEvidence: mergedScenarioEvidence,
+    pendingGates: mergePendingGates(opts.pendingGates, mergedScenarioEvidence),
     missingAlternatives: mergeRequiredMissingAlternatives(opts.missingAlternatives),
     knownLimitations: mergeRequiredKnownLimitations(
       opts.knownLimitations.length

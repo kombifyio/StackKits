@@ -1,6 +1,6 @@
 # StackKit CLI Reference
 
-> Last verified: 2026-05-17
+> Last verified: 2026-06-13
 
 This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
 
@@ -174,6 +174,16 @@ Unless `--no-log` is set, rollout evidence is written under
 also post phase progress to Admin when
 `POST /api/v1/sk/tenants/deployments/{id}/events` is available; unsupported
 event endpoints degrade safely and the final lifecycle `PATCH` remains.
+
+Rollout telemetry is local-first by default. Remote traces are disabled unless
+`OTEL_EXPORTER_OTLP_ENDPOINT` is supplied, and Sentry is disabled unless
+`SENTRY_DSN` is supplied. When enabled, the CLI emits redacted rollout phase
+spans and, on failed rollouts, a sanitized Sentry error event plus a local
+`.stackkit/runs/<runId>/sentry-event.json` marker with event id/delivery status.
+`SENTRY_AUTH_TOKEN` and `SENTRY_API_AUTH_TOKEN` are not accepted on target nodes.
+Managed tenant spec envelopes may carry ingestion-only telemetry configuration,
+but `stack-spec.yaml` never persists DSNs, OTLP endpoints, OTLP header values, or
+Sentry API credentials.
 
 ### `stackkit verify`
 

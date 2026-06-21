@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -157,6 +158,9 @@ func (a *CoolifyAdapter) observeCoolifyDeploymentTick(ctx context.Context, obser
 	status, err := a.serviceStatus(ctx, ref)
 	if err != nil {
 		state.lastErrors[index] = err
+		if a.observeCoolifyDockerRuntimeFallbackTick(ctx, observed, index, state, startReconcileInterval, ref, err) {
+			return true
+		}
 		delete(state.runtimeRunningSince, index)
 		return false
 	}
@@ -168,6 +172,25 @@ func (a *CoolifyAdapter) observeCoolifyDeploymentTick(ctx context.Context, obser
 		return a.coolifyObservedStatusReady(ctx, &observed[index], status, state, index, startReconcileInterval)
 	}
 	a.reconcileCoolifyDeploymentStart(ctx, &observed[index], status, state, index, startReconcileInterval)
+	return false
+}
+
+func (a *CoolifyAdapter) observeCoolifyDockerRuntimeFallbackTick(ctx context.Context, observed []DeploymentRef, index int, state *coolifyObserveLoopState, startReconcileInterval time.Duration, ref DeploymentRef, apiErr error) bool {
+	status, runtimeErr, ok := a.coolifyDockerRuntimeObservedStatus(ctx, ref)
+	if runtimeErr != nil {
+		state.lastErrors[index] = fmt.Errorf("%w; docker runtime observe: %v", apiErr, runtimeErr)
+	}
+	if !ok {
+		return false
+	}
+	state.lastStatuses[index] = status
+	observed[index].ObservedStatus = status.Status
+	observed[index].ObservedAt = status.ObservedAt
+	a.trackCoolifyRuntimeStability(index, status, state)
+	if status.running() {
+		return a.coolifyObservedStatusReady(ctx, &observed[index], status, state, index, startReconcileInterval)
+	}
+	a.reconcileCoolifyDockerRuntimeStart(ctx, &observed[index], status, state, index, startReconcileInterval)
 	return false
 }
 
@@ -194,10 +217,7 @@ func (a *CoolifyAdapter) trackCoolifyRuntimeStability(index int, status coolifyO
 
 func (a *CoolifyAdapter) reconcileCoolifyDeploymentStart(ctx context.Context, ref *DeploymentRef, status coolifyObservedStatus, state *coolifyObserveLoopState, index int, startReconcileInterval time.Duration) {
 	if status.shouldStartDockerRuntime() && shouldReconcileCoolifyStart(state.lastRuntimeStartRequests[index], startReconcileInterval) {
-		state.lastRuntimeStartRequests[index] = time.Now()
-		if startErr := coolifyServiceRuntimeStart(ctx, *ref); startErr != nil {
-			state.lastErrors[index] = fmt.Errorf("start coolify docker runtime %q: %w", ref.AppName, startErr)
-		}
+		a.reconcileCoolifyDockerRuntimeStart(ctx, ref, status, state, index, startReconcileInterval)
 		return
 	}
 	if status.shouldReconcileStart() && shouldReconcileCoolifyStart(state.lastStartRequests[index], startReconcileInterval) {
@@ -208,6 +228,19 @@ func (a *CoolifyAdapter) reconcileCoolifyDeploymentStart(ctx context.Context, re
 		} else if deploymentID != "" {
 			ref.DeploymentID = deploymentID
 		}
+	}
+}
+
+func (a *CoolifyAdapter) reconcileCoolifyDockerRuntimeStart(ctx context.Context, ref *DeploymentRef, status coolifyObservedStatus, state *coolifyObserveLoopState, index int, startReconcileInterval time.Duration) {
+	if !status.RuntimeKnown || status.RuntimeRunning {
+		return
+	}
+	if !shouldReconcileCoolifyStart(state.lastRuntimeStartRequests[index], startReconcileInterval) {
+		return
+	}
+	state.lastRuntimeStartRequests[index] = time.Now()
+	if startErr := coolifyServiceRuntimeStart(ctx, *ref, a.cfg.DockerEnv); startErr != nil {
+		state.lastErrors[index] = fmt.Errorf("start coolify docker runtime %q: %w", ref.AppName, startErr)
 	}
 }
 
@@ -412,6 +445,31 @@ func (status coolifyObservedStatus) shouldStartDockerRuntime() bool {
 	return status.RuntimeKnown && !status.RuntimeRunning && !status.RuntimeActive && !status.shouldReconcileStart()
 }
 
+func (a *CoolifyAdapter) coolifyDockerRuntimeObservedStatus(ctx context.Context, ref DeploymentRef) (coolifyObservedStatus, error, bool) {
+	if a.cfg.LegacyDockerComposeAPI || a.cfg.DisableDockerRuntimeObserve {
+		return coolifyObservedStatus{}, nil, false
+	}
+	runtimeStatus, err := coolifyDockerRuntimeStatus(ctx, ref, a.cfg.DockerEnv)
+	if err != nil {
+		return coolifyObservedStatus{}, err, false
+	}
+	if !runtimeStatus.Known {
+		return coolifyObservedStatus{}, nil, false
+	}
+	status := strings.TrimSpace(runtimeStatus.Status)
+	if status == "" {
+		status = "docker:unknown"
+	}
+	return coolifyObservedStatus{
+		Status:         status,
+		RuntimeKnown:   true,
+		RuntimeRunning: runtimeStatus.Running,
+		RuntimeActive:  runtimeStatus.Active,
+		RuntimeStatus:  status,
+		ObservedAt:     time.Now().UTC(),
+	}, nil, true
+}
+
 func (a *CoolifyAdapter) serviceStatus(ctx context.Context, ref DeploymentRef) (coolifyObservedStatus, error) {
 	path := "/api/v1/services/" + url.PathEscape(ref.ExternalID)
 	if a.cfg.LegacyDockerComposeAPI {
@@ -433,7 +491,7 @@ func (a *CoolifyAdapter) serviceStatus(ctx context.Context, ref DeploymentRef) (
 		ObservedAt:        time.Now().UTC(),
 	}
 	if !a.cfg.LegacyDockerComposeAPI && !a.cfg.DisableDockerRuntimeObserve {
-		if runtimeStatus, runtimeErr := coolifyDockerRuntimeStatus(ctx, ref); runtimeErr == nil && runtimeStatus.Known {
+		if runtimeStatus, runtimeErr := coolifyDockerRuntimeStatus(ctx, ref, a.cfg.DockerEnv); runtimeErr == nil && runtimeStatus.Known {
 			observed.RuntimeKnown = true
 			observed.RuntimeRunning = runtimeStatus.Running
 			observed.RuntimeActive = runtimeStatus.Active
@@ -471,7 +529,7 @@ type dockerInspectContainer struct {
 	} `json:"State"`
 }
 
-func inspectCoolifyDockerRuntimeStatus(ctx context.Context, ref DeploymentRef) (coolifyDockerRuntimeObservation, error) {
+func inspectCoolifyDockerRuntimeStatus(ctx context.Context, ref DeploymentRef, dockerEnv []string) (coolifyDockerRuntimeObservation, error) {
 	serviceNames := ref.ServiceNames
 	if len(serviceNames) == 0 && strings.TrimSpace(ref.AppName) != "" {
 		serviceNames = []string{strings.TrimSpace(ref.AppName)}
@@ -487,7 +545,9 @@ func inspectCoolifyDockerRuntimeStatus(ctx context.Context, ref DeploymentRef) (
 	dockerCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	idsOutput, err := exec.CommandContext(dockerCtx, "docker", "ps", "-aq", "--filter", "label=com.docker.compose.project="+ref.ExternalID).Output() // #nosec G204
+	idsCmd := exec.CommandContext(dockerCtx, "docker", "ps", "-aq", "--filter", "label=com.docker.compose.project="+ref.ExternalID) // #nosec G204
+	idsCmd.Env = dockerCommandEnv(dockerEnv)
+	idsOutput, err := idsCmd.Output()
 	if err != nil {
 		return coolifyDockerRuntimeObservation{}, err
 	}
@@ -497,7 +557,9 @@ func inspectCoolifyDockerRuntimeStatus(ctx context.Context, ref DeploymentRef) (
 	}
 
 	args := append([]string{"inspect"}, ids...)
-	inspectOutput, err := exec.CommandContext(dockerCtx, "docker", args...).Output() // #nosec G204
+	inspectCmd := exec.CommandContext(dockerCtx, "docker", args...) // #nosec G204
+	inspectCmd.Env = dockerCommandEnv(dockerEnv)
+	inspectOutput, err := inspectCmd.Output()
 	if err != nil {
 		return coolifyDockerRuntimeObservation{}, err
 	}
@@ -508,7 +570,7 @@ func inspectCoolifyDockerRuntimeStatus(ctx context.Context, ref DeploymentRef) (
 	return coolifyDockerRuntimeForServices(serviceNames, containers), nil
 }
 
-func startCoolifyServiceRuntime(ctx context.Context, ref DeploymentRef) error {
+func startCoolifyServiceRuntime(ctx context.Context, ref DeploymentRef, dockerEnv []string) error {
 	composePath, err := coolifyServiceComposePath(ref.ExternalID)
 	if err != nil {
 		return err
@@ -523,6 +585,7 @@ func startCoolifyServiceRuntime(ctx context.Context, ref DeploymentRef) error {
 	startCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(startCtx, "docker", coolifyServiceRuntimeStartArgs(composePath, ref)...) // #nosec G204
+	cmd.Env = dockerCommandEnv(dockerEnv)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker compose up %s: %w: %s", ref.ExternalID, err, strings.TrimSpace(string(output)))
@@ -539,6 +602,13 @@ func coolifyServiceRuntimeStartArgs(composePath string, ref DeploymentRef) []str
 		}
 	}
 	return args
+}
+
+func dockerCommandEnv(extra []string) []string {
+	if len(extra) == 0 {
+		return nil
+	}
+	return append(os.Environ(), extra...)
 }
 
 func coolifyServiceComposePath(externalID string) (string, error) {

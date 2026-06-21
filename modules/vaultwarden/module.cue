@@ -12,6 +12,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Bitwarden-compatible password vault for passwords, TOTP, and secure notes"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3", "SK-S4"]
 	}
 
@@ -86,6 +87,12 @@ Contract: base.#ModuleContract & {
 			networks: ["base_net"]
 		}
 
+		accessPolicy: {
+			outerAuth:      "tinyauth-pocketid"
+			appAuth:        "self-auth"
+			ownerBootstrap: "Generated admin token (Argon2id PHC) verified via the admin endpoint; the Owner login boundary is TinyAuth/PocketID in front of the app. Native app-local Owner provisioning is a documented beta limitation."
+		}
+
 		volumes: [{
 			source:      "vaultwarden-data"
 			target:      "/data"
@@ -97,7 +104,11 @@ Contract: base.#ModuleContract & {
 		environment: {
 			DOMAIN:          "https://vault.{{.domain}}"
 			SIGNUPS_ALLOWED: "false"
-			ADMIN_TOKEN:     "{{.vaultwarden_admin_token}}"
+			// Hardened admin-token contract: the container receives only the
+			// base64-encoded Argon2id PHC hash and decodes it into ADMIN_TOKEN
+			// at start. No plaintext ADMIN_TOKEN is persisted in environment
+			// configuration (see generated runtime entrypoint).
+			ADMIN_TOKEN_B64: "{{.vaultwarden_admin_token_phc_b64}}"
 		}
 
 		healthCheck: {

@@ -39,6 +39,7 @@ fi
 
 REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
 RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
+RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases/latest}"
 INSTALL_DIR="/usr/local/bin"
 
 GITHUB_AUTH_HEADER=""
@@ -52,6 +53,27 @@ curl_release() {
   else
     curl "$@"
   fi
+}
+
+extract_release_version() {
+  printf '%s' "$1" | grep '"tag_name"' | head -1 | sed -E 's/.*"v?([^"]+)".*/\1/'
+}
+
+resolve_release_from_redirect() {
+  effective_url="$(curl -fsSL -I -o /dev/null -w '%{url_effective}' "$RELEASES_PAGE_URL" 2>/dev/null || true)"
+  printf '%s' "$effective_url" | sed -nE 's#.*/releases/tag/v?([^/?#]+).*#\1#p' | head -1
+}
+
+download_release_asset() {
+  src="$1"
+  dst="$2"
+  if [ -n "$GITHUB_AUTH_HEADER" ]; then
+    if curl_release -fsSL "$src" -o "$dst"; then
+      return 0
+    fi
+    echo "  -> Authenticated download failed; retrying without GitHub token"
+  fi
+  curl -fsSL "$src" -o "$dst"
 }
 
 # --- Detect platform ----------------------------------------------------------
@@ -75,9 +97,17 @@ RELEASE_JSON=""
 if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
   LATEST=$(printf '%s' "$STACKKIT_RELEASE_VERSION" | sed -E 's/^v//')
 else
-  RELEASE_JSON=$(curl_release -sSL "$RELEASE_API_URL")
-  LATEST=$(printf '%s' "$RELEASE_JSON" \
-    | grep '"tag_name"' | head -1 | sed -E 's/.*"v([^"]+)".*/\1/')
+  RELEASE_JSON=$(curl_release -sSL "$RELEASE_API_URL" 2>/dev/null || true)
+  LATEST=$(extract_release_version "$RELEASE_JSON")
+  if [ -z "$LATEST" ] && [ -n "$GITHUB_AUTH_HEADER" ]; then
+    echo "  -> Authenticated latest-release lookup did not return a tag; retrying public API"
+    RELEASE_JSON=$(curl -sSL "$RELEASE_API_URL" 2>/dev/null || true)
+    LATEST=$(extract_release_version "$RELEASE_JSON")
+  fi
+  if [ -z "$LATEST" ]; then
+    echo "  -> GitHub API latest-release lookup did not return a tag; checking release redirect"
+    LATEST=$(resolve_release_from_redirect)
+  fi
 fi
 if [ -z "$LATEST" ]; then
   echo "Error: could not determine latest version." >&2
@@ -151,7 +181,7 @@ release_asset_api_url() {
 }
 
 ASSET_API_URL=""
-if [ -n "$GITHUB_AUTH_HEADER" ] && [ -z "$DOWNLOAD_BASE_OVERRIDE" ]; then
+if [ -n "$GITHUB_AUTH_HEADER" ] && [ -z "$DOWNLOAD_BASE_OVERRIDE" ] && [ "${STACKKIT_USE_RELEASE_ASSET_API:-0}" = "1" ]; then
   if [ -z "$RELEASE_JSON" ]; then
     RELEASE_TAG_API_URL="${STACKKIT_RELEASE_TAG_API_URL:-https://api.github.com/repos/$REPO/releases/tags/v${LATEST}}"
     RELEASE_JSON=$(curl_release -sSL "$RELEASE_TAG_API_URL")
@@ -169,7 +199,7 @@ if [ -n "$ASSET_API_URL" ]; then
   curl_release -H "Accept: application/octet-stream" -fsSL "$ASSET_API_URL" -o "$TMP/$ARCHIVE"
 else
   echo "Downloading ${URL}..."
-  curl_release -fsSL "$URL" -o "$TMP/$ARCHIVE"
+  download_release_asset "$URL" "$TMP/$ARCHIVE"
 fi
 tar xzf "$TMP/$ARCHIVE" -C "$TMP"
 

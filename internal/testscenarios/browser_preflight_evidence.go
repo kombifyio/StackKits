@@ -196,8 +196,12 @@ func validateBrowserPreflightRequiredEvidence(check BrowserPreflightCheck, brows
 	}
 	switch check.Name {
 	case "Docker Desktop context":
-		if strings.TrimSpace(check.Evidence["output"]) != "desktop-linux" {
-			return fmt.Errorf("browser preflight evidence check %q output = %q, want desktop-linux", check.Name, check.Evidence["output"])
+		// Docker Desktop hosts report desktop-linux; plain Docker Engine
+		// hosts (CI runners, Linux servers) report default. Both are Linux
+		// engines the fresh-VM rollout and capture can use.
+		output := strings.TrimSpace(check.Evidence["output"])
+		if output != "desktop-linux" && output != "default" {
+			return fmt.Errorf("browser preflight evidence check %q output = %q, want desktop-linux or default", check.Name, check.Evidence["output"])
 		}
 	case "Playwright package availability":
 		if strings.TrimSpace(check.Evidence["output"]) != "playwright=available" {

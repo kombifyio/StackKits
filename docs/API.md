@@ -1,6 +1,6 @@
 # StackKits API
 
-> Last verified: 2026-05-27
+> Last verified: 2026-06-13
 
 This document summarizes the StackKits HTTP API for operators, TechStack integrations, and AI agents. The contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml); the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server) and [internal/api](../internal/api).
 
@@ -118,7 +118,7 @@ password.
 
 The Node Hub posts setup/retry actions to `POST /api/v1/setup/services/{service}/run`. The server resolves the service through the StackKits service catalog, loads the generated `.platform-apps-manifest.json`, and executes matching L3 drops whose manifest policy is `automatic` or `on_demand`.
 
-`STACKKITS_SETUP_ACTION_MODE=dry-run` validates the manifest and returns the planned drop. `STACKKITS_SETUP_ACTION_MODE=apply` runs implemented node-local drops, persists each `SetupRun` in `.stackkit/state.yaml`, and treats completed drops as idempotent on re-run. Each persisted run records a stable `runId`, current phase, attempts, timestamps, phase logs, machine-readable `evidence`, a stable `failureClass` for failed runs, and manifest-provided `rollbackNotes` so the Node Hub can show retry-safe diagnostics. BaseKit currently implements `immich-owner-bootstrap` and `vaultwarden-admin-handoff`; rollout-owned drops such as Kuma and Files bootstrap are also persisted as setup-run evidence during apply. Immich uses `STACKKIT_ADMIN_EMAIL`, `STACKKIT_ADMIN_PASSWORD`, and `STACKKIT_SETUP_IMMICH_URL` to create or complete the owner onboarding. Vaultwarden verifies the generated admin endpoint/token, proves `ADMIN_TOKEN_B64`/PHC runtime storage, keeps app-local signups disabled, and records that its admin token is break-glass material while the Owner login remains PocketID/passkey.
+`STACKKITS_SETUP_ACTION_MODE=dry-run` validates the manifest and returns the planned drop. `STACKKITS_SETUP_ACTION_MODE=apply` runs implemented node-local drops, persists each `SetupRun` in `.stackkit/state.yaml`, and treats completed drops as idempotent on re-run. Each persisted run records a stable `runId`, current phase, attempts, timestamps, phase logs, machine-readable `evidence`, a stable `failureClass` for failed runs, and manifest-provided `rollbackNotes` so the Node Hub can show retry-safe diagnostics. BaseKit currently implements `cloudreve-owner-bootstrap`, `immich-owner-bootstrap`, and `vaultwarden-admin-handoff`; rollout-owned drops such as Kuma bootstrap are also persisted as setup-run evidence during apply. Immich uses `STACKKIT_ADMIN_EMAIL`, `STACKKIT_ADMIN_PASSWORD`, and `STACKKIT_SETUP_IMMICH_URL` to create the technical bootstrap account, configure PocketID OAuth, and prepare the app-local Owner account/session handoff. Cloudreve resolves the activated PocketID Owner, creates or logs into the matching app-local Files account, prepares the StackKit session bridge, and seeds demo content only when enabled. Vaultwarden verifies the generated admin endpoint/token, proves `ADMIN_TOKEN_B64`/PHC runtime storage, keeps app-local signups disabled, and records that its admin token is break-glass material while the Owner login remains PocketID/passkey; native app-local Vaultwarden Owner provisioning stays tracked separately.
 
 ## Runtime Actions
 
@@ -142,6 +142,14 @@ TechStack calls the internal runtime-action endpoints during managed wizard roll
 ```
 
 Supported `action` values are `stackkit_rollout`, `verify_rollout`, and `restore_drill`. Dry-run mode validates and echoes the handoff contract; apply mode runs OpenTofu `init`/`apply` for rollout, `state list` for verification, and `STACKKITS_RESTORE_DRILL_COMMAND` for restore proof when configured. Without that command, restore-drill remains an explicit `skipped` result.
+
+Apply-mode rollout responses include platform app evidence when the generated handoff manifest is present:
+
+- `platform_refs`: raw selected-PaaS deployment refs from the adapter.
+- `platform_system_apps`: artifact-ready state for StackKit-owned system apps such as `stackkit-hub` and `stackkit-server`.
+- `platform_apps`: artifact-ready state for StackKit-owned L3 apps such as `vaultwarden`, `immich`, and `cloudreve`.
+
+The `platform_system_apps` and `platform_apps` arrays use the same state shape as `stackkit status --json`: `name`, `platform`, `management`, `externalId`, `deploymentId`, `observedStatus`, `observedAt`, `setupPolicy`, `composePath`, and setup-drop metadata. For `on_demand` L3 apps, `observedStatus: "deploy:accepted"` is valid platform evidence until browser/setup evidence proves user-facing readiness.
 
 ## Registry
 

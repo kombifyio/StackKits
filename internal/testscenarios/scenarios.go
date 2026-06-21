@@ -113,7 +113,7 @@ type ProfileExpectation struct {
 	OwnerSource     string `json:"ownerSource,omitempty"`
 	PAAS            string `json:"paas,omitempty"`
 	BootstrapMode   string `json:"bootstrapMode,omitempty"`
-	DemoDataEnabled bool   `json:"demoDataEnabled,omitempty"`
+	DemoDataEnabled bool   `json:"demoDataEnabled"`
 }
 
 type SimulationExpectation struct {
@@ -122,11 +122,22 @@ type SimulationExpectation struct {
 	HealthChecks  []string `json:"healthChecks,omitempty"`
 }
 
+type SimulationStatus struct {
+	Status               string   `json:"status"`
+	ObservedSetupActions []string `json:"observedSetupActions,omitempty"`
+	MissingSetupActions  []string `json:"missingSetupActions,omitempty"`
+	ObservedHealthChecks []string `json:"observedHealthChecks,omitempty"`
+	MissingHealthChecks  []string `json:"missingHealthChecks,omitempty"`
+}
+
 type ObservedAccess struct {
-	Domain          string            `json:"domain,omitempty"`
-	SubdomainPrefix string            `json:"subdomainPrefix,omitempty"`
-	HubURL          string            `json:"hubUrl"`
-	Services        []ObservedService `json:"services"`
+	Domain             string                    `json:"domain,omitempty"`
+	SubdomainPrefix    string                    `json:"subdomainPrefix,omitempty"`
+	HubURL             string                    `json:"hubUrl"`
+	Services           []ObservedService         `json:"services"`
+	SetupActions       []string                  `json:"setupActions,omitempty"`
+	PlatformSystemApps []models.PlatformAppState `json:"platformSystemApps,omitempty"`
+	PlatformApps       []models.PlatformAppState `json:"platformApps,omitempty"`
 }
 
 type ObservedService struct {
@@ -152,18 +163,21 @@ type Target struct {
 }
 
 type Artifact struct {
-	ScenarioID   string                `json:"scenarioId"`
-	ScenarioName string                `json:"scenarioName"`
-	RunID        string                `json:"runId"`
-	Status       string                `json:"status"`
-	HubURL       string                `json:"hubUrl"`
-	BrowserURL   string                `json:"browserUrl"`
-	Profile      ProfileExpectation    `json:"profile,omitempty"`
-	Simulation   SimulationExpectation `json:"simulation,omitempty"`
-	Services     []ObservedService     `json:"services"`
-	Target       Target                `json:"target"`
-	LogsHint     string                `json:"logsHint,omitempty"`
-	GeneratedAt  time.Time             `json:"generatedAt"`
+	ScenarioID         string                    `json:"scenarioId"`
+	ScenarioName       string                    `json:"scenarioName"`
+	RunID              string                    `json:"runId"`
+	Status             string                    `json:"status"`
+	HubURL             string                    `json:"hubUrl"`
+	BrowserURL         string                    `json:"browserUrl"`
+	Profile            ProfileExpectation        `json:"profile,omitempty"`
+	Simulation         SimulationExpectation     `json:"simulation,omitempty"`
+	SimulationStatus   *SimulationStatus         `json:"simulationStatus,omitempty"`
+	Services           []ObservedService         `json:"services"`
+	PlatformSystemApps []models.PlatformAppState `json:"platformSystemApps,omitempty"`
+	PlatformApps       []models.PlatformAppState `json:"platformApps,omitempty"`
+	Target             Target                    `json:"target"`
+	LogsHint           string                    `json:"logsHint,omitempty"`
+	GeneratedAt        time.Time                 `json:"generatedAt"`
 }
 
 func LoadAll() ([]Scenario, error) {
@@ -254,17 +268,20 @@ func NewArtifact(s Scenario, runID, status string, access ObservedAccess, target
 		browserURL = hubURL
 	}
 	artifact := Artifact{
-		ScenarioID:   s.ID,
-		ScenarioName: s.Name,
-		RunID:        runID,
-		Status:       status,
-		HubURL:       hubURL,
-		BrowserURL:   browserURL,
-		Profile:      s.Expected.Profile,
-		Simulation:   s.Expected.Simulation,
-		Services:     append([]ObservedService(nil), access.Services...),
-		Target:       target,
-		GeneratedAt:  time.Now().UTC(),
+		ScenarioID:         s.ID,
+		ScenarioName:       s.Name,
+		RunID:              runID,
+		Status:             status,
+		HubURL:             hubURL,
+		BrowserURL:         browserURL,
+		Profile:            s.Expected.Profile,
+		Simulation:         s.Expected.Simulation,
+		SimulationStatus:   evaluateSimulationStatus(s.Expected.Simulation, access),
+		Services:           append([]ObservedService(nil), access.Services...),
+		PlatformSystemApps: append([]models.PlatformAppState(nil), access.PlatformSystemApps...),
+		PlatformApps:       append([]models.PlatformAppState(nil), access.PlatformApps...),
+		Target:             target,
+		GeneratedAt:        time.Now().UTC(),
 	}
 	return artifact
 }
@@ -348,4 +365,55 @@ func firstExpectedAccessURL(services []ExpectedService) string {
 		return svc.Scheme + "://" + svc.Host + svc.Path
 	}
 	return ""
+}
+
+func evaluateSimulationStatus(expected SimulationExpectation, access ObservedAccess) *SimulationStatus {
+	if len(expected.HealthChecks) == 0 && len(expected.SetupActions) == 0 {
+		return nil
+	}
+	observedServices := map[string]bool{}
+	for _, svc := range access.Services {
+		key := strings.TrimSpace(svc.Key)
+		if key != "" {
+			observedServices[key] = true
+		}
+	}
+	if strings.TrimSpace(access.HubURL) != "" {
+		observedServices["base"] = true
+	}
+	observedSetupActions := map[string]bool{}
+	for _, action := range access.SetupActions {
+		action = strings.TrimSpace(action)
+		if action != "" {
+			observedSetupActions[action] = true
+		}
+	}
+
+	status := &SimulationStatus{Status: "pass"}
+	for _, action := range expected.SetupActions {
+		if observedSetupActions[action] {
+			status.ObservedSetupActions = append(status.ObservedSetupActions, action)
+			continue
+		}
+		status.MissingSetupActions = append(status.MissingSetupActions, action)
+	}
+	for _, check := range expected.HealthChecks {
+		key := serviceKeyForHealthCheck(check)
+		if key != "" && observedServices[key] {
+			status.ObservedHealthChecks = append(status.ObservedHealthChecks, check)
+			continue
+		}
+		status.MissingHealthChecks = append(status.MissingHealthChecks, check)
+	}
+	if len(status.MissingSetupActions) > 0 || len(status.MissingHealthChecks) > 0 {
+		status.Status = "incomplete"
+	}
+	return status
+}
+
+func serviceKeyForHealthCheck(check string) string {
+	key := strings.TrimSpace(check)
+	key = strings.TrimSuffix(key, "-protected-route")
+	key = strings.TrimSuffix(key, "-route")
+	return key
 }

@@ -132,7 +132,7 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "v3"
 	status:      "planned"
 	description: "Identity-aware ForwardAuth proxy for all Traefik routes"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
 	placement: {
 		nodeType: "cloud"
@@ -149,6 +149,11 @@ import "github.com/kombifyio/stackkits/base"
 			tls:     true
 			port:    3000
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "self"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -181,15 +186,15 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"traefik.enable":                                                        "true"
-		"traefik.http.routers.tinyauth.entrypoints":                             "websecure"
-		"traefik.http.routers.tinyauth.rule":                                    "Host(`auth.{{.domain}}`)"
-		"traefik.http.routers.tinyauth.tls.certresolver":                        "letsencrypt"
-		"traefik.http.services.tinyauth.loadbalancer.server.port":               "3000"
-		"traefik.http.middlewares.tinyauth.forwardauth.address":                 "http://tinyauth:3000/api/auth/verify"
-		"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders":     "X-User,X-Email"
-		"stackkit.layer":      "2-platform"
-		"stackkit.managed-by": "terraform"
+		"traefik.enable":                                                    "true"
+		"traefik.http.routers.tinyauth.entrypoints":                         "websecure"
+		"traefik.http.routers.tinyauth.rule":                                "Host(`auth.{{.domain}}`)"
+		"traefik.http.routers.tinyauth.tls.certresolver":                    "letsencrypt"
+		"traefik.http.services.tinyauth.loadbalancer.server.port":           "3000"
+		"traefik.http.middlewares.tinyauth.forwardauth.address":             "http://tinyauth:3000/api/auth/verify"
+		"traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders": "X-User,X-Email"
+		"stackkit.layer":                                                    "2-platform"
+		"stackkit.managed-by":                                               "terraform"
 	}
 
 	output: {
@@ -213,7 +218,7 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "latest"
 	status:      "planned"
 	description: "OIDC provider with passkeys for SSO across all services"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
 	placement: {
 		nodeType: "cloud"
@@ -230,6 +235,11 @@ import "github.com/kombifyio/stackkits/base"
 			tls:     true
 			port:    80
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "self"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -277,7 +287,7 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "latest"
 	status:      "planned"
 	description: "Self-hosted PaaS with multi-server support and git deployments"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
 	placement: {
 		nodeType: "cloud"
@@ -296,6 +306,11 @@ import "github.com/kombifyio/stackkits/base"
 			tls:     true
 			port:    8000
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -375,7 +390,7 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "latest"
 	status:      "planned"
 	description: "Simple PaaS with traefik-me integration for domainless setups"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
 	placement: {
 		nodeType: "cloud"
@@ -392,6 +407,11 @@ import "github.com/kombifyio/stackkits/base"
 			tls:     true
 			port:    3000
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "self-auth"
 	}
 
 	volumes: [
@@ -453,7 +473,7 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "latest"
 	status:      "planned"
 	description: "Real-time Docker container log viewer with multi-host support"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
 	placement: {
 		nodeType: "cloud"
@@ -470,6 +490,12 @@ import "github.com/kombifyio/stackkits/base"
 			tls:     true
 			port:    8080
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "none"
+		reason:    "Log viewer with no own authentication; relies on the gateway."
 	}
 
 	volumes: [
@@ -515,7 +541,7 @@ import "github.com/kombifyio/stackkits/base"
 	tag:         "1"
 	status:      "planned"
 	description: "Self-hosted uptime monitoring and status page"
-	needs:       ["traefik"]
+	needs: ["traefik"]
 
 	placement: {
 		nodeType: "cloud"
@@ -532,6 +558,12 @@ import "github.com/kombifyio/stackkits/base"
 			tls:     true
 			port:    3001
 		}
+	}
+
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "disabled-after-bootstrap"
+		reason:    "BaseKit protects kuma.<domain> with TinyAuth/PocketID, then init-kuma disables the Kuma app login to avoid a second login prompt."
 	}
 
 	volumes: [
@@ -551,8 +583,9 @@ import "github.com/kombifyio/stackkits/base"
 	}
 
 	labels: {
-		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "terraform"
+		// Layer classification - platform observability (Golden Rules §3), aligned with base-kit.
+		"stackkit.layer":      "2-platform"
+		"stackkit.managed-by": "platform"
 	}
 
 	output: {
@@ -594,14 +627,21 @@ import "github.com/kombifyio/stackkits/base"
 		}
 	}
 
+	accessPolicy: {
+		outerAuth: "tinyauth-pocketid"
+		appAuth:   "none"
+		reason:    "Routing/auth diagnostic endpoint; only meaningful behind the gateway."
+	}
+
 	resources: {
 		memory: "32m"
 		cpus:   0.1
 	}
 
 	labels: {
-		"stackkit.layer":      "3-application"
-		"stackkit.managed-by": "terraform"
+		// Layer classification - platform routing diagnostic (Golden Rules §3), aligned with base-kit.
+		"stackkit.layer":      "2-platform"
+		"stackkit.managed-by": "platform"
 	}
 
 	restartPolicy: "unless-stopped"
@@ -613,10 +653,10 @@ import "github.com/kombifyio/stackkits/base"
 
 // Services for Coolify-based deployment (release default)
 #CoolifyServiceSet: {
-	traefik:    #TraefikService
-	tinyauth:   #TinyAuthService
-	pocketid:   #PocketIDService
-	coolify:    #CoolifyService & {enabled: true}
+	traefik:  #TraefikService
+	tinyauth: #TinyAuthService
+	pocketid: #PocketIDService
+	coolify: #CoolifyService & {enabled: true}
 	dozzle:     #DozzleService
 	uptimeKuma: #UptimeKumaService
 	whoami:     #WhoamiService
@@ -624,10 +664,10 @@ import "github.com/kombifyio/stackkits/base"
 
 // Services for Dokploy-based deployment (draft adapter)
 #DokployServiceSet: {
-	traefik:    #TraefikService
-	tinyauth:   #TinyAuthService
-	pocketid:   #PocketIDService
-	dokploy:    #DokployService & {enabled: true}
+	traefik:  #TraefikService
+	tinyauth: #TinyAuthService
+	pocketid: #PocketIDService
+	dokploy: #DokployService & {enabled: true}
 	dozzle:     #DozzleService
 	uptimeKuma: #UptimeKumaService
 	whoami:     #WhoamiService

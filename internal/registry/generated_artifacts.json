@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "artifacts": [
+    {
+      "path": "internal/registry/data/registry_snapshot.json",
+      "kind": "snapshot",
+      "state": "generated",
+      "generator": "stackkit registry snapshot"
+    },
+    {
+      "path": "base/generated/tool_catalog.cue",
+      "kind": "cue",
+      "state": "generated",
+      "generator": "stackkit registry emit-cue"
+    },
+    {
+      "path": "base/generated/admin_profiles.cue",
+      "kind": "cue",
+      "state": "frozen",
+      "generator": "",
+      "note": "Hand-maintained until WS-2 / kombify-StackKits-1if flips setup profiles to snapshot-owned emission."
+    },
+    {
+      "path": "guides/stackkits/services/*.mdx",
+      "kind": "mintlify",
+      "state": "generated",
+      "generator": "stackkit registry emit-mintlify",
+      "note": "Only files with 'generated: true' frontmatter are owned by this generator. Handwritten guides coexist."
+    }
+  ]
+}

@@ -35,23 +35,23 @@ package base
 
 	// Base system packages (always installed)
 	base: [...string] | *[
-			"curl",
-			"wget",
-			"ca-certificates",
-			"gnupg",
-			"lsb-release",
-			"apt-transport-https",
-			"software-properties-common",
+		"curl",
+		"wget",
+		"ca-certificates",
+		"gnupg",
+		"lsb-release",
+		"apt-transport-https",
+		"software-properties-common",
 	]
 
 	// CLI tools (modern replacements)
 	tools: [...string] | *[
-			"htop",
-			"btop",
-			"tmux",
-			"jq",
-			"tree",
-			"ncdu",
+		"htop",
+		"btop",
+		"tmux",
+		"jq",
+		"tree",
+		"ncdu",
 	]
 
 	// Extra packages (StackKit-specific)

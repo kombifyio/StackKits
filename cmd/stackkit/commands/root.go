@@ -2,13 +2,17 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/rollout"
+	"github.com/kombifyio/stackkits/internal/telemetry"
 	"github.com/spf13/cobra"
 )
 
@@ -51,6 +55,10 @@ var deployLog *logging.DeployLogger
 var (
 	rolloutRecorder       *rollout.Recorder
 	rolloutRecorderClosed bool
+	rolloutFailurePhase   string
+	rolloutOTelRuntime    telemetry.OTelRuntime
+	rolloutOTelShutdown   func(context.Context) error
+	rolloutPhaseSpans     map[string]telemetry.SpanHandle
 )
 
 // rootCmd represents the base command
@@ -110,6 +118,10 @@ func Execute() error {
 		}
 		rolloutRecorder = nil
 		rolloutRecorderClosed = false
+		rolloutFailurePhase = ""
+		rolloutOTelRuntime = telemetry.OTelRuntime{}
+		rolloutOTelShutdown = nil
+		rolloutPhaseSpans = nil
 	}()
 	return rootCmd.Execute()
 }
@@ -188,6 +200,7 @@ func initDeployLogger() {
 	closeRolloutRecorder(rollout.Summary{Status: "success"})
 	rolloutRecorder = nil
 	rolloutRecorderClosed = false
+	rolloutFailurePhase = ""
 
 	wd := getWorkDir()
 	logDir := filepath.Join(wd, ".stackkit", "logs")
@@ -212,12 +225,40 @@ func initRolloutRecorder(wd string) {
 		return
 	}
 	rolloutRecorder = rec
+	rolloutFailurePhase = ""
+	initRolloutTelemetry(runID)
+}
+
+func initRolloutTelemetry(runID string) {
+	rolloutOTelRuntime = telemetry.OTelRuntime{}
+	rolloutOTelShutdown = nil
+	rolloutPhaseSpans = nil
+	runtime, shutdown, err := telemetry.SetupOTel(context.Background(), telemetry.OTelConfig{
+		ServiceName:        "stackkit-cli",
+		ServiceVersion:     version,
+		RunID:              runID,
+		TenantDeploymentID: firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID"),
+		StackKit:           firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
+		Environment:        firstEnv("STACKKIT_ENVIRONMENT", "KOMBIFY_ENVIRONMENT", "GO_ENV"),
+		Provider:           firstEnv("STACKKIT_PROVIDER", "STACKKIT_E2E_CLOUD_NODE_ENGINE"),
+		NodeID:             firstEnv("STACKKIT_NODE_ID", "STACKKIT_TARGET_NODE_ID"),
+	})
+	if err != nil {
+		printVerbose("otel telemetry disabled: %v", err)
+		return
+	}
+	rolloutOTelRuntime = runtime
+	rolloutOTelShutdown = shutdown
+	if runtime.Enabled {
+		rolloutPhaseSpans = map[string]telemetry.SpanHandle{}
+	}
 }
 
 func rolloutEvent(phase, status, message string, attrs map[string]string) {
 	if rolloutRecorder == nil {
 		return
 	}
+	recordRolloutSpanEvent(phase, status, message, attrs, nil)
 	rolloutRecorder.Event(rollout.Event{
 		Phase:      phase,
 		Status:     status,
@@ -233,6 +274,10 @@ func rolloutFailure(phase string, err error) {
 	if rolloutRecorder == nil {
 		return
 	}
+	if rolloutFailurePhase == "" || rolloutFailurePhase == "apply" {
+		rolloutFailurePhase = phase
+	}
+	recordRolloutSpanEvent(phase, "failed", err.Error(), nil, err)
 	rolloutRecorder.Event(rollout.Event{
 		Phase:        phase,
 		Status:       "failed",
@@ -254,8 +299,138 @@ func closeRolloutRecorder(summary rollout.Summary) {
 	if summary.Message != "" && summary.FailureClass == "" {
 		summary.FailureClass = rollout.ClassifyFailure(summary.Message)
 	}
+	if summary.Status == "failed" {
+		if sentryArtifact := captureSentryFailureEvidence(summary); sentryArtifact != "" {
+			summary.Artifacts = append(summary.Artifacts, sentryArtifact)
+		}
+	}
+	closeRolloutTelemetry(summary)
 	_ = rolloutRecorder.Close(summary)
 	rolloutRecorderClosed = true
+}
+
+func recordRolloutSpanEvent(phase, status, message string, attrs map[string]string, err error) {
+	if !rolloutOTelRuntime.Enabled {
+		return
+	}
+	phase = strings.TrimSpace(phase)
+	if phase == "" {
+		phase = "rollout"
+	}
+	status = strings.TrimSpace(status)
+	if rolloutPhaseSpans == nil {
+		rolloutPhaseSpans = map[string]telemetry.SpanHandle{}
+	}
+	span, open := rolloutPhaseSpans[phase]
+	spanAttrs := rolloutSpanAttributes(phase, status, message, attrs)
+	terminal := rolloutSpanStatusTerminal(status)
+	if !open {
+		_, span = telemetry.StartSpan(context.Background(), "stackkit.rollout."+phase, spanAttrs)
+		if !terminal {
+			rolloutPhaseSpans[phase] = span
+		}
+	} else {
+		span.AddEvent("rollout."+status, spanAttrs)
+		span.SetAttributes(spanAttrs)
+	}
+	if err != nil {
+		span.RecordError(err)
+	}
+	span.SetRolloutStatus(status, message)
+	if terminal {
+		span.End()
+		delete(rolloutPhaseSpans, phase)
+	}
+}
+
+func closeRolloutTelemetry(summary rollout.Summary) {
+	if rolloutOTelRuntime.Enabled {
+		for phase, span := range rolloutPhaseSpans {
+			spanAttrs := rolloutSpanAttributes(phase, summary.Status, summary.Message, map[string]string{
+				"failure_class": summary.FailureClass,
+			})
+			span.SetAttributes(spanAttrs)
+			span.SetRolloutStatus(summary.Status, summary.Message)
+			span.End()
+			delete(rolloutPhaseSpans, phase)
+		}
+	}
+	if rolloutOTelShutdown != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := rolloutOTelShutdown(ctx); err != nil {
+			printVerbose("otel telemetry shutdown failed: %v", err)
+		}
+		cancel()
+	}
+	rolloutOTelRuntime = telemetry.OTelRuntime{}
+	rolloutOTelShutdown = nil
+	rolloutPhaseSpans = nil
+}
+
+func rolloutSpanAttributes(phase, status, message string, attrs map[string]string) map[string]string {
+	spanAttrs := map[string]string{
+		"stackkit.rollout.phase":  phase,
+		"stackkit.rollout.status": status,
+	}
+	if strings.TrimSpace(message) != "" {
+		spanAttrs["stackkit.rollout.message"] = telemetry.RedactTelemetryValue(message)
+	}
+	for key, value := range attrs {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		spanAttrs["stackkit.rollout."+key] = value
+	}
+	return spanAttrs
+}
+
+func rolloutSpanStatusTerminal(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "succeeded", "success", "skipped", "failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func captureSentryFailureEvidence(summary rollout.Summary) string {
+	if rolloutRecorder == nil || rolloutRecorder.Root() == "" {
+		return ""
+	}
+	phase := rolloutFailurePhase
+	if phase == "" {
+		phase = "rollout"
+	}
+	failureClass := summary.FailureClass
+	if failureClass == "" && summary.Message != "" {
+		failureClass = rollout.ClassifyFailure(summary.Message)
+	}
+	path, runtime, err := telemetry.CaptureSentryFailure(rolloutRecorder.Root(), telemetry.SentryConfig{
+		RunID:              rolloutRecorder.RunID(),
+		TenantDeploymentID: firstNonEmpty(applyTenantDeployment, firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID")),
+		StackKit:           firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
+		Environment:        firstEnv("STACKKIT_ENVIRONMENT", "KOMBIFY_ENVIRONMENT", "GO_ENV"),
+		Provider:           firstEnv("STACKKIT_PROVIDER", "STACKKIT_E2E_CLOUD_NODE_ENGINE"),
+		Phase:              phase,
+		FailureClass:       failureClass,
+		RolloutMode:        rolloutModeForTelemetry(),
+	}, summary.Message, nil)
+	if err != nil {
+		printVerbose("sentry failure evidence unavailable: %v", err)
+		return ""
+	}
+	if runtime.ForbiddenAuthToken {
+		printVerbose("sentry failure evidence disabled: Sentry auth/API token is not allowed on target nodes")
+	}
+	return path
+}
+
+func rolloutModeForTelemetry() string {
+	if strings.TrimSpace(applyTenantDeployment) != "" || strings.TrimSpace(firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID")) != "" {
+		return "techstack"
+	}
+	return "cli"
 }
 
 // getLogDir returns the log directory path for the current working directory.

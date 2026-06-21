@@ -16,7 +16,7 @@ permissions:
   attestations: write
 
 env:
-  GO_VERSION: "1.26.3"
+  GO_VERSION: "1.26.4"
 
 jobs:
   test:
@@ -26,12 +26,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -46,18 +46,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
 
@@ -70,7 +70,7 @@ jobs:
             --output internal/registry/data/registry_snapshot.json
 
       - name: Build dry-run archive
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -100,12 +100,23 @@ jobs:
               --browser-evidence-root .
             )
           fi
+          scenario_artifact_args=()
+          for scenario_artifact in \
+            artifacts/scenarios/SK-S1/homelab.json \
+            artifacts/scenarios/SK-S2/homelab.json \
+            artifacts/scenarios/SK-S3/homelab.json \
+            artifacts/scenarios/SK-S5/homelab.json; do
+            if [ -f "$scenario_artifact" ]; then
+              node scripts/release/validate-scenario-artifact.mjs "$scenario_artifact"
+              scenario_artifact_args+=(--scenario-artifact "$scenario_artifact")
+            fi
+          done
           node scripts/release/render-release-evidence.mjs \
             --tag "${GITHUB_REF_NAME}" \
             --commit "${GITHUB_SHA}" \
             --source-repo "kombifyio/stackKits" \
             --release-repo "kombifyio/stackKits" \
-            --visibility internal \
+            --visibility public \
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             --release-url "https://github.com/kombifyio/stackKits/releases/tag/${GITHUB_REF_NAME}" \
@@ -113,10 +124,12 @@ jobs:
             --output dist/release-evidence.json \
             "${browser_preflight_args[@]}" \
             "${browser_evidence_args[@]}" \
+            "${scenario_artifact_args[@]}" \
             --check "publicExport=pass,public tag workflow is running on exported contents" \
             --check "archiveValidation=pass,dry-run archive validation passed" \
             --check "defaultL3PaaSDelivery=pass,default StackKit-owned L3 apps are PaaS-intended" \
             --check "attestationVerification=pending,verify published release assets and image after workflows complete"
+          node scripts/release/validate-release-evidence.mjs dist/release-evidence.json
 
   publish-image:
     name: Publish StackKit Server Image
@@ -126,18 +139,18 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
 
@@ -180,7 +193,7 @@ jobs:
         run: syft "${IMAGE}:${TAG}" -o spdx-json=stackkits-server-image.spdx.json
 
       - name: Attest server image SBOM
-        uses: actions/attest-sbom@10926c72720ffc3f7b666661c8e55b1344e2a365
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
         with:
           subject-name: ghcr.io/kombifyio/stackkits
           subject-digest: ${{ steps.image-digest.outputs.digest }}
@@ -188,7 +201,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest server image
-        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-name: ghcr.io/kombifyio/stackkits
           subject-digest: ${{ steps.image-digest.outputs.digest }}

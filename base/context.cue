@@ -59,8 +59,9 @@ package base
 
 // #ContextPAAS defines PAAS preference for a context
 #ContextPAAS: {
-	// Preferred PAAS for this context
-	preferred: "coolify" | "komodo" | "dockge" | *"coolify"
+	// Preferred PAAS for this context. Uses the shared adapter vocabulary
+	// (#PAASServiceType); Dockge is a compose manager, not a PaaS adapter.
+	preferred: #PAASServiceType | *"coolify"
 }
 
 // #ContextResources defines resource limits for a context
@@ -87,7 +88,7 @@ package base
 			mode:          "self-signed"
 			acmeAvailable: false
 		}
-		paas: preferred:     "coolify"
+		paas: preferred: "coolify"
 		resources: {
 			defaultTier:  "standard"
 			memoryFactor: 1.0
@@ -105,7 +106,7 @@ package base
 			mode:          "letsencrypt"
 			acmeAvailable: true
 		}
-		paas: preferred:     "coolify"
+		paas: preferred: "coolify"
 		resources: {
 			defaultTier:  "standard"
 			memoryFactor: 1.0
@@ -123,7 +124,7 @@ package base
 			mode:          "self-signed"
 			acmeAvailable: false
 		}
-		paas: preferred:     "coolify"
+		paas: preferred: "coolify"
 		resources: {
 			defaultTier:  "low"
 			memoryFactor: 0.5
@@ -183,8 +184,8 @@ package base
 	// Compatibility constraints
 	_compatibility: #AddOnCompatibility | *{
 		stackkits: []
-		contexts:  []
-		requires:  []
+		contexts: []
+		requires: []
 		conflicts: []
 	}
 

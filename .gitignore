@@ -117,3 +117,6 @@ modules/*/cue.mod/
 .worktrees/
 # RepoWise local development index/cache
 .repowise/
+
+# Local module-release artifacts (CI writes to RUNNER_TEMP)
+modules/*/module-release.json

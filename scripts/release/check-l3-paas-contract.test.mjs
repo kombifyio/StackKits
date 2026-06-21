@@ -79,7 +79,7 @@ resource "local_file" "coolify_dynamic_stackkit" {
 }
 resource "null_resource" "coolify_platform_bootstrap" {
   provisioner "local-exec" {
-    command = "stackkit_docker() { DOCKER_HOST=\"\${var.docker_host}\" docker \"$@\"; } stackkit_sync_coolify_dynamic_config() { cat > /data/coolify/proxy/dynamic/stackkit.yml; } stackkit_coolify_diagnostics() { echo Coolify readiness diagnostics (redacted):; } curl -fsS \${local.coolify_bootstrap_api_endpoint}/api/health curl -fsS \${local.coolify_bootstrap_api_endpoint}/health traefik.docker.network=\${local.routing_network} STACKKIT_COOLIFY_API_ENDPOINT=\"\${local.coolify_api_endpoint}\" STACKKIT_COOLIFY_PLATFORM_JSON=... STACKKIT_COOLIFY_SERVER_PUBLIC_KEY= authorized_keys server_settings set is_reachable = true, is_usable = true host.docker.internal --providers.docker.endpoint= --certificatesresolvers.letsencrypt.acme.httpchallenge=true --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http stackkit_docker compose -f \"$PROXY_COMPOSE\" up -d 'id' => 0 Hash::make($bootstrapPassword) show_boarding' => false is_api_enabled' => true is_registration_enabled' => false createToken($tokenName, ['root']) StartProxy::run($server, async: false, force: true) proxyContainer' => 'coolify-proxy' .stackkit/platform.json"
+    command = "stackkit_docker() { DOCKER_HOST=\"\${var.docker_host}\" docker \"$@\"; } stackkit_sync_coolify_dynamic_config() { cat > /data/coolify/proxy/dynamic/stackkit.yml; } stackkit_coolify_diagnostics() { echo Coolify readiness diagnostics (redacted):; } curl -fsS \${local.coolify_bootstrap_api_endpoint}/api/health curl -fsS \${local.coolify_bootstrap_api_endpoint}/health traefik.docker.network=\${local.routing_network} STACKKIT_COOLIFY_API_ENDPOINT=\"\${local.coolify_api_endpoint}\" STACKKIT_COOLIFY_PLATFORM_JSON=... STACKKIT_COOLIFY_SERVER_PUBLIC_KEY= authorized_keys server_settings set is_reachable = true, is_usable = true host.docker.internal --providers.docker.endpoint= --certificatesresolvers.letsencrypt.acme.httpchallenge=true --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http stackkit_docker compose -f \"$PROXY_COMPOSE\" up -d 'id' => 0 Hash::make($bootstrapPassword) show_boarding' => false is_api_enabled' => true is_registration_enabled' => false createToken($tokenName, ['root']) StartProxy::run($server, async: false, force: true) proxyContainer' => 'coolify-proxy' .stackkit/platform.json 'capability' => 'backups' 'status' => 'configured' stackkit.backup=required restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill"
   }
 }
 resource "null_resource" "coolify_install" {
@@ -129,6 +129,68 @@ Contract: {
   const { stdout } = await execFileAsync(process.execPath, ['scripts/release/check-l3-paas-contract.mjs', '--repo-root', root]);
 
   assert.match(stdout, /Default StackKit-owned L3 PaaS contract check passed/);
+});
+
+test('check-l3-paas-contract accepts v0.4 PaaS release posture', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackkits-l3-paas-posture-pass-'));
+  await mkdir(path.join(root, 'base-kit'), { recursive: true });
+  await writeFile(
+    path.join(root, 'base-kit', 'mode_matrix.cue'),
+    `package base_kit
+
+modeMatrix: {
+  paas: {
+    coolify: "default"
+    komodo:  "supported"
+    dokploy: "draft"
+    dockge:  "experimental"
+  }
+}
+`,
+  );
+  await writeFile(
+    path.join(root, 'base-kit', 'stackkit.yaml'),
+    `changelog:
+  - version: "5.0.0"
+    changes:
+      - "CHANGED: Komodo is the beta-supported PaaS alternative; Dokploy remains draft"
+`,
+  );
+
+  const { stdout } = await execFileAsync(process.execPath, ['scripts/release/check-l3-paas-contract.mjs', '--repo-root', root]);
+
+  assert.match(stdout, /Default StackKit-owned L3 PaaS contract check passed/);
+});
+
+test('check-l3-paas-contract rejects Dokploy promotion without parity evidence', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'stackkits-l3-paas-posture-fail-'));
+  await mkdir(path.join(root, 'base-kit'), { recursive: true });
+  await writeFile(
+    path.join(root, 'base-kit', 'mode_matrix.cue'),
+    `package base_kit
+
+modeMatrix: {
+  paas: {
+    coolify: "default"
+    komodo:  "supported"
+    dokploy: "supported"
+  }
+}
+`,
+  );
+  await writeFile(
+    path.join(root, 'base-kit', 'stackkit.yaml'),
+    `changelog:
+  - version: "5.0.0"
+    changes:
+      - "CHANGED: Komodo is the beta-supported PaaS alternative; Dokploy remains draft"
+`,
+  );
+
+  await assert.rejects(
+    execFileAsync(process.execPath, ['scripts/release/check-l3-paas-contract.mjs', '--repo-root', root]),
+    /Dokploy must not be promoted into the v0\.4 beta-supported PaaS set/,
+  );
 });
 
 test('check-l3-paas-contract rejects Coolify generated services with standalone Traefik entrypoints', async () => {

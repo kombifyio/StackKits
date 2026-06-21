@@ -21,7 +21,7 @@
     { icon: 'language', title: '*.home.localhost', body: 'Browser-native local DNS. No hosts edits, no certs, no port suffixes.' },
     { icon: 'smart_toy', title: 'Agent-first', body: 'llms.txt, OpenAPI, JSON schemas, MCP connector, prompt Markdown — all in the release.' },
     { icon: 'verified_user', title: 'Identity baked in', body: 'PocketID, TinyAuth, and a routed dashboard from the first apply.' },
-    { icon: 'open_in_new', title: 'Apache-2.0 OSS', body: 'No telemetry, no lock-in. Run it on your hardware, on your terms.' },
+    { icon: 'open_in_new', title: 'Apache-2.0 OSS', body: 'CLI defaults: no telemetry, no lock-in. Run it on your hardware, on your terms.' },
   ]
 
   const heroLines = [

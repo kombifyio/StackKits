@@ -29,6 +29,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/api"
 	"github.com/kombifyio/stackkits/internal/kombifyme"
+	"github.com/kombifyio/stackkits/internal/telemetry"
 )
 
 // Version is set at build time via ldflags.
@@ -66,6 +67,9 @@ func main() {
 		"base_dir", cfg.BaseDir,
 	)
 
+	otelShutdown := initServerTelemetry(Version)
+	defer otelShutdown()
+
 	srv := api.NewServer(cfg)
 
 	httpServer := newHTTPServer(cfg, srv.Handler())
@@ -76,6 +80,35 @@ func main() {
 	startHeartbeat(heartbeatCtx, *instanceID)
 
 	runServer(httpServer)
+}
+
+func initServerTelemetry(version string) func() {
+	runtime, shutdown, err := telemetry.SetupOTel(context.Background(), serverOTelConfig(version))
+	if err != nil {
+		slog.Warn("otel telemetry disabled", "error", err)
+		return func() {}
+	}
+	if runtime.Enabled {
+		slog.Info("otel telemetry enabled", "service", runtime.ServiceName, "protocol", runtime.Protocol)
+	}
+	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdown(ctx); err != nil {
+			slog.Warn("otel telemetry shutdown failed", "error", err)
+		}
+	}
+}
+
+func serverOTelConfig(version string) telemetry.OTelConfig {
+	return telemetry.OTelConfig{
+		ServiceName:    "stackkit-server",
+		ServiceVersion: version,
+		Environment:    firstEnv("STACKKIT_ENVIRONMENT", "KOMBIFY_ENVIRONMENT", "GO_ENV", "APP_ENV"),
+		StackKit:       firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
+		Provider:       firstEnv("STACKKIT_PROVIDER", "STACKKIT_E2E_CLOUD_NODE_ENGINE"),
+		NodeID:         firstEnv("STACKKIT_NODE_ID", "STACKKIT_TARGET_NODE_ID", "STACKKITS_INSTANCE_ID"),
+	}
 }
 
 func newHTTPServer(cfg api.ServerConfig, handler http.Handler) *http.Server {
@@ -319,6 +352,15 @@ func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
 		}
 	}
 	return ""

@@ -292,43 +292,41 @@ package base
 	encryptionKey?: =~"^secret://"
 }
 
-// #BackupDestination defines a backup target
+// #BackupDestination defines a backup target.
+// Single canonical definition (a duplicate previously lived in
+// validation.cue and silently unified, making the "rclone" arm
+// unsatisfiable). Shape mirrors the YAML spec contract in
+// pkg/models/models.go (BackupDestinationSpec): flat, camelCase,
+// per-type fields. "rclone" is a backup backend
+// (#BackupConfig.backend), not a destination type.
 #BackupDestination: {
 	// Destination name
 	name: string
 
 	// Destination type
-	type: "local" | "s3" | "b2" | "sftp" | "rclone"
+	type: "local" | "s3" | "b2" | "sftp"
 
 	// Local path (if type = local)
 	path?: string
 
 	// S3 configuration (if type = s3)
-	s3?: {
-		bucket:    string
-		endpoint?: string
-		region:    string | *"us-east-1"
-		accessKey: =~"^secret://"
-		secretKey: =~"^secret://"
-	}
+	s3Bucket?:   string
+	s3Endpoint?: string // Custom S3 endpoint (MinIO, Wasabi, etc.)
+	s3Region?:   string
+	// Inline credentials MUST be secret references (Golden Rules §4.5)
+	s3AccessKey?: =~"^secret://"
+	s3SecretKey?: =~"^secret://"
 
 	// B2 configuration (if type = b2)
-	b2?: {
-		bucket:         string
-		keyId:          =~"^secret://"
-		applicationKey: =~"^secret://"
-	}
+	b2Bucket?:         string
+	b2KeyId?:          =~"^secret://"
+	b2ApplicationKey?: =~"^secret://"
 
 	// SFTP configuration (if type = sftp)
-	sftp?: {
-		host:      string
-		port:      uint16 | *22
-		user:      string
-		password?: =~"^secret://"
-		keyPath?:  string
-		path:      string
-	}
-
-	// rclone remote name (if type = rclone)
-	rcloneRemote?: string
+	sftpHost?:     string
+	sftpPort?:     uint16
+	sftpUser?:     string
+	sftpPassword?: =~"^secret://"
+	sftpKeyPath?:  string
+	sftpPath?:     string
 }

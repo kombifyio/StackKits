@@ -12,6 +12,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Self-hosted photo and video management with AI-powered search and mobile backup"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S4"]
 	}
 
@@ -91,6 +92,12 @@ Contract: base.#ModuleContract & {
 			networks: ["base_net"]
 		}
 
+		accessPolicy: {
+			outerAuth:      "tinyauth-pocketid"
+			appAuth:        "self-auth"
+			ownerBootstrap: "init-immich creates ci/admin owner from StackKit admin credentials and completes onboarding."
+		}
+
 		volumes: [
 			{
 				source:      "immich-upload"
@@ -136,10 +143,6 @@ Contract: base.#ModuleContract & {
 				requiredCapabilities: ["photos", "photo-management"]
 				bootstrapRequirements: ["create-first-admin", "complete-server-onboarding", "complete-user-onboarding"]
 				note: "Any replacement photo module must keep the photos route role and document equivalent owner bootstrap steps."
-			}
-			accessPolicy: {
-				appAuth:        "self-auth"
-				ownerBootstrap: "init-immich creates ci/admin owner from StackKit admin credentials and completes onboarding."
 			}
 		}
 

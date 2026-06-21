@@ -13,10 +13,13 @@ Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "uptime-kuma"
 		displayName: "Uptime Kuma"
-		version:     "1.0.0"
+		version:     "1.0.1"
 		layer:       "L2-platform-observability"
 		description: "Self-hosted uptime monitoring with status pages and notifications"
-		testScenarios: ["SK-S2"]
+		maturity:    "default"
+		// Uptime Kuma is part of the SK-S1 platform baseline (STATUS.md) and
+		// covered by the SK-S2 full-platform scenario.
+		testScenarios: ["SK-S1", "SK-S2"]
 	}
 
 	requires: {
@@ -62,10 +65,11 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: "uptime-kuma": base.#ServiceDefinition & {
-		name:     "uptime-kuma"
-		type:     "monitoring"
-		image:    "louislam/uptime-kuma"
-		tag:      "1"
+		name: "uptime-kuma"
+		type: "monitoring"
+		// Pin matches the release pre-pull list (cmd/stackkit/commands/prepare_docker.go).
+		image:    "ghcr.io/louislam/uptime-kuma"
+		tag:      "2.0.2"
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]
@@ -82,6 +86,12 @@ Contract: base.#ModuleContract & {
 				port:    3001
 			}
 			networks: ["base_net"]
+		}
+
+		accessPolicy: {
+			outerAuth: "tinyauth-pocketid"
+			appAuth:   "disabled-after-bootstrap"
+			reason:    "BaseKit protects kuma.<domain> with TinyAuth/PocketID, then init-kuma disables the Kuma app login to avoid a second login prompt."
 		}
 
 		volumes: [{
@@ -109,11 +119,6 @@ Contract: base.#ModuleContract & {
 		}
 
 		config: {
-			accessPolicy: {
-				outerAuth: "tinyauth-pocketid"
-				appAuth:   "disabled-after-bootstrap"
-				reason:    "BaseKit protects kuma.<domain> with TinyAuth/PocketID, then init-kuma disables the Kuma app login to avoid a second login prompt."
-			}
 			serviceGroup: "monitoring"
 			routeRole:    "kuma"
 		}

@@ -95,6 +95,9 @@ const sitemap = await readStatic('sitemap.xml');
 const renderBlueprint = await readRepo('render.yaml');
 const embedFrameAncestors = "frame-ancestors 'self' https://kombify.io";
 const rootInstall = await readRepo('install.sh');
+const rootBaseInstall = await readRepo('base-install.sh');
+
+await assertNoFrameworkAnalyticsSurface();
 
 for (const [name, content] of Object.entries({ install, base, modern, ha })) {
   assert(content.startsWith('#!/bin/sh'), `${name} must start with #!/bin/sh`);
@@ -104,6 +107,8 @@ for (const [name, content] of Object.entries({ install, base, modern, ha })) {
 assert(install.includes('StackKits CLI installer'), 'install endpoint must identify the CLI installer');
 assert(install === rootInstall, 'install endpoint must be the self-contained root release installer');
 assert(base.includes('StackKits Base Installer'), 'base endpoint must identify the Base installer');
+assertBaseInstallerLocalServerImage(base, 'base endpoint');
+assertBaseInstallerLocalServerImage(rootBaseInstall, 'root base-install.sh');
 assert(modern.includes('alpha/scaffolding'), 'modern endpoint must warn that it is alpha/scaffolding');
 assert(ha.includes('alpha/scaffolding'), 'ha endpoint must warn that it is alpha/scaffolding');
 
@@ -260,8 +265,77 @@ async function readRepo(rel) {
   return readFile(path.join(repoRoot, rel), 'utf8');
 }
 
+async function assertNoFrameworkAnalyticsSurface() {
+  // stackkit.cc may use website analytics. The CLI, CUE contracts, generated
+  // deployment framework, installers, APIs, schemas, and runtime sources must
+  // stay free of PostHog-specific code or configuration.
+  const frameworkEntries = [
+    'cmd',
+    'internal',
+    'pkg',
+    'api',
+    'schemas',
+    'base',
+    'base-kit',
+    'ha-kit',
+    'modern-homelab',
+    'addons',
+    'modules',
+    'platforms',
+    'cue.mod',
+    'install.sh',
+    'base-install.sh',
+    'Dockerfile',
+    'Makefile',
+  ];
+  const files = [];
+  for (const entry of frameworkEntries) {
+    await collectTextFiles(path.join(repoRoot, entry), files);
+  }
+  const blocked = [
+    /\bposthog\b/i,
+    /\bPOSTHOG_/,
+    /\bVITE_POSTHOG_/,
+    /\bposthog-js\b/i,
+    /https:\/\/[^"'`\s]*posthog[^"'`\s]*/i,
+  ];
+  for (const file of files) {
+    const content = await readFile(file, 'utf8');
+    for (const pattern of blocked) {
+      assert(!pattern.test(content), `${path.relative(repoRoot, file)} must not contain ${pattern}`);
+    }
+  }
+}
+
+async function collectTextFiles(target, files) {
+  const info = await stat(target);
+  if (info.isDirectory()) {
+    for (const entry of await readdir(target)) {
+      await collectTextFiles(path.join(target, entry), files);
+    }
+    return;
+  }
+  if (['.css', '.html', '.js', '.json', '.md', '.mjs', '.svelte', '.ts'].includes(path.extname(target))) {
+    files.push(target);
+  }
+}
+
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
+  }
+}
+
+function assertBaseInstallerLocalServerImage(content, label) {
+  for (const required of [
+    'FROM scratch',
+    'COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt',
+    'ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt',
+    'ENTRYPOINT ["/usr/local/bin/stackkit-server"]',
+  ]) {
+    assert(content.includes(required), `${label} must build stackkit-server:local with ${required}`);
+  }
+  for (const forbidden of ['FROM alpine', 'RUN apk add']) {
+    assert(!content.includes(forbidden), `${label} local stackkit-server image build must not require ${forbidden}`);
   }
 }

@@ -210,7 +210,7 @@ import "github.com/kombifyio/stackkits/base"
 }
 
 // =============================================================================
-// SERVICE COLLECTIONS (Planned — Docker Swarm HA Variants)
+// SERVICE COLLECTIONS (Planned — Docker Swarm HA service-set profiles)
 // =============================================================================
 
 // #DefaultHAServices - Standard HA deployment (Docker Swarm)

@@ -1069,6 +1069,8 @@ func findSetupRunIndex(runs []models.SetupRunState, serviceKey, appName, dropNam
 
 func (s *Server) runSetupDrop(ctx context.Context, service servicecatalog.Service, app platformdeploy.AppManifest, drop platformdeploy.SetupDropManifest) (map[string]string, *skerrors.StackKitError) {
 	switch drop.Name {
+	case "cloudreve-owner-bootstrap":
+		return s.runCloudreveOwnerBootstrap(ctx)
 	case "immich-owner-bootstrap":
 		return s.runImmichOwnerBootstrap(ctx)
 	case "vaultwarden-admin-handoff":
@@ -1083,6 +1085,63 @@ func (s *Server) runSetupDrop(ctx context.Context, service servicecatalog.Servic
 			skerrors.WithField("runner", drop.Runner),
 		)
 	}
+}
+
+func (s *Server) runCloudreveOwnerBootstrap(ctx context.Context) (map[string]string, *skerrors.StackKitError) {
+	owner, ownerErr := s.resolvePocketIDOwner(ctx)
+	if ownerErr != nil {
+		return nil, ownerErr
+	}
+	ownerEmail := strings.TrimSpace(owner.Email)
+	if ownerEmail == "" {
+		return nil, skerrors.NewValidationError(
+			"files_pocketid_owner_missing",
+			"Cloudreve Owner bootstrap requires an activated PocketID Owner user",
+			skerrors.WithSuggestion("Create the PocketID Owner/passkey first, then re-run the Files setup action"),
+		)
+	}
+
+	login, userID, bridgeErr := s.prepareCloudreveOwnerSession(ctx, ownerEmail)
+	if bridgeErr != nil {
+		return nil, bridgeErr
+	}
+	var parsed cloudreveLoginResponse
+	if err := json.Unmarshal(login, &parsed); err != nil {
+		return nil, skerrors.NewDependencyError(
+			"files_cloudreve_session_parse_failed",
+			"Cloudreve Owner bootstrap could not parse the prepared session response",
+			skerrors.WithCause(err),
+		)
+	}
+	token := strings.TrimSpace(parsed.Token.AccessToken)
+	if token == "" {
+		return nil, skerrors.NewDependencyError(
+			"files_cloudreve_session_token_missing",
+			"Cloudreve Owner bootstrap did not receive a usable session token",
+		)
+	}
+	baseURL := strings.TrimRight(firstNonEmptyString(s.config.SetupCloudreveURL, "http://cloudreve:5212"), "/")
+	client := &http.Client{Timeout: 20 * time.Second}
+	if err := ensureCloudreveOwnerDemoContent(ctx, client, baseURL, token); err != nil {
+		return nil, cloudreveStackKitError("files_cloudreve_owner_demo_seed_failed", "failed to seed Cloudreve demo content for the PocketID Owner", err)
+	}
+
+	return map[string]string{
+		"credentialRole":          "technical-admin-bootstrap",
+		"appLocalAccount":         "stackkit-admin-created",
+		"demoData":                "seeded-when-enabled",
+		"outerAuthBoundary":       "tinyauth-pocketid",
+		"ownerLogin":              initialAccessOwnerLogin,
+		"ownerEmail":              ownerEmail,
+		"identityBridge":          "stackkit-cloudreve-local-session",
+		"appLocalSessionHandoff":  "stackkit-session-bridge-prepared",
+		"bridgeVerification":      "stackkit-cloudreve-session-bridge",
+		"bridgeCurrentUser":       userID,
+		"cloudreveSessionUser":    userID,
+		"seededFolder":            cloudreveDemoFolderName,
+		"seededFile":              cloudreveDemoFileName,
+		"readyToUseContentStatus": "pending-browser-evidence",
+	}, nil
 }
 
 func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdeploy.AppManifest) (map[string]string, *skerrors.StackKitError) {

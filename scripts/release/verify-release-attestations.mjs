@@ -2,6 +2,7 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { validateReleaseEvidenceFile } from './validate-release-evidence.mjs';
 
 function parseArgs(argv) {
   const opts = {
@@ -69,7 +70,14 @@ async function collectSubjects(opts) {
     });
     for (const entry of entries) {
       if (!entry.isFile() || !isReleaseArtifact(entry.name, opts)) continue;
-      subjects.push({ type: 'file', value: path.join(opts.dist, entry.name) });
+      const subjectPath = path.join(opts.dist, entry.name);
+      if (entry.name === 'release-evidence.json') {
+        const errors = await validateReleaseEvidenceFile(subjectPath);
+        if (errors.length > 0) {
+          throw new Error(errors.join('\n'));
+        }
+      }
+      subjects.push({ type: 'file', value: subjectPath });
     }
   }
 

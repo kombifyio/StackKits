@@ -19,6 +19,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L1-foundation"
 		description: "Recursive DNS resolver with DNSSEC validation — no third-party dependency"
+		maturity:    "opt-in"
 		testScenarios: ["SK-S1", "SK-S4"]
 	}
 

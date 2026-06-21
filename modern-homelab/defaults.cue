@@ -13,7 +13,7 @@ package modern_homelab
 	provider: {
 		name:   "hetzner"
 		region: "fsn1"
-		size:   "cx22"      // 2 vCPU, 4 GB RAM
+		size:   "cx22" // 2 vCPU, 4 GB RAM
 		image:  "debian-12"
 	}
 
@@ -60,7 +60,7 @@ package modern_homelab
 	}
 
 	metrics: {
-		prometheus:  true
+		prometheus: true
 		entrypoint: "metrics"
 	}
 }
@@ -83,8 +83,8 @@ package modern_homelab
 }
 
 #DokployDefaults: {
-	traefikMe: true     // Use traefik-me for local access without domain
-	magicDns:  true     // MagicDNS for service discovery
+	traefikMe: true // Use traefik-me for local access without domain
+	magicDns:  true // MagicDNS for service discovery
 	resources: {
 		cpuLimit:    "1.0"
 		memoryLimit: "1024m"
@@ -190,7 +190,7 @@ package modern_homelab
 	// Restic for encrypted, deduplicated backups
 	provider: "restic"
 
-	schedule: "0 2 * * *"  // Daily at 2 AM
+	schedule: "0 2 * * *" // Daily at 2 AM
 	retention: {
 		keepDaily:   7
 		keepWeekly:  4
@@ -205,7 +205,7 @@ package modern_homelab
 		}
 		offsite: {
 			enabled:  false
-			provider: "b2"    // Backblaze B2 (cheapest)
+			provider: "b2" // Backblaze B2 (cheapest)
 		}
 	}
 }
@@ -215,8 +215,8 @@ package modern_homelab
 // =============================================================================
 
 #SecretsDefaults: {
-	provider:    "sops-age"
-	ageKeyFile:  "/etc/sops/age-key.txt"
+	provider:             "sops-age"
+	ageKeyFile:           "/etc/sops/age-key.txt"
 	encryptedSecretsFile: "secrets.enc.yaml"
 }
 
@@ -240,10 +240,10 @@ package modern_homelab
 
 	// Reserved ports
 	ports: {
-		reserved:   [22, 80, 443]
-		traefik:    [80, 443, 8080]
-		coolify:    [8000, 6001, 6002]
-		dokploy:    [3000]
+		reserved: [22, 80, 443]
+		traefik: [80, 443, 8080]
+		coolify: [8000, 6001, 6002]
+		dokploy: [3000]
 	}
 }
 

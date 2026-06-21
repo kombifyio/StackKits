@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func LoadBundleManifest(path string) (BundleManifest, error) {
@@ -51,15 +52,23 @@ func LoadBundleManifest(path string) (BundleManifest, error) {
 // apps through the supplied PaaS adapter. Customer-owned apps in Apps are
 // handoff metadata and are intentionally not deployed by StackKit.
 func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([]DeploymentRef, error) {
-	refs := make([]DeploymentRef, 0, len(bundle.SystemApps)+len(bundle.Apps))
+	systemRefs := make([]DeploymentRef, 0, len(bundle.SystemApps))
+	appRefs := make([]DeploymentRef, 0, len(bundle.Apps))
 	for _, systemApp := range bundle.SystemApps {
 		app := systemApp.AppManifest
 		defaultAppPlatform(&app, bundle.Platform)
 		ref, err := adapter.ApplyCompose(ctx, app)
 		if err != nil {
-			return refs, fmt.Errorf("deploy platform system app %q: %w", app.Name, err)
+			return append(systemRefs, appRefs...), fmt.Errorf("deploy platform system app %q: %w", app.Name, err)
 		}
-		refs = append(refs, ref)
+		systemRefs = append(systemRefs, ref)
+	}
+	if len(systemRefs) > 0 {
+		var err error
+		systemRefs, err = observeDeployments(ctx, adapter, systemRefs)
+		if err != nil {
+			return append(systemRefs, appRefs...), err
+		}
 	}
 	for _, app := range bundle.Apps {
 		if !IsStackKitOwnedApp(app) {
@@ -68,18 +77,15 @@ func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([
 		defaultAppPlatform(&app, bundle.Platform)
 		ref, err := adapter.ApplyCompose(ctx, app)
 		if err != nil {
-			return refs, fmt.Errorf("deploy StackKit L3 app %q: %w", app.Name, err)
+			return append(systemRefs, appRefs...), fmt.Errorf("deploy StackKit L3 app %q: %w", app.Name, err)
 		}
-		refs = append(refs, ref)
-	}
-	if len(refs) > 0 {
-		var err error
-		refs, err = observeDeployments(ctx, adapter, refs)
-		if err != nil {
-			return refs, err
+		ref.ObservedStatus = firstNonEmpty(ref.ObservedStatus, "deploy:accepted")
+		if ref.ObservedAt.IsZero() {
+			ref.ObservedAt = time.Now().UTC()
 		}
+		appRefs = append(appRefs, ref)
 	}
-	return refs, nil
+	return append(systemRefs, appRefs...), nil
 }
 
 func observeDeployments(ctx context.Context, adapter Adapter, refs []DeploymentRef) ([]DeploymentRef, error) {
@@ -98,7 +104,7 @@ func observeDeployments(ctx context.Context, adapter Adapter, refs []DeploymentR
 	for _, ref := range refs {
 		next, err := observer.ObserveDeployment(ctx, ref)
 		if err != nil {
-			return observed, fmt.Errorf("observe platform app %q: %w", ref.AppName, err)
+			return append(observed, ref), fmt.Errorf("observe platform app %q: %w", ref.AppName, err)
 		}
 		observed = append(observed, next)
 	}

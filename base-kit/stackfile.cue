@@ -27,12 +27,8 @@
 //   - Small self-hosted services
 //   - PaaS-style application deployments
 //
-// Note: This schema currently serves two callers:
-//   1. legacy CUE tests that still use variant-era inputs
-//   2. the v5 stack-spec surface used by the Go CLI and stackkit.yaml metadata
-//
-// The migration strategy is additive: expose the v5 fields without dropping
-// the legacy compatibility layer until Terraform generation is fully module-driven.
+// Note: Composition is module-driven — services are selected via explicit
+// #ServiceToggle fields (the legacy variant enum was removed, StackKits-x2u).
 // =============================================================================
 
 package base_kit
@@ -59,7 +55,7 @@ import (
 	context?: *"local" | "cloud" | "pi"
 	// Optional explicit override. When omitted, the StackSpec intent resolver
 	// selects the platform from domain/context intent.
-	paas?: "dokploy" | "coolify" | "komodo"
+	paas?:             "dokploy" | "coolify" | "komodo"
 	platformFallback?: #PlatformFallbackConfig
 	addons?: [...string]
 	application?: [string]: #ApplicationSelection
@@ -84,9 +80,6 @@ import (
 
 	// Legacy compatibility aliases retained during migration
 	deploymentMode: mode
-
-	// Variant selection is legacy compatibility only.
-	variant: *"default" | "coolify" | "beszel" | "minimal"
 
 	computeTier: compute.tier
 
@@ -273,14 +266,14 @@ import (
 	dozzle: #ServiceToggle
 	whoami: #ServiceToggle & {enabled: true}
 
-	// Default variant services
+	// Optional platform services (module composition)
 	dokploy?:    #ServiceToggle
 	uptimeKuma?: #ServiceToggle
 
-	// Beszel variant services
+	// Optional monitoring alternative
 	beszel?: #ServiceToggle
 
-	// Minimal variant services
+	// Optional lightweight compose-manager stack
 	dockge?:    #ServiceToggle
 	portainer?: #ServiceToggle
 	netdata?:   #ServiceToggle

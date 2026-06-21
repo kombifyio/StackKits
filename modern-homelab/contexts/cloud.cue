@@ -80,7 +80,7 @@ package modern_homelab
 			passwordAuthentication: false
 		}
 		firewall: {
-			defaultInbound: "deny"
+			defaultInbound:  "deny"
 			defaultOutbound: "allow"
 		}
 	}

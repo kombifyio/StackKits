@@ -4,8 +4,8 @@ kind: StackKit
 
 metadata:
   name: base-kit
-  version: "6.0.0-draft"
-  description: "Single-environment homelab with a robust default scope: Platform + Photos and Vault. Media, Smart Home, Files, and AI stay opt-in until their first-run paths are production-ready."
+  version: "5.0.0"
+  description: "Single-environment homelab with a robust default scope: Platform baseline (Coolify, PocketID, TinyAuth, Node Hub, Homepage, Uptime Kuma, Whoami) plus Photos, Vault, and Files (Cloudreve default). Media, Smart Home, and AI stay opt-in until their first-run paths are production-ready."
   author: "kombify Stack Team"
   license: "Apache-2.0"
   repository: "https://github.com/kombifyio/stackkits"
@@ -14,10 +14,9 @@ metadata:
     - single-environment
     - multi-server-capable
     - docker
-    - traefik
+    - coolify
     - komodo
     - professional
-    - v6-draft
 
 # Supported operating systems
 supportedOS:
@@ -267,6 +266,15 @@ outputs:
 
 # Changelog
 changelog:
+  - version: "5.0.0"
+    date: "2026-06-10"
+    changes:
+      - "NEW: Install modes bare/bootstrapped/advanced (legacy simple normalizes to bootstrapped)"
+      - "NEW: Platform baseline: Coolify (default PaaS), PocketID (passkey IdP), TinyAuth gateway, Node Hub, Homepage, Uptime Kuma, Whoami"
+      - "NEW: Default L3 use cases: Vault (Vaultwarden), Photos (Immich), Files (Cloudreve default, Nextcloud alternative)"
+      - "NEW: Setup drops with retry-safe SetupRun evidence; demo data strictly opt-in"
+      - "CHANGED: Local default links use browser-native *.home.localhost"
+      - "CHANGED: Komodo is the beta-supported PaaS alternative; Dokploy remains draft"
   - version: "2.0.0"
     date: "2025-01-27"
     changes:

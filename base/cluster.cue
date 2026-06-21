@@ -12,14 +12,14 @@ package base
 // into a member of an existing homelab. Two BaseKit installs are separate
 // homelabs until a worker/storage node joins a main node with this token.
 #JoinToken: {
-	version: *"stackkit.cluster/v1" | string
+	version:   *"stackkit.cluster/v1" | string
 	homelabId: string & =~"^[a-z][a-z0-9-]*$"
 	mainNode: {
 		id:       string & =~"^[a-z][a-z0-9-]*$"
 		name:     string
 		endpoint: string
 	}
-	token: string & =~"^skj_[A-Za-z0-9_-]{32,}$"
+	token:      string & =~"^skj_[A-Za-z0-9_-]{32,}$"
 	expiresAt?: string
 	allowedRoles: [...("worker" | "storage")] | *["worker", "storage"]
 }
@@ -27,13 +27,13 @@ package base
 // #JoinConfig is rendered by `stackkit init --cluster-mode=join` and consumed
 // by the worker-side registration flow.
 #JoinConfig: {
-	mode: "join"
-	token: string & =~"^skj_[A-Za-z0-9_-]{32,}$"
+	mode:         "join"
+	token:        string & =~"^skj_[A-Za-z0-9_-]{32,}$"
 	mainEndpoint: string
 	node: {
-		id:   string & =~"^[a-z][a-z0-9-]*$"
-		name: string
-		role: "worker" | "storage"
+		id:    string & =~"^[a-z][a-z0-9-]*$"
+		name:  string
+		role:  "worker" | "storage"
 		host?: string
 		ip?:   string
 	}
@@ -44,13 +44,13 @@ package base
 // TechStack while keeping the node-local .stackkit/state.yaml as the recovery
 // anchor.
 #ClusterState: {
-	homelabId: string & =~"^[a-z][a-z0-9-]*$"
+	homelabId:   string & =~"^[a-z][a-z0-9-]*$"
 	trustDomain: string
-	mainNodeId: string
+	mainNodeId:  string
 	nodes: [...{
-		id:   string & =~"^[a-z][a-z0-9-]*$"
-		name: string
-		role: #ClusterNodeRole
+		id:        string & =~"^[a-z][a-z0-9-]*$"
+		name:      string
+		role:      #ClusterNodeRole
 		endpoint?: string
 		statePath: string | *".stackkit/state.yaml"
 	}]

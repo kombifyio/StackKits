@@ -1,11 +1,13 @@
 // =============================================================================
-// GENERATED FILE - DO NOT EDIT DIRECTLY
+// FROZEN ARTIFACT — hand-maintained until WS-2 (truth-consolidation)
 // =============================================================================
-// This file is auto-generated from the kombify-admin database.
-// To modify Admin setup profiles, update the database and re-run the generator.
-//
-// Generated: 2026-05-27T15:15:00.000Z
-// Source: kombify-admin/prisma/seed.ts -> AdminProfile table
+// Originally generated 2026-05-27 from the legacy kombify-admin seed
+// (AdminProfile table). The legacy generator is retired (WS-1,
+// docs/plans/2026-06-10-stackkit-lifecycle-truth-consolidation.md); setup
+// profiles move to kombify-DB sk_stackkit_spec_profile with
+// kombify-StackKits-1if (closes in WS-2), after which this file is emitted
+// from the registry snapshot. Until then: edit by hand, keep
+// cmd/stackkit/commands/canonical_scenario_test.go parity green.
 // =============================================================================
 
 package base

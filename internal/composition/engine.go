@@ -16,9 +16,18 @@ import (
 // CompositionEngine resolves use cases and addons into a set of enabled modules
 // with dependency-ordered deployment and propagated settings.
 type CompositionEngine struct {
-	contracts map[string]*cueval.ModuleContract
-	stackkit  *models.StackKit
-	spec      *models.StackSpec
+	contracts  map[string]*cueval.ModuleContract
+	stackkit   *models.StackKit
+	spec       *models.StackSpec
+	modeMatrix *cueval.KitModeMatrix
+}
+
+// SetModeMatrix attaches the kit's mode-support matrix (#KitModeSupport).
+// When set, Resolve grades the requested (placement, install, context) cell:
+// unsupported cells hard-fail, scaffolding cells warn. Kits without a matrix
+// (older exported caches) simply skip enforcement.
+func (e *CompositionEngine) SetModeMatrix(m *cueval.KitModeMatrix) {
+	e.modeMatrix = m
 }
 
 // CompositionResult is the output of the engine: which modules to enable, in what order,
@@ -136,7 +145,96 @@ func (e *CompositionEngine) Resolve() (*CompositionResult, error) {
 		result.Placement = pr
 	}
 
+	// Step 10: Validate module placement eligibility (#PlacementSupport).
+	// A module whose declared eligibility excludes the resolved placement mode
+	// is a hard composition error, not a silent acceptance.
+	if err := e.validatePlacementEligibility(result); err != nil {
+		return nil, fmt.Errorf("placement eligibility: %w", err)
+	}
+
+	// Step 11: Enforce the kit mode-support matrix (#KitModeSupport) when one
+	// is attached: unsupported cells hard-fail, scaffolding cells warn.
+	if err := e.enforceModeMatrix(result); err != nil {
+		return nil, fmt.Errorf("mode matrix: %w", err)
+	}
+
 	return result, nil
+}
+
+// enforceModeMatrix grades the requested (placement, install, context) cell
+// against the kit's declared matrix. The managed-serverless placement axis is
+// graded control-plane by schema; its warning already comes from the S2/S3
+// path in step 9, so control-plane here stays a warning, never an error.
+func (e *CompositionEngine) enforceModeMatrix(result *CompositionResult) error {
+	if e.modeMatrix == nil {
+		return nil
+	}
+	placementMode := e.spec.EffectivePlacementMode()
+	installMode := e.spec.EffectiveInstallMode()
+	nodeContext := string(e.spec.Context)
+	if nodeContext == "" {
+		nodeContext = string(models.ContextLocal)
+	}
+
+	level, details := e.modeMatrix.CellVerdict(placementMode, installMode, nodeContext)
+	switch level {
+	case cueval.SupportUnsupported:
+		return fmt.Errorf("kit %q does not support this mode cell: %s",
+			e.modeMatrix.Kit, strings.Join(details, "; "))
+	case cueval.SupportScaffolding, cueval.SupportControlPlane:
+		for _, d := range details {
+			result.Warnings = append(result.Warnings, "mode matrix: "+d)
+		}
+	}
+
+	// PAAS axis (#PaasStatus): an explicitly selected PAAS that the kit grades
+	// draft/experimental — or does not offer at all — surfaces as a warning.
+	if paas := e.spec.PAAS; paas != "" && paas != models.PAASNone {
+		status, declared := e.modeMatrix.Paas[paas]
+		switch {
+		case !declared:
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("mode matrix: paas %q is not offered by kit %q", paas, e.modeMatrix.Kit))
+		case status == "draft", status == "experimental":
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("mode matrix: paas %q is %s in kit %q — not E2E-verified", paas, status, e.modeMatrix.Kit))
+		}
+	}
+	return nil
+}
+
+// validatePlacementEligibility rejects enabled modules that declare themselves
+// ineligible for the resolved placement mode. S2/S3 placements (Placement nil)
+// are skipped — they already surfaced as a warning and are not realized here.
+func (e *CompositionEngine) validatePlacementEligibility(result *CompositionResult) error {
+	if result.Placement == nil {
+		return nil
+	}
+	mode := result.Placement.Mode
+	var rejected []string
+	for _, name := range result.EnabledModules {
+		contract, ok := e.contracts[name]
+		if !ok {
+			continue
+		}
+		if contract.EligibleForPlacement(mode) {
+			continue
+		}
+		detail := fmt.Sprintf("module %q is not eligible for placement mode %q", name, mode)
+		if contract.Placement != nil {
+			if contract.Placement.RejectionReason != "" {
+				detail += fmt.Sprintf(" (reason: %s)", contract.Placement.RejectionReason)
+			}
+			if len(contract.Placement.MissingAdapters) > 0 {
+				detail += fmt.Sprintf(" (missing adapters: %s)", strings.Join(contract.Placement.MissingAdapters, ", "))
+			}
+		}
+		rejected = append(rejected, detail)
+	}
+	if len(rejected) > 0 {
+		return fmt.Errorf("%s", strings.Join(rejected, "; "))
+	}
+	return nil
 }
 
 // resolveApplication maps use case declarations to module enables.

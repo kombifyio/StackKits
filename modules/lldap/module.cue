@@ -25,7 +25,8 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L1-foundation"
 		description: "Lightweight LDAP directory — source of truth for users and groups"
-		testScenarios: ["SK-S3", "SK-S4", "SK-S5"]
+		// Draft: the lldap service is status "planned".
+		maturity: "draft"
 	}
 
 	// No service dependencies — this is L1 foundation (like socket-proxy).
@@ -109,6 +110,11 @@ Contract: base.#ModuleContract & {
 				port:    17170
 			}
 			networks: ["frontend"]
+		}
+
+		accessPolicy: {
+			outerAuth: "tinyauth-pocketid"
+			appAuth:   "self-auth"
 		}
 
 		volumes: [{

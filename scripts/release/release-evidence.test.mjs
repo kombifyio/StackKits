@@ -57,9 +57,16 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   assert.equal(evidence.checks.browserPreflight.status, 'pending');
   assert.equal(evidence.checks.browserEvidence.status, 'pending');
   assert.equal(evidence.checks.defaultL3PaaSDelivery.status, 'pending');
-  assert.equal(evidence.scenarioEvidence[0].scenarioId, 'SK-S1');
-  assert.equal(evidence.scenarioEvidence[0].status, 'pass');
-  assert.deepEqual(evidence.pendingGates, ['SK-S2 kombify.me cloud-owner Komodo release evidence is still pending']);
+  const scenarioByID = new Map(evidence.scenarioEvidence.map((item) => [item.scenarioId, item]));
+  assert.equal(scenarioByID.get('SK-S1').status, 'pass');
+  assert.equal(scenarioByID.get('SK-S2').status, 'pending');
+  assert.equal(scenarioByID.get('SK-S3').status, 'pending');
+  assert.equal(scenarioByID.get('SK-S5').status, 'pending');
+  assert.deepEqual(evidence.pendingGates, [
+    'SK-S2 kombify.me cloud-owner Komodo release evidence is still pending',
+    'SK-S3 custom-domain explicit-owner Coolify beta scenario is pending released-archive evidence.',
+    'SK-S5 missing-mail negative scenario is pending released-archive evidence.',
+  ]);
   assert.deepEqual(evidence.missingAlternatives, [
     'Photos alternative is not accepted for v0.4 beta',
     'Vault has no accepted v0.4 alternative yet; Vaultwarden remains the beta default and the gap is release-blocking unless documented as a beta limitation.',
@@ -71,6 +78,229 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   assert.equal(evidence.artifacts.length, 2);
   assert.ok(evidence.artifacts.some((artifact) => artifact.kind === 'archive' && artifact.sha256.length === 64));
   assert.ok(evidence.artifacts.some((artifact) => artifact.kind === 'sbom'));
+});
+
+test('publish-oss renders public release evidence without private publisher URLs', async () => {
+  const workflow = await readFile('.github/workflows/publish-oss.yml', 'utf8');
+  const start = workflow.indexOf('node scripts/release/render-release-evidence.mjs');
+  assert.notEqual(start, -1);
+  const end = workflow.indexOf('shopt -s nullglob', start);
+  assert.notEqual(end, -1);
+  const renderBlock = workflow.slice(start, end);
+
+  assert.match(renderBlock, /--source-repo "\$\{OSS_REPO\}"/);
+  assert.match(renderBlock, /--release-repo "\$\{OSS_REPO\}"/);
+  assert.match(renderBlock, /--visibility public/);
+  assert.doesNotMatch(renderBlock, /--workflow-run-url/);
+  assert.doesNotMatch(renderBlock, /GITHUB_REPOSITORY/);
+
+  const attestationSummary = workflow.match(/--summary "([^"]+)"/)?.[1] || '';
+  assert.match(attestationSummary, /\$\{OSS_REPO\}/);
+  assert.doesNotMatch(attestationSummary, /GITHUB_REPOSITORY/);
+  assert.doesNotMatch(attestationSummary, /GITHUB_RUN_ID/);
+});
+
+test('publish-oss can import production scenario evidence artifacts', async () => {
+  const workflow = await readFile('.github/workflows/publish-oss.yml', 'utf8');
+
+  assert.match(workflow, /scenario_evidence_run_id:/);
+  assert.match(workflow, /Download scenario evidence artifacts/);
+  assert.match(workflow, /stackkit-SK-S1-released-homelab/);
+  assert.match(workflow, /stackkit-SK-S2-homelab/);
+  assert.match(workflow, /stackkit-SK-S3-homelab/);
+  assert.match(workflow, /artifacts\/scenarios\/\$\{scenario_id\}\/homelab\.json/);
+});
+
+test('public release workflow marks evidence as public', async () => {
+  const workflow = await readFile('scripts/public/workflows/release.yml', 'utf8');
+  const start = workflow.indexOf('node scripts/release/render-release-evidence.mjs');
+  assert.notEqual(start, -1);
+  const end = workflow.indexOf('--check "attestationVerification', start);
+  assert.notEqual(end, -1);
+  const renderBlock = workflow.slice(start, end);
+
+  assert.match(renderBlock, /--source-repo "kombifyio\/stackKits"/);
+  assert.match(renderBlock, /--release-repo "kombifyio\/stackKits"/);
+  assert.match(renderBlock, /--visibility public/);
+});
+
+test('render-release-evidence emits canonical pending scenario rows when artifacts are absent', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-missing-scenarios-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.deepEqual(
+    evidence.scenarioEvidence.map((item) => [item.scenarioId, item.status]),
+    [
+      ['SK-S1', 'pending'],
+      ['SK-S2', 'pending'],
+      ['SK-S3', 'pending'],
+      ['SK-S5', 'pending'],
+    ],
+  );
+  for (const scenarioId of ['SK-S1', 'SK-S2', 'SK-S3', 'SK-S5']) {
+    assert.ok(
+      evidence.pendingGates.some((gate) => gate.includes(scenarioId)),
+      `pending gates should mention ${scenarioId}`,
+    );
+  }
+});
+
+test('render-release-evidence imports passing homelab scenario artifact', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-scenario-artifact-pass-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifactPath = path.join(dir, 'homelab.json');
+  await writeFile(artifactPath, JSON.stringify(homelabArtifact()));
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-artifact',
+    artifactPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const scenario = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S2');
+  assert.equal(scenario.status, 'pass');
+  assert.equal(scenario.url, artifactPath);
+  assert.match(scenario.summary, /2 observed simulation health checks/);
+  assert.match(scenario.summary, /4 observed setup actions/);
+  assert.match(scenario.summary, /5 platform app refs/);
+  assert.deepEqual(
+    evidence.scenarioEvidence.map((item) => [item.scenarioId, item.status]),
+    [
+      ['SK-S1', 'pending'],
+      ['SK-S2', 'pass'],
+      ['SK-S3', 'pending'],
+      ['SK-S5', 'pending'],
+    ],
+  );
+  assert.ok(!evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
+});
+
+test('render-release-evidence fails incomplete homelab simulation status', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-scenario-artifact-fail-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifactPath = path.join(dir, 'homelab.json');
+  await writeFile(
+    artifactPath,
+    JSON.stringify(
+      homelabArtifact({
+        simulationStatus: {
+          status: 'incomplete',
+          observedSetupActions: homelabSetupActions(),
+          missingSetupActions: [],
+          observedHealthChecks: ['base-route'],
+          missingHealthChecks: ['komodo-route'],
+        },
+      }),
+    ),
+  );
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-artifact',
+    artifactPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const scenario = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S2');
+  assert.equal(scenario.status, 'fail');
+  assert.match(scenario.summary, /simulationStatus is incomplete/);
+  assert.match(scenario.summary, /missingHealthChecks=komodo-route/);
+  assert.ok(evidence.pendingGates.some((gate) => gate.includes('SK-S2') && gate.includes('fail')));
+});
+
+test('render-release-evidence fails missing homelab setup-action proof', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-scenario-artifact-setup-fail-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifactPath = path.join(dir, 'homelab.json');
+  await writeFile(
+    artifactPath,
+    JSON.stringify(
+      homelabArtifact({
+        simulationStatus: {
+          status: 'pass',
+          observedSetupActions: homelabSetupActions().filter((action) => action !== 'vaultwarden-admin-handoff'),
+          missingSetupActions: ['vaultwarden-admin-handoff'],
+          observedHealthChecks: ['base-route', 'komodo-route'],
+          missingHealthChecks: [],
+        },
+      }),
+    ),
+  );
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-artifact',
+    artifactPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const scenario = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S2');
+  assert.equal(scenario.status, 'fail');
+  assert.match(scenario.summary, /observedSetupActions missing vaultwarden-admin-handoff/);
+  assert.match(scenario.summary, /missingSetupActions=vaultwarden-admin-handoff/);
+  assert.ok(evidence.pendingGates.some((gate) => gate.includes('SK-S2') && gate.includes('fail')));
 });
 
 test('render-release-evidence attaches passing browser preflight report', async () => {
@@ -279,6 +509,39 @@ test('render-release-evidence rejects skipped critical browser preflight checks'
   assert.match(evidence.checks.browserPreflight.summary, /Docker Desktop availability is skipped/);
 });
 
+test('render-release-evidence accepts browser preflight with default engine context', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-browser-preflight-default-context-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const preflightPath = path.join(dir, 'browser-evidence-preflight.json');
+  const report = browserPreflightReport('pass');
+  const defaultContextCheck = report.checks.find((item) => item.name === 'Docker Desktop context');
+  defaultContextCheck.evidence.output = 'default';
+  await writeFile(preflightPath, JSON.stringify(report));
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--browser-preflight',
+    preflightPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.equal(evidence.checks.browserPreflight.status, 'pass');
+});
+
 test('render-release-evidence rejects browser preflight without Docker Desktop context evidence', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-browser-preflight-context-'));
   const dist = path.join(dir, 'dist');
@@ -286,7 +549,7 @@ test('render-release-evidence rejects browser preflight without Docker Desktop c
   const preflightPath = path.join(dir, 'browser-evidence-preflight.json');
   const report = browserPreflightReport('pass');
   const contextCheck = report.checks.find((item) => item.name === 'Docker Desktop context');
-  contextCheck.evidence.output = 'default';
+  contextCheck.evidence.output = 'desktop-windows';
   await writeFile(preflightPath, JSON.stringify(report));
 
   const output = path.join(dist, 'release-evidence.json');
@@ -310,7 +573,7 @@ test('render-release-evidence rejects browser preflight without Docker Desktop c
 
   const evidence = JSON.parse(await readFile(output, 'utf8'));
   assert.equal(evidence.checks.browserPreflight.status, 'fail');
-  assert.match(evidence.checks.browserPreflight.summary, /Docker Desktop context output default, want desktop-linux/);
+  assert.match(evidence.checks.browserPreflight.summary, /Docker Desktop context output desktop-windows, want desktop-linux or default/);
 });
 
 test('render-release-evidence rejects browser preflight with mismatched Playwright launch channel evidence', async () => {
@@ -415,6 +678,144 @@ test('render-release-evidence attaches passing browser evidence manifest', async
   assert.equal(evidence.checks.browserEvidence.url, browserEvidencePath);
   assert.ok(evidence.scenarioEvidence.some((item) => item.scenarioId === 'SK-S1-browser' && item.status === 'pass'));
   assert.ok(!evidence.knownLimitations.some((value) => value.includes('browser evidence still must prove')));
+});
+
+test('render-release-evidence rejects browser evidence from a non-Base Hub URL', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-browser-url-drift-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const browserEvidencePath = path.join(dir, 'browser-evidence.json');
+  await writeFile(
+    browserEvidencePath,
+    JSON.stringify({
+      scenarioId: 'SK-S1',
+      runId: BROWSER_EVIDENCE_RUN_ID,
+      status: 'pass',
+      generatedAt: '2026-05-28T12:00:00.000Z',
+      ownerEmail: 'owner@example.com',
+      browserChannel: 'playwright-chromium',
+      browserUrl: 'http://modern.home.localhost',
+      diagnostics: browserDiagnostics(),
+      checks: [
+        check('pocketid-owner-passkey'),
+        check('tinyauth-owner-session'),
+        check('photos-demo-content'),
+        { ...check('files-demo-content'), url: 'http://files.home.localhost/' },
+        check('vault-auth-boundary'),
+      ],
+      screenshots: [
+        screenshot('pocketid-owner-passkey'),
+        screenshot('tinyauth-owner-session'),
+        screenshot('photos-demo-content'),
+        screenshot('files-demo-content'),
+        screenshot('vault-auth-boundary'),
+      ],
+    }),
+  );
+  await writeScreenshotFiles(dir, [
+    'pocketid-owner-passkey',
+    'tinyauth-owner-session',
+    'photos-demo-content',
+    'files-demo-content',
+    'vault-auth-boundary',
+  ]);
+  await writeSetupStateFile(dir);
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--browser-evidence',
+    browserEvidencePath,
+    '--browser-evidence-root',
+    dir,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.equal(evidence.checks.browserEvidence.status, 'fail');
+  assert.match(evidence.checks.browserEvidence.summary, /browserUrl host is modern\.home\.localhost, want base\.home\.localhost/);
+  assert.match(evidence.checks.browserEvidence.summary, /files-demo-content: url path is \/, want \/stackkit\/files\/session/);
+});
+
+test('render-release-evidence rejects browser screenshot URL route drift', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-browser-screenshot-url-drift-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const browserEvidencePath = path.join(dir, 'browser-evidence.json');
+  await writeFile(
+    browserEvidencePath,
+    JSON.stringify({
+      scenarioId: 'SK-S1',
+      runId: BROWSER_EVIDENCE_RUN_ID,
+      status: 'pass',
+      generatedAt: '2026-05-28T12:00:00.000Z',
+      ownerEmail: 'owner@example.com',
+      browserChannel: 'playwright-chromium',
+      browserUrl: 'http://base.home.localhost',
+      diagnostics: browserDiagnostics(),
+      checks: [
+        check('pocketid-owner-passkey'),
+        check('tinyauth-owner-session'),
+        check('photos-demo-content'),
+        check('files-demo-content'),
+        check('vault-auth-boundary'),
+      ],
+      screenshots: [
+        screenshot('pocketid-owner-passkey'),
+        screenshot('tinyauth-owner-session'),
+        { ...screenshot('photos-demo-content'), url: 'http://media.home.localhost/photos' },
+        screenshot('files-demo-content'),
+        screenshot('vault-auth-boundary'),
+      ],
+    }),
+  );
+  await writeScreenshotFiles(dir, [
+    'pocketid-owner-passkey',
+    'tinyauth-owner-session',
+    'photos-demo-content',
+    'files-demo-content',
+    'vault-auth-boundary',
+  ]);
+  await writeSetupStateFile(dir);
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--browser-evidence',
+    browserEvidencePath,
+    '--browser-evidence-root',
+    dir,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.equal(evidence.checks.browserEvidence.status, 'fail');
+  assert.match(
+    evidence.checks.browserEvidence.summary,
+    /photos-demo-content screenshot artifacts\/scenarios\/SK-S1\/screenshots\/photos-demo-content\.png: url host is media\.home\.localhost, want photos\.home\.localhost/,
+  );
 });
 
 test('render-release-evidence rejects browser evidence without browser runtime diagnostics', async () => {
@@ -2084,6 +2485,59 @@ test('render-release-evidence rejects owner setup action proof without expected 
   assert.match(evidence.checks.browserEvidence.summary, /setupAction photos dropStatus is waiting, want completed/);
 });
 
+test('render-release-evidence rejects Vaultwarden Owner provisioning claims in setup-state', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-vault-owner-claim-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const browserEvidencePath = path.join(dir, 'browser-evidence.json');
+  await writeFile(
+    browserEvidencePath,
+    JSON.stringify(browserEvidenceReport()),
+  );
+  await writeScreenshotFiles(dir, [
+    'pocketid-owner-passkey',
+    'tinyauth-owner-session',
+    'photos-demo-content',
+    'files-demo-content',
+    'vault-auth-boundary',
+  ]);
+  await writeSetupStateFile(dir);
+  const setupStatePath = path.join(dir, 'artifacts/scenarios/SK-S1/setup-state.yaml');
+  const setupState = await readFile(setupStatePath, 'utf8');
+  await writeFile(
+    setupStatePath,
+    setupState.replace(
+      '    outerAuthBoundary: tinyauth-pocketid\n- runId: setup-photos',
+      '    outerAuthBoundary: tinyauth-pocketid\n    appLocalOwner: pocketid-owner-preprovisioned\n- runId: setup-photos',
+    ),
+  );
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--browser-evidence',
+    browserEvidencePath,
+    '--browser-evidence-root',
+    dir,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.equal(evidence.checks.browserEvidence.status, 'fail');
+  assert.match(evidence.checks.browserEvidence.summary, /vaultwarden-admin-handoff evidence\[appLocalOwner\] must be absent/);
+});
+
 test('render-release-evidence keeps required v0.4 missing alternatives by default', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-required-alternatives-'));
   const dist = path.join(dir, 'dist');
@@ -2123,7 +2577,7 @@ function check(name, evidence = defaultBrowserEvidenceForCheck(name)) {
   const result = {
     name,
     status: 'pass',
-    url: 'http://base.home.localhost',
+    url: browserCheckURL(name),
     expectedText: name,
     observedText: name,
     screenshot: `artifacts/scenarios/SK-S1/screenshots/${name}.png`,
@@ -2137,8 +2591,25 @@ function screenshot(name) {
   return {
     name,
     path: `artifacts/scenarios/SK-S1/screenshots/${name}.png`,
-    url: 'http://base.home.localhost',
+    url: browserCheckURL(name),
   };
+}
+
+function browserCheckURL(name) {
+  switch (name) {
+    case 'pocketid-owner-passkey':
+      return 'http://id.home.localhost/setup';
+    case 'tinyauth-owner-session':
+      return 'http://auth.home.localhost';
+    case 'photos-demo-content':
+      return 'http://photos.home.localhost/photos';
+    case 'files-demo-content':
+      return 'http://files.home.localhost/stackkit/files/session';
+    case 'vault-auth-boundary':
+      return 'http://vault.home.localhost';
+    default:
+      return 'http://base.home.localhost';
+  }
 }
 
 function browserDiagnostics() {
@@ -2256,6 +2727,101 @@ function setupRunEvidenceForDrop(dropName) {
     };
   }
   return {};
+}
+
+function homelabArtifact(overrides = {}) {
+  return {
+    scenarioId: 'SK-S2',
+    scenarioName: 'Cloud Advanced kombify.me',
+    runId: 'run-123',
+    status: 'passed',
+    hubUrl: 'https://sh-scenario-s2-base.kombify.me',
+    browserUrl: 'https://sh-scenario-s2-base.kombify.me',
+    simulation: {
+      setupActions: homelabSetupActions(),
+      healthChecks: ['base-route', 'komodo-route'],
+    },
+    simulationStatus: {
+      status: 'pass',
+      observedSetupActions: homelabSetupActions(),
+      missingSetupActions: [],
+      observedHealthChecks: ['base-route', 'komodo-route'],
+      missingHealthChecks: [],
+    },
+    platformSystemApps: [
+      {
+        name: 'stackkit-hub',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'stackkit-hub-komodo-id',
+        observedStatus: 'running',
+        observedAt: '2026-06-13T08:00:00.000Z',
+      },
+      {
+        name: 'stackkit-server',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'stackkit-server-komodo-id',
+        observedStatus: 'running',
+        observedAt: '2026-06-13T08:00:01.000Z',
+      },
+    ],
+    platformApps: [
+      {
+        name: 'vaultwarden',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'vaultwarden-komodo-id',
+        observedStatus: 'deploy:accepted',
+        observedAt: '2026-06-13T08:00:02.000Z',
+        setupPolicy: 'on_demand',
+      },
+      {
+        name: 'immich',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'immich-komodo-id',
+        observedStatus: 'deploy:accepted',
+        observedAt: '2026-06-13T08:00:03.000Z',
+        setupPolicy: 'on_demand',
+      },
+      {
+        name: 'cloudreve',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'cloudreve-komodo-id',
+        observedStatus: 'deploy:accepted',
+        observedAt: '2026-06-13T08:00:04.000Z',
+        setupPolicy: 'on_demand',
+      },
+    ],
+    services: [
+      {
+        key: 'base',
+        url: 'https://sh-scenario-s2-base.kombify.me',
+        host: 'sh-scenario-s2-base.kombify.me',
+      },
+      {
+        key: 'komodo',
+        url: 'https://komodo.sh-scenario-s2.kombify.me',
+        host: 'komodo.sh-scenario-s2.kombify.me',
+      },
+    ],
+    target: {
+      publicIp: '203.0.113.10',
+    },
+    generatedAt: '2026-06-13T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function homelabSetupActions() {
+  return [
+    'kuma-platform-bootstrap',
+    'cloudreve-owner-bootstrap',
+    'vaultwarden-admin-handoff',
+    'immich-owner-bootstrap',
+  ];
 }
 
 function browserEvidenceReport(overrides = {}) {
@@ -2396,7 +2962,7 @@ function defaultBrowserEvidenceForCheck(name) {
       forwardAuthStatus: '200',
       sessionCookieCount: '1',
       sessionCookieNames: 'tinyauth',
-      sessionCookieDomains: 'auth.home.localhost',
+      sessionCookieDomains: '.home.localhost',
     };
   }
   if (name === 'photos-demo-content') {

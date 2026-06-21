@@ -18,6 +18,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-diagnostics"
 		description: "Node-local StackKits bootstrap hub with protection warnings, onboarding, recovery, and service links"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
@@ -80,6 +81,12 @@ Contract: base.#ModuleContract & {
 				port:    80
 			}
 			networks: ["base_net"]
+		}
+
+		accessPolicy: {
+			outerAuth: "bootstrap-open"
+			appAuth:   "none"
+			reason:    "Base Hub is intentionally anonymous while bootstrap-open and shows the unprotected warning; the Hub's Protect Base Hub action moves it behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled."
 		}
 
 		healthCheck: {

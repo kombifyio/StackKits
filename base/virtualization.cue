@@ -166,96 +166,96 @@ package base
 // #KnownProviders lists VPS providers with known compatibility.
 #KnownProviders: {
 	"hetzner-cloud": #ProviderProfile & {
-		id: "hetzner-cloud", name: "Hetzner Cloud", provider: "hetzner"
-		virtualization: "kvm", tier: "full"
+		id:             "hetzner-cloud", name: "Hetzner Cloud", provider: "hetzner"
+		virtualization: "kvm", tier:           "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "~$4/mo"
 	}
 
 	"digitalocean": #ProviderProfile & {
-		id: "digitalocean", name: "DigitalOcean", provider: "digitalocean"
-		virtualization: "kvm", tier: "full"
+		id:             "digitalocean", name: "DigitalOcean", provider: "digitalocean"
+		virtualization: "kvm", tier:          "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "~$4/mo"
 	}
 
 	"linode": #ProviderProfile & {
-		id: "linode", name: "Linode (Akamai)", provider: "linode"
-		virtualization: "kvm", tier: "full"
+		id:             "linode", name: "Linode (Akamai)", provider: "linode"
+		virtualization: "kvm", tier:    "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "~$5/mo"
 	}
 
 	"vultr": #ProviderProfile & {
-		id: "vultr", name: "Vultr", provider: "vultr"
-		virtualization: "kvm", tier: "full"
+		id:             "vultr", name: "Vultr", provider: "vultr"
+		virtualization: "kvm", tier:   "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "~$5/mo"
 	}
 
 	"contabo-kvm": #ProviderProfile & {
-		id: "contabo-kvm", name: "Contabo (KVM)", provider: "contabo"
-		virtualization: "kvm", tier: "full"
+		id:             "contabo-kvm", name: "Contabo (KVM)", provider: "contabo"
+		virtualization: "kvm", tier:         "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "~$5/mo"
 	}
 
 	"ovh-cloud": #ProviderProfile & {
-		id: "ovh-cloud", name: "OVH Cloud", provider: "ovh"
-		virtualization: "kvm", tier: "full"
+		id:             "ovh-cloud", name: "OVH Cloud", provider: "ovh"
+		virtualization: "kvm", tier:       "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "~$4/mo"
 	}
 
 	"scaleway": #ProviderProfile & {
-		id: "scaleway", name: "Scaleway", provider: "scaleway"
-		virtualization: "kvm", tier: "full"
+		id:             "scaleway", name: "Scaleway", provider: "scaleway"
+		virtualization: "kvm", tier:      "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "~$4/mo"
 	}
 
 	"oracle-free-arm": #ProviderProfile & {
-		id: "oracle-free-arm", name: "Oracle Cloud Free (ARM)", provider: "oracle"
-		virtualization: "kvm", tier: "full"
+		id:             "oracle-free-arm", name: "Oracle Cloud Free (ARM)", provider: "oracle"
+		virtualization: "kvm", tier:             "full"
 		expectedFeatures: {unshare: true, overlayfs: true, bridge: true, iptablesNAT: true, cgroupVersion: "v2"}
 		startingPrice: "Free"
-		notes: "ARM architecture (aarch64)"
+		notes:         "ARM architecture (aarch64)"
 	}
 
 	"proxmox-lxc-nested": #ProviderProfile & {
-		id: "proxmox-lxc-nested", name: "Proxmox LXC (nested)", provider: "proxmox"
-		virtualization: "lxc", tier: "degraded"
+		id:             "proxmox-lxc-nested", name: "Proxmox LXC (nested)", provider: "proxmox"
+		virtualization: "lxc", tier:                "degraded"
 		expectedFeatures: {unshare: true, overlayfs: false, bridge: false, iptablesNAT: true, cgroupVersion: "v2"}
 		notes: "Requires nesting=true in Proxmox container config"
 	}
 
 	"contabo-openvz": #ProviderProfile & {
-		id: "contabo-openvz", name: "Contabo (OpenVZ)", provider: "contabo"
-		virtualization: "openvz", tier: "incompatible"
+		id:             "contabo-openvz", name: "Contabo (OpenVZ)", provider: "contabo"
+		virtualization: "openvz", tier:         "incompatible"
 		expectedFeatures: {unshare: false, overlayfs: false, bridge: false, iptablesNAT: false, cgroupVersion: "v1"}
 		startingPrice: "~$3/mo"
-		notes: "Kernel blocks unshare — Docker cannot run"
+		notes:         "Kernel blocks unshare — Docker cannot run"
 	}
 
 	"hostinger-vps": #ProviderProfile & {
-		id: "hostinger-vps", name: "Hostinger VPS", provider: "hostinger"
-		virtualization: "openvz", tier: "incompatible"
+		id:             "hostinger-vps", name: "Hostinger VPS", provider: "hostinger"
+		virtualization: "openvz", tier:        "incompatible"
 		expectedFeatures: {unshare: false, overlayfs: false, bridge: false, iptablesNAT: false, cgroupVersion: "v1"}
 		startingPrice: "~$3/mo"
-		notes: "Kernel blocks unshare — Docker cannot run"
+		notes:         "Kernel blocks unshare — Docker cannot run"
 	}
 
 	"budget-openvz": #ProviderProfile & {
-		id: "budget-openvz", name: "Budget OpenVZ VPS", provider: "various"
-		virtualization: "openvz", tier: "incompatible"
+		id:             "budget-openvz", name: "Budget OpenVZ VPS", provider: "various"
+		virtualization: "openvz", tier:        "incompatible"
 		expectedFeatures: {unshare: false, overlayfs: false, bridge: false, iptablesNAT: false, cgroupVersion: "v1"}
 		startingPrice: "~$2/mo"
-		notes: "Kernel blocks unshare — Docker cannot run"
+		notes:         "Kernel blocks unshare — Docker cannot run"
 	}
 
 	"proxmox-lxc-restricted": #ProviderProfile & {
-		id: "proxmox-lxc-restricted", name: "Proxmox LXC (restricted)", provider: "proxmox"
-		virtualization: "lxc", tier: "incompatible"
+		id:             "proxmox-lxc-restricted", name: "Proxmox LXC (restricted)", provider: "proxmox"
+		virtualization: "lxc", tier:                    "incompatible"
 		expectedFeatures: {unshare: false, overlayfs: false, bridge: false, iptablesNAT: false, cgroupVersion: "v2"}
 		notes: "nesting=false blocks unshare — Docker cannot run"
 	}

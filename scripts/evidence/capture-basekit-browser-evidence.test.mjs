@@ -13,24 +13,36 @@ import {
   assertOwnerSetupActions,
   buildChecks,
   browserChannelLabel,
+  browserRedirectBridgeHTML,
+  browserRedirectLocationForRoute,
+  browserScreenshotURL,
   checkTextMatches,
+  clickThrough,
   collectSetupStateDiagnostics,
+  cookieFromSetCookieHeader,
   defaultConfig,
+  dismissTinyAuthInvalidDomainWarning,
+  driveOwnerLoginFlow,
   loadPlaywright,
   mergeSetupActionDiagnostics,
+  mapLocalPortURL,
   normalizeBrowserChannel,
   normalizeOwnerUsername,
   ownerDisplayNameFromUsername,
   ownerUsernameFromEmail,
   parseArgs,
+  parseHTTPStatus,
+  probeTinyAuthForwardAuthViaFreshVM,
   relativeEvidencePath,
   runOwnerActivatedSetupActions,
+  unmapLocalPortURL,
   usage,
   verifyCloudreveDemoFile,
   verifyImmichDemoAssets,
   verifyOwnerPasskeyCredential,
   verifyTinyAuthOwnerSession,
   verifyVaultAuthBoundary,
+  withLocalPortMappedBrowserOrigins,
 } from './capture-basekit-browser-evidence.mjs';
 
 test('default config targets the SK-S1 local BaseKit browser surface', () => {
@@ -81,6 +93,8 @@ test('parseArgs accepts explicit local runner inputs', () => {
       'photos,vault',
       '--browser-channel',
       'msedge',
+      '--fresh-vm-container',
+      'stackkits-e2e-test-ubuntu',
     ],
     { cwd: process.cwd(), env: {} },
   );
@@ -91,8 +105,163 @@ test('parseArgs accepts explicit local runner inputs', () => {
   assert.equal(config.headless, false);
   assert.deepEqual(config.setupServices, ['photos', 'vault']);
   assert.equal(config.browserChannel, 'msedge');
+  assert.equal(config.freshVMContainerName, 'stackkits-e2e-test-ubuntu');
   assert.equal(config.perCheckTimeoutMs, 60000);
   assert.equal(config.totalTimeoutMs, 600000);
+});
+
+test('parseArgs normalizes local mapped ports back to canonical browser origins', () => {
+  const config = parseArgs(
+    [
+      '--browser-url',
+      'http://base.home.localhost:57725/',
+      '--owner-setup-url',
+      'http://id.home.localhost:57725/setup',
+      '--auth-url',
+      'http://auth.home.localhost:57725/',
+      '--photos-url',
+      'http://photos.home.localhost:57725/photos',
+      '--files-url',
+      'http://files.home.localhost:57725/stackkit/files/session',
+      '--vault-url',
+      'http://vault.home.localhost:57725/',
+    ],
+    { cwd: process.cwd(), env: {} },
+  );
+
+  assert.equal(config.browserUrl, 'http://base.home.localhost/');
+  assert.equal(config.ownerSetupUrl, 'http://id.home.localhost/setup');
+  assert.equal(config.authUrl, 'http://auth.home.localhost/');
+  assert.equal(config.photosUrl, 'http://photos.home.localhost/photos');
+  assert.equal(config.filesUrl, 'http://files.home.localhost/stackkit/files/session');
+  assert.equal(config.vaultUrl, 'http://vault.home.localhost/');
+  assert.equal(config.localPortMappings['http://id.home.localhost'], 'http://127.0.0.1:57725');
+  assert.equal(config.localPortMappings['http://auth.home.localhost'], 'http://127.0.0.1:57725');
+  assert.equal(
+    mapLocalPortURL(config, 'http://auth.home.localhost/api/auth/traefik'),
+    'http://127.0.0.1:57725/api/auth/traefik',
+  );
+  assert.equal(
+    unmapLocalPortURL(config, 'http://127.0.0.1:57725/oauth/callback', 'http://auth.home.localhost'),
+    'http://auth.home.localhost/oauth/callback',
+  );
+  assert.equal(
+    unmapLocalPortURL(config, 'http://id.home.localhost:57725/authorize?client_id=stackkit-tinyauth', 'http://auth.home.localhost'),
+    'http://id.home.localhost/authorize?client_id=stackkit-tinyauth',
+  );
+});
+
+test('local mapped redirects are bridged back to browser origins', () => {
+  const config = parseArgs(
+    [
+      '--browser-url',
+      'http://base.home.localhost:57725/',
+      '--owner-setup-url',
+      'http://id.home.localhost:57725/setup',
+      '--auth-url',
+      'http://auth.home.localhost:57725/',
+      '--photos-url',
+      'http://photos.home.localhost:57725/photos',
+      '--files-url',
+      'http://files.home.localhost:57725/stackkit/files/session',
+      '--vault-url',
+      'http://vault.home.localhost:57725/',
+    ],
+    { cwd: process.cwd(), env: {} },
+  );
+
+  assert.equal(
+    browserRedirectLocationForRoute(
+      config,
+      'http://photos.home.localhost/photos',
+      'http://127.0.0.1:57725/login',
+      'http://photos.home.localhost',
+    ),
+    'http://photos.home.localhost/login',
+  );
+  assert.equal(
+    browserRedirectLocationForRoute(
+      config,
+      'http://photos.home.localhost/photos',
+      'http://auth.home.localhost/login?redirect_uri=http%3A%2F%2Fphotos.home.localhost%2Fphotos',
+      'http://photos.home.localhost',
+    ),
+    'http://auth.home.localhost/login?redirect_uri=http%3A%2F%2Fphotos.home.localhost%2Fphotos',
+  );
+
+  const bridge = browserRedirectBridgeHTML('http://auth.home.localhost/login?x="y"&next=<done>');
+  assert.match(bridge, /window\.location\.replace\("http:\/\/auth\.home\.localhost\/login\?x=\\\"y\\\"&next=<done>"\)/);
+  assert.match(bridge, /url=http:\/\/auth\.home\.localhost\/login\?x=&quot;y&quot;&amp;next=&lt;done&gt;/);
+});
+
+test('browserScreenshotURL falls back when Playwright ends on a browser error page', () => {
+  assert.equal(
+    browserScreenshotURL('chrome-error://chromewebdata/', 'http://auth.home.localhost/'),
+    'http://auth.home.localhost/',
+  );
+  assert.equal(
+    browserScreenshotURL('http://auth.home.localhost/', 'http://base.home.localhost/'),
+    'http://auth.home.localhost/',
+  );
+});
+
+test('cookieFromSetCookieHeader maps local proxy cookies to the canonical browser origin', () => {
+  const cookie = cookieFromSetCookieHeader(
+    'tinyauth=session-value; Path=/; HttpOnly; SameSite=Lax',
+    'http://auth.home.localhost',
+  );
+
+  assert.deepEqual(cookie, {
+    name: 'tinyauth',
+    value: 'session-value',
+    httpOnly: true,
+    sameSite: 'Lax',
+    url: 'http://auth.home.localhost',
+  });
+});
+
+test('cookieFromSetCookieHeader preserves explicit local parent domains', () => {
+  const cookie = cookieFromSetCookieHeader(
+    'tinyauth-oauth=state; Domain=home.localhost; Path=/; HttpOnly',
+    'http://auth.home.localhost',
+  );
+
+  assert.deepEqual(cookie, {
+    name: 'tinyauth-oauth',
+    value: 'state',
+    httpOnly: true,
+    domain: '.home.localhost',
+    path: '/',
+  });
+});
+
+test('cookieFromSetCookieHeader preserves explicit non-local cookie domains', () => {
+  const cookie = cookieFromSetCookieHeader(
+    'session=abc=def; Domain=.auth.example.com; Path=/api; Secure; SameSite=None',
+    'https://auth.example.com',
+  );
+
+  assert.equal(cookie.name, 'session');
+  assert.equal(cookie.value, 'abc=def');
+  assert.equal(cookie.domain, '.auth.example.com');
+  assert.equal(cookie.path, '/api');
+  assert.equal(cookie.secure, true);
+  assert.equal(cookie.sameSite, 'None');
+  assert.equal(cookie.url, undefined);
+});
+
+test('local mapped port normalization refuses public hostnames', () => {
+  const config = withLocalPortMappedBrowserOrigins({
+    browserUrl: 'https://base.example.com:8443/',
+    ownerSetupUrl: 'https://id.example.com:8443/setup',
+    authUrl: 'https://auth.example.com:8443/',
+    photosUrl: 'https://photos.example.com:8443/photos',
+    filesUrl: 'https://files.example.com:8443/stackkit/files/session',
+    vaultUrl: 'https://vault.example.com:8443/',
+  });
+
+  assert.equal(config.authUrl, 'https://auth.example.com:8443/');
+  assert.deepEqual(config.localPortMappings, {});
 });
 
 test('owner identity helpers keep email, username, and display name distinct', () => {
@@ -195,10 +364,10 @@ test('verifyTinyAuthOwnerSession proves the browser session through ForwardAuth 
     context: () => ({
       cookies: async (urls) => {
         assert.ok(urls.includes('http://auth.home.localhost/'));
-        assert.ok(urls.includes('http://base.home.localhost/'));
         return [{
           name: 'tinyauth',
-          domain: 'auth.home.localhost',
+          value: 'session-value',
+          domain: '.home.localhost',
         }];
       },
       request: {
@@ -206,6 +375,7 @@ test('verifyTinyAuthOwnerSession proves the browser session through ForwardAuth 
           requests.push({ url, options });
           assert.equal(options.maxRedirects, 0);
           assert.equal(options.headers['X-Forwarded-Host'], 'base.home.localhost');
+          assert.equal(options.headers.Cookie, 'tinyauth=session-value');
           return {
             ok: () => true,
             status: () => 200,
@@ -218,7 +388,7 @@ test('verifyTinyAuthOwnerSession proves the browser session through ForwardAuth 
   const evidence = await verifyTinyAuthOwnerSession(
     page,
     { authUrl: 'http://auth.home.localhost', browserUrl: 'http://base.home.localhost' },
-    'Signed in as Owner',
+    '',
     Date.now() + 1000,
   );
 
@@ -228,7 +398,7 @@ test('verifyTinyAuthOwnerSession proves the browser session through ForwardAuth 
   assert.equal(evidence.forwardAuthStatus, '200');
   assert.equal(evidence.sessionCookieCount, '1');
   assert.equal(evidence.sessionCookieNames, 'tinyauth');
-  assert.equal(evidence.sessionCookieDomains, 'auth.home.localhost');
+  assert.equal(evidence.sessionCookieDomains, '.home.localhost');
   assert.equal(requests[0].url, 'http://auth.home.localhost/api/auth/traefik');
 });
 
@@ -256,6 +426,166 @@ test('verifyTinyAuthOwnerSession rejects page text without a TinyAuth session co
     ),
     /no TinyAuth-like session cookie/,
   );
+});
+
+test('probeTinyAuthForwardAuthViaFreshVM executes TinyAuth ForwardAuth inside the retained VM with browser cookies', async () => {
+  const calls = [];
+  const result = await probeTinyAuthForwardAuthViaFreshVM(
+    {
+      authUrl: 'http://auth.home.localhost',
+      browserUrl: 'http://base.home.localhost',
+      freshVMContainerName: 'stackkits-e2e-test-ubuntu',
+    },
+    '/api/auth/traefik',
+    'tinyauth=session-value',
+    Date.now() + 1000,
+    async (file, args, options) => {
+      calls.push({ file, args, options });
+      return { stdout: 'OK', stderr: '  HTTP/1.1 200 OK\n' };
+    },
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 200);
+  assert.equal(result.url, 'http://auth.home.localhost/api/auth/traefik');
+  assert.equal(result.probe, 'fresh-vm-container');
+  assert.equal(calls[0].file, 'docker');
+  assert.deepEqual(calls[0].args.slice(0, 5), ['exec', 'stackkits-e2e-test-ubuntu', 'docker', 'exec', 'tinyauth']);
+  assert.ok(calls[0].args.includes('--header=Host: auth.home.localhost'));
+  assert.ok(calls[0].args.includes('--header=X-Forwarded-Host: base.home.localhost'));
+  assert.ok(calls[0].args.includes('--header=X-Forwarded-Uri: /'));
+  assert.ok(calls[0].args.includes('--header=Cookie: tinyauth=session-value'));
+  assert.equal(calls[0].options.windowsHide, true);
+});
+
+test('parseHTTPStatus returns the final HTTP status from wget output', () => {
+  assert.equal(parseHTTPStatus('HTTP/1.1 302 Found\nHTTP/1.1 200 OK'), 200);
+  assert.equal(parseHTTPStatus('no status'), 0);
+});
+
+test('dismissTinyAuthInvalidDomainWarning only accepts local TinyAuth port mapping', async () => {
+  let clicked = false;
+  const localPage = invalidDomainPage({
+    url: 'http://auth.home.localhost:60752/',
+    text: [
+      'Invalid Domain',
+      'Expected: http://auth.home.localhost',
+      'Current: http://auth.home.localhost:60752',
+      'Ignore',
+    ].join('\n'),
+    onClick: () => {
+      clicked = true;
+    },
+  });
+
+  const dismissed = await dismissTinyAuthInvalidDomainWarning(
+    localPage,
+    { authUrl: 'http://auth.home.localhost' },
+    Date.now() + 1000,
+  );
+
+  assert.equal(dismissed, true);
+  assert.equal(clicked, true);
+
+  let publicClicked = false;
+  const publicPage = invalidDomainPage({
+    url: 'https://auth.example.com:444/',
+    text: [
+      'Invalid Domain',
+      'Expected: https://auth.example.com',
+      'Current: https://auth.example.com:444',
+      'Ignore',
+    ].join('\n'),
+    onClick: () => {
+      publicClicked = true;
+    },
+  });
+
+  const publicDismissed = await dismissTinyAuthInvalidDomainWarning(
+    publicPage,
+    { authUrl: 'https://auth.example.com' },
+    Date.now() + 1000,
+  );
+
+  assert.equal(publicDismissed, false);
+  assert.equal(publicClicked, false);
+});
+
+test('clickThrough waits through transient OAuth transition states', async () => {
+  let visible = true;
+  let clicks = 0;
+  let idleWaits = 0;
+  const locator = {
+    first: () => locator,
+    filter: () => locator,
+    count: async () => (visible ? 1 : 0),
+    isVisible: async () => visible,
+    click: async () => {
+      clicks += 1;
+      visible = false;
+    },
+  };
+  const page = {
+    getByRole: () => locator,
+    locator: () => locator,
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {
+      if (clicks === 1 && !visible) {
+        idleWaits += 1;
+        if (idleWaits >= 2) visible = true;
+      }
+    },
+  };
+
+  await clickThrough(page, [/sign in/i], Date.now() + 1000);
+
+  assert.equal(clicks, 2);
+});
+
+test('driveOwnerLoginFlow does not restart TinyAuth OAuth while the provider redirect is pending', async () => {
+  let providerClicks = 0;
+  let currentURL = 'http://auth.home.localhost/';
+  let waits = 0;
+  const providerButton = {
+    first: () => providerButton,
+    filter: () => providerButton,
+    count: async () => 1,
+    isVisible: async () => true,
+    click: async () => {
+      providerClicks += 1;
+    },
+  };
+  const empty = {
+    first: () => empty,
+    filter: () => empty,
+    count: async () => 0,
+    isVisible: async () => false,
+    click: async () => {},
+  };
+  const page = {
+    url: () => currentURL,
+    getByRole: (_role, options = {}) => ({
+      first: () => options.name?.test?.('PocketID') ? providerButton : empty,
+    }),
+    locator: () => ({
+      filter: () => ({
+        first: () => empty,
+      }),
+    }),
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {
+      waits += 1;
+      if (waits >= 3) currentURL = 'http://id.home.localhost/authorize?client_id=stackkit-tinyauth';
+    },
+  };
+
+  await driveOwnerLoginFlow(
+    page,
+    { authUrl: 'http://auth.home.localhost', browserUrl: 'http://base.home.localhost' },
+    Date.now() + 1000,
+  );
+
+  assert.equal(providerClicks, 1);
 });
 
 test('verifyImmichDemoAssets proves the StackKit demo asset through the Owner browser session', async () => {
@@ -324,6 +654,54 @@ test('verifyImmichDemoAssets proves the StackKit demo asset through the Owner br
   }
 });
 
+test('verifyImmichDemoAssets proves the cookie-session Owner without seeded assets when demo data is disabled', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.window = {
+    localStorage: browserStorage({}),
+    sessionStorage: browserStorage({}),
+  };
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push(String(url));
+    assert.equal(options.headers?.authorization, undefined);
+    if (String(url) === '/api/users/me') {
+      return {
+        ok: true,
+        json: async () => ({ id: 'immich-owner-id', email: 'owner@example.com' }),
+      };
+    }
+    throw new Error('Immich demo metadata search must not run when demo data is disabled');
+  };
+  try {
+    const evidence = await verifyImmichDemoAssets(
+      {
+        evaluate: async (callback, args) => callback(args),
+        waitForTimeout: async () => {},
+      },
+      Date.now() + 1000,
+      'owner@example.com',
+      false,
+    );
+
+    assert.equal(evidence.demoData, 'disabled');
+    assert.equal(evidence.demoContent, 'immich-owner-session');
+    assert.equal(evidence.verification, 'immich-users-me');
+    assert.equal(evidence.ownerVerification, 'immich-users-me');
+    assert.equal(evidence.immichSessionAuth, 'cookie-session');
+    assert.equal(evidence.immichOwnerEmail, 'owner@example.com');
+    assert.equal(evidence.immichOwnerId, 'immich-owner-id');
+    assert.equal(evidence.immichDemoAssets, undefined);
+    assert.equal(evidence.demoAssetFile, undefined);
+    assert.deepEqual(requests, ['/api/users/me']);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousFetch === undefined) delete globalThis.fetch;
+    else globalThis.fetch = previousFetch;
+  }
+});
+
 test('verifyImmichDemoAssets rejects browser sessions for a different Owner email', async () => {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;
@@ -377,6 +755,7 @@ test('verifyVaultAuthBoundary proves anonymous Vault access is stopped by TinyAu
   };
   const evidence = await verifyVaultAuthBoundary(
     browserBackedPage(context),
+    { localPortMappings: {} },
     { url: 'http://vault.home.localhost' },
     Date.now() + 1000,
   );
@@ -386,6 +765,35 @@ test('verifyVaultAuthBoundary proves anonymous Vault access is stopped by TinyAu
   assert.equal(evidence.anonymousAccess, 'rejected');
   assert.equal(evidence.anonymousBoundarySignal, 'tinyauth');
   assert.equal(context.closed, true);
+});
+
+test('verifyVaultAuthBoundary installs the local-port bridge in the anonymous context', async () => {
+  const routedOrigins = [];
+  const context = {
+    route: async (pattern) => {
+      routedOrigins.push(String(pattern));
+    },
+    newPage: async () => ({
+      goto: async () => ({ status: () => 401 }),
+      waitForLoadState: async () => {},
+      url: () => 'http://vault.home.localhost',
+      evaluate: async () => 'Unauthorized',
+    }),
+    close: async () => {},
+  };
+  const evidence = await verifyVaultAuthBoundary(
+    browserBackedPage(context),
+    {
+      localPortMappings: {
+        'http://vault.home.localhost': 'http://127.0.0.1:58012',
+      },
+    },
+    { url: 'http://vault.home.localhost' },
+    Date.now() + 1000,
+  );
+
+  assert.deepEqual(routedOrigins, ['http://vault.home.localhost/**']);
+  assert.equal(evidence.anonymousBoundarySignal, 'http-401');
 });
 
 test('verifyVaultAuthBoundary rejects a direct anonymous Vaultwarden login page', async () => {
@@ -402,6 +810,7 @@ test('verifyVaultAuthBoundary rejects a direct anonymous Vaultwarden login page'
   await assert.rejects(
     () => verifyVaultAuthBoundary(
       browserBackedPage(context),
+      { localPortMappings: {} },
       { url: 'http://vault.home.localhost' },
       Date.now() + 1000,
     ),
@@ -416,6 +825,33 @@ function browserBackedPage(anonymousContext) {
         newContext: async () => anonymousContext,
       }),
     }),
+  };
+}
+
+function invalidDomainPage({ url, text, onClick }) {
+  const button = {
+    count: async () => 1,
+    isVisible: async () => true,
+    click: async () => onClick(),
+  };
+  const empty = {
+    count: async () => 0,
+    isVisible: async () => false,
+    click: async () => {},
+  };
+  return {
+    url: () => url,
+    evaluate: async () => text,
+    getByRole: (_role, options = {}) => ({
+      first: () => options.name?.test?.('Ignore') ? button : empty,
+    }),
+    locator: () => ({
+      filter: () => ({
+        first: () => empty,
+      }),
+    }),
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
   };
 }
 
@@ -471,6 +907,67 @@ test('verifyCloudreveDemoFile proves seeded files through the browser session AP
     assert.equal(evidence.bridgeCurrentUser, 'owner-user');
     assert.equal(evidence.cloudreveSessionUser, 'owner-user');
     assert.ok(requests.length >= 2);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousFetch === undefined) delete globalThis.fetch;
+    else globalThis.fetch = previousFetch;
+  }
+});
+
+test('verifyCloudreveDemoFile proves the bridge session without seeded files when demo data is disabled', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => {
+        if (key === 'stackkit_files_session_bridge') {
+          return JSON.stringify({
+            verification: 'stackkit-cloudreve-session-bridge',
+            current: 'owner-user',
+          });
+        }
+        if (key !== 'cloudreve_session') return null;
+        return JSON.stringify({
+          current: 'owner-user',
+          sessions: {
+            'owner-user': {
+              token: { access_token: 'cloudreve-owner-token' },
+            },
+          },
+        });
+      },
+    },
+  };
+  globalThis.fetch = async (url, options) => {
+    requests.push(String(url));
+    assert.equal(options.headers.authorization, 'Bearer cloudreve-owner-token');
+    if (String(url).includes('uri=cloudreve%3A%2F%2Fmy&')) {
+      return { ok: true, json: async () => ({ code: 0, data: { files: [] } }) };
+    }
+    throw new Error('Cloudreve folder listing must not require seeded demo content when demo data is disabled');
+  };
+  try {
+    const evidence = await verifyCloudreveDemoFile(
+      {
+        evaluate: async (callback, args) => callback(args),
+        waitForTimeout: async () => {},
+      },
+      Date.now() + 1000,
+      false,
+    );
+
+    assert.equal(evidence.demoData, 'disabled');
+    assert.equal(evidence.demoContent, 'cloudreve-owner-session');
+    assert.equal(evidence.verification, 'cloudreve-browser-session-api');
+    assert.equal(evidence.identityBridge, 'stackkit-cloudreve-local-session');
+    assert.equal(evidence.bridgeVerification, 'stackkit-cloudreve-session-bridge');
+    assert.equal(evidence.bridgeCurrentUser, 'owner-user');
+    assert.equal(evidence.cloudreveSessionUser, 'owner-user');
+    assert.equal(evidence.seededFolder, undefined);
+    assert.equal(evidence.seededFile, undefined);
+    assert.equal(requests.length, 1);
   } finally {
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;
@@ -670,6 +1167,67 @@ test('runOwnerActivatedSetupActions posts owner-dependent setup services through
   assert.equal(actions[0].data.drops[0].name, 'immich-owner-bootstrap');
 });
 
+test('runOwnerActivatedSetupActions retries transient service warmup failures', async () => {
+  const posted = [];
+  let waits = 0;
+  const actions = await runOwnerActivatedSetupActions(
+    {
+      waitForTimeout: async () => {
+        waits += 1;
+      },
+      context: () => ({
+        request: {
+          post: async (url) => {
+            posted.push(url);
+            if (posted.length === 1) {
+              return {
+                ok: () => false,
+                status: () => 502,
+                text: async () => 'Bad Gateway',
+              };
+            }
+            return {
+              ok: () => true,
+              status: () => 200,
+              text: async () => JSON.stringify({
+                data: {
+                  serviceKey: 'photos',
+                  status: 'completed',
+                  message: 'Setup completed.',
+                  drops: [{
+                    name: 'immich-owner-bootstrap',
+                    runId: 'setup-photos-immich-owner-bootstrap',
+                    status: 'completed',
+                    phase: 'verified',
+                    attempts: 1,
+                    lastRequested: '2026-05-28T12:02:00Z',
+                    lastStarted: '2026-05-28T12:02:01Z',
+                    lastFinished: '2026-05-28T12:02:02Z',
+                    logs: [{ message: 'requested' }],
+                    rollbackNotes: ['Remove beta demo assets before retrying.'],
+                  }],
+                },
+              }),
+            };
+          },
+        },
+      }),
+    },
+    {
+      browserUrl: 'http://base.home.localhost',
+      setupServices: ['photos'],
+      setupActionRetryDelayMs: 0,
+    },
+    Date.now() + 1000,
+  );
+
+  assert.equal(posted.length, 2);
+  assert.equal(waits, 1);
+  assert.equal(actions[0].httpStatus, '200');
+  assert.equal(actions[0].requestAttempts, '2');
+  assert.equal(actions[0].data.status, 'completed');
+});
+
 test('mergeSetupActionDiagnostics upgrades waiting setup diagnostics from live setup responses', () => {
   const diagnostics = mergeSetupActionDiagnostics(
     {
@@ -704,6 +1262,10 @@ test('mergeSetupActionDiagnostics upgrades waiting setup diagnostics from live s
           lastFinished: '2026-05-28T12:02:02Z',
           logs: [{ message: 'requested' }, { message: 'verified' }],
           rollbackNotes: ['Remove beta demo assets before retrying.'],
+          evidence: {
+            ownerProvisioning: 'pocketid-oidc-owner-admin',
+            appLocalSessionHandoff: 'pocketid-oidc-auto-launch',
+          },
         }],
       },
     }],
@@ -722,6 +1284,12 @@ test('mergeSetupActionDiagnostics upgrades waiting setup diagnostics from live s
   assert.equal(diagnostics.setupState.drops['immich-owner-bootstrap'].status, 'completed');
   assert.equal(diagnostics.setupState.drops['immich-owner-bootstrap'].phase, 'verified');
   assert.equal(diagnostics.setupState.drops['immich-owner-bootstrap'].runId, 'setup-photos-immich-owner-bootstrap');
+  assert.equal(diagnostics.setupState.drops['immich-owner-bootstrap'].logCount, '2');
+  assert.equal(diagnostics.setupState.drops['immich-owner-bootstrap'].rollbackNoteCount, '1');
+  assert.deepEqual(diagnostics.setupState.drops['immich-owner-bootstrap'].evidence, {
+    ownerProvisioning: 'pocketid-oidc-owner-admin',
+    appLocalSessionHandoff: 'pocketid-oidc-auto-launch',
+  });
 });
 
 test('assertOwnerSetupActions rejects setup actions outside the gate budget', () => {

@@ -8,10 +8,10 @@
 //   - advanced (default): Terramate-orchestrated, drift detection, rolling updates
 //   - simple: OpenTofu-only (NOT recommended for HA, warning issued)
 //
-// Variants:
-//   - default: Dokploy + Full monitoring (Prometheus HA, Grafana, Loki)
-//   - minimal: Dokploy + Uptime Kuma (lightweight monitoring)
-//   - enterprise: Dokploy + Thanos + Ceph (long-term storage, distributed FS)
+// Service composition is module-driven via explicit #HAServiceToggle fields
+// (monitoring: Prometheus HA/Grafana/Loki, lightweight Uptime Kuma, or Beszel;
+// long-term storage: Thanos + Ceph). The legacy variant enum was removed
+// (StackKits-x2u).
 //
 // DECISION POINTS (CUE-enforced):
 //   1. Manager count must be ODD (quorum requirement: 3, 5, or 7)
@@ -49,9 +49,6 @@ import (
 
 	// Deployment mode (advanced recommended for HA)
 	deploymentMode: *"advanced" | "simple"
-
-	// Variant selection
-	variant: *"default" | "minimal" | "enterprise"
 
 	// =========================================================================
 	// DECISION POINT 1: Docker Swarm HA Configuration
@@ -96,11 +93,11 @@ import (
 	_workerNodes:  [ for n in nodes if n.role == "worker" {n}]
 
 	// =========================================================================
-	// DECISION POINT 5: Enterprise variant requires more nodes
+	// DECISION POINT 5: Ceph-backed storage requires a larger cluster
+	// (capability-driven; previously gated by the legacy "enterprise" variant)
 	// =========================================================================
-	if variant == "enterprise" {
+	if storage.backend == "ceph" {
 		nodes: list.MinItems(5)
-		storage: backend: "ceph" | "glusterfs"
 	}
 
 	// Deployment config
@@ -407,7 +404,7 @@ import (
 	// Storage service (matches storage.backend)
 	storage: #HAServiceToggle & {enabled: true}
 
-	// Monitoring (variant-dependent)
+	// Monitoring (optional, module composition)
 	prometheus?:   #HAServiceToggle
 	grafana?:      #HAServiceToggle
 	loki?:         #HAServiceToggle

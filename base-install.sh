@@ -285,12 +285,36 @@ configure_stackkit_server_image() {
   trap 'rm -rf "$STACKKIT_SERVER_IMAGE_DIR"' EXIT HUP INT TERM
 
   cp "$(command -v stackkit-server)" "$STACKKIT_SERVER_IMAGE_DIR/stackkit-server"
+  chmod +x "$STACKKIT_SERVER_IMAGE_DIR/stackkit-server" 2>/dev/null || true
+
+  STACKKIT_SERVER_CA_CERTS=""
+  for STACKKIT_SERVER_CA_CANDIDATE in \
+    /etc/ssl/certs/ca-certificates.crt \
+    /etc/pki/tls/certs/ca-bundle.crt \
+    /etc/ssl/ca-bundle.pem \
+    /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem; do
+    if [ -r "$STACKKIT_SERVER_CA_CANDIDATE" ]; then
+      cp "$STACKKIT_SERVER_CA_CANDIDATE" "$STACKKIT_SERVER_IMAGE_DIR/ca-certificates.crt"
+      STACKKIT_SERVER_CA_CERTS=1
+      break
+    fi
+  done
+  if [ -z "$STACKKIT_SERVER_CA_CERTS" ]; then
+    warn "Host CA bundle not found; local stackkit-server image will use an empty CA bundle."
+    : > "$STACKKIT_SERVER_IMAGE_DIR/ca-certificates.crt"
+  fi
+  mkdir -p "$STACKKIT_SERVER_IMAGE_DIR/tmp" "$STACKKIT_SERVER_IMAGE_DIR/var/tmp"
+  : > "$STACKKIT_SERVER_IMAGE_DIR/tmp/.keep"
+  : > "$STACKKIT_SERVER_IMAGE_DIR/var/tmp/.keep"
+
   cat > "$STACKKIT_SERVER_IMAGE_DIR/Dockerfile" <<'EOF'
-FROM alpine:3.19
-RUN apk add --no-cache ca-certificates curl
+FROM scratch
+COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY tmp /tmp
+COPY var /var
 COPY stackkit-server /usr/local/bin/stackkit-server
-RUN chmod +x /usr/local/bin/stackkit-server
-ENTRYPOINT ["stackkit-server"]
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENTRYPOINT ["/usr/local/bin/stackkit-server"]
 EOF
 
   info "Building local stackkit-server image ($STACKKIT_SERVER_LOCAL_IMAGE)"

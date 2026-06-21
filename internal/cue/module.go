@@ -19,16 +19,52 @@ type ModuleContract struct {
 	Services     map[string]ServiceDef
 	Provisioners map[string]ProvisionerDef
 	Enabled      bool
+	// Placement is the module's placement eligibility (#PlacementSupport).
+	// nil means the module did not declare it; the CUE safe-open defaults
+	// apply (eligible for local-only/standard, not managed-serverless).
+	Placement *PlacementSupport
+}
+
+// PlacementSupport mirrors base/placement.cue #PlacementSupport: publishable
+// eligibility metadata, not realization.
+type PlacementSupport struct {
+	LocalOnly         bool
+	Standard          bool
+	ManagedServerless bool
+	MissingAdapters   []string
+	RejectionReason   string
+}
+
+// EligibleForPlacement reports whether the module may be composed under the
+// given placement mode. Modules without a declaration follow the CUE
+// safe-open defaults: local-only/standard yes, managed-serverless no.
+func (mc *ModuleContract) EligibleForPlacement(mode string) bool {
+	if mc.Placement == nil {
+		return mode == "local-only" || mode == "standard"
+	}
+	switch mode {
+	case "local-only":
+		return mc.Placement.LocalOnly
+	case "standard":
+		return mc.Placement.Standard
+	case "managed-serverless":
+		return mc.Placement.ManagedServerless
+	default:
+		return false
+	}
 }
 
 // ModuleMetadata identifies a module.
 type ModuleMetadata struct {
-	Name          string
-	DisplayName   string
-	Version       string
-	Layer         string
-	Description   string
-	Core          bool
+	Name        string
+	DisplayName string
+	Version     string
+	Layer       string
+	Description string
+	Core        bool
+	// Maturity is the release classification: "default", "opt-in", or
+	// "draft". Draft modules must not claim canonical test scenarios.
+	Maturity      string
 	TestScenarios []string
 }
 
@@ -213,6 +249,11 @@ func (r *ModuleReader) extractContract(v cue.Value) (ModuleContract, error) {
 		}
 	}
 
+	// Placement eligibility
+	if ps := v.LookupPath(cue.ParsePath("placementSupport")); ps.Exists() {
+		mc.Placement = r.extractPlacementSupport(ps)
+	}
+
 	// Provisioners
 	if provs := v.LookupPath(cue.ParsePath("provisioners")); provs.Exists() {
 		mc.Provisioners = make(map[string]ProvisionerDef)
@@ -237,6 +278,7 @@ func (r *ModuleReader) extractMetadata(v cue.Value) ModuleMetadata {
 	meta.Version = stringField(v, "version")
 	meta.Layer = stringField(v, "layer")
 	meta.Description = stringField(v, "description")
+	meta.Maturity = stringField(v, "maturity")
 	if core := v.LookupPath(cue.ParsePath("core")); core.Exists() {
 		b, _ := core.Bool()
 		meta.Core = b
@@ -250,6 +292,37 @@ func (r *ModuleReader) extractMetadata(v cue.Value) ModuleMetadata {
 		}
 	}
 	return meta
+}
+
+// extractPlacementSupport decodes a #PlacementSupport value. CUE fills the
+// schema defaults (*true/*true/*false), so concrete bools are always present.
+func (r *ModuleReader) extractPlacementSupport(v cue.Value) *PlacementSupport {
+	ps := &PlacementSupport{LocalOnly: true, Standard: true}
+	if b := v.LookupPath(cue.ParsePath("local_only")); b.Exists() {
+		if val, err := b.Bool(); err == nil {
+			ps.LocalOnly = val
+		}
+	}
+	if b := v.LookupPath(cue.ParsePath("standard")); b.Exists() {
+		if val, err := b.Bool(); err == nil {
+			ps.Standard = val
+		}
+	}
+	if b := v.LookupPath(cue.ParsePath("managed_serverless")); b.Exists() {
+		if val, err := b.Bool(); err == nil {
+			ps.ManagedServerless = val
+		}
+	}
+	if adapters := v.LookupPath(cue.ParsePath("missing_adapters")); adapters.Exists() {
+		iter, _ := adapters.List()
+		for iter.Next() {
+			if s, err := iter.Value().String(); err == nil && s != "" {
+				ps.MissingAdapters = append(ps.MissingAdapters, s)
+			}
+		}
+	}
+	ps.RejectionReason = stringField(v, "rejection_reason")
+	return ps
 }
 
 func (r *ModuleReader) extractDelivery(v cue.Value) *ModuleDelivery {

@@ -22,6 +22,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L1-foundation"
 		description: "Filtering proxy for Docker socket — eliminates root-equivalent socket exposure"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 

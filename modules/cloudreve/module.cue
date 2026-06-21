@@ -12,6 +12,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Lightweight document management and file sharing"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
@@ -86,6 +87,12 @@ Contract: base.#ModuleContract & {
 			networks: ["base_net"]
 		}
 
+		accessPolicy: {
+			outerAuth:      "tinyauth-pocketid"
+			appAuth:        "self-auth"
+			ownerBootstrap: "init-cloudreve creates the first admin from StackKit admin credentials."
+		}
+
 		volumes: [{
 			source:      "cloudreve-data"
 			target:      "/cloudreve/data"
@@ -115,10 +122,6 @@ Contract: base.#ModuleContract & {
 				requiredCapabilities: ["files", "document-storage"]
 				bootstrapRequirements: ["create-first-admin", "close-public-registration"]
 				note: "Any replacement files module must keep the files route role and document equivalent owner bootstrap steps."
-			}
-			accessPolicy: {
-				appAuth:        "self-auth"
-				ownerBootstrap: "init-cloudreve creates the first admin from StackKit admin credentials."
 			}
 		}
 

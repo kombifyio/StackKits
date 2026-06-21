@@ -14,7 +14,9 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-paas"
 		description: "Self-hosted PaaS with PostgreSQL and Redis for deploying applications"
-		testScenarios: ["SK-S2"]
+		// Draft per Golden Rules §5.2: Dokploy MUST NOT be part of the
+		// canonical E2E dispatch, hence no testScenarios.
+		maturity: "draft"
 	}
 
 	requires: {
@@ -97,6 +99,11 @@ Contract: base.#ModuleContract & {
 					port:    3000
 				}
 				networks: ["base_net", "base_net_db"]
+			}
+
+			accessPolicy: {
+				outerAuth: "tinyauth-pocketid"
+				appAuth:   "self-auth"
 			}
 
 			volumes: [
@@ -264,7 +271,9 @@ Contract: base.#ModuleContract & {
 				noNewPrivileges: true
 				capDrop: ["ALL"]
 				readOnly: true
-				tmpfs: ["/data"]
+				// /data is the persistent dokploy-redis-data volume and must
+				// NOT be tmpfs-overlaid.
+				tmpfs: ["/tmp"]
 			}
 
 			output: {

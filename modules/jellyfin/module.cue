@@ -12,6 +12,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Free media server for movies, TV, music, and photos"
+		maturity:    "opt-in"
 		testScenarios: ["SK-S2", "SK-S4"]
 	}
 
@@ -87,6 +88,11 @@ Contract: base.#ModuleContract & {
 				port:    8096
 			}
 			networks: ["base_net"]
+		}
+
+		accessPolicy: {
+			outerAuth: "tinyauth-pocketid"
+			appAuth:   "self-auth"
 		}
 
 		volumes: [

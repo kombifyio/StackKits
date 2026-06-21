@@ -181,8 +181,11 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 	modulesDir := resolveModulesDir(stackkitDir, wd)
 	catalog := loadCanonicalServiceCatalog(wd, spec)
 	domains := catalog
+	defaults := loadSnapshotDefaults(spec.StackKit)
 	deployLog.Event("service_catalog.loaded",
 		slog.Int("service_count", len(catalog)),
+		slog.Int("tool_default_configs", countToolDefaults(defaults)),
+		slog.Int("kit_tool_configs", countKitToolConfigs(defaults)),
 	)
 
 	// Validate module dependency graph and run composition engine
@@ -207,6 +210,16 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 
 		// Run composition engine to determine enabled modules and identity config
 		engine := composition.NewCompositionEngine(contracts, stackkit, generationSpec)
+		// Attach the kit mode-support matrix when the kit declares one.
+		// Older exported kit caches without mode_matrix.cue skip enforcement.
+		if matrix, matrixErr := cueval.LoadKitModeMatrix(stackkitDir); matrixErr == nil {
+			engine.SetModeMatrix(matrix)
+		} else {
+			deployLog.Event("composition.mode_matrix",
+				slog.String("status", "unavailable"),
+				slog.String("reason", matrixErr.Error()),
+			)
+		}
 		if result, resolveErr := engine.Resolve(); resolveErr != nil {
 			deployLog.Warn("composition.resolve",
 				slog.String("error", resolveErr.Error()),

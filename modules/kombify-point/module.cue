@@ -13,6 +13,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L1-foundation"
 		description: "Local LAN DNS resolver for StackKit home service names"
+		maturity:    "opt-in"
 		testScenarios: ["SK-S1", "SK-S4"]
 	}
 
@@ -84,6 +85,14 @@ Contract: base.#ModuleContract & {
 				port:    8088
 			}
 			networks: ["frontend"]
+		}
+
+		// Matches the generated rollout: the kombify-point router gets the
+		// tinyauth middleware when TinyAuth is enabled (base-kit/templates/simple/main.tf).
+		accessPolicy: {
+			outerAuth: "tinyauth-pocketid"
+			appAuth:   "none"
+			reason:    "CoreDNS health/status endpoint with no own authentication; the gateway protects the HTTP route. DNS itself is served on host port 53, not via Traefik."
 		}
 
 		healthCheck: {

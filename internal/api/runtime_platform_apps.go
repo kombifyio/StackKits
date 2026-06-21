@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/pkg/models"
 )
 
 type runtimePlatformConfigFile struct {
@@ -31,6 +32,7 @@ type runtimePlatformConfigFile struct {
 	LegacyDockerComposeAPI      bool                             `json:"legacyDockerComposeApi,omitempty"`
 	DisableDockerRuntimeObserve bool                             `json:"disableDockerRuntimeObserve,omitempty"`
 	BootstrapEvidence           platformdeploy.BootstrapEvidence `json:"bootstrapEvidence,omitempty"`
+	found                       bool                             `json:"-"`
 }
 
 type runtimePlatformDeployOptions struct {
@@ -44,9 +46,15 @@ type runtimePlatformAdapterResult struct {
 	Cleanup    func()
 }
 
+type runtimePlatformDeploymentEvidence struct {
+	Refs       []platformdeploy.DeploymentRef
+	SystemApps []models.PlatformAppState
+	Apps       []models.PlatformAppState
+}
+
 var startRuntimePlatformSSHTunnel = startRuntimePlatformSSHTunnelDefault
 
-func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string, opts ...runtimePlatformDeployOptions) ([]platformdeploy.DeploymentRef, []runtimeActionCheck, error) {
+func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string, opts ...runtimePlatformDeployOptions) (runtimePlatformDeploymentEvidence, []runtimeActionCheck, error) {
 	options := runtimePlatformDeployOptions{}
 	if len(opts) > 0 {
 		options = opts[0]
@@ -56,7 +64,7 @@ func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string, opt
 		filepath.Join(deployDir, ".platform-apps-manifest.json"),
 	}
 
-	var refs []platformdeploy.DeploymentRef
+	var evidence runtimePlatformDeploymentEvidence
 	var checks []runtimeActionCheck
 	manifestSeen := false
 
@@ -64,28 +72,29 @@ func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string, opt
 		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
 			continue
 		} else if err != nil {
-			return refs, checks, fmt.Errorf("inspect platform app manifest: %w", err)
+			return evidence, checks, fmt.Errorf("inspect platform app manifest: %w", err)
 		}
 		manifestSeen = true
 
 		bundle, err := platformdeploy.LoadBundleManifest(manifestPath)
 		if err != nil {
-			return refs, checks, err
+			return evidence, checks, err
 		}
 
 		for _, deployBundle := range runtimePlatformDeploymentBundles(bundle) {
-			deployCount := len(deployBundle.SystemApps) + runtimeStackKitOwnedAppCount(deployBundle.Apps)
+			l3Count := runtimeStackKitOwnedAppCount(deployBundle.Apps)
+			deployCount := len(deployBundle.SystemApps) + l3Count
 			if deployCount == 0 {
 				continue
 			}
 
 			adapterResult, err := runtimePlatformAdapterForBundle(ctx, deployBundle, deployDir, options)
 			if err != nil {
-				return refs, checks, err
+				return evidence, checks, err
 			}
 			checks = append(checks, adapterResult.Checks...)
 			if !adapterResult.Configured {
-				return refs, checks, fmt.Errorf("platform API config for %s is required for %d StackKit-owned app(s)", deployBundle.Platform, deployCount)
+				return evidence, checks, fmt.Errorf("platform API config for %s is required for %d StackKit-owned app(s)", deployBundle.Platform, deployCount)
 			}
 			if adapterResult.Cleanup != nil {
 				defer adapterResult.Cleanup()
@@ -93,9 +102,12 @@ func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string, opt
 
 			deployed, err := platformdeploy.ApplyBundle(ctx, adapterResult.Adapter, deployBundle)
 			if err != nil {
-				return refs, checks, err
+				return evidence, checks, err
 			}
-			refs = append(refs, deployed...)
+			systemApps, apps := runtimePlatformAppStates(deployBundle, deployed)
+			evidence.Refs = append(evidence.Refs, deployed...)
+			evidence.SystemApps = append(evidence.SystemApps, systemApps...)
+			evidence.Apps = append(evidence.Apps, apps...)
 			checks = append(checks, runtimeActionCheck{
 				Name:   "platform_apps",
 				Status: "ok",
@@ -106,11 +118,75 @@ func runRuntimePlatformAppDeployments(ctx context.Context, deployDir string, opt
 
 	if !manifestSeen {
 		checks = append(checks, runtimeActionCheck{Name: "platform_apps", Status: "skipped", Detail: "manifest not present"})
-	} else if len(refs) == 0 {
+	} else if len(evidence.Refs) == 0 {
 		checks = append(checks, runtimeActionCheck{Name: "platform_apps", Status: "skipped", Detail: "no StackKit-owned platform apps"})
 	}
 
-	return refs, checks, nil
+	return evidence, checks, nil
+}
+
+func runtimePlatformAppStates(bundle platformdeploy.BundleManifest, refs []platformdeploy.DeploymentRef) ([]models.PlatformAppState, []models.PlatformAppState) {
+	systemByName := make(map[string]platformdeploy.SystemAppManifest, len(bundle.SystemApps))
+	for _, app := range bundle.SystemApps {
+		systemByName[app.Name] = app
+	}
+	appByName := make(map[string]platformdeploy.AppManifest, len(bundle.Apps))
+	for _, app := range bundle.Apps {
+		if !platformdeploy.IsStackKitOwnedApp(app) {
+			continue
+		}
+		appByName[app.Name] = app
+	}
+
+	var systemApps []models.PlatformAppState
+	var apps []models.PlatformAppState
+	for _, ref := range refs {
+		if app, ok := systemByName[ref.AppName]; ok {
+			systemApps = append(systemApps, runtimePlatformAppState(ref, app.AppManifest, app.Role))
+			continue
+		}
+		if app, ok := appByName[ref.AppName]; ok {
+			apps = append(apps, runtimePlatformAppState(ref, app, ""))
+		}
+	}
+	return systemApps, apps
+}
+
+func runtimePlatformAppState(ref platformdeploy.DeploymentRef, app platformdeploy.AppManifest, role string) models.PlatformAppState {
+	return models.PlatformAppState{
+		Name:           ref.AppName,
+		Role:           role,
+		Platform:       ref.Platform,
+		Management:     platformdeploy.AppManagementManaged,
+		ExternalID:     ref.ExternalID,
+		DeploymentID:   ref.DeploymentID,
+		ObservedStatus: ref.ObservedStatus,
+		ObservedAt:     ref.ObservedAt,
+		ComposePath:    app.ComposePath,
+		SetupPolicy:    app.SetupPolicy,
+		SetupDrops:     runtimeSetupDropsToState(app.SetupDrops),
+		LastDeployed:   ref.LastDeployed,
+	}
+}
+
+func runtimeSetupDropsToState(drops []platformdeploy.SetupDropManifest) []models.SetupDropSpec {
+	if len(drops) == 0 {
+		return nil
+	}
+	stateDrops := make([]models.SetupDropSpec, 0, len(drops))
+	for _, drop := range drops {
+		stateDrops = append(stateDrops, models.SetupDropSpec{
+			Name:          drop.Name,
+			Version:       drop.Version,
+			Runner:        drop.Runner,
+			Description:   drop.Description,
+			RollbackNotes: append([]string(nil), drop.RollbackNotes...),
+			Command:       append([]string(nil), drop.Command...),
+			Env:           drop.Env,
+			Secrets:       drop.Secrets,
+		})
+	}
+	return stateDrops
 }
 
 func runtimePlatformDeploymentBundles(bundle platformdeploy.BundleManifest) []platformdeploy.BundleManifest {
@@ -225,7 +301,20 @@ func runtimePlatformHTTPConfigForBundle(ctx context.Context, bundle platformdepl
 		LegacyDockerComposeAPI:      persisted.LegacyDockerComposeAPI,
 		DisableDockerRuntimeObserve: persisted.DisableDockerRuntimeObserve,
 	}
+	if options.Remote != nil && len(options.Remote.env) > 0 {
+		cfg.DockerEnv = append([]string(nil), options.Remote.env...)
+	}
 	checks := []runtimeActionCheck{}
+	if persisted.found && platformdeploy.RequiresBootstrapEvidence(bundle.Platform) {
+		if err := platformdeploy.ValidateBootstrapEvidence(bundle.Platform, persisted.BootstrapEvidence); err != nil {
+			return cfg, false, checks, nil, err
+		}
+		checks = append(checks, runtimeActionCheck{
+			Name:   "platform_bootstrap_evidence",
+			Status: "ok",
+			Detail: fmt.Sprintf("%s bootstrap evidence covers required beta capabilities", strings.ToLower(strings.TrimSpace(bundle.Platform))),
+		})
+	}
 	cleanup := func() {}
 	tunnelURL, tunnelCleanup, tunnelErr := runtimePlatformTunnelEndpoint(ctx, bundle.Platform, cfg.BaseURL, options.Remote)
 	if tunnelErr != nil {
@@ -256,6 +345,7 @@ func runtimeLoadPlatformConfigFile(deployDir string) runtimePlatformConfigFile {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return runtimePlatformConfigFile{}
 	}
+	cfg.found = true
 	return cfg
 }
 

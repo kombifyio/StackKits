@@ -316,6 +316,7 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			slog.String("error", accessErr.Error()),
 		)
 	} else {
+		attachObservedSetupActions(access, state)
 		state.Services = serviceStatesFromAccessSummary(access)
 		if writeErr := writeAccessSummary(wd, access); writeErr != nil {
 			printWarning("Could not write access summary: %v", writeErr)
@@ -357,6 +358,13 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		}
 		rolloutEvent("setup_actions", "succeeded", "automatic setup action processing succeeded", nil)
 		recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "succeeded", "automatic setup action processing succeeded", "")
+	}
+
+	if access != nil {
+		attachObservedSetupActions(access, state)
+		if writeErr := writeAccessSummary(wd, access); writeErr != nil {
+			printWarning("Could not update access summary setup actions: %v", writeErr)
+		}
 	}
 
 	deployLog.Event("apply.success",

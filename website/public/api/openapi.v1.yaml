@@ -1386,6 +1386,103 @@ components:
             $ref: "#/components/schemas/RuntimeActionCheck"
         stackkit_outputs:
           $ref: "#/components/schemas/RuntimeActionStackKitOutputs"
+        platform_refs:
+          type: array
+          description: Raw selected-PaaS deployment refs returned by the platform adapter.
+          items:
+            $ref: "#/components/schemas/RuntimeActionDeploymentRef"
+        platform_system_apps:
+          type: array
+          description: Artifact-ready selected-PaaS state for StackKit-owned system apps.
+          items:
+            $ref: "#/components/schemas/RuntimeActionPlatformAppState"
+        platform_apps:
+          type: array
+          description: Artifact-ready selected-PaaS state for StackKit-owned L3 apps.
+          items:
+            $ref: "#/components/schemas/RuntimeActionPlatformAppState"
+
+    RuntimeActionDeploymentRef:
+      type: object
+      properties:
+        platform:
+          type: string
+        appName:
+          type: string
+        externalId:
+          type: string
+        deploymentId:
+          type: string
+        observedStatus:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        lastDeployed:
+          type: string
+          format: date-time
+
+    RuntimeActionPlatformAppState:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        platform:
+          type: string
+        management:
+          type: string
+          enum: [managed, handoff, unmanaged, fallback]
+        externalId:
+          type: string
+        deploymentId:
+          type: string
+        observedStatus:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        composePath:
+          type: string
+        setupPolicy:
+          type: string
+          enum: [manual, on_demand, automatic]
+        setupDrops:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeActionSetupDrop"
+        lastDeployed:
+          type: string
+          format: date-time
+
+    RuntimeActionSetupDrop:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        runner:
+          type: string
+        description:
+          type: string
+        rollbackNotes:
+          type: array
+          items:
+            type: string
+        command:
+          type: array
+          items:
+            type: string
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        secrets:
+          type: object
+          additionalProperties:
+            type: string
 
     RuntimeActionCheck:
       type: object

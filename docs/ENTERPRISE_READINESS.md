@@ -58,6 +58,9 @@ and include:
 - default StackKit-owned L3 PaaS-intent check status,
 - live installer smoke status for `install.stackkit.cc` and `base.stackkit.cc`,
 - fresh Ubuntu BaseKit evidence from the published release or installer path,
+- scenario evidence rows for `SK-S1`, `SK-S2`, `SK-S3`, and `SK-S5`; missing
+  rollout artifacts must appear as `pending` rows, never as an empty
+  `scenarioEvidence` array,
 - upgrade and rollback VM proof status,
 - known limitations and support boundaries.
 

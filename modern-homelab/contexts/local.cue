@@ -41,8 +41,8 @@ package modern_homelab
 
 	// GPU support (local nodes often have GPUs)
 	gpu?: {
-		vendor: "nvidia" | "amd" | "intel"
-		model?: string
+		vendor:  "nvidia" | "amd" | "intel"
+		model?:  string
 		vramGB?: int
 		// NVIDIA container toolkit
 		nvidiaRuntime: bool | *true

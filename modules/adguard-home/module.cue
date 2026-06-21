@@ -15,10 +15,12 @@ Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "adguard-home"
 		displayName: "AdGuard Home"
-		version:     "1.0.0"
+		version:     "1.0.1"
 		layer:       "L2-platform-dns"
 		description: "DNS filter, ad/malware blocking, and local DNS rewrites"
-		testScenarios: ["SK-S1", "SK-S4"]
+		// Draft: the adguard-provisioner command is a prose stub, not an
+		// executable script — no automated first-run path yet.
+		maturity: "draft"
 	}
 
 	requires: {
@@ -57,9 +59,10 @@ Contract: base.#ModuleContract & {
 
 	settings: {
 		perma: {
-			// Admin credentials (set at deploy time)
-			adminUser:     "admin"
-			adminPassword: "=~\"^secret://\""
+			// Admin credentials (set at deploy time). The password MUST be a
+			// secret reference, never a literal value (Golden Rules §4.4/§4.5).
+			adminUser:     string | *"admin"
+			adminPassword: =~"^secret://"
 		}
 		flexible: {
 			// Upstream DNS: unbound (local/cloud) or cloudflare-doh (pi/simple)
@@ -109,6 +112,11 @@ Contract: base.#ModuleContract & {
 				port:    3000
 			}
 			networks: ["frontend"]
+		}
+
+		accessPolicy: {
+			outerAuth: "tinyauth-pocketid"
+			appAuth:   "self-auth"
 		}
 
 		healthCheck: {

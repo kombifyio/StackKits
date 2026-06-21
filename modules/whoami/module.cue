@@ -19,6 +19,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L2-platform-diagnostics"
 		description: "HTTP echo service for network and routing diagnostics"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
@@ -77,6 +78,12 @@ Contract: base.#ModuleContract & {
 				port:    80
 			}
 			networks: ["base_net"]
+		}
+
+		accessPolicy: {
+			outerAuth: "tinyauth-pocketid"
+			appAuth:   "none"
+			reason:    "Routing/auth diagnostic endpoint; only meaningful behind the gateway."
 		}
 
 		// NOTE: traefik/whoami is scratch-based -- NO shell, NO wget, NO curl inside.

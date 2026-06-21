@@ -21,8 +21,8 @@ package base
 	// Fully qualified domain name (e.g., "app.example.com")
 	fqdn: =~"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
 
-	// Local domain suffixes (e.g., "mylab.local", "home.lan")
-	localDomain: =~"\\.(local|lan|home|internal|test)$"
+	// Local domain suffixes (e.g., "home.localhost", "mylab.local", "home.lan")
+	localDomain: =~"(^localhost|\\.(localhost|local|lan|home|internal|test))$"
 
 	// Email address
 	email: =~"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
@@ -80,11 +80,13 @@ package base
 	domain: string
 
 	// Computed: is this a local-only domain?
+	// Includes browser-native .localhost names (the local default,
+	// Golden Rules §1.11) alongside the opt-in LAN DNS zones.
 	_isLocal: bool
-	if domain =~ "\\.(local|lan|home|internal|test)$" {
+	if domain =~ "(^localhost|\\.(localhost|local|lan|home|internal|test))$" {
 		_isLocal: true
 	}
-	if domain !~ "\\.(local|lan|home|internal|test)$" {
+	if domain !~ "(^localhost|\\.(localhost|local|lan|home|internal|test))$" {
 		_isLocal: false
 	}
 }
@@ -139,28 +141,8 @@ package base
 	}
 }
 
-// #BackupDestination defines where backups are stored
-#BackupDestination: {
-	type: "local" | "s3" | "sftp" | "b2"
-
-	if type == "local" {
-		path: string | *"/opt/backups"
-	}
-	if type == "s3" {
-		bucket:    string
-		endpoint?: string // Custom S3 endpoint (MinIO, Wasabi, etc.)
-		region:    string | *"us-east-1"
-	}
-	if type == "sftp" {
-		host: string
-		port: uint16 | *22
-		user: string
-		path: string
-	}
-	if type == "b2" {
-		bucket: string
-	}
-}
+// #BackupDestination is defined once in observability.cue — the canonical
+// definition shared by #BackupConfig and #BackupDecision.
 
 // =============================================================================
 // ALERTING DECISION TREE
@@ -186,7 +168,7 @@ package base
 			host: string
 			port: uint16 | *587
 			from: string
-			to:   [...string] & [_, ...]
+			to: [...string] & [_, ...]
 		}
 	}
 	if type == "slack" {
@@ -206,8 +188,8 @@ package base
 		priority: int & >=1 & <=10 | *5
 	}
 	if type == "webhook" {
-		url:     string
-		method:  "POST" | "PUT" | *"POST"
+		url:    string
+		method: "POST" | "PUT" | *"POST"
 		headers?: [string]: string
 	}
 }

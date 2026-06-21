@@ -14,6 +14,7 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "IaC-managed homelab start dashboard generated from the StackKits service catalog"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
@@ -85,6 +86,12 @@ Contract: base.#ModuleContract & {
 					port:    3000
 				}
 				networks: ["base_net"]
+			}
+
+			accessPolicy: {
+				outerAuth: "tinyauth-pocketid"
+				appAuth:   "none"
+				reason:    "Static start dashboard without an own login; the gateway protects the route."
 			}
 
 			healthCheck: {

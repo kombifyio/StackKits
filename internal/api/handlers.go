@@ -719,6 +719,15 @@ func (s *Server) resolveComposition(spec *models.StackSpec, sk *models.StackKit)
 		slog.Warn("module contracts unavailable; falling back to identity-only composition", "modules_dir", modulesDir, "error", err)
 	}
 	engine := composition.NewCompositionEngine(contracts, sk, spec)
+	// Attach the kit mode-support matrix when the kit declares one; kits
+	// without mode_matrix.cue skip enforcement.
+	if spec != nil && spec.StackKit != "" &&
+		!strings.ContainsAny(spec.StackKit, `/\`) && !strings.Contains(spec.StackKit, "..") {
+		kitDir := filepath.Join(s.config.BaseDir, spec.StackKit)
+		if matrix, matrixErr := cuepkg.LoadKitModeMatrix(kitDir); matrixErr == nil {
+			engine.SetModeMatrix(matrix)
+		}
+	}
 	return engine.Resolve()
 }
 

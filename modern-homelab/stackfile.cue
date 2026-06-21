@@ -210,8 +210,8 @@ import (
 }
 
 #GPUSpec: {
-	vendor: "nvidia" | "amd" | "intel"
-	model?: string
+	vendor:  "nvidia" | "amd" | "intel"
+	model?:  string
 	vramGB?: int
 }
 
@@ -253,23 +253,23 @@ import (
 
 #AddonSelection: {
 	// Infrastructure add-ons
-	tunnel?:      #AddonToggle
-	vpnOverlay?:  #AddonToggle
-	monitoring?:  #AddonToggle
-	backup?:      #AddonToggle
-	authelia?:    #AddonToggle
+	tunnel?:     #AddonToggle
+	vpnOverlay?: #AddonToggle
+	monitoring?: #AddonToggle
+	backup?:     #AddonToggle
+	authelia?:   #AddonToggle
 
 	// Use case add-ons (the 10 homelab scenarios)
-	vault?:        #AddonToggle  // Password Manager
-	photos?:       #AddonToggle  // Photo Gallery
-	media?:        #AddonToggle  // Media Streaming
-	fileSharing?:  #AddonToggle  // File Sharing
-	smartHome?:    #AddonToggle  // Smart Home
-	aiWorkloads?:  #AddonToggle  // AI/LLM
-	calendar?:     #AddonToggle  // CalDAV/CardDAV
-	mail?:         #AddonToggle  // Mail Server
-	devPlatform?:  #AddonToggle  // Dev Environment
-	gameserver?:   #AddonToggle  // Game Servers
+	vault?:         #AddonToggle // Password Manager
+	photos?:        #AddonToggle // Photo Gallery
+	media?:         #AddonToggle // Media Streaming
+	fileSharing?:   #AddonToggle // File Sharing
+	smartHome?:     #AddonToggle // Smart Home
+	aiWorkloads?:   #AddonToggle // AI/LLM
+	calendar?:      #AddonToggle // CalDAV/CardDAV
+	mail?:          #AddonToggle // Mail Server
+	devPlatform?:   #AddonToggle // Dev Environment
+	gameserver?:    #AddonToggle // Game Servers
 	remoteDesktop?: #AddonToggle // Virtual PC
 
 	// Constraint: mail add-on includes CalDAV, so calendar is redundant
@@ -279,7 +279,7 @@ import (
 }
 
 #AddonToggle: {
-	enabled: bool | *false
+	enabled:  bool | *false
 	variant?: string
 }
 

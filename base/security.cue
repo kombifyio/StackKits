@@ -105,6 +105,47 @@ package base
 	enabled: bool | *true
 }
 
+// #AccessPolicy declares the resolved access/exposure contract for a routed
+// service. Golden Rules §4.1/§4.8: no service may be exposed without an
+// explicit access policy, and default L3 services MUST NOT become
+// public-unauthenticated by omission. Every #ServiceDefinition with
+// network.traefik.enabled: true MUST declare one.
+#AccessPolicy: {
+	// Gateway-level authentication in front of the route:
+	// "tinyauth-pocketid": protected by the TinyAuth ForwardAuth gateway
+	//   backed by PocketID (BaseKit default for protected routes).
+	// "self": the service IS the auth surface (IdP / login gateway) and
+	//   must be anonymously reachable for login flows.
+	// "bootstrap-open": anonymous only while bootstrap-open, then moved
+	//   behind the gateway (Base Hub contract; public/non-local routes
+	//   remain protected when TinyAuth is enabled).
+	// "none-explicit": deliberately unauthenticated at the gateway; valid
+	//   only with an explicit reason (GR §4.8).
+	outerAuth: "tinyauth-pocketid" | "self" | "bootstrap-open" | "none-explicit"
+
+	// Application-local authentication behavior behind the gateway:
+	// "self-auth": app keeps its own login/user store.
+	// "oidc-sso": app delegates login to the platform IdP (PocketID).
+	// "disabled-after-bootstrap": app login is switched off once the
+	//   gateway protects the route (e.g. Uptime Kuma).
+	// "none": app has no own authentication layer.
+	appAuth: "self-auth" | "oidc-sso" | "disabled-after-bootstrap" | "none"
+
+	// Owner/first-user bootstrap behavior (Golden Rules §10.9).
+	ownerBootstrap?: string
+
+	// Explanation of the policy decision. Mandatory for the risky
+	// combinations: gateway-unprotected routes and routes whose app has
+	// no own authentication.
+	reason?: string
+	if outerAuth == "none-explicit" {
+		reason: string
+	}
+	if appAuth == "none" {
+		reason: string
+	}
+}
+
 // #ContainerSecurityContext defines container security settings
 // Based on Docker hardening best practices
 #ContainerSecurityContext: {
@@ -139,7 +180,7 @@ package base
 	noNewPrivileges: bool | *true
 
 	// Disable TTY and stdin (reduces attack surface)
-	tty: bool | *false
+	tty:       bool | *false
 	stdinOpen: bool | *false
 }
 
@@ -442,9 +483,9 @@ package base
 	networkSegmentation: {
 		enabled: bool | *true
 		zones: [...#NetworkZone] | *[
-				{name: "mgmt", access: "admin-only"},
-				{name: "apps", access: "authenticated"},
-				{name: "dmz", access: "public"},
+			{name: "mgmt", access: "admin-only"},
+			{name: "apps", access: "authenticated"},
+			{name: "dmz", access: "public"},
 		]
 	}
 }
@@ -478,7 +519,7 @@ package base
 
 	// Intermediate CA configuration
 	intermediate?: {
-		commonName: string
+		commonName:   string
 		validityDays: int | *365
 	}
 
@@ -510,7 +551,7 @@ package base
 	certCN?: string
 
 	// Short-lived credential rotation
-	rotationEnabled: bool | *true
+	rotationEnabled:  bool | *true
 	rotationInterval: string | *"24h"
 }
 
@@ -524,10 +565,10 @@ package base
 
 	// Standard roles (from kombify identity plan)
 	roles: [...#Role] | *[
-			{name: "owner", permissions: ["*"]},
-			{name: "operator", permissions: ["deploy", "update", "monitor", "backup"]},
-			{name: "developer", permissions: ["deploy", "logs", "exec"]},
-			{name: "viewer", permissions: ["read", "logs"]},
+		{name: "owner", permissions: ["*"]},
+		{name: "operator", permissions: ["deploy", "update", "monitor", "backup"]},
+		{name: "developer", permissions: ["deploy", "logs", "exec"]},
+		{name: "viewer", permissions: ["read", "logs"]},
 	]
 
 	// Map external groups to internal roles

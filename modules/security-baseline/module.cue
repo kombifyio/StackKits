@@ -21,7 +21,8 @@ Contract: base.#ModuleContract & {
 		version:     "0.1.0"
 		layer:       "L1-foundation"
 		description: "Host-level hardening: UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Foundation layer, mandatory in V6."
-		testScenarios: ["SK-S3", "SK-S4"]
+		// Draft: scaffolded for V6 Phase 2, Terraform implementation pending.
+		maturity: "draft"
 	}
 
 	requires: {

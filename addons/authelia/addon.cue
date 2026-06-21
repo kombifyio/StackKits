@@ -115,3 +115,12 @@ package authelia
 	forwardAuth:  string | *"http://authelia:9091/api/verify?rd=https://auth.{{.domain}}"
 	mfaEnabled:   bool
 }
+
+// Placement eligibility (PUBLISHABLE metadata, base/placement.cue
+// #PlacementSupport). Explicit safe-open S1 defaults; managed-serverless
+// stays opt-in via Control-Plane enablement.
+placementSupport: {
+	local_only:         true
+	standard:           true
+	managed_serverless: false
+}

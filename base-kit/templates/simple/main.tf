@@ -3,12 +3,12 @@
 # =============================================================================
 # Architecture: Platform services via OpenTofu, user apps via PaaS handoff
 #
-# Release default:
-#   L2 Platform: Dokploy + Dashboard + PocketID + TinyAuth
-#   L3 Apps: Immich (photos) + Vaultwarden (vault)
+# Release default (paas/reverse_proxy_backend default to "coolify" below):
+#   L2 Platform: Coolify + Node Hub + Homepage + PocketID + TinyAuth + Uptime Kuma + Whoami
+#   L3 Apps: Immich (photos) + Vaultwarden (vault) + Files (Cloudreve default)
 #
 # Low Compute Tier (Pi-Mode):
-#   L2 Platform: Dokploy + Dashboard + PocketID + TinyAuth
+#   L2 Platform: Coolify + Node Hub + PocketID + TinyAuth
 #   L3 Apps: PaaS handoff compose bundles
 #
 # Common (all tiers):
@@ -70,6 +70,45 @@ variable "compute_tier" {
   }
 }
 
+variable "placement_mode" {
+  type        = string
+  description = "Resolved S1 placement mode (drives capability bindings; S2/S3 modes never reach this template)"
+  default     = "standard"
+
+  validation {
+    condition     = contains(["local-only", "standard"], var.placement_mode)
+    error_message = "placement_mode must be one of: local-only, standard (S1)."
+  }
+}
+
+variable "placement_exposure" {
+  type        = string
+  description = "Resolved placement exposure sub-dimension"
+  default     = "private"
+
+  validation {
+    condition     = contains(["private", "public"], var.placement_exposure)
+    error_message = "placement_exposure must be one of: private, public."
+  }
+}
+
+variable "placement_coupling" {
+  type        = string
+  description = "Resolved placement coupling sub-dimension (S1 is always cloudless)"
+  default     = "cloudless"
+
+  validation {
+    condition     = var.placement_coupling == "cloudless"
+    error_message = "placement_coupling must be cloudless in StackKits-OSS (S1)."
+  }
+}
+
+variable "placement_capabilities" {
+  type        = map(map(string))
+  description = "Resolved capability bindings from the placement resolver (capability -> {provider, target})"
+  default     = {}
+}
+
 variable "enable_traefik" {
   type        = bool
   description = "Enable Traefik reverse proxy (Layer 2)"
@@ -125,6 +164,12 @@ variable "pocketid_app_url" {
 variable "docker_host" {
   type        = string
   description = "Optional Docker daemon endpoint propagated from DOCKER_HOST"
+  default     = ""
+}
+
+variable "workspace_root" {
+  type        = string
+  description = "Optional workspace path on the Docker host for bind-mounted StackKits system apps"
   default     = ""
 }
 
@@ -680,7 +725,7 @@ variable "server_lan_ip" {
 locals {
   # Networking mode
   is_host        = var.network_mode == "host"
-  workspace_root = abspath("${path.module}/..")
+  workspace_root = trimspace(var.workspace_root) != "" ? var.workspace_root : abspath("${path.module}/..")
   stackkit_state_dir = "${local.workspace_root}/.stackkit"
   tinyauth_image = "ghcr.io/steveiliop56/tinyauth:v5.0.7"
   pocketid_image = "ghcr.io/pocket-id/pocket-id:v2.7.0"
@@ -2342,6 +2387,8 @@ locals {
         labels:
           - "stackkit.layer=2-platform"
           - "stackkit.service=stackkit-server"
+          - "stackkit.placement.mode=${var.placement_mode}"
+          - "stackkit.placement.relational=${try(var.placement_capabilities["relational"]["provider"], "")}"
           - "traefik.enable=true"
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.stackkit-server.rule=Host(`${local.domains.base}`) && (PathPrefix(`/api`) || Path(`/health`))"
@@ -5127,7 +5174,7 @@ config = {
       {"capability": "team-management", "status": "configured", "evidence": ["registration disabled", "non-admin resource creation disabled"]},
       {"capability": "proxy-routing", "status": "configured", "evidence": ["StackKit Traefik owns Komodo route", "Core API loopback endpoint configured"]},
       {"capability": "secrets", "status": "configured", "evidence": ["JWT/webhook/database secrets generated", "platformConfig.mode=0600"]},
-      {"capability": "backups", "status": "prepared", "evidence": ["komodo_backups volume mounted at /backups", "scheduled backup policy remains a v0.4 beta follow-up"]},
+      {"capability": "backups", "status": "configured", "evidence": ["komodo_backups volume mounted at /backups", "platform volumes labelled stackkit.backup=required", "restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill"]},
       {"capability": "healthchecks", "status": "configured", "evidence": ["Komodo Core healthcheck configured", "Periphery server registration expected"]},
       {"capability": "service-handoff", "status": "configured", "evidence": ["serverId=stackkit-local", "Stack API configured for managed compose stacks"]},
     ],
@@ -5629,8 +5676,8 @@ $config = [
             ],
             [
                 'capability' => 'backups',
-                'status' => 'prepared',
-                'evidence' => ['coolify data and database volumes are persisted', 'scheduled backup policy remains a v0.4 beta follow-up'],
+                'status' => 'configured',
+                'evidence' => ['Coolify data and database volumes are persisted', 'platform volumes labelled stackkit.backup=required', 'restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill'],
             ],
             [
                 'capability' => 'healthchecks',
@@ -6175,6 +6222,16 @@ resource "docker_container" "stackkit_server" {
   labels {
     label = "stackkit.service"
     value = "stackkit-server"
+  }
+
+  labels {
+    label = "stackkit.placement.mode"
+    value = var.placement_mode
+  }
+
+  labels {
+    label = "stackkit.placement.relational"
+    value = try(var.placement_capabilities["relational"]["provider"], "")
   }
 
   labels {

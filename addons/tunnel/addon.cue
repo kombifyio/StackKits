@@ -189,3 +189,13 @@ package tunnel
 	// Public hostname for tunnel access
 	publicHostname?: string
 }
+
+// Placement eligibility (PUBLISHABLE metadata, base/placement.cue
+// #PlacementSupport). A tunnel exists to publish services from behind
+// NAT; local-only forces private exposure, so the addon is ineligible.
+placementSupport: {
+	local_only:         false
+	standard:           true
+	managed_serverless: false
+	rejection_reason:   "tunnel publishes services to the public internet; local-only forces private exposure"
+}

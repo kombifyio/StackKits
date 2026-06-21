@@ -120,3 +120,12 @@ package mail
 	adminUrl:  string | *"https://mail.{{.domain}}:8084"
 	caldavUrl: string | *"https://mail.{{.domain}}/dav"
 }
+
+// Placement eligibility (PUBLISHABLE metadata, base/placement.cue
+// #PlacementSupport). Explicit safe-open S1 defaults; managed-serverless
+// stays opt-in via Control-Plane enablement.
+placementSupport: {
+	local_only:         true
+	standard:           true
+	managed_serverless: false
+}

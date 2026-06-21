@@ -25,7 +25,8 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L1-foundation"
 		description: "Internal certificate authority — ACME provider for Traefik TLS"
-		testScenarios: ["SK-S2", "SK-S3"]
+		// Draft: the step-ca service is status "planned".
+		maturity: "draft"
 	}
 
 	requires: {

@@ -19,7 +19,7 @@
 # stack-spec.yaml — StackKit Deployment Specification
 name: string              # Stack identifier (DNS-compatible, e.g. "mylab")
 stackkit: string          # StackKit name: "base-kit", "modern-homelab", "ha-kit"
-mode: string              # Deployment engine: "simple" (OpenTofu) or "advanced" (Terramate)
+mode: string              # Install mode: "bare", "bootstrapped" (default), or "advanced"; legacy "simple" normalizes to "bootstrapped"
 runtime: string           # "docker" (default) or "native"
 context: string           # Auto-detected: "local", "cloud", "pi" (rarely set manually)
 
@@ -393,7 +393,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 
 - `name` must be DNS-compatible: `^[a-z][a-z0-9-]+$`
 - `stackkit` must reference an existing StackKit (`base-kit`, `modern-homelab`, `ha-kit`)
-- `mode` must be `simple` or `advanced`
+- `mode` must be `bare`, `bootstrapped`, or `advanced`; legacy `simple` is accepted and normalizes to `bootstrapped`
 - `compute.tier` must be `low`, `standard`, or `high`
 - `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only
 - `application.files.tool` must be `cloudreve` or `nextcloud`; contradictory `application.files.*` and `services.files.*` provider values fail validation

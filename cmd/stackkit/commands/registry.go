@@ -148,8 +148,12 @@ func runRegistrySnapshot(cmd *cobra.Command, _ []string) error {
 	}
 
 	printSuccess("Wrote registry snapshot to %s", registrySnapshotOutput)
-	printInfo("source=admin-api tools=%d services=%d modules=%d stackkits=%d",
-		len(snap.Tools), len(snap.Services), len(snap.Modules), len(snap.StackKits))
+	printInfo("source=admin-api tools=%d services=%d modules=%d stackkits=%d service_groups=%d tool_default_configs=%d",
+		len(snap.Tools), len(snap.Services), len(snap.Modules), len(snap.StackKits),
+		len(snap.ServiceGroups), len(snap.ToolDefaultConfigs))
+	if snap.ContentHash != "" {
+		printInfo("content_hash=%s", snap.ContentHash)
+	}
 	return nil
 }
 
@@ -225,10 +229,15 @@ func runRegistryInfo(_ *cobra.Command, _ []string) error {
 	if snap.AdminEndpoint != "" {
 		fmt.Printf("  admin_endpoint : %s\n", snap.AdminEndpoint)
 	}
+	if snap.ContentHash != "" {
+		fmt.Printf("  content_hash   : %s\n", snap.ContentHash)
+	}
 	fmt.Printf("  tools          : %d\n", len(snap.Tools))
 	fmt.Printf("  services       : %d\n", len(snap.Services))
 	fmt.Printf("  modules        : %d\n", len(snap.Modules))
 	fmt.Printf("  stackkits      : %d\n", len(snap.StackKits))
+	fmt.Printf("  service_groups : %d\n", len(snap.ServiceGroups))
+	fmt.Printf("  tool_defaults  : %d\n", len(snap.ToolDefaultConfigs))
 
 	if len(snap.Modules) > 0 {
 		fmt.Println()
@@ -342,7 +351,25 @@ func sortSnapshot(snap *registry.Snapshot) {
 	sort.Slice(snap.Modules, func(i, j int) bool { return snap.Modules[i].Slug < snap.Modules[j].Slug })
 	sort.Slice(snap.StackKits, func(i, j int) bool { return snap.StackKits[i].Slug < snap.StackKits[j].Slug })
 	for i := range snap.StackKits {
-		mods := snap.StackKits[i].Modules
-		sort.Slice(mods, func(a, b int) bool { return mods[a].Slug < mods[b].Slug })
+		kit := &snap.StackKits[i]
+		sort.Slice(kit.Modules, func(a, b int) bool { return kit.Modules[a].Slug < kit.Modules[b].Slug })
+		sort.Slice(kit.ServiceSelections, func(a, b int) bool {
+			return kit.ServiceSelections[a].ServiceGroupSlug < kit.ServiceSelections[b].ServiceGroupSlug
+		})
+		sort.Slice(kit.SpecProfiles, func(a, b int) bool {
+			return kit.SpecProfiles[a].Slug < kit.SpecProfiles[b].Slug
+		})
+		sort.Slice(kit.ToolConfigs, func(a, b int) bool {
+			if kit.ToolConfigs[a].ServiceGroupSlug != kit.ToolConfigs[b].ServiceGroupSlug {
+				return kit.ToolConfigs[a].ServiceGroupSlug < kit.ToolConfigs[b].ServiceGroupSlug
+			}
+			return kit.ToolConfigs[a].ModuleSlug < kit.ToolConfigs[b].ModuleSlug
+		})
 	}
+	sort.Slice(snap.ServiceGroups, func(i, j int) bool {
+		return snap.ServiceGroups[i].Slug < snap.ServiceGroups[j].Slug
+	})
+	sort.Slice(snap.ToolDefaultConfigs, func(i, j int) bool {
+		return snap.ToolDefaultConfigs[i].ToolSlug < snap.ToolDefaultConfigs[j].ToolSlug
+	})
 }

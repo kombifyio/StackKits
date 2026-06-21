@@ -10,6 +10,9 @@ Contract: base.#ModuleContract & {
 		version:     "1.0.0"
 		layer:       "L3-application"
 		description: "Document management and collaboration suite for the files use case"
+		// Opt-in: curated Files alternative for standard/high tiers; Cloudreve
+		// is the release default for the files route.
+		maturity: "opt-in"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
@@ -78,6 +81,12 @@ Contract: base.#ModuleContract & {
 			networks: ["base_net"]
 		}
 
+		accessPolicy: {
+			outerAuth:      "tinyauth-pocketid"
+			appAuth:        "self-auth"
+			ownerBootstrap: "Nextcloud image auto-configures the first admin from StackKit admin credentials."
+		}
+
 		volumes: [
 			{
 				source:      "nextcloud-html"
@@ -116,10 +125,6 @@ Contract: base.#ModuleContract & {
 				requiredCapabilities: ["files", "document-storage"]
 				bootstrapRequirements: ["create-first-admin", "trusted-domain-config"]
 				note: "Nextcloud is an alternative implementation for the same files route."
-			}
-			accessPolicy: {
-				appAuth:        "self-auth"
-				ownerBootstrap: "Nextcloud image auto-configures the first admin from StackKit admin credentials."
 			}
 		}
 

@@ -66,7 +66,7 @@ The canonical schema and examples are documented in [stack-spec-reference.md](st
 
 BaseKit currently supports `--service-profile admin-only` for managed first rollouts. It keeps L1/L2 services and admin access enabled while disabling L3 application modules such as Vaultwarden, Jellyfin, and Immich. The one-line installer exposes the same switch through `STACKKIT_SERVICE_PROFILE=admin-only`, which lets Admin-managed deployments roll out a stable platform baseline first and leave owner-specific Layer-3 setup for the SaaS surface.
 
-The BaseKit installer also configures the node-local StackKits API image. If `STACKKIT_SERVER_IMAGE` is set, that image is used directly. Otherwise current release archives install the `stackkit-server` binary beside the CLI and `base-install.sh` builds a local `stackkit-server:local` image after Docker preparation. This keeps managed rollouts independent of a registry-hosted system image; operators can still point `STACKKIT_SERVER_IMAGE` at a pinned internal image when they want centralized image promotion.
+The BaseKit installer also configures the node-local StackKits API image. If `STACKKIT_SERVER_IMAGE` is set, that image is used directly. Otherwise current release archives install the static `stackkit-server` binary beside the CLI and `base-install.sh` builds a local `stackkit-server:local` scratch image after Docker preparation, copying the host CA bundle into the image. This keeps managed rollouts independent of a registry-hosted system image and avoids package-manager network access during the installer; operators can still point `STACKKIT_SERVER_IMAGE` at a pinned internal image when they want centralized image promotion.
 
 ## Platform App Deployment Env
 
@@ -101,6 +101,8 @@ BaseKit records `immich-owner-bootstrap`, `vaultwarden-admin-handoff`, and the F
 | `STACKKIT_SETUP_IMMICH_URL` | Internal Immich URL for `immich-owner-bootstrap`; defaults to `http://immich:2283`. |
 
 The StackKits service catalog and registry snapshot also mirror tool UI metadata (`layer`, `logo_url`, `setup_policy`, `setup_action_label`) plus v0.4 bootstrap metadata (`role`, `default_tool`, `alternatives`, `delivery.managedBy`, `bootstrap_provider`). The kombify DB must keep the same fields on the canonical tool/service rows so generated Node Hub cards and product UI use one repeatable metadata source.
+
+The fast Admin-generated-CUE freshness gate lives in `cmd/stackkit/commands/generated_catalog_freshness_test.go` and is covered by `go test ./cmd/stackkit/commands`. It compares sentinel tool rows from the embedded Admin registry snapshot against `base/generated/tool_catalog.cue`, and compares sentinel BaseKit services from the current module contracts against the generated `#ServiceCatalog`. It is intentionally DB-free and must fail when Cloudreve, Nextcloud, Files, Photos, Vault, Uptime Kuma, Whoami, layer labels, logo URLs, setup policies, or setup action metadata drift out of the generated CUE artifact.
 
 ## Install Modes and Bootstrap
 

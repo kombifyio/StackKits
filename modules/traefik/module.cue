@@ -24,6 +24,7 @@ Contract: base.#ModuleContract & {
 		version:     "2.1.0"
 		layer:       "L2-platform-ingress"
 		description: "Reverse proxy configuration — middlewares, security headers, ForwardAuth (shipped by PaaS)"
+		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 

@@ -170,19 +170,28 @@ func platformAdapterForBundle(bundle platformdeploy.BundleManifest, deployDir st
 		}
 		return newLocalComposeAdapter(deployDir), true, nil
 	case models.PAASDokploy:
-		cfg, configured := platformHTTPConfigForBundle(bundle, deployDir)
+		cfg, configured, err := platformHTTPConfigForBundle(bundle, deployDir)
+		if err != nil {
+			return nil, false, err
+		}
 		if !configured {
 			return nil, false, nil
 		}
 		return platformdeploy.NewDokployAdapter(cfg), true, nil
 	case models.PAASCoolify:
-		cfg, configured := platformHTTPConfigForBundle(bundle, deployDir)
+		cfg, configured, err := platformHTTPConfigForBundle(bundle, deployDir)
+		if err != nil {
+			return nil, false, err
+		}
 		if !configured {
 			return nil, false, nil
 		}
 		return platformdeploy.NewCoolifyAdapter(cfg), true, nil
 	case models.PAASKomodo:
-		cfg, configured := platformHTTPConfigForBundle(bundle, deployDir)
+		cfg, configured, err := platformHTTPConfigForBundle(bundle, deployDir)
+		if err != nil {
+			return nil, false, err
+		}
 		if !configured {
 			return nil, false, nil
 		}
@@ -211,9 +220,10 @@ type platformConfigFile struct {
 	LegacyDockerComposeAPI      bool                             `json:"legacyDockerComposeApi,omitempty"`
 	DisableDockerRuntimeObserve bool                             `json:"disableDockerRuntimeObserve,omitempty"`
 	BootstrapEvidence           platformdeploy.BootstrapEvidence `json:"bootstrapEvidence,omitempty"`
+	found                       bool                             `json:"-"`
 }
 
-func platformHTTPConfigForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.HTTPConfig, bool) {
+func platformHTTPConfigForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.HTTPConfig, bool, error) {
 	persisted := loadPlatformConfigFile(bundle.Platform, deployDir)
 	cfg := platformdeploy.HTTPConfig{
 		BaseURL:                     firstNonEmpty(firstPlatformEnv(bundle.Platform, "endpoint"), persisted.endpoint()),
@@ -234,10 +244,15 @@ func platformHTTPConfigForBundle(bundle platformdeploy.BundleManifest, deployDir
 	if bundle.Platform == models.PAASDokploy && cfg.Token == "" && cfg.APIKey != "" {
 		cfg.Token = cfg.APIKey
 	}
-	if bundle.Platform == models.PAASKomodo {
-		return cfg, cfg.BaseURL != "" && cfg.APIKey != "" && cfg.Secret != ""
+	if persisted.found && platformdeploy.RequiresBootstrapEvidence(bundle.Platform) {
+		if err := platformdeploy.ValidateBootstrapEvidence(bundle.Platform, persisted.BootstrapEvidence); err != nil {
+			return cfg, false, err
+		}
 	}
-	return cfg, cfg.BaseURL != "" && cfg.Token != ""
+	if bundle.Platform == models.PAASKomodo {
+		return cfg, cfg.BaseURL != "" && cfg.APIKey != "" && cfg.Secret != "", nil
+	}
+	return cfg, cfg.BaseURL != "" && cfg.Token != "", nil
 }
 
 func (cfg platformConfigFile) endpoint() string {
@@ -255,6 +270,7 @@ func loadPlatformConfigFile(platform, deployDir string) platformConfigFile {
 			continue
 		}
 		if cfg.Platform == "" || strings.EqualFold(cfg.Platform, platform) {
+			cfg.found = true
 			return cfg
 		}
 	}
