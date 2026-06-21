@@ -97,6 +97,7 @@ echo stackkit test
       STACKKIT_FAKE_LATEST_MODE: mode,
       STACKKIT_GITHUB_TOKEN: 'bad-token-for-public-mirror',
       STACKKIT_NO_BANNER: '1',
+      STACKKIT_RELEASE_VERSION: '',
       STACKKIT_RELEASE_REPO: 'kombifyio/stackKits',
       ...extraEnv,
     },
