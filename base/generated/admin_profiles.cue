@@ -63,19 +63,19 @@ package base
 		ownerMode:                    "custom"
 		ownerSource:                  "local"
 		paas:                         "coolify"
-		bootstrapMode:                "minimal"
+		bootstrapMode:                "bootstrapped"
 		demoDataEnabled:              false
 		expectedAdminEmail:           "owner@kombify.pro"
 		expectedReverseProxyBackend:  "coolify"
 		setupActions:                 []
 		seededContent:                []
-		healthChecks:                 ["coolify-route", "auth-route", "id-route", "vault-route", "photos-route", "files-route"]
+		healthChecks:                 ["base-route", "auth-route", "id-route", "coolify-route", "vault-route", "photos-route", "files-route"]
 	}
 	"kombify-me-cloud-owner": #AdminSetupProfile & {
 		profileKey:                   "kombify-me-cloud-owner"
 		scenarioId:                   "SK-S2"
-		displayName:                  "Advanced kombify.me cloud-owner BaseKit"
-		description:                  "Managed kombify.me advanced profile with cloud Owner handoff, Komodo as the PaaS alternative, and passive L3 one-click setup actions."
+		displayName:                  "Bootstrapped kombify.me cloud-owner BaseKit"
+		description:                  "Managed kombify.me bootstrapped profile with cloud Owner handoff, Komodo as the PaaS alternative, and passive L3 one-click setup actions."
 		stackkit:                     "base-kit"
 		context:                      "cloud"
 		domain:                       "kombify.me"

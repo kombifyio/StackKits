@@ -4,6 +4,17 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.2] - 2026-06-22
+
+### Fixed
+
+- **Stable E2E scenario contract**: aligns SK-S2 and SK-S3 with the supported bootstrapped BaseKit release path. SK-S2 remains the kombify.me Komodo provider-lease proof, and SK-S3 remains the custom-domain Coolify provider-lease proof with Cloudflare DNS and managed cleanup, but neither stable scenario claims the unsupported `advanced` or `bare` scaffolding path.
+- **Released-content verify expectations**: updates the production verifier to require bootstrapped tfvars, Base Hub access summaries, public service URLs, DNS records, and Komodo/Coolify platform evidence from the official installer release.
+
+### Release Notes
+
+- Supersedes `v0.4.1` for stable public testing because `v0.4.1` published successfully but its released-content SK-S2/SK-S3 verify run exposed stale `advanced`/`bare` assertions.
+
 ## [0.4.1] - 2026-06-22
 
 ### Highlights
