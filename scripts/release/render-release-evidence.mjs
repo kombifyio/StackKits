@@ -309,23 +309,31 @@ async function loadScenarioArtifactEvidence(artifactPath) {
       const missingHealthChecks = Array.isArray(simulationStatus.missingHealthChecks)
         ? simulationStatus.missingHealthChecks.map((item) => String(item || '').trim()).filter(Boolean)
         : [];
-      if (simulationStatusValue !== 'pass') {
+      const onDemandSetupActions = onDemandSetupActionEvidence(artifact);
+      const acceptedSetupActions = new Set([...observedSetupActions, ...onDemandSetupActions]);
+      const blockingMissingSetupActions = missingSetupActions.filter((action) => !onDemandSetupActions.has(action));
+      const unobservedSetupActions = expectedSetupActions.filter((action) => !acceptedSetupActions.has(action));
+      const observed = new Set(observedHealthChecks);
+      const unobserved = expectedHealthChecks.filter((check) => !observed.has(check));
+      const incompleteOnlyForOnDemandSetup =
+        simulationStatusValue === 'incomplete' &&
+        blockingMissingSetupActions.length === 0 &&
+        missingHealthChecks.length === 0 &&
+        unobservedSetupActions.length === 0 &&
+        unobserved.length === 0;
+      if (simulationStatusValue !== 'pass' && !incompleteOnlyForOnDemandSetup) {
         issues.push(`simulationStatus is ${simulationStatusValue || 'missing'}`);
       }
-      if (missingSetupActions.length > 0) {
-        issues.push(`missingSetupActions=${missingSetupActions.join(',')}`);
+      if (blockingMissingSetupActions.length > 0) {
+        issues.push(`missingSetupActions=${blockingMissingSetupActions.join(',')}`);
       }
       if (missingHealthChecks.length > 0) {
         issues.push(`missingHealthChecks=${missingHealthChecks.join(',')}`);
       }
-      const observedSetup = new Set(observedSetupActions);
-      const unobservedSetupActions = expectedSetupActions.filter((action) => !observedSetup.has(action));
-      if (simulationStatusValue === 'pass' && unobservedSetupActions.length > 0) {
+      if (unobservedSetupActions.length > 0) {
         issues.push(`observedSetupActions missing ${unobservedSetupActions.join(',')}`);
       }
-      const observed = new Set(observedHealthChecks);
-      const unobserved = expectedHealthChecks.filter((check) => !observed.has(check));
-      if (simulationStatusValue === 'pass' && unobserved.length > 0) {
+      if (unobserved.length > 0) {
         issues.push(`observedHealthChecks missing ${unobserved.join(',')}`);
       }
     }
@@ -337,10 +345,36 @@ async function loadScenarioArtifactEvidence(artifactPath) {
     source: 'homelab-artifact',
     status: passed ? 'pass' : 'fail',
     summary: passed
-      ? `${scenarioId} Homelab artifact passed with ${expectedHealthChecks.length} observed simulation health checks, ${expectedSetupActions.length} observed setup actions, and ${platformAppRefCount} platform app refs.`
+      ? `${scenarioId} Homelab artifact passed with ${expectedHealthChecks.length} observed simulation health checks, ${expectedSetupActions.length} setup action evidence entries, and ${platformAppRefCount} platform app refs.`
       : `${scenarioId} Homelab artifact is incomplete or failing; ${issues.join('; ')}.`,
     url: artifactPath,
   };
+}
+
+function onDemandSetupActionEvidence(artifact) {
+  const actions = new Set();
+  const apps = [
+    ...(Array.isArray(artifact?.platformSystemApps) ? artifact.platformSystemApps : []),
+    ...(Array.isArray(artifact?.platformApps) ? artifact.platformApps : []),
+  ];
+  for (const app of apps) {
+    if (String(app?.setupPolicy || '').trim().toLowerCase() !== 'on_demand') continue;
+    if (!String(app?.externalId || '').trim()) continue;
+    if (!platformAppEvidenceAcceptable(String(app?.observedStatus || ''), 'on_demand')) continue;
+    for (const drop of Array.isArray(app?.setupDrops) ? app.setupDrops : []) {
+      const name = String(drop?.name || '').trim();
+      if (name) actions.add(name);
+    }
+  }
+  return actions;
+}
+
+function platformAppEvidenceAcceptable(status, setupPolicy) {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  if (normalizedStatus.startsWith('running') || normalizedStatus === 'docker:running') {
+    return true;
+  }
+  return setupPolicy === 'on_demand' && normalizedStatus === 'deploy:accepted';
 }
 
 function required(opts, name) {

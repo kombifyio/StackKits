@@ -17,6 +17,12 @@ test('validate-scenario-artifact accepts a canonical passing SK-S2 artifact', ()
   assert.deepEqual(errors, []);
 });
 
+test('validate-scenario-artifact accepts SK-S2 run-scoped kombify.me hosts with on-demand setup drops', () => {
+  const errors = [];
+  validateScenarioArtifact(errors, validDynamicSKS2Artifact(), canonicalScenario());
+  assert.deepEqual(errors, []);
+});
+
 test('validate-scenario-artifact accepts a canonical passing SK-S5 negative guard artifact', () => {
   const errors = [];
   validateScenarioArtifact(errors, validSKS5Artifact(), canonicalSKS5Scenario());
@@ -320,6 +326,64 @@ function validArtifact(overrides = {}) {
     generatedAt: '2026-06-13T08:00:00.000Z',
     ...overrides,
   };
+}
+
+function validDynamicSKS2Artifact() {
+  const prefix = 'sh-my-homelab-1fd1d2';
+  const setupActions = canonicalScenario().expected.simulation.setupActions;
+  const onDemandSetupActions = setupActions.filter((action) => action !== 'kuma-platform-bootstrap');
+  return validArtifact({
+    hubUrl: `https://${prefix}-base.kombify.me`,
+    browserUrl: `https://${prefix}-base.kombify.me`,
+    simulationStatus: {
+      status: 'incomplete',
+      observedSetupActions: ['kuma-platform-bootstrap'],
+      missingSetupActions: onDemandSetupActions,
+      observedHealthChecks: canonicalScenario().expected.simulation.healthChecks,
+      missingHealthChecks: [],
+    },
+    platformApps: [
+      {
+        name: 'vaultwarden',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'vaultwarden-komodo-id',
+        observedStatus: 'deploy:accepted',
+        observedAt: '2026-06-13T08:00:02.000Z',
+        setupPolicy: 'on_demand',
+        setupDrops: [{ name: 'vaultwarden-admin-handoff' }],
+      },
+      {
+        name: 'immich',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'immich-komodo-id',
+        observedStatus: 'deploy:accepted',
+        observedAt: '2026-06-13T08:00:03.000Z',
+        setupPolicy: 'on_demand',
+        setupDrops: [{ name: 'immich-owner-bootstrap' }],
+      },
+      {
+        name: 'cloudreve',
+        platform: 'komodo',
+        management: 'managed',
+        externalId: 'cloudreve-komodo-id',
+        observedStatus: 'deploy:accepted',
+        observedAt: '2026-06-13T08:00:04.000Z',
+        setupPolicy: 'on_demand',
+        setupDrops: [{ name: 'cloudreve-owner-bootstrap' }],
+      },
+    ],
+    services: [
+      { key: 'base', url: `https://${prefix}-base.kombify.me`, host: `${prefix}-base.kombify.me` },
+      { key: 'komodo', url: `https://${prefix}-komodo.kombify.me`, host: `${prefix}-komodo.kombify.me` },
+      { key: 'auth', url: `https://${prefix}-auth.kombify.me`, host: `${prefix}-auth.kombify.me` },
+      { key: 'id', url: `https://${prefix}-id.kombify.me`, host: `${prefix}-id.kombify.me` },
+      { key: 'vault', url: `https://${prefix}-vault.kombify.me`, host: `${prefix}-vault.kombify.me` },
+      { key: 'photos', url: `https://${prefix}-photos.kombify.me`, host: `${prefix}-photos.kombify.me` },
+      { key: 'files', url: `https://${prefix}-files.kombify.me/stackkit/files/session`, host: `${prefix}-files.kombify.me` },
+    ],
+  });
 }
 
 function canonicalSKS3Scenario() {

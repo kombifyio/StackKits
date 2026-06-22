@@ -59,7 +59,7 @@ export function validateScenarioArtifact(errors, artifact, scenario) {
   validateProfile(errors, artifact.profile, scenario?.expected?.profile || {}, scenarioId);
   validateTarget(errors, artifact.target, scenario?.expected?.target || {});
   validateSimulation(errors, artifact.simulation, scenario?.expected?.simulation || {});
-  validateSimulationStatus(errors, artifact.simulationStatus, scenario?.expected?.simulation || {});
+  validateSimulationStatus(errors, artifact.simulationStatus, scenario?.expected?.simulation || {}, artifact);
   validateReachability(errors, artifact, scenario);
   validatePlatformAppEvidence(errors, artifact, scenario);
 }
@@ -129,7 +129,7 @@ function validateSimulation(errors, simulation, expectedSimulation) {
   compareStringArrays(errors, 'simulation.healthChecks', simulation.healthChecks, expectedSimulation.healthChecks);
 }
 
-function validateSimulationStatus(errors, simulationStatus, expectedSimulation) {
+function validateSimulationStatus(errors, simulationStatus, expectedSimulation, artifact = {}) {
   const expectedHealthChecks = normalizeStringArray(expectedSimulation.healthChecks);
   const expectedSetupActions = normalizeStringArray(expectedSimulation.setupActions);
   if (expectedHealthChecks.length === 0 && expectedSetupActions.length === 0) {
@@ -142,26 +142,35 @@ function validateSimulationStatus(errors, simulationStatus, expectedSimulation) 
     errors.push('simulationStatus must be present for scenarios with health checks or setup actions');
     return;
   }
-  if (stringValue(simulationStatus.status) !== 'pass') {
-    errors.push(`simulationStatus.status = ${simulationStatus.status || '<missing>'}, want pass`);
-  }
+  const onDemandSetupActions = onDemandSetupActionEvidence(artifact);
   const observedSetupActions = normalizeStringArray(simulationStatus.observedSetupActions);
   const missingSetupActions = normalizeStringArray(simulationStatus.missingSetupActions);
-  for (const action of expectedSetupActions) {
-    if (!observedSetupActions.includes(action)) {
-      errors.push(`simulationStatus.observedSetupActions missing ${action}`);
-    }
-  }
-  if (missingSetupActions.length > 0) {
-    errors.push(`simulationStatus.missingSetupActions must be empty, got ${missingSetupActions.join(',')}`);
-  }
-
+  const blockingMissingSetupActions = missingSetupActions.filter((action) => !onDemandSetupActions.has(action));
   const observed = normalizeStringArray(simulationStatus.observedHealthChecks);
   const missing = normalizeStringArray(simulationStatus.missingHealthChecks);
-  for (const check of expectedHealthChecks) {
-    if (!observed.includes(check)) {
-      errors.push(`simulationStatus.observedHealthChecks missing ${check}`);
-    }
+  const unobservedSetupActions = expectedSetupActions.filter(
+    (action) => !observedSetupActions.includes(action) && !onDemandSetupActions.has(action),
+  );
+  const unobservedHealthChecks = expectedHealthChecks.filter((check) => !observed.includes(check));
+  const simulationStatusValue = stringValue(simulationStatus.status);
+  const incompleteOnlyForOnDemandSetup =
+    simulationStatusValue === 'incomplete' &&
+    blockingMissingSetupActions.length === 0 &&
+    missing.length === 0 &&
+    unobservedSetupActions.length === 0 &&
+    unobservedHealthChecks.length === 0;
+  if (simulationStatusValue !== 'pass' && !incompleteOnlyForOnDemandSetup) {
+    errors.push(`simulationStatus.status = ${simulationStatus.status || '<missing>'}, want pass`);
+  }
+  for (const action of unobservedSetupActions) {
+    errors.push(`simulationStatus.observedSetupActions missing ${action}`);
+  }
+  if (blockingMissingSetupActions.length > 0) {
+    errors.push(`simulationStatus.missingSetupActions must be empty, got ${blockingMissingSetupActions.join(',')}`);
+  }
+
+  for (const check of unobservedHealthChecks) {
+    errors.push(`simulationStatus.observedHealthChecks missing ${check}`);
   }
   if (missing.length > 0) {
     errors.push(`simulationStatus.missingHealthChecks must be empty, got ${missing.join(',')}`);
@@ -173,13 +182,14 @@ function validateReachability(errors, artifact, scenario) {
   if (expectedHealthChecks.length === 0) return;
   const expectedAccess = scenario?.expected?.access || {};
   const expectedHubURL = stringValue(expectedAccess.hubUrl);
-  if (expectedHubURL && stringValue(artifact.hubUrl) !== expectedHubURL) {
+  const reachabilityContext = reachabilityContextForArtifact(artifact, scenario);
+  if (expectedHubURL && !accessURLMatchesScenario(stringValue(artifact.hubUrl), expectedHubURL, 'base', reachabilityContext)) {
     errors.push(`hubUrl = ${stringValue(artifact.hubUrl) || '<missing>'}, want ${expectedHubURL}`);
   }
 
   if (!stringValue(artifact.browserUrl)) {
     errors.push('browserUrl must be present for reachable scenarios');
-  } else if (expectedHubURL && stringValue(artifact.browserUrl) !== expectedHubURL) {
+  } else if (expectedHubURL && !accessURLMatchesScenario(stringValue(artifact.browserUrl), expectedHubURL, 'base', reachabilityContext)) {
     errors.push(`browserUrl = ${stringValue(artifact.browserUrl)}, want ${expectedHubURL}`);
   }
   const services = Array.isArray(artifact.services) ? artifact.services : [];
@@ -213,9 +223,7 @@ function validateReachability(errors, artifact, scenario) {
     }
     if (key) {
       validateObservedServiceAccess(errors, observedByKey.get(key), expectedByKey.get(key), key, {
-        scenarioId: stringValue(artifact.scenarioId),
-        profileDomain: stringValue(artifact.profile?.domain),
-        expectedProfileDomain: stringValue(scenario?.expected?.profile?.domain),
+        ...reachabilityContext,
       });
     }
   }
@@ -256,6 +264,9 @@ function validateObservedServiceAccess(errors, observed, expected, key, context 
 
 function expectedHostForObservedService(expected, key, context) {
   const expectedHost = stringValue(expected.host);
+  if (context?.scenarioId === 'SK-S2' && context?.kombifyMePrefix) {
+    return `${context.kombifyMePrefix}-${key}.kombify.me`;
+  }
   if (
     context?.scenarioId === 'SK-S3' &&
     domainMatchesExpectedZone(stringValue(context.profileDomain), stringValue(context.expectedProfileDomain))
@@ -266,9 +277,93 @@ function expectedHostForObservedService(expected, key, context) {
   return expectedHost;
 }
 
+function reachabilityContextForArtifact(artifact, scenario) {
+  const scenarioId = stringValue(artifact.scenarioId);
+  const context = {
+    scenarioId,
+    profileDomain: stringValue(artifact.profile?.domain),
+    expectedProfileDomain: stringValue(scenario?.expected?.profile?.domain),
+  };
+  if (scenarioId === 'SK-S2') {
+    const prefix = observedKombifyMePrefix(artifact);
+    if (prefix) context.kombifyMePrefix = prefix;
+  }
+  return context;
+}
+
+function observedKombifyMePrefix(artifact) {
+  const services = Array.isArray(artifact?.services) ? artifact.services : [];
+  const base = services.find((service) => stringValue(service?.key) === 'base');
+  const basePrefix = kombifyMePrefixForHost(stringValue(base?.host), 'base');
+  if (basePrefix) return basePrefix;
+
+  const hubPrefix = kombifyMePrefixForHost(hostnameFromURL(stringValue(artifact?.hubUrl)), 'base');
+  if (hubPrefix) return hubPrefix;
+
+  for (const service of services) {
+    const key = stringValue(service?.key);
+    const prefix = kombifyMePrefixForHost(stringValue(service?.host), key);
+    if (prefix) return prefix;
+  }
+  return '';
+}
+
+function kombifyMePrefixForHost(host, key) {
+  if (!host || !key) return '';
+  const suffix = `-${key}.kombify.me`;
+  if (!host.endsWith(suffix)) return '';
+  return host.slice(0, -suffix.length);
+}
+
+function accessURLMatchesScenario(gotURL, expectedURL, key, context) {
+  if (gotURL === expectedURL) return true;
+  const expectedForRun = expectedURLForDynamicService(expectedURL, key, context);
+  return Boolean(expectedForRun && gotURL === expectedForRun);
+}
+
+function expectedURLForDynamicService(expectedURL, key, context) {
+  if (context?.scenarioId !== 'SK-S2' || !context?.kombifyMePrefix) return '';
+  let parsed;
+  try {
+    parsed = new URL(expectedURL);
+  } catch {
+    return '';
+  }
+  parsed.hostname = `${context.kombifyMePrefix}-${key}.kombify.me`;
+  const path = parsed.pathname === '/' ? '' : parsed.pathname;
+  return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
+}
+
+function hostnameFromURL(rawURL) {
+  if (!rawURL) return '';
+  try {
+    return new URL(rawURL).hostname;
+  } catch {
+    return '';
+  }
+}
+
 function domainMatchesExpectedZone(domain, expectedZone) {
   if (!domain || !expectedZone) return false;
   return domain === expectedZone || domain.endsWith(`.${expectedZone}`);
+}
+
+function onDemandSetupActionEvidence(artifact) {
+  const actions = new Set();
+  const apps = [
+    ...(Array.isArray(artifact?.platformSystemApps) ? artifact.platformSystemApps : []),
+    ...(Array.isArray(artifact?.platformApps) ? artifact.platformApps : []),
+  ];
+  for (const app of apps) {
+    if (normalizedPolicy(app?.setupPolicy) !== 'on_demand') continue;
+    if (!stringValue(app?.externalId)) continue;
+    if (!platformAppEvidenceAcceptable(stringValue(app?.observedStatus), 'on_demand')) continue;
+    for (const drop of Array.isArray(app?.setupDrops) ? app.setupDrops : []) {
+      const name = stringValue(drop?.name);
+      if (name) actions.add(name);
+    }
+  }
+  return actions;
 }
 
 function validatePlatformAppEvidence(errors, artifact, scenario) {

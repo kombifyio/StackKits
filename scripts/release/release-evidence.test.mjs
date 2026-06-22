@@ -196,7 +196,7 @@ test('render-release-evidence imports passing homelab scenario artifact', async 
   assert.equal(scenario.status, 'pass');
   assert.equal(scenario.url, artifactPath);
   assert.match(scenario.summary, /2 observed simulation health checks/);
-  assert.match(scenario.summary, /4 observed setup actions/);
+  assert.match(scenario.summary, /4 setup action evidence entries/);
   assert.match(scenario.summary, /5 platform app refs/);
   assert.deepEqual(
     evidence.scenarioEvidence.map((item) => [item.scenarioId, item.status]),
@@ -207,6 +207,57 @@ test('render-release-evidence imports passing homelab scenario artifact', async 
       ['SK-S5', 'pending'],
     ],
   );
+  assert.ok(!evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
+});
+
+test('render-release-evidence accepts on-demand setup drop evidence without pre-running L3 setup', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-scenario-artifact-on-demand-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifactPath = path.join(dir, 'homelab.json');
+  await writeFile(
+    artifactPath,
+    JSON.stringify(
+      homelabArtifact({
+        simulationStatus: {
+          status: 'incomplete',
+          observedSetupActions: ['kuma-platform-bootstrap'],
+          missingSetupActions: [
+            'cloudreve-owner-bootstrap',
+            'vaultwarden-admin-handoff',
+            'immich-owner-bootstrap',
+          ],
+          observedHealthChecks: ['base-route', 'komodo-route'],
+          missingHealthChecks: [],
+        },
+        platformApps: homelabPlatformAppsWithSetupDrops(),
+      }),
+    ),
+  );
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-artifact',
+    artifactPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const scenario = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S2');
+  assert.equal(scenario.status, 'pass');
+  assert.match(scenario.summary, /4 setup action evidence entries/);
   assert.ok(!evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
 });
 
@@ -2823,6 +2874,18 @@ function homelabSetupActions() {
     'vaultwarden-admin-handoff',
     'immich-owner-bootstrap',
   ];
+}
+
+function homelabPlatformAppsWithSetupDrops() {
+  const dropByApp = {
+    vaultwarden: 'vaultwarden-admin-handoff',
+    immich: 'immich-owner-bootstrap',
+    cloudreve: 'cloudreve-owner-bootstrap',
+  };
+  return homelabArtifact().platformApps.map((app) => ({
+    ...app,
+    setupDrops: [{ name: dropByApp[app.name] }],
+  }));
 }
 
 function browserEvidenceReport(overrides = {}) {
