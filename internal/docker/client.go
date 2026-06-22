@@ -188,6 +188,24 @@ func (c *Client) InspectContainer(ctx context.Context, nameOrID string) (*Contai
 	return &containers[0], nil
 }
 
+// ContainerIPAddress returns the first Docker network IP assigned to a
+// container. Host-network containers legitimately return an empty string.
+func (c *Client) ContainerIPAddress(ctx context.Context, nameOrID string) (string, error) {
+	if err := validateNameOrID(nameOrID); err != nil {
+		return "", fmt.Errorf("invalid container name/ID: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, c.binary, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", nameOrID) // #nosec G204 -- binary path is set at construction, not from user input
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect container network: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 // GetContainerHealth gets the health status of a container
 func (c *Client) GetContainerHealth(ctx context.Context, nameOrID string) (models.HealthStatus, error) {
 	// Validation happens in InspectContainer

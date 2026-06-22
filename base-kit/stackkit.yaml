@@ -64,40 +64,39 @@ modes:
       - "Guided setup without automatic L3 preconfiguration"
       - "Development, testing, and normal homelab rollouts"
 
-  # Advanced Mode: Terramate with drift detection.
-  # Advanced is never selected by the standard installer defaults; it is reserved
-  # for explicit Advanced Configuration / Techstack Runtime rollouts.
+  # Advanced Mode: stable BaseKit OpenTofu rollout with advanced bootstrap
+  # semantics. Terramate orchestration remains an explicit advanced-terramate
+  # path until its stack templates have release-grade evidence.
   advanced:
-    description: "Advanced Configuration rollout orchestrated by Terramate"
-    templateDir: "templates/advanced"
-    engine: "terramate"
+    description: "Advanced Configuration rollout on the stable BaseKit template"
+    templateDir: "templates/simple"
+    engine: "opentofu"
     features:
       - "Techstack Runtime / Stackets orchestration path"
-      - "Drift detection on schedule"
-      - "Granular stack orchestration"
-      - "Day-2 operations support"
-      - "Gradual rollouts"
+      - "Advanced bootstrap and service handoff policies"
+      - "Komodo/Coolify platform adapters"
+      - "Release-gated single-node rollout"
     recommended_for:
       - "Production environments"
       - "Compliance requirements"
       - "Multi-stack coordination"
     stacks:
-      - name: network
+      - name: foundation
         order: 1
-        description: "Docker networks and DNS"
-      - name: services
+        description: "StackKit-owned foundation services"
+      - name: platform
         order: 2
-        after: [network]
-        description: "Core services (Traefik, monitoring)"
+        after: [foundation]
+        description: "Selected PaaS controller and routing"
       - name: applications
         order: 3
-        after: [services]
+        after: [platform]
         description: "User applications via selected PaaS"
 
 # Auto-selection rules
 autoSelect:
   advancedWhen:
-    - "driftDetection.enabled == true"
+    - "explicit advanced install mode"
     - "autoUpdates.enabled == true"
     - "compliance.required == true"
   default: bootstrapped

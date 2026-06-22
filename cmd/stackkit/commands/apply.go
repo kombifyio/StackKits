@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -638,6 +639,13 @@ func ensurePrerequisites(ctx context.Context, spec *models.StackSpec) error {
 		return fmt.Errorf("StackKit-packaged OpenTofu binary is not executable: %s", packagedTofu)
 	}
 	printSuccess("StackKit-packaged OpenTofu available")
+
+	if spec != nil && spec.UsesAdvancedIAC() {
+		if _, err := exec.LookPath("terramate"); err != nil {
+			return fmt.Errorf("StackKit-packaged Terramate binary not found on PATH; reinstall StackKit from the official release package")
+		}
+		printSuccess("StackKit-packaged Terramate available")
+	}
 
 	return nil
 }

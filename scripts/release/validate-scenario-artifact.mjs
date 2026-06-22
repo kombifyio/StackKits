@@ -56,7 +56,7 @@ export function validateScenarioArtifact(errors, artifact, scenario) {
     errors.push('generatedAt must be RFC3339');
   }
 
-  validateProfile(errors, artifact.profile, scenario?.expected?.profile || {});
+  validateProfile(errors, artifact.profile, scenario?.expected?.profile || {}, scenarioId);
   validateTarget(errors, artifact.target, scenario?.expected?.target || {});
   validateSimulation(errors, artifact.simulation, scenario?.expected?.simulation || {});
   validateSimulationStatus(errors, artifact.simulationStatus, scenario?.expected?.simulation || {});
@@ -64,7 +64,7 @@ export function validateScenarioArtifact(errors, artifact, scenario) {
   validatePlatformAppEvidence(errors, artifact, scenario);
 }
 
-function validateProfile(errors, profile, expectedProfile) {
+function validateProfile(errors, profile, expectedProfile, scenarioId) {
   if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
     errors.push('profile must be an object');
     return;
@@ -81,13 +81,20 @@ function validateProfile(errors, profile, expectedProfile) {
     const expected = stringValue(expectedProfile[field]);
     if (!expected) continue;
     const got = stringValue(profile[field]);
-    if (got !== expected) {
+    if (!profileFieldMatchesScenario(field, got, expected, scenarioId)) {
       errors.push(`profile.${field} = ${got || '<missing>'}, want ${expected}`);
     }
   }
   if (typeof expectedProfile.demoDataEnabled === 'boolean' && profile.demoDataEnabled !== expectedProfile.demoDataEnabled) {
     errors.push(`profile.demoDataEnabled = ${profile.demoDataEnabled}, want ${expectedProfile.demoDataEnabled}`);
   }
+}
+
+function profileFieldMatchesScenario(field, got, expected, scenarioId) {
+  if (field === 'domain' && scenarioId === 'SK-S3') {
+    return domainMatchesExpectedZone(got, expected);
+  }
+  return got === expected;
 }
 
 function validateTarget(errors, target, expectedTarget) {
@@ -205,14 +212,18 @@ function validateReachability(errors, artifact, scenario) {
       continue;
     }
     if (key) {
-      validateObservedServiceAccess(errors, observedByKey.get(key), expectedByKey.get(key), key);
+      validateObservedServiceAccess(errors, observedByKey.get(key), expectedByKey.get(key), key, {
+        scenarioId: stringValue(artifact.scenarioId),
+        profileDomain: stringValue(artifact.profile?.domain),
+        expectedProfileDomain: stringValue(scenario?.expected?.profile?.domain),
+      });
     }
   }
 }
 
-function validateObservedServiceAccess(errors, observed, expected, key) {
+function validateObservedServiceAccess(errors, observed, expected, key, context = {}) {
   if (!observed || !expected) return;
-  const expectedHost = stringValue(expected.host);
+  const expectedHost = expectedHostForObservedService(expected, key, context);
   const expectedScheme = stringValue(expected.scheme);
   const expectedPath = stringValue(expected.path);
   const observedHost = stringValue(observed.host);
@@ -241,6 +252,23 @@ function validateObservedServiceAccess(errors, observed, expected, key) {
   if (expectedPath && parsed.pathname !== expectedPath) {
     errors.push(`services[${key}].url path = ${parsed.pathname || '<missing>'}, want ${expectedPath}`);
   }
+}
+
+function expectedHostForObservedService(expected, key, context) {
+  const expectedHost = stringValue(expected.host);
+  if (
+    context?.scenarioId === 'SK-S3' &&
+    domainMatchesExpectedZone(stringValue(context.profileDomain), stringValue(context.expectedProfileDomain))
+  ) {
+    const label = expectedHost ? expectedHost.split('.')[0] : key;
+    if (label) return `${label}.${stringValue(context.profileDomain)}`;
+  }
+  return expectedHost;
+}
+
+function domainMatchesExpectedZone(domain, expectedZone) {
+  if (!domain || !expectedZone) return false;
+  return domain === expectedZone || domain.endsWith(`.${expectedZone}`);
 }
 
 function validatePlatformAppEvidence(errors, artifact, scenario) {

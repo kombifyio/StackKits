@@ -326,9 +326,10 @@ func registrationTargetHost(spec *models.StackSpec, detectedPublicIP string) str
 
 func registrationTargetCandidates(spec *models.StackSpec) []string {
 	if spec == nil {
-		return nil
+		return registrationTargetEnvCandidates()
 	}
 	var out []string
+	out = append(out, registrationTargetEnvCandidates()...)
 	if spec.Metadata != nil {
 		for _, key := range []string{
 			"kombify_me_target_addr",
@@ -350,6 +351,23 @@ func registrationTargetCandidates(spec *models.StackSpec) []string {
 			out = append(out, value)
 		}
 		if value := strings.TrimSpace(node.Host); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func registrationTargetEnvCandidates() []string {
+	var out []string
+	for _, key := range []string{
+		"STACKKIT_RUNTIME_TARGET_ADDR",
+		"KOMBIFY_RUNTIME_TARGET_ADDR",
+		"STACKKIT_RUNTIME_PUBLIC_IP",
+		"KOMBIFY_RUNTIME_PUBLIC_IP",
+		"STACKKIT_NODE_PUBLIC_IP",
+		"KOMBIFY_NODE_PUBLIC_IP",
+	} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			out = append(out, value)
 		}
 	}

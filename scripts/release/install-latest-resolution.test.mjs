@@ -80,7 +80,8 @@ done
 mkdir -p "$dest/base" "$dest/cue.mod" "$dest/modules" "$dest/base-kit"
 printf '#!/bin/sh\\necho stackkit test\\n' > "$dest/stackkit"
 printf '#!/bin/sh\\necho tofu test\\n' > "$dest/tofu"
-chmod +x "$dest/stackkit" "$dest/tofu"
+printf '#!/bin/sh\\necho terramate test\\n' > "$dest/terramate"
+chmod +x "$dest/stackkit" "$dest/tofu" "$dest/terramate"
 `);
   await writeExecutable(path.join(bin, 'install'), `#!/bin/sh
 exit 0

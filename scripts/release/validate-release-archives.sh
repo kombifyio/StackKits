@@ -35,6 +35,7 @@ for path in \
   stackkit-server \
   stackkit-mcp \
   tofu \
+  terramate \
   README.md \
   LICENSE \
   cue.mod/module.cue \
@@ -53,6 +54,7 @@ for path in \
   stackkit-server \
   stackkit-mcp \
   tofu \
+  terramate \
   README.md \
   LICENSE \
   cue.mod/module.cue \
@@ -95,6 +97,7 @@ smoke_basekit_init_generate() {
   mkdir -p "$project_dir"
   "$extract_dir/stackkit" version >/dev/null
   "$extract_dir/tofu" version >/dev/null
+  "$extract_dir/terramate" version >/dev/null
   "$extract_dir/stackkit-server" --help >/dev/null 2>&1
   "$extract_dir/stackkit-mcp" --help >/dev/null 2>&1
 

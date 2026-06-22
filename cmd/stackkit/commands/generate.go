@@ -441,8 +441,8 @@ func copyOrRenderTemplates(srcDir, dstDir string, spec *models.StackSpec, stackk
 }
 
 func templateKeyForInstallMode(mode string) string {
-	switch models.NormalizeInstallMode(mode) {
-	case models.InstallModeAdvanced:
+	switch {
+	case models.IsExplicitTerramateInstallMode(mode):
 		return models.InstallModeAdvanced
 	default:
 		return models.InstallModeSimpleLegacy

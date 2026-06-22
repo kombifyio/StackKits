@@ -9,6 +9,7 @@ before:
     - go mod tidy
     - go generate ./...
     - sh scripts/release/fetch-opentofu.sh
+    - sh scripts/release/fetch-terramate.sh
 
 builds:
   - id: stackkit
@@ -92,6 +93,11 @@ archives:
         strip_parent: true
         info:
           mode: 0755
+      - src: ".dist-tools/terramate/{{ .Os }}_{{ .Arch }}/terramate*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
       - README.md
       - LICENSE
       - docs/CLI.md
@@ -122,6 +128,11 @@ archives:
         strip_parent: true
         info:
           mode: 0755
+      - src: ".dist-tools/terramate/{{ .Os }}_{{ .Arch }}/terramate*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
       - README.md
       - LICENSE
       - docs/CLI.md
@@ -148,6 +159,10 @@ nfpms:
     contents:
       - src: ".dist-tools/opentofu/linux_{{ .Arch }}/tofu"
         dst: /usr/local/bin/tofu
+        file_info:
+          mode: 0755
+      - src: ".dist-tools/terramate/linux_{{ .Arch }}/terramate"
+        dst: /usr/local/bin/terramate
         file_info:
           mode: 0755
 

@@ -23,6 +23,24 @@ test('validate-scenario-artifact accepts a canonical passing SK-S5 negative guar
   assert.deepEqual(errors, []);
 });
 
+test('validate-scenario-artifact accepts SK-S3 run-scoped custom domains under the expected zone', () => {
+  const errors = [];
+  validateScenarioArtifact(errors, validSKS3Artifact(), canonicalSKS3Scenario());
+  assert.deepEqual(errors, []);
+});
+
+test('validate-scenario-artifact rejects SK-S3 custom domains outside the expected zone', () => {
+  const artifact = validSKS3Artifact({
+    profile: {
+      ...validSKS3Artifact().profile,
+      domain: 'e2e-cd-1782104835.example.net',
+    },
+  });
+  const errors = [];
+  validateScenarioArtifact(errors, artifact, canonicalSKS3Scenario());
+  assert.match(errors.join('\n'), /profile\.domain = e2e-cd-1782104835\.example\.net, want kombify\.pro/);
+});
+
 test('validate-scenario-artifact rejects Admin profile drift', () => {
   const artifact = validArtifact({
     profile: {
@@ -300,6 +318,103 @@ function validArtifact(overrides = {}) {
       publicIp: '203.0.113.10',
     },
     generatedAt: '2026-06-13T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function canonicalSKS3Scenario() {
+  return {
+    id: 'SK-S3',
+    name: 'Bare Custom Domain',
+    stage: 'gated-live',
+    expected: {
+      profile: {
+        adminProfileKey: 'custom-domain-explicit-mail',
+        domain: 'kombify.pro',
+        mailMode: 'explicit',
+        ownerMode: 'custom',
+        ownerSource: 'local',
+        paas: 'coolify',
+        bootstrapMode: 'minimal',
+        demoDataEnabled: false,
+      },
+      generation: {
+        paas: 'coolify',
+        setupPolicies: {
+          platform: 'manual',
+          applicationDefault: 'manual',
+          vaultwarden: 'manual',
+          immich: 'manual',
+          files: 'manual',
+        },
+      },
+      simulation: {
+        setupActions: [],
+        seededContent: [],
+        healthChecks: ['coolify-route', 'auth-route', 'id-route', 'vault-route', 'photos-route', 'files-route'],
+      },
+      access: {
+        browserUrlMode: 'public',
+        services: [
+          { key: 'auth', host: 'auth.kombify.pro', scheme: 'https' },
+          { key: 'id', host: 'id.kombify.pro', scheme: 'https' },
+          { key: 'coolify', host: 'coolify.kombify.pro', scheme: 'https' },
+          { key: 'vault', host: 'vault.kombify.pro', scheme: 'https' },
+          { key: 'photos', host: 'photos.kombify.pro', scheme: 'https' },
+          { key: 'files', host: 'files.kombify.pro', scheme: 'https', path: '/stackkit/files/session' },
+        ],
+      },
+      target: {
+        lane: 'provider-lease',
+        provisioner: 'kombify-sim-provider',
+        runtime: 'managed-lease',
+        allowedProviders: ['centron-managed', 'ionos-managed'],
+        hostSource: 'simulation-lease-api',
+      },
+    },
+  };
+}
+
+function validSKS3Artifact(overrides = {}) {
+  const domain = 'e2e-cd-1782104835.kombify.pro';
+  return {
+    scenarioId: 'SK-S3',
+    scenarioName: 'Bare Custom Domain',
+    runId: 'run-123',
+    status: 'passed',
+    hubUrl: '',
+    browserUrl: `https://auth.${domain}`,
+    profile: {
+      adminProfileKey: 'custom-domain-explicit-mail',
+      domain,
+      mailMode: 'explicit',
+      ownerMode: 'custom',
+      ownerSource: 'local',
+      paas: 'coolify',
+      bootstrapMode: 'minimal',
+      demoDataEnabled: false,
+    },
+    simulation: canonicalSKS3Scenario().expected.simulation,
+    simulationStatus: {
+      status: 'pass',
+      observedSetupActions: [],
+      missingSetupActions: [],
+      observedHealthChecks: canonicalSKS3Scenario().expected.simulation.healthChecks,
+      missingHealthChecks: [],
+    },
+    services: [
+      { key: 'auth', url: `https://auth.${domain}`, host: `auth.${domain}` },
+      { key: 'id', url: `https://id.${domain}`, host: `id.${domain}` },
+      { key: 'coolify', url: `https://coolify.${domain}`, host: `coolify.${domain}` },
+      { key: 'vault', url: `https://vault.${domain}`, host: `vault.${domain}` },
+      { key: 'photos', url: `https://photos.${domain}`, host: `photos.${domain}` },
+      { key: 'files', url: `https://files.${domain}/stackkit/files/session`, host: `files.${domain}` },
+    ],
+    target: {
+      provider: 'centron-managed',
+      publicIp: '203.0.113.11',
+    },
+    generatedAt: '2026-06-22T08:00:00.000Z',
     ...overrides,
   };
 }

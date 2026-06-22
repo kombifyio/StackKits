@@ -196,6 +196,9 @@ fi
 if [ "$(id -u)" -eq 0 ]; then
   install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
   install -m 755 "$TMP/tofu" "$INSTALL_DIR/tofu"
+  if [ -f "$TMP/terramate" ]; then
+    install -m 755 "$TMP/terramate" "$INSTALL_DIR/terramate"
+  fi
   if [ -f "$TMP/stackkit-server" ]; then
     install -m 755 "$TMP/stackkit-server" "$INSTALL_DIR/stackkit-server"
   fi
@@ -206,6 +209,9 @@ else
   echo "  -> Need sudo to install to $INSTALL_DIR"
   sudo install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
   sudo install -m 755 "$TMP/tofu" "$INSTALL_DIR/tofu"
+  if [ -f "$TMP/terramate" ]; then
+    sudo install -m 755 "$TMP/terramate" "$INSTALL_DIR/terramate"
+  fi
   if [ -f "$TMP/stackkit-server" ]; then
     sudo install -m 755 "$TMP/stackkit-server" "$INSTALL_DIR/stackkit-server"
   fi

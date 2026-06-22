@@ -366,12 +366,34 @@ func (e *TerramateExecutor) Version(ctx context.Context) (string, error) {
 func (e *TerramateExecutor) Init(ctx context.Context) error {
 	result, err := e.executor.RunInit(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("init failed: %s", formatTerramateFailure(result, err))
 	}
 	if !result.Success {
-		return fmt.Errorf("init failed: %s", result.Stderr)
+		return fmt.Errorf("init failed: %s", formatTerramateFailure(result, nil))
 	}
 	return nil
+}
+
+func formatTerramateFailure(result *terramate.Result, err error) string {
+	parts := make([]string, 0, 4)
+	if err != nil {
+		parts = append(parts, err.Error())
+	}
+	if result != nil {
+		if result.ExitCode != 0 {
+			parts = append(parts, fmt.Sprintf("exit_code=%d", result.ExitCode))
+		}
+		if stderr := strings.TrimSpace(result.Stderr); stderr != "" {
+			parts = append(parts, "stderr="+stderr)
+		}
+		if stdout := strings.TrimSpace(result.Stdout); stdout != "" {
+			parts = append(parts, "stdout="+stdout)
+		}
+	}
+	if len(parts) == 0 {
+		return "unknown terramate failure"
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (e *TerramateExecutor) Plan(ctx context.Context, outFile string, destroy bool) (*PlanResult, error) {

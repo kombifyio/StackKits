@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
@@ -41,6 +42,14 @@ type automaticNodeSetupDropResult struct {
 	Status string `json:"status"`
 	Phase  string `json:"phase"`
 }
+
+type automaticNodeSetupTarget struct {
+	Endpoint   string
+	HostHeader string
+	Source     string
+}
+
+var detectLocalStackKitServerBaseURL = defaultLocalStackKitServerBaseURL
 
 func runAutomaticNodeSetupActions(ctx context.Context, access *accessSummary, state *models.DeploymentState, loader *config.Loader, stateFile string) (*models.DeploymentState, error) {
 	actions := automaticNodeSetupActions(state)
@@ -153,7 +162,11 @@ func runAutomaticNodeSetupAction(ctx context.Context, hubURL, serviceKey string)
 	client := &http.Client{Timeout: 20 * time.Second}
 	var last string
 	for {
-		status, body, err := postAutomaticNodeSetupAction(actionCtx, client, hubURL, serviceKey)
+		target, targetErr := automaticNodeSetupTargetForService(actionCtx, hubURL, serviceKey)
+		if targetErr != nil {
+			return automaticNodeSetupResult{}, targetErr
+		}
+		status, body, err := postAutomaticNodeSetupTarget(actionCtx, client, target)
 		if err == nil && status >= 200 && status < 300 {
 			result, parseErr := parseAutomaticNodeSetupResponse(body)
 			if parseErr != nil {
@@ -161,7 +174,7 @@ func runAutomaticNodeSetupAction(ctx context.Context, hubURL, serviceKey string)
 			}
 			return result, nil
 		}
-		last = automaticSetupAttemptMessage(status, body, err)
+		last = automaticSetupAttemptMessage(target.Source, status, body, err)
 		if !automaticSetupRetryable(status, err) {
 			return automaticNodeSetupResult{}, fmt.Errorf("%s", last)
 		}
@@ -187,18 +200,14 @@ func parseAutomaticNodeSetupResponse(body string) (automaticNodeSetupResult, err
 	return envelope.Data, nil
 }
 
-func postAutomaticNodeSetupAction(ctx context.Context, client *http.Client, hubURL, serviceKey string) (int, string, error) {
-	endpoint, hostHeader, err := setupActionRequestTarget(hubURL, serviceKey)
-	if err != nil {
-		return 0, "", err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+func postAutomaticNodeSetupTarget(ctx context.Context, client *http.Client, target automaticNodeSetupTarget) (int, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target.Endpoint, nil)
 	if err != nil {
 		return 0, "", err
 	}
 	req.Header.Set("Accept", "application/json")
-	if hostHeader != "" {
-		req.Host = hostHeader
+	if target.HostHeader != "" {
+		req.Host = target.HostHeader
 	}
 
 	resp, err := client.Do(req)
@@ -211,6 +220,45 @@ func postAutomaticNodeSetupAction(ctx context.Context, client *http.Client, hubU
 		return resp.StatusCode, "", readErr
 	}
 	return resp.StatusCode, strings.TrimSpace(string(data)), nil
+}
+
+func automaticNodeSetupTargetForService(ctx context.Context, hubURL, serviceKey string) (automaticNodeSetupTarget, error) {
+	endpoint, hostHeader, err := setupActionRequestTarget(hubURL, serviceKey)
+	if err != nil {
+		return automaticNodeSetupTarget{}, err
+	}
+	publicTarget := automaticNodeSetupTarget{
+		Endpoint:   endpoint,
+		HostHeader: hostHeader,
+		Source:     "public-hub",
+	}
+	parsed, err := url.Parse(strings.TrimSpace(hubURL))
+	if err != nil || parsed.Hostname() == "" || isLocalhostName(parsed.Hostname()) {
+		return publicTarget, nil
+	}
+
+	if baseURL := detectLocalStackKitServerBaseURL(ctx); baseURL != "" {
+		localEndpoint, _, localErr := setupActionRequestTarget(baseURL, serviceKey)
+		if localErr == nil {
+			return automaticNodeSetupTarget{
+				Endpoint: localEndpoint,
+				Source:   "local-stackkit-server",
+			}, nil
+		}
+	}
+	return publicTarget, nil
+}
+
+func defaultLocalStackKitServerBaseURL(ctx context.Context) string {
+	client := docker.NewClient(docker.WithTimeout(5 * time.Second))
+	ip, err := client.ContainerIPAddress(ctx, "stackkit-server")
+	if err != nil {
+		return ""
+	}
+	if strings.TrimSpace(ip) == "" {
+		return "http://127.0.0.1:8082"
+	}
+	return "http://" + net.JoinHostPort(strings.TrimSpace(ip), "8082")
 }
 
 func setupActionRequestTarget(hubURL, serviceKey string) (endpoint string, hostHeader string, err error) {
@@ -256,16 +304,20 @@ func automaticSetupRetryable(status int, err error) bool {
 	}
 }
 
-func automaticSetupAttemptMessage(status int, body string, err error) string {
+func automaticSetupAttemptMessage(source string, status int, body string, err error) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		source = "setup endpoint"
+	}
 	if err != nil {
-		return err.Error()
+		return fmt.Sprintf("%s request failed: %s", source, err.Error())
 	}
 	body = string(bytes.TrimSpace([]byte(body)))
 	if body == "" {
-		return fmt.Sprintf("setup endpoint returned HTTP %d", status)
+		return fmt.Sprintf("%s returned HTTP %d", source, status)
 	}
 	if len(body) > 4000 {
 		body = body[:4000] + "...(truncated)"
 	}
-	return fmt.Sprintf("setup endpoint returned HTTP %d: %s", status, body)
+	return fmt.Sprintf("%s returned HTTP %d: %s", source, status, body)
 }

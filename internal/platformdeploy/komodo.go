@@ -1,10 +1,12 @@
 package platformdeploy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -17,9 +19,12 @@ type KomodoAdapter struct {
 }
 
 var (
-	komodoDeployRetryDelay  = 5 * time.Second
-	komodoDeployPollDelay   = 5 * time.Second
-	komodoDeployPollAttempt = 72
+	komodoDeployRetryDelay    = 5 * time.Second
+	komodoDeployPollDelay     = 5 * time.Second
+	komodoDeployPollAttempt   = 72
+	komodoObservePollDelay    = 5 * time.Second
+	komodoObservePollAttempt  = 24
+	komodoDockerRuntimeStatus = inspectKomodoDockerRuntimeStatus
 )
 
 func NewKomodoAdapter(cfg HTTPConfig) *KomodoAdapter {
@@ -50,6 +55,7 @@ func (a *KomodoAdapter) ApplyCompose(ctx context.Context, manifest AppManifest) 
 	if err != nil {
 		return DeploymentRef{}, err
 	}
+	ref.ServiceNames = composeLongRunningServiceNames(manifest.ComposeYAML)
 	deploymentID, err := a.Deploy(ctx, ref)
 	if err != nil {
 		return DeploymentRef{}, err
@@ -205,20 +211,80 @@ func (a *KomodoAdapter) ObserveDeployment(ctx context.Context, ref DeploymentRef
 	if ref.ExternalID == "" {
 		return ref, fmt.Errorf("komodo stack observe requires external id")
 	}
-	var stack map[string]any
-	if _, _, err := a.client.postJSON(ctx, "/read/GetStack", map[string]any{"stack": ref.ExternalID}, &stack); err != nil {
-		return ref, fmt.Errorf("komodo stack observe %q: %w", ref.AppName, err)
+	var lastStatus string
+	var lastErr error
+	attempts := komodoObservePollAttempt
+	if attempts <= 0 {
+		attempts = 1
 	}
-	status := komodoStackObservedStatus(stack)
+	for attempt := 0; attempt < attempts; attempt++ {
+		var stack map[string]any
+		if _, _, err := a.client.postJSON(ctx, "/read/GetStack", map[string]any{"stack": ref.ExternalID}, &stack); err != nil {
+			lastErr = fmt.Errorf("komodo stack observe %q: %w", ref.AppName, err)
+		} else if status := komodoStackObservedStatus(stack); status != "" {
+			lastStatus = status
+			if komodoStackObservedStatusTerminal(status) {
+				return ref, fmt.Errorf("komodo stack %q (externalId=%s) observedStatus=%q, want running", ref.AppName, ref.ExternalID, status)
+			}
+			if komodoStackObservedStatusRunning(status) {
+				ref.ObservedStatus = status
+				ref.ObservedAt = time.Now().UTC()
+				return ref, nil
+			}
+		}
+
+		if runtimeStatus, err, ok := a.komodoDockerRuntimeObservedStatus(ctx, ref); err != nil {
+			lastErr = fmt.Errorf("komodo stack observe %q docker runtime: %w", ref.AppName, err)
+		} else if ok {
+			lastStatus = runtimeStatus.Status
+			if runtimeStatus.RuntimeRunning {
+				ref.ObservedStatus = runtimeStatus.Status
+				ref.ObservedAt = runtimeStatus.ObservedAt
+				return ref, nil
+			}
+		}
+
+		if attempt+1 >= attempts {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return ref, ctx.Err()
+		case <-time.After(komodoObservePollDelay):
+		}
+	}
+	if lastStatus != "" {
+		return ref, fmt.Errorf("komodo stack %q (externalId=%s) observedStatus=%q, want running", ref.AppName, ref.ExternalID, lastStatus)
+	}
+	if lastErr != nil {
+		return ref, lastErr
+	}
+	return ref, fmt.Errorf("komodo stack %q (externalId=%s) observedStatus is missing", ref.AppName, ref.ExternalID)
+}
+
+func (a *KomodoAdapter) komodoDockerRuntimeObservedStatus(ctx context.Context, ref DeploymentRef) (coolifyObservedStatus, error, bool) {
+	if a.cfg.DisableDockerRuntimeObserve {
+		return coolifyObservedStatus{}, nil, false
+	}
+	runtimeStatus, err := komodoDockerRuntimeStatus(ctx, ref, a.cfg.DockerEnv)
+	if err != nil {
+		return coolifyObservedStatus{}, err, false
+	}
+	if !runtimeStatus.Known {
+		return coolifyObservedStatus{}, nil, false
+	}
+	status := strings.TrimSpace(runtimeStatus.Status)
 	if status == "" {
-		return ref, fmt.Errorf("komodo stack %q (externalId=%s) observedStatus is missing", ref.AppName, ref.ExternalID)
+		status = "docker:unknown"
 	}
-	if !komodoStackObservedStatusRunning(status) {
-		return ref, fmt.Errorf("komodo stack %q (externalId=%s) observedStatus=%q, want running", ref.AppName, ref.ExternalID, status)
-	}
-	ref.ObservedStatus = status
-	ref.ObservedAt = time.Now().UTC()
-	return ref, nil
+	return coolifyObservedStatus{
+		Status:         status,
+		RuntimeKnown:   true,
+		RuntimeRunning: runtimeStatus.Running,
+		RuntimeActive:  runtimeStatus.Active,
+		RuntimeStatus:  status,
+		ObservedAt:     time.Now().UTC(),
+	}, nil, true
 }
 
 func (a *KomodoAdapter) validateConfig() error {
@@ -345,10 +411,62 @@ func komodoStackObservedStatus(values map[string]any) string {
 func komodoStackObservedStatusRunning(status string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(status))
 	return strings.HasPrefix(normalized, "running") ||
+		normalized == "docker:running" ||
 		normalized == "active" ||
 		normalized == "healthy" ||
 		normalized == "deployed" ||
 		normalized == "ok"
+}
+
+func komodoStackObservedStatusTerminal(status string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	return normalized == "stopped" ||
+		normalized == "exited" ||
+		normalized == "dead" ||
+		strings.Contains(normalized, "failed") ||
+		strings.Contains(normalized, "error")
+}
+
+func inspectKomodoDockerRuntimeStatus(ctx context.Context, ref DeploymentRef, dockerEnv []string) (coolifyDockerRuntimeObservation, error) {
+	projectName := strings.TrimSpace(ref.AppName)
+	serviceNames := ref.ServiceNames
+	if len(serviceNames) == 0 && projectName != "" {
+		serviceNames = []string{projectName}
+	}
+	if projectName == "" || len(serviceNames) == 0 {
+		return coolifyDockerRuntimeObservation{}, nil
+	}
+
+	timeout := coolifyDockerRuntimeTimeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	dockerCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	idsCmd := exec.CommandContext(dockerCtx, "docker", "ps", "-aq", "--filter", "label=com.docker.compose.project="+projectName) // #nosec G204
+	idsCmd.Env = dockerCommandEnv(dockerEnv)
+	idsOutput, err := idsCmd.Output()
+	if err != nil {
+		return coolifyDockerRuntimeObservation{}, err
+	}
+	ids := strings.Fields(string(idsOutput))
+	if len(ids) == 0 {
+		return coolifyDockerRuntimeObservation{Known: true, Status: "docker:missing containers"}, nil
+	}
+
+	args := append([]string{"inspect"}, ids...)
+	inspectCmd := exec.CommandContext(dockerCtx, "docker", args...) // #nosec G204
+	inspectCmd.Env = dockerCommandEnv(dockerEnv)
+	inspectOutput, err := inspectCmd.Output()
+	if err != nil {
+		return coolifyDockerRuntimeObservation{}, err
+	}
+	var containers []dockerInspectContainer
+	if err := json.NewDecoder(bytes.NewReader(inspectOutput)).Decode(&containers); err != nil {
+		return coolifyDockerRuntimeObservation{}, fmt.Errorf("decode docker inspect status: %w", err)
+	}
+	return coolifyDockerRuntimeForServices(serviceNames, containers), nil
 }
 
 func boolValue(value any) (bool, bool) {
