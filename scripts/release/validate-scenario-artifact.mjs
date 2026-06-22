@@ -322,14 +322,24 @@ function accessURLMatchesScenario(gotURL, expectedURL, key, context) {
 }
 
 function expectedURLForDynamicService(expectedURL, key, context) {
-  if (context?.scenarioId !== 'SK-S2' || !context?.kombifyMePrefix) return '';
   let parsed;
   try {
     parsed = new URL(expectedURL);
   } catch {
     return '';
   }
-  parsed.hostname = `${context.kombifyMePrefix}-${key}.kombify.me`;
+  if (context?.scenarioId === 'SK-S2' && context?.kombifyMePrefix) {
+    parsed.hostname = `${context.kombifyMePrefix}-${key}.kombify.me`;
+  } else if (
+    context?.scenarioId === 'SK-S3' &&
+    domainMatchesExpectedZone(stringValue(context.profileDomain), stringValue(context.expectedProfileDomain))
+  ) {
+    const label = parsed.hostname.split('.')[0] || key;
+    if (!label) return '';
+    parsed.hostname = `${label}.${stringValue(context.profileDomain)}`;
+  } else {
+    return '';
+  }
   const path = parsed.pathname === '/' ? '' : parsed.pathname;
   return `${parsed.protocol}//${parsed.host}${path}${parsed.search}${parsed.hash}`;
 }

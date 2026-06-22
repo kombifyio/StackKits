@@ -4,6 +4,17 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.4] - 2026-06-22
+
+### Fixed
+
+- **SK-S3 release evidence import**: accepts run-scoped custom-domain Base Hub URLs such as `https://base.e2e-cd-<run>.kombify.pro` when they remain inside the expected `kombify.pro` zone.
+- **SK-S3 scenario validator fixture**: updates the release artifact validator test fixture from the old bare/manual custom-domain model to the current bootstrapped provider-lease Coolify contract.
+
+### Release Notes
+
+- Supersedes `v0.4.3` for stable public testing because `v0.4.3` published successfully and the released-content matrix passed, but the evidence republish step still rejected valid SK-S3 dynamic Base Hub URLs.
+
 ## [0.4.3] - 2026-06-22
 
 ### Fixed
