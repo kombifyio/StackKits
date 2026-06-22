@@ -4,6 +4,17 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.3] - 2026-06-22
+
+### Fixed
+
+- **Released-content preflight snapshots**: regenerates SK-S2/SK-S3 TFVars golden snapshots so the public preflight gate matches the bootstrapped provider-lease scenario contract.
+- **Installer credential verification**: accepts the current installer `Login credentials:` output header while still requiring the expected admin email and password lines.
+
+### Release Notes
+
+- Supersedes `v0.4.2` for stable public testing because `v0.4.2` published successfully but its released-content matrix still exposed stale golden snapshots and legacy credential-header verification.
+
 ## [0.4.2] - 2026-06-22
 
 ### Fixed
