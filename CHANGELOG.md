@@ -4,6 +4,25 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1] - 2026-06-22
+
+### Highlights
+
+- **Stable BaseKit promotion**: promotes the `v0.4.0-beta.2` evidence set to the stable public installer path after SK-S1, SK-S2, SK-S3, SK-S5, browser evidence, public export, archive validation, SBOMs, and attestations passed.
+- **Real ephemeral server E2E**: keeps SK-S2 and SK-S3 on fresh provider-leased servers through the Sim/Lease API, with SSH used only as transport and managed cleanup required for DNS records plus server leases.
+- **Release evidence completeness**: the stable release carries canonical scenario rows and browser evidence instead of the earlier `v0.4.0` release's pending scenario rows.
+
+### Fixed
+
+- **Stable latest drift**: supersedes the older `v0.4.0` stable release evidence that still marked SK-S1/SK-S2/SK-S3/SK-S5 and browser gates as pending.
+- **Roadmap and Beads state**: closes the v0.4 release-blocking tracker drift after public beta2 evidence and current main Scenario/Admin/PaaS/Runtime gates proved the BaseKit beta-hardening scope.
+- **Installer semantics**: keeps prerelease pins explicit while the unpinned official installer resolves to the newest stable tag.
+
+### Release Notes
+
+- This is the release-ready stable BaseKit path for public testing through the official installers without a prerelease pin.
+- `v0.5.0` remains the product-contract-complete follow-up for non-v0.4 scope such as native Vaultwarden Owner UX and broader Enterprise application-layer polish.
+
 ## [0.4.0-beta.2] - 2026-06-21
 
 ### Highlights
@@ -21,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Release Notes
 
 - This is the release-candidate lane for public BaseKit beta testing through a pinned prerelease: `STACKKIT_RELEASE_VERSION=v0.4.0-beta.2`.
-- Stable `latest` remains `v0.3.4` until released-content SK-S1, SK-S2, and SK-S3 evidence is clean or the beta claim is explicitly narrowed.
+- At prerelease publication time, unpinned installs stayed on the stable release path until released-content SK-S1, SK-S2, and SK-S3 evidence was clean.
 
 ## [0.4.0-beta.1] - 2026-06-21
 
