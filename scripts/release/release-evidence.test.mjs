@@ -797,7 +797,7 @@ test('render-release-evidence rejects browser evidence from a non-Base Hub URL',
   const evidence = JSON.parse(await readFile(output, 'utf8'));
   assert.equal(evidence.checks.browserEvidence.status, 'fail');
   assert.match(evidence.checks.browserEvidence.summary, /browserUrl host is modern\.home\.localhost, want base\.home\.localhost/);
-  assert.match(evidence.checks.browserEvidence.summary, /files-demo-content: url path is \/, want \/stackkit\/files\/session/);
+  assert.match(evidence.checks.browserEvidence.summary, /files-demo-content: url path is \/, want \/stackkit\/files\/session or \/home/);
 });
 
 test('render-release-evidence rejects browser screenshot URL route drift', async () => {
@@ -1672,6 +1672,57 @@ test('render-release-evidence rejects browser evidence from a different evidence
   assert.equal(evidence.checks.browserPreflight.status, 'pass');
   assert.equal(evidence.checks.browserEvidence.status, 'fail');
   assert.match(evidence.checks.browserEvidence.summary, /does not match preflight evidenceRoot/);
+});
+
+test('render-release-evidence accepts packaged browser evidence root during publish import', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-browser-packaged-root-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const preflightPath = path.join(dir, 'browser-evidence-preflight.json');
+  const preflight = browserPreflightReport('pass');
+  preflight.evidenceRoot = '/home/runner/work/kombify-StackKits/kombify-StackKits';
+  await writeFile(preflightPath, JSON.stringify(preflight));
+  const browserEvidencePath = path.join(dir, 'browser-evidence.json');
+  await writeFile(browserEvidencePath, JSON.stringify(browserEvidenceReport()));
+  await writeScreenshotFiles(dir, [
+    'pocketid-owner-passkey',
+    'tinyauth-owner-session',
+    'photos-demo-content',
+    'files-demo-content',
+    'vault-auth-boundary',
+  ]);
+  await writeSetupStateFile(dir);
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(
+    process.execPath,
+    [
+      path.resolve('scripts/release/render-release-evidence.mjs'),
+      '--tag',
+      'v0.0.1',
+      '--commit',
+      'abcdef123456',
+      '--source-repo',
+      'kombifyio/stackKits',
+      '--release-repo',
+      'kombifyio/stackKits',
+      '--dist',
+      dist,
+      '--output',
+      output,
+      '--browser-preflight',
+      preflightPath,
+      '--browser-evidence',
+      browserEvidencePath,
+      '--browser-evidence-root',
+      '.',
+    ],
+    { cwd: dir },
+  );
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.equal(evidence.checks.browserPreflight.status, 'pass');
+  assert.equal(evidence.checks.browserEvidence.status, 'pass');
 });
 
 test('render-release-evidence marks incomplete browser evidence as failed', async () => {

@@ -32,11 +32,11 @@ const REQUIRED_BROWSER_EVIDENCE_CHECKS = [
 ];
 
 const REQUIRED_BROWSER_CHECK_ROUTES = {
-  'pocketid-owner-passkey': { host: 'id.home.localhost', path: '/setup' },
-  'tinyauth-owner-session': { host: 'auth.home.localhost', path: '' },
-  'photos-demo-content': { host: 'photos.home.localhost', path: '/photos' },
-  'files-demo-content': { host: 'files.home.localhost', path: '/stackkit/files/session' },
-  'vault-auth-boundary': { host: 'vault.home.localhost', path: '' },
+  'pocketid-owner-passkey': { host: 'id.home.localhost', paths: ['/setup', '/settings/account'] },
+  'tinyauth-owner-session': { host: 'auth.home.localhost', paths: ['/', '/logout'] },
+  'photos-demo-content': { host: 'photos.home.localhost', paths: ['/photos'] },
+  'files-demo-content': { host: 'files.home.localhost', paths: ['/stackkit/files/session', '/home'] },
+  'vault-auth-boundary': { host: 'vault.home.localhost', paths: ['/'] },
 };
 
 const MAX_BROWSER_CHECK_DURATION_SECONDS = 15 * 60;
@@ -776,6 +776,7 @@ function browserPreflightNativeCommandSummary(checks) {
 function validateBrowserEvidenceRootMatch(browserEvidenceRoot, preflightEvidenceRoot) {
   const left = evidenceRootKey(browserEvidenceRoot);
   const right = evidenceRootKey(preflightEvidenceRoot);
+  if (left === '.') return '';
   if (!left || !right || left === right) return '';
   return `browser evidence root ${browserEvidenceRoot || 'missing'} does not match preflight evidenceRoot ${preflightEvidenceRoot || 'missing'}`;
 }
@@ -1210,14 +1211,10 @@ function validateBaseKitBrowserCheckURL(checkName, raw) {
   if (parsed.hostname !== route.host) {
     return `host is ${parsed.hostname || 'missing'}, want ${route.host}`;
   }
-  if (route.path) {
-    if (parsed.pathname !== route.path) {
-      return `path is ${parsed.pathname || '/'}, want ${route.path}`;
-    }
-    return '';
-  }
-  if (parsed.pathname && parsed.pathname !== '/') {
-    return `path is ${parsed.pathname}, want /`;
+  const expectedPaths = Array.isArray(route.paths) && route.paths.length > 0 ? route.paths : ['/'];
+  const gotPath = parsed.pathname || '/';
+  if (!expectedPaths.includes(gotPath)) {
+    return `path is ${gotPath}, want ${expectedPaths.join(' or ')}`;
   }
   return '';
 }
