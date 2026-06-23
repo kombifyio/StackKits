@@ -162,13 +162,12 @@ application:
     alternatives: []
     description: "Remote desktop access"
 
-# Foundation services (L1, always present, mandatory in V6 — host-level + identity bootstrap)
-# See docs/ARCHITECTURE_V6.md §5 "Out-of-the-box Production Hardening".
+# Foundation services (L1, always present for the BaseKit public beta).
 foundation:
   security-baseline:
     role: default
     alternatives: []
-    description: "UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. V6 mandatory."
+    description: "UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Public beta mandatory."
   admin-bootstrap:
     role: optional
     alternatives: []
@@ -189,7 +188,7 @@ platform:
   login-gateway:
     role: default
     alternatives: []
-    description: "TinyAuth forward-auth middleware in front of every L3 service. V6 mandatory."
+    description: "TinyAuth forward-auth middleware in front of every default L3 service."
   pocketid:
     role: default
     alternatives: []

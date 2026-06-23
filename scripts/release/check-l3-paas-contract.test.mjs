@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -79,7 +79,7 @@ resource "local_file" "coolify_dynamic_stackkit" {
 }
 resource "null_resource" "coolify_platform_bootstrap" {
   provisioner "local-exec" {
-    command = "stackkit_docker() { DOCKER_HOST=\"\${var.docker_host}\" docker \"$@\"; } stackkit_sync_coolify_dynamic_config() { cat > /data/coolify/proxy/dynamic/stackkit.yml; } stackkit_coolify_diagnostics() { echo Coolify readiness diagnostics (redacted):; } curl -fsS \${local.coolify_bootstrap_api_endpoint}/api/health curl -fsS \${local.coolify_bootstrap_api_endpoint}/health traefik.docker.network=\${local.routing_network} STACKKIT_COOLIFY_API_ENDPOINT=\"\${local.coolify_api_endpoint}\" STACKKIT_COOLIFY_PLATFORM_JSON=... STACKKIT_COOLIFY_SERVER_PUBLIC_KEY= authorized_keys server_settings set is_reachable = true, is_usable = true host.docker.internal --providers.docker.endpoint= --certificatesresolvers.letsencrypt.acme.httpchallenge=true --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http stackkit_docker compose -f \"$PROXY_COMPOSE\" up -d 'id' => 0 Hash::make($bootstrapPassword) show_boarding' => false is_api_enabled' => true is_registration_enabled' => false createToken($tokenName, ['root']) StartProxy::run($server, async: false, force: true) proxyContainer' => 'coolify-proxy' .stackkit/platform.json 'capability' => 'backups' 'status' => 'configured' stackkit.backup=required restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill"
+    command = "stackkit_docker() { DOCKER_HOST=\"\${var.docker_host}\" docker \"$@\"; } stackkit_sync_coolify_dynamic_config() { cat > /data/coolify/proxy/dynamic/stackkit.yml; } stackkit_coolify_diagnostics() { echo Coolify readiness diagnostics (redacted):; } expected_endpoint=\"$(stackkit_coolify_proxy_docker_endpoint)\" current_endpoint=\"$(stackkit_docker inspect coolify-proxy)\" [ \"$current_endpoint\" != \"$expected_endpoint\" ] curl -fsS \${local.coolify_bootstrap_api_endpoint}/api/health curl -fsS \${local.coolify_bootstrap_api_endpoint}/health traefik.docker.network=\${local.routing_network} STACKKIT_COOLIFY_API_ENDPOINT=\"\${local.coolify_api_endpoint}\" STACKKIT_COOLIFY_PLATFORM_JSON=... STACKKIT_COOLIFY_SERVER_PUBLIC_KEY= authorized_keys server_settings set is_reachable = true, is_usable = true host.docker.internal --providers.docker.endpoint= --certificatesresolvers.letsencrypt.acme.httpchallenge=true --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http stackkit_docker compose -f \"$PROXY_COMPOSE\" up -d 'id' => 0 Hash::make($bootstrapPassword) show_boarding' => false is_api_enabled' => true is_registration_enabled' => false createToken($tokenName, ['root']) StartProxy::run($server, async: false, force: true) proxyContainer' => 'coolify-proxy' .stackkit/platform.json 'capability' => 'backups' 'status' => 'configured' stackkit.backup=required restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill"
   }
 }
 resource "null_resource" "coolify_install" {
@@ -108,6 +108,31 @@ resource "local_file" "platform_l3_manifest" {
   ]);
 
   assert.match(stdout, /Default StackKit-owned L3 PaaS contract check passed/);
+});
+
+test('check-l3-paas-contract rejects Coolify installer shim that drops docker_host', async () => {
+  const repoRoot = process.cwd();
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'stackkits-l3-coolify-shim-'));
+  const generated = path.join(tempDir, 'main.tf');
+  const source = await readFile(path.join(repoRoot, 'base-kit', 'templates', 'simple', 'main.tf'), 'utf8');
+  const requiredShim = `if [ -n "\${var.docker_host}" ]; then
+  DOCKER_HOST="\${var.docker_host}" exec "\\$real" "\\$@"
+fi
+exec "\\$real" "\\$@"`;
+  assert.match(source, /COOLIFY_SYSTEMCTL_SHIM\/docker/);
+  assert.match(source, /DOCKER_HOST="\$\{var\.docker_host\}"\s+exec\s+"\\\$real"\s+"\\\$@"/);
+  await writeFile(generated, source.replace(requiredShim, 'exec "\\$real" "\\$@"'));
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      'scripts/release/check-l3-paas-contract.mjs',
+      '--repo-root',
+      repoRoot,
+      '--generated',
+      generated,
+    ]),
+    /Coolify installer Docker shim must force var\.docker_host/,
+  );
 });
 
 test('check-l3-paas-contract allows unmanaged L3 modules without delivery metadata', async () => {

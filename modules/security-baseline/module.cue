@@ -1,15 +1,14 @@
 // Package security_baseline — Host-level security hardening for StackKits.
 //
-// Ships UFW (deny-all-incoming, allow 22/80/443), fail2ban (SSH + Traefik jails),
-// unattended-upgrades, SSH hardening (no root, key-only, no password auth),
+// Ships UFW (deny-all-incoming, allow SSH/80/443), fail2ban (SSH jail),
+// unattended-upgrades, SSH hardening (key-only, no password auth),
 // and sysctl hardening.
 //
 // This is a Foundation-layer module. It configures the HOST, not a container.
-// The Terraform implementation uses `null_resource` with `remote-exec` provisioners.
-// For CUE contract purposes, this module declares capabilities but ships no
-// Docker service or container-based provisioner.
-//
-// STATUS: Scaffolded for V6 Phase 2. Terraform implementation pending.
+// The public beta implementation is applied by `stackkit apply` on apt-based
+// Ubuntu hosts and writes `.stackkit/security-baseline.json` evidence. For CUE
+// contract purposes, this module declares host capabilities and ships no Docker
+// service or container-based provisioner.
 package security_baseline
 
 import "github.com/kombifyio/stackkits/base"
@@ -18,11 +17,11 @@ Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "security-baseline"
 		displayName: "Security Baseline"
-		version:     "0.1.0"
+		version:     "0.1.1"
 		layer:       "L1-foundation"
-		description: "Host-level hardening: UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Foundation layer, mandatory in V6."
-		// Draft: scaffolded for V6 Phase 2, Terraform implementation pending.
-		maturity: "draft"
+		description: "Host-level hardening: UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Foundation layer, mandatory for the BaseKit public beta."
+		maturity:    "default"
+		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
 
 	requires: {
@@ -68,7 +67,7 @@ Contract: base.#ModuleContract & {
 			// SSH: disable password authentication entirely.
 			sshPasswordAuth: *false | bool
 
-			// SSH: disable root login entirely.
+			// SSH: keep root key-only unless the host provisions a non-root transport.
 			sshPermitRoot: *false | bool
 		}
 	}
@@ -80,7 +79,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	// No Docker services — this module configures the host via Terraform
-	// null_resource + remote-exec in modules/security-baseline/terraform/.
+	// No Docker services — this module configures the host through the CLI
+	// apply path and emits security-baseline evidence.
 	services: {}
 }

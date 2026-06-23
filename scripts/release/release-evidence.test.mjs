@@ -104,12 +104,16 @@ test('publish-oss can import production scenario evidence artifacts', async () =
   const workflow = await readFile('.github/workflows/publish-oss.yml', 'utf8');
 
   assert.match(workflow, /scenario_evidence_run_id:/);
+  assert.match(workflow, /security_scan_run_id:/);
   assert.match(workflow, /Download scenario evidence artifacts/);
   assert.match(workflow, /stackkit-SK-S1-released-homelab/);
   assert.match(workflow, /stackkit-SK-S2-homelab/);
   assert.match(workflow, /stackkit-SK-S3-homelab/);
   assert.match(workflow, /stackkit-SK-S5-homelab/);
   assert.match(workflow, /artifacts\/scenarios\/\$\{scenario_id\}\/homelab\.json/);
+  assert.match(workflow, /gh run view "\$SECURITY_SCAN_RUN_ID"/);
+  assert.match(workflow, /securityScans=pass,Security workflow passed for the release source commit/);
+  assert.match(workflow, /Security workflow SHA mismatch/);
 });
 
 test('public release workflow marks evidence as public', async () => {
@@ -259,6 +263,84 @@ test('render-release-evidence accepts on-demand setup drop evidence without pre-
   assert.equal(scenario.status, 'pass');
   assert.match(scenario.summary, /4 setup action evidence entries/);
   assert.ok(!evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
+});
+
+test('render-release-evidence fails homelab artifacts without security baseline evidence', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-scenario-artifact-security-fail-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifact = homelabArtifact({ securityBaseline: undefined });
+  delete artifact.securityBaseline;
+  const artifactPath = path.join(dir, 'homelab.json');
+  await writeFile(artifactPath, JSON.stringify(artifact));
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-artifact',
+    artifactPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const scenario = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S2');
+  assert.equal(scenario.status, 'fail');
+  assert.match(scenario.summary, /securityBaseline is missing/);
+  assert.ok(evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
+});
+
+test('render-release-evidence fails homelab artifacts without measured security baseline metadata', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-scenario-artifact-security-metadata-fail-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifact = homelabArtifact({
+    securityBaseline: {
+      ...validSecurityBaseline(),
+      schemaVersion: '',
+      mode: '',
+      appliedAt: 'not-a-time',
+    },
+  });
+  const artifactPath = path.join(dir, 'homelab.json');
+  await writeFile(artifactPath, JSON.stringify(artifact));
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-artifact',
+    artifactPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const scenario = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S2');
+  assert.equal(scenario.status, 'fail');
+  assert.match(scenario.summary, /securityBaseline\.schemaVersion=missing/);
+  assert.match(scenario.summary, /securityBaseline\.mode=missing/);
+  assert.match(scenario.summary, /securityBaseline\.appliedAt is missing or invalid/);
+  assert.ok(evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
 });
 
 test('render-release-evidence fails incomplete homelab simulation status', async () => {
@@ -2913,7 +2995,26 @@ function homelabArtifact(overrides = {}) {
     target: {
       publicIp: '203.0.113.10',
     },
+    securityBaseline: validSecurityBaseline(),
     generatedAt: '2026-06-13T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function validSecurityBaseline(overrides = {}) {
+  return {
+    schemaVersion: 'stackkit.security-baseline/v1',
+    status: 'pass',
+    mode: 'public-beta',
+    appliedAt: '2026-06-22T08:00:00Z',
+    controls: {
+      firewall: 'enabled',
+      sshPasswordAuthentication: 'disabled',
+      sshRootLogin: 'key-only',
+      fail2ban: 'enabled',
+      unattendedUpgrades: 'security',
+      sysctl: 'applied',
+    },
     ...overrides,
   };
 }

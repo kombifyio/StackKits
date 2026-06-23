@@ -4,6 +4,24 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.5-beta.1] - 2026-06-23
+
+### Highlights
+
+- **Custom-domain provider lease proof**: keeps SK-S3 on the canonical fresh provider-leased server path and validates the full Start, Wait, Verify, and Cleanup chain against the Sim/Lease API and Cloudflare DNS.
+- **Coolify custom-domain routing**: hardens the generated Coolify proxy labels so BaseKit service routers win over fallback routers and request wildcard TLS coverage for custom-domain service hosts.
+- **Deferred app readiness**: treats accepted on-demand platform apps as deferred public-readiness evidence while keeping running and required services in the public URL gate.
+
+### Fixed
+
+- **Coolify proxy reconciliation**: reconciles the Coolify Docker endpoint and generated router labels so the custom-domain path does not depend on host-side proxy shims.
+- **Released evidence diagnostics**: emits failed scenario artifacts when public URL verification fails, preserving release-gate evidence instead of failing later without a scenario row.
+- **Browser evidence setup**: completes PocketID consent during browser evidence capture so BaseKit owner/passkey setup proof remains end-to-end.
+
+### Release Notes
+
+- This is a pinned prerelease for official-installer verification of the current SK-S3 provider-lease and Coolify routing fixes. Install with `STACKKIT_RELEASE_VERSION=v0.4.5-beta.1`; unpinned official installers should remain on the latest stable release until released-content SK-S1, SK-S2, and SK-S3 pass for the new tag.
+
 ## [0.4.4] - 2026-06-22
 
 ### Fixed

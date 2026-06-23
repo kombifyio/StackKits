@@ -35,6 +35,7 @@ import {
   parseHTTPStatus,
   probeTinyAuthForwardAuthViaFreshVM,
   relativeEvidencePath,
+  returnToEvidenceRoute,
   runOwnerActivatedSetupActions,
   unmapLocalPortURL,
   usage,
@@ -317,6 +318,31 @@ test('content checks require seeded Files and Photos evidence, not generic app p
   assert.equal(checkTextMatches(photosCheck, 'Immich Photos'), true);
 });
 
+test('content checks return to their service route after the owner login flow', async () => {
+  const navigations = [];
+  const page = {
+    goto: async (url, options = {}) => {
+      navigations.push({ url, options });
+    },
+    waitForLoadState: async () => {},
+  };
+
+  await returnToEvidenceRoute(
+    page,
+    { name: 'photos-demo-content', url: 'http://photos.home.localhost/photos' },
+    Date.now() + 1000,
+  );
+  await returnToEvidenceRoute(
+    page,
+    { name: 'tinyauth-owner-session', url: 'http://auth.home.localhost/' },
+    Date.now() + 1000,
+  );
+
+  assert.equal(navigations.length, 1);
+  assert.equal(navigations[0].url, 'http://photos.home.localhost/photos');
+  assert.equal(navigations[0].options.waitUntil, 'domcontentloaded');
+});
+
 test('verifyOwnerPasskeyCredential proves WebAuthn credential creation', async () => {
   const evidence = await verifyOwnerPasskeyCredential({
     enabled: true,
@@ -588,6 +614,50 @@ test('driveOwnerLoginFlow does not restart TinyAuth OAuth while the provider red
   );
 
   assert.equal(providerClicks, 1);
+});
+
+test('driveOwnerLoginFlow accepts the PocketID OIDC consent page before probing TinyAuth', async () => {
+  let currentURL = 'http://id.home.localhost/authorize?client_id=stackkit-tinyauth';
+  let consentClicks = 0;
+  const consentButton = {
+    first: () => consentButton,
+    filter: () => consentButton,
+    count: async () => 1,
+    isVisible: async () => true,
+    click: async () => {
+      consentClicks += 1;
+      currentURL = 'http://auth.home.localhost/api/oauth/callback/pocketid?code=test-code&state=test-state';
+    },
+  };
+  const empty = {
+    first: () => empty,
+    filter: () => empty,
+    count: async () => 0,
+    isVisible: async () => false,
+    click: async () => {},
+  };
+  const page = {
+    url: () => currentURL,
+    getByRole: () => empty,
+    locator: (selector) => {
+      if (selector === 'button[autofocus], button[type="submit"]') return consentButton;
+      return { filter: () => ({ first: () => empty }) };
+    },
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+  };
+
+  await driveOwnerLoginFlow(
+    page,
+    {
+      authUrl: 'http://auth.home.localhost',
+      ownerSetupUrl: 'http://id.home.localhost/setup',
+      browserUrl: 'http://base.home.localhost',
+    },
+    Date.now() + 1000,
+  );
+
+  assert.equal(consentClicks, 1);
 });
 
 test('verifyImmichDemoAssets proves the StackKit demo asset through the Owner browser session', async () => {

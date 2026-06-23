@@ -171,6 +171,9 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	if err := ensurePrerequisites(ctx, spec); err != nil {
 		return err
 	}
+	if err := applyPublicBetaSecurityBaseline(ctx, wd, spec); err != nil {
+		return err
+	}
 
 	// Determine deploy directory — auto-generate if missing or empty
 	deployDir := filepath.Join(wd, config.GetDeployDir())

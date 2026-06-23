@@ -310,10 +310,17 @@ func komodoStackConfig(manifest AppManifest, cfg HTTPConfig) map[string]any {
 	if cfg.ServerID != "" {
 		config["server_id"] = cfg.ServerID
 	}
-	if manifest.URL != "" {
-		config["links"] = []string{manifest.URL}
+	if route := manifestRouteURL(manifest); route != "" {
+		config["links"] = []string{route}
 	}
 	return config
+}
+
+func manifestRouteURL(manifest AppManifest) string {
+	if route := strings.TrimSpace(manifest.RouteURL); route != "" {
+		return route
+	}
+	return strings.TrimSpace(manifest.URL)
 }
 
 func firstKomodoID(values map[string]any) string {

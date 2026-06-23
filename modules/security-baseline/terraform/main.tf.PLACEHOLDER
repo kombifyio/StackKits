@@ -1,5 +1,7 @@
 # Module: security-baseline
-# STATUS: Placeholder. Phase 2 (V6, Q3/2026) implements:
+# STATUS: Placeholder for future Terraform fragment parity.
+# The public beta implementation runs in `stackkit apply` and writes
+# `.stackkit/security-baseline.json` evidence validated by SK-S1/SK-S2/SK-S3.
 #
 # resource "null_resource" "ufw" {
 #   connection { type = "ssh" host = var.host user = var.ssh_user private_key = file(var.ssh_key_path) }

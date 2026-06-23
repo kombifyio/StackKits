@@ -6,11 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -885,17 +887,62 @@ func missingServiceResources(expected []string, actual map[string]struct{}) []st
 }
 
 func coolifyServiceRoute(manifest AppManifest) string {
-	route := manifest.URL
+	route := strings.TrimSpace(manifest.RouteURL)
 	if route == "" {
-		route = manifest.Host
+		route = strings.TrimSpace(manifest.URL)
+	}
+	if route == "" {
+		route = strings.TrimSpace(manifest.Host)
 	}
 	if route == "" {
 		return ""
 	}
-	if strings.HasPrefix(route, "http://") || strings.HasPrefix(route, "https://") {
+	if !(strings.HasPrefix(route, "http://") || strings.HasPrefix(route, "https://")) {
+		route = "https://" + route
+	}
+	if coolifyRouteHasExplicitPath(route) {
+		return ""
+	}
+	return coolifyRouteWithInternalPort(route, manifest.Port)
+}
+
+func coolifyRouteHasExplicitPath(route string) bool {
+	parsed, err := url.Parse(route)
+	if err != nil {
+		return false
+	}
+	path := strings.TrimSpace(parsed.EscapedPath())
+	return path != "" && path != "/"
+}
+
+func coolifyRouteWithInternalPort(route string, port int) string {
+	if port <= 0 {
 		return route
 	}
-	return "https://" + route
+	parsed, err := url.Parse(route)
+	if err != nil || parsed.Host == "" || parsed.Port() != "" {
+		return route
+	}
+	if coolifyRoutePortIsDefault(parsed.Scheme, port) {
+		return route
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return route
+	}
+	parsed.Host = net.JoinHostPort(host, strconv.Itoa(port))
+	return parsed.String()
+}
+
+func coolifyRoutePortIsDefault(scheme string, port int) bool {
+	switch strings.ToLower(strings.TrimSpace(scheme)) {
+	case "http":
+		return port == 80
+	case "https":
+		return port == 443
+	default:
+		return false
+	}
 }
 
 func normalizeComposeYAML(compose string) string {

@@ -29,9 +29,9 @@
 #        StackKits uses that spec value as the kombify.me origin instead of the CLI host environment
 #
 # PocketID/OIDC is mandatory for passkey-capable login. The selected PaaS,
-# Kuma, Whoami, Vaultwarden, Immich, and Files/Cloudreve are part of the current default live path.
-# Jellyfin, Smart Home, AI, and host hardening stay bounded by opt-in
-# live smoke paths.
+# Kuma, Whoami, Vaultwarden, Immich, Files/Cloudreve, and host security
+# baseline are part of the current default live path. Jellyfin, Smart Home,
+# and AI stay bounded by opt-in live smoke paths.
 
 name: my-homelab
 stackkit: base-kit

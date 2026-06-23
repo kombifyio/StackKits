@@ -1026,7 +1026,8 @@ async function runCheck(page, config, check, totalDeadline, runtime = {}) {
     await page.goto(check.url, { waitUntil: 'domcontentloaded', timeout: remaining(checkDeadline) });
     await page.waitForLoadState('networkidle', { timeout: Math.min(5000, remaining(checkDeadline)) }).catch(() => {});
     await driveFlow(page, config, check, checkDeadline);
-    if (check.evidencePolicy === 'tinyauth-owner-session') {
+    await returnToEvidenceRoute(page, check, checkDeadline);
+    if (check.evidencePolicy === 'tinyauth-owner-session' || canVerifyWithoutVisibleText(config, check)) {
       observedText = await pageText(page).catch(() => '');
       evidence = await verifyCheckEvidence(page, config, check, observedText, checkDeadline, runtime);
       if (!checkTextMatches(check, observedText)) {
@@ -1074,6 +1075,25 @@ async function runCheck(page, config, check, totalDeadline, runtime = {}) {
       url: browserScreenshotURL(page.url(), check.url),
     },
   };
+}
+
+function canVerifyWithoutVisibleText(config, check) {
+  return config.demoData === 'disabled' && check.evidencePolicy === 'cloudreve-demo-file';
+}
+
+async function returnToEvidenceRoute(page, check, deadline) {
+  if (!shouldReturnToEvidenceRoute(check)) return;
+  await ensureTimeRemaining(deadline, `${check.name} route restore`);
+  await page.goto(check.url, { waitUntil: 'domcontentloaded', timeout: remaining(deadline) });
+  await page.waitForLoadState('networkidle', { timeout: Math.min(5000, remaining(deadline)) }).catch(() => {});
+}
+
+function shouldReturnToEvidenceRoute(check) {
+  return new Set([
+    'photos-demo-content',
+    'files-demo-content',
+    'vault-auth-boundary',
+  ]).has(String(check?.name || ''));
 }
 
 async function installVirtualAuthenticator(page) {
@@ -1135,9 +1155,17 @@ async function driveFlow(page, config, check, deadline) {
 async function driveOwnerLoginFlow(page, config, deadline) {
   let idlePolls = 0;
   let providerClicked = false;
-  for (let i = 0; i < 12; i += 1) {
+  for (let i = 0; i < 24; i += 1) {
     await ensureTimeRemaining(deadline, 'Owner login interaction');
     const currentURL = page.url?.() || '';
+    if (isPocketIDAuthorizeURL(currentURL, config)) {
+      const consentClicked = await clickPocketIDAuthorizeConsent(page);
+      if (consentClicked) {
+        idlePolls = 0;
+        await waitForOAuthProviderTransition(page, config, currentURL, deadline);
+        continue;
+      }
+    }
     const onTinyAuth = sameOrigin(currentURL, config.authUrl);
     const patterns = onTinyAuth && providerClicked
       ? [/continue/i, /authorize/i, /allow/i, /accept/i]
@@ -1160,6 +1188,37 @@ async function driveOwnerLoginFlow(page, config, deadline) {
     await page.waitForLoadState('domcontentloaded', { timeout: Math.min(3000, remaining(deadline)) }).catch(() => {});
     await page.waitForTimeout(500);
   }
+}
+
+function isPocketIDAuthorizeURL(currentURL, config) {
+  try {
+    const parsed = new URL(String(currentURL || ''));
+    if (parsed.pathname !== '/authorize') return false;
+    if (sameOrigin(currentURL, config.ownerSetupUrl)) return true;
+    return parsed.hostname.toLowerCase().startsWith('id.');
+  } catch {
+    return false;
+  }
+}
+
+async function clickPocketIDAuthorizeConsent(page) {
+  const autofocus = page.locator?.('button[autofocus], button[type="submit"]').first?.();
+  if (autofocus && (await autofocus.count?.().catch(() => 0)) > 0 && (await autofocus.isVisible?.({ timeout: 250 }).catch(() => false))) {
+    try {
+      await autofocus.click({ timeout: 1000 });
+      return true;
+    } catch {
+      // Fall through to text-based consent controls.
+    }
+  }
+  return clickFirst(page, [
+    /continue/i,
+    /authorize/i,
+    /allow/i,
+    /accept/i,
+    /approve/i,
+    /use.*account/i,
+  ]);
 }
 
 function loginPatternsForURL(currentURL, config) {
@@ -2123,6 +2182,7 @@ export {
   parseHTTPStatus,
   probeTinyAuthForwardAuthViaFreshVM,
   relativeEvidencePath,
+  returnToEvidenceRoute,
   runOwnerActivatedSetupActions,
   unmapLocalPortURL,
   usage,

@@ -23,6 +23,45 @@ test('validate-scenario-artifact accepts SK-S2 run-scoped kombify.me hosts with 
   assert.deepEqual(errors, []);
 });
 
+test('validate-scenario-artifact rejects rollout artifacts without security baseline evidence', () => {
+  const artifact = validArtifact({ securityBaseline: undefined });
+  delete artifact.securityBaseline;
+  const errors = [];
+  validateScenarioArtifact(errors, artifact, canonicalScenario());
+  assert.match(errors.join('\n'), /securityBaseline must be present/);
+});
+
+test('validate-scenario-artifact rejects failed security baseline evidence', () => {
+  const artifact = validArtifact({
+    securityBaseline: {
+      ...validSecurityBaseline(),
+      controls: {
+        ...validSecurityBaseline().controls,
+        sshPasswordAuthentication: 'enabled',
+      },
+    },
+  });
+  const errors = [];
+  validateScenarioArtifact(errors, artifact, canonicalScenario());
+  assert.match(errors.join('\n'), /securityBaseline\.controls\.sshPasswordAuthentication = enabled, want disabled/);
+});
+
+test('validate-scenario-artifact rejects security baseline evidence without measured public-beta metadata', () => {
+  const artifact = validArtifact({
+    securityBaseline: {
+      ...validSecurityBaseline(),
+      schemaVersion: '',
+      mode: '',
+      appliedAt: 'not-a-time',
+    },
+  });
+  const errors = [];
+  validateScenarioArtifact(errors, artifact, canonicalScenario());
+  assert.match(errors.join('\n'), /securityBaseline\.schemaVersion = <missing>, want stackkit\.security-baseline\/v1/);
+  assert.match(errors.join('\n'), /securityBaseline\.mode = <missing>, want public-beta/);
+  assert.match(errors.join('\n'), /securityBaseline\.appliedAt must be RFC3339/);
+});
+
 test('validate-scenario-artifact accepts a canonical passing SK-S5 negative guard artifact', () => {
   const errors = [];
   validateScenarioArtifact(errors, validSKS5Artifact(), canonicalSKS5Scenario());
@@ -323,7 +362,26 @@ function validArtifact(overrides = {}) {
     target: {
       publicIp: '203.0.113.10',
     },
+    securityBaseline: validSecurityBaseline(),
     generatedAt: '2026-06-13T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function validSecurityBaseline(overrides = {}) {
+  return {
+    schemaVersion: 'stackkit.security-baseline/v1',
+    status: 'pass',
+    mode: 'public-beta',
+    appliedAt: '2026-06-22T08:00:00Z',
+    controls: {
+      firewall: 'enabled',
+      sshPasswordAuthentication: 'disabled',
+      sshRootLogin: 'key-only',
+      fail2ban: 'enabled',
+      unattendedUpgrades: 'security',
+      sysctl: 'applied',
+    },
     ...overrides,
   };
 }
@@ -552,6 +610,7 @@ function validSKS3Artifact(overrides = {}) {
       provider: 'centron-managed',
       publicIp: '203.0.113.11',
     },
+    securityBaseline: validSecurityBaseline(),
     generatedAt: '2026-06-22T08:00:00.000Z',
     ...overrides,
   };

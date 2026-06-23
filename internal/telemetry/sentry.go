@@ -205,7 +205,7 @@ func captureRemoteSentryFailure(runtime SentryRuntime, message string, options S
 	}
 	timeout := options.FlushTimeout
 	if timeout <= 0 {
-		timeout = 2 * time.Second
+		timeout = 5 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

@@ -406,7 +406,7 @@ func renderCloudreveSessionBridgeHTML(login json.RawMessage, userID, nonce strin
     sessions[userId] = Object.assign({}, login, { settings: login.user && login.user.settings ? login.user.settings : {} });
     localStorage.setItem(key, JSON.stringify(Object.assign({}, current, { current: userId, sessions })));
     localStorage.setItem(bridgeKey, JSON.stringify({ verification: "stackkit-cloudreve-session-bridge", current: userId }));
-    window.location.replace("/");
+    window.location.replace("/home");
   </script>
 </body>
 </html>

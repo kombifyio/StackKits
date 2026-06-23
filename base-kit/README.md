@@ -21,6 +21,7 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 | Password vault | `vaultwarden` | enabled default |
 | Photos | `immich` | server, ML, Postgres, and Redis-compatible cache enabled |
 | Files | `cloudreve` | enabled default document-management provider; `nextcloud` is the configured alternative |
+| Host security baseline | UFW, fail2ban, unattended-upgrades, SSH/sysctl hardening | applied by `stackkit apply` on Ubuntu and recorded in `.stackkit/security-baseline.json` |
 
 PocketID is no longer optional in the Base Kit default: until another passkey-capable identity provider exists, TinyAuth is generated with a PocketID OIDC provider and PocketID is provisioned as the local IdP. `admin-bootstrap`, Smart Home, and AI remain planned or opt-in until their modules can create a working first user and pass the same smoke path.
 
@@ -101,7 +102,7 @@ These are deliberate scope boundaries, not hidden defaults:
 - Vaultwarden is enabled by default, receives a generated admin token, verifies that token through the admin endpoint, uses PHC+B64 runtime storage, and records a controlled break-glass posture in `SetupRun` evidence. Native app-local Owner account provisioning remains a beta limitation; the default access boundary is TinyAuth/PocketID in front of the app, and the admin token is not the PocketID Owner login.
 - Jellyfin/media and Dockge are opt-in/manual until their first-run UX matches the default path.
 - The Coolify-managed L3 application layer now has a strict generated bootstrap contract. Direct Docker Compose starts for StackKit-owned/default L3 apps are invalid managed release evidence; product-bundled L3 apps must be manageable selected-PaaS apps with platform external IDs in state. User-installed apps outside StackKit manifests are state-unmanaged.
-- `security-baseline`, `admin-bootstrap`, and `login-gateway` are planned to become mandatory defaults; the roadmap for that lives in the accepted ADRs (the former "V6 target" document was folded into them).
+- The host `security-baseline` is mandatory for BaseKit beta release evidence. `admin-bootstrap` and broader login-gateway follow-ups remain tracked in the roadmap.
 
 ## Architecture
 
@@ -130,12 +131,11 @@ Coolify proxy as the router (accepted adapter exception).
 
 Security defaults currently covered by generated resources:
 
+- `stackkit apply` configures the Ubuntu host baseline: UFW denies incoming traffic except SSH/80/443, fail2ban protects SSH, unattended-upgrades applies security updates, SSH password authentication is disabled, root transport remains key-only for provider leases, and sysctl network/kernel hardening is applied.
 - Docker socket access goes through `tecnativa/docker-socket-proxy`.
 - Traefik uses Docker discovery through the socket proxy.
 - Service routes are label-driven from CUE module contracts.
 - Secrets and user credentials are generated, not hard-coded.
-
-Host hardening (`UFW`, `fail2ban`, SSH hardening, unattended upgrades) is planned under `security-baseline` and is not part of the verified Docker-only default yet.
 
 ## Development Gates
 

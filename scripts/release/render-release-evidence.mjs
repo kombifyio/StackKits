@@ -101,6 +101,16 @@ const CANONICAL_SCENARIOS = [
     pendingGate: 'SK-S5 missing-mail negative scenario is pending released-archive evidence.',
   },
 ];
+const SECURITY_BASELINE_SCENARIOS = new Set(['SK-S1', 'SK-S2', 'SK-S3']);
+const SECURITY_BASELINE_SCHEMA_VERSION = 'stackkit.security-baseline/v1';
+const SECURITY_BASELINE_MODE = 'public-beta';
+const REQUIRED_SECURITY_BASELINE_CONTROLS = new Map([
+  ['firewall', 'enabled'],
+  ['sshPasswordAuthentication', 'disabled'],
+  ['fail2ban', 'enabled'],
+  ['unattendedUpgrades', 'security'],
+  ['sysctl', 'applied'],
+]);
 
 const ALLOWED_BROWSER_FAILURE_PHASES = new Set([
   'wrapper',
@@ -338,6 +348,7 @@ async function loadScenarioArtifactEvidence(artifactPath) {
       }
     }
   }
+  issues.push(...scenarioSecurityBaselineIssues(scenarioId, artifact.securityBaseline));
 
   const passed = status === 'pass' && issues.length === 0;
   return {
@@ -345,10 +356,46 @@ async function loadScenarioArtifactEvidence(artifactPath) {
     source: 'homelab-artifact',
     status: passed ? 'pass' : 'fail',
     summary: passed
-      ? `${scenarioId} Homelab artifact passed with ${expectedHealthChecks.length} observed simulation health checks, ${expectedSetupActions.length} setup action evidence entries, and ${platformAppRefCount} platform app refs.`
+      ? `${scenarioId} Homelab artifact passed with ${expectedHealthChecks.length} observed simulation health checks, ${expectedSetupActions.length} setup action evidence entries, ${platformAppRefCount} platform app refs, and security baseline evidence.`
       : `${scenarioId} Homelab artifact is incomplete or failing; ${issues.join('; ')}.`,
     url: artifactPath,
   };
+}
+
+function scenarioSecurityBaselineIssues(scenarioId, securityBaseline) {
+  if (!SECURITY_BASELINE_SCENARIOS.has(scenarioId)) return [];
+  const issues = [];
+  if (!securityBaseline || typeof securityBaseline !== 'object' || Array.isArray(securityBaseline)) {
+    return ['securityBaseline is missing'];
+  }
+  if (String(securityBaseline.schemaVersion || '').trim() !== SECURITY_BASELINE_SCHEMA_VERSION) {
+    issues.push(`securityBaseline.schemaVersion=${securityBaseline.schemaVersion || 'missing'}`);
+  }
+  if (String(securityBaseline.mode || '').trim() !== SECURITY_BASELINE_MODE) {
+    issues.push(`securityBaseline.mode=${securityBaseline.mode || 'missing'}`);
+  }
+  if (!Number.isFinite(Date.parse(String(securityBaseline.appliedAt || '').trim()))) {
+    issues.push('securityBaseline.appliedAt is missing or invalid');
+  }
+  if (String(securityBaseline.status || '').trim() !== 'pass') {
+    issues.push(`securityBaseline is ${securityBaseline.status || 'missing'}`);
+  }
+  const controls = securityBaseline.controls;
+  if (!controls || typeof controls !== 'object' || Array.isArray(controls)) {
+    issues.push('securityBaseline.controls is missing');
+    return issues;
+  }
+  for (const [key, want] of REQUIRED_SECURITY_BASELINE_CONTROLS.entries()) {
+    const got = String(controls[key] || '').trim();
+    if (got !== want) {
+      issues.push(`securityBaseline.controls.${key}=${got || 'missing'}`);
+    }
+  }
+  const rootLogin = String(controls.sshRootLogin || '').trim();
+  if (rootLogin !== 'key-only' && rootLogin !== 'disabled') {
+    issues.push(`securityBaseline.controls.sshRootLogin=${rootLogin || 'missing'}`);
+  }
+  return issues;
 }
 
 function onDemandSetupActionEvidence(artifact) {

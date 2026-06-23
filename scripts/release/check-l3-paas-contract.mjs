@@ -205,6 +205,12 @@ async function validateGeneratedFiles(generatedFiles, failures) {
     if (!/provider\s+"docker"\s*\{[\s\S]*?host\s*=\s*var\.docker_host\s*!=\s*""\s*\?\s*var\.docker_host\s*:\s*"unix:\/\/\/var\/run\/docker\.sock"[\s\S]*?\}/.test(text)) {
       failures.push(`${file}: Docker provider must use var.docker_host so Fresh-VM Coolify installs use the same daemon endpoint as StackKit`);
     }
+    if (
+      text.includes('COOLIFY_SYSTEMCTL_SHIM/docker') &&
+      !/DOCKER_HOST="\$\{var\.docker_host\}"\s+exec\s+"\\\$real"\s+"\\\$@"/.test(text)
+    ) {
+      failures.push(`${file}: Coolify installer Docker shim must force var.docker_host for background docker compose invocations`);
+    }
     if (!/l3_platform_adapter\s*=\s*local\.platform_fallback_standalone\s*\?\s*"none"\s*:\s*var\.paas/.test(text)) {
       failures.push(`${file}: generated default StackKit-owned L3 app manifests must resolve through var.paas unless explicit fallback is enabled`);
     }
@@ -286,6 +292,13 @@ async function validateGeneratedFiles(generatedFiles, failures) {
     }
     if (!/--providers\.docker\.endpoint=/.test(text) || !/host\.docker\.internal/.test(text)) {
       failures.push(`${file}: Coolify proxy must point Traefik's Docker provider at the generated Docker host endpoint for Fresh-VM/Docker-in-Docker rollouts`);
+    }
+    if (
+      !/expected_endpoint="\$\(stackkit_coolify_proxy_docker_endpoint\)"/.test(text) ||
+      !/current_endpoint="\$\(stackkit_docker inspect coolify-proxy/.test(text) ||
+      !/\[ "\$current_endpoint" != "\$expected_endpoint" \]/.test(text)
+    ) {
+      failures.push(`${file}: Coolify proxy reconcile must compare the running Docker provider endpoint with the generated endpoint, not only reject unix:///var/run/docker.sock`);
     }
     if (!/STACKKIT_COOLIFY_SERVER_PUBLIC_KEY=/.test(text) || !/authorized_keys/.test(text) || !/server_settings set is_reachable = true, is_usable = true/.test(text)) {
       failures.push(`${file}: Coolify bootstrap must authorize and mark the default server usable before strict app deployment can pass`);

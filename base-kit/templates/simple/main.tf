@@ -811,6 +811,7 @@ locals {
   use_step_ca    = local.deploy_step_ca
   tls_label_name  = local.use_step_ca ? "tls" : "tls.certresolver"
   tls_label_value = local.use_step_ca ? "true" : "letsencrypt"
+  coolify_service_router_priority = 500
 
   tinyauth_session_secret_effective = var.enable_tinyauth ? (var.tinyauth_session_secret != "" ? var.tinyauth_session_secret : try(random_password.tinyauth_session_secret[0].result, "")) : ""
   vaultwarden_admin_token_effective = var.enable_vaultwarden ? (var.vaultwarden_admin_token != "" ? var.vaultwarden_admin_token : try(random_password.vaultwarden_admin[0].result, "")) : ""
@@ -854,6 +855,16 @@ locals {
   files_provider_effective = lower(var.files_provider) == "nextcloud" || (var.enable_nextcloud && !var.enable_cloudreve) ? "nextcloud" : "cloudreve"
   cloudreve_enabled        = var.enable_files && local.files_provider_effective == "cloudreve"
   nextcloud_enabled        = var.enable_files && local.files_provider_effective == "nextcloud"
+  coolify_route_ports = {
+    stackkit_hub    = 80
+    stackkit_server = 8082
+    kuma            = local.is_host ? local.host_ports.kuma : 3001
+    whoami          = local.is_host ? local.host_ports.whoami : 80
+    vaultwarden     = local.is_host ? local.host_ports.vaultwarden : 80
+    jellyfin        = local.is_host ? local.host_ports.jellyfin : 8096
+    immich          = local.is_host ? local.host_ports.immich : 2283
+    files           = local.cloudreve_enabled ? (local.is_host ? local.host_ports.cloudreve : 5212) : (local.is_host ? local.host_ports.nextcloud : 80)
+  }
 
   setup_immich_url = local.is_host ? "http://127.0.0.1:${local.host_ports.immich}" : (local.rp_coolify ? "http://immich-server:2283" : "http://immich:2283")
   setup_pocketid_url = local.is_host ? "http://127.0.0.1:${local.host_ports.pocketid}" : "http://pocketid:1411"
@@ -888,6 +899,12 @@ locals {
           - "traefik.enable=true"
           - "traefik.http.routers.kuma.rule=Host(`${local.domains.kuma}`)"
           - "traefik.http.routers.kuma.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.kuma.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.kuma.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.kuma.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1058,6 +1075,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.kuma.rule=Host(`${local.domains.kuma}`)"
           - "traefik.http.routers.kuma.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.kuma.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.kuma.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.kuma.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1231,6 +1254,12 @@ locals {
           - "traefik.enable=true"
           - "traefik.http.routers.whoami.rule=Host(`${local.domains.whoami}`)"
           - "traefik.http.routers.whoami.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.whoami.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.whoami.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.whoami.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1254,6 +1283,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.whoami.rule=Host(`${local.domains.whoami}`)"
           - "traefik.http.routers.whoami.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.whoami.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.whoami.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.whoami.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1303,6 +1338,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.vaultwarden.rule=Host(`${local.domains.vault}`)"
           - "traefik.http.routers.vaultwarden.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.vaultwarden.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.vaultwarden.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.vaultwarden.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1350,6 +1391,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.vaultwarden.rule=Host(`${local.domains.vault}`)"
           - "traefik.http.routers.vaultwarden.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.vaultwarden.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.vaultwarden.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.vaultwarden.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1397,6 +1444,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.jellyfin.rule=Host(`${local.domains.media}`)"
           - "traefik.http.routers.jellyfin.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.jellyfin.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.jellyfin.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.jellyfin.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1435,6 +1488,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.jellyfin.rule=Host(`${local.domains.media}`)"
           - "traefik.http.routers.jellyfin.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.jellyfin.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.jellyfin.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.jellyfin.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1483,6 +1542,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.cloudreve.rule=Host(`${local.domains.files}`)"
           - "traefik.http.routers.cloudreve.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.cloudreve.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.cloudreve.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.cloudreve.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1620,6 +1685,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.cloudreve.rule=Host(`${local.domains.files}`)"
           - "traefik.http.routers.cloudreve.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.cloudreve.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.cloudreve.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.cloudreve.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1674,6 +1745,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.nextcloud.rule=Host(`${local.domains.files}`)"
           - "traefik.http.routers.nextcloud.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.nextcloud.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.nextcloud.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.nextcloud.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1769,6 +1846,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.immich.rule=Host(`${local.domains.photos}`)"
           - "traefik.http.routers.immich.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.immich.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.immich.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.immich.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -1882,6 +1965,12 @@ locals {
           - "traefik.docker.network=${local.routing_network}"
           - "traefik.http.routers.immich.rule=Host(`${local.domains.photos}`)"
           - "traefik.http.routers.immich.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.immich.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.immich.tls=true"
+%{endif~}
 %{if var.enable_https~}
           - "traefik.http.routers.immich.${local.tls_label_name}=${local.tls_label_value}"
 %{endif~}
@@ -5416,6 +5505,9 @@ case "\$image" in
     fi
     ;;
 esac
+if [ -n "${var.docker_host}" ]; then
+  DOCKER_HOST="${var.docker_host}" exec "\$real" "\$@"
+fi
 exec "\$real" "\$@"
 EOS
         chmod +x "$COOLIFY_SYSTEMCTL_SHIM/docker"
@@ -5905,6 +5997,8 @@ services:
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
 %{endif~}
 %{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+      - --entrypoints.https.http.tls.domains[0].main=${var.domain}
+      - --entrypoints.https.http.tls.domains[0].sans=*.${var.domain}
       - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${var.dns_provider}
       - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
@@ -5930,6 +6024,19 @@ services:
 %{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "namecheap"~}
       - NAMECHEAP_API_KEY=${var.dns_api_token}
       - NAMECHEAP_API_USER=${var.acme_email}
+%{endif~}
+    labels:
+      - "traefik.enable=true"
+      - "coolify.managed=true"
+      - "coolify.proxy=true"
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+      - "traefik.http.routers.stackkit-wildcard-cert.rule=Host(`${var.domain}`)"
+      - "traefik.http.routers.stackkit-wildcard-cert.entrypoints=https"
+      - "traefik.http.routers.stackkit-wildcard-cert.service=api@internal"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls=true"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].main=${var.domain}"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].sans=*.${var.domain}"
 %{endif~}
     ports:
       - "80:80"
@@ -5969,9 +6076,10 @@ EOS
         grep -q -- "--providers.file.directory=/traefik/dynamic" "$PROXY_COMPOSE" || return 0
         grep -q -- "/data/coolify/proxy/dynamic:/traefik/dynamic:ro" "$PROXY_COMPOSE" || return 0
         if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+          expected_endpoint="$(stackkit_coolify_proxy_docker_endpoint)"
           current_endpoint="$(stackkit_docker inspect coolify-proxy --format '{{"{{"}}range .Config.Cmd{{"}}"}}{{"{{"}}println .{{"}}"}}{{"{{"}}end{{"}}"}}' 2>/dev/null | sed -n 's/^--providers\.docker\.endpoint=//p' | tail -n 1 || true)"
-          if [ "$current_endpoint" = "unix:///var/run/docker.sock" ]; then
-            echo "Coolify proxy is running with host-local Docker socket endpoint on a remote Docker target; reconciling proxy endpoint"
+          if [ "$current_endpoint" != "$expected_endpoint" ]; then
+            echo "Coolify proxy Docker provider endpoint is $current_endpoint, want $expected_endpoint; reconciling proxy endpoint"
             return 0
           fi
         fi
@@ -5988,6 +6096,11 @@ EOS
         grep -q -- "--certificatesresolvers.letsencrypt.acme.tlschallenge=true" "$PROXY_COMPOSE" || return 0
 %{endif~}
 %{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+        grep -q -- "--entrypoints.https.http.tls.domains[0].main=${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--entrypoints.https.http.tls.domains[0].sans=*.${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].main=${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].sans=*.${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "traefik.http.routers.stackkit-wildcard-cert.tls.certresolver=letsencrypt" "$PROXY_COMPOSE" || return 0
         grep -q -- "--certificatesresolvers.letsencrypt.acme.dnschallenge=true" "$PROXY_COMPOSE" || return 0
         grep -q -- "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${var.dns_provider}" "$PROXY_COMPOSE" || return 0
 %{endif~}
@@ -6664,6 +6777,7 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.platform_adapter
         host        = local.domains.base
         url         = "${local.proto}://${local.domains.base}"
+        port        = local.coolify_route_ports.stackkit_hub
         composePath = local_file.stackkit_hub_compose[0].filename
         composeYAML = local.stackkit_hub_compose_content
       }] : [],
@@ -6675,6 +6789,7 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.platform_adapter
         host        = local.domains.base
         url         = "${local.proto}://${local.domains.base}/api"
+        port        = local.coolify_route_ports.stackkit_server
         composePath = local_file.stackkit_server_compose[0].filename
         composeYAML = local.stackkit_server_compose_content
       }] : [],
@@ -6687,6 +6802,7 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.platform_adapter
         host        = local.domains.kuma
         url         = "${local.proto}://${local.domains.kuma}"
+        port        = local.coolify_route_ports.kuma
         composePath = local_file.kuma_compose[0].filename
         composeYAML = local.kuma_compose_content
         setupPolicy = var.setup_policy_kuma
@@ -6709,6 +6825,7 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.platform_adapter
         host        = local.domains.whoami
         url         = "${local.proto}://${local.domains.whoami}"
+        port        = local.coolify_route_ports.whoami
         composePath = local_file.whoami_compose[0].filename
         composeYAML = local.whoami_compose_content
         setupPolicy = var.setup_policy_whoami
@@ -6724,6 +6841,7 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.l3_platform_adapter
         host        = local.domains.vault
         url         = "${local.proto}://${local.domains.vault}"
+        port        = local.coolify_route_ports.vaultwarden
         composePath = local_file.vaultwarden_compose[0].filename
         composeYAML = local.vaultwarden_compose_content
         setupPolicy = var.setup_policy_vaultwarden
@@ -6747,6 +6865,7 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.l3_platform_adapter
         host        = local.domains.media
         url         = "${local.proto}://${local.domains.media}"
+        port        = local.coolify_route_ports.jellyfin
         composePath = local_file.jellyfin_compose[0].filename
         composeYAML = local.jellyfin_compose_content
       }] : [],
@@ -6759,6 +6878,7 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.l3_platform_adapter
         host        = local.domains.photos
         url         = "${local.proto}://${local.domains.photos}"
+        port        = local.coolify_route_ports.immich
         composePath = local_file.immich_compose[0].filename
         composeYAML = local.immich_compose_content
         setupPolicy = var.setup_policy_immich
@@ -6782,6 +6902,8 @@ resource "local_file" "platform_l3_manifest" {
         managedBy   = local.l3_platform_adapter
         host        = local.domains.files
         url         = local.files_entry_url
+        routeUrl    = "${local.proto}://${local.domains.files}"
+        port        = local.coolify_route_ports.files
         composePath = local_file.files_compose[0].filename
         composeYAML = local.files_compose_content
         setupPolicy = var.setup_policy_files

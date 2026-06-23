@@ -67,6 +67,7 @@ type AppManifest struct {
 	Port        int                 `json:"port,omitempty"`
 	Host        string              `json:"host,omitempty"`
 	URL         string              `json:"url,omitempty"`
+	RouteURL    string              `json:"routeUrl,omitempty"`
 	Auth        string              `json:"auth,omitempty"`
 	HealthPath  string              `json:"healthPath,omitempty"`
 	ComposePath string              `json:"composePath"`

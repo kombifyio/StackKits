@@ -4,7 +4,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CANONICAL_RELEASE_SCENARIOS = new Set(['SK-S1', 'SK-S2', 'SK-S3', 'SK-S5']);
+const SECURITY_BASELINE_SCENARIOS = new Set(['SK-S1', 'SK-S2', 'SK-S3']);
+const SECURITY_BASELINE_SCHEMA_VERSION = 'stackkit.security-baseline/v1';
+const SECURITY_BASELINE_MODE = 'public-beta';
 const VALID_ARTIFACT_STATUS = new Set(['pass', 'passed', 'success', 'succeeded']);
+const REQUIRED_SECURITY_BASELINE_CONTROLS = new Map([
+  ['firewall', 'enabled'],
+  ['sshPasswordAuthentication', 'disabled'],
+  ['fail2ban', 'enabled'],
+  ['unattendedUpgrades', 'security'],
+  ['sysctl', 'applied'],
+]);
 const SYSTEM_PLATFORM_APPS_BY_SERVICE_KEY = new Map([
   ['base', 'stackkit-hub'],
   ['kuma', 'uptime-kuma'],
@@ -62,6 +72,7 @@ export function validateScenarioArtifact(errors, artifact, scenario) {
   validateSimulationStatus(errors, artifact.simulationStatus, scenario?.expected?.simulation || {}, artifact);
   validateReachability(errors, artifact, scenario);
   validatePlatformAppEvidence(errors, artifact, scenario);
+  validateSecurityBaseline(errors, artifact.securityBaseline, scenarioId);
 }
 
 function validateProfile(errors, profile, expectedProfile, scenarioId) {
@@ -451,6 +462,43 @@ function platformAppEvidenceAcceptable(status, setupPolicy) {
     return true;
   }
   return setupPolicy === 'on_demand' && normalizedStatus === 'deploy:accepted';
+}
+
+function validateSecurityBaseline(errors, securityBaseline, scenarioId) {
+  if (!SECURITY_BASELINE_SCENARIOS.has(scenarioId)) return;
+  if (!securityBaseline || typeof securityBaseline !== 'object' || Array.isArray(securityBaseline)) {
+    errors.push('securityBaseline must be present for canonical rollout scenarios');
+    return;
+  }
+  if (stringValue(securityBaseline.schemaVersion) !== SECURITY_BASELINE_SCHEMA_VERSION) {
+    errors.push(
+      `securityBaseline.schemaVersion = ${securityBaseline.schemaVersion || '<missing>'}, want ${SECURITY_BASELINE_SCHEMA_VERSION}`,
+    );
+  }
+  if (stringValue(securityBaseline.mode) !== SECURITY_BASELINE_MODE) {
+    errors.push(`securityBaseline.mode = ${securityBaseline.mode || '<missing>'}, want ${SECURITY_BASELINE_MODE}`);
+  }
+  if (!Number.isFinite(Date.parse(stringValue(securityBaseline.appliedAt)))) {
+    errors.push('securityBaseline.appliedAt must be RFC3339');
+  }
+  if (stringValue(securityBaseline.status) !== 'pass') {
+    errors.push(`securityBaseline.status = ${securityBaseline.status || '<missing>'}, want pass`);
+  }
+  const controls = securityBaseline.controls;
+  if (!controls || typeof controls !== 'object' || Array.isArray(controls)) {
+    errors.push('securityBaseline.controls must be an object');
+    return;
+  }
+  for (const [key, want] of REQUIRED_SECURITY_BASELINE_CONTROLS.entries()) {
+    const got = stringValue(controls[key]);
+    if (got !== want) {
+      errors.push(`securityBaseline.controls.${key} = ${got || '<missing>'}, want ${want}`);
+    }
+  }
+  const rootLogin = stringValue(controls.sshRootLogin);
+  if (rootLogin !== 'key-only' && rootLogin !== 'disabled') {
+    errors.push(`securityBaseline.controls.sshRootLogin = ${rootLogin || '<missing>'}, want key-only or disabled`);
+  }
 }
 
 function normalizedPolicy(value) {
