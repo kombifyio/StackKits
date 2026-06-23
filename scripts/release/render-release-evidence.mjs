@@ -351,12 +351,13 @@ async function loadScenarioArtifactEvidence(artifactPath) {
   issues.push(...scenarioSecurityBaselineIssues(scenarioId, artifact.securityBaseline));
 
   const passed = status === 'pass' && issues.length === 0;
+  const securityBaselineSummary = SECURITY_BASELINE_SCENARIOS.has(scenarioId) ? ', and security baseline evidence' : '';
   return {
     scenarioId,
     source: 'homelab-artifact',
     status: passed ? 'pass' : 'fail',
     summary: passed
-      ? `${scenarioId} Homelab artifact passed with ${expectedHealthChecks.length} observed simulation health checks, ${expectedSetupActions.length} setup action evidence entries, ${platformAppRefCount} platform app refs, and security baseline evidence.`
+      ? `${scenarioId} Homelab artifact passed with ${expectedHealthChecks.length} observed simulation health checks, ${expectedSetupActions.length} setup action evidence entries, ${platformAppRefCount} platform app refs${securityBaselineSummary}.`
       : `${scenarioId} Homelab artifact is incomplete or failing; ${issues.join('; ')}.`,
     url: artifactPath,
   };
@@ -549,6 +550,48 @@ function mergeRequiredScenarioEvidence(values) {
     result.push(byID.get(scenarioId));
   }
   return result;
+}
+
+function securityBaselineReleaseCheck(scenarioEvidence) {
+  const pending = [];
+  const failed = [];
+  for (const scenarioId of SECURITY_BASELINE_SCENARIOS) {
+    const evidence = scenarioEvidence.find((item) => item.scenarioId === scenarioId);
+    if (!evidence) {
+      pending.push(scenarioId);
+      continue;
+    }
+    if (evidence.status === 'pass') {
+      if (evidence.source === 'homelab-artifact') continue;
+      pending.push(`${scenarioId} homelab artifact proof`);
+      continue;
+    }
+    if (evidence.status === 'fail') {
+      failed.push(scenarioId);
+    } else {
+      pending.push(scenarioId);
+    }
+  }
+
+  if (failed.length > 0) {
+    return {
+      status: 'fail',
+      summary: `Host security baseline evidence failed or is incomplete for ${failed.join(', ')}${
+        pending.length > 0 ? `; pending ${pending.join(', ')}` : ''
+      }.`,
+    };
+  }
+  if (pending.length > 0) {
+    return {
+      status: 'pending',
+      summary: `Host security baseline evidence is pending for ${pending.join(', ')}.`,
+    };
+  }
+  return {
+    status: 'pass',
+    summary:
+      'SK-S1, SK-S2, and SK-S3 released-content artifacts include measured public-beta host security baseline evidence.',
+  };
 }
 
 function mergePendingGates(values, scenarioEvidence) {
@@ -2126,6 +2169,7 @@ async function main() {
       publicExport: checkFromMap(opts.checks, 'publicExport', 'pending'),
       archiveValidation: checkFromMap(opts.checks, 'archiveValidation', 'pending'),
       securityScans: checkFromMap(opts.checks, 'securityScans', 'pending'),
+      securityBaseline: securityBaselineReleaseCheck(mergedScenarioEvidence),
       liveInstallerSmoke: checkFromMap(opts.checks, 'liveInstallerSmoke', 'pending'),
       freshUbuntuBaseKit: checkFromMap(opts.checks, 'freshUbuntuBaseKit', 'pending'),
       browserPreflight: opts.checks.has('browserPreflight')

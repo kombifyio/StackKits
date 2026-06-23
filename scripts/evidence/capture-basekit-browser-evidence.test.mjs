@@ -343,6 +343,27 @@ test('content checks return to their service route after the owner login flow', 
   assert.equal(navigations[0].options.waitUntil, 'domcontentloaded');
 });
 
+test('Immich evidence must be verified on the Photos service origin', async () => {
+  let waitCount = 0;
+  await assert.rejects(
+    verifyImmichDemoAssets(
+      {
+        url: () => 'http://id.home.localhost/authorize?client_id=stackkit-immich',
+        waitForLoadState: async () => {},
+        waitForTimeout: async () => {
+          waitCount += 1;
+        },
+      },
+      Date.now() + 1,
+      'owner@example.com',
+      false,
+      'http://photos.home.localhost/photos',
+    ),
+    /want http:\/\/photos\.home\.localhost/,
+  );
+  assert.ok(waitCount >= 1);
+});
+
 test('verifyOwnerPasskeyCredential proves WebAuthn credential creation', async () => {
   const evidence = await verifyOwnerPasskeyCredential({
     enabled: true,

@@ -53,6 +53,7 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   assert.equal(evidence.release.tag, 'v0.0.1');
   assert.equal(evidence.checks.publicExport.status, 'pass');
   assert.equal(evidence.checks.archiveValidation.status, 'pass');
+  assert.equal(evidence.checks.securityBaseline.status, 'pending');
   assert.equal(evidence.checks.liveInstallerSmoke.status, 'pending');
   assert.equal(evidence.checks.browserPreflight.status, 'pending');
   assert.equal(evidence.checks.browserEvidence.status, 'pending');
@@ -114,6 +115,9 @@ test('publish-oss can import production scenario evidence artifacts', async () =
   assert.match(workflow, /gh run view "\$SECURITY_SCAN_RUN_ID"/);
   assert.match(workflow, /securityScans=pass,Security workflow passed for the release source commit/);
   assert.match(workflow, /Security workflow SHA mismatch/);
+  assert.match(workflow, /Finalize Release Evidence/);
+  assert.match(workflow, /public-release-evidence-dist/);
+  assert.match(workflow, /timeout 12m node scripts\/release\/verify-release-attestations\.mjs/);
 });
 
 test('public release workflow marks evidence as public', async () => {
@@ -202,6 +206,7 @@ test('render-release-evidence imports passing homelab scenario artifact', async 
   assert.match(scenario.summary, /2 observed simulation health checks/);
   assert.match(scenario.summary, /4 setup action evidence entries/);
   assert.match(scenario.summary, /5 platform app refs/);
+  assert.equal(evidence.checks.securityBaseline.status, 'pending');
   assert.deepEqual(
     evidence.scenarioEvidence.map((item) => [item.scenarioId, item.status]),
     [
@@ -297,6 +302,7 @@ test('render-release-evidence fails homelab artifacts without security baseline 
   const scenario = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S2');
   assert.equal(scenario.status, 'fail');
   assert.match(scenario.summary, /securityBaseline is missing/);
+  assert.equal(evidence.checks.securityBaseline.status, 'fail');
   assert.ok(evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
 });
 
@@ -340,7 +346,45 @@ test('render-release-evidence fails homelab artifacts without measured security 
   assert.match(scenario.summary, /securityBaseline\.schemaVersion=missing/);
   assert.match(scenario.summary, /securityBaseline\.mode=missing/);
   assert.match(scenario.summary, /securityBaseline\.appliedAt is missing or invalid/);
+  assert.equal(evidence.checks.securityBaseline.status, 'fail');
   assert.ok(evidence.pendingGates.some((gate) => gate.includes('SK-S2')));
+});
+
+test('render-release-evidence promotes security baseline check only after SK-S1 SK-S2 and SK-S3 artifacts pass', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-security-baseline-pass-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifactPaths = [];
+  for (const scenarioId of ['SK-S1', 'SK-S2', 'SK-S3']) {
+    const artifactPath = path.join(dir, `${scenarioId}-homelab.json`);
+    await writeFile(artifactPath, JSON.stringify(homelabArtifact({ scenarioId })));
+    artifactPaths.push(artifactPath);
+  }
+
+  const output = path.join(dist, 'release-evidence.json');
+  const args = [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+  ];
+  for (const artifactPath of artifactPaths) {
+    args.push('--scenario-artifact', artifactPath);
+  }
+  await execFileAsync(process.execPath, args);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.equal(evidence.checks.securityBaseline.status, 'pass');
+  assert.match(evidence.checks.securityBaseline.summary, /SK-S1, SK-S2, and SK-S3/);
 });
 
 test('render-release-evidence fails incomplete homelab simulation status', async () => {

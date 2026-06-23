@@ -9,6 +9,7 @@ const REQUIRED_CHECKS = [
   'publicExport',
   'archiveValidation',
   'securityScans',
+  'securityBaseline',
   'liveInstallerSmoke',
   'freshUbuntuBaseKit',
   'browserPreflight',
@@ -18,6 +19,7 @@ const REQUIRED_CHECKS = [
   'attestationVerification',
 ];
 const REQUIRED_SCENARIOS = ['SK-S1', 'SK-S2', 'SK-S3', 'SK-S5'];
+const SECURITY_BASELINE_SCENARIOS = ['SK-S1', 'SK-S2', 'SK-S3'];
 const REQUIRED_MISSING_ALTERNATIVE_PREFIXES = ['Photos ', 'Vault '];
 const RELEASE_TAG_PATTERN = /^v[0-9]+\.[0-9]+\.[0-9]+([-.].+)?$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -54,6 +56,7 @@ export function validateReleaseEvidence(evidence) {
   validateStringArray(errors, 'missingAlternatives', evidence.missingAlternatives);
   validateRequiredMissingAlternatives(errors, evidence.missingAlternatives);
   validateScenarioEvidence(errors, evidence.scenarioEvidence, evidence.pendingGates);
+  validateSecurityBaselineCheck(errors, evidence.checks, evidence.scenarioEvidence);
 
   return errors;
 }
@@ -164,6 +167,34 @@ function validateScenarioEvidence(errors, scenarioEvidence, pendingGates) {
     if (scenario.status !== 'pass' && !pendingGateMentions(pendingGates, scenarioId)) {
       errors.push(`pendingGates must mention ${scenarioId} while its scenario evidence is ${scenario.status}`);
     }
+  }
+}
+
+function validateSecurityBaselineCheck(errors, checks, scenarioEvidence) {
+  if (!isObject(checks) || !isObject(checks.securityBaseline) || !Array.isArray(scenarioEvidence)) return;
+
+  const byID = new Map(
+    scenarioEvidence
+      .filter((scenario) => isObject(scenario) && isNonEmptyString(scenario.scenarioId))
+      .map((scenario) => [scenario.scenarioId, scenario]),
+  );
+  const allBaselineScenariosPassed = SECURITY_BASELINE_SCENARIOS.every((scenarioId) => {
+    const scenario = byID.get(scenarioId);
+    return scenario?.status === 'pass' && scenario?.source === 'homelab-artifact';
+  });
+
+  if (checks.securityBaseline.status === 'pass') {
+    for (const scenarioId of SECURITY_BASELINE_SCENARIOS) {
+      const scenario = byID.get(scenarioId);
+      if (scenario?.status !== 'pass' || scenario?.source !== 'homelab-artifact') {
+        errors.push(`checks.securityBaseline.status cannot be pass until ${scenarioId} has passing homelab-artifact evidence`);
+      }
+    }
+    return;
+  }
+
+  if (allBaselineScenariosPassed) {
+    errors.push('checks.securityBaseline.status must be pass when SK-S1/SK-S2/SK-S3 have passing homelab-artifact evidence');
   }
 }
 

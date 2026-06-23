@@ -57,6 +57,35 @@ test('validate-release-evidence requires artifact URL for passing canonical scen
   assert.deepEqual(validateReleaseEvidence(evidence), []);
 });
 
+test('validate-release-evidence requires the first-class security baseline check', () => {
+  const evidence = validEvidence();
+  delete evidence.checks.securityBaseline;
+
+  assert.match(validateReleaseEvidence(evidence).join('\n'), /checks\.securityBaseline must be present/);
+});
+
+test('validate-release-evidence ties security baseline pass to SK-S1/SK-S2/SK-S3 artifacts', () => {
+  const evidence = validEvidence();
+  evidence.checks.securityBaseline = { status: 'pass' };
+  assert.match(validateReleaseEvidence(evidence).join('\n'), /cannot be pass until SK-S1/);
+
+  evidence.scenarioEvidence = evidence.scenarioEvidence.map((scenario) =>
+    ['SK-S1', 'SK-S2', 'SK-S3'].includes(scenario.scenarioId)
+      ? {
+          scenarioId: scenario.scenarioId,
+          source: 'homelab-artifact',
+          status: 'pass',
+          url: `artifacts/scenarios/${scenario.scenarioId}/homelab.json`,
+        }
+      : scenario,
+  );
+  evidence.checks.securityBaseline = { status: 'pending' };
+  assert.match(validateReleaseEvidence(evidence).join('\n'), /checks\.securityBaseline\.status must be pass/);
+
+  evidence.checks.securityBaseline = { status: 'pass' };
+  assert.deepEqual(validateReleaseEvidence(evidence), []);
+});
+
 test('validate-release-evidence requires Photos and Vault missing alternatives', () => {
   const evidence = validEvidence();
   evidence.missingAlternatives = ['Photos alternative is not accepted for v0.4 beta'];
@@ -103,6 +132,7 @@ function validEvidence() {
         'publicExport',
         'archiveValidation',
         'securityScans',
+        'securityBaseline',
         'liveInstallerSmoke',
         'freshUbuntuBaseKit',
         'browserPreflight',

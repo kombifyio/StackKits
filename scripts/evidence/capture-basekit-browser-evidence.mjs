@@ -1027,6 +1027,7 @@ async function runCheck(page, config, check, totalDeadline, runtime = {}) {
     await page.waitForLoadState('networkidle', { timeout: Math.min(5000, remaining(checkDeadline)) }).catch(() => {});
     await driveFlow(page, config, check, checkDeadline);
     await returnToEvidenceRoute(page, check, checkDeadline);
+    await settleEvidenceRoute(page, config, check, checkDeadline);
     if (check.evidencePolicy === 'tinyauth-owner-session' || canVerifyWithoutVisibleText(config, check)) {
       observedText = await pageText(page).catch(() => '');
       evidence = await verifyCheckEvidence(page, config, check, observedText, checkDeadline, runtime);
@@ -1040,6 +1041,7 @@ async function runCheck(page, config, check, totalDeadline, runtime = {}) {
       observedText = await waitForExpectedText(page, check, checkDeadline);
       evidence = await verifyCheckEvidence(page, config, check, observedText, checkDeadline, runtime);
     }
+    await settleEvidenceRoute(page, config, check, checkDeadline);
   } catch (error) {
     status = 'fail';
     errorMessage = String(error?.message || error);
@@ -1093,6 +1095,27 @@ function shouldReturnToEvidenceRoute(check) {
     'photos-demo-content',
     'files-demo-content',
     'vault-auth-boundary',
+  ]).has(String(check?.name || ''));
+}
+
+async function settleEvidenceRoute(page, config, check, deadline) {
+  if (!shouldSettleEvidenceRoute(check)) return;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await ensureTimeRemaining(deadline, `${check.name} route settle`);
+    const currentURL = page.url?.() || '';
+    if (sameOrigin(currentURL, check.url)) return;
+    await driveOwnerLoginFlow(page, config, deadline);
+    await page.waitForLoadState('networkidle', { timeout: Math.min(5000, remaining(deadline)) }).catch(() => {});
+    if (sameOrigin(page.url?.() || '', check.url)) return;
+    await returnToEvidenceRoute(page, check, deadline);
+    if (sameOrigin(page.url?.() || '', check.url)) return;
+  }
+  throw new Error(`${check.name} remained on ${page.url?.() || '<unknown>'} after auth route restore; want ${originOf(check.url)}`);
+}
+
+function shouldSettleEvidenceRoute(check) {
+  return new Set([
+    'photos-demo-content',
   ]).has(String(check?.name || ''));
 }
 
@@ -1465,7 +1488,7 @@ async function verifyCheckEvidence(page, config, check, observedText, deadline, 
     return verifyCloudreveDemoFile(page, deadline, demoEnabled);
   }
   if (check.evidencePolicy === 'immich-demo-assets') {
-    return verifyImmichDemoAssets(page, deadline, config.ownerEmail, config.demoData !== 'disabled');
+    return verifyImmichDemoAssets(page, deadline, config.ownerEmail, config.demoData !== 'disabled', check.url);
   }
   if (check.evidencePolicy === 'vault-auth-boundary') {
     return verifyVaultAuthBoundary(page, config, check, deadline);
@@ -1851,9 +1874,15 @@ async function verifyCloudreveDemoFile(page, deadline, demoEnabled = true) {
   throw new Error(lastError || 'Cloudreve browser session evidence was not provable');
 }
 
-async function verifyImmichDemoAssets(page, deadline, ownerEmail = '', demoEnabled = true) {
+async function verifyImmichDemoAssets(page, deadline, ownerEmail = '', demoEnabled = true, expectedURL = '') {
   let lastError = '';
   while (Date.now() < deadline) {
+    if (expectedURL && !sameOrigin(page.url?.() || '', expectedURL)) {
+      lastError = `Immich browser session is on ${page.url?.() || '<unknown>'}, want ${originOf(expectedURL)}`;
+      await page.waitForLoadState('domcontentloaded', { timeout: Math.min(3000, remaining(deadline)) }).catch(() => {});
+      await page.waitForTimeout(500);
+      continue;
+    }
     let result;
     try {
       result = await page.evaluate(async ({ expectedOwnerEmail, demoDeviceId, demoDeviceAssetId, demoFileName, requireDemoAsset }) => {
@@ -2184,6 +2213,7 @@ export {
   relativeEvidencePath,
   returnToEvidenceRoute,
   runOwnerActivatedSetupActions,
+  settleEvidenceRoute,
   unmapLocalPortURL,
   usage,
   verifyCloudreveDemoFile,
