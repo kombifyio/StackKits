@@ -545,17 +545,48 @@ function repoRoot() {
 }
 
 async function main() {
-  const filePath = process.argv[2];
+  const { filePath, scenariosDir } = parseArgs(process.argv.slice(2));
   if (!filePath) {
-    throw new Error('usage: validate-scenario-artifact.mjs <artifacts/scenarios/<id>/homelab.json>');
+    throw new Error('usage: validate-scenario-artifact.mjs [--scenario-root <dir>] <artifacts/scenarios/<id>/homelab.json>');
   }
-  const errors = await validateScenarioArtifactFile(filePath);
+  const errors = await validateScenarioArtifactFile(filePath, scenariosDir ? { scenariosDir } : {});
   if (errors.length > 0) {
     console.error(errors.join('\n'));
     process.exitCode = 1;
     return;
   }
   console.log(`Scenario artifact contract passed: ${filePath}`);
+}
+
+function parseArgs(args) {
+  let filePath = '';
+  let scenariosDir = '';
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--scenario-root') {
+      scenariosDir = stringValue(args[index + 1]);
+      if (!scenariosDir) {
+        throw new Error('--scenario-root requires a directory');
+      }
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith('--scenario-root=')) {
+      scenariosDir = stringValue(arg.slice('--scenario-root='.length));
+      if (!scenariosDir) {
+        throw new Error('--scenario-root requires a directory');
+      }
+      continue;
+    }
+    if (arg.startsWith('-')) {
+      throw new Error(`unknown option: ${arg}`);
+    }
+    if (filePath) {
+      throw new Error(`unexpected argument: ${arg}`);
+    }
+    filePath = arg;
+  }
+  return { filePath, scenariosDir };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

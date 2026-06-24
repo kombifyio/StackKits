@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -195,6 +195,9 @@ test('validate-scenario-artifact rejects access host and route drift', () => {
 
 test('validate-scenario-artifact CLI exits nonzero for malformed artifact', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-scenario-artifact-'));
+  const scenarioRoot = path.join(dir, 'scenarios');
+  await mkdir(scenarioRoot);
+  await writeFile(path.join(scenarioRoot, 'SK-S2.json'), JSON.stringify(canonicalScenario(), null, 2));
   const artifactPath = path.join(dir, 'homelab.json');
   await writeFile(artifactPath, JSON.stringify({
     ...validArtifact(),
@@ -206,7 +209,12 @@ test('validate-scenario-artifact CLI exits nonzero for malformed artifact', asyn
   }, null, 2));
 
   await assert.rejects(
-    execFileAsync(process.execPath, ['scripts/release/validate-scenario-artifact.mjs', artifactPath]),
+    execFileAsync(process.execPath, [
+      'scripts/release/validate-scenario-artifact.mjs',
+      '--scenario-root',
+      scenarioRoot,
+      artifactPath,
+    ]),
     /simulation\.setupActions/,
   );
 });

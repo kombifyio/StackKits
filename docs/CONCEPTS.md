@@ -72,8 +72,9 @@ The tier gates feasibility. It doesn't drive selection — the StackKit defaults
 StackKits separate the deployment engine from the resource profile:
 
 **Deployment Engine:**
-- `simple` = OpenTofu Day-1 only
-- `advanced` = OpenTofu + Terramate (drift detection, Day-2 ops)
+- `bootstrapped` = current BaseKit beta default with packaged OpenTofu, Base Hub, owner bootstrap, and setup-run automation
+- `bare` = infrastructure and selected tools without Base Hub or setup automation
+- `advanced` = bootstrapped surface plus advanced handoff/runtime metadata; Terramate remains an explicit opt-in until its stack templates have release-grade evidence
 
 **Resource Profile** (user-specifiable intent, NOT just hardware detection):
 
@@ -83,7 +84,7 @@ StackKits separate the deployment engine from the resource profile:
 | `standard` | Default, no special constraints | Auto-detected tier applies |
 | `full` | "Enable everything" | All default use cases + monitoring enabled |
 
-Use `--compute-tier low` or `--context pi` for constrained hardware intent. `--mode` is reserved for the deployment engine (`simple` or `advanced`).
+Use `--compute-tier low` or `--context pi` for constrained hardware intent. `--mode` is reserved for the deployment engine (`bare`, `bootstrapped`, or `advanced`).
 
 ### 5. Tool Role = Per-StackKit Per-Tool Assignment
 

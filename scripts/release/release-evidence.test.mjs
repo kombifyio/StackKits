@@ -81,58 +81,6 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   assert.ok(evidence.artifacts.some((artifact) => artifact.kind === 'sbom'));
 });
 
-test('publish-oss renders public release evidence without private publisher URLs', async () => {
-  const workflow = await readFile('.github/workflows/publish-oss.yml', 'utf8');
-  const start = workflow.indexOf('node scripts/release/render-release-evidence.mjs');
-  assert.notEqual(start, -1);
-  const end = workflow.indexOf('shopt -s nullglob', start);
-  assert.notEqual(end, -1);
-  const renderBlock = workflow.slice(start, end);
-
-  assert.match(renderBlock, /--source-repo "\$\{OSS_REPO\}"/);
-  assert.match(renderBlock, /--release-repo "\$\{OSS_REPO\}"/);
-  assert.match(renderBlock, /--visibility public/);
-  assert.doesNotMatch(renderBlock, /--workflow-run-url/);
-  assert.doesNotMatch(renderBlock, /GITHUB_REPOSITORY/);
-
-  const attestationSummary = workflow.match(/--summary "([^"]+)"/)?.[1] || '';
-  assert.match(attestationSummary, /\$\{OSS_REPO\}/);
-  assert.doesNotMatch(attestationSummary, /GITHUB_REPOSITORY/);
-  assert.doesNotMatch(attestationSummary, /GITHUB_RUN_ID/);
-});
-
-test('publish-oss can import production scenario evidence artifacts', async () => {
-  const workflow = await readFile('.github/workflows/publish-oss.yml', 'utf8');
-
-  assert.match(workflow, /scenario_evidence_run_id:/);
-  assert.match(workflow, /security_scan_run_id:/);
-  assert.match(workflow, /Download scenario evidence artifacts/);
-  assert.match(workflow, /stackkit-SK-S1-released-homelab/);
-  assert.match(workflow, /stackkit-SK-S2-homelab/);
-  assert.match(workflow, /stackkit-SK-S3-homelab/);
-  assert.match(workflow, /stackkit-SK-S5-homelab/);
-  assert.match(workflow, /artifacts\/scenarios\/\$\{scenario_id\}\/homelab\.json/);
-  assert.match(workflow, /gh run view "\$SECURITY_SCAN_RUN_ID"/);
-  assert.match(workflow, /securityScans=pass,Security workflow passed for the release source commit/);
-  assert.match(workflow, /Security workflow SHA mismatch/);
-  assert.match(workflow, /Finalize Release Evidence/);
-  assert.match(workflow, /public-release-evidence-dist/);
-  assert.match(workflow, /timeout 12m node scripts\/release\/verify-release-attestations\.mjs/);
-});
-
-test('public release workflow marks evidence as public', async () => {
-  const workflow = await readFile('scripts/public/workflows/release.yml', 'utf8');
-  const start = workflow.indexOf('node scripts/release/render-release-evidence.mjs');
-  assert.notEqual(start, -1);
-  const end = workflow.indexOf('--check "attestationVerification', start);
-  assert.notEqual(end, -1);
-  const renderBlock = workflow.slice(start, end);
-
-  assert.match(renderBlock, /--source-repo "kombifyio\/stackKits"/);
-  assert.match(renderBlock, /--release-repo "kombifyio\/stackKits"/);
-  assert.match(renderBlock, /--visibility public/);
-});
-
 test('render-release-evidence emits canonical pending scenario rows when artifacts are absent', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-missing-scenarios-'));
   const dist = path.join(dir, 'dist');

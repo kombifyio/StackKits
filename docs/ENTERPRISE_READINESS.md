@@ -1,6 +1,6 @@
 # Enterprise Readiness
 
-> Last verified: 2026-05-18
+> Last verified: 2026-06-24
 
 This page is the release contract for Enterprise review of the curated
 StackKits OSS surface. It is intentionally stricter than the general beta
@@ -20,7 +20,7 @@ the public beta install surface until their rollout matrices graduate.
 | --- | --- |
 | Kit | BaseKit only. |
 | Install path | Published `kombifyio/stackKits` release archives or `https://base.stackkit.cc`. |
-| Source surface | Curated `kombifyio/stackKits` mirror only. If the mirror is Internal visibility, describe the package as a customer preview rather than public OSS production. |
+| Source surface | Curated public `kombifyio/stackKits` mirror only. A private-source build is not Enterprise release evidence. |
 | Operating system | Fresh Ubuntu target used by the production-style VM gate. |
 | Toolchain | `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, root `cue.mod`, shared `base/`, BaseKit, and required `modules/` from the release archive. |
 | Application layer | BaseKit platform baseline, protected routes, Node Hub, explicit setup drops, and ready-to-use use cases deployed as Coolify-managed applications with manageable UI. This is not Enterprise-ready until `kombify-StackKits-85x` is closed with evidence. |
