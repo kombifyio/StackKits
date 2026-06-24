@@ -87,6 +87,7 @@ function validEvidence() {
         'publicExport',
         'archiveValidation',
         'securityScans',
+        'securityBaseline',
         'liveInstallerSmoke',
         'freshUbuntuBaseKit',
         'browserPreflight',

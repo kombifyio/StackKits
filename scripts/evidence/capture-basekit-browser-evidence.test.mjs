@@ -352,9 +352,10 @@ test('Immich evidence must be verified on the Photos service origin', async () =
         waitForLoadState: async () => {},
         waitForTimeout: async () => {
           waitCount += 1;
+          await new Promise((resolve) => setTimeout(resolve, 1));
         },
       },
-      Date.now() + 1,
+      Date.now() + 50,
       'owner@example.com',
       false,
       'http://photos.home.localhost/photos',
