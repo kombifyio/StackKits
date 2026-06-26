@@ -605,6 +605,26 @@ package base
 		setupPolicy:      "automatic"
 		default:          false
 	}
+	"smart_home": {
+		key:                     "smart_home"
+		displayName:             "Home Assistant"
+		description:             "Home Assistant smart-home hub"
+		toolName:                "home-assistant"
+		moduleSlug:              "home-assistant"
+		localSlug:               "smart-home"
+		publicSlug:              "smart-home"
+		legacyAliases: []
+		identityPolicy:          "forwardauth"
+		ownerProvisioningPolicy: "required"
+		icon:             "&#127968;"
+		badge:            "L3 · Smart Home"
+		layer:            "L3-application"
+		section:          "Applications"
+		order:            55
+		enableVar:        "enable_home_assistant"
+		setupPolicy:      "manual"
+		default:          false
+	}
 	"traefik": {
 		key:                     "traefik"
 		displayName:             "Traefik"
