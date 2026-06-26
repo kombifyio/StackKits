@@ -33,7 +33,7 @@ export const kits: Kit[] = [
     initCommand: 'stackkit init base-kit',
     features: [
       { title: 'One-command install', body: 'A single shell command bootstraps Docker, OpenTofu, the CLI, and the kit catalog.', icon: 'rocket_launch' },
-      { title: 'Browser-native links', body: 'Generated services open at `*.home.localhost` URLs — no hosts file, no trust store work, no port suffixes.', icon: 'language' },
+      { title: 'Browser-native links', body: 'Generated services open at target-local `*.home.localhost` URLs — no hosts file, no trust store work, no port suffixes.', icon: 'language' },
       { title: 'Identity + dashboard out of the box', body: 'PocketID, TinyAuth, Homepage, Uptime Kuma, and Vaultwarden are wired and routed from the first apply.', icon: 'verified_user' },
       { title: 'Photos via Immich', body: 'Immich + Immich-ML + Postgres + Redis ship with explicit on-demand setup in the verified local path.', icon: 'photo_library' },
       { title: 'Backup ready', body: 'Local Kopia backup flows and a backup controller stub are installed with the CLI.', icon: 'cloud_sync' },

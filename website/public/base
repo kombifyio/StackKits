@@ -348,7 +348,7 @@ info "Step 1/4 -- Installing stackkit CLI + base-kit"
 
 # STACKKIT_NO_BANNER suppresses the duplicate banner from install.sh.
 STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://install.stackkit.cc}"
-STACKKIT_NO_BANNER=1 curl -sSL "$STACKKIT_INSTALL_URL" | sh -s -- base-kit
+curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- base-kit
 
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 
@@ -599,6 +599,7 @@ else
   echo "    2. Create your PocketID admin passkey at ${ID_URL}/setup"
 fi
 echo "    3. Change your auto-generated password"
+echo "    4. Open ${DASH_URL} and click Protect Base Hub after owner setup"
 echo ""
 if [ "$DOMAIN" = "kombify.me" ] && [ -n "$SUBDOMAIN_PREFIX" ]; then
   echo "  DNS: Managed by kombify.me"
@@ -616,7 +617,7 @@ else
 fi
 echo "  Commands:"
 echo "    stackkit status       Check service health"
-echo "    stackkit status       Check service health"
+echo "    stackkit verify --http Run HTTP route checks"
 echo "    stackkit remove       Tear down everything"
 echo ""
 if [ -f "$HOMELAB_DIR/.stackkit/access.json" ]; then

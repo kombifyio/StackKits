@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"text/template"
 )
 
@@ -102,26 +104,22 @@ package {{.PackageName}}
 {{end}}{{end}}}
 
 #Application: {
-{{range $key, $uc := .Application}}	"{{$key}}": {
-		role: "{{$uc.Role}}"
-		{{if $uc.DefaultTool}}defaultTool: "{{$uc.DefaultTool}}"{{end}}
-		{{if $uc.Alternatives}}alternatives: [{{range $i, $a := $uc.Alternatives}}{{if $i}}, {{end}}"{{$a}}"{{end}}]{{end}}
-	}
-{{end}}}
+{{range $block := .ApplicationBlocks}}{{$block}}{{end}}}
 `
 
 type cueRenderCtx struct {
-	Slug             string
-	PackageName      string
-	Metadata         KitMetadata
-	SupportedOS      []string
-	Features         map[string]bool
-	Modes            map[string]ModeDef
-	ComputeTiers     map[string]ComputeTierDef
-	Foundation       map[string]FoundationDef
-	Platform         PlatformField
-	PlatformIsString bool
-	Application      map[string]ApplicationDef
+	Slug              string
+	PackageName       string
+	Metadata          KitMetadata
+	SupportedOS       []string
+	Features          map[string]bool
+	Modes             map[string]ModeDef
+	ComputeTiers      map[string]ComputeTierDef
+	Foundation        map[string]FoundationDef
+	Platform          PlatformField
+	PlatformIsString  bool
+	Application       map[string]ApplicationDef
+	ApplicationBlocks []string
 }
 
 func renderStackfileCUE(def KitDefinition) ([]byte, error) {
@@ -137,18 +135,203 @@ func renderServicesCUE(def KitDefinition) ([]byte, error) {
 func newCueCtx(def KitDefinition) cueRenderCtx {
 	pkg := normalizeCUEPackageName(def.Metadata.Name)
 	return cueRenderCtx{
-		Slug:             def.Metadata.Name,
-		PackageName:      pkg,
-		Metadata:         def.Metadata,
-		SupportedOS:      def.SupportedOS,
-		Features:         def.Features,
-		Modes:            def.Modes,
-		ComputeTiers:     def.ComputeTiers,
-		Foundation:       def.Foundation,
-		Platform:         def.Platform,
-		PlatformIsString: def.Platform.AsString != "",
-		Application:      def.Application,
+		Slug:              def.Metadata.Name,
+		PackageName:       pkg,
+		Metadata:          def.Metadata,
+		SupportedOS:       def.SupportedOS,
+		Features:          def.Features,
+		Modes:             def.Modes,
+		ComputeTiers:      def.ComputeTiers,
+		Foundation:        def.Foundation,
+		Platform:          def.Platform,
+		PlatformIsString:  def.Platform.AsString != "",
+		Application:       def.Application,
+		ApplicationBlocks: renderApplicationBlocks(def.Application),
 	}
+}
+
+func renderApplicationBlocks(application map[string]ApplicationDef) []string {
+	keys := make([]string, 0, len(application))
+	for key := range application {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	blocks := make([]string, 0, len(keys))
+	for _, key := range keys {
+		blocks = append(blocks, renderApplicationBlock(key, application[key]))
+	}
+	return blocks
+}
+
+func renderApplicationBlock(key string, uc ApplicationDef) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "\t%s: {\n", strconv.Quote(key))
+	writeStringField(&b, 2, "role", uc.Role)
+	writeStringField(&b, 2, "defaultTool", uc.DefaultTool)
+	writeStringListField(&b, 2, "alternatives", uc.Alternatives)
+	writeStringField(&b, 2, "description", uc.Description)
+	writeStringField(&b, 2, "package", uc.Package)
+	writeStringField(&b, 2, "defaultRuntimeProfile", uc.DefaultRuntimeProfile)
+	writeRuntimeProfiles(&b, uc.RuntimeProfiles)
+	writeApplicationConnectors(&b, uc.Connectors)
+	writeApplicationProductAPIs(&b, uc.ProductAPIs)
+	writeApplicationRIL(&b, uc.RIL)
+	b.WriteString("\t}\n")
+	return b.String()
+}
+
+func writeRuntimeProfiles(b *strings.Builder, profiles map[string]ApplicationRuntimeProfileDef) {
+	if len(profiles) == 0 {
+		return
+	}
+	writeIndent(b, 2)
+	b.WriteString("runtimeProfiles: {\n")
+	keys := sortedKeys(profiles)
+	for _, key := range keys {
+		profile := profiles[key]
+		writeIndent(b, 3)
+		fmt.Fprintf(b, "%s: {\n", strconv.Quote(key))
+		writeStringField(b, 4, "displayName", profile.DisplayName)
+		writeStringField(b, 4, "description", profile.Description)
+		writeStringField(b, 4, "realization", profile.Realization)
+		writeStringListField(b, 4, "placementModes", profile.PlacementModes)
+		writeStringListField(b, 4, "contexts", profile.Contexts)
+		writeBoolField(b, 4, "managedServerlessEligible", profile.ManagedServerlessEligible)
+		writeBoolField(b, 4, "requiresControlPlane", profile.RequiresControlPlane)
+		writeBoolField(b, 4, "requiresLocalBridge", profile.RequiresLocalBridge)
+		writeStringListField(b, 4, "notes", profile.Notes)
+		writeIndent(b, 3)
+		b.WriteString("}\n")
+	}
+	writeIndent(b, 2)
+	b.WriteString("}\n")
+}
+
+func writeApplicationConnectors(b *strings.Builder, connectors map[string]ApplicationConnectorDef) {
+	if len(connectors) == 0 {
+		return
+	}
+	writeIndent(b, 2)
+	b.WriteString("connectors: {\n")
+	keys := sortedKeys(connectors)
+	for _, key := range keys {
+		connector := connectors[key]
+		writeIndent(b, 3)
+		fmt.Fprintf(b, "%s: {\n", strconv.Quote(key))
+		writeStringField(b, 4, "kind", connector.Kind)
+		writeStringField(b, 4, "name", connector.Name)
+		writeStringField(b, 4, "owner", connector.Owner)
+		writeStringField(b, 4, "endpoint", connector.Endpoint)
+		writeStringField(b, 4, "transport", connector.Transport)
+		writeStringField(b, 4, "auth", connector.Auth)
+		writeBoolField(b, 4, "nativeProduct", connector.NativeProduct)
+		writeStringListField(b, 4, "capabilities", connector.Capabilities)
+		writeIndent(b, 3)
+		b.WriteString("}\n")
+	}
+	writeIndent(b, 2)
+	b.WriteString("}\n")
+}
+
+func writeApplicationProductAPIs(b *strings.Builder, apis map[string]ApplicationProductAPIDef) {
+	if len(apis) == 0 {
+		return
+	}
+	writeIndent(b, 2)
+	b.WriteString("productApis: {\n")
+	keys := sortedKeys(apis)
+	for _, key := range keys {
+		api := apis[key]
+		writeIndent(b, 3)
+		fmt.Fprintf(b, "%s: {\n", strconv.Quote(key))
+		writeStringField(b, 4, "protocol", api.Protocol)
+		writeStringField(b, 4, "basePath", api.BasePath)
+		writeStringField(b, 4, "auth", api.Auth)
+		writeStringField(b, 4, "purpose", api.Purpose)
+		writeIndent(b, 3)
+		b.WriteString("}\n")
+	}
+	writeIndent(b, 2)
+	b.WriteString("}\n")
+}
+
+func writeApplicationRIL(b *strings.Builder, ril *ApplicationRILDef) {
+	if ril == nil || len(ril.Capabilities) == 0 {
+		return
+	}
+	writeIndent(b, 2)
+	b.WriteString("ril: {\n")
+	writeIndent(b, 3)
+	b.WriteString("capabilities: {\n")
+	keys := sortedKeys(ril.Capabilities)
+	for _, key := range keys {
+		capability := ril.Capabilities[key]
+		writeIndent(b, 4)
+		fmt.Fprintf(b, "%s: {\n", strconv.Quote(key))
+		writeStringField(b, 5, "mode", capability.Mode)
+		writeStringField(b, 5, "authority", capability.Authority)
+		writeStringField(b, 5, "source", capability.Source)
+		writeBoolField(b, 5, "requiresApproval", capability.RequiresApproval)
+		writeStringField(b, 5, "evidence", capability.Evidence)
+		writeIndent(b, 4)
+		b.WriteString("}\n")
+	}
+	writeIndent(b, 3)
+	b.WriteString("}\n")
+	writeIndent(b, 2)
+	b.WriteString("}\n")
+}
+
+func writeStringField(b *strings.Builder, indent int, key, value string) {
+	if value == "" {
+		return
+	}
+	writeIndent(b, indent)
+	fmt.Fprintf(b, "%s: %s\n", key, strconv.Quote(value))
+}
+
+func writeBoolField(b *strings.Builder, indent int, key string, value bool) {
+	if !value {
+		return
+	}
+	writeIndent(b, indent)
+	fmt.Fprintf(b, "%s: true\n", key)
+}
+
+func writeStringListField(b *strings.Builder, indent int, key string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	writeIndent(b, indent)
+	fmt.Fprintf(b, "%s: %s\n", key, cueStringList(values))
+}
+
+func cueStringList(values []string) string {
+	var b strings.Builder
+	b.WriteByte('[')
+	for i, value := range values {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(strconv.Quote(value))
+	}
+	b.WriteByte(']')
+	return b.String()
+}
+
+func writeIndent(b *strings.Builder, level int) {
+	for i := 0; i < level; i++ {
+		b.WriteByte('\t')
+	}
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func normalizeCUEPackageName(slug string) string {

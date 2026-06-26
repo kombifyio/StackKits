@@ -10,7 +10,7 @@ package base
 	// Node context (auto-detected or user-specified via --context flag)
 	context?: #NodeContext
 
-	// Deployment mode (simple/advanced)
+	// Install/lifecycle mode (bare/bootstrapped/advanced; legacy simple accepted by Go normalization)
 	deploymentMode?: string
 
 	// Placement axis (Stack-Default intent). Per-unit override at #Module.

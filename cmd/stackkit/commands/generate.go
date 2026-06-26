@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/backupplan"
 	"github.com/kombifyio/stackkits/internal/composition"
 	"github.com/kombifyio/stackkits/internal/config"
 	cueval "github.com/kombifyio/stackkits/internal/cue"
@@ -407,6 +408,30 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 	printSuccess("Generated: terraform.tfvars.json")
 	printWarning("terraform.tfvars.json contains sensitive data (passwords, tokens). Do not commit it to version control.")
 
+	metadataDir := filepath.Join(outputPath, ".stackkit")
+	if err := os.MkdirAll(metadataDir, 0750); err != nil {
+		return fmt.Errorf("failed to create generated metadata directory: %w", err)
+	}
+	compositionData, err := composition.GenerateMetadataJSON(generationSpec, compositionResult)
+	if err != nil {
+		return fmt.Errorf("failed to generate composition metadata: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(metadataDir, "composition.json"), compositionData, 0600); err != nil {
+		return fmt.Errorf("failed to write composition metadata: %w", err)
+	}
+	printSuccess("Generated: .stackkit/composition.json")
+
+	recoveryPlan := backupplan.Build(generationSpec)
+	recoveryData, err := json.MarshalIndent(recoveryPlan, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to generate backup recovery plan: %w", err)
+	}
+	recoveryData = append(recoveryData, '\n')
+	if err := os.WriteFile(filepath.Join(metadataDir, "backup-recovery-plan.json"), recoveryData, 0600); err != nil {
+		return fmt.Errorf("failed to write backup recovery plan: %w", err)
+	}
+	printSuccess("Generated: .stackkit/backup-recovery-plan.json")
+
 	// Print summary
 	files, _ := countFiles(outputPath)
 	fmt.Println()
@@ -442,7 +467,7 @@ func copyOrRenderTemplates(srcDir, dstDir string, spec *models.StackSpec, stackk
 
 func templateKeyForInstallMode(mode string) string {
 	switch {
-	case models.IsExplicitTerramateInstallMode(mode):
+	case models.IsAdvancedLifecycleInstallMode(mode):
 		return models.InstallModeAdvanced
 	default:
 		return models.InstallModeSimpleLegacy

@@ -35,13 +35,17 @@ func IsLegacyInstallMode(mode string) bool {
 	}
 }
 
-func IsExplicitTerramateInstallMode(mode string) bool {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case InstallModeTerramate, InstallModeAdvancedTM:
+func IsAdvancedLifecycleInstallMode(mode string) bool {
+	switch NormalizeInstallMode(mode) {
+	case InstallModeAdvanced:
 		return true
 	default:
 		return false
 	}
+}
+
+func IsExplicitTerramateInstallMode(mode string) bool {
+	return IsAdvancedLifecycleInstallMode(mode)
 }
 
 func (s *StackSpec) EffectiveInstallMode() string {
@@ -52,7 +56,7 @@ func (s *StackSpec) EffectiveInstallMode() string {
 }
 
 func (s *StackSpec) UsesAdvancedIAC() bool {
-	return s != nil && IsExplicitTerramateInstallMode(s.Mode)
+	return s != nil && IsAdvancedLifecycleInstallMode(s.Mode)
 }
 
 func NormalizeSetupPolicy(policy string) string {

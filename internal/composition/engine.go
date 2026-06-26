@@ -44,6 +44,23 @@ type CompositionResult struct {
 	// Placement holds the resolved S1 capability bindings (nil for S2/S3
 	// placements, which StackKits-OSS does not realize — see Warnings).
 	Placement *placement.Result
+	// ControlPlaneHandoffs records enabled package/runtime profiles whose
+	// realization is intentionally owned by Admin/TechStack rather than the
+	// local OSS resolver.
+	ControlPlaneHandoffs []ControlPlaneHandoff
+}
+
+type ControlPlaneHandoff struct {
+	UseCase              string   `json:"useCase" yaml:"useCase"`
+	Tool                 string   `json:"tool" yaml:"tool"`
+	RuntimeProfile       string   `json:"runtimeProfile" yaml:"runtimeProfile"`
+	Realization          string   `json:"realization,omitempty" yaml:"realization,omitempty"`
+	Reason               string   `json:"reason" yaml:"reason"`
+	ProductMCP           string   `json:"productMcp,omitempty" yaml:"productMcp,omitempty"`
+	RequiresControlPlane bool     `json:"requiresControlPlane,omitempty" yaml:"requiresControlPlane,omitempty"`
+	RequiresLocalBridge  bool     `json:"requiresLocalBridge,omitempty" yaml:"requiresLocalBridge,omitempty"`
+	PlacementModes       []string `json:"placementModes,omitempty" yaml:"placementModes,omitempty"`
+	Contexts             []string `json:"contexts,omitempty" yaml:"contexts,omitempty"`
 }
 
 // IdentityConfig holds the resolved identity stack configuration.
@@ -249,21 +266,42 @@ func (e *CompositionEngine) resolveApplication(enabled map[string]bool, result *
 			continue
 		}
 
-		// Enable the default tool for this use case
+		runtimeProfile, profile, profileKnown := e.applicationRuntimeProfile(ucName, ucDef, result)
+
+		// Resolve the selected tool/provider before profile handling so local
+		// module enablement and Control Plane handoff evidence agree.
 		tool := ucDef.DefaultTool
 		if tool == "" {
 			continue
 		}
-
-		// Check for per-service alternative override in spec
-		if alt := e.getServiceAlternative(ucName); alt != "" {
-			// User chose an alternative
+		if alt := e.getApplicationTool(ucName); alt != "" {
 			if containsString(ucDef.Alternatives, alt) {
 				tool = alt
 			} else {
 				result.Warnings = append(result.Warnings,
 					fmt.Sprintf("use case %q: alternative %q not available, using default %q", ucName, alt, tool))
 			}
+		}
+
+		// Managed, hybrid, and external application packages are valid
+		// selections, but their concrete realization is outside the local OSS
+		// resolver. Do not silently fall back to a local Compose/PaaS app.
+		if profileKnown && runtimeProfileNeedsHandoff(profile) {
+			result.ControlPlaneHandoffs = append(result.ControlPlaneHandoffs, ControlPlaneHandoff{
+				UseCase:              ucName,
+				Tool:                 tool,
+				RuntimeProfile:       runtimeProfile,
+				Realization:          strings.ToLower(strings.TrimSpace(profile.Realization)),
+				Reason:               runtimeProfileHandoffReason(profile),
+				ProductMCP:           nativeProductMCPEndpoint(ucDef),
+				RequiresControlPlane: profile.RequiresControlPlane,
+				RequiresLocalBridge:  profile.RequiresLocalBridge,
+				PlacementModes:       append([]string(nil), profile.PlacementModes...),
+				Contexts:             append([]string(nil), profile.Contexts...),
+			})
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("use case %q: runtime profile %q requires runtime handoff; local module deployment skipped", ucName, runtimeProfile))
+			continue
 		}
 
 		if _, ok := e.contracts[tool]; ok {
@@ -619,15 +657,15 @@ func (e *CompositionEngine) isApplicationEnabled(ucName string) bool {
 		return false
 	}
 
-	if e.spec.Services != nil {
-		if svc, ok := e.spec.Services[ucName]; ok {
-			if svcMap, ok := svc.(map[string]any); ok {
-				if enabled, ok := svcMap["enabled"]; ok {
-					if v, ok := enabled.(bool); ok {
-						return v
-					}
-				}
-			}
+	if appMap, ok := e.applicationConfig(ucName); ok {
+		if enabled, ok := boolConfigValue(appMap, "enabled"); ok {
+			return enabled
+		}
+	}
+
+	if svcMap, ok := e.serviceConfig(ucName); ok {
+		if enabled, ok := boolConfigValue(svcMap, "enabled"); ok {
+			return enabled
 		}
 	}
 
@@ -643,21 +681,150 @@ func (e *CompositionEngine) isApplicationEnabled(ucName string) bool {
 	return tier != models.ComputeTierLow
 }
 
-// getServiceAlternative checks if the user specified an alternative tool.
-func (e *CompositionEngine) getServiceAlternative(ucName string) string {
-	if e.spec.Services == nil {
-		return ""
+// getApplicationTool checks if the user specified an alternative tool.
+func (e *CompositionEngine) getApplicationTool(ucName string) string {
+	if appMap, ok := e.applicationConfig(ucName); ok {
+		if tool, ok := stringConfigValue(appMap, "tool"); ok {
+			return tool
+		}
 	}
-	if svc, ok := e.spec.Services[ucName]; ok {
-		if svcMap, ok := svc.(map[string]any); ok {
-			if alt, ok := svcMap["tool"]; ok {
-				if v, ok := alt.(string); ok {
-					return v
-				}
-			}
+	if svcMap, ok := e.serviceConfig(ucName); ok {
+		if tool, ok := stringConfigValue(svcMap, "tool"); ok {
+			return tool
 		}
 	}
 	return ""
+}
+
+func (e *CompositionEngine) applicationRuntimeProfile(ucName string, ucDef models.ApplicationDef, result *CompositionResult) (string, models.ApplicationRuntimeProfileDef, bool) {
+	profileName := ""
+	if appMap, ok := e.applicationConfig(ucName); ok {
+		if selected, ok := stringConfigValue(appMap, "runtimeProfile"); ok {
+			profileName = selected
+		} else if selected, ok := stringConfigValue(appMap, "runtime_profile"); ok {
+			profileName = selected
+		}
+	}
+	if profileName == "" {
+		profileName = strings.TrimSpace(ucDef.DefaultRuntimeProfile)
+	}
+	if profileName == "" {
+		return "", models.ApplicationRuntimeProfileDef{}, false
+	}
+	profile, ok := ucDef.RuntimeProfiles[profileName]
+	if !ok {
+		if len(ucDef.RuntimeProfiles) > 0 {
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("use case %q: runtime profile %q is not declared", ucName, profileName))
+		}
+		return profileName, models.ApplicationRuntimeProfileDef{}, false
+	}
+	return profileName, profile, true
+}
+
+func runtimeProfileNeedsHandoff(profile models.ApplicationRuntimeProfileDef) bool {
+	realization := strings.ToLower(strings.TrimSpace(profile.Realization))
+	return profile.RequiresControlPlane ||
+		profile.RequiresLocalBridge ||
+		realization == "control-plane" ||
+		realization == "hybrid" ||
+		realization == "external"
+}
+
+func runtimeProfileHandoffReason(profile models.ApplicationRuntimeProfileDef) string {
+	realization := strings.ToLower(strings.TrimSpace(profile.Realization))
+	switch {
+	case profile.RequiresControlPlane || realization == "control-plane":
+		return "runtime profile requires Kombify Control Plane realization"
+	case realization == "hybrid":
+		return "runtime profile requires hybrid local plus Control Plane realization"
+	case realization == "external":
+		return "runtime profile is external; existing service connection required"
+	case profile.RequiresLocalBridge:
+		return "runtime profile requires a local bridge managed outside local module deployment"
+	default:
+		return "runtime profile requires runtime handoff"
+	}
+}
+
+func nativeProductMCPEndpoint(ucDef models.ApplicationDef) string {
+	for _, connector := range ucDef.Connectors {
+		if connector.NativeProduct || connector.Kind == "home-assistant-native" {
+			return connector.Endpoint
+		}
+	}
+	return ""
+}
+
+func (e *CompositionEngine) applicationConfig(ucName string) (map[string]any, bool) {
+	if e.spec == nil {
+		return nil, false
+	}
+	return configMapForKey(e.spec.Application, ucName)
+}
+
+func (e *CompositionEngine) serviceConfig(ucName string) (map[string]any, bool) {
+	if e.spec == nil {
+		return nil, false
+	}
+	return configMapForKey(e.spec.Services, ucName)
+}
+
+func configMapForKey(values map[string]any, key string) (map[string]any, bool) {
+	if len(values) == 0 {
+		return nil, false
+	}
+	normalizedKey := normalizeConfigKey(key)
+	for candidate, raw := range values {
+		if normalizeConfigKey(candidate) != normalizedKey {
+			continue
+		}
+		switch value := raw.(type) {
+		case map[string]any:
+			return value, true
+		case map[any]any:
+			converted := make(map[string]any, len(value))
+			for k, v := range value {
+				if s, ok := k.(string); ok {
+					converted[s] = v
+				}
+			}
+			return converted, true
+		}
+	}
+	return nil, false
+}
+
+func boolConfigValue(values map[string]any, key string) (bool, bool) {
+	for candidate, raw := range values {
+		if normalizeConfigKey(candidate) != normalizeConfigKey(key) {
+			continue
+		}
+		value, ok := raw.(bool)
+		return value, ok
+	}
+	return false, false
+}
+
+func stringConfigValue(values map[string]any, key string) (string, bool) {
+	for candidate, raw := range values {
+		if normalizeConfigKey(candidate) != normalizeConfigKey(key) {
+			continue
+		}
+		value, ok := raw.(string)
+		if !ok {
+			return "", false
+		}
+		value = strings.TrimSpace(value)
+		return value, value != ""
+	}
+	return "", false
+}
+
+func normalizeConfigKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "_", "-")
+	return value
 }
 
 func containsString(slice []string, s string) bool {

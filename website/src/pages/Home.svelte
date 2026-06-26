@@ -18,7 +18,7 @@
   const heroFeatures = [
     { icon: 'integration_instructions', title: 'CUE is the contract', body: 'Schemas, defaults, and shape live in CUE. Rollout artifacts are deterministic outputs.' },
     { icon: 'rocket_launch', title: 'OpenTofu under the hood', body: 'Packaged OpenTofu does the heavy lifting. You never touch a tfvars file.' },
-    { icon: 'language', title: '*.home.localhost', body: 'Browser-native local DNS. No hosts edits, no certs, no port suffixes.' },
+    { icon: 'language', title: '*.home.localhost', body: 'Browser-native target-local links. No hosts edits, no certs, no port suffixes.' },
     { icon: 'smart_toy', title: 'Agent-first', body: 'llms.txt, OpenAPI, JSON schemas, MCP connector, prompt Markdown — all in the release.' },
     { icon: 'verified_user', title: 'Identity baked in', body: 'PocketID, TinyAuth, and a routed dashboard from the first apply.' },
     { icon: 'open_in_new', title: 'Apache-2.0 OSS', body: 'CLI defaults: no telemetry, no lock-in. Run it on your hardware, on your terms.' },
@@ -31,7 +31,7 @@
     { kind: 'output' as const, text: '==> Bootstrapping BaseKit defaults...' },
     { kind: 'output' as const, text: '==> apply: 18 services routed, 2 platforms configured' },
     { kind: 'blank' as const },
-    { kind: 'comment' as const, text: 'Hub is live at the browser-native local link' },
+    { kind: 'comment' as const, text: 'Hub is live at the browser-native target-local link' },
     { kind: 'cmd' as const, text: 'open http://base.home.localhost' },
   ]
 </script>
@@ -60,7 +60,7 @@
         </p>
 
         <div class="mb-4">
-          <InstallBlock command={installOneLiner} note="Verified beta BaseKit one-liner — Linux or macOS host, root/sudo access." />
+          <InstallBlock command={installOneLiner} note="Run this on the target server itself — Linux or macOS host, root/sudo access." />
         </div>
 
         <div class="flex flex-wrap items-center gap-3 mt-6">

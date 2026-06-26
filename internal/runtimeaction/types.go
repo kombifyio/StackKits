@@ -2,7 +2,10 @@
 // shared by TechStack, StackKits, and Simulate.
 package runtimeaction
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const (
 	TargetStackKits = "stackkits"
@@ -61,6 +64,8 @@ type Request struct {
 	TofuDir            string              `json:"tofu_dir,omitempty"`
 	UnifiedPath        string              `json:"unified_path,omitempty"`
 	OwnerSpecBootstrap *OwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
+	RuntimeTarget      *RuntimeTarget      `json:"runtime_target,omitempty"`
+	PlatformNodes      []PlatformNode      `json:"platform_nodes,omitempty"`
 }
 
 type Response struct {
@@ -90,6 +95,101 @@ type OwnerSpecBootstrap struct {
 	Token     string   `json:"token"`
 	ExpiresAt string   `json:"expires_at"`
 	Scopes    []string `json:"scopes,omitempty"`
+}
+
+// RuntimeTarget describes the primary runtime host used by a StackKit rollout.
+// It is the main/foundation node for single-node rollouts and the control
+// target when supplemental platform nodes are attached.
+type RuntimeTarget struct {
+	Host             string `json:"host,omitempty"`
+	PublicIP         string `json:"public_ip,omitempty"`
+	PrivateIP        string `json:"private_ip,omitempty"`
+	User             string `json:"user,omitempty"`
+	Port             int    `json:"port,omitempty"`
+	DockerHost       string `json:"docker_host,omitempty"`
+	KeyPath          string `json:"key_path,omitempty"`
+	PrivateKey       string `json:"private_key,omitempty"`
+	ClientPrivateKey string `json:"client_private_key,omitempty"`
+	Password         string `json:"password,omitempty"`
+}
+
+// PlatformNode carries a real supplemental-node handoff from TechStack into
+// StackKits. It must contain either already-observed platform identities or a
+// bootstrap channel that can register the node with the selected platform.
+type PlatformNode struct {
+	Name      string             `json:"name,omitempty"`
+	Role      string             `json:"role,omitempty"`
+	IP        string             `json:"ip,omitempty"`
+	Host      string             `json:"host,omitempty"`
+	Services  []string           `json:"services,omitempty"`
+	Platform  NodePlatformTarget `json:"platform,omitempty"`
+	Bootstrap *NodeBootstrap     `json:"bootstrap,omitempty"`
+}
+
+type NodePlatformTarget struct {
+	ServerID        string `json:"server_id,omitempty"`
+	DestinationUUID string `json:"destination_uuid,omitempty"`
+	EnvironmentID   string `json:"environment_id,omitempty"`
+	ProjectUUID     string `json:"project_uuid,omitempty"`
+	EnvironmentUUID string `json:"environment_uuid,omitempty"`
+}
+
+func (target *NodePlatformTarget) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		ServerID             string `json:"server_id"`
+		ServerIDCamel        string `json:"serverId"`
+		DestinationUUID      string `json:"destination_uuid"`
+		DestinationUUIDCamel string `json:"destinationUuid"`
+		EnvironmentID        string `json:"environment_id"`
+		EnvironmentIDCamel   string `json:"environmentId"`
+		ProjectUUID          string `json:"project_uuid"`
+		ProjectUUIDCamel     string `json:"projectUuid"`
+		EnvironmentUUID      string `json:"environment_uuid"`
+		EnvironmentUUIDCamel string `json:"environmentUuid"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	target.ServerID = firstNonEmpty(raw.ServerID, raw.ServerIDCamel)
+	target.DestinationUUID = firstNonEmpty(raw.DestinationUUID, raw.DestinationUUIDCamel)
+	target.EnvironmentID = firstNonEmpty(raw.EnvironmentID, raw.EnvironmentIDCamel)
+	target.ProjectUUID = firstNonEmpty(raw.ProjectUUID, raw.ProjectUUIDCamel)
+	target.EnvironmentUUID = firstNonEmpty(raw.EnvironmentUUID, raw.EnvironmentUUIDCamel)
+	return nil
+}
+
+type NodeBootstrap struct {
+	KomodoCoreAddress   string        `json:"komodo_core_address,omitempty"`
+	KomodoOnboardingKey string        `json:"komodo_onboarding_key,omitempty"`
+	SSH                 *SSHBootstrap `json:"ssh,omitempty"`
+}
+
+func (bootstrap *NodeBootstrap) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		KomodoCoreAddress        string        `json:"komodo_core_address"`
+		KomodoCoreAddressCamel   string        `json:"komodoCoreAddress"`
+		KomodoOnboardingKey      string        `json:"komodo_onboarding_key"`
+		KomodoOnboardingKeyCamel string        `json:"komodoOnboardingKey"`
+		SSH                      *SSHBootstrap `json:"ssh"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	bootstrap.KomodoCoreAddress = firstNonEmpty(raw.KomodoCoreAddress, raw.KomodoCoreAddressCamel)
+	bootstrap.KomodoOnboardingKey = firstNonEmpty(raw.KomodoOnboardingKey, raw.KomodoOnboardingKeyCamel)
+	bootstrap.SSH = raw.SSH
+	return nil
+}
+
+type SSHBootstrap struct {
+	Host             string `json:"host,omitempty"`
+	User             string `json:"user,omitempty"`
+	Port             int    `json:"port,omitempty"`
+	KeyPath          string `json:"key_path,omitempty"`
+	KeyPEM           string `json:"key_pem,omitempty"`
+	PrivateKey       string `json:"private_key,omitempty"`
+	ClientPrivateKey string `json:"client_private_key,omitempty"`
+	ProxyJump        string `json:"proxy_jump,omitempty"`
 }
 
 type StackKitOutputs struct {
@@ -150,4 +250,13 @@ func IsStackKitsAction(action Action) bool {
 
 func IsSimulateAction(action Action) bool {
 	return action == ActionSimulateUpdate
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

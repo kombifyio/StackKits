@@ -766,6 +766,27 @@ func knownFailurePatterns() []applyFailurePattern {
 			UserMessage: "Docker daemon lost connection. Restarting Docker...",
 		},
 		{
+			Name: "docker-transient-task-eof",
+			Match: func(stderr string) bool {
+				normalized := strings.ToLower(stderr)
+				return strings.Contains(normalized, "error reading from server: eof") &&
+					(strings.Contains(normalized, "failed to create task for container") ||
+						strings.Contains(normalized, "unavailable: error reading from server: eof"))
+			},
+			Fix: func(ctx context.Context, _ string) error {
+				printInfo("Docker returned a transient EOF while starting a container. Waiting before retry...")
+				timer := time.NewTimer(5 * time.Second)
+				defer timer.Stop()
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-timer.C:
+					return nil
+				}
+			},
+			UserMessage: "Docker returned a transient EOF while starting a container. Retrying the apply...",
+		},
+		{
 			Name: "state-lock",
 			Match: func(stderr string) bool {
 				return strings.Contains(stderr, "Error acquiring the state lock") ||
@@ -899,6 +920,7 @@ func formatApplyError(stderr string) string {
 		{"Error pulling image", "Failed to download a container image (DNS or network issue)."},
 		{"Unable to create network", "Could not create Docker network. Your VPS may not support bridge networking."},
 		{"Cannot connect to the Docker daemon", "Docker is not running. Run 'stackkit prepare' to start it."},
+		{"error reading from server: EOF", "Docker returned a transient connection error while starting a container. Retry the apply; if it repeats, restart Docker and run 'stackkit prepare'."},
 		{"Error acquiring the state lock", "Another deployment operation is in progress. Wait and try again."},
 		{"context deadline exceeded", "Operation timed out. Check if your server has adequate resources."},
 	}

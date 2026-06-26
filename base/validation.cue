@@ -128,8 +128,16 @@ package base
 
 	// When enabled, all backup fields are required
 	if enabled == true {
-		backend:  "restic" | "borgbackup" | "rclone" | *"restic"
-		schedule: string | *"0 3 * * *"
+		engine:   #BackupEngine | *"kopia"
+		backend?: engine
+		schedule: string | *"0 2 * * *"
+		dataClasses: [...#BackupDataClass] | *["config", "secrets", "platform-state", "database", "user-content"]
+
+		_resolvedPolicy: #BackupPolicyForClasses & {
+			classes: dataClasses
+		}
+
+		resilience: #BackupResilienceConfig
 
 		retention: {
 			daily:   int & >=1 | *7

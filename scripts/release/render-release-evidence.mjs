@@ -100,6 +100,14 @@ const CANONICAL_SCENARIOS = [
     pendingSummary: 'SK-S5 missing-mail negative scenario artifact has not been attached to release evidence.',
     pendingGate: 'SK-S5 missing-mail negative scenario is pending released-archive evidence.',
   },
+  {
+    id: 'SK-S6',
+    label: 'SK-S6 HA backup release-readiness',
+    defaultStatus: 'not_applicable',
+    pendingSummary:
+      'SK-S6 HA backup release-readiness is not applicable to this BaseKit-only release evidence unless HA or multi-server backup readiness is claimed.',
+    pendingGate: 'SK-S6 HA backup release-readiness contract evidence is pending.',
+  },
 ];
 const SECURITY_BASELINE_SCENARIOS = new Set(['SK-S1', 'SK-S2', 'SK-S3']);
 const SECURITY_BASELINE_SCHEMA_VERSION = 'stackkit.security-baseline/v1';
@@ -541,7 +549,7 @@ function mergeRequiredScenarioEvidence(values) {
     } else {
       result.push({
         scenarioId: scenario.id,
-        status: 'pending',
+        status: scenario.defaultStatus || 'pending',
         summary: scenario.pendingSummary,
       });
     }
@@ -609,7 +617,7 @@ function mergePendingGates(values, scenarioEvidence) {
 
   for (const scenario of CANONICAL_SCENARIOS) {
     const evidence = scenarioEvidence.find((item) => item.scenarioId === scenario.id);
-    if (!evidence || evidence.status === 'pass') continue;
+    if (!evidence || evidence.status === 'pass' || evidence.status === 'not_applicable') continue;
     const alreadyCovered = result.some((gate) => gate.toLowerCase().includes(scenario.id.toLowerCase()));
     if (alreadyCovered) continue;
     if (evidence.status === 'pending') {

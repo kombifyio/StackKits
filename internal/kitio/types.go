@@ -160,7 +160,7 @@ type KitMetadata struct {
 	Tags        []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 }
 
-// ModeDef captures a deployment mode (simple/advanced).
+// ModeDef captures an install/lifecycle mode such as bare, bootstrapped, or advanced.
 type ModeDef struct {
 	Description    string                   `yaml:"description,omitempty" json:"description,omitempty"`
 	TemplateDir    string                   `yaml:"templateDir,omitempty" json:"templateDir,omitempty"`
@@ -176,10 +176,58 @@ type ModeDef struct {
 // Lives under stackkit.yaml `application:` key (canonical L3 layer per ADR-0012).
 // Pre-2026-04 this was named UseCaseDef under `useCases:` — see migration 000084.
 type ApplicationDef struct {
-	Role         string   `yaml:"role" json:"role"`
-	DefaultTool  string   `yaml:"defaultTool,omitempty" json:"defaultTool,omitempty"`
-	Alternatives []string `yaml:"alternatives,omitempty" json:"alternatives,omitempty"`
-	Description  string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Role                  string                                  `yaml:"role" json:"role"`
+	DefaultTool           string                                  `yaml:"defaultTool,omitempty" json:"defaultTool,omitempty"`
+	Alternatives          []string                                `yaml:"alternatives,omitempty" json:"alternatives,omitempty"`
+	Description           string                                  `yaml:"description,omitempty" json:"description,omitempty"`
+	Package               string                                  `yaml:"package,omitempty" json:"package,omitempty"`
+	DefaultRuntimeProfile string                                  `yaml:"defaultRuntimeProfile,omitempty" json:"defaultRuntimeProfile,omitempty"`
+	RuntimeProfiles       map[string]ApplicationRuntimeProfileDef `yaml:"runtimeProfiles,omitempty" json:"runtimeProfiles,omitempty"`
+	Connectors            map[string]ApplicationConnectorDef      `yaml:"connectors,omitempty" json:"connectors,omitempty"`
+	ProductAPIs           map[string]ApplicationProductAPIDef     `yaml:"productApis,omitempty" json:"productApis,omitempty"`
+	RIL                   *ApplicationRILDef                      `yaml:"ril,omitempty" json:"ril,omitempty"`
+}
+
+type ApplicationRuntimeProfileDef struct {
+	DisplayName               string   `yaml:"displayName,omitempty" json:"displayName,omitempty"`
+	Description               string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Realization               string   `yaml:"realization,omitempty" json:"realization,omitempty"`
+	PlacementModes            []string `yaml:"placementModes,omitempty" json:"placementModes,omitempty"`
+	Contexts                  []string `yaml:"contexts,omitempty" json:"contexts,omitempty"`
+	ManagedServerlessEligible bool     `yaml:"managedServerlessEligible,omitempty" json:"managedServerlessEligible,omitempty"`
+	RequiresControlPlane      bool     `yaml:"requiresControlPlane,omitempty" json:"requiresControlPlane,omitempty"`
+	RequiresLocalBridge       bool     `yaml:"requiresLocalBridge,omitempty" json:"requiresLocalBridge,omitempty"`
+	Notes                     []string `yaml:"notes,omitempty" json:"notes,omitempty"`
+}
+
+type ApplicationConnectorDef struct {
+	Kind          string   `yaml:"kind,omitempty" json:"kind,omitempty"`
+	Name          string   `yaml:"name,omitempty" json:"name,omitempty"`
+	Owner         string   `yaml:"owner,omitempty" json:"owner,omitempty"`
+	Endpoint      string   `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	Transport     string   `yaml:"transport,omitempty" json:"transport,omitempty"`
+	Auth          string   `yaml:"auth,omitempty" json:"auth,omitempty"`
+	NativeProduct bool     `yaml:"nativeProduct,omitempty" json:"nativeProduct,omitempty"`
+	Capabilities  []string `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
+}
+
+type ApplicationProductAPIDef struct {
+	Protocol string `yaml:"protocol,omitempty" json:"protocol,omitempty"`
+	BasePath string `yaml:"basePath,omitempty" json:"basePath,omitempty"`
+	Auth     string `yaml:"auth,omitempty" json:"auth,omitempty"`
+	Purpose  string `yaml:"purpose,omitempty" json:"purpose,omitempty"`
+}
+
+type ApplicationRILDef struct {
+	Capabilities map[string]ApplicationRILCapabilityDef `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
+}
+
+type ApplicationRILCapabilityDef struct {
+	Mode             string `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Authority        string `yaml:"authority,omitempty" json:"authority,omitempty"`
+	Source           string `yaml:"source,omitempty" json:"source,omitempty"`
+	RequiresApproval bool   `yaml:"requiresApproval,omitempty" json:"requiresApproval,omitempty"`
+	Evidence         string `yaml:"evidence,omitempty" json:"evidence,omitempty"`
 }
 
 // FoundationDef is a foundation-layer service slot.

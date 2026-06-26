@@ -114,6 +114,23 @@ application:
   files:
     enabled: bool          # BaseKit default: true
     tool: string           # "cloudreve" (default) or "nextcloud"
+    runtimeProfile: string # self-hosted-lightweight, self-hosted-collaboration, kombify-managed-files, kombify-managed-dms, bring-your-own-storage
+    connectors:
+      files:
+        enabled: bool
+    setup:
+      policy: on_demand
+  smart-home:
+    enabled: bool          # optional pilot package
+    tool: home-assistant
+    runtimeProfile: string # kombify-managed, kombify-managed-hybrid, self-hosted-container, self-hosted-ha-os, bring-your-own-ha
+    connectors:
+      home-assistant:
+        enabled: bool
+        endpoint: /api/mcp # native Home Assistant MCP server
+    setup:
+      policy: on_demand
+    config: any
 
 # Environment variables passed to deployment
 environment:
@@ -237,7 +254,9 @@ Komodo bootstrap is also generated when explicitly selected. StackKits installs 
 
 Dokploy bootstrap exists only as draft adapter work. It is not part of the production PaaS standard or the canonical three-scenario E2E matrix until promoted.
 
-`mode` is the StackKit installation automation contract: `bare`, `bootstrapped`, or `advanced`. Legacy `simple` is accepted as an alias for `bootstrapped`.
+`mode` is the StackKit installation automation and lifecycle contract: `bare`, `bootstrapped`, or `advanced`. Legacy `simple` is accepted as an alias for `bootstrapped`; legacy `terramate` and `advanced-terramate` inputs normalize to `advanced`.
+
+`advanced` is the Terramate Plus lifecycle mode. It includes the bootstrapped baseline plus StackKit-packaged Terramate orchestration, drift/change/rollback/restore-drill operations, Runtime Intelligence, Frontend Intelligence, and managed TechStack lifecycle handoff. Treat it as one of the first rollout decisions, not as a late add-on toggle.
 
 `bootstrap` configures setup policy defaults, not a second mode. `bootstrap.platformPolicy` controls L1/L2 platform services and defaults to `automatic` outside `bare`. `bootstrap.applicationDefaultPolicy` controls L3 tools and defaults to `on_demand` in `bootstrapped` and `advanced`. More specific policies win in this order: `services.<tool>.setup.policy`, `application.<useCase>.setup.policy`, bootstrap default, mode default. Valid values are `manual`, `on_demand`, and `automatic`. `demoData.enabled` defaults to `false`.
 
@@ -390,10 +409,13 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 
 - `name` must be DNS-compatible: `^[a-z][a-z0-9-]+$`
 - `stackkit` must reference an existing public StackKit (`base-kit`)
-- `mode` must be `bare`, `bootstrapped`, or `advanced`; legacy `simple` is accepted and normalizes to `bootstrapped`
+- `mode` must resolve to `bare`, `bootstrapped`, or `advanced`; legacy `simple` normalizes to `bootstrapped`, and legacy `terramate` / `advanced-terramate` normalize to `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
 - `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only
 - `application.files.tool` must be `cloudreve` or `nextcloud`; contradictory `application.files.*` and `services.files.*` provider values fail validation
+- `application.<useCase>.runtimeProfile` selects the package runtime profile when the kit declares one. For Smart Home, `kombify-managed` and `kombify-managed-hybrid` are Control Plane handoffs, not local OSS deployment fallbacks.
+- For Files/DMS, `self-hosted-lightweight` keeps the existing Cloudreve default, `self-hosted-collaboration` selects the Nextcloud-style collaboration path, and `kombify-managed-files` / `kombify-managed-dms` are Control Plane handoffs.
+- `application.smart-home.connectors.home-assistant.endpoint` refers to Home Assistant's native product MCP endpoint (`/api/mcp`), not a second StackKits-owned Home Assistant connector.
 - `nextcloud` is valid only for `standard` and `high` compute tiers; low-tier BaseKit keeps Cloudreve when Files is enabled
 - `tls.provider` auto-selects `challenge: dns` if set
 - `domain: home.localhost` is the local default and must generate portless links that open without hosts-file edits, DNS setup, or trust-store setup

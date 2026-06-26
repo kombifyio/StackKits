@@ -25,7 +25,8 @@ modeMatrix: base.#KitModeSupport & {
 		bare: "scaffolding"
 		// SK-S1 runs the bootstrapped path end-to-end.
 		bootstrapped: "supported"
-		// Terramate templates exist; no E2E.
+		// Advanced now means the Terramate Plus lifecycle contract, but the
+		// full Advanced E2E cell is still open.
 		advanced: "scaffolding"
 	}
 

@@ -107,6 +107,16 @@ Out of scope:
 - SaaS placement orchestration
 - internal Kombify operator MCPs
 
+## Product-Native MCPs
+
+The `stackkit` MCP is the lifecycle and evidence connector. It does not replace
+native product MCPs declared by Use Case Packages.
+
+For example, the Smart Home package declares Home Assistant's own MCP server at
+`/api/mcp` as `productMcp`. StackKits records, protects, and verifies that
+endpoint and can hand it to RIL, while Home Assistant remains the MCP authority
+for exposed entities, Assist context, and product-level service calls.
+
 ## Client Examples
 
 Recommended single local connection:

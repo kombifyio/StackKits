@@ -254,16 +254,264 @@ package base
 	}
 }
 
+// #BackupEngine is the StackKits backup engine contract.
+// Kopia is the active engine. "restic-import" is transitional and exists only
+// to run the one-shot importer before switching the kit back to Kopia.
+#BackupEngine: "kopia" | "restic-import"
+
+// #BackupDataClass describes the kind of state a backup policy covers.
+// Generators and add-ons use this for default frequency/retention decisions;
+// caches and generated data stay outside the default backup set.
+#BackupDataClass: "config" | "secrets" | "platform-state" | "database" | "user-content" | "documents" | "photos" | "large-media" | "telemetry-timeseries" | "serverless-config" | "cache-generated"
+
+// #BackupDataClassPolicy is the resolved scheduling/restore contract for one
+// class of state. It is generator-facing metadata, not a user knob.
+#BackupDataClassPolicy: {
+	class: #BackupDataClass
+
+	defaultIncluded: bool
+	schedule:        string
+	restoreMode:     "file" | "database-hook" | "volume" | "reseed" | "exclude"
+}
+
+#BackupDataClassPolicyByClass: {
+	config: {class: "config", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
+	secrets: {class: "secrets", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
+	"platform-state": {class: "platform-state", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
+	database: {class: "database", defaultIncluded: true, schedule: "daily", restoreMode: "database-hook"}
+	"user-content": {class: "user-content", defaultIncluded: true, schedule: "daily", restoreMode: "volume"}
+	documents: {class: "documents", defaultIncluded: true, schedule: "daily", restoreMode: "volume"}
+	photos: {class: "photos", defaultIncluded: true, schedule: "daily", restoreMode: "volume"}
+	"large-media": {class: "large-media", defaultIncluded: false, schedule: "operator-selected", restoreMode: "volume"}
+	"telemetry-timeseries": {class: "telemetry-timeseries", defaultIncluded: true, schedule: "daily", restoreMode: "database-hook"}
+	"serverless-config": {class: "serverless-config", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
+	"cache-generated": {class: "cache-generated", defaultIncluded: false, schedule: "never", restoreMode: "exclude"}
+}
+
+#BackupPolicyForClasses: {
+	classes: [...#BackupDataClass]
+
+	policies: [for class in classes {
+		#BackupDataClassPolicyByClass[class]
+	}]
+
+	byClass: {
+		for policy in policies {
+			"\(policy.class)": policy
+		}
+	}
+
+	included: [for policy in policies if policy.defaultIncluded {
+		policy.class
+	}]
+
+	excluded: [for policy in policies if !policy.defaultIncluded {
+		policy.class
+	}]
+}
+
+// #BackupResilienceConfig describes recovery layers around the primary Kopia
+// repository. The alternative path is intentionally portable and simple: it is
+// not a second day-to-day backup engine, but a tool-independent emergency
+// export for the state needed to rebuild a host or managed deployment.
+#BackupResilienceConfig: {
+	singleServer:      #SingleServerBackupSafety
+	multiServer:       #MultiServerBackupSafety
+	emergencyExport:   #BackupEmergencyExportConfig
+	managedServerless: #ManagedServerlessRecoveryConfig
+}
+
+// #SingleServerBackupSafety captures the safer default posture for one-node
+// StackKits: local repo, offsite leg, restore drill, and a portable export.
+#SingleServerBackupSafety: {
+	enabled: bool | *true
+
+	// Number of recovery copies the operator should end up with: live data,
+	// local backup repo, and offsite/export copy.
+	minimumRecoveryCopies: int & >=2 & <=3 | *3
+
+	requireLocalRepo:       bool | *true
+	requireEmergencyExport: bool | *true
+	requireRestoreDrill:    bool | *true
+	requireOffHostCopy:     bool | *true
+	recommendOffsite:       bool | *true
+	recommendImmutableCopy: bool | *true
+	kopiaIndependentFallback: "portable-archive" | *"portable-archive"
+}
+
+// #MultiServerBackupTopology classifies the recovery posture for clustered
+// StackKits. A two-server setup is useful redundancy, but it is not release-
+// ready HA because it cannot maintain quorum after one server disappears.
+#MultiServerBackupTopology: "two-server" | "three-node-ha" | "five-node-ha" | "five-manager-ha" | "geo-redundant"
+
+// #MultiServerBackupSafety captures release-readiness expectations for HA and
+// fleet backup strategies: quorum-aware topology, offsite recovery, emergency
+// export, shared-volume inventory, media policy, and backup workload shaping.
+#MultiServerBackupSafety: {
+	enabled: bool | *true
+
+	requireOffsiteRepo:           bool | *true
+	requireEmergencyExport:       bool | *true
+	requireRestoreDrill:          bool | *true
+	requireSharedVolumeInventory: bool | *true
+	requirePlacementSpread:       bool | *true
+	requireManagedServerlessPlan: bool | *false
+
+	media: {
+		documentsMode:           "include"
+		photosMode:              *"include" | "manifest-only" | "exclude"
+		largeMediaMode:          *"manifest-only" | "include" | "exclude"
+		excludeGeneratedCaches:  bool | *true
+		requireExternalMediaMap: bool | *true
+	}
+
+	performance: {
+		profile:                    *"balanced" | "low-io" | "throughput"
+		avoidPrimaryOnlySnapshots:  bool | *true
+		staggerNodeSnapshots:       bool | *true
+		maxConcurrentNodeSnapshots: int & >=1 | *1
+		preferRepoServerFanIn:      bool | *true
+	}
+
+	*{
+		topology:                 "three-node-ha"
+		minServers:               3
+		minManagers:              3
+		quorumSize:               2
+		toleratedManagerFailures: 1
+		capacityHeadroomNodes:    0
+		releaseReadyHA:           true
+		coordinationMode:         "quorum-aware"
+	} | {
+		topology:                     "two-server"
+		minServers:                   2
+		minManagers:                  1
+		quorumSize:                   1
+		toleratedManagerFailures:     0
+		capacityHeadroomNodes:        1
+		releaseReadyHA:               false
+		coordinationMode:             "warm-standby"
+		requireManagedServerlessPlan: true
+	} | {
+		topology:                 "five-node-ha"
+		minServers:               5
+		minManagers:              3
+		quorumSize:               2
+		toleratedManagerFailures: 1
+		capacityHeadroomNodes:    2
+		releaseReadyHA:           true
+		coordinationMode:         "quorum-aware"
+	} | {
+		topology:                 "five-manager-ha"
+		minServers:               5
+		minManagers:              5
+		quorumSize:               3
+		toleratedManagerFailures: 2
+		capacityHeadroomNodes:    0
+		releaseReadyHA:           true
+		coordinationMode:         "quorum-aware"
+	} | {
+		topology:                     "geo-redundant"
+		minServers:                   3
+		minManagers:                  3
+		quorumSize:                   2
+		toleratedManagerFailures:     1
+		capacityHeadroomNodes:        0
+		releaseReadyHA:               true
+		coordinationMode:             "geo-aware"
+		requireManagedServerlessPlan: true
+	}
+}
+
+// #BackupEmergencyExportConfig is the Kopia-independent fallback. It contains
+// plain manifests plus encrypted archives and database dumps that can be read
+// with commodity tooling if the Kopia client or repo format is unavailable.
+#BackupEmergencyExportConfig: {
+	enabled: bool | *true
+
+	mode:   *"portable-archive" | "provider-native-snapshot"
+	format: *"tar.zst.age" | "tar.gz.age" | "zip.age"
+
+	schedule: string | *"0 3 * * 0"
+
+	includeClasses: [...#BackupDataClass] | *[
+		"config",
+		"secrets",
+		"platform-state",
+		"database",
+		"documents",
+		"serverless-config",
+	]
+
+	// Large media is cost-sensitive. The default records manifests and paths
+	// so an operator knows what must be restored from a NAS/object store, while
+	// explicit opt-in can include the bytes.
+	largeMediaMode: *"manifest-only" | "include" | "exclude"
+
+	target: #BackupDestination | *{
+		name: "emergency-export"
+		type: "local"
+		path: "/backup/emergency-export"
+	}
+
+	manifest: {
+		enabled:               bool | *true
+		includeRestoreRunbook: bool | *true
+		includeChecksums:      bool | *true
+	}
+}
+
+// #ManagedServerlessRecoveryConfig is the server-independent recovery layer.
+// It protects control-plane state and provider-native data handles so a
+// deployment can be recreated without relying on the original customer node.
+#ManagedServerlessRecoveryConfig: {
+	enabled: bool | *false
+
+	noServerDependency: true
+	authority:          "control-plane"
+
+	protectedClasses: [...#BackupDataClass] | *[
+		"config",
+		"secrets",
+		"platform-state",
+		"serverless-config",
+	]
+
+	controlPlaneSnapshot:  bool | *true
+	providerNativeBackups: bool | *true
+	requireProviderDataHandles: bool | *true
+	requireRebuildIntent:       bool | *true
+	portableManifest:      bool | *true
+	preChangeSnapshot:     bool | *true
+
+	schedule: string | *"pre-change + hourly metadata"
+}
+
 // #BackupConfig defines backup settings
 #BackupConfig: {
 	// Enable backups
 	enabled: bool | *true
 
-	// Backup backend
-	backend: "restic" | "borgbackup" | "rclone" | "rsync" | *"restic"
+	// Backup engine. Kopia is the only active engine.
+	engine: #BackupEngine | *"kopia"
+
+	// Legacy alias retained for older YAML specs. If present, it must agree
+	// with engine so specs cannot encode contradictory backup modes.
+	backend?: engine
 
 	// Backup schedule (cron format)
-	schedule: string | *"0 3 * * *"
+	schedule: string | *"0 2 * * *"
+
+	// Data classes covered by this policy.
+	dataClasses: [...#BackupDataClass] | *["config", "secrets", "platform-state", "database", "user-content", "documents", "photos", "telemetry-timeseries", "serverless-config"]
+
+	// Internal, generator-facing policy view derived from dataClasses.
+	_resolvedPolicy: #BackupPolicyForClasses & {
+		classes: dataClasses
+	}
+
+	// Recovery layers around the primary Kopia repository.
+	resilience: #BackupResilienceConfig
 
 	// Backup retention
 	retention: {
@@ -282,23 +530,21 @@ package base
 	// Paths to exclude
 	excludes: [...string] | *["*.tmp", "*.log", "cache/"]
 
-	// Pre-backup hooks
+	// Pre-backup hooks. User specs should avoid these; the backup add-on
+	// derives database consistency hooks from module metadata.
 	preHooks: [...string] | *[]
 
-	// Post-backup hooks
+	// Post-backup hooks. User specs should avoid these for the same reason.
 	postHooks: [...string] | *[]
 
-	// Encryption key (for restic/borg)
+	// Encryption key used by Kopia. This must be a secret reference.
 	encryptionKey?: =~"^secret://"
 }
 
 // #BackupDestination defines a backup target.
-// Single canonical definition (a duplicate previously lived in
-// validation.cue and silently unified, making the "rclone" arm
-// unsatisfiable). Shape mirrors the YAML spec contract in
-// pkg/models/models.go (BackupDestinationSpec): flat, camelCase,
-// per-type fields. "rclone" is a backup backend
-// (#BackupConfig.backend), not a destination type.
+// Single canonical definition. Shape mirrors the YAML spec contract in
+// pkg/models/models.go (BackupDestinationSpec): flat, camelCase, per-type
+// fields.
 #BackupDestination: {
 	// Destination name
 	name: string

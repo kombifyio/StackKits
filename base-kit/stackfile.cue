@@ -11,7 +11,7 @@
 // Installation Modes:
 //   - bare:         OpenTofu Day-1 only, no Base Hub setup automation
 //   - bootstrapped: Base Hub + automatic L1/L2 + on-demand L3 setup
-//   - advanced:     bootstrapped + Terramate Day-2 lifecycle
+//   - advanced:     bootstrapped + Terramate Plus lifecycle and intelligence
 //   - simple:       legacy alias for bootstrapped
 //
 // PaaS Selection (intent/domain-driven, M2):
@@ -128,12 +128,17 @@ import (
 			day2: {
 				enabled: true
 				engine:  "terramate"
-				actions: ["drift", "update", "destroy"]
+				actions: ["drift", "plan-change", "update", "rollback", "restore-drill", "destroy"]
 				features: {
-					drift_detection: true
-					change_sets:     true
-					rolling_updates: true
-					stack_ordering:  true
+					drift_detection:       true
+					change_sets:           true
+					rolling_updates:       true
+					stack_ordering:        true
+					runtime_intelligence:  true
+					frontend_intelligence: true
+					policy_checks:         true
+					backup_readiness:      true
+					restore_drills:        true
 				}
 			}
 		}
@@ -166,10 +171,15 @@ import (
 		engine?: string
 		actions?: [...string]
 		features?: {
-			drift_detection: bool
-			change_sets:     bool
-			rolling_updates: bool
-			stack_ordering:  bool
+			drift_detection:       bool
+			change_sets:           bool
+			rolling_updates:       bool
+			stack_ordering:        bool
+			runtime_intelligence:  bool
+			frontend_intelligence: bool
+			policy_checks:         bool
+			backup_readiness:      bool
+			restore_drills:        bool
 		}
 	}
 }
@@ -252,8 +262,18 @@ import (
 }
 
 #ApplicationSelection: {
-	enabled?: bool | *true
-	tool?:    string
+	enabled?:        bool | *true
+	tool?:           string
+	runtimeProfile?: string
+	connectors?: [string]: {
+		enabled?:  bool | *true
+		endpoint?: string
+		auth?:     string
+	}
+	setup?: {
+		policy?: "manual" | "on_demand" | "automatic"
+	}
+	config?: _
 }
 
 // =============================================================================

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 func LoadBundleManifest(path string) (BundleManifest, error) {
@@ -79,11 +78,14 @@ func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([
 		if err != nil {
 			return append(systemRefs, appRefs...), fmt.Errorf("deploy StackKit L3 app %q: %w", app.Name, err)
 		}
-		ref.ObservedStatus = firstNonEmpty(ref.ObservedStatus, "deploy:accepted")
-		if ref.ObservedAt.IsZero() {
-			ref.ObservedAt = time.Now().UTC()
-		}
 		appRefs = append(appRefs, ref)
+	}
+	if len(appRefs) > 0 {
+		var err error
+		appRefs, err = observeDeployments(ctx, adapter, appRefs)
+		if err != nil {
+			return append(systemRefs, appRefs...), err
+		}
 	}
 	return append(systemRefs, appRefs...), nil
 }

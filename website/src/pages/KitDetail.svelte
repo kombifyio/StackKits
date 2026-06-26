@@ -1,6 +1,7 @@
 <script lang="ts">
   import { kitById } from '../content/kits'
   import InstallBlock from '../lib/InstallBlock.svelte'
+  import PostInstallGuide from '../lib/PostInstallGuide.svelte'
   import FeatureGrid from '../lib/FeatureGrid.svelte'
 
   type Props = {
@@ -40,7 +41,11 @@
 
       <section class="mb-10">
         <p class="text-on-surface-variant text-lg leading-relaxed max-w-3xl mb-6">{kit.description}</p>
-        <InstallBlock command={kit.oneLiner} note={kit.status === 'alpha' ? 'Definition only — alpha rollout, not production.' : 'Release-ready one-liner.'} />
+        <InstallBlock command={kit.oneLiner} note={kit.status === 'alpha' ? 'Definition only — alpha rollout, not production.' : 'Run on the target server. Default *.home.localhost links are target-local.'} />
+      </section>
+
+      <section class="mb-12">
+        <PostInstallGuide />
       </section>
 
       <section class="mb-12">

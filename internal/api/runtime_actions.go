@@ -43,20 +43,10 @@ type runtimeActionRequest struct {
 	UnifiedPath        string                            `json:"unified_path,omitempty"`
 	OwnerSpecBootstrap *runtimeaction.OwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
 	RuntimeTarget      *runtimeActionTarget              `json:"runtime_target,omitempty"`
+	PlatformNodes      []runtimeaction.PlatformNode      `json:"platform_nodes,omitempty"`
 }
 
-type runtimeActionTarget struct {
-	Host             string `json:"host,omitempty"`
-	PublicIP         string `json:"public_ip,omitempty"`
-	PrivateIP        string `json:"private_ip,omitempty"`
-	User             string `json:"user,omitempty"`
-	Port             int    `json:"port,omitempty"`
-	DockerHost       string `json:"docker_host,omitempty"`
-	KeyPath          string `json:"key_path,omitempty"`
-	PrivateKey       string `json:"private_key,omitempty"`
-	ClientPrivateKey string `json:"client_private_key,omitempty"`
-	Password         string `json:"password,omitempty"`
-}
+type runtimeActionTarget = runtimeaction.RuntimeTarget
 
 type runtimeActionResponse struct {
 	Status             runtimeaction.Status           `json:"status"`
@@ -210,6 +200,10 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	if target := normalizeRuntimeActionTarget(req.RuntimeTarget); target != nil {
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
 	}
+	if nodes := normalizeRuntimeActionPlatformNodes(req.PlatformNodes); len(nodes) > 0 {
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "platform_nodes", Status: runtimeaction.CheckStatusOK, Detail: fmt.Sprintf("%d supplemental node(s) requested", len(nodes))})
+		req.PlatformNodes = nodes
+	}
 
 	ctx, span := startRuntimeActionSpan(ctx, resp)
 	defer func() {
@@ -227,7 +221,7 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 
 	switch req.Action {
 	case runtimeActionRollout:
-		return runOpenTofuRollout(ctx, resp, includeStackKitOutputs, req.RuntimeTarget)
+		return runOpenTofuRollout(ctx, resp, includeStackKitOutputs, req.RuntimeTarget, req.PlatformNodes)
 	case runtimeActionVerify:
 		return runOpenTofuVerify(ctx, resp, includeStackKitOutputs)
 	case runtimeActionRestore:
@@ -329,7 +323,7 @@ func runtimeOperationResultError(operation string, result *tofu.Result, err erro
 	return nil
 }
 
-func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool, target *runtimeActionTarget) (runtimeActionResponse, int, *skerrors.StackKitError) {
+func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool, target *runtimeActionTarget, platformNodes []runtimeaction.PlatformNode) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	if err := requireLocalTofuDir(resp.TofuDir); err != nil {
 		return resp, http.StatusBadRequest, err
 	}
@@ -372,6 +366,15 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 			return resp, http.StatusBadGateway, tofuActionError("runtime_target_sync_failed", "Runtime target workspace sync failed", syncErr, "")
 		}
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_workspace_sync", Status: runtimeaction.CheckStatusOK, Detail: remote.workspaceRoot})
+	}
+	if nodes := normalizeRuntimeActionPlatformNodes(platformNodes); len(nodes) > 0 {
+		ctx, nodeSpan := startRuntimeOperationSpan(ctx, resp, "platform_nodes_prepare")
+		nodeChecks, nodeErr := prepareRuntimePlatformNodes(ctx, resp.TofuDir, nodes)
+		finishRuntimeOperationSpan(nodeSpan, resp, "platform_nodes_prepare", nodeErr)
+		resp.Checks = append(resp.Checks, nodeChecks...)
+		if nodeErr != nil {
+			return resp, http.StatusBadGateway, tofuActionError("platform_nodes_prepare_failed", "Supplemental platform node preparation failed", nodeErr, "")
+		}
 	}
 	ctx, platformSpan := startRuntimeOperationSpan(ctx, resp, "platform_apps_deploy")
 	platformEvidence, platformChecks, platformErr := runRuntimePlatformAppDeployments(ctx, resp.TofuDir, runtimePlatformDeployOptions{Remote: remote})

@@ -63,6 +63,7 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   assert.equal(scenarioByID.get('SK-S2').status, 'pending');
   assert.equal(scenarioByID.get('SK-S3').status, 'pending');
   assert.equal(scenarioByID.get('SK-S5').status, 'pending');
+  assert.equal(scenarioByID.get('SK-S6').status, 'not_applicable');
   assert.deepEqual(evidence.pendingGates, [
     'SK-S2 kombify.me cloud-owner Komodo release evidence is still pending',
     'SK-S3 custom-domain explicit-owner Coolify beta scenario is pending released-archive evidence.',
@@ -111,6 +112,7 @@ test('render-release-evidence emits canonical pending scenario rows when artifac
       ['SK-S2', 'pending'],
       ['SK-S3', 'pending'],
       ['SK-S5', 'pending'],
+      ['SK-S6', 'not_applicable'],
     ],
   );
   for (const scenarioId of ['SK-S1', 'SK-S2', 'SK-S3', 'SK-S5']) {
@@ -162,6 +164,7 @@ test('render-release-evidence imports passing homelab scenario artifact', async 
       ['SK-S2', 'pass'],
       ['SK-S3', 'pending'],
       ['SK-S5', 'pending'],
+      ['SK-S6', 'not_applicable'],
     ],
   );
   assert.ok(!evidence.pendingGates.some((gate) => gate.includes('SK-S2')));

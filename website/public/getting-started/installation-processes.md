@@ -151,6 +151,14 @@ curl -sSL https://base.stackkit.cc | sh
 
 - Installs CLI/server/MCP/toolchain and runs the BaseKit lifecycle.
 - Best for a fresh dedicated server and low-to-medium customization.
+- For local-server tests, run it on the server itself: SSH session, VM/physical
+  console, or an on-server agent. Default `*.home.localhost` links are local to
+  that target/browser context and are not LAN-wide DNS records.
+- Pin prerelease validation with:
+
+```bash
+env STACKKIT_RELEASE_VERSION=v0.4.5-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
+```
 
 Shared CLI installer plus explicit lifecycle:
 

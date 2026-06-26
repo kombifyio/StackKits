@@ -291,6 +291,52 @@ type HTTPConfig struct {
 	DockerEnv                   []string
 }
 
+// SupplementalNodeTarget describes an additional node that should be attached
+// to the selected platform before StackKit-owned apps are deployed.
+type SupplementalNodeTarget struct {
+	Name      string
+	Role      string
+	IP        string
+	Host      string
+	Services  []string
+	Platform  NodePlatformTarget
+	Bootstrap *NodeBootstrap
+}
+
+type NodePlatformTarget struct {
+	ServerID        string
+	DestinationUUID string
+	EnvironmentID   string
+	ProjectUUID     string
+	EnvironmentUUID string
+}
+
+type NodeBootstrap struct {
+	KomodoCoreAddress   string
+	KomodoOnboardingKey string
+	SSH                 *SSHBootstrap
+}
+
+type SSHBootstrap struct {
+	Host             string
+	User             string
+	Port             int
+	KeyPath          string
+	KeyPEM           string
+	PrivateKey       string
+	ClientPrivateKey string
+	ProxyJump        string
+}
+
+type NodePrepareResult struct {
+	NodeName string
+	Role     string
+	Platform string
+	Status   string
+	Detail   string
+	Services []string
+}
+
 func (cfg HTTPConfig) httpClient() *http.Client {
 	if cfg.Client != nil {
 		return cfg.Client

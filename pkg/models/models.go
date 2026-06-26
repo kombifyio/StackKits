@@ -141,6 +141,17 @@ const (
 	SetupPolicyOnDemand  = "on_demand"
 	SetupPolicyAutomatic = "automatic"
 
+	RuntimeProfileKombifyManaged          = "kombify-managed"
+	RuntimeProfileKombifyManagedHybrid    = "kombify-managed-hybrid"
+	RuntimeProfileSelfHostedContainer     = "self-hosted-container"
+	RuntimeProfileSelfHostedHAOS          = "self-hosted-ha-os"
+	RuntimeProfileBringYourOwnHA          = "bring-your-own-ha"
+	RuntimeProfileSelfHostedLightweight   = "self-hosted-lightweight"
+	RuntimeProfileSelfHostedCollaboration = "self-hosted-collaboration"
+	RuntimeProfileKombifyManagedFiles     = "kombify-managed-files"
+	RuntimeProfileKombifyManagedDMS       = "kombify-managed-dms"
+	RuntimeProfileBringYourOwnStorage     = "bring-your-own-storage"
+
 	SetupRunStatusRunning   = "running"
 	SetupRunStatusWaiting   = "waiting"
 	SetupRunStatusCompleted = "completed"
@@ -315,10 +326,64 @@ const (
 // to align with the canonical Foundation/Platform/Application layer standard
 // (ADR-0012, ARCHITECTURE_V6 §4).
 type ApplicationDef struct {
-	Role         ToolRole `yaml:"role" json:"role"`
-	DefaultTool  string   `yaml:"defaultTool,omitempty" json:"defaultTool,omitempty"`
-	Alternatives []string `yaml:"alternatives,omitempty" json:"alternatives,omitempty"`
-	Description  string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Role                  ToolRole                                `yaml:"role" json:"role"`
+	DefaultTool           string                                  `yaml:"defaultTool,omitempty" json:"defaultTool,omitempty"`
+	Alternatives          []string                                `yaml:"alternatives,omitempty" json:"alternatives,omitempty"`
+	Description           string                                  `yaml:"description,omitempty" json:"description,omitempty"`
+	Package               string                                  `yaml:"package,omitempty" json:"package,omitempty"`
+	DefaultRuntimeProfile string                                  `yaml:"defaultRuntimeProfile,omitempty" json:"defaultRuntimeProfile,omitempty"`
+	RuntimeProfiles       map[string]ApplicationRuntimeProfileDef `yaml:"runtimeProfiles,omitempty" json:"runtimeProfiles,omitempty"`
+	Connectors            map[string]ApplicationConnectorDef      `yaml:"connectors,omitempty" json:"connectors,omitempty"`
+	ProductAPIs           map[string]ApplicationProductAPIDef     `yaml:"productApis,omitempty" json:"productApis,omitempty"`
+	RIL                   *ApplicationRILDef                      `yaml:"ril,omitempty" json:"ril,omitempty"`
+}
+
+// ApplicationRuntimeProfileDef describes one runtime realization for a use case
+// package. Control-plane profiles are publishable eligibility/handoff metadata;
+// StackKits OSS does not realize them locally.
+type ApplicationRuntimeProfileDef struct {
+	DisplayName               string   `yaml:"displayName,omitempty" json:"displayName,omitempty"`
+	Description               string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Realization               string   `yaml:"realization,omitempty" json:"realization,omitempty"` // oss, control-plane, hybrid, external
+	PlacementModes            []string `yaml:"placementModes,omitempty" json:"placementModes,omitempty"`
+	Contexts                  []string `yaml:"contexts,omitempty" json:"contexts,omitempty"`
+	ManagedServerlessEligible bool     `yaml:"managedServerlessEligible,omitempty" json:"managedServerlessEligible,omitempty"`
+	RequiresControlPlane      bool     `yaml:"requiresControlPlane,omitempty" json:"requiresControlPlane,omitempty"`
+	RequiresLocalBridge       bool     `yaml:"requiresLocalBridge,omitempty" json:"requiresLocalBridge,omitempty"`
+	Notes                     []string `yaml:"notes,omitempty" json:"notes,omitempty"`
+}
+
+// ApplicationConnectorDef captures package-level connector metadata. Product
+// MCP connectors are owned by the product itself (for example Home Assistant's
+// native /api/mcp endpoint); StackKits only wires, protects, and verifies them.
+type ApplicationConnectorDef struct {
+	Kind          string   `yaml:"kind,omitempty" json:"kind,omitempty"`
+	Name          string   `yaml:"name,omitempty" json:"name,omitempty"`
+	Owner         string   `yaml:"owner,omitempty" json:"owner,omitempty"`
+	Endpoint      string   `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	Transport     string   `yaml:"transport,omitempty" json:"transport,omitempty"`
+	Auth          string   `yaml:"auth,omitempty" json:"auth,omitempty"`
+	NativeProduct bool     `yaml:"nativeProduct,omitempty" json:"nativeProduct,omitempty"`
+	Capabilities  []string `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
+}
+
+type ApplicationProductAPIDef struct {
+	Protocol string `yaml:"protocol,omitempty" json:"protocol,omitempty"`
+	BasePath string `yaml:"basePath,omitempty" json:"basePath,omitempty"`
+	Auth     string `yaml:"auth,omitempty" json:"auth,omitempty"`
+	Purpose  string `yaml:"purpose,omitempty" json:"purpose,omitempty"`
+}
+
+type ApplicationRILDef struct {
+	Capabilities map[string]ApplicationRILCapabilityDef `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
+}
+
+type ApplicationRILCapabilityDef struct {
+	Mode             string `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Authority        string `yaml:"authority,omitempty" json:"authority,omitempty"`
+	Source           string `yaml:"source,omitempty" json:"source,omitempty"`
+	RequiresApproval bool   `yaml:"requiresApproval,omitempty" json:"requiresApproval,omitempty"`
+	Evidence         string `yaml:"evidence,omitempty" json:"evidence,omitempty"`
 }
 
 // PlatformDef defines a platform service in stackkit.yaml (v5).
@@ -1203,10 +1268,17 @@ type RateLimitSpec struct {
 type BackupSpec struct {
 	// Enabled activates backups (default true via CUE).
 	Enabled *bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
-	// Backend: "restic", "borgbackup", "rclone", "rsync".
+	// Engine: "kopia" or transitional "restic-import".
+	Engine string `yaml:"engine,omitempty" json:"engine,omitempty"`
+	// Backend is a legacy alias for Engine. Only "kopia" and "restic-import"
+	// are valid; Restic/Borg/Rclone are no longer active StackKits engines.
 	Backend string `yaml:"backend,omitempty" json:"backend,omitempty"`
 	// Schedule in cron format (default derived from compute tier).
 	Schedule string `yaml:"schedule,omitempty" json:"schedule,omitempty"`
+	// DataClasses lists state classes covered by the backup policy.
+	DataClasses []string `yaml:"dataClasses,omitempty" json:"dataClasses,omitempty"`
+	// Resilience defines recovery layers around the primary Kopia repository.
+	Resilience *BackupResilienceSpec `yaml:"resilience,omitempty" json:"resilience,omitempty"`
 	// Retention defines how many backups to keep.
 	Retention *BackupRetentionSpec `yaml:"retention,omitempty" json:"retention,omitempty"`
 	// Destinations lists backup targets.
@@ -1215,6 +1287,100 @@ type BackupSpec struct {
 	Paths []string `yaml:"paths,omitempty" json:"paths,omitempty"`
 	// Excludes lists patterns to exclude from backups.
 	Excludes []string `yaml:"excludes,omitempty" json:"excludes,omitempty"`
+}
+
+// BackupResilienceSpec defines recovery layers around the primary backup.
+type BackupResilienceSpec struct {
+	SingleServer      *SingleServerBackupSafetySpec  `yaml:"singleServer,omitempty" json:"singleServer,omitempty"`
+	MultiServer       *MultiServerBackupSafetySpec   `yaml:"multiServer,omitempty" json:"multiServer,omitempty"`
+	EmergencyExport   *BackupEmergencyExportSpec     `yaml:"emergencyExport,omitempty" json:"emergencyExport,omitempty"`
+	ManagedServerless *ManagedServerlessRecoverySpec `yaml:"managedServerless,omitempty" json:"managedServerless,omitempty"`
+}
+
+// SingleServerBackupSafetySpec captures safer one-node defaults.
+type SingleServerBackupSafetySpec struct {
+	Enabled                  *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	MinimumRecoveryCopies    int    `yaml:"minimumRecoveryCopies,omitempty" json:"minimumRecoveryCopies,omitempty"`
+	RequireLocalRepo         *bool  `yaml:"requireLocalRepo,omitempty" json:"requireLocalRepo,omitempty"`
+	RequireEmergencyExport   *bool  `yaml:"requireEmergencyExport,omitempty" json:"requireEmergencyExport,omitempty"`
+	RequireRestoreDrill      *bool  `yaml:"requireRestoreDrill,omitempty" json:"requireRestoreDrill,omitempty"`
+	RequireOffHostCopy       *bool  `yaml:"requireOffHostCopy,omitempty" json:"requireOffHostCopy,omitempty"`
+	RecommendOffsite         *bool  `yaml:"recommendOffsite,omitempty" json:"recommendOffsite,omitempty"`
+	RecommendImmutableCopy   *bool  `yaml:"recommendImmutableCopy,omitempty" json:"recommendImmutableCopy,omitempty"`
+	KopiaIndependentFallback string `yaml:"kopiaIndependentFallback,omitempty" json:"kopiaIndependentFallback,omitempty"`
+}
+
+// MultiServerBackupSafetySpec captures HA/fleet backup release-readiness.
+type MultiServerBackupSafetySpec struct {
+	Enabled                      *bool                             `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Topology                     string                            `yaml:"topology,omitempty" json:"topology,omitempty"`
+	MinServers                   int                               `yaml:"minServers,omitempty" json:"minServers,omitempty"`
+	MinManagers                  int                               `yaml:"minManagers,omitempty" json:"minManagers,omitempty"`
+	QuorumSize                   int                               `yaml:"quorumSize,omitempty" json:"quorumSize,omitempty"`
+	ToleratedManagerFailures     int                               `yaml:"toleratedManagerFailures,omitempty" json:"toleratedManagerFailures,omitempty"`
+	CapacityHeadroomNodes        int                               `yaml:"capacityHeadroomNodes,omitempty" json:"capacityHeadroomNodes,omitempty"`
+	ReleaseReadyHA               *bool                             `yaml:"releaseReadyHA,omitempty" json:"releaseReadyHA,omitempty"`
+	CoordinationMode             string                            `yaml:"coordinationMode,omitempty" json:"coordinationMode,omitempty"`
+	RequireOffsiteRepo           *bool                             `yaml:"requireOffsiteRepo,omitempty" json:"requireOffsiteRepo,omitempty"`
+	RequireEmergencyExport       *bool                             `yaml:"requireEmergencyExport,omitempty" json:"requireEmergencyExport,omitempty"`
+	RequireRestoreDrill          *bool                             `yaml:"requireRestoreDrill,omitempty" json:"requireRestoreDrill,omitempty"`
+	RequireSharedVolumeInventory *bool                             `yaml:"requireSharedVolumeInventory,omitempty" json:"requireSharedVolumeInventory,omitempty"`
+	RequirePlacementSpread       *bool                             `yaml:"requirePlacementSpread,omitempty" json:"requirePlacementSpread,omitempty"`
+	RequireManagedServerlessPlan *bool                             `yaml:"requireManagedServerlessPlan,omitempty" json:"requireManagedServerlessPlan,omitempty"`
+	Media                        *MultiServerBackupMediaSpec       `yaml:"media,omitempty" json:"media,omitempty"`
+	Performance                  *MultiServerBackupPerformanceSpec `yaml:"performance,omitempty" json:"performance,omitempty"`
+}
+
+// MultiServerBackupMediaSpec captures clustered backup media policy.
+type MultiServerBackupMediaSpec struct {
+	DocumentsMode           string `yaml:"documentsMode,omitempty" json:"documentsMode,omitempty"`
+	PhotosMode              string `yaml:"photosMode,omitempty" json:"photosMode,omitempty"`
+	LargeMediaMode          string `yaml:"largeMediaMode,omitempty" json:"largeMediaMode,omitempty"`
+	ExcludeGeneratedCaches  *bool  `yaml:"excludeGeneratedCaches,omitempty" json:"excludeGeneratedCaches,omitempty"`
+	RequireExternalMediaMap *bool  `yaml:"requireExternalMediaMap,omitempty" json:"requireExternalMediaMap,omitempty"`
+}
+
+// MultiServerBackupPerformanceSpec captures backup workload-shaping policy.
+type MultiServerBackupPerformanceSpec struct {
+	Profile                    string `yaml:"profile,omitempty" json:"profile,omitempty"`
+	AvoidPrimaryOnlySnapshots  *bool  `yaml:"avoidPrimaryOnlySnapshots,omitempty" json:"avoidPrimaryOnlySnapshots,omitempty"`
+	StaggerNodeSnapshots       *bool  `yaml:"staggerNodeSnapshots,omitempty" json:"staggerNodeSnapshots,omitempty"`
+	MaxConcurrentNodeSnapshots int    `yaml:"maxConcurrentNodeSnapshots,omitempty" json:"maxConcurrentNodeSnapshots,omitempty"`
+	PreferRepoServerFanIn      *bool  `yaml:"preferRepoServerFanIn,omitempty" json:"preferRepoServerFanIn,omitempty"`
+}
+
+// BackupEmergencyExportSpec defines the Kopia-independent fallback export.
+type BackupEmergencyExportSpec struct {
+	Enabled        *bool                     `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Mode           string                    `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Format         string                    `yaml:"format,omitempty" json:"format,omitempty"`
+	Schedule       string                    `yaml:"schedule,omitempty" json:"schedule,omitempty"`
+	IncludeClasses []string                  `yaml:"includeClasses,omitempty" json:"includeClasses,omitempty"`
+	LargeMediaMode string                    `yaml:"largeMediaMode,omitempty" json:"largeMediaMode,omitempty"`
+	Target         *BackupDestinationSpec    `yaml:"target,omitempty" json:"target,omitempty"`
+	Manifest       *BackupExportManifestSpec `yaml:"manifest,omitempty" json:"manifest,omitempty"`
+}
+
+// BackupExportManifestSpec controls portable export metadata.
+type BackupExportManifestSpec struct {
+	Enabled               *bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	IncludeRestoreRunbook *bool `yaml:"includeRestoreRunbook,omitempty" json:"includeRestoreRunbook,omitempty"`
+	IncludeChecksums      *bool `yaml:"includeChecksums,omitempty" json:"includeChecksums,omitempty"`
+}
+
+// ManagedServerlessRecoverySpec captures server-independent managed recovery.
+type ManagedServerlessRecoverySpec struct {
+	Enabled                    *bool    `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	NoServerDependency         *bool    `yaml:"noServerDependency,omitempty" json:"noServerDependency,omitempty"`
+	Authority                  string   `yaml:"authority,omitempty" json:"authority,omitempty"`
+	ProtectedClasses           []string `yaml:"protectedClasses,omitempty" json:"protectedClasses,omitempty"`
+	ControlPlaneSnapshot       *bool    `yaml:"controlPlaneSnapshot,omitempty" json:"controlPlaneSnapshot,omitempty"`
+	ProviderNativeBackups      *bool    `yaml:"providerNativeBackups,omitempty" json:"providerNativeBackups,omitempty"`
+	RequireProviderDataHandles *bool    `yaml:"requireProviderDataHandles,omitempty" json:"requireProviderDataHandles,omitempty"`
+	RequireRebuildIntent       *bool    `yaml:"requireRebuildIntent,omitempty" json:"requireRebuildIntent,omitempty"`
+	PortableManifest           *bool    `yaml:"portableManifest,omitempty" json:"portableManifest,omitempty"`
+	PreChangeSnapshot          *bool    `yaml:"preChangeSnapshot,omitempty" json:"preChangeSnapshot,omitempty"`
+	Schedule                   string   `yaml:"schedule,omitempty" json:"schedule,omitempty"`
 }
 
 // BackupRetentionSpec defines backup retention policy.

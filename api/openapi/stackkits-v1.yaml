@@ -1341,6 +1341,13 @@ components:
           type: string
         owner_spec_bootstrap:
           $ref: "#/components/schemas/RuntimeActionOwnerSpecBootstrap"
+        runtime_target:
+          $ref: "#/components/schemas/RuntimeActionTarget"
+        platform_nodes:
+          type: array
+          description: Supplemental worker/storage nodes handed off by TechStack for capacity or service placement.
+          items:
+            $ref: "#/components/schemas/RuntimeActionPlatformNode"
 
     RuntimeActionOwnerSpecBootstrap:
       type: object
@@ -1357,6 +1364,106 @@ components:
           type: array
           items:
             type: string
+
+    RuntimeActionTarget:
+      type: object
+      description: Primary runtime host used by the rollout. Supplemental nodes must not create another hidden main node.
+      properties:
+        host:
+          type: string
+        public_ip:
+          type: string
+        private_ip:
+          type: string
+        user:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        docker_host:
+          type: string
+        key_path:
+          type: string
+        private_key:
+          type: string
+          description: Short-lived secret material. Not persisted in StackSpec or rollout artifacts.
+        client_private_key:
+          type: string
+          description: Short-lived secret material. Not persisted in StackSpec or rollout artifacts.
+        password:
+          type: string
+
+    RuntimeActionPlatformNode:
+      type: object
+      description: Supplemental worker/storage node. Use real platform IDs or a real Komodo Periphery bootstrap path.
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum: [worker, storage, main, standalone, control-plane, foundation]
+        ip:
+          type: string
+        host:
+          type: string
+        services:
+          type: array
+          items:
+            type: string
+        platform:
+          $ref: "#/components/schemas/RuntimeActionNodePlatformTarget"
+        bootstrap:
+          $ref: "#/components/schemas/RuntimeActionNodeBootstrap"
+
+    RuntimeActionNodePlatformTarget:
+      type: object
+      description: Existing real platform placement identity. StackKits does not synthesize these values.
+      properties:
+        server_id:
+          type: string
+        destination_uuid:
+          type: string
+        environment_id:
+          type: string
+        project_uuid:
+          type: string
+        environment_uuid:
+          type: string
+
+    RuntimeActionNodeBootstrap:
+      type: object
+      description: Bootstrap material for platform-specific node registration. Komodo accepts snake_case and TechStack legacy camelCase keys.
+      properties:
+        komodo_core_address:
+          type: string
+        komodo_onboarding_key:
+          type: string
+          description: Short-lived Komodo onboarding key. Not persisted in StackSpec or rollout artifacts.
+        ssh:
+          $ref: "#/components/schemas/RuntimeActionSSHBootstrap"
+
+    RuntimeActionSSHBootstrap:
+      type: object
+      properties:
+        host:
+          type: string
+        user:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        key_path:
+          type: string
+        key_pem:
+          type: string
+        private_key:
+          type: string
+        client_private_key:
+          type: string
+        proxy_jump:
+          type: string
 
     RuntimeActionResponse:
       type: object

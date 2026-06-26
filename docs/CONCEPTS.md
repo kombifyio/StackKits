@@ -74,7 +74,7 @@ StackKits separate the deployment engine from the resource profile:
 **Deployment Engine:**
 - `bootstrapped` = current BaseKit beta default with packaged OpenTofu, Base Hub, owner bootstrap, and setup-run automation
 - `bare` = infrastructure and selected tools without Base Hub or setup automation
-- `advanced` = bootstrapped surface plus advanced handoff/runtime metadata; Terramate remains an explicit opt-in until its stack templates have release-grade evidence
+- `advanced` = bootstrapped surface plus Terramate Plus lifecycle orchestration, Runtime Intelligence Layer, Frontend Intelligence handoff, drift/change/rollback/restore-drill surfaces, and managed TechStack lifecycle handoff
 
 **Resource Profile** (user-specifiable intent, NOT just hardware detection):
 

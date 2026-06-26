@@ -239,6 +239,12 @@ variable "enable_files" {
   default     = true
 }
 
+variable "enable_home_assistant" {
+  type        = bool
+  description = "Enable Home Assistant smart-home hub (Layer 3, opt-in)"
+  default     = false
+}
+
 variable "bootstrap_mode" {
   type        = string
   description = "Legacy bootstrap evidence mode; current values are bare, bootstrapped, or advanced"

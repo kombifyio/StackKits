@@ -109,7 +109,7 @@ The fast Admin-generated-CUE freshness gate lives in `cmd/stackkit/commands/gene
 
 - `bare` deploys infrastructure and selected StackKit tools without Base Hub, `stackkit-server`, SetupRuns, or demo data. Setup policy is forced to `manual`.
 - `bootstrapped` is the default. Base Hub, owner/identity, monitoring baseline, and L1/L2 platform setup are automatic. L3 applications default to `on_demand`.
-- `advanced` includes the bootstrapped surface plus advanced handoff/runtime-intelligence metadata. L3 remains `on_demand` unless the TechStack/kombify-Desk path or the spec sets `automatic`. Terramate is an explicit `terramate` / `advanced-terramate` opt-in until its templates have release-grade evidence.
+- `advanced` is the full Terramate Plus lifecycle mode: bootstrapped baseline, StackKit-packaged Terramate orchestration, drift/change/rollback/restore-drill surfaces, Runtime Intelligence Layer, and Frontend Intelligence handoff. L3 remains `on_demand` unless the TechStack/kombify-Desk path or the spec sets `automatic`. Legacy `terramate` / `advanced-terramate` inputs normalize to this same Advanced contract.
 
 `bootstrap` configures setup policy defaults; it is not a second install mode. `bootstrap.platformPolicy` defaults to `automatic` outside `bare`, and `bootstrap.applicationDefaultPolicy` defaults to `on_demand`. More specific policies override in this order: `services.<tool>.setup.policy`, then `application.<useCase>.setup.policy`, then the bootstrap default, then the mode default. Valid policy values are `manual`, `on_demand`, and `automatic`.
 

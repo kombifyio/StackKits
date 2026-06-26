@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/api/openapi"
+	"github.com/kombifyio/stackkits/internal/backupplan"
 	"github.com/kombifyio/stackkits/internal/composition"
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
@@ -280,7 +281,7 @@ func (s *Server) handleGetStackKitDefaults(w http.ResponseWriter, r *http.Reques
 	defaultSpec := models.StackSpec{
 		Name:     "",
 		StackKit: sk.Metadata.Name,
-		Mode:     "simple",
+		Mode:     models.InstallModeBootstrapped,
 		Network:  models.NetworkSpec{Mode: "local", Subnet: "172.20.0.0/16"},
 		Compute:  models.ComputeSpec{Tier: "standard"},
 		SSH:      models.SSHSpec{Port: 22, User: "root"},
@@ -390,11 +391,10 @@ func validatePartialMode(partial map[string]interface{}) []models.ValidationErro
 	if !ok || mode == "" {
 		return nil
 	}
-	validModes := map[string]bool{"simple": true, "advanced": true}
-	if !validModes[mode] {
+	if !models.IsKnownInstallMode(mode) {
 		return []models.ValidationError{{
 			Path:    "mode",
-			Message: "invalid mode '" + mode + "', expected 'simple' or 'advanced'",
+			Message: "invalid mode '" + mode + "', expected bare, bootstrapped, or advanced",
 			Code:    "INVALID_MODE",
 		}}
 	}
@@ -629,8 +629,10 @@ func (s *Server) handleGenerateTFVars(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w, r, http.StatusOK, map[string]interface{}{
-		"tfvars": tfvars,
-		"file":   "terraform.tfvars.json",
+		"tfvars":             tfvars,
+		"file":               "terraform.tfvars.json",
+		"composition":        composition.BuildMetadata(&req.Spec, compositionResult),
+		"backupRecoveryPlan": backupplan.Build(&req.Spec),
 	})
 }
 
@@ -698,8 +700,10 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	preview := map[string]interface{}{
-		"tfvars":  tfvars,
-		"preview": true,
+		"tfvars":             tfvars,
+		"preview":            true,
+		"composition":        composition.BuildMetadata(&req.Spec, compositionResult),
+		"backupRecoveryPlan": backupplan.Build(&req.Spec),
 	}
 	if sk != nil {
 		preview["stackkit"] = stackKitSummary{

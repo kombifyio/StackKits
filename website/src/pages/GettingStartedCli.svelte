@@ -1,5 +1,6 @@
 <script lang="ts">
   import InstallBlock from '../lib/InstallBlock.svelte'
+  import PostInstallGuide from '../lib/PostInstallGuide.svelte'
   import TerminalBlock from '../lib/TerminalBlock.svelte'
 
   type Props = { navigate: (path: string) => void }
@@ -68,11 +69,15 @@ stackkit verify --http --json
 stackkit logs</code></pre>
 
       <h2>Or: the one-liner</h2>
-      <p>If you just want BaseKit on a fresh Ubuntu VM with sane defaults, skip the manual flow and run:</p>
+      <p>If you just want BaseKit on a fresh Ubuntu VM or local server with sane defaults, run this in the target server shell:</p>
     </section>
 
     <div class="my-6">
-      <InstallBlock command={installOneLiner} note="The verified beta BaseKit one-liner. Runs prepare → init → generate → apply for you." />
+      <InstallBlock command={installOneLiner} note="Run on the target server. Default *.home.localhost links are target-local, not LAN-wide DNS." />
+    </div>
+
+    <div class="my-8">
+      <PostInstallGuide />
     </div>
 
     <section class="mt-10 pt-8 border-t border-outline-variant">

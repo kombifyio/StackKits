@@ -1,6 +1,6 @@
 # StackKit CLI Reference
 
-> Last verified: 2026-06-13
+> Last verified: 2026-06-26
 
 This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
 
@@ -15,6 +15,29 @@ The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`, pac
 and the public kit catalog under `~/.stackkits`, so `stackkit init base-kit`
 works from a clean directory without a repo checkout. BaseKit is the verified
 beta one-click path and the only public OSS kit surface for this release line.
+Unpinned installer runs use the current stable GitHub `releases/latest`. To
+test a prerelease such as `v0.4.5-beta.1`, export the pin before invoking the
+installer:
+
+```bash
+export STACKKIT_RELEASE_VERSION=v0.4.5-beta.1
+curl -sSL https://base.stackkit.cc | sh
+```
+
+For a single copy/paste command, pass the pin to the shell that executes the
+installer:
+
+```bash
+env STACKKIT_RELEASE_VERSION=v0.4.5-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
+```
+
+For local-server beta tests, run the command in the shell of the target server
+itself, for example through SSH, the server console, or an on-server agent. The
+default generated URLs use browser-native `*.home.localhost` names. They are
+intended for the target server/local host context and do not create LAN-wide DNS
+records. If testers need to open the services from another device, choose an
+explicit domain/LAN-DNS path before treating the printed URLs as shared network
+links.
 
 For the full process taxonomy, including website prompting, one-line install,
 direct CLI, on-server agents, SSH agents, local MCP fallback, protected remote
@@ -66,6 +89,7 @@ stackkit verify --http --json
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
 | `app` | Write optional PaaS app handoff metadata for dev/customer-owned apps. |
 | `break-glass` | Inspect and rotate break-glass recovery bundles. |
+| `backup` | Configure, inspect, run, verify, restore, and migrate Kopia backups. |
 | `cluster` | Manage multi-node cluster membership. |
 | `compat` | Run a non-destructive VPS compatibility check. |
 | `doctor` | Run local diagnostics for common StackKit issues. |
@@ -206,6 +230,27 @@ Destroys the generated deployment with OpenTofu and updates `.stackkit/state.yam
 ### `stackkit status`
 
 Reads local deployment state and reports service health from generated outputs and runtime checks.
+
+### `stackkit backup`
+
+Manages the Kopia backup add-on from the local host. Self-hosted backup
+configuration is local-first; object-store targets remain part of the addon/Web
+UI setup until public managed-backup enrollment is available.
+The portable emergency export is modeled in `backup.resilience.emergencyExport`
+and has a Kopia-independent manifest/runbook runner.
+
+Common commands:
+
+- `stackkit backup init` prints the first-run checklist.
+- `stackkit backup configure --repo local:/backup/kopia` creates or reconnects the local Kopia filesystem repository inside `kopia-agent`.
+- `stackkit backup status` checks whether the local Kopia repository is configured.
+- `stackkit backup run` creates an ad-hoc snapshot of configured Docker volumes.
+- `stackkit backup list [--json]` lists snapshots.
+- `stackkit backup restore <snapshot-id> --target /tmp/stackkit-restore` restores one snapshot.
+- `stackkit backup verify` runs `kopia repository validate-provider`.
+- `stackkit backup emergency-export --target /backup/emergency-export` writes a portable export manifest and restore runbook without requiring a healthy Kopia repository. Use `--large-media-mode manifest-only|include|exclude` to control media handling.
+- `stackkit backup migrate-from-restic [--dry-run]` runs the one-shot legacy importer.
+- `stackkit backup enroll --token <token> --endpoint <url>` is the managed-service scaffold and returns a clear not-implemented error until the controller follow-ups land.
 
 ### `stackkit validate [file]`
 

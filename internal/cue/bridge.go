@@ -71,25 +71,26 @@ type TFVars struct {
 	PlatformFallbackMode   string `json:"platform_fallback_mode"`
 
 	// Service enable flags
-	EnableTraefik     bool   `json:"enable_traefik"`
-	EnableTinyauth    bool   `json:"enable_tinyauth"`
-	EnablePocketID    bool   `json:"enable_pocketid"`
-	EnableDokploy     bool   `json:"enable_dokploy"`
-	EnableDokployApps bool   `json:"enable_dokploy_apps"`
-	EnableDockge      bool   `json:"enable_dockge"`
-	EnableCoolify     bool   `json:"enable_coolify"`
-	EnableKomodo      bool   `json:"enable_komodo"`
-	EnableDashboard   bool   `json:"enable_dashboard"`
-	EnableHomepage    bool   `json:"enable_homepage"`
-	EnableUptimeKuma  bool   `json:"enable_uptime_kuma"`
-	EnableWhoami      bool   `json:"enable_whoami"`
-	EnableVaultwarden bool   `json:"enable_vaultwarden"`
-	EnableJellyfin    bool   `json:"enable_jellyfin"`
-	EnableImmich      bool   `json:"enable_immich"`
-	EnableFiles       bool   `json:"enable_files"`
-	FilesProvider     string `json:"files_provider"`
-	EnableCloudreve   bool   `json:"enable_cloudreve"`
-	EnableNextcloud   bool   `json:"enable_nextcloud"`
+	EnableTraefik       bool   `json:"enable_traefik"`
+	EnableTinyauth      bool   `json:"enable_tinyauth"`
+	EnablePocketID      bool   `json:"enable_pocketid"`
+	EnableDokploy       bool   `json:"enable_dokploy"`
+	EnableDokployApps   bool   `json:"enable_dokploy_apps"`
+	EnableDockge        bool   `json:"enable_dockge"`
+	EnableCoolify       bool   `json:"enable_coolify"`
+	EnableKomodo        bool   `json:"enable_komodo"`
+	EnableDashboard     bool   `json:"enable_dashboard"`
+	EnableHomepage      bool   `json:"enable_homepage"`
+	EnableUptimeKuma    bool   `json:"enable_uptime_kuma"`
+	EnableWhoami        bool   `json:"enable_whoami"`
+	EnableVaultwarden   bool   `json:"enable_vaultwarden"`
+	EnableJellyfin      bool   `json:"enable_jellyfin"`
+	EnableImmich        bool   `json:"enable_immich"`
+	EnableFiles         bool   `json:"enable_files"`
+	FilesProvider       string `json:"files_provider"`
+	EnableCloudreve     bool   `json:"enable_cloudreve"`
+	EnableNextcloud     bool   `json:"enable_nextcloud"`
+	EnableHomeAssistant bool   `json:"enable_home_assistant,omitempty"`
 
 	MediaPath string `json:"media_path"`
 
@@ -454,6 +455,7 @@ func (b *TerraformBridge) configureServiceDefaults(tfvars *TFVars, tier string) 
 	tfvars.FilesProvider = "cloudreve"
 	tfvars.EnableCloudreve = true
 	tfvars.EnableNextcloud = false
+	tfvars.EnableHomeAssistant = false
 	tfvars.MediaPath = "/opt/media"
 }
 
@@ -522,6 +524,7 @@ func (b *TerraformBridge) applyServiceEnables(services map[string]any, tfvars *T
 		"files":             &tfvars.EnableFiles,
 		"cloudreve":         &tfvars.EnableCloudreve,
 		"nextcloud":         &tfvars.EnableNextcloud,
+		"home-assistant":    &tfvars.EnableHomeAssistant,
 	}
 	// Alias: CUE modules use "uptime-kuma" but TFVars uses "uptime_kuma"
 	enables["uptime-kuma"] = enables["uptime_kuma"]
@@ -548,16 +551,19 @@ func (b *TerraformBridge) applyApplicationEnables(application map[string]any, tf
 	if len(application) == 0 {
 		return
 	}
-	filesConfig, ok := application["files"]
-	if !ok {
-		return
+	if filesConfig, ok := application["files"]; ok {
+		if config, ok := filesConfig.(map[string]any); ok {
+			if enabled, ok := config["enabled"].(bool); ok {
+				tfvars.EnableFiles = enabled
+			}
+		}
 	}
-	config, ok := filesConfig.(map[string]any)
-	if !ok {
-		return
-	}
-	if enabled, ok := config["enabled"].(bool); ok {
-		tfvars.EnableFiles = enabled
+	if smartHomeConfig, ok := application["smart-home"]; ok {
+		if config, ok := smartHomeConfig.(map[string]any); ok {
+			if enabled, ok := config["enabled"].(bool); ok {
+				tfvars.EnableHomeAssistant = enabled
+			}
+		}
 	}
 }
 
@@ -937,6 +943,7 @@ func (b *TerraformBridge) extractServices(stack cue.Value, tfvars *TFVars) {
 		"files":             &tfvars.EnableFiles,
 		"cloudreve":         &tfvars.EnableCloudreve,
 		"nextcloud":         &tfvars.EnableNextcloud,
+		"home-assistant":    &tfvars.EnableHomeAssistant,
 	}
 	for name, ptr := range enables {
 		service := cueFieldAt(services, name)

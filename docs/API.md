@@ -132,6 +132,21 @@ TechStack calls the internal runtime-action endpoints during managed wizard roll
   "stackkit": "base-kit",
   "tofu_dir": "/shared/stacks/stack-123/tofu",
   "unified_path": "/shared/stacks/stack-123/unified-spec.yaml",
+  "runtime_target": {
+    "host": "main.stack.example",
+    "user": "root",
+    "port": 22
+  },
+  "platform_nodes": [
+    {
+      "name": "worker-1",
+      "role": "worker",
+      "services": ["vaultwarden"],
+      "platform": {
+        "server_id": "real-platform-server-id"
+      }
+    }
+  ],
   "owner_spec_bootstrap": {
     "endpoint": "/api/v1/stacks/stack-123/owner-spec",
     "token": "short-lived-token",
@@ -141,7 +156,7 @@ TechStack calls the internal runtime-action endpoints during managed wizard roll
 }
 ```
 
-Supported `action` values are `stackkit_rollout`, `verify_rollout`, and `restore_drill`. Dry-run mode validates and echoes the handoff contract; apply mode runs OpenTofu `init`/`apply` for rollout, `state list` for verification, and `STACKKITS_RESTORE_DRILL_COMMAND` for restore proof when configured. Without that command, restore-drill remains an explicit `skipped` result.
+Supported `action` values are `stackkit_rollout`, `verify_rollout`, and `restore_drill`. `runtime_target` is the primary/foundation node for rollout execution. `platform_nodes[]` carries supplemental worker/storage nodes for capacity or service placement; Coolify/Dokploy require real platform placement identifiers, while Komodo requires either a real `server_id` or a Periphery onboarding bootstrap with Core address, onboarding key, and SSH target. Dry-run mode validates and echoes the handoff contract; apply mode runs OpenTofu `init`/`apply` for rollout, prepares supplemental platform nodes before app deployment, `state list` for verification, and `STACKKITS_RESTORE_DRILL_COMMAND` for restore proof when configured. Without that command, restore-drill remains an explicit `skipped` result.
 
 Apply-mode rollout responses include platform app evidence when the generated handoff manifest is present:
 

@@ -121,9 +121,16 @@ func Diff(a, b KitDefinition) []FieldDifference {
 		vb := b.Application[k]
 		add("application."+k+".role", "critical", string(va.Role), string(vb.Role), "")
 		add("application."+k+".defaultTool", "critical", va.DefaultTool, vb.DefaultTool, "")
+		add("application."+k+".description", "cosmetic", va.Description, vb.Description, "free-text drift OK")
+		add("application."+k+".package", "critical", va.Package, vb.Package, "")
+		add("application."+k+".defaultRuntimeProfile", "critical", va.DefaultRuntimeProfile, vb.DefaultRuntimeProfile, "")
 		if !sortedEqual(va.Alternatives, vb.Alternatives) {
 			add("application."+k+".alternatives", "critical", va.Alternatives, vb.Alternatives, "")
 		}
+		add("application."+k+".runtimeProfiles", "critical", va.RuntimeProfiles, vb.RuntimeProfiles, "")
+		add("application."+k+".connectors", "critical", va.Connectors, vb.Connectors, "")
+		add("application."+k+".productApis", "critical", va.ProductAPIs, vb.ProductAPIs, "")
+		add("application."+k+".ril", "critical", va.RIL, vb.RIL, "")
 	}
 
 	// Per-foundation role

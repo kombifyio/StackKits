@@ -60,7 +60,9 @@ and include:
 - fresh Ubuntu BaseKit evidence from the published release or installer path,
 - scenario evidence rows for `SK-S1`, `SK-S2`, `SK-S3`, and `SK-S5`; missing
   rollout artifacts must appear as `pending` rows, never as an empty
-  `scenarioEvidence` array,
+  `scenarioEvidence` array. `SK-S6` appears as `not_applicable` for BaseKit-only
+  evidence and must be set explicitly before claiming HA or multi-server backup
+  release-readiness,
 - upgrade and rollback VM proof status,
 - known limitations and support boundaries.
 

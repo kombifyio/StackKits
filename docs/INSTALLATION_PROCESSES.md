@@ -100,7 +100,7 @@ StackKits configuration is intentionally broad enough to support a guided agent 
 | --- | --- | --- |
 | Owner and admin intent | `adminEmail`, `owner.*`, CLI `--admin-email`, owner bootstrap flags | `adminEmail` is compatibility input; Owner fields are the stronger identity contract when present. |
 | Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `base-kit` is the verified beta path. |
-| Install mode | `mode`, `STACKKIT_MODE`, `--mode` | `bare` is minimal/manual, `bootstrapped` is default, `advanced` adds day-2 metadata. |
+| Install mode | `mode`, `STACKKIT_MODE`, `--mode` | `bare` is minimal/manual, `bootstrapped` is default, `advanced` is the Terramate Plus lifecycle with Runtime/Frontend Intelligence and managed TechStack handoff. |
 | Target context | `context`, `--context`, `KOMBIFY_CONTEXT` | `local` means local/default runtime assumptions, not a dependency on a home network. |
 | Domain strategy | `domain`, `localDns`, `DOMAIN`, `STACKKIT_LOCAL_DOMAIN`, DNS provider env | Default local links use browser-native `.localhost`; public/custom domains require DNS/TLS proof. |
 | Service profile | `serviceProfile`, `STACKKIT_SERVICE_PROFILE`, `--service-profile` | `admin-only` keeps platform/admin services while deferring L3 application setup. |
@@ -304,7 +304,7 @@ Best paths: `P2`, `P4`; `P5` only for post-install connector operation.
 
 ### `I4`: Advanced Composition
 
-Adds advanced owner/recovery policy, add-ons, non-default setup posture, update/rollback, or later lifecycle work. Agents should start read-only, run validation/plan, and preserve evidence before any mutation.
+Adds advanced owner/recovery policy, add-ons, non-default setup posture, Terramate Plus orchestration, update/rollback, restore drills, Runtime/Frontend Intelligence, or managed TechStack lifecycle work. Agents should start read-only, run validation/plan, and preserve evidence before any mutation.
 
 Best paths: `P2`, `P6`; `P4` only when SSH is the available execution channel; `P5` is the target path for installed StackKit day-2.
 
@@ -376,6 +376,20 @@ This is the shortest verified BaseKit user path.
 
 ```bash
 curl -sSL https://base.stackkit.cc | sh
+```
+
+For local-server tester rollouts, execute this in the target server shell
+itself: SSH session, physical/VM console, or an agent already running on that
+server. The default `home.localhost` URLs are local to that target/browser
+context and are not LAN DNS records. A laptop browser will resolve
+`base.home.localhost` to the laptop, not automatically to the server. Use an
+explicit `DOMAIN`/LAN-DNS path when services must be opened from other devices
+on the network.
+
+Beta validation should pin the tested release explicitly:
+
+```bash
+env STACKKIT_RELEASE_VERSION=v0.4.5-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
 ```
 
 Current implementation:
