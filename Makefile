@@ -56,8 +56,8 @@ test-validation: ## Run 3-layer validation suite
 test-coverage: ## Run tests with coverage
 	mise run test-coverage
 
-test-base-kit: ## Run base-kit tests
-	cd base-kit && ./tests/run_tests.sh
+test-basement-kit: ## Run basement-kit tests
+	cd basement-kit && ./tests/run_tests.sh
 
 test-dev-homelab: ## Run dev-homelab validation
 	cue vet ./dev-homelab/...

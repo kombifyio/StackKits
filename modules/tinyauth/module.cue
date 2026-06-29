@@ -102,7 +102,7 @@ Contract: base.#ModuleContract & {
 	services: tinyauth: base.#ServiceDefinition & {
 		name: "tinyauth"
 		type: "auth"
-		// Pin matches base-kit/services.cue and the release pre-pull list.
+		// Pin matches base/services.cue and the release pre-pull list.
 		image:    "ghcr.io/steveiliop56/tinyauth"
 		tag:      "v5.0.7"
 		required: true

@@ -1,5 +1,5 @@
 // =============================================================================
-// STACKKIT: base-kit - Single-Environment 1..N (Basement/Cloud profiles)
+// STACKKIT: base - shared #StackBase library, Single-Environment 1..N (Basement/Cloud profiles)
 // =============================================================================
 //
 // Version 5.0 - Transitional compatibility schema for the v5 Base Kit model.

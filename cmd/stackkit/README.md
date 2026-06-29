@@ -18,7 +18,7 @@ make build
 
 ```bash
 # from an empty working directory
-stackkit init base-kit
+stackkit init basement-kit
 stackkit prepare
 stackkit generate
 stackkit plan

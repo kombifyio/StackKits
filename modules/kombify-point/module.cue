@@ -88,7 +88,7 @@ Contract: base.#ModuleContract & {
 		}
 
 		// Matches the generated rollout: the kombify-point router gets the
-		// tinyauth middleware when TinyAuth is enabled (base-kit/templates/simple/main.tf).
+		// tinyauth middleware when TinyAuth is enabled (basement-kit/templates/simple/main.tf).
 		accessPolicy: {
 			outerAuth: "tinyauth-pocketid"
 			appAuth:   "none"

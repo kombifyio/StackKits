@@ -32,7 +32,7 @@ platform that enables the use cases.
 | Term | Meaning | Notes |
 |------|---------|-------|
 | **Foundation Layer** | The OS/host layer — one of the three layers (Application / Platform / **Foundation**). | Canonical per ADR-0015. **Never** "Base Layer" or "OS Layer" in new docs. |
-| **Basement Kit** / **Cloud Kit** | The single-environment kits (local / cloud) — formerly "Base Kit" / "Base Homelab". | Profiles over one schema (ADR-0026). Current technical id stays `base-kit` pending a sequenced rename. |
+| **Basement Kit** / **Cloud Kit** | The single-environment kits (local / cloud) — formerly "Base Kit" / "Base Homelab". | Profiles over one shared schema `base.#StackBase` (ADR-0026 + amendment). `base-kit` is retired as a kit and survives only as a deprecation alias. |
 | **`base/`** | The shared CUE schema package (foundational contracts: stackkit, cluster, placement, context, …). | A code package name. NOT the Foundation layer, NOT a kit. |
 | **Base Hub** (Node Hub) | The per-node onboarding entrypoint served at `base.<domain>`. | A UX surface. NOT a layer, NOT a kit. |
 
@@ -54,12 +54,12 @@ Golden Rules §8). Every non-HA kit has **exactly one main**.
 
 | StackKit | Pattern | Maturity | Default Scope |
 |----------|---------|----------|---------------|
-| **Basement Kit** | Single environment, 1 main, local-only (`context local/pi`) | beta (this schema = `base-kit`) | Platform + verified default application modules; heavier modules gated by release gates |
-| **Cloud Kit** | Single environment, 1 main, cloud-only (`context cloud`, BYO-VPS) | beta (same `base-kit` schema, `context cloud`) | Same scope; public-IP/domain onboarding |
+| **Basement Kit** | Single environment, 1 main, local-only (`context local/pi`) | beta (schema `base.#StackBase`) | Platform + verified default application modules; heavier modules gated by release gates |
+| **Cloud Kit** | Single environment, 1 main, cloud-only (`context cloud`, BYO-VPS) | scaffolding (same `base.#StackBase`, `context cloud`) | Same scope; public-IP/domain onboarding |
 | **Modern Homelab** | Hybrid (≥1 local + ≥1 cloud), 1 main + bridge contract | alpha/scaffolding (v0.8) | Composition of Basement + Cloud node-sets + interface/bridge; managed variant = subscription |
 | **HA Kit** | Redundant control planes, quorum 3/5/7 | scaffolding (v0.8+) | Reliability/failover overlay |
 
-Basement Kit and Cloud Kit are **product profiles over the one `base-kit` schema**
+Basement Kit and Cloud Kit are **product profiles over the one shared `base.#StackBase` schema**
 (selected by `context`), not two separate schemas. Platform target = routing + identity
 implementation + access gateway + PaaS adapter + platform observability. Current release
 gates may keep individual platform services opt-in until their first-run UX and

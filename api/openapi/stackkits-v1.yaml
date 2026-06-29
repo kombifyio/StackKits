@@ -790,7 +790,7 @@ components:
       name: name
       in: path
       required: true
-      description: StackKit name (e.g., base-kit)
+      description: StackKit name (e.g., basement-kit)
       schema:
         type: string
         pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
@@ -812,7 +812,7 @@ components:
       description: Unique instance identifier
       schema:
         type: string
-        example: "sh-mylab-abc123-base-kit-def456"
+        example: "sh-mylab-abc123-basement-kit-def456"
 
     LogLevel:
       name: level
@@ -869,10 +869,10 @@ components:
       properties:
         name:
           type: string
-          example: base-kit
+          example: basement-kit
         displayName:
           type: string
-          example: Base Kit
+          example: Basement Kit
         description:
           type: string
         version:
@@ -986,7 +986,7 @@ components:
           type: string
         stackkit:
           type: string
-          example: base-kit
+          example: basement-kit
         mode:
           type: string
           enum: [simple, advanced]
@@ -1931,7 +1931,7 @@ components:
         instance_id:
           type: string
           description: Unique instance identifier (device fingerprint + stackkit name)
-          example: "sh-mylab-abc123-base-kit-def456"
+          example: "sh-mylab-abc123-basement-kit-def456"
         endpoint_url:
           type: string
           format: uri
@@ -1939,7 +1939,7 @@ components:
           example: "https://api.sh-mylab-abc123.kombify.me"
         stackkit:
           type: string
-          example: "base-kit"
+          example: "basement-kit"
         version:
           type: string
           example: "1.0.0"

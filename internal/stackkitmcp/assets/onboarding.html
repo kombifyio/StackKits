@@ -527,7 +527,8 @@
           <label class="field full">
             <span>StackKit</span>
             <select id="stackkit" name="stackkit">
-              <option value="base-kit">BaseKit</option>
+              <option value="basement-kit">Basement Kit (local)</option>
+              <option value="cloud-kit">Cloud Kit (cloud/VPS, scaffolding)</option>
             </select>
           </label>
           <label class="field">
@@ -692,7 +693,7 @@
         name: "my-homelab",
         base_dir: ".",
         spec_path: "stack-spec.yaml",
-        stackkit: "base-kit",
+        stackkit: "basement-kit",
         mode: "bootstrapped",
         service_profile: "",
         context: "local",

@@ -28,6 +28,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	skcue "github.com/kombifyio/stackkits/internal/cue"
@@ -189,7 +191,7 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 	snap := registry.Snapshot{
 		SchemaVersion: registry.SnapshotVersion,
 		Source:        "cue",
-		GeneratedAt:   time.Now().UTC(),
+		GeneratedAt:   reproducibleNow(),
 		Modules:       modules,
 		Services:      registryServicesFromCatalog(servicecatalog.FromCUE(serviceCatalogEntriesFromContracts(contracts))),
 		// Tools and StackKits are authoritative only in the DB; OSS
@@ -206,6 +208,21 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 	printSuccess("Wrote registry snapshot to %s", registryBakeOutput)
 	printInfo("source=cue services=%d modules=%d (tools/stackkits empty in CUE-only bake)", len(snap.Services), len(snap.Modules))
 	return nil
+}
+
+// reproducibleNow returns a deterministic timestamp when SOURCE_DATE_EPOCH is
+// set (the reproducible-builds convention), so that repeated CUE bakes of the
+// same source tree are byte-identical. The public-export pipeline pins this to
+// the source commit time so the curated export and the pushed mirror carry the
+// exact same snapshot and the parity audit holds. Falls back to the wall clock
+// when the variable is absent or unparseable.
+func reproducibleNow() time.Time {
+	if epoch := strings.TrimSpace(os.Getenv("SOURCE_DATE_EPOCH")); epoch != "" {
+		if secs, err := strconv.ParseInt(epoch, 10, 64); err == nil {
+			return time.Unix(secs, 0).UTC()
+		}
+	}
+	return time.Now().UTC()
 }
 
 func runRegistryInfo(_ *cobra.Command, _ []string) error {

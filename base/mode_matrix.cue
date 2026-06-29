@@ -3,7 +3,7 @@
 // Machine-readable declaration of which mode cells each kit actually covers,
 // replacing the per-kit ad-hoc prose in stackkit.yaml `modes:` blocks as the
 // source of truth. Every kit declares one #KitModeSupport in its own package
-// (base-kit/mode_matrix.cue, ...); the architecture snapshot derives the
+// (basement-kit/mode_matrix.cue, cloud-kit/mode_matrix.cue, ...); the architecture snapshot derives the
 // downstream `modeMatrix` contract from these declarations.
 //
 // The matrix states REALITY, not aspiration: a cell is "supported" only when

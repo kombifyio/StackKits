@@ -118,7 +118,7 @@ package base
 #CoolifyConfig: {
 	// Coolify is the default PaaS adapter (Golden Rules §5.2)
 	enabled: bool | *true
-	// Pin matches base-kit/services.cue and the release pre-pull list
+	// Pin matches base/services.cue and the release pre-pull list
 	version: string | *"4.1.2"
 	image:   string | *"ghcr.io/coollabsio/coolify"
 	port:    uint16 & >0 & <=65535 | *8000

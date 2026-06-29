@@ -10,7 +10,7 @@ _test_iac_defaults_minimal: #IaCDefaults & {
 		null:   "~> 3.2"
 	}
 	default_tags: {
-		kit_slug:    "base-kit"
+		kit_slug:    "basement-kit"
 		kit_version: "1.0.0"
 	}
 	backend: type: "local"
@@ -25,7 +25,7 @@ _test_iac_defaults_with_tenant: #IaCDefaults & {
 		hetzner: "~> 1.45"
 	}
 	default_tags: {
-		kit_slug:    "base-kit"
+		kit_slug:    "basement-kit"
 		kit_version: "1.1.0"
 		tenant_id:   "acme-corp"
 		environment: "prod"
@@ -34,7 +34,7 @@ _test_iac_defaults_with_tenant: #IaCDefaults & {
 		type: "s3"
 		s3: {
 			bucket: "kombify-tofu-state"
-			key:    "tenants/acme-corp/base-kit.tfstate"
+			key:    "tenants/acme-corp/basement-kit.tfstate"
 			region: "eu-central-1"
 		}
 	}
@@ -48,14 +48,14 @@ _test_iac_defaults_remote_backend: #IaCDefaults & {
 		null:   "~> 3.2"
 	}
 	default_tags: {
-		kit_slug:    "base-kit"
+		kit_slug:    "basement-kit"
 		kit_version: "1.0.0"
 	}
 	backend: {
 		type: "remote"
 		remote: {
 			organization: "kombify"
-			workspace:    "base-kit-prod"
+			workspace:    "basement-kit-prod"
 		}
 	}
 }

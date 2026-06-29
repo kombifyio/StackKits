@@ -109,7 +109,7 @@ These are deliberate scope boundaries, not hidden defaults:
 - Vaultwarden is enabled by default, receives a generated admin token, verifies that token through the admin endpoint, uses PHC+B64 runtime storage, and records a controlled break-glass posture in `SetupRun` evidence. Native app-local Owner account provisioning remains a beta limitation; the default access boundary is TinyAuth/PocketID in front of the app, and the admin token is not the PocketID Owner login.
 - Jellyfin/media and Dockge are opt-in/manual until their first-run UX matches the default path.
 - The Coolify-managed L3 application layer now has a strict generated bootstrap contract. Direct Docker Compose starts for StackKit-owned/default L3 apps are invalid managed release evidence; product-bundled L3 apps must be manageable selected-PaaS apps with platform external IDs in state. User-installed apps outside StackKit manifests are state-unmanaged.
-- The host `security-baseline` is mandatory for BaseKit beta release evidence. `admin-bootstrap` and broader login-gateway follow-ups remain tracked in the roadmap.
+- The host `security-baseline` is mandatory for Basement Kit beta release evidence. `admin-bootstrap` and broader login-gateway follow-ups remain tracked in the roadmap.
 
 ## Architecture
 

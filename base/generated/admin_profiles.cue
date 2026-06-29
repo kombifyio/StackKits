@@ -27,7 +27,7 @@ package base
 	scenarioId:                   string
 	displayName:                  string
 	description?:                 string
-	stackkit:                     "basement-kit"
+	stackkit:                     "basement-kit" | "cloud-kit"
 	context:                      "local" | "cloud"
 	domain:                       string
 	networkMode:                  "local" | "public"
@@ -53,9 +53,9 @@ package base
 	"custom-domain-explicit-mail": #AdminSetupProfile & {
 		profileKey:                   "custom-domain-explicit-mail"
 		scenarioId:                   "SK-S3"
-		displayName:                  "Bare custom-domain explicit mail Basement Kit"
+		displayName:                  "Bare custom-domain explicit mail Cloud Kit"
 		description:                  "Bare custom-domain profile with explicit owner/admin mail, Cloudflare DNS challenge, Coolify, and no Base Hub setup automation."
-		stackkit:                     "basement-kit"
+		stackkit:                     "cloud-kit"
 		context:                      "cloud"
 		domain:                       "kombify.pro"
 		networkMode:                  "public"
@@ -74,9 +74,9 @@ package base
 	"kombify-me-cloud-owner": #AdminSetupProfile & {
 		profileKey:                   "kombify-me-cloud-owner"
 		scenarioId:                   "SK-S2"
-		displayName:                  "Bootstrapped kombify.me cloud-owner Basement Kit"
+		displayName:                  "Bootstrapped kombify.me cloud-owner Cloud Kit"
 		description:                  "Managed kombify.me bootstrapped profile with cloud Owner handoff, Komodo as the PaaS alternative, and passive L3 one-click setup actions."
-		stackkit:                     "basement-kit"
+		stackkit:                     "cloud-kit"
 		context:                      "cloud"
 		domain:                       "kombify.me"
 		networkMode:                  "public"
