@@ -46,7 +46,7 @@ func init() {
 	wizardReportCmd.Flags().StringVar(&wizardReportFile, "answers", "", "Path to wizard answers (.yaml or .json). Required unless --intent is set.")
 	wizardReportCmd.Flags().StringVar(&wizardReportEndpoint, "endpoint", "", "Admin API base URL. Defaults to $STACKKIT_ADMIN_ENDPOINT.")
 	wizardReportCmd.Flags().StringVar(&wizardReportToken, "token", "", "Bearer token. Defaults to $STACKKIT_ADMIN_TOKEN.")
-	wizardReportCmd.Flags().StringVar(&wizardReportStackKit, "stackkit", "", "StackKit slug (e.g. base-kit)")
+	wizardReportCmd.Flags().StringVar(&wizardReportStackKit, "stackkit", "", "StackKit slug (e.g. basement-kit)")
 	wizardReportCmd.Flags().StringVar(&wizardReportContext, "derived-context", "", "Derived context (local/cloud/pi)")
 	wizardReportCmd.Flags().StringVar(&wizardReportCompute, "derived-compute", "", "Derived compute tier (shared/dedicated)")
 	wizardReportCmd.Flags().StringVar(&wizardReportTenant, "tenant", "", "Tenant UUID (optional)")

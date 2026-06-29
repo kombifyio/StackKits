@@ -9,8 +9,7 @@ Run the narrowest relevant checks for your change:
 ```sh
 go test ./...
 cue vet ./base/... ./base-kit/...
-npm --prefix website install
-npm --prefix website run build
+node --test scripts/release/changelog.test.mjs scripts/release/install-latest-resolution.test.mjs
 ```
 
 When changing generated rollout output, update the CUE or Go source and

@@ -42,7 +42,7 @@ func validateStackKitName(name string) *skerrors.StackKitError {
 			"invalid stackkit name: '"+name+"' — must match pattern ^[a-z0-9][a-z0-9-]*[a-z0-9]$",
 			skerrors.WithField("name", name),
 			skerrors.WithField("pattern", "^[a-z0-9][a-z0-9-]*[a-z0-9]$"),
-			skerrors.WithSuggestion("Use lowercase letters, digits, and hyphens only (e.g., base-kit)"),
+			skerrors.WithSuggestion("Use lowercase letters, digits, and hyphens only (e.g., basement-kit)"),
 			skerrors.WithSuggestion("Name must start and end with a letter or digit"),
 		)
 	}

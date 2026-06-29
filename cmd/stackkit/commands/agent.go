@@ -50,7 +50,7 @@ var agentPromptBodies = map[string]string{
 	"basekit-autonomous-rollout": `You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only.
 
 Run:
-stackkit init base-kit --non-interactive --admin-email <operator-email>
+stackkit init basement-kit --non-interactive --admin-email <operator-email>
 stackkit prepare --dry-run
 stackkit validate
 stackkit generate --force
@@ -83,7 +83,7 @@ Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or
 Confirm target host, SSH user, SSH key path, admin email, and whether the host is dedicated to StackKits.
 
 Run:
-stackkit init base-kit --non-interactive --admin-email <email>
+stackkit init basement-kit --non-interactive --admin-email <email>
 stackkit prepare --dry-run
 stackkit validate
 stackkit generate --force
@@ -223,7 +223,7 @@ func init() {
 	agentCmd.AddCommand(agentInstallPlanCmd, agentSelfCheckCmd, agentPromptCmd, agentMCPConfigCmd)
 
 	agentInstallPlanCmd.Flags().BoolVar(&agentInstallPlanJSON, "json", false, "Emit JSON")
-	agentInstallPlanCmd.Flags().StringVar(&agentKit, "kit", "base-kit", "StackKit to plan for")
+	agentInstallPlanCmd.Flags().StringVar(&agentKit, "kit", "basement-kit", "StackKit to plan for")
 	agentInstallPlanCmd.Flags().StringVar(&agentTarget, "target", "local", "Target kind: local, ssh, vm, or ci")
 	agentInstallPlanCmd.Flags().StringVar(&agentWorkspace, "dir", "my-homelab", "Workspace directory")
 
@@ -241,7 +241,7 @@ func init() {
 func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 	kit = strings.TrimSpace(kit)
 	if kit == "" {
-		kit = "base-kit"
+		kit = "basement-kit"
 	}
 	target = strings.TrimSpace(target)
 	if target == "" {

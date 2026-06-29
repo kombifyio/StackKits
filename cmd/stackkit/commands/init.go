@@ -63,7 +63,7 @@ StackKit selection, compute tier, domain, and email.
 
 Examples:
   stackkit init                         Interactive mode
-  stackkit init base-kit            Initialize with base-kit
+  stackkit init basement-kit            Initialize with basement-kit
   stackkit init ./my-stackkit           Initialize from local path
   stackkit init --non-interactive       Fail if arguments are missing`,
 	Args: cobra.MaximumNArgs(1),
@@ -508,6 +508,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if models.IsLegacyStackKitName(stackkitName) {
+		printWarning("StackKit %q is a retired alias; using %q.", stackkitName, models.NormalizeStackKitName(stackkitName))
+	}
+	stackkitName = models.NormalizeStackKitName(stackkitName)
 
 	deployLog.Event("init.stackkit_selected",
 		slog.String("name", stackkitName),
@@ -593,7 +597,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Port: 22,
 	}
 	isLocalOnlyDomain := models.IsLocalDomain(domain) && !models.IsKombifyMeDomain(domain)
-	if stackkitName == "base-kit" && defaults.Context == models.ContextLocal && isLocalOnlyDomain {
+	if stackkitName == "basement-kit" && defaults.Context == models.ContextLocal && isLocalOnlyDomain {
 		sshSpec.User = "admin"
 		sshSpec.KeyPath = "~/.ssh/id_ed25519"
 	}
@@ -651,7 +655,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// composition engine, decides whether PocketID is actually deployed,
 	// and only then writes <wd>/.stackkit/pocketid-* (gated, idempotent,
 	// 0600). This keeps the .stackkit/ directory empty for kits that don't
-	// enable PocketID (base-kit out of the box).
+	// enable PocketID (basement-kit out of the box).
 
 	printInitSummary(stackkitName, mode, computeTier, defaults.Context, domain, email)
 	return nil
@@ -673,13 +677,13 @@ func baseKitInitServices(stackkitName string, ctx models.NodeContext, isLocalOnl
 	profile = strings.ToLower(strings.TrimSpace(profile))
 	switch profile {
 	case "", "default":
-		if stackkitName == "base-kit" && ctx == models.ContextLocal && isLocalOnlyDomain {
+		if stackkitName == "basement-kit" && ctx == models.ContextLocal && isLocalOnlyDomain {
 			return baseKitLocalReleaseDefaultServices(), nil
 		}
 		return nil, nil
 	case "admin-only":
-		if stackkitName != "base-kit" {
-			return nil, fmt.Errorf("--service-profile=%s is only supported for base-kit", profile)
+		if stackkitName != "basement-kit" && stackkitName != "cloud-kit" {
+			return nil, fmt.Errorf("--service-profile=%s is only supported for basement-kit or cloud-kit", profile)
 		}
 		return baseKitAdminOnlyServices(), nil
 	default:

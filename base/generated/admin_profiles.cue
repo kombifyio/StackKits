@@ -27,7 +27,7 @@ package base
 	scenarioId:                   string
 	displayName:                  string
 	description?:                 string
-	stackkit:                     "base-kit"
+	stackkit:                     "basement-kit"
 	context:                      "local" | "cloud"
 	domain:                       string
 	networkMode:                  "local" | "public"
@@ -46,16 +46,16 @@ package base
 }
 
 // =============================================================================
-// BASEKIT V0.4 STANDARD ADMIN PROFILES
+// BASEMENT KIT V0.4 STANDARD ADMIN PROFILES
 // =============================================================================
 
 #AdminProfiles: {
 	"custom-domain-explicit-mail": #AdminSetupProfile & {
 		profileKey:                   "custom-domain-explicit-mail"
 		scenarioId:                   "SK-S3"
-		displayName:                  "Bare custom-domain explicit mail BaseKit"
+		displayName:                  "Bare custom-domain explicit mail Basement Kit"
 		description:                  "Bare custom-domain profile with explicit owner/admin mail, Cloudflare DNS challenge, Coolify, and no Base Hub setup automation."
-		stackkit:                     "base-kit"
+		stackkit:                     "basement-kit"
 		context:                      "cloud"
 		domain:                       "kombify.pro"
 		networkMode:                  "public"
@@ -74,9 +74,9 @@ package base
 	"kombify-me-cloud-owner": #AdminSetupProfile & {
 		profileKey:                   "kombify-me-cloud-owner"
 		scenarioId:                   "SK-S2"
-		displayName:                  "Bootstrapped kombify.me cloud-owner BaseKit"
+		displayName:                  "Bootstrapped kombify.me cloud-owner Basement Kit"
 		description:                  "Managed kombify.me bootstrapped profile with cloud Owner handoff, Komodo as the PaaS alternative, and passive L3 one-click setup actions."
-		stackkit:                     "base-kit"
+		stackkit:                     "basement-kit"
 		context:                      "cloud"
 		domain:                       "kombify.me"
 		networkMode:                  "public"
@@ -95,9 +95,9 @@ package base
 	"local-no-mail": #AdminSetupProfile & {
 		profileKey:                   "local-no-mail"
 		scenarioId:                   "SK-S1"
-		displayName:                  "Local no-mail BaseKit"
+		displayName:                  "Local no-mail Basement Kit"
 		description:                  "Local home.localhost beta profile with synthetic technical admin identity and first-run Owner activation."
-		stackkit:                     "base-kit"
+		stackkit:                     "basement-kit"
 		context:                      "local"
 		domain:                       "home.localhost"
 		networkMode:                  "local"
@@ -118,7 +118,7 @@ package base
 		scenarioId:              "SK-S5"
 		displayName:             "No-owner BYOS negative guardrail"
 		description:             "BYOS/no-owner profile used to prove public non-interactive configs without mail fail before generate/apply."
-		stackkit:                "base-kit"
+		stackkit:                "basement-kit"
 		context:                 "cloud"
 		domain:                  "kombify.pro"
 		networkMode:             "public"

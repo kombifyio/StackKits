@@ -18,7 +18,7 @@
 ```yaml
 # stack-spec.yaml — StackKit Deployment Specification
 name: string              # Stack identifier (DNS-compatible, e.g. "mylab")
-stackkit: string          # StackKit name: "base-kit"
+stackkit: string          # StackKit name: "basement-kit" (local) or "cloud-kit" (cloud)
 mode: string              # Install mode: "bare", "bootstrapped" (default), or "advanced"; legacy "simple" normalizes to "bootstrapped"
 runtime: string           # "docker" (default) or "native"
 context: string           # Auto-detected: "local", "cloud", "pi" (rarely set manually)
@@ -112,7 +112,7 @@ services:
 # Use-case selection
 application:
   files:
-    enabled: bool          # BaseKit default: true
+    enabled: bool          # Basement Kit default: true
     tool: string           # "cloudreve" (default) or "nextcloud"
     runtimeProfile: string # self-hosted-lightweight, self-hosted-collaboration, kombify-managed-files, kombify-managed-dms, bring-your-own-storage
     connectors:
@@ -242,7 +242,7 @@ DNS-01 is auto-selected when `tls.provider` is set. Supported providers:
 
 `dockge` is a lightweight Compose manager, not a normal StackKit PaaS. It can exist as an experimental/constrained service mode, but `paas: dockge` and `paas: none` are invalid for normal Base/Modern/HA StackKits.
 
-User `apps:` require a selected PaaS. Beta-supported choices are `coolify` and `komodo`; the Dokploy adapter remains draft until promoted. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local BaseKit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
+User `apps:` require a selected PaaS. Beta-supported choices are `coolify` and `komodo`; the Dokploy adapter remains draft until promoted. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local Basement Kit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
 
 When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. Use `paas: komodo` for the supported beta alternative path. Do not use `paas: dokploy` in standard beta or canonical E2E rollouts until Dokploy is promoted from draft.
 
@@ -309,11 +309,11 @@ owner:
 
 ## Examples
 
-### Base Kit — Custom Domain (behind NAT)
+### Cloud Kit — Custom Domain (behind NAT)
 
 ```yaml
 name: mylab
-stackkit: base-kit
+stackkit: cloud-kit
 mode: bootstrapped
 context: cloud
 domain: kombify.pro
@@ -340,11 +340,11 @@ STACKKIT_DNS_ZONE=kombify.pro \
 stackkit generate && stackkit apply --auto-approve
 ```
 
-### Base Kit — Local Network
+### Basement Kit — Local Network
 
 ```yaml
 name: homelab
-stackkit: base-kit
+stackkit: basement-kit
 mode: bootstrapped
 context: local
 domain: home.localhost
@@ -359,11 +359,11 @@ nodes:
     ip: 192.168.1.50
 ```
 
-### Base Kit — kombify.me
+### Cloud Kit — kombify.me
 
 ```yaml
 name: mylab
-stackkit: base-kit
+stackkit: cloud-kit
 mode: bootstrapped
 context: cloud
 domain: kombify.me
@@ -380,11 +380,11 @@ nodes:
     ip: 10.0.0.5
 ```
 
-### Base Kit — Coolify PAAS
+### Cloud Kit — Coolify PAAS
 
 ```yaml
 name: mylab
-stackkit: base-kit
+stackkit: cloud-kit
 mode: bootstrapped
 context: cloud
 domain: kombify.pro
@@ -408,7 +408,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 ## Validation Rules
 
 - `name` must be DNS-compatible: `^[a-z][a-z0-9-]+$`
-- `stackkit` must reference an existing public StackKit (`base-kit`)
+- `stackkit` must reference an existing public StackKit (`basement-kit` or `cloud-kit`)
 - `mode` must resolve to `bare`, `bootstrapped`, or `advanced`; legacy `simple` normalizes to `bootstrapped`, and legacy `terramate` / `advanced-terramate` normalize to `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
 - `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only
@@ -416,7 +416,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `application.<useCase>.runtimeProfile` selects the package runtime profile when the kit declares one. For Smart Home, `kombify-managed` and `kombify-managed-hybrid` are Control Plane handoffs, not local OSS deployment fallbacks.
 - For Files/DMS, `self-hosted-lightweight` keeps the existing Cloudreve default, `self-hosted-collaboration` selects the Nextcloud-style collaboration path, and `kombify-managed-files` / `kombify-managed-dms` are Control Plane handoffs.
 - `application.smart-home.connectors.home-assistant.endpoint` refers to Home Assistant's native product MCP endpoint (`/api/mcp`), not a second StackKits-owned Home Assistant connector.
-- `nextcloud` is valid only for `standard` and `high` compute tiers; low-tier BaseKit keeps Cloudreve when Files is enabled
+- `nextcloud` is valid only for `standard` and `high` compute tiers; low-tier Basement Kit keeps Cloudreve when Files is enabled
 - `tls.provider` auto-selects `challenge: dns` if set
 - `domain: home.localhost` is the local default and must generate portless links that open without hosts-file edits, DNS setup, or trust-store setup
 - `domain: stack.home` is explicit LAN-DNS mode and may enable Kombify Point only when StackKit owns or verifies the resolver path

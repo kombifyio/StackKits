@@ -106,9 +106,11 @@ artifacts/scenarios/
 # Auto-generated nested CUE module files inside subdirectories that are
 # covered by the root cue.mod/module.cue. CUE tooling / LSPs occasionally
 # auto-initialize these and they shadow the root module, breaking imports
-# like `github.com/kombifyio/stackkits/base` from base-kit. The root module
-# is the single source of truth — nested cue.mod dirs must not be committed.
-base-kit/cue.mod/
+# like `github.com/kombifyio/stackkits/base` from basement-kit/cloud-kit. The
+# root module is the single source of truth — nested cue.mod dirs must not be
+# committed.
+basement-kit/cue.mod/
+cloud-kit/cue.mod/
 modules/*/cue.mod/
 
 # Git worktrees (Claude Code subagent-driven development)

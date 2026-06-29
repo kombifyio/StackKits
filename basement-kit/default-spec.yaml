@@ -1,0 +1,137 @@
+# basement-kit Stack Specification
+#
+# Single-environment 1..N homelab with a required main node and
+# optional PaaS handoff metadata for user apps.
+#
+# Usage:
+#   1. Copy: cp default-spec.yaml stack-spec.yaml
+#   2. Adjust: IP, SSH user, domain (optional)
+#   3. Deploy: stackkit generate && stackkit apply
+#
+# Architecture:
+#   L1 Foundation  - socket-proxy (Docker API isolation), PocketID + TinyAuth (login gateway)
+#   L2 Platform    - Selected PaaS/router contract (Coolify default; Komodo beta-supported alternative; Dokploy draft), Node Hub
+#   Dashboard      - Homepage/gethomepage as IaC-managed homelab start page
+#   L3 Application - Vaultwarden, Immich, Files/Cloudreve
+#
+# Domain Access Modes:
+#   1. Local server (default): omit domain or use home.localhost -> browser-native local HTTP names
+#      - network.mode: local
+#      - user-facing links must open as printed, without hosts-file edits, DNS setup, trust-store setup, or port suffixes
+#      - current resolver output: Coolify + PocketID + TinyAuth + standard apps
+#   2. Public server with custom domain: domain: example.com → Coolify + managed TLS
+#      - network.mode: public
+#      - recommended for kombify Cloud / VPS with your own domain
+#   3. Public server with kombify.me: domain: kombify.me → Coolify + kombify.me subdomains
+#      - network.mode: public
+#      - requires KOMBIFY_API_KEY during generate/apply
+#      - orchestrators may pass metadata.runtime_public_ip or metadata.kombify_me_target_addr;
+#        StackKits uses that spec value as the kombify.me origin instead of the CLI host environment
+#
+# PocketID/OIDC is mandatory for passkey-capable login. The selected PaaS,
+# Kuma, Whoami, Vaultwarden, Immich, Files/Cloudreve, and host security
+# baseline are part of the current default live path. Jellyfin, Smart Home,
+# and AI stay bounded by opt-in live smoke paths.
+
+name: my-homelab
+stackkit: basement-kit
+mode: bootstrapped
+context: local
+domain: home.localhost
+email: admin
+
+bootstrap:
+  platformPolicy: automatic
+  applicationDefaultPolicy: on_demand
+
+network:
+  mode: local
+  # subnet is optional. Leave it unset so Docker picks a non-overlapping range.
+  # subnet: 172.30.0.0/16
+
+compute:
+  tier: standard
+
+platformFallback:
+  enabled: false
+  mode: disabled
+
+ssh:
+  user: admin
+  port: 22
+  keyPath: ~/.ssh/id_ed25519
+
+nodes:
+  - name: homelab-server
+    role: standalone
+    ip: 192.168.1.100  # ADJUST: Your server IP
+
+services:
+  homepage:
+    enabled: true
+  uptime_kuma:
+    enabled: true
+  whoami:
+    enabled: true
+  vaultwarden:
+    enabled: true
+  jellyfin:
+    enabled: false
+  immich:
+    enabled: true
+  files:
+    enabled: true
+    provider: cloudreve
+
+# What to adjust:
+#
+#   Required:
+#     nodes[0].ip      - Your server's IP address
+#     ssh.user         - Your SSH username (e.g. "admin", "ubuntu")
+#     ssh.keyPath      - Path to your SSH private key
+#
+#   Optional:
+#     context          - local | cloud | pi. Default shown here: local
+#     domain           - Access mode (see above). Default: home.localhost
+#     email            - Admin email / ACME email for Let's Encrypt
+#
+# Local access rule:
+#   Default *.home.localhost names are browser-native and must work without
+#   hosts-file edits, router DNS, custom trust roots, or port suffixes. Use
+#   stackkit init basement-kit --local-dns only when you explicitly want a managed
+#   LAN DNS zone and StackKit can own or verify that resolver path.
+#
+# First login / access:
+#   1. Open http://base.home.localhost -> Node Hub and first-run checklist.
+#      The local Node Hub is intentionally not behind PocketID/TinyAuth.
+#   2. Set up the PocketID Owner identity and passkey from the Node Hub.
+#   3. Click "Protect Base Hub" in the Node Hub so Base and the node-local API
+#      move behind TinyAuth/PocketID.
+#   4. Reveal technical bootstrap credentials once only when needed; use them
+#      for the TinyAuth gateway fallback and selected PaaS technical admin.
+#   5. Use Node Hub app cards for service-specific setup actions or How-to
+#      guides, then check Uptime Kuma and the TinyAuth-protected whoami route.
+#
+# Public/custom domain example:
+#   domain: mylab.example.com
+#   context: cloud
+#   network:
+#     mode: public
+#   email: admin@example.com
+#   # Own public/custom domain defaults to Coolify
+#   tls:
+#     provider: cloudflare   # For DNS-01 ACME challenge
+#     challenge: dns
+#   # Set STACKKIT_DNS_TOKEN env var with your Cloudflare API token
+#
+# Public server + kombify.me example:
+#   context: cloud
+#   domain: kombify.me
+#   # kombify.me on cloud defaults to Coolify
+#   # Optional for orchestrated rollouts:
+#   # metadata:
+#   #   runtime_public_ip: 203.0.113.10
+#
+# Secrets:
+#   Generated automatically by OpenTofu (random_password).
+#   No manual secret setup required.

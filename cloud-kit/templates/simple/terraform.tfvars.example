@@ -1,0 +1,114 @@
+# =============================================================================
+# Cloud Kit - Example Variables
+# =============================================================================
+#
+# SETUP INSTRUCTIONS:
+#   1. Copy: cp terraform.tfvars.example terraform.tfvars
+#   2. (Optional) Choose variant/compute/access settings below
+#   3. Run: stackkit plan && stackkit apply
+#
+# =============================================================================
+
+# =============================================================================
+# ACCESS (Zero-config by default)
+# =============================================================================
+
+# Access Mode:
+# - "ports" (default): expose each service on HOSTNAME.local:<port> (works without domains)
+# - "proxy": expose services via Traefik hostnames (optionally with HTTPS/Let's Encrypt)
+access_mode = "ports"
+
+# Printed links use mDNS by default: <hostname>.local
+# If your clients don't resolve .local, set this to your server IP/hostname:
+# advertise_host = "192.168.1.100"
+
+# Optional proxy settings (only used when access_mode = "proxy")
+# domain = "homelab.example.com"
+# enable_https = true
+# enable_letsencrypt = true
+# acme_email = "admin@example.com"
+
+# Tip: you can also use a wildcard-DNS helper domain to avoid manual DNS setup
+# domain = "192.168.1.100.nip.io"  # deploy.192.168.1.100.nip.io, etc.
+
+# =============================================================================
+# VARIANT SELECTION
+# =============================================================================
+
+# Choose your service stack:
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  VARIANT: "default" (Recommended for quick start)                         │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │  • Dokploy     → deploy.{domain}  - PaaS for deploying apps (like Vercel)│
+# │  • Uptime Kuma → status.{domain}  - Monitor your services                │
+# │  • Dozzle      → logs.{domain}    - View container logs                  │
+# │  • Traefik     → traefik.{domain} - Reverse proxy dashboard              │
+# │  • Whoami      → whoami.{domain}  - Test SSL is working                  │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  VARIANT: "beszel" (Advanced monitoring)                                 │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │  • Dokploy     → deploy.{domain}  - PaaS for deploying apps              │
+# │  • Beszel      → monitor.{domain} - Server metrics & alerts              │
+# │  • Dozzle      → logs.{domain}    - View container logs                  │
+# │  • Traefik     → traefik.{domain} - Reverse proxy dashboard              │
+# │  • Whoami      → whoami.{domain}  - Test SSL is working                  │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  VARIANT: "minimal" (Classic Docker stack)                               │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │  • Dockge      → dockge.{domain}    - Manage docker-compose files        │
+# │  • Portainer   → portainer.{domain} - Full container management          │
+# │  • Netdata     → monitor.{domain}   - System performance metrics         │
+# │  • Dozzle      → logs.{domain}      - View container logs                │
+# │  • Traefik     → traefik.{domain}   - Reverse proxy dashboard            │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+variant = "default"
+
+# =============================================================================
+# COMPUTE TIER (Memory allocation)
+# =============================================================================
+
+# The compute tier adjusts memory limits for containers based on your hardware:
+#
+# │  Tier     │ RAM    │ Dokploy │ Monitoring │ Logs │ Test │
+# │───────────│────────│─────────│────────────│──────│──────│
+# │  high     │ 16GB+  │  2 GB   │   1 GB     │512MB │128MB │
+# │  standard │ 8-15GB │  1 GB   │  512 MB    │256MB │ 64MB │
+# │  low      │ <8GB   │ 512 MB  │  256 MB    │128MB │ 32MB │
+
+compute_tier = "standard"
+
+# =============================================================================
+# OPTIONAL SETTINGS
+# =============================================================================
+
+# Enable insecure Traefik dashboard access (HTTP on port 8080)
+# Only enable this for local networks or debugging!
+traefik_dashboard_insecure = false
+
+# Directory for docker-compose stacks (minimal variant only)
+# Dockge will manage compose files in this directory
+stacks_dir = "/opt/stacks"
+
+# =============================================================================
+# SERVICE URLS (Quick mental model)
+# =============================================================================
+# Default (ports mode):
+#   http://<hostname>.local:8080  - Traefik Dashboard
+#   http://<hostname>.local:3000  - Dokploy
+#   http://<hostname>.local:3001  - Uptime Kuma
+#   http://<hostname>.local:8888  - Dozzle
+#   http://<hostname>.local:9080  - Whoami
+#
+# Proxy mode (optional):
+#   https://traefik.{domain}
+#   https://deploy.{domain}
+#   https://status.{domain} / https://monitor.{domain}
+#   https://logs.{domain}
+#   https://whoami.{domain}
+# =============================================================================

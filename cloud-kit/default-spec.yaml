@@ -1,0 +1,72 @@
+# cloud-kit Stack Specification
+#
+# Cloud single-environment 1..N homelab on a VPS/cloud server with a public
+# domain. Cloud Kit is the cloud adaptation of Basement Kit (context: cloud):
+# Let's Encrypt TLS, reverse-proxy access, public IP.
+#
+# Usage:
+#   1. Copy: cp default-spec.yaml stack-spec.yaml
+#   2. Adjust: server IP/SSH, domain (required), ACME email
+#   3. Deploy: stackkit generate && stackkit apply
+#
+# Domain Access Modes (cloud):
+#   1. Own/custom domain: domain: example.com -> Coolify + managed TLS (ACME)
+#   2. kombify.me:        domain: kombify.me  -> Coolify + kombify.me subdomains
+#                         (requires KOMBIFY_API_KEY during generate/apply)
+#
+# A public domain and DNS access (e.g. CLOUDFLARE_API_TOKEN for DNS-01 ACME)
+# are required so public HTTPS routes resolve and certificates can be issued.
+
+name: my-cloud-homelab
+stackkit: cloud-kit
+mode: bootstrapped
+context: cloud
+domain: example.com   # ADJUST: your own/custom public domain (or kombify.me)
+email: admin@example.com  # ADJUST: ACME / Let's Encrypt email
+
+bootstrap:
+  platformPolicy: automatic
+  applicationDefaultPolicy: on_demand
+
+network:
+  mode: public
+
+compute:
+  tier: standard
+
+platformFallback:
+  enabled: false
+  mode: disabled
+
+ssh:
+  user: ubuntu   # ADJUST: your VPS SSH user
+  port: 22
+  keyPath: ~/.ssh/id_ed25519
+
+tls:
+  provider: cloudflare   # DNS-01 ACME challenge; set CLOUDFLARE_API_TOKEN / STACKKIT_DNS_TOKEN
+  challenge: dns
+
+nodes:
+  - name: cloud-server
+    role: standalone
+    ip: 203.0.113.10  # ADJUST: your VPS public IP
+
+services:
+  homepage:
+    enabled: true
+  uptime_kuma:
+    enabled: true
+  whoami:
+    enabled: true
+  vaultwarden:
+    enabled: true
+  jellyfin:
+    enabled: false
+  immich:
+    enabled: true
+  files:
+    enabled: true
+    provider: cloudreve
+
+# Secrets are generated automatically by OpenTofu (random_password).

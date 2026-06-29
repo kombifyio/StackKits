@@ -71,7 +71,7 @@ type KitDefinition struct {
 
 // PlatformField is a polymorphic yaml `platform:` value.
 //
-// In base-kit it is a map of platform service slots:
+// In basement-kit it is a map of platform service slots:
 //
 //	platform:
 //	  traefik: { role: default }
@@ -85,7 +85,7 @@ type KitDefinition struct {
 type PlatformField struct {
 	// AsString holds the scalar form, e.g. "docker".
 	AsString string
-	// AsMap holds the structured form (base-kit).
+	// AsMap holds the structured form (basement-kit).
 	AsMap map[string]PlatformDef
 }
 

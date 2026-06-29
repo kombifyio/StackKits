@@ -2,7 +2,7 @@
 
 StackKits is agent-ready through static public docs, deterministic CLI commands, a node-local API surface, and one user-facing MCP connection named `stackkit`.
 
-BaseKit is the current beta one-click path and v0.4.0 hardens that path for real beta users. Unreleased kit definitions stay outside the public beta install surface until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; v0.4 BaseKit evidence must prove owner/passkey activation, selected-PaaS setup, protected app health, retryable L3 setup actions, and seeded beta content only when demo data is explicitly enabled. User-installed apps outside that path are state-unmanaged.
+Basement Kit is the current beta one-click path and v0.4.0 hardens that path for real beta users. Unreleased kit definitions stay outside the public beta install surface until their release matrices graduate. Product-bundled L3 applications are PaaS-intended by default; v0.4 Basement Kit evidence must prove owner/passkey activation, selected-PaaS setup, protected app health, retryable L3 setup actions, and seeded beta content only when demo data is explicitly enabled. User-installed apps outside that path are state-unmanaged.
 
 For choosing the right install path, use [../INSTALLATION_PROCESSES.md](../INSTALLATION_PROCESSES.md). It classifies website prompting, full installer, direct CLI, on-server agent, external SSH agent, native MCP, and stdio MCP fallback by three pillars: configuration/individualization, access options/authority boundary, and automation degree (`A0-A4`). Treat website discovery as the read-only start, SSH as the external bootstrap authority, `stackkit-mcp` as the local adapter for the single `stackkit` connection, and protected remote `/mcp` as a target StackKit-owned day-2 capability after install.
 
@@ -16,7 +16,7 @@ Default autonomous flow:
 curl -sSL https://base.stackkit.cc | sh
 mkdir my-homelab
 cd my-homelab
-stackkit init base-kit --non-interactive --admin-email admin@example.com
+stackkit init basement-kit --non-interactive --admin-email admin@example.com
 stackkit prepare --dry-run
 stackkit validate
 stackkit generate --force
@@ -44,7 +44,7 @@ Release-hardening and autonomous-agent runs should produce:
 - links or paths to logs and rollout evidence;
 - confirmation that generated artifacts were not hand-edited.
 
-The canonical local BaseKit Hub URL is `http://base.home.localhost`.
+The canonical local Basement Kit Hub URL is `http://base.home.localhost`.
 
 ## StackKits MCP
 

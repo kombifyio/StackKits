@@ -12,8 +12,8 @@ stackkit version
 ```
 
 The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu,
-and the public kit catalog under `~/.stackkits`, so `stackkit init base-kit`
-works from a clean directory without a repo checkout. BaseKit is the verified
+and the public kit catalog under `~/.stackkits`, so `stackkit init basement-kit`
+works from a clean directory without a repo checkout. Basement Kit is the verified
 beta one-click path and the only public OSS kit surface for this release line.
 Unpinned installer runs use the current stable GitHub `releases/latest`. To
 test a prerelease such as `v0.4.5-beta.1`, export the pin before invoking the
@@ -66,7 +66,7 @@ go build -o build/stackkit-mcp ./cmd/stackkit-mcp
 ## Primary Workflow
 
 ```bash
-stackkit init base-kit
+stackkit init basement-kit
 stackkit prepare
 stackkit generate
 stackkit plan
@@ -310,7 +310,7 @@ Read-only helpers for Coding Agents and Assistants. These commands do not create
 
 Subcommands:
 
-- `agent install-plan` prints a non-interactive BaseKit rollout plan. Use `--json` for machine-readable output.
+- `agent install-plan` prints a non-interactive Basement Kit rollout plan. Use `--json` for machine-readable output.
 - `agent self-check` prints local binary, server, and MCP gate checks. Use `--json` for machine-readable output.
 - `agent prompt <scenario>` prints copy-ready prompts. Use `--list` to see scenarios.
 - `agent mcp-config` prints one `stackkit` MCP client connection for `generic`, `codex`, or `claude`.

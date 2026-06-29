@@ -1,0 +1,7338 @@
+# =============================================================================
+# Cloud Kit - Single Server Deployment
+# =============================================================================
+# Architecture: Platform services via OpenTofu, user apps via PaaS handoff
+#
+# Release default (paas/reverse_proxy_backend default to "coolify" below):
+#   L2 Platform: Coolify + Node Hub + Homepage + PocketID + TinyAuth + Uptime Kuma + Whoami
+#   L3 Apps: Immich (photos) + Vaultwarden (vault) + Files (Cloudreve default)
+#
+# Low Compute Tier (Pi-Mode):
+#   L2 Platform: Coolify + Node Hub + PocketID + TinyAuth
+#   L3 Apps: PaaS handoff compose bundles
+#
+# Common (all tiers):
+#   L1: Pocket ID (OIDC) + TinyAuth (ForwardAuth)
+#   L2: Selected PaaS platform router + Dashboard
+#
+# Security Principle: OpenTofu installs the platform; user app rollout belongs
+# to the selected PaaS, not StackKit.
+# =============================================================================
+
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0, < 3.9"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
+  }
+}
+
+# =============================================================================
+# CONFIGURATION VARIABLES
+# =============================================================================
+
+variable "domain" {
+  type        = string
+  description = "Base domain for services"
+  default     = "home.localhost"
+}
+
+variable "network_name" {
+  type        = string
+  description = "Docker network name"
+  default     = "base_net"
+}
+
+variable "network_subnet" {
+  type        = string
+  description = "Optional Docker network subnet. Leave empty to let Docker choose a non-overlapping subnet."
+  default     = ""
+}
+
+variable "compute_tier" {
+  type        = string
+  description = "Resource profile used by StackKit service defaults"
+  default     = "standard"
+
+  validation {
+    condition     = contains(["low", "standard", "high"], var.compute_tier)
+    error_message = "compute_tier must be one of: low, standard, high."
+  }
+}
+
+variable "placement_mode" {
+  type        = string
+  description = "Resolved S1 placement mode (drives capability bindings; S2/S3 modes never reach this template)"
+  default     = "standard"
+
+  validation {
+    condition     = contains(["local-only", "standard"], var.placement_mode)
+    error_message = "placement_mode must be one of: local-only, standard (S1)."
+  }
+}
+
+variable "placement_exposure" {
+  type        = string
+  description = "Resolved placement exposure sub-dimension"
+  default     = "private"
+
+  validation {
+    condition     = contains(["private", "public"], var.placement_exposure)
+    error_message = "placement_exposure must be one of: private, public."
+  }
+}
+
+variable "placement_coupling" {
+  type        = string
+  description = "Resolved placement coupling sub-dimension (S1 is always cloudless)"
+  default     = "cloudless"
+
+  validation {
+    condition     = var.placement_coupling == "cloudless"
+    error_message = "placement_coupling must be cloudless in StackKits-OSS (S1)."
+  }
+}
+
+variable "placement_capabilities" {
+  type        = map(map(string))
+  description = "Resolved capability bindings from the placement resolver (capability -> {provider, target})"
+  default     = {}
+}
+
+variable "enable_traefik" {
+  type        = bool
+  description = "Enable Traefik reverse proxy (Layer 2)"
+  default     = true
+}
+
+variable "enable_tinyauth" {
+  type        = bool
+  description = "Enable TinyAuth ForwardAuth proxy (Layer 1)"
+  default     = true
+}
+
+variable "protect_base_hub" {
+  type        = bool
+  description = "Protect local base.<domain> Node Hub and its node-local API with TinyAuth after owner setup. Public/non-local Base routes stay protected when TinyAuth is enabled."
+  default     = false
+}
+
+variable "enable_pocketid" {
+  type        = bool
+  description = "Enable Pocket ID OIDC identity provider (Layer 1)"
+  default     = true
+}
+
+# PocketID v2 STATIC_API_KEY — admin bootstrap token. Persisted by the
+# stackkit CLI in <homelab>/.stackkit/pocketid-static-api-key and rendered
+# here via terraform.tfvars.json. Same value is used by `stackkit apply`'s
+# owner-bootstrap step.
+variable "pocketid_static_api_key" {
+  type        = string
+  description = "PocketID v2 STATIC_API_KEY (admin bootstrap token; persisted by the CLI under .stackkit/)"
+  sensitive   = true
+  default     = ""
+}
+
+# PocketID v2 ENCRYPTION_KEY — the container refuses to start without
+# >=16 raw bytes. Persisted by the CLI in
+# <homelab>/.stackkit/pocketid-encryption-key. Rotating it makes existing
+# data on the volume undecryptable.
+variable "pocketid_encryption_key" {
+  type        = string
+  description = "PocketID v2 ENCRYPTION_KEY (>=16 raw bytes; persisted by the CLI under .stackkit/)"
+  sensitive   = true
+  default     = ""
+}
+
+variable "pocketid_app_url" {
+  type        = string
+  description = "PocketID public app URL generated by the identity layer"
+  default     = ""
+}
+
+variable "docker_host" {
+  type        = string
+  description = "Optional Docker daemon endpoint propagated from DOCKER_HOST"
+  default     = ""
+}
+
+variable "workspace_root" {
+  type        = string
+  description = "Optional workspace path on the Docker host for bind-mounted StackKits system apps"
+  default     = ""
+}
+
+variable "enable_dokploy" {
+  type        = bool
+  description = "Enable Dokploy PAAS (Layer 2)"
+  default     = false
+}
+
+variable "enable_dokploy_apps" {
+  type        = bool
+  description = "Enable Dokploy-managed applications (Layer 3)"
+  default     = false
+}
+
+variable "enable_komodo" {
+  type        = bool
+  description = "Enable Komodo PAAS (explicit StackKits alternative)"
+  default     = false
+}
+
+variable "enable_dockge" {
+  type        = bool
+  description = "Enable experimental Dockge compose manager (nonstandard; does not replace the required PaaS)"
+  default     = false
+}
+
+variable "enable_uptime_kuma" {
+  type        = bool
+  description = "Enable Uptime Kuma monitoring"
+  default     = true
+}
+
+variable "enable_whoami" {
+  type        = bool
+  description = "Enable Whoami test service"
+  default     = true
+}
+
+variable "enable_vaultwarden" {
+  type        = bool
+  description = "Enable Vaultwarden password manager (Layer 3)"
+  default     = true
+}
+
+variable "vaultwarden_image" {
+  type        = string
+  description = "Vaultwarden container image"
+  default     = "ghcr.io/dani-garcia/vaultwarden:latest"
+}
+
+variable "enable_jellyfin" {
+  type        = bool
+  description = "Enable Jellyfin media server (Layer 3, standard+ tier)"
+  default     = false
+}
+
+variable "enable_immich" {
+  type        = bool
+  description = "Enable Immich photo management (Layer 3, standard+ tier)"
+  default     = true
+}
+
+variable "enable_files" {
+  type        = bool
+  description = "Enable the Files document-management use case (Layer 3)"
+  default     = true
+}
+
+variable "enable_home_assistant" {
+  type        = bool
+  description = "Enable Home Assistant smart-home hub (Layer 3, opt-in)"
+  default     = false
+}
+
+variable "bootstrap_mode" {
+  type        = string
+  description = "Legacy bootstrap evidence mode; current values are bare, bootstrapped, or advanced"
+  default     = "bootstrapped"
+
+  validation {
+    condition     = contains(["bare", "bootstrapped", "advanced", "full_auto", "guided", "minimal"], var.bootstrap_mode)
+    error_message = "bootstrap_mode must be one of: bare, bootstrapped, advanced, full_auto, guided, minimal."
+  }
+}
+
+variable "installation_mode" {
+  type        = string
+  description = "StackKit installation mode: bare, bootstrapped, or advanced"
+  default     = "bootstrapped"
+
+  validation {
+    condition     = contains(["bare", "bootstrapped", "advanced"], var.installation_mode)
+    error_message = "installation_mode must be one of: bare, bootstrapped, advanced."
+  }
+}
+
+variable "demo_data_enabled" {
+  type        = bool
+  description = "Seed beta/demo content for default apps during first-run setup"
+  default     = false
+}
+
+variable "setup_policy_platform" {
+  type        = string
+  description = "Default setup policy for L1/L2 platform services"
+  default     = "automatic"
+
+  validation {
+    condition     = contains(["manual", "on_demand", "automatic"], var.setup_policy_platform)
+    error_message = "setup_policy_platform must be one of: manual, on_demand, automatic."
+  }
+}
+
+variable "setup_policy_application_default" {
+  type        = string
+  description = "Default setup policy for L3 applications"
+  default     = "on_demand"
+
+  validation {
+    condition     = contains(["manual", "on_demand", "automatic"], var.setup_policy_application_default)
+    error_message = "setup_policy_application_default must be one of: manual, on_demand, automatic."
+  }
+}
+
+variable "setup_policy_kuma" {
+  type        = string
+  description = "Effective setup policy for Uptime Kuma"
+  default     = "automatic"
+
+  validation {
+    condition     = contains(["manual", "on_demand", "automatic"], var.setup_policy_kuma)
+    error_message = "setup_policy_kuma must be one of: manual, on_demand, automatic."
+  }
+}
+
+variable "setup_policy_whoami" {
+  type        = string
+  description = "Effective setup policy for Whoami"
+  default     = "automatic"
+
+  validation {
+    condition     = contains(["manual", "on_demand", "automatic"], var.setup_policy_whoami)
+    error_message = "setup_policy_whoami must be one of: manual, on_demand, automatic."
+  }
+}
+
+variable "setup_policy_vaultwarden" {
+  type        = string
+  description = "Effective setup policy for Vaultwarden"
+  default     = "on_demand"
+
+  validation {
+    condition     = contains(["manual", "on_demand", "automatic"], var.setup_policy_vaultwarden)
+    error_message = "setup_policy_vaultwarden must be one of: manual, on_demand, automatic."
+  }
+}
+
+variable "setup_policy_immich" {
+  type        = string
+  description = "Effective setup policy for Immich"
+  default     = "on_demand"
+
+  validation {
+    condition     = contains(["manual", "on_demand", "automatic"], var.setup_policy_immich)
+    error_message = "setup_policy_immich must be one of: manual, on_demand, automatic."
+  }
+}
+
+variable "setup_policy_files" {
+  type        = string
+  description = "Effective setup policy for the Files provider"
+  default     = "on_demand"
+
+  validation {
+    condition     = contains(["manual", "on_demand", "automatic"], var.setup_policy_files)
+    error_message = "setup_policy_files must be one of: manual, on_demand, automatic."
+  }
+}
+
+variable "files_provider" {
+  type        = string
+  description = "Files provider implementation: cloudreve (default) or nextcloud"
+  default     = "cloudreve"
+
+  validation {
+    condition     = contains(["cloudreve", "nextcloud"], lower(var.files_provider))
+    error_message = "files_provider must be one of: cloudreve, nextcloud."
+  }
+}
+
+variable "enable_cloudreve" {
+  type        = bool
+  description = "Provider flag for Cloudreve-backed Files"
+  default     = true
+}
+
+variable "enable_nextcloud" {
+  type        = bool
+  description = "Provider flag for Nextcloud-backed Files"
+  default     = false
+}
+
+variable "cloudreve_image" {
+  type        = string
+  description = "Cloudreve container image"
+  default     = "cloudreve/cloudreve:latest"
+}
+
+variable "nextcloud_image" {
+  type        = string
+  description = "Nextcloud container image"
+  default     = "nextcloud:30-apache"
+}
+
+variable "nextcloud_mariadb_image" {
+  type        = string
+  description = "Nextcloud MariaDB image"
+  default     = "mariadb:11"
+}
+
+variable "nextcloud_redis_image" {
+  type        = string
+  description = "Nextcloud Redis image"
+  default     = "redis:7-alpine"
+}
+
+variable "immich_postgres_image" {
+  type        = string
+  description = "Immich Postgres image with VectorChord/pgvectors extensions"
+  default     = "ghcr.io/immich-app/postgres:16-vectorchord0.3.0-pgvectors0.3.0"
+}
+
+variable "immich_redis_image" {
+  type        = string
+  description = "Immich Redis-compatible cache image"
+  default     = "ghcr.io/valkey-io/valkey:9"
+}
+
+variable "media_path" {
+  type        = string
+  description = "Path to media files on host (bind-mounted into Jellyfin)"
+  default     = "/opt/media"
+}
+
+variable "tinyauth_users" {
+  type        = string
+  description = "TinyAuth users configuration (bcrypt hashed); generated by stackkit generate"
+  default     = ""
+}
+
+variable "tinyauth_session_secret" {
+  type        = string
+  description = "TinyAuth cookie signing secret; generated by stackkit generate"
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = var.tinyauth_session_secret == "" || length(var.tinyauth_session_secret) >= 32
+    error_message = "tinyauth_session_secret must be empty for generated credentials or at least 32 characters when provided explicitly."
+  }
+}
+
+variable "tinyauth_secure_cookie" {
+  type        = string
+  description = "TinyAuth secure-cookie setting as a string for compatibility with generated tfvars"
+  default     = "true"
+}
+
+variable "tinyauth_session_expiry" {
+  type        = string
+  description = "TinyAuth session expiry in seconds"
+  default     = "86400"
+}
+
+variable "tinyauth_app_url" {
+  type        = string
+  description = "TinyAuth application URL"
+  default     = "http://auth.home.localhost"
+}
+
+variable "tinyauth_oidc_enabled" {
+  type        = bool
+  description = "Enable TinyAuth OAuth login via PocketID"
+  default     = false
+}
+
+variable "tinyauth_oidc_issuer" {
+  type        = string
+  description = "PocketID issuer URL used by TinyAuth"
+  default     = ""
+}
+
+variable "tinyauth_oidc_client_id" {
+  type        = string
+  description = "PocketID OIDC client ID for TinyAuth"
+  default     = ""
+}
+
+variable "tinyauth_oidc_client_secret" {
+  type        = string
+  description = "PocketID OIDC client secret for TinyAuth. Empty for the default public PKCE client."
+  default     = ""
+  sensitive   = true
+}
+
+variable "tinyauth_oauth_whitelist" {
+  type        = string
+  description = "Optional TinyAuth OAuth email allowlist. Empty means PocketID is the user source of truth and all PocketID users can authenticate."
+  default     = ""
+}
+
+variable "brand_color" {
+  type        = string
+  description = "Primary brand color for the dashboard (hex, e.g. #F97316)"
+  default     = "#F97316"
+}
+
+variable "dashboard_title" {
+  type        = string
+  description = "Title shown in the homelab dashboard nav"
+  default     = "My Homelab"
+}
+
+variable "stackkit_server_image" {
+  type        = string
+  description = "Container image for the node-local StackKit API server system app"
+  default     = "ghcr.io/kombifyio/stackkits:latest"
+}
+
+variable "enable_dashboard" {
+  type        = bool
+  description = "Enable the StackKits Node Hub at base.<domain> (Layer 2)"
+  default     = true
+}
+
+variable "enable_homepage" {
+  type        = bool
+  description = "Enable Homepage/gethomepage as the IaC-managed homelab start dashboard at home.<domain>"
+  default     = true
+}
+
+variable "homepage_image" {
+  type        = string
+  description = "Homepage/gethomepage container image"
+  default     = "ghcr.io/gethomepage/homepage:latest"
+}
+
+variable "admin_email" {
+  type        = string
+  description = "Admin email for login accounts (TinyAuth, Coolify, Kuma)"
+  default     = "admin"
+}
+
+variable "admin_password_plaintext" {
+  type        = string
+  description = "Auto-generated admin password (used by init containers); generated by stackkit generate"
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = var.admin_password_plaintext == "" || length(var.admin_password_plaintext) >= 12
+    error_message = "admin_password_plaintext must be empty for stackkit-generated credentials or at least 12 characters when provided explicitly."
+  }
+}
+
+variable "timezone" {
+  type        = string
+  description = "Timezone used by containers"
+  default     = "Europe/Berlin"
+}
+
+variable "vaultwarden_admin_token" {
+  type        = string
+  description = "Vaultwarden admin panel plaintext token; generated by stackkit generate and used only for handoff/break-glass login"
+  default     = ""
+  sensitive   = true
+}
+
+variable "vaultwarden_admin_token_phc" {
+  type        = string
+  description = "Argon2id PHC hash for Vaultwarden ADMIN_TOKEN; generated by stackkit generate so the container does not store the admin token in plaintext"
+  default     = ""
+  sensitive   = true
+}
+
+variable "vaultwarden_admin_token_phc_b64" {
+  type        = string
+  description = "Padding-free base64 encoding of vaultwarden_admin_token_phc for PaaS compose parsers that reject '=' in environment values"
+  default     = ""
+  sensitive   = true
+}
+
+variable "network_mode" {
+  type        = string
+  description = "Docker networking mode: 'bridge' (default) or 'host' (restricted VPS fallback)"
+  default     = "bridge"
+}
+
+variable "dns_fixed" {
+  type        = bool
+  description = "Whether stackkit applied a DNS fix during prepare"
+  default     = false
+}
+
+variable "enable_https" {
+  type        = bool
+  description = "Enable HTTPS for service URLs"
+  default     = false
+}
+
+variable "tls_provider" {
+  type        = string
+  description = "TLS certificate provider: 'step-ca' for local domains, 'letsencrypt' for public custom domains"
+  default     = "step-ca"
+
+  validation {
+    condition     = contains(["step-ca", "letsencrypt"], var.tls_provider)
+    error_message = "tls_provider must be 'step-ca' or 'letsencrypt'."
+  }
+}
+
+variable "step_ca_enabled" {
+  type        = bool
+  description = "Deploy Step-CA for local StackKits TLS certificates"
+  default     = true
+}
+
+variable "step_ca_image" {
+  type        = string
+  description = "Step-CA image used for local PKI"
+  default     = "smallstep/step-ca:0.30.2"
+}
+
+variable "step_ca_name" {
+  type        = string
+  description = "Step-CA authority display name"
+  default     = "StackKits Local CA"
+}
+
+variable "acme_email" {
+  type        = string
+  description = "Email address for ACME certificate registration"
+  default     = ""
+}
+
+variable "acme_challenge" {
+  type        = string
+  description = "Public ACME challenge type: 'tls' (TLS-ALPN-01, needs port 443) or 'dns' (DNS-01, works behind NAT)"
+  default     = "tls"
+}
+
+variable "dns_provider" {
+  type        = string
+  description = "DNS provider for DNS-01 ACME challenge (e.g. 'cloudflare', 'hetzner', 'digitalocean')"
+  default     = ""
+}
+
+variable "dns_api_token" {
+  type        = string
+  description = "API token for DNS provider (used for DNS-01 ACME challenge)"
+  default     = ""
+  sensitive   = true
+}
+
+variable "dns_api_email" {
+  type        = string
+  description = "Email for DNS providers that use Global API Key auth (e.g. Cloudflare)"
+  default     = ""
+}
+
+variable "dns_fix_method" {
+  type        = string
+  description = "DNS fix method applied: 'daemon-json' or 'host-prepull'"
+  default     = ""
+}
+
+variable "storage_driver_degraded" {
+  type        = bool
+  description = "Whether Docker is using a degraded storage driver (e.g. vfs instead of overlay2)"
+  default     = false
+}
+
+variable "storage_driver" {
+  type        = string
+  description = "Docker storage driver in use"
+  default     = "overlay2"
+}
+
+variable "subdomain_prefix" {
+  type        = string
+  description = "Flat subdomain prefix for kombify.me tunnel mode (e.g. 'sh-mylab-abc'). When set, domains use flat naming: {prefix}-{service}.{domain} instead of {service}.{domain}"
+  default     = ""
+}
+
+variable "enable_dnsmasq" {
+  type        = bool
+  description = "Deprecated alias for enable_kombify_point"
+  default     = false
+}
+
+variable "enable_kombify_point" {
+  type        = bool
+  description = "Enable Kombify Point local DNS for *.home or *.<name>.home LAN resolution"
+  default     = false
+}
+
+variable "kombify_point_image" {
+  type        = string
+  description = "CoreDNS-based Kombify Point local DNS resolver image"
+  default     = "registry.k8s.io/coredns/coredns:v1.11.3"
+}
+
+variable "enable_coolify" {
+  type        = bool
+  description = "Enable Coolify PAAS (standard StackKits platform)"
+  default     = true
+}
+
+variable "reverse_proxy_backend" {
+  type        = string
+  description = "Which Traefik instance routes platform services: 'standalone' (own Traefik), 'stackkit' (StackKit-owned Traefik for adapters without router ownership), 'dokploy' (Dokploy's Traefik), 'coolify' (Coolify's Traefik)"
+  default     = "coolify"
+}
+
+variable "paas" {
+  type        = string
+  description = "Required PAAS platform selection: 'dokploy', 'coolify', or explicit 'komodo'"
+  default     = "coolify"
+}
+
+variable "enable_platform_fallback" {
+  type        = bool
+  description = "Explicitly enable the standalone Compose fallback for StackKit-owned platform apps"
+  default     = false
+}
+
+variable "platform_fallback_mode" {
+  type        = string
+  description = "Platform fallback mode: 'disabled' or 'standalone-compose'"
+  default     = "disabled"
+
+  validation {
+    condition     = contains(["disabled", "standalone-compose"], var.platform_fallback_mode)
+    error_message = "platform_fallback_mode must be 'disabled' or 'standalone-compose'."
+  }
+}
+
+variable "server_lan_ip" {
+  type        = string
+  description = "Server LAN IP address for Kombify Point DNS resolution"
+  default     = ""
+}
+
+# =============================================================================
+# LOCALS
+# =============================================================================
+
+locals {
+  # Networking mode
+  is_host        = var.network_mode == "host"
+  workspace_root = trimspace(var.workspace_root) != "" ? var.workspace_root : abspath("${path.module}/..")
+  stackkit_state_dir = "${local.workspace_root}/.stackkit"
+  tinyauth_image = "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+  pocketid_image = "ghcr.io/pocket-id/pocket-id:v2.7.0"
+  coolify_local_endpoint = "http://127.0.0.1:8000"
+  bridge_docker_host = replace(replace(var.docker_host, "tcp://127.0.0.1:", "tcp://host.docker.internal:"), "tcp://localhost:", "tcp://host.docker.internal:")
+  container_docker_host = trimspace(var.docker_host) != "" ? (local.is_host ? var.docker_host : local.bridge_docker_host) : "unix:///var/run/docker.sock"
+
+  # Reverse proxy backend: determines which Traefik routes platform services
+  # - "standalone": StackKit deploys its own Traefik (explicit fallback)
+  # - "stackkit": StackKit deploys Traefik for a PaaS adapter without router ownership
+  # - "dokploy": platform services attach to Dokploy's Traefik network
+  # - "coolify": platform services attach to Coolify's Traefik network (default)
+  rp_standalone = var.reverse_proxy_backend == "standalone"
+  rp_stackkit   = var.reverse_proxy_backend == "stackkit"
+  rp_dokploy    = var.reverse_proxy_backend == "dokploy"
+  rp_coolify    = var.reverse_proxy_backend == "coolify"
+  platform_fallback_contract_valid = (
+    (!var.enable_platform_fallback && var.platform_fallback_mode == "disabled") ||
+    (var.enable_platform_fallback && var.platform_fallback_mode == "standalone-compose")
+  )
+  platform_fallback_standalone = var.enable_platform_fallback && var.platform_fallback_mode == "standalone-compose"
+  stackkit_traefik_enabled     = (var.enable_traefik && (local.rp_standalone || local.rp_stackkit)) || local.platform_fallback_standalone
+  dokploy_traefik_enabled      = var.enable_dokploy && local.rp_dokploy
+  direct_compose_deploy        = false
+  platform_adapter             = local.platform_fallback_standalone ? "none" : var.paas
+  l3_platform_adapter          = local.platform_fallback_standalone ? "none" : var.paas
+  auth_middleware          = var.enable_tinyauth ? "tinyauth@docker" : ""
+  coolify_auth_middleware  = var.enable_tinyauth ? "tinyauth@file" : ""
+  service_auth_middleware  = local.rp_coolify ? local.coolify_auth_middleware : local.auth_middleware
+  tinyauth_forwardauth_address = local.is_host ? "http://127.0.0.1:${local.host_ports.tinyauth}/api/auth/traefik" : "http://tinyauth:3000/api/auth/traefik"
+  base_hub_bootstrap_open  = var.enable_dashboard && (local.is_localhost_domain || local.is_local_dns_domain) && !var.protect_base_hub
+  base_hub_uses_dynamic_protection = var.enable_tinyauth && (local.is_localhost_domain || local.is_local_dns_domain)
+  base_hub_auth_middleware = var.enable_tinyauth ? (local.base_hub_uses_dynamic_protection ? "base-hub-auth@file" : "tinyauth@docker") : ""
+  base_hub_unprotected     = var.enable_dashboard && (local.base_hub_bootstrap_open || local.base_hub_auth_middleware == "")
+  coolify_proxy_dynamic_enabled = local.rp_coolify && var.enable_coolify
+  stackkit_dynamic_middleware_enabled = local.stackkit_traefik_enabled || local.base_hub_uses_dynamic_protection || local.coolify_proxy_dynamic_enabled
+  platform_hub_managed     = var.enable_dashboard
+  platform_hub_fallback    = false
+
+  # The Docker network that platform services connect to for Traefik routing.
+  # Standalone/StackKit: base_net. Dokploy: dokploy-network created by
+  # StackKit before Dokploy boots. Coolify: coolify network created by the
+  # Coolify installer.
+  traefik_network_name = (
+    local.rp_dokploy ? "dokploy-network" :
+    local.rp_coolify ? "coolify" :
+    var.network_name
+  )
+
+  # Resolved network name for services that need Traefik routing.
+  # Standalone: use our own base_net. PAAS-managed: use their network.
+  routing_network = (
+    local.is_host ? "" :
+    local.rp_dokploy ? docker_network.dokploy_network[0].name :
+    (local.rp_standalone || local.rp_stackkit || local.platform_fallback_standalone) ? docker_network.base_net[0].name :
+    data.docker_network.paas_traefik[0].name
+  )
+
+  # Protocol and entrypoint: local-only StackKits use HTTP; kombify.me is HTTPS at the Cloudflare edge.
+  # Coolify's managed Traefik uses http/https entrypoints; StackKit/Dokploy Traefik uses web/websecure.
+  proto                    = var.enable_https || local.is_kombify_me ? "https" : "http"
+  traefik_http_entrypoint  = local.rp_coolify ? "http" : "web"
+  traefik_https_entrypoint = local.rp_coolify ? "https" : "websecure"
+  entrypoint               = var.enable_https ? local.traefik_https_entrypoint : local.traefik_http_entrypoint
+  is_localhost_domain = var.domain == "localhost" || endswith(var.domain, ".localhost")
+  is_local_dns_domain = !local.is_kombify_me && !local.is_localhost_domain && (
+    var.domain == "home" ||
+    endswith(var.domain, ".home") ||
+    endswith(var.domain, ".internal") ||
+    endswith(var.domain, ".local") ||
+    endswith(var.domain, ".lab") ||
+    endswith(var.domain, ".lan") ||
+    endswith(var.domain, ".homebase") ||
+    endswith(var.domain, ".kombify")
+  )
+  enable_kombify_point_effective = var.enable_kombify_point || var.enable_dnsmasq
+  step_ca_domain_mode = local.is_kombify_me || (
+    var.tls_provider == "step-ca" ||
+    local.is_localhost_domain ||
+    local.is_local_dns_domain
+  )
+  deploy_step_ca = var.step_ca_enabled && var.enable_https && !local.is_kombify_me && local.step_ca_domain_mode
+  use_step_ca    = local.deploy_step_ca
+  tls_label_name  = local.use_step_ca ? "tls" : "tls.certresolver"
+  tls_label_value = local.use_step_ca ? "true" : "letsencrypt"
+  coolify_service_router_priority = 500
+
+  tinyauth_session_secret_effective = var.enable_tinyauth ? (var.tinyauth_session_secret != "" ? var.tinyauth_session_secret : try(random_password.tinyauth_session_secret[0].result, "")) : ""
+  vaultwarden_admin_token_effective = var.enable_vaultwarden ? (var.vaultwarden_admin_token != "" ? var.vaultwarden_admin_token : try(random_password.vaultwarden_admin[0].result, "")) : ""
+  vaultwarden_admin_token_runtime   = var.enable_vaultwarden ? (var.vaultwarden_admin_token_phc != "" ? var.vaultwarden_admin_token_phc : local.vaultwarden_admin_token_effective) : ""
+  vaultwarden_admin_token_compose   = replace(local.vaultwarden_admin_token_runtime, "$", "$$")
+  pocketid_internal_oidc_origin     = local.is_host ? "http://127.0.0.1:${local.host_ports.pocketid}" : "http://pocketid:1411"
+  coolify_docker_host_name          = startswith(var.docker_host, "tcp://") ? split(":", trimprefix(var.docker_host, "tcp://"))[0] : ""
+  coolify_api_endpoint              = local.coolify_local_endpoint
+  coolify_bootstrap_api_endpoint    = local.coolify_docker_host_name != "" ? "http://${local.coolify_docker_host_name}:8000" : local.coolify_api_endpoint
+  coolify_root_email                = var.admin_email
+  dokploy_api_endpoint              = "http://127.0.0.1:${local.host_ports.dokploy}"
+  komodo_api_endpoint               = "http://127.0.0.1:9120"
+
+  # In host mode, all containers share the host network. Services that would
+  # conflict on the same port need unique port assignments.
+  host_ports = {
+    tinyauth  = 3004  # TinyAuth moved from 3000; Dokploy v0.29.x has a bundled 3000 server constant
+    pocketid  = 1411  # Pocket ID (set via PORT env)
+    dokploy   = 3000  # Dokploy dashboard (current image listens on 3000)
+    komodo    = 9120  # Komodo Core UI/API
+    dockge    = 5001  # Dockge native port (low compute tier)
+    kuma      = 3001  # Kuma native port
+    postgres  = 5432  # PostgreSQL standard
+    redis     = 6379  # Redis standard
+    dashboard    = 8090  # nginx (moved from 80 to avoid Traefik conflict)
+    homepage     = 3002  # Homepage/gethomepage (moved from 3000 to avoid Dokploy)
+    socket_proxy = 2375  # Docker Socket Proxy for read-only Homepage discovery
+    whoami       = 8091  # whoami (moved from 80 to avoid Traefik conflict)
+    vaultwarden  = 8092  # Vaultwarden (native 80, remapped)
+    jellyfin     = 8096  # Jellyfin native port
+    cloudreve    = 5212  # Cloudreve native port
+    nextcloud    = 8093  # Nextcloud Apache port remapped for host mode
+    nextcloud_db = 3307  # Nextcloud MariaDB (3306 may be used)
+    nextcloud_redis = 6381  # Nextcloud Redis (6379 taken by Dokploy)
+    immich       = 2283  # Immich server native port
+    immich_ml    = 3003  # Immich ML worker (avoid 3000/3001)
+    immich_pg    = 5433  # Immich PostgreSQL (5432 taken by Dokploy)
+    immich_redis = 6380  # Immich Redis (6379 taken by Dokploy)
+  }
+
+  files_provider_effective = lower(var.files_provider) == "nextcloud" || (var.enable_nextcloud && !var.enable_cloudreve) ? "nextcloud" : "cloudreve"
+  cloudreve_enabled        = var.enable_files && local.files_provider_effective == "cloudreve"
+  nextcloud_enabled        = var.enable_files && local.files_provider_effective == "nextcloud"
+  coolify_route_ports = {
+    stackkit_hub    = 80
+    stackkit_server = 8082
+    kuma            = local.is_host ? local.host_ports.kuma : 3001
+    whoami          = local.is_host ? local.host_ports.whoami : 80
+    vaultwarden     = local.is_host ? local.host_ports.vaultwarden : 80
+    jellyfin        = local.is_host ? local.host_ports.jellyfin : 8096
+    immich          = local.is_host ? local.host_ports.immich : 2283
+    files           = local.cloudreve_enabled ? (local.is_host ? local.host_ports.cloudreve : 5212) : (local.is_host ? local.host_ports.nextcloud : 80)
+  }
+
+  setup_immich_url = local.is_host ? "http://127.0.0.1:${local.host_ports.immich}" : (local.rp_coolify ? "http://immich-server:2283" : "http://immich:2283")
+  setup_pocketid_url = local.is_host ? "http://127.0.0.1:${local.host_ports.pocketid}" : "http://pocketid:1411"
+  setup_vaultwarden_url = local.is_host ? "http://127.0.0.1:${local.host_ports.vaultwarden}" : (local.rp_coolify ? "http://vaultwarden:80" : "http://vaultwarden:80")
+  setup_cloudreve_url = local.is_host ? "http://127.0.0.1:${local.host_ports.cloudreve}" : "http://cloudreve:5212"
+  files_entry_url = local.cloudreve_enabled && var.enable_tinyauth ? "${local.proto}://${local.domains.files}/stackkit/files/session" : "${local.proto}://${local.domains.files}"
+  files_session_bridge_token = local.cloudreve_enabled && var.enable_tinyauth ? try(random_password.files_session_bridge[0].result, "") : ""
+  files_session_bridge_middleware = local.service_auth_middleware != "" ? "${local.service_auth_middleware},stackkit-files-session-bridge@docker" : "stackkit-files-session-bridge@docker"
+
+  # Host-mode hint for dashboard
+  host_mode_hint = local.is_host ? "<div style=\"background:#78350F;border:1px solid #D97706;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#FEF3C7;\"><strong>&#9888; Host Networking Mode</strong> &mdash; Your VPS does not support Docker bridge networking. All containers run on the host network. For full network isolation, consider a KVM-based VPS (Hetzner, DigitalOcean, Linode).</div>" : ""
+
+  dns_fix_hint = var.dns_fixed ? "<div style=\"background:#1E3A5F;border:1px solid #3B82F6;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#DBEAFE;\"><strong>&#128268; DNS Fix Applied</strong> &mdash; stackkit automatically configured Docker DNS (method: ${var.dns_fix_method}). Container name resolution is working via external DNS servers (1.1.1.1, 8.8.8.8).</div>" : ""
+
+  storage_hint = var.storage_driver_degraded ? "<div style=\"background:#7F1D1D;border:1px solid #EF4444;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#FEE2E2;\"><strong>&#9888; Degraded Storage</strong> &mdash; Docker is using the <code>${var.storage_driver}</code> storage driver instead of overlay2. This uses more disk space and may be slower. Consider a KVM-based VPS for full performance.</div>" : ""
+
+  # --- Compose file content (host vs bridge variants) ---
+  # HCL ternary cannot use heredocs directly, so we define them as separate locals.
+
+  kuma_compose_host = <<-EOT
+    services:
+      uptime-kuma:
+        image: ghcr.io/louislam/uptime-kuma:2.0.2
+        container_name: kuma
+        restart: unless-stopped
+        network_mode: host
+        environment:
+          UPTIME_KUMA_DB_TYPE: sqlite
+        volumes:
+          - kuma-data:/app/data
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.routers.kuma.rule=Host(`${local.domains.kuma}`)"
+          - "traefik.http.routers.kuma.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.kuma.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.kuma.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.kuma.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.services.kuma.loadbalancer.server.port=${local.host_ports.kuma}"
+          - "traefik.http.routers.kuma.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:${local.host_ports.kuma}/ || exit 1"]
+          interval: 30s
+          timeout: 10s
+          retries: 5
+          start_period: 45s
+
+      init-kuma:
+        image: public.ecr.aws/docker/library/python:3.11-alpine
+        restart: "no"
+        network_mode: host
+        environment:
+          KUMA_URL: "http://127.0.0.1:${local.host_ports.kuma}"
+          KUMA_ROUTER_URL: "http://127.0.0.1"
+          KUMA_USER: "admin"
+          KUMA_PASS: "${var.enable_uptime_kuma ? try(random_password.kuma_admin[0].result, "") : ""}"
+          DOMAIN: "${var.domain}"
+        command:
+          - sh
+          - -c
+          - |
+            pip install -q uptime-kuma-api
+            python3 << 'PYEOF'
+            from uptime_kuma_api import UptimeKumaApi, MonitorType
+            from uptime_kuma_api.api import _convert_monitor_input
+            import json, os, sys
+            url    = os.environ["KUMA_URL"]
+            router = os.environ["KUMA_ROUTER_URL"].rstrip("/")
+            user   = os.environ["KUMA_USER"]
+            pw     = os.environ["KUMA_PASS"]
+            domain = os.environ["DOMAIN"]
+            accepted = ["200-299", "300-399", "401"]
+            api = UptimeKumaApi(url, wait_events=True, timeout=30)
+            try:
+                api.setup(user, pw)
+                print("Admin user created")
+            except Exception as e:
+                print(f"Setup skipped: {e}")
+            try:
+                api.login(user, pw)
+                print("Logged in")
+            except Exception as e:
+                print(f"Login failed: {e}", file=sys.stderr)
+                api.disconnect()
+                sys.exit(1)
+            try:
+                api.set_settings(
+                    password=pw,
+                    disableAuth=True,
+                    trustProxy=True,
+                    entryPage="dashboard",
+                    primaryBaseURL=f"${local.proto}://kuma.{domain}",
+                )
+                print("Kuma app auth disabled; TinyAuth/PocketID protects access")
+            except Exception as e:
+                print(f"Disable app auth skipped: {e}")
+            def monitor_payload(name, host, path=""):
+                public_url = f"${local.proto}://{host}{path}"
+                data = api._build_monitor_data(type=MonitorType.HTTP, name=name, url=f"{router}{path}",
+                                               description=public_url,
+                                               headers=json.dumps({"Host": host}),
+                                               interval=60, maxretries=1,
+                                               accepted_statuscodes=accepted)
+                _convert_monitor_input(data)
+                data["conditions"] = []
+                return data
+            monitors = [
+                ("Node Hub", f"base.{domain}", ""),
+                ("StackKit API", f"base.{domain}", "/health"),
+                ("Homepage", f"home.{domain}", ""),
+                ("PocketID", f"id.{domain}", ""),
+                ("TinyAuth", f"auth.{domain}", ""),
+%{if local.stackkit_traefik_enabled~}
+                ("Traefik Dashboard", f"traefik.{domain}", ""),
+%{endif~}
+%{if var.enable_coolify~}
+                ("Coolify", f"coolify.{domain}", ""),
+%{endif~}
+%{if var.enable_dokploy~}
+                ("Dokploy", f"dokploy.{domain}", ""),
+%{endif~}
+%{if var.enable_komodo~}
+                ("Komodo", f"komodo.{domain}", ""),
+%{endif~}
+%{if var.enable_dockge~}
+                ("Dockge", f"dockge.{domain}", ""),
+%{endif~}
+%{if var.enable_whoami~}
+                ("Whoami", f"whoami.{domain}", ""),
+%{endif~}
+%{if var.enable_vaultwarden~}
+                ("Vaultwarden", f"vault.{domain}", ""),
+%{endif~}
+%{if var.enable_jellyfin~}
+                ("Jellyfin", f"media.{domain}", ""),
+%{endif~}
+%{if var.enable_immich~}
+                ("Immich", f"photos.{domain}", ""),
+%{endif~}
+%{if var.enable_files~}
+                ("Files", f"files.{domain}", ""),
+%{endif~}
+            ]
+            managed_names = {name for name, _, _ in monitors}
+            all_stackkit_names = managed_names | {"Traefik Dashboard", "Dokploy", "Komodo", "Dockge", "Jellyfin"}
+            try:
+                existing = {}
+                for monitor in sorted(api.get_monitors(), key=lambda m: int(m.get("id", 0))):
+                    name = monitor.get("name")
+                    if name in managed_names:
+                        if name not in existing:
+                            existing[name] = monitor
+                        else:
+                            api.delete_monitor(monitor["id"])
+                            print(f"Monitor duplicate removed: {name}")
+                    elif name in all_stackkit_names:
+                        api.delete_monitor(monitor["id"])
+                        print(f"Monitor stale removed: {name}")
+            except Exception:
+                existing = {}
+            for name, host, path in monitors:
+                try:
+                    payload = monitor_payload(name, host, path)
+                    if name in existing:
+                        current = api.get_monitor(existing[name]["id"])
+                        current.update(payload)
+                        current["id"] = existing[name]["id"]
+                        api._call("editMonitor", current)
+                        print(f"Monitor updated: {name}")
+                    else:
+                        api._call("add", payload)
+                        print(f"Monitor added: {name}")
+                except Exception as e:
+                    print(f"Skip {name}: {e}")
+            api.disconnect()
+            print("Kuma setup complete!")
+            PYEOF
+        depends_on:
+          uptime-kuma:
+            condition: service_healthy
+
+    volumes:
+      kuma-data:
+  EOT
+
+  kuma_compose_bridge = <<-EOT
+    services:
+      uptime-kuma:
+        image: ghcr.io/louislam/uptime-kuma:2.0.2
+        container_name: kuma
+        restart: unless-stopped
+        environment:
+          UPTIME_KUMA_DB_TYPE: sqlite
+        volumes:
+          - kuma-data:/app/data
+        networks:
+          - traefik-network
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.kuma.rule=Host(`${local.domains.kuma}`)"
+          - "traefik.http.routers.kuma.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.kuma.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.kuma.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.kuma.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.services.kuma.loadbalancer.server.port=3001"
+          - "traefik.http.routers.kuma.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:3001/ || exit 1"]
+          interval: 30s
+          timeout: 10s
+          retries: 5
+          start_period: 45s
+
+      init-kuma:
+        image: public.ecr.aws/docker/library/python:3.11-alpine
+        restart: "no"
+        environment:
+          KUMA_URL: "http://uptime-kuma:3001"
+          KUMA_ROUTER_URL: "${local.rp_coolify ? "http://coolify-proxy" : local.rp_dokploy ? "http://dokploy-traefik" : "http://traefik"}"
+          KUMA_USER: "admin"
+          KUMA_PASS: "${var.enable_uptime_kuma ? try(random_password.kuma_admin[0].result, "") : ""}"
+          DOMAIN: "${var.domain}"
+        command:
+          - sh
+          - -c
+          - |
+            pip install -q uptime-kuma-api
+            python3 << 'PYEOF'
+            from uptime_kuma_api import UptimeKumaApi, MonitorType
+            from uptime_kuma_api.api import _convert_monitor_input
+            import json, os, sys
+            url    = os.environ["KUMA_URL"]
+            router = os.environ["KUMA_ROUTER_URL"].rstrip("/")
+            user   = os.environ["KUMA_USER"]
+            pw     = os.environ["KUMA_PASS"]
+            domain = os.environ["DOMAIN"]
+            accepted = ["200-299", "300-399", "401"]
+            api = UptimeKumaApi(url, wait_events=True, timeout=30)
+            try:
+                api.setup(user, pw)
+                print("Admin user created")
+            except Exception as e:
+                print(f"Setup skipped: {e}")
+            try:
+                api.login(user, pw)
+                print("Logged in")
+            except Exception as e:
+                print(f"Login failed: {e}", file=sys.stderr)
+                api.disconnect()
+                sys.exit(1)
+            try:
+                api.set_settings(
+                    password=pw,
+                    disableAuth=True,
+                    trustProxy=True,
+                    entryPage="dashboard",
+                    primaryBaseURL=f"${local.proto}://kuma.{domain}",
+                )
+                print("Kuma app auth disabled; TinyAuth/PocketID protects access")
+            except Exception as e:
+                print(f"Disable app auth skipped: {e}")
+            def monitor_payload(name, host, path=""):
+                public_url = f"${local.proto}://{host}{path}"
+                data = api._build_monitor_data(type=MonitorType.HTTP, name=name, url=f"{router}{path}",
+                                               description=public_url,
+                                               headers=json.dumps({"Host": host}),
+                                               interval=60, maxretries=1,
+                                               accepted_statuscodes=accepted)
+                _convert_monitor_input(data)
+                data["conditions"] = []
+                return data
+            monitors = [
+                ("Node Hub", f"base.{domain}", ""),
+                ("StackKit API", f"base.{domain}", "/health"),
+                ("Homepage", f"home.{domain}", ""),
+                ("PocketID", f"id.{domain}", ""),
+                ("TinyAuth", f"auth.{domain}", ""),
+%{if local.stackkit_traefik_enabled~}
+                ("Traefik Dashboard", f"traefik.{domain}", ""),
+%{endif~}
+%{if var.enable_coolify~}
+                ("Coolify", f"coolify.{domain}", ""),
+%{endif~}
+%{if var.enable_dokploy~}
+                ("Dokploy", f"dokploy.{domain}", ""),
+%{endif~}
+%{if var.enable_komodo~}
+                ("Komodo", f"komodo.{domain}", ""),
+%{endif~}
+%{if var.enable_dockge~}
+                ("Dockge", f"dockge.{domain}", ""),
+%{endif~}
+%{if var.enable_whoami~}
+                ("Whoami", f"whoami.{domain}", ""),
+%{endif~}
+%{if var.enable_vaultwarden~}
+                ("Vaultwarden", f"vault.{domain}", ""),
+%{endif~}
+%{if var.enable_jellyfin~}
+                ("Jellyfin", f"media.{domain}", ""),
+%{endif~}
+%{if var.enable_immich~}
+                ("Immich", f"photos.{domain}", ""),
+%{endif~}
+%{if var.enable_files~}
+                ("Files", f"files.{domain}", ""),
+%{endif~}
+            ]
+            managed_names = {name for name, _, _ in monitors}
+            all_stackkit_names = managed_names | {"Traefik Dashboard", "Dokploy", "Komodo", "Dockge", "Jellyfin"}
+            try:
+                existing = {}
+                for monitor in sorted(api.get_monitors(), key=lambda m: int(m.get("id", 0))):
+                    name = monitor.get("name")
+                    if name in managed_names:
+                        if name not in existing:
+                            existing[name] = monitor
+                        else:
+                            api.delete_monitor(monitor["id"])
+                            print(f"Monitor duplicate removed: {name}")
+                    elif name in all_stackkit_names:
+                        api.delete_monitor(monitor["id"])
+                        print(f"Monitor stale removed: {name}")
+            except Exception:
+                existing = {}
+            for name, host, path in monitors:
+                try:
+                    payload = monitor_payload(name, host, path)
+                    if name in existing:
+                        current = api.get_monitor(existing[name]["id"])
+                        current.update(payload)
+                        current["id"] = existing[name]["id"]
+                        api._call("editMonitor", current)
+                        print(f"Monitor updated: {name}")
+                    else:
+                        api._call("add", payload)
+                        print(f"Monitor added: {name}")
+                except Exception as e:
+                    print(f"Skip {name}: {e}")
+            api.disconnect()
+            print("Kuma setup complete!")
+            PYEOF
+        depends_on:
+          uptime-kuma:
+            condition: service_healthy
+        networks:
+          - traefik-network
+
+    volumes:
+      kuma-data:
+
+    networks:
+      traefik-network:
+        external: true
+        name: ${local.routing_network}
+  EOT
+
+  kuma_compose_content = local.is_host ? local.kuma_compose_host : local.kuma_compose_bridge
+
+  whoami_compose_host = <<-EOT
+    services:
+      whoami:
+        image: ghcr.io/traefik/whoami:latest
+        container_name: whoami
+        restart: unless-stopped
+        network_mode: host
+        command: ["--port=${local.host_ports.whoami}"]
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.routers.whoami.rule=Host(`${local.domains.whoami}`)"
+          - "traefik.http.routers.whoami.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.whoami.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.whoami.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.whoami.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.services.whoami.loadbalancer.server.port=${local.host_ports.whoami}"
+          - "traefik.http.routers.whoami.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+  EOT
+
+  whoami_compose_bridge = <<-EOT
+    services:
+      whoami:
+        image: ghcr.io/traefik/whoami:latest
+        container_name: whoami
+        restart: unless-stopped
+        networks:
+          - traefik-network
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.whoami.rule=Host(`${local.domains.whoami}`)"
+          - "traefik.http.routers.whoami.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.whoami.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.whoami.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.whoami.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.services.whoami.loadbalancer.server.port=80"
+          - "traefik.http.routers.whoami.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+
+    networks:
+      traefik-network:
+        external: true
+        name: ${local.routing_network}
+  EOT
+
+  whoami_compose_content = local.is_host ? local.whoami_compose_host : local.whoami_compose_bridge
+
+  # =============================================================================
+  # VAULTWARDEN (Layer 3 — Password Vault)
+  # =============================================================================
+  vaultwarden_compose_host = <<-EOT
+    services:
+      vaultwarden:
+        image: ${var.vaultwarden_image}
+        container_name: vaultwarden
+        restart: unless-stopped
+        network_mode: host
+        environment:
+          DOMAIN: "${local.proto}://${local.domains.vault}"
+          SIGNUPS_ALLOWED: "false"
+%{if var.vaultwarden_admin_token_phc_b64 != ""~}
+          ADMIN_TOKEN_B64: "${var.vaultwarden_admin_token_phc_b64}"
+        command:
+          - /bin/sh
+          - -c
+          - |
+            export ADMIN_TOKEN="$$(printf '%s' "$$ADMIN_TOKEN_B64" | base64 -d)"
+            exec /start.sh
+%{else~}
+          ADMIN_TOKEN: "${local.vaultwarden_admin_token_compose}"
+%{endif~}
+          ROCKET_PORT: "${local.host_ports.vaultwarden}"
+        volumes:
+          - vaultwarden-data:/data
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.vaultwarden.rule=Host(`${local.domains.vault}`)"
+          - "traefik.http.routers.vaultwarden.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.vaultwarden.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.vaultwarden.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.vaultwarden.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.vaultwarden.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.vaultwarden.loadbalancer.server.port=${local.host_ports.vaultwarden}"
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:${local.host_ports.vaultwarden}/alive || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 10s
+    volumes:
+      vaultwarden-data:
+  EOT
+
+  vaultwarden_compose_bridge = <<-EOT
+    services:
+      vaultwarden:
+        image: ${var.vaultwarden_image}
+        container_name: vaultwarden
+        restart: unless-stopped
+        networks:
+          - traefik-network
+        environment:
+          DOMAIN: "${local.proto}://${local.domains.vault}"
+          SIGNUPS_ALLOWED: "false"
+%{if var.vaultwarden_admin_token_phc_b64 != ""~}
+          ADMIN_TOKEN_B64: "${var.vaultwarden_admin_token_phc_b64}"
+        command:
+          - /bin/sh
+          - -c
+          - |
+            export ADMIN_TOKEN="$$(printf '%s' "$$ADMIN_TOKEN_B64" | base64 -d)"
+            exec /start.sh
+%{else~}
+          ADMIN_TOKEN: "${local.vaultwarden_admin_token_compose}"
+%{endif~}
+        volumes:
+          - vaultwarden-data:/data
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.vaultwarden.rule=Host(`${local.domains.vault}`)"
+          - "traefik.http.routers.vaultwarden.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.vaultwarden.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.vaultwarden.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.vaultwarden.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.vaultwarden.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:80/alive || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 10s
+
+    volumes:
+      vaultwarden-data:
+
+    networks:
+      traefik-network:
+        external: true
+        name: ${local.routing_network}
+  EOT
+
+  vaultwarden_compose_content = local.is_host ? local.vaultwarden_compose_host : local.vaultwarden_compose_bridge
+
+  # =============================================================================
+  # JELLYFIN (Layer 3 — Media Streaming)
+  # =============================================================================
+  jellyfin_compose_host = <<-EOT
+    services:
+      jellyfin:
+        image: jellyfin/jellyfin:latest
+        container_name: jellyfin
+        restart: unless-stopped
+        network_mode: host
+        environment:
+          - JELLYFIN_PublishedServerUrl=${local.proto}://${local.domains.media}
+        volumes:
+          - jellyfin-config:/config
+          - jellyfin-cache:/cache
+          - ${var.media_path}:/media:ro
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.jellyfin.rule=Host(`${local.domains.media}`)"
+          - "traefik.http.routers.jellyfin.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.jellyfin.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.jellyfin.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.jellyfin.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.jellyfin.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.jellyfin.loadbalancer.server.port=${local.host_ports.jellyfin}"
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:${local.host_ports.jellyfin}/health || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 30s
+    volumes:
+      jellyfin-config:
+      jellyfin-cache:
+  EOT
+
+  jellyfin_compose_bridge = <<-EOT
+    services:
+      jellyfin:
+        image: jellyfin/jellyfin:latest
+        container_name: jellyfin
+        restart: unless-stopped
+        networks:
+          - traefik-network
+        environment:
+          - JELLYFIN_PublishedServerUrl=${local.proto}://${local.domains.media}
+        volumes:
+          - jellyfin-config:/config
+          - jellyfin-cache:/cache
+          - ${var.media_path}:/media:ro
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.jellyfin.rule=Host(`${local.domains.media}`)"
+          - "traefik.http.routers.jellyfin.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.jellyfin.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.jellyfin.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.jellyfin.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.jellyfin.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:8096/health || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 30s
+
+    volumes:
+      jellyfin-config:
+      jellyfin-cache:
+
+    networks:
+      traefik-network:
+        external: true
+        name: ${local.routing_network}
+  EOT
+
+  jellyfin_compose_content = local.is_host ? local.jellyfin_compose_host : local.jellyfin_compose_bridge
+
+  # =============================================================================
+  # FILES: CLOUDREVE DEFAULT / NEXTCLOUD ALTERNATIVE
+  # =============================================================================
+  cloudreve_compose_host = <<-EOT
+    services:
+      cloudreve:
+        image: ${var.cloudreve_image}
+        container_name: cloudreve
+        restart: unless-stopped
+        network_mode: host
+        environment:
+          - CR_CONF_System_Listen=:${local.host_ports.cloudreve}
+          - CR_SETTING_reg_captcha=0
+          - CR_SETTING_login_captcha=0
+        volumes:
+          - cloudreve-data:/cloudreve/data
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.cloudreve.rule=Host(`${local.domains.files}`)"
+          - "traefik.http.routers.cloudreve.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.cloudreve.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.cloudreve.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.cloudreve.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.cloudreve.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.cloudreve.loadbalancer.server.port=${local.host_ports.cloudreve}"
+        healthcheck:
+          test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:${local.host_ports.cloudreve}/ || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 5
+          start_period: 20s
+
+      init-cloudreve:
+        image: public.ecr.aws/docker/library/python:3.11-alpine
+        restart: "no"
+        network_mode: host
+        environment:
+          CLOUDREVE_URL: "http://127.0.0.1:${local.host_ports.cloudreve}"
+          CLOUDREVE_USER: "${var.admin_email}"
+          CLOUDREVE_PASS: "${var.admin_password_plaintext}"
+          CLOUDREVE_DEMO_DATA: "${var.demo_data_enabled}"
+        command:
+          - sh
+          - -c
+          - |
+            python3 << 'PYEOF'
+            import json, os, time, urllib.error, urllib.parse, urllib.request
+
+            base = os.environ["CLOUDREVE_URL"].rstrip("/")
+            user = os.environ["CLOUDREVE_USER"]
+            password = os.environ["CLOUDREVE_PASS"]
+            demo_data = os.environ.get("CLOUDREVE_DEMO_DATA", "true").lower() in ("1", "true", "yes", "on")
+
+            class CloudreveError(Exception):
+                def __init__(self, code, message):
+                    super().__init__(message)
+                    self.code = code
+                    self.message = message
+
+            def request(path, method="GET", payload=None, token=None, raw=None, content_type="application/json"):
+                data = raw if raw is not None else json.dumps(payload).encode("utf-8") if payload is not None else None
+                headers = {"Content-Type": content_type}
+                if token:
+                    headers["Authorization"] = "Bearer " + token
+                req = urllib.request.Request(base + "/api/v4" + path, data=data, headers=headers, method=method)
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    text = resp.read().decode("utf-8")
+                    body = json.loads(text) if text else {}
+                    if body.get("code", 0) != 0:
+                        raise CloudreveError(body.get("code"), body.get("msg", "Cloudreve API error"))
+                    return body.get("data", {})
+
+            last_error = None
+            for _ in range(30):
+                try:
+                    request("/site/config/basic")
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    time.sleep(2)
+            else:
+                raise RuntimeError("Cloudreve did not become ready: " + str(last_error))
+
+            try:
+                request("/user", "POST", {"email": user, "password": password, "language": "en-US"})
+                print("Cloudreve first admin created")
+            except (urllib.error.HTTPError, CloudreveError) as exc:
+                body = exc.read().decode("utf-8", "ignore") if isinstance(exc, urllib.error.HTTPError) else exc.message
+                if "exist" in body.lower() or "already in use" in body.lower() or getattr(exc, "code", None) in (400, 409, 40032):
+                    print("Cloudreve admin already exists or first-run is complete")
+                else:
+                    raise
+
+            def api_uri(path):
+                return "cloudreve://my" + path
+
+            def list_files(uri, token):
+                query = urllib.parse.urlencode({"uri": uri, "page_size": "200"})
+                return request("/file?" + query, token=token).get("files", [])
+
+            def ensure_folder(parent_uri, name, token):
+                for item in list_files(parent_uri, token):
+                    if item.get("type") == 1 and item.get("name") == name:
+                        return item
+                return request("/file/create", "POST", {"type": "folder", "uri": parent_uri.rstrip("/") + "/" + urllib.parse.quote(name), "err_on_conflict": True}, token=token)
+
+            def ensure_file(file_uri, token):
+                parent_uri = file_uri.rsplit("/", 1)[0]
+                name = urllib.parse.unquote(file_uri.rsplit("/", 1)[1])
+                for item in list_files(parent_uri, token):
+                    if item.get("type") == 0 and item.get("name") == name:
+                        return item
+                return request("/file/create", "POST", {"type": "file", "uri": file_uri, "err_on_conflict": True}, token=token)
+
+            if demo_data:
+                session = request("/session/token", "POST", {"email": user, "password": password})
+                token = session["token"]["access_token"]
+                folder_name = "StackKit Demo"
+                file_name = "README.txt"
+                folder_uri = api_uri("/" + urllib.parse.quote(folder_name))
+                file_uri = folder_uri + "/" + urllib.parse.quote(file_name)
+                ensure_folder(api_uri(""), folder_name, token)
+                ensure_file(file_uri, token)
+                content = b"Welcome to your StackKit Files workspace.\nThis demo file is created automatically during the Cloud Kit beta bootstrap.\n"
+                query = urllib.parse.urlencode({"uri": file_uri})
+                request("/file/content?" + query, "PUT", token=token, raw=content, content_type="application/octet-stream")
+                print("Cloudreve demo file seeded")
+            PYEOF
+        depends_on:
+          cloudreve:
+            condition: service_healthy
+
+    volumes:
+      cloudreve-data:
+  EOT
+
+  cloudreve_compose_bridge = <<-EOT
+    services:
+      cloudreve:
+        image: ${var.cloudreve_image}
+        container_name: cloudreve
+        restart: unless-stopped
+        networks:
+          - traefik-network
+        environment:
+          - CR_SETTING_reg_captcha=0
+          - CR_SETTING_login_captcha=0
+        volumes:
+          - cloudreve-data:/cloudreve/data
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.cloudreve.rule=Host(`${local.domains.files}`)"
+          - "traefik.http.routers.cloudreve.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.cloudreve.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.cloudreve.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.cloudreve.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.cloudreve.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.cloudreve.loadbalancer.server.port=5212"
+        healthcheck:
+          test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:5212/ || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 5
+          start_period: 20s
+
+    volumes:
+      cloudreve-data:
+
+    networks:
+      traefik-network:
+        external: true
+        name: ${local.routing_network}
+  EOT
+
+  cloudreve_compose_content = local.is_host ? local.cloudreve_compose_host : local.cloudreve_compose_bridge
+
+  nextcloud_compose_bridge = <<-EOT
+    services:
+      nextcloud:
+        image: ${var.nextcloud_image}
+        container_name: nextcloud
+        restart: unless-stopped
+        networks:
+          - traefik-network
+          - nextcloud-internal
+        environment:
+          - MYSQL_HOST=nextcloud-db
+          - MYSQL_DATABASE=nextcloud
+          - MYSQL_USER=nextcloud
+          - MYSQL_PASSWORD=${try(random_password.nextcloud_db[0].result, "")}
+          - REDIS_HOST=nextcloud-redis
+          - NEXTCLOUD_ADMIN_USER=admin
+          - NEXTCLOUD_ADMIN_PASSWORD=${var.admin_password_plaintext}
+          - NEXTCLOUD_TRUSTED_DOMAINS=${local.domains.files}
+          - OVERWRITEHOST=${local.domains.files}
+          - OVERWRITEPROTOCOL=${local.proto}
+          - TRUSTED_PROXIES=10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+        volumes:
+          - nextcloud-html:/var/www/html
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.nextcloud.rule=Host(`${local.domains.files}`)"
+          - "traefik.http.routers.nextcloud.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.nextcloud.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.nextcloud.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.nextcloud.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.nextcloud.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
+        depends_on:
+          nextcloud-db:
+            condition: service_healthy
+          nextcloud-redis:
+            condition: service_healthy
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost/status.php || exit 1"]
+          interval: 30s
+          timeout: 10s
+          retries: 5
+          start_period: 60s
+
+      nextcloud-db:
+        image: ${var.nextcloud_mariadb_image}
+        container_name: nextcloud-db
+        restart: unless-stopped
+        networks:
+          - nextcloud-internal
+        environment:
+          - MARIADB_DATABASE=nextcloud
+          - MARIADB_USER=nextcloud
+          - MARIADB_PASSWORD=${try(random_password.nextcloud_db[0].result, "")}
+          - MARIADB_ROOT_PASSWORD=${try(random_password.nextcloud_db_root[0].result, "")}
+        volumes:
+          - nextcloud-db:/var/lib/mysql
+        healthcheck:
+          test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u nextcloud -p$${MARIADB_PASSWORD} || exit 1"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          start_period: 30s
+
+      nextcloud-redis:
+        image: ${var.nextcloud_redis_image}
+        container_name: nextcloud-redis
+        restart: unless-stopped
+        networks:
+          - nextcloud-internal
+        healthcheck:
+          test: ["CMD", "redis-cli", "ping"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+    volumes:
+      nextcloud-html:
+      nextcloud-db:
+
+    networks:
+      traefik-network:
+        external: true
+        name: ${local.routing_network}
+      nextcloud-internal:
+        driver: bridge
+  EOT
+
+  nextcloud_compose_content = local.nextcloud_compose_bridge
+  files_compose_content     = local.cloudreve_enabled ? local.cloudreve_compose_content : local.nextcloud_compose_content
+
+  # =============================================================================
+  # IMMICH (Layer 3 — Photo Management)
+  # =============================================================================
+  immich_compose_host = <<-EOT
+    services:
+      immich-server:
+        image: ghcr.io/immich-app/immich-server:release
+        container_name: immich
+        restart: unless-stopped
+        network_mode: host
+        environment:
+          - DB_HOSTNAME=127.0.0.1
+          - DB_PORT=${local.host_ports.immich_pg}
+          - DB_USERNAME=immich
+          - DB_PASSWORD=${try(random_password.immich_db[0].result, "")}
+          - DB_DATABASE_NAME=immich
+          - REDIS_HOSTNAME=127.0.0.1
+          - REDIS_PORT=${local.host_ports.immich_redis}
+          - IMMICH_MACHINE_LEARNING_URL=http://127.0.0.1:${local.host_ports.immich_ml}
+          - IMMICH_SERVER_PORT=${local.host_ports.immich}
+        volumes:
+          - immich-upload:/usr/src/app/upload
+          - /etc/localtime:/etc/localtime:ro
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.immich.rule=Host(`${local.domains.photos}`)"
+          - "traefik.http.routers.immich.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.immich.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.immich.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.immich.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.immich.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.immich.loadbalancer.server.port=${local.host_ports.immich}"
+        depends_on:
+          immich-postgres:
+            condition: service_started
+          immich-redis:
+            condition: service_healthy
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:${local.host_ports.immich}/api/server/ping || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 30s
+
+      immich-machine-learning:
+        image: ghcr.io/immich-app/immich-machine-learning:release
+        container_name: immich-ml
+        restart: unless-stopped
+        network_mode: host
+        environment:
+          - MACHINE_LEARNING_PORT=${local.host_ports.immich_ml}
+        volumes:
+          - immich-model-cache:/cache
+
+      immich-postgres:
+        image: ${var.immich_postgres_image}
+        container_name: immich-postgres
+        restart: unless-stopped
+        network_mode: host
+        environment:
+          - POSTGRES_USER=immich
+          - POSTGRES_PASSWORD=${try(random_password.immich_db[0].result, "")}
+          - POSTGRES_DB=immich
+          - DB_DATABASE_NAME=immich
+          - DB_USERNAME=immich
+          - DB_PASSWORD=${try(random_password.immich_db[0].result, "")}
+          - POSTGRES_INITDB_ARGS=--data-checksums
+          - PGPORT=${local.host_ports.immich_pg}
+        volumes:
+          - immich-postgres-data:/var/lib/postgresql/data
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U immich -d postgres -p ${local.host_ports.immich_pg}"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          start_period: 10s
+
+      immich-postgres-init:
+        image: ${var.immich_postgres_image}
+        container_name: immich-postgres-init
+        restart: "no"
+        network_mode: host
+        environment:
+          - PGPASSWORD=${try(random_password.immich_db[0].result, "")}
+        depends_on:
+          immich-postgres:
+            condition: service_started
+        command: >
+          sh -c 'until pg_isready -h 127.0.0.1 -p ${local.host_ports.immich_pg} -U immich -d postgres; do sleep 1; done;
+          psql -h 127.0.0.1 -p ${local.host_ports.immich_pg} -U immich -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''immich'\''" | grep -q 1 ||
+          createdb -h 127.0.0.1 -p ${local.host_ports.immich_pg} -U immich immich'
+
+      immich-redis:
+        image: ${var.immich_redis_image}
+        container_name: immich-redis
+        restart: unless-stopped
+        network_mode: host
+        command: ["valkey-server", "--port", "${local.host_ports.immich_redis}"]
+        healthcheck:
+          test: ["CMD", "redis-cli", "-p", "${local.host_ports.immich_redis}", "ping"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+    volumes:
+      immich-upload:
+      immich-model-cache:
+      immich-postgres-data:
+  EOT
+
+  immich_compose_bridge = <<-EOT
+    services:
+      immich-server:
+        image: ghcr.io/immich-app/immich-server:release
+        container_name: immich
+        restart: unless-stopped
+        extra_hosts:
+          - "${local.domains.id}:host-gateway"
+        networks:
+          - traefik-network
+          - immich-internal
+        environment:
+          - DB_HOSTNAME=immich-postgres
+          - DB_PORT=5432
+          - DB_USERNAME=immich
+          - DB_PASSWORD=${try(random_password.immich_db[0].result, "")}
+          - DB_DATABASE_NAME=immich
+          - REDIS_HOSTNAME=immich-redis
+          - REDIS_PORT=6379
+          - IMMICH_MACHINE_LEARNING_URL=http://immich-machine-learning:3003
+        volumes:
+          - immich-upload:/usr/src/app/upload
+        labels:
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.immich.rule=Host(`${local.domains.photos}`)"
+          - "traefik.http.routers.immich.entrypoints=${local.entrypoint}"
+%{if local.rp_coolify~}
+          - "traefik.http.routers.immich.priority=${local.coolify_service_router_priority}"
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+          - "traefik.http.routers.immich.tls=true"
+%{endif~}
+%{if var.enable_https~}
+          - "traefik.http.routers.immich.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.immich.middlewares=${local.service_auth_middleware}"
+%{if local.rp_coolify && local.service_auth_middleware != ""~}
+          - "coolify.traefik.middlewares=${local.service_auth_middleware}"
+%{endif~}
+          - "traefik.http.services.immich.loadbalancer.server.port=2283"
+        depends_on:
+          immich-postgres:
+            condition: service_started
+          immich-redis:
+            condition: service_started
+        healthcheck:
+          test: ["CMD-SHELL", "curl -sf http://localhost:2283/api/server/ping || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 30s
+
+      immich-machine-learning:
+        image: ghcr.io/immich-app/immich-machine-learning:release
+        container_name: immich-ml
+        restart: unless-stopped
+        networks:
+          - immich-internal
+        volumes:
+          - immich-model-cache:/cache
+
+      immich-postgres:
+        image: ${var.immich_postgres_image}
+        container_name: immich-postgres
+        restart: unless-stopped
+        networks:
+          - immich-internal
+        environment:
+          - POSTGRES_USER=immich
+          - POSTGRES_PASSWORD=${try(random_password.immich_db[0].result, "")}
+          - POSTGRES_DB=immich
+          - DB_DATABASE_NAME=immich
+          - DB_USERNAME=immich
+          - DB_PASSWORD=${try(random_password.immich_db[0].result, "")}
+          - POSTGRES_INITDB_ARGS=--data-checksums
+        volumes:
+          - immich-postgres-data:/var/lib/postgresql/data
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U immich -d postgres"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          start_period: 10s
+
+      immich-postgres-init:
+        image: ${var.immich_postgres_image}
+        container_name: immich-postgres-init
+        restart: "no"
+        networks:
+          - immich-internal
+        environment:
+          - PGPASSWORD=${try(random_password.immich_db[0].result, "")}
+        depends_on:
+          immich-postgres:
+            condition: service_started
+        command: >
+          sh -c 'until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done;
+          psql -h immich-postgres -U immich -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''immich'\''" | grep -q 1 ||
+          createdb -h immich-postgres -U immich immich'
+
+      immich-redis:
+        image: ${var.immich_redis_image}
+        container_name: immich-redis
+        restart: unless-stopped
+        command: ["valkey-server"]
+        networks:
+          - immich-internal
+        healthcheck:
+          test: ["CMD", "redis-cli", "ping"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+    volumes:
+      immich-upload:
+      immich-model-cache:
+      immich-postgres-data:
+
+    networks:
+      traefik-network:
+        external: true
+        name: ${local.routing_network}
+      immich-internal:
+        driver: bridge
+  EOT
+
+  immich_compose_content = local.is_host ? local.immich_compose_host : local.immich_compose_bridge
+
+  # When subdomain_prefix is set (kombify.me tunnel mode), domains use flat naming:
+  #   {prefix}-{service}.{domain}  e.g. sh-mylab-abc-dash.kombify.me
+  # When empty (own domain or LAN), domains use nested naming:
+  #   {service}.{domain}           e.g. dash.kmbchr.de
+  #
+  # Generated from CUE service catalog (base/services.cue).
+  # Do NOT edit by hand — update CUE definitions and re-run stackkit generate.
+  _p            = var.subdomain_prefix
+  is_kombify_me = var.domain == "kombify.me"
+  kombify_point_target_ip = trimspace(var.server_lan_ip) != "" ? trimspace(var.server_lan_ip) : "127.0.0.1"
+  kombify_point_zone_regex = replace(var.domain, ".", "[.]")
+
+  domains = {
+{{- range .Domains }}
+    {{ .Key }} = local._p != "" ? "${local._p}-{{ .Flat }}.${var.domain}" : "{{ .Nested }}.${var.domain}"
+{{- end }}
+  }
+
+  # =============================================================================
+  # STACKKITS NODE HUB HTML
+  # Generated from CUE service catalog (base/services.cue).
+  # Do NOT edit by hand — update CUE definitions and re-run stackkit generate.
+  # Brand color (${var.brand_color}) and domain (${var.domain}) are injected at
+  # generation time. No external deps — served by the platform-managed
+  # stackkit-hub system app at base.${var.domain} in normal selected-PaaS mode
+  # rollouts, with a direct container only for fallback standalone routing.
+  # =============================================================================
+  dashboard_html = <<-HTML
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${var.dashboard_title}</title>
+      <style>
+        :root {
+          --brand: ${var.brand_color};
+          --bg: #101522;
+          --surface: #182234;
+          --surface-2: #202C3F;
+          --surface-h: #29364B;
+          --line: rgba(148,163,184,0.22);
+          --text: #F8FAFC;
+          --dim: #B6C2D2;
+          --muted: #7A879A;
+          --ok: #2DD4BF;
+          --warn: #F59E0B;
+          --r: 8px;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        html { min-width: 320px; }
+        body { margin: 0; min-height: 100vh; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+        a { color: inherit; }
+        nav { position: sticky; top: 0; z-index: 20; height: 54px; display: flex; align-items: center; gap: 12px; padding: 0 24px; background: rgba(16,21,34,0.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(14px); }
+        .mark { width: 10px; height: 10px; border-radius: 3px; background: var(--brand); box-shadow: 0 0 16px rgba(249,115,22,.4); }
+        .nav-title { font-size: 14px; font-weight: 800; }
+        .nav-domain { color: var(--muted); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .nav-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+        .nav-actions a, .link-pill { border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; color: var(--dim); font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+        .nav-actions a:hover, .link-pill:hover { border-color: var(--brand); color: var(--text); }
+        main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 48px; }
+        .hero { margin: 10px 0 22px; }
+        .eyebrow { color: var(--brand); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+        h1 { margin: 6px 0 6px; font-size: 32px; line-height: 1.08; letter-spacing: 0; }
+        .intro { max-width: 760px; color: var(--dim); font-size: 14px; margin: 0; }
+        .banner { background: rgba(245,158,11,.09); border: 1px solid rgba(245,158,11,.28); border-radius: var(--r); padding: 12px 14px; color: #FDE68A; font-size: 13px; margin-bottom: 16px; }
+        .protection-banner { display: grid; gap: 8px; }
+        .onboarding-panel { display: grid; gap: 12px; }
+        .onboarding-flow { margin: 0; padding: 0; list-style: none; counter-reset: onboard; display: grid; gap: 12px; }
+        .onboarding-step { counter-increment: onboard; display: grid; grid-template-columns: 26px minmax(0,1fr); gap: 10px; align-items: start; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+        .onboarding-step:last-child { padding-bottom: 0; border-bottom: 0; }
+        .onboarding-step .num::before { content: counter(onboard); }
+        .onboarding-step strong { display: block; color: var(--text); font-size: 13px; }
+        .onboarding-step p { margin: 3px 0 8px; color: var(--dim); font-size: 12px; }
+        .step-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .onboarding-step .setup-result { max-width: 360px; white-space: normal; }
+        .banner-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .banner-actions code { color: #FDE68A; background: rgba(0,0,0,.16); border: 1px solid rgba(245,158,11,.22); border-radius: 5px; padding: 4px 7px; }
+        .secret-output { margin: 0; padding: 10px; border: 1px solid rgba(45,212,191,.24); border-radius: 6px; background: rgba(0,0,0,.22); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .secret-output[hidden] { display: none; }
+        .top-grid { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(280px,.95fr); gap: 14px; margin: 22px 0 24px; }
+        .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
+        .panel h2, .section-title { margin: 0 0 12px; font-size: 13px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+        .num { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 6px; background: rgba(249,115,22,.12); color: var(--brand); font-weight: 800; }
+        .onboarding-step a, .guide, .text-link { color: var(--brand); text-decoration: none; font-weight: 700; }
+        .onboarding-step a:hover, .guide:hover, .text-link:hover { text-decoration: underline; }
+        .stats { display: grid; gap: 10px; }
+        .stat { display: grid; grid-template-columns: 110px minmax(0,1fr); gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+        .stat:last-child { border-bottom: 0; }
+        .stat span { color: var(--muted); font-size: 12px; }
+        .stat strong, code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); overflow-wrap: anywhere; }
+        .links { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr)); gap: 10px; margin-bottom: 26px; }
+        .quick-link { min-height: 76px; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); text-decoration: none; }
+        .quick-link:hover { background: var(--surface-h); border-color: var(--brand); }
+        .quick-link strong { font-size: 13px; }
+        .quick-link span { color: var(--dim); font-size: 12px; }
+        .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 28px 0 10px; }
+        .section-head p { margin: 0; color: var(--muted); font-size: 12px; }
+        .service-table { display: grid; gap: 8px; }
+        .service-row { display: grid; grid-template-columns: minmax(230px,1.6fr) minmax(96px,.55fr) minmax(132px,.75fr) minmax(160px,1fr) minmax(82px,.35fr); gap: 12px; align-items: center; min-height: 72px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+        .service-row:hover { background: var(--surface-2); border-color: rgba(249,115,22,.55); }
+        .service-main { display: grid; grid-template-columns: 36px minmax(0,1fr); gap: 12px; align-items: center; min-width: 0; text-decoration: none; }
+        .service-icon { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(255,255,255,.05); border: 1px solid var(--line); font-size: 17px; }
+        .service-main strong { display: block; font-size: 14px; color: var(--text); }
+        .service-main small { display: block; color: var(--dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pill { width: max-content; max-width: 100%; padding: 3px 7px; border-radius: 5px; background: rgba(255,255,255,.06); color: var(--dim); font-size: 11px; font-weight: 800; }
+        .access { color: var(--dim); font-size: 12px; }
+        .service-url { color: var(--brand); }
+        .guide { justify-self: end; font-size: 12px; }
+        .tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 10px; }
+        .tool-card { min-height: 178px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+        .tool-card:hover { background: var(--surface-2); border-color: rgba(249,115,22,.55); }
+        .tool-top { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 12px; align-items: center; }
+        .tool-logo { width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(255,255,255,.06); border: 1px solid var(--line); font-size: 18px; }
+        .tool-logo img { width: 24px; height: 24px; object-fit: contain; }
+        .tool-title strong { display: block; font-size: 14px; }
+        .tool-title code { color: var(--brand); }
+        .tool-card p { margin: 0; color: var(--dim); font-size: 12px; }
+        .tool-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .tool-actions a, .setup-action { border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; background: rgba(255,255,255,.04); color: var(--text); font: 700 12px Inter, ui-sans-serif, system-ui; text-decoration: none; cursor: pointer; }
+        .tool-actions a:hover, .setup-action:hover { border-color: var(--brand); }
+        .setup-action:disabled { cursor: not-allowed; opacity: .65; }
+        .setup-form { display: inline-flex; align-items: center; gap: 8px; margin: 0; min-height: 32px; }
+        .setup-result { color: var(--dim); font-size: 12px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .setup-result.ok { color: #86efac; }
+        .setup-result.err { color: #fecaca; }
+        .muted { color: var(--muted); }
+        footer { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; text-align: center; }
+        footer a { color: var(--brand); text-decoration: none; }
+        @media (max-width: 860px) {
+          nav { padding: 0 16px; }
+          .nav-actions { display: none; }
+          main { padding: 20px 16px 38px; }
+          h1 { font-size: 26px; }
+          .top-grid { grid-template-columns: 1fr; }
+          .service-row { grid-template-columns: 1fr; align-items: start; gap: 8px; }
+          .service-main small { white-space: normal; }
+          .guide { justify-self: start; }
+          .tool-grid { grid-template-columns: 1fr; }
+          .stat { grid-template-columns: 1fr; gap: 2px; }
+        }
+      </style>
+    </head>
+    <body>
+      <nav>
+        <div class="mark"></div>
+        <span class="nav-title">${var.dashboard_title}</span>
+        <span class="nav-domain">${local.domains.base}</span>
+        <div class="nav-actions">
+          <a href="https://docs.kombify.io/guides/stackkits/node-hub" target="_blank" rel="noreferrer">Docs</a>
+          ${var.enable_uptime_kuma ? "<a href=\"${local.proto}://${local.domains.kuma}\" target=\"_blank\" rel=\"noreferrer\">Status</a>" : ""}
+        </div>
+      </nav>
+      <main>
+        ${local.host_mode_hint}${local.dns_fix_hint}${local.storage_hint}
+        <header class="hero">
+          <div class="eyebrow">StackKits Node Hub</div>
+          <h1>Start here for this server.</h1>
+          <p class="intro">Use this node-local hub for first setup, recovery, service access, and the public guides for everything installed by this StackKit.</p>
+        </header>
+        ${local.is_kombify_me ? "<div class=\"banner\">Public access is using kombify.me routes. Keep service ownership and app-level admin setup tight before sharing links.</div>" : ""}
+        ${local.base_hub_unprotected ? "<div id=\"base-hub-protection-banner\" class=\"banner protection-banner\"><div><strong>This page is currently unprotected.</strong> Base stays open only for onboarding. Start with PocketID below, then protect Base from the onboarding flow.</div></div>" : ""}
+        <section class="top-grid" aria-label="Getting started and node overview">
+          <div id="onboarding-panel" class="panel onboarding-panel">
+            <h2>Onboarding</h2>
+            <ol class="onboarding-flow">
+              ${var.enable_pocketid ? "<li class=\"onboarding-step\"><span class=\"num\"></span><div><strong>Set up the PocketID Owner</strong><p>Create the Owner user in PocketID first and register a passkey. PocketID is the user-management source; service passwords are technical bootstrap material, not PocketID login passwords.</p><div class=\"step-actions\"><a class=\"link-pill\" href=\"${local.proto}://${local.domains.id}/setup\" target=\"_blank\" rel=\"noreferrer\">PocketID Setup</a></div></div></li>" : ""}
+              ${var.enable_tinyauth ? "<li class=\"onboarding-step\"><span class=\"num\"></span><div><strong>Protect Base Hub</strong><p>After PocketID setup, StackKit moves Base and the node-local API behind TinyAuth/PocketID.</p><div class=\"step-actions\"><form class=\"setup-form\" data-base-hub-protection method=\"post\" action=\"/api/v1/setup/base-hub/protection\"><button class=\"setup-action\" type=\"submit\">Protect Base Hub</button><span class=\"setup-result\" aria-live=\"polite\"></span></form></div></div></li>" : ""}
+              ${var.enable_tinyauth ? "<li id=\"initial-access-panel\" class=\"onboarding-step\"><span class=\"num\"></span><div><strong>Technical Bootstrap Access</strong><p>After Base is protected, reveal the generated technical admin credentials for TinyAuth and the selected PaaS once. Owner login remains PocketID passkey.</p><div class=\"step-actions\"><button class=\"setup-action\" type=\"button\" data-initial-access-reveal>Reveal technical credentials</button><span class=\"setup-result\" data-initial-access-status aria-live=\"polite\">Loading status</span></div><pre class=\"secret-output\" data-initial-access-output hidden></pre></div></li>" : ""}
+              <li class="onboarding-step"><span class="num"></span><div><strong>Set up apps</strong><p>Use the app cards below. If StackKit owns a setup drop, its action appears there; otherwise the How-to link guides the app-specific setup.</p></div></li>
+              ${var.enable_uptime_kuma ? "<li class=\"onboarding-step\"><span class=\"num\"></span><div><strong>Check status</strong><p>Check <a href=\"${local.proto}://${local.domains.kuma}\" target=\"_blank\" rel=\"noreferrer\">Uptime Kuma</a> before exposing services outside your LAN.</p></div></li>" : ""}
+            </ol>
+          </div>
+          <div class="panel">
+            <h2>Node Overview</h2>
+            <div class="stats">
+              <div class="stat"><span>Node Hub</span><strong>${local.proto}://${local.domains.base}</strong></div>
+              <div class="stat"><span>Domain</span><strong>${var.domain}</strong></div>
+              <div class="stat"><span>Network</span><strong>${var.network_mode}</strong></div>
+              <div class="stat"><span>Identity</span><strong>${var.enable_tinyauth && var.enable_pocketid ? "TinyAuth + PocketID" : "Review service settings"}</strong></div>
+            </div>
+          </div>
+        </section>
+        <section aria-label="Important links">
+          <div class="section-head">
+            <div class="section-title">Important Links</div>
+            <p>Public docs open in a new tab.</p>
+          </div>
+          <div class="links">
+            <a class="quick-link" href="https://docs.kombify.io/guides/stackkits/node-hub" target="_blank" rel="noreferrer"><strong>Node Hub guide</strong><span>Recover, verify, and navigate the server</span></a>
+            ${var.enable_homepage ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.home}\" target=\"_blank\" rel=\"noreferrer\"><strong>Homepage</strong><span>Secondary homelab start page</span></a>" : ""}
+            ${var.enable_dokploy ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.dokploy}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Dokploy</span></a>" : ""}${var.enable_komodo ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.komodo}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Komodo</span></a>" : ""}${var.enable_coolify ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.coolify}\" target=\"_blank\" rel=\"noreferrer\"><strong>Deploy apps</strong><span>Open Coolify</span></a>" : ""}${var.enable_dockge ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.dockge}\" target=\"_blank\" rel=\"noreferrer\"><strong>Compose stacks</strong><span>Open Dockge</span></a>" : ""}
+            ${var.enable_uptime_kuma ? "<a class=\"quick-link\" href=\"${local.proto}://${local.domains.kuma}\" target=\"_blank\" rel=\"noreferrer\"><strong>Status</strong><span>Open Uptime Kuma</span></a>" : ""}
+          </div>
+        </section>
+        <section aria-label="Available services">
+          <div class="section-head">
+            <div class="section-title">Available Services</div>
+            <p>Only enabled services are shown.</p>
+          </div>
+          <div class="service-table">
+{{ range catalogSection "Platform" .Catalog }}{{ if hasEnableVar . }}            ${var.{{ .EnableVar }} ? "<div class=\"service-row\"><a class=\"service-main\" href=\"${local.proto}://${local.domains.{{ .Key }}}\" target=\"_blank\" rel=\"noreferrer\"><span class=\"service-icon\">{{ .Icon }}</span><span><strong>{{ htmlText .DisplayName }}</strong><small>{{ htmlText .Description }}</small></span></a><span class=\"pill\">{{ htmlText .Badge }}</span><span class=\"access\">{{ htmlText (serviceHint .) }}</span><code class=\"service-url\">${local.domains.{{ .Key }}}</code>{{ if publicGuideURL .GuideURL }}<a class=\"guide\" href=\"{{ publicGuideURL .GuideURL }}\" target=\"_blank\" rel=\"noreferrer\">How-to</a>{{ else }}<span class=\"guide muted\">Guide pending</span>{{ end }}</div>" : ""}
+{{ else }}            <div class="service-row"><a class="service-main" href="${local.proto}://${local.domains.{{ .Key }}}" target="_blank" rel="noreferrer"><span class="service-icon">{{ .Icon }}</span><span><strong>{{ htmlText .DisplayName }}</strong><small>{{ htmlText .Description }}</small></span></a><span class="pill">{{ htmlText .Badge }}</span><span class="access">{{ htmlText (serviceHint .) }}</span><code class="service-url">${local.domains.{{ .Key }}}</code>{{ if publicGuideURL .GuideURL }}<a class="guide" href="{{ publicGuideURL .GuideURL }}" target="_blank" rel="noreferrer">How-to</a>{{ else }}<span class="guide muted">Guide pending</span>{{ end }}</div>
+{{ end }}{{ end }}          </div>
+          <div class="section-head">
+            <div class="section-title">Application Tools</div>
+            <p>Layer 3 tools keep their app-specific setup separate.</p>
+          </div>
+          <div class="tool-grid">
+{{ range catalogSection "Applications" .Catalog }}{{ if hasEnableVar . }}            ${var.{{ .EnableVar }} ? "<article class=\"tool-card\"><div class=\"tool-top\"><a class=\"tool-logo\" href=\"${local.proto}://${local.domains.{{ .Key }}}\" target=\"_blank\" rel=\"noreferrer\">{{ if .LogoURL }}<img src=\"{{ htmlAttr .LogoURL }}\" alt=\"\" loading=\"lazy\">{{ else }}{{ .Icon }}{{ end }}</a><div class=\"tool-title\"><strong>{{ htmlText .DisplayName }}</strong><code>${local.domains.{{ .Key }}}</code></div></div><p>{{ htmlText .Description }}</p><div class=\"tool-actions\"><a href=\"${local.proto}://${local.domains.{{ .Key }}}\" target=\"_blank\" rel=\"noreferrer\">Open</a>{{ if publicGuideURL .GuideURL }}<a href=\"{{ publicGuideURL .GuideURL }}\" target=\"_blank\" rel=\"noreferrer\">How to Setup and Use</a>{{ end }}{{ setupActionForm . }}</div></article>" : ""}
+{{ else }}            <article class="tool-card"><div class="tool-top"><a class="tool-logo" href="${local.proto}://${local.domains.{{ .Key }}}" target="_blank" rel="noreferrer">{{ if .LogoURL }}<img src="{{ htmlAttr .LogoURL }}" alt="" loading="lazy">{{ else }}{{ .Icon }}{{ end }}</a><div class="tool-title"><strong>{{ htmlText .DisplayName }}</strong><code>${local.domains.{{ .Key }}}</code></div></div><p>{{ htmlText .Description }}</p><div class="tool-actions"><a href="${local.proto}://${local.domains.{{ .Key }}}" target="_blank" rel="noreferrer">Open</a>{{ if publicGuideURL .GuideURL }}<a href="{{ publicGuideURL .GuideURL }}" target="_blank" rel="noreferrer">How to Setup and Use</a>{{ end }}{{ setupActionForm . }}</div></article>
+{{ end }}{{ end }}          </div>
+        </section>
+      </main>
+      <footer>Built with <a href="https://stackkits.io" target="_blank" rel="noreferrer">StackKits</a> &nbsp;&middot;&nbsp; ${var.domain}</footer>
+      <script>
+        function markBaseHubProtected() {
+          var banner = document.getElementById('base-hub-protection-banner');
+          if (banner) banner.style.display = 'none';
+        }
+
+        function markOnboardingComplete() {
+          var panel = document.getElementById('onboarding-panel');
+          if (panel) panel.style.display = 'none';
+        }
+
+        async function refreshBaseHubProtection() {
+          var banner = document.getElementById('base-hub-protection-banner');
+          if (!banner) return;
+          try {
+            var response = await fetch('/api/v1/setup/base-hub/protection', { headers: { 'Accept': 'application/json' } });
+            var payload = await response.json().catch(function() { return {}; });
+            if (response.ok && payload.data && payload.data.protected) {
+              markBaseHubProtected();
+            }
+          } catch (error) {}
+        }
+
+        async function refreshInitialAccess() {
+          var panel = document.getElementById('initial-access-panel');
+          if (!panel) return;
+          var button = panel.querySelector('[data-initial-access-reveal]');
+          var status = panel.querySelector('[data-initial-access-status]');
+          try {
+            var response = await fetch('/api/v1/setup/initial-access', { headers: { 'Accept': 'application/json' } });
+            var payload = await response.json().catch(function() { return {}; });
+            var data = payload.data || {};
+            if (!response.ok) throw new Error(payload && payload.error && payload.error.message ? payload.error.message : 'Status unavailable');
+            if (data.consumed) {
+              markOnboardingComplete();
+              return;
+            }
+            status.textContent = data.message || data.status || 'Ready';
+            status.className = 'setup-result ' + (data.available ? 'ok' : '');
+            button.disabled = !data.available;
+          } catch (error) {
+            status.textContent = 'Log in and retry';
+            status.className = 'setup-result err';
+            button.disabled = true;
+          }
+        }
+
+        var initialAccessButton = document.querySelector('[data-initial-access-reveal]');
+        if (initialAccessButton) {
+          initialAccessButton.addEventListener('click', async function() {
+            var panel = document.getElementById('initial-access-panel');
+            var status = panel.querySelector('[data-initial-access-status]');
+            var output = panel.querySelector('[data-initial-access-output]');
+            initialAccessButton.disabled = true;
+            status.className = 'setup-result';
+            status.textContent = 'Revealing';
+            try {
+              var response = await fetch('/api/v1/setup/initial-access/reveal', { method: 'POST', headers: { 'Accept': 'application/json' } });
+              var payload = await response.json().catch(function() { return {}; });
+              if (!response.ok) {
+                var message = payload && payload.error && payload.error.message ? payload.error.message : 'Reveal unavailable';
+                throw new Error(message);
+              }
+              var credentials = payload.data && payload.data.credentials;
+              if (!credentials) throw new Error('Credentials already consumed');
+              output.hidden = false;
+              output.textContent = 'Role:     ' + (credentials.credentialRole || 'technical-admin') + '\nEmail:    ' + credentials.adminEmail + '\nPassword: ' + credentials.adminPassword + '\nFor:      ' + (credentials.intendedFor || []).join(', ') + '\nOwner:    ' + (credentials.ownerLogin || 'pocketid-passkey');
+              status.textContent = 'Revealed once';
+              status.classList.add('ok');
+            } catch (error) {
+              status.textContent = error && error.message ? error.message : 'Reveal failed';
+              status.classList.add('err');
+              initialAccessButton.disabled = false;
+            }
+          });
+        }
+
+        document.querySelectorAll('form[data-setup-action], form[data-base-hub-protection]').forEach(function(form) {
+          form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            var button = form.querySelector('button');
+            var result = form.querySelector('.setup-result');
+            if (!button || !result) return;
+            var isBaseHubProtection = form.hasAttribute('data-base-hub-protection');
+            var keepDisabled = false;
+            button.disabled = true;
+            result.className = 'setup-result';
+            result.textContent = 'Running';
+            try {
+              var response = await fetch(form.action, { method: 'POST', headers: { 'Accept': 'application/json' } });
+              var payload = await response.json().catch(function() { return {}; });
+              if (!response.ok) {
+                var message = payload && payload.error && payload.error.message ? payload.error.message : 'Setup failed';
+                throw new Error(message);
+              }
+              var data = payload.data || {};
+              if (isBaseHubProtection && data.protected) {
+                result.textContent = 'Protected';
+                keepDisabled = true;
+                window.setTimeout(markBaseHubProtected, 700);
+                window.setTimeout(refreshInitialAccess, 900);
+              } else {
+                result.textContent = data.status === 'completed' ? 'Done' : (data.status || 'Ready');
+              }
+              result.classList.add('ok');
+            } catch (error) {
+              result.textContent = error && error.message ? error.message : 'Setup failed';
+              result.classList.add('err');
+            } finally {
+              if (!keepDisabled) button.disabled = false;
+            }
+          });
+        });
+        refreshBaseHubProtection();
+        refreshInitialAccess();
+      </script>
+    </body>
+    </html>
+  HTML
+
+  stackkit_hub_compose_content = <<-EOT
+    services:
+      stackkit-hub:
+        image: public.ecr.aws/docker/library/nginx:alpine
+        container_name: dashboard
+        restart: unless-stopped
+        command:
+          - sh
+          - -c
+          - printf '%s' '${base64encode(local.dashboard_html)}' | base64 -d > /usr/share/nginx/html/index.html && exec nginx -g 'daemon off;'
+        security_opt:
+          - no-new-privileges:true
+        labels:
+          - "stackkit.layer=2-platform"
+          - "stackkit.service=dashboard"
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.dashboard.rule=Host(`${local.domains.base}`)"
+          - "traefik.http.routers.dashboard.entrypoints=${local.entrypoint}"
+%{if var.enable_https~}
+          - "traefik.http.routers.dashboard.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.dashboard.middlewares=${local.base_hub_auth_middleware}"
+          - "traefik.http.services.dashboard.loadbalancer.server.port=80"
+        healthcheck:
+          test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+          interval: 30s
+          timeout: 5s
+          retries: 3
+          start_period: 10s
+        networks:
+          - stackkit
+
+    networks:
+      stackkit:
+        name: ${local.routing_network}
+        external: true
+  EOT
+
+  stackkit_server_compose_content = <<-EOT
+    services:
+      stackkit-server:
+        image: ${var.stackkit_server_image}
+        container_name: stackkit-server
+        restart: unless-stopped
+        entrypoint:
+          - stackkit-server
+        command:
+          - --port
+          - "8082"
+          - --base-dir
+          - /workspace
+          - --allow-unauthenticated
+        environment:
+          STACKKITS_ALLOW_UNAUTHENTICATED: "true"
+          STACKKITS_CORS_ORIGINS: "${local.proto}://${local.domains.base}"
+          STACKKITS_LOG_DIR: "/workspace/.stackkit/logs"
+          STACKKITS_SETUP_ACTION_MODE: "apply"
+          STACKKIT_ADMIN_EMAIL: "${var.admin_email}"
+          STACKKIT_ADMIN_PASSWORD: "${var.admin_password_plaintext}"
+          STACKKIT_SETUP_IMMICH_URL: "${local.setup_immich_url}"
+          STACKKIT_SETUP_POCKETID_URL: "${local.setup_pocketid_url}"
+          STACKKIT_SETUP_VAULTWARDEN_URL: "${local.setup_vaultwarden_url}"
+          STACKKIT_SETUP_CLOUDREVE_URL: "${local.setup_cloudreve_url}"
+          STACKKIT_FILES_SESSION_BRIDGE_TOKEN: "${local.files_session_bridge_token}"
+        volumes:
+          - type: bind
+            source: ${local.workspace_root}
+            target: /workspace
+        security_opt:
+          - no-new-privileges:true
+        labels:
+          - "stackkit.layer=2-platform"
+          - "stackkit.service=stackkit-server"
+          - "stackkit.placement.mode=${var.placement_mode}"
+          - "stackkit.placement.relational=${try(var.placement_capabilities["relational"]["provider"], "")}"
+          - "traefik.enable=true"
+          - "traefik.docker.network=${local.routing_network}"
+          - "traefik.http.routers.stackkit-server.rule=Host(`${local.domains.base}`) && (PathPrefix(`/api`) || Path(`/health`))"
+          - "traefik.http.routers.stackkit-server.entrypoints=${local.entrypoint}"
+          - "traefik.http.routers.stackkit-server.priority=100"
+          - "traefik.http.routers.stackkit-files-session.rule=Host(`${local.domains.files}`) && Path(`/stackkit/files/session`)"
+          - "traefik.http.routers.stackkit-files-session.entrypoints=${local.entrypoint}"
+          - "traefik.http.routers.stackkit-files-session.priority=250"
+          - "traefik.http.middlewares.stackkit-files-session-bridge.headers.customrequestheaders.X-StackKit-Files-Bridge=${local.files_session_bridge_token}"
+%{if var.enable_https~}
+          - "traefik.http.routers.stackkit-server.${local.tls_label_name}=${local.tls_label_value}"
+          - "traefik.http.routers.stackkit-files-session.${local.tls_label_name}=${local.tls_label_value}"
+%{endif~}
+          - "traefik.http.routers.stackkit-server.middlewares=${local.base_hub_auth_middleware}"
+          - "traefik.http.routers.stackkit-files-session.middlewares=${local.files_session_bridge_middleware}"
+          - "traefik.http.services.stackkit-server.loadbalancer.server.port=8082"
+        networks:
+          - stackkit
+
+    networks:
+      stackkit:
+        name: ${local.routing_network}
+        external: true
+  EOT
+
+  # =============================================================================
+  # HOMEPAGE/GETHOMEPAGE CONFIG
+  # Generated from the same CUE service catalog as the Node Hub. Homepage is the
+  # secondary homelab start page; Node Hub remains the first-run entrypoint.
+  # Docker discovery goes through a socket proxy instead of a direct writable
+  # docker.sock mount in the Homepage container.
+  # =============================================================================
+  homepage_settings_yaml = yamlencode({
+    title       = var.dashboard_title
+    description = "StackKits Homelab"
+    startUrl    = "${local.proto}://${local.domains.home}"
+    theme       = "dark"
+    color       = "slate"
+    target      = "_blank"
+    layout = {
+      Platform = {
+        style   = "row"
+        columns = 4
+      }
+      Applications = {
+        style   = "row"
+        columns = 4
+      }
+    }
+  })
+
+  homepage_container_names = {
+    auth    = "tinyauth"
+    base    = "dashboard"
+    home    = "homepage"
+    id      = "pocketid"
+    komodo  = "komodo-core"
+    kuma    = "kuma"
+    media   = "jellyfin"
+    photos  = "immich"
+    point   = "kombify-point"
+    vault   = "vaultwarden"
+    whoami  = "whoami"
+  }
+
+  homepage_services = [
+    {
+      Platform = concat(
+{{ range catalogSection "Platform" .Catalog }}{{ if hasEnableVar . }}        var.{{ .EnableVar }} ? [{
+          "{{ .DisplayName }}" = {
+            href        = "${local.proto}://${local.domains.{{ .Key }}}"
+            description = "{{ .Description }}"
+            server      = "stackkit"
+            container   = lookup(local.homepage_container_names, "{{ .Key }}", "{{ .ToolName }}")
+          }
+        }] : [],
+{{ else }}        [{
+          "{{ .DisplayName }}" = {
+            href        = "${local.proto}://${local.domains.{{ .Key }}}"
+            description = "{{ .Description }}"
+            server      = "stackkit"
+            container   = lookup(local.homepage_container_names, "{{ .Key }}", "{{ .ToolName }}")
+          }
+        }],
+{{ end }}{{ end }}      )
+    },
+    {
+      Applications = concat(
+{{ range catalogSection "Applications" .Catalog }}{{ if hasEnableVar . }}        var.{{ .EnableVar }} ? [{
+          "{{ .DisplayName }}" = {
+            href        = "${local.proto}://${local.domains.{{ .Key }}}"
+            description = "{{ .Description }}"
+            server      = "stackkit"
+            container   = lookup(local.homepage_container_names, "{{ .Key }}", "{{ .ToolName }}")
+          }
+        }] : [],
+{{ else }}        [{
+          "{{ .DisplayName }}" = {
+            href        = "${local.proto}://${local.domains.{{ .Key }}}"
+            description = "{{ .Description }}"
+            server      = "stackkit"
+            container   = lookup(local.homepage_container_names, "{{ .Key }}", "{{ .ToolName }}")
+          }
+        }],
+{{ end }}{{ end }}      )
+    }
+  ]
+  homepage_services_yaml = yamlencode(local.homepage_services)
+
+  homepage_widgets_yaml = yamlencode([
+    {
+      resources = {
+        cpu    = true
+        memory = true
+        disk   = "/"
+      }
+    },
+    {
+      datetime = {
+        text_size = "xl"
+        format = {
+          dateStyle = "short"
+          timeStyle = "short"
+          hourCycle = "h23"
+        }
+      }
+    }
+  ])
+
+  homepage_docker_yaml = yamlencode({
+    stackkit = {
+      host = local.is_host ? "127.0.0.1" : "homepage-socket-proxy"
+      port = local.host_ports.socket_proxy
+    }
+  })
+}
+
+# =============================================================================
+# PROVIDER
+# =============================================================================
+
+provider "docker" {
+  host = var.docker_host != "" ? var.docker_host : "unix:///var/run/docker.sock"
+}
+
+resource "null_resource" "platform_fallback_contract" {
+  lifecycle {
+    precondition {
+      condition     = local.platform_fallback_contract_valid
+      error_message = "platform fallback settings are inconsistent: enable_platform_fallback=false requires platform_fallback_mode=\"disabled\"; enable_platform_fallback=true requires platform_fallback_mode=\"standalone-compose\"."
+    }
+  }
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - NETWORK
+# =============================================================================
+
+resource "docker_network" "base_net" {
+  count  = local.is_host ? 0 : 1
+  name   = var.network_name
+  driver = "bridge"
+
+  dynamic "ipam_config" {
+    for_each = trimspace(var.network_subnet) != "" ? [trimspace(var.network_subnet)] : []
+    content {
+      subnet = ipam_config.value
+    }
+  }
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  lifecycle {
+    ignore_changes = [ipam_config]
+  }
+}
+
+resource "docker_network" "dokploy_network" {
+  count = (!local.is_host && (var.enable_dokploy || local.rp_dokploy)) ? 1 : 0
+  name  = "dokploy-network"
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dokploy-routing"
+  }
+
+  lifecycle {
+    ignore_changes = [ipam_config]
+  }
+}
+
+# When using Coolify's Traefik, reference its existing Docker network.
+# Platform services connect to this network so their Traefik labels are discovered.
+data "docker_network" "paas_traefik" {
+  count      = (!local.is_host && local.rp_coolify && !local.platform_fallback_standalone) ? 1 : 0
+  name       = local.traefik_network_name
+  depends_on = [null_resource.coolify_traefik_ready]
+}
+
+resource "docker_network" "internal_db" {
+  count    = local.is_host ? 0 : 1
+  name     = "${var.network_name}_db"
+  driver   = "bridge"
+  internal = true
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  lifecycle {
+    ignore_changes = [ipam_config]
+  }
+}
+
+# =============================================================================
+# LOCAL PKI - Step-CA (local HTTPS mode)
+# =============================================================================
+# Local StackKits always use HTTPS. Step-CA issues the wildcard service
+# certificate; clients still need to trust its root certificate.
+
+resource "random_password" "step_ca_password" {
+  count   = local.deploy_step_ca ? 1 : 0
+  length  = 40
+  special = false
+}
+
+resource "docker_volume" "step_ca_data" {
+  count = local.deploy_step_ca ? 1 : 0
+  name  = "step-ca-data"
+
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+  labels {
+    label = "stackkit.service"
+    value = "step-ca"
+  }
+}
+
+resource "docker_image" "step_ca" {
+  count = local.deploy_step_ca ? 1 : 0
+  name  = var.step_ca_image
+}
+
+resource "docker_container" "step_ca" {
+  count = local.deploy_step_ca ? 1 : 0
+  name  = "step-ca"
+  image = docker_image.step_ca[0].image_id
+
+  restart     = "unless-stopped"
+  network_mode = local.is_host ? "host" : null
+
+  env = [
+    "DOCKER_STEPCA_INIT_NAME=${var.step_ca_name}",
+    "DOCKER_STEPCA_INIT_DNS_NAMES=step-ca,ca.${var.domain},localhost,127.0.0.1",
+    "DOCKER_STEPCA_INIT_PROVISIONER_NAME=stackkits",
+    "DOCKER_STEPCA_INIT_PASSWORD=${random_password.step_ca_password[0].result}",
+    "DOCKER_STEPCA_INIT_ACME=true",
+  ]
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.step_ca_data[0].name
+    container_path = "/home/step"
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "step ca health --ca-url https://127.0.0.1:9000 --root /home/step/certs/root_ca.crt >/dev/null 2>&1 || exit 1"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 12
+    start_period = "20s"
+  }
+
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+  labels {
+    label = "stackkit.service"
+    value = "step-ca"
+  }
+}
+
+resource "null_resource" "step_ca_local_certificate" {
+  count      = local.deploy_step_ca ? 1 : 0
+  depends_on = [docker_container.step_ca]
+
+  triggers = {
+    domain              = var.domain
+    image               = var.step_ca_image
+    certificate_profile = "wildcard-local-router-v2"
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      echo "Waiting for Step-CA..."
+      for i in $(seq 1 90); do
+        if docker exec step-ca step ca health --ca-url https://127.0.0.1:9000 --root /home/step/certs/root_ca.crt >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      docker exec step-ca step ca provisioner update stackkits \
+        --x509-max-dur 2160h \
+        --x509-default-dur 2160h \
+        --ca-config /home/step/config/ca.json
+      docker restart step-ca >/dev/null
+      for i in $(seq 1 90); do
+        if docker exec step-ca step ca health --ca-url https://127.0.0.1:9000 --root /home/step/certs/root_ca.crt >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      docker exec step-ca step ca certificate "*.${var.domain}" /home/step/certs/local-router.crt /home/step/secrets/local-router.key \
+        --san "${var.domain}" \
+        --san "*.${var.domain}" \
+        --provisioner "stackkits" \
+        --provisioner-password-file /home/step/secrets/password \
+        --ca-url https://127.0.0.1:9000 \
+        --root /home/step/certs/root_ca.crt \
+        --not-after 2160h \
+        --force
+      docker exec step-ca chmod 0755 /home/step/certs /home/step/secrets
+      docker exec step-ca chmod 0644 /home/step/certs/root_ca.crt /home/step/certs/local-router.crt /home/step/secrets/local-router.key
+    EOT
+  }
+}
+
+# =============================================================================
+# LOCAL DNS - Kombify Point (LAN DNS mode only)
+# =============================================================================
+# Resolves the local StackKit zone to the server LAN IP. This is local-only and
+# unrelated to public kombify.me routing. The legacy *.home.localhost mode does
+# not start Kombify Point.
+
+resource "null_resource" "check_kombify_point_port" {
+  count = local.enable_kombify_point_effective ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      if command -v ss >/dev/null 2>&1 && ss -H -lntu | awk '{print $5}' | grep -Eq '(^|:)53$'; then
+        echo "Port 53 is already in use. Stop the existing DNS service or run Kombify Point on a host dedicated to LAN DNS." >&2
+        exit 1
+      fi
+    EOT
+  }
+}
+
+resource "docker_image" "kombify_point" {
+  count = local.enable_kombify_point_effective ? 1 : 0
+  name  = var.kombify_point_image
+}
+
+resource "local_file" "kombify_point_corefile" {
+  count    = local.enable_kombify_point_effective ? 1 : 0
+  filename = "${path.module}/generated/kombify-point/Corefile"
+  content  = <<-EOF
+    .:53 {
+        errors
+        health :8088
+        template IN A {
+            match ^(.+[.])?${local.kombify_point_zone_regex}[.]?$
+            answer "{{ "{{ .Name }}" }} 60 IN A ${local.kombify_point_target_ip}"
+            fallthrough
+        }
+        template IN AAAA {
+            match ^(.+[.])?${local.kombify_point_zone_regex}[.]?$
+            rcode NOERROR
+            fallthrough
+        }
+        forward . 1.1.1.1 8.8.8.8
+        cache 30
+    }
+  EOF
+}
+
+resource "docker_container" "kombify_point" {
+  count      = local.enable_kombify_point_effective ? 1 : 0
+  depends_on = [null_resource.check_kombify_point_port]
+  name       = "kombify-point"
+  image      = docker_image.kombify_point[0].image_id
+  restart    = "unless-stopped"
+  network_mode = local.is_host ? "host" : null
+  command    = ["-conf", "/Corefile"]
+
+  volumes {
+    host_path      = abspath(local_file.kombify_point_corefile[0].filename)
+    container_path = "/Corefile"
+    read_only      = true
+  }
+
+  ports {
+    internal = 53
+    external = 53
+    protocol = "tcp"
+  }
+  ports {
+    internal = 53
+    external = 53
+    protocol = "udp"
+  }
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  healthcheck {
+    test         = ["CMD", "/coredns", "-version"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 6
+    start_period = "10s"
+  }
+
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+  labels {
+    label = "stackkit.service"
+    value = "kombify-point"
+  }
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.kombify-point.rule"
+    value = "Host(`${local.domains.point}`)"
+  }
+  labels {
+    label = "traefik.http.routers.kombify-point.entrypoints"
+    value = local.entrypoint
+  }
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.kombify-point.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+  labels {
+    label = "traefik.http.services.kombify-point.loadbalancer.server.port"
+    value = "8088"
+  }
+  labels {
+    label = "traefik.http.routers.kombify-point.middlewares"
+    value = var.enable_tinyauth ? "tinyauth@docker" : ""
+  }
+
+  security_opts = ["no-new-privileges:true"]
+}
+
+# =============================================================================
+# PERSISTENT VOLUMES - Organized by Layer
+# =============================================================================
+
+# Layer 1: Foundation
+resource "docker_volume" "tinyauth_data" {
+  count = var.enable_tinyauth ? 1 : 0
+  name  = "tinyauth-data"
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "pocketid_data" {
+  count = var.enable_pocketid ? 1 : 0
+  name  = "pocketid-data"
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+# Layer 2: Platform
+resource "docker_volume" "traefik_data" {
+  count = local.stackkit_traefik_enabled ? 1 : 0
+  name  = "traefik-data"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+}
+
+resource "docker_volume" "traefik_certs" {
+  count = local.stackkit_traefik_enabled ? 1 : 0
+  name  = "traefik-certs"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "dokploy_data" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "dokploy-data"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "dokploy_postgres_data" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "dokploy-postgres-data"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+# Layer 2: Platform (Komodo - explicit PaaS alternative)
+resource "docker_volume" "komodo_mongo_data" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-mongo-data"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_mongo_config" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-mongo-config"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_keys" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-keys"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_backups" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-backups"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+resource "docker_volume" "komodo_periphery_root" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-periphery-root"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+}
+
+# Layer 2: Platform (Dockge - optional experimental compose manager)
+resource "docker_volume" "dockge_data" {
+  count = var.enable_dockge ? 1 : 0
+  name  = "dockge-data"
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+# Layer 3: Applications
+resource "docker_volume" "kuma_data" {
+  count = var.enable_uptime_kuma ? 1 : 0
+  name  = "kuma-data"
+  labels {
+    label = "stackkit.layer"
+    value = "3-application"
+  }
+  labels {
+    label = "stackkit.backup"
+    value = "required"
+  }
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - TRAEFIK REVERSE PROXY
+# =============================================================================
+
+resource "docker_image" "traefik" {
+  count = local.stackkit_traefik_enabled ? 1 : 0
+  name  = "ghcr.io/traefik/traefik:v3"
+}
+
+resource "docker_image" "dokploy_traefik" {
+  count = local.dokploy_traefik_enabled ? 1 : 0
+  name  = "ghcr.io/traefik/traefik:v3"
+}
+
+resource "local_file" "traefik_local_tls" {
+  count           = local.use_step_ca ? 1 : 0
+  filename        = abspath("${path.module}/traefik-dynamic/local-tls.yml")
+  file_permission = "0440"
+  content         = <<-EOT
+    tls:
+      certificates:
+        - certFile: /step/certs/local-router.crt
+          keyFile: /step/secrets/local-router.key
+      stores:
+        default:
+          defaultCertificate:
+            certFile: /step/certs/local-router.crt
+            keyFile: /step/secrets/local-router.key
+  EOT
+}
+
+resource "local_file" "traefik_dynamic_stackkit" {
+  count           = local.stackkit_dynamic_middleware_enabled ? 1 : 0
+  filename        = abspath("${path.module}/traefik-dynamic/stackkit.yml")
+  file_permission = "0640"
+  content         = <<-EOT
+    http:
+%{if local.rp_coolify && var.enable_coolify~}
+      routers:
+        stackkit-coolify:
+          rule: "Host(`${local.domains.coolify}`)"
+          entryPoints:
+            - "${local.entrypoint}"
+%{if local.coolify_auth_middleware != ""~}
+          middlewares:
+            - "${local.coolify_auth_middleware}"
+%{endif~}
+          service: stackkit-coolify
+%{if var.enable_https~}
+          tls:
+%{if local.use_step_ca~}
+            options: default
+%{else~}
+            certResolver: letsencrypt
+%{endif~}
+%{endif~}
+      services:
+        stackkit-coolify:
+          loadBalancer:
+            servers:
+              - url: "http://coolify:8080"
+%{endif~}
+      middlewares:
+%{if var.enable_tinyauth~}
+        tinyauth:
+          forwardAuth:
+            address: "${local.tinyauth_forwardauth_address}"
+            trustForwardHeader: true
+            authResponseHeaders:
+              - "X-User"
+              - "X-Email"
+              - "remote-user"
+              - "remote-sub"
+              - "remote-name"
+              - "remote-email"
+              - "remote-groups"
+%{endif~}
+        base-hub-auth:
+%{if !var.enable_tinyauth || local.base_hub_bootstrap_open~}
+          headers:
+            customResponseHeaders:
+              X-StackKit-Base-Hub-Mode: "bootstrap"
+%{else~}
+          forwardAuth:
+            address: "${local.tinyauth_forwardauth_address}"
+            trustForwardHeader: true
+            authResponseHeaders:
+              - "X-User"
+              - "X-Email"
+              - "remote-user"
+              - "remote-sub"
+              - "remote-name"
+              - "remote-email"
+              - "remote-groups"
+%{endif~}
+  EOT
+}
+
+resource "local_file" "coolify_dynamic_stackkit" {
+  count           = local.coolify_proxy_dynamic_enabled ? 1 : 0
+  filename        = "/data/coolify/proxy/dynamic/stackkit.yml"
+  file_permission = "0640"
+  content         = local_file.traefik_dynamic_stackkit[0].content
+
+  depends_on = [
+    null_resource.coolify_install,
+    local_file.traefik_dynamic_stackkit,
+  ]
+}
+
+resource "docker_container" "traefik" {
+  count      = local.stackkit_traefik_enabled ? 1 : 0
+  depends_on = [null_resource.step_ca_local_certificate, local_file.traefik_local_tls, local_file.traefik_dynamic_stackkit]
+  name       = "traefik"
+  image      = docker_image.traefik[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    drop = ["ALL"]
+    add  = ["NET_BIND_SERVICE"]
+  }
+
+  read_only = true
+
+  # Only Traefik exposes ports externally
+  ports {
+    internal = 80
+    external = 80
+    protocol = "tcp"
+  }
+
+  ports {
+    internal = 443
+    external = 443
+    protocol = "tcp"
+  }
+
+  ports {
+    internal = 8080
+    external = 8080
+    protocol = "tcp"
+  }
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "host" {
+    for_each = local.is_host ? [1] : []
+    content {
+      host = "host.docker.internal"
+      ip   = "127.0.0.1"
+    }
+  }
+
+  dynamic "host" {
+    for_each = local.is_host ? [1] : []
+    content {
+      host = "host.containers.internal"
+      ip   = "127.0.0.1"
+    }
+  }
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.traefik_data[0].name
+    container_path = "/etc/traefik"
+  }
+
+  volumes {
+    volume_name    = docker_volume.traefik_certs[0].name
+    container_path = "/letsencrypt"
+  }
+
+  dynamic "volumes" {
+    for_each = local.use_step_ca ? [1] : []
+    content {
+      volume_name    = docker_volume.step_ca_data[0].name
+      container_path = "/step"
+    }
+  }
+
+  mounts {
+    type      = "bind"
+    source    = abspath("${path.module}/traefik-dynamic")
+    target    = "/etc/traefik/dynamic"
+    read_only = true
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/var/run/docker.sock"
+    source    = "/var/run/docker.sock"
+    read_only = true
+  }
+
+  command = concat([
+    "--api.dashboard=true",
+    "--api.insecure=true",
+    "--ping=true",
+    "--providers.docker=true",
+    "--providers.docker.exposedbydefault=false",
+    "--entrypoints.web.address=:80",
+    "--entrypoints.websecure.address=:443",
+    "--log.level=INFO",
+    "--accesslog=true",
+  ],
+  # HTTP → HTTPS redirect when HTTPS is enabled
+  var.enable_https ? [
+    "--entrypoints.web.http.redirections.entrypoint.to=websecure",
+    "--entrypoints.web.http.redirections.entrypoint.scheme=https",
+  ] : [],
+  # Dynamic StackKit middleware plus optional local TLS config.
+  [
+    "--providers.file.directory=/etc/traefik/dynamic",
+    "--providers.file.watch=true",
+  ],
+  # Let's Encrypt resolver for public custom domains only.
+  var.enable_https && !local.use_step_ca ? [
+    "--certificatesresolvers.letsencrypt.acme.email=${var.acme_email}",
+    "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json",
+  ] : [],
+  # TLS-ALPN-01 challenge (default, needs port 443 reachable)
+  var.enable_https && !local.use_step_ca && var.acme_challenge == "tls" ? [
+    "--certificatesresolvers.letsencrypt.acme.tlschallenge=true",
+  ] : [],
+  # DNS-01 challenge (for wildcard certs, works behind NAT)
+  var.enable_https && !local.use_step_ca && var.acme_challenge == "dns" ? [
+    "--certificatesresolvers.letsencrypt.acme.dnschallenge=true",
+    "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${var.dns_provider}",
+    "--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53",
+  ] : [],
+  # Docker network provider (bridge mode only)
+  local.is_host ? [] : [
+    "--providers.docker.network=${docker_network.base_net[0].name}",
+  ])
+
+  env = concat([
+    "TZ=Europe/Berlin",
+    "DOCKER_API_VERSION=1.44",
+  ],
+  # DNS provider API token/key for DNS-01 challenge (provider-specific env var names).
+  # Cloudflare uses CF_API_KEY with an email for legacy Global API Key auth, and
+  # CF_DNS_API_TOKEN without an email for scoped API token auth.
+  var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "cloudflare" && var.dns_api_email != "" ? [
+    "CF_API_EMAIL=${var.dns_api_email}",
+    "CF_API_KEY=${var.dns_api_token}",
+  ] : [],
+  var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "cloudflare" && var.dns_api_email == "" ? [
+    "CF_DNS_API_TOKEN=${var.dns_api_token}",
+  ] : [],
+  var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "hetzner" ? [
+    "HETZNER_API_KEY=${var.dns_api_token}",
+  ] : [],
+  var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "digitalocean" ? [
+    "DO_AUTH_TOKEN=${var.dns_api_token}",
+  ] : [],
+  var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "duckdns" ? [
+    "DUCKDNS_TOKEN=${var.dns_api_token}",
+  ] : [],
+  var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "namecheap" ? [
+    "NAMECHEAP_API_KEY=${var.dns_api_token}",
+    "NAMECHEAP_API_USER=${var.acme_email}",
+  ] : [])
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "traefik"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.traefik.rule"
+    value = "Host(`${local.domains.traefik}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.traefik.service"
+    value = "api@internal"
+  }
+
+  labels {
+    label = "traefik.http.routers.traefik.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.traefik.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.traefik.middlewares"
+    value = var.enable_tinyauth ? "tinyauth@docker" : ""
+  }
+
+  healthcheck {
+    test         = ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "10s"
+  }
+}
+
+resource "null_resource" "dokploy_traefik_dynamic_dir" {
+  count = local.dokploy_traefik_enabled ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "mkdir -p \"${path.module}/traefik-dynamic\" && chmod 755 \"${path.module}/traefik-dynamic\""
+  }
+}
+
+resource "docker_container" "dokploy_traefik" {
+  count      = local.dokploy_traefik_enabled ? 1 : 0
+  depends_on = [docker_network.dokploy_network, null_resource.dokploy_traefik_dynamic_dir, local_file.traefik_dynamic_stackkit]
+  name       = "dokploy-traefik"
+  image      = docker_image.dokploy_traefik[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    drop = ["ALL"]
+    add  = ["NET_BIND_SERVICE"]
+  }
+
+  read_only = true
+
+  ports {
+    internal = 80
+    external = 80
+    protocol = "tcp"
+  }
+
+  ports {
+    internal = 443
+    external = 443
+    protocol = "tcp"
+  }
+
+  ports {
+    internal = 8080
+    external = 8080
+    protocol = "tcp"
+  }
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.dokploy_network[0].name
+    }
+  }
+
+  mounts {
+    type      = "bind"
+    source    = abspath("${path.module}/traefik-dynamic")
+    target    = "/etc/traefik/dynamic"
+    read_only = true
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/var/run/docker.sock"
+    source    = "/var/run/docker.sock"
+    read_only = true
+  }
+
+  command = concat([
+    "--api.dashboard=true",
+    "--api.insecure=true",
+    "--ping=true",
+    "--providers.docker=true",
+    "--providers.docker.exposedbydefault=false",
+    "--providers.docker.network=${local.traefik_network_name}",
+    "--entrypoints.web.address=:80",
+    "--entrypoints.websecure.address=:443",
+    "--providers.file.directory=/etc/traefik/dynamic",
+    "--providers.file.watch=true",
+    "--log.level=INFO",
+    "--accesslog=true",
+  ],
+  var.enable_https ? [
+    "--entrypoints.web.http.redirections.entrypoint.to=websecure",
+    "--entrypoints.web.http.redirections.entrypoint.scheme=https",
+  ] : [],
+  var.enable_https && !local.use_step_ca ? [
+    "--certificatesresolvers.letsencrypt.acme.email=${var.acme_email}",
+    "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme.json",
+  ] : [])
+
+  env = [
+    "TZ=Europe/Berlin",
+    "DOCKER_API_VERSION=1.44",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dokploy-traefik"
+  }
+
+  healthcheck {
+    test         = ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "10s"
+  }
+}
+
+# Gate resource: ensures the reverse proxy (whichever backend) is ready before
+# platform services start. Services depend on this instead of docker_container.traefik.
+resource "null_resource" "reverse_proxy_ready" {
+  depends_on = [
+    docker_container.traefik,
+    docker_container.dokploy_traefik,
+    docker_container.dokploy,
+    docker_container.komodo_core,
+    null_resource.coolify_traefik_ready,
+  ]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      echo "Waiting for reverse proxy (${var.reverse_proxy_backend})..."
+      for i in $(seq 1 60); do
+        if [ "${var.reverse_proxy_backend}" = "standalone" ]; then
+          docker ps --filter "name=traefik" --filter "status=running" -q | grep -q . && echo "Traefik ready" && exit 0
+        elif [ "${var.reverse_proxy_backend}" = "stackkit" ]; then
+          docker ps --filter "name=traefik" --filter "status=running" -q | grep -q . && echo "StackKit Traefik ready" && exit 0
+        elif [ "${var.reverse_proxy_backend}" = "dokploy" ]; then
+          docker ps --filter "name=dokploy-traefik" --filter "status=running" -q | grep -q . && echo "Dokploy Traefik ready" && exit 0
+        elif [ "${var.reverse_proxy_backend}" = "coolify" ]; then
+          docker ps --filter "name=coolify-proxy" --filter "status=running" -q | grep -q . && echo "Coolify Traefik ready" && exit 0
+        fi
+        sleep 3
+      done
+      echo "ERROR: reverse proxy (${var.reverse_proxy_backend}) not detected after 3 minutes"
+      exit 1
+    EOT
+  }
+}
+
+# =============================================================================
+# LAYER 1: FOUNDATION - TINYAUTH IDENTITY
+# =============================================================================
+
+resource "null_resource" "identity_images_ready" {
+  count = (var.enable_tinyauth || var.enable_pocketid) ? 1 : 0
+
+  triggers = {
+    docker_host = var.docker_host
+    tinyauth    = var.enable_tinyauth ? local.tinyauth_image : ""
+    pocketid    = var.enable_pocketid ? local.pocketid_image : ""
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+
+      stackkit_docker() {
+        if [ -n "${var.docker_host}" ]; then
+          DOCKER_HOST="${var.docker_host}" docker "$@"
+        else
+          docker "$@"
+        fi
+      }
+
+      stackkit_pull_identity_image() {
+        image="$1"
+        for attempt in 1 2 3 4; do
+          if stackkit_docker image inspect "$image" >/dev/null 2>&1; then
+            echo "Identity image already present: $image"
+            return 0
+          fi
+          if stackkit_docker pull "$image"; then
+            echo "Identity image pulled: $image"
+            return 0
+          fi
+          sleep $((attempt * 5))
+        done
+        stackkit_docker pull "$image"
+      }
+
+%{ if var.enable_tinyauth ~}
+      stackkit_pull_identity_image "${local.tinyauth_image}"
+%{ endif ~}
+%{ if var.enable_pocketid ~}
+      stackkit_pull_identity_image "${local.pocketid_image}"
+%{ endif ~}
+    EOT
+  }
+}
+
+resource "docker_container" "tinyauth" {
+  count = var.enable_tinyauth ? 1 : 0
+  name  = "tinyauth"
+  image = local.tinyauth_image
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    drop = ["ALL"]
+  }
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = local.routing_network
+    }
+  }
+
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
+  dynamic "networks_advanced" {
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
+    content {
+      name = local.routing_network
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.tinyauth_data[0].name
+    container_path = "/data"
+  }
+
+  mounts {
+    type   = "tmpfs"
+    target = "/tmp"
+    tmpfs_options {
+      mode       = 1777
+      size_bytes = 67108864
+    }
+  }
+
+  env = concat([
+    "TZ=${var.timezone}",
+    "TINYAUTH_APPURL=${var.tinyauth_app_url}",
+    "TINYAUTH_AUTH_USERS=${var.tinyauth_users}",
+    "TINYAUTH_AUTH_SECURECOOKIE=${var.tinyauth_secure_cookie}",
+    "TINYAUTH_AUTH_SESSIONEXPIRY=${var.tinyauth_session_expiry}",
+    "TINYAUTH_DATABASE_PATH=/data/tinyauth.db",
+    "TINYAUTH_RESOURCES_PATH=/data/resources",
+    "TINYAUTH_SERVER_PORT=${local.is_host ? tostring(local.host_ports.tinyauth) : "3000"}",
+  ], var.tinyauth_oidc_enabled ? [
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=${var.tinyauth_oidc_client_id}",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET=${var.tinyauth_oidc_client_secret}",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=${var.tinyauth_oidc_issuer}/authorize",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=${local.pocketid_internal_oidc_origin}/api/oidc/token",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=${local.pocketid_internal_oidc_origin}/api/oidc/userinfo",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=${var.tinyauth_app_url}/api/oauth/callback/pocketid",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES=openid,email,profile,groups",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME=Pocket ID",
+    "TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=${local.use_step_ca ? "true" : "false"}",
+    "TINYAUTH_OAUTH_AUTOREDIRECT=pocketid",
+    "TINYAUTH_OAUTH_WHITELIST=${var.tinyauth_oauth_whitelist}",
+  ] : [])
+
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "tinyauth"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.tinyauth.rule"
+    value = "Host(`${local.domains.auth}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.tinyauth.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.tinyauth.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.services.tinyauth.loadbalancer.server.port"
+    value = local.is_host ? tostring(local.host_ports.tinyauth) : "3000"
+  }
+
+  # ForwardAuth middleware
+  labels {
+    label = "traefik.http.middlewares.tinyauth.forwardauth.address"
+    value = local.tinyauth_forwardauth_address
+  }
+
+  labels {
+    label = "traefik.http.middlewares.tinyauth.forwardauth.trustForwardHeader"
+    value = "true"
+  }
+
+  labels {
+    label = "traefik.http.middlewares.tinyauth.forwardauth.authResponseHeaders"
+    value = "X-User,X-Email,remote-user,remote-sub,remote-name,remote-email,remote-groups"
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "wget -q -O /dev/null http://localhost:${local.is_host ? local.host_ports.tinyauth : 3000}/ || exit 1"]
+    interval     = "30s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "10s"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = trimspace(var.tinyauth_users) != ""
+      error_message = "tinyauth_users must be generated by stackkit generate or supplied explicitly before enabling TinyAuth."
+    }
+    precondition {
+      condition     = !var.tinyauth_oidc_enabled || (trimspace(var.tinyauth_oidc_issuer) != "" && trimspace(var.tinyauth_oidc_client_id) != "")
+      error_message = "TinyAuth PocketID OAuth requires tinyauth_oidc_issuer and tinyauth_oidc_client_id."
+    }
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    null_resource.identity_images_ready,
+    null_resource.pocketid_tinyauth_oidc_client,
+  ]
+}
+
+# =============================================================================
+# LAYER 1: FOUNDATION - POCKET ID (OIDC IDENTITY PROVIDER)
+# =============================================================================
+
+# PocketID's ENCRYPTION_KEY and STATIC_API_KEY are provided via tfvars
+# (var.pocketid_encryption_key, var.pocketid_static_api_key) — persisted
+# by the stackkit CLI in <homelab>/.stackkit/. They are not generated here
+# because rotating them per-apply would (a) make existing data on the
+# PocketID volume undecryptable and (b) orphan existing admin records.
+
+resource "docker_container" "pocketid" {
+  count = var.enable_pocketid ? 1 : 0
+  name  = "pocketid"
+  image = local.pocketid_image
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
+  dynamic "networks_advanced" {
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
+    content {
+      name = local.routing_network
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.pocketid_data[0].name
+    container_path = "/app/data"
+  }
+
+  env = [
+    "TZ=Europe/Berlin",
+    "APP_URL=${local.proto}://${local.domains.id}",
+    "TRUST_PROXY=true",
+    "ENCRYPTION_KEY=${var.pocketid_encryption_key}",
+    "STATIC_API_KEY=${var.pocketid_static_api_key}",
+    "PORT=1411",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "1-foundation"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "pocketid"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.pocketid.rule"
+    value = "Host(`${local.domains.id}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.pocketid.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.pocketid.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.services.pocketid.loadbalancer.server.port"
+    value = "1411"
+  }
+
+  healthcheck {
+    test         = ["CMD", "/app/pocket-id", "healthcheck"]
+    interval     = "90s"
+    timeout      = "5s"
+    retries      = 2
+    start_period = "10s"
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    null_resource.identity_images_ready,
+  ]
+}
+
+resource "null_resource" "pocketid_tinyauth_oidc_client" {
+  count = var.enable_pocketid && var.tinyauth_oidc_enabled ? 1 : 0
+
+  triggers = {
+    client_id    = var.tinyauth_oidc_client_id
+    callback_url = "${var.tinyauth_app_url}/api/oauth/callback/pocketid"
+    app_url      = var.tinyauth_app_url
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      payload_file="$(mktemp)"
+      printf '%s\n' '${jsonencode({
+        id                       = var.tinyauth_oidc_client_id
+        name                     = "TinyAuth"
+        callbackURLs             = ["${var.tinyauth_app_url}/api/oauth/callback/pocketid"]
+        logoutCallbackURLs       = []
+        isPublic                 = true
+        pkceEnabled              = true
+        requiresReauthentication = false
+        isGroupRestricted        = false
+      })}' > "$payload_file"
+
+      for i in $(seq 1 60); do
+        if docker exec pocketid /app/pocket-id healthcheck >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+      if ! docker exec pocketid /app/pocket-id healthcheck >/dev/null 2>&1; then
+        echo "PocketID did not become healthy for TinyAuth OIDC client registration" >&2
+        exit 1
+      fi
+
+      docker cp "$payload_file" pocketid:/tmp/tinyauth-oidc-client.json
+      rm -f "$payload_file"
+
+      if docker exec pocketid sh -c 'curl -fsS -H "X-API-Key: ${var.pocketid_static_api_key}" http://127.0.0.1:1411/api/oidc/clients/${var.tinyauth_oidc_client_id} >/dev/null'; then
+        echo "PocketID TinyAuth OIDC client already exists"
+      else
+        docker exec pocketid sh -c 'curl -fsS -X POST -H "Content-Type: application/json" -H "X-API-Key: ${var.pocketid_static_api_key}" --data @/tmp/tinyauth-oidc-client.json http://127.0.0.1:1411/api/oidc/clients >/dev/null'
+        echo "PocketID TinyAuth OIDC client registered"
+      fi
+
+      docker exec pocketid rm -f /tmp/tinyauth-oidc-client.json
+    EOT
+  }
+
+  depends_on = [docker_container.pocketid]
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - DOKPLOY DATABASE
+# =============================================================================
+
+resource "random_password" "dokploy_db_password" {
+  count   = var.enable_dokploy ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "dokploy_better_auth_secret" {
+  count   = var.enable_dokploy ? 1 : 0
+  length  = 64
+  special = false
+}
+
+resource "random_password" "komodo_db_password" {
+  count   = var.enable_komodo ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "komodo_jwt_secret" {
+  count   = var.enable_komodo ? 1 : 0
+  length  = 64
+  special = false
+}
+
+resource "random_password" "komodo_webhook_secret" {
+  count   = var.enable_komodo ? 1 : 0
+  length  = 64
+  special = false
+}
+
+resource "random_password" "kuma_admin" {
+  count   = var.enable_uptime_kuma ? 1 : 0
+  length  = 16
+  special = false
+}
+
+resource "random_password" "tinyauth_session_secret" {
+  count   = var.enable_tinyauth && var.tinyauth_session_secret == "" ? 1 : 0
+  length  = 64
+  special = false
+}
+
+resource "random_password" "files_session_bridge" {
+  count   = local.cloudreve_enabled && var.enable_tinyauth ? 1 : 0
+  length  = 48
+  special = false
+}
+
+resource "random_password" "vaultwarden_admin" {
+  count   = var.enable_vaultwarden && var.vaultwarden_admin_token == "" ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "immich_db" {
+  count   = var.enable_immich ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "nextcloud_db" {
+  count   = local.nextcloud_enabled ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "nextcloud_db_root" {
+  count   = local.nextcloud_enabled ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "docker_image" "dokploy_postgres" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "public.ecr.aws/docker/library/postgres:16-alpine"
+}
+
+resource "docker_container" "dokploy_postgres" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "dokploy-postgres"
+  image = docker_image.dokploy_postgres[0].image_id
+
+  restart = "unless-stopped"
+
+  # postgres image handles user switching internally (root → postgres uid)
+  # Do NOT set user here — init scripts need root to chmod /var/run/postgresql
+
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    drop = ["ALL"]
+    add  = ["CHOWN", "SETGID", "SETUID", "DAC_OVERRIDE"]
+  }
+
+  # Bridge: reachable only on internal_db network. Host: on host loopback.
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.internal_db[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.dokploy_postgres_data[0].name
+    container_path = "/var/lib/postgresql/data"
+  }
+
+  mounts {
+    type   = "tmpfs"
+    target = "/tmp"
+    tmpfs_options {
+      mode       = 1777
+      size_bytes = 268435456
+    }
+  }
+
+  env = [
+    "POSTGRES_USER=dokploy",
+    "POSTGRES_PASSWORD=${try(random_password.dokploy_db_password[0].result, "")}",
+    "POSTGRES_DB=dokploy",
+    "PGDATA=/var/lib/postgresql/data/pgdata"
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dokploy-postgres"
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "pg_isready -U dokploy -d dokploy"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 5
+    start_period = "10s"
+  }
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - DOKPLOY REDIS
+# =============================================================================
+
+resource "docker_image" "dokploy_redis" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "public.ecr.aws/docker/library/redis:7-alpine"
+}
+
+resource "docker_container" "dokploy_redis" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "dokploy-redis"
+  image = docker_image.dokploy_redis[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    drop = ["ALL"]
+    add  = ["SETUID", "SETGID"]
+  }
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.internal_db[0].name
+    }
+  }
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dokploy-redis"
+  }
+
+  healthcheck {
+    test         = ["CMD", "redis-cli", "ping"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "5s"
+  }
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - DOKPLOY PAAS
+# =============================================================================
+
+resource "docker_image" "dokploy" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "dokploy/dokploy:latest"
+}
+
+# Dokploy expects a Swarm manager for deployment orchestration even when the
+# StackKits control plane itself is deployed as regular Docker containers.
+resource "null_resource" "dokploy_swarm" {
+  count = var.enable_dokploy ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      state=$(docker info --format '{{"{{"}}.Swarm.LocalNodeState{{"}}"}}' 2>/dev/null || echo inactive)
+      if [ "$state" = "inactive" ]; then
+        advertise_addr="$${ADVERTISE_ADDR:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+        if [ -z "$advertise_addr" ]; then
+          advertise_addr="127.0.0.1"
+        fi
+        docker swarm init --advertise-addr "$advertise_addr"
+      else
+        echo "Docker Swarm already $state"
+      fi
+    EOT
+  }
+}
+
+resource "local_file" "dokploy_env" {
+  count = var.enable_dokploy ? 1 : 0
+
+  filename        = "${path.module}/dokploy.env"
+  file_permission = "0600"
+  content         = <<-EOT
+    NODE_ENV=production
+    HOST=0.0.0.0
+    PORT=${local.is_host ? tostring(local.host_ports.dokploy) : "3000"}
+    DOCKER_HOST=unix:///var/run/docker.sock
+    DATABASE_URL=postgresql://dokploy:${try(random_password.dokploy_db_password[0].result, "")}@${local.is_host ? "127.0.0.1" : "dokploy-postgres"}:5432/dokploy
+    REDIS_HOST=${local.is_host ? "127.0.0.1" : "dokploy-redis"}
+    REDIS_PORT=6379
+    REDIS_URL=redis://${local.is_host ? "127.0.0.1" : "dokploy-redis"}:6379
+    BETTER_AUTH_SECRET=${try(random_password.dokploy_better_auth_secret[0].result, "")}
+    BETTER_AUTH_URL=${local.dokploy_api_endpoint}
+    TRPC_PLAYGROUND=false
+    LETSENCRYPT_EMAIL=${var.acme_email != "" ? var.acme_email : var.admin_email}
+    TRAEFIK_ENABLED=true
+    TRAEFIK_NETWORK=${local.is_host ? "" : local.routing_network}
+  EOT
+}
+
+resource "docker_container" "dokploy" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "dokploy"
+  image = docker_image.dokploy[0].image_id
+
+  restart = "unless-stopped"
+
+  user = "0:0"
+
+  ports {
+    internal = 3000
+    external = local.host_ports.dokploy
+    ip       = "127.0.0.1"
+    protocol = "tcp"
+  }
+
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    drop = ["ALL"]
+    add  = ["CHOWN", "SETGID", "SETUID"]
+  }
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = local.routing_network
+    }
+  }
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.internal_db[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.dokploy_data[0].name
+    container_path = "/etc/dokploy"
+  }
+
+  mounts {
+    type   = "bind"
+    target = "/var/run/docker.sock"
+    source = "/var/run/docker.sock"
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/app/.env"
+    source    = abspath(local_file.dokploy_env[0].filename)
+    read_only = true
+  }
+
+  env = [
+    "DOCKER_HOST=unix:///var/run/docker.sock",
+    "DATABASE_URL=postgresql://dokploy:${try(random_password.dokploy_db_password[0].result, "")}@${local.is_host ? "127.0.0.1" : "dokploy-postgres"}:5432/dokploy",
+    "REDIS_HOST=${local.is_host ? "127.0.0.1" : "dokploy-redis"}",
+    "REDIS_PORT=6379",
+    "REDIS_URL=redis://${local.is_host ? "127.0.0.1" : "dokploy-redis"}:6379",
+    "BETTER_AUTH_SECRET=${try(random_password.dokploy_better_auth_secret[0].result, "")}",
+    "BETTER_AUTH_URL=${local.dokploy_api_endpoint}",
+    "NODE_ENV=production",
+    "PORT=${local.is_host ? tostring(local.host_ports.dokploy) : "3000"}",
+    "TRPC_PLAYGROUND=false",
+    "LETSENCRYPT_EMAIL=${var.acme_email != "" ? var.acme_email : var.admin_email}",
+    "TRAEFIK_ENABLED=true",
+    "TRAEFIK_NETWORK=${local.is_host ? "" : local.routing_network}",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dokploy"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.dokploy.rule"
+    value = "Host(`${local.domains.dokploy}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.dokploy.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.dokploy.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.dokploy.service"
+    value = "dokploy"
+  }
+
+  labels {
+    label = "traefik.http.routers.dokploy.middlewares"
+    value = var.enable_tinyauth ? "tinyauth@docker" : ""
+  }
+
+  labels {
+    label = "traefik.http.services.dokploy.loadbalancer.server.port"
+    value = local.is_host ? tostring(local.host_ports.dokploy) : "3000"
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "curl -s -o /dev/null -w '%%{http_code}' http://localhost:${local.is_host ? local.host_ports.dokploy : 3000}/api/settings | grep -qE '^[2-4]'"]
+    interval     = "30s"
+    timeout      = "10s"
+    retries      = 5
+    start_period = "60s"
+  }
+
+  depends_on = [
+    null_resource.dokploy_swarm,
+    local_file.dokploy_env,
+    docker_container.dokploy_postgres,
+    docker_container.dokploy_redis,
+  ]
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - DOKPLOY ADMIN INIT
+# =============================================================================
+# Synchronous no-UI bootstrap that creates/confirms the owner, mints an API key,
+# and writes the StackKit platform contract. Secrets are passed via environment
+# and never printed by the script.
+
+resource "null_resource" "dokploy_platform_config_dir" {
+  count = var.enable_dokploy ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "mkdir -p \"${path.module}/.stackkit\" && chmod 700 \"${path.module}/.stackkit\""
+  }
+}
+
+resource "docker_image" "dokploy_bootstrap" {
+  count = var.enable_dokploy ? 1 : 0
+  name  = "public.ecr.aws/docker/library/node:22-alpine"
+}
+
+resource "local_sensitive_file" "dokploy_bootstrap_env" {
+  count               = var.enable_dokploy ? 1 : 0
+  filename            = "${path.module}/.stackkit/dokploy-bootstrap.env"
+  file_permission     = "0600"
+  directory_permission = "0700"
+  content             = <<-EOF
+    DOKPLOY_BOOTSTRAP_URL=http://${local.is_host ? "127.0.0.1" : "dokploy"}:${local.is_host ? local.host_ports.dokploy : 3000}
+    DOKPLOY_API_ENDPOINT=${local.dokploy_api_endpoint}
+    DOKPLOY_AUTH_ORIGIN=${local.dokploy_api_endpoint}
+    DOKPLOY_ADMIN_EMAIL=${var.admin_email}
+    DOKPLOY_ADMIN_PASSWORD=${var.admin_password_plaintext}
+    DOKPLOY_PLATFORM_CONFIG_PATH=/stackkit-out/platform.json
+  EOF
+
+  depends_on = [
+    null_resource.dokploy_platform_config_dir,
+  ]
+}
+
+resource "null_resource" "dokploy_platform_bootstrap" {
+  count = var.enable_dokploy ? 1 : 0
+
+  triggers = {
+    dokploy_container = docker_container.dokploy[0].id
+    bootstrap_version = "dokploy-headless-api-v4"
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      bootstrap_env="${local_sensitive_file.dokploy_bootstrap_env[0].filename}"
+      trap 'rm -f "$bootstrap_env"' EXIT
+      docker rm -f init-dokploy >/dev/null 2>&1 || true
+      docker run --name init-dokploy --rm -i \
+        --network "${local.is_host ? "host" : local.routing_network}" \
+        -v "${abspath("${path.module}/.stackkit")}:/stackkit-out" \
+        --env-file "$bootstrap_env" \
+        ${docker_image.dokploy_bootstrap[0].name} node <<'JS'
+      const fs = require("fs");
+      const path = require("path");
+
+      const baseUrl = requiredEnv("DOKPLOY_BOOTSTRAP_URL").replace(/\/+$/, "");
+      const apiEndpoint = requiredEnv("DOKPLOY_API_ENDPOINT").replace(/\/+$/, "");
+      const authOrigin = requiredEnv("DOKPLOY_AUTH_ORIGIN").replace(/\/+$/, "");
+      const adminEmail = requiredEnv("DOKPLOY_ADMIN_EMAIL");
+      const adminPassword = requiredEnv("DOKPLOY_ADMIN_PASSWORD");
+      const platformConfigPath = requiredEnv("DOKPLOY_PLATFORM_CONFIG_PATH");
+
+      function requiredEnv(name) {
+        const value = process.env[name];
+        if (!value) {
+          throw new Error(name + " is required for Dokploy bootstrap");
+        }
+        return value;
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function collectCookies(headers) {
+        const values = [];
+        if (typeof headers.getSetCookie === "function") {
+          values.push(...headers.getSetCookie());
+        }
+        const single = headers.get("set-cookie");
+        if (single) {
+          values.push(single);
+        }
+        return values.map((cookie) => cookie.split(";")[0]).filter(Boolean).join("; ");
+      }
+
+      async function request(method, requestPath, body, cookie) {
+        const headers = {
+          "Accept": "application/json",
+          "Origin": authOrigin,
+          "Referer": authOrigin + "/",
+        };
+        const options = { method, headers, redirect: "manual" };
+        if (body !== undefined) {
+          headers["Content-Type"] = "application/json";
+          options.body = JSON.stringify(body);
+        }
+        if (cookie) {
+          headers["Cookie"] = cookie;
+        }
+        const response = await fetch(baseUrl + requestPath, options);
+        const text = await response.text();
+        return {
+          ok: response.status >= 200 && response.status < 300,
+          status: response.status,
+          text,
+          cookie: collectCookies(response.headers),
+        };
+      }
+
+      function parseJSON(text) {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return undefined;
+        }
+      }
+
+      function findStringByKeys(value, keys) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const found = findStringByKeys(item, keys);
+            if (found) return found;
+          }
+          return "";
+        }
+        if (!value || typeof value !== "object") {
+          return "";
+        }
+        for (const key of keys) {
+          if (typeof value[key] === "string" && value[key].trim()) {
+            return value[key].trim();
+          }
+        }
+        for (const item of Object.values(value)) {
+          const found = findStringByKeys(item, keys);
+          if (found) return found;
+        }
+        return "";
+      }
+
+      function statusLabel(response) {
+        const code = findStringByKeys(parseJSON(response.text), ["code"]);
+        return String(response.status) + (code ? " (" + code + ")" : "");
+      }
+
+      function findNamedObject(value, name, idKeys) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const found = findNamedObject(item, name, idKeys);
+            if (found) return found;
+          }
+          return undefined;
+        }
+        if (!value || typeof value !== "object") {
+          return undefined;
+        }
+        if (value.name === name && findStringByKeys(value, idKeys)) {
+          return value;
+        }
+        for (const item of Object.values(value)) {
+          const found = findNamedObject(item, name, idKeys);
+          if (found) return found;
+        }
+        return undefined;
+      }
+
+      function defaultEnvironmentId(project) {
+        if (!project || typeof project !== "object") {
+          return "";
+        }
+        if (Array.isArray(project.environments)) {
+          const preferred = project.environments.find((environment) => environment && (environment.isDefault || environment.name === "production"));
+          return findStringByKeys(preferred || project.environments[0], ["environmentId"]);
+        }
+        return findStringByKeys(project, ["environmentId"]);
+      }
+
+      async function waitForDokploy() {
+        console.log("Waiting for Dokploy to be ready...");
+        for (let i = 0; i < 120; i += 1) {
+          try {
+            const response = await fetch(baseUrl + "/api/settings", { redirect: "manual" });
+            if (response.status >= 200 && response.status < 500) {
+              console.log("Dokploy is ready");
+              return;
+            }
+          } catch {}
+          await sleep(5000);
+        }
+        throw new Error("Dokploy API did not become ready");
+      }
+
+      async function ensureAdmin() {
+        const signUpPayload = {
+          email: adminEmail,
+          password: adminPassword,
+          name: "StackKit",
+          lastName: "Admin",
+        };
+        const legacyPayload = { email: adminEmail, password: adminPassword };
+        const attempts = [
+          ["/api/auth/sign-up/email", signUpPayload],
+          ["/api/trpc/auth.createAdmin?batch=1", { "0": { json: legacyPayload } }],
+          ["/api/auth.createAdmin", legacyPayload],
+        ];
+        for (const [requestPath, body] of attempts) {
+          try {
+            const response = await request("POST", requestPath, body, "");
+            if (response.ok) {
+              console.log("Dokploy admin user created or confirmed");
+              return;
+            }
+            console.log("Dokploy admin creation endpoint " + requestPath + " returned " + statusLabel(response));
+          } catch {}
+        }
+        console.log("Dokploy admin creation skipped or already completed");
+      }
+
+      async function login() {
+        const payload = { email: adminEmail, password: adminPassword };
+        const attempts = [
+          ["/api/auth.login", payload],
+          ["/api/trpc/auth.login?batch=1", { "0": { json: payload } }],
+          ["/api/auth/sign-in/email", payload],
+        ];
+        for (const [requestPath, body] of attempts) {
+          try {
+            const response = await request("POST", requestPath, body, "");
+            if (response.ok && response.cookie) {
+              console.log("Dokploy admin session established");
+              return response.cookie;
+            }
+            console.log("Dokploy login endpoint " + requestPath + " returned " + statusLabel(response));
+          } catch {}
+        }
+        throw new Error("Dokploy admin login did not return a session cookie");
+      }
+
+      async function resolveOrganizationId(cookie) {
+        const attempts = [
+          ["GET", "/api/auth/get-session", undefined],
+          ["GET", "/api/user.get", undefined],
+          ["GET", "/api/user.session", undefined],
+          ["GET", "/api/organization.all", undefined],
+          ["POST", "/api/trpc/user.session?batch=1", { "0": { json: null } }],
+          ["POST", "/api/trpc/user.get?batch=1", { "0": { json: null } }],
+          ["POST", "/api/trpc/organization.all?batch=1", { "0": { json: null } }],
+        ];
+        for (const [method, requestPath, body] of attempts) {
+          try {
+            const response = await request(method, requestPath, body, cookie);
+            if (!response.ok) {
+              console.log("Dokploy organization lookup endpoint " + requestPath + " returned " + statusLabel(response));
+              continue;
+            }
+            const value = parseJSON(response.text);
+            const organizationId = findStringByKeys(value, ["activeOrganizationId", "organizationId", "organization_id", "defaultOrganizationId"]);
+            if (organizationId) {
+              console.log("Dokploy organization id resolved via " + requestPath);
+              return organizationId;
+            }
+            console.log("Dokploy organization lookup endpoint " + requestPath + " did not return an organization id");
+          } catch {}
+        }
+        return "";
+      }
+
+      async function createAPIKey(cookie, organizationId) {
+        if (!organizationId) {
+          throw new Error("Dokploy session did not expose an organization id");
+        }
+        const metadata = { organizationId };
+        const payloads = [
+          {
+            name: "stackkit-platform-bootstrap",
+            prefix: "stackkit",
+            metadata,
+            rateLimitEnabled: false,
+          },
+        ];
+        const paths = [
+          (payload) => ["/api/user.createApiKey", payload],
+          (payload) => ["/api/trpc/user.createApiKey", { json: payload }],
+          (payload) => ["/api/trpc/user.createApiKey?batch=1", { "0": { json: payload } }],
+        ];
+        for (const payload of payloads) {
+          for (const build of paths) {
+            const [requestPath, body] = build(payload);
+            try {
+              const response = await request("POST", requestPath, body, cookie);
+              if (!response.ok) {
+                console.log("Dokploy API key endpoint " + requestPath + " returned " + statusLabel(response));
+                continue;
+              }
+              const apiKey = findStringByKeys(parseJSON(response.text), ["key", "apiKey", "api_key", "token"]);
+              if (apiKey) {
+                console.log("Dokploy API key created");
+                return apiKey;
+              }
+              console.log("Dokploy API key endpoint " + requestPath + " returned no key");
+            } catch {}
+          }
+        }
+        throw new Error("Dokploy API key response did not include a key");
+      }
+
+      async function lookupStackKitProject(cookie) {
+        const attempts = [
+          ["GET", "/api/project.all", undefined],
+          ["POST", "/api/trpc/project.all?batch=1", { "0": { json: null } }],
+        ];
+        for (const [method, requestPath, body] of attempts) {
+          try {
+            const response = await request(method, requestPath, body, cookie);
+            if (!response.ok) {
+              console.log("Dokploy project lookup endpoint " + requestPath + " returned " + statusLabel(response));
+              continue;
+            }
+            const value = parseJSON(response.text);
+            const project = findNamedObject(value, "StackKit", ["projectId"]);
+            if (project) {
+              const projectId = findStringByKeys(project, ["projectId"]);
+              const environmentId = defaultEnvironmentId(project);
+              if (projectId && environmentId) {
+                console.log("Dokploy StackKit project resolved via " + requestPath);
+                return { projectId, environmentId };
+              }
+            }
+            console.log("Dokploy project lookup endpoint " + requestPath + " did not return StackKit project metadata");
+          } catch {}
+        }
+        return { projectId: "", environmentId: "" };
+      }
+
+      async function createStackKitProject(cookie) {
+        const payload = {
+          name: "StackKit",
+          description: "Managed by StackKit",
+          env: "",
+        };
+        const attempts = [
+          ["/api/project.create", payload],
+          ["/api/trpc/project.create?batch=1", { "0": { json: payload } }],
+        ];
+        for (const [requestPath, body] of attempts) {
+          try {
+            const response = await request("POST", requestPath, body, cookie);
+            if (!response.ok) {
+              console.log("Dokploy project create endpoint " + requestPath + " returned " + statusLabel(response));
+              continue;
+            }
+            const value = parseJSON(response.text);
+            const projectId = findStringByKeys(value, ["projectId"]);
+            const environmentId = findStringByKeys(value, ["environmentId"]);
+            if (projectId && environmentId) {
+              console.log("Dokploy StackKit project created via " + requestPath);
+              return { projectId, environmentId };
+            }
+            console.log("Dokploy project create endpoint " + requestPath + " returned incomplete project metadata");
+          } catch {}
+        }
+        return { projectId: "", environmentId: "" };
+      }
+
+      async function ensureStackKitEnvironment(cookie) {
+        const existing = await lookupStackKitProject(cookie);
+        if (existing.projectId && existing.environmentId) {
+          return existing;
+        }
+        const created = await createStackKitProject(cookie);
+        if (created.projectId && created.environmentId) {
+          return created;
+        }
+        const retried = await lookupStackKitProject(cookie);
+        if (retried.projectId && retried.environmentId) {
+          return retried;
+        }
+        throw new Error("Dokploy StackKit project/environment bootstrap did not return an environment id");
+      }
+
+      function writePlatformConfig(apiKey, projectId, environmentId) {
+        fs.mkdirSync(path.dirname(platformConfigPath), { recursive: true });
+        const config = {
+          platform: "dokploy",
+          endpoint: apiEndpoint,
+          baseUrl: apiEndpoint,
+          token: apiKey,
+          apiKey,
+          projectId,
+          environmentId,
+          generatedBy: "stackkit",
+          generatedAt: new Date().toISOString(),
+        };
+        fs.writeFileSync(platformConfigPath, JSON.stringify(config) + "\n", { mode: 0o600 });
+        fs.chmodSync(platformConfigPath, 0o600);
+        console.log("Dokploy platform API config written to " + platformConfigPath);
+      }
+
+      async function main() {
+        if (fs.existsSync(platformConfigPath)) {
+          const existing = fs.readFileSync(platformConfigPath, "utf8");
+          if (existing.includes('"platform":"dokploy"') || existing.includes('"platform": "dokploy"')) {
+            if ((existing.includes('"token"') || existing.includes('"apiKey"')) && existing.includes('"environmentId"')) {
+              console.log("Dokploy platform API config already exists at " + platformConfigPath);
+              return;
+            }
+          }
+        }
+        await waitForDokploy();
+        await ensureAdmin();
+        const cookie = await login();
+        const organizationId = await resolveOrganizationId(cookie);
+        const apiKey = await createAPIKey(cookie, organizationId);
+        const stackKitEnvironment = await ensureStackKitEnvironment(cookie);
+        writePlatformConfig(apiKey, stackKitEnvironment.projectId, stackKitEnvironment.environmentId);
+      }
+
+      main().catch((error) => {
+        console.error("ERROR: " + error.message);
+        process.exit(1);
+      });
+      JS
+    EOT
+  }
+
+  depends_on = [
+    null_resource.dokploy_platform_config_dir,
+    docker_image.dokploy_bootstrap,
+    local_sensitive_file.dokploy_bootstrap_env,
+    docker_container.dokploy,
+  ]
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - KOMODO PAAS
+# =============================================================================
+
+resource "docker_image" "komodo_mongo" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "public.ecr.aws/docker/library/mongo:7"
+}
+
+resource "docker_image" "komodo_core" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "ghcr.io/moghtech/komodo-core:2"
+}
+
+resource "docker_image" "komodo_periphery" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "ghcr.io/moghtech/komodo-periphery:2"
+}
+
+resource "docker_container" "komodo_mongo" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-mongo"
+  image = docker_image.komodo_mongo[0].image_id
+
+  restart = "unless-stopped"
+
+  command = ["--quiet", "--wiredTigerCacheSizeGB", "0.25"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.internal_db[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_mongo_data[0].name
+    container_path = "/data/db"
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_mongo_config[0].name
+    container_path = "/data/configdb"
+  }
+
+  env = [
+    "MONGO_INITDB_ROOT_USERNAME=stackkit",
+    "MONGO_INITDB_ROOT_PASSWORD=${try(random_password.komodo_db_password[0].result, "")}",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "komodo-mongo"
+  }
+}
+
+resource "docker_container" "komodo_core" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-core"
+  image = docker_image.komodo_core[0].image_id
+
+  restart = "unless-stopped"
+
+  ports {
+    internal = 9120
+    external = local.host_ports.komodo
+    ip       = "127.0.0.1"
+    protocol = "tcp"
+  }
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.internal_db[0].name
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_keys[0].name
+    container_path = "/config/keys"
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_backups[0].name
+    container_path = "/backups"
+  }
+
+  env = [
+    "KOMODO_HOST=${local.proto}://${local.domains.komodo}",
+    "KOMODO_TITLE=StackKit Komodo",
+    "KOMODO_DATABASE_ADDRESS=${local.is_host ? "127.0.0.1:27017" : "komodo-mongo:27017"}",
+    "KOMODO_DATABASE_USERNAME=stackkit",
+    "KOMODO_DATABASE_PASSWORD=${try(random_password.komodo_db_password[0].result, "")}",
+    "KOMODO_DATABASE_DB_NAME=komodo",
+    "KOMODO_PERIPHERY_PUBLIC_KEY=file:/config/keys/periphery.pub",
+    "KOMODO_LOCAL_AUTH=true",
+    "KOMODO_INIT_ADMIN_USERNAME=stackkits-admin",
+    "KOMODO_INIT_ADMIN_PASSWORD=${var.admin_password_plaintext}",
+    "KOMODO_DISABLE_USER_REGISTRATION=true",
+    "KOMODO_ENABLE_NEW_USERS=false",
+    "KOMODO_DISABLE_NON_ADMIN_CREATE=true",
+    "KOMODO_FIRST_SERVER_NAME=stackkit-local",
+    "KOMODO_WEBHOOK_SECRET=${try(random_password.komodo_webhook_secret[0].result, "")}",
+    "KOMODO_JWT_SECRET=${try(random_password.komodo_jwt_secret[0].result, "")}",
+    "KOMODO_JWT_TTL=1-day",
+    "KOMODO_DISABLE_CONFIRM_DIALOG=true",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "komodo"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.rule"
+    value = "Host(`${local.domains.komodo}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.komodo.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.service"
+    value = "komodo"
+  }
+
+  labels {
+    label = "traefik.http.routers.komodo.middlewares"
+    value = var.enable_tinyauth ? "tinyauth@docker" : ""
+  }
+
+  labels {
+    label = "traefik.http.services.komodo.loadbalancer.server.port"
+    value = tostring(local.host_ports.komodo)
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "curl -sf http://localhost:9120/ >/dev/null || exit 1"]
+    interval     = "30s"
+    timeout      = "10s"
+    retries      = 5
+    start_period = "90s"
+  }
+
+  depends_on = [
+    docker_container.komodo_mongo,
+  ]
+}
+
+resource "docker_container" "komodo_periphery" {
+  count = var.enable_komodo ? 1 : 0
+  name  = "komodo-periphery"
+  image = docker_image.komodo_periphery[0].image_id
+
+  restart = "unless-stopped"
+
+  user = "0:0"
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  dynamic "host" {
+    for_each = (!local.is_host && trimspace(var.docker_host) != "") ? [1] : []
+    content {
+      host = "host.docker.internal"
+      ip   = "host-gateway"
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_keys[0].name
+    container_path = "/config/keys"
+  }
+
+  volumes {
+    volume_name    = docker_volume.komodo_periphery_root[0].name
+    container_path = "/etc/komodo"
+  }
+
+  mounts {
+    type   = "bind"
+    target = "/var/run/docker.sock"
+    source = "/var/run/docker.sock"
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/proc"
+    source    = "/proc"
+    read_only = true
+  }
+
+  env = [
+    "DOCKER_HOST=${local.container_docker_host}",
+    "PERIPHERY_CORE_ADDRESS=${local.is_host ? "ws://127.0.0.1:9120" : "ws://komodo-core:9120"}",
+    "PERIPHERY_CONNECT_AS=stackkit-local",
+    "PERIPHERY_CORE_PUBLIC_KEYS=file:/config/keys/core.pub",
+    "PERIPHERY_ROOT_DIRECTORY=/etc/komodo",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "komodo-periphery"
+  }
+
+  depends_on = [docker_container.komodo_core]
+}
+
+resource "null_resource" "komodo_platform_bootstrap" {
+  count = var.enable_komodo ? 1 : 0
+
+  triggers = {
+    endpoint = local.komodo_api_endpoint
+  }
+
+  provisioner "local-exec" {
+    environment = {
+      KOMODO_ADMIN_USERNAME = "stackkits-admin"
+      KOMODO_ADMIN_PASSWORD = var.admin_password_plaintext
+    }
+
+    command = <<-EOT
+      set -eu
+      PLATFORM_CONFIG_PATH="${path.module}/.stackkit/platform.json"
+      mkdir -p "${path.module}/.stackkit"
+      if [ -s "$PLATFORM_CONFIG_PATH" ] && grep -q '"platform"[[:space:]]*:[[:space:]]*"komodo"' "$PLATFORM_CONFIG_PATH" && grep -q '"apiKey"' "$PLATFORM_CONFIG_PATH" && grep -q '"apiSecret"' "$PLATFORM_CONFIG_PATH"; then
+        echo "Komodo platform API config already exists at $PLATFORM_CONFIG_PATH"
+        exit 0
+      fi
+
+      echo "Waiting for Komodo Core API..."
+      for i in $(seq 1 120); do
+        if curl -fsS "${local.komodo_api_endpoint}/" >/dev/null 2>&1; then
+          break
+        fi
+        if [ "$i" -eq 120 ]; then
+          echo "ERROR: Komodo Core API did not become ready at ${local.komodo_api_endpoint} after 10 minutes"
+          exit 1
+        fi
+        sleep 5
+      done
+
+      post_komodo_json() {
+        resource="$1"
+        request="$2"
+        params="$3"
+        auth="$${4:-}"
+        rpc_body="{\"type\":\"$request\",\"params\":$params}"
+
+        post_body() {
+          url="$1"
+          body="$2"
+          body_file="$(mktemp)"
+          chmod 600 "$body_file"
+          printf '%s' "$body" > "$body_file"
+          if [ -n "$auth" ]; then
+            response="$(curl -fsS -H "Content-Type: application/json" -H "Authorization: $auth" --data-binary "@$body_file" "$url" 2>/tmp/stackkit-komodo-api.err)" || {
+              rm -f "$body_file"
+              return 1
+            }
+          else
+            response="$(curl -fsS -H "Content-Type: application/json" --data-binary "@$body_file" "$url" 2>/tmp/stackkit-komodo-api.err)" || {
+              rm -f "$body_file"
+              return 1
+            }
+          fi
+          rm -f "$body_file"
+          printf '%s\n' "$response"
+          return 0
+        }
+
+        if [ "$resource" = "auth" ] && [ "$request" = "LoginLocalUser" ]; then
+          if post_body "${local.komodo_api_endpoint}/auth/login" "$rpc_body"; then
+            return 0
+          fi
+        fi
+        if post_body "${local.komodo_api_endpoint}/$resource" "$rpc_body"; then
+          return 0
+        fi
+        if post_body "${local.komodo_api_endpoint}/$resource/$request" "$params"; then
+          return 0
+        fi
+        cat /tmp/stackkit-komodo-api.err >&2 || true
+        return 1
+      }
+
+      json_field() {
+        field="$1"
+        payload="$2"
+        JSON_PAYLOAD="$payload" python3 - "$field" <<'PY'
+import json
+import os
+import sys
+
+field = sys.argv[1]
+try:
+    value = json.loads(os.environ.get("JSON_PAYLOAD", ""))
+except Exception:
+    sys.exit(2)
+
+for part in field.split("."):
+    if isinstance(value, dict):
+        value = value.get(part, "")
+    else:
+        value = ""
+        break
+
+if value is None:
+    value = ""
+if isinstance(value, (dict, list)):
+    print(json.dumps(value, separators=(",", ":")))
+else:
+    print(str(value))
+PY
+      }
+
+      echo "Creating Komodo API key for StackKit platform adapter..."
+      if ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: python3 is required for Komodo bootstrap JSON parsing"
+        exit 1
+      fi
+      LOGIN_PAYLOAD="$(python3 - <<'PY'
+import json
+import os
+
+print(json.dumps({
+  "username": os.environ["KOMODO_ADMIN_USERNAME"],
+  "password": os.environ["KOMODO_ADMIN_PASSWORD"],
+}, separators=(",", ":")))
+PY
+)"
+      KEY_PAYLOAD='${jsonencode({ name = "stackkit-platform-bootstrap", expires = 0 })}'
+      LOGIN_JSON=""
+      for i in $(seq 1 60); do
+        if LOGIN_JSON="$(post_komodo_json auth LoginLocalUser "$LOGIN_PAYLOAD")"; then
+          JWT="$(json_field data.jwt "$LOGIN_JSON")"
+          if [ -z "$JWT" ]; then
+            JWT="$(json_field jwt "$LOGIN_JSON")"
+          fi
+          if [ -n "$JWT" ]; then
+            break
+          fi
+        fi
+        if [ "$i" -eq 60 ]; then
+          echo "ERROR: Komodo local admin login did not return a JWT"
+          echo "Komodo login response redacted" >&2
+          exit 1
+        fi
+        sleep 5
+      done
+
+      KEY_JSON="$(post_komodo_json auth/manage CreateApiKey "$KEY_PAYLOAD" "$JWT")"
+      API_KEY="$(json_field data.key "$KEY_JSON")"
+      API_SECRET="$(json_field data.secret "$KEY_JSON")"
+      if [ -z "$API_KEY" ]; then
+        API_KEY="$(json_field key "$KEY_JSON")"
+      fi
+      if [ -z "$API_SECRET" ]; then
+        API_SECRET="$(json_field secret "$KEY_JSON")"
+      fi
+      if [ -z "$API_KEY" ] || [ -z "$API_SECRET" ]; then
+        echo "ERROR: Komodo API did not return api key JSON"
+        echo "Komodo API key response redacted" >&2
+        exit 1
+      fi
+      umask 077
+      STACKKIT_PLATFORM_CONFIG_PATH="$PLATFORM_CONFIG_PATH" \
+      STACKKIT_KOMODO_ENDPOINT="${local.komodo_api_endpoint}" \
+      STACKKIT_KOMODO_API_KEY="$API_KEY" \
+      STACKKIT_KOMODO_API_SECRET="$API_SECRET" \
+      STACKKIT_BOOTSTRAP_MODE="${var.bootstrap_mode}" \
+      python3 - <<'PY'
+import datetime
+import json
+import os
+
+config = {
+  "platform": "komodo",
+  "endpoint": os.environ["STACKKIT_KOMODO_ENDPOINT"],
+  "baseUrl": os.environ["STACKKIT_KOMODO_ENDPOINT"],
+  "apiKey": os.environ["STACKKIT_KOMODO_API_KEY"],
+  "apiSecret": os.environ["STACKKIT_KOMODO_API_SECRET"],
+  "serverId": "stackkit-local",
+  "generatedBy": "stackkit",
+  "generatedAt": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+  "bootstrapEvidence": {
+    "provider": "komodo",
+    "mode": os.environ.get("STACKKIT_BOOTSTRAP_MODE", "full_auto"),
+    "capabilities": [
+      {"capability": "api-access", "status": "configured", "evidence": ["local admin login verified", "api key created"]},
+      {"capability": "team-management", "status": "configured", "evidence": ["registration disabled", "non-admin resource creation disabled"]},
+      {"capability": "proxy-routing", "status": "configured", "evidence": ["StackKit Traefik owns Komodo route", "Core API loopback endpoint configured"]},
+      {"capability": "secrets", "status": "configured", "evidence": ["JWT/webhook/database secrets generated", "platformConfig.mode=0600"]},
+      {"capability": "backups", "status": "configured", "evidence": ["komodo_backups volume mounted at /backups", "platform volumes labelled stackkit.backup=required", "restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill"]},
+      {"capability": "healthchecks", "status": "configured", "evidence": ["Komodo Core healthcheck configured", "Periphery server registration expected"]},
+      {"capability": "service-handoff", "status": "configured", "evidence": ["serverId=stackkit-local", "Stack API configured for managed compose stacks"]},
+    ],
+  },
+}
+
+with open(os.environ["STACKKIT_PLATFORM_CONFIG_PATH"], "w", encoding="utf-8") as fh:
+  json.dump(config, fh, separators=(",", ":"))
+  fh.write("\n")
+PY
+      chmod 600 "$PLATFORM_CONFIG_PATH"
+      echo "Komodo platform API config written to $PLATFORM_CONFIG_PATH"
+      echo "Waiting for Komodo Periphery server registration..."
+      sleep 15
+    EOT
+  }
+
+  depends_on = [
+    docker_container.komodo_core,
+    docker_container.komodo_periphery,
+  ]
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - DOCKGE (LOW COMPUTE TIER)
+# =============================================================================
+# Lightweight Docker Compose manager — replaces Dokploy when compute tier is low.
+# No database required, minimal memory footprint.
+
+resource "null_resource" "dockge_stacks_dir" {
+  count = var.enable_dockge ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "mkdir -p /opt/stacks"
+  }
+}
+
+resource "docker_image" "dockge" {
+  count = var.enable_dockge ? 1 : 0
+  name  = "louislam/dockge:1"
+}
+
+resource "docker_container" "dockge" {
+  count      = var.enable_dockge ? 1 : 0
+  depends_on = [null_resource.dockge_stacks_dir, null_resource.reverse_proxy_ready]
+  name       = "dockge"
+  image      = docker_image.dockge[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
+  dynamic "networks_advanced" {
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
+    content {
+      name = local.routing_network
+    }
+  }
+
+  volumes {
+    volume_name    = docker_volume.dockge_data[0].name
+    container_path = "/app/data"
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/var/run/docker.sock"
+    source    = "/var/run/docker.sock"
+    read_only = true
+  }
+
+  mounts {
+    type   = "bind"
+    target = "/opt/stacks"
+    source = "/opt/stacks"
+  }
+
+  env = [
+    "DOCKGE_STACKS_DIR=/opt/stacks",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dockge"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.dockge.rule"
+    value = "Host(`${local.domains.dockge}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.dockge.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.dockge.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.services.dockge.loadbalancer.server.port"
+    value = "5001"
+  }
+
+  labels {
+    label = "traefik.http.routers.dockge.middlewares"
+    value = var.enable_tinyauth ? "tinyauth@docker" : ""
+  }
+
+  memory = 512
+
+  healthcheck {
+    test         = ["CMD-SHELL", "curl -sf http://localhost:5001/ > /dev/null || exit 1"]
+    interval     = "30s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "15s"
+  }
+}
+
+# =============================================================================
+# LAYER 2: PLATFORM - COOLIFY (STANDARD PAAS)
+# =============================================================================
+# Full-featured PAAS with built-in Traefik management. When Coolify is the PAAS,
+# it manages its own Traefik instance — platform services attach to Coolify's
+# network for routing (ADR-0006: Service URL Matrix).
+#
+# Note: Coolify is installed via its own installer script, not as a single
+# container. StackKits passes ROOT_* installer variables so the first-user
+# registration screen is never exposed as a manual setup task. Local-only
+# StackKit rollouts receive the same generated admin_email as every other
+# bootstrap surface; the composition engine uses a reserved example.com address
+# when no real admin email is supplied.
+
+resource "null_resource" "coolify_install" {
+  count = var.enable_coolify ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+        echo "Preparing Docker CLI context for Coolify host access..."
+        (
+          unset DOCKER_HOST
+          mkdir -p "$HOME/.docker"
+          docker context inspect stackkit-host >/dev/null 2>&1 || docker context create stackkit-host --docker "host=${var.docker_host}" >/dev/null
+          docker context use default >/dev/null 2>&1 || true
+        )
+      fi
+      COOLIFY_REAL_DOCKER="$(command -v docker)"
+      stackkit_docker() {
+        if [ -n "${var.docker_host}" ]; then
+          DOCKER_HOST="${var.docker_host}" "$COOLIFY_REAL_DOCKER" "$@"
+        else
+          "$COOLIFY_REAL_DOCKER" "$@"
+        fi
+      }
+      if ! stackkit_docker ps -a --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
+        if [ -z "${var.admin_email}" ] || [ -z "${var.admin_password_plaintext}" ]; then
+          echo "ERROR: Coolify requires generated admin_email and admin_password_plaintext for root-user bootstrap"
+          exit 1
+        fi
+        echo "Installing Coolify..."
+        STACKKIT_ROOT_EMAIL_B64="${base64encode(local.coolify_root_email)}"
+        STACKKIT_ROOT_PASSWORD_B64="${base64encode(var.admin_password_plaintext)}"
+        case "${var.docker_host}" in
+          ssh://*)
+            STACKKIT_REMOTE_SSH="${replace(var.docker_host, "ssh://", "")}"
+            ssh "$STACKKIT_REMOTE_SSH" "STACKKIT_ROOT_EMAIL_B64=\"$STACKKIT_ROOT_EMAIL_B64\" STACKKIT_ROOT_PASSWORD_B64=\"$STACKKIT_ROOT_PASSWORD_B64\" ROOT_USERNAME=\"stackkits-admin\" DOCKER_ADDRESS_POOL_BASE=\"172.30.0.0/16\" DOCKER_ADDRESS_POOL_SIZE=\"24\" DOCKER_POOL_FORCE_OVERRIDE=true AUTOUPDATE=false bash -s" <<'EOS'
+set -eu
+ROOT_USER_EMAIL="$(printf '%s' "$STACKKIT_ROOT_EMAIL_B64" | base64 -d)"
+ROOT_USER_PASSWORD="$(printf '%s' "$STACKKIT_ROOT_PASSWORD_B64" | base64 -d)"
+export ROOT_USERNAME ROOT_USER_EMAIL ROOT_USER_PASSWORD DOCKER_ADDRESS_POOL_BASE DOCKER_ADDRESS_POOL_SIZE DOCKER_POOL_FORCE_OVERRIDE AUTOUPDATE
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+EOS
+            ;;
+          *)
+            COOLIFY_INSTALL_PATH="$PATH"
+            COOLIFY_SYSTEMCTL_SHIM="$(mktemp -d)"
+            stackkit_preseed_coolify_image() {
+              target="$1"
+              mirror="$2"
+              if stackkit_docker image inspect "$target" >/dev/null 2>&1; then
+                return 0
+              fi
+              if stackkit_docker pull "$mirror" >/dev/null 2>&1; then
+                stackkit_docker tag "$mirror" "$target"
+              fi
+            }
+            stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine"
+            stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine"
+            stackkit_preseed_coolify_image "public.ecr.aws/docker/library/busybox:latest" "busybox:latest"
+            cat > "$COOLIFY_SYSTEMCTL_SHIM/docker" <<EOS
+#!/bin/sh
+real="$COOLIFY_REAL_DOCKER"
+image=""
+if [ "\$1" = "pull" ]; then
+  image="\$2"
+elif [ "\$1" = "image" ] && [ "\$2" = "pull" ]; then
+  image="\$3"
+fi
+case "\$image" in
+  "postgres:15-alpine"|"redis:7-alpine"|"public.ecr.aws/docker/library/busybox:latest")
+    if "\$real" image inspect "\$image" >/dev/null 2>&1; then
+      echo "\$image already present locally for StackKit Coolify bootstrap"
+      exit 0
+    fi
+    ;;
+esac
+if [ -n "${var.docker_host}" ]; then
+  DOCKER_HOST="${var.docker_host}" exec "\$real" "\$@"
+fi
+exec "\$real" "\$@"
+EOS
+        chmod +x "$COOLIFY_SYSTEMCTL_SHIM/docker"
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/systemctl" <<'EOS'
+#!/bin/sh
+case "$*" in
+  "status ssh"|"status sshd"|"enable ssh"|"enable sshd"|"start ssh"|"start sshd"|"status docker"|"enable docker"|"start docker"|"restart docker"|"--now enable docker")
+    exit 0
+    ;;
+esac
+exit 0
+EOS
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/service" <<'EOS'
+#!/bin/sh
+case "$*" in
+  "ssh status"|"sshd status"|"ssh start"|"sshd start"|"docker status"|"docker start"|"docker restart")
+    exit 0
+    ;;
+esac
+exit 0
+EOS
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/rc-update" <<'EOS'
+#!/bin/sh
+exit 0
+EOS
+        cat > "$COOLIFY_SYSTEMCTL_SHIM/sshd" <<'EOS'
+#!/bin/sh
+if [ "$1" = "-T" ]; then
+  echo "permitrootlogin yes"
+  exit 0
+fi
+exit 0
+EOS
+        chmod +x "$COOLIFY_SYSTEMCTL_SHIM/systemctl" "$COOLIFY_SYSTEMCTL_SHIM/service" "$COOLIFY_SYSTEMCTL_SHIM/rc-update" "$COOLIFY_SYSTEMCTL_SHIM/sshd"
+        COOLIFY_INSTALL_PATH="$COOLIFY_SYSTEMCTL_SHIM:$PATH"
+        STACKKIT_ROOT_EMAIL="$(printf '%s' "$STACKKIT_ROOT_EMAIL_B64" | base64 -d)"
+        STACKKIT_ROOT_PASSWORD="$(printf '%s' "$STACKKIT_ROOT_PASSWORD_B64" | base64 -d)"
+        env \
+          PATH="$COOLIFY_INSTALL_PATH" \
+          ROOT_USERNAME="stackkits-admin" \
+          ROOT_USER_EMAIL="$STACKKIT_ROOT_EMAIL" \
+          ROOT_USER_PASSWORD="$STACKKIT_ROOT_PASSWORD" \
+          DOCKER_HOST="${var.docker_host}" \
+          DOCKER_ADDRESS_POOL_BASE="172.30.0.0/16" \
+          DOCKER_ADDRESS_POOL_SIZE="24" \
+          DOCKER_POOL_FORCE_OVERRIDE=true \
+          AUTOUPDATE=false \
+          bash -c 'curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash'
+            ;;
+        esac
+        if ! stackkit_docker ps -a --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
+          echo "ERROR: Coolify installer exited without creating the coolify container"
+          stackkit_docker ps -a --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' || true
+          exit 1
+        fi
+      else
+        echo "Coolify already installed"
+      fi
+      if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+        echo "Setting Docker CLI default context for Coolify runtime actions..."
+        (
+          unset DOCKER_HOST
+          docker context use stackkit-host >/dev/null
+        )
+      fi
+    EOT
+  }
+}
+
+# Wait for Coolify's routing surface to be ready before deploying platform
+# services. The platform bootstrap starts Coolify's own proxy synchronously; this
+# gate only verifies that strict Coolify-backed routing is actually available.
+resource "null_resource" "coolify_traefik_ready" {
+  count = var.enable_coolify ? 1 : 0
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Waiting for Coolify routing backend..."
+      stackkit_docker() {
+        if [ -n "${var.docker_host}" ]; then
+          DOCKER_HOST="${var.docker_host}" docker "$@"
+        else
+          docker "$@"
+        fi
+      }
+      for i in $(seq 1 60); do
+        if stackkit_docker ps --filter "name=coolify-proxy" --filter "status=running" -q | grep -q .; then
+          echo "Coolify Traefik is ready"
+          exit 0
+        fi
+        sleep 5
+      done
+      echo "ERROR: Coolify routing backend not detected after 5 minutes"
+      exit 1
+    EOT
+  }
+
+  depends_on = [
+    null_resource.coolify_install,
+    null_resource.coolify_platform_bootstrap,
+  ]
+}
+
+# Bootstrap the Coolify API contract that StackKit uses for all subsequent
+# StackKit-owned app deployment. The token is created inside the freshly
+# installed Coolify instance, scoped to the root team, and persisted locally for
+# the post-OpenTofu `stackkit apply` platform adapter step.
+resource "local_file" "coolify_platform_bootstrap_php" {
+  count = var.enable_coolify && local.rp_coolify && !local.platform_fallback_standalone ? 1 : 0
+
+  filename        = "${path.module}/.stackkit/coolify-platform-bootstrap.php"
+  file_permission = "0600"
+  content         = <<-PHP
+<?php
+$rootEmail = getenv('STACKKIT_COOLIFY_ROOT_EMAIL') ?: '';
+$user = $rootEmail !== '' ? \App\Models\User::where('email', $rootEmail)->first() : null;
+if (!$user) {
+    $user = \App\Models\User::find(0);
+}
+if (!$user) {
+    $user = \App\Models\User::first();
+}
+if (!$user) {
+    $bootstrapEmail = $rootEmail !== '' ? $rootEmail : (env('ROOT_USER_EMAIL') ?: '${var.admin_email}');
+    $bootstrapName = env('ROOT_USERNAME') ?: 'stackkits-admin';
+    $bootstrapPassword = env('ROOT_USER_PASSWORD') ?: bin2hex(random_bytes(32));
+    $user = (new \App\Models\User)->forceFill([
+        'id' => 0,
+        'name' => $bootstrapName,
+        'email' => $bootstrapEmail,
+        'password' => \Illuminate\Support\Facades\Hash::make($bootstrapPassword),
+    ]);
+    $user->save();
+}
+
+$team = $user->teams()->wherePivot('role', 'owner')->first();
+if (!$team) {
+    $team = $user->teams()->first();
+}
+if (!$team) {
+    $team = $user->recreate_personal_team();
+}
+session(['currentTeam' => $team]);
+$team->forceFill(['show_boarding' => false])->save();
+
+\App\Models\InstanceSettings::updateOrCreate(['id' => 0], [
+    'is_api_enabled' => true,
+    'is_registration_enabled' => false,
+]);
+
+$server = \App\Models\Server::where('team_id', $team->id)->where('id', 0)->first();
+if (!$server) {
+    $server = \App\Models\Server::where('team_id', $team->id)->first();
+}
+if (!$server) {
+    throw new \RuntimeException('StackKit Coolify bootstrap could not find a Coolify server.');
+}
+$serverIP = getenv('STACKKIT_COOLIFY_SERVER_IP') ?: $server->ip;
+$serverUser = getenv('STACKKIT_COOLIFY_SERVER_USER') ?: ($server->user ?: 'root');
+$serverPort = (int) (getenv('STACKKIT_COOLIFY_SERVER_PORT') ?: ($server->port ?: 22));
+$server->forceFill([
+    'ip' => $serverIP,
+    'user' => $serverUser,
+    'port' => $serverPort,
+])->save();
+
+$destination = $server->destinations()->first();
+if (!$destination) {
+    throw new \RuntimeException('StackKit Coolify bootstrap could not find a Coolify Docker destination.');
+}
+$server->settings()->updateOrCreate(['server_id' => $server->id], [
+    'is_reachable' => true,
+    'is_usable' => true,
+    'force_disabled' => false,
+    'is_build_server' => false,
+]);
+
+$project = \App\Models\Project::where('team_id', $team->id)->where('name', 'StackKit')->first();
+if (!$project) {
+    $project = \App\Models\Project::create([
+        'uuid' => (string) new \Visus\Cuid2\Cuid2,
+        'name' => 'StackKit',
+        'description' => 'Applications managed by StackKit.',
+        'team_id' => $team->id,
+    ]);
+}
+
+$environment = $project->environments()->where('name', 'production')->first();
+if (!$environment) {
+    $environment = \App\Models\Environment::create([
+        'uuid' => (string) new \Visus\Cuid2\Cuid2,
+        'name' => 'production',
+        'project_id' => $project->id,
+    ]);
+}
+
+$tokenName = getenv('STACKKIT_COOLIFY_TOKEN_NAME') ?: 'stackkit-platform-bootstrap';
+\App\Models\PersonalAccessToken::where('tokenable_type', get_class($user))
+    ->where('tokenable_id', $user->id)
+    ->where('name', $tokenName)
+    ->where('team_id', $team->id)
+    ->delete();
+$token = $user->createToken($tokenName, ['root']);
+
+if (!$server->proxyType() || $server->proxyType() === 'NONE') {
+    $server->proxy->set('type', \App\Enums\ProxyTypes::TRAEFIK->value);
+}
+$server->proxy->force_stop = false;
+$server->save();
+
+try {
+    \App\Actions\Proxy\StartProxy::run($server, async: false, force: true);
+} catch (\Throwable $e) {
+    $allowProxyFallback = filter_var(getenv('STACKKIT_COOLIFY_ALLOW_PROXY_FALLBACK') ?: 'false', FILTER_VALIDATE_BOOLEAN);
+    if (!$allowProxyFallback) {
+        throw new \RuntimeException('StackKit Coolify bootstrap could not start Coolify proxy: '.$e->getMessage(), 0, $e);
+    }
+    fwrite(STDERR, 'WARN: StackKit will start a Docker-level Coolify proxy fallback: '.$e->getMessage().PHP_EOL);
+}
+
+$config = [
+    'platform' => 'coolify',
+    'endpoint' => getenv('STACKKIT_COOLIFY_API_ENDPOINT') ?: 'http://127.0.0.1:8000',
+    'baseUrl' => getenv('STACKKIT_COOLIFY_API_ENDPOINT') ?: 'http://127.0.0.1:8000',
+    'token' => $token->plainTextToken,
+    'projectUuid' => $project->uuid,
+    'environmentId' => $environment->name,
+    'environmentUuid' => $environment->uuid,
+    'serverId' => $server->uuid,
+    'destinationUuid' => $destination->uuid,
+    'legacyDockerComposeApi' => false,
+    'proxyContainer' => 'coolify-proxy',
+    'generatedBy' => 'stackkit',
+    'generatedAt' => gmdate('c'),
+    'bootstrapEvidence' => [
+        'provider' => 'coolify',
+        'mode' => getenv('STACKKIT_BOOTSTRAP_MODE') ?: 'full_auto',
+        'capabilities' => [
+            [
+                'capability' => 'api-access',
+                'status' => 'configured',
+                'evidence' => ['instance_settings.is_api_enabled=true', 'token.scope=root'],
+            ],
+            [
+                'capability' => 'team-management',
+                'status' => 'configured',
+                'evidence' => ['root.user.email='.$bootstrapEmail, 'team.show_boarding=false'],
+            ],
+            [
+                'capability' => 'proxy-routing',
+                'status' => 'configured',
+                'evidence' => ['proxy.type='.$server->proxyType(), 'proxy.container=coolify-proxy', 'dynamicConfig=/data/coolify/proxy/dynamic/stackkit.yml'],
+            ],
+            [
+                'capability' => 'secrets',
+                'status' => 'configured',
+                'evidence' => ['platformToken.name='.$tokenName, 'platformConfig.mode=0600'],
+            ],
+            [
+                'capability' => 'backups',
+                'status' => 'configured',
+                'evidence' => ['Coolify data and database volumes are persisted', 'platform volumes labelled stackkit.backup=required', 'restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill'],
+            ],
+            [
+                'capability' => 'healthchecks',
+                'status' => 'configured',
+                'evidence' => ['server_settings.is_reachable=true', 'server_settings.is_usable=true'],
+            ],
+            [
+                'capability' => 'service-handoff',
+                'status' => 'configured',
+                'evidence' => ['project=StackKit', 'environment=production', 'destination='.$destination->uuid],
+            ],
+        ],
+    ],
+];
+echo 'STACKKIT_COOLIFY_PLATFORM_JSON='.json_encode($config, JSON_UNESCAPED_SLASHES).PHP_EOL;
+echo 'STACKKIT_COOLIFY_SERVER_PUBLIC_KEY='.str_replace(["\r", "\n"], '', $server->privateKey?->public_key ?? '').PHP_EOL;
+  PHP
+}
+
+resource "null_resource" "coolify_platform_bootstrap" {
+  count = var.enable_coolify && local.rp_coolify && !local.platform_fallback_standalone ? 1 : 0
+
+  triggers = {
+    bootstrap_script_hash = sha256(local_file.coolify_platform_bootstrap_php[0].content)
+    endpoint              = local.coolify_api_endpoint
+    bootstrap_endpoint    = local.coolify_bootstrap_api_endpoint
+    root_email            = local.coolify_root_email
+    always                = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      echo "Bootstrapping Coolify API token for StackKit platform adapter..."
+      mkdir -p "${path.module}/.stackkit"
+      STACKKIT_REMOTE_SSH=""
+      case "${var.docker_host}" in
+        ssh://*) STACKKIT_REMOTE_SSH="${replace(var.docker_host, "ssh://", "")}" ;;
+      esac
+      stackkit_docker() {
+        if [ -n "${var.docker_host}" ]; then
+          DOCKER_HOST="${var.docker_host}" docker "$@"
+        else
+          docker "$@"
+        fi
+      }
+      stackkit_redact() {
+        sed -E \
+          -e 's/(ROOT_USER_PASSWORD|PASSWORD|SECRET|TOKEN|KEY|COOKIE|SESSION|JWT|API_KEY|API_SECRET)=([^[:space:]]+)/\1=[redacted]/Ig' \
+          -e 's/(Bearer )[A-Za-z0-9._~+\/=-]+/\1[redacted]/Ig' \
+          -e 's/("token"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig' \
+          -e 's/("apiKey"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig' \
+          -e 's/("apiSecret"[[:space:]]*:[[:space:]]*")[^"]+/\1[redacted]/Ig'
+      }
+      stackkit_sync_coolify_dynamic_config() {
+        STACKKIT_COOLIFY_DYNAMIC="${local_file.coolify_dynamic_stackkit[0].filename}"
+        if [ ! -f "$STACKKIT_COOLIFY_DYNAMIC" ]; then
+          echo "ERROR: StackKit Coolify dynamic config is missing at $STACKKIT_COOLIFY_DYNAMIC" >&2
+          exit 1
+        fi
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          ssh "$STACKKIT_REMOTE_SSH" 'mkdir -p /data/coolify/proxy/dynamic'
+          ssh "$STACKKIT_REMOTE_SSH" 'cat > /data/coolify/proxy/dynamic/stackkit.yml && chmod 0640 /data/coolify/proxy/dynamic/stackkit.yml || true' < "$STACKKIT_COOLIFY_DYNAMIC"
+        elif [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+          stackkit_docker run --rm -i \
+            -v /data/coolify/proxy/dynamic:/target \
+            public.ecr.aws/docker/library/busybox:latest \
+            sh -c 'mkdir -p /target && cat > /target/stackkit.yml && chmod 0640 /target/stackkit.yml || true' < "$STACKKIT_COOLIFY_DYNAMIC"
+        else
+          mkdir -p /data/coolify/proxy/dynamic
+          STACKKIT_COOLIFY_DYNAMIC_TARGET="/data/coolify/proxy/dynamic/stackkit.yml"
+          STACKKIT_COOLIFY_DYNAMIC_SOURCE_REAL="$(readlink -f "$STACKKIT_COOLIFY_DYNAMIC" 2>/dev/null || printf '%s' "$STACKKIT_COOLIFY_DYNAMIC")"
+          STACKKIT_COOLIFY_DYNAMIC_TARGET_REAL="$(readlink -f "$STACKKIT_COOLIFY_DYNAMIC_TARGET" 2>/dev/null || printf '%s' "$STACKKIT_COOLIFY_DYNAMIC_TARGET")"
+          if [ "$STACKKIT_COOLIFY_DYNAMIC_SOURCE_REAL" != "$STACKKIT_COOLIFY_DYNAMIC_TARGET_REAL" ]; then
+            cp "$STACKKIT_COOLIFY_DYNAMIC" "$STACKKIT_COOLIFY_DYNAMIC_TARGET"
+          fi
+          chmod 0640 "$STACKKIT_COOLIFY_DYNAMIC_TARGET" || true
+        fi
+      }
+      stackkit_coolify_http_ready() {
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          ssh "$STACKKIT_REMOTE_SSH" "curl -fsS '${local.coolify_bootstrap_api_endpoint}/api/health' >/dev/null 2>&1 || curl -fsS '${local.coolify_bootstrap_api_endpoint}/health' >/dev/null 2>&1"
+        else
+          curl -fsS "${local.coolify_bootstrap_api_endpoint}/api/health" >/dev/null 2>&1 || \
+            curl -fsS "${local.coolify_bootstrap_api_endpoint}/health" >/dev/null 2>&1
+        fi
+      }
+      stackkit_coolify_diagnostics() {
+        echo "Coolify readiness diagnostics (redacted):" >&2
+        echo "endpoint=${local.coolify_api_endpoint}" >&2
+        echo "bootstrap_endpoint=${local.coolify_bootstrap_api_endpoint}" >&2
+        echo "docker_host=${var.docker_host}" >&2
+        docker context show 2>&1 | stackkit_redact | sed 's/^/docker_context=/g' >&2 || true
+        stackkit_docker ps -a --filter "name=coolify" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+        for container in coolify coolify-db coolify-redis coolify-realtime; do
+          if stackkit_docker ps -a --filter "name=^/$${container}$" --format '{{"{{"}}.Names{{"}}"}}' 2>/dev/null | grep -qx "$container"; then
+            stackkit_docker inspect "$container" --format 'container={{"{{"}}.Name{{"}}"}} status={{"{{"}}.State.Status{{"}}"}} health={{"{{"}}if .State.Health{{"}}"}}{{"{{"}}.State.Health.Status{{"}}"}}{{"{{"}}else{{"}}"}}none{{"{{"}}end{{"}}"}} ports={{"{{"}}json .NetworkSettings.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+            stackkit_docker logs --tail 80 "$container" 2>&1 | stackkit_redact | sed "s/^/$container logs: /" >&2 || true
+          else
+            echo "container=$container missing" >&2
+          fi
+        done
+        for path in /api/health /health; do
+          if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+            code="$(ssh "$STACKKIT_REMOTE_SSH" "curl -sS -o /tmp/stackkit-coolify-health.out -w '%%{http_code}' '${local.coolify_bootstrap_api_endpoint}$path' 2>/tmp/stackkit-coolify-health.err" || true)"
+          else
+            code="$(curl -sS -o /tmp/stackkit-coolify-health.out -w '%%{http_code}' "${local.coolify_bootstrap_api_endpoint}$path" 2>/tmp/stackkit-coolify-health.err || true)"
+          fi
+          echo "curl $path status=$${code:-none}" >&2
+          if [ -s /tmp/stackkit-coolify-health.err ]; then
+            sed 's/^/curl stderr: /' /tmp/stackkit-coolify-health.err | stackkit_redact >&2 || true
+          fi
+        done
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          ssh "$STACKKIT_REMOTE_SSH" "ss -ltnp 2>/dev/null | grep -E '(:8000|:8080)\\b' || true" | stackkit_redact >&2 || true
+        elif command -v ss >/dev/null 2>&1; then
+          ss -ltnp 2>&1 | grep -E '(:8000|:8080)\b' | stackkit_redact >&2 || true
+        fi
+      }
+      if ! stackkit_docker ps -a --filter "name=^/coolify$" --format '{{"{{"}}.Names{{"}}"}}' | grep -qx coolify; then
+        echo "ERROR: Coolify runtime container is missing after installer phase"
+        stackkit_coolify_diagnostics
+        exit 1
+      fi
+      for i in $(seq 1 60); do
+        if stackkit_coolify_http_ready && stackkit_docker exec coolify sh -lc 'cd /var/www/html && php artisan --version >/dev/null 2>&1'; then
+          break
+        fi
+        if [ "$i" -eq 60 ]; then
+          echo "ERROR: Coolify API did not become ready at ${local.coolify_bootstrap_api_endpoint} after 5 minutes"
+          stackkit_coolify_diagnostics
+          exit 1
+        fi
+        sleep 5
+      done
+      stackkit_docker cp "${local_file.coolify_platform_bootstrap_php[0].filename}" coolify:/tmp/stackkit-coolify-platform-bootstrap.php >/dev/null
+      stackkit_docker exec -u 0 coolify chmod 0644 /tmp/stackkit-coolify-platform-bootstrap.php
+      STACKKIT_COOLIFY_SERVER_IP="host.docker.internal"
+      if ! stackkit_docker exec coolify getent hosts "$STACKKIT_COOLIFY_SERVER_IP" >/dev/null 2>&1; then
+        STACKKIT_COOLIFY_SERVER_IP="$(stackkit_docker network inspect coolify --format '{{"{{"}}(index .IPAM.Config 0).Gateway{{"}}"}}' 2>/dev/null || true)"
+      fi
+      if [ -z "$STACKKIT_COOLIFY_SERVER_IP" ]; then
+        STACKKIT_COOLIFY_SERVER_IP="172.17.0.1"
+      fi
+      echo "Using Coolify server SSH target $STACKKIT_COOLIFY_SERVER_IP"
+      BOOTSTRAP_OUTPUT="$(stackkit_docker exec \
+        -e STACKKIT_COOLIFY_ROOT_EMAIL="${local.coolify_root_email}" \
+        -e STACKKIT_COOLIFY_API_ENDPOINT="${local.coolify_api_endpoint}" \
+        -e STACKKIT_BOOTSTRAP_MODE="${var.bootstrap_mode}" \
+        -e STACKKIT_COOLIFY_ALLOW_PROXY_FALLBACK="true" \
+        -e STACKKIT_COOLIFY_SERVER_IP="$STACKKIT_COOLIFY_SERVER_IP" \
+        -e STACKKIT_COOLIFY_SERVER_USER="root" \
+        -e STACKKIT_COOLIFY_SERVER_PORT="22" \
+        -e STACKKIT_COOLIFY_TOKEN_NAME="stackkit-platform-bootstrap" \
+        coolify sh -lc 'cd /var/www/html && php artisan tinker --execute="require \"/tmp/stackkit-coolify-platform-bootstrap.php\";"')"
+      SERVER_PUBLIC_KEY="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^STACKKIT_COOLIFY_SERVER_PUBLIC_KEY=//p' | tail -n 1)"
+      if [ -n "$SERVER_PUBLIC_KEY" ] && [ "$SERVER_PUBLIC_KEY" != "Error loading private key" ]; then
+        if [ -n "$STACKKIT_REMOTE_SSH" ]; then
+          printf '%s\n' "$SERVER_PUBLIC_KEY" | ssh "$STACKKIT_REMOTE_SSH" 'read -r key; mkdir -p /root/.ssh; touch /root/.ssh/authorized_keys; grep -qxF "$key" /root/.ssh/authorized_keys || printf "%s\n" "$key" >> /root/.ssh/authorized_keys; chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys'
+        elif [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+          printf '%s\n' "$SERVER_PUBLIC_KEY" | stackkit_docker run --rm -i \
+            -v /root/.ssh:/target-ssh \
+            public.ecr.aws/docker/library/busybox:latest \
+            sh -c 'read -r key; mkdir -p /target-ssh; touch /target-ssh/authorized_keys; grep -qxF "$key" /target-ssh/authorized_keys || printf "%s\n" "$key" >> /target-ssh/authorized_keys; chmod 700 /target-ssh; chmod 600 /target-ssh/authorized_keys'
+        else
+          mkdir -p /root/.ssh
+          touch /root/.ssh/authorized_keys
+          if ! grep -qxF "$SERVER_PUBLIC_KEY" /root/.ssh/authorized_keys; then
+            printf '%s\n' "$SERVER_PUBLIC_KEY" >> /root/.ssh/authorized_keys
+          fi
+          chmod 700 /root/.ssh
+          chmod 600 /root/.ssh/authorized_keys
+        fi
+      fi
+      stackkit_sync_coolify_dynamic_config
+      PROXY_COMPOSE="/data/coolify/proxy/docker-compose.yml"
+      stackkit_coolify_proxy_docker_endpoint() {
+        if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+          gateway="$(stackkit_docker network inspect coolify --format '{{"{{"}}(index .IPAM.Config 0).Gateway{{"}}"}}' 2>/dev/null || true)"
+          if [ -n "$gateway" ]; then
+            printf 'tcp://%s:2375\n' "$gateway"
+            return 0
+          fi
+        fi
+        printf 'unix:///var/run/docker.sock\n'
+      }
+      stackkit_write_coolify_proxy_fallback() {
+        mkdir -p "$(dirname "$PROXY_COMPOSE")" /data/coolify/proxy/dynamic /data/coolify/proxy/acme
+        touch /data/coolify/proxy/acme/acme.json
+        chmod 600 /data/coolify/proxy/acme/acme.json || true
+        cat > "$PROXY_COMPOSE" <<'EOS'
+services:
+  coolify-proxy:
+    image: ghcr.io/traefik/traefik:v3
+    container_name: coolify-proxy
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.endpoint=$${STACKKIT_PROXY_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=coolify
+      - --providers.file.directory=/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.http.address=:80
+      - --entrypoints.https.address=:443
+      - --log.level=INFO
+      - --accesslog=true
+%{if var.enable_https~}
+      - --entrypoints.http.http.redirections.entrypoint.to=https
+      - --entrypoints.http.http.redirections.entrypoint.scheme=https
+%{endif~}
+%{if var.enable_https && !local.use_step_ca~}
+      - --entrypoints.https.http.tls=true
+      - --entrypoints.https.http.tls.certresolver=letsencrypt
+      - --certificatesresolvers.letsencrypt.acme.email=${var.acme_email}
+      - --certificatesresolvers.letsencrypt.acme.storage=/traefik/acme/acme.json
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "http"~}
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "tls"~}
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+      - --entrypoints.https.http.tls.domains[0].main=${var.domain}
+      - --entrypoints.https.http.tls.domains[0].sans=*.${var.domain}
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${var.dns_provider}
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+%{endif~}
+    environment:
+      - DOCKER_API_VERSION=1.44
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "cloudflare" && var.dns_api_email != ""~}
+      - CF_API_EMAIL=${var.dns_api_email}
+      - CF_API_KEY=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "cloudflare" && var.dns_api_email == ""~}
+      - CF_DNS_API_TOKEN=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "hetzner"~}
+      - HETZNER_API_KEY=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "digitalocean"~}
+      - DO_AUTH_TOKEN=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "duckdns"~}
+      - DUCKDNS_TOKEN=${var.dns_api_token}
+%{endif~}
+%{if var.enable_https && var.acme_challenge == "dns" && var.dns_provider == "namecheap"~}
+      - NAMECHEAP_API_KEY=${var.dns_api_token}
+      - NAMECHEAP_API_USER=${var.acme_email}
+%{endif~}
+    labels:
+      - "traefik.enable=true"
+      - "coolify.managed=true"
+      - "coolify.proxy=true"
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+      - "traefik.http.routers.stackkit-wildcard-cert.rule=Host(`${var.domain}`)"
+      - "traefik.http.routers.stackkit-wildcard-cert.entrypoints=https"
+      - "traefik.http.routers.stackkit-wildcard-cert.service=api@internal"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls=true"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].main=${var.domain}"
+      - "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].sans=*.${var.domain}"
+%{endif~}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /data/coolify/proxy/dynamic:/traefik/dynamic:ro
+      - /data/coolify/proxy/acme:/traefik/acme
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
+EOS
+      }
+      stackkit_start_coolify_proxy_compose() {
+        STACKKIT_PROXY_DOCKER_ENDPOINT="$(stackkit_coolify_proxy_docker_endpoint)"
+        export STACKKIT_PROXY_DOCKER_ENDPOINT
+        echo "Using Coolify proxy Docker provider endpoint $STACKKIT_PROXY_DOCKER_ENDPOINT"
+        STACKKIT_PROXY_COMPOSE_LOG="$(mktemp)"
+        if stackkit_docker compose -f "$PROXY_COMPOSE" up -d >"$STACKKIT_PROXY_COMPOSE_LOG" 2>&1; then
+          tail -n 40 "$STACKKIT_PROXY_COMPOSE_LOG" | stackkit_redact || true
+          rm -f "$STACKKIT_PROXY_COMPOSE_LOG"
+          return 0
+        fi
+        echo "WARN: Coolify proxy compose up failed" >&2
+        tail -n 200 "$STACKKIT_PROXY_COMPOSE_LOG" | stackkit_redact >&2 || true
+        stackkit_docker ps -a --filter "name=^/coolify-proxy$" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+        stackkit_docker logs --tail 120 coolify-proxy 2>&1 | stackkit_redact | sed 's/^/coolify-proxy logs: /' >&2 || true
+        rm -f "$STACKKIT_PROXY_COMPOSE_LOG"
+        return 1
+      }
+      stackkit_coolify_proxy_needs_reconcile() {
+        [ -f "$PROXY_COMPOSE" ] || return 0
+        grep -q -- '--providers.docker.endpoint=$${STACKKIT_PROXY_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}' "$PROXY_COMPOSE" || return 0
+        grep -q -- "--providers.file.directory=/traefik/dynamic" "$PROXY_COMPOSE" || return 0
+        grep -q -- "/data/coolify/proxy/dynamic:/traefik/dynamic:ro" "$PROXY_COMPOSE" || return 0
+        if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
+          expected_endpoint="$(stackkit_coolify_proxy_docker_endpoint)"
+          current_endpoint="$(stackkit_docker inspect coolify-proxy --format '{{"{{"}}range .Config.Cmd{{"}}"}}{{"{{"}}println .{{"}}"}}{{"{{"}}end{{"}}"}}' 2>/dev/null | sed -n 's/^--providers\.docker\.endpoint=//p' | tail -n 1 || true)"
+          if [ "$current_endpoint" != "$expected_endpoint" ]; then
+            echo "Coolify proxy Docker provider endpoint is $current_endpoint, want $expected_endpoint; reconciling proxy endpoint"
+            return 0
+          fi
+        fi
+%{if var.enable_https && !local.use_step_ca~}
+        grep -q -- "--entrypoints.https.http.tls=true" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--entrypoints.https.http.tls.certresolver=letsencrypt" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.storage=/traefik/acme/acme.json" "$PROXY_COMPOSE" || return 0
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "http"~}
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.httpchallenge=true" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http" "$PROXY_COMPOSE" || return 0
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "tls"~}
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.tlschallenge=true" "$PROXY_COMPOSE" || return 0
+%{endif~}
+%{if var.enable_https && !local.use_step_ca && var.acme_challenge == "dns"~}
+        grep -q -- "--entrypoints.https.http.tls.domains[0].main=${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--entrypoints.https.http.tls.domains[0].sans=*.${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].main=${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "traefik.http.routers.stackkit-wildcard-cert.tls.domains[0].sans=*.${var.domain}" "$PROXY_COMPOSE" || return 0
+        grep -q -- "traefik.http.routers.stackkit-wildcard-cert.tls.certresolver=letsencrypt" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.dnschallenge=true" "$PROXY_COMPOSE" || return 0
+        grep -q -- "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${var.dns_provider}" "$PROXY_COMPOSE" || return 0
+%{endif~}
+        return 1
+      }
+      if stackkit_coolify_proxy_needs_reconcile; then
+        if [ -f "$PROXY_COMPOSE" ]; then
+          echo "Coolify proxy compose is missing StackKit routing/TLS settings; replacing it with StackKit-managed proxy fallback"
+          cp "$PROXY_COMPOSE" "$PROXY_COMPOSE.stackkit.bak.$(date +%s)" || true
+        else
+          echo "Coolify proxy compose file missing at $PROXY_COMPOSE; creating StackKit-managed proxy fallback"
+        fi
+        stackkit_write_coolify_proxy_fallback
+        stackkit_docker rm -f coolify-proxy >/dev/null 2>&1 || true
+        if ! stackkit_start_coolify_proxy_compose; then
+          echo "ERROR: StackKit-managed Coolify proxy fallback failed" >&2
+          stackkit_docker ps -a --filter "name=^/coolify-proxy$" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+          stackkit_docker logs --tail 120 coolify-proxy 2>&1 | stackkit_redact | sed 's/^/coolify-proxy logs: /' >&2 || true
+          exit 1
+        fi
+      elif stackkit_docker ps --filter "name=^/coolify-proxy$" --filter "status=running" -q | grep -q .; then
+        echo "Coolify proxy is running with StackKit routing/TLS settings"
+      else
+        echo "Coolify proxy is not running; starting reconciled StackKit-managed proxy"
+        if ! stackkit_start_coolify_proxy_compose; then
+          echo "Coolify proxy compose failed; replacing with StackKit-managed proxy fallback" >&2
+          if [ -f "$PROXY_COMPOSE" ]; then
+            cp "$PROXY_COMPOSE" "$PROXY_COMPOSE.stackkit.bak.$(date +%s)" || true
+          fi
+          stackkit_docker rm -f coolify-proxy >/dev/null 2>&1 || true
+          stackkit_write_coolify_proxy_fallback
+          if ! stackkit_start_coolify_proxy_compose; then
+            echo "ERROR: StackKit-managed Coolify proxy fallback failed" >&2
+            stackkit_docker ps -a --filter "name=^/coolify-proxy$" --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}' 2>&1 | stackkit_redact >&2 || true
+            stackkit_docker logs --tail 120 coolify-proxy 2>&1 | stackkit_redact | sed 's/^/coolify-proxy logs: /' >&2 || true
+            exit 1
+          fi
+        fi
+      fi
+      stackkit_docker exec coolify-db psql -U coolify -d coolify -c "update server_settings set is_reachable = true, is_usable = true, force_disabled = false, is_build_server = false where server_id = 0" >/dev/null
+      BOOTSTRAP_JSON="$(printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed -n 's/^STACKKIT_COOLIFY_PLATFORM_JSON=//p' | tail -n 1)"
+      if [ -z "$BOOTSTRAP_JSON" ]; then
+        echo "ERROR: Coolify API token bootstrap did not return platform config JSON"
+        printf '%s\n' "$BOOTSTRAP_OUTPUT" | sed 's/"token":"[^"]*"/"token":"[redacted]"/g' >&2
+        exit 1
+      fi
+      PLATFORM_CONFIG_PATH="${path.module}/.stackkit/platform.json"
+      umask 077
+      printf '%s\n' "$BOOTSTRAP_JSON" > "$PLATFORM_CONFIG_PATH"
+      chmod 600 "$PLATFORM_CONFIG_PATH"
+      echo "Coolify platform API config written to $PLATFORM_CONFIG_PATH"
+    EOT
+  }
+
+  depends_on = [
+    null_resource.coolify_install,
+    local_file.coolify_dynamic_stackkit,
+    local_file.coolify_platform_bootstrap_php,
+  ]
+}
+
+# =============================================================================
+# LAYER 2: LINKS DASHBOARD FALLBACK
+# =============================================================================
+
+resource "docker_image" "nginx" {
+  count = local.platform_hub_fallback ? 1 : 0
+  name  = "public.ecr.aws/docker/library/nginx:alpine"
+}
+
+resource "docker_image" "stackkit_server" {
+  count = var.enable_dashboard && local.platform_hub_fallback ? 1 : 0
+  name  = var.stackkit_server_image
+}
+
+resource "docker_container" "dashboard" {
+  count = var.enable_dashboard && local.platform_hub_fallback ? 1 : 0
+  name  = "dashboard"
+  image = docker_image.nginx[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
+  dynamic "networks_advanced" {
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
+    content {
+      name = local.routing_network
+    }
+  }
+
+  command = [
+    "sh", "-c",
+    local.is_host ? "printf '%s' '${base64encode(local.dashboard_html)}' | base64 -d > /usr/share/nginx/html/index.html && sed -i 's/listen.*80/listen       ${local.host_ports.dashboard}/' /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'" : "printf '%s' '${base64encode(local.dashboard_html)}' | base64 -d > /usr/share/nginx/html/index.html && exec nginx -g 'daemon off;'"
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "dashboard"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.dashboard.rule"
+    value = "Host(`${local.domains.base}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.dashboard.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.dashboard.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.services.dashboard.loadbalancer.server.port"
+    value = local.is_host ? tostring(local.host_ports.dashboard) : "80"
+  }
+
+  labels {
+    label = "traefik.http.routers.dashboard.middlewares"
+    value = local.base_hub_auth_middleware
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "wget -q --spider http://127.0.0.1:${local.is_host ? local.host_ports.dashboard : 80}/ || exit 1"]
+    interval     = "30s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "10s"
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_container.tinyauth,
+  ]
+}
+
+resource "docker_container" "stackkit_server" {
+  count = var.enable_dashboard && local.platform_hub_fallback ? 1 : 0
+  name  = "stackkit-server"
+  image = docker_image.stackkit_server[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  dynamic "networks_advanced" {
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
+    content {
+      name = local.routing_network
+    }
+  }
+
+  entrypoint = ["stackkit-server"]
+
+  command = [
+    "--port",
+    "8082",
+    "--base-dir",
+    "/workspace",
+    "--allow-unauthenticated",
+  ]
+
+  env = [
+    "STACKKITS_ALLOW_UNAUTHENTICATED=true",
+    "STACKKITS_CORS_ORIGINS=${local.proto}://${local.domains.base}",
+    "STACKKITS_LOG_DIR=/workspace/.stackkit/logs",
+    "STACKKITS_SETUP_ACTION_MODE=apply",
+    "STACKKIT_ADMIN_EMAIL=${var.admin_email}",
+    "STACKKIT_ADMIN_PASSWORD=${var.admin_password_plaintext}",
+    "STACKKIT_SETUP_IMMICH_URL=${local.setup_immich_url}",
+    "STACKKIT_SETUP_POCKETID_URL=${local.setup_pocketid_url}",
+    "STACKKIT_SETUP_VAULTWARDEN_URL=${local.setup_vaultwarden_url}",
+    "STACKKIT_SETUP_CLOUDREVE_URL=${local.setup_cloudreve_url}",
+    "STACKKIT_FILES_SESSION_BRIDGE_TOKEN=${local.files_session_bridge_token}",
+  ]
+
+  mounts {
+    type   = "bind"
+    source = local.workspace_root
+    target = "/workspace"
+  }
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "stackkit-server"
+  }
+
+  labels {
+    label = "stackkit.placement.mode"
+    value = var.placement_mode
+  }
+
+  labels {
+    label = "stackkit.placement.relational"
+    value = try(var.placement_capabilities["relational"]["provider"], "")
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-server.rule"
+    value = "Host(`${local.domains.base}`) && (PathPrefix(`/api`) || Path(`/health`))"
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-files-session.rule"
+    value = "Host(`${local.domains.files}`) && Path(`/stackkit/files/session`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-server.entrypoints"
+    value = local.entrypoint
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-files-session.entrypoints"
+    value = local.entrypoint
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-server.priority"
+    value = "100"
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-files-session.priority"
+    value = "250"
+  }
+
+  labels {
+    label = "traefik.http.middlewares.stackkit-files-session-bridge.headers.customrequestheaders.X-StackKit-Files-Bridge"
+    value = local.files_session_bridge_token
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.stackkit-server.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.stackkit-files-session.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-server.middlewares"
+    value = local.base_hub_auth_middleware
+  }
+
+  labels {
+    label = "traefik.http.routers.stackkit-files-session.middlewares"
+    value = local.files_session_bridge_middleware
+  }
+
+  labels {
+    label = "traefik.http.services.stackkit-server.loadbalancer.server.port"
+    value = "8082"
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "curl -fsS http://127.0.0.1:8082/health || exit 1"]
+    interval     = "30s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "10s"
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_container.tinyauth,
+    local_file.platform_l3_manifest,
+  ]
+}
+
+# =============================================================================
+# LAYER 2: HOMELAB START DASHBOARD - HOMEPAGE/GETHOMEPAGE
+# =============================================================================
+
+resource "local_file" "homepage_settings" {
+  count = var.enable_homepage ? 1 : 0
+
+  filename = "${path.module}/.homepage-settings.yaml"
+  content  = local.homepage_settings_yaml
+}
+
+resource "local_file" "homepage_services" {
+  count = var.enable_homepage ? 1 : 0
+
+  filename = "${path.module}/.homepage-services.yaml"
+  content  = local.homepage_services_yaml
+}
+
+resource "local_file" "homepage_widgets" {
+  count = var.enable_homepage ? 1 : 0
+
+  filename = "${path.module}/.homepage-widgets.yaml"
+  content  = local.homepage_widgets_yaml
+}
+
+resource "local_file" "homepage_docker" {
+  count = var.enable_homepage ? 1 : 0
+
+  filename = "${path.module}/.homepage-docker.yaml"
+  content  = local.homepage_docker_yaml
+}
+
+resource "docker_image" "homepage_socket_proxy" {
+  count = var.enable_homepage ? 1 : 0
+  name  = "ghcr.io/tecnativa/docker-socket-proxy:latest"
+}
+
+resource "docker_container" "homepage_socket_proxy" {
+  count = var.enable_homepage ? 1 : 0
+  name  = "homepage-socket-proxy"
+  image = docker_image.homepage_socket_proxy[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  mounts {
+    type      = "bind"
+    target    = "/var/run/docker.sock"
+    source    = "/var/run/docker.sock"
+    read_only = true
+  }
+
+  env = [
+    "LOG_LEVEL=warning",
+    "CONTAINERS=1",
+    "INFO=1",
+    "NETWORKS=1",
+    "SERVICES=1",
+    "TASKS=1",
+    "VERSION=1",
+    "AUTH=0",
+    "BUILD=0",
+    "COMMIT=0",
+    "CONFIGS=0",
+    "DISTRIBUTION=0",
+    "EXEC=0",
+    "IMAGES=0",
+    "NODES=0",
+    "PLUGINS=0",
+    "POST=0",
+    "SECRETS=0",
+    "SESSION=0",
+    "SWARM=0",
+    "SYSTEM=0",
+    "VOLUMES=0",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "homepage-socket-proxy"
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "wget -q --spider http://127.0.0.1:${local.host_ports.socket_proxy}/_ping || exit 1"]
+    interval     = "30s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "10s"
+  }
+
+  depends_on = [
+    docker_network.base_net,
+  ]
+}
+
+resource "docker_image" "homepage" {
+  count = var.enable_homepage ? 1 : 0
+  name  = var.homepage_image
+}
+
+resource "docker_container" "homepage" {
+  count = var.enable_homepage ? 1 : 0
+  name  = "homepage"
+  image = docker_image.homepage[0].image_id
+
+  restart = "unless-stopped"
+
+  security_opts = ["no-new-privileges:true"]
+
+  network_mode = local.is_host ? "host" : null
+
+  dynamic "networks_advanced" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      name = docker_network.base_net[0].name
+    }
+  }
+
+  # Connect to PAAS Traefik network for label discovery when the selected backend owns routing
+  dynamic "networks_advanced" {
+    for_each = (!local.is_host && !local.rp_standalone && !local.rp_stackkit) ? [1] : []
+    content {
+      name = local.routing_network
+    }
+  }
+
+  mounts {
+    type      = "bind"
+    source    = abspath(local_file.homepage_settings[0].filename)
+    target    = "/app/config/settings.yaml"
+    read_only = true
+  }
+
+  mounts {
+    type      = "bind"
+    source    = abspath(local_file.homepage_services[0].filename)
+    target    = "/app/config/services.yaml"
+    read_only = true
+  }
+
+  mounts {
+    type      = "bind"
+    source    = abspath(local_file.homepage_widgets[0].filename)
+    target    = "/app/config/widgets.yaml"
+    read_only = true
+  }
+
+  mounts {
+    type      = "bind"
+    source    = abspath(local_file.homepage_docker[0].filename)
+    target    = "/app/config/docker.yaml"
+    read_only = true
+  }
+
+  env = [
+    "HOMEPAGE_ALLOWED_HOSTS=${local.domains.home},localhost,127.0.0.1",
+    "PORT=${local.is_host ? local.host_ports.homepage : 3000}",
+  ]
+
+  labels {
+    label = "stackkit.layer"
+    value = "2-platform"
+  }
+
+  labels {
+    label = "stackkit.service"
+    value = "homepage"
+  }
+
+  labels {
+    label = "traefik.enable"
+    value = "true"
+  }
+
+  dynamic "labels" {
+    for_each = local.is_host ? [] : [1]
+    content {
+      label = "traefik.docker.network"
+      value = local.traefik_network_name
+    }
+  }
+
+  labels {
+    label = "traefik.http.routers.homepage.rule"
+    value = "Host(`${local.domains.home}`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.homepage.entrypoints"
+    value = local.entrypoint
+  }
+
+  dynamic "labels" {
+    for_each = var.enable_https ? [1] : []
+    content {
+      label = "traefik.http.routers.homepage.${local.tls_label_name}"
+      value = local.tls_label_value
+    }
+  }
+
+  labels {
+    label = "traefik.http.services.homepage.loadbalancer.server.port"
+    value = local.is_host ? tostring(local.host_ports.homepage) : "3000"
+  }
+
+  labels {
+    label = "traefik.http.routers.homepage.middlewares"
+    value = var.enable_tinyauth ? "tinyauth@docker" : ""
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "wget -q --spider http://127.0.0.1:${local.is_host ? local.host_ports.homepage : 3000}/ || exit 1"]
+    interval     = "30s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "20s"
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_container.tinyauth,
+    docker_container.homepage_socket_proxy,
+    local_file.homepage_settings,
+    local_file.homepage_services,
+    local_file.homepage_widgets,
+    local_file.homepage_docker,
+  ]
+}
+
+# =============================================================================
+# LAYER 3: APPLICATIONS - COMPOSE CONFIGS
+# =============================================================================
+# Docker Compose templates for L3 applications. StackKit deploys them through
+# the selected PaaS adapter after OpenTofu finishes; OpenTofu must not run
+# docker compose directly for normal StackKit rollouts.
+
+resource "local_file" "kuma_compose" {
+  count = var.enable_uptime_kuma ? 1 : 0
+
+  filename = "${path.module}/.kuma-compose.yaml"
+  content  = local.kuma_compose_content
+}
+
+resource "local_file" "whoami_compose" {
+  count = var.enable_whoami ? 1 : 0
+
+  filename = "${path.module}/.whoami-compose.yaml"
+  content  = local.whoami_compose_content
+}
+
+resource "local_file" "vaultwarden_compose" {
+  count = var.enable_vaultwarden ? 1 : 0
+
+  filename = "${path.module}/.vaultwarden-compose.yaml"
+  content  = local.vaultwarden_compose_content
+}
+
+resource "local_file" "jellyfin_compose" {
+  count = var.enable_jellyfin ? 1 : 0
+
+  filename = "${path.module}/.jellyfin-compose.yaml"
+  content  = local.jellyfin_compose_content
+}
+
+resource "local_file" "immich_compose" {
+  count = var.enable_immich ? 1 : 0
+
+  filename = "${path.module}/.immich-compose.yaml"
+  content  = local.immich_compose_content
+}
+
+resource "local_file" "files_compose" {
+  count = var.enable_files ? 1 : 0
+
+  filename = "${path.module}/.files-compose.yaml"
+  content  = local.files_compose_content
+}
+
+resource "local_file" "stackkit_hub_compose" {
+  count = local.platform_hub_managed ? 1 : 0
+
+  filename = "${path.module}/.stackkit-hub-compose.yaml"
+  content  = local.stackkit_hub_compose_content
+}
+
+resource "local_file" "stackkit_server_compose" {
+  count = local.platform_hub_managed ? 1 : 0
+
+  filename = "${path.module}/.stackkit-server-compose.yaml"
+  content  = local.stackkit_server_compose_content
+}
+
+resource "local_file" "platform_l3_manifest" {
+  filename = "${path.module}/.platform-apps-manifest.json"
+  content = jsonencode({
+    version    = "stackkit.platform-apps/v2"
+    platform   = local.l3_platform_adapter
+    bootstrap  = {
+      mode = var.installation_mode
+      legacyMode = var.bootstrap_mode
+      demoData = {
+        enabled = var.demo_data_enabled
+      }
+      setupPolicies = {
+        platform           = var.setup_policy_platform
+        applicationDefault = var.setup_policy_application_default
+      }
+    }
+    fallback   = {
+      enabled = local.platform_fallback_standalone
+      mode    = var.platform_fallback_mode
+    }
+    systemApps = concat(
+      local.platform_hub_managed ? [{
+        name        = "stackkit-hub"
+        role        = "node-hub"
+        kind        = "compose"
+        platform    = local.platform_adapter
+        managedBy   = local.platform_adapter
+        host        = local.domains.base
+        url         = "${local.proto}://${local.domains.base}"
+        port        = local.coolify_route_ports.stackkit_hub
+        composePath = local_file.stackkit_hub_compose[0].filename
+        composeYAML = local.stackkit_hub_compose_content
+      }] : [],
+      local.platform_hub_managed ? [{
+        name        = "stackkit-server"
+        role        = "node-api"
+        kind        = "compose"
+        platform    = local.platform_adapter
+        managedBy   = local.platform_adapter
+        host        = local.domains.base
+        url         = "${local.proto}://${local.domains.base}/api"
+        port        = local.coolify_route_ports.stackkit_server
+        composePath = local_file.stackkit_server_compose[0].filename
+        composeYAML = local.stackkit_server_compose_content
+      }] : [],
+      var.enable_uptime_kuma ? [{
+        name        = "uptime-kuma"
+        serviceKey  = "kuma"
+        role        = "observability"
+        kind        = "compose"
+        platform    = local.platform_adapter
+        managedBy   = local.platform_adapter
+        host        = local.domains.kuma
+        url         = "${local.proto}://${local.domains.kuma}"
+        port        = local.coolify_route_ports.kuma
+        composePath = local_file.kuma_compose[0].filename
+        composeYAML = local.kuma_compose_content
+        setupPolicy = var.setup_policy_kuma
+        setupDrops = var.setup_policy_kuma == "manual" ? [] : [{
+          name        = "kuma-platform-bootstrap"
+          version     = "0.1.0"
+          runner      = "compose-provisioner"
+          description = "Create the Uptime Kuma owner, disable app-local auth behind TinyAuth/PocketID, and register monitors for enabled L1/L2/L3 services."
+          rollbackNotes = [
+            "Remove generated Kuma monitors before retrying if route names or domains changed.",
+            "Keep PocketID/TinyAuth protection enabled before exposing Kuma beyond the local node."
+          ]
+        }]
+      }] : [],
+      var.enable_whoami ? [{
+        name        = "whoami"
+        role        = "routing-diagnostic"
+        kind        = "compose"
+        platform    = local.platform_adapter
+        managedBy   = local.platform_adapter
+        host        = local.domains.whoami
+        url         = "${local.proto}://${local.domains.whoami}"
+        port        = local.coolify_route_ports.whoami
+        composePath = local_file.whoami_compose[0].filename
+        composeYAML = local.whoami_compose_content
+        setupPolicy = var.setup_policy_whoami
+      }] : []
+    )
+    apps = concat(
+      var.enable_vaultwarden ? [{
+        name        = "vaultwarden"
+        serviceKey  = "vault"
+        kind        = "compose"
+        ownership   = "stackkit"
+        platform    = local.l3_platform_adapter
+        managedBy   = local.l3_platform_adapter
+        host        = local.domains.vault
+        url         = "${local.proto}://${local.domains.vault}"
+        port        = local.coolify_route_ports.vaultwarden
+        composePath = local_file.vaultwarden_compose[0].filename
+        composeYAML = local.vaultwarden_compose_content
+        setupPolicy = var.setup_policy_vaultwarden
+        setupDrops = var.setup_policy_vaultwarden == "manual" ? [] : [{
+          name        = "vaultwarden-admin-handoff"
+          version     = "0.1.0"
+          runner      = "stackkit-script"
+          description = "Verify the generated Vaultwarden admin token, PHC runtime transport, disabled app-local signups, and controlled break-glass posture."
+          rollbackNotes = [
+            "Rotate the generated Vaultwarden admin token before retrying after a failed handoff.",
+            "Keep break-glass material separate from the Owner passkey account.",
+            "Create app-local Vaultwarden users only behind TinyAuth/PocketID until native Owner provisioning is implemented."
+          ]
+        }]
+      }] : [],
+      var.enable_jellyfin ? [{
+        name        = "jellyfin"
+        kind        = "compose"
+        ownership   = "stackkit"
+        platform    = local.l3_platform_adapter
+        managedBy   = local.l3_platform_adapter
+        host        = local.domains.media
+        url         = "${local.proto}://${local.domains.media}"
+        port        = local.coolify_route_ports.jellyfin
+        composePath = local_file.jellyfin_compose[0].filename
+        composeYAML = local.jellyfin_compose_content
+      }] : [],
+      var.enable_immich ? [{
+        name        = "immich"
+        serviceKey  = "photos"
+        kind        = "compose"
+        ownership   = "stackkit"
+        platform    = local.l3_platform_adapter
+        managedBy   = local.l3_platform_adapter
+        host        = local.domains.photos
+        url         = "${local.proto}://${local.domains.photos}"
+        port        = local.coolify_route_ports.immich
+        composePath = local_file.immich_compose[0].filename
+        composeYAML = local.immich_compose_content
+        setupPolicy = var.setup_policy_immich
+        setupDrops = var.setup_policy_immich == "manual" ? [] : [{
+          name        = "immich-owner-bootstrap"
+          version     = "0.1.0"
+          runner      = "stackkit-script"
+          description = "Create the first Immich owner, apply supported beta demo seeding when enabled, and mark onboarding complete."
+          rollbackNotes = [
+            "Remove beta demo assets before retrying if the Owner changes.",
+            "Reset Immich onboarding only when the instance has no real user library yet."
+          ]
+        }]
+      }] : [],
+      var.enable_files ? [{
+        name        = local.files_provider_effective
+        serviceKey  = "files"
+        kind        = "compose"
+        ownership   = "stackkit"
+        platform    = local.l3_platform_adapter
+        managedBy   = local.l3_platform_adapter
+        host        = local.domains.files
+        url         = local.files_entry_url
+        routeUrl    = "${local.proto}://${local.domains.files}"
+        port        = local.coolify_route_ports.files
+        composePath = local_file.files_compose[0].filename
+        composeYAML = local.files_compose_content
+        setupPolicy = var.setup_policy_files
+        setupDrops = var.setup_policy_files == "manual" ? [] : [{
+          name        = "${local.files_provider_effective}-owner-bootstrap"
+          version     = "0.1.0"
+          runner      = "compose-provisioner"
+          description = "Create the first Files admin from StackKit admin credentials and apply provider defaults during rollout."
+          rollbackNotes = [
+            "Remove beta demo files before retrying if the Owner changes.",
+            "Rotate generated Files provider bootstrap credentials after handoff."
+          ]
+        }]
+      }] : []
+    )
+  })
+
+  depends_on = [
+    local_file.kuma_compose,
+    local_file.whoami_compose,
+    local_file.vaultwarden_compose,
+    local_file.jellyfin_compose,
+    local_file.immich_compose,
+    local_file.files_compose,
+    local_file.stackkit_hub_compose,
+    local_file.stackkit_server_compose,
+  ]
+}
+
+# =============================================================================
+# PLATFORM APP HANDOFF
+# =============================================================================
+# Track system and L3 compose changes without bypassing Dokploy/Komodo/Coolify. The
+# StackKit CLI consumes .platform-apps-manifest.json after apply and calls the
+# selected platform adapter.
+
+resource "null_resource" "deploy_stackkit_hub" {
+  count = local.platform_hub_managed ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.stackkit_hub_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.stackkit_hub_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    local_file.stackkit_hub_compose,
+  ]
+}
+
+resource "null_resource" "deploy_stackkit_server" {
+  count = local.platform_hub_managed ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.stackkit_server_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.stackkit_server_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    local_file.stackkit_server_compose,
+  ]
+}
+
+resource "null_resource" "deploy_kuma" {
+  count = var.enable_uptime_kuma ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.kuma_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.kuma_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_network.base_net,
+    docker_container.tinyauth,
+    local_file.kuma_compose,
+  ]
+}
+
+resource "null_resource" "deploy_whoami" {
+  count = var.enable_whoami ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.whoami_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.whoami_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_network.base_net,
+    docker_container.tinyauth,
+    local_file.whoami_compose,
+  ]
+}
+
+resource "null_resource" "deploy_vaultwarden" {
+  count = var.enable_vaultwarden ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.vaultwarden_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.vaultwarden_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_network.base_net,
+    local_file.vaultwarden_compose,
+  ]
+}
+
+# Jellyfin needs the media directory to exist before platform deployment
+resource "null_resource" "jellyfin_media_dir" {
+  count = var.enable_jellyfin ? 1 : 0
+
+  provisioner "local-exec" {
+    command     = "mkdir -p ${var.media_path}"
+    on_failure  = continue
+  }
+}
+
+resource "null_resource" "deploy_jellyfin" {
+  count = var.enable_jellyfin ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.jellyfin_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.jellyfin_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_network.base_net,
+    null_resource.jellyfin_media_dir,
+    local_file.jellyfin_compose,
+  ]
+}
+
+resource "null_resource" "deploy_immich" {
+  count = var.enable_immich ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.immich_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.immich_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_network.base_net,
+    local_file.immich_compose,
+  ]
+}
+
+resource "null_resource" "deploy_files" {
+  count = var.enable_files ? 1 : 0
+
+  triggers = {
+    compose_hash = sha256(local_file.files_compose[0].content)
+  }
+
+  provisioner "local-exec" {
+    command     = "echo StackKit platform adapter will deploy ${local_file.files_compose[0].filename}"
+    working_dir = path.module
+  }
+
+  depends_on = [
+    null_resource.reverse_proxy_ready,
+    docker_network.base_net,
+    local_file.files_compose,
+  ]
+}
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+output "network_name" {
+  description = "Docker network name (empty in host mode)"
+  value       = local.is_host ? "host" : local.routing_network
+}
+
+output "domains" {
+  description = "Service domain mappings"
+  value = merge(
+    var.enable_tinyauth ? { auth = local.domains.auth } : {},
+    var.enable_pocketid ? { id = local.domains.id } : {},
+    local.stackkit_traefik_enabled ? { traefik = local.domains.traefik } : {},
+    var.enable_dashboard ? { base = local.domains.base } : {},
+    var.enable_homepage ? { home = local.domains.home } : {},
+    local.enable_kombify_point_effective ? { point = local.domains.point } : {},
+    var.enable_dokploy ? { dokploy = local.domains.dokploy } : {},
+    var.enable_komodo ? { komodo = local.domains.komodo } : {},
+    var.enable_coolify ? { coolify = local.domains.coolify } : {},
+    var.enable_dockge ? { dockge = local.domains.dockge } : {},
+    var.enable_uptime_kuma ? { kuma = local.domains.kuma } : {},
+    var.enable_whoami ? { whoami = local.domains.whoami } : {},
+    var.enable_vaultwarden ? { vault = local.domains.vault } : {},
+    var.enable_jellyfin ? { media = local.domains.media } : {},
+    var.enable_immich ? { photos = local.domains.photos } : {},
+    var.enable_files ? { files = local.domains.files } : {},
+  )
+}
+
+output "step_ca_root_certificate_command" {
+  description = "Command to print the Step-CA root certificate for client trust import"
+  value       = local.deploy_step_ca ? "docker exec step-ca cat /home/step/certs/root_ca.crt" : null
+}
+
+output "kombify_point_dns_server" {
+  description = "LAN DNS server IP for router DHCP DNS settings"
+  value       = local.enable_kombify_point_effective ? local.kombify_point_target_ip : null
+}
+
+output "traefik_url" {
+  description = "Traefik dashboard URL (Layer 2 Platform)"
+  value       = local.stackkit_traefik_enabled ? "${local.proto}://${local.domains.traefik}" : null
+}
+
+output "auth_url" {
+  description = "TinyAuth login URL (Layer 1 Foundation)"
+  value       = var.enable_tinyauth ? "${local.proto}://${local.domains.auth}" : null
+}
+
+output "pocketid_url" {
+  description = "Pocket ID OIDC provider URL (Layer 1 Foundation)"
+  value       = var.enable_pocketid ? "${local.proto}://${local.domains.id}" : null
+}
+
+output "dokploy_url" {
+  description = "Dokploy UI URL (Layer 2 Platform)"
+  value       = var.enable_dokploy ? "${local.proto}://${local.domains.dokploy}" : null
+}
+
+output "komodo_url" {
+  description = "Komodo UI URL (Layer 2 Platform)"
+  value       = var.enable_komodo ? "${local.proto}://${local.domains.komodo}" : null
+}
+
+output "dockge_url" {
+  description = "Dockge UI URL (Layer 2 Platform, low compute tier)"
+  value       = var.enable_dockge ? "${local.proto}://${local.domains.dockge}" : null
+}
+
+output "coolify_url" {
+  description = "Coolify UI URL (Layer 2 Platform)"
+  value       = var.enable_coolify ? "${local.proto}://${local.domains.coolify}" : null
+}
+
+output "coolify_admin_email" {
+  description = "Coolify root email used for generated ROOT_USER_EMAIL bootstrap"
+  value       = var.enable_coolify ? local.coolify_root_email : null
+}
+
+output "paas_url" {
+  description = "PaaS manager URL (Dokploy, Komodo, or Coolify)"
+  value       = (
+    var.enable_dokploy ? "${local.proto}://${local.domains.dokploy}" :
+    var.enable_komodo ? "${local.proto}://${local.domains.komodo}" :
+    var.enable_coolify ? "${local.proto}://${local.domains.coolify}" :
+    null
+  )
+}
+
+output "reverse_proxy_backend" {
+  description = "Which Traefik instance routes platform services"
+  value       = var.reverse_proxy_backend
+}
+
+output "kuma_url" {
+  description = "Uptime Kuma URL (Layer 2 Platform observability)"
+  value       = var.enable_uptime_kuma ? "${local.proto}://${local.domains.kuma}" : null
+}
+
+output "dashboard_url" {
+  description = "StackKits Node Hub URL (Layer 2 Platform)"
+  value       = var.enable_dashboard ? "${local.proto}://${local.domains.base}" : null
+}
+
+output "homepage_url" {
+  description = "Homepage/gethomepage homelab start dashboard URL"
+  value       = var.enable_homepage ? "${local.proto}://${local.domains.home}" : null
+}
+
+output "kuma_admin_password" {
+  description = "Uptime Kuma admin password (set by init-kuma on first deploy)"
+  value       = var.enable_uptime_kuma ? try(random_password.kuma_admin[0].result, "") : null
+  sensitive   = true
+}
+
+output "whoami_url" {
+  description = "Whoami test URL (Layer 2 Platform diagnostic)"
+  value       = var.enable_whoami ? "${local.proto}://${local.domains.whoami}" : null
+}
+
+output "vaultwarden_url" {
+  description = "Vaultwarden password vault URL (Layer 3 Application)"
+  value       = var.enable_vaultwarden ? "${local.proto}://${local.domains.vault}" : null
+}
+
+output "vaultwarden_admin_token" {
+  description = "Vaultwarden admin panel token"
+  value       = var.enable_vaultwarden ? local.vaultwarden_admin_token_effective : null
+  sensitive   = true
+}
+
+output "jellyfin_url" {
+  description = "Jellyfin media server URL (Layer 3 Application)"
+  value       = var.enable_jellyfin ? "${local.proto}://${local.domains.media}" : null
+}
+
+output "immich_url" {
+  description = "Immich photo management URL (Layer 3 Application)"
+  value       = var.enable_immich ? "${local.proto}://${local.domains.photos}" : null
+}
+
+output "files_url" {
+  description = "Files document management URL (Layer 3 Application)"
+  value       = var.enable_files ? local.files_entry_url : null
+}
+
+output "files_provider" {
+  description = "Files provider implementation"
+  value       = var.enable_files ? local.files_provider_effective : null
+}
+
+output "credentials" {
+  description = "Admin credentials"
+  value       = var.enable_tinyauth ? "TinyAuth: ${var.admin_email} / <see admin_password output>" : null
+  sensitive   = false
+}
+
+output "admin_password" {
+  description = "Auto-generated admin password"
+  value       = var.admin_password_plaintext
+  sensitive   = true
+}
+
+output "tinyauth_login_url" {
+  description = "TinyAuth login URL"
+  value       = var.enable_tinyauth ? "${local.proto}://${local.domains.auth}" : null
+}
+
+output "dokploy_login_url" {
+  description = "Dokploy login URL"
+  value       = var.enable_dokploy ? "${local.proto}://${local.domains.dokploy}" : null
+}
+
+output "komodo_login_url" {
+  description = "Komodo login URL"
+  value       = var.enable_komodo ? "${local.proto}://${local.domains.komodo}" : null
+}
+
+output "architecture_summary" {
+  description = "Cloud Kit Architecture Summary"
+  value       = <<-EOT
+    ╔═══════════════════════════════════════════════════════════════════╗
+    ║              CLOUD KIT - SINGLE SERVER DEPLOYMENT                 ║
+    ║  Compute: ${var.compute_tier}${substr("                                                   ", 0, 51 - length(var.compute_tier))}║
+    ╠═══════════════════════════════════════════════════════════════════╣
+    ║                                                                   ║
+    ║  Network: ${local.is_host ? "HOST MODE (bridge unavailable)" : "Bridge (isolated Docker networks)"}${local.is_host ? "                       " : "         "}║
+    ║                                                                   ║
+    ║  LAYER 1 (Foundation):                                             ║
+    ║    ${var.enable_pocketid ? "✓" : "✗"} Pocket ID   → ${local.proto}://${local.domains.id}       ║
+    ║    ${var.enable_tinyauth ? "✓" : "✗"} TinyAuth    → ${local.proto}://${local.domains.auth}           ║
+    ║        Credentials: ${var.admin_email} / <auto-generated>        ║
+    ║                                                                   ║
+    ║  LAYER 2 (Platform):                                               ║
+    ║    Reverse Proxy: ${var.reverse_proxy_backend}                      ║
+    ║    ${local.stackkit_traefik_enabled ? "✓" : "✗"} Traefik     → ${local.proto}://${local.domains.traefik}        ║
+    ${var.enable_dokploy ? format("║    ✓ Dokploy     → %s://%s        ║", local.proto, local.domains.dokploy) : ""}
+    ${var.enable_komodo ? format("║    ✓ Komodo      → %s://%s         ║", local.proto, local.domains.komodo) : ""}
+    ${var.enable_coolify ? format("║    ✓ Coolify     → %s://%s        ║", local.proto, local.domains.coolify) : ""}
+    ${var.enable_dockge ? format("║    ✓ Dockge      → %s://%s         ║", local.proto, local.domains.dockge) : ""}
+    ║    ${var.enable_dashboard ? "✓" : "✗"} Node Hub   → ${local.proto}://${local.domains.base}      ║
+    ║    ${var.enable_homepage ? "✓" : "✗"} Homepage   → ${local.proto}://${local.domains.home}      ║
+    ║                                                                   ║
+    ║  LAYER 3 (Applications):                                           ║
+    ${var.enable_uptime_kuma ? format("║    ✓ Kuma     → %s://%s          ║", local.proto, local.domains.kuma) : ""}
+    ${var.enable_whoami ? format("║    ✓ Whoami   → %s://%s        ║", local.proto, local.domains.whoami) : ""}
+    ${var.enable_vaultwarden ? format("║    ✓ Vault    → %s://%s         ║", local.proto, local.domains.vault) : ""}
+    ${var.enable_jellyfin ? format("║    ✓ Jellyfin → %s://%s         ║", local.proto, local.domains.media) : ""}
+    ${var.enable_immich ? format("║    ✓ Immich   → %s://%s        ║", local.proto, local.domains.photos) : ""}
+    ${var.enable_files ? format("║    ✓ Files    → %s        ║", local.files_entry_url) : ""}
+    ║                                                                   ║
+    ╠═══════════════════════════════════════════════════════════════════╣
+    ║  FIRST LOGIN                                                       ║
+    ╠═══════════════════════════════════════════════════════════════════╣
+    ║  1. Login: ${local.proto}://${local.domains.auth}                          ║
+    ║     Email: ${var.admin_email} / Password: <see output>           ║
+    ║  2. Passkey: ${local.proto}://${local.domains.id}/setup               ║
+    ${(var.enable_dokploy || var.enable_komodo || var.enable_coolify) ? format("║  3. PaaS: %s://%s                          ║", local.proto, var.enable_dokploy ? local.domains.dokploy : (var.enable_komodo ? local.domains.komodo : local.domains.coolify)) : ""}
+    ║                                                                   ║
+    ${var.subdomain_prefix != "" ? "║  DNS: Managed by kombify.me (Cloudflare wildcard)                   ║" : (local.enable_kombify_point_effective ? "║  DNS: *.${var.domain} -> ${local.kombify_point_target_ip} via Kombify Point       ║" : "║  DNS: direct host resolution; no LAN resolver started              ║")}
+${local.enable_kombify_point_effective ? "║  Local DNS: Kombify Point running on port 53                       ║" : "║  Local DNS: not enabled                                             ║"}
+    ${local.enable_kombify_point_effective ? "║  Set router DHCP DNS to ${local.kombify_point_target_ip} for auto-resolve       ║" : "║  Localhost legacy mode uses device-local HTTP only                 ║"}
+    ╚═══════════════════════════════════════════════════════════════════╝
+  EOT
+}

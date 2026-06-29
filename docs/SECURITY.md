@@ -13,8 +13,8 @@ StackKits is designed around safe defaults and release evidence:
 ## Supported Security Scope
 
 The public OSS scope is BaseKit only. Unreleased kit definitions, optional
-extension catalogs, public release workflows, and operator-only controller paths
-are intentionally excluded from the public repository and release archives.
+extension catalogs, internal runbooks, and operator-only controller paths are
+intentionally excluded from the public repository and release archives.
 
 ## Release Evidence
 

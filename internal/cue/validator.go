@@ -52,7 +52,7 @@ func (v *Validator) ValidateStackKit(stackkitDir string) (*models.ValidationResu
 	}
 
 	// Prefer an existing workspace/root cue.mod. Creating a nested cue.mod in a
-	// repo checkout makes CUE treat base-kit as its own module and breaks imports
+	// repo checkout makes CUE treat basement-kit as its own module and breaks imports
 	// such as github.com/kombifyio/stackkits/base.
 	if _, ok := resolveCueModuleRoot(v.baseDir, stackkitDir); !ok {
 		if err := ensureCueModule(stackkitDir); err != nil {
@@ -749,7 +749,7 @@ func (v *Validator) ValidateCUEFile(path string) (*models.ValidationResult, erro
 }
 
 // ensureCueModule creates a cue.mod/module.cue in the given directory if one
-// doesn't exist. This allows standalone kit directories (e.g. ~/.stackkits/base-kit/)
+// doesn't exist. This allows standalone kit directories (e.g. ~/.stackkits/basement-kit/)
 // to resolve CUE imports without requiring manual setup.
 func ensureCueModule(dir string) error {
 	modDir := filepath.Join(dir, "cue.mod")

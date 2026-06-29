@@ -297,7 +297,7 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 	// 0600-mode files under <wd>/.stackkit/.
 	//
 	// Gated on the composition result actually enabling PocketID. Kits that
-	// don't deploy PocketID (e.g. base-kit out of the box) skip this so the
+	// don't deploy PocketID (e.g. basement-kit out of the box) skip this so the
 	// .stackkit/ directory stays empty and we don't surface confusing
 	// "PocketID secrets stored in ..." messages on init/generate runs that
 	// will never start a PocketID container.

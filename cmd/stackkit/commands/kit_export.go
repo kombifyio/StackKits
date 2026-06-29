@@ -35,7 +35,7 @@ and writes regenerated artifacts to --output DIR. Formats:
 }
 
 func init() {
-	kitExportCmd.Flags().StringVar(&kitExportSlug, "slug", "", "Kit slug (e.g. base-kit). Required when using --from-api.")
+	kitExportCmd.Flags().StringVar(&kitExportSlug, "slug", "", "Kit slug (e.g. basement-kit). Required when using --from-api.")
 	kitExportCmd.Flags().StringVar(&kitExportEndpoint, "from-api", "", "Admin API base URL. Defaults to $STACKKIT_ADMIN_ENDPOINT.")
 	kitExportCmd.Flags().StringVar(&kitExportToken, "token", "", "Bearer token. Defaults to $STACKKIT_ADMIN_TOKEN.")
 	kitExportCmd.Flags().StringVar(&kitExportFromYAML, "from-yaml", "", "Skip API and load kit definition from this stackkit.yaml. Useful for offline tests.")

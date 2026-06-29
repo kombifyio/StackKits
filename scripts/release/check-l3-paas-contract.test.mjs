@@ -114,7 +114,7 @@ test('check-l3-paas-contract rejects Coolify installer shim that drops docker_ho
   const repoRoot = process.cwd();
   const tempDir = await mkdtemp(path.join(tmpdir(), 'stackkits-l3-coolify-shim-'));
   const generated = path.join(tempDir, 'main.tf');
-  const source = await readFile(path.join(repoRoot, 'base-kit', 'templates', 'simple', 'main.tf'), 'utf8');
+  const source = await readFile(path.join(repoRoot, 'basement-kit', 'templates', 'simple', 'main.tf'), 'utf8');
   const requiredShim = `if [ -n "\${var.docker_host}" ]; then
   DOCKER_HOST="\${var.docker_host}" exec "\\$real" "\\$@"
 fi
@@ -158,9 +158,9 @@ Contract: {
 
 test('check-l3-paas-contract accepts v0.4 PaaS release posture', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackkits-l3-paas-posture-pass-'));
-  await mkdir(path.join(root, 'base-kit'), { recursive: true });
+  await mkdir(path.join(root, 'basement-kit'), { recursive: true });
   await writeFile(
-    path.join(root, 'base-kit', 'mode_matrix.cue'),
+    path.join(root, 'basement-kit', 'mode_matrix.cue'),
     `package base_kit
 
 modeMatrix: {
@@ -174,7 +174,7 @@ modeMatrix: {
 `,
   );
   await writeFile(
-    path.join(root, 'base-kit', 'stackkit.yaml'),
+    path.join(root, 'basement-kit', 'stackkit.yaml'),
     `changelog:
   - version: "5.0.0"
     changes:
@@ -189,9 +189,9 @@ modeMatrix: {
 
 test('check-l3-paas-contract rejects Dokploy promotion without parity evidence', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'stackkits-l3-paas-posture-fail-'));
-  await mkdir(path.join(root, 'base-kit'), { recursive: true });
+  await mkdir(path.join(root, 'basement-kit'), { recursive: true });
   await writeFile(
-    path.join(root, 'base-kit', 'mode_matrix.cue'),
+    path.join(root, 'basement-kit', 'mode_matrix.cue'),
     `package base_kit
 
 modeMatrix: {
@@ -204,7 +204,7 @@ modeMatrix: {
 `,
   );
   await writeFile(
-    path.join(root, 'base-kit', 'stackkit.yaml'),
+    path.join(root, 'basement-kit', 'stackkit.yaml'),
     `changelog:
   - version: "5.0.0"
     changes:

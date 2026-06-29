@@ -75,7 +75,7 @@ It handles:
   • System prerequisites (Docker, OpenTofu)
 
 Examples:
-  stackkit init base-kit           Initialize a new deployment
+  stackkit init basement-kit           Initialize a new deployment
   stackkit prepare --spec spec.yaml    Prepare system and validate spec
   stackkit plan                        Preview infrastructure changes
   stackkit apply                       Apply infrastructure changes

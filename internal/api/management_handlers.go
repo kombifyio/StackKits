@@ -116,7 +116,7 @@ func (s *Server) handleManagementDoctor(w http.ResponseWriter, r *http.Request) 
 		add("stack-spec", "fail", specPath, "stack-spec.yaml is missing or invalid")
 	} else {
 		add("stack-spec", "pass", specPath, "stack spec loaded")
-		if spec.StackKit == "base-kit" {
+		if spec.StackKit == "basement-kit" {
 			add("release-kit", "pass", spec.StackKit, "BaseKit is the release-ready one-click path")
 		} else {
 			add("release-kit", "warn", spec.StackKit, "Unreleased kit definitions remain outside the public beta release matrix")

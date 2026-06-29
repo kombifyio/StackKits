@@ -55,7 +55,7 @@ type stackkitCommandInput struct {
 
 type initInput struct {
 	stackkitCommandInput
-	StackKit       string `json:"stackkit,omitempty" jsonschema:"StackKit slug, default base-kit"`
+	StackKit       string `json:"stackkit,omitempty" jsonschema:"StackKit slug, default basement-kit"`
 	AdminEmail     string `json:"admin_email,omitempty" jsonschema:"operator or owner email"`
 	Mode           string `json:"mode,omitempty" jsonschema:"install mode"`
 	Context        string `json:"context,omitempty" jsonschema:"node context such as local, cloud, or pi"`
@@ -181,7 +181,7 @@ func (a *App) getOpenAPISpec(ctx context.Context, req *mcp.CallToolRequest, _ st
 func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	steps := []map[string]any{
 		{"command": "curl -sSL https://base.stackkit.cc | sh", "purpose": "install stackkit, stackkit-server, stackkit-mcp, packaged OpenTofu, and BaseKit definitions", "mutation": true},
-		{"command": "stackkit init base-kit --non-interactive --admin-email <operator-email>", "purpose": "write stack-spec.yaml", "mutation": true},
+		{"command": "stackkit init basement-kit --non-interactive --admin-email <operator-email>", "purpose": "write stack-spec.yaml", "mutation": true},
 		{"command": "stackkit prepare --dry-run", "purpose": "check host prerequisites without mutation", "mutation": false},
 		{"command": "stackkit validate", "purpose": "validate StackSpec and CUE", "mutation": false},
 		{"command": "stackkit generate --force", "purpose": "generate deployment artifacts", "mutation": true},
@@ -191,7 +191,7 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 	}
 	out := map[string]any{
 		"scenario": "basekit-autonomous-rollout",
-		"kit":      "base-kit",
+		"kit":      "basement-kit",
 		"hub_url":  "http://base.home.localhost",
 		"steps":    steps,
 		"notes": []string{
@@ -309,7 +309,7 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 		"defaults": map[string]any{
 			"workspace":       ".",
 			"spec_path":       "stack-spec.yaml",
-			"stackkit":        "base-kit",
+			"stackkit":        "basement-kit",
 			"mode":            "bootstrapped",
 			"context":         "local",
 			"domain_strategy": "local",
@@ -323,7 +323,7 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 			{"id": "local_dns", "domain": "<local-name>.home"},
 		},
 		"stackkits": []map[string]string{
-			{"id": "base-kit", "status": "beta"},
+			{"id": "basement-kit", "status": "beta"},
 		},
 		"write_tools_enabled": a.opts.AllowWrite,
 		"server_url":          a.opts.ServerURL,
@@ -408,7 +408,7 @@ func (a *App) configSet(ctx context.Context, req *mcp.CallToolRequest, in config
 }
 
 func (a *App) stackkitInit(ctx context.Context, req *mcp.CallToolRequest, in initInput) (*mcp.CallToolResult, any, error) {
-	kit := firstNonEmpty(in.StackKit, "base-kit")
+	kit := firstNonEmpty(in.StackKit, "basement-kit")
 	args := []string{"init", kit, "--non-interactive"}
 	args = appendOptionalFlag(args, "--admin-email", in.AdminEmail)
 	args = appendOptionalFlag(args, "--mode", in.Mode)
@@ -532,7 +532,7 @@ func (a *App) stackkitRollout(ctx context.Context, req *mcp.CallToolRequest, in 
 	}
 
 	if !in.SkipInit {
-		initArgs := []string{"init", firstNonEmpty(in.StackKit, "base-kit"), "--non-interactive"}
+		initArgs := []string{"init", firstNonEmpty(in.StackKit, "basement-kit"), "--non-interactive"}
 		initArgs = appendOptionalFlag(initArgs, "--admin-email", in.AdminEmail)
 		initArgs = appendOptionalFlag(initArgs, "--mode", in.Mode)
 		initArgs = appendOptionalFlag(initArgs, "--context", in.Context)

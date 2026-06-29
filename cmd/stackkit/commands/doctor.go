@@ -243,7 +243,7 @@ func printDoctorReport(cmd *cobra.Command, report doctorReport) {
 }
 
 func isBaseKitProductionReferenceSpec(spec *models.StackSpec) bool {
-	if spec == nil || spec.StackKit != "base-kit" {
+	if spec == nil || spec.StackKit != "basement-kit" {
 		return false
 	}
 	domain := spec.Domain

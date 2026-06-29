@@ -101,7 +101,8 @@ ENV STACKKITS_BASE_DIR=/workspace
 # Copy StackKit directories
 COPY cue.mod/ /workspace/cue.mod/
 COPY base/ /workspace/base/
-COPY base-kit/ /workspace/base-kit/
+COPY basement-kit/ /workspace/basement-kit/
+COPY cloud-kit/ /workspace/cloud-kit/
 
 # Set ownership and switch to non-root user
 RUN chown -R stackkit:stackkit /workspace

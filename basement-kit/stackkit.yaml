@@ -1,0 +1,479 @@
+# StackKit Metadata and Mode Configuration
+apiVersion: stackkit/v1
+kind: StackKit
+
+metadata:
+  name: basement-kit
+  version: "5.0.0"
+  description: "Single-environment homelab with a robust default scope: Platform baseline (Coolify, PocketID, TinyAuth, Node Hub, Homepage, Uptime Kuma, Whoami) plus Photos, Vault, and Files (Cloudreve default). Media, Smart Home, and AI stay opt-in until their first-run paths are production-ready."
+  author: "kombify Stack Team"
+  license: "Apache-2.0"
+  repository: "https://github.com/kombifyio/stackkits"
+  tags:
+    - homelab
+    - single-environment
+    - multi-server-capable
+    - docker
+    - coolify
+    - komodo
+    - professional
+
+# Supported operating systems
+supportedOS:
+  - ubuntu-24
+  - ubuntu-22
+  - debian-12
+
+# Resource requirements
+requirements:
+  minimum:
+    cpu: 2
+    memory: 2
+    disk: 10
+  recommended:
+    cpu: 4
+    memory: 4
+    disk: 20
+
+# =============================================================================
+# INSTALLATION MODES (Available for all StackKits)
+# =============================================================================
+modes:
+  bare:
+    description: "OpenTofu-only deployment without Base Hub or setup automation"
+    templateDir: "templates/simple"
+    engine: "opentofu"
+    features:
+      - "Direct OpenTofu execution"
+      - "No Base Hub UI"
+      - "Manual application setup"
+    recommended_for:
+      - "Operators who only want generated infrastructure and tool rollouts"
+
+  bootstrapped:
+    description: "Default Base Hub rollout with one-click setup actions"
+    templateDir: "templates/simple"
+    engine: "opentofu"
+    recommended: true
+    features:
+      - "Base Hub and node-local API"
+      - "Automatic L1/L2 setup"
+      - "On-demand L3 setup actions"
+    recommended_for:
+      - "Single node deployments"
+      - "Guided setup without automatic L3 preconfiguration"
+      - "Development, testing, and normal homelab rollouts"
+
+  # Advanced Mode: Terramate Plus lifecycle with runtime and frontend
+  # intelligence. Release readiness is still tracked separately in the
+  # mode-support matrix until the full E2E cell lands.
+  advanced:
+    description: "Advanced lifecycle rollout with Terramate Plus orchestration"
+    templateDir: "templates/advanced"
+    engine: "terramate"
+    features:
+      - "Terramate Plus orchestration"
+      - "Runtime Intelligence Layer"
+      - "Frontend Intelligence surfaces"
+      - "Advanced bootstrap and service handoff policies"
+      - "Drift detection, change sets, rollback, and restore drills"
+      - "Komodo/Coolify platform adapters"
+      - "Managed TechStack lifecycle handoff"
+    recommended_for:
+      - "Production environments"
+      - "Compliance requirements"
+      - "Multi-stack coordination"
+    stacks:
+      - name: foundation
+        order: 1
+        description: "StackKit-owned foundation services"
+      - name: platform
+        order: 2
+        after: [foundation]
+        description: "Selected PaaS controller and routing"
+      - name: applications
+        order: 3
+        after: [platform]
+        description: "User applications via selected PaaS"
+
+# Auto-selection rules
+autoSelect:
+  advancedWhen:
+    - "explicit advanced install mode"
+    - "autoUpdates.enabled == true"
+    - "compliance.required == true"
+  default: bootstrapped
+
+# =============================================================================
+# APPLICATION LAYER (L3 — use cases)
+# =============================================================================
+# Canonical layer name per ADR-0012 sk_layer + ARCHITECTURE_V6 §4. Pre-2026-04
+# this section was called `useCases`; renamed to `application` to match the
+# Foundation / Platform / Application standard surfaced in the Admin UI.
+#
+# Role: default = ships enabled, alternative = curated swap, optional = user enables.
+# CUE/StackKit contracts are the rollout source of truth; the Admin registry mirrors release lineage and operations state.
+application:
+  photos:
+    role: default
+    defaultTool: immich
+    alternatives: [ente-photos]
+    description: "Photo gallery and memories"
+  media:
+    role: optional            # Opt-in until Jellyfin first-run UX matches the default live smoke path.
+    defaultTool: jellyfin
+    alternatives: []
+    description: "Media streaming with automated library management"
+  vault:
+    role: default
+    defaultTool: vaultwarden
+    alternatives: []
+    description: "Password management and secure notes"
+  smart-home:
+    role: optional            # Pilot package; default enable waits for managed/native-MCP evidence.
+    package: smart-home
+    defaultTool: home-assistant
+    alternatives: []
+    description: "Home automation centered on Home Assistant, native product MCP, and managed/hybrid runtime profiles"
+    defaultRuntimeProfile: kombify-managed-hybrid
+    runtimeProfiles:
+      kombify-managed:
+        displayName: "Kombify Managed Home Assistant"
+        realization: control-plane
+        placementModes: [managed-serverless]
+        contexts: [cloud]
+        managedServerlessEligible: true
+        requiresControlPlane: true
+        description: "Kombify operates Home Assistant state, routing, auth handoff, backup, and MCP/API wiring without user-owned HA OS hardware."
+      kombify-managed-hybrid:
+        displayName: "Kombify Managed Home Assistant + Home Bridge"
+        realization: hybrid
+        placementModes: [managed-serverless, standard]
+        contexts: [cloud, local, pi]
+        managedServerlessEligible: true
+        requiresControlPlane: true
+        requiresLocalBridge: true
+        description: "Managed Home Assistant with optional local bridge for LAN discovery and radio/device adjacency."
+      self-hosted-container:
+        displayName: "Self-hosted Home Assistant Container"
+        realization: oss
+        placementModes: [local-only, standard]
+        contexts: [local, pi, cloud]
+        description: "StackKit deploys Home Assistant as a selected-PaaS application on the user's node."
+      self-hosted-ha-os:
+        displayName: "Self-hosted Home Assistant OS"
+        realization: external
+        placementModes: [local-only, standard]
+        contexts: [local, pi]
+        description: "User brings a Home Assistant OS device or VM; StackKits records and connects to it."
+      bring-your-own-ha:
+        displayName: "Bring Your Own Home Assistant"
+        realization: external
+        placementModes: [local-only, standard, managed-serverless]
+        contexts: [local, pi, cloud]
+        managedServerlessEligible: true
+        description: "An existing Home Assistant instance is connected through native MCP/API surfaces."
+    connectors:
+      stackkit:
+        kind: stackkit
+        name: stackkit
+        owner: stackkit
+        endpoint: /mcp
+        transport: streamable-http
+        auth: stackkit-mcp-token
+        capabilities: [lifecycle, setup, evidence, handoff]
+      home-assistant:
+        kind: home-assistant-native
+        name: home-assistant
+        owner: product
+        endpoint: /api/mcp
+        transport: streamable-http
+        auth: home-assistant-auth
+        nativeProduct: true
+        capabilities: [assist, exposed-entities, tools, resources]
+    productApis:
+      rest:
+        protocol: rest
+        basePath: /api
+        auth: home-assistant-auth
+        purpose: "Health checks, state snapshots, service calls, and setup verification."
+      websocket:
+        protocol: websocket
+        basePath: /api/websocket
+        auth: home-assistant-auth
+        purpose: "Live events, state changes, device/entity/area context, and RIL observation."
+    ril:
+      capabilities:
+        inventory:
+          mode: read
+          authority: read-only
+          source: product-mcp
+          evidence: "Entity/device/area inventory from Home Assistant exposed entities."
+        automation-plan:
+          mode: plan
+          authority: read-only
+          source: product-mcp
+          evidence: "Draft automation or scene plan without applying changes."
+        service-call:
+          mode: write
+          authority: gated-write
+          source: product-mcp
+          requiresApproval: true
+          evidence: "Audited Home Assistant service call through exposed MCP tools."
+  files:
+    role: default
+    package: files
+    defaultTool: cloudreve
+    alternatives: [nextcloud]
+    description: "File storage, sharing, and document-management workflows"
+    defaultRuntimeProfile: self-hosted-lightweight
+    runtimeProfiles:
+      self-hosted-lightweight:
+        displayName: "Self-hosted Lightweight Files"
+        realization: oss
+        placementModes: [local-only, standard]
+        contexts: [local, pi, cloud]
+        description: "StackKit deploys Cloudreve as the default file storage and sharing app on the user's node."
+      self-hosted-collaboration:
+        displayName: "Self-hosted Collaboration Suite"
+        realization: oss
+        placementModes: [local-only, standard]
+        contexts: [local, cloud]
+        description: "StackKit deploys Nextcloud as the files provider for collaboration and WebDAV-heavy use."
+      kombify-managed-files:
+        displayName: "Kombify Managed Files"
+        realization: control-plane
+        placementModes: [managed-serverless]
+        contexts: [cloud]
+        managedServerlessEligible: true
+        requiresControlPlane: true
+        description: "Kombify operates storage, route, auth handoff, backup, sharing policy, and API wiring."
+      kombify-managed-dms:
+        displayName: "Kombify Managed Document Management"
+        realization: control-plane
+        placementModes: [managed-serverless]
+        contexts: [cloud]
+        managedServerlessEligible: true
+        requiresControlPlane: true
+        description: "Kombify operates document ingestion, OCR/indexing, retention policy, search, sharing, backup, and RIL evidence."
+      bring-your-own-storage:
+        displayName: "Bring Your Own Storage"
+        realization: external
+        placementModes: [local-only, standard, managed-serverless]
+        contexts: [local, pi, cloud]
+        managedServerlessEligible: true
+        description: "An existing Nextcloud, WebDAV, S3-compatible bucket, or file service is connected as the package backend."
+    connectors:
+      stackkit:
+        kind: stackkit
+        name: stackkit
+        owner: stackkit
+        endpoint: /mcp
+        transport: streamable-http
+        auth: stackkit-mcp-token
+        capabilities: [lifecycle, setup, evidence, handoff]
+      files:
+        kind: product-api
+        name: files
+        owner: product
+        transport: http
+        auth: product-auth
+        capabilities: [file-list, download, upload, share, metadata]
+    productApis:
+      cloudreve:
+        protocol: rest
+        basePath: /api/v4
+        auth: cloudreve-auth
+        purpose: "Owner bootstrap, health, file metadata, upload/download, and sharing policy checks."
+      nextcloud:
+        protocol: webdav
+        basePath: /remote.php/dav/files
+        auth: nextcloud-auth
+        purpose: "Document and file access for collaboration-oriented provider profiles."
+      managed-dms:
+        protocol: rest
+        basePath: /api/documents
+        auth: control-plane-auth
+        purpose: "Managed document ingestion, OCR/index evidence, search, metadata, retention, and sharing workflows."
+    ril:
+      capabilities:
+        inventory:
+          mode: read
+          authority: read-only
+          source: product-api
+          evidence: "Folder, file, document, share, and storage-quota inventory."
+        document-search:
+          mode: read
+          authority: read-only
+          source: product-api
+          evidence: "Searchable document index results and metadata provenance."
+        classification-plan:
+          mode: plan
+          authority: read-only
+          source: product-api
+          evidence: "Draft folder, retention, tag, or document-classification plan without applying changes."
+        share-update:
+          mode: write
+          authority: gated-write
+          source: product-api
+          requiresApproval: true
+          evidence: "Audited share, permission, or retention-policy update."
+        ingest-document:
+          mode: write
+          authority: gated-write
+          source: product-api
+          requiresApproval: true
+          evidence: "Audited document upload/import with OCR/index evidence when DMS is enabled."
+  ai:
+    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
+    defaultTool: ollama
+    alternatives: []
+    description: "Local AI/LLM inference"
+  dev:
+    role: optional
+    defaultTool: gitea
+    alternatives: []
+    description: "Self-hosted Git and CI/CD"
+  mail:
+    role: optional
+    defaultTool: stalwart
+    alternatives: []
+    description: "Self-hosted email server"
+  game:
+    role: optional
+    defaultTool: null
+    alternatives: []
+    description: "Game server hosting"
+  remote:
+    role: optional
+    defaultTool: guacamole
+    alternatives: []
+    description: "Remote desktop access"
+
+# Foundation services (L1, always present for the BaseKit public beta).
+foundation:
+  security-baseline:
+    role: default
+    alternatives: []
+    description: "UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Public beta mandatory."
+  admin-bootstrap:
+    role: optional
+    alternatives: []
+    description: "Planned initial admin user bootstrap for LLDAP/PocketID. Opt-in until admin-authenticated provisioning exists."
+
+# Platform services (L2, identity & routing). Migration 000085 (2026-04-27)
+# moved `login-gateway` here from `foundation:` to align with
+# ARCHITECTURE_V6 §4 — login-gateway (TinyAuth + PocketID) is L2 Platform,
+# not L1 Foundation. Only the bootstrap of an admin user is Foundation;
+# the actual Identity service stack is Platform.
+platform:
+  traefik:
+    role: default
+    alternatives: []
+  tinyauth:
+    role: default
+    alternatives: []
+  login-gateway:
+    role: default
+    alternatives: []
+    description: "TinyAuth forward-auth middleware in front of every default L3 service."
+  pocketid:
+    role: default
+    alternatives: []
+  paas:
+    role: default
+    defaultTool: coolify
+    alternatives: [komodo]
+  monitoring:
+    role: default
+    defaultTool: uptime-kuma
+    alternatives: [beszel]
+  dashboard:
+    role: default
+    alternatives: []
+
+# Feature flags
+features:
+  multiNode: false
+  cloudProviders: false
+  vpnOverlay: false
+  gpuSupport: false
+  highAvailability: false
+
+# Compute tier adjustments
+computeTiers:
+  high:
+    requirements:
+      cpu: 8
+      memory: 16
+      disk: 20
+    additionalServices:
+      - prometheus
+      - grafana
+  standard:
+    requirements:
+      cpu: 4
+      memory: 8
+      disk: 10
+    additionalServices: []
+  low:
+    requirements:
+      cpu: 2
+      memory: 4
+      disk: 5
+    serviceOverrides:
+      komodo: disabled
+      dokploy: disabled
+
+# =============================================================================
+# SERVICE OUTPUTS (URLs and Credentials)
+# =============================================================================
+outputs:
+  format: "markdown"
+  include:
+    - serviceUrls
+    - credentials
+    - healthEndpoints
+  template: |
+    # 🏠 Base Kit - Deployed Services
+    
+    ## Service URLs
+    {{range .services}}
+    - **{{.displayName}}**: [{{.output.url}}]({{.output.url}})
+      {{.output.description}}
+    {{end}}
+    
+    ## Quick Access
+    | Service | URL | Notes |
+    |---------|-----|-------|
+    {{range .services}}
+    | {{.displayName}} | {{.output.url}} | {{.output.credentials.note}} |
+    {{end}}
+
+# Changelog
+changelog:
+  - version: "5.0.0"
+    date: "2026-06-10"
+    changes:
+      - "NEW: Install modes bare/bootstrapped/advanced (legacy simple normalizes to bootstrapped)"
+      - "NEW: Platform baseline: Coolify (default PaaS), PocketID (passkey IdP), TinyAuth gateway, Node Hub, Homepage, Uptime Kuma, Whoami"
+      - "NEW: Default L3 use cases: Vault (Vaultwarden), Photos (Immich), Files (Cloudreve default, Nextcloud alternative)"
+      - "NEW: Setup drops with retry-safe SetupRun evidence; demo data strictly opt-in"
+      - "CHANGED: Local default links use browser-native *.home.localhost"
+      - "CHANGED: Komodo is the beta-supported PaaS alternative; Dokploy remains draft"
+  - version: "2.0.0"
+    date: "2025-01-27"
+    changes:
+      - "NEW: Coolify as default PaaS platform"
+      - "NEW: Komodo tracked as the production PaaS alternative; Dokploy remains draft"
+      - "NEW: Uptime Kuma for monitoring (default)"
+      - "NEW: Beszel as alternative monitoring option"
+      - "NEW: Whoami test container for verification"
+      - "NEW: Service URLs output in deployment summary"
+      - "CHANGED: Legacy simple/advanced deployment modes standardized for the v2 contract"
+  - version: "1.0.0"
+    date: "2025-01-08"
+    changes:
+      - "Initial release"
+      - "Ubuntu 24.04 support"
+      - "Core services: Traefik, Dockge, Dozzle, Netdata"

@@ -449,7 +449,7 @@ type StackSpec struct {
 	// by default so L3 applications are not preconfigured unless requested.
 	DemoData DemoDataSpec `yaml:"demoData,omitempty" json:"demoData,omitempty"`
 
-	// Extended spec sections — derived from base-kit CUE schemas.
+	// Extended spec sections — derived from basement-kit CUE schemas.
 	// These capture the full Zielbild that StackKits need to generate configs.
 	System          *SystemSpec           `yaml:"system,omitempty" json:"system,omitempty"`
 	DNS             *DNSSpec              `yaml:"dns,omitempty" json:"dns,omitempty"`
@@ -1078,7 +1078,7 @@ type StorageResolution struct {
 type InstanceRegistration struct {
 	InstanceID  string        `json:"instance_id"`        // Unique instance identifier (device fingerprint + stackkit name)
 	EndpointURL string        `json:"endpoint_url"`       // Public URL where stackkit-server is reachable (e.g. https://api.mylab.kombify.me)
-	StackKit    string        `json:"stackkit"`           // StackKit name (e.g. "base-kit")
+	StackKit    string        `json:"stackkit"`           // StackKit name (e.g. "basement-kit")
 	Version     string        `json:"version,omitempty"`  // StackKit version
 	Services    []ServiceInfo `json:"services"`           // Running services
 	Status      string        `json:"status"`             // "running", "degraded", "stopped"
@@ -1179,7 +1179,7 @@ type SystemInfo struct {
 }
 
 // ---------------------------------------------------------------------------
-// Extended spec types — derived from base-kit CUE schemas.
+// Extended spec types — derived from basement-kit CUE schemas.
 // These capture the full Zielbild that StackKits need to generate all configs.
 // ---------------------------------------------------------------------------
 

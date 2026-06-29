@@ -23,13 +23,13 @@ var kitRoundtripCmd = &cobra.Command{
 	Long: `Two modes:
 
 LOCAL (default, no API):
-	stackkit kit roundtrip --kit base-kit
+	stackkit kit roundtrip --kit basement-kit
 	→ Reads <kit>/stackkit.yaml, imports it, exports it, re-imports the
 	  exported yaml, and compares the two KitDefinitions structurally.
 	  Cosmetic differences (yaml comments, quote-style) are ignored.
 
 LIVE (--from-api):
-	stackkit kit roundtrip --kit base-kit --from-api $STACKKIT_ADMIN_ENDPOINT
+	stackkit kit roundtrip --kit basement-kit --from-api $STACKKIT_ADMIN_ENDPOINT
 	→ Imports <kit>/stackkit.yaml via POST kit-import, fetches it back via
 	  GET kit-export, compares server-shape against original yaml-shape.
 
@@ -39,7 +39,7 @@ cosmetic-only = test pass with note.`,
 }
 
 func init() {
-	kitRoundtripCmd.Flags().StringVar(&kitRoundtripPath, "kit", "", "Kit directory (e.g. base-kit). Required.")
+	kitRoundtripCmd.Flags().StringVar(&kitRoundtripPath, "kit", "", "Kit directory (e.g. basement-kit). Required.")
 	kitRoundtripCmd.Flags().StringVar(&kitRoundtripEndpoint, "from-api", "", "Admin API base URL. Triggers live mode. Defaults to local mode.")
 	kitRoundtripCmd.Flags().StringVar(&kitRoundtripToken, "token", "", "Bearer token. Defaults to $STACKKIT_ADMIN_TOKEN.")
 	kitRoundtripCmd.Flags().BoolVar(&kitRoundtripJSON, "json", false, "Emit RoundTripReport as JSON instead of human-readable summary.")

@@ -23,7 +23,7 @@ var kitVerifyCmd = &cobra.Command{
 	Long: `Compares the live Admin API kit definition (GET /kit-export) against
 the in-tree stackkit.yaml. Used as a CI guard:
 
-	stackkit kit verify --slug base-kit --kit-dir base-kit
+	stackkit kit verify --slug basement-kit --kit-dir basement-kit
 
 Exit codes:
   0 — DB and filesystem agree (cosmetic-only differences allowed)

@@ -7,7 +7,7 @@ package commands
 // CUE -> DB ingest; this CLI is the only blessed entry point.
 //
 // Usage:
-//   stackkit kit import --kit base-kit [--endpoint URL] [--token TOKEN] [--dry-run]
+//   stackkit kit import --kit basement-kit [--endpoint URL] [--token TOKEN] [--dry-run]
 //
 // The CLI:
 //   1. Loads <kit>/stackkit.yaml as a generic YAML map (preserves all sections).
@@ -58,7 +58,7 @@ var kitImportCmd = &cobra.Command{
 }
 
 func init() {
-	kitImportCmd.Flags().StringVar(&kitImportPath, "kit", "", "Kit directory (e.g. base-kit). Required.")
+	kitImportCmd.Flags().StringVar(&kitImportPath, "kit", "", "Kit directory (e.g. basement-kit). Required.")
 	kitImportCmd.Flags().StringVar(&kitImportEndpoint, "endpoint", "", "Admin API base URL. Defaults to $STACKKIT_ADMIN_ENDPOINT.")
 	kitImportCmd.Flags().StringVar(&kitImportToken, "token", "", "Bearer token. Defaults to $STACKKIT_ADMIN_TOKEN.")
 	kitImportCmd.Flags().StringVar(&kitImportBy, "imported-by", "", "Identifier of the importer. Defaults to $USER or 'cli'.")
@@ -71,7 +71,7 @@ func init() {
 
 func runKitImport(cmd *cobra.Command, args []string) error {
 	if kitImportPath == "" {
-		return fmt.Errorf("--kit is required (e.g. --kit base-kit)")
+		return fmt.Errorf("--kit is required (e.g. --kit basement-kit)")
 	}
 	absPath, err := filepath.Abs(kitImportPath)
 	if err != nil {

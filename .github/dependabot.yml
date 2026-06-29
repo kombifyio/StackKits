@@ -22,24 +22,11 @@ updates:
       timezone: Europe/Berlin
     open-pull-requests-limit: 5
 
-  - package-ecosystem: npm
-    directory: /website
-    schedule:
-      interval: weekly
-      day: monday
-      time: "05:00"
-      timezone: Europe/Berlin
-    open-pull-requests-limit: 5
-    groups:
-      website-npm:
-        patterns:
-          - "*"
-
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
       day: monday
-      time: "05:30"
+      time: "05:00"
       timezone: Europe/Berlin
     open-pull-requests-limit: 3

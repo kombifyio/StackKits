@@ -111,23 +111,32 @@ fi
 echo "  -> v${LATEST} (${OS}/${ARCH})"
 
 # --- Select archive -----------------------------------------------------------
-# Kit bundles include the binary plus public BaseKit definitions.
+# Kit bundles include the binary plus the public StackKit definitions.
 
 case "$KIT_NAME" in
+  basement-kit)
+    ARCHIVE="stackkits-basement-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
+    INSTALL_KITS="basement-kit"
+    ;;
+  cloud-kit)
+    ARCHIVE="stackkits-cloud-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
+    INSTALL_KITS="cloud-kit"
+    ;;
   base-kit)
-    ARCHIVE="stackkits-base-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="base-kit"
+    echo "Note: 'base-kit' is retired; installing 'basement-kit' (the local product)." >&2
+    ARCHIVE="stackkits-basement-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
+    INSTALL_KITS="basement-kit"
     ;;
   all)
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="base-kit"
+    INSTALL_KITS="basement-kit cloud-kit"
     ;;
   "")
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="base-kit"
+    INSTALL_KITS="basement-kit cloud-kit"
     ;;
   *)
-    echo "Error: unknown kit '${KIT_NAME}'. Available: base-kit, all" >&2
+    echo "Error: unknown kit '${KIT_NAME}'. Available: basement-kit, cloud-kit, all" >&2
     exit 1
     ;;
 esac

@@ -1,6 +1,6 @@
 # Prompt: Generate And Apply Through SSH
 
-You are rolling out BaseKit to a reachable SSH target. Keep the workflow non-interactive and evidence-based.
+You are rolling out Basement Kit to a reachable SSH target. Keep the workflow non-interactive and evidence-based.
 
 Collect or confirm:
 
@@ -13,7 +13,7 @@ Collect or confirm:
 Then run:
 
 ```bash
-stackkit init base-kit --non-interactive --admin-email <email>
+stackkit init basement-kit --non-interactive --admin-email <email>
 stackkit prepare --dry-run
 stackkit validate
 stackkit generate --force

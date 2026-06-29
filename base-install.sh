@@ -1,13 +1,13 @@
 #!/bin/sh
 # =============================================================================
-# StackKits Base Installer — full base-kit deployment in one command.
+# StackKits Basement Installer — full basement-kit deployment in one command.
 # =============================================================================
 # Usage: curl -sSL https://base.stackkit.cc | sh
 #
 # Steps:
-#   1. Install stackkit CLI + base-kit definitions  (via install.stackkit.cc)
+#   1. Install stackkit CLI + basement-kit definitions  (via install.stackkit.cc)
 #   2. Prepare system: Docker + packaged OpenTofu
-#   3. Initialize base-kit (non-interactive, reads env vars)
+#   3. Initialize basement-kit (non-interactive, reads env vars)
 #   4. Generate + deploy the full homelab stack
 #
 # Environment variables:
@@ -19,7 +19,7 @@
 #   KOMBIFY_CONTEXT        Set to "cloud" to enable kombify.me domain mode
 #   STACKKIT_MODE          Optional install mode: bare, bootstrapped, or advanced
 #   STACKKIT_SERVICE_PROFILE
-#                          Optional BaseKit service profile: default or admin-only
+#                          Optional Basement Kit service profile: default or admin-only
 #   STACKKIT_PLATFORM / STACKKIT_PAAS
 #                          Optional selected PaaS: coolify or komodo. Dokploy is draft-only.
 #   STACKKIT_SERVER_IMAGE  Optional stackkit-server image override
@@ -383,15 +383,15 @@ if [ "$BOOTSTRAP_OWNER" = "true" ] && [ -z "$OWNER_USERNAME" ]; then
   fi
 fi
 
-# --- Step 1: Install CLI + base-kit definitions -------------------------------
+# --- Step 1: Install CLI + basement-kit definitions -------------------------------
 # Delegates entirely to install.sh so all binary download, kit extraction, and
 # ~/.stackkits layout logic lives in exactly one place.
 
-info "Step 1/4 -- Installing stackkit CLI + base-kit"
+info "Step 1/4 -- Installing stackkit CLI + basement-kit"
 
 # STACKKIT_NO_BANNER suppresses the duplicate banner from install.sh.
 STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://install.stackkit.cc}"
-curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- base-kit
+curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- basement-kit
 
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 
@@ -409,14 +409,14 @@ ok "  System ready"
 
 configure_stackkit_server_image
 
-# --- Step 3: Initialize base-kit ----------------------------------------------
+# --- Step 3: Initialize basement-kit ----------------------------------------------
 
-info "Step 3/4 -- Initializing base-kit"
+info "Step 3/4 -- Initializing basement-kit"
 
 mkdir -p "$HOMELAB_DIR"
 cd "$HOMELAB_DIR"
 
-set -- init base-kit --force
+set -- init basement-kit --force
 if [ -n "$STACKKIT_MODE_VALUE" ]; then
   set -- "$@" --mode "$STACKKIT_MODE_VALUE"
 fi
@@ -440,7 +440,7 @@ else
   stackkit $STACKKIT_CONTEXT_ARG "$@"
 fi
 
-ok "  base-kit initialized in $HOMELAB_DIR"
+ok "  basement-kit initialized in $HOMELAB_DIR"
 
 configure_dns_tls_provider
 apply_platform_selection

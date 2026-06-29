@@ -1,6 +1,6 @@
 # Architecture — kombify StackKits
 
-> Last verified: 2026-06-25
+> Last verified: 2026-06-26
 
 This is the current implementation overview for this repo. Normative product and module rules are summarized here and in accepted ADRs.
 
@@ -32,10 +32,10 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 | --- | --- | --- |
 | CLI | `cmd/stackkit`, `internal/*` | Operator workflow: init, prepare, validate, generate, plan, apply, verify, update, registry, logs, and recovery commands. |
 | API server | `cmd/stackkit-server`, `internal/api` | HTTP surface for catalog, schema, validation, generation preview, logs, capabilities, OpenAPI, and Direct Connect registry lifecycle. |
-| CUE contracts | `base/`, `base-kit/`, `modules/` | Schemas, defaults, constraints, module contracts, and deployment shape. |
+| CUE contracts | `base/`, `basement-kit/`, `cloud-kit/`, `modules/` | Schemas, defaults, constraints, module contracts, and deployment shape. |
 | Composition/generation | `internal/cue`, `internal/composition`, `internal/iac`, `internal/tofu`, `internal/terramate` | Bind CUE/spec data into generated deployment artifacts and execution adapters. |
-| Static website | `website/` | OSS landing page and CLI docs for `stackkit.cc`. |
-| Release automation | `.github/workflows`, `.goreleaser.yaml`, `scripts/public/` | CI, release, server image, website validation, and curated OSS mirror sync. The old `scripts/sync-public.sh` path is intentionally deprecated. |
+| Public docs | `README.md`, `docs/` | Homelab/BaseKit OSS documentation and CLI install contract. |
+| Release automation | `.github/workflows`, `.goreleaser.yaml`, `scripts/public/` | CI, release, server image, private website validation, and curated Homelab/Basement Kit OSS mirror sync. The old `scripts/sync-public.sh` path is intentionally deprecated. |
 
 ## Core Data Flow
 
@@ -47,7 +47,7 @@ CUE is the technical contract source of truth. The kombify database mirrors regi
 6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest. StackKit may operate StackKit-owned system apps and StackKit-owned L3 application use cases through the platform adapter, but customer-owned user apps remain PaaS handoff metadata and are deployed, updated, and operated by the selected external PaaS tooling.
 7. First-run setup is represented separately from deployment as setup-drop metadata. Local Base Node Hub routes are intentionally bootstrap-open until the operator clicks `Protect Base Hub` after owner setup; that action persists the protection setting and switches the local router behind TinyAuth. Public/non-local Base routes stay protected when TinyAuth is enabled. The default `bootstrapped` mode uses `automatic` setup for L1/L2 platform services and `on_demand` setup actions for L3 applications; `bare` forces manual setup and `advanced` is the Terramate Plus lifecycle mode with day-2 orchestration, Runtime Intelligence, Frontend Intelligence, and managed TechStack handoff surfaces.
 8. `stackkit verify` performs read-only host checks and optional HTTP URL checks.
-9. `stackkit-server` exposes the same catalog, validation, generation-preview, log, and registry concepts over HTTP and is deployed as a platform-managed system app in the normal BaseKit path.
+9. `stackkit-server` exposes the same catalog, validation, generation-preview, log, and registry concepts over HTTP and is deployed as a platform-managed system app in the normal Basement Kit path.
 
 ## Routing Ownership
 
@@ -67,7 +67,7 @@ StackKit must not add a second Traefik instance, an Nginx bridge container, a ho
 | HTTP server | Go `net/http` with `ServeMux` |
 | IaC engine | OpenTofu, packaged with StackKit release artifacts |
 | Task runner | `mise.toml` |
-| Website build | `website/package.json`, static Node build script |
+| Public release checks | `scripts/release/*.mjs`, `.github/workflows` |
 
 ## StackKit Layers
 

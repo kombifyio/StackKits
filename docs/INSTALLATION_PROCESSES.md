@@ -49,7 +49,7 @@ Source-of-truth rules:
 - `stack-spec.yaml` and CUE contracts are the editable contract.
 - Generated `deploy/`, OpenTofu state, `.stackkit/state.yaml`, logs, run evidence, and snapshots are outputs.
 - Agents must not hand-edit generated rollout artifacts.
-- BaseKit is the verified beta one-click path.
+- Basement Kit is the verified beta one-click path.
 - Unreleased kit definitions stay outside the public beta install surface until their rollout matrices graduate.
 
 Minimum user intent:
@@ -57,7 +57,7 @@ Minimum user intent:
 | Input | Purpose | Default or current stance |
 | --- | --- | --- |
 | Owner/admin email | Bootstrap identity and technical admin material | Required for production-like or cloud/custom-domain paths; local-only can synthesize `admin@example.com` where supported |
-| StackKit | Which kit to install | `base-kit` for verified beta |
+| StackKit | Which kit to install | `basement-kit` for verified beta |
 | Install mode | Product bootstrap depth | `bootstrapped`; valid values are `bare`, `bootstrapped`, `advanced` |
 | Context | Target environment | `local`, `cloud`, or `pi` |
 | Domain strategy | Routing and user links | `home.localhost`, `kombify.me`, custom domain, or LAN DNS |
@@ -70,7 +70,7 @@ Common evidence:
 - latest run ID and `.stackkit/runs/<runId>/` evidence;
 - `stackkit verify --http --json` output when HTTP routes are expected;
 - relevant `stackkit logs` output;
-- final Hub URL for local BaseKit: `http://base.home.localhost`;
+- final Hub URL for local Basement Kit: `http://base.home.localhost`;
 - confirmation that generated artifacts were not hand-edited.
 
 ## Core Decisions Before Install
@@ -81,7 +81,7 @@ Every StackKits installation path should collect the same small set of decisions
 | --- | --- | --- |
 | Execution place | Defines who can mutate the target | Website-only planning, local CLI, on-server agent, external SSH agent, local MCP, protected target MCP |
 | Authority boundary | Defines the security model | No target authority, local shell, SSH user, local process, token-protected target MCP |
-| StackKit | Selects the CUE contract and rollout matrix | `base-kit` beta |
+| StackKit | Selects the CUE contract and rollout matrix | `basement-kit` beta |
 | Install mode | Controls bootstrap depth and default setup policy | `bare`, `bootstrapped`, `advanced` |
 | Target context | Selects environment defaults, not a private-network assumption | `local`, `cloud`, `pi` |
 | Domain strategy | Determines routing, access links, and DNS/TLS evidence | browser-native `.localhost`, `kombify.me`, custom domain, LAN DNS |
@@ -99,7 +99,7 @@ StackKits configuration is intentionally broad enough to support a guided agent 
 | Capability | Config surface | Notes |
 | --- | --- | --- |
 | Owner and admin intent | `adminEmail`, `owner.*`, CLI `--admin-email`, owner bootstrap flags | `adminEmail` is compatibility input; Owner fields are the stronger identity contract when present. |
-| Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `base-kit` is the verified beta path. |
+| Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `basement-kit` is the verified beta path. |
 | Install mode | `mode`, `STACKKIT_MODE`, `--mode` | `bare` is minimal/manual, `bootstrapped` is default, `advanced` is the Terramate Plus lifecycle with Runtime/Frontend Intelligence and managed TechStack handoff. |
 | Target context | `context`, `--context`, `KOMBIFY_CONTEXT` | `local` means local/default runtime assumptions, not a dependency on a home network. |
 | Domain strategy | `domain`, `localDns`, `DOMAIN`, `STACKKIT_LOCAL_DOMAIN`, DNS provider env | Default local links use browser-native `.localhost`; public/custom domains require DNS/TLS proof. |
@@ -118,7 +118,7 @@ Generated `deploy/`, `.stackkit/state.yaml`, OpenTofu files, Compose files, tfva
 Installation variants must be described on two independent axes:
 
 - Automation degree: how much of the lifecycle StackKits or an agent executes without the user typing each command.
-- Individualization degree: how much the user changes from the default BaseKit path before rollout.
+- Individualization degree: how much the user changes from the default Basement Kit path before rollout.
 
 ### Automation Levels
 
@@ -127,7 +127,7 @@ Installation variants must be described on two independent axes:
 | `A0` | Discovery only | User or agent reads docs and chooses a path | Website, `llms.txt`, OpenMCP discovery |
 | `A1` | Manual CLI | User runs each lifecycle command | `install -> init -> prepare -> generate -> plan -> apply -> verify` |
 | `A2` | Guided agent | Agent proposes/runs steps, user supplies intent and approvals | Prompted CLI, MCP App onboarding, SSH agent |
-| `A3` | Autonomous approved rollout | User supplies minimum intent, agent/installer executes the rollout | BaseKit one-line installer, agent on target with approved plan |
+| `A3` | Autonomous approved rollout | User supplies minimum intent, agent/installer executes the rollout | Basement Kit one-line installer, agent on target with approved plan |
 | `A4` | Durable connector operation | Target-local connector performs config/update/verify/log workflows for an external agent after the StackKit is installed | `stackkit-server POST /mcp` with token and write gate |
 
 Automation does not remove approval. Mutating operations still require either shell authority, SSH authority, or MCP write-mode authority.
@@ -136,9 +136,9 @@ Automation does not remove approval. Mutating operations still require either sh
 
 | Level | Name | User choices | Typical examples |
 | --- | --- | --- | --- |
-| `I0` | Default BaseKit | No meaningful choices beyond accepting defaults | Local `home.localhost`, BaseKit, default profile |
+| `I0` | Default Basement Kit | No meaningful choices beyond accepting defaults | Local `home.localhost`, Basement Kit, default profile |
 | `I1` | Identity and workspace | Email, stack name, workspace/spec path | `--admin-email`, `HOMELAB_DIR`, `stack-spec.yaml` |
-| `I2` | Core rollout profile | Kit, install mode, context, compute tier, service profile | `base-kit`, `bootstrapped`, `cloud`, `admin-only` |
+| `I2` | Core rollout profile | Kit, install mode, context, compute tier, service profile | `basement-kit`, `bootstrapped`, `cloud`, `admin-only` |
 | `I3` | Network/platform target | Domain strategy, SSH target, custom DNS/TLS, selected PaaS | `kombify.me`, custom domain, Cloudflare token, Coolify/Komodo |
 | `I4` | Advanced composition | Add-ons, advanced mode, explicit owner/recovery policy, stateful updates | monitoring add-on, `advanced`, custom owner bootstrap |
 
@@ -149,7 +149,7 @@ Higher individualization increases review and evidence needs. For example, `I3` 
 | Path | Automation range | Individualization range | Notes |
 | --- | --- | --- | --- |
 | `P0` Website and Web-MCP discovery | `A0` | `I0-I4` planning only | Can explain every option, but cannot execute target actions |
-| `P1` Full BaseKit one-line installer | `A3` | `I0-I3` | Highest automation; customization happens through environment variables before launch |
+| `P1` Full Basement Kit one-line installer | `A3` | `I0-I3` | Highest automation; customization happens through environment variables before launch |
 | `P2` Shared CLI installer plus direct CLI | `A1-A2` | `I0-I4` | Most transparent path; every step can be reviewed before mutation |
 | `P3` Agent already on target server | `A2-A3` | `I0-I4` | Agent can run CLI directly; authority is the server shell user |
 | `P4` External agent through SSH/remote shell | `A2-A3` | `I1-I4` | Good for remote targets before MCP is installed |
@@ -174,7 +174,7 @@ Use this table when choosing the user-facing installation path. The three pillar
 | Process | Configuration / individualization | Access options | Automation degree | Default user journey |
 | --- | --- | --- | --- | --- |
 | `P0` Website and Web-MCP discovery | Very broad planning range (`I0-I4`), but no direct config write. Agent can collect email, kit, domain, mode, target, and approval intent. | Public website, browser, web-capable agent, read-only OpenMCP. No target credentials. | `A0` discovery only. | User asks an agent to inspect StackKits; agent reads public context and recommends an execution channel such as `P1`, `P2`, `P3`, or `P4`. |
-| `P1` Full BaseKit one-line installer | Low to medium (`I0-I3`). Defaults work with minimal input; customization is mainly env vars such as email, mode, service profile, domain, context, PaaS. | Direct shell on target server with root/sudo. Can be run by user, on-server agent, or SSH agent. | High (`A3`). Installer executes install, prepare, init, generate, apply, verify-oriented output. | User provides minimal intent, runs one command, receives access summary and bootstrap material. |
+| `P1` Full Basement Kit one-line installer | Low to medium (`I0-I3`). Defaults work with minimal input; customization is mainly env vars such as email, mode, service profile, domain, context, PaaS. | Direct shell on target server with root/sudo. Can be run by user, on-server agent, or SSH agent. | High (`A3`). Installer executes install, prepare, init, generate, apply, verify-oriented output. | User provides minimal intent, runs one command, receives access summary and bootstrap material. |
 | `P2` Shared CLI installer plus direct CLI | Full range (`I0-I4`). Best for reviewing StackSpec, generated preview, plan, add-ons, advanced owner/recovery policy, custom network/platform choices. | Local shell on target or operator workstation, depending on workspace/target flags. Root/sudo only when preparing local host. | Low to guided (`A1-A2`). User or agent runs each command. | Install CLI, create/edit spec, run prepare/validate/generate/plan, then approve apply. |
 | `P3` Agent already on target server | Full range (`I0-I4`) if the agent has enough local context and approval. Good for default and advanced flows. | Agent has direct target-shell authority. Website/prompting is guidance only. | Guided to autonomous (`A2-A3`). | Agent reads prompts/docs, asks for missing intent, executes CLI locally, reports evidence. |
 | `P4` External agent through SSH/remote shell | Medium to full (`I1-I4`). Strong for target host, SSH user/key, email, domain, custom install mode, and remote evidence. | Agent outside server with SSH or equivalent remote shell. Authority is SSH user privileges. | Guided to autonomous (`A2-A3`). | Agent confirms target safety, downloads installer or CLI on target, runs lifecycle remotely, returns logs/evidence. |
@@ -225,7 +225,7 @@ P0 discovery -> choose P1/P2/P3/P4 for initial install -> optional P5 once stack
 | ID | Process | Agent location | Main entrypoint | Automation | Individualization | Execution authority | Best fit |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `P0` | Website and Web-MCP discovery | Browser or remote agent | `https://stackkit.cc`, `/llms.txt`, `/openmcp.json` | `A0` | `I0-I4` planning | Read-only | Learn, choose a path, generate commands |
-| `P1` | Full BaseKit one-line installer | Target server shell | `curl -sSL https://base.stackkit.cc \| sh` | `A3` | `I0-I3` | Target shell/root or sudo | Fastest fresh-server BaseKit rollout |
+| `P1` | Full Basement Kit one-line installer | Target server shell | `curl -sSL https://base.stackkit.cc \| sh` | `A3` | `I0-I3` | Target shell/root or sudo | Fastest fresh-server Basement Kit rollout |
 | `P2` | Shared CLI installer plus direct CLI | User or agent shell | `curl -sSL https://install.stackkit.cc \| sh` | `A1-A2` | `I0-I4` | Local shell/root or sudo when preparing host | Operators who want explicit lifecycle steps |
 | `P3` | Agent already on the target server | Target server shell | Website prompt or `stackkit agent prompt ...` | `A2-A3` | `I0-I4` | Direct target shell | Autonomous local rollout on a controlled host |
 | `P4` | External agent through SSH/remote shell | Operator workstation or agent host | SSH plus installer/CLI commands | `A2-A3` | `I1-I4` | SSH user privileges on target | Agent is outside the server and no MCP endpoint is available |
@@ -272,11 +272,11 @@ The target already has a native connector. An external agent can call read-only 
 
 ## Process Shape By Individualization Level
 
-### `I0`: Default BaseKit
+### `I0`: Default Basement Kit
 
 Use when the operator wants the product default:
 
-- BaseKit;
+- Basement Kit;
 - `bootstrapped`;
 - local `home.localhost`;
 - default service profile;
@@ -320,12 +320,12 @@ flowchart TD
   B -->|No| C["Can the external agent SSH or run a remote shell on the target?"]
   C -->|Yes| P4["External SSH agent (P4)"]
   C -->|No| D["Is the CLI installed where the StackSpec/workspace lives?"]
-  D -->|No| P1["Install CLI or run the BaseKit installer (P1/P2)"]
+  D -->|No| P1["Install CLI or run the Basement Kit installer (P1/P2)"]
   D -->|Yes| E["Do you want explicit command-by-command review?"]
   E -->|Yes| P2["CLI lifecycle with plan review (P2)"]
   E -->|No| F["Do you want an agent-native tool surface?"]
   F -->|Yes| G["Use one stackkit MCP connection"]
-  F -->|No| P1b["BaseKit installer or direct CLI (P1/P2)"]
+  F -->|No| P1b["Basement Kit installer or direct CLI (P1/P2)"]
   G --> H["Is the MCP client on the same machine as the workspace?"]
   H -->|Yes| P6["Local stackkit-mcp adapter (P6)"]
   H -->|No| I["Is stackkit-server already installed and protected on the target?"]
@@ -336,7 +336,7 @@ flowchart TD
 Short version:
 
 1. Start with `P0` if the agent is only discovering or deciding.
-2. Use `P1` for the fastest fresh BaseKit rollout.
+2. Use `P1` for the fastest fresh Basement Kit rollout.
 3. Use `P2` when plan review and customization matter.
 4. Use `P3` when the agent is already on the target.
 5. Use `P4` when the agent is outside the target and must bootstrap it through SSH.
@@ -370,9 +370,9 @@ Boundaries:
 - The website may point to the native local connector, but it does not host that connector.
 - If the agent later installs or manages a target, the execution channel changes to shell, SSH, local MCP, or protected remote MCP.
 
-## P1: Full BaseKit One-Line Installer
+## P1: Full Basement Kit One-Line Installer
 
-This is the shortest verified BaseKit user path.
+This is the shortest verified Basement Kit user path.
 
 ```bash
 curl -sSL https://base.stackkit.cc | sh
@@ -395,9 +395,9 @@ env STACKKIT_RELEASE_VERSION=v0.4.5-beta.1 sh -c 'curl -sSL https://base.stackki
 Current implementation:
 
 1. Downloads and runs the shared CLI installer from `https://install.stackkit.cc`.
-2. Installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, and BaseKit definitions.
+2. Installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, and Basement Kit definitions.
 3. Runs `stackkit prepare`.
-4. Creates the BaseKit spec non-interactively where possible.
+4. Creates the Basement Kit spec non-interactively where possible.
 5. Generates and applies the deployment.
 6. Prints access information and technical bootstrap material.
 
@@ -417,14 +417,14 @@ Important environment variables:
 Use when:
 
 - the target host is fresh and dedicated to StackKits;
-- the operator wants the fastest BaseKit path;
+- the operator wants the fastest Basement Kit path;
 - the agent or user can execute shell commands directly on the target.
 
 Do not use when:
 
 - the operator needs a preview-only plan before any mutation;
 - the target already has important services and needs manual compatibility review first;
-- the desired rollout is outside the published BaseKit beta scope.
+- the desired rollout is outside the published Basement Kit beta scope.
 
 ## P2: Shared CLI Installer Plus Direct CLI
 
@@ -434,7 +434,7 @@ This path installs the toolchain first, then runs lifecycle commands explicitly.
 curl -sSL https://install.stackkit.cc | sh
 mkdir my-homelab
 cd my-homelab
-stackkit init base-kit
+stackkit init basement-kit
 stackkit prepare
 stackkit validate
 stackkit generate
@@ -446,7 +446,7 @@ stackkit verify --http --json
 The shared installer supports kit arguments:
 
 ```bash
-curl -sSL https://install.stackkit.cc | sh -s -- base-kit
+curl -sSL https://install.stackkit.cc | sh -s -- basement-kit
 curl -sSL https://install.stackkit.cc | sh -s -- all
 ```
 
@@ -478,7 +478,7 @@ curl -sSL https://base.stackkit.cc | sh
 curl -sSL https://install.stackkit.cc | sh
 stackkit agent install-plan --json
 stackkit agent self-check --json
-stackkit init base-kit --non-interactive --admin-email <operator-email>
+stackkit init basement-kit --non-interactive --admin-email <operator-email>
 stackkit prepare --dry-run
 stackkit validate
 stackkit generate --force
@@ -625,7 +625,7 @@ Boundary:
 | User situation | Recommended path |
 | --- | --- |
 | "I want an agent to learn StackKits and tell me what to do." | `P0` website discovery |
-| "I have a fresh server and want the fastest BaseKit install." | `P1` full BaseKit one-line installer |
+| "I have a fresh server and want the fastest Basement Kit install." | `P1` full Basement Kit one-line installer |
 | "I want to install the CLI first and approve each lifecycle step." | `P2` shared CLI installer plus direct CLI |
 | "The agent is already running on the target server." | `P3` on-server agent direct CLI |
 | "The agent is on my workstation and can SSH into the server." | `P4` external agent through SSH |
@@ -637,7 +637,7 @@ Boundary:
 Current StackKits supports these paths:
 
 - Website and Web-MCP discovery for read-only agent guidance.
-- Full BaseKit installation through `https://base.stackkit.cc`.
+- Full Basement Kit installation through `https://base.stackkit.cc`.
 - Shared CLI/toolchain installation through `https://install.stackkit.cc`.
 - Direct CLI lifecycle after installation.
 - Agent-guided CLI through public prompts and `stackkit agent ...` helpers.

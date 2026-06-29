@@ -365,7 +365,7 @@ func restartDockerForDNS(ctx context.Context) {
 	tryStartDocker(ctx, isSystemd) //nolint:errcheck
 }
 
-// baseKitImages returns the Docker images used by the base-kit for a given compute tier.
+// baseKitImages returns the Docker images used by the basement-kit for a given compute tier.
 // Coolify is installed through its official installer, but its runtime images
 // are still pre-pulled for the default standard tier so registry/auth/rate-limit
 // problems fail early in stackkit prepare instead of halfway through apply.
@@ -547,7 +547,7 @@ func shouldPrePullImage(image string) bool {
 	return strings.Contains(image, "/")
 }
 
-// prePullImages pulls all base-kit Docker images from the host network.
+// prePullImages pulls all basement-kit Docker images from the host network.
 // This is critical on restricted VPS where container DNS is broken — the host
 // network has working DNS, so `docker pull` from the host succeeds.
 const (

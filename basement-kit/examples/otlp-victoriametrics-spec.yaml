@@ -1,0 +1,32 @@
+name: otlp-vm-lab
+stackkit: cloud-kit
+mode: bootstrapped
+context: cloud
+domain: observability.example.com
+email: admin@example.com
+
+network:
+  mode: public
+
+compute:
+  tier: high
+
+ssh:
+  user: admin
+  port: 22
+  keyPath: ~/.ssh/id_ed25519
+
+tls:
+  provider: cloudflare
+  challenge: dns
+
+addons:
+  - monitoring-core
+
+nodes:
+  - name: observability-host
+    role: standalone
+    ip: 10.0.0.5
+
+# monitoring-agent still stays enabled by default.
+# monitoring-core adds the VictoriaMetrics-backed OTLP gateway and retention tier.

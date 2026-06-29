@@ -104,12 +104,13 @@ archives:
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
       - cue.mod/**
-      - base-kit/**
+      - basement-kit/**
+      - cloud-kit/**
       - base/**
       - modules/**
 
   # Per-kit archives — CLI + specific kit + base schemas
-  - id: base-kit
+  - id: basement-kit
     ids:
       - stackkit
       - stackkit-server
@@ -121,7 +122,7 @@ archives:
         formats:
           - zip
     name_template: >-
-      {{ .ProjectName }}-base-kit_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      {{ .ProjectName }}-basement-kit_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     files:
       - src: ".dist-tools/opentofu/{{ .Os }}_{{ .Arch }}/tofu*"
         dst: .
@@ -139,7 +140,41 @@ archives:
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
       - cue.mod/**
-      - base-kit/**
+      - basement-kit/**
+      - base/**
+      - modules/**
+
+  - id: cloud-kit
+    ids:
+      - stackkit
+      - stackkit-server
+      - stackkit-mcp
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}-cloud-kit_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - src: ".dist-tools/opentofu/{{ .Os }}_{{ .Arch }}/tofu*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
+      - src: ".dist-tools/terramate/{{ .Os }}_{{ .Arch }}/terramate*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
+      - README.md
+      - LICENSE
+      - docs/CLI.md
+      - docs/ENTERPRISE_READINESS.md
+      - schemas/release-evidence.schema.json
+      - cue.mod/**
+      - cloud-kit/**
       - base/**
       - modules/**
 
@@ -209,9 +244,14 @@ release:
 
     ### Quick Install
 
-    **Base Kit (single-server homelab):**
+    **Basement Kit (local single-server homelab):**
     ```bash
     curl -sSL https://base.stackkit.cc | sh
+    ```
+
+    **Cloud Kit (cloud / VPS deployment):**
+    ```bash
+    curl -sSL https://cloud.stackkit.cc | sh
     ```
 
     **CLI + public kit catalog (pick a kit later):**
@@ -223,7 +263,8 @@ release:
 
     | Archive | Contents |
     |---------|----------|
-    | `stackkits_*` | CLI + BaseKit catalog |
-    | `stackkits-base-kit_*` | CLI + base-kit only |
+    | `stackkits_*` | CLI + all public kits |
+    | `stackkits-basement-kit_*` | CLI + basement-kit only |
+    | `stackkits-cloud-kit_*` | CLI + cloud-kit only |
   footer: |
     **Full Changelog**: https://github.com/kombifyio/stackKits/compare/{{ .PreviousTag }}...{{ .Tag }}

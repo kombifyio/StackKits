@@ -20,7 +20,7 @@ import (
 //     duplicated here).
 //
 // This is a *valid CUE* representation of the DB-shape — it is NOT meant
-// to byte-equal the hand-written base-kit/stackfile.cue, which carries
+// to byte-equal the hand-written basement-kit/stackfile.cue, which carries
 // hand-curated comments + schema constraints. The roundtrip test
 // validates `cue eval` succeeds, not byte-equality.
 func ExportCUE(def KitDefinition) (stackfileBytes, servicesBytes []byte, err error) {

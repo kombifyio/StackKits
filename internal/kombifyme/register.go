@@ -23,12 +23,12 @@ type ServiceDef struct {
 	Primary     bool
 }
 
-// BaseKitServices returns the service definitions for the base-kit based on compute tier.
+// BaseKitServices returns the service definitions for the basement-kit based on compute tier.
 // Deprecated: use ServiceRegistrationsFromCatalog so the registration layer is
 // driven by the same canonical catalog as access.json and generated routes.
 func BaseKitServices(tier string) []ServiceDef {
 	return BaseKitServicesForSpec(&models.StackSpec{
-		StackKit: "base-kit",
+		StackKit: "basement-kit",
 		Compute:  models.ComputeSpec{Tier: tier},
 	})
 }
@@ -45,7 +45,7 @@ func BaseKitServicesForSpec(spec *models.StackSpec) []ServiceDef {
 // contract; legacy aliases are registered only to keep existing links alive.
 func ServiceRegistrationsFromCatalog(catalog []servicecatalog.Service, tier string) []ServiceDef {
 	return ServiceRegistrationsFromCatalogForSpec(catalog, &models.StackSpec{
-		StackKit: "base-kit",
+		StackKit: "basement-kit",
 		Compute:  models.ComputeSpec{Tier: tier},
 	})
 }
@@ -227,7 +227,7 @@ func RegisterAll(apiKey, homelabName, fingerprint, tier string) (*RegisterResult
 // services, and any additional platform app services.
 func RegisterAllWithServices(apiKey, homelabName, fingerprint, tier string, extraServices []ServiceDef) (*RegisterResult, error) {
 	return RegisterAllForSpec(apiKey, homelabName, fingerprint, &models.StackSpec{
-		StackKit: "base-kit",
+		StackKit: "basement-kit",
 		Compute:  models.ComputeSpec{Tier: tier},
 	}, extraServices)
 }
@@ -244,7 +244,7 @@ func RegisterAllForSpec(apiKey, homelabName, fingerprint string, spec *models.St
 	targetAddr := registrationTargetAddr(spec, detected.PublicIP)
 
 	// 1. Register base subdomain
-	base, err := client.AutoRegister(homelabName, fingerprint, "StackKit: base-kit")
+	base, err := client.AutoRegister(homelabName, fingerprint, "StackKit: basement-kit")
 	if err != nil {
 		return nil, err
 	}

@@ -26,7 +26,7 @@ type TerraformBridge struct {
 }
 
 // TFVars represents the complete structure of terraform.tfvars.json,
-// matching all variables declared in base-kit/templates/simple/main.tf.
+// matching all variables declared in basement-kit/templates/simple/main.tf.
 type TFVars struct {
 	InstallMode string `json:"installation_mode"`
 

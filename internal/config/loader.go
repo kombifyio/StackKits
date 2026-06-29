@@ -254,6 +254,10 @@ func validateStackKit(sk *models.StackKit) error {
 
 // applySpecDefaults applies default values to a stack spec
 func applySpecDefaults(spec *models.StackSpec) {
+	if models.IsLegacyStackKitName(spec.StackKit) {
+		slog.Warn("legacy stackkit name normalized", "from", spec.StackKit, "to", models.NormalizeStackKitName(spec.StackKit))
+	}
+	spec.StackKit = models.NormalizeStackKitName(spec.StackKit)
 	if spec.Mode == "" {
 		spec.Mode = models.InstallModeBootstrapped
 	} else {

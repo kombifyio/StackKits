@@ -14,7 +14,7 @@ version, rollout, and lifecycle state.
 | `alternative` | Curated swap for a default in the same group. | Same generated contract shape as the default, documented migration/limits, and explicit user selection. |
 | `optional` | Available but off by default. | CUE validation, generate path, documented enablement, and known gaps. |
 
-## Current BaseKit Platform Matrix
+## Current Basement Kit Platform Matrix
 
 | Concern | Release value |
 | --- | --- |
@@ -22,11 +22,11 @@ version, rollout, and lifecycle state.
 | Production PaaS alternative | `komodo` |
 | Draft PaaS adapter | `dokploy` |
 | Invalid normal PaaS values | `dockge`, `none` |
-| Dockge status | Experimental/constrained Compose manager service only; not a normal BaseKit PaaS. |
+| Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
 | Low compute tier | Keeps the Coolify platform contract and gates heavier apps; it does not switch to Dockge. |
 
 When the PaaS contract changes, update all of these together:
-`base-kit/stackkit.yaml`, `base-kit/defaults.cue`, the Go resolver/validator,
+`basement-kit/stackkit.yaml`, `cloud-kit/stackkit.yaml`, `base/defaults.cue`, the Go resolver/validator,
 `docs/stack-spec-reference.md`, `docs/CONCEPTS.md`, website installer copy, and
 release archive smoke expectations.
 
@@ -49,7 +49,7 @@ release archive smoke expectations.
 | Experimental to optional | `cue vet`, module CUE validation, generate path, docs for known gaps. |
 | Optional to alternative | Resolver/generator tests, compatibility with existing defaults, docs for migration and limits. |
 | Alternative to default | Fresh-target smoke, release archive smoke, identity/secret checks, `stackkit verify` coverage, rollback/update notes. |
-| Kit to release-ready | Public installer smoke, full archive validation, live BaseKit-style scenario evidence, and no HTML fallback on one-line endpoints. |
+| Kit to release-ready | Public installer smoke, full archive validation, live Basement Kit-style scenario evidence, and no HTML fallback on one-line endpoints. |
 
 ## Required Release Checks
 
@@ -57,7 +57,7 @@ For any option, installer, or kit-default change:
 
 ```bash
 go test ./...
-cue vet ./base/... ./base-kit/...
+cue vet ./base/... ./basement-kit/... ./cloud-kit/...
 mise run test:cue-binding
 mise run test:website
 ```

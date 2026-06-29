@@ -55,7 +55,8 @@ function validate(repoRoot) {
     path.join(repoRoot, 'tests', 'production', 'README.md'),
   ].filter((file) => existsSync(file));
   const generatedWaitFiles = [
-    path.join(repoRoot, 'base-kit', 'templates', 'simple', 'main.tf'),
+    path.join(repoRoot, 'basement-kit', 'templates', 'simple', 'main.tf'),
+    path.join(repoRoot, 'cloud-kit', 'templates', 'simple', 'main.tf'),
   ].filter((file) => existsSync(file));
 
   for (const file of workflowFiles) {

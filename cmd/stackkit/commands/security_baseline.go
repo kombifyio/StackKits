@@ -97,7 +97,7 @@ func securityBaselineApplies(spec *models.StackSpec) bool {
 	if spec == nil {
 		return false
 	}
-	return strings.EqualFold(strings.TrimSpace(spec.StackKit), "base-kit")
+	return strings.EqualFold(strings.TrimSpace(spec.StackKit), "basement-kit")
 }
 
 func disabledByEnv(key string) bool {

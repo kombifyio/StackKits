@@ -77,7 +77,7 @@ while [ "$#" -gt 0 ]; do
   fi
   shift
 done
-mkdir -p "$dest/base" "$dest/cue.mod" "$dest/modules" "$dest/base-kit"
+mkdir -p "$dest/base" "$dest/cue.mod" "$dest/modules" "$dest/basement-kit"
 printf '#!/bin/sh\\necho stackkit test\\n' > "$dest/stackkit"
 printf '#!/bin/sh\\necho tofu test\\n' > "$dest/tofu"
 printf '#!/bin/sh\\necho terramate test\\n' > "$dest/terramate"

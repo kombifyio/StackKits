@@ -562,11 +562,16 @@ func createDefaultSpec(loader *config.Loader, wd string) (*models.StackSpec, err
 		return nil, fmt.Errorf("no StackKits found — run 'stackkit init <kit>' first")
 	}
 
-	// Prefer base-kit, fall back to single kit, otherwise ask
+	// Prefer basement-kit, then cloud-kit, fall back to single kit, otherwise ask
 	var kitName string
-	for _, k := range kits {
-		if k.Metadata.Name == "base-kit" {
-			kitName = k.Metadata.Name
+	for _, want := range []string{"basement-kit", "cloud-kit"} {
+		for _, k := range kits {
+			if k.Metadata.Name == want {
+				kitName = k.Metadata.Name
+				break
+			}
+		}
+		if kitName != "" {
 			break
 		}
 	}

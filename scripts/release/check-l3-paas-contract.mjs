@@ -98,7 +98,7 @@ function validateModuleContracts(modules, failures) {
 }
 
 async function validateBaseKitServices(repoRoot, failures) {
-  const servicesFile = path.join(repoRoot, 'base-kit', 'services.cue');
+  const servicesFile = path.join(repoRoot, 'base', 'services.cue');
   if (!(await exists(servicesFile))) {
     return;
   }
@@ -109,7 +109,7 @@ async function validateBaseKitServices(repoRoot, failures) {
 }
 
 async function validatePaaSReleasePosture(repoRoot, failures) {
-  const modeMatrixFile = path.join(repoRoot, 'base-kit', 'mode_matrix.cue');
+  const modeMatrixFile = path.join(repoRoot, 'basement-kit', 'mode_matrix.cue');
   if (await exists(modeMatrixFile)) {
     const text = await readFile(modeMatrixFile, 'utf8');
     if (!/paas:\s*\{[\s\S]*coolify:\s*"default"/.test(text)) {
@@ -126,7 +126,7 @@ async function validatePaaSReleasePosture(repoRoot, failures) {
     }
   }
 
-  const stackkitFile = path.join(repoRoot, 'base-kit', 'stackkit.yaml');
+  const stackkitFile = path.join(repoRoot, 'basement-kit', 'stackkit.yaml');
   if (await exists(stackkitFile)) {
     const text = await readFile(stackkitFile, 'utf8');
     if (!/Komodo is the beta-supported PaaS alternative; Dokploy remains draft/.test(text)) {
