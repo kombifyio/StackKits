@@ -11,8 +11,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/tofu"
 )
 
 // Executor handles Terramate command execution
@@ -74,11 +77,11 @@ func WithTofuBinary(binary string) ExecutorOption {
 func NewExecutor(opts ...ExecutorOption) *Executor {
 	e := &Executor{
 		workDir:      ".",
-		binary:       "terramate",
+		binary:       DefaultBinary(),
 		timeout:      14 * time.Minute,
 		changeDetect: true,
 		parallelism:  1,
-		tofuBinary:   "tofu",
+		tofuBinary:   tofu.DefaultBinary(),
 	}
 
 	for _, opt := range opts {
@@ -86,6 +89,55 @@ func NewExecutor(opts ...ExecutorOption) *Executor {
 	}
 
 	return e
+}
+
+// BinaryName returns the Terramate executable name for the current platform.
+func BinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "terramate.exe"
+	}
+	return "terramate"
+}
+
+// PackagedBinaryPath returns the StackKit-packaged Terramate binary path.
+// It intentionally does not fall back to PATH: advanced mode must prove the
+// StackKit release package contains its own lifecycle toolchain.
+func PackagedBinaryPath() (string, bool) {
+	if override := os.Getenv("STACKKIT_TERRAMATE_BINARY"); override != "" {
+		return override, fileExists(override)
+	}
+
+	exePath, err := os.Executable()
+	if err != nil || exePath == "" {
+		return "", false
+	}
+
+	exeDir := filepath.Dir(exePath)
+	for _, candidate := range []string{
+		filepath.Join(exeDir, BinaryName()),
+		filepath.Join(exeDir, "bin", BinaryName()),
+	} {
+		if fileExists(candidate) {
+			return candidate, true
+		}
+	}
+
+	return "", false
+}
+
+// DefaultBinary resolves the Terramate binary used by regular execution.
+// Missing release packaging resolves to an impossible path so host PATH cannot
+// mask an incomplete StackKit package.
+func DefaultBinary() string {
+	if path, ok := PackagedBinaryPath(); ok {
+		return path
+	}
+	return filepath.Join(".stackkit-missing-packaged-terramate", BinaryName())
+}
+
+func fileExists(path string) bool {
+	_, err := exec.LookPath(path)
+	return err == nil
 }
 
 // Result represents the result of a terramate command

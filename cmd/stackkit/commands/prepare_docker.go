@@ -1178,7 +1178,7 @@ func getDockerLogs(isSystemd bool) string {
 }
 
 func installDockerLocal(ctx context.Context) error {
-	cmd := exec.Command("sh", "-c", packageManagerLockWaitScript()+"\ncurl -fsSL https://get.docker.com | sh")
+	cmd := exec.Command("sh", "-c", "curl -fsSL https://get.docker.com | sh")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -1198,8 +1198,7 @@ func installDockerRemote(ctx context.Context, client *ssh.Client, osType string)
 
 	switch osType {
 	case "ubuntu", "debian":
-		installCmd = packageManagerLockWaitScript() + `
-curl -fsSL https://get.docker.com | sh
+		installCmd = `curl -fsSL https://get.docker.com | sh
 systemctl enable docker
 systemctl start docker
 `
@@ -1222,6 +1221,53 @@ systemctl start docker
 	return nil
 }
 
+func waitForLocalPackageManager(ctx context.Context) error {
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(waitCtx, "sh", "-c", packageManagerLockWaitScript()) // #nosec G204 -- script is static.
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		output := strings.TrimSpace(stdout.String() + "\n" + stderr.String())
+		return fmt.Errorf("apt_wait timeout_class=%s: %w: %s", classifyAptWaitOutput(output), err, output)
+	}
+	return nil
+}
+
+func waitForRemotePackageManager(ctx context.Context, client *ssh.Client, osType string) error {
+	switch osType {
+	case "ubuntu", "debian":
+	default:
+		return nil
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	stdout, stderr, err := client.RunWithSudo(waitCtx, packageManagerLockWaitScript())
+	if err != nil {
+		output := strings.TrimSpace(stdout + "\n" + stderr)
+		return fmt.Errorf("apt_wait timeout_class=%s: %w: %s", classifyAptWaitOutput(output), err, output)
+	}
+	return nil
+}
+
+func classifyAptWaitOutput(output string) string {
+	text := strings.ToLower(output)
+	switch {
+	case strings.Contains(text, "cloud-init"):
+		return "cloud_init_timeout"
+	case strings.Contains(text, "unattended"):
+		return "unattended_upgrade_timeout"
+	case strings.Contains(text, "apt/dpkg process"):
+		return "apt_process_timeout"
+	case strings.Contains(text, "apt/dpkg lock"):
+		return "apt_lock_timeout"
+	default:
+		return "apt_wait_timeout"
+	}
+}
+
 func packageManagerLockWaitScript() string {
 	return `if command -v apt-get >/dev/null 2>&1; then
   for i in $(seq 1 72); do
@@ -1238,7 +1284,11 @@ func packageManagerLockWaitScript() string {
     break
   done
   if command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
-    echo "Timed out waiting for apt/dpkg lock" >&2
+    echo "apt_lock_timeout: Timed out waiting for apt/dpkg lock" >&2
+    exit 1
+  fi
+  if pgrep -x apt-get >/dev/null 2>&1 || pgrep -x apt >/dev/null 2>&1 || pgrep -x dpkg >/dev/null 2>&1 || pgrep -x unattended-upgr >/dev/null 2>&1; then
+    echo "apt_process_timeout: Timed out waiting for apt/dpkg process" >&2
     exit 1
   fi
 fi`

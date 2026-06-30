@@ -94,10 +94,10 @@ func applyPublicBetaSecurityBaseline(ctx context.Context, wd string, spec *model
 }
 
 func securityBaselineApplies(spec *models.StackSpec) bool {
-	if spec == nil {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(spec.StackKit), "basement-kit")
+	// The host security baseline is a universal Foundation contract: every
+	// single-environment server deployment (any kit) gets it. Non-apt / non-Linux
+	// hosts still self-skip inside the script with status "skipped".
+	return spec != nil
 }
 
 func disabledByEnv(key string) bool {

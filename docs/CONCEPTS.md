@@ -1,4 +1,4 @@
-# StackKits Concepts (V5/V6 Canonical)
+# StackKits Concepts
 
 > **READ THIS FIRST** before making any architectural suggestion or code change involving
 > service selection, tool roles, or StackKit structure.
@@ -54,10 +54,10 @@ Golden Rules §8). Every non-HA kit has **exactly one main**.
 
 | StackKit | Pattern | Maturity | Default Scope |
 |----------|---------|----------|---------------|
-| **Basement Kit** | Single environment, 1 main, local-only (`context local/pi`) | beta (schema `base.#StackBase`) | Platform + verified default application modules; heavier modules gated by release gates |
-| **Cloud Kit** | Single environment, 1 main, cloud-only (`context cloud`, BYO-VPS) | scaffolding (same `base.#StackBase`, `context cloud`) | Same scope; public-IP/domain onboarding |
-| **Modern Homelab** | Hybrid (≥1 local + ≥1 cloud), 1 main + bridge contract | alpha/scaffolding (v0.8) | Composition of Basement + Cloud node-sets + interface/bridge; managed variant = subscription |
-| **HA Kit** | Redundant control planes, quorum 3/5/7 | scaffolding (v0.8+) | Reliability/failover overlay |
+| **Basement Kit** | Single environment, 1 main, local-only (`context local/pi`) | stable (schema `base.#StackBase`) | Platform + verified default application modules; heavier modules gated by release gates |
+| **Cloud Kit** | Single environment, 1 main, cloud-only (`context cloud`, BYO-VPS) | scaffolding → graduating (same `base.#StackBase`, `context cloud`) | Same scope; public-IP/domain onboarding |
+| **Modern Homelab** | Hybrid (≥1 local + ≥1 cloud), 1 main + bridge contract | preview/early-access (alpha, v0.8) | Composition of Basement + Cloud node-sets + interface/bridge; managed variant = subscription |
+| **HA** *(add-on, not a marketed kit)* | Redundant control planes, quorum 3/5/7 | `addons/ha` add-on | Node-gated reliability overlay: `warm-standby` (≥2 nodes) + `quorum` (≥3 odd managers, etcd) tiers — ADR-0026 amendment 2026-06-30 |
 
 Basement Kit and Cloud Kit are **product profiles over the one shared `base.#StackBase` schema**
 (selected by `context`), not two separate schemas. Platform target = routing + identity
@@ -101,7 +101,7 @@ The tier gates feasibility. It doesn't drive selection — the StackKit defaults
 StackKits separate the deployment engine from the resource profile:
 
 **Deployment Engine:**
-- `bootstrapped` = current BaseKit beta default with packaged OpenTofu, Base Hub, owner bootstrap, and setup-run automation
+- `bootstrapped` = current Basement Kit default with packaged OpenTofu, Base Hub, owner bootstrap, and setup-run automation
 - `bare` = infrastructure and selected tools without Base Hub or setup automation
 - `advanced` = bootstrapped surface plus Terramate Plus lifecycle orchestration, Runtime Intelligence Layer, Frontend Intelligence handoff, drift/change/rollback/restore-drill surfaces, and managed TechStack lifecycle handoff
 
@@ -122,7 +122,7 @@ The compact authoring and promotion matrix lives in [OPTIONS_AND_AUTHORING.md](O
 
 | Role | Meaning | Example |
 |------|---------|---------|
-| `default` | Ships enabled, pre-configured, immediately usable | Coolify in Base Kit |
+| `default` | Ships enabled, pre-configured, immediately usable | Coolify in Basement Kit |
 | `alternative` | Curated swap for a default (same category) | Komodo as explicit PaaS alternative |
 | `optional` | Available but off by default, user enables | Game Server |
 
@@ -165,7 +165,7 @@ The admin-center tool evaluation decides which alternatives we offer.
 ## Resolution Hierarchy
 
 ```
-StackKit selected (Base Kit)
+StackKit selected (Basement Kit)
     |
     v
 Deployment mode and resource profile applied

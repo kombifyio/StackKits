@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/rollout"
+	"github.com/kombifyio/stackkits/internal/terramate"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	stackverify "github.com/kombifyio/stackkits/internal/verify"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -649,8 +649,13 @@ func ensurePrerequisites(ctx context.Context, spec *models.StackSpec) error {
 	printSuccess("StackKit-packaged OpenTofu available")
 
 	if spec != nil && spec.UsesAdvancedIAC() {
-		if _, err := exec.LookPath("terramate"); err != nil {
-			return fmt.Errorf("StackKit-packaged Terramate binary not found on PATH; reinstall StackKit from the official release package")
+		packagedTerramate, ok := terramate.PackagedBinaryPath()
+		if !ok {
+			return fmt.Errorf("StackKit-packaged Terramate binary not found; reinstall StackKit from the official release package")
+		}
+		terramateExec := terramate.NewExecutor(terramate.WithBinary(packagedTerramate))
+		if !terramateExec.IsInstalled() {
+			return fmt.Errorf("StackKit-packaged Terramate binary is not executable: %s", packagedTerramate)
 		}
 		printSuccess("StackKit-packaged Terramate available")
 	}

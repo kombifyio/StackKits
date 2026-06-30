@@ -6,11 +6,19 @@ homelab and small-server deployments. The `stackkit` CLI turns a declarative
 
 ## Install
 
+Basement Kit — local / homelab (stable):
+
 ```sh
 curl -sSL https://base.stackkit.cc | sh
 ```
 
-For CLI plus the public kit catalog:
+Cloud Kit — cloud VM / BYO-VPS (ships as scaffolding, graduating in v0.5.1):
+
+```sh
+curl -sSL https://cloud.stackkit.cc | sh
+```
+
+For the CLI plus the public kit catalog:
 
 ```sh
 curl -sSL https://install.stackkit.cc | sh

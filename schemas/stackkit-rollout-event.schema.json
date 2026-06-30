@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.kombify.io/schemas/stackkit-rollout-event.schema.json",
+  "title": "StackKit Rollout Progress Event",
+  "description": "Redacted JSONL event emitted by StackKit CLI rollout and prepare phases.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["time", "phase", "status"],
+  "properties": {
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "phase": {
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "prepare",
+        "target.connect",
+        "apt_wait",
+        "docker.install",
+        "opentofu.check",
+        "terramate.check",
+        "telemetry.handshake",
+        "resources.check"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["started", "running", "succeeded", "failed", "skipped"]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["debug", "info", "warning", "error"]
+    },
+    "message": {
+      "type": "string"
+    },
+    "failureClass": {
+      "type": "string",
+      "enum": [
+        "apt_lock_timeout",
+        "apt_process_timeout",
+        "apt_wait_timeout",
+        "cloud_init_timeout",
+        "docker_daemon_failed",
+        "docker_install_failed",
+        "opentofu_prepare_failed",
+        "platform_app_failed",
+        "spec_fetch_failed",
+        "target_inspect_failed",
+        "terramate_prepare_failed",
+        "tofu_apply_failed",
+        "tofu_init_failed",
+        "unattended_upgrade_timeout",
+        "unknown_failure",
+        "verify_failed"
+      ]
+    },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

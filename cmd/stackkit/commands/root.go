@@ -3,6 +3,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,12 +41,13 @@ var (
 
 // Global flags
 var (
-	verbose     bool
-	quiet       bool
-	workDir     string
-	specFile    string
-	contextFlag string
-	noLog       bool
+	verbose       bool
+	quiet         bool
+	workDir       string
+	specFile      string
+	contextFlag   string
+	noLog         bool
+	progressJSONL string
 )
 
 // deployLog is the structured deploy logger for the current CLI run.
@@ -134,6 +136,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&specFile, "spec", "s", "stack-spec.yaml", "Path to stack specification file (kombination.yaml is accepted when the default is missing)")
 	rootCmd.PersistentFlags().StringVar(&contextFlag, "context", "", "Node context override (local, cloud, pi). Auto-detected if omitted.")
 	rootCmd.PersistentFlags().BoolVar(&noLog, "no-log", false, "Disable structured deploy logging")
+	rootCmd.PersistentFlags().StringVar(&progressJSONL, "progress-jsonl", "", "Write redacted machine-readable rollout progress JSONL to a path, or '-' for stdout")
 
 	// Add subcommands
 	rootCmd.AddCommand(initCmd)
@@ -254,35 +257,79 @@ func initRolloutTelemetry(runID string) {
 }
 
 func rolloutEvent(phase, status, message string, attrs map[string]string) {
-	if rolloutRecorder == nil {
-		return
-	}
-	recordRolloutSpanEvent(phase, status, message, attrs, nil)
-	rolloutRecorder.Event(rollout.Event{
+	event := rollout.Event{
 		Phase:      phase,
 		Status:     status,
 		Message:    message,
 		Attributes: attrs,
-	})
+	}
+	emitRolloutProgress(event)
+	recordRolloutSpanEvent(phase, status, message, attrs, nil)
+	if rolloutRecorder == nil {
+		return
+	}
+	rolloutRecorder.Event(event)
 }
 
 func rolloutFailure(phase string, err error) {
 	if err == nil {
 		return
 	}
+	event := rollout.Event{
+		Phase:        phase,
+		Status:       "failed",
+		Message:      err.Error(),
+		FailureClass: rollout.ClassifyFailure(err.Error()),
+	}
+	emitRolloutProgress(event)
 	if rolloutRecorder == nil {
 		return
 	}
 	if rolloutFailurePhase == "" || rolloutFailurePhase == "apply" {
 		rolloutFailurePhase = phase
 	}
-	recordRolloutSpanEvent(phase, "failed", err.Error(), nil, err)
-	rolloutRecorder.Event(rollout.Event{
-		Phase:        phase,
-		Status:       "failed",
-		Message:      err.Error(),
-		FailureClass: rollout.ClassifyFailure(err.Error()),
-	})
+	recordRolloutSpanEvent(phase, "failed", err.Error(), map[string]string{
+		"failure_class": event.FailureClass,
+	}, err)
+	rolloutRecorder.Event(event)
+}
+
+func emitRolloutProgress(event rollout.Event) {
+	target := strings.TrimSpace(progressJSONL)
+	if target == "" {
+		return
+	}
+	if event.Time.IsZero() {
+		event.Time = time.Now().UTC()
+	}
+	event.Message = rollout.Redact(event.Message)
+	if event.FailureClass == "" && event.Status == "failed" && event.Message != "" {
+		event.FailureClass = rollout.ClassifyFailure(event.Message)
+	}
+	if len(event.Attributes) > 0 {
+		redacted := make(map[string]string, len(event.Attributes))
+		for key, value := range event.Attributes {
+			redacted[key] = rollout.Redact(value)
+		}
+		event.Attributes = redacted
+	}
+	data, err := json.Marshal(event)
+	if err != nil {
+		printVerbose("progress jsonl disabled for malformed event: %v", err)
+		return
+	}
+	data = append(data, '\n')
+	if target == "-" {
+		_, _ = os.Stdout.Write(data)
+		return
+	}
+	file, err := os.OpenFile(filepath.Clean(target), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		printVerbose("progress jsonl write failed: %v", err)
+		return
+	}
+	defer file.Close()
+	_, _ = file.Write(data)
 }
 
 func closeRolloutRecorder(summary rollout.Summary) {

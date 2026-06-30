@@ -1,6 +1,6 @@
 # StackKit CLI Reference
 
-> Last verified: 2026-06-26
+> Last verified: 2026-06-30
 
 This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
 
@@ -11,10 +11,11 @@ curl -sSL https://install.stackkit.cc | sh
 stackkit version
 ```
 
-The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu,
-and the public kit catalog under `~/.stackkits`, so `stackkit init basement-kit`
-works from a clean directory without a repo checkout. Basement Kit is the verified
-beta one-click path and the only public OSS kit surface for this release line.
+The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`,
+packaged OpenTofu, packaged Terramate, and the public kit catalog under
+`~/.stackkits`, so `stackkit init basement-kit` works from a clean directory
+without a repo checkout. Basement Kit is the verified beta one-click path and
+the only public OSS kit surface for this release line.
 Unpinned installer runs use the current stable GitHub `releases/latest`. To
 test a prerelease such as `v0.4.5-beta.1`, export the pin before invoking the
 installer:
@@ -62,6 +63,7 @@ go build -o build/stackkit-mcp ./cmd/stackkit-mcp
 | `--spec` | `-s` | `stack-spec.yaml` | Spec file path; `kombination.yaml` is accepted as a read alias when the default is missing. |
 | `--context` | | auto | Override node context: `local`, `cloud`, or `pi`. |
 | `--no-log` | | `false` | Disable structured deploy logging. |
+| `--progress-jsonl` | | unset | Write redacted machine-readable rollout progress JSONL to a path, or `-` for stdout. |
 
 ## Primary Workflow
 
@@ -144,11 +146,51 @@ Common flags:
 - `--host`
 - `--user`
 - `--key`
+- `--port`
 - `--dry-run`
 - `--skip-docker`
 - `--skip-tofu`
 - `--auto-fix`
 - `--force`
+- `--non-interactive`
+
+`prepare` is the non-interactive TechStack prep contract when called as:
+
+```bash
+stackkit --progress-jsonl - prepare --non-interactive --host <ip> --user <ssh-user> --key <private-key> --port 22 --spec stack-spec.yaml
+```
+
+It validates the spec, connects to the remote target when `--host` is not
+`localhost`, waits for apt/dpkg locks as a bounded `apt_wait` phase, installs
+Docker on supported OS families, installs StackKit-packaged OpenTofu, installs
+StackKit-packaged Terramate for `mode: advanced`, emits a telemetry handoff
+status, and reports resource checks. Re-running on an already prepared host is
+idempotent: existing Docker/OpenTofu/Terramate installations are detected and
+reported as checked or already installed instead of creating a new VM or stack.
+
+The same redacted event shape is written to `.stackkit/runs/<runId>/events.jsonl`
+and streamed through `--progress-jsonl`. The schema is
+[`schemas/stackkit-rollout-event.schema.json`](../schemas/stackkit-rollout-event.schema.json).
+Prepare emits these stable phases for orchestrators:
+
+| Phase | Meaning |
+| --- | --- |
+| `prepare` | Command lifecycle. |
+| `spec.load` | StackSpec load and validation boundary. |
+| `target.connect` / `target.inspect` | SSH connection and remote system inventory. |
+| `vps_compat` / `network_env` | Local VPS and network context detection. |
+| `resources.disk` / `resources.check` | Disk preflight plus CPU/RAM/disk resource evidence. |
+| `apt_wait` | Bounded package-manager wait before Docker installation. |
+| `docker.check` / `docker.install` / `docker.runtime` / `docker.dns` / `docker.prepull` | Docker readiness and optional image pre-pull. |
+| `opentofu.check` | StackKit-packaged OpenTofu readiness or remote install. |
+| `terramate.check` | StackKit-packaged Terramate readiness or remote install for Advanced mode. |
+| `telemetry.handshake` | Whether OTLP/Sentry handoff configuration was supplied; OSS default is `skipped`. |
+| `ports.check` | Remote HTTP/HTTPS port availability check. |
+
+`apt_wait` failures use granular classes when possible:
+`cloud_init_timeout`, `apt_lock_timeout`, `apt_process_timeout`,
+`unattended_upgrade_timeout`, or the compatibility fallback
+`apt_wait_timeout`.
 
 ### `stackkit generate`
 

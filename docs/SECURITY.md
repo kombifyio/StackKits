@@ -12,7 +12,9 @@ StackKits is designed around safe defaults and release evidence:
 
 ## Supported Security Scope
 
-The public OSS scope is BaseKit only. Unreleased kit definitions, optional
+The public OSS scope is the Basement Kit (`basement-kit`, local, stable) and the
+Cloud Kit (`cloud-kit`, cloud, shipped as scaffolding and graduating in v0.5.1),
+both built on the shared `base/` foundation. Unreleased kit definitions, optional
 extension catalogs, internal runbooks, and operator-only controller paths are
 intentionally excluded from the public repository and release archives.
 
@@ -24,7 +26,7 @@ Enterprise reviewers should inspect:
 - SBOM files ending in `.spdx.json` or `.cdx.json`,
 - `release-evidence.json`,
 - GitHub Artifact Attestation verification output,
-- live installer and fresh Ubuntu BaseKit evidence referenced from the release notes.
+- live installer and fresh Ubuntu Basement Kit evidence referenced from the release notes.
 
 If `kombifyio/stackKits` is Internal visibility for a release, treat that
 release as a customer preview instead of a broad Public OSS production

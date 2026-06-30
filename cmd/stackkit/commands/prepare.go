@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/cue"
@@ -16,20 +17,23 @@ import (
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/ssh"
+	"github.com/kombifyio/stackkits/internal/terramate"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
 
 var (
-	prepareHost       string
-	prepareUser       string
-	prepareKey        string
-	prepareDryRun     bool
-	prepareSkipDocker bool
-	prepareSkipTofu   bool
-	prepareAutoFix    bool
-	prepareForce      bool
+	prepareHost           string
+	prepareUser           string
+	prepareKey            string
+	preparePort           int
+	prepareDryRun         bool
+	prepareSkipDocker     bool
+	prepareSkipTofu       bool
+	prepareAutoFix        bool
+	prepareForce          bool
+	prepareNonInteractive bool
 )
 
 const prePullImagesDisabledFalseValue = "false"
@@ -59,11 +63,13 @@ func init() {
 	prepareCmd.Flags().StringVar(&prepareHost, "host", "localhost", "Target host IP/hostname")
 	prepareCmd.Flags().StringVar(&prepareUser, "user", "", "SSH username")
 	prepareCmd.Flags().StringVar(&prepareKey, "key", "", "SSH private key path")
+	prepareCmd.Flags().IntVar(&preparePort, "port", 22, "SSH port for remote targets")
 	prepareCmd.Flags().BoolVar(&prepareDryRun, "dry-run", false, "Show what would be done")
 	prepareCmd.Flags().BoolVar(&prepareSkipDocker, "skip-docker", false, "Skip Docker installation check")
 	prepareCmd.Flags().BoolVar(&prepareSkipTofu, "skip-tofu", false, "Skip packaged OpenTofu check")
 	prepareCmd.Flags().BoolVar(&prepareAutoFix, "auto-fix", true, "Auto-correct fixable issues")
 	prepareCmd.Flags().BoolVar(&prepareForce, "force", false, "Continue even with insufficient disk space")
+	prepareCmd.Flags().BoolVar(&prepareNonInteractive, "non-interactive", false, "Fail instead of prompting when prepare needs operator input")
 }
 
 func runPrepare(cmd *cobra.Command, args []string) (retErr error) {
@@ -168,6 +174,7 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 	// Phase 0: Early VPS compatibility detection (before Docker install)
 	if !prepareSkipDocker && !prepareDryRun {
 		printInfo("Checking VPS compatibility...")
+		rolloutEvent("vps_compat", "started", "checking VPS compatibility", nil)
 		virtType := detectVirtualization()
 		unshareOK := testUnshare()
 		cgroupVer := detectCgroupVersion()
@@ -194,6 +201,7 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 
 			// Offer native mode instead of failing
 			if err := promptForNativeMode(spec, loader, virtType); err != nil {
+				rolloutFailure("vps_compat", err)
 				return err
 			}
 			// User accepted native mode — skip Docker entirely
@@ -206,11 +214,17 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		} else {
 			printSuccess("VPS compatibility: %s (%s)", tier, virtType)
 		}
+		rolloutEvent("vps_compat", "succeeded", "VPS compatibility checked", map[string]string{
+			"tier":      string(tier),
+			"virt_type": virtType,
+			"cgroup":    cgroupVer,
+		})
 	}
 
 	// Network environment detection + NodeContext resolution
 	if !prepareDryRun {
 		printInfo("Detecting network environment...")
+		rolloutEvent("network_env", "started", "detecting network environment", nil)
 		netResult := netenv.Detect(ctx)
 
 		deployLog.Event("prepare.network_env",
@@ -252,30 +266,54 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		if netResult.PrivateIP != "" {
 			printInfo("  Private IP: %s", netResult.PrivateIP)
 		}
+		rolloutEvent("network_env", "succeeded", "network environment detected", map[string]string{
+			"environment": string(netResult.Environment),
+			"public_ip":   netResult.PublicIP,
+			"private_ip":  netResult.PrivateIP,
+			"context":     string(resolved),
+		})
 	}
 
 	// Early disk space pre-flight: check before installing anything.
 	// If critically low, tries LVM auto-extend or offers interactive resolution.
 	if !prepareDryRun {
+		rolloutEvent("resources.disk", "started", "checking disk resources", nil)
 		if err := checkDiskPreFlight(reqs, spec, loader); err != nil {
+			rolloutFailure("resources.disk", err)
 			return fmt.Errorf("system preparation failed: %w", err)
 		}
+		rolloutEvent("resources.disk", "succeeded", "disk resources checked", nil)
 	}
 
 	// Check Docker
 	if !prepareSkipDocker {
 		printInfo("Checking Docker installation...")
+		rolloutEvent("docker.check", "started", "checking Docker installation", nil)
 		dockerClient := docker.NewClient()
 
 		installed := dockerClient.IsInstalled()
 		if !installed {
 			if prepareDryRun {
 				printWarning("Docker not installed - would install")
+				rolloutEvent("docker.install", "skipped", "Docker not installed - dry run would install it", nil)
 			} else {
 				printInfo("Installing Docker...")
-				if err := installDockerLocal(ctx); err != nil {
+				rolloutEvent("apt_wait", "started", "waiting for package manager locks before Docker install", map[string]string{
+					"method": "apt_or_get_docker",
+				})
+				if err := waitForLocalPackageManager(ctx); err != nil {
+					rolloutFailure("apt_wait", err)
 					return fmt.Errorf("failed to install Docker: %w", err)
 				}
+				rolloutEvent("apt_wait", "succeeded", "package manager locks released", nil)
+				rolloutEvent("docker.install", "started", "installing Docker", map[string]string{
+					"method": "get_docker",
+				})
+				if err := installDockerLocal(ctx); err != nil {
+					rolloutFailure("docker.install", fmt.Errorf("docker install failed: %w", err))
+					return fmt.Errorf("failed to install Docker: %w", err)
+				}
+				rolloutEvent("docker.install", "succeeded", "Docker installed", nil)
 				printSuccess("Docker installed successfully")
 			}
 		} else {
@@ -326,10 +364,14 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 				slog.String("version", ""),
 			)
 		}
+		rolloutEvent("docker.check", "succeeded", "Docker installation checked", map[string]string{
+			"installed": fmt.Sprintf("%t", installed),
+		})
 	}
 
 	// Docker runtime + DNS test + image pre-pull (after Docker, before OpenTofu)
 	if !prepareSkipDocker && !prepareDryRun {
+		rolloutEvent("docker.runtime", "started", "testing Docker runtime", nil)
 		caps := loadDockerCapabilities()
 		if caps == nil {
 			caps = detectCapabilities()
@@ -345,30 +387,64 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 			writeDockerCapabilities(caps)
 			// Docker installed but can't run containers — offer native mode
 			if err := promptForNativeMode(spec, loader, caps.VirtualizationType); err != nil {
+				rolloutFailure("docker.runtime", err)
 				return err
 			}
 			return prepareNativeMode(ctx, spec, loader)
 		}
+		rolloutEvent("docker.runtime", "succeeded", "Docker runtime is functional", nil)
 		deployLog.Event("prepare.docker_runtime",
 			slog.Bool("success", true),
 		)
 
+		rolloutEvent("docker.dns", "started", "testing Docker DNS resolution", nil)
 		caps = testDockerDNS(ctx, caps)
+		if caps.DNSWorking {
+			rolloutEvent("docker.dns", "succeeded", "Docker DNS resolution works", map[string]string{
+				"fix": string(caps.DNSFix),
+			})
+		} else {
+			rolloutEvent("docker.dns", "failed", "Docker DNS resolution unavailable; host pre-pull fallback selected", map[string]string{
+				"fix": string(caps.DNSFix),
+			})
+		}
 		if shouldPrePullImages() {
+			rolloutEvent("docker.prepull", "started", "pre-pulling Docker images", map[string]string{
+				"compute_tier": preparePrePullComputeTier(spec),
+			})
 			prePullImages(ctx, caps, preparePrePullComputeTier(spec))
 			if len(caps.PrePullFailed) > 0 && dockerPrePullRequired() {
+				rolloutFailure("docker.prepull", fmt.Errorf("docker image pre-pull failed for %d required images", len(caps.PrePullFailed)))
 				return fmt.Errorf("docker image pre-pull failed for %d required images", len(caps.PrePullFailed))
 			}
+			rolloutEvent("docker.prepull", "succeeded", "Docker image pre-pull completed", map[string]string{
+				"pulled": fmt.Sprintf("%d", len(caps.PrePulledImages)),
+				"failed": fmt.Sprintf("%d", len(caps.PrePullFailed)),
+			})
 		} else {
 			printInfo("Skipping optional Docker image pre-pull (STACKKIT_PREPULL_IMAGES=false)")
+			rolloutEvent("docker.prepull", "skipped", "Docker image pre-pull disabled", nil)
 		}
 		writeDockerCapabilities(caps)
 	}
 
 	// Check packaged OpenTofu
+	rolloutEvent("opentofu.check", "started", "checking StackKit-packaged OpenTofu", nil)
 	if err := ensurePackagedOpenTofu(ctx); err != nil {
+		rolloutFailure("opentofu.check", err)
 		return err
 	}
+	rolloutEvent("opentofu.check", "succeeded", "StackKit-packaged OpenTofu is available", nil)
+
+	if spec != nil && spec.UsesAdvancedIAC() {
+		rolloutEvent("terramate.check", "started", "checking Terramate for advanced lifecycle", nil)
+		if err := ensureTerramate(ctx); err != nil {
+			rolloutFailure("terramate.check", err)
+			return err
+		}
+		rolloutEvent("terramate.check", "succeeded", "Terramate is available for advanced lifecycle", nil)
+	}
+	emitPrepareTelemetryHandshake()
 
 	// Clean up installation artifacts to reclaim disk space
 	if !prepareDryRun {
@@ -410,8 +486,10 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 
 	// Check system resources
 	printInfo("Checking system resources...")
-	checkLocalResources(reqs)
+	rolloutEvent("resources.check", "started", "checking system resources", nil)
+	resourceAttrs := checkLocalResources(reqs)
 	deployLog.Event("prepare.resources_checked")
+	rolloutEvent("resources.check", "succeeded", "system resources checked", resourceAttrs)
 
 	if prepareDryRun {
 		printInfo("Dry run complete - no changes made")
@@ -425,6 +503,9 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 // promptForNativeMode asks the user whether to switch to native (bare-metal) mode
 // when Docker is not available on this VPS.
 func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType string) error {
+	if prepareNonInteractive || !isTerminal() {
+		return fmt.Errorf("Docker is incompatible with virtualization %s and prepare is non-interactive; choose a KVM/full-virtualization VPS or configure native runtime explicitly", virtType)
+	}
 	fmt.Println()
 	printError("%s", "Docker as our containerization environment will not work on your type of VM.")
 	fmt.Println()
@@ -472,13 +553,19 @@ func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType
 // prepareNativeMode prepares the system for native binary deployment (no Docker).
 func prepareNativeMode(ctx context.Context, spec *models.StackSpec, loader *config.Loader) error {
 	// Check packaged OpenTofu (still needed for native mode)
+	rolloutEvent("opentofu.check", "started", "checking StackKit-packaged OpenTofu for native mode", nil)
 	if err := ensurePackagedOpenTofu(ctx); err != nil {
+		rolloutFailure("opentofu.check", err)
 		return err
 	}
+	rolloutEvent("opentofu.check", "succeeded", "StackKit-packaged OpenTofu is available", nil)
+	emitPrepareTelemetryHandshake()
 
 	// Check system resources
 	printInfo("Checking system resources...")
-	checkLocalResources(nil)
+	rolloutEvent("resources.check", "started", "checking system resources", nil)
+	resourceAttrs := checkLocalResources(nil)
+	rolloutEvent("resources.check", "succeeded", "system resources checked", resourceAttrs)
 
 	if prepareDryRun {
 		printInfo("Dry run complete - no changes made")
@@ -491,10 +578,14 @@ func prepareNativeMode(ctx context.Context, spec *models.StackSpec, loader *conf
 
 func prepareRemoteSystem(ctx context.Context, spec *models.StackSpec) error {
 	printInfo("Preparing remote host: %s", prepareHost)
+	rolloutEvent("target.connect", "started", "connecting to remote prepare target", map[string]string{
+		"host": prepareHost,
+	})
 
 	// Set SSH options
 	opts := []ssh.ClientOption{
 		ssh.WithHost(prepareHost),
+		ssh.WithPort(preparePort),
 	}
 	if prepareUser != "" {
 		opts = append(opts, ssh.WithUser(prepareUser))
@@ -506,36 +597,67 @@ func prepareRemoteSystem(ctx context.Context, spec *models.StackSpec) error {
 	// Connect
 	sshClient := ssh.NewClient(opts...)
 	if err := sshClient.Connect(); err != nil {
+		rolloutFailure("target.connect", err)
 		return fmt.Errorf("failed to connect to %s: %w", prepareHost, err)
 	}
 	defer func() { _ = sshClient.Close() }()
 
 	printSuccess("Connected to %s", prepareHost)
+	rolloutEvent("target.connect", "succeeded", "connected to remote prepare target", map[string]string{
+		"host": prepareHost,
+	})
 
 	// Get system info
 	printInfo("Gathering system information...")
+	rolloutEvent("target.inspect", "started", "gathering remote system information", nil)
 	sysInfo, err := sshClient.GetSystemInfo(ctx)
 	if err != nil {
 		printWarning("Could not get full system info: %v", err)
+		rolloutEvent("target.inspect", "failed", "remote system information incomplete", map[string]string{
+			"error": err.Error(),
+		})
 	} else {
 		printSuccess("OS: %s %s (%s)", sysInfo.OS, sysInfo.OSVersion, sysInfo.Arch)
 		printSuccess("CPU: %d cores, RAM: %d MB, Disk: %d GB free",
 			sysInfo.CPUCores, sysInfo.MemoryMB, sysInfo.DiskGB)
+		rolloutEvent("target.inspect", "succeeded", "remote system information collected", map[string]string{
+			"os":      sysInfo.OS,
+			"version": sysInfo.OSVersion,
+			"arch":    sysInfo.Arch,
+		})
 	}
 
 	// Check Docker
+	rolloutEvent("docker.check", "started", "checking remote Docker installation", nil)
 	if err := checkRemoteDocker(ctx, sshClient, sysInfo); err != nil {
+		rolloutFailure("docker.check", err)
 		return err
 	}
+	rolloutEvent("docker.check", "succeeded", "remote Docker installation checked", nil)
 
 	// Install StackKit-packaged OpenTofu on the target.
+	rolloutEvent("opentofu.check", "started", "checking remote StackKit-packaged OpenTofu", nil)
 	if err := checkRemoteTofu(ctx, sshClient, sysInfo); err != nil {
+		rolloutFailure("opentofu.check", err)
 		return err
 	}
+	rolloutEvent("opentofu.check", "succeeded", "remote StackKit-packaged OpenTofu installed", nil)
+
+	if spec != nil && spec.UsesAdvancedIAC() {
+		rolloutEvent("terramate.check", "started", "checking Terramate for remote advanced lifecycle", nil)
+		if err := checkRemoteTerramate(ctx, sshClient, sysInfo); err != nil {
+			rolloutFailure("terramate.check", err)
+			return err
+		}
+		rolloutEvent("terramate.check", "succeeded", "remote Terramate is available", nil)
+	}
+
+	emitPrepareTelemetryHandshake()
 
 	// Check ports
 	if spec != nil {
 		printInfo("Checking required ports...")
+		rolloutEvent("ports.check", "started", "checking required remote ports", nil)
 		requiredPorts := []int{80, 443}
 		for _, port := range requiredPorts {
 			if sshClient.CheckPort(ctx, port) {
@@ -544,6 +666,7 @@ func prepareRemoteSystem(ctx context.Context, spec *models.StackSpec) error {
 				printWarning("Port %d is in use", port)
 			}
 		}
+		rolloutEvent("ports.check", "succeeded", "required remote ports checked", nil)
 	}
 
 	if prepareDryRun {
@@ -557,20 +680,41 @@ func prepareRemoteSystem(ctx context.Context, spec *models.StackSpec) error {
 
 func checkRemoteDocker(ctx context.Context, sshClient *ssh.Client, sysInfo *models.SystemInfo) error {
 	if prepareSkipDocker {
+		rolloutEvent("docker.check", "skipped", "remote Docker check skipped by flag", nil)
 		return nil
+	}
+	if sysInfo == nil {
+		return fmt.Errorf("target.inspect_failed: remote system information unavailable before Docker check")
 	}
 	if sysInfo.DockerVersion != "" {
 		printSuccess("Docker %s installed", sysInfo.DockerVersion)
+		rolloutEvent("docker.check", "succeeded", "remote Docker already installed", map[string]string{
+			"version": sysInfo.DockerVersion,
+		})
 		return nil
 	}
 	if prepareDryRun {
 		printWarning("Docker not installed - would install")
+		rolloutEvent("docker.install", "skipped", "remote Docker not installed - dry run would install it", nil)
 		return nil
 	}
 	printInfo("Installing Docker...")
-	if err := installDockerRemote(ctx, sshClient, sysInfo.OS); err != nil {
+	rolloutEvent("apt_wait", "started", "waiting for remote package manager locks before Docker install", map[string]string{
+		"method": "apt_or_package_manager",
+	})
+	if err := waitForRemotePackageManager(ctx, sshClient, sysInfo.OS); err != nil {
+		rolloutFailure("apt_wait", err)
 		return fmt.Errorf("failed to install Docker: %w", err)
 	}
+	rolloutEvent("apt_wait", "succeeded", "remote package manager locks released", nil)
+	rolloutEvent("docker.install", "started", "installing remote Docker", map[string]string{
+		"os": sysInfo.OS,
+	})
+	if err := installDockerRemote(ctx, sshClient, sysInfo.OS); err != nil {
+		rolloutFailure("docker.install", fmt.Errorf("remote docker install failed: %w", err))
+		return fmt.Errorf("failed to install Docker: %w", err)
+	}
+	rolloutEvent("docker.install", "succeeded", "remote Docker installed", nil)
 	printSuccess("Docker installed successfully")
 	return nil
 }
@@ -579,9 +723,16 @@ func checkRemoteTofu(ctx context.Context, sshClient *ssh.Client, sysInfo *models
 	if prepareSkipTofu {
 		return nil
 	}
+	if sysInfo == nil {
+		return fmt.Errorf("target.inspect_failed: remote system information unavailable before OpenTofu check")
+	}
 
 	if prepareDryRun {
 		printWarning("StackKit-packaged OpenTofu would be installed on the remote target")
+		return nil
+	}
+	if strings.TrimSpace(sysInfo.TofuVersion) != "" {
+		printSuccess("Remote OpenTofu %s already installed", sysInfo.TofuVersion)
 		return nil
 	}
 
@@ -641,10 +792,12 @@ func normalizeRemoteArch(arch string) string {
 	}
 }
 
-func checkLocalResources(reqs *models.Requirements) {
+func checkLocalResources(reqs *models.Requirements) map[string]string {
+	attrs := map[string]string{}
 	// CPU check
 	numCPU := runtime.NumCPU()
 	printSuccess("CPU: %d cores", numCPU)
+	attrs["cpu_cores"] = fmt.Sprintf("%d", numCPU)
 
 	// Memory check — use runtime.MemStats for Go-accessible info,
 	// then read system total from OS-specific /proc/meminfo on Linux.
@@ -654,6 +807,7 @@ func checkLocalResources(reqs *models.Requirements) {
 	sysMB := m.Sys / 1024 / 1024
 	if sysMB > 0 {
 		printSuccess("Go runtime memory: %d MB allocated", sysMB)
+		attrs["go_runtime_memory_mb"] = fmt.Sprintf("%d", sysMB)
 	}
 
 	// Try reading system total memory (Linux)
@@ -668,6 +822,7 @@ func checkLocalResources(reqs *models.Requirements) {
 		if totalKB > 0 {
 			totalGB := float64(totalKB) / 1024 / 1024
 			printSuccess("System memory: %.1f GB", totalGB)
+			attrs["memory_gb"] = fmt.Sprintf("%.1f", totalGB)
 			if totalGB < 2.0 {
 				printWarning("Low memory — some services may not start")
 			}
@@ -694,6 +849,11 @@ func checkLocalResources(reqs *models.Requirements) {
 	availGB, totalGB, mount := getDiskSpace()
 	if totalGB > 0 {
 		printSuccess("Disk: %.1f GB available / %.1f GB total on %s", availGB, totalGB, mount)
+		attrs["disk_available_gb"] = fmt.Sprintf("%.1f", availGB)
+		attrs["disk_total_gb"] = fmt.Sprintf("%.1f", totalGB)
+		attrs["disk_required_gb"] = fmt.Sprintf("%.1f", minDiskGB)
+		attrs["disk_recommended_gb"] = fmt.Sprintf("%.1f", recDiskGB)
+		attrs["mount"] = mount
 		if availGB < minDiskGB {
 			printError("Insufficient disk space — StackKit requires at least %d GB", int(minDiskGB))
 			printInfo("  Available: %.1f GB on %s", availGB, mount)
@@ -709,6 +869,7 @@ func checkLocalResources(reqs *models.Requirements) {
 			}
 		}
 	}
+	return attrs
 }
 
 // saveSpec persists the spec to the active spec path.
@@ -865,6 +1026,110 @@ func ensurePackagedOpenTofu(ctx context.Context) error {
 
 	printSuccess("StackKit-packaged OpenTofu %s available", version)
 	return nil
+}
+
+func ensureTerramate(ctx context.Context) error {
+	printInfo("Checking StackKit-packaged Terramate...")
+	packagedTerramate, ok := terramate.PackagedBinaryPath()
+	if !ok {
+		if prepareDryRun {
+			printWarning("StackKit-packaged Terramate missing - release package must include it for advanced mode")
+			return nil
+		}
+		return fmt.Errorf("StackKit-packaged Terramate binary not found; advanced mode requires the official release package with terramate")
+	}
+	if prepareDryRun {
+		printWarning("StackKit-packaged Terramate would be checked")
+		return nil
+	}
+	terramateExec := terramate.NewExecutor(terramate.WithBinary(packagedTerramate))
+	if !terramateExec.IsInstalled() {
+		return fmt.Errorf("StackKit-packaged Terramate binary is not executable: %s", packagedTerramate)
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	version, err := terramateExec.Version(checkCtx)
+	if err != nil {
+		return fmt.Errorf("StackKit-packaged Terramate version check failed: %w", err)
+	}
+	version = strings.TrimSpace(strings.Split(version, "\n")[0])
+	if version == "" {
+		version = "available"
+	}
+	printSuccess("StackKit-packaged Terramate %s available", version)
+	return nil
+}
+
+func checkRemoteTerramate(ctx context.Context, sshClient *ssh.Client, sysInfo *models.SystemInfo) error {
+	if prepareDryRun {
+		printWarning("StackKit-packaged Terramate would be installed on the remote target")
+		return nil
+	}
+	if sysInfo == nil {
+		return fmt.Errorf("target.inspect_failed: remote system information unavailable before Terramate check")
+	}
+	if stdout, _, err := sshClient.Run(ctx, "command -v terramate >/dev/null 2>&1 && terramate version"); err == nil {
+		version := strings.TrimSpace(strings.Split(stdout, "\n")[0])
+		if version == "" {
+			version = "available"
+		}
+		printSuccess("Remote Terramate %s already installed", version)
+		return nil
+	}
+	packagedTerramate, ok := terramate.PackagedBinaryPath()
+	if !ok {
+		return fmt.Errorf("StackKit-packaged Terramate binary not found; advanced mode requires the official release package with terramate")
+	}
+	if err := ensurePackagedTerramateMatchesRemote(sysInfo); err != nil {
+		return err
+	}
+
+	printInfo("Installing StackKit-packaged Terramate on remote target...")
+	remoteTmp := "/tmp/stackkit-terramate"
+	if err := sshClient.CopyFile(ctx, packagedTerramate, remoteTmp); err != nil {
+		return fmt.Errorf("failed to upload packaged Terramate: %w", err)
+	}
+
+	stdout, stderr, err := sshClient.RunWithSudo(ctx, "install -m 755 /tmp/stackkit-terramate /usr/local/bin/terramate && rm -f /tmp/stackkit-terramate && /usr/local/bin/terramate version")
+	if err != nil {
+		return fmt.Errorf("failed to install packaged Terramate: %w: %s", err, stderr)
+	}
+	version := strings.TrimSpace(strings.Split(stdout, "\n")[0])
+	if version == "" {
+		version = "available"
+	}
+	printSuccess("StackKit-packaged remote Terramate %s installed successfully", version)
+	return nil
+}
+
+func ensurePackagedTerramateMatchesRemote(sysInfo *models.SystemInfo) error {
+	if sysInfo == nil {
+		if runtime.GOOS == "linux" {
+			return nil
+		}
+		return fmt.Errorf("packaged Terramate binary is %s/%s, but remote target requires Linux; run the StackKit installer on the target or use the matching Linux release package", runtime.GOOS, runtime.GOARCH)
+	}
+	targetArch := normalizeRemoteArch(sysInfo.Arch)
+	if targetArch == "" {
+		return fmt.Errorf("unsupported remote architecture for packaged Terramate: %s", sysInfo.Arch)
+	}
+	if runtime.GOOS != "linux" || runtime.GOARCH != targetArch {
+		return fmt.Errorf("packaged Terramate binary is %s/%s, but remote target requires linux/%s; run the StackKit installer on the target or use the matching Linux release package", runtime.GOOS, runtime.GOARCH, targetArch)
+	}
+	return nil
+}
+
+func emitPrepareTelemetryHandshake() {
+	attrs := map[string]string{
+		"otlp_endpoint_configured": fmt.Sprintf("%t", strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")) != ""),
+		"otlp_headers_configured":  fmt.Sprintf("%t", strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_HEADERS")) != ""),
+		"sentry_dsn_configured":    fmt.Sprintf("%t", strings.TrimSpace(os.Getenv("SENTRY_DSN")) != ""),
+	}
+	if strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")) == "" && strings.TrimSpace(os.Getenv("SENTRY_DSN")) == "" {
+		rolloutEvent("telemetry.handshake", "skipped", "telemetry endpoint not configured; rollout evidence remains local", attrs)
+		return
+	}
+	rolloutEvent("telemetry.handshake", "succeeded", "telemetry handoff configuration detected", attrs)
 }
 
 // cleanupInstallArtifacts removes package manager caches and dangling Docker

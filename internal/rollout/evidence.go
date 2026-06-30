@@ -127,10 +127,28 @@ func ClassifyFailure(input string) string {
 	switch {
 	case strings.Contains(s, "tenant-deployment spec fetch"), strings.Contains(s, "bootstrap token"), strings.Contains(s, "admin returned 401"):
 		return "spec_fetch_failed"
+	case strings.Contains(s, "cloud_init_timeout"):
+		return "cloud_init_timeout"
+	case strings.Contains(s, "apt_lock_timeout"):
+		return "apt_lock_timeout"
+	case strings.Contains(s, "apt_process_timeout"):
+		return "apt_process_timeout"
+	case strings.Contains(s, "unattended_upgrade_timeout"):
+		return "unattended_upgrade_timeout"
+	case strings.Contains(s, "apt_wait"), strings.Contains(s, "apt/dpkg lock"), strings.Contains(s, "timed out waiting for apt"), strings.Contains(s, "unattended-upgr"):
+		return "apt_wait_timeout"
+	case strings.Contains(s, "target.inspect_failed"):
+		return "target_inspect_failed"
 	case strings.Contains(s, "docker daemon failed"), strings.Contains(s, "failed to start docker"):
 		return "docker_daemon_failed"
+	case strings.Contains(s, "failed to install docker"), strings.Contains(s, "docker install"):
+		return "docker_install_failed"
+	case strings.Contains(s, "terramate"):
+		return "terramate_prepare_failed"
 	case strings.Contains(s, "init failed"), strings.Contains(s, "provider registry"):
 		return "tofu_init_failed"
+	case strings.Contains(s, "opentofu binary"), strings.Contains(s, "packaged opentofu"):
+		return "opentofu_prepare_failed"
 	case strings.Contains(s, "apply failed"), strings.Contains(s, "opentofu apply"), strings.Contains(s, "deployment failed"):
 		return "tofu_apply_failed"
 	case strings.Contains(s, "verify failed"):

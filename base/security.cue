@@ -657,3 +657,28 @@ package base
 		archiveActivity: bool | *true
 	}
 }
+
+// =============================================================================
+// UNIVERSAL HOST SECURITY BASELINE (Foundation contract)
+// =============================================================================
+
+// #SecurityBaseline is the Foundation-layer invariant that EVERY StackKit server
+// host carries a measured host security baseline, regardless of kit. Basement,
+// Cloud, and Modern Homelab all inherit it — it is NOT basement-kit-specific.
+//
+// The live applier is cmd/stackkit/commands/security_baseline.go
+// (applyPublicBetaSecurityBaseline): it enforces UFW default-deny-incoming with
+// the SSH/HTTP/HTTPS ports allowed (#FirewallPolicy / #SSHHardening above), a
+// fail2ban sshd jail, security-only unattended upgrades, sshd hardening, and
+// sysctl controls, then writes evidence to .stackkit/security-baseline.json.
+// Non-apt / non-Linux hosts record status "skipped" with a reason.
+#SecurityBaseline: {
+	// universal: the baseline applies to all kits, not a single kit.
+	universal: true | *true
+
+	// evidencePath is where the applier writes measured-control evidence.
+	evidencePath: string | *".stackkit/security-baseline.json"
+
+	// schemaVersion of the evidence document.
+	schemaVersion: string | *"stackkit.security-baseline/v1"
+}
