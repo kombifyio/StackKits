@@ -6,8 +6,10 @@ package platformdeploy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -54,6 +56,22 @@ type SystemAppManifest struct {
 	Role string `json:"role,omitempty"`
 }
 
+func (m *SystemAppManifest) UnmarshalJSON(data []byte) error {
+	var role struct {
+		Role string `json:"role,omitempty"`
+	}
+	if err := json.Unmarshal(data, &role); err != nil {
+		return err
+	}
+	var app AppManifest
+	if err := json.Unmarshal(data, &app); err != nil {
+		return err
+	}
+	m.AppManifest = app
+	m.Role = role.Role
+	return nil
+}
+
 // AppManifest describes one generated compose bundle for PaaS delivery or
 // customer-app handoff.
 type AppManifest struct {
@@ -76,6 +94,62 @@ type AppManifest struct {
 	Secrets     map[string]string   `json:"secrets,omitempty"`
 	SetupPolicy string              `json:"setupPolicy,omitempty"`
 	SetupDrops  []SetupDropManifest `json:"setupDrops,omitempty"`
+}
+
+// UnmarshalJSON accepts Terraform jsonencode output where object type coercion
+// can stringify numeric ports inside mixed concat(...) app manifest lists.
+func (m *AppManifest) UnmarshalJSON(data []byte) error {
+	type appManifestAlias AppManifest
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+
+	portRaw := fields["port"]
+	delete(fields, "port")
+
+	withoutPort, err := json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+
+	var alias appManifestAlias
+	if err := json.Unmarshal(withoutPort, &alias); err != nil {
+		return err
+	}
+
+	*m = AppManifest(alias)
+	if len(portRaw) == 0 || string(portRaw) == "null" {
+		return nil
+	}
+	port, err := decodeManifestPort(portRaw)
+	if err != nil {
+		return err
+	}
+	m.Port = port
+	return nil
+}
+
+func decodeManifestPort(raw json.RawMessage) (int, error) {
+	var port int
+	if err := json.Unmarshal(raw, &port); err == nil {
+		return port, nil
+	}
+
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return 0, fmt.Errorf("decode app manifest port: %w", err)
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0, nil
+	}
+	port, err := strconv.Atoi(text)
+	if err != nil {
+		return 0, fmt.Errorf("decode app manifest port %q: %w", text, err)
+	}
+	return port, nil
 }
 
 const (

@@ -1242,7 +1242,11 @@ func waitForRemotePackageManager(ctx context.Context, client *ssh.Client, osType
 	default:
 		return nil
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	// Budget must exceed the in-script wait loop (below) so the SSH context does
+	// not kill the wait prematurely, and must outlast cloud-VM boot-time apt
+	// (cloud-init / unattended-upgrades), which can hold the dpkg lock for
+	// several minutes on a fresh centron/ionos host.
+	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 	stdout, stderr, err := client.RunWithSudo(waitCtx, packageManagerLockWaitScript())
 	if err != nil {
@@ -1270,7 +1274,7 @@ func classifyAptWaitOutput(output string) string {
 
 func packageManagerLockWaitScript() string {
 	return `if command -v apt-get >/dev/null 2>&1; then
-  for i in $(seq 1 72); do
+  for i in $(seq 1 144); do
     if command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
       echo "Waiting for apt/dpkg lock to be released..."
       sleep 5
