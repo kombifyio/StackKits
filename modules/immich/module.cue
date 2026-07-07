@@ -74,6 +74,10 @@ Contract: base.#ModuleContract & {
 		type:     "application"
 		image:    "ghcr.io/immich-app/immich-server"
 		tag:      "release"
+		upstream: {
+			github:  {repo: "immich-app/immich"}
+			pinLine: "release"
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]

@@ -107,6 +107,9 @@ Contract: base.#ModuleContract & {
 		type:     "reverse-proxy"
 		image:    "traefik"
 		tag:      "v3.6.13"
+		upstream: {
+			github: {repo: "traefik/traefik"}
+		}
 		required: true
 		status:   "implemented"
 		needs: ["socket-proxy"]

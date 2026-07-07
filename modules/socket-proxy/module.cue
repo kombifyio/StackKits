@@ -78,6 +78,9 @@ Contract: base.#ModuleContract & {
 		type:     "infrastructure"
 		image:    "tecnativa/docker-socket-proxy"
 		tag:      "latest"
+		upstream: {
+			github: {repo: "Tecnativa/docker-socket-proxy"}
+		}
 		required: true
 		status:   "implemented"
 

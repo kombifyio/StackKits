@@ -62,6 +62,9 @@ Contract: base.#ModuleContract & {
 		type:     "test"
 		image:    "traefik/whoami"
 		tag:      "latest"
+		upstream: {
+			github: {repo: "traefik/whoami"}
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]

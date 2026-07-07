@@ -63,6 +63,10 @@ Contract: base.#ModuleContract & {
 		type:        "storage"
 		image:       "nextcloud"
 		tag:         "30-apache"
+		upstream: {
+			github:  {repo: "nextcloud/server"}
+			pinLine: "30-apache"
+		}
 		required:    false
 		status:      "implemented"
 		needs: ["traefik"]

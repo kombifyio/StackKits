@@ -1280,7 +1280,7 @@ func packageManagerLockWaitScript() string {
       sleep 5
       continue
     fi
-    if pgrep -x apt-get >/dev/null 2>&1 || pgrep -x apt >/dev/null 2>&1 || pgrep -x dpkg >/dev/null 2>&1 || pgrep -x unattended-upgr >/dev/null 2>&1; then
+    if pgrep -x apt-get >/dev/null 2>&1 || pgrep -x apt >/dev/null 2>&1 || pgrep -x dpkg >/dev/null 2>&1 || ps -eo args | grep -E '(^|[ /])unattended-upgrade([[:space:]]|$)' | grep -v 'unattended-upgrade-shutdown' | grep -v grep >/dev/null 2>&1; then
       echo "Waiting for apt/dpkg process to finish..."
       sleep 5
       continue
@@ -1291,8 +1291,9 @@ func packageManagerLockWaitScript() string {
     echo "apt_lock_timeout: Timed out waiting for apt/dpkg lock" >&2
     exit 1
   fi
-  if pgrep -x apt-get >/dev/null 2>&1 || pgrep -x apt >/dev/null 2>&1 || pgrep -x dpkg >/dev/null 2>&1 || pgrep -x unattended-upgr >/dev/null 2>&1; then
+  if pgrep -x apt-get >/dev/null 2>&1 || pgrep -x apt >/dev/null 2>&1 || pgrep -x dpkg >/dev/null 2>&1 || ps -eo args | grep -E '(^|[ /])unattended-upgrade([[:space:]]|$)' | grep -v 'unattended-upgrade-shutdown' | grep -v grep >/dev/null 2>&1; then
     echo "apt_process_timeout: Timed out waiting for apt/dpkg process" >&2
+    ps -eo pid,comm,args | grep -E 'apt|dpkg|unattended' | grep -v grep >&2 || true
     exit 1
   fi
 fi`

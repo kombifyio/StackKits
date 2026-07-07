@@ -62,6 +62,9 @@ Contract: base.#ModuleContract & {
 		type:     "observability"
 		image:    "otel/opentelemetry-collector-contrib"
 		tag:      "0.114.0"
+		upstream: {
+			github: {repo: "open-telemetry/opentelemetry-collector-contrib"}
+		}
 		required: false
 		status:   "implemented"
 

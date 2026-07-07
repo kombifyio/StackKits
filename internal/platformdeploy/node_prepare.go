@@ -3,6 +3,8 @@ package platformdeploy
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,18 +71,15 @@ func prepareSupplementalNodeTarget(ctx context.Context, platform string, node Su
 		if hasCoolifyNodePlatformIdentity(node.Platform) {
 			result.Status = "observed"
 			result.Detail = "coolify node uses existing platform server/destination identifiers"
+			stampNodePreparePlatformResult(&result, node.Platform)
 			return result, nil
 		}
-		if len(node.Services) > 0 {
-			return result, fmt.Errorf("coolify supplemental node %q requires real platform server/destination/environment IDs before services %s can be placed", node.Name, strings.Join(node.Services, ","))
-		}
-		result.Status = "skipped"
-		result.Detail = "coolify node has no requested services and no platform placement identifiers"
-		return result, nil
+		return prepareCoolifySupplementalNode(ctx, node, cfg, runner, result)
 	case "dokploy":
 		if strings.TrimSpace(node.Platform.EnvironmentID) != "" {
 			result.Status = "observed"
 			result.Detail = "dokploy node uses existing environment identifier"
+			stampNodePreparePlatformResult(&result, node.Platform)
 			return result, nil
 		}
 		if len(node.Services) > 0 {
@@ -98,10 +97,69 @@ func prepareSupplementalNodeTarget(ctx context.Context, platform string, node Su
 	}
 }
 
+func prepareCoolifySupplementalNode(ctx context.Context, node SupplementalNodeTarget, cfg HTTPConfig, runner SSHRunner, result NodePrepareResult) (NodePrepareResult, error) {
+	if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.Token) == "" {
+		if len(node.Services) > 0 {
+			return result, fmt.Errorf("coolify supplemental node %q requires Coolify API base URL and token before services %s can be placed", node.Name, strings.Join(node.Services, ","))
+		}
+		result.Status = "skipped"
+		result.Detail = "coolify node has no requested services and no platform API config"
+		return result, nil
+	}
+	if node.Bootstrap == nil || node.Bootstrap.SSH == nil {
+		if len(node.Services) > 0 {
+			return result, fmt.Errorf("coolify supplemental node %q requires SSH bootstrap target before services %s can be placed", node.Name, strings.Join(node.Services, ","))
+		}
+		result.Status = "skipped"
+		result.Detail = "coolify node has no requested services and no SSH bootstrap target"
+		return result, nil
+	}
+	ssh := normalizeSSHBootstrap(*node.Bootstrap.SSH)
+	if ssh.Host == "" {
+		return result, fmt.Errorf("coolify supplemental node %q requires SSH host", node.Name)
+	}
+	script := coolifyDockerBootstrapScript()
+	output, err := runner.Run(ctx, ssh, script)
+	if err != nil {
+		detail := strings.TrimSpace(string(output))
+		if detail != "" {
+			return result, fmt.Errorf("coolify supplemental node %q SSH bootstrap failed: %w: %s", node.Name, err, detail)
+		}
+		return result, fmt.Errorf("coolify supplemental node %q SSH bootstrap failed: %w", node.Name, err)
+	}
+
+	keyMaterial, err := coolifyPrivateKeyMaterial(ssh)
+	if err != nil {
+		return result, err
+	}
+	if strings.TrimSpace(keyMaterial) == "" {
+		return result, fmt.Errorf("coolify supplemental node %q requires SSH private key material for Coolify server registration", node.Name)
+	}
+	client := apiClient{cfg: cfg, authMode: authBearer}
+	keyUUID, err := createCoolifyPrivateKey(ctx, client, node.Name, keyMaterial)
+	if err != nil {
+		return result, err
+	}
+	serverUUID, err := createCoolifyServer(ctx, client, node, ssh, keyUUID)
+	if err != nil {
+		return result, err
+	}
+	if err := validateCoolifyServer(ctx, client, serverUUID); err != nil {
+		return result, err
+	}
+	result.Status = "bootstrapped"
+	result.Detail = "coolify server registered and validation started through API"
+	result.ServerID = serverUUID
+	result.PrivateKeyUUID = keyUUID
+	stampNodePreparePlatformResult(&result, nodePlatformTargetWithConfigDefaults(node.Platform, cfg))
+	return result, nil
+}
+
 func prepareKomodoSupplementalNode(ctx context.Context, node SupplementalNodeTarget, cfg HTTPConfig, runner SSHRunner, result NodePrepareResult) (NodePrepareResult, error) {
 	if strings.TrimSpace(node.Platform.ServerID) != "" {
 		result.Status = "observed"
 		result.Detail = "komodo node uses existing server id"
+		stampNodePreparePlatformResult(&result, node.Platform)
 		return result, nil
 	}
 	if node.Bootstrap == nil {
@@ -207,6 +265,132 @@ func hasCoolifyNodePlatformIdentity(target NodePlatformTarget) bool {
 		strings.TrimSpace(target.DestinationUUID) != "" ||
 		strings.TrimSpace(target.EnvironmentID) != "" ||
 		strings.TrimSpace(target.EnvironmentUUID) != ""
+}
+
+func stampNodePreparePlatformResult(result *NodePrepareResult, target NodePlatformTarget) {
+	if result == nil {
+		return
+	}
+	if value := strings.TrimSpace(target.ServerID); value != "" {
+		result.ServerID = value
+	}
+	if value := strings.TrimSpace(target.DestinationUUID); value != "" {
+		result.DestinationUUID = value
+	}
+	if value := strings.TrimSpace(target.EnvironmentID); value != "" {
+		result.EnvironmentID = value
+	}
+	if value := strings.TrimSpace(target.ProjectUUID); value != "" {
+		result.ProjectUUID = value
+	}
+	if value := strings.TrimSpace(target.EnvironmentUUID); value != "" {
+		result.EnvironmentUUID = value
+	}
+}
+
+func nodePlatformTargetWithConfigDefaults(target NodePlatformTarget, cfg HTTPConfig) NodePlatformTarget {
+	if strings.TrimSpace(target.ServerID) == "" {
+		target.ServerID = strings.TrimSpace(cfg.ServerID)
+	}
+	if strings.TrimSpace(target.DestinationUUID) == "" {
+		target.DestinationUUID = strings.TrimSpace(cfg.DestinationUUID)
+	}
+	if strings.TrimSpace(target.EnvironmentID) == "" {
+		target.EnvironmentID = strings.TrimSpace(cfg.EnvironmentID)
+	}
+	if strings.TrimSpace(target.ProjectUUID) == "" {
+		target.ProjectUUID = strings.TrimSpace(cfg.ProjectUUID)
+	}
+	if strings.TrimSpace(target.EnvironmentUUID) == "" {
+		target.EnvironmentUUID = strings.TrimSpace(cfg.EnvironmentUUID)
+	}
+	return target
+}
+
+func coolifyDockerBootstrapScript() string {
+	return "set -eu\n" +
+		"if ! command -v docker >/dev/null 2>&1; then\n" +
+		"  curl -fsSL https://get.docker.com | sh\n" +
+		"fi\n" +
+		"docker version >/dev/null\n"
+}
+
+func coolifyPrivateKeyMaterial(target SSHBootstrap) (string, error) {
+	if material := firstNonEmptyNodeName(target.ClientPrivateKey, target.PrivateKey, target.KeyPEM); material != "" {
+		return material, nil
+	}
+	if strings.TrimSpace(target.KeyPath) == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(target.KeyPath)
+	if err != nil {
+		return "", fmt.Errorf("read coolify supplemental node SSH key: %w", err)
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func createCoolifyPrivateKey(ctx context.Context, client apiClient, nodeName, privateKey string) (string, error) {
+	payload := map[string]any{
+		"name":        "stackkit-" + firstNonEmptyNodeName(nodeName, "supplemental-node"),
+		"description": "Managed by StackKit supplemental node bootstrap",
+		"private_key": privateKey,
+	}
+	var created map[string]any
+	status, body, err := client.postJSON(ctx, "/api/v1/security/keys", payload, &created)
+	if err != nil {
+		if status == http.StatusConflict {
+			if uuid := idFromBody(body); uuid != "" {
+				return uuid, nil
+			}
+		}
+		return "", fmt.Errorf("coolify private key create for node %q: %w", nodeName, err)
+	}
+	uuid := firstString(created, "uuid", "id")
+	if uuid == "" {
+		return "", fmt.Errorf("coolify private key create for node %q returned no uuid", nodeName)
+	}
+	return uuid, nil
+}
+
+func createCoolifyServer(ctx context.Context, client apiClient, node SupplementalNodeTarget, ssh SSHBootstrap, privateKeyUUID string) (string, error) {
+	host := firstNonEmptyNodeName(ssh.Host, node.Host, node.IP)
+	payload := map[string]any{
+		"name":             firstNonEmptyNodeName(node.Name, host),
+		"description":      "Managed by StackKit supplemental node bootstrap",
+		"ip":               host,
+		"port":             ssh.Port,
+		"user":             ssh.User,
+		"private_key_uuid": privateKeyUUID,
+		"is_build_server":  false,
+		"instant_validate": true,
+		"proxy_type":       "traefik",
+	}
+	var created map[string]any
+	status, body, err := client.postJSON(ctx, "/api/v1/servers", payload, &created)
+	if err != nil {
+		if status == http.StatusConflict {
+			if uuid := idFromBody(body); uuid != "" {
+				return uuid, nil
+			}
+		}
+		return "", fmt.Errorf("coolify server create for node %q: %w", node.Name, err)
+	}
+	uuid := firstString(created, "uuid", "id")
+	if uuid == "" {
+		return "", fmt.Errorf("coolify server create for node %q returned no uuid", node.Name)
+	}
+	return uuid, nil
+}
+
+func validateCoolifyServer(ctx context.Context, client apiClient, serverUUID string) error {
+	if strings.TrimSpace(serverUUID) == "" {
+		return fmt.Errorf("coolify server validation requires server uuid")
+	}
+	var out map[string]any
+	if _, _, err := client.getJSON(ctx, "/api/v1/servers/"+url.PathEscape(serverUUID)+"/validate", &out); err != nil {
+		return fmt.Errorf("coolify server validate %q: %w", serverUUID, err)
+	}
+	return nil
 }
 
 func komodoPeripheryBootstrapScript(coreAddress, connectAs, onboardingKey string) string {

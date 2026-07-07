@@ -64,6 +64,9 @@ Contract: base.#ModuleContract & {
 		type:     "dns"
 		image:    "coredns/coredns"
 		tag:      "1.11.3"
+		upstream: {
+			github: {repo: "coredns/coredns"}
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]

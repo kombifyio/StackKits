@@ -86,6 +86,9 @@ Contract: base.#ModuleContract & {
 		// v2 directly, so this pin keeps the rendered TF and the integration
 		// harness on the same image.
 		tag:      "v2.7.0"
+		upstream: {
+			github: {repo: "pocket-id/pocket-id"}
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]

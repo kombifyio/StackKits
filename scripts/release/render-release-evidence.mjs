@@ -1601,6 +1601,9 @@ function validateBrowserSetupStateEvidence(label, dropName, evidence) {
       appLocalSignups: 'disabled',
       plaintextAdminTokenEnv: 'absent',
       outerAuthBoundary: 'tinyauth-pocketid',
+      appLocalOwner: 'pocketid-owner-preprovisioned',
+      appLocalSessionHandoff: 'vaultwarden-invite-prepared',
+      readyToUseContentStatus: 'owner-completes-vaultwarden-invite',
     },
     'immich-owner-bootstrap': {
       credentialRole: 'technical-admin-bootstrap',
@@ -1621,19 +1624,20 @@ function validateBrowserSetupStateEvidence(label, dropName, evidence) {
       return `${label} evidence[${key}] is ${evidence[key] || 'missing'}, want ${want}`;
     }
   }
-  if (dropName === 'immich-owner-bootstrap') {
+  if (dropName === 'immich-owner-bootstrap' || dropName === 'vaultwarden-admin-handoff') {
     if (!String(evidence.ownerEmail || '').trim() || !String(evidence.ownerProvisioning || '').trim()) {
       return `${label} must include Owner handoff evidence`;
     }
+  }
+  if (dropName === 'immich-owner-bootstrap') {
     if (!String(evidence.oidcIssuer || '').trim().startsWith('http')) {
       return `${label} evidence[oidcIssuer] is ${evidence.oidcIssuer || 'missing'}, want URL evidence`;
     }
   }
   if (dropName === 'vaultwarden-admin-handoff') {
-    for (const key of ['appLocalOwner', 'ownerProvisioning', 'appLocalSessionHandoff', 'readyToUseContentStatus']) {
-      if (String(evidence[key] || '').trim()) {
-        return `${label} evidence[${key}] must be absent for v0.4 Vaultwarden break-glass-only handoff`;
-      }
+    const provisioning = String(evidence.ownerProvisioning || '').trim();
+    if (!['vaultwarden-admin-invite-created', 'vaultwarden-admin-invite-already-exists'].includes(provisioning)) {
+      return `${label} evidence[ownerProvisioning] is ${evidence.ownerProvisioning || 'missing'}, want Vaultwarden admin invite evidence`;
     }
   }
   return '';

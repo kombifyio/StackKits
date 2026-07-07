@@ -71,6 +71,9 @@ Contract: base.#ModuleContract & {
 		type:     "logging"
 		image:    "amir20/dozzle"
 		tag:      "latest"
+		upstream: {
+			github: {repo: "amir20/dozzle"}
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik", "socket-proxy"]

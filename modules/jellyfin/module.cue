@@ -72,6 +72,9 @@ Contract: base.#ModuleContract & {
 		type:     "media"
 		image:    "jellyfin/jellyfin"
 		tag:      "latest"
+		upstream: {
+			github: {repo: "jellyfin/jellyfin"}
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]

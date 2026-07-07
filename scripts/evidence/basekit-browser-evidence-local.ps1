@@ -878,6 +878,34 @@ function Get-DemoDataMode {
   }
 }
 
+function Get-ImmichOwnerPassword {
+  param([object]$HomelabArtifact)
+  try {
+    $container = [string]$HomelabArtifact.target.containerName
+    if (-not $container -or -not $container.StartsWith("stackkits-e2e-")) {
+      return ""
+    }
+    $raw = & docker exec $container cat /root/my-homelab/deploy/terraform.tfvars.json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $raw) {
+      return ""
+    }
+    $tfvars = ($raw -join "`n") | ConvertFrom-Json
+    $adminEmailProperty = $tfvars.PSObject.Properties["admin_email"]
+    $passwordProperty = $tfvars.PSObject.Properties["admin_password_plaintext"]
+    if (-not $adminEmailProperty -or -not $passwordProperty) {
+      return ""
+    }
+    $adminEmail = [string]$adminEmailProperty.Value
+    $password = [string]$passwordProperty.Value
+    if ($adminEmail.Trim().ToLowerInvariant() -ne $OwnerEmail.Trim().ToLowerInvariant()) {
+      return ""
+    }
+    return $password
+  } catch {
+    return ""
+  }
+}
+
 function Get-TargetPort {
   param(
     [object]$Target,
@@ -1053,6 +1081,10 @@ try {
   $captureEnv = @{
     STACKKIT_PLAYWRIGHT_MODULE_DIR = $PlaywrightModuleDir
     STACKKIT_BROWSER_EVIDENCE_RUN_ID = $BrowserEvidenceRunId
+  }
+  $immichOwnerPassword = Get-ImmichOwnerPassword -HomelabArtifact $homelabArtifact
+  if ($immichOwnerPassword) {
+    $captureEnv["STACKKIT_IMMICH_OWNER_PASSWORD"] = $immichOwnerPassword
   }
   if ($BrowserChannel) {
     $captureEnv["STACKKIT_BROWSER_CHANNEL"] = $BrowserChannel

@@ -8,6 +8,7 @@
 # Hygiene / audit working artifacts
 AUDIT-REPORT.md
 _export/
+.public-export/
 
 # Tools
 .tools/

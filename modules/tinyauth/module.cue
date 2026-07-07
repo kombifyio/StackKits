@@ -105,6 +105,9 @@ Contract: base.#ModuleContract & {
 		// Pin matches base/services.cue and the release pre-pull list.
 		image:    "ghcr.io/steveiliop56/tinyauth"
 		tag:      "v5.0.7"
+		upstream: {
+			github: {repo: "steveiliop56/tinyauth"}
+		}
 		required: true
 		status:   "implemented"
 		needs: ["traefik", "socket-proxy"]

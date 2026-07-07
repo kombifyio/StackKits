@@ -57,15 +57,19 @@ const (
 )
 
 type Request struct {
-	Action             Action              `json:"action"`
-	StackID            string              `json:"stack_id"`
-	StackName          string              `json:"stack_name,omitempty"`
-	StackKit           string              `json:"stackkit,omitempty"`
-	TofuDir            string              `json:"tofu_dir,omitempty"`
-	UnifiedPath        string              `json:"unified_path,omitempty"`
-	OwnerSpecBootstrap *OwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
-	RuntimeTarget      *RuntimeTarget      `json:"runtime_target,omitempty"`
-	PlatformNodes      []PlatformNode      `json:"platform_nodes,omitempty"`
+	Action              Action               `json:"action"`
+	StackID             string               `json:"stack_id"`
+	StackName           string               `json:"stack_name,omitempty"`
+	StackKit            string               `json:"stackkit,omitempty"`
+	Mode                string               `json:"mode,omitempty"`
+	TenantID            string               `json:"tenant_id,omitempty"`
+	OwnerID             string               `json:"owner_id,omitempty"`
+	TofuDir             string               `json:"tofu_dir,omitempty"`
+	UnifiedPath         string               `json:"unified_path,omitempty"`
+	OwnerSpecBootstrap  *OwnerSpecBootstrap  `json:"owner_spec_bootstrap,omitempty"`
+	RuntimeTarget       *RuntimeTarget       `json:"runtime_target,omitempty"`
+	PlatformNodes       []PlatformNode       `json:"platform_nodes,omitempty"`
+	TechStackEnrollment *TechStackEnrollment `json:"techstack_enrollment,omitempty"`
 }
 
 type Response struct {
@@ -95,6 +99,20 @@ type OwnerSpecBootstrap struct {
 	Token     string   `json:"token"`
 	ExpiresAt string   `json:"expires_at"`
 	Scopes    []string `json:"scopes,omitempty"`
+}
+
+type TechStackEnrollment struct {
+	TenantID         string         `json:"tenant_id,omitempty"`
+	OwnerID          string         `json:"owner_id,omitempty"`
+	StackID          string         `json:"stack_id,omitempty"`
+	ServerURL        string         `json:"server_url,omitempty"`
+	ServerID         string         `json:"server_id"`
+	RuntimeAgentID   string         `json:"runtime_agent_id"`
+	AgentToken       string         `json:"agent_token,omitempty"`
+	HeartbeatURL     string         `json:"heartbeat_url,omitempty"`
+	InventoryURL     string         `json:"inventory_url,omitempty"`
+	ControlURLs      []string       `json:"control_urls,omitempty"`
+	ChannelBootstrap map[string]any `json:"channel_bootstrap,omitempty"`
 }
 
 // RuntimeTarget describes the primary runtime host used by a StackKit rollout.

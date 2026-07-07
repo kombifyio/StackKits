@@ -328,7 +328,7 @@ func emitRolloutProgress(event rollout.Event) {
 		printVerbose("progress jsonl write failed: %v", err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	_, _ = file.Write(data)
 }
 

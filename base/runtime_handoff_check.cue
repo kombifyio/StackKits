@@ -4,6 +4,9 @@
 package base
 
 _validRuntimeHandoffWithSupplementalNodes: #RuntimeActionNodeHandoff & {
+	mode:      "bootstrapped"
+	tenant_id: "tenant-1"
+	owner_id:  "owner-1"
 	runtime_target: {
 		host: "main.stack.home"
 		user: "root"
@@ -29,6 +32,22 @@ _validRuntimeHandoffWithSupplementalNodes: #RuntimeActionNodeHandoff & {
 			}
 		},
 	]
+	techstack_enrollment: {
+		tenant_id:       "tenant-1"
+		owner_id:        "owner-1"
+		stack_id:        "stack-1"
+		server_url:      "https://techstack.kombify.io"
+		server_id:       "server-1"
+		runtime_agent_id: "runtime-1"
+		agent_token:     "agent-token"
+		inventory_url:   "https://techstack.kombify.io/api/v1/workers/runtime-1/inventory"
+		control_urls: [
+			"wss://techstack.kombify.io/api/v1/workers/runtime-1/control/ws",
+		]
+		channel_bootstrap: {
+			grpc_hint: "mtls-if-http2-network-allows"
+		}
+	}
 }
 
 _validServicePlacementWithObservedPlatformID: #ServicePlacementNodeHandoff & {

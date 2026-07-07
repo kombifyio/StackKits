@@ -70,6 +70,9 @@ Contract: base.#ModuleContract & {
 		// Pin matches the release pre-pull list (cmd/stackkit/commands/prepare_docker.go).
 		image:    "ghcr.io/louislam/uptime-kuma"
 		tag:      "2.0.2"
+		upstream: {
+			github: {repo: "louislam/uptime-kuma"}
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]

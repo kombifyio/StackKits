@@ -6588,32 +6588,31 @@ resource "docker_container" "homepage" {
     }
   }
 
-  mounts {
-    type      = "bind"
-    source    = abspath(local_file.homepage_settings[0].filename)
-    target    = "/app/config/settings.yaml"
-    read_only = true
+  # Config is delivered via the Docker API (upload) instead of host bind-mounts.
+  # Managed-runtime rollouts run `tofu apply` on the StackKits control host with
+  # DOCKER_HOST pointed at the remote VM (ssh://). local_file paths are written on
+  # the control host during apply and never exist on the VM's Docker daemon, so a
+  # file bind-mount fails with "bind source path does not exist". upload{} copies
+  # the rendered content straight into the container over the remote connection,
+  # which works identically for local and remote Docker hosts.
+  upload {
+    content = local.homepage_settings_yaml
+    file    = "/app/config/settings.yaml"
   }
 
-  mounts {
-    type      = "bind"
-    source    = abspath(local_file.homepage_services[0].filename)
-    target    = "/app/config/services.yaml"
-    read_only = true
+  upload {
+    content = local.homepage_services_yaml
+    file    = "/app/config/services.yaml"
   }
 
-  mounts {
-    type      = "bind"
-    source    = abspath(local_file.homepage_widgets[0].filename)
-    target    = "/app/config/widgets.yaml"
-    read_only = true
+  upload {
+    content = local.homepage_widgets_yaml
+    file    = "/app/config/widgets.yaml"
   }
 
-  mounts {
-    type      = "bind"
-    source    = abspath(local_file.homepage_docker[0].filename)
-    target    = "/app/config/docker.yaml"
-    read_only = true
+  upload {
+    content = local.homepage_docker_yaml
+    file    = "/app/config/docker.yaml"
   }
 
   env = [

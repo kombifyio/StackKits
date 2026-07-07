@@ -1,0 +1,99 @@
+# {{.DisplayName}} — reference compose (scaffolded test baseline).
+# Boots the module against a Traefik baseline for the single-module smoke
+# (scripts/ci/module-smoke.sh). Scaffolded by `stackkit module scaffold`;
+# refine env/secrets/ports for a bootable test before opt-in promotion.
+services:
+  traefik:
+    image: traefik:v3.6
+    container_name: test-traefik-{{.Slug}}
+    command:
+      - "--api.insecure=true"
+      - "--ping=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "8899:80"
+      - "19099:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - test-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+{{range .Services}}
+  {{.Name}}:
+    image: {{.Image}}:{{.Tag}}
+    container_name: {{.ContainerName}}
+{{- if .Environment}}
+    environment:
+{{- range .Environment}}
+      {{.Key}}: "{{.Value}}"
+{{- end}}
+{{- end}}
+{{- if .Volumes}}
+    volumes:
+{{- range .Volumes}}
+      - {{.Source}}:{{.Target}}{{if .ReadOnly}}:ro{{end}}
+{{- end}}
+{{- end}}
+{{- if .TraefikLabels}}
+    labels:
+{{- range .TraefikLabels}}
+      - "{{.}}"
+{{- end}}
+{{- end}}
+    healthcheck:
+      test: {{.HealthTest}}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: {{.StartPeriod}}
+    networks:
+{{- range .ComposeNetworks}}
+      - {{.}}
+{{- end}}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+{{- if .Security.ReadOnly}}
+    read_only: true
+{{- end}}
+{{- if .Security.Tmpfs}}
+    tmpfs:
+{{- range .Security.Tmpfs}}
+      - {{.}}
+{{- end}}
+{{- end}}
+    mem_limit: {{.MemLimit}}
+    cpus: {{.CPUs}}
+{{- end}}
+
+networks:
+  test-net:
+    name: {{.Slug}}-test-net
+    driver: bridge
+{{- if .HasDBNet}}
+  test-db-net:
+    name: {{.Slug}}-test-db-net
+    driver: bridge
+    internal: true
+{{- end}}
+{{- if .NamedVolumes}}
+
+volumes:
+{{- range .NamedVolumes}}
+  {{.}}:
+{{- end}}
+{{- end}}

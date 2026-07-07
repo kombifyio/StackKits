@@ -2665,7 +2665,7 @@ test('render-release-evidence rejects owner setup action proof without expected 
   assert.match(evidence.checks.browserEvidence.summary, /setupAction photos dropStatus is waiting, want completed/);
 });
 
-test('render-release-evidence rejects Vaultwarden Owner provisioning claims in setup-state', async () => {
+test('render-release-evidence rejects incomplete Vaultwarden Owner invite evidence', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-vault-owner-claim-'));
   const dist = path.join(dir, 'dist');
   await mkdir(dist);
@@ -2687,8 +2687,8 @@ test('render-release-evidence rejects Vaultwarden Owner provisioning claims in s
   await writeFile(
     setupStatePath,
     setupState.replace(
-      '    outerAuthBoundary: tinyauth-pocketid\n- runId: setup-photos',
-      '    outerAuthBoundary: tinyauth-pocketid\n    appLocalOwner: pocketid-owner-preprovisioned\n- runId: setup-photos',
+      '    appLocalSessionHandoff: vaultwarden-invite-prepared',
+      '    appLocalSessionHandoff: manual-admin-ui-only',
     ),
   );
 
@@ -2715,7 +2715,7 @@ test('render-release-evidence rejects Vaultwarden Owner provisioning claims in s
 
   const evidence = JSON.parse(await readFile(output, 'utf8'));
   assert.equal(evidence.checks.browserEvidence.status, 'fail');
-  assert.match(evidence.checks.browserEvidence.summary, /vaultwarden-admin-handoff evidence\[appLocalOwner\] must be absent/);
+  assert.match(evidence.checks.browserEvidence.summary, /vaultwarden-admin-handoff evidence\[appLocalSessionHandoff\] is manual-admin-ui-only, want vaultwarden-invite-prepared/);
 });
 
 test('render-release-evidence keeps required v0.4 missing alternatives by default', async () => {
@@ -2886,6 +2886,12 @@ function setupRunEvidenceForDrop(dropName) {
       appLocalSignups: 'disabled',
       plaintextAdminTokenEnv: 'absent',
       outerAuthBoundary: 'tinyauth-pocketid',
+      appLocalOwner: 'pocketid-owner-preprovisioned',
+      ownerEmail: 'owner@example.com',
+      ownerProvisioning: 'vaultwarden-admin-invite-created',
+      appLocalSessionHandoff: 'vaultwarden-invite-prepared',
+      readyToUseContentStatus: 'owner-completes-vaultwarden-invite',
+      vaultwardenInvite: 'created',
     };
   }
   if (dropName === 'immich-owner-bootstrap') {
@@ -3355,6 +3361,12 @@ async function writeSetupStateFile(root, options = {}) {
       '    appLocalSignups: disabled',
       '    plaintextAdminTokenEnv: absent',
       '    outerAuthBoundary: tinyauth-pocketid',
+      '    appLocalOwner: pocketid-owner-preprovisioned',
+      '    ownerEmail: owner@example.com',
+      '    ownerProvisioning: vaultwarden-admin-invite-created',
+      '    appLocalSessionHandoff: vaultwarden-invite-prepared',
+      '    readyToUseContentStatus: owner-completes-vaultwarden-invite',
+      '    vaultwardenInvite: created',
       '- runId: setup-photos',
       '  serviceKey: photos',
       '  appName: immich',

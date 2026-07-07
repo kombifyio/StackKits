@@ -10,8 +10,30 @@ import "list"
 // primary/foundation node. platform_nodes contains only supplemental
 // worker/storage nodes that expand capacity or service placement.
 #RuntimeActionNodeHandoff: {
+	mode?:                string
+	tenant_id?:           string
+	owner_id?:            string
 	runtime_target?: #RuntimeTarget
-	platform_nodes: [...#PlatformNodeHandoff] | *[]
+	platform_nodes:       [...#PlatformNodeHandoff] | *[]
+	techstack_enrollment?: #TechStackEnrollment
+}
+
+// #TechStackEnrollment is the TechStack-managed runtime control-plane handoff
+// passed through Runtime Actions and `stackkit prepare` env. It identifies the
+// real managed runtime server and callback channels; StackKits must fail closed
+// when a managed handoff is requested but the required fields are partial.
+#TechStackEnrollment: {
+	tenant_id?:         string
+	owner_id?:          string
+	stack_id?:          string
+	server_url?:        string
+	server_id:          #NonEmptyString
+	runtime_agent_id:   #NonEmptyString
+	agent_token:        #NonEmptyString
+	heartbeat_url?:     string
+	inventory_url?:     string
+	control_urls?:      [...#NonEmptyString]
+	channel_bootstrap?: {...}
 }
 
 // #RuntimeTarget is the primary rollout host. Supplemental nodes must not

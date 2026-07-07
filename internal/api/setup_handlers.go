@@ -433,7 +433,7 @@ func (s *Server) runManifestServiceSetup(ctx context.Context, service servicecat
 }
 
 func isSetupWaitingForOwnerActivation(err *skerrors.StackKitError) bool {
-	return err != nil && err.Code == "immich_pocketid_owner_missing"
+	return err != nil && (err.Code == "immich_pocketid_owner_missing" || err.Code == "vaultwarden_pocketid_owner_missing")
 }
 
 func ownerActivationWaitingEvidence(serviceKey, appName, dropName string) map[string]string {
@@ -451,6 +451,16 @@ func ownerActivationWaitingEvidence(serviceKey, appName, dropName string) map[st
 		evidence["oidcClientId"] = immichPocketIDClientID
 		evidence["autoRegister"] = "false"
 		evidence["autoLaunch"] = "true"
+	}
+	if serviceKey == "vault" && appName == "vaultwarden" && dropName == "vaultwarden-admin-handoff" {
+		evidence["credentialRole"] = "break-glass-admin-token"
+		evidence["adminTokenPosture"] = "verified-break-glass"
+		evidence["adminTokenStorage"] = "argon2id-phc-runtime"
+		evidence["appLocalSignups"] = "disabled"
+		evidence["plaintextAdminTokenEnv"] = "absent"
+		evidence["outerAuthBoundary"] = "tinyauth-pocketid"
+		evidence["appLocalOwner"] = "waiting-pocketid-owner"
+		evidence["readyToUseContentStatus"] = "waiting-owner-activation"
 	}
 	return evidence
 }
@@ -1184,10 +1194,11 @@ func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdep
 	if err := vaultwardenAdminHealth(ctx, client, baseURL); err != nil {
 		return nil, err
 	}
-	if err := vaultwardenAdminLogin(ctx, client, baseURL, token); err != nil {
-		return nil, err
+	adminCookies, loginErr := vaultwardenAdminLogin(ctx, client, baseURL, token)
+	if loginErr != nil {
+		return nil, loginErr
 	}
-	return map[string]string{
+	evidence := map[string]string{
 		"credentialRole":         "break-glass-admin-token",
 		"ownerLogin":             initialAccessOwnerLogin,
 		"adminTokenPosture":      "verified-break-glass",
@@ -1195,7 +1206,19 @@ func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdep
 		"appLocalSignups":        "disabled",
 		"plaintextAdminTokenEnv": "absent",
 		"outerAuthBoundary":      "tinyauth-pocketid",
-	}, nil
+	}
+	owner, ownerErr := s.resolveVaultwardenPocketIDOwner(ctx)
+	if ownerErr != nil {
+		return nil, ownerErr
+	}
+	ownerEvidence, inviteErr := vaultwardenInvitePocketIDOwner(ctx, client, baseURL, adminCookies, owner)
+	if inviteErr != nil {
+		return nil, inviteErr
+	}
+	for key, value := range ownerEvidence {
+		evidence[key] = value
+	}
+	return evidence, nil
 }
 
 func verifyVaultwardenHandoffCompose(composeYAML string) *skerrors.StackKitError {
@@ -1253,21 +1276,21 @@ func vaultwardenAdminHealth(ctx context.Context, client *http.Client, baseURL st
 	return nil
 }
 
-func vaultwardenAdminLogin(ctx context.Context, client *http.Client, baseURL, token string) *skerrors.StackKitError {
+func vaultwardenAdminLogin(ctx context.Context, client *http.Client, baseURL, token string) ([]*http.Cookie, *skerrors.StackKitError) {
 	form := url.Values{"token": []string{token}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/admin", strings.NewReader(form.Encode()))
 	if err != nil {
-		return skerrors.NewValidationError("vaultwarden_admin_url_invalid", "Vaultwarden admin URL is invalid", skerrors.WithCause(err))
+		return nil, skerrors.NewValidationError("vaultwarden_admin_url_invalid", "Vaultwarden admin URL is invalid", skerrors.WithCause(err))
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
-		return skerrors.NewDependencyError("vaultwarden_admin_login_unreachable", "failed to reach Vaultwarden admin login", skerrors.WithCause(err))
+		return nil, skerrors.NewDependencyError("vaultwarden_admin_login_unreachable", "failed to reach Vaultwarden admin login", skerrors.WithCause(err))
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return skerrors.NewAuthError(
+		return nil, skerrors.NewAuthError(
 			"vaultwarden_admin_login_failed",
 			"Vaultwarden rejected the generated admin token",
 			skerrors.WithField("status", resp.StatusCode),
@@ -1276,17 +1299,89 @@ func vaultwardenAdminLogin(ctx context.Context, client *http.Client, baseURL, to
 	}
 	for _, cookie := range resp.Cookies() {
 		if cookie.Name == "VW_ADMIN" && strings.TrimSpace(cookie.Value) != "" {
-			return nil
+			return resp.Cookies(), nil
 		}
 	}
 	if !strings.Contains(string(body), "Vaultwarden Admin Panel") {
-		return skerrors.NewDependencyError(
+		return nil, skerrors.NewDependencyError(
 			"vaultwarden_admin_login_unverified",
 			"Vaultwarden admin login completed without a verifiable admin session",
 			skerrors.WithField("status", resp.StatusCode),
 		)
 	}
-	return nil
+	return resp.Cookies(), nil
+}
+
+func (s *Server) resolveVaultwardenPocketIDOwner(ctx context.Context) (pocketIDUser, *skerrors.StackKitError) {
+	owner, err := s.resolvePocketIDOwner(ctx)
+	if err == nil {
+		return owner, nil
+	}
+	if err.Code == "immich_pocketid_owner_missing" {
+		return pocketIDUser{}, skerrors.NewValidationError(
+			"vaultwarden_pocketid_owner_missing",
+			"Vaultwarden Owner invite requires an activated PocketID Owner user",
+			skerrors.WithSuggestion("Create the PocketID Owner/passkey first, then re-run the Vault setup action"),
+		)
+	}
+	return owner, err
+}
+
+func vaultwardenInvitePocketIDOwner(ctx context.Context, client *http.Client, baseURL string, cookies []*http.Cookie, owner pocketIDUser) (map[string]string, *skerrors.StackKitError) {
+	ownerEmail := strings.TrimSpace(owner.Email)
+	if ownerEmail == "" {
+		return map[string]string{
+			"appLocalOwner":           "technical-admin-bootstrap-only",
+			"ownerProvisioning":       "skipped-pocketid-disabled",
+			"appLocalSessionHandoff":  "not-configured-pocketid-disabled",
+			"readyToUseContentStatus": "not-configured-pocketid-disabled",
+		}, nil
+	}
+	payload, err := json.Marshal(map[string]string{"email": ownerEmail})
+	if err != nil {
+		return nil, skerrors.NewValidationError("vaultwarden_owner_invite_payload_failed", "failed to prepare Vaultwarden Owner invite payload", skerrors.WithCause(err))
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/admin/invite", bytes.NewReader(payload))
+	if err != nil {
+		return nil, skerrors.NewValidationError("vaultwarden_owner_invite_url_invalid", "Vaultwarden invite URL is invalid", skerrors.WithCause(err))
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, skerrors.NewDependencyError("vaultwarden_owner_invite_unreachable", "failed to reach Vaultwarden Owner invite endpoint", skerrors.WithCause(err))
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	var inviteStatus string
+	switch {
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		inviteStatus = "created"
+	case resp.StatusCode == http.StatusConflict:
+		inviteStatus = "already-exists"
+	default:
+		return nil, skerrors.NewDependencyError(
+			"vaultwarden_owner_invite_failed",
+			"Vaultwarden rejected the PocketID Owner invite",
+			skerrors.WithField("status", resp.StatusCode),
+			skerrors.WithField("body", truncateForField(string(body))),
+			skerrors.WithSuggestion("Check the generated Vaultwarden admin token and invite settings, then retry the Vault setup action"),
+		)
+	}
+	evidence := map[string]string{
+		"appLocalOwner":           "pocketid-owner-preprovisioned",
+		"ownerEmail":              ownerEmail,
+		"ownerProvisioning":       "vaultwarden-admin-invite-" + inviteStatus,
+		"appLocalSessionHandoff":  "vaultwarden-invite-prepared",
+		"readyToUseContentStatus": "owner-completes-vaultwarden-invite",
+		"vaultwardenInvite":       inviteStatus,
+	}
+	if id := strings.TrimSpace(owner.ID); id != "" {
+		evidence["pocketidOwnerId"] = id
+	}
+	return evidence, nil
 }
 
 func (s *Server) runImmichOwnerBootstrap(ctx context.Context) (map[string]string, *skerrors.StackKitError) {

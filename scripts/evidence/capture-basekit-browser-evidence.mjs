@@ -99,6 +99,7 @@ function defaultConfig({ env = process.env, cwd = process.cwd() } = {}) {
     freshVMContainerName: env.STACKKIT_FRESH_VM_CONTAINER || '',
     keepBrowserOpenMs: 0,
     demoData: env.STACKKIT_BROWSER_DEMO_DATA || 'enabled',
+    immichOwnerPassword: env.STACKKIT_IMMICH_OWNER_PASSWORD || '',
   };
 }
 
@@ -1027,8 +1028,7 @@ async function runCheck(page, config, check, totalDeadline, runtime = {}) {
     await page.waitForLoadState('networkidle', { timeout: Math.min(5000, remaining(checkDeadline)) }).catch(() => {});
     await driveFlow(page, config, check, checkDeadline);
     await returnToEvidenceRoute(page, check, checkDeadline);
-    await settleEvidenceRoute(page, config, check, checkDeadline);
-    if (check.evidencePolicy === 'tinyauth-owner-session' || canVerifyWithoutVisibleText(config, check)) {
+    if (canVerifyWithoutVisibleText(config, check)) {
       observedText = await pageText(page).catch(() => '');
       evidence = await verifyCheckEvidence(page, config, check, observedText, checkDeadline, runtime);
       if (!checkTextMatches(check, observedText)) {
@@ -1037,9 +1037,23 @@ async function runCheck(page, config, check, totalDeadline, runtime = {}) {
           observedText,
         ].filter(Boolean).join('\n');
       }
+      await settleEvidenceRoute(page, config, check, checkDeadline);
+      observedText = await pageText(page).catch(() => observedText);
     } else {
-      observedText = await waitForExpectedText(page, check, checkDeadline);
-      evidence = await verifyCheckEvidence(page, config, check, observedText, checkDeadline, runtime);
+      await settleEvidenceRoute(page, config, check, checkDeadline);
+      if (check.evidencePolicy === 'tinyauth-owner-session') {
+        observedText = await pageText(page).catch(() => '');
+        evidence = await verifyCheckEvidence(page, config, check, observedText, checkDeadline, runtime);
+        if (!checkTextMatches(check, observedText)) {
+          observedText = [
+            check.expectedText,
+            observedText,
+          ].filter(Boolean).join('\n');
+        }
+      } else {
+        observedText = await waitForExpectedText(page, check, checkDeadline);
+        evidence = await verifyCheckEvidence(page, config, check, observedText, checkDeadline, runtime);
+      }
     }
     await settleEvidenceRoute(page, config, check, checkDeadline);
   } catch (error) {
@@ -1080,7 +1094,10 @@ async function runCheck(page, config, check, totalDeadline, runtime = {}) {
 }
 
 function canVerifyWithoutVisibleText(config, check) {
-  return config.demoData === 'disabled' && check.evidencePolicy === 'cloudreve-demo-file';
+  return config.demoData === 'disabled' && new Set([
+    'cloudreve-demo-file',
+    'immich-demo-assets',
+  ]).has(String(check?.evidencePolicy || ''));
 }
 
 async function returnToEvidenceRoute(page, check, deadline) {
@@ -1103,12 +1120,12 @@ async function settleEvidenceRoute(page, config, check, deadline) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await ensureTimeRemaining(deadline, `${check.name} route settle`);
     const currentURL = page.url?.() || '';
-    if (sameOrigin(currentURL, check.url)) return;
+    if (sameEvidenceRoute(currentURL, check.url)) return;
     await driveOwnerLoginFlow(page, config, deadline);
     await page.waitForLoadState('networkidle', { timeout: Math.min(5000, remaining(deadline)) }).catch(() => {});
-    if (sameOrigin(page.url?.() || '', check.url)) return;
+    if (sameEvidenceRoute(page.url?.() || '', check.url)) return;
     await returnToEvidenceRoute(page, check, deadline);
-    if (sameOrigin(page.url?.() || '', check.url)) return;
+    if (sameEvidenceRoute(page.url?.() || '', check.url)) return;
   }
   throw new Error(`${check.name} remained on ${page.url?.() || '<unknown>'} after auth route restore; want ${originOf(check.url)}`);
 }
@@ -1331,6 +1348,24 @@ function sameOrigin(a, b) {
   return left && right && left === right;
 }
 
+function sameEvidenceRoute(a, b) {
+  if (!sameOrigin(a, b)) return false;
+  try {
+    const current = new URL(String(a || ''));
+    const expected = new URL(String(b || ''));
+    const currentPath = normalizeRoutePath(current.pathname);
+    const expectedPath = normalizeRoutePath(expected.pathname);
+    return currentPath === expectedPath || currentPath.startsWith(`${expectedPath}/`);
+  } catch {
+    return false;
+  }
+}
+
+function normalizeRoutePath(value) {
+  const pathValue = String(value || '/').replace(/\/+$/, '');
+  return pathValue || '/';
+}
+
 function isLocalEvidenceHostname(hostname) {
   const host = String(hostname || '').toLowerCase();
   return host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '::1';
@@ -1488,7 +1523,14 @@ async function verifyCheckEvidence(page, config, check, observedText, deadline, 
     return verifyCloudreveDemoFile(page, deadline, demoEnabled);
   }
   if (check.evidencePolicy === 'immich-demo-assets') {
-    return verifyImmichDemoAssets(page, deadline, config.ownerEmail, config.demoData !== 'disabled', check.url);
+    return verifyImmichDemoAssets(
+      page,
+      deadline,
+      config.ownerEmail,
+      config.demoData !== 'disabled',
+      check.url,
+      config.immichOwnerPassword,
+    );
   }
   if (check.evidencePolicy === 'vault-auth-boundary') {
     return verifyVaultAuthBoundary(page, config, check, deadline);
@@ -1874,7 +1916,7 @@ async function verifyCloudreveDemoFile(page, deadline, demoEnabled = true) {
   throw new Error(lastError || 'Cloudreve browser session evidence was not provable');
 }
 
-async function verifyImmichDemoAssets(page, deadline, ownerEmail = '', demoEnabled = true, expectedURL = '') {
+async function verifyImmichDemoAssets(page, deadline, ownerEmail = '', demoEnabled = true, expectedURL = '', ownerPassword = '') {
   let lastError = '';
   while (Date.now() < deadline) {
     if (expectedURL && !sameOrigin(page.url?.() || '', expectedURL)) {
@@ -1885,7 +1927,7 @@ async function verifyImmichDemoAssets(page, deadline, ownerEmail = '', demoEnabl
     }
     let result;
     try {
-      result = await page.evaluate(async ({ expectedOwnerEmail, demoDeviceId, demoDeviceAssetId, demoFileName, requireDemoAsset }) => {
+      result = await page.evaluate(async ({ expectedOwnerEmail, ownerPasswordValue, demoDeviceId, demoDeviceAssetId, demoFileName, requireDemoAsset }) => {
       const tokenCandidates = [];
       const seen = new Set();
       const addToken = (value) => {
@@ -1953,6 +1995,27 @@ async function verifyImmichDemoAssets(page, deadline, ownerEmail = '', demoEnabl
       // same-origin cookie session is a first-class auth mode beside any
       // JWT-shaped tokens still found in web storage.
       const authModes = [{ label: 'cookie-session', headers: {} }];
+      const credentialLoginPassword = String(ownerPasswordValue || '');
+      if (expectedEmail && credentialLoginPassword) {
+        try {
+          const login = await fetchJSON('/api/auth/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              email: expectedOwnerEmail,
+              password: credentialLoginPassword,
+            }),
+          });
+          const accessToken = String(login?.accessToken || '').trim();
+          if (accessToken) {
+            authModes.push({ label: 'browser-credential-login', headers: { authorization: `Bearer ${accessToken}` } });
+          } else {
+            lastFailure = 'Immich credential login did not return an access token';
+          }
+        } catch (error) {
+          lastFailure = `Immich credential login failed: ${error.message || error}`;
+        }
+      }
       for (const token of tokenCandidates) {
         authModes.push({ label: 'bearer-token', headers: { authorization: `Bearer ${token}` } });
       }
@@ -2016,6 +2079,7 @@ async function verifyImmichDemoAssets(page, deadline, ownerEmail = '', demoEnabl
       };
       }, {
         expectedOwnerEmail: ownerEmail,
+        ownerPasswordValue: ownerPassword,
         demoDeviceId: 'stackkit-demo',
         demoDeviceAssetId: 'stackkit-demo-photo-1',
         demoFileName: 'stackkit-demo-photo.png',
@@ -2192,6 +2256,7 @@ export {
   browserRedirectBridgeHTML,
   browserRedirectLocationForRoute,
   browserScreenshotURL,
+  canVerifyWithoutVisibleText,
   checkTextMatches,
   clickThrough,
   collectSetupStateDiagnostics,

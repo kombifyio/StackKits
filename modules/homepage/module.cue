@@ -70,6 +70,9 @@ Contract: base.#ModuleContract & {
 			type:     "dashboard"
 			image:    "ghcr.io/gethomepage/homepage"
 			tag:      "latest"
+			upstream: {
+				github: {repo: "gethomepage/homepage"}
+			}
 			required: false
 			status:   "implemented"
 			needs: ["traefik", "homepage-socket-proxy"]
@@ -162,6 +165,9 @@ Contract: base.#ModuleContract & {
 			type:     "infrastructure"
 			image:    "tecnativa/docker-socket-proxy"
 			tag:      "latest"
+			upstream: {
+				github: {repo: "Tecnativa/docker-socket-proxy"}
+			}
 			required: false
 			status:   "implemented"
 			needs: []

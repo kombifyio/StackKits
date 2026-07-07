@@ -17,6 +17,7 @@ import {
   browserRedirectBridgeHTML,
   browserRedirectLocationForRoute,
   browserScreenshotURL,
+  canVerifyWithoutVisibleText,
   checkTextMatches,
   clickThrough,
   collectSetupStateDiagnostics,
@@ -37,6 +38,7 @@ import {
   relativeEvidencePath,
   returnToEvidenceRoute,
   runOwnerActivatedSetupActions,
+  settleEvidenceRoute,
   unmapLocalPortURL,
   usage,
   verifyCloudreveDemoFile,
@@ -59,6 +61,7 @@ test('default config targets the SK-S1 local BaseKit browser surface', () => {
   assert.deepEqual(config.setupServices, ['photos', 'files', 'vault']);
   assert.equal(config.perCheckTimeoutMs, DEFAULT_PER_CHECK_TIMEOUT_MS);
   assert.equal(config.totalTimeoutMs, DEFAULT_TOTAL_TIMEOUT_MS);
+  assert.equal(config.immichOwnerPassword, '');
   assert.equal(SETUP_ACTION_PER_SERVICE_TIMEOUT_MS, 6 * 60 * 1000);
 });
 
@@ -318,6 +321,24 @@ test('content checks require seeded Files and Photos evidence, not generic app p
   assert.equal(checkTextMatches(photosCheck, 'Immich Photos'), true);
 });
 
+test('disabled demo data checks can prove app sessions before route text is visible', () => {
+  const config = parseArgs(['--demo-data', 'disabled'], { env: {}, cwd: process.cwd() });
+  const checks = buildChecks(config);
+
+  assert.equal(
+    canVerifyWithoutVisibleText(config, checks.find((check) => check.name === 'files-demo-content')),
+    true,
+  );
+  assert.equal(
+    canVerifyWithoutVisibleText(config, checks.find((check) => check.name === 'photos-demo-content')),
+    true,
+  );
+  assert.equal(
+    canVerifyWithoutVisibleText(config, checks.find((check) => check.name === 'vault-auth-boundary')),
+    false,
+  );
+});
+
 test('content checks return to their service route after the owner login flow', async () => {
   const navigations = [];
   const page = {
@@ -341,6 +362,38 @@ test('content checks return to their service route after the owner login flow', 
   assert.equal(navigations.length, 1);
   assert.equal(navigations[0].url, 'http://photos.home.localhost/photos');
   assert.equal(navigations[0].options.waitUntil, 'domcontentloaded');
+});
+
+test('settleEvidenceRoute treats an Immich login path as not yet restored to Photos', async () => {
+  let currentURL = 'http://photos.home.localhost/auth/login?autoLaunch=0';
+  const navigations = [];
+  const emptyLocator = {
+    first: () => emptyLocator,
+    filter: () => emptyLocator,
+    count: async () => 0,
+    isVisible: async () => false,
+  };
+  const page = {
+    url: () => currentURL,
+    goto: async (url) => {
+      navigations.push(url);
+      currentURL = url;
+    },
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+    getByRole: () => emptyLocator,
+    locator: () => emptyLocator,
+  };
+
+  await settleEvidenceRoute(
+    page,
+    { authUrl: 'http://auth.home.localhost/' },
+    { name: 'photos-demo-content', url: 'http://photos.home.localhost/photos' },
+    Date.now() + 1000,
+  );
+
+  assert.deepEqual(navigations, ['http://photos.home.localhost/photos']);
+  assert.equal(currentURL, 'http://photos.home.localhost/photos');
 });
 
 test('Immich evidence must be verified on the Photos service origin', async () => {
@@ -788,6 +841,79 @@ test('verifyImmichDemoAssets proves the cookie-session Owner without seeded asse
     assert.equal(evidence.immichDemoAssets, undefined);
     assert.equal(evidence.demoAssetFile, undefined);
     assert.deepEqual(requests, ['/api/users/me']);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousFetch === undefined) delete globalThis.fetch;
+    else globalThis.fetch = previousFetch;
+  }
+});
+
+test('verifyImmichDemoAssets proves the Owner through browser credential login when local OAuth cannot create a session', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.window = {
+    localStorage: browserStorage({}),
+    sessionStorage: browserStorage({}),
+  };
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({
+      url: String(url),
+      authorization: options.headers?.authorization || '',
+    });
+    if (String(url) === '/api/auth/login') {
+      assert.deepEqual(JSON.parse(String(options.body)), {
+        email: 'owner@example.com',
+        password: 'local-owner-password',
+      });
+      return {
+        ok: true,
+        json: async () => ({ accessToken: 'credential-login-token' }),
+      };
+    }
+    if (String(url) === '/api/users/me') {
+      if (options.headers?.authorization === 'Bearer credential-login-token') {
+        return {
+          ok: true,
+          json: async () => ({ id: 'immich-owner-id', email: 'owner@example.com' }),
+        };
+      }
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'unauthorized' }),
+      };
+    }
+    throw new Error('Immich demo metadata search must not run when demo data is disabled');
+  };
+  try {
+    const evidence = await verifyImmichDemoAssets(
+      {
+        evaluate: async (callback, args) => callback(args),
+        waitForTimeout: async () => {},
+      },
+      Date.now() + 1000,
+      'owner@example.com',
+      false,
+      '',
+      'local-owner-password',
+    );
+
+    assert.equal(evidence.demoData, 'disabled');
+    assert.equal(evidence.demoContent, 'immich-owner-session');
+    assert.equal(evidence.verification, 'immich-users-me');
+    assert.equal(evidence.ownerVerification, 'immich-users-me');
+    assert.equal(evidence.immichSessionAuth, 'browser-credential-login');
+    assert.equal(evidence.immichOwnerEmail, 'owner@example.com');
+    assert.equal(evidence.immichOwnerId, 'immich-owner-id');
+    assert.equal(evidence.immichDemoAssets, undefined);
+    assert.equal(evidence.demoAssetFile, undefined);
+    assert.deepEqual(requests.map((request) => [request.url, request.authorization]), [
+      ['/api/auth/login', ''],
+      ['/api/users/me', ''],
+      ['/api/users/me', 'Bearer credential-login-token'],
+    ]);
   } finally {
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;

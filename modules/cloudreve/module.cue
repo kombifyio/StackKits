@@ -69,6 +69,9 @@ Contract: base.#ModuleContract & {
 		type:        "storage"
 		image:       "cloudreve/cloudreve"
 		tag:         "latest"
+		upstream: {
+			github: {repo: "cloudreve/Cloudreve"}
+		}
 		required:    false
 		status:      "implemented"
 		needs: ["traefik"]

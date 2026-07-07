@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	skcue "github.com/kombifyio/stackkits/internal/cue"
@@ -91,6 +92,63 @@ type moduleReleasePayload struct {
 	ReleasedAt        time.Time              `json:"released_at"`
 	ReleasedBy        string                 `json:"released_by"`
 	Metadata          map[string]interface{} `json:"metadata"`
+	// UpstreamWatch carries per-service watch coordinates (ADR-0028) so the
+	// Admin can seed/refresh sk_tool_watch rows on release. Watch metadata
+	// only — deliberately outside the contract hash: watch-config changes
+	// must never break parity or force a module version bump.
+	UpstreamWatch []upstreamWatchEntry `json:"upstream_watch,omitempty"`
+}
+
+// upstreamWatchEntry is one service's upstream watch coordinates. All
+// services are listed (with image+tag) so the Admin can fall back to
+// sk_tool.repo_url for services without an explicit CUE upstream block.
+type upstreamWatchEntry struct {
+	ServiceName   string `json:"service_name"`
+	Image         string `json:"image"`
+	Tag           string `json:"tag"`
+	GitHubRepo    string `json:"github_repo,omitempty"`
+	RegistryImage string `json:"registry_image,omitempty"`
+	Track         string `json:"track,omitempty"`
+	PinLine       string `json:"pin_line,omitempty"`
+	OSVEcosystem  string `json:"osv_ecosystem,omitempty"`
+	OSVName       string `json:"osv_name,omitempty"`
+}
+
+// upstreamWatchEntries flattens contract services into a stable, sorted list
+// of watch coordinates. Registry image defaults to the service image and
+// track defaults to "minor" so DB rows are always concrete.
+func upstreamWatchEntries(mc skcue.ModuleContract) []upstreamWatchEntry {
+	names := make([]string, 0, len(mc.Services))
+	for name := range mc.Services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	entries := make([]upstreamWatchEntry, 0, len(names))
+	for _, name := range names {
+		svc := mc.Services[name]
+		entry := upstreamWatchEntry{
+			ServiceName: name,
+			Image:       svc.Image,
+			Tag:         svc.Tag,
+		}
+		if svc.Upstream != nil {
+			entry.GitHubRepo = svc.Upstream.GitHubRepo
+			entry.RegistryImage = svc.Upstream.RegistryImage
+			if entry.RegistryImage == "" {
+				entry.RegistryImage = svc.Image
+			}
+			entry.Track = svc.Upstream.Track
+			if entry.Track == "" {
+				entry.Track = "minor"
+			}
+			entry.PinLine = svc.Upstream.PinLine
+			entry.OSVEcosystem = svc.Upstream.OSVEcosystem
+			entry.OSVName = svc.Upstream.OSVName
+		}
+		entries = append(entries, entry)
+	}
+	return entries
 }
 
 func runModuleRelease(cmd *cobra.Command, args []string) error {
@@ -155,6 +213,7 @@ func runModuleRelease(cmd *cobra.Command, args []string) error {
 			"description": contract.Metadata.Description,
 			"core":        contract.Metadata.Core,
 		},
+		UpstreamWatch: upstreamWatchEntries(contract),
 	}
 
 	outPath := moduleReleaseOutput

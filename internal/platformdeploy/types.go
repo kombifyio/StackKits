@@ -403,12 +403,18 @@ type SSHBootstrap struct {
 }
 
 type NodePrepareResult struct {
-	NodeName string
-	Role     string
-	Platform string
-	Status   string
-	Detail   string
-	Services []string
+	NodeName        string
+	Role            string
+	Platform        string
+	Status          string
+	Detail          string
+	Services        []string
+	ServerID        string
+	DestinationUUID string
+	EnvironmentID   string
+	ProjectUUID     string
+	EnvironmentUUID string
+	PrivateKeyUUID  string
 }
 
 func (cfg HTTPConfig) httpClient() *http.Client {

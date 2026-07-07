@@ -76,6 +76,9 @@ Contract: base.#ModuleContract & {
 		type:     "dns"
 		image:    "klutchell/unbound"
 		tag:      "latest"
+		upstream: {
+			track: "minor"
+		}
 		required: false
 		status:   "implemented"
 		needs: []

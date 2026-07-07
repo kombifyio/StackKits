@@ -91,6 +91,9 @@ Contract: base.#ModuleContract & {
 		type:     "observability"
 		image:    "otel/opentelemetry-collector-contrib"
 		tag:      "0.114.0"
+		upstream: {
+			github: {repo: "open-telemetry/opentelemetry-collector-contrib"}
+		}
 		required: true
 		status:   "implemented"
 		needs: ["victoriametrics"]
@@ -156,6 +159,9 @@ Contract: base.#ModuleContract & {
 		type:     "database"
 		image:    "victoriametrics/victoria-metrics"
 		tag:      "v1.139.0"
+		upstream: {
+			github: {repo: "VictoriaMetrics/VictoriaMetrics"}
+		}
 		required: true
 		status:   "implemented"
 

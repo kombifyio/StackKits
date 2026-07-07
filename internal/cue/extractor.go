@@ -19,6 +19,7 @@ type ServiceDef struct {
 	Enabled       bool
 	Image         string
 	Tag           string
+	Upstream      *UpstreamDef
 	Command       []string
 	Description   string
 	Needs         []string
@@ -31,8 +32,17 @@ type ServiceDef struct {
 	Resources     *ResourceDef
 	TraefikRule   string
 	TraefikPort   int
-	OutputURL     string
-	OutputDesc    string
+	// TraefikEnabled is true when network.traefik.enabled is set, i.e. the
+	// service is externally routed and therefore requires an accessPolicy.
+	TraefikEnabled bool
+	// Security mirrors the module house-hardening block (#ServiceDefinition
+	// allows `security` as an open extension used by every real module).
+	Security *SecurityDef
+	// AccessPolicy mirrors #ServiceDefinition.accessPolicy: the outer/app auth
+	// posture. Required for Traefik-routed services (Golden Rules §4.1/§4.8).
+	AccessPolicy *AccessPolicyDef
+	OutputURL    string
+	OutputDesc   string
 
 	// Subdomain routing (from CUE #ServiceDefinition.subdomain)
 	SubdomainKey    string
@@ -46,6 +56,18 @@ type ServiceDef struct {
 	DashboardBadge     string
 	DashboardEnableVar string
 	DashboardGuideURL  string
+}
+
+// UpstreamDef mirrors #ServiceDefinition.upstream (ADR-0028): watch
+// coordinates consumed by the Admin tool_release_watch job. Watch metadata
+// only — deliberately excluded from the module contract hash.
+type UpstreamDef struct {
+	GitHubRepo    string
+	RegistryImage string
+	Track         string
+	PinLine       string
+	OSVEcosystem  string
+	OSVName       string
 }
 
 // PortDef represents a port mapping.
@@ -80,6 +102,33 @@ type ResourceDef struct {
 	Memory    string
 	MemoryMax string
 	CPUs      float64
+}
+
+// SecurityDef mirrors the module house-hardening `security` block. Every real
+// module declares it (noNewPrivileges + capDrop ALL is the house default);
+// `stackkit module lint` asserts its presence.
+type SecurityDef struct {
+	NoNewPrivileges bool
+	CapDrop         []string
+	ReadOnly        bool
+	Tmpfs           []string
+}
+
+// HasCapDropAll reports whether the service drops all Linux capabilities.
+func (s *SecurityDef) HasCapDropAll() bool {
+	for _, c := range s.CapDrop {
+		if strings.EqualFold(c, "ALL") {
+			return true
+		}
+	}
+	return false
+}
+
+// AccessPolicyDef mirrors #ServiceDefinition.accessPolicy. Traefik-routed
+// services must declare an outer auth posture (Golden Rules §4.1/§4.8).
+type AccessPolicyDef struct {
+	OuterAuth string
+	AppAuth   string
 }
 
 // Extractor reads CUE service definitions and returns Go structs.
@@ -181,6 +230,16 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 	svc.Type = stringField(v, "type")
 	svc.Image = stringField(v, "image")
 	svc.Tag = stringField(v, "tag")
+	if up := v.LookupPath(cue.ParsePath("upstream")); up.Exists() {
+		svc.Upstream = &UpstreamDef{
+			GitHubRepo:    stringField(up, "github.repo"),
+			RegistryImage: stringField(up, "registry.image"),
+			Track:         stringFieldOr(up, "track", "minor"),
+			PinLine:       stringField(up, "pinLine"),
+			OSVEcosystem:  stringField(up, "osv.ecosystem"),
+			OSVName:       stringField(up, "osv.name"),
+		}
+	}
 	svc.Command = stringOrListField(v, "command")
 	svc.Description = stringField(v, "description")
 	svc.RestartPolicy = stringFieldOr(v, "restartPolicy", "unless-stopped")
@@ -229,6 +288,48 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 		if port := traefik.LookupPath(cue.ParsePath("port")); port.Exists() {
 			n, _ := port.Int64()
 			svc.TraefikPort = int(n)
+		}
+		if en := traefik.LookupPath(cue.ParsePath("enabled")); en.Exists() {
+			b, _ := en.Bool()
+			svc.TraefikEnabled = b
+		}
+	}
+
+	// Security (house-hardening block, consumed by `stackkit module lint`).
+	if sec := v.LookupPath(cue.ParsePath("security")); sec.Exists() {
+		sd := &SecurityDef{}
+		if b := sec.LookupPath(cue.ParsePath("noNewPrivileges")); b.Exists() {
+			val, _ := b.Bool()
+			sd.NoNewPrivileges = val
+		}
+		if b := sec.LookupPath(cue.ParsePath("readOnly")); b.Exists() {
+			val, _ := b.Bool()
+			sd.ReadOnly = val
+		}
+		if caps := sec.LookupPath(cue.ParsePath("capDrop")); caps.Exists() {
+			iter, _ := caps.List()
+			for iter.Next() {
+				if s, err := iter.Value().String(); err == nil {
+					sd.CapDrop = append(sd.CapDrop, s)
+				}
+			}
+		}
+		if tm := sec.LookupPath(cue.ParsePath("tmpfs")); tm.Exists() {
+			iter, _ := tm.List()
+			for iter.Next() {
+				if s, err := iter.Value().String(); err == nil {
+					sd.Tmpfs = append(sd.Tmpfs, s)
+				}
+			}
+		}
+		svc.Security = sd
+	}
+
+	// Access policy (required for Traefik-routed services).
+	if ap := v.LookupPath(cue.ParsePath("accessPolicy")); ap.Exists() {
+		svc.AccessPolicy = &AccessPolicyDef{
+			OuterAuth: stringField(ap, "outerAuth"),
+			AppAuth:   stringField(ap, "appAuth"),
 		}
 	}
 

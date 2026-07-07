@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -444,6 +445,10 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		}
 		rolloutEvent("terramate.check", "succeeded", "Terramate is available for advanced lifecycle", nil)
 	}
+	if err := ensureTechStackGuardLocal(ctx, spec); err != nil {
+		rolloutFailure("techstack.guard", err)
+		return err
+	}
 	emitPrepareTelemetryHandshake()
 
 	// Clean up installation artifacts to reclaim disk space
@@ -504,7 +509,7 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 // when Docker is not available on this VPS.
 func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType string) error {
 	if prepareNonInteractive || !isTerminal() {
-		return fmt.Errorf("Docker is incompatible with virtualization %s and prepare is non-interactive; choose a KVM/full-virtualization VPS or configure native runtime explicitly", virtType)
+		return fmt.Errorf("docker is incompatible with virtualization %s and prepare is non-interactive; choose a KVM/full-virtualization VPS or configure native runtime explicitly", virtType)
 	}
 	fmt.Println()
 	printError("%s", "Docker as our containerization environment will not work on your type of VM.")
@@ -650,6 +655,10 @@ func prepareRemoteSystem(ctx context.Context, spec *models.StackSpec) error {
 			return err
 		}
 		rolloutEvent("terramate.check", "succeeded", "remote Terramate is available", nil)
+	}
+	if err := ensureTechStackGuardRemote(ctx, spec, sshClient); err != nil {
+		rolloutFailure("techstack.guard", err)
+		return err
 	}
 
 	emitPrepareTelemetryHandshake()
@@ -1117,6 +1126,240 @@ func ensurePackagedTerramateMatchesRemote(sysInfo *models.SystemInfo) error {
 		return fmt.Errorf("packaged Terramate binary is %s/%s, but remote target requires linux/%s; run the StackKit installer on the target or use the matching Linux release package", runtime.GOOS, runtime.GOARCH, targetArch)
 	}
 	return nil
+}
+
+type techStackHandoff struct {
+	ServerURL        string
+	ServerID         string
+	RuntimeAgentID   string
+	AgentToken       string
+	TenantID         string
+	OwnerID          string
+	StackID          string
+	HeartbeatURL     string
+	InventoryURL     string
+	ChannelBootstrap string
+}
+
+func techStackHandoffFromEnv() techStackHandoff {
+	return techStackHandoff{
+		ServerURL:        strings.TrimRight(strings.TrimSpace(os.Getenv("TECHSTACK_SERVER_URL")), "/"),
+		ServerID:         strings.TrimSpace(os.Getenv("TECHSTACK_SERVER_ID")),
+		RuntimeAgentID:   strings.TrimSpace(os.Getenv("TECHSTACK_RUNTIME_AGENT_ID")),
+		AgentToken:       strings.TrimSpace(os.Getenv("TECHSTACK_AGENT_TOKEN")),
+		TenantID:         strings.TrimSpace(os.Getenv("TECHSTACK_TENANT_ID")),
+		OwnerID:          strings.TrimSpace(os.Getenv("TECHSTACK_OWNER_ID")),
+		StackID:          strings.TrimSpace(os.Getenv("TECHSTACK_STACK_ID")),
+		HeartbeatURL:     strings.TrimSpace(os.Getenv("TECHSTACK_HEARTBEAT_URL")),
+		InventoryURL:     strings.TrimSpace(os.Getenv("TECHSTACK_INVENTORY_URL")),
+		ChannelBootstrap: strings.TrimSpace(os.Getenv("TECHSTACK_CHANNEL_BOOTSTRAP")),
+	}
+}
+
+func (h techStackHandoff) requested() bool {
+	if truthyEnv("TECHSTACK_MANAGED") {
+		return true
+	}
+	return h.ServerURL != "" || h.ServerID != "" || h.RuntimeAgentID != "" || h.AgentToken != "" || h.HeartbeatURL != "" || h.InventoryURL != ""
+}
+
+func (h techStackHandoff) validateManaged() error {
+	missing := []string{}
+	for name, value := range map[string]string{
+		"TECHSTACK_SERVER_URL":       h.ServerURL,
+		"TECHSTACK_SERVER_ID":        h.ServerID,
+		"TECHSTACK_RUNTIME_AGENT_ID": h.RuntimeAgentID,
+		"TECHSTACK_AGENT_TOKEN":      h.AgentToken,
+	} {
+		if strings.TrimSpace(value) == "" {
+			missing = append(missing, name)
+		}
+	}
+	if h.HeartbeatURL == "" && h.InventoryURL == "" {
+		missing = append(missing, "TECHSTACK_HEARTBEAT_URL or TECHSTACK_INVENTORY_URL")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("techstack_orchestration_handoff_missing: TechStack-managed prepare requires %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func ensureTechStackGuardLocal(ctx context.Context, spec *models.StackSpec) error {
+	return ensureTechStackGuard(ctx, spec, nil)
+}
+
+func ensureTechStackGuardRemote(ctx context.Context, spec *models.StackSpec, sshClient *ssh.Client) error {
+	return ensureTechStackGuard(ctx, spec, sshClient)
+}
+
+func ensureTechStackGuard(ctx context.Context, spec *models.StackSpec, sshClient *ssh.Client) error {
+	handoff := techStackHandoffFromEnv()
+	if !handoff.requested() {
+		attrs := map[string]string{}
+		if spec != nil {
+			attrs["mode"] = spec.EffectiveInstallMode()
+		}
+		rolloutEvent("techstack.guard", "skipped", "TechStack guard handoff not requested for standalone prepare", attrs)
+		return nil
+	}
+	if err := handoff.validateManaged(); err != nil {
+		return err
+	}
+	attrs := map[string]string{
+		"server_id":        handoff.ServerID,
+		"runtime_agent_id": handoff.RuntimeAgentID,
+		"tenant_id":        handoff.TenantID,
+		"remote":           fmt.Sprintf("%t", sshClient != nil),
+	}
+	if spec != nil {
+		attrs["mode"] = spec.EffectiveInstallMode()
+	}
+	rolloutEvent("techstack.guard", "started", "installing TechStack guard handoff", attrs)
+	if prepareDryRun {
+		rolloutEvent("techstack.guard", "skipped", "TechStack guard install skipped by dry-run", attrs)
+		return nil
+	}
+	if sshClient != nil {
+		if err := installTechStackGuardRemote(ctx, sshClient, handoff); err != nil {
+			return err
+		}
+	} else if err := writeTechStackGuardLocalEvidence(handoff); err != nil {
+		return err
+	}
+	rolloutEvent("techstack.guard", "succeeded", "TechStack guard handoff installed", attrs)
+	return nil
+}
+
+func installTechStackGuardRemote(ctx context.Context, sshClient *ssh.Client, handoff techStackHandoff) error {
+	envContent := techStackGuardEnvFile(handoff)
+	scriptContent := techStackGuardScript()
+	unitContent := techStackGuardSystemdUnit()
+	if err := sshClient.WriteFile(ctx, "/tmp/techstack-guard.env", []byte(envContent), 0600); err != nil {
+		return fmt.Errorf("techstack guard env upload failed: %w", err)
+	}
+	if err := sshClient.WriteFile(ctx, "/tmp/kombify-techstack-guard", []byte(scriptContent), 0755); err != nil {
+		return fmt.Errorf("techstack guard script upload failed: %w", err)
+	}
+	if err := sshClient.WriteFile(ctx, "/tmp/kombify-techstack-guard.service", []byte(unitContent), 0644); err != nil {
+		return fmt.Errorf("techstack guard unit upload failed: %w", err)
+	}
+	cmd := strings.Join([]string{
+		"install -d -m 0750 /etc/kombify",
+		"install -m 0600 /tmp/techstack-guard.env /etc/kombify/techstack-guard.env",
+		"install -m 0755 /tmp/kombify-techstack-guard /usr/local/bin/kombify-techstack-guard",
+		"install -m 0644 /tmp/kombify-techstack-guard.service /etc/systemd/system/kombify-techstack-guard.service",
+		"rm -f /tmp/techstack-guard.env /tmp/kombify-techstack-guard /tmp/kombify-techstack-guard.service",
+		"if command -v systemctl >/dev/null 2>&1; then systemctl daemon-reload && systemctl enable --now kombify-techstack-guard.service; fi",
+	}, " && ")
+	if _, stderr, err := sshClient.RunWithSudo(ctx, cmd); err != nil {
+		return fmt.Errorf("techstack guard service install failed: %w: %s", err, strings.TrimSpace(stderr))
+	}
+	return nil
+}
+
+func writeTechStackGuardLocalEvidence(handoff techStackHandoff) error {
+	dir := filepath.Join(getWorkDir(), ".stackkit", "runs")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(techStackGuardEvidence(handoff, "local"), "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "techstack-guard-evidence.json"), append(data, '\n'), 0600)
+}
+
+func techStackGuardEvidence(handoff techStackHandoff, target string) map[string]any {
+	return map[string]any{
+		"target":              target,
+		"server_url":          handoff.ServerURL,
+		"server_id":           handoff.ServerID,
+		"runtime_agent_id":    handoff.RuntimeAgentID,
+		"tenant_id":           handoff.TenantID,
+		"owner_id":            handoff.OwnerID,
+		"stack_id":            handoff.StackID,
+		"heartbeat_url":       handoff.HeartbeatURL,
+		"inventory_url":       handoff.InventoryURL,
+		"agent_token_present": handoff.AgentToken != "",
+		"installed_at":        time.Now().UTC().Format(time.RFC3339Nano),
+	}
+}
+
+func techStackGuardEnvFile(handoff techStackHandoff) string {
+	lines := []string{
+		"TECHSTACK_SERVER_URL=" + shellEnvQuote(handoff.ServerURL),
+		"TECHSTACK_SERVER_ID=" + shellEnvQuote(handoff.ServerID),
+		"TECHSTACK_RUNTIME_AGENT_ID=" + shellEnvQuote(handoff.RuntimeAgentID),
+		"TECHSTACK_AGENT_TOKEN=" + shellEnvQuote(handoff.AgentToken),
+		"TECHSTACK_TENANT_ID=" + shellEnvQuote(handoff.TenantID),
+		"TECHSTACK_OWNER_ID=" + shellEnvQuote(handoff.OwnerID),
+		"TECHSTACK_STACK_ID=" + shellEnvQuote(handoff.StackID),
+		"TECHSTACK_HEARTBEAT_URL=" + shellEnvQuote(handoff.HeartbeatURL),
+		"TECHSTACK_INVENTORY_URL=" + shellEnvQuote(handoff.InventoryURL),
+		"TECHSTACK_CHANNEL_BOOTSTRAP=" + shellEnvQuote(handoff.ChannelBootstrap),
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func techStackGuardSystemdUnit() string {
+	return `[Unit]
+Description=Kombify TechStack Guard
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/kombify/techstack-guard.env
+ExecStart=/usr/local/bin/kombify-techstack-guard
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
+`
+}
+
+func techStackGuardScript() string {
+	return `#!/bin/sh
+set -eu
+interval="${TECHSTACK_GUARD_INTERVAL_SECONDS:-30}"
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+post_json() {
+  url="$1"
+  payload="$2"
+  [ -n "$url" ] || return 1
+  command -v curl >/dev/null 2>&1 || return 1
+  curl -fsS -m 20 -H "Authorization: Bearer ${TECHSTACK_AGENT_TOKEN}" -H "Content-Type: application/json" -d "$payload" "$url" >/dev/null
+}
+while :; do
+  hostname="$(hostname 2>/dev/null || true)"
+  os="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID:-linux}" || printf linux)"
+  arch="$(uname -m 2>/dev/null || true)"
+  cpu="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 0)"
+  mem_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || printf 0)"
+  disk_kb="$(df -Pk / 2>/dev/null | awk 'NR==2 {print $2}' || printf 0)"
+  ram_mb=$((mem_kb / 1024))
+  disk_gb=$((disk_kb / 1024 / 1024))
+  payload="{\"server_id\":\"$(json_escape "$TECHSTACK_SERVER_ID")\",\"runtime_agent_id\":\"$(json_escape "$TECHSTACK_RUNTIME_AGENT_ID")\",\"tenant_id\":\"$(json_escape "${TECHSTACK_TENANT_ID:-}")\",\"owner_id\":\"$(json_escape "${TECHSTACK_OWNER_ID:-}")\",\"stack_id\":\"$(json_escape "${TECHSTACK_STACK_ID:-}")\",\"hostname\":\"$(json_escape "$hostname")\",\"host\":{\"hostname\":\"$(json_escape "$hostname")\",\"os\":\"$(json_escape "$os")\",\"arch\":\"$(json_escape "$arch")\",\"cpu_cores\":$cpu,\"ram_mb\":$ram_mb,\"disk_gb\":$disk_gb},\"channels\":[{\"kind\":\"https\",\"url\":\"$(json_escape "${TECHSTACK_INVENTORY_URL:-}")\",\"status\":\"ok\"}],\"services\":[]}"
+  post_json "${TECHSTACK_INVENTORY_URL:-}" "$payload" || post_json "${TECHSTACK_HEARTBEAT_URL:-}" "{\"uptime_seconds\":0}" || true
+  sleep "$interval"
+done
+`
+}
+
+func shellEnvQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func truthyEnv(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func emitPrepareTelemetryHandshake() {

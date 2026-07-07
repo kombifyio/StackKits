@@ -175,6 +175,37 @@ package base
 	// failures in release gates.
 	tag: string
 
+	// Upstream watch coordinates (ADR-0028). Authoring SSOT for the Admin
+	// tool_release_watch job; synced to sk_tool_watch by `stackkit module
+	// release`. Watch metadata only — deliberately NOT part of the module
+	// contract hash, so watch-config changes never force a version bump.
+	upstream?: {
+		// GitHub source for releases and GHSA advisories, e.g. "traefik/traefik".
+		github?: {
+			repo: =~"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+		}
+
+		// Container registry to watch for tags/digests. Defaults to the
+		// service image when omitted.
+		registry?: {
+			image: string
+		}
+
+		// Auto-bump aggressiveness for update candidates.
+		track: "patch" | *"minor" | "major"
+
+		// Variant line to stay within for non-plain-semver tags
+		// (e.g. "16-alpine", "apache"). Required whenever the pinned tag
+		// carries a variant suffix.
+		pinLine?: string
+
+		// OSV.dev coordinates (secondary advisory source).
+		osv?: {
+			ecosystem: string
+			name:      string
+		}
+	}
+
 	// Service description
 	description?: string
 

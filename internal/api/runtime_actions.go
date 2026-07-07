@@ -35,15 +35,19 @@ const (
 )
 
 type runtimeActionRequest struct {
-	Action             runtimeaction.Action              `json:"action"`
-	StackID            string                            `json:"stack_id"`
-	StackName          string                            `json:"stack_name,omitempty"`
-	StackKit           string                            `json:"stackkit,omitempty"`
-	TofuDir            string                            `json:"tofu_dir,omitempty"`
-	UnifiedPath        string                            `json:"unified_path,omitempty"`
-	OwnerSpecBootstrap *runtimeaction.OwnerSpecBootstrap `json:"owner_spec_bootstrap,omitempty"`
-	RuntimeTarget      *runtimeActionTarget              `json:"runtime_target,omitempty"`
-	PlatformNodes      []runtimeaction.PlatformNode      `json:"platform_nodes,omitempty"`
+	Action              runtimeaction.Action               `json:"action"`
+	StackID             string                             `json:"stack_id"`
+	StackName           string                             `json:"stack_name,omitempty"`
+	StackKit            string                             `json:"stackkit,omitempty"`
+	Mode                string                             `json:"mode,omitempty"`
+	TenantID            string                             `json:"tenant_id,omitempty"`
+	OwnerID             string                             `json:"owner_id,omitempty"`
+	TofuDir             string                             `json:"tofu_dir,omitempty"`
+	UnifiedPath         string                             `json:"unified_path,omitempty"`
+	OwnerSpecBootstrap  *runtimeaction.OwnerSpecBootstrap  `json:"owner_spec_bootstrap,omitempty"`
+	RuntimeTarget       *runtimeActionTarget               `json:"runtime_target,omitempty"`
+	PlatformNodes       []runtimeaction.PlatformNode       `json:"platform_nodes,omitempty"`
+	TechStackEnrollment *runtimeaction.TechStackEnrollment `json:"techstack_enrollment,omitempty"`
 }
 
 type runtimeActionTarget = runtimeaction.RuntimeTarget
@@ -199,6 +203,20 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 	}
 	if target := normalizeRuntimeActionTarget(req.RuntimeTarget); target != nil {
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
+	}
+	enrollment, enrollmentErr := normalizeTechStackEnrollment(req.TechStackEnrollment)
+	if enrollmentErr != nil {
+		resp.Status = runtimeaction.StatusFailed
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "techstack_enrollment", Status: runtimeaction.CheckStatusFailed, Detail: enrollmentErr.Error()})
+		return resp, http.StatusBadRequest, skerrors.NewValidationError(
+			"techstack_enrollment_incomplete",
+			"techstack_enrollment requires server_url, server_id, runtime_agent_id, agent_token, and heartbeat_url or inventory_url",
+			skerrors.WithField("error", enrollmentErr.Error()),
+		)
+	}
+	if enrollment != nil {
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "techstack_enrollment", Status: runtimeaction.CheckStatusOK, Detail: enrollment.RuntimeAgentID})
+		req.TechStackEnrollment = enrollment
 	}
 	if nodes := normalizeRuntimeActionPlatformNodes(req.PlatformNodes); len(nodes) > 0 {
 		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "platform_nodes", Status: runtimeaction.CheckStatusOK, Detail: fmt.Sprintf("%d supplemental node(s) requested", len(nodes))})
@@ -455,6 +473,40 @@ func normalizeRuntimeActionTarget(target *runtimeActionTarget) *runtimeActionTar
 		return nil
 	}
 	return &normalized
+}
+
+func normalizeTechStackEnrollment(enrollment *runtimeaction.TechStackEnrollment) (*runtimeaction.TechStackEnrollment, error) {
+	if enrollment == nil {
+		return nil, nil
+	}
+	normalized := *enrollment
+	normalized.TenantID = strings.TrimSpace(normalized.TenantID)
+	normalized.OwnerID = strings.TrimSpace(normalized.OwnerID)
+	normalized.StackID = strings.TrimSpace(normalized.StackID)
+	normalized.ServerURL = strings.TrimRight(strings.TrimSpace(normalized.ServerURL), "/")
+	normalized.ServerID = strings.TrimSpace(normalized.ServerID)
+	normalized.RuntimeAgentID = strings.TrimSpace(normalized.RuntimeAgentID)
+	normalized.AgentToken = strings.TrimSpace(normalized.AgentToken)
+	normalized.HeartbeatURL = strings.TrimSpace(normalized.HeartbeatURL)
+	normalized.InventoryURL = strings.TrimSpace(normalized.InventoryURL)
+	missing := []string{}
+	for name, value := range map[string]string{
+		"server_url":       normalized.ServerURL,
+		"server_id":        normalized.ServerID,
+		"runtime_agent_id": normalized.RuntimeAgentID,
+		"agent_token":      normalized.AgentToken,
+	} {
+		if value == "" {
+			missing = append(missing, name)
+		}
+	}
+	if normalized.HeartbeatURL == "" && normalized.InventoryURL == "" {
+		missing = append(missing, "heartbeat_url or inventory_url")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing %s", strings.Join(missing, ", "))
+	}
+	return &normalized, nil
 }
 
 func materializeRuntimeTargetSSHKey(target *runtimeActionTarget) (string, string, func(), error) {
@@ -844,7 +896,7 @@ func stackKitOutputsFromOpenTofu(resp runtimeActionResponse, values map[string]s
 	if ownerUsername == "" {
 		ownerUsername = "owner"
 	}
-	links := make([]runtimeActionServiceLink, 0, 10)
+	links := make([]runtimeActionServiceLink, 0, 15)
 	for _, candidate := range []struct {
 		name string
 		keys []string
@@ -853,10 +905,15 @@ func stackKitOutputsFromOpenTofu(resp runtimeActionResponse, values map[string]s
 		{name: "homepage", keys: []string{"homepage_url"}},
 		{name: "auth", keys: []string{"tinyauth_login_url", "auth_url"}},
 		{name: "pocketid", keys: []string{"pocketid_url"}},
+		{name: "traefik", keys: []string{"traefik_url"}},
 		{name: "coolify", keys: []string{"coolify_url"}},
+		{name: "komodo", keys: []string{"komodo_url"}},
+		{name: "dokploy", keys: []string{"dokploy_url"}},
+		{name: "dockge", keys: []string{"dockge_url"}},
 		{name: "monitoring", keys: []string{"kuma_url"}},
 		{name: "whoami", keys: []string{"whoami_url"}},
 		{name: "vaultwarden", keys: []string{"vaultwarden_url"}},
+		{name: "jellyfin", keys: []string{"jellyfin_url"}},
 		{name: "immich", keys: []string{"immich_url"}},
 		{name: "files", keys: []string{"files_url"}},
 	} {

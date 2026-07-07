@@ -69,6 +69,9 @@ Contract: base.#ModuleContract & {
 		type:     "application"
 		image:    "vaultwarden/server"
 		tag:      "latest"
+		upstream: {
+			github: {repo: "dani-garcia/vaultwarden"}
+		}
 		required: false
 		status:   "implemented"
 		needs: ["traefik"]

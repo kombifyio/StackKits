@@ -1,0 +1,26 @@
+#!/bin/bash
+# {{.DisplayName}} module smoke — thin manifest over the shared harness (ADR-0027 G4).
+# Scaffolded by `stackkit module scaffold`. All assertions live in
+# scripts/ci/module-smoke.sh; this file only declares the module's coordinates.
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+export SMOKE_MODULE="{{.Slug}}"
+export SMOKE_COMPOSE="$DIR/reference-compose.yml"
+export SMOKE_PRIMARY_CONTAINER="{{.PrimaryContainer}}"
+export SMOKE_HEALTHY_CONTAINERS="{{.HealthyContainers}}"
+export SMOKE_SECURITY_CONTAINERS="{{.SecurityContainers}}"
+{{- if .ReadonlyContainers}}
+export SMOKE_READONLY_CONTAINERS="{{.ReadonlyContainers}}"
+{{- end}}
+{{- if .Isolated}}
+export SMOKE_ISOLATED="{{.Isolated}}"
+{{- end}}
+export SMOKE_HEALTH_HOST="{{.HealthHost}}"
+export SMOKE_HEALTH_PATH="{{.HealthPath}}"
+export SMOKE_ROUTED_BASE_URL="{{.RoutedBaseURL}}"
+export SMOKE_TRAEFIK_API="{{.TraefikAPI}}"
+export SMOKE_ROUTER_NAME="{{.RouterName}}"
+export SMOKE_HEALTH_TIMEOUT="90"
+
+source "$(git rev-parse --show-toplevel)/scripts/ci/module-smoke.sh"
