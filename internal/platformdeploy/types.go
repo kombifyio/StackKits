@@ -363,6 +363,13 @@ type HTTPConfig struct {
 	LegacyDockerComposeAPI      bool
 	DisableDockerRuntimeObserve bool
 	DockerEnv                   []string
+	WaitForReadiness            bool
+}
+
+// ReadinessChecker is implemented by adapters whose API can be installed but
+// not yet ready immediately after platform bootstrap.
+type ReadinessChecker interface {
+	WaitReady(ctx context.Context) error
 }
 
 // SupplementalNodeTarget describes an additional node that should be attached

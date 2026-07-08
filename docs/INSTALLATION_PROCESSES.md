@@ -138,7 +138,7 @@ Automation does not remove approval. Mutating operations still require either sh
 | --- | --- | --- | --- |
 | `I0` | Default Basement Kit | No meaningful choices beyond accepting defaults | Local `home.localhost`, Basement Kit, default profile |
 | `I1` | Identity and workspace | Email, stack name, workspace/spec path | `--admin-email`, `HOMELAB_DIR`, `stack-spec.yaml` |
-| `I2` | Core rollout profile | Kit, install mode, context, compute tier, service profile | `basement-kit`, `bootstrapped`, `cloud`, `admin-only` |
+| `I2` | Core rollout profile | Kit, install mode, context, compute tier, service profile | `basement-kit` (context `local`) or `cloud-kit` (context `cloud`), `bootstrapped`, `admin-only` |
 | `I3` | Network/platform target | Domain strategy, SSH target, custom DNS/TLS, selected PaaS | `kombify.me`, custom domain, Cloudflare token, Coolify/Komodo |
 | `I4` | Advanced composition | Add-ons, advanced mode, explicit owner/recovery policy, stateful updates | monitoring add-on, `advanced`, custom owner bootstrap |
 

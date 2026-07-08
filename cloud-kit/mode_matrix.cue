@@ -1,8 +1,10 @@
 // Package cloud_kit — mode-support matrix declaration (see base/mode_matrix.cue).
 //
-// Cloud Kit is the cloud profile; cells stay "scaffolding" until a canonical
-// cloud verification path (SK-S3 provider-leased custom domain + SK-S2 managed
-// kombify.me subdomain) proves them from cloud-kit released contents.
+// Cloud Kit graduated with v0.5.1 (2026-07-07): the canonical cloud
+// verification path — SK-S2 managed kombify.me subdomain (Komodo) and SK-S3
+// provider-leased custom domain (Coolify) — passed live on the release source
+// commit (production-tests run 28881686758, SHA 4d0a34c3). Cells without a
+// proven verification path stay "scaffolding".
 package cloud_kit
 
 import (
@@ -14,18 +16,25 @@ modeMatrix: base.#KitModeSupport & {
 
 	placement: {
 		"local-only": "unsupported"
-		standard:     "scaffolding"
+		// SK-S2/SK-S3 prove the standard placement from released contents.
+		standard: "supported"
 	}
 
 	install: {
-		bare:         "scaffolding"
-		bootstrapped: "scaffolding"
-		advanced:     "scaffolding"
+		// Composes and generates; no automated verification cell yet.
+		bare: "scaffolding"
+		// SK-S2 (kombify.me/Komodo) and SK-S3 (custom domain/Coolify) run the
+		// bootstrapped path end-to-end on provider-leased fresh Ubuntu.
+		bootstrapped: "supported"
+		// Advanced is the Terramate Plus lifecycle contract; the full
+		// Advanced E2E cell is still open.
+		advanced: "scaffolding"
 	}
 
 	context: {
 		local: "unsupported"
-		cloud: "scaffolding"
+		// Proven on centron-managed provider leases (SK-S2/SK-S3).
+		cloud: "supported"
 		pi:    "unsupported"
 	}
 

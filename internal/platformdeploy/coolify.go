@@ -39,6 +39,8 @@ var (
 	coolifyStatusTimeout          = 10 * time.Minute
 	coolifyServiceReadyPoll       = 500 * time.Millisecond
 	coolifyServiceReadyTimeout    = 30 * time.Second
+	coolifyAPIReadyPoll           = 2 * time.Second
+	coolifyAPIReadyTimeout        = 2 * time.Minute
 	coolifyStartReconcileInterval = 15 * time.Second
 	coolifyDockerRuntimeTimeout   = 5 * time.Second
 	coolifyDockerRuntimeStableFor = 30 * time.Second
@@ -66,6 +68,45 @@ func (a *CoolifyAdapter) BootstrapCapabilities() []BootstrapCapability {
 		BootstrapCapabilitySecrets,
 		BootstrapCapabilityHealthchecks,
 		BootstrapCapabilityServiceHandoff,
+	}
+}
+
+func (a *CoolifyAdapter) WaitReady(ctx context.Context) error {
+	if !a.cfg.WaitForReadiness {
+		return nil
+	}
+	timeout := coolifyAPIReadyTimeout
+	if timeout <= 0 {
+		timeout = 2 * time.Minute
+	}
+	poll := coolifyAPIReadyPoll
+	if poll <= 0 {
+		poll = 2 * time.Second
+	}
+
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		if _, _, err := a.client.getJSON(ctx, "/api/v1/health", nil); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("coolify API did not become ready after %s: %w", timeout, lastErr)
+		}
+		sleep := poll
+		if remaining := time.Until(deadline); remaining < sleep {
+			sleep = remaining
+		}
+		if sleep <= 0 {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(sleep):
+		}
 	}
 }
 

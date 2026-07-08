@@ -324,7 +324,7 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 		},
 		"stackkits": []map[string]string{
 			{"id": "basement-kit", "status": "beta"},
-			{"id": "cloud-kit", "status": "scaffolding"},
+			{"id": "cloud-kit", "status": "beta"},
 		},
 		"write_tools_enabled": a.opts.AllowWrite,
 		"server_url":          a.opts.ServerURL,

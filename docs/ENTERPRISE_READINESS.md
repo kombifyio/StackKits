@@ -1,6 +1,6 @@
 # Enterprise Readiness
 
-> Last verified: 2026-06-24
+> Last verified: 2026-07-08
 
 This page is the release contract for Enterprise review of the curated
 StackKits OSS surface. It is intentionally stricter than the general beta
@@ -10,20 +10,22 @@ required evidence item below is present for the exact public release tag.
 ## Verdict
 
 StackKits is not yet Enterprise production-ready for broad Public OSS use.
-The supported Enterprise hardening target is BaseKit only, from released
-artifacts, with explicit limitations. Unreleased kit definitions stay outside
-the public beta install surface until their rollout matrices graduate.
+The supported Enterprise hardening targets are Basement Kit (stable since
+`v0.5.0`) and Cloud Kit (graduated with `v0.5.1`, `bootstrapped` mode), from
+released artifacts, with explicit limitations. Unreleased kit definitions and
+non-graduated mode cells (`bare`, `advanced`) stay outside the public beta
+install surface until their rollout matrices graduate.
 
 ## Supported Production Scope
 
 | Area | Current contract |
 | --- | --- |
-| Kit | BaseKit only. |
-| Install path | Published `kombifyio/stackKits` release archives or `https://base.stackkit.cc`. |
+| Kit | Basement Kit (local) and Cloud Kit (cloud/VPS, since `v0.5.1`), `bootstrapped` install mode only. |
+| Install path | Published `kombifyio/stackKits` release archives, `https://base.stackkit.cc` (Basement), or `https://cloud.stackkit.cc` (Cloud). |
 | Source surface | Curated public `kombifyio/stackKits` mirror only. A private-source build is not Enterprise release evidence. |
 | Operating system | Fresh Ubuntu target used by the production-style VM gate. |
-| Toolchain | `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, root `cue.mod`, shared `base/`, BaseKit, and required `modules/` from the release archive. |
-| Application layer | BaseKit platform baseline, protected routes, Node Hub, explicit setup drops, and ready-to-use use cases deployed as Coolify-managed applications with manageable UI. This is not Enterprise-ready until `kombify-StackKits-85x` is closed with evidence. |
+| Toolchain | `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, root `cue.mod`, shared `base/`, the released kit definitions, and required `modules/` from the release archive. |
+| Application layer | Platform baseline, protected routes, Node Hub, explicit setup drops, and ready-to-use use cases deployed as Coolify-managed applications with manageable UI (`kombify-StackKits-85x` closed 2026-06-30 with released-content SK-S1 evidence, run `28427006994`). |
 
 ## Non-Goals
 
@@ -89,12 +91,22 @@ and include:
 
 ## Current Blockers
 
-The current blockers for an Enterprise Public OSS production claim are:
+Updated 2026-07-08 against the `v0.5.1` release train. Landed since the
+2026-06-24 revision: Coolify-managed application-layer contract + evidence
+(`kombify-StackKits-85x`, released-content SK-S1 run `28427006994`), live
+installer endpoint smoke (green unpinned since `v0.5.0`), and the daily OSS
+mirror parity audit (`public-mirror-audit.yml`).
 
-- released-archive BaseKit VM smoke from the published release or installer path,
-- live installer endpoint smoke for shell content and BaseKit execution,
-- OSS mirror allowlist audit after publication,
-- Coolify-managed application-layer product contract implementation and evidence, including PaaS external app IDs/status for StackKit-owned L3 apps,
-- Monthly Runtime upgrade and rollback VM proof,
-- Node 24-compatible release workflow verification,
-- confirmation from the next release train that no noncanonical workflow creates or mutates public GitHub Releases.
+The remaining blockers for an Enterprise Public OSS production claim are:
+
+- released-archive VM smoke ("BaseKit Released Installer Live Test") re-run
+  against the published `v0.5.1` contents — it was skipped in the otherwise
+  green release run `28881686758`,
+- managed-provider entitlement denial verified live and fail-closed in
+  kombify-Simulate (`kombify-StackKits-zaon`),
+- Monthly Runtime upgrade and rollback VM proof (`kombify-StackKits-3hw.1`),
+- multi-tenant backup agent/controller remain scaffolds (no durable storage,
+  queueing, enrollment, or OIDC operator auth) — excluded from any Enterprise
+  backup claim beyond the self-hosted single-node Kopia path,
+- install modes `bare` and `advanced` remain `scaffolding` (no verification
+  cells); Enterprise claims stay `bootstrapped`-only.

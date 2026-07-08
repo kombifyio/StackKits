@@ -53,6 +53,11 @@ func LoadBundleManifest(path string) (BundleManifest, error) {
 func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([]DeploymentRef, error) {
 	systemRefs := make([]DeploymentRef, 0, len(bundle.SystemApps))
 	appRefs := make([]DeploymentRef, 0, len(bundle.Apps))
+	if readiness, ok := adapter.(ReadinessChecker); ok {
+		if err := readiness.WaitReady(ctx); err != nil {
+			return nil, fmt.Errorf("wait for platform API readiness: %w", err)
+		}
+	}
 	for _, systemApp := range bundle.SystemApps {
 		app := systemApp.AppManifest
 		defaultAppPlatform(&app, bundle.Platform)

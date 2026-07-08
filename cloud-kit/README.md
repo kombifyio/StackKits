@@ -51,10 +51,12 @@ are required so the generated public HTTPS routes resolve and ACME certificates 
 
 ## Status
 
-Cloud Kit is a derived product of the shared base; its cloud verification cells stay
-`scaffolding` until the canonical cloud gates (SK-S3 provider-leased custom domain + SK-S2
-managed `kombify.me` subdomain) pass from `cloud-kit` released contents (see
-[`mode_matrix.cue`](mode_matrix.cue)). For a release-ready local homelab today, use
+Cloud Kit is a derived product of the shared base. It graduated with `v0.5.1`
+(2026-07-07): the canonical cloud gates — SK-S2 managed `kombify.me` subdomain and
+SK-S3 provider-leased custom domain — passed live from the release source contents
+(production run `28881686758`), so the `bootstrapped`/`standard`/`cloud` cells are
+`supported` (see [`mode_matrix.cue`](mode_matrix.cue)). The `bare` and `advanced`
+install modes remain `scaffolding`. For a local homelab, use
 [basement-kit](../basement-kit/README.md).
 
 ## Development Gates

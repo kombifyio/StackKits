@@ -300,6 +300,7 @@ func runtimePlatformHTTPConfigForBundle(ctx context.Context, bundle platformdepl
 		DestinationUUID:             runtimeFirstNonEmpty(runtimeFirstPlatformEnv(bundle.Platform, "destination_uuid"), persisted.DestinationUUID),
 		LegacyDockerComposeAPI:      persisted.LegacyDockerComposeAPI,
 		DisableDockerRuntimeObserve: persisted.DisableDockerRuntimeObserve,
+		WaitForReadiness:            strings.EqualFold(strings.TrimSpace(bundle.Platform), "coolify"),
 	}
 	if options.Remote != nil && len(options.Remote.env) > 0 {
 		cfg.DockerEnv = append([]string(nil), options.Remote.env...)

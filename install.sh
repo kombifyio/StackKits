@@ -3,17 +3,21 @@
 # StackKits CLI installer — shared core used by all stackkit installers.
 # =============================================================================
 # Usage (direct):
-#   curl -sSL https://install.stackkit.cc | sh                   # CLI + public kit catalog
-#   curl -sSL https://install.stackkit.cc | sh -s -- base-kit    # CLI + base-kit
+#   curl -sSL https://install.stackkit.cc | sh                        # CLI + public kit catalog
+#   curl -sSL https://install.stackkit.cc | sh -s -- basement-kit     # CLI + basement-kit
+#   curl -sSL https://install.stackkit.cc | sh -s -- cloud-kit        # CLI + cloud-kit
 #
-# Called by the short website entrypoint (`base.stackkit.cc`) to provide the
-# shared install + kit-download step before the BaseKit-specific flow.
+# Called by the short website entrypoints (`base.stackkit.cc`,
+# `cloud.stackkit.cc`) to provide the shared install + kit-download step
+# before the kit-specific flow. The retired `base-kit` name is accepted as a
+# deprecation alias for `basement-kit`.
 # =============================================================================
 set -eu
 
 # KIT_NAME controls which kit definitions are downloaded alongside the binary.
-# ""         → CLI + the public BaseKit definitions
-# "base-kit" → CLI + base-kit definitions
+# ""             → CLI + the public kit catalog
+# "basement-kit" → CLI + basement-kit definitions ("base-kit" aliases here)
+# "cloud-kit"    → CLI + cloud-kit definitions
 KIT_NAME="${1:-}"
 
 # Allow callers (e.g. base-install.sh) to suppress the banner.
