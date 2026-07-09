@@ -5953,13 +5953,6 @@ resource "null_resource" "coolify_platform_bootstrap" {
       stackkit_sync_coolify_dynamic_config
       PROXY_COMPOSE="/data/coolify/proxy/docker-compose.yml"
       stackkit_coolify_proxy_docker_endpoint() {
-        if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
-          gateway="$(stackkit_docker network inspect coolify --format '{{"{{"}}(index .IPAM.Config 0).Gateway{{"}}"}}' 2>/dev/null || true)"
-          if [ -n "$gateway" ]; then
-            printf 'tcp://%s:2375\n' "$gateway"
-            return 0
-          fi
-        fi
         printf 'unix:///var/run/docker.sock\n'
       }
       stackkit_write_coolify_proxy_fallback() {
