@@ -201,6 +201,7 @@ type DeploymentRef struct {
 	ObservedAt     time.Time `json:"observedAt,omitempty" yaml:"observedAt,omitempty"`
 	LastDeployed   time.Time `json:"lastDeployed,omitempty" yaml:"lastDeployed,omitempty"`
 	ServiceNames   []string  `json:"-" yaml:"-"`
+	ComposeYAML    string    `json:"-" yaml:"-"`
 }
 
 // Adapter is implemented by concrete platform API clients.

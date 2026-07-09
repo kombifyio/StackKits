@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -116,6 +117,7 @@ func (a *CoolifyAdapter) ApplyCompose(ctx context.Context, manifest AppManifest)
 		return DeploymentRef{}, err
 	}
 	ref.ServiceNames = composeLongRunningServiceNames(manifest.ComposeYAML)
+	ref.ComposeYAML = normalizeComposeYAML(manifest.ComposeYAML)
 	if !a.cfg.LegacyDockerComposeAPI {
 		if err := a.waitForServiceResources(ctx, ref, manifest); err != nil {
 			return DeploymentRef{}, err
@@ -618,6 +620,11 @@ func startCoolifyServiceRuntime(ctx context.Context, ref DeploymentRef, dockerEn
 	if err != nil {
 		return err
 	}
+	startComposePath, cleanup, err := coolifyServiceRuntimeComposeFile(ref, composePath)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	timeout := coolifyStatusPollInterval
 	if timeout <= 0 {
 		timeout = 2 * time.Second
@@ -627,7 +634,7 @@ func startCoolifyServiceRuntime(ctx context.Context, ref DeploymentRef, dockerEn
 	}
 	startCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(startCtx, "docker", coolifyServiceRuntimeStartArgs(composePath, ref)...) // #nosec G204
+	cmd := exec.CommandContext(startCtx, "docker", coolifyServiceRuntimeStartArgs(startComposePath, ref)...) // #nosec G204
 	cmd.Env = dockerCommandEnv(dockerEnv)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -636,8 +643,57 @@ func startCoolifyServiceRuntime(ctx context.Context, ref DeploymentRef, dockerEn
 	return nil
 }
 
+func coolifyServiceRuntimeComposeFile(ref DeploymentRef, composePath string) (string, func(), error) {
+	if _, err := os.Stat(composePath); err == nil {
+		return composePath, func() {}, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", func() {}, fmt.Errorf("stat coolify service compose %s: %w", composePath, err)
+	}
+
+	compose := normalizeComposeYAML(ref.ComposeYAML)
+	if strings.TrimSpace(compose) == "" {
+		return "", func() {}, fmt.Errorf("coolify service compose %s is missing and no compose yaml fallback is available", composePath)
+	}
+	temp, err := os.CreateTemp("", "stackkit-coolify-"+coolifyRuntimeSafeName(ref.ExternalID)+"-*.compose.yaml")
+	if err != nil {
+		return "", func() {}, fmt.Errorf("create coolify compose fallback: %w", err)
+	}
+	cleanup := func() {
+		_ = os.Remove(temp.Name())
+	}
+	if _, err := temp.WriteString(compose); err != nil {
+		_ = temp.Close()
+		cleanup()
+		return "", func() {}, fmt.Errorf("write coolify compose fallback: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		cleanup()
+		return "", func() {}, fmt.Errorf("close coolify compose fallback: %w", err)
+	}
+	return temp.Name(), cleanup, nil
+}
+
+func coolifyRuntimeSafeName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "service"
+	}
+	var b strings.Builder
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+			continue
+		}
+		b.WriteByte('-')
+	}
+	if b.Len() == 0 {
+		return "service"
+	}
+	return b.String()
+}
+
 func coolifyServiceRuntimeStartArgs(composePath string, ref DeploymentRef) []string {
-	args := []string{"compose", "-f", composePath, "up", "-d", "--no-recreate"}
+	args := []string{"compose", "-p", ref.ExternalID, "-f", composePath, "up", "-d", "--no-recreate"}
 	for _, serviceName := range ref.ServiceNames {
 		serviceName = strings.TrimSpace(serviceName)
 		if serviceName != "" {
