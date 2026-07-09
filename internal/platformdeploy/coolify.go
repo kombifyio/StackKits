@@ -485,7 +485,7 @@ func (status coolifyObservedStatus) shouldReconcileStart() bool {
 }
 
 func (status coolifyObservedStatus) shouldStartDockerRuntime() bool {
-	return status.RuntimeKnown && !status.RuntimeRunning && !status.RuntimeActive && !status.shouldReconcileStart()
+	return status.RuntimeKnown && !status.RuntimeRunning && !status.RuntimeActive
 }
 
 func (a *CoolifyAdapter) coolifyDockerRuntimeObservedStatus(ctx context.Context, ref DeploymentRef) (coolifyObservedStatus, error, bool) {

@@ -116,9 +116,24 @@ autoSelect:
 application:
   photos:
     role: default
+    package: photos
     defaultTool: immich
     alternatives: [ente-photos]
     description: "Photo gallery and memories"
+    defaultRuntimeProfile: self-hosted-photos
+    runtimeProfiles:
+      self-hosted-photos:
+        displayName: "Self-hosted Photo Vault"
+        realization: oss
+        placementModes: [local-only, standard]
+        contexts: [local, pi, cloud]
+        description: "StackKit deploys Immich (server, ML, pgvecto-rs, Redis) through the selected PaaS on the user's node — including managed-VPS leases, which remain standard placement."
+      bring-your-own-photos:
+        displayName: "Bring Your Own Photo Service"
+        realization: external
+        placementModes: [local-only, standard]
+        contexts: [local, pi, cloud]
+        description: "An existing Immich (or API-compatible) instance is connected as the package backend."
   media:
     role: optional            # Opt-in until Jellyfin first-run UX matches the default live smoke path.
     defaultTool: jellyfin

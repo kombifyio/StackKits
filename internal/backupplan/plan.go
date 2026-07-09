@@ -11,6 +11,13 @@ import (
 const (
 	SchemaVersion       = "stackkit.backup-recovery.v1"
 	MaterializerPending = "pending"
+	// MaterializerManagedOffsitePending marks a plan whose managed offsite
+	// target (kombify-r2) is provisioned control-plane-side but the node has
+	// not connected the Kopia repository yet.
+	MaterializerManagedOffsitePending = "managed-offsite-pending"
+	// MaterializerMaterialized marks a plan whose backup engine is connected
+	// to its configured targets and has produced at least one snapshot.
+	MaterializerMaterialized = "materialized"
 )
 
 type RecoveryPlan struct {

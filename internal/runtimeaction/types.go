@@ -16,6 +16,11 @@ const (
 	PathStackKitRollout = PathPrefix + "/stackkit-rollout"
 	PathStackKitVerify  = PathPrefix + "/stackkit-verify"
 	PathRestoreDrill    = PathPrefix + "/restore-drill"
+	PathKitUpgrade      = PathPrefix + "/kit-upgrade"
+	PathBackupRun       = PathPrefix + "/backup-run"
+	PathBackupStatus    = PathPrefix + "/backup-status"
+	PathBackupRestore   = PathPrefix + "/backup-restore"
+	PathBackupWipe      = PathPrefix + "/backup-wipe"
 )
 
 type Action string
@@ -25,6 +30,11 @@ const (
 	ActionStackKitRollout Action = "stackkit_rollout"
 	ActionVerifyRollout   Action = "verify_rollout"
 	ActionRestoreDrill    Action = "restore_drill"
+	ActionKitUpgrade      Action = "kit_upgrade"
+	ActionBackupRun       Action = "backup_run"
+	ActionBackupStatus    Action = "backup_status"
+	ActionBackupRestore   Action = "backup_restore"
+	ActionBackupWipe      Action = "backup_wipe"
 )
 
 type Mode string
@@ -70,6 +80,8 @@ type Request struct {
 	RuntimeTarget       *RuntimeTarget       `json:"runtime_target,omitempty"`
 	PlatformNodes       []PlatformNode       `json:"platform_nodes,omitempty"`
 	TechStackEnrollment *TechStackEnrollment `json:"techstack_enrollment,omitempty"`
+	Backup              *BackupRequest       `json:"backup,omitempty"`
+	Upgrade             *UpgradeRequest      `json:"upgrade,omitempty"`
 }
 
 type Response struct {
@@ -83,6 +95,76 @@ type Response struct {
 	Mode            Mode             `json:"mode"`
 	Checks          []Check          `json:"checks,omitempty"`
 	StackKitOutputs *StackKitOutputs `json:"stackkit_outputs,omitempty"`
+	Backup          *BackupResult    `json:"backup,omitempty"`
+	Upgrade         *UpgradeResult   `json:"upgrade,omitempty"`
+}
+
+// BackupRequest parameterizes the backup_run, backup_status, backup_restore,
+// and backup_wipe actions. The data-class vocabulary is owned by the CUE
+// backup add-on contract; Go treats classes as opaque strings so the contract
+// evolves in CUE, not here.
+type BackupRequest struct {
+	Classes    []string          `json:"classes,omitempty"`
+	SnapshotID string            `json:"snapshot_id,omitempty"`
+	Repo       *BackupRepoTarget `json:"repo,omitempty"`
+	// RepoPassword is the Kopia repository password. Like RuntimeTarget SSH
+	// material it travels by value inside the service-auth-protected request
+	// and must never be persisted into evidence, artifacts, or logs.
+	RepoPassword string `json:"repo_password,omitempty"`
+	// Confirm must equal the stack ID for backup_wipe; other backup actions
+	// ignore it. Wipe without a matching confirmation is a validation error.
+	Confirm string `json:"confirm,omitempty"`
+}
+
+// BackupRepoTarget points the node-side backup engine at the offsite
+// repository. Type "s3" covers any S3-compatible store including the
+// kombify-managed R2 default; bring-your-own targets use the same shape.
+type BackupRepoTarget struct {
+	Type            string `json:"type,omitempty"`
+	Endpoint        string `json:"endpoint,omitempty"`
+	Bucket          string `json:"bucket,omitempty"`
+	Region          string `json:"region,omitempty"`
+	Prefix          string `json:"prefix,omitempty"`
+	AccessKeyID     string `json:"access_key_id,omitempty"`
+	SecretAccessKey string `json:"secret_access_key,omitempty"`
+}
+
+// UpgradeRequest parameterizes kit_upgrade. To accepts a semver or a channel
+// reference (channel:stable|beta|edge), mirroring `stackkit kit upgrade --to`.
+type UpgradeRequest struct {
+	To          string `json:"to,omitempty"`
+	AutoApprove bool   `json:"auto_approve,omitempty"`
+}
+
+// BackupResult reports engine state for backup actions. Phase "running"
+// together with StatusAccepted models long first snapshots that exceed the
+// bounded runtime-action budget; callers poll backup_status until the phase
+// reports "completed".
+type BackupResult struct {
+	Engine        string           `json:"engine,omitempty"`
+	Phase         string           `json:"phase,omitempty"`
+	Classes       []string         `json:"classes,omitempty"`
+	Snapshots     []BackupSnapshot `json:"snapshots,omitempty"`
+	RepoSizeBytes int64            `json:"repo_size_bytes,omitempty"`
+	Wiped         bool             `json:"wiped,omitempty"`
+}
+
+type BackupSnapshot struct {
+	ID         string   `json:"id,omitempty"`
+	Source     string   `json:"source,omitempty"`
+	Classes    []string `json:"classes,omitempty"`
+	StartedAt  string   `json:"started_at,omitempty"`
+	FinishedAt string   `json:"finished_at,omitempty"`
+	TotalBytes int64    `json:"total_bytes,omitempty"`
+}
+
+// UpgradeResult reports the kit_upgrade outcome, anchored to the atomic
+// pre-apply snapshot consumed by `stackkit kit rollback`.
+type UpgradeResult struct {
+	FromVersion string `json:"from_version,omitempty"`
+	ToVersion   string `json:"to_version,omitempty"`
+	SnapshotID  string `json:"snapshot_id,omitempty"`
+	RolledBack  bool   `json:"rolled_back,omitempty"`
 }
 
 type Check struct {
@@ -259,7 +341,20 @@ func NormalizeAction(action string) Action {
 
 func IsStackKitsAction(action Action) bool {
 	switch action {
-	case ActionStackKitRollout, ActionVerifyRollout, ActionRestoreDrill:
+	case ActionStackKitRollout, ActionVerifyRollout, ActionRestoreDrill,
+		ActionKitUpgrade, ActionBackupRun, ActionBackupStatus,
+		ActionBackupRestore, ActionBackupWipe:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsBackupAction reports whether the action is one of the backup lifecycle
+// verbs handled by the node-side backup engine.
+func IsBackupAction(action Action) bool {
+	switch action {
+	case ActionBackupRun, ActionBackupStatus, ActionBackupRestore, ActionBackupWipe:
 		return true
 	default:
 		return false
