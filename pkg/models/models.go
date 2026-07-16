@@ -294,6 +294,21 @@ func RequiresKombifyPoint(domain string) bool {
 	return IsLocalDomain(domain)
 }
 
+// RequiresMDNS returns true when a deployment should advertise flat
+// <service>.local names over multicast DNS for zero-config LAN reachability.
+// This is a Basement-Kit (local) concern and is intentionally WIDER than
+// RequiresKombifyPoint: it stays on for the browser-loopback home.localhost /
+// .localhost default too, because the published .local names are independent of
+// the primary domain. It is off for the managed kombify.me domain and any
+// public/cloud domain (mDNS is a LAN-only multicast feature).
+func RequiresMDNS(domain string) bool {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	if IsKombifyMeDomain(domain) {
+		return false
+	}
+	return IsLocalDomain(domain) || IsLocalhostDomain(domain)
+}
+
 // LocalDNSDomain returns the domain suffix for Kombify Point local DNS mode.
 func LocalDNSDomain(localName string) string {
 	localName = strings.Trim(strings.ToLower(strings.TrimSpace(localName)), ".")

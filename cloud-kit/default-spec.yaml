@@ -1,8 +1,10 @@
 # cloud-kit Stack Specification
 #
 # Cloud single-environment 1..N homelab on a VPS/cloud server with a public
-# domain. Cloud Kit is the cloud adaptation of Basement Kit (context: cloud):
-# Let's Encrypt TLS, reverse-proxy access, public IP.
+# domain. Explicit `stackkit: cloud-kit` selects the Cloud product and its
+# Let's Encrypt TLS, reverse-proxy, and public-reachability components. The
+# `context: cloud` field below is retained only for v1 migration compatibility;
+# it must agree with the selected kit but does not distinguish or create it.
 #
 # Usage:
 #   1. Copy: cp default-spec.yaml stack-spec.yaml

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -49,6 +50,7 @@ func validateNameOrID(nameOrID string) error {
 type Client struct {
 	binary  string
 	timeout time.Duration
+	env     []string
 }
 
 // ClientOption configures the Docker client
@@ -68,6 +70,16 @@ func WithTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
+// WithEnv adds Docker transport environment entries (for example DOCKER_HOST
+// and DOCKER_SSH_COMMAND) without mutating the process environment. This is
+// used by managed-runtime verification to inspect the same remote host that a
+// rollout targeted.
+func WithEnv(values ...string) ClientOption {
+	return func(c *Client) {
+		c.env = append([]string(nil), values...)
+	}
+}
+
 // NewClient creates a new Docker client
 func NewClient(opts ...ClientOption) *Client {
 	c := &Client{
@@ -78,6 +90,14 @@ func NewClient(opts ...ClientOption) *Client {
 		opt(c)
 	}
 	return c
+}
+
+func (c *Client) command(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, c.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
+	if len(c.env) > 0 {
+		cmd.Env = append(os.Environ(), c.env...)
+	}
+	return cmd
 }
 
 // ContainerInfo represents container information
@@ -123,7 +143,7 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "version", "--format", "{{.Server.Version}}") // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "version", "--format", "{{.Server.Version}}")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get Docker version: %w", err)
@@ -137,7 +157,7 @@ func (c *Client) IsRunning(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "info") // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "info")
 	return cmd.Run() == nil
 }
 
@@ -151,7 +171,7 @@ func (c *Client) ListContainers(ctx context.Context, all bool) ([]ContainerInfo,
 		args = []string{"ps", "-a", "--format", dockerPSFormat}
 	}
 
-	cmd := exec.CommandContext(ctx, c.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
@@ -170,7 +190,7 @@ func (c *Client) InspectContainer(ctx context.Context, nameOrID string) (*Contai
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "inspect", nameOrID) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "inspect", nameOrID)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container: %w", err)
@@ -198,7 +218,7 @@ func (c *Client) ContainerIPAddress(ctx context.Context, nameOrID string) (strin
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", nameOrID) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", nameOrID)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect container network: %w", err)
@@ -241,7 +261,7 @@ func (c *Client) GetStackKitContainers(ctx context.Context) ([]ContainerInfo, er
 
 	// Filter by StackKit label — all resources created by main.tf carry stackkit.layer
 	// #nosec G204 -- binary path is set at construction, not from user input
-	cmd := exec.CommandContext(ctx, c.binary, "ps", "-a",
+	cmd := c.command(ctx, "ps", "-a",
 		"--filter", "label=stackkit.layer",
 		"--format", dockerPSFormat)
 
@@ -252,6 +272,26 @@ func (c *Client) GetStackKitContainers(ctx context.Context) ([]ContainerInfo, er
 		return []ContainerInfo{}, nil
 	}
 
+	return parseDockerPSOutput(output), nil
+}
+
+// GetContainersByLabel returns all containers carrying an exact Docker label
+// filter. Managed platform deployments use compose-project labels, while base
+// StackKit services use the stackkit.layer filter above.
+func (c *Client) GetContainersByLabel(ctx context.Context, label string) ([]ContainerInfo, error) {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return nil, fmt.Errorf("container label filter cannot be empty")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	cmd := c.command(ctx, "ps", "-a", "--filter", "label="+label, "--format", dockerPSFormat)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers by label: %w", err)
+	}
 	return parseDockerPSOutput(output), nil
 }
 
@@ -289,7 +329,7 @@ func (c *Client) NetworkExists(ctx context.Context, name string) bool {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "network", "inspect", name) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "network", "inspect", name)
 	return cmd.Run() == nil
 }
 
@@ -303,7 +343,7 @@ func (c *Client) VolumeExists(ctx context.Context, name string) bool {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "volume", "inspect", name) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "volume", "inspect", name)
 	return cmd.Run() == nil
 }
 
@@ -318,7 +358,7 @@ func (c *Client) Exec(ctx context.Context, container string, command []string) (
 	defer cancel()
 
 	args := append([]string{"exec", container}, command...)
-	cmd := exec.CommandContext(ctx, c.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, args...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -346,7 +386,7 @@ func (c *Client) Logs(ctx context.Context, container string, tail int) (string, 
 		args = append(args, "--tail", fmt.Sprintf("%d", tail))
 	}
 
-	cmd := exec.CommandContext(ctx, c.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to get logs: %w", err)
@@ -382,7 +422,7 @@ func (c *Client) Pull(ctx context.Context, image string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "pull", image) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "pull", image)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -403,7 +443,7 @@ func (c *Client) CanRunContainers(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "run", "--rm", "busybox", "true") // #nosec G204 -- binary path is set at construction
+	cmd := c.command(ctx, "run", "--rm", "busybox", "true")
 	return cmd.Run() == nil
 }
 
@@ -412,7 +452,7 @@ func (c *Client) removeResource(ctx context.Context, args []string, resourceType
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		out := strings.TrimSpace(string(output))
@@ -457,7 +497,7 @@ func (c *Client) RemoveImage(ctx context.Context, image string) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, "rmi", image) // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, "rmi", image)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		out := strings.TrimSpace(string(output))
@@ -474,7 +514,7 @@ func (c *Client) listByLabel(ctx context.Context, resourceType, label string) ([
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.binary, resourceType, "ls", // #nosec G204 -- binary path is set at construction, not from user input
+	cmd := c.command(ctx, resourceType, "ls",
 		"--filter", "label="+label,
 		"--format", "{{.Name}}")
 	output, err := cmd.Output()
@@ -511,13 +551,13 @@ func (c *Client) Prune(ctx context.Context) (int64, error) {
 	var reclaimed int64
 
 	// Prune dangling images
-	cmd := exec.CommandContext(ctx, c.binary, "image", "prune", "-f") // #nosec G204 -- binary path is set at construction
+	cmd := c.command(ctx, "image", "prune", "-f")
 	if output, err := cmd.Output(); err == nil {
 		reclaimed += parseReclaimedSpace(string(output))
 	}
 
 	// Prune build cache
-	cmd = exec.CommandContext(ctx, c.binary, "builder", "prune", "-f") // #nosec G204 -- binary path is set at construction
+	cmd = c.command(ctx, "builder", "prune", "-f")
 	if output, err := cmd.Output(); err == nil {
 		reclaimed += parseReclaimedSpace(string(output))
 	}

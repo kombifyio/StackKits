@@ -27,7 +27,7 @@ func EmbeddedSnapshot() (Snapshot, error) {
 			snap.SchemaVersion, SnapshotVersion,
 		)
 	}
-	return snap, nil
+	return activeProductSnapshot(snap), nil
 }
 
 // EmbeddedSnapshotBytes returns the raw JSON bytes of the baked-in

@@ -26,6 +26,7 @@ import "list"
 	tenant_id?:         string
 	owner_id?:          string
 	stack_id?:          string
+	lease_id:           #NonEmptyString
 	server_url?:        string
 	server_id:          #NonEmptyString
 	runtime_agent_id:   #NonEmptyString
@@ -44,7 +45,9 @@ import "list"
 	private_ip?:         string
 	user?:               string
 	port?:               int & >=1 & <=65535
-	docker_host?:        string
+	// A managed Docker transport is only allowed over SSH. Runtime Actions also
+	// verify that its user, host, and port match this runtime target.
+	docker_host?:        string & =~"^ssh://[^/?#]+$"
 	key_path?:           string
 	private_key?:        string
 	client_private_key?: string

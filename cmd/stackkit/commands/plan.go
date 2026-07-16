@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	planOut     string
-	planDestroy bool
+	planOut                string
+	planDestroy            bool
+	planV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
 var planCmd = &cobra.Command{
@@ -34,11 +35,18 @@ Examples:
 func init() {
 	planCmd.Flags().StringVarP(&planOut, "out", "o", "", "Save plan to file")
 	planCmd.Flags().BoolVar(&planDestroy, "destroy", false, "Create destroy plan")
+	planCmd.Flags().StringVar(&planV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
+	planCmd.Flags().StringVar(&planV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
+	planCmd.Flags().StringVar(&planV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
+	planCmd.Flags().StringVar(&planV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)")
 }
 
 func runPlan(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	wd := getWorkDir()
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Plan, planV2ExecutionOptions); handled {
+		return err
+	}
 
 	// Load spec
 	loader := config.NewLoader(wd)

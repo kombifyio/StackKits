@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
@@ -70,6 +71,9 @@ func (l *Loader) LoadStackSpec(path string) (*models.StackSpec, error) {
 
 	// Apply defaults
 	applySpecDefaults(&spec)
+	if err := productkits.Validate(spec.StackKit); err != nil {
+		return nil, fmt.Errorf("invalid stackkit product in %s: %w", displayPath, err)
+	}
 
 	return &spec, nil
 }
@@ -169,9 +173,14 @@ func (l *Loader) FindStackKitDir(name string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("invalid path: %w", err)
 		}
-		if _, err := os.Stat(absPath); err == nil {
-			return absPath, nil
+		if err := validateStackKitDirectoryProduct(absPath, ""); err != nil {
+			return "", err
 		}
+		return absPath, nil
+	}
+
+	if err := productkits.Validate(name); err != nil {
+		return "", err
 	}
 
 	// Get user home directory (cross-platform, fixes TD-025)
@@ -194,11 +203,42 @@ func (l *Loader) FindStackKitDir(name string) (string, error) {
 	for _, loc := range locations {
 		stackkitPath := filepath.Join(loc, "stackkit.yaml")
 		if _, err := os.Stat(stackkitPath); err == nil {
+			if err := validateStackKitDirectoryProduct(loc, name); err != nil {
+				return "", err
+			}
 			return loc, nil
 		}
 	}
 
 	return "", fmt.Errorf("stackkit '%s' not found", name)
+}
+
+func validateStackKitDirectoryProduct(dir, expectedName string) error {
+	definitionPath := filepath.Join(dir, "stackkit.yaml")
+	data, err := os.ReadFile(definitionPath)
+	if err != nil {
+		return fmt.Errorf("failed to read local stackkit definition %s: %w", definitionPath, err)
+	}
+	var identity struct {
+		Metadata struct {
+			Name string `yaml:"name"`
+		} `yaml:"metadata"`
+	}
+	if err := yaml.Unmarshal(data, &identity); err != nil {
+		return fmt.Errorf("failed to parse local stackkit definition %s: %w", definitionPath, err)
+	}
+	if err := productkits.Validate(identity.Metadata.Name); err != nil {
+		return fmt.Errorf("invalid stackkit product in %s: %w", definitionPath, err)
+	}
+	if expectedName != "" && identity.Metadata.Name != expectedName {
+		return fmt.Errorf(
+			"stackkit product identity mismatch in %s: requested %q, definition names %q",
+			definitionPath,
+			expectedName,
+			identity.Metadata.Name,
+		)
+	}
+	return nil
 }
 
 // validateStackKitName validates a stackkit name to prevent path traversal attacks
@@ -346,7 +386,7 @@ func (l *Loader) DiscoverStackKits(dirs ...string) ([]*models.StackKit, error) {
 				continue
 			}
 			sk, err := l.LoadStackKit(yamlPath)
-			if err != nil || seen[sk.Metadata.Name] {
+			if err != nil || !productkits.IsActive(sk.Metadata.Name) || seen[sk.Metadata.Name] {
 				continue
 			}
 			seen[sk.Metadata.Name] = true

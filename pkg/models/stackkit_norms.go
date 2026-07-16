@@ -1,6 +1,8 @@
 package models
 
-import "strings"
+import (
+	"strings"
+)
 
 // legacyStackKitNames maps retired StackKit slugs to their canonical successor.
 //

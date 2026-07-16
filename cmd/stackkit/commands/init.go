@@ -10,6 +10,8 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
@@ -64,7 +66,7 @@ StackKit selection, compute tier, domain, and email.
 Examples:
   stackkit init                         Interactive mode
   stackkit init basement-kit            Initialize with basement-kit
-  stackkit init ./my-stackkit           Initialize from local path
+  stackkit init ./basement-kit          Use an active product definition from a local path
   stackkit init --non-interactive       Fail if arguments are missing`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
@@ -508,10 +510,16 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if models.IsLegacyStackKitName(stackkitName) {
+	isLocalPath := strings.Contains(stackkitName, "/") || strings.Contains(stackkitName, "\\")
+	if !isLocalPath && models.IsLegacyStackKitName(stackkitName) {
 		printWarning("StackKit %q is a retired alias; using %q.", stackkitName, models.NormalizeStackKitName(stackkitName))
 	}
-	stackkitName = models.NormalizeStackKitName(stackkitName)
+	if !isLocalPath {
+		stackkitName = models.NormalizeStackKitName(stackkitName)
+		if err := validateInitializableStackKit(stackkitName); err != nil {
+			return err
+		}
+	}
 
 	deployLog.Event("init.stackkit_selected",
 		slog.String("name", stackkitName),
@@ -523,6 +531,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := validateInitializableStackKit(stackkit.Metadata.Name); err != nil {
+		return fmt.Errorf("local StackKit definition is not an active product: %w", err)
+	}
+	stackkitName = stackkit.Metadata.Name
 	printSuccess("Found StackKit: %s v%s", stackkit.Metadata.Name, stackkit.Metadata.Version)
 	deployLog.Event("init.stackkit_loaded",
 		slog.String("name", stackkit.Metadata.Name),
@@ -730,14 +742,44 @@ func initRequiresRealOwnerEmail(defaults initDefaults, domain string) bool {
 	return models.IsKombifyMeDomain(domain) || !models.IsLocalDomain(domain)
 }
 
-// discoverStackKits scans the working directory (and parent) for stackkit.yaml files.
+const legacyHAKitSlug = stackspecmigration.LegacyHAKitSlug
+
+// validateInitializableStackKit keeps the retired HA shape available only to
+// explicit migration/closure commands. It must never be installable as a
+// fourth product kit even when a legacy source directory is present.
+func validateInitializableStackKit(name string) error {
+	if strings.TrimSpace(name) == legacyHAKitSlug {
+		return fmt.Errorf(
+			"%s is retired and cannot be initialized; choose %s and configure addons/ha explicitly",
+			legacyHAKitSlug,
+			strings.Join(productkits.Slugs(), ", "),
+		)
+	}
+	return productkits.Validate(name)
+}
+
+// discoverStackKits scans the working directory (and parent) for stackkit.yaml
+// files. Legacy migration adapters are intentionally excluded from product
+// discovery; direct migration readers remain available elsewhere.
 func discoverStackKits(loader *config.Loader, wd string) ([]*models.StackKit, error) {
 	kits, err := loader.DiscoverStackKits(wd, filepath.Dir(wd))
 	if err != nil {
 		return nil, err
 	}
+	kits = filterDiscoverableStackKits(kits)
 	sort.Slice(kits, func(i, j int) bool { return kits[i].Metadata.Name < kits[j].Metadata.Name })
 	return kits, nil
+}
+
+func filterDiscoverableStackKits(kits []*models.StackKit) []*models.StackKit {
+	discoverable := make([]*models.StackKit, 0, len(kits))
+	for _, kit := range kits {
+		if !productkits.IsActive(kit.Metadata.Name) {
+			continue
+		}
+		discoverable = append(discoverable, kit)
+	}
+	return discoverable
 }
 
 // stackKitNames returns a sorted list of StackKit names.

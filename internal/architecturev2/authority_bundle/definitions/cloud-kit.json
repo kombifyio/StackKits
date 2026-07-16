@@ -1,0 +1,252 @@
+{
+  "accessDefaults": {
+    "deviceBoundSessions": true,
+    "deviceEnrollment": "none",
+    "lanLocationIsIdentity": false,
+    "privilegedStepUpRequired": true,
+    "publicRoutesDefaultClosed": true
+  },
+  "apiVersion": "stackkit/v2alpha1",
+  "availability": {
+    "policies": {
+      "quorum": {
+        "defaults": {
+          "failureDomainSpread": 3,
+          "fencing": "automatic",
+          "rpoSeconds": 15,
+          "rtoSeconds": 120
+        },
+        "evidenceAcceptance": {
+          "requiredRefs": [
+            "ha-cloud-quorum-zone-majority-proof"
+          ]
+        },
+        "failureModel": {
+          "basis": "provider-zone",
+          "memberSiteScope": "control-member-sites",
+          "partitionBehavior": "provider-network-failover"
+        },
+        "healthAcceptance": {
+          "memberReadiness": "majority",
+          "requiredGateRefs": [
+            "provider-stackkits-ha-cloud-quorum-ha-cloud-quorum-contract",
+            "module-stackkits-ha-cloud-quorum-runtime-ha-cloud-quorum-contract"
+          ]
+        },
+        "limits": {
+          "allowedFencing": [
+            "automatic"
+          ],
+          "maxFailureDomainSpread": 7,
+          "maxRpoSeconds": 60,
+          "maxRtoSeconds": 300,
+          "minFailureDomainSpread": 3
+        },
+        "mode": "quorum",
+        "moduleRef": "stackkits-ha-cloud-quorum-runtime",
+        "policyRef": "cloud-ha-quorum-policy",
+        "providerRef": "stackkits-ha-cloud-quorum",
+        "realizationRef": "cloud-ha-quorum-v1",
+        "selector": "control-plane-members"
+      },
+      "warm-standby": {
+        "defaults": {
+          "failureDomainSpread": 2,
+          "fencing": "automatic",
+          "rpoSeconds": 60,
+          "rtoSeconds": 300
+        },
+        "evidenceAcceptance": {
+          "requiredRefs": [
+            "ha-cloud-warm-standby-zone-failover-proof"
+          ]
+        },
+        "failureModel": {
+          "basis": "provider-zone",
+          "memberSiteScope": "control-member-sites",
+          "partitionBehavior": "provider-network-failover"
+        },
+        "healthAcceptance": {
+          "memberReadiness": "all",
+          "requiredGateRefs": [
+            "provider-stackkits-ha-cloud-warm-ha-cloud-warm-contract",
+            "module-stackkits-ha-cloud-warm-runtime-ha-cloud-warm-contract"
+          ]
+        },
+        "limits": {
+          "allowedFencing": [
+            "automatic"
+          ],
+          "maxFailureDomainSpread": 3,
+          "maxRpoSeconds": 300,
+          "maxRtoSeconds": 900,
+          "minFailureDomainSpread": 2
+        },
+        "mode": "warm-standby",
+        "moduleRef": "stackkits-ha-cloud-warm-runtime",
+        "policyRef": "cloud-ha-warm-standby-policy",
+        "providerRef": "stackkits-ha-cloud-warm",
+        "realizationRef": "cloud-ha-warm-standby-v1",
+        "selector": "control-plane-members"
+      }
+    }
+  },
+  "bridge": {
+    "edgeKinds": [],
+    "required": false,
+    "sourceKinds": []
+  },
+  "capabilities": {
+    "defaults": [],
+    "forbidden": [
+      "site-local",
+      "lan-access-policy",
+      "device-enrollment-home",
+      "local-hardware-preflight"
+    ],
+    "optional": [
+      "private-admin-mesh",
+      "provider-snapshot",
+      "multi-zone-placement",
+      "photos",
+      "availability-ha"
+    ],
+    "required": [
+      "topology-core",
+      "host-bootstrap",
+      "security-baseline",
+      "human-identity-core",
+      "device-trust-core",
+      "access-policy",
+      "runtime-paas",
+      "service-catalog",
+      "secrets-recovery",
+      "storage-data-policy",
+      "backup-core",
+      "observability-evidence",
+      "lifecycle-update",
+      "site-cloud",
+      "provision-vps",
+      "provider-metadata",
+      "cloud-firewall",
+      "public-edge",
+      "public-dns",
+      "public-tls",
+      "internet-host-hardening",
+      "remote-owner-bootstrap",
+      "offsite-object-backup",
+      "provider-lifecycle",
+      "cloud-control-authority"
+    ]
+  },
+  "dataDefaults": {
+    "authority": "cloud",
+    "cloudCopyRequiresPolicy": true
+  },
+  "deviceEnrollment": {
+    "authorityKinds": [],
+    "mode": "disabled",
+    "required": false
+  },
+  "evidenceScenarios": [
+    "SK-S2",
+    "SK-S3"
+  ],
+  "failureDefaults": {
+    "cloudEdgeFailsClosed": true,
+    "localServicesSurviveCloudLoss": false,
+    "offlineOperation": false
+  },
+  "generation": {
+    "allowedStrategies": [
+      "kit-template",
+      "module-fragments"
+    ],
+    "allowedTargets": [
+      "opentofu",
+      "compose"
+    ],
+    "contractVersion": "1.0.0",
+    "defaultStrategy": "kit-template",
+    "defaultTarget": "opentofu"
+  },
+  "kind": "KitDefinition",
+  "metadata": {
+    "description": "Cloud-only StackKit for one or more VPS or cloud nodes",
+    "displayName": "Cloud Kit",
+    "slug": "cloud-kit",
+    "version": "5.0.0"
+  },
+  "network": {
+    "defaultTLSMode": "public",
+    "domainRequired": true,
+    "mode": "public-capable"
+  },
+  "partitionPolicy": {
+    "cloudEdge": "fail-closed",
+    "denyNewCrossSiteSessions": true,
+    "localIdentityAuthorityAvailable": false,
+    "maxStaleVerificationSeconds": 0,
+    "onCloudLoss": "fail-closed",
+    "onLinkLoss": "not-applicable"
+  },
+  "reachability": {
+    "accessPolicies": {
+      "allowedExposures": [
+        "private",
+        "public"
+      ],
+      "lanStepDownAllowed": false
+    },
+    "routes": {
+      "local": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "cloud"
+        ],
+        "requiredCapabilities": []
+      },
+      "public": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "cloud"
+        ],
+        "requiredCapabilities": [
+          "public-edge"
+        ]
+      },
+      "remote-private": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "cloud"
+        ],
+        "requiredCapabilities": [
+          "private-admin-mesh"
+        ]
+      }
+    }
+  },
+  "topology": {
+    "allowedSiteKinds": [
+      "cloud"
+    ],
+    "controlPlane": {
+      "allowedAuthorityKinds": [
+        "cloud"
+      ],
+      "allowedModes": [
+        "single",
+        "warm-standby",
+        "quorum"
+      ],
+      "defaultMode": "single",
+      "memberSiteScope": "any"
+    },
+    "maxSites": 64,
+    "minSites": 1,
+    "multiNode": true,
+    "requiredSiteKinds": [
+      "cloud"
+    ]
+  }
+}

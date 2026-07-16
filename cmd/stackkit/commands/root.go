@@ -94,7 +94,7 @@ Examples:
 
 		// Initialize structured deploy logger (skip for help/completion/version)
 		switch name {
-		case "stackkit", "help", "completion", "version", "logs", "list", "agent", "install-plan", "self-check", "prompt", "mcp-config":
+		case "stackkit", "help", "completion", "version", "logs", "list", "agent", "install-plan", "self-check", "prompt", "mcp-config", "resolve", "migrate", "contract-proof":
 			// no logging for these commands
 		default:
 			if !noLog {
@@ -148,6 +148,9 @@ func init() {
 	rootCmd.AddCommand(removeCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(resolveCmd)
+	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(contractProofCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(appCmd)

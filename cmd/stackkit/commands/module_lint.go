@@ -31,7 +31,8 @@ var moduleLintCmd = &cobra.Command{
 	Use:   "lint",
 	Short: "Lint module CUE for pin/health/security/access/placement hygiene (ADR-0027 G1/G3)",
 	Long: "Run the deterministic module-hygiene gate over one module (--module) or the\n" +
-		"whole tree (--all). Checks: image tags pinned (no :latest), healthCheck present,\n" +
+		"whole tree (--all). Checks: image tags pinned (no :latest), daemon healthCheck present\n" +
+		"(bounded automation jobs use restart=no plus process exit status),\n" +
 		"security block (noNewPrivileges + capDrop ALL), accessPolicy for routed services,\n" +
 		"no plaintext secrets, draft modules claim no scenarios, and docker-socket modules\n" +
 		"are not managed-serverless-eligible.\n\n" +

@@ -10,7 +10,7 @@ Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "kombify-point"
 		displayName: "kombify Point DNS"
-		version:     "1.0.0"
+		version:     "2.0.0"
 		layer:       "L1-foundation"
 		description: "Local LAN DNS resolver for StackKit home service names"
 		maturity:    "opt-in"
@@ -18,6 +18,12 @@ Contract: base.#ModuleContract & {
 	}
 
 	requires: {
+		services: {
+			traefik: {
+				minVersion: "3.0"
+				provides: ["reverse-proxy"]
+			}
+		}
 		infrastructure: {
 			docker:  true
 			network: "host-port-53"
@@ -60,10 +66,10 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: "kombify-point": base.#ServiceDefinition & {
-		name:     "kombify-point"
-		type:     "dns"
-		image:    "coredns/coredns"
-		tag:      "1.11.3"
+		name:  "kombify-point"
+		type:  "dns"
+		image: "coredns/coredns"
+		tag:   "1.11.3"
 		upstream: {
 			github: {repo: "coredns/coredns"}
 		}

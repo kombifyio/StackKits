@@ -4,7 +4,7 @@
 BINARY_NAME=stackkit
 VERSION?=dev
 
-.PHONY: all build build-server build-all clean test test-unit test-integration test-cue test-cue-binding test-coverage lint fmt deps help
+.PHONY: all build build-server build-all clean test test-unit test-integration test-cue test-cue-binding test-validation test-coverage test-basement-kit test-e2e lint fmt deps help
 
 # Default target
 all: deps lint test build
@@ -41,31 +41,26 @@ test: ## Run all tests
 	mise run test
 
 test-unit: ## Run unit tests
-	mise run test-unit
+	mise run test:unit
 
 test-cue: ## Run CUE schema validation
-	mise run test-cue
+	mise run test:cue
 
 test-cue-binding: ## Validate CUE module contracts and Go binding pipeline
 	cue vet -c=false ./modules/...
 	go test ./internal/cue ./internal/composition ./cmd/stackkit/commands
 
 test-validation: ## Run 3-layer validation suite
-	mise run test-validation
+	mise run test:validation
 
 test-coverage: ## Run tests with coverage
-	mise run test-coverage
+	mise run test:coverage
 
 test-basement-kit: ## Run basement-kit tests
 	cd basement-kit && ./tests/run_tests.sh
 
-test-dev-homelab: ## Run dev-homelab validation
-	cue vet ./dev-homelab/...
-
-test-e2e-dev-homelab: ## Run dev-homelab E2E (requires Docker)
-	cd dev-homelab && ./tests/e2e_test.sh
-
-test-e2e: test-e2e-dev-homelab ## Run full E2E suite
+test-e2e: ## Run the local E2E gate (SK-S1, requires Docker)
+	mise run test:e2e:local
 
 lint: ## Run linter
 	mise run lint

@@ -8,13 +8,12 @@
 //   monitoring-agent nodes  →  OTLP/gRPC (4317)  →  otel-gateway
 //   otel-gateway            →  Remote Write       →  VictoriaMetrics
 //   TechStack               →  PromQL HTTP        →  VictoriaMetrics
-//   Grafana (optional)      →  PromQL HTTP        →  VictoriaMetrics
+//   External dashboards     →  PromQL HTTP        →  VictoriaMetrics
 //
 // Resource requirements on the host:
 //   VictoriaMetrics:  ~300–600 MB RAM (tuned to 40% of host RAM)
 //   otel-gateway:     ~150 MB RAM
-//   Grafana (opt):    ~200 MB RAM
-//   Total:            ~450–950 MB RAM
+//   Total:            ~450–750 MB RAM
 //
 // Requires Pi 4B (4 GB) or better as the designated central monitoring node.
 package monitoringcore
@@ -25,9 +24,9 @@ Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "monitoring-core"
 		displayName: "Monitoring Core (VictoriaMetrics)"
-		version:     "1.0.0"
+		version:     "2.0.0"
 		layer:       "L2-platform-ingress"
-		description: "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and Grafana dashboards"
+		description: "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and a PromQL API"
 		maturity:    "opt-in"
 		testScenarios: ["SK-S1", "SK-S4"]
 	}
@@ -53,16 +52,11 @@ Contract: base.#ModuleContract & {
 			"promql-api":        true
 			"otlp-gateway":      true
 			"long-term-metrics": true
-			"grafana":           true
 		}
 		endpoints: {
 			victoriametrics: {
 				url:         "http://victoriametrics.{{.domain}}:8428"
 				description: "VictoriaMetrics PromQL API + remote_write + OTLP ingestion"
-			}
-			grafana: {
-				url:         "https://grafana.{{.domain}}"
-				description: "Grafana dashboards (optional)"
 			}
 		}
 	}
@@ -87,10 +81,10 @@ Contract: base.#ModuleContract & {
 	// OTel gateway — receives OTLP/gRPC from all monitoring-agent nodes,
 	// fans out to VictoriaMetrics via Remote Write.
 	services: "otel-gateway": base.#ServiceDefinition & {
-		name:     "otel-gateway"
-		type:     "observability"
-		image:    "otel/opentelemetry-collector-contrib"
-		tag:      "0.114.0"
+		name:  "otel-gateway"
+		type:  "observability"
+		image: "otel/opentelemetry-collector-contrib"
+		tag:   "0.114.0"
 		upstream: {
 			github: {repo: "open-telemetry/opentelemetry-collector-contrib"}
 		}
@@ -155,10 +149,10 @@ Contract: base.#ModuleContract & {
 
 	// VictoriaMetrics single-node — central long-term TSDB.
 	services: "victoriametrics": base.#ServiceDefinition & {
-		name:     "victoriametrics"
-		type:     "database"
-		image:    "victoriametrics/victoria-metrics"
-		tag:      "v1.139.0"
+		name:  "victoriametrics"
+		type:  "database"
+		image: "victoriametrics/victoria-metrics"
+		tag:   "v1.139.0"
 		upstream: {
 			github: {repo: "VictoriaMetrics/VictoriaMetrics"}
 		}

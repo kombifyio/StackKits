@@ -2,12 +2,23 @@ package cue
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 )
+
+// KitDeclaresModeMatrix reports whether <kitDir> ships a mode_matrix.cue file.
+// It lets callers fail closed: a kit that DECLARES a matrix but whose matrix
+// fails to load is a real error, whereas a legacy exported kit cache without the
+// file legitimately skips enforcement.
+func KitDeclaresModeMatrix(kitDir string) bool {
+	_, err := os.Stat(filepath.Join(kitDir, "mode_matrix.cue"))
+	return err == nil
+}
 
 // Support levels of a mode-matrix cell (base/mode_matrix.cue #SupportLevel).
 const (

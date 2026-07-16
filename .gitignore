@@ -99,6 +99,7 @@ modules/*/tests/artifacts/
 artifacts/local-builds/
 artifacts/release-smoke/
 artifacts/scenarios/
+artifacts/os-matrix/
 
 # Built binary (root only, not cmd/stackkit/ source)
 /stackkit

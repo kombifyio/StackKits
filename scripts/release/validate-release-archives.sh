@@ -15,18 +15,46 @@ require_file() {
   grep -q "^${path}$" "$list_file" || fail "missing ${path} in ${list_file}"
 }
 
-find_archive() {
-  local pattern="$1"
-  find "$dist_dir" -maxdepth 1 -name "$pattern" | sort | head -1
+forbid_file() {
+  local list_file="$1"
+  local path="$2"
+  if grep -q "^${path}$" "$list_file"; then
+    fail "forbidden ${path} present in ${list_file}"
+  fi
 }
 
-full_archive="$(find_archive 'stackkits_*_linux_amd64.tar.gz')"
-basement_archive="$(find_archive 'stackkits-basement-kit_*_linux_amd64.tar.gz')"
-cloud_archive="$(find_archive 'stackkits-cloud-kit_*_linux_amd64.tar.gz')"
+find_archive() {
+  local pattern="$1"
+  local label="${2:-$pattern}"
+  mapfile -t matches < <(find "$dist_dir" -maxdepth 1 -type f -name "$pattern" | sort)
+  [ "${#matches[@]}" -eq 1 ] ||
+    fail "expected exactly one ${label} archive matching ${pattern}, found ${#matches[@]}"
+  printf '%s\n' "${matches[0]}"
+}
 
-[ -n "$full_archive" ] || fail "missing linux/amd64 full stackkits archive"
-[ -n "$basement_archive" ] || fail "missing linux/amd64 basement-kit archive"
-[ -n "$cloud_archive" ] || fail "missing linux/amd64 cloud-kit archive"
+require_archive_matrix() {
+  local target extension
+  for target in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+    extension='tar.gz'
+    find_archive "stackkits_*_${target}.${extension}" "full ${target}" >/dev/null
+    find_archive "stackkits-basement-kit_*_${target}.${extension}" "basement-kit ${target}" >/dev/null
+    find_archive "stackkits-cloud-kit_*_${target}.${extension}" "cloud-kit ${target}" >/dev/null
+  done
+  target='windows_amd64'
+  extension='zip'
+  find_archive "stackkits_*_${target}.${extension}" "full ${target}" >/dev/null
+  find_archive "stackkits-basement-kit_*_${target}.${extension}" "basement-kit ${target}" >/dev/null
+  find_archive "stackkits-cloud-kit_*_${target}.${extension}" "cloud-kit ${target}" >/dev/null
+}
+
+# GoReleaser builds every supported target before validation. Require every
+# configured full/per-kit archive, then execute the semantic smoke on the
+# native Linux/amd64 artifacts below.
+require_archive_matrix
+
+full_archive="$(find_archive 'stackkits_*_linux_amd64.tar.gz' 'full linux_amd64')"
+basement_archive="$(find_archive 'stackkits-basement-kit_*_linux_amd64.tar.gz' 'basement-kit linux_amd64')"
+cloud_archive="$(find_archive 'stackkits-cloud-kit_*_linux_amd64.tar.gz' 'cloud-kit linux_amd64')"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -50,6 +78,16 @@ check_archive_contents() {
     cue.mod/module.cue \
     docs/ENTERPRISE_READINESS.md \
     schemas/release-evidence.schema.json \
+    scripts/release/validate-architecture-contract-fixture.mjs \
+    architecture/v2/fixtures/contract-two-node.yaml \
+    architecture/v2/fixtures/contract-two-node.inventory.yaml \
+    architecture/v2/fixtures/contract-two-node.resolved-plan.json \
+    architecture/v2/fixtures/contract-fixtures.manifest.json \
+    architecture/v2/contractfixture/catalog.cue \
+    addons/backup/README.md \
+    addons/backup/addon.cue \
+    addons/backup/integrity.cue \
+    addons/backup/restic-importer.cue \
     base/stackkit.cue \
     modules/tinyauth/module.cue \
     modules/pocketid/module.cue; do
@@ -58,6 +96,46 @@ check_archive_contents() {
   for p in "$@"; do
     require_file "$list" "$p"
   done
+  for p in \
+    addons/backup/managed.cue \
+    cmd/stackkit/commands/backup_managed.go; do
+    forbid_file "$list" "$p"
+  done
+}
+
+smoke_public_backup_cli() {
+  local label="$1"
+  local extract_dir="$2"
+  local help_log="$tmp/${label}-backup-help.log"
+  local enroll_log="$tmp/${label}-backup-enroll.log"
+  local export_dir="$tmp/${label}-emergency-export"
+
+  "$extract_dir/stackkit" backup --help >"$help_log"
+  local verb
+  for verb in init configure status run list restore verify emergency-export migrate-from-restic; do
+    grep -Eq "^[[:space:]]+${verb}[[:space:]]" "$help_log" ||
+      fail "$label archive CLI is missing public backup verb: $verb"
+  done
+  if grep -Eq '^[[:space:]]+enroll[[:space:]]' "$help_log"; then
+    fail "$label archive CLI leaked backup enroll"
+  fi
+  if "$extract_dir/stackkit" backup enroll >"$enroll_log" 2>&1; then
+    fail "$label archive CLI unexpectedly resolved backup enroll"
+  fi
+  grep -qi 'unknown command "enroll"' "$enroll_log" ||
+    fail "$label archive CLI did not reject backup enroll as an unknown command"
+
+  "$extract_dir/stackkit" backup emergency-export \
+    --target "$export_dir" \
+    --source "$extract_dir/README.md" \
+    --include-class config >"$tmp/${label}-emergency-export.log"
+  [ -f "$export_dir/stackkit-emergency-export-manifest.json" ] ||
+    fail "$label emergency export did not write its manifest"
+  [ -f "$export_dir/RESTORE.md" ] ||
+    fail "$label emergency export did not write its restore runbook"
+  grep -q '"schemaVersion": "stackkit.backup-emergency-export/v1"' \
+    "$export_dir/stackkit-emergency-export-manifest.json" ||
+    fail "$label emergency export manifest schema drifted"
 }
 
 check_archive_contents "$full_archive" basement-kit/stackkit.yaml cloud-kit/stackkit.yaml
@@ -101,6 +179,9 @@ smoke_basement_full() {
   "$extract_dir/terramate" version >/dev/null
   "$extract_dir/stackkit-server" --help >/dev/null 2>&1
   "$extract_dir/stackkit-mcp" --help >/dev/null 2>&1
+  node "$extract_dir/scripts/release/validate-architecture-contract-fixture.mjs" \
+    --repo-root "$extract_dir" --proof-only
+  smoke_public_backup_cli "$label" "$extract_dir"
 
   (
     cd "$project_dir"
@@ -153,6 +234,9 @@ smoke_cloud_core() {
 
   mkdir -p "$project_dir"
   "$extract_dir/stackkit" version >/dev/null
+  node "$extract_dir/scripts/release/validate-architecture-contract-fixture.mjs" \
+    --repo-root "$extract_dir" --proof-only
+  smoke_public_backup_cli "$label" "$extract_dir"
 
   (
     cd "$project_dir"

@@ -69,113 +69,299 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: immich: base.#ServiceDefinition & {
-		name:     "immich"
-		type:     "application"
-		image:    "ghcr.io/immich-app/immich-server"
-		tag:      "release"
-		upstream: {
-			github:  {repo: "immich-app/immich"}
-			pinLine: "release"
-		}
-		required: false
-		status:   "implemented"
-		needs: ["traefik"]
-
-		placement: {
-			nodeType: "all"
-			strategy: "single"
-		}
-
-		network: {
-			traefik: {
-				enabled: true
-				rule:    "Host(`photos.{{.domain}}`)"
-				port:    2283
+	services: {
+		immich: base.#ServiceDefinition & {
+			name:  "immich"
+			type:  "application"
+			image: "ghcr.io/immich-app/immich-server"
+			tag:   "release"
+			upstream: {
+				github: {repo: "immich-app/immich"}
+				pinLine: "release"
 			}
-			networks: ["base_net"]
-		}
+			required: false
+			status:   "implemented"
+			needs: ["traefik", "immich-machine-learning", "immich-postgres", "immich-redis"]
 
-		accessPolicy: {
-			outerAuth:      "tinyauth-pocketid"
-			appAuth:        "self-auth"
-			ownerBootstrap: "init-immich creates ci/admin owner from StackKit admin credentials and completes onboarding."
-		}
+			placement: {
+				nodeType: "all"
+				strategy: "single"
+			}
 
-		volumes: [
-			{
+			network: {
+				traefik: {
+					enabled: true
+					rule:    "Host(`photos.{{.domain}}`)"
+					port:    2283
+				}
+				networks: ["base_net", "immich-internal"]
+			}
+
+			accessPolicy: {
+				outerAuth:      "tinyauth-pocketid"
+				appAuth:        "self-auth"
+				ownerBootstrap: "init-immich creates ci/admin owner from StackKit admin credentials and completes onboarding."
+			}
+
+			volumes: [{
 				source:      "immich-upload"
 				target:      "/usr/src/app/upload"
 				type:        "volume"
 				backup:      true
 				description: "Immich uploads"
-			},
-			{
-				source:      "immich-postgres-data"
-				target:      "/var/lib/postgresql/data"
-				type:        "volume"
-				backup:      true
-				description: "Immich PostgreSQL data"
-			},
-			{
+			}]
+
+			environment: {
+				DB_HOSTNAME:                 "immich-postgres"
+				DB_PORT:                     "5432"
+				DB_USERNAME:                 "immich"
+				DB_PASSWORD:                 "{{.immich_db_password}}"
+				DB_DATABASE_NAME:            "immich"
+				REDIS_HOSTNAME:              "immich-redis"
+				REDIS_PORT:                  "6379"
+				IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
+			}
+
+			healthCheck: {
+				enabled: true
+				http: {
+					path:   "/api/server/ping"
+					port:   2283
+					scheme: "http"
+				}
+				interval: "30s"
+				timeout:  "10s"
+				retries:  5
+			}
+
+			config: {
+				serviceGroup: "photos"
+				routeRole:    "photos"
+				replacementContract: {
+					stableRouteKey:  "photos"
+					stableLocalSlug: "photos"
+					requiredCapabilities: ["photos", "photo-management"]
+					bootstrapRequirements: ["create-first-admin", "complete-server-onboarding", "complete-user-onboarding"]
+					note: "Any replacement photo module must keep the photos route role and document equivalent owner bootstrap steps."
+				}
+			}
+
+			resources: {
+				memory:    "1g"
+				memoryMax: "4g"
+				cpus:      2.0
+			}
+
+			security: {
+				noNewPrivileges: true
+				capDrop: ["ALL"]
+			}
+
+			labels: {
+				"traefik.enable":                                        "true"
+				"traefik.http.routers.immich.rule":                      "Host(`photos.{{.domain}}`)"
+				"traefik.http.routers.immich.entrypoints":               "web"
+				"traefik.http.services.immich.loadbalancer.server.port": "2283"
+				"stackkit.layer":                                        "3-application"
+				"stackkit.managed-by":                                   "selected-paas"
+			}
+
+			subdomain: {key: "photos", nested: "photos", flat: "photos"}
+			dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/guides/stackkits/services/immich"}
+
+			output: {
+				url:         "https://photos.{{.domain}}"
+				description: "Immich photo management"
+			}
+		}
+
+		"immich-machine-learning": base.#ServiceDefinition & {
+			name:  "immich-machine-learning"
+			type:  "application"
+			image: "ghcr.io/immich-app/immich-machine-learning"
+			tag:   "release"
+			upstream: {
+				github: {repo: "immich-app/immich"}
+				pinLine: "release"
+			}
+			required: true
+			status:   "implemented"
+
+			placement: {
+				nodeType: "all"
+				strategy: "single"
+			}
+
+			network: {networks: ["immich-internal"]}
+
+			volumes: [{
 				source:      "immich-model-cache"
 				target:      "/cache"
 				type:        "volume"
 				backup:      false
 				description: "Immich ML model cache"
-			},
-		]
+			}]
 
-		healthCheck: {
-			enabled: true
-			http: {
-				path:   "/api/server/ping"
-				port:   2283
-				scheme: "http"
+			// The ML image carries its own /health probe. The rendered Compose
+			// keeps that image healthcheck enabled rather than replacing it.
+			healthCheck: {enabled: true}
+
+			security: {
+				noNewPrivileges: true
+				capDrop: ["ALL"]
 			}
-			interval: "30s"
-			timeout:  "10s"
-			retries:  5
-		}
 
-		config: {
-			serviceGroup: "photos"
-			routeRole:    "photos"
-			replacementContract: {
-				stableRouteKey:  "photos"
-				stableLocalSlug: "photos"
-				requiredCapabilities: ["photos", "photo-management"]
-				bootstrapRequirements: ["create-first-admin", "complete-server-onboarding", "complete-user-onboarding"]
-				note: "Any replacement photo module must keep the photos route role and document equivalent owner bootstrap steps."
+			labels: {
+				"stackkit.layer":      "3-application"
+				"stackkit.managed-by": "selected-paas"
 			}
+
+			output: {description: "Immich machine-learning worker (internal)"}
 		}
 
-		resources: {
-			memory:    "1g"
-			memoryMax: "4g"
-			cpus:      2.0
+		"immich-postgres": base.#ServiceDefinition & {
+			name:  "immich-postgres"
+			type:  "database"
+			image: "ghcr.io/immich-app/postgres"
+			tag:   "16-vectorchord0.3.0-pgvectors0.3.0"
+			upstream: {
+				github: {repo: "immich-app/immich"}
+				pinLine: "16-vectorchord0.3.0-pgvectors0.3.0"
+			}
+			required: true
+			status:   "implemented"
+
+			placement: {
+				nodeType: "all"
+				strategy: "single"
+			}
+
+			network: {networks: ["immich-internal"]}
+
+			volumes: [{
+				source:      "immich-postgres-data"
+				target:      "/var/lib/postgresql/data"
+				type:        "volume"
+				backup:      true
+				description: "Immich PostgreSQL data"
+			}]
+
+			environment: {
+				POSTGRES_USER:        "immich"
+				POSTGRES_PASSWORD:    "{{.immich_db_password}}"
+				POSTGRES_DB:          "immich"
+				DB_DATABASE_NAME:     "immich"
+				DB_USERNAME:          "immich"
+				DB_PASSWORD:          "{{.immich_db_password}}"
+				POSTGRES_INITDB_ARGS: "--data-checksums"
+			}
+
+			healthCheck: {
+				enabled:     true
+				command:     "pg_isready -U immich -d postgres"
+				interval:    "10s"
+				timeout:     "5s"
+				retries:     5
+				startPeriod: "10s"
+			}
+
+			security: {
+				noNewPrivileges: true
+				capDrop: ["ALL"]
+			}
+
+			labels: {
+				"stackkit.layer":      "3-application"
+				"stackkit.managed-by": "selected-paas"
+			}
+
+			output: {description: "Immich PostgreSQL database (internal)"}
 		}
 
-		security: {
-			noNewPrivileges: true
-			capDrop: ["ALL"]
+		// One-shot database reconciliation retained from the canonical Compose
+		// rollout. The Immich PostgreSQL image normally creates POSTGRES_DB on a
+		// fresh volume; this idempotent unit also repairs an already-initialized
+		// cluster where the application database is absent.
+		"immich-postgres-init": base.#ServiceDefinition & {
+			name:  "immich-postgres-init"
+			type:  "automation"
+			image: "ghcr.io/immich-app/postgres"
+			tag:   "16-vectorchord0.3.0-pgvectors0.3.0"
+			upstream: {
+				github: {repo: "immich-app/immich"}
+				pinLine: "16-vectorchord0.3.0-pgvectors0.3.0"
+			}
+			required: true
+			status:   "implemented"
+			needs: ["immich-postgres"]
+
+			placement: {
+				nodeType: "all"
+				strategy: "single"
+			}
+
+			network: {networks: ["immich-internal"]}
+			restartPolicy: "no"
+
+			environment: {
+				PGPASSWORD: "{{.immich_db_password}}"
+			}
+
+			command: [
+				"sh",
+				"-c",
+				"until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich",
+			]
+
+			security: {
+				noNewPrivileges: true
+				capDrop: ["ALL"]
+			}
+
+			labels: {
+				"stackkit.layer":      "3-application"
+				"stackkit.managed-by": "selected-paas"
+			}
+
+			output: {description: "Idempotent Immich database initialization (one-shot)"}
 		}
 
-		labels: {
-			"traefik.enable":                                        "true"
-			"traefik.http.routers.immich.rule":                      "Host(`photos.{{.domain}}`)"
-			"traefik.http.routers.immich.entrypoints":               "web"
-			"traefik.http.services.immich.loadbalancer.server.port": "2283"
-			"stackkit.layer":                                        "3-application"
-			"stackkit.managed-by":                                   "selected-paas"
-		}
+		"immich-redis": base.#ServiceDefinition & {
+			name:  "immich-redis"
+			type:  "cache"
+			image: "ghcr.io/valkey-io/valkey"
+			tag:   "9"
+			upstream: {github: {repo: "valkey-io/valkey"}}
+			required: true
+			status:   "implemented"
 
-		subdomain: {key: "photos", nested: "photos", flat: "photos"}
-		dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/guides/stackkits/services/immich"}
+			placement: {
+				nodeType: "all"
+				strategy: "single"
+			}
 
-		output: {
-			url:         "https://photos.{{.domain}}"
-			description: "Immich photo management"
+			network: {networks: ["immich-internal"]}
+			command: ["valkey-server"]
+
+			healthCheck: {
+				enabled: true
+				test: ["CMD", "redis-cli", "ping"]
+				interval: "10s"
+				timeout:  "5s"
+				retries:  5
+			}
+
+			security: {
+				noNewPrivileges: true
+				capDrop: ["ALL"]
+			}
+
+			labels: {
+				"stackkit.layer":      "3-application"
+				"stackkit.managed-by": "selected-paas"
+			}
+
+			output: {description: "Immich Valkey cache (internal)"}
 		}
 	}
 

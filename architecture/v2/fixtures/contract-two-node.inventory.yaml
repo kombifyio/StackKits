@@ -1,0 +1,24 @@
+schemaVersion: stackkit.inventory/v1
+nodes:
+  fixture-a:
+    observedSiteKind: home
+    arch: amd64
+    cpuCores: 4
+    ramGB: 8
+    storageGB: 128
+    runtimeDaemons:
+      docker-rootless:
+        instanceRef: docker-rootless-a
+        engine: docker
+        socketPath: /run/user/1000/docker.sock
+  fixture-b:
+    observedSiteKind: home
+    arch: amd64
+    cpuCores: 4
+    ramGB: 8
+    storageGB: 128
+    runtimeDaemons:
+      docker-rootless:
+        instanceRef: docker-rootless-b
+        engine: docker
+        socketPath: /run/user/1001/docker.sock

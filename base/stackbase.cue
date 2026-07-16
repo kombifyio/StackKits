@@ -6,9 +6,11 @@
 //
 // Architecture Pattern: Single-Environment 1..N
 //   One homelab/trust domain has exactly one main node and optional
-//   worker/storage nodes. This one schema realizes two product profiles,
-//   selected by `context` (ADR-0026): Basement Kit (context local/pi) and
-//   Cloud Kit (context cloud). It is NOT a single-server-only kit.
+//   worker/storage nodes. Explicit Basement and Cloud Kit definitions realize
+//   distinct product profiles over this shared compatibility library. Legacy
+//   `context` may be validated by the v1 migration layer, but it never selects
+//   kit identity or canonical Architecture v2 behavior. This is NOT a
+//   single-server-only kit.
 //
 // Installation Modes:
 //   - bare:         OpenTofu Day-1 only, no Base Hub setup automation

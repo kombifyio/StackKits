@@ -6,7 +6,7 @@
 //   stackkit registry emit-cue
 //
 // Snapshot: source=admin-api generated_at=2026-06-11T08:25:02Z
-// Snapshot content_hash: 0f25ea0ccc9217e2e726cc1334a800a8b75cc051a31b6bf7937d4bc775ec3cf3
+// Snapshot content_hash: a65f6ccc31a41c84610c31a7136d930e058eb06b8a1251ced7ef6c55d9d5c8ee
 // Services: rendered from CUE module contracts (modules/<slug>/module.cue),
 // the same source 'registry bake-from-cue' uses.
 // Tool categories: see base/tool_categorization.cue (#ToolCategory) — the

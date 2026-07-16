@@ -1,0 +1,113 @@
+apiVersion: stackkit/v2alpha1
+kind: StackSpec
+metadata:
+  name: contract-two-node
+source:
+  kind: native-v2
+kit:
+  slug: basement-kit
+install:
+  mode: bootstrapped
+  runtime: docker
+  platform:
+    management: selected-provider
+    fallbackAllowed: false
+    setupPolicy: {}
+generation:
+  strategy: module-fragments
+  target: compose
+  outputRoot: deploy
+system:
+  timezone: UTC
+  locale: en_US.UTF-8
+  swap: auto
+  unattendedUpgrades: security
+storage:
+  dataRoot: /opt/data
+  backupRoot: /opt/backups
+  stacksRoot: /opt/stacks
+  volumeDriver: local
+container:
+  engine: docker
+  rootless: true
+  liveRestore: true
+  dataRoot: /home/stackkit/.local/share/docker
+  logDriver: json-file
+  registryMirrors: []
+network:
+  mode: private
+  domain:
+    base: contract.home.arpa
+  transport:
+    subnet: 172.28.0.0/16
+    mtu: 1500
+    ipv6: false
+  dns:
+    servers: [1.1.1.1, 8.8.8.8]
+    searchDomains: []
+  tls:
+    defaultMode: internal
+    minVersion: TLS1.2
+sites:
+  - id: home
+    kind: home
+    failureDomain: fixture-house
+nodes:
+  - id: fixture-a
+    siteRef: home
+    roles: [controller, worker]
+    management:
+      transport: ssh
+      host: 192.168.50.10
+      port: 22
+      user: stackkit
+    hardware:
+      arch: amd64
+      profile: standard
+    failureDomain: fixture-host-a
+    enabled: true
+  - id: fixture-b
+    siteRef: home
+    roles: [worker]
+    management:
+      transport: ssh
+      host: 192.168.50.11
+      port: 22
+      user: stackkit
+    hardware:
+      arch: amd64
+      profile: standard
+    failureDomain: fixture-host-b
+    enabled: true
+controlPlane:
+  mode: single
+  authoritySiteRef: home
+  members: [fixture-a]
+capabilities:
+  enable: []
+  disable: []
+availability:
+  enabled: false
+  mode: single
+  fencing: none
+deviceEnrollment:
+  mode: local-only
+  authoritySiteRef: home
+  endpointExposure: lan
+  remoteEnrollment: false
+  requireOwnerStepUp: true
+  requireLocalPairingProof: true
+  requireDeviceGeneratedKey: true
+  requirePossessionProof: true
+  hardwareBackedKey: preferred
+  revocationSupported: true
+  credentialTTLSeconds: 3600
+partitionPolicy:
+  onCloudLoss: not-applicable
+  onLinkLoss: local-continues
+  cloudEdge: not-applicable
+  localIdentityAuthorityAvailable: true
+  maxStaleVerificationSeconds: 0
+  denyNewCrossSiteSessions: true
+data:
+  defaultAuthority: home

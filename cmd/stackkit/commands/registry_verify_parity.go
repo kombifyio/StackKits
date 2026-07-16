@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/kombifyio/stackkits/internal/kitio"
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/registry"
 	"github.com/spf13/cobra"
 )
@@ -45,8 +46,20 @@ func runRegistryVerifyParity(_ *cobra.Command, _ []string) error {
 
 	checked := 0
 	drifted := 0
+	seenProducts := make(map[string]bool, len(productkits.Slugs()))
 
 	for _, kit := range snap.StackKits {
+		if !productkits.IsActive(kit.Slug) {
+			drifted++
+			printError("non-product stackkit slug in registry snapshot: %s", kit.Slug)
+			continue
+		}
+		if seenProducts[kit.Slug] {
+			drifted++
+			printError("duplicate product stackkit slug in registry snapshot: %s", kit.Slug)
+			continue
+		}
+		seenProducts[kit.Slug] = true
 		kitDir := kit.Slug
 		yamlPath := filepath.Join(kitDir, "stackkit.yaml")
 		if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
@@ -81,10 +94,17 @@ func runRegistryVerifyParity(_ *cobra.Command, _ []string) error {
 			}
 		}
 	}
+	if snap.Source == registry.SourceAdminAPI {
+		for _, slug := range productkits.Slugs() {
+			if !seenProducts[slug] {
+				drifted++
+				printError("canonical product missing from admin registry snapshot: %s", slug)
+			}
+		}
+	}
 
 	if checked == 0 {
 		printInfo("no spec profiles with kit_definition_hash found in snapshot — nothing to verify")
-		return nil
 	}
 
 	printInfo("checked=%d drifted=%d", checked, drifted)

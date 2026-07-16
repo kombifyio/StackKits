@@ -11,13 +11,11 @@ info:
     url: https://kombify.io
   license:
     name: MIT
-
 servers:
   - url: http://localhost:8082
     description: Local development
   - url: https://api.kombify.io/stackkits
     description: Production (via Cloudflare Edge)
-
 paths:
   /health:
     get:
@@ -27,7 +25,6 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/HealthResponse"
-
   /api/v1/health:
     get:
       operationId: health
@@ -36,7 +33,6 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/HealthResponse"
-
   /api/v1/capabilities:
     get:
       operationId: getCapabilities
@@ -49,7 +45,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessEnvelope"
-
   /api/v1/openapi.yaml:
     get:
       operationId: getOpenAPISpec
@@ -62,7 +57,139 @@ paths:
             application/yaml:
               schema:
                 type: string
-
+  /api/v2/resolve:
+    post:
+      operationId: resolveArchitectureV2
+      summary: Resolve canonical Architecture v2 intent
+      description: |
+        Resolves a canonical StackSpec v2 and optional observed inventory through
+        the embedded governed CUE authority. The successful response is the raw,
+        canonical ResolvedPlan document; it is not wrapped in a success envelope.
+        StackSpec v1 input is never compiled implicitly and instead returns a
+        machine-readable migration report. Production deployments require the
+        X-API-Key security scheme; explicitly unauthenticated local-development
+        deployments may use the anonymous alternative. Requests are bounded to
+        64 JSON nesting levels, 65,536 JSON tokens, and 4,096 entries per
+        individual object or array before governed CUE resolution begins.
+      tags: [Architecture]
+      security:
+        - StackKitsAPIKey: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArchitectureV2ResolveRequest"
+      responses:
+        "200":
+          description: Canonical ResolvedPlan bytes
+          headers:
+            Cache-Control:
+              description: Resolved deployment plans must not be cached.
+              schema:
+                type: string
+                const: no-store
+            ETag:
+              description: Strong ETag containing the quoted ResolvedPlan planHash.
+              schema:
+                type: string
+                pattern: '^"sha256:[a-f0-9]{64}"$'
+            X-StackKit-Plan-Hash:
+              description: Unquoted ResolvedPlan planHash.
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ContentHash"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ResolvedPlan"
+        "400":
+          description: Invalid JSON envelope, StackSpec, or inventory
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ResolveError"
+        "401":
+          description: Missing API key when authentication is enabled
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Invalid API key when authentication is enabled
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Resolve request exceeds the one-mebibyte body limit
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ResolveError"
+        "415":
+          description: Request Content-Type is not application/json
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ResolveError"
+        "422":
+          description: Migration is required or blocked, or governed resolution failed
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ResolveError"
+        "429":
+          description: Per-server Architecture resolver concurrency or global request rate limit reached
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+            Retry-After:
+              $ref: "#/components/headers/ArchitectureV2RetryAfter"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ArchitectureV2ResolveError"
+                  - $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Embedded Architecture v2 authority is unavailable
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ResolveError"
+        "500":
+          description: Unexpected resolver or server failure
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ArchitectureV2ResolveError"
+                  - $ref: "#/components/schemas/ErrorResponse"
   /api/v1/stackkits:
     get:
       operationId: listStackKits
@@ -81,7 +208,6 @@ paths:
                         type: array
                         items:
                           $ref: "#/components/schemas/StackKitSummary"
-
   /api/v1/stackkits/{name}:
     get:
       operationId: getStackKit
@@ -102,7 +228,6 @@ paths:
                         $ref: "#/components/schemas/StackKit"
         "404":
           $ref: "#/components/responses/NotFound"
-
   /api/v1/stackkits/{name}/schema:
     get:
       operationId: getStackKitSchema
@@ -119,7 +244,6 @@ paths:
                 type: string
         "404":
           $ref: "#/components/responses/NotFound"
-
   /api/v1/stackkits/{name}/defaults:
     get:
       operationId: getStackKitDefaults
@@ -140,7 +264,6 @@ paths:
                         $ref: "#/components/schemas/StackSpec"
         "404":
           $ref: "#/components/responses/NotFound"
-
   /api/v1/validate:
     post:
       operationId: validateSpec
@@ -167,7 +290,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
-
   /api/v1/validate/partial:
     post:
       operationId: validatePartial
@@ -193,7 +315,6 @@ paths:
                         $ref: "#/components/schemas/ValidationResult"
         "400":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/generate/tfvars:
     post:
       operationId: generateTFVars
@@ -222,7 +343,6 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
-
   /api/v1/generate/preview:
     post:
       operationId: generatePreview
@@ -251,7 +371,6 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
-
   /api/v1/status:
     get:
       operationId: getManagementStatus
@@ -269,7 +388,6 @@ paths:
                   - properties:
                       data:
                         $ref: "#/components/schemas/ManagementStatus"
-
   /api/v1/verify:
     post:
       operationId: runManagementVerify
@@ -295,7 +413,6 @@ paths:
                         $ref: "#/components/schemas/VerifyReport"
         "400":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/doctor:
     post:
       operationId: runManagementDoctor
@@ -312,7 +429,6 @@ paths:
                   - properties:
                       data:
                         $ref: "#/components/schemas/DoctorResult"
-
   /api/v1/plan:
     post:
       operationId: runManagementPlan
@@ -330,7 +446,6 @@ paths:
                   - properties:
                       data:
                         $ref: "#/components/schemas/ManagementPlan"
-
   /api/v1/runs/{runID}/evidence:
     get:
       operationId: getRunEvidence
@@ -353,7 +468,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
-
   /api/v1/logs:
     get:
       operationId: listLogs
@@ -390,7 +504,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
   /api/v1/logs/latest:
     get:
       operationId: getLatestLog
@@ -413,7 +526,6 @@ paths:
                         $ref: "#/components/schemas/LogRunDetail"
         "404":
           $ref: "#/components/responses/NotFound"
-
   /api/v1/logs/{runID}:
     get:
       operationId: getLog
@@ -441,7 +553,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
-
   /api/v1/logs/{runID}/stream:
     get:
       operationId: streamLog
@@ -470,9 +581,7 @@ paths:
                 description: Server-Sent Events stream
         "400":
           $ref: "#/components/responses/BadRequest"
-
   # ── Node-local setup actions ────────────────────────────────────
-
   /api/v1/setup/base-hub/protection:
     get:
       operationId: getBaseHubProtection
@@ -526,7 +635,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/setup/initial-access:
     get:
       operationId: getInitialAccess
@@ -550,7 +658,6 @@ paths:
                         $ref: "#/components/schemas/InitialAccessResponse"
         "409":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/setup/initial-access/reveal:
     post:
       operationId: revealInitialAccess
@@ -580,7 +687,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/setup/services/{service}/run:
     post:
       operationId: runServiceSetup
@@ -629,9 +735,7 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "502":
           $ref: "#/components/responses/BadRequest"
-
   # ── Internal runtime actions (TechStack servicecall) ────────────
-
   /api/v1/internal/runtime-actions/stackkit-rollout:
     post:
       operationId: runtimeStackKitRollout
@@ -657,7 +761,6 @@ paths:
                         $ref: "#/components/schemas/RuntimeActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/internal/runtime-actions/stackkit-verify:
     post:
       operationId: runtimeStackKitVerify
@@ -683,7 +786,6 @@ paths:
                         $ref: "#/components/schemas/RuntimeActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/internal/runtime-actions/restore-drill:
     post:
       operationId: runtimeRestoreDrill
@@ -709,9 +811,7 @@ paths:
                         $ref: "#/components/schemas/RuntimeActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
-
   # ── Registry (Direct Connect) ───────────────────────────────────
-
   /api/v1/registry/instances:
     post:
       operationId: registerInstance
@@ -740,7 +840,6 @@ paths:
                         $ref: "#/components/schemas/RegistryResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
-
   /api/v1/registry/instances/{instanceId}:
     delete:
       operationId: deregisterInstance
@@ -753,7 +852,6 @@ paths:
           description: Instance deregistered
         "404":
           $ref: "#/components/responses/NotFound"
-
   /api/v1/registry/instances/{instanceId}/heartbeat:
     put:
       operationId: heartbeat
@@ -783,8 +881,24 @@ paths:
           description: Heartbeat acknowledged
         "404":
           $ref: "#/components/responses/NotFound"
-
 components:
+  securitySchemes:
+    StackKitsAPIKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Required by production deployments; may be disabled only for explicit local development.
+  headers:
+    ArchitectureV2NoStore:
+      description: Architecture intent, plans, and diagnostics must not be cached.
+      schema:
+        type: string
+        const: no-store
+    ArchitectureV2RetryAfter:
+      description: Seconds before attempting another resolve request.
+      schema:
+        type: string
+        pattern: "^[1-9][0-9]*$"
   parameters:
     StackKitName:
       name: name
@@ -794,7 +908,6 @@ components:
       schema:
         type: string
         pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
-
     RunID:
       name: runID
       in: path
@@ -804,7 +917,6 @@ components:
         type: string
         pattern: "^\\d{8}-\\d{6}$"
         example: "20260311-104539"
-
     InstanceId:
       name: instanceId
       in: path
@@ -813,7 +925,6 @@ components:
       schema:
         type: string
         example: "sh-mylab-abc123-basement-kit-def456"
-
     LogLevel:
       name: level
       in: query
@@ -821,7 +932,6 @@ components:
       schema:
         type: string
         enum: [INFO, WARN, ERROR, DEBUG]
-
     LogPrefix:
       name: prefix
       in: query
@@ -829,7 +939,6 @@ components:
       schema:
         type: string
         example: "apply."
-
   schemas:
     SuccessEnvelope:
       type: object
@@ -838,7 +947,6 @@ components:
         data: {}
         meta:
           $ref: "#/components/schemas/ResponseMeta"
-
     ResponseMeta:
       type: object
       properties:
@@ -848,7 +956,6 @@ components:
         timestamp:
           type: string
           format: date-time
-
     ErrorResponse:
       type: object
       required: [error]
@@ -863,7 +970,1633 @@ components:
               type: string
         meta:
           $ref: "#/components/schemas/ResponseMeta"
-
+    ArchitectureV2ResolveRequest:
+      type: object
+      description: Strict HTTP envelope for Architecture v2 resolution.
+      additionalProperties: false
+      required: [stackSpec]
+      properties:
+        stackSpec:
+          oneOf:
+            - $ref: "#/components/schemas/ArchitectureV2StackSpec"
+            - $ref: "#/components/schemas/ArchitectureV1DiagnosticsInput"
+        inventory:
+          $ref: "#/components/schemas/ArchitectureV2Inventory"
+    ArchitectureV2StackSpec:
+      type: object
+      description: |
+        Canonical StackSpec v2 intent. Unknown top-level fields are rejected;
+        the embedded CUE authority remains authoritative for all deeper
+        cross-field constraints and defaults.
+      additionalProperties: false
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - kit
+        - install
+        - generation
+        - network
+        - sites
+        - nodes
+        - controlPlane
+        - capabilities
+        - availability
+        - partitionPolicy
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit/v2alpha1
+        kind:
+          type: string
+          const: StackSpec
+        metadata:
+          type: object
+          additionalProperties: false
+          required: [name]
+          properties:
+            name:
+              $ref: "#/components/schemas/ArchitectureV2ContractID"
+            stackId:
+              $ref: "#/components/schemas/ArchitectureV2ContractID"
+            fleetRef:
+              $ref: "#/components/schemas/ArchitectureV2ContractID"
+        source:
+          type: object
+          additionalProperties: false
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              enum: [native-v2, migrated-v1, registry]
+            ref:
+              type: string
+              pattern: "^[^\\s]+$"
+            migration:
+              type: object
+              additionalProperties: true
+        kit:
+          type: object
+          additionalProperties: false
+          required: [slug]
+          properties:
+            slug:
+              $ref: "#/components/schemas/ArchitectureV2KitProfile"
+            version:
+              type: string
+        install:
+          type: object
+        generation:
+          type: object
+        system:
+          type: object
+        storage:
+          type: object
+        network:
+          type: object
+        container:
+          type: object
+        sites:
+          type: array
+          minItems: 1
+          items:
+            type: object
+        nodes:
+          type: array
+          minItems: 1
+          items:
+            type: object
+        controlPlane:
+          type: object
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [enable, disable]
+          properties:
+            enable:
+              type: array
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ContractID"
+            disable:
+              type: array
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ContractID"
+            config:
+              type: object
+              additionalProperties:
+                type: object
+                additionalProperties: false
+                properties:
+                  providerRef:
+                    $ref: "#/components/schemas/ArchitectureV2ContractID"
+                  settings:
+                    type: object
+                    additionalProperties: true
+                  secretRefs:
+                    $ref: "#/components/schemas/ArchitectureV2SecretRefs"
+        addons:
+          type: object
+          additionalProperties:
+            type: object
+        access:
+          type: object
+          additionalProperties:
+            type: object
+        bridge:
+          type: object
+        availability:
+          type: object
+        deviceEnrollment:
+          type: object
+        partitionPolicy:
+          type: object
+        workloads:
+          type: object
+          additionalProperties:
+            type: object
+        modules:
+          type: object
+          additionalProperties:
+            type: object
+        routes:
+          type: object
+          additionalProperties:
+            type: object
+        data:
+          type: object
+    ArchitectureV1DiagnosticsInput:
+      type: object
+      description: |
+        Lossless legacy StackSpec v1 input accepted only to produce migration
+        diagnostics. Fields are deliberately not projected or discarded at the
+        HTTP boundary, and this branch can never match a StackSpec v2 header.
+      additionalProperties: true
+      oneOf:
+        - required: [apiVersion]
+          properties:
+            apiVersion:
+              type: string
+              const: stackkit/v1
+        - not:
+            required: [apiVersion]
+    ArchitectureV2Inventory:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, nodes]
+      properties:
+        schemaVersion:
+          type: string
+          const: stackkit.inventory/v1
+        nodes:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2InventoryNode"
+    ArchitectureV2InventoryNode:
+      type: object
+      additionalProperties: false
+      properties:
+        observedSiteKind:
+          type: string
+          enum: [home, cloud]
+        arch:
+          type: string
+          enum: [amd64, arm64]
+        cpuCores:
+          type: integer
+          minimum: 1
+        ramGB:
+          type: integer
+          minimum: 1
+        storageGB:
+          type: integer
+          minimum: 1
+        publicAddress:
+          type: string
+        privateAddress:
+          type: string
+        virtualization:
+          type: string
+        provider:
+          type: string
+        runtimeDaemons:
+          type: object
+          description: >-
+            Observed node-scoped runtime daemons keyed by stable daemonRef. CUE additionally requires instanceRef and socketPath uniqueness per node.
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2RuntimeDaemonFact"
+    ArchitectureV2RuntimeDaemonFact:
+      type: object
+      additionalProperties: false
+      required: [instanceRef, engine, socketPath]
+      properties:
+        instanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        engine:
+          type: string
+          const: docker
+        socketPath:
+          $ref: "#/components/schemas/ArchitectureV2UnixSocketPath"
+    ArchitectureV2ResolvedPlan:
+      type: object
+      description: Raw canonical ResolvedPlan response; never a SuccessEnvelope.
+      additionalProperties: false
+      required:
+        - apiVersion
+        - kind
+        - stackId
+        - kit
+        - compilerVersion
+        - sourceIntentHash
+        - specHash
+        - inventoryHash
+        - planHash
+        - authority
+        - install
+        - compatibility
+        - generation
+        - source
+        - sites
+        - nodes
+        - controlPlane
+        - capabilities
+        - providers
+        - modules
+        - runtimeNetworks
+        - privilegedInterfaceApprovals
+        - placement
+        - availability
+        - identity
+        - data
+        - failurePolicy
+        - system
+        - storage
+        - network
+        - gates
+        - executionReadiness
+        - evidence
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.resolved-plan/v1
+        kind:
+          type: string
+          const: ResolvedPlan
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        fleetRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kit:
+          type: object
+          additionalProperties: false
+          required: [slug, version, definitionHash]
+          properties:
+            slug:
+              $ref: "#/components/schemas/ArchitectureV2KitProfile"
+            version:
+              type: string
+            definitionHash:
+              $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        compilerVersion:
+          type: string
+        sourceIntentHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        specHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        inventoryHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        planHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        authority:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedPlanAuthority"
+        install:
+          type: object
+        compatibility:
+          type: object
+        generation:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedGenerationPlan"
+        source:
+          type: object
+        sites:
+          type: array
+          minItems: 1
+          items:
+            type: object
+        nodes:
+          type: array
+          minItems: 1
+          items:
+            type: object
+        controlPlane:
+          type: object
+        capabilities:
+          type: array
+          minItems: 1
+          items:
+            type: object
+        providers:
+          type: array
+          minItems: 1
+          items:
+            type: object
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedModule"
+        runtimeNetworks:
+          type: array
+          uniqueItems: true
+          description: >-
+            Explicit provider-owned runtime network instances. An empty array is required when no implementation interface needs a network.
+          items:
+            $ref: "#/components/schemas/ArchitectureV2RuntimeNetwork"
+        privilegedInterfaceApprovals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedPrivilegedInterfaceApproval"
+        placement:
+          type: array
+          items:
+            type: object
+        addons:
+          type: object
+          additionalProperties:
+            type: object
+        access:
+          type: object
+          additionalProperties:
+            type: object
+        bridge:
+          type: object
+        availability:
+          type: object
+        identity:
+          type: object
+        data:
+          type: object
+        failurePolicy:
+          type: object
+        system:
+          type: object
+        storage:
+          type: object
+        network:
+          type: object
+        gates:
+          type: object
+        executionReadiness:
+          $ref: "#/components/schemas/ArchitectureV2ExecutionReadiness"
+        evidence:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    ArchitectureV2ResolvedPlanAuthority:
+      type: object
+      additionalProperties: false
+      description: >-
+        Exact semantic CUE authority carried by the plan. Product, contract-fixture, and development authorities are disjoint; only product plans are eligible to contribute graduation evidence. The product fingerprint binds the selected Definition and catalog closure, not the build-local distribution bundle.
+      required: [class, document, graduationEligible, issuer, catalogHash]
+      properties:
+        class:
+          type: string
+          enum: [product, contract-fixture, development]
+        document:
+          type: string
+          enum: [catalog, contractFixtureCatalog]
+        graduationEligible:
+          type: boolean
+        issuer:
+          type: string
+          pattern: '^\S+$'
+        authorityFingerprint:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        catalogHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+      oneOf:
+        - required: [authorityFingerprint]
+          properties:
+            class:
+              const: product
+            document:
+              const: catalog
+            graduationEligible:
+              const: true
+            issuer:
+              const: stackkits-product-authority/v1
+        - not:
+            required: [authorityFingerprint]
+          properties:
+            class:
+              const: contract-fixture
+            document:
+              const: contractFixtureCatalog
+            graduationEligible:
+              const: false
+            issuer:
+              const: stackkits-contract-fixture-authority/v1
+        - not:
+            required: [authorityFingerprint]
+          properties:
+            class:
+              const: development
+            document:
+              const: catalog
+            graduationEligible:
+              const: false
+            issuer:
+              const: stackkits-development-authority/v1
+    ArchitectureV2ResolvedGenerationPlan:
+      type: object
+      additionalProperties: false
+      description: >-
+        Versioned, CUE-owned generation plan. Every artifact is bound to either the plan itself or one exact render-instance output.
+      required:
+        - contractVersion
+        - strategy
+        - target
+        - outputRoot
+        - profileContractHash
+        - renderer
+        - artifacts
+        - rawSpecFallback
+      properties:
+        contractVersion:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$'
+        strategy:
+          type: string
+          enum: [kit-template, module-fragments]
+        target:
+          type: string
+          enum: [opentofu, compose, native]
+        outputRoot:
+          type: string
+          pattern: '^(?:\.|[A-Za-z0-9.][A-Za-z0-9._-]*(?:/[A-Za-z0-9._-]+)*)$'
+        profileContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        renderer:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedRendererIdentity"
+        artifacts:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2GeneratedArtifact"
+        rawSpecFallback:
+          type: boolean
+          const: false
+    ArchitectureV2ResolvedRendererIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        version:
+          type: string
+          minLength: 1
+    ArchitectureV2GeneratedArtifact:
+      type: object
+      additionalProperties: false
+      required: [id, kind, path, format, mode, required, owner]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          enum: [opentofu, compose, metadata, script, native-config]
+        path:
+          type: string
+          pattern: '^[A-Za-z0-9.][A-Za-z0-9._-]*(/[A-Za-z0-9._-]+)*$'
+        format:
+          type: string
+          enum: [json, yaml, hcl, shell, text]
+        mode:
+          type: string
+          pattern: '^0[0-7]{3}$'
+        required:
+          type: boolean
+          const: true
+        owner:
+          $ref: "#/components/schemas/ArchitectureV2GeneratedArtifactOwner"
+    ArchitectureV2GeneratedArtifactOwner:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      oneOf:
+        - properties:
+            kind:
+              const: plan
+          not:
+            anyOf:
+              - required: [moduleRef]
+              - required: [unitRef]
+              - required: [instanceRef]
+              - required: [outputRef]
+        - required: [moduleRef, unitRef, instanceRef, outputRef]
+          properties:
+            kind:
+              const: render-instance
+      properties:
+        kind:
+          type: string
+          enum: [plan, render-instance]
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        instanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        outputRef:
+          type: string
+          pattern: '^[A-Za-z0-9.][A-Za-z0-9._/-]*$'
+    ArchitectureV2ResolvedModule:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - version
+        - contractHash
+        - providerRef
+        - provides
+        - siteRefs
+        - nodeRefs
+        - runtime
+        - renderUnits
+        - realizationSupport
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        version:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$'
+        contractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        providerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        provides:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        requires:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        runtime:
+          type: object
+        nodeSelection:
+          $ref: "#/components/schemas/ArchitectureV2ModuleNodeSelection"
+        runtimeRequirements:
+          $ref: "#/components/schemas/ArchitectureV2ModuleRuntimeRequirements"
+        renderUnits:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedModuleRenderUnit"
+        realizationSupport:
+          $ref: "#/components/schemas/ArchitectureV2ModuleRealizationSupport"
+        healthGateRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        evidenceGateRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModuleNodeSelection:
+      type: object
+      additionalProperties: false
+      required: [authority, controlPlaneMembers]
+      properties:
+        authority:
+          type: string
+          enum: [any, control-authority-site, non-control-authority-sites]
+        controlPlaneMembers:
+          type: string
+          enum: [any, only, exclude]
+        requiredRoles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [controller, worker, storage, edge]
+        matchLabels:
+          type: object
+          minProperties: 1
+          additionalProperties:
+            type: string
+    ArchitectureV2ModuleRuntimeRequirements:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        allowedArchitectures:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [amd64, arm64]
+        minCpuCores:
+          type: integer
+          minimum: 1
+        minRamGB:
+          type: integer
+          minimum: 1
+        minStorageGB:
+          type: integer
+          minimum: 1
+        allowedVirtualization:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [bare-metal, kvm, openvz, lxc, vmware, hyperv, xen, oracle, microsoft, none]
+        requireInventoryFacts:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [arch, cpuCores, ramGB, storageGB, virtualization]
+    ArchitectureV2ResolvedModuleRenderUnit:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - kind
+        - rendererRef
+        - templateRef
+        - version
+        - contractHash
+        - publicInputRefs
+        - secretInputRefs
+        - values
+        - secretRefs
+        - outputs
+        - siteRefs
+        - nodeRefs
+        - placement
+        - daemonBindings
+        - serviceEndpoints
+        - instances
+        - providesInterfaces
+        - requiresInterfaces
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          enum: [compose, cue-fragment, host, job, opentofu, native-config]
+        rendererRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        templateRef:
+          type: string
+          pattern: '^\S+$'
+        version:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$'
+        contractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        publicInputRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        secretInputRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        values:
+          type: object
+        secretRefs:
+          $ref: "#/components/schemas/ArchitectureV2SecretRefs"
+        outputs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9.][A-Za-z0-9._/-]*$'
+        siteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        placement:
+          $ref: "#/components/schemas/ArchitectureV2RenderUnitPlacement"
+        daemonBindings:
+          type: array
+          uniqueItems: true
+          description: >-
+            Exact observed daemon identity for every node selected by a one-per-daemon render unit; empty for every other cardinality.
+          items:
+            $ref: "#/components/schemas/ArchitectureV2RuntimeDaemonBinding"
+        serviceEndpoints:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModuleServiceEndpoint"
+        instances:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: >-
+            Exact executable materializations of this immutable logical render unit. The embedded CUE authority binds instance count, deterministic identity, locality, outputs, and placement cardinality.
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedModuleRenderUnitInstance"
+        providesInterfaces:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2DockerHTTPReadonlyProvider"
+        requiresInterfaces:
+          type: array
+          uniqueItems: true
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/ArchitectureV2ResolvedDockerHTTPReadonlyRequirement"
+              - $ref: "#/components/schemas/ArchitectureV2DockerSocketDirectRequirement"
+      allOf:
+        - if:
+            required: [serviceEndpoints]
+            properties:
+              serviceEndpoints:
+                minItems: 1
+          then:
+            properties:
+              placement:
+                properties:
+                  scope:
+                    const: node-local
+    ArchitectureV2ModuleServiceEndpoint:
+      type: object
+      additionalProperties: false
+      required:
+        - serviceRef
+        - upstreamProtocol
+        - targetPort
+        - allowedIngressProtocols
+        - allowedExposures
+        - originSelector
+        - healthRef
+      properties:
+        serviceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        upstreamProtocol:
+          type: string
+          enum: [tcp, udp, http, https]
+        targetPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        allowedIngressProtocols:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [tcp, udp, http, https]
+        allowedExposures:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [local, remote-private, public]
+        originSelector:
+          type: string
+          enum: [single-site, control-authority-site]
+        healthRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        data:
+          $ref: "#/components/schemas/ArchitectureV2ModuleServiceEndpointData"
+    ArchitectureV2ModuleServiceEndpointData:
+      type: object
+      additionalProperties: false
+      required: [bindingRef, requiredClasses, locality]
+      properties:
+        bindingRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        requiredClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [public, internal, personal, sensitive, secret]
+        locality:
+          type: string
+          enum: [primary-site, primary-or-replica]
+    ArchitectureV2ResolvedModuleRenderUnitInstance:
+      type: object
+      additionalProperties: false
+      description: >-
+        One explicit renderer invocation. Module-scoped instances never carry fabricated locality; node-local daemon instances carry the complete observed daemon identity or no daemon identity at all.
+      required: [id, scope, outputs, networkBindings]
+      oneOf:
+        - properties:
+            scope:
+              const: module
+          not:
+            anyOf:
+              - required: [siteRef]
+              - required: [nodeRef]
+              - required: [daemonRef]
+              - required: [daemonInstanceRef]
+              - required: [daemonEngine]
+              - required: [daemonSocketPath]
+        - required: [siteRef, nodeRef]
+          properties:
+            scope:
+              const: node-local
+          not:
+            anyOf:
+              - required: [daemonRef]
+              - required: [daemonInstanceRef]
+              - required: [daemonEngine]
+              - required: [daemonSocketPath]
+        - required: [siteRef, nodeRef, daemonRef, daemonInstanceRef, daemonEngine, daemonSocketPath]
+          properties:
+            scope:
+              const: node-local
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        scope:
+          type: string
+          enum: [module, node-local]
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonEngine:
+          type: string
+          const: docker
+        daemonSocketPath:
+          $ref: "#/components/schemas/ArchitectureV2UnixSocketPath"
+        outputs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedModuleRenderInstanceOutput"
+        networkBindings:
+          type: array
+          uniqueItems: true
+          description: >-
+            Exact runtime-network memberships for this renderer invocation. The renderer receives only these instance-bound bindings.
+          items:
+            $ref: "#/components/schemas/ArchitectureV2RuntimeNetworkBinding"
+    ArchitectureV2ResolvedModuleRenderInstanceOutput:
+      type: object
+      additionalProperties: false
+      description: >-
+        Exact instance-owned materialization of one immutable logical render output. path is relative to generation.outputRoot.
+      required: [ref, artifactRef, path]
+      properties:
+        ref:
+          type: string
+          pattern: '^[A-Za-z0-9.][A-Za-z0-9._/-]*$'
+        artifactRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        path:
+          type: string
+          pattern: '^[A-Za-z0-9.][A-Za-z0-9._/-]*$'
+    ArchitectureV2RenderUnitPlacement:
+      type: object
+      additionalProperties: false
+      required: [scope, cardinality]
+      oneOf:
+        - properties:
+            scope:
+              const: module
+            cardinality:
+              const: single
+          not:
+            required: [daemonRef]
+        - properties:
+            scope:
+              const: node-local
+            cardinality:
+              const: single
+          not:
+            required: [daemonRef]
+        - properties:
+            scope:
+              const: node-local
+            cardinality:
+              const: one-per-node
+          not:
+            required: [daemonRef]
+        - required: [daemonRef]
+          properties:
+            scope:
+              const: node-local
+            cardinality:
+              const: one-per-daemon
+      properties:
+        scope:
+          type: string
+          enum: [module, node-local]
+        cardinality:
+          type: string
+          enum: [single, one-per-node, one-per-daemon]
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2RuntimeDaemonBinding:
+      type: object
+      additionalProperties: false
+      required: [siteRef, nodeRef, daemonRef, instanceRef, engine, socketPath]
+      properties:
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        instanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        engine:
+          type: string
+          const: docker
+        socketPath:
+          $ref: "#/components/schemas/ArchitectureV2UnixSocketPath"
+    ArchitectureV2RuntimeNetworkOwner:
+      type: object
+      additionalProperties: false
+      required: [moduleRef, unitRef, instanceRef, interfaceRef]
+      properties:
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        instanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        interfaceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2RuntimeNetworkMember:
+      type: object
+      additionalProperties: false
+      required: [role, moduleRef, unitRef, instanceRef, interfaceRef]
+      properties:
+        role:
+          type: string
+          enum: [provider, consumer]
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        instanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        interfaceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2RuntimeNetwork:
+      type: object
+      additionalProperties: false
+      required: [id, networkRef, siteRef, nodeRef, daemonRef, daemonInstanceRef, owner, members]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        networkRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        owner:
+          $ref: "#/components/schemas/ArchitectureV2RuntimeNetworkOwner"
+        members:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2RuntimeNetworkMember"
+    ArchitectureV2RuntimeNetworkBinding:
+      type: object
+      additionalProperties: false
+      required: [networkInstanceRef, networkRef, role, interfaceRef, siteRef, nodeRef, daemonRef, daemonInstanceRef, owner]
+      properties:
+        networkInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        networkRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        role:
+          type: string
+          enum: [provider, consumer]
+        interfaceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        owner:
+          $ref: "#/components/schemas/ArchitectureV2RuntimeNetworkOwner"
+    ArchitectureV2DockerHTTPReadonlyEndpoint:
+      type: object
+      additionalProperties: false
+      required: [ref, visibility, transport, networkRef, address, port]
+      properties:
+        ref:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        visibility:
+          type: string
+          const: node-local
+        transport:
+          type: string
+          const: tcp
+        networkRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        address:
+          type: string
+          pattern: '^\S+$'
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+    ArchitectureV2DockerHTTPReadonlyProvider:
+      type: object
+      additionalProperties: false
+      required: [id, kind, protocol, version, endpoint, scopes, coLocation, daemonRef, policyProfile]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          const: docker-http-readonly-v1
+        protocol:
+          type: string
+          const: docker-http
+        version:
+          type: string
+          const: v1
+        endpoint:
+          $ref: "#/components/schemas/ArchitectureV2DockerHTTPReadonlyEndpoint"
+        scopes:
+          type: array
+          minItems: 5
+          uniqueItems: true
+          allOf:
+            - contains:
+                const: CONTAINERS
+            - contains:
+                const: EVENTS
+            - contains:
+                const: NETWORKS
+            - contains:
+                const: PING
+            - contains:
+                const: VERSION
+          items:
+            type: string
+            enum: [CONTAINERS, EVENTS, NETWORKS, PING, VERSION, INFO, SERVICES, TASKS]
+        coLocation:
+          type: string
+          const: same-node-and-network
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policyProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ImplementationInterfaceBinding:
+      type: object
+      additionalProperties: false
+      required: [interfaceRef, moduleRef, unitRef, providerInstanceRef, consumerInstanceRef, siteRef, nodeRef, daemonRef, daemonInstanceRef, networkRef, networkInstanceRef, policyProfile, endpointRef]
+      properties:
+        interfaceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        providerInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        consumerInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        networkRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        networkInstanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policyProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        endpointRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ResolvedDockerHTTPReadonlyRequirement:
+      type: object
+      additionalProperties: false
+      required: [id, kind, protocol, version, endpoint, scopes, coLocation, daemonRef, policyProfile, providerBindings]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          const: docker-http-readonly-v1
+        protocol:
+          type: string
+          const: docker-http
+        version:
+          type: string
+          const: v1
+        endpoint:
+          $ref: "#/components/schemas/ArchitectureV2DockerHTTPReadonlyEndpoint"
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [CONTAINERS, EVENTS, NETWORKS, PING, VERSION, INFO, SERVICES, TASKS]
+        coLocation:
+          type: string
+          const: same-node-and-network
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policyProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        providerBindings:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ImplementationInterfaceBinding"
+    ArchitectureV2DockerSocketDirectRequirement:
+      type: object
+      additionalProperties: false
+      required: [id, kind, protocol, version, endpoint, scopes, coLocation, daemonRef, policyProfile]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          const: docker-socket-direct-v1
+        protocol:
+          type: string
+          const: docker-engine
+        version:
+          type: string
+          const: v1
+        endpoint:
+          type: object
+          additionalProperties: false
+          description: >-
+            Selects exactly one socket-path authority. path asserts one fixed path across all selected daemons; pathSource=daemon-binding takes the exact path from each resolved node-scoped daemon binding.
+          required: [visibility, transport]
+          oneOf:
+            - required: [path]
+            - required: [pathSource]
+          properties:
+            visibility:
+              type: string
+              const: node-local
+            transport:
+              type: string
+              const: unix-socket
+            path:
+              $ref: "#/components/schemas/ArchitectureV2UnixSocketPath"
+            pathSource:
+              type: string
+              const: daemon-binding
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: string
+            const: docker-api:full
+        coLocation:
+          type: string
+          const: same-node
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policyProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ResolvedPrivilegedInterfaceApproval:
+      type: object
+      additionalProperties: false
+      description: >-
+        Exact node- and site-bound Docker socket exception. It does not grant host filesystem, root mount, process, or metrics observation authority.
+      required: [id, kind, moduleRef, unitRef, providerRef, daemonRef, policyProfile, reasonCode, evidenceRef, siteRefs, nodeRefs, evidenceGateRef]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          const: docker-socket-direct-v1
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        providerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        daemonRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policyProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        reasonCode:
+          type: string
+          enum: [provider-backing, lifecycle-owner]
+        evidenceRef:
+          type: string
+          pattern: '^\S+$'
+        siteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        evidenceGateRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModuleRealizationSupport:
+      type: object
+      additionalProperties: false
+      required: [contractVersion, scope, level, compatibleRendererRefs, inputs, artifacts, evidence]
+      properties:
+        contractVersion:
+          type: string
+          const: 1.0.0
+        scope:
+          type: string
+          enum: [umbrella, concrete]
+        level:
+          type: string
+          enum: [contract-only, generation-ready, apply-ready]
+        compatibleRendererRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        inputs:
+          type: object
+          additionalProperties: false
+          required: [contractComplete, requiredRefs]
+          properties:
+            contractComplete:
+              type: boolean
+            requiredRefs:
+              type: array
+              uniqueItems: true
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ContractID"
+        artifacts:
+          type: object
+          additionalProperties: false
+          required: [requiredRefs, outputBindings, contracts]
+          properties:
+            requiredRefs:
+              type: array
+              uniqueItems: true
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ContractID"
+            outputBindings:
+              type: array
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ModuleArtifactOutputBinding"
+            contracts:
+              type: array
+              uniqueItems: true
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ModuleGenerationArtifact"
+        evidence:
+          type: object
+          additionalProperties: false
+          required: [requiredRefs]
+          properties:
+            requiredRefs:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+                pattern: '^\S+$'
+    ArchitectureV2ModuleArtifactOutputBinding:
+      type: object
+      additionalProperties: false
+      required: [artifactRef, unitRef, outputRef]
+      properties:
+        artifactRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        outputRef:
+          type: string
+          pattern: '^[A-Za-z0-9.][A-Za-z0-9._/-]*$'
+    ArchitectureV2ModuleGenerationArtifact:
+      type: object
+      additionalProperties: false
+      description: CUE-owned generation metadata and exact render-unit output ownership for one selected-module artifact.
+      required: [id, kind, format, mode, required, compatibleTargets, unitRef, outputRef]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          enum: [opentofu, compose, metadata, script, native-config]
+        format:
+          type: string
+          enum: [json, yaml, hcl, shell, text]
+        mode:
+          type: string
+          pattern: '^0[0-7]{3}$'
+        required:
+          type: boolean
+          const: true
+        compatibleTargets:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [opentofu, compose]
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        outputRef:
+          type: string
+          pattern: '^[A-Za-z0-9.][A-Za-z0-9._/-]*$'
+    ArchitectureV2ResolveError:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - invalid_stackspec
+            - invalid_inventory
+            - migration_required
+            - migration_blocked
+            - authority_load
+            - resolve_failed
+            - request_too_large
+            - unsupported_media_type
+            - resolve_busy
+        message:
+          type: string
+        migrationReport:
+          $ref: "#/components/schemas/ArchitectureV2MigrationReport"
+    ArchitectureV2MigrationReport:
+      type: object
+      additionalProperties: false
+      required:
+        - sourceVersion
+        - targetVersion
+        - status
+        - requiresExplicitAcceptance
+        - decisions
+        - warnings
+        - manualActions
+        - blockers
+      properties:
+        sourceVersion:
+          type: string
+        targetVersion:
+          type: string
+        status:
+          type: string
+          enum: [ready-for-shadow-resolution, blocked]
+        requiresExplicitAcceptance:
+          type: boolean
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2MigrationDecision"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2MigrationWarning"
+        manualActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2MigrationManualAction"
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2MigrationBlocker"
+    ArchitectureV2MigrationDecision:
+      type: object
+      additionalProperties: false
+      required: [code, field, to, reason]
+      properties:
+        code:
+          type: string
+        field:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        reason:
+          type: string
+    ArchitectureV2MigrationWarning:
+      type: object
+      additionalProperties: false
+      required: [code, field, message]
+      properties:
+        code:
+          type: string
+        field:
+          type: string
+        message:
+          type: string
+        requiredAction:
+          type: string
+    ArchitectureV2MigrationManualAction:
+      type: object
+      additionalProperties: false
+      required: [code, fields, message, required]
+      properties:
+        code:
+          type: string
+        fields:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+        required:
+          type: boolean
+    ArchitectureV2MigrationBlocker:
+      type: object
+      additionalProperties: false
+      required: [code, field, message, requiredInputs]
+      properties:
+        code:
+          type: string
+        field:
+          type: string
+        message:
+          type: string
+        requiredInputs:
+          type: array
+          items:
+            type: string
+        suggestedKitProfiles:
+          type: array
+          description: >-
+            Diagnostic suggestions may name a recognized but unavailable profile. They never prove that the active authority can resolve it.
+          items:
+            type: string
+    ArchitectureV2KitProfile:
+      type: string
+      enum: [basement-kit, cloud-kit]
+    ArchitectureV2ExecutionReadiness:
+      type: object
+      additionalProperties: false
+      required: [contractVersion, generation, apply]
+      properties:
+        contractVersion:
+          type: string
+          const: 1.0.0
+        generation:
+          $ref: "#/components/schemas/ArchitectureV2ExecutionPhaseReadiness"
+        apply:
+          $ref: "#/components/schemas/ArchitectureV2ExecutionPhaseReadiness"
+      if:
+        properties:
+          generation:
+            properties:
+              status:
+                const: blocked
+            required: [status]
+        required: [generation]
+      then:
+        properties:
+          apply:
+            properties:
+              status:
+                const: blocked
+    ArchitectureV2ExecutionPhaseReadiness:
+      type: object
+      additionalProperties: false
+      required: [status, blockers]
+      properties:
+        status:
+          type: string
+          enum: [ready, blocked]
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ExecutionReadinessBlocker"
+      oneOf:
+        - properties:
+            status:
+              const: ready
+            blockers:
+              maxItems: 0
+        - properties:
+            status:
+              const: blocked
+            blockers:
+              minItems: 1
+    ArchitectureV2ExecutionReadinessBlocker:
+      type: object
+      additionalProperties: false
+      required: [code, refs]
+      properties:
+        code:
+          type: string
+          enum:
+            - module-umbrella
+            - module-contract-only
+            - module-render-units-missing
+            - provider-realization-none
+            - provider-owner-umbrella
+            - provider-owner-contract-only
+            - provider-owner-apply-support-missing
+            - renderer-incompatible
+            - input-contract-incomplete
+            - required-input-missing
+            - required-artifact-missing
+            - artifact-output-mismatch
+            - module-apply-support-missing
+            - required-evidence-missing
+            - bridge-overlay-unverified
+            - bridge-control-agent-unverified
+            - policy-enforcement-unverified
+            - device-verifier-unbound
+            - bridge-renderer-missing
+            - origin-identity-unbound
+            - tls-profile-unbound
+            - health-gate-not-executable
+        refs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^(module|unit|provider|renderer|input|artifact|evidence|bridge|publication|identity|tls|health):\S+$'
+    ArchitectureV2ContractID:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+    ArchitectureV2UnixSocketPath:
+      type: string
+      description: >-
+        Canonical absolute Unix-domain socket path using portable ASCII path segments and a .sock suffix. Empty, dot, dot-dot, repeated, backslash, whitespace, control-character, and trailing-slash segments are forbidden. The 107-character bound is also the exact UTF-8 byte bound because the pattern is ASCII-only, leaving Linux sockaddr_un space for the NUL byte.
+      maxLength: 107
+      pattern: '^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*\.sock$'
+      not:
+        pattern: '(^|/)\.\.?(/|$)'
+    ArchitectureV2ContentHash:
+      type: string
+      pattern: "^sha256:[a-f0-9]{64}$"
+    ArchitectureV2SecretRefs:
+      type: object
+      additionalProperties:
+        type: string
+        pattern: "^(secret|vault|doppler|techstack)://[^\\s]+$"
     StackKitSummary:
       type: object
       properties:
@@ -882,7 +2615,6 @@ components:
           type: array
           items:
             type: string
-
     StackKit:
       type: object
       properties:
@@ -898,7 +2630,6 @@ components:
           $ref: "#/components/schemas/Modes"
         features:
           $ref: "#/components/schemas/Features"
-
     StackKitMetadata:
       type: object
       properties:
@@ -926,7 +2657,6 @@ components:
           type: array
           items:
             type: string
-
     Requirements:
       type: object
       properties:
@@ -934,7 +2664,6 @@ components:
           $ref: "#/components/schemas/ResourceSpec"
         recommended:
           $ref: "#/components/schemas/ResourceSpec"
-
     ResourceSpec:
       type: object
       properties:
@@ -946,7 +2675,6 @@ components:
         disk:
           type: integer
           description: Disk in GB
-
     Modes:
       type: object
       properties:
@@ -954,7 +2682,6 @@ components:
           $ref: "#/components/schemas/ModeSpec"
         advanced:
           $ref: "#/components/schemas/ModeSpec"
-
     ModeSpec:
       type: object
       properties:
@@ -967,7 +2694,6 @@ components:
           enum: [opentofu, terramate]
         default:
           type: boolean
-
     Features:
       type: object
       properties:
@@ -977,7 +2703,6 @@ components:
           type: boolean
         publicAccess:
           type: boolean
-
     StackSpec:
       type: object
       required: [stackkit]
@@ -1026,7 +2751,6 @@ components:
           type: object
           additionalProperties:
             type: string
-
     OwnerConfig:
       type: object
       description: |
@@ -1067,7 +2791,6 @@ components:
           type: string
         cloudOidcForeignSubject:
           type: string
-
     TLSSpec:
       type: object
       properties:
@@ -1076,7 +2799,6 @@ components:
         challenge:
           type: string
           enum: [tls, dns]
-
     NetworkSpec:
       type: object
       properties:
@@ -1087,14 +2809,12 @@ components:
           type: string
         gateway:
           type: string
-
     ComputeSpec:
       type: object
       properties:
         tier:
           type: string
           enum: [low, standard, high]
-
     SSHSpec:
       type: object
       properties:
@@ -1104,7 +2824,6 @@ components:
           type: string
         port:
           type: integer
-
     NodeSpec:
       type: object
       properties:
@@ -1120,7 +2839,6 @@ components:
           type: array
           items:
             type: string
-
     ValidationResult:
       type: object
       required: [valid]
@@ -1135,7 +2853,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ValidationError"
-
     ValidationError:
       type: object
       properties:
@@ -1145,7 +2862,6 @@ components:
           type: string
         code:
           type: string
-
     GenerateRequest:
       type: object
       required: [spec]
@@ -1155,7 +2871,6 @@ components:
         outputDir:
           type: string
           description: Custom output directory (server-side only)
-
     GenerateResult:
       type: object
       properties:
@@ -1166,7 +2881,6 @@ components:
           type: string
         file:
           type: string
-
     PreviewResult:
       type: object
       properties:
@@ -1177,7 +2891,6 @@ components:
           const: true
         stackkit:
           $ref: "#/components/schemas/StackKitSummary"
-
     VerifyRequest:
       type: object
       properties:
@@ -1187,7 +2900,6 @@ components:
         strict:
           type: boolean
           description: Treat warnings as failures.
-
     VerifyReport:
       type: object
       properties:
@@ -1209,7 +2921,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VerifyCheck"
-
     VerifyCheck:
       type: object
       properties:
@@ -1222,7 +2933,6 @@ components:
           type: string
         message:
           type: string
-
     ManagementStatus:
       type: object
       properties:
@@ -1252,7 +2962,6 @@ components:
           type: string
         mutationPolicy:
           type: string
-
     DoctorResult:
       type: object
       properties:
@@ -1263,7 +2972,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ManagementCheck"
-
     ManagementCheck:
       type: object
       properties:
@@ -1276,7 +2984,6 @@ components:
           type: string
         message:
           type: string
-
     ManagementPlan:
       type: object
       properties:
@@ -1302,7 +3009,6 @@ components:
           type: array
           items:
             type: string
-
     RunEvidence:
       type: object
       properties:
@@ -1321,7 +3027,6 @@ components:
           items:
             type: object
             additionalProperties: true
-
     RuntimeActionRequest:
       type: object
       required: [action, stack_id]
@@ -1348,7 +3053,8 @@ components:
           description: Supplemental worker/storage nodes handed off by TechStack for capacity or service placement.
           items:
             $ref: "#/components/schemas/RuntimeActionPlatformNode"
-
+        techstack_enrollment:
+          $ref: "#/components/schemas/RuntimeActionTechStackEnrollment"
     RuntimeActionOwnerSpecBootstrap:
       type: object
       required: [endpoint, token, expires_at]
@@ -1364,7 +3070,47 @@ components:
           type: array
           items:
             type: string
-
+    RuntimeActionTechStackEnrollment:
+      type: object
+      description: >-
+        Managed runtime enrollment. The lease identity is mandatory so agent inventory and runtime observations cannot be associated with another server.
+      required: [lease_id, server_url, server_id, runtime_agent_id, agent_token]
+      anyOf:
+        - required: [heartbeat_url]
+        - required: [inventory_url]
+      properties:
+        tenant_id:
+          type: string
+        owner_id:
+          type: string
+        stack_id:
+          type: string
+        lease_id:
+          type: string
+        server_url:
+          type: string
+          format: uri
+        server_id:
+          type: string
+        runtime_agent_id:
+          type: string
+        agent_token:
+          type: string
+          description: Short-lived agent capability. Do not persist or log it.
+        heartbeat_url:
+          type: string
+          format: uri
+        inventory_url:
+          type: string
+          format: uri
+        control_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+        channel_bootstrap:
+          type: object
+          additionalProperties: true
     RuntimeActionTarget:
       type: object
       description: Primary runtime host used by the rollout. Supplemental nodes must not create another hidden main node.
@@ -1383,6 +3129,9 @@ components:
           maximum: 65535
         docker_host:
           type: string
+          format: uri
+          pattern: '^ssh://[^/?#]+$'
+          description: Managed Docker transport. Must be ssh:// and match runtime_target host, user, and port.
         key_path:
           type: string
         private_key:
@@ -1393,7 +3142,6 @@ components:
           description: Short-lived secret material. Not persisted in StackSpec or rollout artifacts.
         password:
           type: string
-
     RuntimeActionPlatformNode:
       type: object
       description: Supplemental worker/storage node. Use real platform IDs or a real Komodo Periphery bootstrap path.
@@ -1415,7 +3163,6 @@ components:
           $ref: "#/components/schemas/RuntimeActionNodePlatformTarget"
         bootstrap:
           $ref: "#/components/schemas/RuntimeActionNodeBootstrap"
-
     RuntimeActionNodePlatformTarget:
       type: object
       description: Existing real platform placement identity. StackKits does not synthesize these values.
@@ -1430,7 +3177,6 @@ components:
           type: string
         environment_uuid:
           type: string
-
     RuntimeActionNodeBootstrap:
       type: object
       description: Bootstrap material for platform-specific node registration. Komodo accepts snake_case and TechStack legacy camelCase keys.
@@ -1442,7 +3188,6 @@ components:
           description: Short-lived Komodo onboarding key. Not persisted in StackSpec or rollout artifacts.
         ssh:
           $ref: "#/components/schemas/RuntimeActionSSHBootstrap"
-
     RuntimeActionSSHBootstrap:
       type: object
       properties:
@@ -1464,7 +3209,6 @@ components:
           type: string
         proxy_jump:
           type: string
-
     RuntimeActionResponse:
       type: object
       properties:
@@ -1493,6 +3237,8 @@ components:
             $ref: "#/components/schemas/RuntimeActionCheck"
         stackkit_outputs:
           $ref: "#/components/schemas/RuntimeActionStackKitOutputs"
+        observation:
+          $ref: "#/components/schemas/RuntimeActionLiveObservation"
         platform_refs:
           type: array
           description: Raw selected-PaaS deployment refs returned by the platform adapter.
@@ -1508,7 +3254,6 @@ components:
           description: Artifact-ready selected-PaaS state for StackKit-owned L3 apps.
           items:
             $ref: "#/components/schemas/RuntimeActionPlatformAppState"
-
     RuntimeActionDeploymentRef:
       type: object
       properties:
@@ -1528,7 +3273,106 @@ components:
         lastDeployed:
           type: string
           format: date-time
-
+    RuntimeActionLiveObservation:
+      type: object
+      description: >-
+        Versioned, persistable live-runtime evidence. Dashboard health must be derived from this measurement rather than rollout jobs, leases, or stackkit_outputs.
+      properties:
+        version:
+          type: string
+          example: stackkit.runtime-observation/v1
+        observed_at:
+          type: string
+          format: date-time
+        host:
+          $ref: "#/components/schemas/RuntimeActionObservationHost"
+        platform:
+          $ref: "#/components/schemas/RuntimeActionObservationPlatform"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeActionServiceObservation"
+        failure_class:
+          type: string
+    RuntimeActionObservationHost:
+      type: object
+      properties:
+        host:
+          type: string
+        reachable:
+          type: boolean
+        docker_reachable:
+          type: boolean
+        failure_class:
+          type: string
+    RuntimeActionObservationPlatform:
+      type: object
+      properties:
+        name:
+          type: string
+        endpoint:
+          type: string
+          format: uri
+        server_id:
+          type: string
+        project_uuid:
+          type: string
+        environment_uuid:
+          type: string
+        destination_uuid:
+          type: string
+    RuntimeActionServiceObservation:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          description: Normalized measured service health.
+          enum: [starting, healthy, unhealthy, unknown]
+        platform_app_id:
+          type: string
+        platform_status:
+          type: string
+          description: Raw current platform adapter observation, not a dashboard health value.
+        containers:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeActionContainerObservation"
+        health_path:
+          type: string
+        probe:
+          $ref: "#/components/schemas/RuntimeActionHTTPProbeObservation"
+        failure_class:
+          type: string
+    RuntimeActionContainerObservation:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+        running:
+          type: boolean
+        health:
+          type: string
+          enum: [healthy, unhealthy, starting, none, unknown]
+    RuntimeActionHTTPProbeObservation:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        reached:
+          type: boolean
+        status_code:
+          type: integer
+          minimum: 100
+          maximum: 599
+        failure_class:
+          type: string
     RuntimeActionPlatformAppState:
       type: object
       properties:
@@ -1562,7 +3406,6 @@ components:
         lastDeployed:
           type: string
           format: date-time
-
     RuntimeActionSetupDrop:
       type: object
       properties:
@@ -1590,7 +3433,6 @@ components:
           type: object
           additionalProperties:
             type: string
-
     RuntimeActionCheck:
       type: object
       properties:
@@ -1601,7 +3443,6 @@ components:
           enum: [ok, warning, missing, reference, skipped, failed]
         detail:
           type: string
-
     RuntimeActionStackKitOutputs:
       type: object
       properties:
@@ -1619,7 +3460,6 @@ components:
           type: object
           additionalProperties:
             type: string
-
     RuntimeActionIdentityOutputs:
       type: object
       properties:
@@ -1627,7 +3467,6 @@ components:
           $ref: "#/components/schemas/RuntimeActionOwnerIdentity"
         recovery:
           $ref: "#/components/schemas/RuntimeActionRecoveryOutput"
-
     RuntimeActionOwnerIdentity:
       type: object
       properties:
@@ -1641,7 +3480,6 @@ components:
           type: string
         provider:
           type: string
-
     RuntimeActionLoginGatewayOutput:
       type: object
       properties:
@@ -1651,7 +3489,6 @@ components:
           type: string
         admin_url:
           type: string
-
     RuntimeActionRecoveryOutput:
       type: object
       properties:
@@ -1663,7 +3500,6 @@ components:
           type: string
         passphrase_hash_present:
           type: boolean
-
     RuntimeActionServiceOutput:
       type: object
       properties:
@@ -1677,7 +3513,6 @@ components:
           type: object
           additionalProperties:
             type: string
-
     BaseHubProtectionResponse:
       type: object
       properties:
@@ -1695,7 +3530,6 @@ components:
           type: boolean
         dynamicConfigUpdated:
           type: boolean
-
     InitialAccessResponse:
       type: object
       properties:
@@ -1724,7 +3558,6 @@ components:
           type: string
         credentials:
           $ref: "#/components/schemas/InitialAccessCredentials"
-
     InitialAccessCredentials:
       type: object
       properties:
@@ -1752,7 +3585,6 @@ components:
           items:
             type: string
           example: [TinyAuth gateway technical admin, Coolify technical admin]
-
     ServiceSetupResponse:
       type: object
       properties:
@@ -1783,7 +3615,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SetupDropResult"
-
     SetupDropResult:
       type: object
       properties:
@@ -1840,7 +3671,6 @@ components:
         lastFinished:
           type: string
           format: date-time
-
     SetupRunLogEntry:
       type: object
       properties:
@@ -1855,7 +3685,6 @@ components:
           enum: [info, warning, error]
         message:
           type: string
-
     LogRunSummary:
       type: object
       properties:
@@ -1871,7 +3700,6 @@ components:
           type: string
           description: Log filename
           example: "20260311-104539.jsonl"
-
     LogRunList:
       type: object
       properties:
@@ -1885,7 +3713,6 @@ components:
           type: integer
         offset:
           type: integer
-
     LogRunDetail:
       type: object
       properties:
@@ -1899,7 +3726,6 @@ components:
         total:
           type: integer
           description: Number of events (after filtering)
-
     LogEvent:
       type: object
       description: |
@@ -1923,7 +3749,6 @@ components:
           type: integer
           description: Milliseconds since CLI run started
       additionalProperties: true
-
     InstanceRegistration:
       type: object
       required: [instance_id, endpoint_url, stackkit, services, status]
@@ -1956,7 +3781,6 @@ components:
         last_seen:
           type: string
           format: date-time
-
     ServiceInfo:
       type: object
       required: [name, status]
@@ -1970,7 +3794,6 @@ components:
         status:
           type: string
           enum: [running, stopped, error]
-
     RegistryResponse:
       type: object
       properties:
@@ -1980,7 +3803,6 @@ components:
           type: string
         message:
           type: string
-
     HealthData:
       type: object
       properties:
@@ -1991,7 +3813,6 @@ components:
           type: string
         version:
           type: string
-
   responses:
     HealthResponse:
       description: Service is healthy
@@ -2003,29 +3824,27 @@ components:
               - properties:
                   data:
                     $ref: "#/components/schemas/HealthData"
-
     BadRequest:
       description: Invalid request
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-
     UnprocessableEntity:
       description: Validation or generation error
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-
 tags:
+  - name: Architecture
+    description: Canonical Architecture v2 intent resolution and migration diagnostics
   - name: Health
     description: Health checks
   - name: Discovery

@@ -116,10 +116,21 @@ func writeJSON(path string, value any) error {
 	return os.WriteFile(path, append(data, '\n'), 0600)
 }
 
-var secretPair = regexp.MustCompile(`(?i)(token|password|secret|api[_-]?key)=([^\s]+)`)
+// secretPair matches a secret-bearing field in both shell/query shape
+// (key=value) and JSON shape ("key": "value"): the separator (= or :) and any
+// surrounding quotes are captured in group 1 so the key and shape survive while
+// the value is redacted. Field names cover the tokens, platform credentials,
+// and bootstrap material that flow through rollout events.
+var secretPair = regexp.MustCompile(`(?i)("?\b(?:token|password|passwd|secret|api[_-]?key|api[_-]?secret|client[_-]?secret|bootstrap[_-]?token|admin[_-]?token|access[_-]?token|refresh[_-]?token|encryption[_-]?key|jwt[_-]?secret|private[_-]?key|signing[_-]?secret)"?\s*[:=]\s*"?)([^"\s,}]+)`)
+
+// bearerToken redacts `Authorization: Bearer <token>` headers, which carry a
+// secret with no key= or "key": shape.
+var bearerToken = regexp.MustCompile(`(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*`)
 
 func Redact(input string) string {
-	return secretPair.ReplaceAllString(input, "$1=<redacted>")
+	out := secretPair.ReplaceAllString(input, `${1}<redacted>`)
+	out = bearerToken.ReplaceAllString(out, `${1}<redacted>`)
+	return out
 }
 
 func ClassifyFailure(input string) string {

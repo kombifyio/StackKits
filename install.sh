@@ -94,6 +94,7 @@ echo "Resolving latest stackkit release..."
 RELEASE_JSON=""
 if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
   LATEST=$(printf '%s' "$STACKKIT_RELEASE_VERSION" | sed -E 's/^v//')
+  echo "  -> pinned to v${LATEST} via STACKKIT_RELEASE_VERSION (existence verified at download)"
 else
   RELEASE_JSON=$(curl_release -sSL "$RELEASE_API_URL" 2>/dev/null || true)
   LATEST=$(extract_release_version "$RELEASE_JSON")
@@ -109,6 +110,18 @@ else
 fi
 if [ -z "$LATEST" ]; then
   echo "Error: could not determine latest version." >&2
+  # Diagnostics (error path only): probe the API status so the failure names a
+  # cause instead of swallowing it (bead kombify-StackKits-0lb). Common cases:
+  # 403 = unauthenticated rate limit (set STACKKIT_GITHUB_TOKEN); 404 =
+  # releases/latest has no non-prerelease (repo may carry only prereleases —
+  # pin STACKKIT_RELEASE_VERSION=<tag>).
+  DIAG_STATUS=$(curl_release -sSL -o /dev/null -w '%{http_code}' "$RELEASE_API_URL" 2>/dev/null || echo "000")
+  echo "  diagnostics: GitHub API $RELEASE_API_URL -> HTTP ${DIAG_STATUS}" >&2
+  case "$DIAG_STATUS" in
+    403) echo "  hint: HTTP 403 usually means an unauthenticated rate limit — set STACKKIT_GITHUB_TOKEN and retry." >&2 ;;
+    404) echo "  hint: HTTP 404 means no non-prerelease 'latest' exists — pin STACKKIT_RELEASE_VERSION=<tag> (see releases page)." >&2 ;;
+    000) echo "  hint: HTTP 000 means the request did not complete — check network/DNS/proxy reachability to api.github.com." >&2 ;;
+  esac
   echo "Check https://github.com/$REPO/releases" >&2
   exit 1
 fi
@@ -232,6 +245,30 @@ else
     sudo install -m 755 "$TMP/stackkit-mcp" "$INSTALL_DIR/stackkit-mcp"
   fi
 fi
+
+# --- Optional short `sk` alias ------------------------------------------------
+# Create a convenience `sk -> stackkit` symlink, but never clobber an existing
+# `sk` command: `skim` (the fuzzy finder) and other tools also ship an `sk`
+# binary. Only our own prior symlink is refreshed. Opt out with
+# STACKKIT_SKIP_SK_SYMLINK=1.
+maybe_link_sk() {
+  [ "${STACKKIT_SKIP_SK_SYMLINK:-0}" = "1" ] && return 0
+  sk_target="$INSTALL_DIR/sk"
+  sk_existing="$(command -v sk 2>/dev/null || true)"
+  # Skip when some other `sk` is on PATH, or when our target path exists as a
+  # real file rather than our own symlink (do not overwrite a real binary).
+  if [ -n "$sk_existing" ] && { [ "$sk_existing" != "$sk_target" ] || [ ! -L "$sk_target" ]; }; then
+    echo "  -> 'sk' is already provided by $sk_existing; skipping the short alias (add 'alias sk=stackkit' if you prefer ours)"
+    return 0
+  fi
+  if [ "$(id -u)" -eq 0 ]; then
+    ln -sf "$INSTALL_DIR/stackkit" "$sk_target" 2>/dev/null && echo "  -> Linked short alias: sk -> stackkit"
+  else
+    sudo ln -sf "$INSTALL_DIR/stackkit" "$sk_target" 2>/dev/null && echo "  -> Linked short alias: sk -> stackkit"
+  fi
+  return 0
+}
+maybe_link_sk
 
 # --- Install kit definitions --------------------------------------------------
 # Kits are stored in ~/.stackkits/<kit-name>/ so the CLI can find them.

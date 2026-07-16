@@ -5,6 +5,12 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 
 const VALID_STATUS = new Set(['pass', 'fail', 'pending', 'not_applicable']);
+const PUBLIC_SK_S1_PENDING_SUMMARY =
+  'SK-S1 public product evidence is BLOCKED until an authorized leased Proxmox product run supplies separate provenance; Candidate and compatibility evidence do not substitute.';
+const PUBLIC_SK_S1_PENDING_GATE =
+  'SK-S1 public product evidence is BLOCKED pending an authorized leased Proxmox product run.';
+const PUBLIC_BROWSER_PENDING_SUMMARY =
+  'SK-S1 browser evidence is BLOCKED until it is produced by the separately authorized leased Proxmox product run.';
 
 const REQUIRED_MISSING_ALTERNATIVES = [
   {
@@ -79,8 +85,8 @@ const CANONICAL_SCENARIOS = [
   {
     id: 'SK-S1',
     label: 'SK-S1 local no-mail Coolify beta',
-    pendingSummary: 'SK-S1 local no-mail Coolify beta scenario artifact has not been attached to release evidence.',
-    pendingGate: 'SK-S1 local no-mail Coolify beta scenario is pending released-archive evidence.',
+    pendingSummary: PUBLIC_SK_S1_PENDING_SUMMARY,
+    pendingGate: PUBLIC_SK_S1_PENDING_GATE,
   },
   {
     id: 'SK-S2',
@@ -558,6 +564,27 @@ function mergeRequiredScenarioEvidence(values) {
     result.push(byID.get(scenarioId));
   }
   return result;
+}
+
+function enforcePublicSKS1EvidenceBoundary(values, visibility) {
+  if (visibility !== 'public') return values;
+  const retained = values.filter((value) => {
+    const scenarioId = String(value.scenarioId || '').trim();
+    return scenarioId !== 'SK-S1' && !scenarioId.startsWith('SK-S1-');
+  });
+  retained.push({
+    scenarioId: 'SK-S1',
+    status: 'pending',
+    summary: PUBLIC_SK_S1_PENDING_SUMMARY,
+  });
+  return retained;
+}
+
+function publicSKS1PendingCheck(summary = PUBLIC_SK_S1_PENDING_SUMMARY) {
+  return {
+    status: 'pending',
+    summary,
+  };
 }
 
 function securityBaselineReleaseCheck(scenarioEvidence) {
@@ -2134,14 +2161,20 @@ function browserPreflightCheck(browserPreflight) {
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const outputPath = path.resolve(opts.output);
-  const browserPreflight = await loadBrowserPreflight(opts.browserPreflight);
-  const browserEvidence = await loadBrowserEvidence(
-    opts.browserEvidence,
-    opts.browserEvidenceRoot,
-    browserPreflight?.browserChannel || '',
-    browserPreflight?.evidenceRoot || '',
-    browserPreflight?.runId || '',
-  );
+  const publicRelease = opts.visibility === 'public';
+  // The existing browser inputs are Docker-development evidence without a
+  // protected product-run producer identity. Public releases ignore them and
+  // stay pending until a dedicated leased-Proxmox provenance contract exists.
+  const browserPreflight = publicRelease ? null : await loadBrowserPreflight(opts.browserPreflight);
+  const browserEvidence = publicRelease
+    ? null
+    : await loadBrowserEvidence(
+        opts.browserEvidence,
+        opts.browserEvidenceRoot,
+        browserPreflight?.browserChannel || '',
+        browserPreflight?.evidenceRoot || '',
+        browserPreflight?.runId || '',
+      );
   const scenarioEvidence = [...opts.scenarioEvidence];
   for (const artifactPath of opts.scenarioArtifacts) {
     scenarioEvidence.push(await loadScenarioArtifactEvidence(artifactPath));
@@ -2162,7 +2195,8 @@ async function main() {
       url: browserEvidence.path,
     });
   }
-  const mergedScenarioEvidence = mergeRequiredScenarioEvidence(scenarioEvidence);
+  const boundedScenarioEvidence = enforcePublicSKS1EvidenceBoundary(scenarioEvidence, opts.visibility);
+  const mergedScenarioEvidence = mergeRequiredScenarioEvidence(boundedScenarioEvidence);
   const evidence = {
     schemaVersion: '1.0.0',
     generatedAt: new Date().toISOString(),
@@ -2180,18 +2214,31 @@ async function main() {
     checks: {
       publicExport: checkFromMap(opts.checks, 'publicExport', 'pending'),
       archiveValidation: checkFromMap(opts.checks, 'archiveValidation', 'pending'),
+      candidateE2E: checkFromMap(
+        opts.checks,
+        'candidateE2E',
+        'pending',
+        'Exact-source device Candidate evidence has not been attached to this release.',
+      ),
       securityScans: checkFromMap(opts.checks, 'securityScans', 'pending'),
       securityBaseline: securityBaselineReleaseCheck(mergedScenarioEvidence),
       liveInstallerSmoke: checkFromMap(opts.checks, 'liveInstallerSmoke', 'pending'),
-      freshUbuntuBaseKit: checkFromMap(opts.checks, 'freshUbuntuBaseKit', 'pending'),
-      browserPreflight: opts.checks.has('browserPreflight')
-        ? opts.checks.get('browserPreflight')
-        : browserPreflightCheck(browserPreflight),
-      browserEvidence: opts.checks.has('browserEvidence')
-        ? opts.checks.get('browserEvidence')
-        : browserEvidenceCheck(browserEvidence),
+      freshUbuntuBaseKit: publicRelease
+        ? publicSKS1PendingCheck()
+        : checkFromMap(opts.checks, 'freshUbuntuBaseKit', 'pending'),
+      browserPreflight: publicRelease
+        ? publicSKS1PendingCheck(PUBLIC_BROWSER_PENDING_SUMMARY)
+        : opts.checks.has('browserPreflight')
+          ? opts.checks.get('browserPreflight')
+          : browserPreflightCheck(browserPreflight),
+      browserEvidence: publicRelease
+        ? publicSKS1PendingCheck(PUBLIC_BROWSER_PENDING_SUMMARY)
+        : opts.checks.has('browserEvidence')
+          ? opts.checks.get('browserEvidence')
+          : browserEvidenceCheck(browserEvidence),
       upgradeRollbackVm: checkFromMap(opts.checks, 'upgradeRollbackVm', 'pending'),
       defaultL3PaaSDelivery: checkFromMap(opts.checks, 'defaultL3PaaSDelivery', 'pending'),
+      osCompatMatrix: checkFromMap(opts.checks, 'osCompatMatrix', 'pending', 'OS compatibility matrix evidence has not been attached to this release.'),
       attestationVerification: checkFromMap(opts.checks, 'attestationVerification', 'pending'),
     },
     scenarioEvidence: mergedScenarioEvidence,
@@ -2205,7 +2252,7 @@ async function main() {
             'Unreleased kit definitions remain out of v0.4 scope.',
             'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
           ],
-      browserEvidence?.status === 'pass',
+      !publicRelease && browserEvidence?.status === 'pass',
     ),
   };
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/backuphooks"
 	"github.com/kombifyio/stackkits/internal/backupplan"
 	"github.com/kombifyio/stackkits/internal/composition"
 	"github.com/kombifyio/stackkits/internal/config"
@@ -26,9 +27,10 @@ import (
 )
 
 var (
-	genOutputDir string
-	genForce     bool
-	genFragments bool
+	genOutputDir               string
+	genForce                   bool
+	genFragments               bool
+	generateV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
 var generateCmd = &cobra.Command{
@@ -51,6 +53,8 @@ func init() {
 	generateCmd.Flags().StringVarP(&genOutputDir, "output", "o", "deploy", "Output directory for generated files")
 	generateCmd.Flags().BoolVarP(&genForce, "force", "f", false, "Overwrite existing files")
 	generateCmd.Flags().BoolVar(&genFragments, "fragments", false, "Generate experimental per-module OpenTofu fragments instead of the stable Base Kit template")
+	generateCmd.Flags().StringVar(&generateV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
+	generateCmd.Flags().StringVar(&generateV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 }
 
 func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
@@ -68,6 +72,9 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		}
 		rolloutEvent("generate", "succeeded", "generate succeeded", nil)
 	}()
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Generate, generateV2ExecutionOptions); handled {
+		return err
+	}
 
 	// Validate output directory to prevent path traversal
 	if strings.Contains(genOutputDir, "..") {
@@ -90,6 +97,9 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 	if err != nil {
 		rolloutFailure("spec.load", err)
 		return fmt.Errorf("failed to load spec file: %w", err)
+	}
+	if err := requireRuntimeProductStackKit(spec); err != nil {
+		return fmt.Errorf("generate product guard: %w", err)
 	}
 	rolloutEvent("spec.load", "succeeded", "stack spec loaded", map[string]string{
 		"stackkit": spec.StackKit,
@@ -212,9 +222,18 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		// Run composition engine to determine enabled modules and identity config
 		engine := composition.NewCompositionEngine(contracts, stackkit, generationSpec)
 		// Attach the kit mode-support matrix when the kit declares one.
-		// Older exported kit caches without mode_matrix.cue skip enforcement.
+		// Fail closed: a kit that ships mode_matrix.cue but whose matrix fails to
+		// load (syntax error, rename, bad edit) is a hard error — it must not
+		// silently disable the unsupported-cell gate. Only legacy exported kit
+		// caches WITHOUT the file legitimately skip enforcement.
 		if matrix, matrixErr := cueval.LoadKitModeMatrix(stackkitDir); matrixErr == nil {
 			engine.SetModeMatrix(matrix)
+		} else if cueval.KitDeclaresModeMatrix(stackkitDir) {
+			deployLog.Warn("composition.mode_matrix",
+				slog.String("status", "load_failed"),
+				slog.String("reason", matrixErr.Error()),
+			)
+			return fmt.Errorf("kit declares a mode matrix but it failed to load (enforcement cannot be skipped): %w", matrixErr)
 		} else {
 			deployLog.Event("composition.mode_matrix",
 				slog.String("status", "unavailable"),
@@ -431,6 +450,19 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		return fmt.Errorf("failed to write backup recovery plan: %w", err)
 	}
 	printSuccess("Generated: .stackkit/backup-recovery-plan.json")
+
+	hooksManifest, err := backuphooks.Build()
+	if err != nil {
+		return fmt.Errorf("failed to build backup db-hook manifest: %w", err)
+	}
+	hooksData, err := hooksManifest.MarshalIndent()
+	if err != nil {
+		return fmt.Errorf("failed to render backup db-hook manifest: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(metadataDir, backuphooks.ManifestFileName), hooksData, 0600); err != nil {
+		return fmt.Errorf("failed to write backup db-hook manifest: %w", err)
+	}
+	printSuccess("Generated: .stackkit/" + backuphooks.ManifestFileName)
 
 	// Print summary
 	files, _ := countFiles(outputPath)

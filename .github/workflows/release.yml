@@ -16,7 +16,7 @@ permissions:
   attestations: write
 
 env:
-  GO_VERSION: "1.26.4"
+  GO_VERSION: "1.26.5"
 
 jobs:
   test:
@@ -163,12 +163,18 @@ jobs:
         run: |
           set -euo pipefail
           echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          stable_tag_args=()
+          if [[ "$TAG" != *-* ]]; then
+            stable_tag_args=(--tag "${IMAGE}:latest")
+          fi
           docker build \
             --tag "${IMAGE}:${TAG}" \
-            --tag "${IMAGE}:latest" \
+            "${stable_tag_args[@]}" \
             .
           docker push "${IMAGE}:${TAG}"
-          docker push "${IMAGE}:latest"
+          if [[ "$TAG" != *-* ]]; then
+            docker push "${IMAGE}:latest"
+          fi
 
       - name: Resolve image digest
         id: image-digest

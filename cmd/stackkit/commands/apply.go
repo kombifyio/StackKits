@@ -28,14 +28,15 @@ import (
 )
 
 var (
-	applyAutoApprove       bool
-	applyTenantDeployment  string
-	applyReportingEndpoint string
-	applyReportingToken    string
-	applyVerify            bool
-	applyVerifyHTTP        bool
-	applyVerifyStrict      bool
-	applySkipPlatformApps  bool
+	applyAutoApprove        bool
+	applyTenantDeployment   string
+	applyReportingEndpoint  string
+	applyReportingToken     string
+	applyVerify             bool
+	applyVerifyHTTP         bool
+	applyVerifyStrict       bool
+	applySkipPlatformApps   bool
+	applyV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
 var applyCmd = &cobra.Command{
@@ -63,6 +64,10 @@ func init() {
 	applyCmd.Flags().BoolVar(&applyVerifyHTTP, "verify-http", false, "Include HTTP route checks in post-apply verification")
 	applyCmd.Flags().BoolVar(&applyVerifyStrict, "verify-strict", false, "Treat post-apply verification warnings as failures")
 	applyCmd.Flags().BoolVar(&applySkipPlatformApps, "skip-platform-apps", false, "Skip platform app lifecycle handoff and automatic app setup actions")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)")
 }
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
@@ -81,7 +86,6 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		rolloutEvent("apply", "succeeded", "apply succeeded", nil)
 		closeRolloutRecorder(rollout.Summary{Status: "success"})
 	}()
-
 	// When linked to a tenant deployment, report 'failed' on any error exit.
 	if applyTenantDeployment != "" {
 		recordTenantDeploymentEvent(applyTenantDeployment, "apply", "started", "stackkit apply started", "")
@@ -99,6 +103,9 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 				}
 			}
 		}()
+	}
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
+		return err
 	}
 
 	// Load spec — three-tier resolution:
@@ -154,6 +161,15 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			"mode":     spec.Mode,
 			"domain":   spec.Domain,
 		})
+	}
+	if err := requireRuntimeProductStackKit(spec); err != nil {
+		return fmt.Errorf("apply product guard: %w", err)
+	}
+	// A tenant bootstrap may have materialized the spec after the first
+	// preflight. Reclassify before any prerequisite, generator, or executor is
+	// entered; v1 remains a no-op here.
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
+		return err
 	}
 	if err := requireManagedIdentityBootstrapHandoff(wd, spec); err != nil {
 		return err

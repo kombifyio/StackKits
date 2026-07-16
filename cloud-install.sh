@@ -154,7 +154,9 @@ apply_platform_selection() {
     die "Cannot apply platform selection; missing $SPEC_FILE"
   fi
   if grep -q '^paas:' "$SPEC_FILE"; then
-    sed -i "s/^paas:.*/paas: $PLATFORM_SELECTION/" "$SPEC_FILE"
+    # Portable in-place edit: GNU `sed -i` and BSD/macOS `sed -i` take
+    # incompatible arguments, so write-and-move instead (safe under set -eu).
+    sed "s/^paas:.*/paas: $PLATFORM_SELECTION/" "$SPEC_FILE" > "$SPEC_FILE.tmp" && mv "$SPEC_FILE.tmp" "$SPEC_FILE"
   else
     printf '\npaas: %s\n' "$PLATFORM_SELECTION" >> "$SPEC_FILE"
   fi

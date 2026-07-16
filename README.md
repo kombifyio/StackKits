@@ -37,6 +37,14 @@ CUE files are the technical source of truth for schemas, defaults,
 constraints, module contracts, and kit composition. Generated OpenTofu,
 Compose, tfvars, state, and rollout snapshots are build output.
 
+The [Architecture v2 contract proof](architecture/v2/fixtures/contract-fixtures.manifest.json)
+reproducibly binds a two-node Basement topology, named runtime daemons,
+provider/consumer interfaces, runtime networks, and an approved direct-socket
+exception through the compiler and renderer contract. It uses a separate
+contract-only catalog and is explicitly ineligible for product graduation.
+Validate the committed hashes and catalog boundary with
+`node scripts/release/validate-architecture-contract-fixture.mjs --repo-root .`.
+
 ## License
 
 See [LICENSE](LICENSE).

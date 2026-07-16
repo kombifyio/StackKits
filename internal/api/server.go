@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kombifyio/stackkits/internal/backupexec"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -42,6 +43,9 @@ type ServerConfig struct {
 	FilesSessionBridgeToken       string
 	MCPToken                      string
 	MCPAllowWrite                 bool
+	// ArchitectureV2ResolveConcurrency limits concurrent governed CUE
+	// resolutions per server. Values <= 0 use the fail-safe default.
+	ArchitectureV2ResolveConcurrency int
 	// TrustedProxies may provide X-Forwarded-For for rate-limit identity.
 	// Empty means X-Forwarded-For is ignored.
 	TrustedProxies []string
@@ -56,6 +60,14 @@ type Server struct {
 	registryMu        sync.Mutex
 	registryInstances map[string]models.InstanceRegistration
 	setupMu           sync.Mutex
+	architectureV2    architectureV2ServiceState
+
+	// backupMu guards backupState; a node runs at most one backup at a time.
+	backupMu    sync.Mutex
+	backupState *backupRunState
+	// backupExec and hookExec override the docker-exec adapters in tests.
+	backupExec backupexec.Executor
+	hookExec   backupexec.ContainerExecutor
 }
 
 // NewServer creates a new API server.
@@ -67,6 +79,7 @@ func NewServer(cfg ServerConfig) *Server {
 		ctx:               ctx,
 		cancel:            cancel,
 		registryInstances: make(map[string]models.InstanceRegistration),
+		architectureV2:    newArchitectureV2ServiceState(cfg.ArchitectureV2ResolveConcurrency),
 	}
 	s.routes()
 	return s
@@ -93,7 +106,17 @@ func (s *Server) Handler() http.Handler {
 	handler = corsMiddleware(s.config.CORSOrigins)(handler)
 	handler = loggingMiddleware(handler)
 	handler = recoveryMiddleware(handler)
+	handler = architectureV2NoStoreMiddleware(handler)
 	return handler
+}
+
+func architectureV2NoStoreMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/resolve" {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) routes() {
@@ -102,6 +125,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	s.mux.HandleFunc("GET /api/v1/capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("GET /api/v1/openapi.yaml", s.handleOpenAPISpec)
+	s.mux.HandleFunc("POST /api/v2/resolve", s.handleArchitectureV2Resolve)
 	s.registerMCPRoutes()
 
 	s.registerRuntimeActionRoutes()

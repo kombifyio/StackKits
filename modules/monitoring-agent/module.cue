@@ -19,7 +19,7 @@ Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "monitoring-agent"
 		displayName: "Monitoring Agent (OTel)"
-		version:     "1.0.0"
+		version:     "2.0.0"
 		layer:       "L2-platform-ingress"
 		description: "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to TechStack or monitoring-core"
 		maturity:    "opt-in"
@@ -29,6 +29,7 @@ Contract: base.#ModuleContract & {
 	requires: {
 		infrastructure: {
 			docker:            true
+			dockerSocket:      true
 			persistentStorage: false
 			network:           "shared"
 		}
@@ -58,10 +59,10 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: "otel-collector": base.#ServiceDefinition & {
-		name:     "otel-collector"
-		type:     "observability"
-		image:    "otel/opentelemetry-collector-contrib"
-		tag:      "0.114.0"
+		name:  "otel-collector"
+		type:  "observability"
+		image: "otel/opentelemetry-collector-contrib"
+		tag:   "0.114.0"
 		upstream: {
 			github: {repo: "open-telemetry/opentelemetry-collector-contrib"}
 		}
@@ -85,6 +86,7 @@ Contract: base.#ModuleContract & {
 				target:      "/var/run/docker.sock"
 				type:        "bind"
 				readOnly:    true
+				backup:      false
 				description: "Docker socket for container metrics collection"
 			},
 			{
@@ -93,6 +95,7 @@ Contract: base.#ModuleContract & {
 				target:      "/hostfs"
 				type:        "bind"
 				readOnly:    true
+				backup:      false
 				description: "Host filesystem root for disk and filesystem metrics"
 			},
 			{
@@ -101,6 +104,7 @@ Contract: base.#ModuleContract & {
 				target:      "/etc/otelcol/config.yaml"
 				type:        "bind"
 				readOnly:    true
+				backup:      false
 				description: "OTel Collector configuration"
 			},
 		]

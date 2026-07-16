@@ -25,7 +25,9 @@ package base
 
 // #KitModeSupport is one kit's row set in the mode matrix.
 // Axes are orthogonal: placement (where/coupling), install (automation
-// degree), context (hardware/network). Legacy install-mode aliases
+// degree), and the legacy-v1 context compatibility/evidence axis. Context is
+// never product identity and does not select canonical Architecture v2
+// behavior. Legacy install-mode aliases
 // ("simple", "terramate") are normalized at the model boundary
 // (pkg/models/install_modes.go) and never appear here.
 #KitModeSupport: {

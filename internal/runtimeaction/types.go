@@ -5,6 +5,7 @@ package runtimeaction
 import (
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 const (
@@ -16,11 +17,19 @@ const (
 	PathStackKitRollout = PathPrefix + "/stackkit-rollout"
 	PathStackKitVerify  = PathPrefix + "/stackkit-verify"
 	PathRestoreDrill    = PathPrefix + "/restore-drill"
-	PathKitUpgrade      = PathPrefix + "/kit-upgrade"
-	PathBackupRun       = PathPrefix + "/backup-run"
-	PathBackupStatus    = PathPrefix + "/backup-status"
-	PathBackupRestore   = PathPrefix + "/backup-restore"
-	PathBackupWipe      = PathPrefix + "/backup-wipe"
+	// PathKitUpgrade is RESERVED and not routed by the node server: a remote kit
+	// upgrade must re-render the target version's templates before apply, which
+	// the CLI does not yet do. Dispatch returns 501 kit_upgrade_reserved.
+	PathKitUpgrade    = PathPrefix + "/kit-upgrade"
+	PathBackupRun     = PathPrefix + "/backup-run"
+	PathBackupStatus  = PathPrefix + "/backup-status"
+	PathBackupRestore = PathPrefix + "/backup-restore"
+	PathBackupWipe    = PathPrefix + "/backup-wipe"
+
+	// ObservationVersionV1 marks the persistable live-runtime evidence returned
+	// by normal rollout and verify actions. Consumers must preserve unknown
+	// fields so later observation versions remain additive.
+	ObservationVersionV1 = "stackkit.runtime-observation/v1"
 )
 
 type Action string
@@ -30,11 +39,14 @@ const (
 	ActionStackKitRollout Action = "stackkit_rollout"
 	ActionVerifyRollout   Action = "verify_rollout"
 	ActionRestoreDrill    Action = "restore_drill"
-	ActionKitUpgrade      Action = "kit_upgrade"
-	ActionBackupRun       Action = "backup_run"
-	ActionBackupStatus    Action = "backup_status"
-	ActionBackupRestore   Action = "backup_restore"
-	ActionBackupWipe      Action = "backup_wipe"
+	// ActionKitUpgrade is RESERVED (see PathKitUpgrade): recognized by
+	// IsStackKitsAction for discovery, but dispatch fails closed with 501 until
+	// remote re-render lands.
+	ActionKitUpgrade    Action = "kit_upgrade"
+	ActionBackupRun     Action = "backup_run"
+	ActionBackupStatus  Action = "backup_status"
+	ActionBackupRestore Action = "backup_restore"
+	ActionBackupWipe    Action = "backup_wipe"
 )
 
 type Mode string
@@ -95,8 +107,89 @@ type Response struct {
 	Mode            Mode             `json:"mode"`
 	Checks          []Check          `json:"checks,omitempty"`
 	StackKitOutputs *StackKitOutputs `json:"stackkit_outputs,omitempty"`
+	Observation     *LiveObservation `json:"observation,omitempty"`
 	Backup          *BackupResult    `json:"backup,omitempty"`
 	Upgrade         *UpgradeResult   `json:"upgrade,omitempty"`
+}
+
+// LiveObservation is a measured runtime snapshot suitable for persistence by
+// the control plane. It deliberately keeps deployment outputs separate from
+// health: a service is healthy only when this observation contains current
+// Docker, platform, or HTTP-probe evidence.
+type LiveObservation struct {
+	Version      string               `json:"version"`
+	ObservedAt   time.Time            `json:"observed_at"`
+	Host         HostObservation      `json:"host"`
+	Platform     *PlatformObservation `json:"platform,omitempty"`
+	Services     []ServiceObservation `json:"services,omitempty"`
+	FailureClass string               `json:"failure_class,omitempty"`
+}
+
+// HostObservation records reachability through the same Docker transport used
+// for the rollout. It does not infer reachability from a successful lease or
+// completed job.
+type HostObservation struct {
+	Host            string `json:"host,omitempty"`
+	Reachable       bool   `json:"reachable"`
+	DockerReachable bool   `json:"docker_reachable"`
+	FailureClass    string `json:"failure_class,omitempty"`
+}
+
+// PlatformObservation preserves the selected PaaS identity without treating
+// it as service health. IDs are taken from the generated platform config or
+// current platform deployment refs.
+type PlatformObservation struct {
+	Name            string `json:"name,omitempty"`
+	Endpoint        string `json:"endpoint,omitempty"`
+	ServerID        string `json:"server_id,omitempty"`
+	ProjectUUID     string `json:"project_uuid,omitempty"`
+	EnvironmentUUID string `json:"environment_uuid,omitempty"`
+	DestinationUUID string `json:"destination_uuid,omitempty"`
+}
+
+// ServiceHealthStatus is the dashboard-facing, measured service vocabulary.
+// It is intentionally smaller than provider-specific status strings, which
+// remain available in ServiceObservation.PlatformStatus.
+type ServiceHealthStatus string
+
+const (
+	ServiceHealthStarting  ServiceHealthStatus = "starting"
+	ServiceHealthHealthy   ServiceHealthStatus = "healthy"
+	ServiceHealthUnhealthy ServiceHealthStatus = "unhealthy"
+	ServiceHealthUnknown   ServiceHealthStatus = "unknown"
+)
+
+// ServiceObservation carries the current evidence for one StackKit service or
+// platform app. Containers retain their raw Docker health, while Status is the
+// normalized value consumed by TechStack dashboards.
+type ServiceObservation struct {
+	Name           string                 `json:"name"`
+	Status         ServiceHealthStatus    `json:"status"`
+	PlatformAppID  string                 `json:"platform_app_id,omitempty"`
+	PlatformStatus string                 `json:"platform_status,omitempty"`
+	Containers     []ContainerObservation `json:"containers,omitempty"`
+	HealthPath     string                 `json:"health_path,omitempty"`
+	Probe          *HTTPProbeObservation  `json:"probe,omitempty"`
+	FailureClass   string                 `json:"failure_class,omitempty"`
+}
+
+// ContainerObservation reports a concrete Docker container belonging to a
+// StackKit service. It is never synthesized from a job or lease state.
+type ContainerObservation struct {
+	ID      string `json:"id,omitempty"`
+	Name    string `json:"name,omitempty"`
+	State   string `json:"state,omitempty"`
+	Running bool   `json:"running"`
+	Health  string `json:"health,omitempty"`
+}
+
+// HTTPProbeObservation records an optional generated healthPath probe. A
+// failed probe is explicit and takes precedence over a stale provider status.
+type HTTPProbeObservation struct {
+	URL          string `json:"url"`
+	Reached      bool   `json:"reached"`
+	StatusCode   int    `json:"status_code,omitempty"`
+	FailureClass string `json:"failure_class,omitempty"`
 }
 
 // BackupRequest parameterizes the backup_run, backup_status, backup_restore,
@@ -187,6 +280,7 @@ type TechStackEnrollment struct {
 	TenantID         string         `json:"tenant_id,omitempty"`
 	OwnerID          string         `json:"owner_id,omitempty"`
 	StackID          string         `json:"stack_id,omitempty"`
+	LeaseID          string         `json:"lease_id"`
 	ServerURL        string         `json:"server_url,omitempty"`
 	ServerID         string         `json:"server_id"`
 	RuntimeAgentID   string         `json:"runtime_agent_id"`

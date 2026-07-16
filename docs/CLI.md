@@ -1,6 +1,6 @@
 # StackKit CLI Reference
 
-> Last verified: 2026-06-30
+> Last verified: 2026-07-11
 
 This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
 
@@ -15,7 +15,9 @@ The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`,
 packaged OpenTofu, packaged Terramate, and the public kit catalog under
 `~/.stackkits`, so `stackkit init basement-kit` works from a clean directory
 without a repo checkout. Basement Kit is the verified beta one-click path and
-the only public OSS kit surface for this release line.
+the only public OSS kit surface for this release line. The installer also adds a
+short `sk -> stackkit` symlink when the `sk` name is free — it never overwrites
+an existing `sk` (e.g. `skim`). Opt out with `STACKKIT_SKIP_SK_SYMLINK=1`.
 Unpinned installer runs use the current stable GitHub `releases/latest`. To
 test a prerelease such as `v0.4.5-beta.1`, export the pin before invoking the
 installer:
@@ -275,9 +277,10 @@ Reads local deployment state and reports service health from generated outputs a
 
 ### `stackkit backup`
 
-Manages the Kopia backup add-on from the local host. Self-hosted backup
-configuration is local-first; object-store targets remain part of the addon/Web
-UI setup until public managed-backup enrollment is available.
+Operates an already materialized local `kopia-agent` deployment. The public CLI
+does not install or generate that container, and the presence of these commands
+is not fresh-host deployment proof. Filesystem repository operations are
+local-first; object-store targets remain part of deployment configuration.
 The portable emergency export is modeled in `backup.resilience.emergencyExport`
 and has a Kopia-independent manifest/runbook runner.
 
@@ -292,7 +295,8 @@ Common commands:
 - `stackkit backup verify` runs `kopia repository validate-provider`.
 - `stackkit backup emergency-export --target /backup/emergency-export` writes a portable export manifest and restore runbook without requiring a healthy Kopia repository. Use `--large-media-mode manifest-only|include|exclude` to control media handling.
 - `stackkit backup migrate-from-restic [--dry-run]` runs the one-shot legacy importer.
-- `stackkit backup enroll --token <token> --endpoint <url>` is the managed-service scaffold and returns a clear not-implemented error until the controller follow-ups land.
+
+Fleet enrollment and controller operations are outside the public CLI contract.
 
 ### `stackkit validate [file]`
 
@@ -379,11 +383,13 @@ Subcommands:
 - `kit history`
 - `kit roundtrip`
 - `kit unlock`
-- `kit upgrade`
-- `kit upgrade rollback`
+- `kit upgrade` (also available top-level as `stackkit upgrade` — the kit namespace is the default for the everyday upgrade verb)
+- `kit upgrade rollback` (also `stackkit upgrade rollback`)
 - `kit verify`
 
 These commands are for registry, release, lifecycle, and parity workflows. Admin API calls require the relevant endpoint/token configuration documented in [CONFIGURATION.md](CONFIGURATION.md).
+
+`stackkit upgrade` is a top-level alias for `stackkit kit upgrade`: the kit is the default upgrade target, so you do not type `kit`. Upgrading a single tool/module (not the whole kit) stays under the explicit `module` namespace (e.g. a future `stackkit service upgrade`).
 
 ### `stackkit module`
 
@@ -391,8 +397,13 @@ Subcommands:
 
 - `module release`
 - `module verify-db`
+- `module verify-version-bumps`
 
-Use these for module contract hash release and DB parity checks.
+Use these for module contract hash release, DB parity checks, and the offline
+merge-base guard that requires a strictly higher SemVer whenever a canonical
+module contract changes. `verify-version-bumps` accepts exactly one of
+`--baseline-ref` or `--baseline-tree`; new modules are allowed, but every
+declared module version must be valid SemVer.
 Admin API auth follows the kit commands: `SERVICE_AUTH_SECRET` mints the
 preferred `X-Kombify-Service-Auth` token, with `STACKKIT_ADMIN_TOKEN` or
 `KOMBIFY_ADMIN_API_KEY` only as legacy Bearer fallbacks.

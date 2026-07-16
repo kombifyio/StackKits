@@ -76,6 +76,8 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 		"description": "kombify StackKits — pre-packaged homelab infrastructure templates with CUE validation and OpenTofu generation",
 		"openapi":     "/api/v1/openapi.yaml",
 		"capabilities": []map[string]interface{}{
+			// Architecture v2
+			{"name": "architecture.resolve", "description": "Resolve canonical Architecture v2 intent into a deterministic ResolvedPlan", "method": "POST", "path": "/api/v2/resolve"},
 			// Catalog
 			{"name": "stackkit.list", "description": "List all available StackKits", "method": "GET", "path": "/api/v1/stackkits"},
 			{"name": "stackkit.get", "description": "Get StackKit details by name", "method": "GET", "path": "/api/v1/stackkits/{name}"},
@@ -723,13 +725,17 @@ func (s *Server) resolveComposition(spec *models.StackSpec, sk *models.StackKit)
 		slog.Warn("module contracts unavailable; falling back to identity-only composition", "modules_dir", modulesDir, "error", err)
 	}
 	engine := composition.NewCompositionEngine(contracts, sk, spec)
-	// Attach the kit mode-support matrix when the kit declares one; kits
-	// without mode_matrix.cue skip enforcement.
+	// Attach the kit mode-support matrix when the kit declares one. Fail
+	// closed: a kit that ships mode_matrix.cue but whose matrix fails to load
+	// is a hard error and must not silently disable the unsupported-cell gate.
+	// Only kits WITHOUT the file skip enforcement.
 	if spec != nil && spec.StackKit != "" &&
 		!strings.ContainsAny(spec.StackKit, `/\`) && !strings.Contains(spec.StackKit, "..") {
 		kitDir := filepath.Join(s.config.BaseDir, spec.StackKit)
 		if matrix, matrixErr := cuepkg.LoadKitModeMatrix(kitDir); matrixErr == nil {
 			engine.SetModeMatrix(matrix)
+		} else if cuepkg.KitDeclaresModeMatrix(kitDir) {
+			return nil, fmt.Errorf("kit %q declares a mode matrix but it failed to load (enforcement cannot be skipped): %w", spec.StackKit, matrixErr)
 		}
 	}
 	return engine.Resolve()

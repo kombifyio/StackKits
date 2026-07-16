@@ -103,6 +103,16 @@ archives:
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
+      - scripts/release/validate-architecture-contract-fixture.mjs
+      - architecture/v2/contractfixture/catalog.cue
+      - architecture/v2/fixtures/contract-two-node.yaml
+      - architecture/v2/fixtures/contract-two-node.inventory.yaml
+      - architecture/v2/fixtures/contract-two-node.resolved-plan.json
+      - architecture/v2/fixtures/contract-fixtures.manifest.json
+      - addons/backup/README.md
+      - addons/backup/addon.cue
+      - addons/backup/integrity.cue
+      - addons/backup/restic-importer.cue
       - cue.mod/**
       - basement-kit/**
       - cloud-kit/**
@@ -139,6 +149,16 @@ archives:
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
+      - scripts/release/validate-architecture-contract-fixture.mjs
+      - architecture/v2/contractfixture/catalog.cue
+      - architecture/v2/fixtures/contract-two-node.yaml
+      - architecture/v2/fixtures/contract-two-node.inventory.yaml
+      - architecture/v2/fixtures/contract-two-node.resolved-plan.json
+      - architecture/v2/fixtures/contract-fixtures.manifest.json
+      - addons/backup/README.md
+      - addons/backup/addon.cue
+      - addons/backup/integrity.cue
+      - addons/backup/restic-importer.cue
       - cue.mod/**
       - basement-kit/**
       - base/**
@@ -173,6 +193,16 @@ archives:
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
+      - scripts/release/validate-architecture-contract-fixture.mjs
+      - architecture/v2/contractfixture/catalog.cue
+      - architecture/v2/fixtures/contract-two-node.yaml
+      - architecture/v2/fixtures/contract-two-node.inventory.yaml
+      - architecture/v2/fixtures/contract-two-node.resolved-plan.json
+      - architecture/v2/fixtures/contract-fixtures.manifest.json
+      - addons/backup/README.md
+      - addons/backup/addon.cue
+      - addons/backup/integrity.cue
+      - addons/backup/restic-importer.cue
       - cue.mod/**
       - cloud-kit/**
       - base/**

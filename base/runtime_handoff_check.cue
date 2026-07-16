@@ -36,6 +36,7 @@ _validRuntimeHandoffWithSupplementalNodes: #RuntimeActionNodeHandoff & {
 		tenant_id:       "tenant-1"
 		owner_id:        "owner-1"
 		stack_id:        "stack-1"
+		lease_id:        "lease-1"
 		server_url:      "https://techstack.kombify.io"
 		server_id:       "server-1"
 		runtime_agent_id: "runtime-1"

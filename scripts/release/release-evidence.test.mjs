@@ -53,6 +53,7 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   assert.equal(evidence.release.tag, 'v0.0.1');
   assert.equal(evidence.checks.publicExport.status, 'pass');
   assert.equal(evidence.checks.archiveValidation.status, 'pass');
+  assert.equal(evidence.checks.candidateE2E.status, 'pending');
   assert.equal(evidence.checks.securityBaseline.status, 'pending');
   assert.equal(evidence.checks.liveInstallerSmoke.status, 'pending');
   assert.equal(evidence.checks.browserPreflight.status, 'pending');
@@ -80,6 +81,90 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   assert.equal(evidence.artifacts.length, 2);
   assert.ok(evidence.artifacts.some((artifact) => artifact.kind === 'archive' && artifact.sha256.length === 64));
   assert.ok(evidence.artifacts.some((artifact) => artifact.kind === 'sbom'));
+});
+
+test('public release evidence cannot promote SK-S1 or browser checks from generic PASS inputs', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-public-sks1-boundary-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const output = path.join(dist, 'release-evidence.json');
+
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--visibility',
+    'public',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-evidence',
+    'SK-S1=pass,generic local rollout passed',
+    '--scenario-evidence',
+    'SK-S1-browser=pass,generic browser capture passed',
+    '--check',
+    'freshUbuntuBaseKit=pass,generic fresh Ubuntu check passed',
+    '--check',
+    'browserPreflight=pass,generic browser preflight passed',
+    '--check',
+    'browserEvidence=pass,generic browser evidence passed',
+    '--check',
+    'osCompatMatrix=pass,separate Proxmox VM compatibility cell passed',
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const sks1 = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S1');
+  assert.equal(sks1.status, 'pending');
+  assert.match(sks1.summary, /BLOCKED.*authorized leased Proxmox product run/);
+  assert.ok(!evidence.scenarioEvidence.some((item) => item.scenarioId === 'SK-S1-browser'));
+  assert.equal(evidence.checks.freshUbuntuBaseKit.status, 'pending');
+  assert.equal(evidence.checks.browserPreflight.status, 'pending');
+  assert.equal(evidence.checks.browserEvidence.status, 'pending');
+  assert.equal(evidence.checks.osCompatMatrix.status, 'pass');
+  assert.ok(evidence.pendingGates.some((gate) => /SK-S1.*BLOCKED.*leased Proxmox product run/.test(gate)));
+});
+
+test('public release evidence demotes a passing legacy SK-S1 homelab artifact', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-public-sks1-artifact-boundary-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+  const artifactPath = path.join(dir, 'stackkit-SK-S1-homelab.json');
+  await writeFile(artifactPath, JSON.stringify(homelabArtifact({ scenarioId: 'SK-S1' })));
+  const output = path.join(dist, 'release-evidence.json');
+
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.0.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--visibility',
+    'public',
+    '--dist',
+    dist,
+    '--output',
+    output,
+    '--scenario-artifact',
+    artifactPath,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  const sks1 = evidence.scenarioEvidence.find((item) => item.scenarioId === 'SK-S1');
+  assert.equal(sks1.status, 'pending');
+  assert.equal(sks1.url, undefined);
+  assert.match(sks1.summary, /Candidate and compatibility evidence do not substitute/);
+  assert.equal(evidence.checks.securityBaseline.status, 'pending');
 });
 
 test('render-release-evidence emits canonical pending scenario rows when artifacts are absent', async () => {

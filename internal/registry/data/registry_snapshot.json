@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-07-09T11:08:59Z",
+  "generated_at": "2026-07-16T21:07:50Z",
   "tools": [],
   "services": [
     {
@@ -580,10 +580,10 @@
     {
       "slug": "kombify-point",
       "display_name": "kombify Point DNS",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "layer": "L1-foundation",
       "description": "Local LAN DNS resolver for StackKit home service names",
-      "contract_hash": "d0d6aaf807ebba8a3743371585be584e9096551e4c22f4929fd380b4baafeff6",
+      "contract_hash": "f8c6939c33dfdf883ed697d30b8f8ed443147c1a2dd0405b42b688acb43e9e39",
       "supported_contexts": [
         "local",
         "cloud",
@@ -622,10 +622,10 @@
     {
       "slug": "monitoring-agent",
       "display_name": "Monitoring Agent (OTel)",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "layer": "L2-platform-ingress",
       "description": "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to TechStack or monitoring-core",
-      "contract_hash": "bf548cb53af3e2acb09db1aea5d9c5b599dc2c2488fd1bc258f0f6194b935b07",
+      "contract_hash": "f62cacf7538febaf7c7168ce49f07980fc882b77ed6ba28031344bcd7bb14413",
       "supported_contexts": [
         "local",
         "cloud",
@@ -636,10 +636,10 @@
     {
       "slug": "monitoring-core",
       "display_name": "Monitoring Core (VictoriaMetrics)",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "layer": "L2-platform-ingress",
-      "description": "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and Grafana dashboards",
-      "contract_hash": "d2d7327e63d7c50295e9d5f80fb7301f8a89b6efbf900966a1e0a691ca7c6174",
+      "description": "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and a PromQL API",
+      "contract_hash": "3768869ab7905b092e678e1d5397866a601c39c7798880e477d0857031d85e8c",
       "supported_contexts": [
         "local",
         "cloud",

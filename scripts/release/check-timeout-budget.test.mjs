@@ -25,6 +25,29 @@ test('timeout budget accepts fifteen minute gates', async () => {
   assert.deepEqual(validate(root), []);
 });
 
+test('timeout budget honors justified exempt marker per workflow file', async () => {
+  const root = await fixture({
+    '.github/workflows/os-matrix.yml':
+      '# timeout-budget: exempt -- vm-matrix runs full rollouts on the self-hosted lab runner\njobs:\n  vm:\n    timeout-minutes: 300\n    steps:\n      - run: go test ./tests/production -timeout 280m\n',
+    '.github/workflows/ci.yml': 'jobs:\n  test:\n    timeout-minutes: 120\n',
+  });
+  const failures = validate(root);
+  // The exempt file passes; the non-exempt file still fails.
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /ci\.yml sets timeout-minutes: 120/);
+});
+
+test('timeout budget rejects exempt marker without a reason', async () => {
+  const root = await fixture({
+    '.github/workflows/os-matrix.yml':
+      '# timeout-budget: exempt\njobs:\n  vm:\n    timeout-minutes: 300\n',
+  });
+  const failures = validate(root);
+  assert.equal(failures.length, 2);
+  assert.match(failures.join('\n'), /without a reason/);
+  assert.match(failures.join('\n'), /timeout-minutes: 300/);
+});
+
 test('timeout budget rejects long workflow and readiness waits', async () => {
   const root = await fixture({
     '.github/workflows/production-tests.yml': 'jobs:\n  live:\n    timeout-minutes: 120\n    steps:\n      - run: go test ./tests/production -timeout 110m\n',

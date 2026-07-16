@@ -72,6 +72,34 @@ func (e Engine) ConnectS3Repository(ctx context.Context, repo S3Repository, pass
 	return e.Exec(ctx, s3RepositoryArgs("connect", repo, password))
 }
 
+// EnsureFilesystemRepository connects to (or first creates) a local
+// filesystem repository: status pre-check, mkdir, create, and connect when
+// the repository already exists. CLI configure and the backup_run local
+// branch share this single sequence.
+func (e Engine) EnsureFilesystemRepository(ctx context.Context, path string) (string, error) {
+	out, err := e.RepositoryStatusJSON(ctx)
+	if err == nil && StatusConfigured(out) {
+		return out, nil
+	}
+	if err != nil && !OutputLooksNotConfigured(out, err) {
+		return out, fmt.Errorf("check kopia repository status: %w", err)
+	}
+	if _, err := e.Mkdir(ctx, path); err != nil {
+		return "", fmt.Errorf("prepare repository path %s: %w", path, err)
+	}
+	out, err = e.CreateFilesystemRepository(ctx, path)
+	if err != nil {
+		if !OutputLooksRepoExists(out, err) {
+			return out, fmt.Errorf("create kopia repository %s: %w", path, err)
+		}
+		out, err = e.ConnectFilesystemRepository(ctx, path)
+		if err != nil {
+			return out, fmt.Errorf("connect existing kopia repository %s: %w", path, err)
+		}
+	}
+	return out, nil
+}
+
 // EnsureS3Repository connects to (or first creates) the S3-compatible
 // repository. It mirrors the filesystem sequence the CLI uses: create, and
 // when the repository already exists, connect instead.
@@ -113,6 +141,30 @@ func (e Engine) Restore(ctx context.Context, snapshotID, target string) (string,
 
 func (e Engine) ValidateProvider(ctx context.Context) (string, error) {
 	return e.Exec(ctx, []string{"kopia", "repository", "validate-provider"})
+}
+
+// DeleteSnapshots removes the given snapshot manifests. Kopia requires the
+// --delete flag to confirm destructive intent (kopia.io command-line
+// reference, snapshot-delete).
+func (e Engine) DeleteSnapshots(ctx context.Context, ids []string) (string, error) {
+	if len(ids) == 0 {
+		return "", nil
+	}
+	args := append([]string{"kopia", "snapshot", "delete", "--delete"}, ids...)
+	return e.Exec(ctx, args)
+}
+
+// MaintenanceRunFull compacts and garbage-collects the repository after bulk
+// snapshot deletion so wiped data actually leaves the store.
+func (e Engine) MaintenanceRunFull(ctx context.Context) (string, error) {
+	return e.Exec(ctx, []string{"kopia", "maintenance", "run", "--full"})
+}
+
+// Disconnect detaches the agent from the repository without deleting remote
+// data. backup_wipe calls it last so a wiped node no longer holds
+// repository credentials in its Kopia config.
+func (e Engine) Disconnect(ctx context.Context) (string, error) {
+	return e.Exec(ctx, []string{"kopia", "repository", "disconnect"})
 }
 
 func s3RepositoryArgs(verb string, repo S3Repository, password string) []string {

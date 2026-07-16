@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "stackkit.architecture-authority-source/v1",
+  "profileSource": "base/architecture_v2_profiles.cue",
+  "baseSources": [
+    "cue.mod/module.cue",
+    "base/architecture_v2_profiles.cue",
+    "base/architecture_v2.cue",
+    "base/architecture_v2_definition_binding.cue",
+    "base/architecture_v2_catalog.cue"
+  ],
+  "openAPI": "api/openapi/stackkits-v1.yaml",
+  "profiles": [
+    {
+      "slug": "basement-kit",
+      "package": "basement-kit",
+      "visibility": "public",
+      "contractSources": null
+    },
+    {
+      "slug": "cloud-kit",
+      "package": "cloud-kit",
+      "visibility": "public",
+      "contractSources": null
+    }
+  ]
+}

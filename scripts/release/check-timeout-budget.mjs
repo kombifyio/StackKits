@@ -6,6 +6,13 @@ import { fileURLToPath } from 'node:url';
 
 const MAX_MINUTES = 15;
 
+// Workflows may opt out of the budget with an explicit, justified marker line:
+//   # timeout-budget: exempt -- <reason>
+// Reserved for lanes that structurally cannot fit 15 minutes (e.g. the
+// os-matrix VM lane running full rollouts on the self-hosted lab runner).
+// The reason is mandatory; a bare marker still fails the check.
+const EXEMPT_MARKER = /^\s*#\s*timeout-budget:\s*exempt\s*--\s*(\S.*)$/m;
+
 function parseArgs(argv) {
   const args = { repoRoot: process.cwd() };
   for (let i = 0; i < argv.length; i += 1) {
@@ -59,7 +66,20 @@ function validate(repoRoot) {
     path.join(repoRoot, 'cloud-kit', 'templates', 'simple', 'main.tf'),
   ].filter((file) => existsSync(file));
 
+  const exemptFiles = new Set();
   for (const file of workflowFiles) {
+    const text = readFileSync(file, 'utf8');
+    if (/^\s*#\s*timeout-budget:\s*exempt\b/m.test(text)) {
+      if (EXEMPT_MARKER.test(text)) {
+        exemptFiles.add(file);
+      } else {
+        failures.push(`${relative(repoRoot, file)} carries a timeout-budget exempt marker without a reason (use "# timeout-budget: exempt -- <reason>")`);
+      }
+    }
+  }
+
+  for (const file of workflowFiles) {
+    if (exemptFiles.has(file)) continue;
     const text = readFileSync(file, 'utf8');
     for (const match of text.matchAll(/timeout-minutes:\s*([0-9]+)/g)) {
       const minutes = Number(match[1]);
@@ -70,6 +90,7 @@ function validate(repoRoot) {
   }
 
   for (const file of commandTimeoutFiles) {
+    if (exemptFiles.has(file)) continue;
     const text = readFileSync(file, 'utf8');
     for (const match of text.matchAll(/-timeout\s+([0-9]+)([smh])\b/g)) {
       const minutes = minutesFromDuration(match[1], match[2]);

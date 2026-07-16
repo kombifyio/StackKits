@@ -100,7 +100,7 @@ StackKits configuration is intentionally broad enough to support a guided agent 
 | --- | --- | --- |
 | Owner and admin intent | `adminEmail`, `owner.*`, CLI `--admin-email`, owner bootstrap flags | `adminEmail` is compatibility input; Owner fields are the stronger identity contract when present. |
 | Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `basement-kit` is the verified beta path. |
-| Install mode | `mode`, `STACKKIT_MODE`, `--mode` | `bare` is minimal/manual, `bootstrapped` is default, `advanced` is the Terramate Plus lifecycle with Runtime/Frontend Intelligence and managed TechStack handoff. |
+| Install mode | `mode`, `STACKKIT_MODE`, `--mode` | `bare` is minimal/manual, `bootstrapped` is default and the only mode with full E2E evidence. `advanced` is **scaffolding** (mode matrix status in every kit): it renders a static Terramate template (traefik/dockge/monitoring) without composition rendering — the Terramate-Plus lifecycle (drift/rollback/restore-drill surfaces, Runtime/Frontend Intelligence, managed TechStack handoff) is the target contract, not current behavior (`kombify-StackKits-b0xy`). |
 | Target context | `context`, `--context`, `KOMBIFY_CONTEXT` | `local` means local/default runtime assumptions, not a dependency on a home network. |
 | Domain strategy | `domain`, `localDns`, `DOMAIN`, `STACKKIT_LOCAL_DOMAIN`, DNS provider env | Default local links use browser-native `.localhost`; public/custom domains require DNS/TLS proof. |
 | Service profile | `serviceProfile`, `STACKKIT_SERVICE_PROFILE`, `--service-profile` | `admin-only` keeps platform/admin services while deferring L3 application setup. |
@@ -305,6 +305,8 @@ Best paths: `P2`, `P4`; `P5` only for post-install connector operation.
 ### `I4`: Advanced Composition
 
 Adds advanced owner/recovery policy, add-ons, non-default setup posture, Terramate Plus orchestration, update/rollback, restore drills, Runtime/Frontend Intelligence, or managed TechStack lifecycle work. Agents should start read-only, run validation/plan, and preserve evidence before any mutation.
+
+Reality check: install mode `advanced` is currently **scaffolding** — the rendered Terramate template is static and ignores the composed service selection; drift/change/rollback/restore-drill surfaces and Runtime/Frontend Intelligence are not delivered by `advanced` today (`kombify-StackKits-b0xy`, mode matrix per kit). Treat this section as the target contract for the v0.8 advanced-mode graduation.
 
 Best paths: `P2`, `P6`; `P4` only when SSH is the available execution channel; `P5` is the target path for installed StackKit day-2.
 

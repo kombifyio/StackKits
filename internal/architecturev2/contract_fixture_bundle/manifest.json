@@ -1,0 +1,19 @@
+{
+  "documents": {
+    "contractFixtureCatalog": "contract-fixture-catalog.json"
+  },
+  "module": "github.com/kombifyio/stackkits",
+  "profiles": {
+    "basement-kit": "definitions/basement-kit.json"
+  },
+  "schemaVersion": "stackkit.architecture-authority-bundle/v2",
+  "sourceHashes": {
+    "architecture/v2/contractfixture/catalog.cue": "sha256:5053c452a4ccdc4f8c20fe273051d4928d7368a90e1c578a995a7fc24d2e66f1",
+    "base/architecture_v2.cue": "sha256:76a82f869da5497d63250534a634aa190e693fe52ed59e9bc23017e7694c5e27",
+    "base/architecture_v2_catalog.cue": "sha256:1b8f7431e0b10a3afc24e44b882644ba4d059c5bbad860ee47b75fb26d96dbfd",
+    "base/architecture_v2_definition_binding.cue": "sha256:3c1566f4f32390d1904bf2702a9981522f52c4e426f465a701a7d5eaca420b59",
+    "base/architecture_v2_profiles.cue": "sha256:ba438f0a45755febdc5b212401990672259a5d5a8840c1443f894bb21c8f48ea",
+    "basement-kit/stackfile.cue": "sha256:8b5ddf0858dc8f6890c9cedb13b26d24a2b00c726fea2ae9c07a9c797d989b5c",
+    "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee"
+  }
+}

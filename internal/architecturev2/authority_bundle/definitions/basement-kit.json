@@ -1,0 +1,255 @@
+{
+  "accessDefaults": {
+    "deviceBoundSessions": true,
+    "deviceEnrollment": "local-only",
+    "lanLocationIsIdentity": false,
+    "privilegedStepUpRequired": true,
+    "publicRoutesDefaultClosed": true
+  },
+  "apiVersion": "stackkit/v2alpha1",
+  "availability": {
+    "policies": {
+      "quorum": {
+        "defaults": {
+          "failureDomainSpread": 3,
+          "fencing": "automatic",
+          "rpoSeconds": 60,
+          "rtoSeconds": 300
+        },
+        "evidenceAcceptance": {
+          "requiredRefs": [
+            "ha-basement-quorum-failure-domain-proof"
+          ]
+        },
+        "failureModel": {
+          "basis": "local-device",
+          "memberSiteScope": "control-member-sites",
+          "partitionBehavior": "local-control-continues"
+        },
+        "healthAcceptance": {
+          "memberReadiness": "majority",
+          "requiredGateRefs": [
+            "provider-stackkits-ha-basement-quorum-ha-basement-quorum-contract",
+            "module-stackkits-ha-basement-quorum-runtime-ha-basement-quorum-contract"
+          ]
+        },
+        "limits": {
+          "allowedFencing": [
+            "automatic"
+          ],
+          "maxFailureDomainSpread": 7,
+          "maxRpoSeconds": 300,
+          "maxRtoSeconds": 900,
+          "minFailureDomainSpread": 3
+        },
+        "mode": "quorum",
+        "moduleRef": "stackkits-ha-basement-quorum-runtime",
+        "policyRef": "basement-ha-quorum-policy",
+        "providerRef": "stackkits-ha-basement-quorum",
+        "realizationRef": "basement-ha-quorum-v1",
+        "selector": "control-plane-members"
+      },
+      "warm-standby": {
+        "defaults": {
+          "failureDomainSpread": 2,
+          "fencing": "manual",
+          "rpoSeconds": 300,
+          "rtoSeconds": 900
+        },
+        "evidenceAcceptance": {
+          "requiredRefs": [
+            "ha-basement-warm-standby-failure-domain-proof"
+          ]
+        },
+        "failureModel": {
+          "basis": "local-device",
+          "memberSiteScope": "control-member-sites",
+          "partitionBehavior": "local-control-continues"
+        },
+        "healthAcceptance": {
+          "memberReadiness": "all",
+          "requiredGateRefs": [
+            "provider-stackkits-ha-basement-warm-ha-basement-warm-contract",
+            "module-stackkits-ha-basement-warm-runtime-ha-basement-warm-contract"
+          ]
+        },
+        "limits": {
+          "allowedFencing": [
+            "manual",
+            "automatic"
+          ],
+          "maxFailureDomainSpread": 3,
+          "maxRpoSeconds": 900,
+          "maxRtoSeconds": 1800,
+          "minFailureDomainSpread": 2
+        },
+        "mode": "warm-standby",
+        "moduleRef": "stackkits-ha-basement-warm-runtime",
+        "policyRef": "basement-ha-warm-standby-policy",
+        "providerRef": "stackkits-ha-basement-warm",
+        "realizationRef": "basement-ha-warm-standby-v1",
+        "selector": "control-plane-members"
+      }
+    }
+  },
+  "bridge": {
+    "edgeKinds": [],
+    "required": false,
+    "sourceKinds": []
+  },
+  "capabilities": {
+    "defaults": [],
+    "forbidden": [
+      "site-cloud",
+      "cloud-control-authority",
+      "inter-site-link"
+    ],
+    "optional": [
+      "lan-dns",
+      "internal-pki",
+      "private-remote-access",
+      "public-publish-egress",
+      "encrypted-offsite-backup",
+      "photos",
+      "availability-ha"
+    ],
+    "required": [
+      "topology-core",
+      "host-bootstrap",
+      "security-baseline",
+      "human-identity-core",
+      "device-trust-core",
+      "access-policy",
+      "runtime-paas",
+      "service-catalog",
+      "secrets-recovery",
+      "storage-data-policy",
+      "backup-core",
+      "observability-evidence",
+      "lifecycle-update",
+      "site-local",
+      "provision-local",
+      "local-hardware-preflight",
+      "lan-discovery",
+      "local-ingress",
+      "lan-access-policy",
+      "device-enrollment-home",
+      "local-control-authority",
+      "offline-autonomy",
+      "local-backup-target"
+    ]
+  },
+  "dataDefaults": {
+    "authority": "home",
+    "cloudCopyRequiresPolicy": true
+  },
+  "deviceEnrollment": {
+    "authorityKinds": [
+      "home"
+    ],
+    "mode": "local-only",
+    "required": true
+  },
+  "evidenceScenarios": [
+    "SK-S1"
+  ],
+  "failureDefaults": {
+    "cloudEdgeFailsClosed": true,
+    "localServicesSurviveCloudLoss": true,
+    "offlineOperation": true
+  },
+  "generation": {
+    "allowedStrategies": [
+      "kit-template",
+      "module-fragments"
+    ],
+    "allowedTargets": [
+      "opentofu",
+      "compose"
+    ],
+    "contractVersion": "1.0.0",
+    "defaultStrategy": "kit-template",
+    "defaultTarget": "opentofu"
+  },
+  "kind": "KitDefinition",
+  "metadata": {
+    "description": "Local-first StackKit for one or more nodes on private home sites",
+    "displayName": "Basement Kit",
+    "slug": "basement-kit",
+    "version": "5.0.0"
+  },
+  "network": {
+    "defaultDomain": "home.localhost",
+    "defaultTLSMode": "internal",
+    "domainRequired": false,
+    "mode": "private"
+  },
+  "partitionPolicy": {
+    "cloudEdge": "not-applicable",
+    "denyNewCrossSiteSessions": true,
+    "localIdentityAuthorityAvailable": true,
+    "maxStaleVerificationSeconds": 0,
+    "onCloudLoss": "not-applicable",
+    "onLinkLoss": "local-continues"
+  },
+  "reachability": {
+    "accessPolicies": {
+      "allowedExposures": [
+        "private",
+        "lan",
+        "public"
+      ],
+      "lanStepDownAllowed": true
+    },
+    "routes": {
+      "local": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "home"
+        ],
+        "requiredCapabilities": []
+      },
+      "public": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "home"
+        ],
+        "requiredCapabilities": [
+          "public-publish-egress"
+        ]
+      },
+      "remote-private": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "home"
+        ],
+        "requiredCapabilities": [
+          "private-remote-access"
+        ]
+      }
+    }
+  },
+  "topology": {
+    "allowedSiteKinds": [
+      "home"
+    ],
+    "controlPlane": {
+      "allowedAuthorityKinds": [
+        "home"
+      ],
+      "allowedModes": [
+        "single",
+        "warm-standby",
+        "quorum"
+      ],
+      "defaultMode": "single",
+      "memberSiteScope": "any"
+    },
+    "maxSites": 64,
+    "minSites": 1,
+    "multiNode": true,
+    "requiredSiteKinds": [
+      "home"
+    ]
+  }
+}

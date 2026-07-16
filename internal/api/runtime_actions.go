@@ -6,7 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,6 +51,8 @@ type runtimeActionRequest struct {
 	RuntimeTarget       *runtimeActionTarget               `json:"runtime_target,omitempty"`
 	PlatformNodes       []runtimeaction.PlatformNode       `json:"platform_nodes,omitempty"`
 	TechStackEnrollment *runtimeaction.TechStackEnrollment `json:"techstack_enrollment,omitempty"`
+	Backup              *runtimeaction.BackupRequest       `json:"backup,omitempty"`
+	Upgrade             *runtimeaction.UpgradeRequest      `json:"upgrade,omitempty"`
 }
 
 type runtimeActionTarget = runtimeaction.RuntimeTarget
@@ -63,10 +68,12 @@ type runtimeActionResponse struct {
 	Mode               runtimeaction.Mode             `json:"mode"`
 	Checks             []runtimeActionCheck           `json:"checks,omitempty"`
 	StackKitOutputs    *runtimeActionStackKitOutputs  `json:"stackkit_outputs,omitempty"`
+	Observation        *runtimeaction.LiveObservation `json:"observation,omitempty"`
 	RuntimeMetrics     *runtimeActionRuntimeMetrics   `json:"runtime_metrics,omitempty"`
 	PlatformRefs       []platformdeploy.DeploymentRef `json:"platform_refs,omitempty"`
 	PlatformSystemApps []models.PlatformAppState      `json:"platform_system_apps,omitempty"`
 	PlatformApps       []models.PlatformAppState      `json:"platform_apps,omitempty"`
+	Backup             *runtimeaction.BackupResult    `json:"backup,omitempty"`
 }
 
 type runtimeActionCheck = runtimeaction.Check
@@ -97,6 +104,22 @@ func (s *Server) registerRuntimeActionRoutes() {
 	s.mux.Handle("POST /api/v1/internal/runtime-actions/restore-drill",
 		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			s.handleRuntimeAction(w, r, runtimeActionRestore)
+		})))
+	s.mux.Handle("POST "+runtimeaction.PathBackupRun,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.handleRuntimeAction(w, r, runtimeaction.ActionBackupRun)
+		})))
+	s.mux.Handle("POST "+runtimeaction.PathBackupStatus,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.handleRuntimeAction(w, r, runtimeaction.ActionBackupStatus)
+		})))
+	s.mux.Handle("POST "+runtimeaction.PathBackupRestore,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.handleRuntimeAction(w, r, runtimeaction.ActionBackupRestore)
+		})))
+	s.mux.Handle("POST "+runtimeaction.PathBackupWipe,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.handleRuntimeAction(w, r, runtimeaction.ActionBackupWipe)
 		})))
 }
 
@@ -183,44 +206,10 @@ func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, exp
 
 func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequest) (resp runtimeActionResponse, status int, stackErr *skerrors.StackKitError) {
 	mode := s.runtimeActionMode()
-	resp = runtimeActionResponse{
-		Status:      runtimeaction.StatusAccepted,
-		Action:      req.Action,
-		StackID:     req.StackID,
-		StackName:   strings.TrimSpace(req.StackName),
-		StackKit:    strings.TrimSpace(req.StackKit),
-		TofuDir:     strings.TrimSpace(req.TofuDir),
-		UnifiedPath: strings.TrimSpace(req.UnifiedPath),
-		Mode:        mode,
-	}
-	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "request", Status: runtimeaction.CheckStatusOK, Detail: "runtime action payload decoded"})
-	resp.Checks = appendPathCheck(resp.Checks, "tofu_dir", resp.TofuDir, true)
-	resp.Checks = appendPathCheck(resp.Checks, "unified_path", resp.UnifiedPath, false)
-	if resp.StackKit == "" {
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: runtimeaction.CheckStatusWarning, Detail: "stackkit name not provided"})
-	} else {
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: runtimeaction.CheckStatusOK, Detail: resp.StackKit})
-	}
-	if target := normalizeRuntimeActionTarget(req.RuntimeTarget); target != nil {
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
-	}
-	enrollment, enrollmentErr := normalizeTechStackEnrollment(req.TechStackEnrollment)
-	if enrollmentErr != nil {
-		resp.Status = runtimeaction.StatusFailed
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "techstack_enrollment", Status: runtimeaction.CheckStatusFailed, Detail: enrollmentErr.Error()})
-		return resp, http.StatusBadRequest, skerrors.NewValidationError(
-			"techstack_enrollment_incomplete",
-			"techstack_enrollment requires server_url, server_id, runtime_agent_id, agent_token, and heartbeat_url or inventory_url",
-			skerrors.WithField("error", enrollmentErr.Error()),
-		)
-	}
-	if enrollment != nil {
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "techstack_enrollment", Status: runtimeaction.CheckStatusOK, Detail: enrollment.RuntimeAgentID})
-		req.TechStackEnrollment = enrollment
-	}
-	if nodes := normalizeRuntimeActionPlatformNodes(req.PlatformNodes); len(nodes) > 0 {
-		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "platform_nodes", Status: runtimeaction.CheckStatusOK, Detail: fmt.Sprintf("%d supplemental node(s) requested", len(nodes))})
-		req.PlatformNodes = nodes
+	resp = newRuntimeActionResponse(req, mode)
+	target, enrollment, requestErr := prepareRuntimeActionRequest(&resp, &req)
+	if requestErr != nil {
+		return resp, http.StatusBadRequest, requestErr
 	}
 
 	ctx, span := startRuntimeActionSpan(ctx, resp)
@@ -236,14 +225,138 @@ func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequ
 		}
 		return resp, http.StatusOK, nil
 	}
+	if requiresManagedRuntimeTarget(req.Action, enrollment, target) {
+		resp.Status = runtimeaction.StatusFailed
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: runtimeaction.CheckStatusFailed, Detail: "managed runtime target is required"})
+		return resp, http.StatusBadRequest, skerrors.NewValidationError(
+			"managed_runtime_target_required",
+			"TechStack-managed rollout and verify actions require runtime_target",
+		)
+	}
 
+	return s.dispatchRuntimeAction(ctx, resp, includeStackKitOutputs, req)
+}
+
+func newRuntimeActionResponse(req runtimeActionRequest, mode runtimeaction.Mode) runtimeActionResponse {
+	resp := runtimeActionResponse{
+		Status:      runtimeaction.StatusAccepted,
+		Action:      req.Action,
+		StackID:     req.StackID,
+		StackName:   strings.TrimSpace(req.StackName),
+		StackKit:    strings.TrimSpace(req.StackKit),
+		TofuDir:     strings.TrimSpace(req.TofuDir),
+		UnifiedPath: strings.TrimSpace(req.UnifiedPath),
+		Mode:        mode,
+	}
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "request", Status: runtimeaction.CheckStatusOK, Detail: "runtime action payload decoded"})
+	resp.Checks = appendPathCheck(resp.Checks, "tofu_dir", resp.TofuDir, true)
+	resp.Checks = appendPathCheck(resp.Checks, "unified_path", resp.UnifiedPath, false)
+	if resp.StackKit == "" {
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: runtimeaction.CheckStatusWarning, Detail: "stackkit name not provided"})
+		return resp
+	}
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "stackkit", Status: runtimeaction.CheckStatusOK, Detail: resp.StackKit})
+	return resp
+}
+
+func prepareRuntimeActionRequest(resp *runtimeActionResponse, req *runtimeActionRequest) (*runtimeActionTarget, *runtimeaction.TechStackEnrollment, *skerrors.StackKitError) {
+	target, targetErr := normalizeRuntimeActionRequestTarget(resp, req)
+	if targetErr != nil {
+		return nil, nil, targetErr
+	}
+	enrollment, enrollmentErr := normalizeRuntimeActionRequestEnrollment(resp, req)
+	if enrollmentErr != nil {
+		return target, nil, enrollmentErr
+	}
+	normalizeRuntimeActionRequestPlatformNodes(resp, req)
+	return target, enrollment, nil
+}
+
+func normalizeRuntimeActionRequestTarget(resp *runtimeActionResponse, req *runtimeActionRequest) (*runtimeActionTarget, *skerrors.StackKitError) {
+	target := normalizeRuntimeActionTarget(req.RuntimeTarget)
+	if target == nil {
+		if req.RuntimeTarget != nil && strings.TrimSpace(req.RuntimeTarget.DockerHost) != "" {
+			resp.Status = runtimeaction.StatusFailed
+			resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: runtimeaction.CheckStatusFailed, Detail: "runtime target host is required"})
+			return nil, skerrors.NewValidationError(
+				"invalid_runtime_target",
+				"runtime_target host is required when docker_host is set",
+			)
+		}
+		return nil, nil
+	}
+	if _, targetErr := runtimeTargetDockerHost(target); targetErr != nil {
+		resp.Status = runtimeaction.StatusFailed
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: runtimeaction.CheckStatusFailed, Detail: targetErr.Error()})
+		return nil, skerrors.NewValidationError(
+			"invalid_runtime_target",
+			"runtime_target must use the validated SSH Docker transport",
+			skerrors.WithField("error", targetErr.Error()),
+		)
+	}
+	resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
+	req.RuntimeTarget = target
+	return target, nil
+}
+
+func normalizeRuntimeActionRequestEnrollment(resp *runtimeActionResponse, req *runtimeActionRequest) (*runtimeaction.TechStackEnrollment, *skerrors.StackKitError) {
+	enrollment, enrollmentErr := normalizeTechStackEnrollment(req.TechStackEnrollment)
+	if enrollmentErr != nil {
+		resp.Status = runtimeaction.StatusFailed
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "techstack_enrollment", Status: runtimeaction.CheckStatusFailed, Detail: enrollmentErr.Error()})
+		return nil, skerrors.NewValidationError(
+			"techstack_enrollment_incomplete",
+			"techstack_enrollment requires lease_id, server_url, server_id, runtime_agent_id, agent_token, and heartbeat_url or inventory_url",
+			skerrors.WithField("error", enrollmentErr.Error()),
+		)
+	}
+	if enrollment != nil {
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "techstack_enrollment", Status: runtimeaction.CheckStatusOK, Detail: enrollment.RuntimeAgentID})
+		req.TechStackEnrollment = enrollment
+	}
+	return enrollment, nil
+}
+
+func normalizeRuntimeActionRequestPlatformNodes(resp *runtimeActionResponse, req *runtimeActionRequest) {
+	if nodes := normalizeRuntimeActionPlatformNodes(req.PlatformNodes); len(nodes) > 0 {
+		resp.Checks = append(resp.Checks, runtimeActionCheck{Name: "platform_nodes", Status: runtimeaction.CheckStatusOK, Detail: fmt.Sprintf("%d supplemental node(s) requested", len(nodes))})
+		req.PlatformNodes = nodes
+	}
+}
+
+func requiresManagedRuntimeTarget(action runtimeaction.Action, enrollment *runtimeaction.TechStackEnrollment, target *runtimeActionTarget) bool {
+	if enrollment == nil || target != nil {
+		return false
+	}
+	return action == runtimeActionRollout || action == runtimeActionVerify
+}
+
+func (s *Server) dispatchRuntimeAction(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool, req runtimeActionRequest) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	switch req.Action {
 	case runtimeActionRollout:
 		return runOpenTofuRollout(ctx, resp, includeStackKitOutputs, req.RuntimeTarget, req.PlatformNodes)
 	case runtimeActionVerify:
-		return runOpenTofuVerify(ctx, resp, includeStackKitOutputs)
+		return runOpenTofuVerify(ctx, resp, includeStackKitOutputs, req.RuntimeTarget)
 	case runtimeActionRestore:
 		return runRestoreDrillVerifier(ctx, resp, s.config.RuntimeRestoreVerifierCommand, req.RuntimeTarget)
+	case runtimeaction.ActionBackupRun:
+		return s.runBackupRun(ctx, resp, req)
+	case runtimeaction.ActionBackupStatus:
+		return s.runBackupStatus(ctx, resp)
+	case runtimeaction.ActionBackupRestore:
+		return s.runBackupRestore(ctx, resp, req)
+	case runtimeaction.ActionBackupWipe:
+		return s.runBackupWipe(ctx, resp, req)
+	case runtimeaction.ActionKitUpgrade:
+		// Reserved wire type, deliberately not routed: a remote kit upgrade must
+		// re-render the target kit version's templates before apply, which the
+		// CLI path (`stackkit kit upgrade`) does not yet do (see
+		// requireRenderedDeployDir + kombify-StackKits-w0eq/b0xy). Fail closed
+		// with an actionable reason rather than exposing an upgrade that cannot
+		// re-render in a managed context.
+		return resp, http.StatusNotImplemented, skerrors.NewValidationError(
+			"kit_upgrade_reserved",
+			"kit_upgrade runtime action is reserved and not yet routed; run the CLI `stackkit kit upgrade` on the node")
 	default:
 		return resp, http.StatusBadRequest, skerrors.NewValidationError("invalid_runtime_action", "unsupported runtime action")
 	}
@@ -409,6 +522,10 @@ func runOpenTofuRollout(ctx context.Context, resp runtimeActionResponse, include
 		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
 		finishRuntimeOperationSpan(outputSpan, resp, "stackkit_outputs", nil)
 	}
+	resp.Observation = collectRuntimeLiveObservation(ctx, resp, remote, platformEvidence.Refs)
+	if updated, status, observationErr := requireManagedRuntimeObservation(resp, remote != nil); observationErr != nil {
+		return updated, status, observationErr
+	}
 	return resp, http.StatusOK, nil
 }
 
@@ -425,6 +542,10 @@ func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, targe
 	if target == nil {
 		return nil, nil, nil
 	}
+	dockerHost, err := runtimeTargetDockerHost(target)
+	if err != nil {
+		return nil, nil, err
+	}
 	keyPath, homeDir, cleanup, err := materializeRuntimeTargetSSHKey(target)
 	if err != nil {
 		return nil, cleanup, err
@@ -432,7 +553,6 @@ func prepareRuntimeActionRemoteTarget(ctx context.Context, tofuDir string, targe
 	if err := bootstrapRuntimeTargetDocker(ctx, target, keyPath); err != nil {
 		return nil, cleanup, err
 	}
-	dockerHost := runtimeTargetDockerHost(target)
 	workspaceRoot := runtimeTargetWorkspaceRoot(tofuDir)
 	if err := writeRuntimeTargetDockerHostTFVars(tofuDir, dockerHost, workspaceRoot); err != nil {
 		return nil, cleanup, err
@@ -483,6 +603,7 @@ func normalizeTechStackEnrollment(enrollment *runtimeaction.TechStackEnrollment)
 	normalized.TenantID = strings.TrimSpace(normalized.TenantID)
 	normalized.OwnerID = strings.TrimSpace(normalized.OwnerID)
 	normalized.StackID = strings.TrimSpace(normalized.StackID)
+	normalized.LeaseID = strings.TrimSpace(normalized.LeaseID)
 	normalized.ServerURL = strings.TrimRight(strings.TrimSpace(normalized.ServerURL), "/")
 	normalized.ServerID = strings.TrimSpace(normalized.ServerID)
 	normalized.RuntimeAgentID = strings.TrimSpace(normalized.RuntimeAgentID)
@@ -491,6 +612,7 @@ func normalizeTechStackEnrollment(enrollment *runtimeaction.TechStackEnrollment)
 	normalized.InventoryURL = strings.TrimSpace(normalized.InventoryURL)
 	missing := []string{}
 	for name, value := range map[string]string{
+		"lease_id":         normalized.LeaseID,
 		"server_url":       normalized.ServerURL,
 		"server_id":        normalized.ServerID,
 		"runtime_agent_id": normalized.RuntimeAgentID,
@@ -705,18 +827,186 @@ func runtimeTargetWorkspaceRoot(tofuDir string) string {
 	return "/opt/stackkits/runtime-workspaces/" + hash[:16]
 }
 
-func runtimeTargetDockerHost(target *runtimeActionTarget) string {
-	if target.DockerHost != "" {
-		return target.DockerHost
+// runtimeTargetDockerHost accepts only the Docker-over-SSH transport derived
+// from the validated runtime target. A caller must not redirect a managed
+// rollout/observation at arbitrary tcp:// or unix:// Docker endpoints.
+func runtimeTargetDockerHost(target *runtimeActionTarget) (string, error) {
+	host, user, port, err := validatedRuntimeTargetDockerEndpoint(target)
+	if err != nil {
+		return "", err
 	}
-	host := target.Host
-	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
-		host = "[" + host + "]"
+	if dockerHost := strings.TrimSpace(target.DockerHost); dockerHost != "" {
+		if err := validateRuntimeTargetDockerHostOverride(dockerHost, user, host, port); err != nil {
+			return "", err
+		}
 	}
-	if target.Port > 0 && target.Port != 22 {
-		host = host + ":" + strconv.Itoa(target.Port)
+	return runtimeTargetDockerSSHURL(user, host, port), nil
+}
+
+func validatedRuntimeTargetDockerEndpoint(target *runtimeActionTarget) (host, user string, port int, err error) {
+	if target == nil {
+		return "", "", 0, fmt.Errorf("runtime target is required for Docker transport")
 	}
-	return "ssh://" + target.User + "@" + host
+	host, err = validateRuntimeTargetHost(target.Host)
+	if err != nil {
+		return "", "", 0, err
+	}
+	user, err = validateRuntimeTargetSSHUser(target.User)
+	if err != nil {
+		return "", "", 0, err
+	}
+	port, err = runtimeTargetSSHPort(target.Port)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return host, user, port, nil
+}
+
+func runtimeTargetSSHPort(port int) (int, error) {
+	if port <= 0 {
+		return 22, nil
+	}
+	if port > 65535 {
+		return 0, fmt.Errorf("runtime target SSH port %d is invalid", port)
+	}
+	return port, nil
+}
+
+func validateRuntimeTargetDockerHostOverride(value, user, host string, port int) error {
+	parsed, err := parseRuntimeTargetDockerSSHURL(value)
+	if err != nil {
+		return err
+	}
+	if err := validateRuntimeTargetDockerHostUser(parsed, user); err != nil {
+		return err
+	}
+	if err := validateRuntimeTargetDockerHostPath(parsed); err != nil {
+		return err
+	}
+	if err := validateRuntimeTargetDockerHostHost(parsed, host); err != nil {
+		return err
+	}
+	return validateRuntimeTargetDockerHostPort(parsed, port)
+}
+
+func parseRuntimeTargetDockerSSHURL(value string) (*url.URL, error) {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return nil, fmt.Errorf("runtime target docker_host must be a validated ssh:// URL")
+	}
+	if parsed.Scheme != "ssh" || parsed.Opaque != "" {
+		return nil, fmt.Errorf("runtime target docker_host must be a validated ssh:// URL")
+	}
+	return parsed, nil
+}
+
+func validateRuntimeTargetDockerHostUser(parsed *url.URL, user string) error {
+	if parsed.User == nil || parsed.User.Username() != user {
+		return fmt.Errorf("runtime target docker_host user must match runtime target user")
+	}
+	if _, hasPassword := parsed.User.Password(); hasPassword {
+		return fmt.Errorf("runtime target docker_host must not contain credentials")
+	}
+	return nil
+}
+
+func validateRuntimeTargetDockerHostPath(parsed *url.URL) error {
+	if parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("runtime target docker_host must not contain a path, query, or fragment")
+	}
+	return nil
+}
+
+func validateRuntimeTargetDockerHostHost(parsed *url.URL, host string) error {
+	overrideHost, err := validateRuntimeTargetHost(parsed.Hostname())
+	if err != nil {
+		return fmt.Errorf("runtime target docker_host must match the validated runtime target host")
+	}
+	if !runtimeTargetHostsEqual(host, overrideHost) {
+		return fmt.Errorf("runtime target docker_host must match the validated runtime target host")
+	}
+	return nil
+}
+
+func validateRuntimeTargetDockerHostPort(parsed *url.URL, port int) error {
+	overridePort, err := runtimeTargetDockerHostOverridePort(parsed)
+	if err != nil {
+		return err
+	}
+	if overridePort != port {
+		return fmt.Errorf("runtime target docker_host port must match runtime target port")
+	}
+	return nil
+}
+
+func runtimeTargetDockerHostOverridePort(parsed *url.URL) (int, error) {
+	rawPort := parsed.Port()
+	if rawPort == "" {
+		return 22, nil
+	}
+	port, err := strconv.Atoi(rawPort)
+	if err != nil || port < 1 || port > 65535 {
+		return 0, fmt.Errorf("runtime target docker_host SSH port is invalid")
+	}
+	return port, nil
+}
+
+func runtimeTargetDockerSSHURL(user, host string, port int) string {
+	authority := host
+	if port != 22 {
+		authority = net.JoinHostPort(host, strconv.Itoa(port))
+	} else if addr, err := netip.ParseAddr(host); err == nil && addr.Is6() {
+		authority = "[" + addr.String() + "]"
+	}
+	return (&url.URL{Scheme: "ssh", User: url.User(user), Host: authority}).String()
+}
+
+func validateRuntimeTargetHost(value string) (string, error) {
+	host := strings.TrimSpace(value)
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	}
+	if host == "" || strings.ContainsAny(host, " \t\r\n/@?#\\") {
+		return "", fmt.Errorf("runtime target host is invalid")
+	}
+	if addr, err := netip.ParseAddr(host); err == nil {
+		return addr.String(), nil
+	}
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	if host == "" || len(host) > 253 {
+		return "", fmt.Errorf("runtime target host is invalid")
+	}
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return "", fmt.Errorf("runtime target host is invalid")
+		}
+		for _, char := range label {
+			if !(char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '-') {
+				return "", fmt.Errorf("runtime target host is invalid")
+			}
+		}
+	}
+	return host, nil
+}
+
+func validateRuntimeTargetSSHUser(value string) (string, error) {
+	user := strings.TrimSpace(value)
+	if user == "" || strings.ContainsAny(user, " \t\r\n@:/?#\\") {
+		return "", fmt.Errorf("runtime target SSH user is invalid")
+	}
+	return user, nil
+}
+
+func runtimeTargetHostsEqual(left, right string) bool {
+	if left == "" || right == "" {
+		return false
+	}
+	leftAddr, leftIsIP := netip.ParseAddr(left)
+	rightAddr, rightIsIP := netip.ParseAddr(right)
+	if leftIsIP == nil || rightIsIP == nil {
+		return leftIsIP == nil && rightIsIP == nil && leftAddr == rightAddr
+	}
+	return strings.EqualFold(left, right)
 }
 
 func runtimeTargetSSHCommand(target *runtimeActionTarget, keyPath string) string {
@@ -827,7 +1117,7 @@ func runtimeTargetSSHBaseArgs(target *runtimeActionTarget, keyPath string) []str
 	}
 }
 
-func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool) (runtimeActionResponse, int, *skerrors.StackKitError) {
+func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse, includeStackKitOutputs bool, target *runtimeActionTarget) (runtimeActionResponse, int, *skerrors.StackKitError) {
 	if err := requireLocalTofuDir(resp.TofuDir); err != nil {
 		return resp, http.StatusBadRequest, err
 	}
@@ -846,7 +1136,55 @@ func runOpenTofuVerify(ctx context.Context, resp runtimeActionResponse, includeS
 		resp.StackKitOutputs = collectStackKitOutputs(ctx, exec, &resp)
 		finishRuntimeOperationSpan(outputSpan, resp, "stackkit_outputs", nil)
 	}
+	remote, cleanup, remoteErr := prepareRuntimeObservationTarget(target)
+	if cleanup != nil {
+		defer cleanup()
+	}
+	if remoteErr != nil {
+		resp.Observation = runtimeObservationTargetFailure(target, "runtime_target_unreachable")
+	} else {
+		resp.Observation = collectRuntimeLiveObservation(ctx, resp, remote, nil)
+	}
+	if updated, status, observationErr := requireManagedRuntimeObservation(resp, normalizeRuntimeActionTarget(target) != nil); observationErr != nil {
+		return updated, status, observationErr
+	}
 	return resp, http.StatusOK, nil
+}
+
+// requireManagedRuntimeObservation prevents a managed rollout or verify from
+// reporting success without an actual Docker-over-SSH measurement. The action
+// result and StackKit outputs are deployment evidence only; they are never a
+// substitute for a reachable runtime observation.
+func requireManagedRuntimeObservation(resp runtimeActionResponse, managed bool) (runtimeActionResponse, int, *skerrors.StackKitError) {
+	if !managed {
+		return resp, 0, nil
+	}
+	failureClass := managedRuntimeObservationFailureClass(resp.Observation)
+	if failureClass == "" {
+		return resp, 0, nil
+	}
+	resp.Status = runtimeaction.StatusFailed
+	resp.Checks = append(resp.Checks, runtimeActionCheck{
+		Name:   "runtime_observation",
+		Status: runtimeaction.CheckStatusFailed,
+		Detail: failureClass,
+	})
+	return resp, http.StatusBadGateway, tofuActionError(
+		"runtime_observation_failed",
+		"Managed runtime observation failed",
+		fmt.Errorf("%s", failureClass),
+		"",
+	)
+}
+
+func managedRuntimeObservationFailureClass(observation *runtimeaction.LiveObservation) string {
+	if observation == nil {
+		return "runtime_observation_missing"
+	}
+	if observation.Host.Reachable && observation.Host.DockerReachable {
+		return ""
+	}
+	return runtimeFirstNonEmpty(observation.FailureClass, observation.Host.FailureClass, "runtime_observation_unreachable")
 }
 
 func collectStackKitOutputs(ctx context.Context, exec *tofu.Executor, resp *runtimeActionResponse) *runtimeActionStackKitOutputs {
@@ -1246,7 +1584,11 @@ func dryRunStatus(action runtimeaction.Action) runtimeaction.Status {
 		return runtimeaction.StatusReady
 	case runtimeActionVerify:
 		return runtimeaction.StatusVerified
-	case runtimeActionRestore:
+	case runtimeaction.ActionBackupRun:
+		return runtimeaction.StatusReady
+	case runtimeaction.ActionBackupStatus:
+		return runtimeaction.StatusVerified
+	case runtimeActionRestore, runtimeaction.ActionBackupRestore, runtimeaction.ActionBackupWipe:
 		return runtimeaction.StatusSkipped
 	default:
 		return runtimeaction.StatusAccepted

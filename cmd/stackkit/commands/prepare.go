@@ -1136,6 +1136,7 @@ type techStackHandoff struct {
 	TenantID         string
 	OwnerID          string
 	StackID          string
+	LeaseID          string
 	HeartbeatURL     string
 	InventoryURL     string
 	ChannelBootstrap string
@@ -1150,6 +1151,7 @@ func techStackHandoffFromEnv() techStackHandoff {
 		TenantID:         strings.TrimSpace(os.Getenv("TECHSTACK_TENANT_ID")),
 		OwnerID:          strings.TrimSpace(os.Getenv("TECHSTACK_OWNER_ID")),
 		StackID:          strings.TrimSpace(os.Getenv("TECHSTACK_STACK_ID")),
+		LeaseID:          strings.TrimSpace(os.Getenv("TECHSTACK_LEASE_ID")),
 		HeartbeatURL:     strings.TrimSpace(os.Getenv("TECHSTACK_HEARTBEAT_URL")),
 		InventoryURL:     strings.TrimSpace(os.Getenv("TECHSTACK_INVENTORY_URL")),
 		ChannelBootstrap: strings.TrimSpace(os.Getenv("TECHSTACK_CHANNEL_BOOTSTRAP")),
@@ -1160,12 +1162,13 @@ func (h techStackHandoff) requested() bool {
 	if truthyEnv("TECHSTACK_MANAGED") {
 		return true
 	}
-	return h.ServerURL != "" || h.ServerID != "" || h.RuntimeAgentID != "" || h.AgentToken != "" || h.HeartbeatURL != "" || h.InventoryURL != ""
+	return h.ServerURL != "" || h.ServerID != "" || h.RuntimeAgentID != "" || h.AgentToken != "" || h.LeaseID != "" || h.HeartbeatURL != "" || h.InventoryURL != ""
 }
 
 func (h techStackHandoff) validateManaged() error {
 	missing := []string{}
 	for name, value := range map[string]string{
+		"TECHSTACK_LEASE_ID":         h.LeaseID,
 		"TECHSTACK_SERVER_URL":       h.ServerURL,
 		"TECHSTACK_SERVER_ID":        h.ServerID,
 		"TECHSTACK_RUNTIME_AGENT_ID": h.RuntimeAgentID,
@@ -1209,6 +1212,7 @@ func ensureTechStackGuard(ctx context.Context, spec *models.StackSpec, sshClient
 		"server_id":        handoff.ServerID,
 		"runtime_agent_id": handoff.RuntimeAgentID,
 		"tenant_id":        handoff.TenantID,
+		"lease_id":         handoff.LeaseID,
 		"remote":           fmt.Sprintf("%t", sshClient != nil),
 	}
 	if spec != nil {
@@ -1278,6 +1282,7 @@ func techStackGuardEvidence(handoff techStackHandoff, target string) map[string]
 		"tenant_id":           handoff.TenantID,
 		"owner_id":            handoff.OwnerID,
 		"stack_id":            handoff.StackID,
+		"lease_id":            handoff.LeaseID,
 		"heartbeat_url":       handoff.HeartbeatURL,
 		"inventory_url":       handoff.InventoryURL,
 		"agent_token_present": handoff.AgentToken != "",
@@ -1294,6 +1299,7 @@ func techStackGuardEnvFile(handoff techStackHandoff) string {
 		"TECHSTACK_TENANT_ID=" + shellEnvQuote(handoff.TenantID),
 		"TECHSTACK_OWNER_ID=" + shellEnvQuote(handoff.OwnerID),
 		"TECHSTACK_STACK_ID=" + shellEnvQuote(handoff.StackID),
+		"TECHSTACK_LEASE_ID=" + shellEnvQuote(handoff.LeaseID),
 		"TECHSTACK_HEARTBEAT_URL=" + shellEnvQuote(handoff.HeartbeatURL),
 		"TECHSTACK_INVENTORY_URL=" + shellEnvQuote(handoff.InventoryURL),
 		"TECHSTACK_CHANNEL_BOOTSTRAP=" + shellEnvQuote(handoff.ChannelBootstrap),
@@ -1333,6 +1339,62 @@ post_json() {
   command -v curl >/dev/null 2>&1 || return 1
   curl -fsS -m 20 -H "Authorization: Bearer ${TECHSTACK_AGENT_TOKEN}" -H "Content-Type: application/json" -d "$payload" "$url" >/dev/null
 }
+docker_services_json() {
+  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+    printf '[]'
+    return
+  fi
+  ids="$(docker ps -aq --filter label=stackkit.layer 2>/dev/null || true)"
+  first=1
+  printf '['
+  for container_id in $ids; do
+    record="$(docker inspect --format '{{.Id}}|{{.Name}}|{{.State.Status}}|{{if .State.Running}}true{{else}}false{{end}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id" 2>/dev/null || true)"
+    [ -n "$record" ] || continue
+    IFS='|' read -r observed_id name state running health <<EOF
+$record
+EOF
+    [ -n "$observed_id" ] || continue
+    name="${name#/}"
+    service_name="$name"
+    [ -n "$service_name" ] || service_name="$observed_id"
+    case "$running" in true|false) ;; *) running=false ;; esac
+    status=unknown
+    failure_class=""
+    case "$running:$health:$state" in
+      false:*:*|*:unhealthy:*|*:*:exited|*:*:dead|*:*:paused)
+        status=unhealthy
+        failure_class=container_not_healthy
+        ;;
+      *:starting:*|*:*:created|*:*:restarting)
+        status=starting
+        ;;
+      true:healthy:*)
+        status=healthy
+        ;;
+    esac
+    failure_json=""
+    if [ -n "$failure_class" ]; then
+      failure_json=",\"failure_class\":\"$(json_escape "$failure_class")\""
+    fi
+    if [ "$first" -ne 1 ]; then printf ','; fi
+    first=0
+    printf '{"id":"%s","service_id":"%s","key":"%s","name":"%s","status":"%s","owner_stack":"%s","target_server":"%s","container_id":"%s","health":{"source":"docker","observed_at":"%s","container_state":"%s","docker_health":"%s","running":%s%s}}' \
+      "$(json_escape "$observed_id")" \
+      "$(json_escape "$service_name")" \
+      "$(json_escape "$service_name")" \
+      "$(json_escape "$name")" \
+      "$(json_escape "$status")" \
+      "$(json_escape "${TECHSTACK_STACK_ID:-}")" \
+      "$(json_escape "$TECHSTACK_SERVER_ID")" \
+      "$(json_escape "$observed_id")" \
+      "$(json_escape "$observed_at")" \
+      "$(json_escape "$state")" \
+      "$(json_escape "$health")" \
+      "$running" \
+      "$failure_json"
+  done
+  printf ']'
+}
 while :; do
   hostname="$(hostname 2>/dev/null || true)"
   os="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID:-linux}" || printf linux)"
@@ -1340,10 +1402,16 @@ while :; do
   cpu="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 0)"
   mem_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || printf 0)"
   disk_kb="$(df -Pk / 2>/dev/null | awk 'NR==2 {print $2}' || printf 0)"
+  uptime_seconds="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || printf 0)"
   ram_mb=$((mem_kb / 1024))
   disk_gb=$((disk_kb / 1024 / 1024))
-  payload="{\"server_id\":\"$(json_escape "$TECHSTACK_SERVER_ID")\",\"runtime_agent_id\":\"$(json_escape "$TECHSTACK_RUNTIME_AGENT_ID")\",\"tenant_id\":\"$(json_escape "${TECHSTACK_TENANT_ID:-}")\",\"owner_id\":\"$(json_escape "${TECHSTACK_OWNER_ID:-}")\",\"stack_id\":\"$(json_escape "${TECHSTACK_STACK_ID:-}")\",\"hostname\":\"$(json_escape "$hostname")\",\"host\":{\"hostname\":\"$(json_escape "$hostname")\",\"os\":\"$(json_escape "$os")\",\"arch\":\"$(json_escape "$arch")\",\"cpu_cores\":$cpu,\"ram_mb\":$ram_mb,\"disk_gb\":$disk_gb},\"channels\":[{\"kind\":\"https\",\"url\":\"$(json_escape "${TECHSTACK_INVENTORY_URL:-}")\",\"status\":\"ok\"}],\"services\":[]}"
-  post_json "${TECHSTACK_INVENTORY_URL:-}" "$payload" || post_json "${TECHSTACK_HEARTBEAT_URL:-}" "{\"uptime_seconds\":0}" || true
+  observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  docker_reachable=false
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then docker_reachable=true; fi
+  services="$(docker_services_json)"
+  payload="{\"server_id\":\"$(json_escape "$TECHSTACK_SERVER_ID")\",\"runtime_agent_id\":\"$(json_escape "$TECHSTACK_RUNTIME_AGENT_ID")\",\"tenant_id\":\"$(json_escape "${TECHSTACK_TENANT_ID:-}")\",\"owner_id\":\"$(json_escape "${TECHSTACK_OWNER_ID:-}")\",\"stack_id\":\"$(json_escape "${TECHSTACK_STACK_ID:-}")\",\"lease_id\":\"$(json_escape "$TECHSTACK_LEASE_ID")\",\"hostname\":\"$(json_escape "$hostname")\",\"observed_at\":\"$(json_escape "$observed_at")\",\"host\":{\"hostname\":\"$(json_escape "$hostname")\",\"os\":\"$(json_escape "$os")\",\"arch\":\"$(json_escape "$arch")\",\"cpu_cores\":$cpu,\"ram_mb\":$ram_mb,\"disk_gb\":$disk_gb,\"uptime_seconds\":$uptime_seconds,\"docker_reachable\":$docker_reachable},\"channels\":[{\"kind\":\"https\",\"url\":\"$(json_escape "${TECHSTACK_INVENTORY_URL:-}")\",\"status\":\"ok\",\"provenance\":\"stackkit-guard\"}],\"services\":$services}"
+  heartbeat_payload="{\"server_id\":\"$(json_escape "$TECHSTACK_SERVER_ID")\",\"runtime_agent_id\":\"$(json_escape "$TECHSTACK_RUNTIME_AGENT_ID")\",\"lease_id\":\"$(json_escape "$TECHSTACK_LEASE_ID")\",\"uptime_seconds\":$uptime_seconds}"
+  post_json "${TECHSTACK_INVENTORY_URL:-}" "$payload" || post_json "${TECHSTACK_HEARTBEAT_URL:-}" "$heartbeat_payload" || true
   sleep "$interval"
 done
 `

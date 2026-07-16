@@ -56,6 +56,11 @@ type TFVars struct {
 	// Deprecated alias kept for older generated templates and external tests.
 	EnableDNSMasq bool `json:"enable_dnsmasq"`
 
+	// EnableMDNS turns on the Basement-Kit mDNS responder that advertises flat
+	// <service>.local names for zero-config LAN reachability. Independent of the
+	// primary domain; on for local deployments, off for cloud/kombify.me.
+	EnableMDNS bool `json:"enable_mdns"`
+
 	EnableHTTPS   bool   `json:"enable_https"`
 	TLSProvider   string `json:"tls_provider,omitempty"`
 	StepCAEnabled bool   `json:"step_ca_enabled"`
@@ -223,6 +228,15 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 			tfvars.EnableKombifyPoint = true
 			tfvars.EnableDNSMasq = true
 			tfvars.ServerLANIP = serverLANIPForLocalDNS(spec, caps)
+		}
+		// Basement-Kit mDNS: on for every local deployment (incl. the
+		// home.localhost default, which kombify-point excludes) so <svc>.local
+		// works zero-config on the LAN. Needs the box LAN IP to advertise.
+		if models.RequiresMDNS(tfvars.Domain) {
+			tfvars.EnableMDNS = true
+			if tfvars.ServerLANIP == "" {
+				tfvars.ServerLANIP = serverLANIPForLocalDNS(spec, caps)
+			}
 		}
 	}
 

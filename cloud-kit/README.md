@@ -3,19 +3,21 @@
 > Cloud single-environment homelab (1..N nodes, exactly one `main`) for VPS/cloud deployments with a public domain. Installer: `https://cloud.stackkit.cc`. CUE is the source of truth; OpenTofu output is generated.
 
 > **Taxonomy (ADR-0026):** Cloud Kit is the
-> **cloud** product profile (`context cloud`) derived from the shared `base.#StackBase` library —
+> **cloud** product profile derived from the shared `base.#StackBase` library —
 > the cloud adaptation of [Basement Kit](../basement-kit/README.md) (installer
 > `base.stackkit.cc`). It is a single-*environment* kit (one trust domain, one `main`), **not**
 > Modern Homelab: a hybrid local+cloud deployment is **Modern Homelab**, and redundant
-> control planes are **HA Kit**. Cloud-only extensions (e.g. tunnel / public DNS) are added to
-> this profile as they land.
+> control planes are selected through the kit-specific `addons/ha` realization. Legacy
+> `context: cloud` is accepted only by the v1 migration layer; it does not create Cloud Kit
+> identity or select canonical Architecture v2 behavior.
 
 ## What differs from Basement Kit
 
-Cloud Kit shares ~90% of its definition with Basement Kit (the `base/` library). Only the
-context-derived defaults differ, resolved from `context: cloud` (`base/context.cue`):
+Cloud Kit shares ~90% of its definition with Basement Kit (the `base/` library). Its explicit
+kit definition binds the cloud-specific networking, ingress, DNS, and TLS deltas. The old
+`base/context.cue` path is compatibility input for v1 migration, not the product discriminator:
 
-| Concern | Basement (`context local/pi`) | Cloud (`context cloud`) |
+| Concern | Basement Kit | Cloud Kit |
 |---|---|---|
 | TLS | self-signed, `*.home.localhost` | Let's Encrypt (ACME) on a real domain |
 | Access | host ports, private IP | reverse proxy, public IP |

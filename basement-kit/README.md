@@ -3,11 +3,13 @@
 > Local single-environment homelab (1..N nodes, exactly one `main`) for Docker-based home/LAN deployments. Installer: `https://base.stackkit.cc` (`base` = home base). CUE is the source of truth; OpenTofu output is generated.
 
 > **Taxonomy (ADR-0026):** Basement Kit is the
-> **local** product profile (`context local/pi`) derived from the shared `base.#StackBase`
+> **local** product profile derived from the shared `base.#StackBase`
 > library. **Cloud Kit** (`cloud-kit`, installer `cloud.stackkit.cc`) is the sibling cloud
 > profile over the same core. The retired `base-kit` slug is no longer installable;
 > `stackkit init base-kit` is aliased to `basement-kit` with a deprecation warning. A hybrid
-> local+cloud deployment is **Modern Homelab**; redundant control planes are **HA Kit**.
+> local+cloud deployment is **Modern Homelab**; redundant control planes are selected through
+> the Basement-specific `addons/ha` realization. Legacy `context: local|pi` is v1 migration
+> input only and does not select Basement Kit identity or canonical Architecture v2 behavior.
 
 ## Current Release Default
 

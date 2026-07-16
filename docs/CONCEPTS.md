@@ -32,7 +32,7 @@ platform that enables the use cases.
 | Term | Meaning | Notes |
 |------|---------|-------|
 | **Foundation Layer** | The OS/host layer — one of the three layers (Application / Platform / **Foundation**). | Canonical per ADR-0015. **Never** "Base Layer" or "OS Layer" in new docs. |
-| **Basement Kit** / **Cloud Kit** | The single-environment kits (local / cloud) — formerly "Base Kit" / "Base Homelab". | Profiles over one shared schema `base.#StackBase` (ADR-0026 + amendment). `base-kit` is retired as a kit and survives only as a deprecation alias. |
+| **Basement Kit** / **Cloud Kit** | The pure-site-class kits (home / cloud) — formerly "Base Kit" / "Base Homelab". | Distinct KitProfiles over shared contracts per ADR-0029. `base-kit` is retired as a kit and survives only as a migration alias. |
 | **`base/`** | The shared CUE schema package (foundational contracts: stackkit, cluster, placement, context, …). | A code package name. NOT the Foundation layer, NOT a kit. |
 | **Base Hub** (Node Hub) | The per-node onboarding entrypoint served at `base.<domain>`. | A UX surface. NOT a layer, NOT a kit. |
 
@@ -48,41 +48,38 @@ remaining uses of "base" are the `base/` package and the `base.<domain>` Hub URL
 
 A StackKit defines HOW infrastructure is organized AND WHICH use cases ship as defaults.
 
-Kits are distinguished by **control-plane (main) count + locality federation**, not by
-node count or locality alone (ADR-0026,
-Golden Rules §8). Every non-HA kit has **exactly one main**.
+Kits are distinguished by permitted Site kinds, capability sets, authority placement,
+and failure contract — not by node count, hardware, or a global `context` switch
+(ADR-0029, Golden Rules §8). Every StackInstance has one logical ControlPlane;
+the HA add-on may replicate its members.
 
 | StackKit | Pattern | Maturity | Default Scope |
 |----------|---------|----------|---------------|
-| **Basement Kit** | Single environment, 1 main, local-only (`context local/pi`) | stable (schema `base.#StackBase`) | Platform + verified default application modules; heavier modules gated by release gates |
-| **Cloud Kit** | Single environment, 1 main, cloud-only (`context cloud`, BYO-VPS) | scaffolding → graduating (same `base.#StackBase`, `context cloud`) | Same scope; public-IP/domain onboarding |
-| **Modern Homelab** | Hybrid (≥1 local + ≥1 cloud), 1 main + bridge contract | preview/early-access (alpha, v0.8) | Composition of Basement + Cloud node-sets + interface/bridge; managed variant = subscription |
-| **HA** *(add-on, not a marketed kit)* | Redundant control planes, quorum 3/5/7 | `addons/ha` add-on | Node-gated reliability overlay: `warm-standby` (≥2 nodes) + `quorum` (≥3 odd managers, etcd) tiers — ADR-0026 amendment 2026-06-30 |
+| **Basement Kit** | One or more home Sites; local Control Authority | stable runtime; v2 profile migration active | Local provisioning, LAN access/enrollment, hardware gates, offline autonomy |
+| **Cloud Kit** | One or more cloud Sites; cloud Control Authority | stable runtime; v2 profile migration active | VPS provisioning, default-closed public edge, public DNS/TLS, internet hardening |
+| **Modern Homelab** | At least one home and one cloud Site; home authority + five bridge contracts | preview/early-access | Protected Site federation, explicit publication/placement/residency/partition policy |
+| **HA** *(add-on, never a kit)* | Replicates one logical ControlPlane against explicit RPO/RTO | `addons/ha` | Kit-specific active-passive/quorum realization with real nodes, failure domains, and fencing |
 
-Basement Kit and Cloud Kit are **product profiles over the one shared `base.#StackBase` schema**
-(selected by `context`), not two separate schemas. Platform target = routing + identity
-implementation + access gateway + PaaS adapter + platform observability. Current release
-gates may keep individual platform services opt-in until their first-run UX and
-verification path are ready.
+Basement Kit and Cloud Kit use the same neutral Site/Node/Capability contracts, but
+their explicit KitDefinitions require and forbid different capabilities. Kit selection
+chooses the product profile. Environment detection validates that choice; it does not
+silently replace it.
 
-### 2. Context = Where + What Hardware
+### 2. Sites + Inventory Facts
 
-Auto-detected during `stackkit prepare` from the runtime environment. Drives infrastructure-level defaults ONLY.
+Canonical v2 separates facts that the legacy `context` enum combined:
 
-| Context | Detection | Effects |
-|---------|-----------|---------|
-| `local` | Local/private target (private IP or NAT, no cloud metadata) | Browser-native `.localhost` links, Coolify, overlay2 |
-| `cloud` | Cloud provider metadata or VPS detected (public IP, cloud signatures) | Let's Encrypt, Coolify, public IP routing |
-| `pi` | ARM64 architecture + low resources (<4 cores or <4 GB RAM) | Standard PaaS contract remains Coolify unless explicitly overridden; heavy modules are gated and lightweight managers remain experimental |
+| Axis | Examples | Owner |
+|------|----------|-------|
+| Site kind | `home`, `cloud` | Explicit StackSpec/KitDefinition constraint |
+| Reachability | private, NAT/CGNAT, public-capable | Detected inventory + validated intent |
+| Hardware | amd64/arm64, `pi`, GPU, storage | Node inventory and hardware profile |
+| Provider | VPS/cloud account, region, failure domain | Site provider reference + observed facts |
+| Exposure | local, remote-private, public | Per-service access/publication policy |
 
-**How auto-detection works:**
-
-1. Network environment detection (`netenv.Detect()`) checks cloud metadata endpoints, public/private IPs, and environment variables to classify as `home`, `vps`, or `cloud`.
-2. Hardware detection identifies CPU architecture (amd64/arm64) and resource levels (cores, RAM).
-3. `ResolveNodeContext()` combines both signals: ARM64 + low resources → `pi`, cloud/VPS → `cloud`, private/local target → `local`.
-4. The `--context` CLI flag can override auto-detection (e.g., `--context pi` on an old laptop).
-
-Context does NOT determine which use cases are available. That's the StackKit's job + Compute Tier gating.
+The current CLI still accepts `--context local|cloud|pi` as a v1 compatibility
+surface. The v2 migration maps it into typed Sites/hardware and emits a warning;
+new contracts and consumers must not use it to choose a KitProfile.
 
 ### 3. Compute Tier = Resource Gate
 
@@ -171,23 +168,26 @@ StackKit selected (Basement Kit)
 Deployment mode and resource profile applied
     |
     v
-Context auto-detected:
-  netenv.Detect() → network environment (home/vps/cloud)
-  + hardware info (arch, CPU cores, RAM)
-  → ResolveNodeContext() → local / cloud / pi
-  (--context flag overrides if set)
+Sites and target membership declared
+    |
+    v
+Inventory facts detected independently:
+  reachability + provider + architecture + CPU/RAM/storage/devices
     |
     v
 Compute Tier derived (high / standard / low)
     |
     v
-Default tool set resolved (from StackKits registry roles per kit)
+KitDefinition + capability/provider/add-on contracts resolved
     |
     v
 User overrides applied (--paas coolify, --enable photos, etc.)
     |
     v
-Compute Tier gating (disable tools that exceed hardware)
+Compute/resource gates and access/data/failure policies validated
+    |
+    v
+One canonical ResolvedPlan + planHash produced
     |
     v
 CUE unification + validation
@@ -206,7 +206,7 @@ Variants were mutually exclusive service bundles (default/beszel/minimal/coolify
 Replaced by the per-tool role system:
 - `beszel` variant → `--monitoring beszel`
 - `coolify` variant → `--paas coolify`
-- `minimal` variant → `--compute-tier low`, `--context pi`, or an explicit constrained resource profile
+- `minimal` variant → `--compute-tier low` or an explicit constrained hardware/resource profile (`--context pi` remains a migration alias only)
 
 ---
 
@@ -214,10 +214,11 @@ Replaced by the per-tool role system:
 
 | Situation | Behavior |
 |-----------|----------|
-| Base topology + 1 node | Services run on the primary (`main`) node. Basement/Cloud stays. |
-| Base topology + additional worker/storage nodes in the same trust domain | Stays Basement/Cloud (one `main`); placement is used for capacity, storage, backup, or device-specific workloads. |
-| ≥1 local **and** ≥1 cloud node + bridge contract | This is **Modern Homelab** (composition + bridge), not a base-topology kit. Alpha/scaffolding this release line; managed variant is subscription-gated. |
-| Redundant control planes / quorum 3+ managers | This is **HA Kit**. Out of public OSS scope for this release line. |
+| One StackInstance + 1 node | Services may run on the single controller/worker node; KitProfile stays unchanged. |
+| One StackInstance + additional nodes | KitProfile stays unchanged; every node references one Site and one parent StackInstance, with explicit roles/placement. |
+| At least one home and one cloud Site + all five bridge contracts | This is **Modern Homelab**, not merely a remote worker join. It remains Preview until live evidence passes. |
+| Several independent mains with their own workers | Several StackInstances grouped in a Fleet; no implicit shared trust, network, or quorum. |
+| Replicated members of one logical ControlPlane | Same KitProfile plus `addons.ha`; explicit availability, failure-domain, and fencing contract required. |
 
 Service placement rules:
 
@@ -233,7 +234,7 @@ Service placement rules:
 
 - **Use cases are the reason to install a StackKit.**
 - **Variants are DEAD.** Use the role system (default/alternative/optional).
-- **V4 is the baseline.** V5 evolves V4, never contradicts it.
+- **ADR-0029 is the target architecture.** The v1/v5 shapes are compatibility inputs during the bounded migration, not authorities for new design.
 - **CUE is the technical contract source of truth; DB is the registry and operations mirror.** Never edit generated files.
 - **OpenTofu, never Terraform.** Licensing violation.
 - **Local default links must open as printed.** Use browser-native names such as `service.home.localhost`; never require hosts-file edits, manual DNS mapping, trust-store setup, or port suffixes for generated default links.

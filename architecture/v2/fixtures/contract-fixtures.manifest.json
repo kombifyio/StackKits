@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "stackkit.architecture-contract-fixtures/v2",
+  "compilerVersion": "stackkits-contract-fixture/0.6.0-fixtures.1",
+  "contractFixtures": [
+    {
+      "spec": "contract-two-node.yaml",
+      "inventory": "contract-two-node.inventory.yaml",
+      "plan": "contract-two-node.resolved-plan.json",
+      "kit": "basement-kit",
+      "authorityClass": "contract-fixture",
+      "authorityDocument": "contractFixtureCatalog",
+      "scope": "contract",
+      "graduationEligible": false,
+      "authorityIssuer": "stackkits-contract-fixture-authority/v1",
+      "authorityCatalogHash": "sha256:e03997daa1cdfbdd95fd78a526589b5b7685d18871562f93968078cd5c7a53c4",
+      "rendererRef": "stackkit-contract-fixture",
+      "compilerVersion": "stackkits-contract-fixture/0.6.0-fixtures.1",
+      "specSha256": "sha256:43014456d26159a4d114b7caf15fb6e759140183d133b5f65fd2fdcb665b78b4",
+      "inventorySha256": "sha256:8c5452e0c3741b4a1f8581f85e659327110d6ddc52cb4236add57a1df6f29f39",
+      "planSha256": "sha256:51847cb7804711d01b70b3f99647874ceaa2672ef9f4d6381770bb62cb6d377c",
+      "planHash": "sha256:d730510a86173e459b35f471cde68c0a4581243aad3b494f44174d812e5f13da"
+    }
+  ]
+}

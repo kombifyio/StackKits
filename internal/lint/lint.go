@@ -173,7 +173,12 @@ func serviceFindings(slug, name string, svc skcue.ServiceDef) []Finding {
 	if isFloatingTag(svc.Tag) {
 		add("image-not-pinned", SeverityError, "image %q uses floating tag %q — pin a semver/variant/digest", svc.Image, svc.Tag)
 	}
-	if svc.HealthCheck == nil {
+	// A bounded one-shot reports success through its process exit status. A
+	// synthetic long-running health check would keep an already-completed job
+	// alive and misrepresent its lifecycle. Only the explicit automation +
+	// restart=no + non-empty command contract receives this exception; every
+	// daemon and incompletely-declared job still requires a health check.
+	if svc.HealthCheck == nil && !isBoundedOneShot(svc) {
 		add("healthcheck-missing", SeverityError, "no healthCheck declared (the healthCheck is the smoke-test assertion, ADR-0027 G4)")
 	}
 	if svc.Security == nil {
@@ -193,6 +198,10 @@ func serviceFindings(slug, name string, svc skcue.ServiceDef) []Finding {
 	}
 	out = append(out, plaintextSecretFindings(slug, name, svc.Environment)...)
 	return out
+}
+
+func isBoundedOneShot(svc skcue.ServiceDef) bool {
+	return svc.Type == "automation" && svc.RestartPolicy == "no" && len(svc.Command) > 0
 }
 
 // plaintextSecretFindings flags hardcoded credentials in a service's env.

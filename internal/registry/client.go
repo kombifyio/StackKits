@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
 // EnvEndpoint is the env var that routes the CLI to the private Admin
@@ -35,6 +38,27 @@ type Client interface {
 
 // ErrNotFound signals an unknown slug. Callers use errors.Is.
 var ErrNotFound = fmt.Errorf("registry: not found")
+
+const retiredHAKitRegistrySlug = stackspecmigration.LegacyHAKitSlug
+
+// activeProductSnapshot removes legacy migration-only rows at the client
+// boundary. The Admin DB may retain such a row during its controlled cleanup
+// window, but CLI discovery and generated product views must never expose it.
+func activeProductSnapshot(snap Snapshot) Snapshot {
+	active := make([]StackKit, 0, len(snap.StackKits))
+	for _, stackkit := range snap.StackKits {
+		if !productkits.IsActive(stackkit.Slug) {
+			continue
+		}
+		active = append(active, stackkit)
+	}
+	snap.StackKits = active
+	return snap
+}
+
+func isActiveProductKitSlug(slug string) bool {
+	return productkits.IsActive(slug)
+}
 
 // ---------------------------------------------------------------------------
 // AutoClient
@@ -116,6 +140,9 @@ func (c *EmbeddedClient) StackKit(_ context.Context, slug string) (StackKit, err
 	if c.err != nil {
 		return StackKit{}, c.err
 	}
+	if !isActiveProductKitSlug(slug) {
+		return StackKit{}, fmt.Errorf("%w: stackkit %q is not an active product", ErrNotFound, slug)
+	}
 	for _, s := range c.snap.StackKits {
 		if s.Slug == slug {
 			return s, nil
@@ -172,7 +199,7 @@ func (c *RemoteClient) Snapshot(ctx context.Context) (Snapshot, error) {
 		snap.GeneratedAt = time.Now().UTC()
 	}
 	snap.AdminEndpoint = c.endpoint
-	return snap, nil
+	return activeProductSnapshot(snap), nil
 }
 
 // Tool fetches one tool from the Admin API.
@@ -197,10 +224,16 @@ func (c *RemoteClient) Module(ctx context.Context, slug string) (Module, error) 
 
 // StackKit fetches one curated stackkit from the Admin API.
 func (c *RemoteClient) StackKit(ctx context.Context, slug string) (StackKit, error) {
+	if !isActiveProductKitSlug(slug) {
+		return StackKit{}, fmt.Errorf("%w: stackkit %q is not an active product", ErrNotFound, slug)
+	}
 	var s StackKit
 	path := fmt.Sprintf("/api/v1/sk/registry/stackkits/%s", slug)
 	if err := c.getJSON(ctx, path, &s); err != nil {
 		return StackKit{}, err
+	}
+	if s.Slug != slug || !isActiveProductKitSlug(s.Slug) {
+		return StackKit{}, fmt.Errorf("registry: stackkit response identity mismatch: requested %q, got %q", slug, s.Slug)
 	}
 	return s, nil
 }
