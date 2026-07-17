@@ -204,7 +204,7 @@ function validateRequiredMissingAlternatives(errors, missingAlternatives) {
   }
   for (const prefix of REQUIRED_MISSING_ALTERNATIVE_PREFIXES) {
     if (!missingAlternatives.some((item) => typeof item === 'string' && item.startsWith(prefix))) {
-      errors.push(`missingAlternatives must include a ${prefix.trim()} v0.4 limitation entry`);
+      errors.push(`missingAlternatives must include a ${prefix.trim()} alternative-status entry`);
     }
   }
 }

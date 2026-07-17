@@ -21,7 +21,7 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
   await execFileAsync(process.execPath, [
     'scripts/release/render-release-evidence.mjs',
     '--tag',
-    'v0.0.1',
+    'v0.4.0',
     '--commit',
     'abcdef123456',
     '--source-repo',
@@ -50,7 +50,7 @@ test('render-release-evidence writes artifact hashes and checks', async () => {
 
   const evidence = JSON.parse(await readFile(output, 'utf8'));
   assert.equal(evidence.schemaVersion, '1.0.0');
-  assert.equal(evidence.release.tag, 'v0.0.1');
+  assert.equal(evidence.release.tag, 'v0.4.0');
   assert.equal(evidence.checks.publicExport.status, 'pass');
   assert.equal(evidence.checks.archiveValidation.status, 'pass');
   assert.equal(evidence.checks.candidateE2E.status, 'pending');
@@ -2803,7 +2803,7 @@ test('render-release-evidence rejects incomplete Vaultwarden Owner invite eviden
   assert.match(evidence.checks.browserEvidence.summary, /vaultwarden-admin-handoff evidence\[appLocalSessionHandoff\] is manual-admin-ui-only, want vaultwarden-invite-prepared/);
 });
 
-test('render-release-evidence keeps required v0.4 missing alternatives by default', async () => {
+test('render-release-evidence keeps historical v0.4 defaults for v0.4 releases', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-required-alternatives-'));
   const dist = path.join(dir, 'dist');
   await mkdir(dist);
@@ -2812,7 +2812,7 @@ test('render-release-evidence keeps required v0.4 missing alternatives by defaul
   await execFileAsync(process.execPath, [
     'scripts/release/render-release-evidence.mjs',
     '--tag',
-    'v0.0.1',
+    'v0.4.0',
     '--commit',
     'abcdef123456',
     '--source-repo',
@@ -2836,6 +2836,42 @@ test('render-release-evidence keeps required v0.4 missing alternatives by defaul
     'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
     'v0.4 browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and default L3 app content; Immich StackKit demo photo and Cloudreve StackKit Demo/README.txt need live browser proof.',
   ]);
+});
+
+test('render-release-evidence uses current architecture defaults without v0.4 leakage', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'stackkits-evidence-current-defaults-'));
+  const dist = path.join(dir, 'dist');
+  await mkdir(dist);
+
+  const output = path.join(dist, 'release-evidence.json');
+  await execFileAsync(process.execPath, [
+    'scripts/release/render-release-evidence.mjs',
+    '--tag',
+    'v0.6.0-beta.1',
+    '--commit',
+    'abcdef123456',
+    '--source-repo',
+    'kombifyio/stackKits',
+    '--release-repo',
+    'kombifyio/stackKits',
+    '--dist',
+    dist,
+    '--output',
+    output,
+  ]);
+
+  const evidence = JSON.parse(await readFile(output, 'utf8'));
+  assert.deepEqual(evidence.missingAlternatives, [
+    'Photos currently uses Immich as its supported default; no additional Photos alternative is claimed or verified by this release.',
+    'Vault currently uses Vaultwarden as its supported default; no additional Vault alternative is claimed or verified by this release.',
+  ]);
+  assert.deepEqual(evidence.knownLimitations, [
+    'Architecture v2 is a governed contract checkpoint; product v2 generation and apply remain fail-closed until concrete typed renderers and kit-specific owner/module realizations are complete.',
+    'Modern Homelab remains Preview and is excluded from the supported public runtime until its concrete federation bridge, edge/verifier, TLS, health, and multi-site evidence exist.',
+    'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
+    'Live browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and default L3 app content before those support claims are marked verified.',
+  ]);
+  assert.ok(!JSON.stringify(evidence).includes('v0.4'));
 });
 
 function check(name, evidence = defaultBrowserEvidenceForCheck(name)) {

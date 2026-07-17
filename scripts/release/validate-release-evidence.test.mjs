@@ -91,8 +91,8 @@ test('validate-release-evidence requires Photos and Vault missing alternatives',
   evidence.missingAlternatives = ['Photos alternative is not accepted for v0.4 beta'];
 
   const errors = validateReleaseEvidence(evidence).join('\n');
-  assert.doesNotMatch(errors, /Photos v0.4 limitation/);
-  assert.match(errors, /Vault v0.4 limitation/);
+  assert.doesNotMatch(errors, /Photos alternative-status entry/);
+  assert.match(errors, /Vault alternative-status entry/);
 });
 
 test('validate-release-evidence CLI exits nonzero for invalid evidence', async () => {

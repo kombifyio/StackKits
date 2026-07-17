@@ -12,7 +12,7 @@ const PUBLIC_SK_S1_PENDING_GATE =
 const PUBLIC_BROWSER_PENDING_SUMMARY =
   'SK-S1 browser evidence is BLOCKED until it is produced by the separately authorized leased Proxmox product run.';
 
-const REQUIRED_MISSING_ALTERNATIVES = [
+const LEGACY_V04_MISSING_ALTERNATIVES = [
   {
     service: 'Photos',
     message:
@@ -25,8 +25,37 @@ const REQUIRED_MISSING_ALTERNATIVES = [
   },
 ];
 
-const REQUIRED_KNOWN_LIMITATIONS = [
+const CURRENT_MISSING_ALTERNATIVES = [
+  {
+    service: 'Photos',
+    message:
+      'Photos currently uses Immich as its supported default; no additional Photos alternative is claimed or verified by this release.',
+  },
+  {
+    service: 'Vault',
+    message:
+      'Vault currently uses Vaultwarden as its supported default; no additional Vault alternative is claimed or verified by this release.',
+  },
+];
+
+const LEGACY_V04_KNOWN_LIMITATIONS = [
   'v0.4 browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and default L3 app content; Immich StackKit demo photo and Cloudreve StackKit Demo/README.txt need live browser proof.',
+];
+
+const CURRENT_KNOWN_LIMITATIONS = [
+  'Live browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and default L3 app content before those support claims are marked verified.',
+];
+
+const LEGACY_V04_DEFAULT_KNOWN_LIMITATIONS = [
+  'v0.4 is a BaseKit beta-hardening release and does not claim production readiness.',
+  'Unreleased kit definitions remain out of v0.4 scope.',
+  'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
+];
+
+const CURRENT_DEFAULT_KNOWN_LIMITATIONS = [
+  'Architecture v2 is a governed contract checkpoint; product v2 generation and apply remain fail-closed until concrete typed renderers and kit-specific owner/module realizations are complete.',
+  'Modern Homelab remains Preview and is excluded from the supported public runtime until its concrete federation bridge, edge/verifier, TLS, health, and multi-site evidence exist.',
+  'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
 ];
 
 const REQUIRED_BROWSER_EVIDENCE_CHECKS = [
@@ -493,7 +522,26 @@ function checkFromMap(checks, name, fallbackStatus, summary) {
   return { status: fallbackStatus, ...(summary ? { summary } : {}) };
 }
 
-function mergeRequiredMissingAlternatives(values) {
+function isLegacyV04Tag(tag) {
+  return /^v0\.4\./.test(String(tag || '').trim());
+}
+
+function releaseEvidenceDefaults(tag) {
+  if (isLegacyV04Tag(tag)) {
+    return {
+      missingAlternatives: LEGACY_V04_MISSING_ALTERNATIVES,
+      requiredKnownLimitations: LEGACY_V04_KNOWN_LIMITATIONS,
+      defaultKnownLimitations: LEGACY_V04_DEFAULT_KNOWN_LIMITATIONS,
+    };
+  }
+  return {
+    missingAlternatives: CURRENT_MISSING_ALTERNATIVES,
+    requiredKnownLimitations: CURRENT_KNOWN_LIMITATIONS,
+    defaultKnownLimitations: CURRENT_DEFAULT_KNOWN_LIMITATIONS,
+  };
+}
+
+function mergeRequiredMissingAlternatives(values, requiredAlternatives) {
   const result = [];
   const seen = new Set();
   const add = (value) => {
@@ -505,7 +553,7 @@ function mergeRequiredMissingAlternatives(values) {
   for (const value of values) {
     add(value);
   }
-  for (const required of REQUIRED_MISSING_ALTERNATIVES) {
+  for (const required of requiredAlternatives) {
     const covered = result.some((value) => value.toLowerCase().startsWith(`${required.service.toLowerCase()} `));
     if (!covered) {
       add(required.message);
@@ -514,7 +562,7 @@ function mergeRequiredMissingAlternatives(values) {
   return result;
 }
 
-function mergeRequiredKnownLimitations(values, browserEvidencePassed = false) {
+function mergeRequiredKnownLimitations(values, requiredLimitations, browserEvidencePassed = false) {
   const result = [];
   const seen = new Set();
   const add = (value) => {
@@ -527,7 +575,7 @@ function mergeRequiredKnownLimitations(values, browserEvidencePassed = false) {
     add(value);
   }
   if (!browserEvidencePassed) {
-    for (const required of REQUIRED_KNOWN_LIMITATIONS) {
+    for (const required of requiredLimitations) {
       add(required);
     }
   }
@@ -2197,6 +2245,7 @@ async function main() {
   }
   const boundedScenarioEvidence = enforcePublicSKS1EvidenceBoundary(scenarioEvidence, opts.visibility);
   const mergedScenarioEvidence = mergeRequiredScenarioEvidence(boundedScenarioEvidence);
+  const releaseDefaults = releaseEvidenceDefaults(opts.tag);
   const evidence = {
     schemaVersion: '1.0.0',
     generatedAt: new Date().toISOString(),
@@ -2243,15 +2292,15 @@ async function main() {
     },
     scenarioEvidence: mergedScenarioEvidence,
     pendingGates: mergePendingGates(opts.pendingGates, mergedScenarioEvidence),
-    missingAlternatives: mergeRequiredMissingAlternatives(opts.missingAlternatives),
+    missingAlternatives: mergeRequiredMissingAlternatives(
+      opts.missingAlternatives,
+      releaseDefaults.missingAlternatives,
+    ),
     knownLimitations: mergeRequiredKnownLimitations(
       opts.knownLimitations.length
         ? opts.knownLimitations
-        : [
-            'v0.4 is a BaseKit beta-hardening release and does not claim production readiness.',
-            'Unreleased kit definitions remain out of v0.4 scope.',
-            'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
-          ],
+        : releaseDefaults.defaultKnownLimitations,
+      releaseDefaults.requiredKnownLimitations,
       !publicRelease && browserEvidence?.status === 'pass',
     ),
   };
