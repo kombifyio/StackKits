@@ -24,7 +24,7 @@ modeMatrix: base.#KitModeSupport & {
 		// Composes and generates; no automated verification cell yet.
 		bare: "scaffolding"
 		// SK-S2 (kombify.me/Komodo) and SK-S3 (custom domain/Coolify) run the
-		// bootstrapped path end-to-end on provider-leased fresh Ubuntu.
+		// bootstrapped path end-to-end on externally supplied fresh Ubuntu.
 		bootstrapped: "supported"
 		// Advanced is the Terramate Plus lifecycle contract; the full
 		// Advanced E2E cell is still open.
@@ -33,7 +33,7 @@ modeMatrix: base.#KitModeSupport & {
 
 	context: {
 		local: "unsupported"
-		// Proven on centron-managed provider leases (SK-S2/SK-S3).
+		// Proven on externally supplied cloud hosts (SK-S2/SK-S3).
 		cloud: "supported"
 		pi:    "unsupported"
 	}

@@ -18,13 +18,13 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
-            "ha-cloud-quorum-zone-majority-proof"
+            "ha-cloud-quorum-failure-domain-majority-proof"
           ]
         },
         "failureModel": {
-          "basis": "provider-zone",
+          "basis": "failure-domain",
           "memberSiteScope": "control-member-sites",
-          "partitionBehavior": "provider-network-failover"
+          "partitionBehavior": "failure-domain-failover"
         },
         "healthAcceptance": {
           "memberReadiness": "majority",
@@ -58,13 +58,13 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
-            "ha-cloud-warm-standby-zone-failover-proof"
+            "ha-cloud-warm-standby-failure-domain-proof"
           ]
         },
         "failureModel": {
-          "basis": "provider-zone",
+          "basis": "failure-domain",
           "memberSiteScope": "control-member-sites",
-          "partitionBehavior": "provider-network-failover"
+          "partitionBehavior": "failure-domain-failover"
         },
         "healthAcceptance": {
           "memberReadiness": "all",
@@ -100,20 +100,23 @@
     "defaults": [],
     "forbidden": [
       "site-local",
+      "lan-discovery",
+      "local-ingress",
       "lan-access-policy",
       "device-enrollment-home",
       "local-hardware-preflight"
     ],
     "optional": [
       "private-admin-mesh",
-      "provider-snapshot",
-      "multi-zone-placement",
+      "failure-domain-placement",
       "photos",
       "availability-ha"
     ],
     "required": [
       "topology-core",
       "host-bootstrap",
+      "external-host-admission",
+      "host-conformance",
       "security-baseline",
       "human-identity-core",
       "device-trust-core",
@@ -126,16 +129,13 @@
       "observability-evidence",
       "lifecycle-update",
       "site-cloud",
-      "provision-vps",
-      "provider-metadata",
-      "cloud-firewall",
+      "host-local-internet-firewall",
       "public-edge",
       "public-dns",
       "public-tls",
       "internet-host-hardening",
       "remote-owner-bootstrap",
       "offsite-object-backup",
-      "provider-lifecycle",
       "cloud-control-authority"
     ]
   },
@@ -170,9 +170,290 @@
     "defaultStrategy": "kit-template",
     "defaultTarget": "opentofu"
   },
+  "identityTrust": {
+    "authorities": [
+      {
+        "id": "cloud-human-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-cloud-identity-trust-policy-manifest",
+          "providerRef": "stackkits-cloud-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "trustDomainRef": "cloud-stackkit-trust"
+      },
+      {
+        "id": "owner-device-authority",
+        "owner": {
+          "contractRef": "owner-bound-device-authority",
+          "kind": "external"
+        },
+        "placement": {
+          "contractRef": "owner-bound-device-authority",
+          "selector": "external"
+        },
+        "principal": "device",
+        "trustDomainRef": "owner-bound-device-trust"
+      },
+      {
+        "id": "cloud-workload-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-cloud-identity-trust-policy-manifest",
+          "providerRef": "stackkits-cloud-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "trustDomainRef": "cloud-stackkit-trust"
+      }
+    ],
+    "credentialIssuers": [
+      {
+        "audienceRefs": [
+          "stackkit-human-session"
+        ],
+        "authorityRef": "cloud-human-authority",
+        "credentialTTLSeconds": 86400,
+        "enrollment": {
+          "exposure": "none",
+          "mode": "none"
+        },
+        "id": "cloud-human-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "cloud-human-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-cloud-identity-trust-policy-manifest",
+          "providerRef": "stackkits-cloud-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "proofOfPossessionRequired": false,
+        "revocationMaxStalenessSeconds": 0,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 900,
+        "verificationKeySetRef": "cloud-human-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-device-session"
+        ],
+        "authorityRef": "owner-device-authority",
+        "credentialTTLSeconds": 3600,
+        "enrollment": {
+          "exposure": "none",
+          "mode": "none"
+        },
+        "id": "owner-device-credential-issuer",
+        "issuanceWithinStackKit": false,
+        "issuerRef": "owner-bound-device-issuer",
+        "owner": {
+          "contractRef": "owner-bound-device-authority",
+          "kind": "external"
+        },
+        "placement": {
+          "contractRef": "owner-bound-device-authority",
+          "selector": "external"
+        },
+        "principal": "device",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 900,
+        "verificationKeySetRef": "owner-bound-device-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-workload"
+        ],
+        "authorityRef": "cloud-workload-authority",
+        "credentialTTLSeconds": 300,
+        "enrollment": {
+          "exposure": "none",
+          "mode": "none"
+        },
+        "id": "cloud-workload-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "cloud-workload-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-cloud-identity-trust-policy-manifest",
+          "providerRef": "stackkits-cloud-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 300,
+        "verificationKeySetRef": "cloud-workload-verification-keys"
+      }
+    ],
+    "integrity": {
+      "authorityIDsUnique": true,
+      "distributionIDsUnique": true,
+      "distributionIssuers": [],
+      "issuerAuthorities": [
+        {
+          "issuerID": "cloud-human-credential-issuer",
+          "matches": [
+            "cloud-human-authority"
+          ]
+        },
+        {
+          "issuerID": "owner-device-credential-issuer",
+          "matches": [
+            "owner-device-authority"
+          ]
+        },
+        {
+          "issuerID": "cloud-workload-credential-issuer",
+          "matches": [
+            "cloud-workload-authority"
+          ]
+        }
+      ],
+      "issuerIDsUnique": true,
+      "issuerRefsUnique": true,
+      "issuerVerifiers": [
+        {
+          "issuerID": "cloud-human-credential-issuer",
+          "matches": [
+            "cloud-human-verifier"
+          ]
+        },
+        {
+          "issuerID": "owner-device-credential-issuer",
+          "matches": [
+            "cloud-device-verifier"
+          ]
+        },
+        {
+          "issuerID": "cloud-workload-credential-issuer",
+          "matches": [
+            "cloud-workload-verifier"
+          ]
+        }
+      ],
+      "verifierIDsUnique": true,
+      "verifierIssuers": [
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-human-session"
+              ],
+              "value": "stackkit-human-session"
+            }
+          ],
+          "matches": [
+            "cloud-human-credential-issuer"
+          ],
+          "verifierID": "cloud-human-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-device-session"
+              ],
+              "value": "stackkit-device-session"
+            }
+          ],
+          "matches": [
+            "owner-device-credential-issuer"
+          ],
+          "verifierID": "cloud-device-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-workload"
+              ],
+              "value": "stackkit-workload"
+            }
+          ],
+          "matches": [
+            "cloud-workload-credential-issuer"
+          ],
+          "verifierID": "cloud-workload-verifier"
+        }
+      ]
+    },
+    "verifierDistributions": [],
+    "verifierPlacements": [
+      {
+        "audienceRefs": [
+          "stackkit-human-session"
+        ],
+        "id": "cloud-human-verifier",
+        "issuerRef": "cloud-human-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-cloud-identity-trust-policy-manifest",
+          "providerRef": "stackkits-cloud-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "cloud-sites"
+        },
+        "principal": "human",
+        "proofOfPossessionRequired": false,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "cloud-human-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-device-session"
+        ],
+        "id": "cloud-device-verifier",
+        "issuerRef": "owner-bound-device-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-cloud-identity-trust-policy-manifest",
+          "providerRef": "stackkits-cloud-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "cloud-sites"
+        },
+        "principal": "device",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "owner-bound-device-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-workload"
+        ],
+        "id": "cloud-workload-verifier",
+        "issuerRef": "cloud-workload-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-cloud-identity-trust-policy-manifest",
+          "providerRef": "stackkits-cloud-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "cloud-sites"
+        },
+        "principal": "workload",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "cloud-workload-verification-keys"
+      }
+    ]
+  },
   "kind": "KitDefinition",
   "metadata": {
-    "description": "Cloud-only StackKit for one or more VPS or cloud nodes",
+    "description": "Cloud-only StackKit for one or more externally supplied cloud hosts",
     "displayName": "Cloud Kit",
     "slug": "cloud-kit",
     "version": "5.0.0"
@@ -242,7 +523,7 @@
       "defaultMode": "single",
       "memberSiteScope": "any"
     },
-    "maxSites": 64,
+    "maxSites": 1,
     "minSites": 1,
     "multiNode": true,
     "requiredSiteKinds": [

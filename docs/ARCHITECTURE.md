@@ -1,6 +1,6 @@
 # Architecture — kombify StackKits
 
-> Last verified: 2026-07-14
+> Last verified: 2026-07-17
 
 This is the current implementation overview for this repo. Normative product and module rules are summarized here and in accepted ADRs.
 
@@ -15,7 +15,7 @@ operator intent / TechStack intent
 StackSpec v1/v2 or API request
         |
         v
-selected KitDefinition + inventory + providers + add-ons
+selected KitDefinition + inventory + capability adapters + add-ons
         |
         v
 CUE-validated, immutable ResolvedPlan + planHash
@@ -44,13 +44,36 @@ The v2 boundary is:
    optional, and forbidden capabilities.
 2. Site locality, trust/failure domains, node hardware, reachability, placement,
    and availability are independent typed axes.
-3. Kit definition, user intent, detected inventory, providers, and add-ons compile
+3. Kit definition, user intent, detected inventory, implementation adapters, and add-ons compile
    once into a canonical secret-free `#ResolvedPlan`.
 4. CLI, API, generation, apply, Node Hub, registry, and downstream consumers use
    the same schema/compiler version and `planHash`.
 5. Legacy v0.5 specs are dual-read for one minor release; v2 is the only new write
    format. Compatibility projections may feed existing renderers temporarily but
    may not change kit identity or weaken validation.
+
+### Provider-free external-host boundary
+
+StackKits never owns a server-provider resource. TechStack selects and
+manages provider accounts, regions, images, sizes, credentials, leases, ownership,
+cleanup, and native resource IDs. StackKits receives only an opaque
+`ExternalHostBinding` for a host that already exists. The binding is hash-bound to
+the Stack, node, normalized Spec, exact host requirements, inventory snapshot, and
+a bounded execution channel; it contains no provider name, raw management address,
+or lifecycle operation.
+
+Host inspection produces a separate `HostConformanceReceipt`. Its OS tuple is the
+only StackKits compatibility claim. Architecture, kernel, virtualization, and
+container-runtime observations remain provider-neutral admission diagnostics. A
+Shadow Plan may carry empty binding and receipt maps so prerelease development is
+not blocked; once evidence is supplied it must match exactly, and a later executor
+must reject an expired binding at its recorded apply instant. Absence is reported
+as pending/unverified rather than inferred as success.
+
+The CUE catalog type `CapabilityProvider` is retained as implementation-adapter
+terminology for host-local, external-service, renderer, mesh, or PaaS realizations.
+It is not a server provider and may not acquire server-provider fields by reuse of
+that name.
 
 ### Service-owned plan authority and rehash boundary
 
@@ -109,6 +132,109 @@ resolved origin site. This is deliberate defense in depth: enabling a route in r
 intent is insufficient, and a renderer is never allowed to infer or widen
 reachability.
 
+### Shared Home-site offline-autonomy policy
+
+`offline-autonomy` is a Home-site architecture capability, not a Basement rollout
+shortcut and not a consequence of `site.kind: home`. Basement Kit and Modern
+Homelab select the same dedicated `stackkits-local-autonomy-policy` provider and
+module-single policy manifest because both promise a Home authority that survives
+link loss. Cloud Kit does not select this capability. The residual
+`stackkits-local-runtime` therefore no longer owns or implicitly supplies it.
+
+The manifest receives only the compiler-owned projection `stackId`, `kit`, safe
+`sites`, `controlPlane`, `identity`, `data`, and `failurePolicy`. It contains no
+provider lifecycle, management address, credential, socket, network-tunnel, or
+general LAN authority. Basement requires local-only enrollment, Home data/control
+authority, no Cloud verifier, and zero stale verification. Modern additionally
+requires explicit Home and Cloud Sites, exact Cloud verifier coverage, local
+continuation during Cloud/link loss, a fail-closed Cloud edge, and explicit policy
+for any Cloud data copy.
+
+This is deliberately a generation-only contract. The emitted
+`local/autonomy/policy.json` states that runtime enforcement is unverified and
+air-gapped installation is not included. A later runtime component must earn the
+Apply and evidence claims; the policy renderer cannot manufacture them.
+
+### Kit-owned identity authority and verifier distribution
+
+`human-identity-core` and `device-trust-core` remain shared capability
+definitions, but the residual Core module no longer realizes them. Architecture
+v2 uses a separate closed `identityTrust` graph so kit identity cannot be inferred
+from legacy `context` or widened through the compatibility `identity` object.
+Definitions own logical authorities, credential issuers, audiences, key-set
+references, verifier placements, and one-way distribution rules. The compiler
+materializes exact Site refs and binds issuer/audience/key-set URNs to `stackId`.
+Module inputs never contain selectors, keys, credentials, endpoints, addresses,
+provider accounts, or lifecycle authority.
+
+Basement composes a shared Home authority/issuance owner with a Basement-local
+trust/verifier owner. Enrollment is LAN-local, all authority and verification
+stay Home, and revocation staleness is zero. Cloud owns Cloud human/workload
+authority and verification, but its device authority is an explicit external
+owner-bound contract; Cloud cannot enroll or issue device credentials. Modern
+keeps all enrollment and signing Home-side, places verifier-only instances at
+Home and every Cloud Site, and distributes only verification-key references and
+revocation state Home-to-Cloud. Reverse distribution, private/signing keys,
+credentials, Cloud enrollment/issuance, and general LAN reachability are closed
+as `false`.
+
+The five emitted identity policy artifacts are generation-only. They explicitly
+state that runtime enforcement and credential issuance are unverified and that
+credential material, JWKS bytes, private keys, endpoints, and transport
+realization are not included. Required runtime evidence therefore keeps Apply
+blocked. HA remains an add-on and must preserve the chosen kit's trust graph.
+These contracts authenticate StackKit access only; they are not a Companion,
+SpeechKit, Home Assistant, or general smart-home authority.
+
+### Shared Home local-ingress and access policy
+
+`local-ingress` and `lan-access-policy` are now owned by the dedicated,
+provider-free `stackkits-home-access-policy` provider rather than the residual
+`stackkits-local-runtime` umbrella. Basement Kit selects the module-single policy
+manifest; Cloud Kit explicitly forbids the Home LAN capabilities and never
+selects the module.
+
+The compiler does not expose raw `access` or `network` objects to this renderer.
+It derives one closed `localReachability` view containing only sorted `local`
+routes whose origins are Home Sites, their logical origin refs, the effective
+access decision, and non-secret TLS metadata. The projection retains the source
+policy exposure (`private` versus `lan`), device-bound LAN step-down, explicit
+site scope, and default-closed decision. Public, remote-private, and Cloud-origin
+routes are omitted. Network configuration, DNS/provider configuration,
+credential refs, CIDRs, management addresses, bridge state, runtime networks,
+interfaces, and sockets are structurally unreachable.
+
+The deterministic `local/network/access-policy.json` is generation-only. It
+does not claim a listening reverse proxy, firewall rule, certificate, interface,
+IP selection, DNS/mDNS availability, or runtime policy enforcement. Apply keeps
+an explicit `module-apply-support-missing` blocker until a separate executor and
+evidence contract implement those mechanisms.
+
+### Explicit Home LAN discovery policy
+
+`lan-discovery` has its own provider-free owner,
+`stackkits-home-lan-discovery-policy`, and is no longer supplied by the residual
+Local umbrella or the Home access module. Basement Kit and Modern Homelab select
+that owner; Cloud Kit forbids it. StackSpec carries the separate
+`lanDiscovery.advertiseRouteRefs` allowlist, whose default is empty. A local
+route therefore never becomes an mDNS, DNS-SD, or LAN-DNS advertisement merely
+because it is reachable.
+
+The compiler resolves only explicitly named routes and requires each one to be
+Home-originated, `local`, governed by an effective `lan` policy, default-closed,
+and addressed by a non-`.localhost` host. It then exposes the closed
+`homeLANDiscovery` projection: sorted Home Site refs plus route/service/origin,
+listener protocol/port/host, and the minimal LAN/default-closed policy proof.
+It cannot carry raw network or access objects, providers, credentials, CIDRs,
+management addresses, internal target ports, TLS state, bridge data, interfaces,
+sockets, or runtime networks.
+
+The deterministic `local/network/discovery-policy.json` is generation-only and
+default-deny. LAN DNS ownership, address and interface selection, mDNS/DNS-SD
+adapters, runtime enforcement, and runtime evidence are explicitly not included
+or unverified. Apply remains blocked until a separate runtime owner earns those
+claims.
+
 ### Catalog-owned module placement and hardware eligibility
 
 Module placement is no longer equivalent to "every enabled node of a supported
@@ -122,14 +248,14 @@ requirement. The exact selector and requirement bodies are persisted in the
 resolved module and reconstructed from the service-owned catalog during plan
 validation.
 
-This boundary is the foundation for the Proxmox and bare-metal compatibility
-matrix: a matrix result can name the same normalized facts that made a node
-eligible. Plan-only validation retains the inventory hash, not the raw inventory
-document, so apply still requires an exact `CurrentResolution` recompile when
-source provenance matters.
+This boundary is the foundation for the provider- and device-neutral OS
+compatibility matrix: a matrix result names the same normalized OS facts used for
+host admission, while architecture, kernel, runtime, virtualization, and hardware
+remain diagnostics. Plan-only validation retains the inventory hash, not the raw
+inventory document, so apply still requires an exact `CurrentResolution`
+recompile when source provenance matters.
 
-The public operating-system compatibility surface, published matrix
-evidence, and current support grades are documented in
+The OS-only public status document and its closed unverified reason codes are documented in
 [OS_COMPATIBILITY.md](OS_COMPATIBILITY.md).
 
 ### Service endpoints and Modern publication backends
@@ -142,7 +268,7 @@ compiler resolves that endpoint to exact Sites, nodes, and render instances.
 
 For Modern Homelab the public listener and protected backend are deliberately
 different contracts. For example, an edge listener may expose `https:443` while
-the only allowed edge-to-home flow is the selected endpoint's `http:8080` plus
+the only allowed edge-to-home flow is the selected endpoint's `http:2283` plus
 its exact data classes. The ResolvedPlan publication records both sides and its
 module/unit/backend pool. `management-only` overlays cannot carry publications or
 data flows, broad routes remain forbidden, and TLS passthrough is unavailable
@@ -246,33 +372,87 @@ the source-provenance guarantee described above: execution still requires the
 exact current `CurrentResolution` bytes.
 Its manifest entry is `scope: contract` and `graduationEligible: false`; it does
 not enter any product catalog, make Basement generation-ready, or weaken the
-Apply blockers. Product runtime graduation still requires kit-owned renderers,
-execution, and same-SHA local and compatibility-matrix evidence.
+Apply blockers. Product runtime graduation still requires kit-owned renderers
+and same-SHA functional execution evidence. Public OS support is a separate
+controlled policy projection and is never inferred from a lab matrix.
 
-### Demo and test resource authority
+The CLI generation boundary is executable for a generation-ready plan whose
+exact renderer contracts are present in the product registry: it creates a
+fresh `CurrentResolution`, exact-matches the canonical plan persisted beneath
+the plan-owned output root, authorizes that one resolution, builds the exact
+product renderer registry, and holds the
+authorization plus workspace handle across `RenderAndInstall`. Renderer output,
+manifest, receipt, and closed-tree replacement commit as one managed
+transaction; cancellation reaches the renderer, and close failures remain
+visible. Architecture v2 rejects legacy `--force` and `--fragments` semantics
+and exact-binds an explicit `--output`. Plan and Verify validate the artifact
+closure before returning their typed executor/verifier boundary. This wiring
+does not make Basement generation-ready: its residual Core, Local, and Basement
+Compose umbrellas remain honest blockers until concrete owners and modules
+replace them.
 
-The demo estate and the destructive test estate share product context but not
-lifecycle or mutation authority. Their canonical contract is
-[`#DemoTestResourceTopologyV1`](../base/demo_test_resource_lifecycle.cue), whose
-CUE constraints are the normative public contract.
+### External infrastructure authority
 
-Every valid topology contains exactly one protected local demo anchor and exactly
-one protected Cloud demo anchor. Both expose read-only health, connection, and
-orchestration surfaces to automation. An optional third server is a single
-`session-ephemeral` resource at a different Cloud provider, created by the SDK/user
-demo flow under an exact session, owner, resource reference, TTL, and isolated
-boundary. It is removed with native zero-residue proof when the session ends; it is
-not a second permanent Cloud anchor.
+StackKits has no demo/test server-provider lifecycle authority. The former
+demo/test CUE contract and its server cardinality, lease,
+provider-resource ownership, mutation, cleanup, and second-provider rules were
+removed when the superseded private ADR-0030 decision record was
+superseded.
 
-Provider release-smoke and local compatibility resources are separate
-`test-ephemeral` roles. Each uses a candidate/run lease and its own authority
-class. The CUE contract rejects boundary reuse across protected local, protected
-Cloud, demo-session, release-smoke, and compatibility-lab authority classes.
-Anything unclassified remains inventory-only and fail-closed.
+TechStack owns provider adapters, execution authority, durable allocation and
+cleanup ledgers, and native absence proof. Simulate may exercise those contracts
+as an optional harness. StackKits receives only an already supplied host through
+`ExternalHostBinding` and returns OS/host evidence through
+`HostConformanceReceipt`; it neither knows nor reconstructs the resource behind
+the opaque references.
 
-Concrete network addresses and device/provider locators are operations data, not
-architecture. They remain in the private registry and secret store and never enter
-repo contracts, generated plans, or public evidence.
+The productive on-host flow is `stackkit host conformance --binding <file>`.
+The command validates the closed provider-free binding, hashes the exact running
+StackKits executable (the running inode on Linux), requires that version and
+digest to equal the Candidate authorized by the binding, and performs only
+read-only allowlisted local probes of the
+Linux OS tuple, architecture, kernel, container-runtime binary, virtualization,
+and nested-virtualization flag. It makes no network, SSH, provider, lifecycle,
+mount, bridge, container-run, or external-IP probe. Its stdout is exactly one
+Receipt JSON document; `--output` creates a new non-overwriting `0600` artifact.
+The command is excluded from deploy logging and rollout telemetry so provider,
+tenant, and node environment metadata cannot enter this evidence path.
+
+Receipt production does not complete host admission by itself. The orchestrator
+attaches the exact Binding and Receipt to the same base Inventory node and then
+resolves the final canonical plan. The final `planHash` covers both envelopes.
+Architecture v2 Apply requires one fresh `conformant` Receipt for every external
+Binding and rejects missing, stale, degraded, incompatible, or unverified
+evidence before readiness or executor handoff. A plan with no external Binding
+needs no Receipt. This is execution admission for an external handoff, not a
+compatibility-matrix or prerelease gate.
+
+Without a versioned CUE-owned OS support policy, the producer deliberately emits
+an `unverified` OS check. The future controlled public projector is the only
+component allowed to turn admitted, current Receipts into positive OS support
+documentation; provider or device runs can never do so directly.
+
+Provider/device runs may be recorded as separate operational evidence, but they
+do not define kit compatibility and do not gate pre-beta releases. Concrete
+addresses, provider/device locators, credentials, ownership, and cleanup state
+remain outside StackKits contracts and public evidence.
+
+Managed runtime admission follows the same boundary. The temporary
+`/api/v1/internal/runtime-actions/*` surface accepts the historical node-side
+transport shape only when `api_version` is absent or explicitly
+`stackkit.runtime-action/v1`; it rejects `stack_spec` and every other version.
+The physically separate `/api/v2/internal/runtime-actions/stackkit-rollout`
+and `stackkit-verify` routes decode explicit `stackkit.runtime-action/v2alpha1`
+through the shared closed Go contract. They contain only StackSpec, Inventory,
+expected plan hash, and stack/tenant/owner identity. StackKits re-resolves that
+intent with its embedded CUE authority and binds both stack ID and plan hash
+before execution admission. Until the governed V2 renderer/executor exists,
+the V2 routes return a typed 501 and have no code path to dry-run readiness,
+caller-chosen OpenTofu directories, raw SSH, TechStack lease identifiers, or
+legacy verify.
+The private source consumes the exact shared Go module pin; the curated OSS
+export deterministically projects that same verified package into a local path
+and removes the private module dependency before its public build gate.
 
 ## Major Containers
 

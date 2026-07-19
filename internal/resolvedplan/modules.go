@@ -525,6 +525,16 @@ func resolveModuleProvides(moduleID, providerID string, contract map[string]any,
 	if err != nil {
 		return nil, err
 	}
+	if len(contractProvides) == 0 {
+		hasProvidedInterface, err := moduleProvidesImplementationInterface(moduleID, contract)
+		if err != nil {
+			return nil, err
+		}
+		if !hasProvidedInterface {
+			return nil, fail(ErrUnrealizedModule, "catalog.modules."+moduleID, "selected module realizes neither a selected capability nor a provided implementation interface")
+		}
+		return []string{}, nil
+	}
 	var provides []string
 	for _, capability := range resolved.capabilityIDs {
 		if contains(contractProvides, capability) && (providerID == "" || resolved.providerByCap[capability] == providerID) {
@@ -536,6 +546,39 @@ func resolveModuleProvides(moduleID, providerID string, contract map[string]any,
 		return nil, fail(ErrUnrealizedModule, "catalog.modules."+moduleID, "selected module realizes no selected capability")
 	}
 	return provides, nil
+}
+
+func moduleProvidesImplementationInterface(moduleID string, contract map[string]any) (bool, error) {
+	path := "catalog.modules." + moduleID
+	support, err := objectField(contract, path, "realizationSupport")
+	if err != nil {
+		return false, err
+	}
+	scope, err := stringField(support, path+".realizationSupport", "scope")
+	if err != nil {
+		return false, err
+	}
+	level, err := stringField(support, path+".realizationSupport", "level")
+	if err != nil {
+		return false, err
+	}
+	if scope != "concrete" || (level != "generation-ready" && level != "apply-ready") {
+		return false, nil
+	}
+	units, err := objectListField(contract, path, "renderUnits")
+	if err != nil {
+		return false, err
+	}
+	for index, unit := range units {
+		interfaces, err := objectListOptional(unit, "providesInterfaces")
+		if err != nil {
+			return false, fail(ErrInvalidInput, fmt.Sprintf("%s.renderUnits[%d].providesInterfaces", path, index), "%v", err)
+		}
+		if len(interfaces) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, siteRefs, nodeRefs []string, contract map[string]any, rawIntent any, nodes []nodeView) (map[string]any, error) {
@@ -624,6 +667,7 @@ type moduleRenderIntent struct {
 type moduleDeclaredInputs struct {
 	public map[string]struct{}
 	secret map[string]struct{}
+	plan   map[string]struct{}
 }
 
 func resolveModuleRenderUnits(moduleID string, contract map[string]any, rawIntent any, placement moduleRenderPlacementContext) ([]any, error) {
@@ -687,7 +731,7 @@ func cloneOptionalModuleIntentObject(intent map[string]any, intentPath, field st
 
 func indexModuleRenderUnits(moduleID string, units []map[string]any) ([]indexedModuleRenderUnit, moduleDeclaredInputs, error) {
 	indexed := make([]indexedModuleRenderUnit, 0, len(units))
-	declared := moduleDeclaredInputs{public: map[string]struct{}{}, secret: map[string]struct{}{}}
+	declared := moduleDeclaredInputs{public: map[string]struct{}{}, secret: map[string]struct{}{}, plan: map[string]struct{}{}}
 	seen := make(map[string]struct{}, len(units))
 	for index, unit := range units {
 		unitPath := fmt.Sprintf("catalog.modules.%s.renderUnits[%d]", moduleID, index)
@@ -716,11 +760,22 @@ func collectModuleUnitInputs(unit map[string]any, unitPath string, declared modu
 	if err != nil {
 		return err
 	}
+	planRefs, err := stringListField(unit, unitPath, "planInputRefs", false)
+	if err != nil {
+		return err
+	}
+	planRefs, err = validateModulePlanInputRefs(planRefs, unitPath+".planInputRefs")
+	if err != nil {
+		return err
+	}
 	for _, inputRef := range publicRefs {
 		declared.public[inputRef] = struct{}{}
 	}
 	for _, inputRef := range secretRefs {
 		declared.secret[inputRef] = struct{}{}
+	}
+	for _, inputRef := range planRefs {
+		declared.plan[inputRef] = struct{}{}
 	}
 	return nil
 }
@@ -729,6 +784,14 @@ func validateModuleRenderInputs(moduleID string, defaults map[string]any, intent
 	for inputRef := range declared.public {
 		if _, conflict := declared.secret[inputRef]; conflict {
 			return fail(ErrContractConflict, "catalog.modules."+moduleID+".renderUnits", "input %q is declared as both public and secret", inputRef)
+		}
+		if _, conflict := declared.plan[inputRef]; conflict {
+			return fail(ErrContractConflict, "catalog.modules."+moduleID+".renderUnits", "input %q is declared as both public and compiler-owned plan input", inputRef)
+		}
+	}
+	for inputRef := range declared.secret {
+		if _, conflict := declared.plan[inputRef]; conflict {
+			return fail(ErrContractConflict, "catalog.modules."+moduleID+".renderUnits", "input %q is declared as both secret and compiler-owned plan input", inputRef)
 		}
 	}
 	if err := validateModulePublicValues("catalog.modules."+moduleID+".inputDefaults", defaults, declared, ErrContractConflict); err != nil {
@@ -798,15 +861,27 @@ func resolveModuleRenderUnit(moduleID string, contract, moduleValues, moduleSecr
 	if err != nil {
 		return nil, err
 	}
+	planInputRefs, err := stringListField(contract, unitPath, "planInputRefs", false)
+	if err != nil {
+		return nil, err
+	}
 	outputs, err := stringListField(contract, unitPath, "outputs", true)
 	if err != nil {
 		return nil, err
 	}
 	publicInputRefs = sortStringsUnique(publicInputRefs)
 	secretInputRefs = sortStringsUnique(secretInputRefs)
+	planInputRefs, err = validateModulePlanInputRefs(planInputRefs, unitPath+".planInputRefs")
+	if err != nil {
+		return nil, err
+	}
 	outputs = sortStringsUnique(outputs)
 	resolved["publicInputRefs"] = stringSliceAny(publicInputRefs)
 	resolved["secretInputRefs"] = stringSliceAny(secretInputRefs)
+	resolved["planInputRefs"] = stringSliceAny(planInputRefs)
+	// The compiler attaches this closed projection only after bridge, identity,
+	// data, and topology resolution. It is never populated from module intent.
+	resolved["planInputs"] = map[string]any{}
 	resolved["outputs"] = stringSliceAny(outputs)
 
 	values := map[string]any{}

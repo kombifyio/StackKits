@@ -231,6 +231,13 @@ func ExecutorNotImplemented(renderer RendererIdentity) error {
 	return fail(ErrExecutorMissing, "resolvedPlan.generation.renderer", "Architecture v2 executor adapter for %s@%s is not implemented", renderer.ID, renderer.Version)
 }
 
+// VerifierNotImplemented prevents a verified v2 plan from falling through to
+// the legacy local-Docker or raw-SSH verifier while the plan-bound host
+// conformance implementation is still under construction.
+func VerifierNotImplemented(renderer RendererIdentity) error {
+	return fail(ErrVerifierMissing, "resolvedPlan.generation.renderer", "Architecture v2 verifier adapter for %s@%s is not implemented", renderer.ID, renderer.Version)
+}
+
 // VerifyCompatibility checks every plan minimum using the compiler's SemVer
 // implementation. An empty or malformed current component version fails.
 func (p VerifiedPlan) VerifyCompatibility(actual ComponentVersions) error {

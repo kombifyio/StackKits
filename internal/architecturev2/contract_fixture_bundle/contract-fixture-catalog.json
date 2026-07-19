@@ -36,6 +36,36 @@
         "resolved-plan-contract"
       ],
       "metadata": {
+        "description": "Shared StackKits Architecture v2 contract for external-host-admission.",
+        "id": "external-host-admission",
+        "layer": "foundation",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
+        "description": "Shared StackKits Architecture v2 contract for host-conformance.",
+        "id": "host-conformance",
+        "layer": "foundation",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
         "description": "Shared StackKits Architecture v2 contract for security-baseline.",
         "id": "security-baseline",
         "layer": "foundation",
@@ -215,20 +245,6 @@
         "resolved-plan-contract"
       ],
       "metadata": {
-        "description": "Home-site Architecture v2 contract for provision-local.",
-        "id": "provision-local",
-        "layer": "platform",
-        "version": "1.0.0"
-      },
-      "supportedSiteKinds": [
-        "home"
-      ]
-    },
-    {
-      "evidence": [
-        "resolved-plan-contract"
-      ],
-      "metadata": {
         "description": "Home-site Architecture v2 contract for local-hardware-preflight.",
         "id": "local-hardware-preflight",
         "layer": "platform",
@@ -367,6 +383,30 @@
         "siteKind": "cloud"
       },
       {
+        "capability": "external-host-admission",
+        "matches": [
+          "fixture-basement-provider"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "external-host-admission",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "host-conformance",
+        "matches": [
+          "fixture-basement-provider"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "host-conformance",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
         "capability": "security-baseline",
         "matches": [
           "fixture-basement-provider"
@@ -507,18 +547,6 @@
       },
       {
         "capability": "site-local",
-        "matches": [],
-        "siteKind": "cloud"
-      },
-      {
-        "capability": "provision-local",
-        "matches": [
-          "fixture-basement-provider"
-        ],
-        "siteKind": "home"
-      },
-      {
-        "capability": "provision-local",
         "matches": [],
         "siteKind": "cloud"
       },
@@ -625,12 +653,26 @@
         "matches": [
           "topology-core"
         ],
-        "module": "fixture-socket-proxy"
+        "module": "fixture-http-consumer"
       },
       {
         "capability": "host-bootstrap",
         "matches": [
           "host-bootstrap"
+        ],
+        "module": "fixture-http-consumer"
+      },
+      {
+        "capability": "external-host-admission",
+        "matches": [
+          "external-host-admission"
+        ],
+        "module": "fixture-http-consumer"
+      },
+      {
+        "capability": "host-conformance",
+        "matches": [
+          "host-conformance"
         ],
         "module": "fixture-http-consumer"
       },
@@ -715,13 +757,6 @@
         "capability": "site-local",
         "matches": [
           "site-local"
-        ],
-        "module": "fixture-http-consumer"
-      },
-      {
-        "capability": "provision-local",
-        "matches": [
-          "provision-local"
         ],
         "module": "fixture-http-consumer"
       },
@@ -829,6 +864,20 @@
         "provider": "fixture-basement-provider"
       },
       {
+        "capability": "external-host-admission",
+        "matches": [
+          "external-host-admission"
+        ],
+        "provider": "fixture-basement-provider"
+      },
+      {
+        "capability": "host-conformance",
+        "matches": [
+          "host-conformance"
+        ],
+        "provider": "fixture-basement-provider"
+      },
+      {
         "capability": "security-baseline",
         "matches": [
           "security-baseline"
@@ -909,13 +958,6 @@
         "capability": "site-local",
         "matches": [
           "site-local"
-        ],
-        "provider": "fixture-basement-provider"
-      },
-      {
-        "capability": "provision-local",
-        "matches": [
-          "provision-local"
         ],
         "provider": "fixture-basement-provider"
       },
@@ -1028,9 +1070,7 @@
         "version": "1.0.0"
       },
       "providerRef": "fixture-basement-provider",
-      "provides": [
-        "topology-core"
-      ],
+      "provides": [],
       "realizationSupport": {
         "artifacts": {
           "contracts": [
@@ -1070,6 +1110,10 @@
           "requiredRefs": []
         },
         "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
         "scope": "concrete"
       },
       "renderUnits": [
@@ -1085,6 +1129,7 @@
             "daemonRef": "docker-rootless",
             "scope": "node-local"
           },
+          "planInputRefs": [],
           "providesInterfaces": [
             {
               "coLocation": "same-node-and-network",
@@ -1165,7 +1210,10 @@
       },
       "providerRef": "fixture-basement-provider",
       "provides": [
+        "topology-core",
         "host-bootstrap",
+        "external-host-admission",
+        "host-conformance",
         "security-baseline",
         "human-identity-core",
         "device-trust-core",
@@ -1178,7 +1226,6 @@
         "observability-evidence",
         "lifecycle-update",
         "site-local",
-        "provision-local",
         "local-hardware-preflight",
         "lan-discovery",
         "local-ingress",
@@ -1227,6 +1274,10 @@
           "requiredRefs": []
         },
         "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
         "scope": "concrete"
       },
       "renderUnits": [
@@ -1241,6 +1292,7 @@
             "cardinality": "one-per-node",
             "scope": "node-local"
           },
+          "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [],
           "rendererRef": "stackkit-contract-fixture",
@@ -1332,6 +1384,8 @@
       "provides": [
         "topology-core",
         "host-bootstrap",
+        "external-host-admission",
+        "host-conformance",
         "security-baseline",
         "human-identity-core",
         "device-trust-core",
@@ -1344,7 +1398,6 @@
         "observability-evidence",
         "lifecycle-update",
         "site-local",
-        "provision-local",
         "local-hardware-preflight",
         "lan-discovery",
         "local-ingress",

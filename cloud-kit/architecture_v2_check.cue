@@ -37,7 +37,6 @@ _validCloudV2: #CloudKitStackV2 & {
 			id:      "main"
 			siteRef: "cloud-eu"
 			roles: ["controller", "worker", "edge"]
-			management: {host: "vps.example.net"}
 			hardware: {}
 			failureDomain: "vps-a"
 		}]

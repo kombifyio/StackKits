@@ -21,6 +21,7 @@ import (
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/runtimeaction"
+	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -38,6 +39,7 @@ const (
 )
 
 type runtimeActionRequest struct {
+	APIVersion          json.RawMessage                    `json:"api_version,omitempty"`
 	Action              runtimeaction.Action               `json:"action"`
 	StackID             string                             `json:"stack_id"`
 	StackName           string                             `json:"stack_name,omitempty"`
@@ -53,6 +55,7 @@ type runtimeActionRequest struct {
 	TechStackEnrollment *runtimeaction.TechStackEnrollment `json:"techstack_enrollment,omitempty"`
 	Backup              *runtimeaction.BackupRequest       `json:"backup,omitempty"`
 	Upgrade             *runtimeaction.UpgradeRequest      `json:"upgrade,omitempty"`
+	StackSpec           json.RawMessage                    `json:"stack_spec,omitempty"`
 }
 
 type runtimeActionTarget = runtimeaction.RuntimeTarget
@@ -93,6 +96,14 @@ type runtimeActionRuntimeMetrics struct {
 }
 
 func (s *Server) registerRuntimeActionRoutes() {
+	s.mux.Handle("POST "+sharedruntimeaction.ArchitectureV2PathStackKitRollout,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.handleArchitectureV2RuntimeAction(w, r, runtimeActionRollout)
+		})))
+	s.mux.Handle("POST "+sharedruntimeaction.ArchitectureV2PathStackKitVerify,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.handleArchitectureV2RuntimeAction(w, r, runtimeActionVerify)
+		})))
 	s.mux.Handle("POST /api/v1/internal/runtime-actions/stackkit-rollout",
 		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			s.handleRuntimeAction(w, r, runtimeActionRollout)
@@ -171,6 +182,10 @@ func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, exp
 			"runtime action payload must be valid JSON",
 			skerrors.WithField("error", err.Error()),
 		))
+		return
+	}
+	if err := validateLegacyRuntimeActionEnvelope(req.APIVersion, req.StackSpec); err != nil {
+		writeRuntimeActionEnvelopeError(w, r, err)
 		return
 	}
 

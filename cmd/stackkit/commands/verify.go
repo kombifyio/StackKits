@@ -19,14 +19,16 @@ import (
 )
 
 var (
-	verifyJSON      bool
-	verifyHTTP      bool
-	verifyStrict    bool
-	verifyHost      string
-	verifyUser      string
-	verifyKey       string
-	verifyPort      int
-	verifyRemoteDir string
+	verifyJSON               bool
+	verifyHTTP               bool
+	verifyStrict             bool
+	verifyHost               string
+	verifyUser               string
+	verifyKey                string
+	verifyPort               int
+	verifyRemoteDir          string
+	verifyLegacyRemote       bool
+	verifyV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
 type verifySSHClient interface {
@@ -73,7 +75,7 @@ Examples:
   stackkit verify
   stackkit verify --http
   stackkit verify --json --strict
-  stackkit verify --host 203.0.113.10 --user ubuntu --remote-dir /opt/stackkit --json`,
+  stackkit verify --host 203.0.113.10 --legacy-remote-transport --user ubuntu --remote-dir /opt/stackkit --json`,
 	RunE: runVerify,
 }
 
@@ -86,10 +88,16 @@ func init() {
 	verifyCmd.Flags().StringVar(&verifyKey, "key", "", "SSH private key path for remote verification")
 	verifyCmd.Flags().IntVar(&verifyPort, "port", 22, "SSH port for remote verification")
 	verifyCmd.Flags().StringVar(&verifyRemoteDir, "remote-dir", "/opt/stackkit", "Remote StackKit working directory")
+	verifyCmd.Flags().BoolVar(&verifyLegacyRemote, "legacy-remote-transport", false, "Explicitly allow the deprecated raw-SSH verifier for a StackSpec v1 target")
+	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
+	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
+	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
+	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)")
 }
 
 func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
+	wd := getWorkDir()
 	rolloutEvent("verify", "started", "verify started", map[string]string{
 		"remote_host": verifyHost,
 	})
@@ -105,6 +113,13 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		rolloutEvent("verify", "succeeded", "verify succeeded", nil)
 	}()
 	if strings.TrimSpace(verifyHost) != "" {
+		if !verifyLegacyRemote {
+			return fmt.Errorf("verify: --host uses deprecated raw SSH and is available only with --legacy-remote-transport for an explicit StackSpec v1 target; Architecture v2 requires an external execution channel")
+		}
+		if strings.TrimSpace(verifyV2ExecutionOptions.inventoryPath) != "" || strings.TrimSpace(verifyV2ExecutionOptions.planPath) != "" ||
+			strings.TrimSpace(verifyV2ExecutionOptions.manifestPath) != "" || strings.TrimSpace(verifyV2ExecutionOptions.receiptPath) != "" {
+			return fmt.Errorf("verify: Architecture v2 inventory, plan, manifest, and receipt inputs cannot be combined with --legacy-remote-transport")
+		}
 		report := runRemoteVerify(ctx, remoteVerifyOptions{
 			Host:      verifyHost,
 			User:      verifyUser,
@@ -117,8 +132,10 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		})
 		return emitVerifyReport(cmd.OutOrStdout(), report, verifyJSON)
 	}
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Verify, verifyV2ExecutionOptions); handled {
+		return err
+	}
 
-	wd := getWorkDir()
 	loader := config.NewLoader(wd)
 
 	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{

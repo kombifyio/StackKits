@@ -1,19 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stackkit.cc/schemas/os-compat-matrix.schema.json",
-  "title": "StackKit OS compatibility matrix (public form)",
-  "description": "Redacted, publishable output of the OS-compatibility matrix lanes (container / VM / bare-metal). This schema doubles as the redaction gate: the private fields target (beyond an empty object), osReleaseRaw, evidencePath and mdnsHost are structurally forbidden. Producers: kombify-StackKits tests/production os-matrix harness via RedactForPublish; consumers: release evidence, generated docs, stackkit.cc feed, kombify-Techstack container lane.",
+  "title": "StackKit OS compatibility matrix (public v2)",
+  "description": "Provider-, device-, runtime-, architecture-, and virtualization-neutral public OS support projection. Positive grades will require current HostConformanceReceipts plus versioned OS support policy after the controlled projector exists. Container/VM/bare-metal diagnostics are not valid inputs.",
   "type": "object",
-  "required": ["schemaVersion", "runId", "results", "generatedAt"],
+  "required": ["schemaVersion", "stackkitsVersion", "results", "generatedAt"],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "kit": {
+    "schemaVersion": { "const": 2 },
+    "stackkitsVersion": {
       "type": "string",
-      "description": "Product under test, e.g. basement-kit or techstack-server. One matrix covers one kit.",
-      "pattern": "^[a-z0-9][a-z0-9-]*$"
+      "pattern": "^(unreleased|v(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?)$"
     },
-    "stackkitVersion": { "type": "string" },
-    "runId": { "type": "string", "minLength": 1 },
     "generatedAt": { "type": "string", "format": "date-time" },
     "results": {
       "type": "array",
@@ -23,68 +20,34 @@
   },
   "additionalProperties": false,
   "$defs": {
-    "grade": { "enum": ["supported", "partial", "unsupported"] },
-    "lane": { "enum": ["vm", "container", "bare-metal"] },
+    "grade": {
+      "const": "unverified",
+      "description": "Positive grades stay disabled until the full HostConformanceReceipt projector is implemented."
+    },
+    "os": {
+      "type": "object",
+      "required": ["family", "distribution", "version"],
+      "properties": {
+        "family": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$" },
+        "distribution": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$" },
+        "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+      },
+      "additionalProperties": false
+    },
     "result": {
       "type": "object",
-      "required": ["os", "runId", "overall", "stages", "generatedAt"],
+      "required": ["os", "grade", "reasonCodes"],
       "properties": {
-        "os": { "$ref": "#/$defs/osDescriptor" },
-        "runId": { "type": "string" },
-        "lane": { "$ref": "#/$defs/lane" },
-        "overall": { "$ref": "#/$defs/grade" },
-        "stages": {
+        "os": { "$ref": "#/$defs/os" },
+        "grade": { "$ref": "#/$defs/grade" },
+        "reasonCodes": {
           "type": "array",
           "minItems": 1,
-          "items": { "$ref": "#/$defs/stage" }
-        },
-        "target": {
-          "type": "object",
-          "description": "PRIVATE in raw matrices. The redacted public form may carry only an empty object here.",
-          "additionalProperties": false,
-          "maxProperties": 0
-        },
-        "osReleaseRaw": false,
-        "mdnsHost": false,
-        "generatedAt": { "type": "string", "format": "date-time" }
-      },
-      "additionalProperties": false
-    },
-    "osDescriptor": {
-      "type": "object",
-      "required": ["id", "distroFamily", "version", "arch"],
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Stable matrix row key, e.g. ubuntu-24.04-amd64. Never a host or IP.",
-          "pattern": "^[a-z0-9][a-z0-9.-]*$"
-        },
-        "distroFamily": { "type": "string" },
-        "version": { "type": "string" },
-        "arch": { "enum": ["amd64", "arm64"] },
-        "packageMgr": { "type": "string" },
-        "initSystem": { "type": "string" },
-        "virtType": { "type": "string" },
-        "virtTier": { "type": "string" },
-        "kernel": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "stage": {
-      "type": "object",
-      "required": ["stage", "status"],
-      "properties": {
-        "stage": {
-          "enum": ["cpu-baseline", "install", "serverprep", "binary-boot", "prepare", "init", "generate", "apply", "service-up", "mdns-verify", "kit-upgrade", "rollback", "cleanup"]
-        },
-        "status": { "$ref": "#/$defs/grade" },
-        "preconditions": { "type": "array", "items": { "type": "string" } },
-        "limitations": { "type": "array", "items": { "type": "string" } },
-        "failingStage": { "type": "string" },
-        "exitCode": { "type": "integer" },
-        "durationMs": { "type": "integer", "minimum": 0 },
-        "detail": { "type": "string" },
-        "evidencePath": false
+          "items": {
+            "enum": ["current-candidate-receipt-pending", "os-policy-not-yet-admitted"]
+          },
+          "uniqueItems": true
+        }
       },
       "additionalProperties": false
     }

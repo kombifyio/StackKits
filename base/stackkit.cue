@@ -414,9 +414,6 @@ package base
 	// Operating system
 	os: #SupportedOS
 
-	// Cloud provider (if cloud type)
-	provider?: #Provider
-
 	// SSH configuration
 	ssh?: #SSHConfig
 
@@ -436,9 +433,6 @@ package base
 // #SupportedOS lists supported operating systems
 #SupportedOS: "ubuntu-24" | "ubuntu-22" | "debian-12" | "debian-11" |
 	"rocky-9" | "alma-9" | "raspbian-12"
-
-// #Provider lists supported cloud providers
-#Provider: "local" | "hetzner" | "docker" | "proxmox" | "aws" | "gcp" | "azure" | "digitalocean"
 
 // #SSHConfig defines SSH connection parameters
 #SSHConfig: {

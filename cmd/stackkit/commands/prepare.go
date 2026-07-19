@@ -172,17 +172,18 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		}
 	}
 
-	// Phase 0: Early VPS compatibility detection (before Docker install)
+	// Phase 0: Early host-conformance diagnostics (before Docker install).
+	// OS support is published separately in the OS compatibility matrix.
 	if !prepareSkipDocker && !prepareDryRun {
-		printInfo("Checking VPS compatibility...")
-		rolloutEvent("vps_compat", "started", "checking VPS compatibility", nil)
+		printInfo("Checking container-host prerequisites...")
+		rolloutHostConformanceEvent("started", "checking container-host prerequisites", nil)
 		virtType := detectVirtualization()
 		unshareOK := testUnshare()
 		cgroupVer := detectCgroupVersion()
 
 		tier := classifyCompatibilityTier(virtType, unshareOK, detectBridgeSupport(), detectStorageDriver() != models.StorageVFS)
 
-		deployLog.Event("prepare.vps_compat",
+		deployLog.Event("prepare.host_conformance",
 			slog.String("virt_type", virtType),
 			slog.Bool("unshare_ok", unshareOK),
 			slog.String("tier", string(tier)),
@@ -202,7 +203,7 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 
 			// Offer native mode instead of failing
 			if err := promptForNativeMode(spec, loader, virtType); err != nil {
-				rolloutFailure("vps_compat", err)
+				rolloutHostConformanceFailure(err)
 				return err
 			}
 			// User accepted native mode — skip Docker entirely
@@ -210,12 +211,12 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		}
 
 		if tier == models.TierDegraded {
-			printWarning("VPS has limited Docker support — workarounds will be applied automatically")
+			printWarning("Host has limited Docker support — workarounds will be applied automatically")
 			printInfo("  Virtualization: %s, unshare: %v", virtType, unshareOK)
 		} else {
-			printSuccess("VPS compatibility: %s (%s)", tier, virtType)
+			printSuccess("Host conformance: %s (%s)", tier, virtType)
 		}
-		rolloutEvent("vps_compat", "succeeded", "VPS compatibility checked", map[string]string{
+		rolloutHostConformanceEvent("succeeded", "container-host prerequisites checked", map[string]string{
 			"tier":      string(tier),
 			"virt_type": virtType,
 			"cgroup":    cgroupVer,
@@ -505,17 +506,49 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 	return nil
 }
 
+const (
+	rolloutPhaseHostConformance = "host_conformance"
+	// rolloutPhaseVPSCompatLegacy is a one-minor wire alias for orchestrators
+	// that consumed the former stable phase name. It never denotes a provider
+	// compatibility check; the canonical phase is host_conformance.
+	rolloutPhaseVPSCompatLegacy = "vps_compat"
+)
+
+func rolloutHostConformanceEvent(status, message string, attrs map[string]string) {
+	canonicalAttrs := cloneRolloutAttributes(attrs)
+	canonicalAttrs["legacy_phase"] = rolloutPhaseVPSCompatLegacy
+	rolloutEvent(rolloutPhaseHostConformance, status, message, canonicalAttrs)
+
+	legacyAttrs := cloneRolloutAttributes(attrs)
+	legacyAttrs["canonical_phase"] = rolloutPhaseHostConformance
+	legacyAttrs["deprecated_alias"] = "true"
+	rolloutEvent(rolloutPhaseVPSCompatLegacy, status, message, legacyAttrs)
+}
+
+func rolloutHostConformanceFailure(err error) {
+	rolloutFailure(rolloutPhaseHostConformance, err)
+	rolloutFailure(rolloutPhaseVPSCompatLegacy, err)
+}
+
+func cloneRolloutAttributes(attrs map[string]string) map[string]string {
+	cloned := make(map[string]string, len(attrs)+2)
+	for key, value := range attrs {
+		cloned[key] = value
+	}
+	return cloned
+}
+
 // promptForNativeMode asks the user whether to switch to native (bare-metal) mode
-// when Docker is not available on this VPS.
+// when the host does not expose the kernel capabilities Docker needs.
 func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType string) error {
 	if prepareNonInteractive || !isTerminal() {
-		return fmt.Errorf("docker is incompatible with virtualization %s and prepare is non-interactive; choose a KVM/full-virtualization VPS or configure native runtime explicitly", virtType)
+		return fmt.Errorf("docker prerequisites are unavailable with virtualization %s and prepare is non-interactive; use a host with namespaces, cgroups, storage, and networking support or configure native runtime explicitly", virtType)
 	}
 	fmt.Println()
 	printError("%s", "Docker as our containerization environment will not work on your type of VM.")
 	fmt.Println()
 	fmt.Printf("  Virtualization: %s\n", virtType)
-	fmt.Println("  Your VPS uses container-based virtualization (OpenVZ/LXC) that blocks")
+	fmt.Println("  This host uses container-based virtualization (OpenVZ/LXC) that blocks")
 	fmt.Println("  the kernel features Docker needs (namespaces, cgroups, unshare).")
 	fmt.Println()
 	fmt.Println("  " + bold("Option:") + " Install services as native binaries (systemd) instead of containers.")
@@ -528,16 +561,12 @@ func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType
 	_, _ = fmt.Scanln(&answer)
 	if len(answer) > 0 && (answer[0] == 'n' || answer[0] == 'N') {
 		fmt.Println()
-		fmt.Println("  " + bold("What you need:") + " A VPS with KVM or full virtualization.")
-		fmt.Println("  These providers offer compatible VPS from ~$4/month:")
+		fmt.Println("  " + bold("What you need:") + " A host that exposes container namespaces,")
+		fmt.Println("  cgroups, the selected storage driver, and required network capabilities.")
+		fmt.Println("  Full virtualization or bare metal commonly provides those prerequisites;")
+		fmt.Println("  verify the actual host with 'stackkit compat' before rollout.")
 		fmt.Println()
-		fmt.Println("    • Hetzner Cloud    — https://hetzner.cloud")
-		fmt.Println("    • DigitalOcean     — https://digitalocean.com")
-		fmt.Println("    • Linode (Akamai)  — https://linode.com")
-		fmt.Println("    • Vultr            — https://vultr.com")
-		fmt.Println("    • Contabo (KVM)    — https://contabo.com")
-		fmt.Println()
-		return fmt.Errorf("VPS is incompatible with Docker — native mode declined")
+		return fmt.Errorf("host does not satisfy Docker prerequisites — native mode declined")
 	}
 
 	// Persist runtime choice

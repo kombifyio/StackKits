@@ -40,7 +40,7 @@ requires an explicit migration workflow.
 Examples:
   stackkit resolve --spec stack-spec.yaml
   stackkit resolve stack-spec.yaml --inventory inventory.yaml
-  stackkit resolve stack-spec.yaml --output .stackkit/resolved-plan.json`,
+  stackkit resolve stack-spec.yaml --output deploy/.stackkit/resolved-plan.json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runResolve(cmd, args, options, getWorkDir())

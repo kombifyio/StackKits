@@ -31,6 +31,7 @@ type profileView struct {
 	network                 map[string]any
 	reachability            reachabilityView
 	availabilityPolicies    map[string]availabilityPolicyView
+	identityTrust           map[string]any
 }
 
 type reachabilityView struct {
@@ -91,6 +92,7 @@ type specView struct {
 	workloads           map[string]any
 	modules             map[string]any
 	routes              map[string]any
+	lanDiscovery        map[string]any
 	data                map[string]any
 	originalSpec        map[string]any
 	originalDefinition  map[string]any
@@ -303,6 +305,9 @@ func populateProfilePolicies(profile *profileView, definition map[string]any, co
 		return err
 	}
 	if profile.availabilityPolicies, err = parseAvailabilityPolicies(definition); err != nil {
+		return err
+	}
+	if profile.identityTrust, err = objectField(definition, "definition", "identityTrust"); err != nil {
 		return err
 	}
 	profile.reachability, err = parseReachabilityContract(contracts.reachability)
@@ -701,6 +706,9 @@ func populateSpecWorkloadContracts(profile *profileView, spec map[string]any, vi
 		return err
 	}
 	if view.routes, _, err = optionalObjectField(spec, "spec", "routes"); err != nil {
+		return err
+	}
+	if view.lanDiscovery, _, err = optionalObjectField(spec, "spec", "lanDiscovery"); err != nil {
 		return err
 	}
 	if view.data, _, err = optionalObjectField(spec, "spec", "data"); err != nil {

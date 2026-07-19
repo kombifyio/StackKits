@@ -87,10 +87,9 @@ Contract: base.#ModuleContract & {
 		displayName: "Home Assistant"
 		type:        "application"
 		image:       "ghcr.io/home-assistant/home-assistant"
-		tag:         "stable"
+		tag:         "2026.7.2@sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
 		upstream: {
 			github:  {repo: "home-assistant/core"}
-			pinLine: "stable"
 		}
 		description: "Home Assistant smart-home hub"
 		required:    false

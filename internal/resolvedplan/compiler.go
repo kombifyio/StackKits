@@ -298,12 +298,30 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
-	var resolvedBridge map[string]any
-	if spec.bridge != nil {
-		resolvedBridge, err = resolveBridgePlan(spec.bridge, contracts.modules, spec.authoritySiteRef, resolvedNodeSiteIndex(spec.nodes), topology.data, spec.access)
-		if err != nil {
-			return nil, err
-		}
+	resolvedBridge, err := buildResolvedBridgePlan(spec, contracts.modules, topology)
+	if err != nil {
+		return nil, err
+	}
+	resolvedKit := map[string]any{"slug": profile.slug, "version": profile.version, "definitionHash": hashes.definition}
+	identityTrust, err := buildResolvedIdentityTrust(profile.identityTrust, spec, contracts)
+	if err != nil {
+		return nil, err
+	}
+	localReachability, homeLANDiscovery, err := buildHomeNetworkProjections(spec, deployment.network, topology.sites)
+	if err != nil {
+		return nil, err
+	}
+	externalHostBindings, hostConformanceReceipts, err := buildExternalHostProjection(spec, hashes.spec, hashes.inventory, deployment.system)
+	if err != nil {
+		return nil, err
+	}
+	if err := bindResolvedModulePlanInputs(contracts.modules, modulePlanInputSource{
+		stackID: spec.stackID, kit: resolvedKit, sites: topology.sites,
+		controlPlane: topology.controlPlane, bridge: resolvedBridge,
+		identity: deployment.identity, identityTrust: identityTrust, data: topology.data, failurePolicy: topology.failurePolicy,
+		localReachability: localReachability, homeLANDiscovery: homeLANDiscovery,
+	}); err != nil {
+		return nil, err
 	}
 	executionReadiness, err := buildExecutionReadiness(contracts.providers, contracts.modules, deployment.artifacts, planEvidence, c.options.RendererID, outputRoot, resolvedBridge)
 	if err != nil {
@@ -314,7 +332,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"apiVersion":                   "stackkit.resolved-plan/v1",
 		"kind":                         "ResolvedPlan",
 		"stackId":                      spec.stackID,
-		"kit":                          map[string]any{"slug": profile.slug, "version": profile.version, "definitionHash": hashes.definition},
+		"kit":                          resolvedKit,
 		"compilerVersion":              c.options.CompilerVersion,
 		"sourceIntentHash":             sourceIntentHash,
 		"specHash":                     hashes.spec,
@@ -325,6 +343,8 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"source":                       deployment.source,
 		"sites":                        topology.sites,
 		"nodes":                        topology.nodes,
+		"externalHostBindings":         externalHostBindings,
+		"hostConformanceReceipts":      hostConformanceReceipts,
 		"controlPlane":                 topology.controlPlane,
 		"capabilities":                 contracts.capabilities,
 		"providers":                    contracts.providers,
@@ -334,15 +354,21 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"placement":                    deployment.placement,
 		"availability":                 topology.availability,
 		"identity":                     deployment.identity,
+		"identityTrust":                identityTrust,
 		"data":                         topology.data,
 		"failurePolicy":                topology.failurePolicy,
 		"system":                       deployment.system,
 		"storage":                      deployment.storage,
 		"network":                      deployment.network,
+		"homeLANDiscovery":             homeLANDiscovery,
 		"gates":                        deployment.gates,
 		"executionReadiness":           executionReadiness,
 		"evidence":                     planEvidence,
 	}
+	return c.finalizePlan(plan, spec, resolved, resolvedBridge)
+}
+
+func (c *Compiler) finalizePlan(plan ResolvedPlan, spec *specView, resolved *resolution, resolvedBridge map[string]any) (ResolvedPlan, error) {
 	if spec.fleetRef != "" {
 		plan["fleetRef"] = spec.fleetRef
 	}
@@ -372,6 +398,25 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	return plan, nil
 }
 
+func buildResolvedBridgePlan(spec *specView, modules []any, topology planTopology) (map[string]any, error) {
+	if spec.bridge == nil {
+		return nil, nil
+	}
+	selectedSiteRefs := make([]string, 0, len(spec.sites))
+	for _, site := range spec.sites {
+		selectedSiteRefs = append(selectedSiteRefs, site.id)
+	}
+	return resolveBridgePlan(
+		spec.bridge,
+		modules,
+		selectedSiteRefs,
+		spec.authoritySiteRef,
+		resolvedNodeSiteIndex(spec.nodes),
+		topology.data,
+		spec.access,
+	)
+}
+
 func serializedPlanAuthority(authority PlanAuthority) map[string]any {
 	result := map[string]any{
 		"class": authority.Class, "document": authority.Document,
@@ -399,7 +444,7 @@ func buildPlanHashes(spec *specView) (planHashes, error) {
 	if hashes.spec, err = canonicalHash(spec.originalSpec, true); err != nil {
 		return hashes, fmt.Errorf("spec hash: %w", err)
 	}
-	if hashes.inventory, err = canonicalHash(spec.originalInventory, true); err != nil {
+	if hashes.inventory, err = canonicalInventoryHash(spec.originalInventory); err != nil {
 		return hashes, fmt.Errorf("inventory hash: %w", err)
 	}
 	return hashes, nil
@@ -462,6 +507,12 @@ func (c *Compiler) buildPlanDeployment(profile *profileView, spec *specView, res
 	}
 	if deployment.system, err = buildSystem(spec); err != nil {
 		return deployment, err
+	}
+	// Materialize the exact CUE defaults before deriving an external-host
+	// requirements hash. The hash must be reproducible from the persisted plan,
+	// not from an earlier partially defaulted intent representation.
+	if deployment.system, err = c.options.ContractValidator.normalizeResolvedSystem(deployment.system); err != nil {
+		return deployment, fmt.Errorf("normalize resolved system for external host admission: %w", err)
 	}
 	if deployment.storage, err = cloneObject(spec.storage, true); err != nil {
 		return deployment, err

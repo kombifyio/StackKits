@@ -107,7 +107,7 @@ package base
 
 		// DNS challenge requires provider config
 		if challenge == "dns" {
-			dnsProvider: "cloudflare" | "route53" | "hetzner" | "digitalocean" | "manual"
+			dnsProvider: "cloudflare" | "route53" | "manual"
 		}
 	}
 

@@ -82,6 +82,11 @@ network:
   mode: string            # "bridge" (default) or "host"
   subnet: string          # Docker network CIDR (default: "172.20.0.0/16")
 
+# Architecture v2 only: explicit Home LAN discovery allowlist.
+# A local route is never advertised implicitly; .localhost is forbidden.
+lanDiscovery:
+  advertiseRouteRefs: []  # resolved local route IDs; empty/default means deny all
+
 # Compute
 compute:
   tier: string            # "low", "standard" (default), "high"

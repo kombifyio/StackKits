@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
@@ -112,7 +113,7 @@ func (s *Server) Handler() http.Handler {
 
 func architectureV2NoStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v2/resolve" {
+		if r.URL.Path == "/api/v2/resolve" || strings.HasPrefix(r.URL.Path, sharedruntimeaction.ArchitectureV2PathPrefix) {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		next.ServeHTTP(w, r)
@@ -527,7 +528,8 @@ func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 				r.URL.Path == "/api/v1/openapi.yaml" ||
 				r.URL.Path == "/openmcp.json" ||
 				r.URL.Path == "/mcp" ||
-				strings.HasPrefix(r.URL.Path, "/api/v1/internal/") {
+				strings.HasPrefix(r.URL.Path, "/api/v1/internal/") ||
+				strings.HasPrefix(r.URL.Path, "/api/v2/internal/") {
 				next.ServeHTTP(w, r)
 				return
 			}

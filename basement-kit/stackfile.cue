@@ -39,7 +39,7 @@ Definition: base.#KitDefinition & {
 		allowedSiteKinds: ["home"]
 		requiredSiteKinds: ["home"]
 		minSites:  1
-		maxSites:  64
+		maxSites:  1
 		multiNode: true
 		controlPlane: {
 			defaultMode: "single"
@@ -102,7 +102,6 @@ Definition: base.#KitDefinition & {
 	capabilities: {
 		required: list.Concat([base.#CommonCapabilityIDs, [
 			"site-local",
-			"provision-local",
 			"local-hardware-preflight",
 			"lan-discovery",
 			"local-ingress",
@@ -114,6 +113,7 @@ Definition: base.#KitDefinition & {
 		]])
 		defaults: []
 		optional: [
+			"basement-compose-runtime",
 			"lan-dns",
 			"internal-pki",
 			"private-remote-access",
@@ -175,6 +175,24 @@ Definition: base.#KitDefinition & {
 		localIdentityAuthorityAvailable: true
 		maxStaleVerificationSeconds:     0
 		denyNewCrossSiteSessions:        true
+	}
+	identityTrust: {
+		authorities: [
+			{id: "home-human-authority", principal: "human", trustDomainRef: "home-stackkit-trust", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-home-device-authority", moduleRef: "stackkits-home-device-authority-policy-manifest"}},
+			{id: "home-device-authority", principal: "device", trustDomainRef: "home-stackkit-trust", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-home-device-authority", moduleRef: "stackkits-home-device-authority-policy-manifest"}},
+			{id: "home-workload-authority", principal: "workload", trustDomainRef: "home-stackkit-trust", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-home-device-authority", moduleRef: "stackkits-home-device-authority-policy-manifest"}},
+		]
+		credentialIssuers: [
+			{id: "home-human-credential-issuer", authorityRef: "home-human-authority", principal: "human", issuerRef: "home-human-issuer", audienceRefs: ["stackkit-human-session"], verificationKeySetRef: "home-human-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-home-device-authority", moduleRef: "stackkits-home-device-authority-policy-manifest"}, issuanceWithinStackKit: true, credentialTTLSeconds: 86400, sessionTTLSeconds: 900, proofOfPossessionRequired: false, revocationSupported: true, revocationMaxStalenessSeconds: 0, enrollment: {mode: "none", exposure: "none"}},
+			{id: "home-device-credential-issuer", authorityRef: "home-device-authority", principal: "device", issuerRef: "home-device-issuer", audienceRefs: ["stackkit-device-session"], verificationKeySetRef: "home-device-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-home-device-authority", moduleRef: "stackkits-home-device-authority-policy-manifest"}, issuanceWithinStackKit: true, credentialTTLSeconds: 3600, sessionTTLSeconds: 900, proofOfPossessionRequired: true, revocationSupported: true, revocationMaxStalenessSeconds: 0, enrollment: {mode: "local-only", exposure: "lan"}},
+			{id: "home-workload-credential-issuer", authorityRef: "home-workload-authority", principal: "workload", issuerRef: "home-workload-issuer", audienceRefs: ["stackkit-workload"], verificationKeySetRef: "home-workload-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-home-device-authority", moduleRef: "stackkits-home-device-authority-policy-manifest"}, issuanceWithinStackKit: true, credentialTTLSeconds: 300, sessionTTLSeconds: 300, proofOfPossessionRequired: true, revocationSupported: true, revocationMaxStalenessSeconds: 0, enrollment: {mode: "none", exposure: "none"}},
+		]
+		verifierPlacements: [
+			{id: "basement-human-verifier", issuerRef: "home-human-issuer", principal: "human", audienceRefs: ["stackkit-human-session"], verificationKeySetRef: "home-human-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-basement-identity-trust-policy", moduleRef: "stackkits-basement-identity-trust-policy-manifest"}, proofOfPossessionRequired: false, revocationMaxStalenessSeconds: 0},
+			{id: "basement-device-verifier", issuerRef: "home-device-issuer", principal: "device", audienceRefs: ["stackkit-device-session"], verificationKeySetRef: "home-device-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-basement-identity-trust-policy", moduleRef: "stackkits-basement-identity-trust-policy-manifest"}, proofOfPossessionRequired: true, revocationMaxStalenessSeconds: 0},
+			{id: "basement-workload-verifier", issuerRef: "home-workload-issuer", principal: "workload", audienceRefs: ["stackkit-workload"], verificationKeySetRef: "home-workload-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-basement-identity-trust-policy", moduleRef: "stackkits-basement-identity-trust-policy-manifest"}, proofOfPossessionRequired: true, revocationMaxStalenessSeconds: 0},
+		]
+		verifierDistributions: []
 	}
 	generation: {
 		defaultStrategy: "kit-template"

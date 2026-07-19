@@ -44,6 +44,21 @@ type Registry struct {
 	renderers map[RendererContract]UnitRenderer
 }
 
+type productRegistryExtension func(*Registry) error
+
+var productRegistryExtensions []productRegistryExtension
+
+// registerProductRegistryExtension is the private-profile seam for exact
+// renderer registration. The public-safe registry owns only this generic hook;
+// curated exports may strip a private extension file without leaving symbol or
+// fallback references behind.
+func registerProductRegistryExtension(extension productRegistryExtension) {
+	if extension == nil {
+		panic("architecturev2renderer: nil product registry extension")
+	}
+	productRegistryExtensions = append(productRegistryExtensions, extension)
+}
+
 // NewRegistry returns an empty exact-ID registry.
 func NewRegistry() *Registry {
 	return &Registry{renderers: make(map[RendererContract]UnitRenderer)}
@@ -114,31 +129,51 @@ type RenderUnit struct {
 	templateRef                string
 	version                    string
 	contractHash               string
+	runtimeKind                string
+	runtimeDelivery            string
+	runtimeEngine              string
+	containerImageRef          string
+	containerImageDigest       string
 	publicInputRefs            []string
 	secretInputRefs            []string
+	planInputRefs              []string
 	logicalSiteRefs            []string
 	logicalNodeRefs            []string
 	valuesJSON                 []byte
 	secretRefsJSON             []byte
+	planInputsJSON             []byte
 	placementJSON              []byte
 	serviceEndpointsJSON       []byte
 	providedInterfacesJSON     []byte
 	requiredInterfacesJSON     []byte
+	privilegedApprovalsJSON    []byte
 	runtimeNetworkBindingsJSON []byte
 	declaredOutputRef          []string
 }
 
-func (u RenderUnit) ModuleID() string          { return u.moduleID }
-func (u RenderUnit) ID() string                { return u.id }
-func (u RenderUnit) InstanceID() string        { return u.instanceID }
-func (u RenderUnit) InstanceScope() string     { return u.instanceScope }
-func (u RenderUnit) Kind() string              { return u.kind }
-func (u RenderUnit) RendererRef() string       { return u.rendererRef }
-func (u RenderUnit) TemplateRef() string       { return u.templateRef }
-func (u RenderUnit) Version() string           { return u.version }
-func (u RenderUnit) ContractHash() string      { return u.contractHash }
+func (u RenderUnit) ModuleID() string        { return u.moduleID }
+func (u RenderUnit) ID() string              { return u.id }
+func (u RenderUnit) InstanceID() string      { return u.instanceID }
+func (u RenderUnit) InstanceScope() string   { return u.instanceScope }
+func (u RenderUnit) Kind() string            { return u.kind }
+func (u RenderUnit) RendererRef() string     { return u.rendererRef }
+func (u RenderUnit) TemplateRef() string     { return u.templateRef }
+func (u RenderUnit) Version() string         { return u.version }
+func (u RenderUnit) ContractHash() string    { return u.contractHash }
+func (u RenderUnit) RuntimeKind() string     { return u.runtimeKind }
+func (u RenderUnit) RuntimeDelivery() string { return u.runtimeDelivery }
+func (u RenderUnit) RuntimeEngine() (string, bool) {
+	return optionalAccessor(u.runtimeEngine)
+}
+func (u RenderUnit) ContainerImageRef() (string, bool) {
+	return optionalAccessor(u.containerImageRef)
+}
+func (u RenderUnit) ContainerImageDigest() (string, bool) {
+	return optionalAccessor(u.containerImageDigest)
+}
 func (u RenderUnit) PublicInputRefs() []string { return append([]string(nil), u.publicInputRefs...) }
 func (u RenderUnit) SecretInputRefs() []string { return append([]string(nil), u.secretInputRefs...) }
+func (u RenderUnit) PlanInputRefs() []string   { return append([]string(nil), u.planInputRefs...) }
 
 // LogicalSiteRefs and LogicalNodeRefs expose the governed eligible set for a
 // module-scoped renderer. They are never an instruction to choose a node;
@@ -159,6 +194,7 @@ func (u RenderUnit) DaemonEngine() (string, bool)     { return optionalAccessor(
 func (u RenderUnit) DaemonSocketPath() (string, bool) { return optionalAccessor(u.daemonSocketPath) }
 func (u RenderUnit) ValuesJSON() []byte               { return append([]byte(nil), u.valuesJSON...) }
 func (u RenderUnit) SecretRefsJSON() []byte           { return append([]byte(nil), u.secretRefsJSON...) }
+func (u RenderUnit) PlanInputsJSON() []byte           { return append([]byte(nil), u.planInputsJSON...) }
 func (u RenderUnit) PlacementJSON() []byte            { return append([]byte(nil), u.placementJSON...) }
 
 // ServiceEndpointsJSON returns the exact catalog-owned backend contracts for
@@ -172,6 +208,13 @@ func (u RenderUnit) ProvidedInterfacesJSON() []byte {
 }
 func (u RenderUnit) RequiredInterfacesJSON() []byte {
 	return append([]byte(nil), u.requiredInterfacesJSON...)
+}
+
+// PrivilegedInterfaceApprovalsJSON returns only central direct-interface
+// approvals bound to this module/unit. It does not expose approvals owned by
+// other modules and never manufactures authority from the socket binding.
+func (u RenderUnit) PrivilegedInterfaceApprovalsJSON() []byte {
+	return append([]byte(nil), u.privilegedApprovalsJSON...)
 }
 
 // RuntimeNetworkBindingsJSON returns only the exact, reciprocal network
@@ -329,13 +372,17 @@ func newRenderUnit(moduleID string, contract renderUnitContract, instance render
 		daemonEngine: instance.daemonEngine, daemonSocketPath: instance.daemonSocketPath,
 		kind: contract.kind, rendererRef: contract.rendererRef,
 		templateRef: contract.templateRef, version: contract.version, contractHash: contract.contractHash,
+		runtimeKind: contract.runtime.kind, runtimeDelivery: contract.runtime.delivery, runtimeEngine: contract.runtime.engine,
+		containerImageRef: contract.runtime.imageRef, containerImageDigest: contract.runtime.imageDigest,
 		publicInputRefs: append([]string(nil), contract.publicInputRefs...), secretInputRefs: append([]string(nil), contract.secretInputRefs...),
+		planInputRefs:   append([]string(nil), contract.planInputRefs...),
 		logicalSiteRefs: append([]string(nil), contract.siteRefs...), logicalNodeRefs: append([]string(nil), contract.nodeRefs...),
-		valuesJSON: append([]byte(nil), contract.valuesCanonical...), secretRefsJSON: append([]byte(nil), contract.secretsCanonical...),
+		valuesJSON: append([]byte(nil), contract.valuesCanonical...), secretRefsJSON: append([]byte(nil), contract.secretsCanonical...), planInputsJSON: append([]byte(nil), contract.planInputsCanonical...),
 		placementJSON:              append([]byte(nil), contract.placementCanonical...),
 		serviceEndpointsJSON:       append([]byte(nil), contract.serviceEndpointsCanonical...),
 		providedInterfacesJSON:     append([]byte(nil), contract.providedInterfacesCanonical...),
 		requiredInterfacesJSON:     append([]byte(nil), contract.requiredInterfacesCanonical...),
+		privilegedApprovalsJSON:    append([]byte(nil), contract.privilegedApprovalsCanonical...),
 		runtimeNetworkBindingsJSON: append([]byte(nil), instance.networkCanonical...),
 		declaredOutputRef:          instanceLogicalOutputRefs(instance.outputs),
 	}

@@ -736,18 +736,100 @@ paths:
         "502":
           $ref: "#/components/responses/BadRequest"
   # ── Internal runtime actions (TechStack servicecall) ────────────
-  /api/v1/internal/runtime-actions/stackkit-rollout:
+  /api/v2/internal/runtime-actions/stackkit-rollout:
     post:
-      operationId: runtimeStackKitRollout
-      summary: Run or dry-run StackKits rollout for TechStack
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      operationId: runtimeStackKitRolloutV2
+      summary: Admit a governed Architecture v2 StackKit rollout
+      description: >-
+        Requires X-Kombify-Service-Auth from caller techstack. This route accepts only the closed provider-free StackSpec+Inventory contract and returns 501 until its governed renderer/executor is implemented.
       tags: [Runtime]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RuntimeActionRequest"
+              $ref: "#/components/schemas/RuntimeActionArchitectureV2RolloutRequest"
+      responses:
+        "200":
+          description: Runtime action accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RuntimeActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/BadRequest"
+  /api/v2/internal/runtime-actions/stackkit-verify:
+    post:
+      operationId: runtimeStackKitVerifyV2
+      summary: Admit governed Architecture v2 StackKit verification
+      description: >-
+        Requires X-Kombify-Service-Auth from caller techstack. This closed route cannot fall through to legacy remote transport while the governed verifier is unimplemented.
+      tags: [Runtime]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuntimeActionArchitectureV2VerifyRequest"
+      responses:
+        "200":
+          description: Runtime action accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RuntimeActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/runtime-actions/stackkit-rollout:
+    post:
+      operationId: runtimeStackKitRollout
+      summary: Run or dry-run StackKits rollout for TechStack
+      description: Requires X-Kombify-Service-Auth from caller techstack. This is the legacy node-side rollout path.
+      tags: [Runtime]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuntimeActionLegacyRequest"
       responses:
         "200":
           description: Runtime action accepted
@@ -765,14 +847,14 @@ paths:
     post:
       operationId: runtimeStackKitVerify
       summary: Verify StackKits rollout state for TechStack
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller techstack. This is the legacy node-side verification path.
       tags: [Runtime]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RuntimeActionRequest"
+              $ref: "#/components/schemas/RuntimeActionLegacyRequest"
       responses:
         "200":
           description: Runtime action accepted
@@ -1060,12 +1142,12 @@ components:
           type: array
           minItems: 1
           items:
-            type: object
+            $ref: "#/components/schemas/ArchitectureV2SiteSpec"
         nodes:
           type: array
           minItems: 1
           items:
-            type: object
+            $ref: "#/components/schemas/ArchitectureV2NodeSpec"
         controlPlane:
           type: object
         capabilities:
@@ -1102,6 +1184,8 @@ components:
           type: object
           additionalProperties:
             type: object
+        lanDiscovery:
+          $ref: "#/components/schemas/ArchitectureV2LANDiscoveryIntent"
         bridge:
           type: object
         availability:
@@ -1124,6 +1208,159 @@ components:
             type: object
         data:
           type: object
+    ArchitectureV2LANDiscoveryIntent:
+      type: object
+      description: >-
+        Explicit allowlist of local Home routes that may be advertised on the LAN. An absent or empty list never infers advertisements from routes.
+      additionalProperties: false
+      properties:
+        advertiseRouteRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2HomeLANDiscovery:
+      type: object
+      description: >-
+        Closed compiler-owned Home LAN discovery projection. It carries only explicitly authorized advertisement identity and listener fields.
+      additionalProperties: false
+      required: [homeSiteRefs, advertisements]
+      properties:
+        homeSiteRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        advertisements:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2HomeLANAdvertisement"
+    ArchitectureV2HomeLANAdvertisement:
+      type: object
+      additionalProperties: false
+      required: [routeRef, serviceRef, originSiteRef, originNodeRefs, protocol, port, host, access]
+      properties:
+        routeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        serviceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        originSiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        originNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        protocol:
+          type: string
+          enum: [http, https, tcp, udp]
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        host:
+          type: string
+          pattern: '^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$'
+          not:
+            pattern: '(^|\.)[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt]$'
+        access:
+          $ref: "#/components/schemas/ArchitectureV2HomeLANAdvertisementAccess"
+    ArchitectureV2HomeLANAdvertisementAccess:
+      type: object
+      additionalProperties: false
+      required: [policyRef, policyExposure, defaultClosed]
+      properties:
+        policyRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policyExposure:
+          type: string
+          const: lan
+        defaultClosed:
+          type: boolean
+          const: true
+    ArchitectureV2SiteSpec:
+      type: object
+      description: >-
+        Provider-neutral placement intent. A site identifies trust and failure domains; it never identifies a server provider, account, region, datacenter, native resource, credential, or management address.
+      additionalProperties: false
+      required: [id, kind, failureDomain]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          enum: [home, cloud]
+        name:
+          type: string
+        failureDomain:
+          type: string
+          minLength: 1
+        network:
+          type: object
+          additionalProperties: false
+          properties:
+            serviceCIDRs:
+              type: array
+              items:
+                type: string
+            storageCIDRs:
+              type: array
+              items:
+                type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+    ArchitectureV2NodeSpec:
+      type: object
+      description: >-
+        Provider-neutral logical node intent. Host identity, connection details, addresses, and server lifecycle are supplied only through an opaque ExternalHostBinding after the intent is normalized.
+      additionalProperties: false
+      required: [id, siteRef, roles, hardware, failureDomain]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [controller, worker, storage, edge]
+        hardware:
+          type: object
+          additionalProperties: false
+          properties:
+            arch:
+              type: string
+              enum: [amd64, arm64]
+            virtualization:
+              $ref: "#/components/schemas/ArchitectureV2RuntimeVirtualization"
+            profile:
+              type: string
+              enum: [standard, pi, gpu, storage]
+            cpuCores:
+              type: integer
+              minimum: 1
+            ramGB:
+              type: integer
+              minimum: 1
+            storageGB:
+              type: integer
+              minimum: 1
+        failureDomain:
+          type: string
+          minLength: 1
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        enabled:
+          type: boolean
     ArchitectureV1DiagnosticsInput:
       type: object
       description: |
@@ -1170,20 +1407,211 @@ components:
         storageGB:
           type: integer
           minimum: 1
-        publicAddress:
-          type: string
-        privateAddress:
-          type: string
         virtualization:
-          type: string
-        provider:
-          type: string
+          $ref: "#/components/schemas/ArchitectureV2RuntimeVirtualization"
+        externalHostBinding:
+          $ref: "#/components/schemas/ArchitectureV2ExternalHostBinding"
+        hostConformanceReceipt:
+          $ref: "#/components/schemas/ArchitectureV2HostConformanceReceipt"
         runtimeDaemons:
           type: object
           description: >-
             Observed node-scoped runtime daemons keyed by stable daemonRef. CUE additionally requires instanceRef and socketPath uniqueness per node.
           additionalProperties:
             $ref: "#/components/schemas/ArchitectureV2RuntimeDaemonFact"
+    ArchitectureV2ExternalHostBinding:
+      type: object
+      description: >-
+        Opaque, hash-bound handoff for an already supplied host. This contract grants an execution channel but no authority to provision, resize, snapshot, delete, or otherwise manage a server-provider resource.
+      additionalProperties: false
+      required:
+        - apiVersion
+        - kind
+        - bindingRef
+        - stackId
+        - nodeRef
+        - hostRef
+        - inventoryRef
+        - executionChannelRef
+        - secretRefs
+        - stackkitsVersion
+        - candidateDigest
+        - specHash
+        - hostRequirementsHash
+        - inventoryHash
+        - issuedAt
+        - validUntil
+        - bindingHash
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.external-host-binding/v1
+        kind:
+          type: string
+          const: ExternalHostBinding
+        bindingRef:
+          type: string
+          pattern: '^host-binding://sha256/[a-f0-9]{64}$'
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        hostRef:
+          type: string
+          pattern: '^host://sha256/[a-f0-9]{64}$'
+        inventoryRef:
+          type: string
+          pattern: '^host-inventory://sha256/[a-f0-9]{64}$'
+        executionChannelRef:
+          type: string
+          pattern: '^execution-channel://sha256/[a-f0-9]{64}$'
+        secretRefs:
+          $ref: "#/components/schemas/ArchitectureV2SecretRefs"
+        stackkitsVersion:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+        candidateDigest:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        specHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        hostRequirementsHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        inventoryHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        issuedAt:
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        validUntil:
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        bindingHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2HostConformanceFacts:
+      type: object
+      description: >-
+        OS compatibility facts plus provider-neutral host diagnostics. Only the OS tuple is a StackKits compatibility claim.
+      additionalProperties: false
+      required: [os, architecture, kernel, runtime, virtualization]
+      properties:
+        os:
+          type: object
+          additionalProperties: false
+          required: [family, distribution, version]
+          properties:
+            family:
+              type: string
+              const: linux
+            distribution:
+              $ref: "#/components/schemas/ArchitectureV2ContractID"
+            version:
+              type: string
+              pattern: '^\S+$'
+        architecture:
+          type: string
+          enum: [amd64, arm64]
+        kernel:
+          type: object
+          additionalProperties: false
+          required: [release]
+          properties:
+            release:
+              type: string
+              pattern: '^\S+$'
+        runtime:
+          type: object
+          additionalProperties: false
+          required: [engine, version]
+          properties:
+            engine:
+              type: string
+              enum: [docker, podman, containerd, none]
+            version:
+              type: string
+              pattern: '^\S+$'
+        virtualization:
+          type: object
+          additionalProperties: false
+          required: [class, nested]
+          properties:
+            class:
+              $ref: "#/components/schemas/ArchitectureV2RuntimeVirtualization"
+            nested:
+              type: boolean
+    ArchitectureV2HostConformanceCheck:
+      type: object
+      additionalProperties: false
+      required: [id, category, status, summary]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        category:
+          type: string
+          enum: [os-compatibility, host-diagnostic]
+        status:
+          type: string
+          enum: [pass, warning, fail, unverified]
+        summary:
+          type: string
+          minLength: 1
+    ArchitectureV2HostConformanceReceipt:
+      type: object
+      description: >-
+        StackKits-owned, hash-bound evidence for one ExternalHostBinding. It records OS support and host diagnostics, never provider compatibility or infrastructure lifecycle state.
+      additionalProperties: false
+      required:
+        - apiVersion
+        - kind
+        - receiptRef
+        - bindingRef
+        - bindingHash
+        - stackId
+        - nodeRef
+        - stackkitsVersion
+        - candidateDigest
+        - observedAt
+        - validUntil
+        - facts
+        - checks
+        - result
+        - receiptDigest
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.host-conformance-receipt/v1
+        kind:
+          type: string
+          const: HostConformanceReceipt
+        receiptRef:
+          type: string
+          pattern: '^host-conformance://sha256/[a-f0-9]{64}$'
+        bindingRef:
+          type: string
+          pattern: '^host-binding://sha256/[a-f0-9]{64}$'
+        bindingHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        stackkitsVersion:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+        candidateDigest:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        observedAt:
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        validUntil:
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        facts:
+          $ref: "#/components/schemas/ArchitectureV2HostConformanceFacts"
+        checks:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ArchitectureV2HostConformanceCheck"
+        result:
+          type: string
+          enum: [conformant, degraded, incompatible, unverified]
+        receiptDigest:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
     ArchitectureV2RuntimeDaemonFact:
       type: object
       additionalProperties: false
@@ -1217,6 +1645,8 @@ components:
         - source
         - sites
         - nodes
+        - externalHostBindings
+        - hostConformanceReceipts
         - controlPlane
         - capabilities
         - providers
@@ -1226,11 +1656,13 @@ components:
         - placement
         - availability
         - identity
+        - identityTrust
         - data
         - failurePolicy
         - system
         - storage
         - network
+        - homeLANDiscovery
         - gates
         - executionReadiness
         - evidence
@@ -1280,12 +1712,24 @@ components:
           type: array
           minItems: 1
           items:
-            type: object
+            $ref: "#/components/schemas/ArchitectureV2SiteSpec"
         nodes:
           type: array
           minItems: 1
           items:
-            type: object
+            $ref: "#/components/schemas/ArchitectureV2NodeSpec"
+        externalHostBindings:
+          type: object
+          description: >-
+            Provider-neutral host handoffs keyed by nodeRef. The map may be empty during fast shadow planning.
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ExternalHostBinding"
+        hostConformanceReceipts:
+          type: object
+          description: >-
+            OS compatibility and host diagnostics keyed by nodeRef. Absence is honest pending evidence, not an implicit pass or release gate.
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2HostConformanceReceipt"
         controlPlane:
           type: object
         capabilities:
@@ -1331,6 +1775,8 @@ components:
           type: object
         identity:
           type: object
+        identityTrust:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedIdentityTrust"
         data:
           type: object
         failurePolicy:
@@ -1341,6 +1787,8 @@ components:
           type: object
         network:
           type: object
+        homeLANDiscovery:
+          $ref: "#/components/schemas/ArchitectureV2HomeLANDiscovery"
         gates:
           type: object
         executionReadiness:
@@ -1517,6 +1965,31 @@ components:
     ArchitectureV2ResolvedModule:
       type: object
       additionalProperties: false
+      allOf:
+        - if:
+            required: [provides]
+            properties:
+              provides:
+                maxItems: 0
+          then:
+            properties:
+              realizationSupport:
+                type: object
+                required: [scope, level]
+                properties:
+                  scope:
+                    const: concrete
+                  level:
+                    enum: [generation-ready, apply-ready]
+              renderUnits:
+                minItems: 1
+                contains:
+                  type: object
+                  required: [providesInterfaces]
+                  properties:
+                    providesInterfaces:
+                      type: array
+                      minItems: 1
       required:
         - id
         - version
@@ -1540,7 +2013,6 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         provides:
           type: array
-          minItems: 1
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ContractID"
@@ -1653,8 +2125,10 @@ components:
         - contractHash
         - publicInputRefs
         - secretInputRefs
+        - planInputRefs
         - values
         - secretRefs
+        - planInputs
         - outputs
         - siteRefs
         - nodeRefs
@@ -1690,10 +2164,17 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ContractID"
+        planInputRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanInputRef"
         values:
           type: object
         secretRefs:
           $ref: "#/components/schemas/ArchitectureV2SecretRefs"
+        planInputs:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanInputs"
         outputs:
           type: array
           minItems: 1
@@ -1759,6 +2240,755 @@ components:
                 properties:
                   scope:
                     const: node-local
+    ArchitectureV2ModulePlanInputRef:
+      type: string
+      enum: [stackId, kit, sites, controlPlane, bridge, identity, identityTrust, data, failurePolicy, localReachability, homeLANDiscovery]
+    ArchitectureV2ModulePlanInputs:
+      type: object
+      additionalProperties: false
+      description: >-
+        Closed compiler-owned projection. It deliberately excludes nodes, provider accounts, management addresses, CIDRs, secret references, daemon sockets, source intent, and the whole ResolvedPlan.
+      properties:
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kit:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanKit"
+        sites:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanSite"
+        controlPlane:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanControlPlane"
+        bridge:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanBridge"
+        identity:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanIdentity"
+        identityTrust:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedIdentityTrust"
+        data:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanData"
+        failurePolicy:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanFailurePolicy"
+        localReachability:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanLocalReachability"
+        homeLANDiscovery:
+          $ref: "#/components/schemas/ArchitectureV2HomeLANDiscovery"
+    ArchitectureV2ModulePlanLocalReachability:
+      type: object
+      additionalProperties: false
+      required: [homeSiteRefs, routes]
+      properties:
+        homeSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        routes:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanLocalRoute"
+    ArchitectureV2ModulePlanLocalRoute:
+      type: object
+      additionalProperties: false
+      required: [id, serviceRef, moduleRef, originSiteRef, originNodeRefs, exposure, protocol, upstreamProtocol, port, targetPort, healthGateRef, access, tls]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        exposure: {type: string, const: local}
+        protocol: {type: string, enum: [http, https, tcp, udp]}
+        upstreamProtocol: {type: string, enum: [http, https, tcp, udp]}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        targetPort: {type: integer, minimum: 1, maximum: 65535}
+        host: {type: string, minLength: 1}
+        path: {type: string, pattern: ^/}
+        healthGateRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        access: {$ref: "#/components/schemas/ArchitectureV2ModulePlanLocalAccess"}
+        tls: {$ref: "#/components/schemas/ArchitectureV2ModulePlanLocalTLS"}
+    ArchitectureV2ModulePlanLocalAccess:
+      type: object
+      additionalProperties: false
+      required: [policyRef, policyExposure, authentication, privilege, enrolledDeviceRequired, ownerStepUpRequired, lanStepDown, allowedSiteRefs, defaultClosed]
+      properties:
+        policyRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        policyExposure: {type: string, enum: [private, lan]}
+        authentication: {type: string, enum: [human, device, human+device, workload, none]}
+        privilege: {type: string, enum: [user, admin, identity, secrets]}
+        enrolledDeviceRequired: {type: boolean}
+        ownerStepUpRequired: {type: boolean}
+        lanStepDown: {type: boolean}
+        allowedSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        allowedMethods:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS]}
+        defaultClosed: {type: boolean, const: true}
+    ArchitectureV2ModulePlanLocalTLS:
+      type: object
+      additionalProperties: false
+      required: [required, mode]
+      properties:
+        required: {type: boolean}
+        mode: {type: string, enum: [off, internal, terminate-at-edge, passthrough]}
+        minVersion: {type: string, enum: [TLS1.2, TLS1.3]}
+    ArchitectureV2ModulePlanKit:
+      type: object
+      additionalProperties: false
+      required: [slug, version, definitionHash]
+      properties:
+        slug:
+          $ref: "#/components/schemas/ArchitectureV2KitProfile"
+        version:
+          type: string
+        definitionHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2ModulePlanSite:
+      type: object
+      additionalProperties: false
+      required: [id, kind, failureDomain]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        kind:
+          type: string
+          enum: [home, cloud]
+        failureDomain:
+          type: string
+          minLength: 1
+    ArchitectureV2ModulePlanControlPlane:
+      type: object
+      additionalProperties: false
+      required: [mode, authoritySiteRef, members]
+      properties:
+        mode:
+          type: string
+          enum: [single, warm-standby, quorum]
+        authoritySiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        members:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModulePlanBridge:
+      type: object
+      additionalProperties: false
+      required: [overlay, publications, policy, controlAgent]
+      properties:
+        overlay:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanBridgeOverlay"
+        publications:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanPublication"
+        policy:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanBridgePolicy"
+        controlAgent:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanControlAgent"
+    ArchitectureV2ModulePlanBridgeOverlay:
+      type: object
+      additionalProperties: false
+      required: [provider, initiation, outboundEstablished, trafficMode, advertisePrivateSubnets, advertiseDefaultRoute, allowBroadRoutes, peerSiteRefs]
+      properties:
+        provider:
+          type: string
+          enum: [wireguard, headscale, tailscale, netbird, pangolin]
+        initiation:
+          type: string
+          const: local-outbound
+        outboundEstablished:
+          type: boolean
+          const: true
+        trafficMode:
+          type: string
+          enum: [management-only, policy-scoped]
+        advertisePrivateSubnets:
+          type: boolean
+          const: false
+        advertiseDefaultRoute:
+          type: boolean
+          const: false
+        allowBroadRoutes:
+          type: boolean
+          const: false
+        peerSiteRefs:
+          type: array
+          minItems: 2
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModulePlanBridgePolicy:
+      type: object
+      additionalProperties: false
+      required: [defaultDeny, allowedFlows, allowRFC1918Transit, cloudMayEnrollDevices, cloudMayIssueDeviceCredentials]
+      properties:
+        defaultDeny:
+          type: boolean
+          const: true
+        allowedFlows:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanBridgeFlow"
+        allowRFC1918Transit:
+          type: boolean
+          const: false
+        cloudMayEnrollDevices:
+          type: boolean
+          const: false
+        cloudMayIssueDeviceCredentials:
+          type: boolean
+          const: false
+    ArchitectureV2ModulePlanBridgeFlow:
+      type: object
+      additionalProperties: false
+      required: [fromSiteRef, toSiteRef, serviceRef, protocol, ports, dataClasses, serviceIdentityRequired]
+      properties:
+        fromSiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        toSiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        serviceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        protocol:
+          type: string
+          enum: [tcp, udp, http, https]
+        ports:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+            maximum: 65535
+        methods:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS]
+        dataClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [public, internal, personal, sensitive, secret]
+        serviceIdentityRequired:
+          type: boolean
+          const: true
+    ArchitectureV2ModulePlanPublication:
+      type: object
+      additionalProperties: false
+      required: [serviceRef, sourceSiteRef, edgeSiteRef, host, protocol, port, path, defaultClosed, tls, auth, origin, rateLimit, moduleRef, unitRef, originNodeRefs, originInstanceRefs, upstreamProtocol, targetPort, healthGateRef, dataBindingRef, access]
+      properties:
+        serviceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        sourceSiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        edgeSiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        host:
+          type: string
+          minLength: 1
+        protocol:
+          type: string
+          const: https
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        path:
+          type: string
+          pattern: '^/'
+        defaultClosed:
+          type: boolean
+          const: true
+        tls:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanPublicationTLS"
+        auth:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanPublicationAuth"
+        origin:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanPublicationOrigin"
+        rateLimit:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanPublicationRateLimit"
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        originNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        originInstanceRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        upstreamProtocol:
+          type: string
+          enum: [tcp, udp, http, https]
+        targetPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        healthGateRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        dataBindingRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        access:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanPublicationAccess"
+    ArchitectureV2ModulePlanPublicationTLS:
+      type: object
+      additionalProperties: false
+      required: [required, mode, minVersion]
+      properties:
+        required:
+          type: boolean
+          const: true
+        mode:
+          type: string
+          const: terminate-at-edge
+        minVersion:
+          type: string
+          enum: [TLS1.2, TLS1.3]
+    ArchitectureV2ModulePlanPublicationAuth:
+      type: object
+      additionalProperties: false
+      required: [required, policyRef]
+      properties:
+        required:
+          type: boolean
+          const: true
+        policyRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModulePlanPublicationOrigin:
+      type: object
+      additionalProperties: false
+      required: [identityRef, mtlsRequired]
+      properties:
+        identityRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        mtlsRequired:
+          type: boolean
+          const: true
+    ArchitectureV2ModulePlanPublicationRateLimit:
+      type: object
+      additionalProperties: false
+      required: [enabled, requests, windowSeconds]
+      properties:
+        enabled:
+          type: boolean
+          const: true
+        requests:
+          type: integer
+          minimum: 1
+        windowSeconds:
+          type: integer
+          minimum: 1
+    ArchitectureV2ModulePlanPublicationAccess:
+      type: object
+      additionalProperties: false
+      required: [exposure, policyExposure, authentication, privilege, enrolledDeviceRequired, ownerStepUpRequired, lanStepDown, allowedMethods, defaultClosed, policyRef]
+      properties:
+        exposure:
+          type: string
+          const: public
+        policyExposure:
+          type: string
+          const: public
+        authentication:
+          type: string
+          const: human+device
+        privilege:
+          type: string
+          enum: [user, admin, identity, secrets]
+        enrolledDeviceRequired:
+          type: boolean
+          const: true
+        ownerStepUpRequired:
+          type: boolean
+        lanStepDown:
+          type: boolean
+          const: false
+        allowedMethods:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS]
+        defaultClosed:
+          type: boolean
+          const: true
+        policyRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModulePlanControlAgent:
+      type: object
+      additionalProperties: false
+      required: [enabled, transport, audience, actionAllowlist, maxTTLSeconds, requiresSignedActions, requiresNonce, requiresResolvedPlanHash, requiresIdempotencyKey, capabilityScopedActions, replayProtection, requiresApprovalForDestructive]
+      properties:
+        enabled:
+          type: boolean
+          const: true
+        transport:
+          type: string
+          enum: [managed-agent, mtls-agent]
+        audience:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        actionAllowlist:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        maxTTLSeconds:
+          type: integer
+          minimum: 1
+          maximum: 300
+        requiresSignedActions:
+          type: boolean
+          const: true
+        requiresNonce:
+          type: boolean
+          const: true
+        requiresResolvedPlanHash:
+          type: boolean
+          const: true
+        requiresIdempotencyKey:
+          type: boolean
+          const: true
+        capabilityScopedActions:
+          type: boolean
+          const: true
+        replayProtection:
+          type: boolean
+          const: true
+        requiresApprovalForDestructive:
+          type: boolean
+          const: true
+    ArchitectureV2IdentityTrustPrincipal:
+      type: string
+      enum: [human, device, workload]
+    ArchitectureV2IdentityTrustIssuerURN:
+      type: string
+      pattern: '^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$'
+    ArchitectureV2IdentityTrustAudienceURN:
+      type: string
+      pattern: '^urn:stackkit:[a-z][a-z0-9-]*:audience:[a-z][a-z0-9-]*$'
+    ArchitectureV2IdentityTrustKeySetURN:
+      type: string
+      pattern: '^urn:stackkit:[a-z][a-z0-9-]*:keyset:[a-z][a-z0-9-]*$'
+    ArchitectureV2IdentityTrustCatalogOwner:
+      type: object
+      additionalProperties: false
+      required: [kind, providerRef, moduleRef]
+      properties:
+        kind: {type: string, const: catalog}
+        providerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2IdentityTrustExternalOwner:
+      type: object
+      additionalProperties: false
+      required: [kind, contractRef]
+      properties:
+        kind: {type: string, const: external}
+        contractRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2IdentityTrustOwner:
+      oneOf:
+        - $ref: "#/components/schemas/ArchitectureV2IdentityTrustCatalogOwner"
+        - $ref: "#/components/schemas/ArchitectureV2IdentityTrustExternalOwner"
+    ArchitectureV2IdentityTrustSitePlacement:
+      type: object
+      additionalProperties: false
+      required: [kind, siteRefs]
+      properties:
+        kind: {type: string, const: sites}
+        siteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2IdentityTrustExternalPlacement:
+      type: object
+      additionalProperties: false
+      required: [kind, contractRef]
+      properties:
+        kind: {type: string, const: external}
+        contractRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2IdentityTrustPlacement:
+      oneOf:
+        - $ref: "#/components/schemas/ArchitectureV2IdentityTrustSitePlacement"
+        - $ref: "#/components/schemas/ArchitectureV2IdentityTrustExternalPlacement"
+    ArchitectureV2ResolvedIdentityAuthority:
+      type: object
+      additionalProperties: false
+      required: [id, principal, trustDomainRef, placement, owner]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustPrincipal"}
+        trustDomainRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        placement: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustPlacement"}
+        owner: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustOwner"}
+    ArchitectureV2IdentityEnrollmentContract:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode, exposure]
+          properties:
+            mode: {type: string, const: local-only}
+            exposure: {type: string, const: lan}
+        - type: object
+          additionalProperties: false
+          required: [mode, exposure]
+          properties:
+            mode: {type: string, const: none}
+            exposure: {type: string, const: none}
+    ArchitectureV2ResolvedCredentialIssuer:
+      type: object
+      additionalProperties: false
+      required: [id, authorityRef, principal, issuer, audiences, verificationKeySetRef, placement, owner, issuanceWithinStackKit, credentialTTLSeconds, sessionTTLSeconds, proofOfPossessionRequired, revocationSupported, revocationMaxStalenessSeconds, enrollment]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        authorityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustPrincipal"}
+        issuer: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustIssuerURN"}
+        audiences:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustAudienceURN"}
+        verificationKeySetRef: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustKeySetURN"}
+        placement: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustPlacement"}
+        owner: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustOwner"}
+        issuanceWithinStackKit: {type: boolean}
+        credentialTTLSeconds: {type: integer, minimum: 300, maximum: 86400}
+        sessionTTLSeconds: {type: integer, minimum: 60, maximum: 86400}
+        proofOfPossessionRequired: {type: boolean}
+        revocationSupported: {type: boolean, const: true}
+        revocationMaxStalenessSeconds: {type: integer, minimum: 0}
+        enrollment: {$ref: "#/components/schemas/ArchitectureV2IdentityEnrollmentContract"}
+    ArchitectureV2ResolvedVerifierPlacement:
+      type: object
+      additionalProperties: false
+      required: [id, credentialIssuerRef, issuer, principal, audiences, verificationKeySetRef, placement, owner, proofOfPossessionRequired, revocationMaxStalenessSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        credentialIssuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuer: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustIssuerURN"}
+        principal: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustPrincipal"}
+        audiences:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustAudienceURN"}
+        verificationKeySetRef: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustKeySetURN"}
+        placement: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustSitePlacement"}
+        owner: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustCatalogOwner"}
+        proofOfPossessionRequired: {type: boolean}
+        revocationMaxStalenessSeconds: {type: integer, minimum: 0}
+    ArchitectureV2ResolvedVerifierDistribution:
+      type: object
+      additionalProperties: false
+      required: [id, credentialIssuerRef, issuer, from, to, materials, includesSigningAuthority, includesEnrollmentAuthority, includesPrivateKeyMaterial, includesCredentialMaterial, reverseAllowed, maxStalenessSeconds, owner]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        credentialIssuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuer: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustIssuerURN"}
+        from: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustSitePlacement"}
+        to: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustSitePlacement"}
+        materials:
+          type: array
+          minItems: 2
+          maxItems: 2
+          prefixItems:
+            - {type: string, const: revocation-state}
+            - {type: string, const: verification-key-reference}
+        includesSigningAuthority: {type: boolean, const: false}
+        includesEnrollmentAuthority: {type: boolean, const: false}
+        includesPrivateKeyMaterial: {type: boolean, const: false}
+        includesCredentialMaterial: {type: boolean, const: false}
+        reverseAllowed: {type: boolean, const: false}
+        maxStalenessSeconds: {type: integer, minimum: 0}
+        owner: {$ref: "#/components/schemas/ArchitectureV2IdentityTrustCatalogOwner"}
+    ArchitectureV2ResolvedIdentityTrust:
+      type: object
+      additionalProperties: false
+      description: >-
+        Provider-free, StackInstance-bound authority and verifier graph. It carries opaque issuer/audience/keyset references only; credential, JWKS, signing-key, endpoint, and network material are excluded.
+      required: [authorities, credentialIssuers, verifierPlacements, verifierDistributions]
+      properties:
+        authorities:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/ArchitectureV2ResolvedIdentityAuthority"}
+        credentialIssuers:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/ArchitectureV2ResolvedCredentialIssuer"}
+        verifierPlacements:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/ArchitectureV2ResolvedVerifierPlacement"}
+        verifierDistributions:
+          type: array
+          items: {$ref: "#/components/schemas/ArchitectureV2ResolvedVerifierDistribution"}
+    ArchitectureV2ModulePlanIdentity:
+      type: object
+      additionalProperties: false
+      required: [humanAuthoritySiteRef, possessionBoundSessions, lanLocationIsIdentity]
+      properties:
+        humanAuthoritySiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        deviceAuthoritySiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        edgeVerifierSiteRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        deviceEnrollment:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanDeviceEnrollment"
+        possessionBoundSessions:
+          type: boolean
+          const: true
+        lanLocationIsIdentity:
+          type: boolean
+          const: false
+    ArchitectureV2ModulePlanDeviceEnrollment:
+      type: object
+      additionalProperties: false
+      required: [mode, authoritySiteRef, endpointExposure, remoteEnrollment, requireOwnerStepUp, requireLocalPairingProof, requireDeviceGeneratedKey, requirePossessionProof, hardwareBackedKey, revocationSupported, credentialTTLSeconds]
+      properties:
+        mode:
+          type: string
+          const: local-only
+        authoritySiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        endpointExposure:
+          type: string
+          const: lan
+        remoteEnrollment:
+          type: boolean
+          const: false
+        requireOwnerStepUp:
+          type: boolean
+          const: true
+        requireLocalPairingProof:
+          type: boolean
+          const: true
+        requireDeviceGeneratedKey:
+          type: boolean
+          const: true
+        requirePossessionProof:
+          type: boolean
+          const: true
+        hardwareBackedKey:
+          type: string
+          enum: [preferred, required]
+        revocationSupported:
+          type: boolean
+          const: true
+        credentialTTLSeconds:
+          type: integer
+          minimum: 300
+          maximum: 86400
+    ArchitectureV2ModulePlanData:
+      type: object
+      additionalProperties: false
+      required: [defaultAuthority]
+      properties:
+        defaultAuthority:
+          type: string
+          enum: [home, cloud, per-workload]
+        bindings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanDataBinding"
+    ArchitectureV2ModulePlanDataBinding:
+      type: object
+      additionalProperties: false
+      required: [classes, primarySiteRef, cloudCopyAllowed]
+      properties:
+        classes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [public, internal, personal, sensitive, secret]
+        primarySiteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        replicaSiteRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        cloudCopyAllowed:
+          type: boolean
+        cloudCopyPolicy:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanCloudCopyPolicy"
+    ArchitectureV2ModulePlanCloudCopyPolicy:
+      type: object
+      additionalProperties: false
+      required: [policyRef, allowedClasses, allowPrimary, allowReplicas]
+      properties:
+        policyRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        allowedClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [public, internal, personal, sensitive, secret]
+        allowPrimary:
+          type: boolean
+        allowReplicas:
+          type: boolean
+    ArchitectureV2ModulePlanFailurePolicy:
+      type: object
+      additionalProperties: false
+      required: [onCloudLoss, onLinkLoss, cloudEdge, localIdentityAuthorityAvailable, maxStaleVerificationSeconds, denyNewCrossSiteSessions]
+      properties:
+        onCloudLoss:
+          type: string
+          enum: [local-continues, fail-closed, not-applicable]
+        onLinkLoss:
+          type: string
+          enum: [local-continues, cloud-continues, fail-closed, not-applicable]
+        cloudEdge:
+          type: string
+          enum: [fail-closed, not-applicable]
+        localIdentityAuthorityAvailable:
+          type: boolean
+        maxStaleVerificationSeconds:
+          type: integer
+          minimum: 0
+        denyNewCrossSiteSessions:
+          type: boolean
+          const: true
     ArchitectureV2ModuleServiceEndpoint:
       type: object
       additionalProperties: false
@@ -2264,7 +3494,7 @@ components:
     ArchitectureV2ModuleRealizationSupport:
       type: object
       additionalProperties: false
-      required: [contractVersion, scope, level, compatibleRendererRefs, inputs, artifacts, evidence]
+      required: [contractVersion, scope, level, compatibleRendererRefs, inputs, planInputs, artifacts, evidence]
       properties:
         contractVersion:
           type: string
@@ -2292,6 +3522,18 @@ components:
               uniqueItems: true
               items:
                 $ref: "#/components/schemas/ArchitectureV2ContractID"
+        planInputs:
+          type: object
+          additionalProperties: false
+          required: [contractComplete, requiredRefs]
+          properties:
+            contractComplete:
+              type: boolean
+            requiredRefs:
+              type: array
+              uniqueItems: true
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ModulePlanInputRef"
         artifacts:
           type: object
           additionalProperties: false
@@ -2566,6 +3808,7 @@ components:
             - bridge-overlay-unverified
             - bridge-control-agent-unverified
             - policy-enforcement-unverified
+            - partition-policy-enforcement-unverified
             - device-verifier-unbound
             - bridge-renderer-missing
             - origin-identity-unbound
@@ -2592,6 +3835,13 @@ components:
     ArchitectureV2ContentHash:
       type: string
       pattern: "^sha256:[a-f0-9]{64}$"
+    ArchitectureV2UTCTimestamp:
+      type: string
+      format: date-time
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$'
+    ArchitectureV2RuntimeVirtualization:
+      type: string
+      enum: [bare-metal, kvm, openvz, lxc, vmware, hyperv, xen, oracle, microsoft, none]
     ArchitectureV2SecretRefs:
       type: object
       additionalProperties:
@@ -3028,9 +4278,17 @@ components:
             type: object
             additionalProperties: true
     RuntimeActionRequest:
+      $ref: "#/components/schemas/RuntimeActionLegacyRequest"
+    RuntimeActionLegacyRequest:
       type: object
       required: [action, stack_id]
+      not:
+        required: [stack_spec]
       properties:
+        api_version:
+          type: string
+          const: stackkit.runtime-action/v1
+          description: Optional during the temporary unversioned legacy migration window.
         action:
           type: string
           enum: [stackkit_rollout, verify_rollout, restore_drill]
@@ -3055,6 +4313,54 @@ components:
             $ref: "#/components/schemas/RuntimeActionPlatformNode"
         techstack_enrollment:
           $ref: "#/components/schemas/RuntimeActionTechStackEnrollment"
+    RuntimeActionArchitectureV2RolloutRequest:
+      type: object
+      additionalProperties: false
+      required: [api_version, action, stack_id, stack_spec, inventory, expected_plan_hash]
+      properties:
+        api_version:
+          type: string
+          const: stackkit.runtime-action/v2alpha1
+        action:
+          type: string
+          const: stackkit_rollout
+        stack_id:
+          type: string
+          minLength: 1
+        tenant_id:
+          type: string
+        owner_id:
+          type: string
+        stack_spec:
+          $ref: "#/components/schemas/ArchitectureV2StackSpec"
+        inventory:
+          $ref: "#/components/schemas/ArchitectureV2Inventory"
+        expected_plan_hash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    RuntimeActionArchitectureV2VerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [api_version, action, stack_id, stack_spec, inventory, expected_plan_hash]
+      properties:
+        api_version:
+          type: string
+          const: stackkit.runtime-action/v2alpha1
+        action:
+          type: string
+          const: verify_rollout
+        stack_id:
+          type: string
+          minLength: 1
+        tenant_id:
+          type: string
+        owner_id:
+          type: string
+        stack_spec:
+          $ref: "#/components/schemas/ArchitectureV2StackSpec"
+        inventory:
+          $ref: "#/components/schemas/ArchitectureV2Inventory"
+        expected_plan_hash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
     RuntimeActionOwnerSpecBootstrap:
       type: object
       required: [endpoint, token, expires_at]

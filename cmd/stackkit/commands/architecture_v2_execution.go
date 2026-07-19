@@ -1,15 +1,20 @@
 package commands
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"gopkg.in/yaml.v3"
 )
@@ -20,6 +25,7 @@ const (
 	architectureV2Generate architectureV2ExecutionMode = "generate"
 	architectureV2Plan     architectureV2ExecutionMode = "plan"
 	architectureV2Apply    architectureV2ExecutionMode = "apply"
+	architectureV2Verify   architectureV2ExecutionMode = "verify"
 )
 
 type architectureV2ExecutionCLIOptions struct {
@@ -27,17 +33,24 @@ type architectureV2ExecutionCLIOptions struct {
 	planPath      string
 	manifestPath  string
 	receiptPath   string
+	outputRoot    string
+	fragments     bool
+	force         bool
+	context       context.Context
 }
 
 type architectureV2ExecutionAuthority interface {
-	Resolve(architecturev2.ResolveInput) (architecturev2.Result, error)
+	ResolveCurrent(architecturev2.ResolveInput) (architecturev2.CurrentResolution, error)
+	AuthorizeGeneration(architecturev2.GenerationAuthorizationInput) (architecturev2.GenerationAuthorization, error)
 	VerifyCanonicalPlan([]byte) (generationartifact.VerifiedPlan, error)
 	ReadCanonicalPlan(string) (generationartifact.VerifiedPlan, error)
 }
 
 type architectureV2ExecutionGate struct {
 	newAuthority func() (architectureV2ExecutionAuthority, error)
+	newRegistry  func() (*architecturev2renderer.Registry, error)
 	versions     generationartifact.ComponentVersions
+	now          func() time.Time
 }
 
 func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
@@ -46,11 +59,13 @@ func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
 		newAuthority: func() (architectureV2ExecutionAuthority, error) {
 			return architecturev2.NewEmbeddedService(architecturev2.StackKitsV06Contract(version))
 		},
+		newRegistry: architecturev2renderer.NewProductRegistry,
 		versions: generationartifact.ComponentVersions{
 			CLI:       componentVersion,
 			Generator: componentVersion,
 			Runtime:   componentVersion,
 		},
+		now: time.Now,
 	}
 }
 
@@ -116,7 +131,11 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	if err != nil {
 		return err
 	}
-	resolved, err := authority.Resolve(architecturev2.ResolveInput{StackSpec: rawSpec, Inventory: inventory})
+	currentResolution, err := authority.ResolveCurrent(architecturev2.ResolveInput{StackSpec: rawSpec, Inventory: inventory})
+	if err != nil {
+		return err
+	}
+	resolved, err := currentResolution.Result()
 	if err != nil {
 		return err
 	}
@@ -126,6 +145,12 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	}
 	defaultPlanPath, defaultManifestPath, defaultReceiptPath := current.MetadataPaths(wd)
 	planPath := architectureV2MetadataPath(wd, options.planPath, defaultPlanPath)
+	if mode == architectureV2Generate {
+		planPath, err = architectureV2CanonicalMetadataPath(wd, options.planPath, defaultPlanPath, "resolved plan")
+		if err != nil {
+			return err
+		}
+	}
 	persisted, err := authority.ReadCanonicalPlan(planPath)
 	if err != nil {
 		return err
@@ -136,11 +161,29 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	if err := persisted.VerifyCompatibility(g.versions); err != nil {
 		return err
 	}
+	if mode == architectureV2Generate {
+		if err := validateArchitectureV2GenerateOptions(wd, options, persisted.OutputRoot()); err != nil {
+			return err
+		}
+	}
+	if mode == architectureV2Apply {
+		now := time.Now
+		if g.now != nil {
+			now = g.now
+		}
+		canonicalPlan, err := resolvedplan.DecodeCanonicalPlan(persisted.Canonical())
+		if err != nil {
+			return fmt.Errorf("decode verified canonical plan for external host freshness: %w", err)
+		}
+		if err := resolvedplan.ValidateHostConformanceReceiptsForApply(canonicalPlan, now().UTC()); err != nil {
+			return err
+		}
+	}
 	phase := architectureV2ReadinessPhase(mode)
 	if err := persisted.RequireReady(phase); err != nil {
 		return err
 	}
-	return g.continueV2Execution(wd, mode, options, persisted, resolved.CanonicalPlan, defaultManifestPath, defaultReceiptPath)
+	return g.continueV2Execution(wd, mode, options, authority, currentResolution, persisted, resolved.CanonicalPlan, defaultManifestPath, defaultReceiptPath)
 }
 
 func architectureV2ReadinessPhase(mode architectureV2ExecutionMode) generationartifact.ExecutionPhase {
@@ -150,15 +193,84 @@ func architectureV2ReadinessPhase(mode architectureV2ExecutionMode) generationar
 	return generationartifact.ExecutionPhaseGeneration
 }
 
-func (g architectureV2ExecutionGate) continueV2Execution(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions, persisted generationartifact.VerifiedPlan, currentCanonical []byte, defaultManifestPath, defaultReceiptPath string) error {
+func (g architectureV2ExecutionGate) continueV2Execution(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions, authority architectureV2ExecutionAuthority, current architecturev2.CurrentResolution, persisted generationartifact.VerifiedPlan, currentCanonical []byte, defaultManifestPath, defaultReceiptPath string) error {
 	switch mode {
 	case architectureV2Generate:
-		return generationartifact.RendererNotImplemented(persisted.Binding().Renderer)
-	case architectureV2Plan, architectureV2Apply:
+		return g.generateV2(wd, options.context, authority, current)
+	case architectureV2Plan, architectureV2Apply, architectureV2Verify:
 		return g.verifyV2Generation(wd, mode, options, persisted, currentCanonical, defaultManifestPath, defaultReceiptPath)
 	default:
 		return fmt.Errorf("unsupported architecture v2 execution mode %q", mode)
 	}
+}
+
+func (g architectureV2ExecutionGate) generateV2(wd string, renderContext context.Context, authority architectureV2ExecutionAuthority, current architecturev2.CurrentResolution) (returnErr error) {
+	if g.newRegistry == nil {
+		return fmt.Errorf("architecture v2 renderer registry is not configured")
+	}
+	workspaceRoot, err := filepath.Abs(wd)
+	if err != nil {
+		return fmt.Errorf("resolve architecture v2 generation workspace: %w", err)
+	}
+	workspaceRoot = filepath.Clean(workspaceRoot)
+	authorization, err := authority.AuthorizeGeneration(architecturev2.GenerationAuthorizationInput{
+		Current:       current,
+		WorkspaceRoot: workspaceRoot,
+		Versions:      g.versions,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, authorization.Close())
+	}()
+
+	registry, err := g.newRegistry()
+	if err != nil {
+		return err
+	}
+	now := time.Now
+	if g.now != nil {
+		now = g.now
+	}
+	if renderContext == nil {
+		renderContext = context.Background()
+	}
+	_, err = authorization.RenderAndInstall(renderContext, registry, architecturev2renderer.InstallOptions{
+		WorkspaceRoot: workspaceRoot,
+		GeneratedAt:   now().UTC().Format(time.RFC3339Nano),
+	})
+	return err
+}
+
+func validateArchitectureV2GenerateOptions(wd string, options architectureV2ExecutionCLIOptions, governedOutputRoot string) error {
+	if options.fragments {
+		return fmt.Errorf("architecture v2 generation strategy is owned by ResolvedPlan; --fragments is not accepted")
+	}
+	if options.force {
+		return fmt.Errorf("architecture v2 generation replaces its governed output root transactionally; --force is not accepted")
+	}
+	if strings.TrimSpace(options.outputRoot) == "" {
+		return nil
+	}
+	requested, err := filepath.Abs(resolvePathFromWorkDir(wd, options.outputRoot))
+	if err != nil {
+		return fmt.Errorf("resolve requested architecture v2 output root: %w", err)
+	}
+	governed, err := filepath.Abs(filepath.Join(wd, filepath.FromSlash(governedOutputRoot)))
+	if err != nil {
+		return fmt.Errorf("resolve governed architecture v2 output root: %w", err)
+	}
+	requested = filepath.Clean(requested)
+	governed = filepath.Clean(governed)
+	equal := requested == governed
+	if runtime.GOOS == "windows" {
+		equal = strings.EqualFold(requested, governed)
+	}
+	if !equal {
+		return fmt.Errorf("architecture v2 --output must resolve to governed ResolvedPlan outputRoot %s", governedOutputRoot)
+	}
+	return nil
 }
 
 func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions, persisted generationartifact.VerifiedPlan, currentCanonical []byte, defaultManifestPath, defaultReceiptPath string) error {
@@ -188,6 +300,9 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		Receipt:          receipt,
 	}); err != nil {
 		return err
+	}
+	if mode == architectureV2Verify {
+		return generationartifact.VerifierNotImplemented(persisted.Binding().Renderer)
 	}
 	return generationartifact.ExecutorNotImplemented(persisted.Binding().Renderer)
 }

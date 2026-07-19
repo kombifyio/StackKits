@@ -1,11 +1,11 @@
 // =============================================================================
-// STACKKIT: cloud-kit - Cloud single-environment homelab (VPS)
+// STACKKIT: cloud-kit - Cloud single-environment homelab
 // =============================================================================
 //
 // The legacy v1 rollout shape below still derives from base.#StackBase and
 // pins cloud context for one-minor compatibility. The additive v2 Definition
-// is the architecture authority for new work: cloud Sites, explicit VPS/edge/
-// DNS/TLS/hardening capabilities, and default-closed service publication
+// is the architecture authority for new work: cloud Sites, externally supplied
+// host admission, edge/DNS/TLS intent, host-local hardening, and default-closed service publication
 // (ADR-0029). It is not Modern Homelab.
 //
 // Installer: https://cloud.stackkit.cc
@@ -33,13 +33,13 @@ Definition: base.#KitDefinition & {
 		slug:        "cloud-kit"
 		version:     "5.0.0"
 		displayName: "Cloud Kit"
-		description: "Cloud-only StackKit for one or more VPS or cloud nodes"
+		description: "Cloud-only StackKit for one or more externally supplied cloud hosts"
 	}
 	topology: {
 		allowedSiteKinds: ["cloud"]
 		requiredSiteKinds: ["cloud"]
 		minSites:  1
-		maxSites:  64
+		maxSites:  1
 		multiNode: true
 		controlPlane: {
 			defaultMode: "single"
@@ -61,8 +61,8 @@ Definition: base.#KitDefinition & {
 				allowedFencing: ["automatic"]
 			}
 			failureModel: {
-				basis:             "provider-zone", memberSiteScope: "control-member-sites"
-				partitionBehavior: "provider-network-failover"
+				basis:             "failure-domain", memberSiteScope: "control-member-sites"
+				partitionBehavior: "failure-domain-failover"
 			}
 			healthAcceptance: {
 				requiredGateRefs: [
@@ -71,7 +71,7 @@ Definition: base.#KitDefinition & {
 				]
 				memberReadiness: "all"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-cloud-warm-standby-zone-failover-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-cloud-warm-standby-failure-domain-proof"]
 		}
 		quorum: {
 			policyRef:      "cloud-ha-quorum-policy"
@@ -86,8 +86,8 @@ Definition: base.#KitDefinition & {
 				allowedFencing: ["automatic"]
 			}
 			failureModel: {
-				basis:             "provider-zone", memberSiteScope: "control-member-sites"
-				partitionBehavior: "provider-network-failover"
+				basis:             "failure-domain", memberSiteScope: "control-member-sites"
+				partitionBehavior: "failure-domain-failover"
 			}
 			healthAcceptance: {
 				requiredGateRefs: [
@@ -96,27 +96,24 @@ Definition: base.#KitDefinition & {
 				]
 				memberReadiness: "majority"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-cloud-quorum-zone-majority-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-cloud-quorum-failure-domain-majority-proof"]
 		}
 	}
 	capabilities: {
 		required: list.Concat([base.#CommonCapabilityIDs, [
 			"site-cloud",
-			"provision-vps",
-			"provider-metadata",
-			"cloud-firewall",
+			"host-local-internet-firewall",
 			"public-edge",
 			"public-dns",
 			"public-tls",
 			"internet-host-hardening",
 			"remote-owner-bootstrap",
 			"offsite-object-backup",
-			"provider-lifecycle",
 			"cloud-control-authority",
 		]])
 		defaults: []
-		optional: ["private-admin-mesh", "provider-snapshot", "multi-zone-placement", "photos", "availability-ha"]
-		forbidden: ["site-local", "lan-access-policy", "device-enrollment-home", "local-hardware-preflight"]
+		optional: ["private-admin-mesh", "failure-domain-placement", "photos", "availability-ha"]
+		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home", "local-hardware-preflight"]
 	}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
@@ -169,6 +166,24 @@ Definition: base.#KitDefinition & {
 		localIdentityAuthorityAvailable: false
 		maxStaleVerificationSeconds:     0
 		denyNewCrossSiteSessions:        true
+	}
+	identityTrust: {
+		authorities: [
+			{id: "cloud-human-authority", principal: "human", trustDomainRef: "cloud-stackkit-trust", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-cloud-identity-trust-policy", moduleRef: "stackkits-cloud-identity-trust-policy-manifest"}},
+			{id: "owner-device-authority", principal: "device", trustDomainRef: "owner-bound-device-trust", placement: {selector: "external", contractRef: "owner-bound-device-authority"}, owner: {kind: "external", contractRef: "owner-bound-device-authority"}},
+			{id: "cloud-workload-authority", principal: "workload", trustDomainRef: "cloud-stackkit-trust", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-cloud-identity-trust-policy", moduleRef: "stackkits-cloud-identity-trust-policy-manifest"}},
+		]
+		credentialIssuers: [
+			{id: "cloud-human-credential-issuer", authorityRef: "cloud-human-authority", principal: "human", issuerRef: "cloud-human-issuer", audienceRefs: ["stackkit-human-session"], verificationKeySetRef: "cloud-human-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-cloud-identity-trust-policy", moduleRef: "stackkits-cloud-identity-trust-policy-manifest"}, issuanceWithinStackKit: true, credentialTTLSeconds: 86400, sessionTTLSeconds: 900, proofOfPossessionRequired: false, revocationSupported: true, revocationMaxStalenessSeconds: 0, enrollment: {mode: "none", exposure: "none"}},
+			{id: "owner-device-credential-issuer", authorityRef: "owner-device-authority", principal: "device", issuerRef: "owner-bound-device-issuer", audienceRefs: ["stackkit-device-session"], verificationKeySetRef: "owner-bound-device-verification-keys", placement: {selector: "external", contractRef: "owner-bound-device-authority"}, owner: {kind: "external", contractRef: "owner-bound-device-authority"}, issuanceWithinStackKit: false, credentialTTLSeconds: 3600, sessionTTLSeconds: 900, proofOfPossessionRequired: true, revocationSupported: true, revocationMaxStalenessSeconds: 0, enrollment: {mode: "none", exposure: "none"}},
+			{id: "cloud-workload-credential-issuer", authorityRef: "cloud-workload-authority", principal: "workload", issuerRef: "cloud-workload-issuer", audienceRefs: ["stackkit-workload"], verificationKeySetRef: "cloud-workload-verification-keys", placement: {selector: "control-authority-site"}, owner: {kind: "catalog", providerRef: "stackkits-cloud-identity-trust-policy", moduleRef: "stackkits-cloud-identity-trust-policy-manifest"}, issuanceWithinStackKit: true, credentialTTLSeconds: 300, sessionTTLSeconds: 300, proofOfPossessionRequired: true, revocationSupported: true, revocationMaxStalenessSeconds: 0, enrollment: {mode: "none", exposure: "none"}},
+		]
+		verifierPlacements: [
+			{id: "cloud-human-verifier", issuerRef: "cloud-human-issuer", principal: "human", audienceRefs: ["stackkit-human-session"], verificationKeySetRef: "cloud-human-verification-keys", placement: {selector: "cloud-sites"}, owner: {kind: "catalog", providerRef: "stackkits-cloud-identity-trust-policy", moduleRef: "stackkits-cloud-identity-trust-policy-manifest"}, proofOfPossessionRequired: false, revocationMaxStalenessSeconds: 0},
+			{id: "cloud-device-verifier", issuerRef: "owner-bound-device-issuer", principal: "device", audienceRefs: ["stackkit-device-session"], verificationKeySetRef: "owner-bound-device-verification-keys", placement: {selector: "cloud-sites"}, owner: {kind: "catalog", providerRef: "stackkits-cloud-identity-trust-policy", moduleRef: "stackkits-cloud-identity-trust-policy-manifest"}, proofOfPossessionRequired: true, revocationMaxStalenessSeconds: 0},
+			{id: "cloud-workload-verifier", issuerRef: "cloud-workload-issuer", principal: "workload", audienceRefs: ["stackkit-workload"], verificationKeySetRef: "cloud-workload-verification-keys", placement: {selector: "cloud-sites"}, owner: {kind: "catalog", providerRef: "stackkits-cloud-identity-trust-policy", moduleRef: "stackkits-cloud-identity-trust-policy-manifest"}, proofOfPossessionRequired: true, revocationMaxStalenessSeconds: 0},
+		]
+		verifierDistributions: []
 	}
 	generation: {
 		defaultStrategy: "kit-template"

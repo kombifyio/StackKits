@@ -59,6 +59,7 @@ function validate(repoRoot) {
   ];
   const commandTimeoutFiles = [
     ...workflowFiles,
+    ...walk(path.join(repoRoot, 'scripts', 'ci'), (file) => /\.(?:sh|ps1)$/i.test(file)),
     path.join(repoRoot, 'tests', 'production', 'README.md'),
   ].filter((file) => existsSync(file));
   const generatedWaitFiles = [

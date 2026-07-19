@@ -37,7 +37,6 @@ _validBasementV2: #BasementKitStackV2 & {
 			id:      "main"
 			siteRef: "home"
 			roles: ["controller", "worker"]
-			management: {host: "192.168.1.10"}
 			hardware: {}
 			failureDomain: "host-main"
 		}]

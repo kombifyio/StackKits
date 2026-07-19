@@ -944,7 +944,7 @@ func formatApplyError(stderr string) string {
 		{"unable to find", "Could not download one or more container images. Check your internet connection."},
 		{"unable to pull", "Could not download one or more container images. Check your internet connection."},
 		{"Error pulling image", "Failed to download a container image (DNS or network issue)."},
-		{"Unable to create network", "Could not create Docker network. Your VPS may not support bridge networking."},
+		{"Unable to create network", "Could not create Docker network. The host may not expose bridge networking."},
 		{"Cannot connect to the Docker daemon", "Docker is not running. Run 'stackkit prepare' to start it."},
 		{"error reading from server: EOF", "Docker returned a transient connection error while starting a container. Retry the apply; if it repeats, restart Docker and run 'stackkit prepare'."},
 		{"Error acquiring the state lock", "Another deployment operation is in progress. Wait and try again."},

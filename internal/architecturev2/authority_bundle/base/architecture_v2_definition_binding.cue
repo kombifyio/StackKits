@@ -33,7 +33,130 @@ import "list"
 			possessionBoundSessions: definition.accessDefaults.deviceBoundSessions
 			lanLocationIsIdentity:   definition.accessDefaults.lanLocationIsIdentity
 		}
+		identityTrust: {
+			authorities: [for authority in definition.identityTrust.authorities {
+				id:             authority.id
+				principal:      authority.principal
+				trustDomainRef: authority.trustDomainRef
+				owner:          authority.owner
+				if authority.placement.selector == "control-authority-site" {
+					placement: {kind: "sites", siteRefs: [resolvedControlPlane.authoritySiteRef]}
+				}
+				if authority.placement.selector == "cloud-sites" {
+					placement: {kind: "sites", siteRefs: [for site in plan.sites if site.kind == "cloud" {site.id}] & list.MinItems(1)}
+				}
+				if authority.placement.selector == "external" {
+					placement: {kind: "external", contractRef: authority.placement.contractRef}
+				}
+			}]
+			credentialIssuers: [for credentialIssuer in definition.identityTrust.credentialIssuers {
+				id:           credentialIssuer.id
+				authorityRef: credentialIssuer.authorityRef
+				principal:    credentialIssuer.principal
+				issuer:       "urn:stackkit:\(plan.stackId):issuer:\(credentialIssuer.issuerRef)"
+				audiences: [for audienceRef in credentialIssuer.audienceRefs {"urn:stackkit:\(plan.stackId):audience:\(audienceRef)"}]
+				verificationKeySetRef:         "urn:stackkit:\(plan.stackId):keyset:\(credentialIssuer.verificationKeySetRef)"
+				owner:                         credentialIssuer.owner
+				issuanceWithinStackKit:        credentialIssuer.issuanceWithinStackKit
+				credentialTTLSeconds:          credentialIssuer.credentialTTLSeconds
+				sessionTTLSeconds:             credentialIssuer.sessionTTLSeconds
+				proofOfPossessionRequired:     credentialIssuer.proofOfPossessionRequired
+				revocationSupported:           credentialIssuer.revocationSupported
+				revocationMaxStalenessSeconds: credentialIssuer.revocationMaxStalenessSeconds
+				enrollment:                    credentialIssuer.enrollment
+				if credentialIssuer.placement.selector == "control-authority-site" {
+					placement: {kind: "sites", siteRefs: [resolvedControlPlane.authoritySiteRef]}
+				}
+				if credentialIssuer.placement.selector == "cloud-sites" {
+					placement: {kind: "sites", siteRefs: [for site in plan.sites if site.kind == "cloud" {site.id}] & list.MinItems(1)}
+				}
+				if credentialIssuer.placement.selector == "external" {
+					placement: {kind: "external", contractRef: credentialIssuer.placement.contractRef}
+				}
+			}]
+			verifierPlacements: [for verifier in definition.identityTrust.verifierPlacements {
+				id: verifier.id
+				credentialIssuerRef: [for issuer in definition.identityTrust.credentialIssuers if issuer.issuerRef == verifier.issuerRef {issuer.id}][0]
+				issuer:    "urn:stackkit:\(plan.stackId):issuer:\(verifier.issuerRef)"
+				principal: verifier.principal
+				audiences: [for audienceRef in verifier.audienceRefs {"urn:stackkit:\(plan.stackId):audience:\(audienceRef)"}]
+				verificationKeySetRef:         "urn:stackkit:\(plan.stackId):keyset:\(verifier.verificationKeySetRef)"
+				owner:                         verifier.owner
+				proofOfPossessionRequired:     verifier.proofOfPossessionRequired
+				revocationMaxStalenessSeconds: verifier.revocationMaxStalenessSeconds
+				if verifier.placement.selector == "control-authority-site" {
+					placement: {kind: "sites", siteRefs: [resolvedControlPlane.authoritySiteRef]}
+				}
+				if verifier.placement.selector == "cloud-sites" {
+					placement: {kind: "sites", siteRefs: [for site in plan.sites if site.kind == "cloud" {site.id}] & list.MinItems(1)}
+				}
+			}]
+			verifierDistributions: [for distribution in definition.identityTrust.verifierDistributions {
+				id: distribution.id
+				credentialIssuerRef: [for issuer in definition.identityTrust.credentialIssuers if issuer.issuerRef == distribution.issuerRef {issuer.id}][0]
+				issuer: "urn:stackkit:\(plan.stackId):issuer:\(distribution.issuerRef)"
+				from: {kind: "sites", siteRefs: [resolvedControlPlane.authoritySiteRef]}
+				to: {kind: "sites", siteRefs: [for site in plan.sites if site.kind == "cloud" {site.id}] & list.MinItems(1)}
+				materials:                   distribution.materials
+				includesSigningAuthority:    distribution.includesSigningAuthority
+				includesEnrollmentAuthority: distribution.includesEnrollmentAuthority
+				includesPrivateKeyMaterial:  distribution.includesPrivateKeyMaterial
+				includesCredentialMaterial:  distribution.includesCredentialMaterial
+				reverseAllowed:              distribution.reverseAllowed
+				maxStalenessSeconds:         distribution.maxStalenessSeconds
+				owner:                       distribution.owner
+			}]
+		}
 		availability: mode: resolvedControlPlane.mode
+	}
+
+	_identityTrustComponents: list.Concat([
+		plan.identityTrust.authorities,
+		plan.identityTrust.credentialIssuers,
+		plan.identityTrust.verifierPlacements,
+		plan.identityTrust.verifierDistributions,
+	])
+	integrity: identityTrustCatalogOwners: [for component in _identityTrustComponents if component.owner.kind == "catalog" {
+		componentID: component.id
+		providerMatches: [for catalogProvider in plan.providers if catalogProvider.id == component.owner.providerRef {catalogProvider.id}] & list.MinItems(1) & list.MaxItems(1)
+		moduleMatches: [for catalogModule in plan.modules if catalogModule.id == component.owner.moduleRef && catalogModule.providerRef == component.owner.providerRef {catalogModule.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	if plan.access != _|_ {
+		integrity: identityTrustAccessVerifiers: [
+			for policyID, policy in plan.access
+			for principal in ["human", "device", "workload"]
+			if (principal == "human" && (policy.authentication == "human" || policy.authentication == "human+device")) ||
+				(principal == "device" && (policy.authentication == "device" || policy.authentication == "human+device")) ||
+				(principal == "workload" && policy.authentication == "workload") {
+				policyRef:     policyID
+				principalKind: principal
+				matches: [for verifier in plan.identityTrust.verifierPlacements if verifier.principal == principal {verifier.id}] & list.MinItems(1)
+			},
+		]
+	}
+	integrity: identityTrustRouteVerifiers: [
+		for route in plan.network.routes
+		for principal in ["human", "device", "workload"]
+		if (principal == "human" && (route.access.authentication == "human" || route.access.authentication == "human+device")) ||
+			(principal == "device" && (route.access.authentication == "device" || route.access.authentication == "human+device")) ||
+			(principal == "workload" && route.access.authentication == "workload") {
+			routeRef:      route.id
+			principalKind: principal
+			matches: [for verifier in plan.identityTrust.verifierPlacements if verifier.principal == principal && list.Contains(verifier.placement.siteRefs, route.originSiteRef) {verifier.id}] & list.MinItems(1)
+		},
+	]
+	if plan.bridge != _|_ {
+		integrity: identityTrustPublicationVerifiers: [
+			for publication in plan.bridge.publications
+			for principal in ["human", "device", "workload"]
+			if (principal == "human" && (publication.access.authentication == "human" || publication.access.authentication == "human+device")) ||
+				(principal == "device" && (publication.access.authentication == "device" || publication.access.authentication == "human+device")) ||
+				(principal == "workload" && publication.access.authentication == "workload") {
+				serviceRef:    publication.serviceRef
+				principalKind: principal
+				matches: [for verifier in plan.identityTrust.verifierPlacements if verifier.principal == principal && list.Contains(verifier.placement.siteRefs, publication.edgeSiteRef) {verifier.id}] & list.MinItems(1)
+			},
+		]
 	}
 	if plan.controlPlane.mode == "warm-standby" {
 		let selectedAvailabilityPolicy = definition.availability.policies["warm-standby"]
@@ -203,6 +326,52 @@ import "list"
 			if route.access.policyRef == policyID
 			if route.access.ownerStepUpRequired == accessPolicy.ownerStepUpRequired {policyID},
 		] & list.MinItems(1) & list.MaxItems(1)
+		policyExposureMatches: [
+			for policyID, accessPolicy in plan.access
+			if route.access.policyRef == policyID
+			if route.access.policyExposure == accessPolicy.exposure {policyID},
+		] & list.MinItems(1) & list.MaxItems(1)
+		lanStepDownMatches: [
+			for policyID, accessPolicy in plan.access
+			if route.access.policyRef == policyID
+			if route.access.lanStepDown == accessPolicy.lanStepDown {policyID},
+		] & list.MinItems(1) & list.MaxItems(1)
+		allowedSiteRefsForward: [
+			for policyID, accessPolicy in plan.access
+			if route.access.policyRef == policyID
+			if accessPolicy.allowedSiteRefs != _|_ {
+				policyRef: policyID
+				value:     route.access.allowedSiteRefs & accessPolicy.allowedSiteRefs
+			},
+		]
+		if route.access.allowedSiteRefs != _|_ {
+			allowedSiteRefsReverse: [
+				for policyID, accessPolicy in plan.access
+				if route.access.policyRef == policyID
+				if accessPolicy.allowedSiteRefs != _|_ {
+					policyRef: policyID
+					value:     route.access.allowedSiteRefs & accessPolicy.allowedSiteRefs
+				},
+			] & list.MinItems(1) & list.MaxItems(1)
+		}
+		allowedMethodsForward: [
+			for policyID, accessPolicy in plan.access
+			if route.access.policyRef == policyID
+			if accessPolicy.allowedMethods != _|_ {
+				policyRef: policyID
+				value:     route.access.allowedMethods & accessPolicy.allowedMethods
+			},
+		]
+		if route.access.allowedMethods != _|_ {
+			allowedMethodsReverse: [
+				for policyID, accessPolicy in plan.access
+				if route.access.policyRef == policyID
+				if accessPolicy.allowedMethods != _|_ {
+					policyRef: policyID
+					value:     route.access.allowedMethods & accessPolicy.allowedMethods
+				},
+			] & list.MinItems(1) & list.MaxItems(1)
+		}
 	}]
 	integrity: routeTLS: [for route in plan.network.routes {
 		if route.tls.required == true if plan.network.configuration.tls.defaultMode == "internal" {
@@ -268,6 +437,80 @@ import "list"
 				replicaSiteRefs?: [...#SiteID]
 				cloudCopyAllowed: bool | *false
 			}
+			integrity: publicationEndpoints: [for publication in plan.bridge.publications {
+				service: publication.serviceRef
+				matches: [
+					for module in plan.modules
+					for unit in module.renderUnits
+					for endpoint in unit.serviceEndpoints
+					if endpoint.serviceRef == publication.serviceRef
+					for allowedExposure in endpoint.allowedExposures
+					if allowedExposure == "public"
+					for allowedProtocol in endpoint.allowedIngressProtocols
+					if allowedProtocol == publication.protocol
+					if endpoint.upstreamProtocol == publication.upstreamProtocol && endpoint.targetPort == publication.targetPort
+					if endpoint.data.bindingRef == publication.dataBindingRef {
+						moduleRef:     publication.moduleRef & module.id
+						unitRef:       publication.unitRef & unit.id
+						healthGateRef: publication.healthGateRef & "module-\(module.id)-\(endpoint.healthRef)"
+						originNodes: [for originNodeRef in publication.originNodeRefs {
+							node: originNodeRef
+							matches: [
+								for unitNodeRef in unit.nodeRefs
+								for node in plan.nodes
+								if unitNodeRef == originNodeRef && node.id == unitNodeRef && node.siteRef == publication.sourceSiteRef {unitNodeRef},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}]
+						originNodesComplete: [
+							for unitNodeRef in unit.nodeRefs
+							for node in plan.nodes
+							if node.id == unitNodeRef && node.siteRef == publication.sourceSiteRef {
+								node: unitNodeRef
+								matches: [for originNodeRef in publication.originNodeRefs if originNodeRef == unitNodeRef {originNodeRef}] & list.MinItems(1) & list.MaxItems(1)
+							},
+						]
+						originInstances: [for originInstanceRef in publication.originInstanceRefs {
+							instanceRef: originInstanceRef
+							matches: [
+								for instance in unit.instances
+								if instance.scope == "node-local"
+								if instance.id == originInstanceRef && instance.siteRef == publication.sourceSiteRef {instance.id},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}]
+						originInstancesComplete: [
+							for instance in unit.instances
+							if instance.scope == "node-local"
+							if instance.siteRef == publication.sourceSiteRef {
+								instanceRef: instance.id
+								matches: [for originInstanceRef in publication.originInstanceRefs if originInstanceRef == instance.id {originInstanceRef}] & list.MinItems(1) & list.MaxItems(1)
+							},
+						]
+						if endpoint.originSelector == "single-site" {
+							unitSiteCount: len(unit.siteRefs) & 1
+							originSite:    unit.siteRefs[0] & publication.sourceSiteRef
+						}
+						if endpoint.originSelector == "control-authority-site" {
+							authoritySite: publication.sourceSiteRef & plan.controlPlane.authoritySiteRef
+						}
+						if endpoint.data.locality == "primary-site" {
+							dataPrimarySite: [
+								for bindingID, binding in plan.data.bindings
+								if bindingID == endpoint.data.bindingRef && binding.primarySiteRef == publication.sourceSiteRef {bindingID},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}
+						if endpoint.data.locality == "primary-or-replica" {
+							dataOriginSite: [
+								for bindingID, binding in plan.data.bindings
+								if bindingID == endpoint.data.bindingRef && binding.primarySiteRef == publication.sourceSiteRef {bindingID},
+								for bindingID, binding in plan.data.bindings
+								if bindingID == endpoint.data.bindingRef
+								for replicaSiteRef in binding.replicaSiteRefs
+								if replicaSiteRef == publication.sourceSiteRef {bindingID},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}
+					},
+				] & list.MinItems(1) & list.MaxItems(1)
+			}]
 			integrity: publicationPolicyRefs: [for publication in plan.bridge.publications {
 				service: publication.serviceRef
 				policy:  publication.auth.policyRef
@@ -306,23 +549,27 @@ import "list"
 					if flow.toSiteRef == publication.sourceSiteRef
 					if flow.serviceRef == publication.serviceRef
 					if flow.protocol == publication.upstreamProtocol
+					if len(flow.ports) == 1
 					for port in flow.ports
-					if port == publication.targetPort {flow.serviceRef},
+					if port == publication.targetPort
+					if flow.protocol == "tcp" || flow.protocol == "udp" {flow.serviceRef},
+					for flow in plan.bridge.policy.allowedFlows
+					if flow.fromSiteRef == publication.edgeSiteRef
+					if flow.toSiteRef == publication.sourceSiteRef
+					if flow.serviceRef == publication.serviceRef
+					if flow.protocol == publication.upstreamProtocol
+					if len(flow.ports) == 1
+					for port in flow.ports
+					if port == publication.targetPort
+					if flow.protocol == "http" || flow.protocol == "https"
+					if len(flow.methods) == len(publication.access.allowedMethods)
+					if len([
+						for method in flow.methods
+						for allowed in publication.access.allowedMethods
+						if method == allowed {method},
+					]) == len(flow.methods) {flow.serviceRef},
 				] & list.MinItems(1)
 			}]
-			integrity: publicationFlowMethods: [
-				for publication in plan.bridge.publications
-				for flow in plan.bridge.policy.allowedFlows
-				if flow.fromSiteRef == publication.edgeSiteRef
-				if flow.toSiteRef == publication.sourceSiteRef
-				if flow.serviceRef == publication.serviceRef
-				if flow.protocol == "http" || flow.protocol == "https"
-				for method in flow.methods {
-					service:    publication.serviceRef
-					httpMethod: method
-					matches: [for allowed in publication.access.allowedMethods if allowed == method {allowed}] & list.MinItems(1) & list.MaxItems(1)
-				},
-			]
 			integrity: publicationDataContracts: [for publication in plan.bridge.publications {
 				service: publication.serviceRef
 				matches: [
@@ -330,6 +577,95 @@ import "list"
 					if bindingID == publication.serviceRef
 					if binding.primarySiteRef == publication.sourceSiteRef
 					if binding.cloudCopyAllowed == false {bindingID},
+				] & list.MinItems(1) & list.MaxItems(1)
+			}]
+		}
+		if len(plan.bridge.policy.allowedFlows) > 0 {
+			integrity: bridgeFlowEndpoints: [for flow in plan.bridge.policy.allowedFlows {
+				service: flow.serviceRef
+				matches: [
+					for module in plan.modules
+					for unit in module.renderUnits
+					for endpoint in unit.serviceEndpoints
+					if endpoint.serviceRef == flow.serviceRef
+					if list.Contains(unit.siteRefs, flow.toSiteRef)
+					if endpoint.upstreamProtocol == flow.protocol
+					if len(flow.ports) == 1
+					if list.Contains(flow.ports, endpoint.targetPort)
+					if endpoint.data.bindingRef == flow.serviceRef
+					if len(flow.dataClasses) == len(endpoint.data.requiredClasses)
+					if len([
+						for flowClass in flow.dataClasses
+						for requiredClass in endpoint.data.requiredClasses
+						if flowClass == requiredClass {flowClass},
+					]) == len(flow.dataClasses) {
+						service: endpoint.serviceRef
+						originNodes: [
+							for unitNodeRef in unit.nodeRefs
+							for node in plan.nodes
+							if node.id == unitNodeRef && node.siteRef == flow.toSiteRef {unitNodeRef},
+						] & list.MinItems(1)
+						originInstances: [
+							for instance in unit.instances
+							if instance.scope == "node-local"
+							if instance.siteRef == flow.toSiteRef {instance.id},
+						] & list.MinItems(1)
+						if endpoint.originSelector == "single-site" {
+							unitSiteCount: len(unit.siteRefs) & 1
+							originSite:    unit.siteRefs[0] & flow.toSiteRef
+						}
+						if endpoint.originSelector == "control-authority-site" {
+							authoritySite: flow.toSiteRef & plan.controlPlane.authoritySiteRef
+						}
+						if endpoint.data.locality == "primary-site" {
+							dataPrimarySite: [
+								for bindingID, binding in plan.data.bindings
+								if bindingID == endpoint.data.bindingRef && binding.primarySiteRef == flow.toSiteRef {bindingID},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}
+						if endpoint.data.locality == "primary-or-replica" {
+							dataOriginSite: [
+								for bindingID, binding in plan.data.bindings
+								if bindingID == endpoint.data.bindingRef && binding.primarySiteRef == flow.toSiteRef {bindingID},
+								for bindingID, binding in plan.data.bindings
+								if bindingID == endpoint.data.bindingRef
+								for replicaSiteRef in binding.replicaSiteRefs
+								if replicaSiteRef == flow.toSiteRef {bindingID},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}
+						flowReachability: [
+							for allowedExposure in endpoint.allowedExposures
+							if allowedExposure == "remote-private"
+							for allowedProtocol in endpoint.allowedIngressProtocols
+							if allowedProtocol == flow.protocol {"remote-private"},
+							for allowedExposure in endpoint.allowedExposures
+							if allowedExposure == "public"
+							for publication in plan.bridge.publications
+							if publication.edgeSiteRef == flow.fromSiteRef && publication.sourceSiteRef == flow.toSiteRef
+							if publication.serviceRef == flow.serviceRef && publication.moduleRef == module.id && publication.unitRef == unit.id
+							if publication.upstreamProtocol == flow.protocol && publication.targetPort == endpoint.targetPort
+							if publication.dataBindingRef == endpoint.data.bindingRef
+							for allowedProtocol in endpoint.allowedIngressProtocols
+							if allowedProtocol == publication.protocol
+							if flow.protocol == "tcp" || flow.protocol == "udp" {"public"},
+							for allowedExposure in endpoint.allowedExposures
+							if allowedExposure == "public"
+							for publication in plan.bridge.publications
+							if publication.edgeSiteRef == flow.fromSiteRef && publication.sourceSiteRef == flow.toSiteRef
+							if publication.serviceRef == flow.serviceRef && publication.moduleRef == module.id && publication.unitRef == unit.id
+							if publication.upstreamProtocol == flow.protocol && publication.targetPort == endpoint.targetPort
+							if publication.dataBindingRef == endpoint.data.bindingRef
+							for allowedProtocol in endpoint.allowedIngressProtocols
+							if allowedProtocol == publication.protocol
+							if flow.protocol == "http" || flow.protocol == "https"
+							if len(flow.methods) == len(publication.access.allowedMethods)
+							if len([
+								for method in flow.methods
+								for allowedMethod in publication.access.allowedMethods
+								if method == allowedMethod {method},
+							]) == len(flow.methods) {"public"},
+						] & list.MinItems(1)
+					},
 				] & list.MinItems(1) & list.MaxItems(1)
 			}]
 		}

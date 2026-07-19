@@ -297,14 +297,26 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 	if err != nil {
 		return nil, err
 	}
+	lanStepDown, err := boolFieldDefault(policy, "access."+policyRef, "lanStepDown", false)
+	if err != nil {
+		return nil, err
+	}
 	if (privilege == "admin" || privilege == "identity" || privilege == "secrets") &&
 		(authentication != "human+device" || !enrolledDeviceRequired || !ownerStepUpRequired) {
 		return nil, fail(ErrProfileMismatch, referencePath, "privileged access requires human+device, enrolled-device, and owner step-up controls")
 	}
 	resolved := map[string]any{
 		"exposure": exposure, "defaultClosed": true, "policyRef": policyRef,
+		"policyExposure": policyExposure, "lanStepDown": lanStepDown,
 		"authentication": authentication, "privilege": privilege,
 		"enrolledDeviceRequired": enrolledDeviceRequired, "ownerStepUpRequired": ownerStepUpRequired,
+	}
+	if _, exists := policy["allowedSiteRefs"]; exists {
+		siteRefs, err := stringListField(policy, "access."+policyRef, "allowedSiteRefs", true)
+		if err != nil {
+			return nil, err
+		}
+		resolved["allowedSiteRefs"] = stringSliceAny(sortStringsUnique(siteRefs))
 	}
 	if _, exists := policy["allowedMethods"]; exists {
 		methods, err := stringListField(policy, "access."+policyRef, "allowedMethods", true)

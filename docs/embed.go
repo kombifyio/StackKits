@@ -5,5 +5,5 @@ import "embed"
 
 // FS exposes public documentation to the StackKits MCP runtime and local agents.
 //
-//go:embed CLI.md API.md stack-spec-reference.md agent
+//go:embed CLI.md API.md OS_COMPATIBILITY.md stack-spec-reference.md data/os-compat/latest.json agent
 var FS embed.FS

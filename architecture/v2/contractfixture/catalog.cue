@@ -16,6 +16,11 @@ import (
 // resolved by this authority can therefore never masquerade as the product
 // Basement definition or its SK-S1 evidence.
 ContractFixtureDefinition: base.#KitDefinition & {
+	let fixtureIdentityOwner = {
+		kind:        "catalog"
+		providerRef: "fixture-basement-provider"
+		moduleRef:   "fixture-http-consumer"
+	}
 	apiVersion: basement.Definition.apiVersion
 	kind:       basement.Definition.kind
 	metadata: {
@@ -32,16 +37,41 @@ ContractFixtureDefinition: base.#KitDefinition & {
 	dataDefaults:     basement.Definition.dataDefaults
 	failureDefaults:  basement.Definition.failureDefaults
 	deviceEnrollment: basement.Definition.deviceEnrollment
-	partitionPolicy:  basement.Definition.partitionPolicy
-	generation:       basement.Definition.generation
-	network:          basement.Definition.network
-	bridge:           basement.Definition.bridge
+	identityTrust: {
+		authorities: [for authority in basement.Definition.identityTrust.authorities {
+			id:        authority.id, principal: authority.principal, trustDomainRef: authority.trustDomainRef
+			placement: authority.placement
+			owner:     fixtureIdentityOwner
+		}]
+		credentialIssuers: [for issuer in basement.Definition.identityTrust.credentialIssuers {
+			id:                            issuer.id, authorityRef:        issuer.authorityRef, principal:             issuer.principal
+			issuerRef:                     issuer.issuerRef, audienceRefs: issuer.audienceRefs, verificationKeySetRef: issuer.verificationKeySetRef
+			placement:                     issuer.placement, owner:        fixtureIdentityOwner
+			issuanceWithinStackKit:        issuer.issuanceWithinStackKit
+			credentialTTLSeconds:          issuer.credentialTTLSeconds, sessionTTLSeconds: issuer.sessionTTLSeconds
+			proofOfPossessionRequired:     issuer.proofOfPossessionRequired
+			revocationSupported:           issuer.revocationSupported
+			revocationMaxStalenessSeconds: issuer.revocationMaxStalenessSeconds
+			enrollment:                    issuer.enrollment
+		}]
+		verifierPlacements: [for verifier in basement.Definition.identityTrust.verifierPlacements {
+			id:                            verifier.id, issuerRef:                       verifier.issuerRef, principal: verifier.principal
+			audienceRefs:                  verifier.audienceRefs, verificationKeySetRef: verifier.verificationKeySetRef
+			placement:                     verifier.placement, owner:                    fixtureIdentityOwner
+			proofOfPossessionRequired:     verifier.proofOfPossessionRequired
+			revocationMaxStalenessSeconds: verifier.revocationMaxStalenessSeconds
+		}]
+		verifierDistributions: []
+	}
+	partitionPolicy: basement.Definition.partitionPolicy
+	generation:      basement.Definition.generation
+	network:         basement.Definition.network
+	bridge:          basement.Definition.bridge
 	evidenceScenarios: ["contract-fixture-two-node"]
 }
 
 _architectureV2ContractFixtureRequiredCapabilities: list.Concat([base.#CommonCapabilityIDs, [
 	"site-local",
-	"provision-local",
 	"local-hardware-preflight",
 	"lan-discovery",
 	"local-ingress",
@@ -51,11 +81,6 @@ _architectureV2ContractFixtureRequiredCapabilities: list.Concat([base.#CommonCap
 	"offline-autonomy",
 	"local-backup-target",
 ]])
-
-_architectureV2ContractFixtureConsumerCapabilities: [
-	for capabilityRef in _architectureV2ContractFixtureRequiredCapabilities
-	if capabilityRef != "topology-core" {capabilityRef},
-]
 
 _architectureV2ContractFixtureRendererRef: "stackkit-contract-fixture"
 
@@ -67,7 +92,10 @@ _architectureV2ContractFixtureModules: [
 			description: "Non-product renderer contract fixture for a reviewed node-local Docker API proxy."
 		}
 		providerRef: "fixture-basement-provider"
-		provides: ["topology-core"]
+		// The proxy is an implementation-interface provider, not a product
+		// capability owner. This fixture exercises the same interface-only
+		// compiler path as the product Basement pilot.
+		provides: []
 		supportedSiteKinds: ["home"]
 		runtime: {kind: "host", delivery: "stackkit"}
 		renderUnits: [{
@@ -155,7 +183,7 @@ _architectureV2ContractFixtureModules: [
 			description: "Non-product renderer contract fixture for an exact node-local Docker API consumer."
 		}
 		providerRef: "fixture-basement-provider"
-		provides:    _architectureV2ContractFixtureConsumerCapabilities
+		provides:    _architectureV2ContractFixtureRequiredCapabilities
 		requires: ["fixture-socket-proxy"]
 		supportedSiteKinds: ["home"]
 		runtime: {kind: "host", delivery: "stackkit"}

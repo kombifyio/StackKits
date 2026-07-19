@@ -61,3 +61,12 @@ test('timeout budget rejects long workflow and readiness waits', async () => {
   assert.match(failures.join('\n'), /seq 1 360/);
   assert.match(failures.join('\n'), /30 minute wait/);
 });
+
+test('timeout budget rejects long commands in shared CI scripts', async () => {
+  const root = await fixture({
+    'scripts/ci/run-go-race-shards.sh': 'go test -race -timeout 16m ./...\n',
+  });
+  const failures = validate(root);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /scripts\/ci\/run-go-race-shards\.sh uses -timeout 16m/);
+});

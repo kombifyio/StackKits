@@ -23,6 +23,8 @@ var (
 	buildDate = "unknown"
 )
 
+const noDeployObservabilityAnnotation = "stackkit.io/no-deploy-observability"
+
 // SetVersionInfo sets version information from build
 func SetVersionInfo(v, gc, bd string) {
 	version = v
@@ -91,6 +93,9 @@ Examples:
 		if name == "stackkit" || name == "init" || name == "apply" {
 			printBanner()
 		}
+		if commandDisablesDeployObservability(cmd) {
+			return
+		}
 
 		// Initialize structured deploy logger (skip for help/completion/version)
 		switch name {
@@ -158,6 +163,16 @@ func init() {
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(agentCmd)
+	rootCmd.AddCommand(hostCmd)
+}
+
+func commandDisablesDeployObservability(cmd *cobra.Command) bool {
+	for current := cmd; current != nil; current = current.Parent() {
+		if current.Annotations[noDeployObservabilityAnnotation] == "true" {
+			return true
+		}
+	}
+	return false
 }
 
 // Helper functions for output

@@ -78,6 +78,7 @@ func bridgeExecutionReadinessBlockers(bridge map[string]any) ([]executionReadine
 		{code: "bridge-overlay-unverified", refs: []string{"bridge:overlay"}},
 		{code: "bridge-control-agent-unverified", refs: []string{"bridge:control-agent"}},
 		{code: "policy-enforcement-unverified", refs: []string{"bridge:policy"}},
+		{code: "partition-policy-enforcement-unverified", refs: []string{"bridge:partition-policy"}},
 		{code: "device-verifier-unbound", refs: []string{"identity:edge-device-verifier"}},
 	}
 	for index, publication := range publications {
@@ -194,7 +195,7 @@ func providerGenerationBlockers(provider readinessProvider, artifactIDs map[stri
 	if err != nil {
 		return nil, err
 	}
-	if !contains(compatibleRenderers, rendererID) {
+	if len(compatibleRenderers) > 0 && !contains(compatibleRenderers, rendererID) {
 		blockers = append(blockers, executionReadinessBlocker{code: "renderer-incompatible", refs: []string{provider.ref, "renderer:" + rendererID}})
 	}
 	inputs, err := objectField(provider.support, "providers."+provider.id+".owner.realizationSupport", "inputs")
@@ -395,8 +396,10 @@ type readinessRenderUnit struct {
 	rendererRef     string
 	publicInputRefs []string
 	secretInputRefs []string
+	planInputRefs   []string
 	values          map[string]any
 	secretRefs      map[string]any
+	planInputs      map[string]any
 	outputs         []string
 	instances       []readinessRenderInstance
 }
@@ -475,6 +478,7 @@ func readReadinessModule(raw any, index int) (readinessModule, error) {
 	return result, nil
 }
 
+//nolint:gocyclo // Readiness must decode every render-unit authority class together before deriving blockers or generation support.
 func readReadinessRenderUnit(moduleID string, rawUnit map[string]any, unitPath string) (readinessRenderUnit, error) {
 	var result readinessRenderUnit
 	var err error
@@ -497,6 +501,10 @@ func readReadinessRenderUnit(moduleID string, rawUnit map[string]any, unitPath s
 		return result, err
 	}
 	result.secretInputRefs, err = stringListField(rawUnit, unitPath, "secretInputRefs", false)
+	if err != nil {
+		return result, err
+	}
+	result.planInputRefs, err = stringListField(rawUnit, unitPath, "planInputRefs", false)
 	if err != nil {
 		return result, err
 	}
@@ -551,7 +559,14 @@ func readReadinessRenderUnit(moduleID string, rawUnit map[string]any, unitPath s
 		return result, err
 	}
 	result.secretRefs, err = objectField(rawUnit, unitPath, "secretRefs")
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	result.planInputs, err = objectField(rawUnit, unitPath, "planInputs")
+	if err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 func moduleGenerationBlockers(module readinessModule, artifactIDs map[string]readinessArtifact, rendererID, outputRoot string) ([]executionReadinessBlocker, error) {
@@ -587,11 +602,17 @@ func supportedGenerationBlockers(module readinessModule, artifactIDs map[string]
 	if err != nil {
 		return nil, err
 	}
+	planInputBlockers, err := modulePlanInputBlockers(module)
+	if err != nil {
+		return nil, err
+	}
 	artifactBlockers, err := moduleArtifactBlockers(module, artifactIDs, outputRoot)
 	if err != nil {
 		return nil, err
 	}
-	return append(append(blockers, inputBlockers...), artifactBlockers...), nil
+	blockers = append(blockers, inputBlockers...)
+	blockers = append(blockers, planInputBlockers...)
+	return append(blockers, artifactBlockers...), nil
 }
 
 func moduleInputBlockers(module readinessModule) ([]executionReadinessBlocker, error) {
@@ -633,6 +654,49 @@ func moduleInputBlockers(module readinessModule) ([]executionReadinessBlocker, e
 			if _, exists := unit.secretRefs[inputRef]; !exists {
 				blockers = append(blockers, executionReadinessBlocker{code: "required-input-missing", refs: []string{module.ref, unit.ref, "input:" + module.id + "/" + inputRef}})
 			}
+		}
+	}
+	return blockers, nil
+}
+
+func modulePlanInputBlockers(module readinessModule) ([]executionReadinessBlocker, error) {
+	planInputs, exists, err := optionalObjectField(module.support, "modules."+module.id+".realizationSupport", "planInputs")
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		for _, unit := range module.units {
+			if len(unit.planInputRefs) > 0 || len(unit.planInputs) > 0 {
+				return []executionReadinessBlocker{{code: "input-contract-incomplete", refs: []string{module.ref}}}, nil
+			}
+		}
+		return nil, nil
+	}
+	complete, err := boolFieldDefault(planInputs, "modules."+module.id+".realizationSupport.planInputs", "contractComplete", false)
+	if err != nil {
+		return nil, err
+	}
+	var blockers []executionReadinessBlocker
+	if !complete {
+		blockers = append(blockers, executionReadinessBlocker{code: "input-contract-incomplete", refs: []string{module.ref}})
+	}
+	requiredInputs, err := stringListField(planInputs, "modules."+module.id+".realizationSupport.planInputs", "requiredRefs", false)
+	if err != nil {
+		return nil, err
+	}
+	for _, inputRef := range requiredInputs {
+		declared := false
+		for _, unit := range module.units {
+			if !contains(unit.planInputRefs, inputRef) {
+				continue
+			}
+			declared = true
+			if _, present := unit.planInputs[inputRef]; !present {
+				blockers = append(blockers, executionReadinessBlocker{code: "required-input-missing", refs: []string{module.ref, unit.ref, "input:" + module.id + "/" + inputRef}})
+			}
+		}
+		if !declared {
+			blockers = append(blockers, executionReadinessBlocker{code: "required-input-missing", refs: []string{module.ref, "input:" + module.id + "/" + inputRef}})
 		}
 	}
 	return blockers, nil

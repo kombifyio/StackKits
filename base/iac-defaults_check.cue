@@ -18,11 +18,10 @@ _test_iac_defaults_minimal: #IaCDefaults & {
 
 _test_iac_defaults_with_tenant: #IaCDefaults & {
 	provider_versions: {
-		docker:  "~> 3.0"
-		local:   "~> 2.5"
-		random:  "~> 3.6"
-		null:    "~> 3.2"
-		hetzner: "~> 1.45"
+		docker: "~> 3.0"
+		local:  "~> 2.5"
+		random: "~> 3.6"
+		null:   "~> 3.2"
 	}
 	default_tags: {
 		kit_slug:    "basement-kit"

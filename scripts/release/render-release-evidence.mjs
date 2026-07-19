@@ -2287,7 +2287,7 @@ async function main() {
           : browserEvidenceCheck(browserEvidence),
       upgradeRollbackVm: checkFromMap(opts.checks, 'upgradeRollbackVm', 'pending'),
       defaultL3PaaSDelivery: checkFromMap(opts.checks, 'defaultL3PaaSDelivery', 'pending'),
-      osCompatMatrix: checkFromMap(opts.checks, 'osCompatMatrix', 'pending', 'OS compatibility matrix evidence has not been attached to this release.'),
+      osCompatMatrix: checkFromMap(opts.checks, 'osCompatMatrix', 'pending', 'Public OS compatibility is unverified while the controlled HostConformanceReceipt projector is unavailable.'),
       attestationVerification: checkFromMap(opts.checks, 'attestationVerification', 'pending'),
     },
     scenarioEvidence: mergedScenarioEvidence,

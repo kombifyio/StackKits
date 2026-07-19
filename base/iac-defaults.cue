@@ -1,6 +1,6 @@
 // Package base — IaC-Defaults schema (kit-update-phase-1, ADR-0018).
 //
-// Provider versions, default tag-set, and backend-config templates are
+// Host-local implementation-adapter versions, default tag-set, and backend-config templates are
 // centralized here so that every kit reaches a consistent IaC starting point.
 // The Go template renderer (`internal/template/renderer.go`) projects values
 // from a kit's `iac:` field onto the `iac/defaults` Terraform module, which
@@ -18,9 +18,9 @@ package base
 // =============================================================================
 
 #IaCDefaults: {
-	// Pinned provider versions, keyed by provider name.
-	// Required: docker, local, random, null. Optional: hetzner, digitalocean,
-	// cloudflare etc. for kits that target cloud infrastructure.
+	// Pinned host-local OpenTofu adapter versions. Server infrastructure
+	// providers are intentionally absent; TechStack owns those drivers. Simulate
+	// may consume the same neutral executor contract as an optional test harness.
 	provider_versions: #ProviderVersions
 
 	// Tags merged into every Docker resource via `module.defaults.tags`.
@@ -44,14 +44,6 @@ package base
 	local:  string | *"~> 2.5"
 	random: string | *"~> 3.6"
 	null:   string | *"~> 3.2"
-
-	// Optional — only set when a kit targets the corresponding infra
-	hetzner?:      string
-	digitalocean?: string
-	cloudflare?:   string
-	aws?:          string
-	azurerm?:      string
-	google?:       string
 }
 
 // =============================================================================

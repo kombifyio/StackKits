@@ -37,27 +37,31 @@ type renderModule struct {
 }
 
 type renderUnitContract struct {
-	id                          string
-	kind                        string
-	rendererRef                 string
-	templateRef                 string
-	version                     string
-	contractHash                string
-	publicInputRefs             []string
-	secretInputRefs             []string
-	siteRefs                    []string
-	nodeRefs                    []string
-	valuesCanonical             []byte
-	secretsCanonical            []byte
-	placementCanonical          []byte
-	serviceEndpointsCanonical   []byte
-	providedInterfacesCanonical []byte
-	requiredInterfacesCanonical []byte
-	serviceEndpoints            []serviceEndpointContract
-	providedInterfaces          []implementationInterface
-	requiredInterfaces          []implementationInterface
-	outputs                     []string
-	instances                   []renderUnitInstance
+	id                           string
+	kind                         string
+	rendererRef                  string
+	templateRef                  string
+	version                      string
+	contractHash                 string
+	runtime                      moduleRuntimeContract
+	publicInputRefs              []string
+	secretInputRefs              []string
+	planInputRefs                []string
+	siteRefs                     []string
+	nodeRefs                     []string
+	valuesCanonical              []byte
+	secretsCanonical             []byte
+	planInputsCanonical          []byte
+	placementCanonical           []byte
+	serviceEndpointsCanonical    []byte
+	providedInterfacesCanonical  []byte
+	requiredInterfacesCanonical  []byte
+	privilegedApprovalsCanonical []byte
+	serviceEndpoints             []serviceEndpointContract
+	providedInterfaces           []implementationInterface
+	requiredInterfaces           []implementationInterface
+	outputs                      []string
+	instances                    []renderUnitInstance
 }
 
 type serviceEndpointContract struct {
@@ -183,8 +187,10 @@ type rawRenderUnit struct {
 	ContractHash       string                     `json:"contractHash"`
 	PublicInputRefs    []string                   `json:"publicInputRefs"`
 	SecretInputRefs    []string                   `json:"secretInputRefs"`
+	PlanInputRefs      []string                   `json:"planInputRefs"`
 	Values             map[string]json.RawMessage `json:"values"`
 	SecretRefs         map[string]json.RawMessage `json:"secretRefs"`
+	PlanInputs         map[string]json.RawMessage `json:"planInputs"`
 	Outputs            []string                   `json:"outputs"`
 	SiteRefs           []string                   `json:"siteRefs"`
 	NodeRefs           []string                   `json:"nodeRefs"`
@@ -211,6 +217,23 @@ type rawModuleServiceEndpointData struct {
 	BindingRef      string   `json:"bindingRef"`
 	RequiredClasses []string `json:"requiredClasses"`
 	Locality        string   `json:"locality"`
+}
+
+type rawModuleRuntime struct {
+	Kind     string                     `json:"kind"`
+	Delivery string                     `json:"delivery"`
+	Engine   optionalStringField        `json:"engine,omitempty"`
+	Image    *rawModuleRuntimeImage     `json:"image,omitempty"`
+	Settings map[string]json.RawMessage `json:"settings,omitempty"`
+}
+
+type rawModuleRuntimeImage struct {
+	Ref    string              `json:"ref"`
+	Digest optionalStringField `json:"digest,omitempty"`
+}
+
+type moduleRuntimeContract struct {
+	kind, delivery, engine, imageRef, imageDigest string
 }
 
 type rawRenderUnitInstance struct {
@@ -325,6 +348,27 @@ type rawArtifactOwner struct {
 	OutputRef   optionalStringField `json:"outputRef,omitempty"`
 }
 
+type rawPrivilegedInterfaceApproval struct {
+	ID              string   `json:"id"`
+	Kind            string   `json:"kind"`
+	ModuleRef       string   `json:"moduleRef"`
+	UnitRef         string   `json:"unitRef"`
+	ProviderRef     string   `json:"providerRef"`
+	DaemonRef       string   `json:"daemonRef"`
+	PolicyProfile   string   `json:"policyProfile"`
+	ReasonCode      string   `json:"reasonCode"`
+	EvidenceRef     string   `json:"evidenceRef"`
+	SiteRefs        []string `json:"siteRefs"`
+	NodeRefs        []string `json:"nodeRefs"`
+	EvidenceGateRef string   `json:"evidenceGateRef"`
+}
+
+type privilegedInterfaceApproval struct {
+	raw       json.RawMessage
+	contract  rawPrivilegedInterfaceApproval
+	boundUnit bool
+}
+
 type optionalStringField struct {
 	present bool
 	value   string
@@ -432,14 +476,126 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 		result.modules = append(result.modules, module)
 	}
 
+	return finalizeRenderPlan(top, result, artifacts, boundArtifacts, runtimeNetworks)
+}
+
+func finalizeRenderPlan(top map[string]json.RawMessage, result renderPlan, artifacts map[string]artifactContract, boundArtifacts map[string]instanceOutputKey, runtimeNetworks []runtimeNetwork) (renderPlan, error) {
 	if err := validateBoundArtifacts(artifacts, boundArtifacts); err != nil {
 		return renderPlan{}, err
 	}
 	if err := validateRuntimeNetworkGraph(result.modules, runtimeNetworks); err != nil {
 		return renderPlan{}, err
 	}
+	if err := bindPlanPrivilegedInterfaceApprovals(top, result.modules); err != nil {
+		return renderPlan{}, err
+	}
 	sort.Slice(result.modules, func(i, j int) bool { return result.modules[i].id < result.modules[j].id })
 	return result, nil
+}
+
+func bindPlanPrivilegedInterfaceApprovals(top map[string]json.RawMessage, modules []renderModule) error {
+	approvals, present, err := parsePrivilegedInterfaceApprovals(top)
+	if err != nil {
+		return err
+	}
+	if !present {
+		bindEmptyPrivilegedInterfaceApprovals(modules)
+		return nil
+	}
+	return bindPrivilegedInterfaceApprovals(modules, approvals)
+}
+
+func parsePrivilegedInterfaceApprovals(top map[string]json.RawMessage) ([]privilegedInterfaceApproval, bool, error) {
+	raw, present := top["privilegedInterfaceApprovals"]
+	if !present {
+		return nil, false, nil
+	}
+	var values []json.RawMessage
+	if err := decodeJSON(raw, &values, false); err != nil || values == nil {
+		if err == nil {
+			err = fmt.Errorf("must be an array")
+		}
+		return nil, true, wrap(ErrInvalidPlan, "resolvedPlan.privilegedInterfaceApprovals", "decode approvals", err)
+	}
+	result := make([]privilegedInterfaceApproval, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for index, value := range values {
+		approvalPath := fmt.Sprintf("resolvedPlan.privilegedInterfaceApprovals[%d]", index)
+		var decoded rawPrivilegedInterfaceApproval
+		if err := decodeStrict(value, &decoded); err != nil {
+			return nil, true, wrap(ErrInvalidPlan, approvalPath, "decode approval", err)
+		}
+		for _, field := range []struct{ name, value string }{
+			{"id", decoded.ID}, {"moduleRef", decoded.ModuleRef}, {"unitRef", decoded.UnitRef},
+			{"providerRef", decoded.ProviderRef}, {"daemonRef", decoded.DaemonRef},
+			{"policyProfile", decoded.PolicyProfile}, {"evidenceGateRef", decoded.EvidenceGateRef},
+		} {
+			if err := requireContractID(field.value, approvalPath+"."+field.name); err != nil {
+				return nil, true, err
+			}
+		}
+		if decoded.Kind != dockerSocketDirectInterfaceKind {
+			return nil, true, fail(ErrInvalidPlan, approvalPath+".kind", "must be %q", dockerSocketDirectInterfaceKind)
+		}
+		if decoded.ReasonCode != "provider-backing" && decoded.ReasonCode != "lifecycle-owner" {
+			return nil, true, fail(ErrInvalidPlan, approvalPath+".reasonCode", "unsupported direct-socket approval reason")
+		}
+		if strings.TrimSpace(decoded.EvidenceRef) == "" {
+			return nil, true, fail(ErrInvalidPlan, approvalPath+".evidenceRef", "must be non-empty")
+		}
+		if len(decoded.SiteRefs) == 0 || len(decoded.NodeRefs) == 0 {
+			return nil, true, fail(ErrInvalidPlan, approvalPath, "siteRefs and nodeRefs must contain exact approved placement")
+		}
+		if _, err := uniqueContractIDSet(decoded.SiteRefs, approvalPath+".siteRefs"); err != nil {
+			return nil, true, err
+		}
+		if _, err := uniqueContractIDSet(decoded.NodeRefs, approvalPath+".nodeRefs"); err != nil {
+			return nil, true, err
+		}
+		if _, duplicate := seen[decoded.ID]; duplicate {
+			return nil, true, fail(ErrDuplicate, approvalPath+".id", "duplicate privileged approval %q", decoded.ID)
+		}
+		seen[decoded.ID] = struct{}{}
+		result = append(result, privilegedInterfaceApproval{raw: append([]byte(nil), value...), contract: decoded})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].contract.ID < result[j].contract.ID })
+	return result, true, nil
+}
+
+func bindPrivilegedInterfaceApprovals(modules []renderModule, approvals []privilegedInterfaceApproval) error {
+	for moduleIndex := range modules {
+		for unitIndex := range modules[moduleIndex].units {
+			unit := &modules[moduleIndex].units[unitIndex]
+			bound := make([]json.RawMessage, 0)
+			for approvalIndex := range approvals {
+				approval := &approvals[approvalIndex]
+				if approval.contract.ModuleRef != modules[moduleIndex].id || approval.contract.UnitRef != unit.id {
+					continue
+				}
+				approval.boundUnit = true
+				bound = append(bound, approval.raw)
+			}
+			canonical, err := json.Marshal(bound)
+			if err != nil {
+				return wrap(ErrInvalidPlan, "resolvedPlan.privilegedInterfaceApprovals", "canonicalize unit approvals", err)
+			}
+			unit.privilegedApprovalsCanonical = canonical
+		}
+	}
+	for _, approval := range approvals {
+		if !approval.boundUnit {
+			return fail(ErrInvalidPlan, "resolvedPlan.privilegedInterfaceApprovals."+approval.contract.ID, "approval references an unknown render unit")
+		}
+	}
+	return nil
+}
+
+func bindEmptyPrivilegedInterfaceApprovals(modules []renderModule) {
+	for moduleIndex := range modules {
+		for unitIndex := range modules[moduleIndex].units {
+			modules[moduleIndex].units[unitIndex].privilegedApprovalsCanonical = []byte("[]")
+		}
+	}
 }
 
 func validateBoundArtifacts(artifacts map[string]artifactContract, boundArtifacts map[string]instanceOutputKey) error {
@@ -1029,9 +1185,16 @@ func parseModule(raw json.RawMessage, modulePath string, artifacts map[string]ar
 	if err := requireContractID(moduleID, modulePath+".id"); err != nil {
 		return renderModule{}, nil, err
 	}
+	runtime, err := parseModuleRuntime(object, modulePath)
+	if err != nil {
+		return renderModule{}, nil, err
+	}
 	module, unitIDs, outputs, err := parseModuleUnits(object, moduleID, modulePath)
 	if err != nil {
 		return renderModule{}, nil, err
+	}
+	for index := range module.units {
+		module.units[index].runtime = runtime
 	}
 	logicalBindings, err := parseModuleBindings(object, module, unitIDs, outputs, modulePath)
 	if err != nil {
@@ -1039,6 +1202,60 @@ func parseModule(raw json.RawMessage, modulePath string, artifacts map[string]ar
 	}
 	bindings, err := bindModuleInstances(module, logicalBindings, artifacts, outputRoot, modulePath)
 	return module, bindings, err
+}
+
+func parseModuleRuntime(object map[string]json.RawMessage, modulePath string) (moduleRuntimeContract, error) {
+	raw, exists := object["runtime"]
+	if !exists {
+		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime", "is required")
+	}
+	var decoded rawModuleRuntime
+	if err := decodeStrict(raw, &decoded); err != nil {
+		return moduleRuntimeContract{}, wrap(ErrInvalidPlan, modulePath+".runtime", "decode module runtime", err)
+	}
+	if !containsStringValue([]string{"container", "native", "host", "external", "control-plane"}, decoded.Kind) {
+		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.kind", "unsupported module runtime kind %q", decoded.Kind)
+	}
+	if !containsStringValue([]string{"stackkit", "selected-paas", "external-control-plane"}, decoded.Delivery) {
+		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.delivery", "unsupported module delivery %q", decoded.Delivery)
+	}
+	runtime := moduleRuntimeContract{kind: decoded.Kind, delivery: decoded.Delivery}
+	if decoded.Engine.present {
+		if !containsStringValue([]string{"docker", "podman", "systemd", "binary", "api"}, decoded.Engine.value) {
+			return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.engine", "unsupported module runtime engine %q", decoded.Engine.value)
+		}
+		runtime.engine = decoded.Engine.value
+	}
+	if decoded.Image != nil {
+		if strings.TrimSpace(decoded.Image.Ref) == "" || strings.ContainsAny(decoded.Image.Ref, "\r\n\t ") {
+			return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.image.ref", "must be a non-empty image reference")
+		}
+		runtime.imageRef = decoded.Image.Ref
+		if decoded.Image.Digest.present {
+			if !validSHA256(decoded.Image.Digest.value) {
+				return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.image.digest", "must be a lowercase sha256 digest")
+			}
+			runtime.imageDigest = decoded.Image.Digest.value
+		}
+	}
+	if runtime.kind == "container" {
+		if runtime.engine != "docker" && runtime.engine != "podman" {
+			return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.engine", "container runtime requires docker or podman")
+		}
+		if runtime.imageRef == "" {
+			return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.image", "container runtime requires an image")
+		}
+	}
+	return runtime, nil
+}
+
+func containsStringValue(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func parseModuleUnits(object map[string]json.RawMessage, moduleID, modulePath string) (renderModule, map[string]struct{}, map[string]moduleOutputOwner, error) {
@@ -1226,6 +1443,10 @@ func parseRenderUnit(raw json.RawMessage, unitPath string) (renderUnitContract, 
 	if err != nil {
 		return renderUnitContract{}, err
 	}
+	planInputRefs, planInputsCanonical, err := validateRenderUnitPlanInputs(decoded, unitPath)
+	if err != nil {
+		return renderUnitContract{}, err
+	}
 	outputs, err := validateRenderUnitOutputs(decoded.Outputs, unitPath)
 	if err != nil {
 		return renderUnitContract{}, err
@@ -1257,8 +1478,9 @@ func parseRenderUnit(raw json.RawMessage, unitPath string) (renderUnitContract, 
 		id: decoded.ID, kind: decoded.Kind, rendererRef: decoded.RendererRef,
 		templateRef: decoded.TemplateRef, version: decoded.Version, contractHash: decoded.ContractHash,
 		publicInputRefs: append([]string(nil), decoded.PublicInputRefs...), secretInputRefs: append([]string(nil), decoded.SecretInputRefs...),
-		siteRefs: append([]string(nil), decoded.SiteRefs...), nodeRefs: append([]string(nil), decoded.NodeRefs...),
-		valuesCanonical: valuesCanonical, secretsCanonical: secretsCanonical, placementCanonical: placement,
+		planInputRefs: append([]string(nil), planInputRefs...),
+		siteRefs:      append([]string(nil), decoded.SiteRefs...), nodeRefs: append([]string(nil), decoded.NodeRefs...),
+		valuesCanonical: valuesCanonical, secretsCanonical: secretsCanonical, planInputsCanonical: planInputsCanonical, placementCanonical: placement,
 		serviceEndpointsCanonical:   serviceEndpointsCanonical,
 		providedInterfacesCanonical: providedInterfaces, requiredInterfacesCanonical: requiredInterfaces,
 		serviceEndpoints:   serviceEndpoints,
@@ -2047,6 +2269,51 @@ func validateRenderUnitInputs(unit rawRenderUnit, unitPath string) ([]byte, []by
 		return nil, nil, wrap(ErrInvalidPlan, unitPath+".secretRefs", "canonicalize secret references", err)
 	}
 	return values, secrets, nil
+}
+
+func validateRenderUnitPlanInputs(unit rawRenderUnit, unitPath string) ([]string, []byte, error) {
+	if unit.PlanInputRefs == nil || unit.PlanInputs == nil {
+		return nil, nil, fail(ErrInvalidPlan, unitPath, "planInputRefs and planInputs are mandatory")
+	}
+	declared := make(map[string]struct{}, len(unit.PlanInputRefs))
+	refs := append([]string(nil), unit.PlanInputRefs...)
+	for index, ref := range refs {
+		if _, allowed := allowedRendererPlanInputRefs[ref]; !allowed {
+			return nil, nil, fail(ErrInvalidPlan, fmt.Sprintf("%s.planInputRefs[%d]", unitPath, index), "unsupported compiler plan input %q", ref)
+		}
+		if _, duplicate := declared[ref]; duplicate {
+			return nil, nil, fail(ErrDuplicate, fmt.Sprintf("%s.planInputRefs[%d]", unitPath, index), "duplicate plan input %q", ref)
+		}
+		declared[ref] = struct{}{}
+	}
+	for _, ref := range append(append([]string(nil), unit.PublicInputRefs...), unit.SecretInputRefs...) {
+		if _, conflict := declared[ref]; conflict {
+			return nil, nil, fail(ErrInvalidPlan, unitPath+".planInputRefs", "compiler plan input %q aliases a public or secret input", ref)
+		}
+	}
+	if err := requireObjectKeysSubset(unit.PlanInputs, declared, unitPath+".planInputs"); err != nil {
+		return nil, nil, err
+	}
+	if len(unit.PlanInputs) != len(declared) {
+		return nil, nil, fail(ErrInvalidPlan, unitPath+".planInputs", "must be the exact 1:1 planInputRefs projection")
+	}
+	for ref := range declared {
+		if _, exists := unit.PlanInputs[ref]; !exists {
+			return nil, nil, fail(ErrInvalidPlan, unitPath+".planInputs", "declared plan input %q is missing", ref)
+		}
+	}
+	canonical, err := canonicalObject(unit.PlanInputs)
+	if err != nil {
+		return nil, nil, wrap(ErrInvalidPlan, unitPath+".planInputs", "canonicalize compiler plan inputs", err)
+	}
+	sort.Strings(refs)
+	return refs, canonical, nil
+}
+
+var allowedRendererPlanInputRefs = map[string]struct{}{
+	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
+	"bridge": {}, "identity": {}, "data": {}, "failurePolicy": {},
+	"localReachability": {}, "identityTrust": {},
 }
 
 func requireCompleteSecretRefs(refs map[string]json.RawMessage, declared map[string]struct{}, valuePath string) error {

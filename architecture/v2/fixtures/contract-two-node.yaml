@@ -56,11 +56,6 @@ nodes:
   - id: fixture-a
     siteRef: home
     roles: [controller, worker]
-    management:
-      transport: ssh
-      host: 192.168.50.10
-      port: 22
-      user: stackkit
     hardware:
       arch: amd64
       profile: standard
@@ -69,11 +64,6 @@ nodes:
   - id: fixture-b
     siteRef: home
     roles: [worker]
-    management:
-      transport: ssh
-      host: 192.168.50.11
-      port: 22
-      user: stackkit
     hardware:
       arch: amd64
       profile: standard

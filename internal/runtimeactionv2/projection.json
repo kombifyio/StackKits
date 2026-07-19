@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "stackkits.runtimeaction-projection/v1",
+  "source": "kombify-go-common/runtimeaction",
+  "sourceVersion": "v0.3.1-0.20260718222314-7fc2e1777860",
+  "sourceCommit": "7fc2e17778606ed4b5969d0dd7daa40339fce702",
+  "sourceSum": "h1:aWGWbOUUeFI2BxBQ08RcWGaiCTTWpyVifqZKkjao/To=",
+  "sourceFiles": [
+    "architecture_v2.go",
+    "architecture_v2_test.go",
+    "types.go",
+    "types_test.go"
+  ],
+  "projectedFiles": [
+    "architecture_v2.go",
+    "types.go"
+  ]
+}

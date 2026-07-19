@@ -65,6 +65,9 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err := validateBridgePublicationProjection(plan); err != nil {
 		return err
 	}
+	if err := validateExternalHostPlanProjection(plan); err != nil {
+		return err
+	}
 	if err := validateGenerationArtifactsProjection(plan, catalog); err != nil {
 		return err
 	}
@@ -1147,6 +1150,9 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if err := validateResolvedModuleInputProjection(module, contract, path); err != nil {
 			return err
 		}
+		if err := validateResolvedModulePlanInputProjection(plan, module, path); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1332,7 +1338,7 @@ func validateResolvedRenderUnitBodies(module, contract map[string]any, path stri
 				return fmt.Errorf("%s.%s does not match the bound render-unit body", unitPath, field)
 			}
 		}
-		for _, field := range []string{"publicInputRefs", "secretInputRefs", "outputs"} {
+		for _, field := range []string{"publicInputRefs", "secretInputRefs", "planInputRefs", "outputs"} {
 			haveList, err := stringListField(have, unitPath, field, false)
 			if err != nil {
 				return err
@@ -1356,6 +1362,56 @@ func validateResolvedRenderUnitBodies(module, contract map[string]any, path stri
 		}
 		if err := validateResolvedRequirementBodies(have, want, unitPath); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// validateResolvedModulePlanInputProjection reconstructs every compiler-owned
+// plan input from the persisted plan. Re-hashing a plan after changing,
+// omitting, or widening planInputs therefore cannot manufacture authority.
+func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[string]any, path string) error {
+	source, err := modulePlanInputSourceFromResolvedPlan(plan)
+	if err != nil {
+		return err
+	}
+	units, err := objectListField(module, path, "renderUnits")
+	if err != nil {
+		return err
+	}
+	for index, unit := range units {
+		unitPath := fmt.Sprintf("%s.renderUnits[%d]", path, index)
+		unitID, err := stringField(unit, unitPath, "id")
+		if err != nil {
+			return err
+		}
+		unitPath = path + ".renderUnits." + unitID
+		refs, err := stringListField(unit, unitPath, "planInputRefs", false)
+		if err != nil {
+			return err
+		}
+		if normalized := sortStringsUnique(refs); len(normalized) != len(refs) {
+			return fmt.Errorf("%s.planInputRefs contains duplicate or empty refs", unitPath)
+		}
+		inputs, err := objectField(unit, unitPath, "planInputs")
+		if err != nil {
+			return err
+		}
+		if !sameStringSet(mapKeys(inputs), refs) {
+			return fmt.Errorf("%s.planInputs is not the exact 1:1 planInputRefs projection", unitPath)
+		}
+		for _, ref := range refs {
+			want, err := source.resolve(ref)
+			if err != nil {
+				return fmt.Errorf("recompute %s.planInputs.%s: %w", unitPath, ref, err)
+			}
+			equal, err := canonicalEqual(inputs[ref], want)
+			if err != nil {
+				return err
+			}
+			if !equal {
+				return fmt.Errorf("%s.planInputs.%s is not the exact compiler-derived projection", unitPath, ref)
+			}
 		}
 	}
 	return nil

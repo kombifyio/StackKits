@@ -51,6 +51,22 @@ release archive smoke expectations.
 | Alternative to default | Fresh-target smoke, release archive smoke, identity/secret checks, `stackkit verify` coverage, rollback/update notes. |
 | Kit to release-ready | Public installer smoke, full archive validation, live Basement Kit-style scenario evidence, and no HTML fallback on one-line endpoints. |
 
+## Architecture v2 Home LAN Discovery
+
+LAN discovery is opt-in even when a service already has a local route. Author
+only the explicit resolved-route allowlist:
+
+```yaml
+lanDiscovery:
+  advertiseRouteRefs:
+    - dashboard
+```
+
+The empty/default list advertises nothing. Every referenced route must resolve
+to a Home-originated, local, non-`.localhost`, default-closed LAN policy. This
+intent does not select a DNS server, interface, address, mDNS/DNS-SD runtime,
+provider, or credential. Those are separate runtime and evidence contracts.
+
 ## Required Release Checks
 
 For any option, installer, or kit-default change:

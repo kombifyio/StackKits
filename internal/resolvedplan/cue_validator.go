@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	cueapi "cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -25,6 +26,9 @@ type CUEContractValidator struct {
 	planAuthority   PlanAuthority
 	boundAuthority  *expectedAuthorityBinding
 	boundCatalog    *expectedCatalogBodyBinding
+	cueContext      *cueapi.Context
+	authorityScope  cueapi.Value
+	compileMu       sync.Mutex
 	initialized     bool
 }
 
@@ -74,7 +78,11 @@ func NewCUEContractValidatorFromSourcesForAuthority(virtualModuleRoot string, so
 			return nil, fmt.Errorf("CUE in-memory authority is missing %s", required)
 		}
 	}
-	validator := &CUEContractValidator{moduleRoot: moduleRoot, authoritySource: frozen, planAuthority: authority, initialized: true}
+	validator := &CUEContractValidator{moduleRoot: moduleRoot, authoritySource: frozen, planAuthority: authority}
+	if err := validator.initializeAuthorityScope(); err != nil {
+		return nil, fmt.Errorf("load StackKits Architecture v2 in-memory CUE authority: %w", err)
+	}
+	validator.initialized = true
 	if err := validator.validateExpression("constructor", "base.#ArchitectureAPIVersion"); err != nil {
 		return nil, fmt.Errorf("load StackKits Architecture v2 in-memory CUE authority: %w", err)
 	}
@@ -125,7 +133,11 @@ func NewCUEContractValidatorForAuthority(moduleRoot string, authority PlanAuthor
 		}
 	}
 
-	validator := &CUEContractValidator{moduleRoot: absoluteRoot, planAuthority: authority, initialized: true}
+	validator := &CUEContractValidator{moduleRoot: absoluteRoot, planAuthority: authority}
+	if err := validator.initializeAuthorityScope(); err != nil {
+		return nil, fmt.Errorf("load StackKits Architecture v2 CUE authority: %w", err)
+	}
+	validator.initialized = true
 	if err := validator.validateExpression("constructor", "base.#ArchitectureAPIVersion"); err != nil {
 		return nil, fmt.Errorf("load StackKits Architecture v2 CUE authority: %w", err)
 	}
@@ -192,6 +204,22 @@ func (v *CUEContractValidator) normalizeInventory(inventory InventoryFacts) (Inv
 		return nil, fmt.Errorf("export normalized InventoryFacts: %w", err)
 	}
 	return DecodeDocument[InventoryFacts](data)
+}
+
+func (v *CUEContractValidator) normalizeResolvedSystem(system map[string]any) (map[string]any, error) {
+	systemJSON, err := json.Marshal(system)
+	if err != nil {
+		return nil, fmt.Errorf("marshal resolved system: %w", err)
+	}
+	value, err := v.normalizeExpression("resolved-system", "base.#ResolvedSystemPlanV2 & "+string(systemJSON))
+	if err != nil {
+		return nil, err
+	}
+	data, err := value.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("export normalized resolved system: %w", err)
+	}
+	return DecodeDocument[map[string]any](data)
 }
 
 func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error) {
@@ -375,44 +403,18 @@ func (v *CUEContractValidator) validateExpression(label, expression string) erro
 }
 
 func (v *CUEContractValidator) normalizeExpression(label, expression string) (cueapi.Value, error) {
-	if v == nil || !v.initialized || v.moduleRoot == "" {
+	if v == nil || !v.initialized || v.moduleRoot == "" || v.cueContext == nil {
 		return cueapi.Value{}, fmt.Errorf("CUE contract validator is not initialized")
 	}
+	if err := v.rejectInMemoryHostFiles(); err != nil {
+		return cueapi.Value{}, err
+	}
+	v.compileMu.Lock()
+	defer v.compileMu.Unlock()
 	virtualDir := filepath.Join(v.moduleRoot, ".stackkit-cue-validator")
 	virtualFile := filepath.Join(virtualDir, label+".cue")
-	source := []byte("package resolvedplan_contract\n\nimport \"github.com/kombifyio/stackkits/base\"\n\nvalue: " + expression + "\n")
-	overlay := make(map[string]load.Source, len(v.authoritySource)+1)
-	allowedFiles := make(map[string]struct{}, len(v.authoritySource)+1)
-	for relativePath, authoritySource := range v.authoritySource {
-		absolutePath := filepath.Join(v.moduleRoot, filepath.FromSlash(relativePath))
-		overlay[absolutePath] = load.FromBytes(bytes.Clone(authoritySource))
-		allowedFiles[filepath.Clean(absolutePath)] = struct{}{}
-	}
-	overlay[virtualFile] = load.FromBytes(source)
-	allowedFiles[filepath.Clean(virtualFile)] = struct{}{}
-	config := &load.Config{
-		Dir: virtualDir, ModuleRoot: v.moduleRoot,
-		Overlay: overlay,
-	}
-	if len(v.authoritySource) > 0 {
-		// load.Overlay merges with the host filesystem. ParseFile closes that
-		// seam: a same-user file created under the virtual root is rejected
-		// rather than becoming additional CUE authority.
-		config.ParseFile = func(name string, src interface{}, config parser.Config) (*ast.File, error) {
-			if _, ok := allowedFiles[filepath.Clean(name)]; !ok {
-				return nil, fmt.Errorf("CUE in-memory authority rejected host file %s", name)
-			}
-			return parser.ParseFile(name, src, config)
-		}
-	}
-	instances := load.Instances([]string{"."}, config)
-	if len(instances) != 1 {
-		return cueapi.Value{}, fmt.Errorf("CUE loader returned %d instances, want 1", len(instances))
-	}
-	if instances[0].Err != nil {
-		return cueapi.Value{}, instances[0].Err
-	}
-	root := cuecontext.New().BuildInstance(instances[0])
+	source := "value: " + expression + "\n"
+	root := v.cueContext.CompileString(source, cueapi.Scope(v.authorityScope), cueapi.Filename(virtualFile))
 	// All() ensures every regular field in validation envelopes is evaluated,
 	// including the regular projections of package-hidden cross-graph proofs.
 	// A concrete public projection alone is insufficient for those envelopes.
@@ -424,6 +426,77 @@ func (v *CUEContractValidator) normalizeExpression(label, expression string) (cu
 		return cueapi.Value{}, err
 	}
 	return value, nil
+}
+
+func (v *CUEContractValidator) rejectInMemoryHostFiles() error {
+	if len(v.authoritySource) == 0 {
+		return nil
+	}
+	if _, err := os.Stat(v.moduleRoot); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return filepath.Walk(v.moduleRoot, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info == nil || info.IsDir() {
+			return nil
+		}
+		return fmt.Errorf("CUE in-memory authority rejected host file %s", path)
+	})
+}
+
+// initializeAuthorityScope loads and compiles the immutable base authority
+// once. Validation expressions are subsequently compiled in that exact scope
+// instead of reloading and rebuilding the full CUE module for every check.
+// Besides bounding test/runtime cost, this prevents same-process filesystem
+// changes from silently replacing the authority after construction.
+func (v *CUEContractValidator) initializeAuthorityScope() error {
+	if v == nil || v.moduleRoot == "" {
+		return fmt.Errorf("CUE contract validator module root is required")
+	}
+	config := &load.Config{Dir: v.moduleRoot, ModuleRoot: v.moduleRoot}
+	if len(v.authoritySource) > 0 {
+		overlay := make(map[string]load.Source, len(v.authoritySource))
+		allowedFiles := make(map[string]struct{}, len(v.authoritySource))
+		for relativePath, authoritySource := range v.authoritySource {
+			absolutePath := filepath.Join(v.moduleRoot, filepath.FromSlash(relativePath))
+			overlay[absolutePath] = load.FromBytes(bytes.Clone(authoritySource))
+			allowedFiles[filepath.Clean(absolutePath)] = struct{}{}
+		}
+		config.Overlay = overlay
+		// load.Overlay merges with the host filesystem. ParseFile closes that
+		// seam: a same-user file created under the virtual root is rejected
+		// rather than becoming additional CUE authority.
+		config.ParseFile = func(name string, src interface{}, config parser.Config) (*ast.File, error) {
+			if _, ok := allowedFiles[filepath.Clean(name)]; !ok {
+				return nil, fmt.Errorf("CUE in-memory authority rejected host file %s", name)
+			}
+			return parser.ParseFile(name, src, config)
+		}
+	}
+	instances := load.Instances([]string{"./base"}, config)
+	if len(instances) != 1 {
+		return fmt.Errorf("CUE loader returned %d instances, want 1", len(instances))
+	}
+	if instances[0].Err != nil {
+		return instances[0].Err
+	}
+	ctx := cuecontext.New()
+	base := ctx.BuildInstance(instances[0])
+	if err := base.Validate(cueapi.All()); err != nil {
+		return err
+	}
+	scope := ctx.CompileString("base: _")
+	scope = scope.FillPath(cueapi.ParsePath("base"), base)
+	if err := scope.Err(); err != nil {
+		return err
+	}
+	v.cueContext = ctx
+	v.authorityScope = scope
+	return nil
 }
 
 func decodeCUEField[T ~map[string]any](value cueapi.Value, path string) (T, error) {

@@ -1,158 +1,136 @@
 #!/usr/bin/env node
-// Validates a redacted OS-compatibility matrix (matrix.public.json) before it
-// becomes release evidence or a published doc. Structural twin of
-// schemas/os-compat-matrix.schema.json (hand-rolled like the other release
-// validators — no schema-lib dependency) plus the redaction-leak gate and the
-// freshness policy: the matrix comes from an async lab/container run, so it
-// can never be same-commit — instead it must be recent (--max-age-days) and,
-// when stamped, share the release's major.minor (--expect-version-prefix).
+// Validates the public OS-only compatibility projection. Producer-side host,
+// runtime and infrastructure diagnostics are intentionally a different
+// artifact and cannot pass this gate.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-const GRADES = new Set(['supported', 'partial', 'unsupported']);
-const LANES = new Set(['vm', 'container', 'bare-metal']);
-const STAGES = new Set([
-  'cpu-baseline', 'install', 'serverprep', 'binary-boot', 'prepare', 'init',
-  'generate', 'apply', 'service-up', 'mdns-verify', 'kit-upgrade', 'rollback',
-  'cleanup',
+const MATRIX_KEYS = new Set(['schemaVersion', 'stackkitsVersion', 'results', 'generatedAt']);
+const RESULT_KEYS = new Set(['os', 'grade', 'reasonCodes']);
+const OS_KEYS = new Set(['family', 'distribution', 'version']);
+const REASON_CODES = new Set(['current-candidate-receipt-pending', 'os-policy-not-yet-admitted']);
+const FORBIDDEN_KEYS = new Set([
+  'runId', 'lane', 'stages', 'stage', 'overall', 'target', 'arch', 'architecture',
+  'kernel', 'packageMgr', 'initSystem', 'virtType', 'virtTier', 'virtualization',
+  'runtime', 'engine', 'osReleaseRaw', 'evidencePath', 'mdnsHost', 'host', 'hostname',
+  'provider', 'device', 'resourceId', 'lease', 'cleanupState',
 ]);
-const ARCHES = new Set(['amd64', 'arm64']);
-// Private producer-side fields that must never survive RedactForPublish.
-const FORBIDDEN_KEYS = new Set(['osReleaseRaw', 'evidencePath', 'mdnsHost']);
+const INFRASTRUCTURE_TEXT = /\b(docker|container|wsl2?|proxmox|pico\s*kvm|kvm|hypervisor|bare[ -]?metal|virtual(?:ization| machine)|ionos|centron)\b/i;
 const RFC1918 = /(^|[^0-9.])(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})([^0-9.]|$)/;
-const OS_ID = /^[a-z0-9][a-z0-9.-]*$/;
+const SLUG = /^[a-z0-9][a-z0-9.-]*$/;
+const VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const STACKKITS_VERSION = /^(unreleased|v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)$/;
 
 export function validateOSMatrix(matrix, options = {}) {
   const errors = [];
   if (!matrix || typeof matrix !== 'object' || Array.isArray(matrix)) {
     return ['matrix must be a JSON object'];
   }
-  if (matrix.schemaVersion !== 1) {
-    errors.push(`schemaVersion must be 1, got ${JSON.stringify(matrix.schemaVersion)}`);
+  rejectUnknownKeys(matrix, MATRIX_KEYS, '$', errors);
+  if (matrix.schemaVersion !== 2) errors.push(`schemaVersion must be 2, got ${JSON.stringify(matrix.schemaVersion)}`);
+  if (typeof matrix.stackkitsVersion !== 'string' || !STACKKITS_VERSION.test(matrix.stackkitsVersion)) {
+    errors.push(`stackkitsVersion invalid: ${JSON.stringify(matrix.stackkitsVersion)}`);
   }
-  if (typeof matrix.runId !== 'string' || matrix.runId.trim() === '') {
-    errors.push('runId must be a non-empty string');
-  }
-  const generatedAt = Date.parse(matrix.generatedAt ?? '');
-  if (Number.isNaN(generatedAt)) {
-    errors.push('generatedAt must be an ISO date-time');
-  }
+  const generatedAt = parseDate(matrix.generatedAt, '$.generatedAt', errors);
   if (!Array.isArray(matrix.results) || matrix.results.length === 0) {
     errors.push('results must be a non-empty array');
     return errors;
   }
 
+  const identities = new Set();
   matrix.results.forEach((result, i) => {
     const at = `results[${i}]`;
-    const os = result?.os;
-    if (!os || typeof os !== 'object') {
-      errors.push(`${at}.os missing`);
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      errors.push(`${at} must be an object`);
       return;
     }
-    if (typeof os.id !== 'string' || !OS_ID.test(os.id)) {
-      errors.push(`${at}.os.id invalid: ${JSON.stringify(os.id)}`);
+    rejectUnknownKeys(result, RESULT_KEYS, at, errors);
+    validateOS(result.os, `${at}.os`, errors);
+    if (result.grade !== 'unverified') errors.push(`${at}.grade must remain unverified until the receipt projector exists`);
+    if (!Array.isArray(result.reasonCodes) || result.reasonCodes.length === 0 || result.reasonCodes.some((code) => !REASON_CODES.has(code))) {
+      errors.push(`${at}.reasonCodes must contain only closed public reason codes`);
+    } else if (new Set(result.reasonCodes).size !== result.reasonCodes.length) {
+      errors.push(`${at}.reasonCodes must be unique`);
     }
-    if (os.arch !== undefined && !ARCHES.has(os.arch)) {
-      errors.push(`${at}.os.arch invalid: ${JSON.stringify(os.arch)}`);
-    }
-    if (!GRADES.has(result.overall)) {
-      errors.push(`${at}.overall invalid: ${JSON.stringify(result.overall)}`);
-    }
-    if (result.lane !== undefined && !LANES.has(result.lane)) {
-      errors.push(`${at}.lane invalid: ${JSON.stringify(result.lane)}`);
-    }
-    if (!Array.isArray(result.stages) || result.stages.length === 0) {
-      errors.push(`${at}.stages must be a non-empty array`);
-    } else {
-      result.stages.forEach((stage, j) => {
-        if (!STAGES.has(stage?.stage)) {
-          errors.push(`${at}.stages[${j}].stage unknown: ${JSON.stringify(stage?.stage)}`);
-        }
-        if (!GRADES.has(stage?.status)) {
-          errors.push(`${at}.stages[${j}].status invalid: ${JSON.stringify(stage?.status)}`);
-        }
-      });
-    }
-    // Redaction gate: target may only be an empty object in the public form.
-    if (result.target !== undefined) {
-      if (typeof result.target !== 'object' || result.target === null || Object.keys(result.target).length > 0) {
-        errors.push(`${at}.target must be absent or an empty object in the public matrix (redaction leak)`);
-      }
-    }
+
+    const identity = [result.os?.family, result.os?.distribution, result.os?.version].join('/');
+    if (identities.has(identity)) errors.push(`${at} duplicates compatibility identity ${identity}`);
+    identities.add(identity);
   });
 
   scanForbidden(matrix, '$', errors);
   const serialized = JSON.stringify(matrix);
-  if (RFC1918.test(serialized)) {
-    errors.push('matrix contains RFC1918 addresses (redaction leak)');
-  }
+  if (RFC1918.test(serialized)) errors.push('matrix contains RFC1918 addresses (public projection leak)');
+  if (INFRASTRUCTURE_TEXT.test(serialized)) errors.push('matrix contains infrastructure/runtime terminology (public projection leak)');
 
   if (options.maxAgeDays !== undefined && !Number.isNaN(generatedAt)) {
     const now = options.now ?? Date.now();
     const ageDays = (now - generatedAt) / 86_400_000;
-    if (ageDays > options.maxAgeDays) {
-      errors.push(`matrix is ${ageDays.toFixed(1)} days old; max is ${options.maxAgeDays} (re-run the os-matrix workflow)`);
-    }
-    if (ageDays < -0.1) {
-      errors.push('generatedAt lies in the future');
-    }
+    if (ageDays > options.maxAgeDays) errors.push(`matrix is ${ageDays.toFixed(1)} days old; max is ${options.maxAgeDays}`);
+    if (ageDays < -0.1) errors.push('generatedAt lies in the future');
   }
-  if (options.expectKit && matrix.kit !== options.expectKit) {
-    errors.push(`kit is ${JSON.stringify(matrix.kit)}, expected ${JSON.stringify(options.expectKit)}`);
+  if (options.expectKit) {
+    errors.push('kit-specific evidence is unavailable until the receipt projector exists');
   }
-  if (options.expectVersionPrefix && matrix.stackkitVersion) {
-    if (!String(matrix.stackkitVersion).startsWith(options.expectVersionPrefix)) {
-      errors.push(`stackkitVersion ${matrix.stackkitVersion} does not match release prefix ${options.expectVersionPrefix}`);
-    }
+  if (options.expectVersionPrefix && matrix.stackkitsVersion !== 'unreleased' && !matrix.stackkitsVersion.startsWith(options.expectVersionPrefix)) {
+    errors.push(`stackkitsVersion ${matrix.stackkitsVersion} does not match release prefix ${options.expectVersionPrefix}`);
   }
   return errors;
 }
 
+function validateOS(os, at, errors) {
+  if (!os || typeof os !== 'object' || Array.isArray(os)) {
+    errors.push(`${at} missing`);
+    return;
+  }
+  rejectUnknownKeys(os, OS_KEYS, at, errors);
+  for (const key of ['family', 'distribution']) {
+    if (typeof os[key] !== 'string' || !SLUG.test(os[key])) errors.push(`${at}.${key} invalid: ${JSON.stringify(os[key])}`);
+  }
+  if (typeof os.version !== 'string' || !VERSION.test(os.version)) errors.push(`${at}.version invalid: ${JSON.stringify(os.version)}`);
+}
+
+function parseDate(value, at, errors) {
+  const parsed = Date.parse(value ?? '');
+  if (Number.isNaN(parsed)) errors.push(`${at} must be an ISO date-time`);
+  return parsed;
+}
+
+function rejectUnknownKeys(value, allowed, at, errors) {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) errors.push(`${at}.${key} is not allowed in the OS-only public projection`);
+  }
+}
+
 function scanForbidden(value, at, errors) {
   if (Array.isArray(value)) {
-    value.forEach((v, i) => scanForbidden(v, `${at}[${i}]`, errors));
+    value.forEach((entry, i) => scanForbidden(entry, `${at}[${i}]`, errors));
     return;
   }
   if (value && typeof value === 'object') {
-    for (const [key, v] of Object.entries(value)) {
-      if (FORBIDDEN_KEYS.has(key)) {
-        errors.push(`${at}.${key} is a private field and must not appear in the public matrix (redaction leak)`);
-      }
-      scanForbidden(v, `${at}.${key}`, errors);
+    for (const [key, entry] of Object.entries(value)) {
+      if (FORBIDDEN_KEYS.has(key)) errors.push(`${at}.${key} is forbidden in the OS-only public projection`);
+      scanForbidden(entry, `${at}.${key}`, errors);
     }
   }
 }
 
 export function summarizeOSMatrix(matrix) {
-  const counts = { supported: 0, partial: 0, unsupported: 0 };
-  for (const result of matrix.results ?? []) {
-    if (counts[result.overall] !== undefined) counts[result.overall] += 1;
-  }
   const total = (matrix.results ?? []).length;
-  const version = matrix.stackkitVersion ? `, version ${matrix.stackkitVersion}` : '';
-  return `OS compat matrix run ${matrix.runId}${version}: ${total} targets (${counts.supported} supported / ${counts.partial} partial / ${counts.unsupported} unsupported), generated ${matrix.generatedAt}`;
+  return `OS compatibility ${matrix.stackkitsVersion}: ${total} rows (all unverified; receipt projector pending), generated ${matrix.generatedAt}`;
 }
 
 function parseArgs(argv) {
   const args = { files: [] };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--max-age-days') {
-      args.maxAgeDays = Number(argv[i + 1]);
-      i += 1;
-    } else if (arg === '--expect-kit') {
-      args.expectKit = argv[i + 1];
-      i += 1;
-    } else if (arg === '--expect-version-prefix') {
-      args.expectVersionPrefix = argv[i + 1];
-      i += 1;
-    } else if (arg === '--summary') {
-      args.summary = true;
-    } else {
-      args.files.push(arg);
-    }
+    if (arg === '--max-age-days') { args.maxAgeDays = Number(argv[++i]); }
+    else if (arg === '--expect-kit') { args.expectKit = argv[++i]; }
+    else if (arg === '--expect-version-prefix') { args.expectVersionPrefix = argv[++i]; }
+    else if (arg === '--summary') { args.summary = true; }
+    else args.files.push(arg);
   }
   return args;
 }
@@ -160,32 +138,24 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.files.length === 0) {
-    console.error('usage: validate-os-matrix.mjs <matrix.public.json> [--max-age-days N] [--expect-kit KIT] [--expect-version-prefix vX.Y] [--summary]');
+    console.error('usage: validate-os-matrix.mjs <public-v2.json> [--max-age-days N] [--expect-kit KIT] [--expect-version-prefix vX.Y] [--summary]');
     process.exit(2);
   }
   let failed = false;
   for (const file of args.files) {
-    let matrix;
     try {
-      matrix = JSON.parse(await readFile(file, 'utf8'));
+      const matrix = JSON.parse(await readFile(file, 'utf8'));
+      const errors = validateOSMatrix(matrix, args);
+      if (errors.length > 0) {
+        errors.forEach((error) => console.error(`${file}: ${error}`));
+        failed = true;
+      } else console.log(args.summary ? summarizeOSMatrix(matrix) : `${file}: OS compatibility projection valid`);
     } catch (error) {
       console.error(`${file}: ${error.message}`);
       failed = true;
-      continue;
-    }
-    const errors = validateOSMatrix(matrix, args);
-    if (errors.length > 0) {
-      for (const err of errors) console.error(`${file}: ${err}`);
-      failed = true;
-    } else if (args.summary) {
-      console.log(summarizeOSMatrix(matrix));
-    } else {
-      console.log(`${file}: OS compat matrix valid`);
     }
   }
   process.exit(failed ? 1 : 0);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  await main();
-}
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) await main();

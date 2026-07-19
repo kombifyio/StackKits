@@ -20,6 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -105,6 +106,8 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "setup.base_hub.protection.apply", "description": "Protect Base Hub and the node-local API with TinyAuth", "method": "POST", "path": "/api/v1/setup/base-hub/protection"},
 			{"name": "setup.service.run", "description": "Run or request an on-demand first-run setup action for a service", "method": "POST", "path": "/api/v1/setup/services/{service}/run"},
 			// Internal runtime actions
+			{"name": "runtime.v2.stackkit_rollout", "description": "Admit governed Architecture v2 rollout for a TechStack-managed stack", "method": "POST", "path": sharedruntimeaction.ArchitectureV2PathStackKitRollout},
+			{"name": "runtime.v2.verify_rollout", "description": "Admit governed Architecture v2 verification for a TechStack-managed stack", "method": "POST", "path": sharedruntimeaction.ArchitectureV2PathStackKitVerify},
 			{"name": "runtime.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-rollout"},
 			{"name": "runtime.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-verify"},
 			{"name": "runtime.restore_drill", "description": "Run or dry-run a StackKits restore drill for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/restore-drill"},

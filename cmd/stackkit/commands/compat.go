@@ -1,22 +1,25 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
+	stackkitdocs "github.com/kombifyio/stackkits/docs"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
 
-var compatProviders bool
-
 var compatCmd = &cobra.Command{
 	Use:   "compat",
-	Short: "Check VPS compatibility with StackKits",
-	Long: `Run a quick, non-destructive check of your VPS compatibility with Docker and StackKits.
+	Short: "Show OS support evidence and host conformance diagnostics",
+	Long: `Show the current operating system's published StackKits compatibility evidence,
+then run non-destructive diagnostics for local container-host prerequisites.
 
-This checks:
+The host diagnostics check:
   • Virtualization type (KVM, OpenVZ, LXC, bare metal)
   • unshare(2) syscall availability
   • OverlayFS support
@@ -24,24 +27,25 @@ This checks:
   • iptables NAT support
   • Cgroup version
 
-Examples:
-  stackkit compat              Check current system
-  stackkit compat --providers  Show provider compatibility matrix`,
+
+StackKits compatibility claims cover operating systems only. Host diagnostics
+do not certify, rank, recommend, or price any server provider.
+
+Example:
+  stackkit compat              Check the current OS and host prerequisites`,
+	Args: cobra.NoArgs,
 	RunE: runCompat,
 }
 
-func init() {
-	compatCmd.Flags().BoolVar(&compatProviders, "providers", false, "Show provider compatibility matrix")
-}
-
 func runCompat(cmd *cobra.Command, args []string) error {
-	if compatProviders {
-		printProviderMatrix()
-		return nil
-	}
+	fmt.Println()
+	fmt.Println(bold("StackKits OS Compatibility"))
+	fmt.Println()
+	printCurrentOSEvidence()
 
 	fmt.Println()
-	fmt.Println(bold("VPS Compatibility Check"))
+	fmt.Println(bold("Host Conformance Diagnostics"))
+	fmt.Println("  Local prerequisite probes only; this is not server-provider certification.")
 	fmt.Println()
 
 	// Detect virtualization
@@ -75,15 +79,15 @@ func runCompat(cmd *cobra.Command, args []string) error {
 
 	switch tier {
 	case models.TierFull:
-		fmt.Printf("  Tier: %s — all StackKit features will work\n", green("Full"))
+		fmt.Printf("  Host tier: %s — required container-host capabilities detected\n", green("Full"))
 	case models.TierDegraded:
-		fmt.Printf("  Tier: %s — Docker works with automatic workarounds\n", yellow("Degraded"))
+		fmt.Printf("  Host tier: %s — container runtime needs the listed fallbacks\n", yellow("Degraded"))
 		printDegradedDetails(overlayOK, bridgeOK, iptablesOK, storageDriver)
 	case models.TierIncompatible:
-		fmt.Printf("  Tier: %s — Docker cannot run on this VPS\n", red("Incompatible"))
+		fmt.Printf("  Host tier: %s — required container-host capabilities are missing\n", red("Incompatible"))
 		fmt.Println()
-		fmt.Println("  This VPS cannot run StackKits. See 'stackkit compat --providers' for")
-		fmt.Println("  recommended VPS providers that support Docker.")
+		fmt.Println("  Use a host that exposes namespaces, cgroups, storage, and networking")
+		fmt.Println("  prerequisites, or configure the native runtime explicitly.")
 	}
 	fmt.Println()
 
@@ -99,6 +103,99 @@ func runCompat(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+type compatOSIdentity struct {
+	ID           string
+	DistroFamily string
+	Version      string
+	Arch         string
+}
+
+func printCurrentOSEvidence() {
+	identity := detectCompatOS()
+	fmt.Printf("  Detected OS:          %s\n", identity.ID)
+
+	raw, err := stackkitdocs.FS.ReadFile("data/os-compat/latest.json")
+	if err != nil {
+		fmt.Printf("  Published evidence:   %s (matrix unavailable)\n", yellow("unverified"))
+		return
+	}
+	var matrix osMatrixDoc
+	if err := json.Unmarshal(raw, &matrix); err != nil {
+		fmt.Printf("  Published evidence:   %s (matrix unreadable)\n", yellow("unverified"))
+		return
+	}
+
+	if row, ok := findCompatOSEvidence(matrix, identity); ok {
+		fmt.Printf("  Published evidence:   %s (%s)\n", compatEvidenceStatus(row.Grade), matrix.StackKitsVersion)
+		return
+	}
+
+	fmt.Printf("  Published evidence:   %s — no exact OS family/distribution/version row\n", yellow("unverified"))
+}
+
+func findCompatOSEvidence(matrix osMatrixDoc, identity compatOSIdentity) (osMatrixDocRow, bool) {
+	for _, row := range matrix.Results {
+		if strings.EqualFold(row.OS.Family, "linux") &&
+			strings.EqualFold(row.OS.Distribution, identity.DistroFamily) &&
+			row.OS.Version == identity.Version {
+			return row, true
+		}
+	}
+	return osMatrixDocRow{}, false
+}
+
+func compatEvidenceStatus(status string) string {
+	switch status {
+	case "supported":
+		return green(status)
+	case "preview":
+		return yellow(status)
+	case "unsupported":
+		return red(status)
+	default:
+		return yellow("unverified")
+	}
+}
+
+func detectCompatOS() compatOSIdentity {
+	raw, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return compatOSIdentity{
+			ID:           runtime.GOOS + "-" + runtime.GOARCH,
+			DistroFamily: runtime.GOOS,
+			Arch:         runtime.GOARCH,
+		}
+	}
+	return parseCompatOSRelease(raw, runtime.GOOS, runtime.GOARCH)
+}
+
+func parseCompatOSRelease(raw []byte, goos, arch string) compatOSIdentity {
+	values := map[string]string{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		value = strings.Trim(value, "\"'")
+		values[strings.TrimSpace(key)] = value
+	}
+
+	family := strings.ToLower(strings.TrimSpace(values["ID"]))
+	if family == "" {
+		family = strings.ToLower(strings.TrimSpace(goos))
+	}
+	version := strings.TrimSpace(values["VERSION_ID"])
+	id := family
+	if version != "" {
+		id += "-" + version
+	}
+	if arch != "" {
+		id += "-" + arch
+	}
+	return compatOSIdentity{ID: id, DistroFamily: family, Version: version, Arch: arch}
 }
 
 func printCompatLine(label, value string, ok bool) {
@@ -117,7 +214,7 @@ func boolToStatus(b bool) string {
 }
 
 func printDegradedDetails(overlayOK, bridgeOK, iptablesOK bool, storageDriver string) {
-	fmt.Println("  Workarounds that will be applied:")
+	fmt.Println("  Required host fallbacks:")
 	if !overlayOK {
 		fmt.Printf("    • Storage driver: %s (instead of overlay2)\n", storageDriver)
 	}
@@ -127,55 +224,4 @@ func printDegradedDetails(overlayOK, bridgeOK, iptablesOK bool, storageDriver st
 	if !iptablesOK {
 		fmt.Println("    • Docker iptables management disabled")
 	}
-}
-
-type providerInfo struct {
-	name  string
-	virt  string
-	tier  models.CompatibilityTier
-	price string
-	notes string
-}
-
-func printProviderMatrix() {
-	providers := []providerInfo{
-		{"Hetzner Cloud", "KVM", models.TierFull, "~$4/mo", "hetzner.cloud"},
-		{"DigitalOcean", "KVM", models.TierFull, "~$4/mo", "digitalocean.com"},
-		{"Linode (Akamai)", "KVM", models.TierFull, "~$5/mo", "linode.com"},
-		{"Vultr", "KVM", models.TierFull, "~$5/mo", "vultr.com"},
-		{"Contabo (KVM)", "KVM", models.TierFull, "~$5/mo", "contabo.com"},
-		{"OVH Cloud", "KVM", models.TierFull, "~$4/mo", "ovhcloud.com"},
-		{"Scaleway", "KVM", models.TierFull, "~$4/mo", "scaleway.com"},
-		{"Oracle Free (ARM)", "KVM", models.TierFull, "Free", "cloud.oracle.com"},
-		{"Proxmox LXC (nested)", "LXC", models.TierDegraded, "varies", "nesting=true required"},
-		{"Contabo (OpenVZ)", "OpenVZ", models.TierIncompatible, "~$3/mo", "unshare blocked"},
-		{"Hostinger VPS", "OpenVZ/LXC", models.TierIncompatible, "~$3/mo", "unshare blocked"},
-		{"Budget $2-3 VPS", "OpenVZ", models.TierIncompatible, "~$2/mo", "unshare blocked"},
-		{"Proxmox LXC (restricted)", "LXC", models.TierIncompatible, "varies", "nesting=false"},
-	}
-
-	fmt.Println()
-	fmt.Println(bold("VPS Provider Compatibility Matrix"))
-	fmt.Println()
-	fmt.Printf("  %-25s %-12s %-15s %-10s %s\n", "Provider", "Virt", "Tier", "Price", "Notes")
-	fmt.Printf("  %-25s %-12s %-15s %-10s %s\n", strings.Repeat("─", 25), strings.Repeat("─", 12), strings.Repeat("─", 15), strings.Repeat("─", 10), strings.Repeat("─", 25))
-
-	for _, p := range providers {
-		tierStr := ""
-		switch p.tier {
-		case models.TierFull:
-			tierStr = green("Full")
-		case models.TierDegraded:
-			tierStr = yellow("Degraded")
-		case models.TierIncompatible:
-			tierStr = red("Incompatible")
-		}
-		fmt.Printf("  %-25s %-12s %-15s %-10s %s\n", p.name, p.virt, tierStr, p.price, p.notes)
-	}
-
-	fmt.Println()
-	fmt.Println("  " + green("Full") + "          Docker works perfectly, all features")
-	fmt.Println("  " + yellow("Degraded") + "      Docker works with auto-workarounds (vfs, host network)")
-	fmt.Println("  " + red("Incompatible") + "  Kernel blocks unshare — Docker cannot run at all")
-	fmt.Println()
 }

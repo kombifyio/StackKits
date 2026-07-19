@@ -36,11 +36,13 @@ var (
 var generateCmd = &cobra.Command{
 	Use:     "generate",
 	Aliases: []string{"gen"},
-	Short:   "Generate OpenTofu files from stack specification",
-	Long: `Generate OpenTofu configuration files from your stack specification.
+	Short:   "Generate governed deployment artifacts from a stack specification",
+	Long: `Generate governed deployment artifacts from your stack specification.
 
-This command reads your stack-spec.yaml and the associated StackKit templates
-to generate ready-to-apply OpenTofu files in the output directory.
+StackSpec v1 uses the compatibility templates to generate ready-to-apply
+OpenTofu files. Architecture v2 renders the heterogeneous artifact set declared
+by its exact ResolvedPlan and installs it transactionally beneath the plan-owned
+outputRoot; legacy --force and --fragments switches are not accepted there.
 
 Examples:
   stackkit generate                     Generate using defaults
@@ -72,7 +74,18 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		}
 		rolloutEvent("generate", "succeeded", "generate succeeded", nil)
 	}()
-	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Generate, generateV2ExecutionOptions); handled {
+	v2Options := generateV2ExecutionOptions
+	if flag := cmd.Flags().Lookup("output"); flag != nil && flag.Changed {
+		v2Options.outputRoot = genOutputDir
+	}
+	if flag := cmd.Flags().Lookup("fragments"); flag != nil && flag.Changed {
+		v2Options.fragments = genFragments
+	}
+	if flag := cmd.Flags().Lookup("force"); flag != nil && flag.Changed {
+		v2Options.force = genForce
+	}
+	v2Options.context = cmd.Context()
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Generate, v2Options); handled {
 		return err
 	}
 

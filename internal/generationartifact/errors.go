@@ -24,6 +24,7 @@ const (
 	ErrReadinessBlocked  ErrorCode = "execution_readiness_blocked"
 	ErrRendererMissing   ErrorCode = "renderer_not_implemented"
 	ErrExecutorMissing   ErrorCode = "executor_not_implemented"
+	ErrVerifierMissing   ErrorCode = "verifier_not_implemented"
 	ErrIO                ErrorCode = "io"
 )
 

@@ -105,6 +105,7 @@
       "inter-site-link"
     ],
     "optional": [
+      "basement-compose-runtime",
       "lan-dns",
       "internal-pki",
       "private-remote-access",
@@ -116,6 +117,8 @@
     "required": [
       "topology-core",
       "host-bootstrap",
+      "external-host-admission",
+      "host-conformance",
       "security-baseline",
       "human-identity-core",
       "device-trust-core",
@@ -128,7 +131,6 @@
       "observability-evidence",
       "lifecycle-update",
       "site-local",
-      "provision-local",
       "local-hardware-preflight",
       "lan-discovery",
       "local-ingress",
@@ -170,6 +172,287 @@
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
     "defaultTarget": "opentofu"
+  },
+  "identityTrust": {
+    "authorities": [
+      {
+        "id": "home-human-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "trustDomainRef": "home-stackkit-trust"
+      },
+      {
+        "id": "home-device-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "device",
+        "trustDomainRef": "home-stackkit-trust"
+      },
+      {
+        "id": "home-workload-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "trustDomainRef": "home-stackkit-trust"
+      }
+    ],
+    "credentialIssuers": [
+      {
+        "audienceRefs": [
+          "stackkit-human-session"
+        ],
+        "authorityRef": "home-human-authority",
+        "credentialTTLSeconds": 86400,
+        "enrollment": {
+          "exposure": "none",
+          "mode": "none"
+        },
+        "id": "home-human-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "home-human-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "proofOfPossessionRequired": false,
+        "revocationMaxStalenessSeconds": 0,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 900,
+        "verificationKeySetRef": "home-human-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-device-session"
+        ],
+        "authorityRef": "home-device-authority",
+        "credentialTTLSeconds": 3600,
+        "enrollment": {
+          "exposure": "lan",
+          "mode": "local-only"
+        },
+        "id": "home-device-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "home-device-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "device",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 900,
+        "verificationKeySetRef": "home-device-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-workload"
+        ],
+        "authorityRef": "home-workload-authority",
+        "credentialTTLSeconds": 300,
+        "enrollment": {
+          "exposure": "none",
+          "mode": "none"
+        },
+        "id": "home-workload-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "home-workload-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 300,
+        "verificationKeySetRef": "home-workload-verification-keys"
+      }
+    ],
+    "integrity": {
+      "authorityIDsUnique": true,
+      "distributionIDsUnique": true,
+      "distributionIssuers": [],
+      "issuerAuthorities": [
+        {
+          "issuerID": "home-human-credential-issuer",
+          "matches": [
+            "home-human-authority"
+          ]
+        },
+        {
+          "issuerID": "home-device-credential-issuer",
+          "matches": [
+            "home-device-authority"
+          ]
+        },
+        {
+          "issuerID": "home-workload-credential-issuer",
+          "matches": [
+            "home-workload-authority"
+          ]
+        }
+      ],
+      "issuerIDsUnique": true,
+      "issuerRefsUnique": true,
+      "issuerVerifiers": [
+        {
+          "issuerID": "home-human-credential-issuer",
+          "matches": [
+            "basement-human-verifier"
+          ]
+        },
+        {
+          "issuerID": "home-device-credential-issuer",
+          "matches": [
+            "basement-device-verifier"
+          ]
+        },
+        {
+          "issuerID": "home-workload-credential-issuer",
+          "matches": [
+            "basement-workload-verifier"
+          ]
+        }
+      ],
+      "verifierIDsUnique": true,
+      "verifierIssuers": [
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-human-session"
+              ],
+              "value": "stackkit-human-session"
+            }
+          ],
+          "matches": [
+            "home-human-credential-issuer"
+          ],
+          "verifierID": "basement-human-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-device-session"
+              ],
+              "value": "stackkit-device-session"
+            }
+          ],
+          "matches": [
+            "home-device-credential-issuer"
+          ],
+          "verifierID": "basement-device-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-workload"
+              ],
+              "value": "stackkit-workload"
+            }
+          ],
+          "matches": [
+            "home-workload-credential-issuer"
+          ],
+          "verifierID": "basement-workload-verifier"
+        }
+      ]
+    },
+    "verifierDistributions": [],
+    "verifierPlacements": [
+      {
+        "audienceRefs": [
+          "stackkit-human-session"
+        ],
+        "id": "basement-human-verifier",
+        "issuerRef": "home-human-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "proofOfPossessionRequired": false,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "home-human-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-device-session"
+        ],
+        "id": "basement-device-verifier",
+        "issuerRef": "home-device-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "device",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "home-device-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-workload"
+        ],
+        "id": "basement-workload-verifier",
+        "issuerRef": "home-workload-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "fixture-http-consumer",
+          "providerRef": "fixture-basement-provider"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "home-workload-verification-keys"
+      }
+    ]
   },
   "kind": "KitDefinition",
   "metadata": {
@@ -245,7 +528,7 @@
       "defaultMode": "single",
       "memberSiteScope": "any"
     },
-    "maxSites": 64,
+    "maxSites": 1,
     "minSites": 1,
     "multiNode": true,
     "requiredSiteKinds": [

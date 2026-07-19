@@ -511,7 +511,7 @@ Recommended flow:
 2. Agent confirms the host is dedicated to StackKits or safe to prepare.
 3. Agent copies or downloads the installer on the target.
 4. Agent runs the one-line installer or explicit CLI lifecycle remotely.
-5. Agent uses `stackkit verify --host`, HTTP checks, logs, and run evidence to report status.
+5. For a legacy StackSpec v1 target only, the agent may use `stackkit verify --host --legacy-remote-transport`; HTTP checks, logs, and run evidence report status. Architecture v2 instead invokes the on-host verifier through its externally resolved execution channel.
 
 Use when:
 
@@ -521,7 +521,7 @@ Use when:
 
 Boundary:
 
-- SSH is the execution authority, not website MCP.
+- SSH is the explicit legacy-v1 execution authority, not website MCP. It is not an Architecture v2 host-binding or execution-channel implementation.
 - The agent should preserve exact remote command output, failing command, stderr summary, and failure class.
 
 ## Remote MCP Transport And Day-2 Model

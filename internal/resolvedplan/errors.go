@@ -25,6 +25,13 @@ const (
 	ErrNonCanonicalPlan      ErrorCode = "non_canonical_plan"
 )
 
+const (
+	ErrExternalHostBindingStale       ErrorCode = "external_host_binding_stale"
+	ErrHostConformanceReceiptMissing  ErrorCode = "host_conformance_receipt_missing"
+	ErrHostConformanceReceiptStale    ErrorCode = "host_conformance_receipt_stale"
+	ErrHostConformanceReceiptRejected ErrorCode = "host_conformance_receipt_rejected"
+)
+
 // CompileError identifies a fail-closed compiler decision.
 type CompileError struct {
 	Code    ErrorCode

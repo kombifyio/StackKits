@@ -8,6 +8,6 @@ This documentation set is the public OSS surface for `stackkit`.
 - [Configuration](CONFIGURATION.md)
 - [Stack Spec Reference](stack-spec-reference.md)
 - [Enterprise Readiness](ENTERPRISE_READINESS.md)
-- [VPS Compatibility](vps-compatibility.md)
+- [OS Compatibility](OS_COMPATIBILITY.md)
 - [Agent Guide](agent/agents.md)
 - [Architecture Decisions](ADR/README.md)

@@ -4,6 +4,7 @@ set -eu
 TERRAMATE_VERSION="${TERRAMATE_VERSION:-0.17.1}"
 OUT_DIR="${OUT_DIR:-.dist-tools/terramate}"
 DOWNLOAD_DIR="${OUT_DIR}/downloads"
+TARGETS="${STACKKIT_RELEASE_TOOL_TARGETS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64}"
 
 mkdir -p "$DOWNLOAD_DIR"
 
@@ -42,8 +43,9 @@ fetch_one() {
   chmod 755 "${target_dir}/${binary}"
 }
 
-fetch_one linux amd64
-fetch_one linux arm64
-fetch_one darwin amd64
-fetch_one darwin arm64
-fetch_one windows amd64
+for target in $TARGETS; do
+  case "$target" in
+    */*) fetch_one "${target%/*}" "${target#*/}" ;;
+    *) echo "Invalid StackKit release-tool target: $target" >&2; exit 2 ;;
+  esac
+done

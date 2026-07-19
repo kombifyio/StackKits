@@ -185,7 +185,7 @@ func writeDockerCapabilities(caps *models.DockerCapabilities) {
 // On heavily restricted VPS (OpenVZ/LXC), the Docker daemon starts but
 // the kernel blocks the unshare() syscall, making it impossible to create
 // namespaces for containers or even register image layers.
-// Returns true if Docker is functional, false if the VPS is incompatible.
+// Returns true if Docker is functional, false if the host lacks prerequisites.
 func testDockerRuntime(ctx context.Context, caps *models.DockerCapabilities) bool {
 	printInfo("Testing Docker container runtime...")
 
@@ -211,7 +211,8 @@ func testDockerRuntime(ctx context.Context, caps *models.DockerCapabilities) boo
 	}
 
 	// Check for the specific unshare/namespace error that indicates
-	// a fundamentally incompatible VPS (OpenVZ/LXC without nesting).
+	// a host that lacks the required namespace support (for example,
+	// restricted container virtualization without nesting).
 	if strings.Contains(outputStr, "unshare") ||
 		strings.Contains(outputStr, "operation not permitted") ||
 		strings.Contains(outputStr, "failed to register layer") {
@@ -224,23 +225,18 @@ func testDockerRuntime(ctx context.Context, caps *models.DockerCapabilities) boo
 		}
 
 		fmt.Println()
-		printError("%s", "Docker cannot run containers on this VPS")
+		printError("%s", "Docker cannot run containers on this host")
 		fmt.Println()
 		fmt.Printf("  Virtualization: %s\n", caps.VirtualizationType)
-		fmt.Println("  Your VPS uses container-based virtualization that blocks")
+		fmt.Println("  This host uses container-based virtualization that blocks")
 		fmt.Println("  the kernel features Docker needs (namespaces, cgroups, unshare).")
 		fmt.Println("  The Docker daemon starts, but no containers can be created.")
 		fmt.Println()
-		fmt.Println("  " + bold("What you need:") + " A VPS with KVM or full virtualization.")
-		fmt.Println("  These providers offer compatible VPS from ~$4/month:")
+		fmt.Println("  " + bold("What you need:") + " A host that exposes container namespaces,")
+		fmt.Println("  cgroups, the selected storage driver, and required network capabilities.")
+		fmt.Println("  Full virtualization or bare metal commonly provides those prerequisites.")
 		fmt.Println()
-		fmt.Println("    • Hetzner Cloud    — https://hetzner.cloud")
-		fmt.Println("    • DigitalOcean     — https://digitalocean.com")
-		fmt.Println("    • Linode (Akamai)  — https://linode.com")
-		fmt.Println("    • Vultr            — https://vultr.com")
-		fmt.Println("    • Contabo (KVM)    — https://contabo.com")
-		fmt.Println()
-		fmt.Println("  Run 'stackkit compat' for a full compatibility report.")
+		fmt.Println("  Run 'stackkit compat' for OS evidence and host diagnostics.")
 		fmt.Println()
 		return false
 	}
@@ -1245,7 +1241,7 @@ func waitForRemotePackageManager(ctx context.Context, client *ssh.Client, osType
 	// Budget must exceed the in-script wait loop (below) so the SSH context does
 	// not kill the wait prematurely, and must outlast cloud-VM boot-time apt
 	// (cloud-init / unattended-upgrades), which can hold the dpkg lock for
-	// several minutes on a fresh centron/ionos host.
+	// several minutes on a freshly provisioned cloud image.
 	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 	stdout, stderr, err := client.RunWithSudo(waitCtx, packageManagerLockWaitScript())

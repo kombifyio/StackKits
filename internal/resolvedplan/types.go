@@ -32,6 +32,14 @@ type StackSpecV2 map[string]any
 // InventoryFacts is a JSON-decoded base.#InventoryFacts document.
 type InventoryFacts map[string]any
 
+// ExternalHostBinding is the provider-free handoff for a host that has
+// already been selected and supplied by the platform control plane.
+type ExternalHostBinding map[string]any
+
+// HostConformanceReceipt is StackKits-owned OS/host diagnostic evidence for
+// one exact ExternalHostBinding. It is never server-provider compatibility.
+type HostConformanceReceipt map[string]any
+
 // CapabilityContract is a JSON-decoded base.#CapabilityContract document.
 type CapabilityContract map[string]any
 
