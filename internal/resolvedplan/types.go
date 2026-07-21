@@ -40,6 +40,14 @@ type ExternalHostBinding map[string]any
 // one exact ExternalHostBinding. It is never server-provider compatibility.
 type HostConformanceReceipt map[string]any
 
+// HomeAccessRequirement is the StackKits-owned, provider-neutral Shadow-Plan
+// contract for one Home access capability.
+type HomeAccessRequirement map[string]any
+
+// ExternalHomeAccessBinding is an opaque external realization binding. It
+// carries no transport, endpoint, credential, or provider lifecycle data.
+type ExternalHomeAccessBinding map[string]any
+
 // CapabilityContract is a JSON-decoded base.#CapabilityContract document.
 type CapabilityContract map[string]any
 
@@ -51,6 +59,11 @@ type AddOnContract map[string]any
 
 // ModuleContract is a JSON-decoded base.#ModuleContractV2 document.
 type ModuleContract map[string]any
+
+// WorkloadContract is a JSON-decoded base.#WorkloadContractV2 document. It
+// owns logical workload and alternative selection; StackSpec never supplies
+// the referenced provider or module implementation IDs.
+type WorkloadContract map[string]any
 
 // PrivilegedInterfaceApproval is centrally owned catalog authority for one
 // narrowly scoped direct runtime-interface exception.
@@ -79,6 +92,7 @@ type Catalog struct {
 	Providers                    []CapabilityProvider
 	AddOns                       []AddOnContract
 	Modules                      []ModuleContract
+	Workloads                    []WorkloadContract
 	PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval
 	PlanArtifacts                []PlanArtifactContract
 }

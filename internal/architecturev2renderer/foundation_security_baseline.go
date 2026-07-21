@@ -54,6 +54,14 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(contract, securityBaselineHostPolicyRenderer{policy: append([]byte(nil), policy...), contract: contract}); err != nil {
 		return nil, err
 	}
+	coreHostBootstrap := newCoreHostBootstrapRenderer()
+	if err := registry.Register(coreHostBootstrap.contract, coreHostBootstrap); err != nil {
+		return nil, err
+	}
+	homeBackupTarget := newHomeBackupTargetRenderer()
+	if err := registry.Register(homeBackupTarget.contract, homeBackupTarget); err != nil {
+		return nil, err
+	}
 	socketProxy := newSocketProxyComposeRenderer()
 	if err := registry.Register(socketProxy.contract, socketProxy); err != nil {
 		return nil, err
@@ -78,6 +86,17 @@ func NewProductRegistry() (*Registry, error) {
 		if err := registry.Register(renderer.contract, renderer); err != nil {
 			return nil, err
 		}
+	}
+	if err := registerExecutorContractBundleRenderers(registry); err != nil {
+		return nil, err
+	}
+	publicTLS := newPublicTLSExecutorContractRenderer()
+	if err := registry.Register(publicTLS.contract, publicTLS); err != nil {
+		return nil, err
+	}
+	immichWorkload := newImmichWorkloadBundleRenderer()
+	if err := registry.Register(immichWorkload.contract, immichWorkload); err != nil {
+		return nil, err
 	}
 	for _, extension := range productRegistryExtensions {
 		if err := extension(registry); err != nil {

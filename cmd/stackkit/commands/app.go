@@ -22,14 +22,19 @@ var (
 
 var appCmd = &cobra.Command{
 	Use:   "app",
-	Short: "Write optional PaaS app handoff metadata",
+	Short: "Write v0.6 compatibility PaaS app handoff metadata",
+	Long: `Write optional customer PaaS handoff metadata only on the explicit
+v0.6 StackSpec compatibility line. Architecture v2 has no truthful arbitrary
+customer-workload mapping; StackKit-owned apps must come from the CUE catalog,
+and a future customer-workload desired-state contract belongs to TechStack.`,
 }
 
 var appAddCmd = &cobra.Command{
-	Use:   "add <name>",
-	Short: "Add or update a PaaS app handoff in stack-spec.yaml",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runAppAdd,
+	Use:         "add <name>",
+	Short:       "Add or update a v0.6 compatibility PaaS app handoff",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "app add"},
+	Args:        cobra.ExactArgs(1),
+	RunE:        runAppAdd,
 }
 
 type appAddOptions struct {
@@ -57,13 +62,19 @@ func init() {
 }
 
 func runAppAdd(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyV06Command(
+		"stackkit app add",
+		"StackKit-owned applications come from the governed CUE catalog; arbitrary customer workload desired state requires a future versioned TechStack contract",
+	); err != nil {
+		return err
+	}
 	wd := getWorkDir()
 	loader := config.NewLoader(wd)
 	specPath, _, _, err := loader.ResolveStackSpecPathForRead(specFile)
 	if err != nil {
 		return err
 	}
-	spec, err := loader.LoadStackSpec(specFile)
+	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2AppAdd)
 	if err != nil {
 		return fmt.Errorf("load stack spec: %w", err)
 	}
@@ -89,7 +100,7 @@ func runAppAdd(cmd *cobra.Command, args []string) error {
 	}); err != nil {
 		return err
 	}
-	if err := loader.SaveStackSpec(spec, specPath); err != nil {
+	if err := persistLegacyV06StackSpec(loader, spec, specPath, "app add"); err != nil {
 		return fmt.Errorf("save stack spec: %w", err)
 	}
 	printSuccess("Added app handoff %s to %s", args[0], specPath)

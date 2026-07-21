@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-07-19T18:24:01Z",
+  "generated_at": "2026-07-21T21:26:53Z",
   "tools": [],
   "services": [
     {
@@ -552,10 +552,10 @@
     {
       "slug": "immich",
       "display_name": "Immich",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "layer": "L3-application",
       "description": "Self-hosted photo and video management with AI-powered search and mobile backup",
-      "contract_hash": "789d560c3f8f67cd9dd58a93533cab81a33160dd83de3724a84d8eae51a3f200",
+      "contract_hash": "45d5bb17d33b45c2b00e4f8e98b6ff8c885a696d1f722c7589370141301065be",
       "supported_contexts": [
         "local",
         "cloud",

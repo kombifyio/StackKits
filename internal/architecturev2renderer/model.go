@@ -47,6 +47,7 @@ type renderUnitContract struct {
 	publicInputRefs              []string
 	secretInputRefs              []string
 	planInputRefs                []string
+	inputBindingsCanonical       []byte
 	siteRefs                     []string
 	nodeRefs                     []string
 	valuesCanonical              []byte
@@ -179,27 +180,29 @@ type unitOutputKey struct {
 }
 
 type rawRenderUnit struct {
-	ID                 string                     `json:"id"`
-	Kind               string                     `json:"kind"`
-	RendererRef        string                     `json:"rendererRef"`
-	TemplateRef        string                     `json:"templateRef"`
-	Version            string                     `json:"version"`
-	ContractHash       string                     `json:"contractHash"`
-	PublicInputRefs    []string                   `json:"publicInputRefs"`
-	SecretInputRefs    []string                   `json:"secretInputRefs"`
-	PlanInputRefs      []string                   `json:"planInputRefs"`
-	Values             map[string]json.RawMessage `json:"values"`
-	SecretRefs         map[string]json.RawMessage `json:"secretRefs"`
-	PlanInputs         map[string]json.RawMessage `json:"planInputs"`
-	Outputs            []string                   `json:"outputs"`
-	SiteRefs           []string                   `json:"siteRefs"`
-	NodeRefs           []string                   `json:"nodeRefs"`
-	Placement          json.RawMessage            `json:"placement"`
-	DaemonBindings     []json.RawMessage          `json:"daemonBindings"`
-	ServiceEndpoints   []json.RawMessage          `json:"serviceEndpoints"`
-	ProvidesInterfaces []json.RawMessage          `json:"providesInterfaces"`
-	RequiresInterfaces []json.RawMessage          `json:"requiresInterfaces"`
-	Instances          []rawRenderUnitInstance    `json:"instances"`
+	ID                  string                     `json:"id"`
+	Kind                string                     `json:"kind"`
+	RendererRef         string                     `json:"rendererRef"`
+	TemplateRef         string                     `json:"templateRef"`
+	Version             string                     `json:"version"`
+	ContractHash        string                     `json:"contractHash"`
+	PublicInputRefs     []string                   `json:"publicInputRefs"`
+	SecretInputRefs     []string                   `json:"secretInputRefs"`
+	PlanInputRefs       []string                   `json:"planInputRefs"`
+	InputBindings       []json.RawMessage          `json:"inputBindings"`
+	SecretInputBindings map[string]json.RawMessage `json:"secretInputBindings"`
+	Values              map[string]json.RawMessage `json:"values"`
+	SecretRefs          map[string]json.RawMessage `json:"secretRefs"`
+	PlanInputs          map[string]json.RawMessage `json:"planInputs"`
+	Outputs             []string                   `json:"outputs"`
+	SiteRefs            []string                   `json:"siteRefs"`
+	NodeRefs            []string                   `json:"nodeRefs"`
+	Placement           json.RawMessage            `json:"placement"`
+	DaemonBindings      []json.RawMessage          `json:"daemonBindings"`
+	ServiceEndpoints    []json.RawMessage          `json:"serviceEndpoints"`
+	ProvidesInterfaces  []json.RawMessage          `json:"providesInterfaces"`
+	RequiresInterfaces  []json.RawMessage          `json:"requiresInterfaces"`
+	Instances           []rawRenderUnitInstance    `json:"instances"`
 }
 
 type rawModuleServiceEndpoint struct {
@@ -220,11 +223,104 @@ type rawModuleServiceEndpointData struct {
 }
 
 type rawModuleRuntime struct {
-	Kind     string                     `json:"kind"`
-	Delivery string                     `json:"delivery"`
-	Engine   optionalStringField        `json:"engine,omitempty"`
-	Image    *rawModuleRuntimeImage     `json:"image,omitempty"`
-	Settings map[string]json.RawMessage `json:"settings,omitempty"`
+	Execution         string                     `json:"execution"`
+	Kind              string                     `json:"kind"`
+	Delivery          string                     `json:"delivery"`
+	Engine            optionalStringField        `json:"engine,omitempty"`
+	Image             *rawModuleRuntimeImage     `json:"image,omitempty"`
+	EntryComponentRef optionalStringField        `json:"entryComponentRef,omitempty"`
+	Components        []json.RawMessage          `json:"components,omitempty"`
+	Settings          map[string]json.RawMessage `json:"settings,omitempty"`
+}
+
+type rawModuleRenderInputBinding struct {
+	TargetRef    string          `json:"targetRef"`
+	SourceRef    string          `json:"sourceRef"`
+	ValueType    string          `json:"valueType"`
+	Cardinality  string          `json:"cardinality"`
+	Required     bool            `json:"required"`
+	DefaultValue json.RawMessage `json:"defaultValue,omitempty"`
+}
+
+type rawPublicServiceRouteV2 struct {
+	ID               string                      `json:"id"`
+	ServiceRef       string                      `json:"serviceRef"`
+	ModuleRef        string                      `json:"moduleRef"`
+	OriginSiteRef    string                      `json:"originSiteRef"`
+	OriginNodeRefs   []string                    `json:"originNodeRefs"`
+	BackendPoolRef   string                      `json:"backendPoolRef"`
+	BackendPool      rawPublicRouteBackendPoolV2 `json:"backendPool"`
+	Exposure         string                      `json:"exposure"`
+	Protocol         string                      `json:"protocol"`
+	UpstreamProtocol string                      `json:"upstreamProtocol"`
+	Port             int                         `json:"port"`
+	TargetPort       int                         `json:"targetPort"`
+	Host             string                      `json:"host,omitempty"`
+	Path             string                      `json:"path,omitempty"`
+	Access           rawPublicRouteAccessV2      `json:"access"`
+	TLS              rawPublicRouteTLSV2         `json:"tls"`
+	HealthGateRef    string                      `json:"healthGateRef"`
+}
+
+type rawPublicServiceRouteV3 struct {
+	rawPublicServiceRouteV2
+	HealthProbe rawPublicRouteHealthProbeV3 `json:"healthProbe"`
+}
+
+type rawPublicServiceRouteV4 struct {
+	rawPublicServiceRouteV3
+	CapabilityAuthorities []rawPublicRouteCapabilityAuthorityV4 `json:"capabilityAuthorities"`
+}
+
+type rawPublicRouteCapabilityAuthorityV4 struct {
+	CapabilityRef string `json:"capabilityRef"`
+	Role          string `json:"role"`
+}
+
+type rawPublicRouteHealthProbeV3 struct {
+	Kind             string `json:"kind"`
+	Protocol         string `json:"protocol"`
+	Port             int    `json:"port"`
+	TimeoutSeconds   int    `json:"timeoutSeconds"`
+	Method           string `json:"method,omitempty"`
+	FollowRedirects  *bool  `json:"followRedirects,omitempty"`
+	Path             string `json:"path,omitempty"`
+	ExpectedStatuses []int  `json:"expectedStatuses,omitempty"`
+}
+
+type rawPublicRouteBackendPoolV2 struct {
+	UpstreamProtocol string                          `json:"upstreamProtocol"`
+	TargetPort       int                             `json:"targetPort"`
+	Members          []rawPublicRouteBackendMemberV2 `json:"members"`
+}
+
+type rawPublicRouteBackendMemberV2 struct {
+	SiteRef     string `json:"siteRef"`
+	NodeRef     string `json:"nodeRef"`
+	InstanceRef string `json:"instanceRef"`
+}
+
+type rawPublicRouteAccessV2 struct {
+	Exposure               string   `json:"exposure"`
+	PolicyExposure         string   `json:"policyExposure"`
+	Authentication         string   `json:"authentication"`
+	Privilege              string   `json:"privilege"`
+	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
+	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
+	LANStepDown            bool     `json:"lanStepDown"`
+	AllowedSiteRefs        []string `json:"allowedSiteRefs,omitempty"`
+	AllowedMethods         []string `json:"allowedMethods,omitempty"`
+	DefaultClosed          bool     `json:"defaultClosed"`
+	PolicyRef              string   `json:"policyRef"`
+}
+
+type rawPublicRouteTLSV2 struct {
+	Required           bool   `json:"required"`
+	Mode               string `json:"mode"`
+	MinVersion         string `json:"minVersion,omitempty"`
+	ProfileRef         string `json:"profileRef,omitempty"`
+	IssuerRef          string `json:"issuerRef,omitempty"`
+	OwnerCapabilityRef string `json:"ownerCapabilityRef,omitempty"`
 }
 
 type rawModuleRuntimeImage struct {
@@ -233,7 +329,8 @@ type rawModuleRuntimeImage struct {
 }
 
 type moduleRuntimeContract struct {
-	kind, delivery, engine, imageRef, imageDigest string
+	execution, kind, delivery, engine, imageRef, imageDigest, entryComponentRef string
+	componentsCanonical                                                         []byte
 }
 
 type rawRenderUnitInstance struct {
@@ -1219,7 +1316,10 @@ func parseModuleRuntime(object map[string]json.RawMessage, modulePath string) (m
 	if !containsStringValue([]string{"stackkit", "selected-paas", "external-control-plane"}, decoded.Delivery) {
 		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.delivery", "unsupported module delivery %q", decoded.Delivery)
 	}
-	runtime := moduleRuntimeContract{kind: decoded.Kind, delivery: decoded.Delivery}
+	if !containsStringValue([]string{"executable", "contract-handoff"}, decoded.Execution) {
+		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.execution", "unsupported module execution class %q", decoded.Execution)
+	}
+	runtime := moduleRuntimeContract{execution: decoded.Execution, kind: decoded.Kind, delivery: decoded.Delivery, componentsCanonical: []byte("[]")}
 	if decoded.Engine.present {
 		if !containsStringValue([]string{"docker", "podman", "systemd", "binary", "api"}, decoded.Engine.value) {
 			return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.engine", "unsupported module runtime engine %q", decoded.Engine.value)
@@ -1237,6 +1337,19 @@ func parseModuleRuntime(object map[string]json.RawMessage, modulePath string) (m
 			}
 			runtime.imageDigest = decoded.Image.Digest.value
 		}
+	}
+	if decoded.EntryComponentRef.present {
+		if err := requireContractID(decoded.EntryComponentRef.value, modulePath+".runtime.entryComponentRef"); err != nil {
+			return moduleRuntimeContract{}, err
+		}
+		runtime.entryComponentRef = decoded.EntryComponentRef.value
+	}
+	if decoded.Components != nil {
+		canonical, err := json.Marshal(decoded.Components)
+		if err != nil {
+			return moduleRuntimeContract{}, wrap(ErrInvalidPlan, modulePath+".runtime.components", "canonicalize component graph", err)
+		}
+		runtime.componentsCanonical = canonical
 	}
 	if runtime.kind == "container" {
 		if runtime.engine != "docker" && runtime.engine != "podman" {
@@ -1447,6 +1560,10 @@ func parseRenderUnit(raw json.RawMessage, unitPath string) (renderUnitContract, 
 	if err != nil {
 		return renderUnitContract{}, err
 	}
+	inputBindingsCanonical, err := validateRenderUnitInputBindings(decoded, unitPath)
+	if err != nil {
+		return renderUnitContract{}, err
+	}
 	outputs, err := validateRenderUnitOutputs(decoded.Outputs, unitPath)
 	if err != nil {
 		return renderUnitContract{}, err
@@ -1480,13 +1597,289 @@ func parseRenderUnit(raw json.RawMessage, unitPath string) (renderUnitContract, 
 		publicInputRefs: append([]string(nil), decoded.PublicInputRefs...), secretInputRefs: append([]string(nil), decoded.SecretInputRefs...),
 		planInputRefs: append([]string(nil), planInputRefs...),
 		siteRefs:      append([]string(nil), decoded.SiteRefs...), nodeRefs: append([]string(nil), decoded.NodeRefs...),
-		valuesCanonical: valuesCanonical, secretsCanonical: secretsCanonical, planInputsCanonical: planInputsCanonical, placementCanonical: placement,
+		valuesCanonical: valuesCanonical, secretsCanonical: secretsCanonical, planInputsCanonical: planInputsCanonical,
+		inputBindingsCanonical: inputBindingsCanonical, placementCanonical: placement,
 		serviceEndpointsCanonical:   serviceEndpointsCanonical,
 		providedInterfacesCanonical: providedInterfaces, requiredInterfacesCanonical: requiredInterfaces,
 		serviceEndpoints:   serviceEndpoints,
 		providedInterfaces: providedContracts, requiredInterfaces: requiredContracts,
 		outputs: outputs, instances: instances,
 	}, nil
+}
+
+//nolint:gocyclo // Closed binding validation intentionally checks every source/type/cardinality/value branch together.
+func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byte, error) {
+	if unit.InputBindings == nil {
+		return nil, fail(ErrInvalidPlan, unitPath+".inputBindings", "inputBindings is mandatory")
+	}
+	if len(unit.SecretInputBindings) != 0 {
+		return nil, fail(ErrInvalidPlan, unitPath+".secretInputBindings", "renderer model does not accept unresolved secret input binding authority")
+	}
+	publicSet, err := uniqueContractIDSet(unit.PublicInputRefs, unitPath+".publicInputRefs")
+	if err != nil {
+		return nil, err
+	}
+	secretSet, err := uniqueContractIDSet(unit.SecretInputRefs, unitPath+".secretInputRefs")
+	if err != nil {
+		return nil, err
+	}
+	planSet := make(map[string]struct{}, len(unit.PlanInputRefs))
+	for _, ref := range unit.PlanInputRefs {
+		planSet[ref] = struct{}{}
+	}
+	bindings := make([]rawModuleRenderInputBinding, 0, len(unit.InputBindings))
+	seen := make(map[string]struct{}, len(unit.InputBindings))
+	for index, raw := range unit.InputBindings {
+		path := fmt.Sprintf("%s.inputBindings[%d]", unitPath, index)
+		var binding rawModuleRenderInputBinding
+		if err := decodeStrict(raw, &binding); err != nil {
+			return nil, wrap(ErrInvalidPlan, path, "decode input binding", err)
+		}
+		if err := requireContractID(binding.TargetRef, path+".targetRef"); err != nil {
+			return nil, err
+		}
+		if _, exists := publicSet[binding.TargetRef]; !exists {
+			return nil, fail(ErrInvalidPlan, path+".targetRef", "bound target is not a declared public input")
+		}
+		if _, exists := secretSet[binding.TargetRef]; exists {
+			return nil, fail(ErrInvalidPlan, path+".targetRef", "bound target aliases a secret input")
+		}
+		if _, exists := planSet[binding.TargetRef]; exists {
+			return nil, fail(ErrInvalidPlan, path+".targetRef", "bound target aliases a compiler plan input")
+		}
+		if _, duplicate := seen[binding.TargetRef]; duplicate {
+			return nil, fail(ErrDuplicate, path+".targetRef", "duplicate bound target")
+		}
+		seen[binding.TargetRef] = struct{}{}
+		hasDefault := len(binding.DefaultValue) != 0 && string(binding.DefaultValue) != "null"
+		if binding.Required == hasDefault {
+			return nil, fail(ErrInvalidPlan, path+".defaultValue", "required bindings forbid defaults and optional bindings require one")
+		}
+		switch binding.SourceRef {
+		case "identity.deviceEnrollment":
+			if binding.ValueType != "device-enrollment-public-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "identity.deviceEnrollment has an invalid type or cardinality")
+			}
+		case "network.routes":
+			if binding.ValueType != "authority-bound-service-route-list-v4" || binding.Cardinality != "list" {
+				return nil, fail(ErrInvalidPlan, path, "network.routes has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound network.routes value is missing")
+			}
+			if err := validatePublicServiceRouteListV4(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fail(ErrInvalidPlan, path+".sourceRef", "unsupported resolved-plan input source")
+		}
+		bindings = append(bindings, binding)
+	}
+	sort.Slice(bindings, func(i, j int) bool { return bindings[i].TargetRef < bindings[j].TargetRef })
+	canonical, err := json.Marshal(bindings)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, unitPath+".inputBindings", "canonicalize input bindings", err)
+	}
+	return canonical, nil
+}
+
+func validatePublicServiceRouteListV4(raw json.RawMessage, valuePath string) error {
+	var values []json.RawMessage
+	if err := decodeJSON(raw, &values, false); err != nil || values == nil {
+		return fail(ErrInvalidPlan, valuePath, "expected authority-bound service route v4 list")
+	}
+	seenRoutes := make(map[string]struct{}, len(values))
+	for index, value := range values {
+		path := fmt.Sprintf("%s[%d]", valuePath, index)
+		var route rawPublicServiceRouteV4
+		if err := decodeStrict(value, &route); err != nil {
+			return wrap(ErrInvalidPlan, path, "decode authority-bound service route v4", err)
+		}
+		if _, duplicate := seenRoutes[route.ID]; duplicate {
+			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)
+		}
+		seenRoutes[route.ID] = struct{}{}
+		base, err := json.Marshal([]rawPublicServiceRouteV3{route.rawPublicServiceRouteV3})
+		if err != nil {
+			return wrap(ErrInvalidPlan, path, "encode authority-bound service route v4 base", err)
+		}
+		if err := validatePublicServiceRouteListV3(base, valuePath); err != nil {
+			return err
+		}
+		if route.CapabilityAuthorities == nil {
+			return fail(ErrInvalidPlan, path+".capabilityAuthorities", "authority list is mandatory")
+		}
+		capabilities := map[string]struct{}{}
+		roles := map[string]string{}
+		for authorityIndex, authority := range route.CapabilityAuthorities {
+			authorityPath := fmt.Sprintf("%s.capabilityAuthorities[%d]", path, authorityIndex)
+			if err := requireContractID(authority.CapabilityRef, authorityPath+".capabilityRef"); err != nil {
+				return err
+			}
+			if !oneOf(authority.Role, "access", "transport", "edge", "egress") {
+				return fail(ErrInvalidPlan, authorityPath+".role", "unsupported route capability role %q", authority.Role)
+			}
+			if _, duplicate := capabilities[authority.CapabilityRef]; duplicate {
+				return fail(ErrDuplicate, authorityPath+".capabilityRef", "duplicate route capability authority")
+			}
+			capabilities[authority.CapabilityRef] = struct{}{}
+			if existing, duplicate := roles[authority.Role]; duplicate {
+				return fail(ErrDuplicate, authorityPath+".role", "route role %q is already owned by %q", authority.Role, existing)
+			}
+			roles[authority.Role] = authority.CapabilityRef
+		}
+		if route.Exposure == "local" && len(route.CapabilityAuthorities) != 0 {
+			return fail(ErrInvalidPlan, path+".capabilityAuthorities", "local route cannot carry remote reachability authority")
+		}
+		if route.Exposure != "local" && len(route.CapabilityAuthorities) == 0 {
+			return fail(ErrInvalidPlan, path+".capabilityAuthorities", "non-local route requires exact reachability authority")
+		}
+		if err := validatePublicRouteTLSAuthorityV4(route, roles, path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validatePublicRouteTLSAuthorityV4(route rawPublicServiceRouteV4, roles map[string]string, path string) error {
+	tls := route.TLS
+	if !tls.Required {
+		if tls.Mode != "off" || tls.MinVersion != "" || tls.OwnerCapabilityRef != "" || tls.ProfileRef != "" || tls.IssuerRef != "" || route.Exposure == "public" || roles["edge"] != "" || roles["egress"] != "" {
+			return fail(ErrInvalidPlan, path+".tls", "TLS-off route cannot carry public edge, egress, profile, issuer, or custody authority")
+		}
+		return nil
+	}
+	if tls.MinVersion == "" {
+		return fail(ErrInvalidPlan, path+".tls", "authority-bound route requires an explicit TLS minimum")
+	}
+	switch tls.Mode {
+	case "external":
+		if route.Exposure != "public" || tls.OwnerCapabilityRef == "" || roles["egress"] != tls.OwnerCapabilityRef || roles["edge"] != "" || tls.ProfileRef != "" || tls.IssuerRef != "" {
+			return fail(ErrInvalidPlan, path+".tls", "external TLS requires the exact egress owner and forbids edge/profile/issuer authority")
+		}
+	case "terminate-at-edge":
+		if route.Exposure != "public" || roles["edge"] == "" || roles["egress"] != "" || tls.OwnerCapabilityRef != "" || tls.ProfileRef == "" || tls.IssuerRef == "" {
+			return fail(ErrInvalidPlan, path+".tls", "edge TLS requires exact edge/profile/issuer authority and forbids egress custody")
+		}
+	case "internal":
+		if tls.OwnerCapabilityRef != "" || tls.ProfileRef == "" || tls.IssuerRef == "" || roles["edge"] != "" || roles["egress"] != "" {
+			return fail(ErrInvalidPlan, path+".tls", "internal TLS forbids public edge or egress authority")
+		}
+	default:
+		return fail(ErrInvalidPlan, path+".tls.mode", "unsupported required TLS mode %q", tls.Mode)
+	}
+	return nil
+}
+
+func validatePublicServiceRouteListV3(raw json.RawMessage, valuePath string) error {
+	var values []json.RawMessage
+	if err := decodeJSON(raw, &values, false); err != nil || values == nil {
+		return fail(ErrInvalidPlan, valuePath, "expected public service route v3 list")
+	}
+	seenRoutes := make(map[string]struct{}, len(values))
+	for index, value := range values {
+		path := fmt.Sprintf("%s[%d]", valuePath, index)
+		var route rawPublicServiceRouteV3
+		if err := decodeStrict(value, &route); err != nil {
+			return wrap(ErrInvalidPlan, path, "decode public service route v3", err)
+		}
+		if _, duplicate := seenRoutes[route.ID]; duplicate {
+			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)
+		}
+		seenRoutes[route.ID] = struct{}{}
+		base, err := json.Marshal([]rawPublicServiceRouteV2{route.rawPublicServiceRouteV2})
+		if err != nil {
+			return wrap(ErrInvalidPlan, path, "encode public service route v3 base", err)
+		}
+		if err := validatePublicServiceRouteListV2(base, valuePath); err != nil {
+			return err
+		}
+		probe := route.HealthProbe
+		if probe.Port != route.TargetPort || probe.Protocol != route.UpstreamProtocol || probe.TimeoutSeconds < 1 || probe.TimeoutSeconds > 300 {
+			return fail(ErrInvalidPlan, path+".healthProbe", "probe protocol, port, and timeout must match the route contract")
+		}
+		switch probe.Kind {
+		case "http":
+			if !oneOf(probe.Protocol, "http", "https") || probe.Method != "GET" || probe.FollowRedirects == nil || *probe.FollowRedirects || !strings.HasPrefix(probe.Path, "/") || len(probe.ExpectedStatuses) == 0 {
+				return fail(ErrInvalidPlan, path+".healthProbe", "invalid closed HTTP probe")
+			}
+			seenStatuses := map[int]struct{}{}
+			for _, status := range probe.ExpectedStatuses {
+				if status < 100 || status > 599 {
+					return fail(ErrInvalidPlan, path+".healthProbe.expectedStatuses", "HTTP status is outside 100..599")
+				}
+				if _, duplicate := seenStatuses[status]; duplicate {
+					return fail(ErrDuplicate, path+".healthProbe.expectedStatuses", "duplicate HTTP status")
+				}
+				seenStatuses[status] = struct{}{}
+			}
+		case "tcp":
+			if probe.Protocol != "tcp" || probe.Method != "" || probe.FollowRedirects != nil || probe.Path != "" || probe.ExpectedStatuses != nil {
+				return fail(ErrInvalidPlan, path+".healthProbe", "TCP probes forbid HTTP-only fields")
+			}
+		default:
+			return fail(ErrInvalidPlan, path+".healthProbe.kind", "unsupported probe kind %q", probe.Kind)
+		}
+	}
+	return nil
+}
+
+func validatePublicServiceRouteListV2(raw json.RawMessage, valuePath string) error {
+	var values []json.RawMessage
+	if err := decodeJSON(raw, &values, false); err != nil || values == nil {
+		return fail(ErrInvalidPlan, valuePath, "expected public service route list")
+	}
+	seenRoutes := make(map[string]struct{}, len(values))
+	for index, value := range values {
+		path := fmt.Sprintf("%s[%d]", valuePath, index)
+		var route rawPublicServiceRouteV2
+		if err := decodeStrict(value, &route); err != nil {
+			return wrap(ErrInvalidPlan, path, "decode public service route v2", err)
+		}
+		for _, field := range []struct{ name, value string }{
+			{"id", route.ID}, {"serviceRef", route.ServiceRef}, {"moduleRef", route.ModuleRef},
+			{"originSiteRef", route.OriginSiteRef}, {"backendPoolRef", route.BackendPoolRef}, {"healthGateRef", route.HealthGateRef},
+		} {
+			if err := requireContractID(field.value, path+"."+field.name); err != nil {
+				return err
+			}
+		}
+		if _, duplicate := seenRoutes[route.ID]; duplicate {
+			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)
+		}
+		seenRoutes[route.ID] = struct{}{}
+		if route.BackendPool.UpstreamProtocol != route.UpstreamProtocol || route.BackendPool.TargetPort != route.TargetPort {
+			return fail(ErrInvalidPlan, path+".backendPool", "backend protocol and port must exactly match the route upstream")
+		}
+		if len(route.BackendPool.Members) == 0 {
+			return fail(ErrInvalidPlan, path+".backendPool.members", "at least one exact backend member is required")
+		}
+		nodes, err := uniqueContractIDSet(route.OriginNodeRefs, path+".originNodeRefs")
+		if err != nil || len(nodes) == 0 {
+			return fail(ErrInvalidPlan, path+".originNodeRefs", "at least one unique origin node is required")
+		}
+		seenInstances := make(map[string]struct{}, len(route.BackendPool.Members))
+		for memberIndex, member := range route.BackendPool.Members {
+			memberPath := fmt.Sprintf("%s.backendPool.members[%d]", path, memberIndex)
+			for _, field := range []struct{ name, value string }{{"siteRef", member.SiteRef}, {"nodeRef", member.NodeRef}, {"instanceRef", member.InstanceRef}} {
+				if err := requireContractID(field.value, memberPath+"."+field.name); err != nil {
+					return err
+				}
+			}
+			if member.SiteRef != route.OriginSiteRef {
+				return fail(ErrInvalidPlan, memberPath+".siteRef", "backend member is outside the route origin site")
+			}
+			if _, exists := nodes[member.NodeRef]; !exists {
+				return fail(ErrInvalidPlan, memberPath+".nodeRef", "backend member is outside the route origin nodes")
+			}
+			if _, duplicate := seenInstances[member.InstanceRef]; duplicate {
+				return fail(ErrDuplicate, memberPath+".instanceRef", "duplicate backend instance")
+			}
+			seenInstances[member.InstanceRef] = struct{}{}
+		}
+	}
+	return nil
 }
 
 func validateRenderUnitImplementation(unit rawRenderUnit, unitPath string) ([]byte, []byte, []byte, rawRenderUnitPlacement, error) {
@@ -2313,7 +2706,9 @@ func validateRenderUnitPlanInputs(unit rawRenderUnit, unitPath string) ([]string
 var allowedRendererPlanInputRefs = map[string]struct{}{
 	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
 	"bridge": {}, "identity": {}, "data": {}, "failurePolicy": {},
-	"localReachability": {}, "identityTrust": {},
+	"localReachability": {}, "identityTrust": {}, "homeLANDiscovery": {},
+	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
+	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicTLS": {},
 }
 
 func requireCompleteSecretRefs(refs map[string]json.RawMessage, declared map[string]struct{}, valuePath string) error {

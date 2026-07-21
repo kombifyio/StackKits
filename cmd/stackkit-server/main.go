@@ -32,8 +32,12 @@ import (
 	"github.com/kombifyio/stackkits/internal/telemetry"
 )
 
-// Version is set at build time via ldflags.
-var Version = "dev"
+// Build identity is set at build time via ldflags.
+var (
+	Version   = "dev"
+	GitCommit = "unknown"
+	BuildDate = "unknown"
+)
 
 const apiWriteTimeout = 14*time.Minute + 30*time.Second
 
@@ -163,6 +167,7 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		Port:                          port,
 		BaseDir:                       dir,
 		Version:                       Version,
+		GitCommit:                     GitCommit,
 		APIKey:                        key,
 		CORSOrigins:                   origins,
 		RateLimit:                     rl,

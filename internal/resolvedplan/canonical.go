@@ -17,21 +17,22 @@ const redactedValue = "<redacted>"
 var (
 	secretRefPattern       = regexp.MustCompile(`^(secret|vault|doppler|techstack)://.+$`)
 	canonicalSHA256Pattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	compactKeyReplacer     = strings.NewReplacer("_", "", "-", "")
 	setSemanticKeys        = map[string]struct{}{
 		"access": {}, "actionAllowlist": {}, "addons": {}, "allowedAuthorityKinds": {},
 		"allowedExposures": {}, "allowedFlows": {}, "allowedMethods": {}, "allowedModes": {}, "allowedOriginKinds": {}, "allowedSiteKinds": {},
 		"allowedStrategies": {}, "allowedTargets": {}, "artifactRefs": {}, "artifacts": {},
-		"authorityKinds": {}, "blockers": {}, "capabilities": {}, "compatibleRendererRefs": {}, "conflicts": {}, "dataClasses": {},
-		"defaults": {}, "defaultForSiteKinds": {}, "disable": {}, "edgeKinds": {},
+		"authorityKinds": {}, "blockers": {}, "capabilities": {}, "compatibleRendererRefs": {}, "components": {}, "conflicts": {}, "dataClasses": {},
+		"backendPools": {}, "defaults": {}, "defaultForSiteKinds": {}, "disable": {}, "edgeKinds": {},
 		"enable": {}, "evidence": {}, "evidenceGateRefs": {}, "evidenceScenarios": {},
 		"daemonBindings": {}, "providesInterfaces": {}, "requiresInterfaces": {}, "providerBindings": {}, "privilegedInterfaceApprovals": {}, "scopes": {},
 		"expectedStatuses": {}, "forbidden": {}, "health": {}, "healthGateRefs": {},
-		"members": {}, "methods": {}, "moduleRefs": {}, "modules": {}, "networkFlows": {},
+		"dependsOn": {}, "members": {}, "methods": {}, "moduleRefs": {}, "modules": {}, "networkFlows": {}, "networkRefs": {},
 		"nodeRefs": {}, "nodes": {}, "optional": {}, "outputBindings": {}, "outputs": {}, "peerSiteRefs": {},
 		"placement": {}, "privileges": {}, "providers": {}, "provides": {}, "publications": {},
-		"refs": {}, "required": {}, "requiredCapabilities": {}, "requiredRefs": {}, "requiredSiteKinds": {}, "requires": {}, "roles": {}, "routes": {},
-		"planInputRefs": {}, "publicInputRefs": {}, "renderUnits": {}, "secretInputRefs": {}, "secretInputs": {}, "secretRefs": {}, "serviceEndpoints": {}, "siteRefs": {}, "sites": {}, "sourceKinds": {},
-		"supportedKits": {}, "supportedSiteKinds": {}, "warnings": {},
+		"refs": {}, "required": {}, "requiredCapabilities": {}, "requiredRealizations": {}, "requiredRefs": {}, "requiredSiteKinds": {}, "requires": {}, "roles": {}, "routes": {},
+		"inputBindings": {}, "planInputRefs": {}, "publicInputRefs": {}, "renderUnits": {}, "secretInputRefs": {}, "secretInputs": {}, "secretRefs": {}, "serviceEndpoints": {}, "siteRefs": {}, "sites": {}, "sourceKinds": {},
+		"supportedKits": {}, "supportedSiteKinds": {}, "volumes": {}, "warnings": {},
 	}
 )
 
@@ -57,6 +58,12 @@ func canonicalJSON(value any, redactSecrets bool) ([]byte, error) {
 func normalizeJSON(value any, redactSecrets bool, key string) (any, error) {
 	if redactSecrets && isSecretReferenceContainerKey(key) {
 		return normalizeSecretReferenceContainer(value)
+	}
+	if redactSecrets && isSecretDeclarationKey(key) {
+		// Declaration containers carry slot/source identity, not credential
+		// material. Preserve their complete structure in the contract hash even
+		// when a target key such as DB_PASSWORD is intentionally secret-shaped.
+		return normalizeJSON(value, false, key)
 	}
 	if redactSecrets && isSecretKey(key) && !isSecretDeclarationKey(key) && !isNonSecretPolicyMetadataKey(key) {
 		return normalizeSecretValue(value)
@@ -128,14 +135,14 @@ func isSecretKey(key string) bool {
 }
 
 func compactKey(key string) string {
-	return strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(key))
+	return compactKeyReplacer.Replace(strings.ToLower(key))
 }
 
-// secretInputs and secretInputRefs contain governed input identifiers, not
-// secret material.
+// Secret input declarations and component secretEnvironment maps contain
+// governed slot/source identifiers, not secret material.
 func isSecretDeclarationKey(key string) bool {
 	switch compactKey(key) {
-	case "secretinputs", "secretinputrefs":
+	case "secretinputs", "secretinputrefs", "secretinputbindings", "secretenvironment":
 		return true
 	default:
 		return false

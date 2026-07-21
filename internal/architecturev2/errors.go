@@ -20,9 +20,11 @@ const (
 	ErrAuthorityLoad           ErrorCode = "authority_load"
 	ErrResolveFailed           ErrorCode = "resolve_failed"
 	ErrGenerationAuthorization ErrorCode = "generation_authorization_failed"
+	ErrApplyAuthorization      ErrorCode = "apply_authorization_failed"
 	ErrRequestTooLarge         ErrorCode = "request_too_large"
 	ErrUnsupportedMedia        ErrorCode = "unsupported_media_type"
 	ErrResolveBusy             ErrorCode = "resolve_busy"
+	ErrOperationalUnavailable  ErrorCode = "operational_surface_unavailable"
 )
 
 // ResolveError preserves the underlying diagnostic and, for v1 input, the

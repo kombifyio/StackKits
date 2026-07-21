@@ -20,6 +20,10 @@ type profileView struct {
 	defaultCapabilities     []string
 	optionalCapabilities    []string
 	forbiddenCapabilities   []string
+	requiredWorkloads       []string
+	defaultWorkloads        []string
+	optionalWorkloads       []string
+	forbiddenWorkloads      []string
 	bridgeRequired          bool
 	bridgeEdgeKinds         []string
 	deviceRequired          bool
@@ -42,8 +46,13 @@ type reachabilityView struct {
 
 type routeReachabilityRule struct {
 	allowed              bool
-	requiredCapabilities []string
+	requiredRealizations []routeCapabilityRealizationRequirement
 	allowedOriginKinds   []string
+}
+
+type routeCapabilityRealizationRequirement struct {
+	capabilityRef string
+	role          string
 }
 
 type siteView struct {
@@ -171,6 +180,7 @@ func parseProfile(definition map[string]any) (*profileView, error) {
 	for _, populate := range []func() error{
 		func() error { return populateProfileTopology(profile, contracts) },
 		func() error { return populateProfileCapabilities(profile, contracts.capabilities) },
+		func() error { return populateProfileWorkloads(profile, contracts.workloads) },
 		func() error { return populateProfilePolicies(profile, definition, contracts) },
 	} {
 		if err := populate(); err != nil {
@@ -185,6 +195,7 @@ type profileContracts struct {
 	topology     map[string]any
 	controlPlane map[string]any
 	capabilities map[string]any
+	workloads    map[string]any
 	bridge       map[string]any
 	device       map[string]any
 	dataDefaults map[string]any
@@ -204,6 +215,9 @@ func readProfileContracts(definition map[string]any) (profileContracts, error) {
 		return contracts, err
 	}
 	if contracts.capabilities, err = objectField(definition, "definition", "capabilities"); err != nil {
+		return contracts, err
+	}
+	if contracts.workloads, err = objectField(definition, "definition", "workloads"); err != nil {
 		return contracts, err
 	}
 	if contracts.bridge, err = objectField(definition, "definition", "bridge"); err != nil {
@@ -272,6 +286,21 @@ func populateProfileCapabilities(profile *profileView, capabilities map[string]a
 		return err
 	}
 	profile.forbiddenCapabilities, err = stringListField(capabilities, "definition.capabilities", "forbidden", false)
+	return err
+}
+
+func populateProfileWorkloads(profile *profileView, workloads map[string]any) error {
+	var err error
+	if profile.requiredWorkloads, err = stringListField(workloads, "definition.workloads", "required", false); err != nil {
+		return err
+	}
+	if profile.defaultWorkloads, err = stringListField(workloads, "definition.workloads", "defaults", false); err != nil {
+		return err
+	}
+	if profile.optionalWorkloads, err = stringListField(workloads, "definition.workloads", "optional", false); err != nil {
+		return err
+	}
+	profile.forbiddenWorkloads, err = stringListField(workloads, "definition.workloads", "forbidden", false)
 	return err
 }
 
@@ -352,8 +381,34 @@ func parseReachabilityContract(contract map[string]any) (reachabilityView, error
 		if rule.allowed, err = requiredBoolField(rawRule, path, "allowed"); err != nil {
 			return result, err
 		}
-		if rule.requiredCapabilities, err = stringListField(rawRule, path, "requiredCapabilities", true); err != nil {
+		rawRequirements, err := objectListField(rawRule, path, "requiredRealizations")
+		if err != nil {
 			return result, err
+		}
+		seenCapabilities := map[string]struct{}{}
+		seenRoles := map[string]struct{}{}
+		for index, rawRequirement := range rawRequirements {
+			requirementPath := fmt.Sprintf("%s.requiredRealizations[%d]", path, index)
+			capabilityRef, err := stringField(rawRequirement, requirementPath, "capabilityRef")
+			if err != nil {
+				return result, err
+			}
+			role, err := stringField(rawRequirement, requirementPath, "role")
+			if err != nil {
+				return result, err
+			}
+			if !contains([]string{"access", "transport", "edge", "egress"}, role) {
+				return result, fail(ErrInvalidInput, requirementPath+".role", "unsupported route realization role %q", role)
+			}
+			if _, duplicate := seenCapabilities[capabilityRef]; duplicate {
+				return result, fail(ErrInvalidInput, requirementPath+".capabilityRef", "route capability realization %q is duplicated", capabilityRef)
+			}
+			if _, duplicate := seenRoles[role]; duplicate {
+				return result, fail(ErrInvalidInput, requirementPath+".role", "route realization role %q is duplicated", role)
+			}
+			seenCapabilities[capabilityRef] = struct{}{}
+			seenRoles[role] = struct{}{}
+			rule.requiredRealizations = append(rule.requiredRealizations, routeCapabilityRealizationRequirement{capabilityRef: capabilityRef, role: role})
 		}
 		if rule.allowedOriginKinds, err = stringListField(rawRule, path, "allowedOriginKinds", true); err != nil {
 			return result, err
@@ -361,7 +416,13 @@ func parseReachabilityContract(contract map[string]any) (reachabilityView, error
 		if rule.allowed && len(rule.allowedOriginKinds) == 0 {
 			return result, fail(ErrInvalidInput, path+".allowedOriginKinds", "an allowed route exposure requires at least one origin kind")
 		}
-		if !rule.allowed && (len(rule.requiredCapabilities) != 0 || len(rule.allowedOriginKinds) != 0) {
+		if exposure == "local" && len(rule.requiredRealizations) != 0 {
+			return result, fail(ErrInvalidInput, path+".requiredRealizations", "local routes cannot declare capability realizations")
+		}
+		if exposure != "local" && rule.allowed && len(rule.requiredRealizations) == 0 {
+			return result, fail(ErrInvalidInput, path+".requiredRealizations", "non-local routes require at least one capability realization")
+		}
+		if !rule.allowed && (len(rule.requiredRealizations) != 0 || len(rule.allowedOriginKinds) != 0) {
 			return result, fail(ErrInvalidInput, path, "a denied route exposure cannot declare capabilities or origin kinds")
 		}
 		result.routes[exposure] = rule

@@ -12,6 +12,7 @@ import (
 	cueapi "cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
+	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 	"cuelang.org/go/cue/parser"
 )
@@ -174,6 +175,14 @@ func (v *CUEContractValidator) normalizeBinding(definition KitDefinition, spec S
 	return normalizedDefinition, normalizedSpec, nil
 }
 
+// NormalizeStackSpecBinding validates desired intent against the canonical
+// StackSpec contract and the selected Kit Definition without inventing host
+// inventory or compiling a target-specific ResolvedPlan.
+func (v *CUEContractValidator) NormalizeStackSpecBinding(definition KitDefinition, spec StackSpecV2) (StackSpecV2, error) {
+	_, normalized, err := v.normalizeBinding(definition, spec)
+	return normalized, err
+}
+
 func (v *CUEContractValidator) normalizeDefinition(definition KitDefinition) (KitDefinition, error) {
 	definitionJSON, err := json.Marshal(definition)
 	if err != nil {
@@ -235,6 +244,9 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	if catalog.Modules == nil {
 		catalog.Modules = []ModuleContract{}
 	}
+	if catalog.Workloads == nil {
+		catalog.Workloads = []WorkloadContract{}
+	}
 	if catalog.PrivilegedInterfaceApprovals == nil {
 		catalog.PrivilegedInterfaceApprovals = []PrivilegedInterfaceApproval{}
 	}
@@ -243,6 +255,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 		"providers":                    catalog.Providers,
 		"addons":                       catalog.AddOns,
 		"modules":                      catalog.Modules,
+		"workloads":                    catalog.Workloads,
 		"privilegedInterfaceApprovals": catalog.PrivilegedInterfaceApprovals,
 	}
 	// A nil slice means the caller did not provide an authority value. Let CUE
@@ -270,6 +283,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 		Providers                    []CapabilityProvider          `json:"providers"`
 		AddOns                       []AddOnContract               `json:"addons"`
 		Modules                      []ModuleContract              `json:"modules"`
+		Workloads                    []WorkloadContract            `json:"workloads"`
 		PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
 		PlanArtifacts                []PlanArtifactContract        `json:"planArtifacts"`
 	}
@@ -280,6 +294,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	normalized.Providers = wire.Providers
 	normalized.AddOns = wire.AddOns
 	normalized.Modules = wire.Modules
+	normalized.Workloads = wire.Workloads
 	normalized.PrivilegedInterfaceApprovals = wire.PrivilegedInterfaceApprovals
 	normalized.PlanArtifacts = wire.PlanArtifacts
 	return normalized, nil
@@ -419,6 +434,10 @@ func (v *CUEContractValidator) normalizeExpression(label, expression string) (cu
 	// including the regular projections of package-hidden cross-graph proofs.
 	// A concrete public projection alone is insufficient for those envelopes.
 	if err := root.Validate(cueapi.Concrete(true), cueapi.All()); err != nil {
+		details := strings.TrimSpace(cueerrors.Details(err, nil))
+		if details != "" && details != err.Error() {
+			return cueapi.Value{}, fmt.Errorf("%s: %w", details, err)
+		}
 		return cueapi.Value{}, err
 	}
 	value := root.LookupPath(cueapi.ParsePath("value"))

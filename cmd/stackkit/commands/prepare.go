@@ -76,6 +76,9 @@ func init() {
 func runPrepare(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
 	wd := getWorkDir()
+	if err := requireNativeV2StackSpec(wd, specFile, architectureV2Prepare); err != nil {
+		return err
+	}
 	isRemote := prepareHost != "localhost" && prepareHost != ""
 	rolloutEvent("prepare", "started", "prepare started", map[string]string{
 		"host": prepareHost,
@@ -104,10 +107,13 @@ func runPrepare(cmd *cobra.Command, args []string) (retErr error) {
 	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{
 		"spec_file": specFile,
 	})
-	spec, err := loader.LoadStackSpec(specFile)
-	if err != nil && !os.IsNotExist(err) {
-		rolloutFailure("spec.load", err)
-		printWarning("Could not load spec file: %v", err)
+	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Prepare)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			rolloutFailure("spec.load", err)
+			return fmt.Errorf("load stack spec before host preparation: %w", err)
+		}
+		spec = nil
 	}
 	if spec != nil {
 		rolloutEvent("spec.load", "succeeded", "stack spec loaded", map[string]string{
@@ -541,6 +547,9 @@ func cloneRolloutAttributes(attrs map[string]string) map[string]string {
 // promptForNativeMode asks the user whether to switch to native (bare-metal) mode
 // when the host does not expose the kernel capabilities Docker needs.
 func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType string) error {
+	if spec == nil {
+		return fmt.Errorf("native runtime selection requires a StackSpec; run stackkit init first or supply --spec")
+	}
 	if prepareNonInteractive || !isTerminal() {
 		return fmt.Errorf("docker prerequisites are unavailable with virtualization %s and prepare is non-interactive; use a host with namespaces, cgroups, storage, and networking support or configure native runtime explicitly", virtType)
 	}
@@ -576,8 +585,8 @@ func promptForNativeMode(spec *models.StackSpec, loader *config.Loader, virtType
 	if !filepath.IsAbs(specPath) {
 		specPath = filepath.Join(wd, specPath)
 	}
-	if err := loader.SaveStackSpec(spec, specPath); err != nil {
-		printWarning("Could not save runtime to spec: %v", err)
+	if err := persistLegacyV06StackSpec(loader, spec, specPath, "prepare native runtime choice"); err != nil {
+		return fmt.Errorf("persist operator-approved native runtime choice: %w", err)
 	}
 
 	printSuccess("Switching to native mode")
@@ -917,8 +926,8 @@ func saveSpec(spec *models.StackSpec, loader *config.Loader) {
 	if !filepath.IsAbs(specPath) {
 		specPath = filepath.Join(wd, specPath)
 	}
-	if err := loader.SaveStackSpec(spec, specPath); err != nil {
-		printWarning("Could not save spec: %v", err)
+	if err := persistLegacyV06StackSpec(loader, spec, specPath, "prepare detected compute tier"); err != nil {
+		printWarning("Could not persist v0.6 detected compute tier: %v", err)
 	}
 }
 

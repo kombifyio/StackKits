@@ -269,6 +269,9 @@ func ValidateHostConformanceReceiptsForApply(plan ResolvedPlan, at time.Time) er
 	if err := ValidateExternalHostBindingsFreshness(plan, at); err != nil {
 		return err
 	}
+	if err := ValidateExternalHomeAccessBindingsFreshness(plan, at); err != nil {
+		return err
+	}
 	planObject := map[string]any(plan)
 	bindings, err := objectField(planObject, "resolvedPlan", "externalHostBindings")
 	if err != nil {
@@ -699,8 +702,8 @@ func externalHostTimestamp(object map[string]any, path, field string) (time.Time
 		return time.Time{}, err
 	}
 	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return time.Time{}, fail(ErrContractConflict, path+"."+field, "must be an RFC3339 timestamp: %v", err)
+	if err != nil || parsed.Location() != time.UTC || parsed.Format(time.RFC3339Nano) != value {
+		return time.Time{}, fail(ErrContractConflict, path+"."+field, "must be a canonical RFC3339Nano UTC timestamp")
 	}
 	return parsed, nil
 }

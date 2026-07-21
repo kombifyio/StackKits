@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -11,9 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/logging"
+	"github.com/kombifyio/stackkits/internal/stackspecadmission"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/verify"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
@@ -30,8 +34,17 @@ type managementVerifyRequest struct {
 	Strict bool `json:"strict"`
 }
 
+type managementSpecSummary struct {
+	SourceVersion   stackspecmigration.SourceVersion
+	StackKit        string
+	Mode            string
+	Domain          string
+	SpecHash        string
+	ValidationScope string
+}
+
 func (s *Server) handleManagementStatus(w http.ResponseWriter, r *http.Request) {
-	spec, specPath, specErr := s.loadWorkspaceSpec()
+	spec, specPath, specErr := s.loadWorkspaceSpecSummary()
 	state, statePath, stateErr := s.loadWorkspaceState()
 	latestRunID := ""
 	if s.logDir() != "" {
@@ -41,7 +54,7 @@ func (s *Server) handleManagementStatus(w http.ResponseWriter, r *http.Request) 
 	}
 
 	data := map[string]any{
-		"status":         "ok",
+		"status":         "not_ready",
 		"baseDir":        s.config.BaseDir,
 		"specPath":       specPath,
 		"specLoaded":     specErr == nil && spec != nil,
@@ -54,13 +67,37 @@ func (s *Server) handleManagementStatus(w http.ResponseWriter, r *http.Request) 
 	}
 	if spec != nil {
 		data["stackkit"] = spec.StackKit
-		data["mode"] = spec.Mode
-		data["domain"] = spec.Domain
+		data["sourceVersion"] = spec.SourceVersion
+		data["validationScope"] = spec.ValidationScope
+		if spec.SpecHash != "" {
+			data["specHash"] = spec.SpecHash
+		}
+		if spec.SourceVersion == stackspecmigration.SourceVersionV2Alpha1 {
+			data["status"] = "intent_valid"
+			data["operational"] = false
+			data["readiness"] = "resolve-required"
+			data["stateAuthority"] = "resolved-plan-and-execution-evidence"
+		} else {
+			data["status"] = "ok"
+			data["operational"] = true
+			data["mode"] = spec.Mode
+			data["domain"] = spec.Domain
+		}
 	}
 	if specErr != nil {
 		data["specError"] = specErr.Error()
+		var resolveErr *architecturev2.ResolveError
+		if errors.As(specErr, &resolveErr) {
+			data["status"] = resolveErr.Code
+			data["operational"] = false
+			if resolveErr.Report != nil {
+				data["migrationReport"] = resolveErr.Report
+			}
+		} else {
+			data["status"] = "error"
+		}
 	}
-	if state != nil {
+	if state != nil && spec != nil && spec.SourceVersion == stackspecmigration.SourceVersionV1 {
 		data["deploymentStatus"] = state.Status
 		data["lastApplied"] = state.LastApplied
 	}
@@ -71,6 +108,9 @@ func (s *Server) handleManagementStatus(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleManagementVerify(w http.ResponseWriter, r *http.Request) {
+	if s.rejectNativeManagementWithoutPlan(w) {
+		return
+	}
 	var req managementVerifyRequest
 	if r.Body != nil {
 		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
@@ -87,7 +127,16 @@ func (s *Server) handleManagementVerify(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	spec, _, _ := s.loadWorkspaceSpec()
+	spec, _, specErr := s.loadWorkspaceSpec()
+	if specErr != nil {
+		var resolveErr *architecturev2.ResolveError
+		if errors.As(specErr, &resolveErr) {
+			writeMappedArchitectureV2ResolveError(w, specErr)
+		} else {
+			writeError(w, r, http.StatusBadRequest, specErr.Error())
+		}
+		return
+	}
 	state, _, _ := s.loadWorkspaceState()
 	access := s.loadVerifyAccessSummary()
 	report := verify.RunLocal(context.Background(), verify.Input{
@@ -105,6 +154,9 @@ func (s *Server) handleManagementVerify(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleManagementDoctor(w http.ResponseWriter, r *http.Request) {
+	if s.rejectNativeManagementWithoutPlan(w) {
+		return
+	}
 	spec, specPath, specErr := s.loadWorkspaceSpec()
 	state, statePath, stateErr := s.loadWorkspaceState()
 	checks := []managementCheck{}
@@ -163,6 +215,9 @@ func (s *Server) handleManagementDoctor(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleManagementPlan(w http.ResponseWriter, r *http.Request) {
+	if s.rejectNativeManagementWithoutPlan(w) {
+		return
+	}
 	spec, specPath, specErr := s.loadWorkspaceSpec()
 	deployDir := filepath.Join(s.config.BaseDir, config.GetDeployDir())
 	tfFiles := listTerraformFiles(deployDir)
@@ -194,6 +249,60 @@ func (s *Server) handleManagementPlan(w http.ResponseWriter, r *http.Request) {
 		data["status"] = "ready"
 	}
 	writeSuccess(w, r, http.StatusOK, data)
+}
+
+func (s *Server) rejectNativeManagementWithoutPlan(w http.ResponseWriter) bool {
+	if !stackspecadmission.RejectOperationalV1(s.config.Version) {
+		return false
+	}
+	writeArchitectureV2ResolveError(w, http.StatusNotImplemented, &architecturev2.ResolveError{
+		Code:    architecturev2.ErrOperationalUnavailable,
+		Message: "native Architecture v2 management requires an exact verified ResolvedPlan and execution evidence; the legacy node-local management reader is retired",
+	})
+	return true
+}
+
+func (s *Server) loadWorkspaceSpecSummary() (*managementSpecSummary, string, error) {
+	loader := config.NewLoader(s.config.BaseDir)
+	path := config.GetDefaultSpecPath()
+	specPath := filepath.Join(s.config.BaseDir, path)
+	loaded, err := loader.ReadStackSpecDocument(path)
+	if err != nil {
+		return nil, specPath, err
+	}
+	if loaded.Document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+		service, serviceErr := s.architectureV2ResolveService()
+		if serviceErr != nil {
+			return nil, specPath, serviceErr
+		}
+		validation, validationErr := service.ValidateStackSpec(loaded.Document.Raw)
+		if validationErr != nil {
+			return nil, specPath, validationErr
+		}
+		return &managementSpecSummary{
+			SourceVersion: loaded.Document.Version, StackKit: string(validation.KitProfile),
+			SpecHash: validation.SpecHash, ValidationScope: "spec-only",
+		}, specPath, nil
+	}
+	if stackspecadmission.RejectOperationalV1(s.config.Version) {
+		service, serviceErr := s.architectureV2ResolveService()
+		if serviceErr != nil {
+			return nil, specPath, serviceErr
+		}
+		_, resolveErr := service.Resolve(architecturev2.ResolveInput{StackSpec: loaded.Document.Raw})
+		if resolveErr == nil {
+			resolveErr = &architecturev2.ResolveError{Code: architecturev2.ErrResolveFailed, Message: "StackSpec v1 unexpectedly entered the Architecture v2 resolver"}
+		}
+		return nil, specPath, resolveErr
+	}
+	legacy, err := loader.LoadLegacyStackSpec(path)
+	if err != nil {
+		return nil, specPath, err
+	}
+	return &managementSpecSummary{
+		SourceVersion: loaded.Document.Version, StackKit: legacy.StackKit, Mode: legacy.Mode,
+		Domain: legacy.Domain, ValidationScope: "legacy-operational",
+	}, specPath, nil
 }
 
 func (s *Server) handleRunEvidence(w http.ResponseWriter, r *http.Request) {
@@ -244,11 +353,29 @@ func (s *Server) loadWorkspaceSpec() (*models.StackSpec, string, error) {
 	loader := config.NewLoader(s.config.BaseDir)
 	path := config.GetDefaultSpecPath()
 	specPath := filepath.Join(s.config.BaseDir, path)
-	spec, err := loader.LoadStackSpec(path)
+	loaded, err := loader.ReadStackSpecDocument(path)
 	if err != nil {
 		return nil, specPath, err
 	}
-	return spec, specPath, nil
+	if loaded.Document.Version == stackspecmigration.SourceVersionV1 && stackspecadmission.RejectOperationalV1(s.config.Version) {
+		service, serviceErr := s.architectureV2ResolveService()
+		if serviceErr != nil {
+			return nil, specPath, serviceErr
+		}
+		_, resolveErr := service.Resolve(architecturev2.ResolveInput{StackSpec: loaded.Document.Raw})
+		if resolveErr == nil {
+			resolveErr = &architecturev2.ResolveError{Code: architecturev2.ErrResolveFailed, Message: "StackSpec v1 unexpectedly entered the Architecture v2 resolver"}
+		}
+		return nil, specPath, resolveErr
+	}
+	if loaded.Document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+		return nil, specPath, &architecturev2.ResolveError{
+			Code:    architecturev2.ErrInvalidStackSpec,
+			Message: "canonical StackSpec v2 requires the governed Architecture v2 management path; refusing the legacy workspace reader",
+		}
+	}
+	spec, err := loader.LoadLegacyStackSpec(path)
+	return spec, specPath, err
 }
 
 func (s *Server) loadWorkspaceState() (*models.DeploymentState, string, error) {

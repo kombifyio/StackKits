@@ -312,13 +312,12 @@ func validateIdentityTrustGraph(validated *validatedIdentityTrust, path string) 
 	if graph.Authorities == nil || graph.CredentialIssuers == nil || graph.VerifierPlacements == nil || graph.VerifierDistributions == nil {
 		return fail(ErrInvalidPlan, path, "all identity-trust graph arrays are required, even when empty")
 	}
-	previous := ""
+	seenIDs := map[string]struct{}{}
 	for index, authority := range graph.Authorities {
 		authorityPath := fmt.Sprintf("%s.authorities[%d]", path, index)
-		if err := requireSortedIdentityID(authority.ID, previous, authorityPath+".id"); err != nil {
+		if err := requireUniqueIdentityID(authority.ID, seenIDs, authorityPath+".id"); err != nil {
 			return err
 		}
-		previous = authority.ID
 		if !validIdentityPrincipal(authority.Principal) {
 			return fail(ErrInvalidPlan, authorityPath+".principal", "must be human, device, or workload")
 		}
@@ -333,13 +332,12 @@ func validateIdentityTrustGraph(validated *validatedIdentityTrust, path string) 
 		}
 		validated.authorities[authority.ID] = authority
 	}
-	previous = ""
+	seenIDs = map[string]struct{}{}
 	for index, issuer := range graph.CredentialIssuers {
 		issuerPath := fmt.Sprintf("%s.credentialIssuers[%d]", path, index)
-		if err := requireSortedIdentityID(issuer.ID, previous, issuerPath+".id"); err != nil {
+		if err := requireUniqueIdentityID(issuer.ID, seenIDs, issuerPath+".id"); err != nil {
 			return err
 		}
-		previous = issuer.ID
 		authority, exists := validated.authorities[issuer.AuthorityRef]
 		if !exists || issuer.Principal != authority.Principal || !sameIdentityTrustPlacement(issuer.Placement, authority.Placement) || !sameIdentityTrustOwner(issuer.Owner, authority.Owner) {
 			return fail(ErrInvalidPlan, issuerPath, "credential issuer must exactly bind its authority principal, placement, and owner")
@@ -375,13 +373,12 @@ func validateIdentityTrustGraph(validated *validatedIdentityTrust, path string) 
 		validated.issuers[issuer.ID] = issuer
 		validated.issuersByURN[issuer.Issuer] = issuer
 	}
-	previous = ""
+	seenIDs = map[string]struct{}{}
 	for index, verifier := range graph.VerifierPlacements {
 		verifierPath := fmt.Sprintf("%s.verifierPlacements[%d]", path, index)
-		if err := requireSortedIdentityID(verifier.ID, previous, verifierPath+".id"); err != nil {
+		if err := requireUniqueIdentityID(verifier.ID, seenIDs, verifierPath+".id"); err != nil {
 			return err
 		}
-		previous = verifier.ID
 		issuer, exists := validated.issuers[verifier.CredentialIssuerRef]
 		if !exists || verifier.Issuer != issuer.Issuer || verifier.Principal != issuer.Principal || verifier.VerificationKeySetRef != issuer.VerificationKeySetRef ||
 			!exactStringList(verifier.Audiences, issuer.Audiences) || verifier.ProofOfPossessionRequired != issuer.ProofOfPossessionRequired {
@@ -407,13 +404,12 @@ func validateIdentityTrustGraph(validated *validatedIdentityTrust, path string) 
 		}
 		validated.verifiers[verifier.ID] = verifier
 	}
-	previous = ""
+	seenIDs = map[string]struct{}{}
 	for index, distribution := range graph.VerifierDistributions {
 		distributionPath := fmt.Sprintf("%s.verifierDistributions[%d]", path, index)
-		if err := requireSortedIdentityID(distribution.ID, previous, distributionPath+".id"); err != nil {
+		if err := requireUniqueIdentityID(distribution.ID, seenIDs, distributionPath+".id"); err != nil {
 			return err
 		}
-		previous = distribution.ID
 		issuer, exists := validated.issuers[distribution.CredentialIssuerRef]
 		if !exists || distribution.Issuer != issuer.Issuer {
 			return fail(ErrInvalidPlan, distributionPath+".credentialIssuerRef", "distribution must bind an exact credential issuer ID and resolved issuer URN")
@@ -524,19 +520,40 @@ func validateCloudIdentityTrustPlanInputs(raw []byte, path string) ([]string, er
 	}
 	for index, authority := range validated.inputs.IdentityTrust.Authorities {
 		authorityPath := fmt.Sprintf("%s.identityTrust.authorities[%d]", path, index)
-		if authority.Placement.Kind != "external" || authority.Placement.ContractRef != externalDeviceAuthorityContractRef {
-			return nil, fail(ErrInvalidPlan, authorityPath, "Cloud accepts only the exact external device authority contract")
+		if authority.Principal == "device" {
+			if authority.Placement.Kind != "external" || authority.Placement.ContractRef != externalDeviceAuthorityContractRef {
+				return nil, fail(ErrInvalidPlan, authorityPath, "Cloud device trust requires the exact external device authority contract")
+			}
+			if err := requireExternalAuthorityOwner(authority.Owner, authorityPath+".owner"); err != nil {
+				return nil, err
+			}
+			continue
 		}
-		if err := requireExternalAuthorityOwner(authority.Owner, authorityPath+".owner"); err != nil {
+		if authority.Placement.Kind != "sites" || !allSiteRefsHaveKind(authority.Placement.SiteRefs, validated.siteKinds, "cloud") {
+			return nil, fail(ErrInvalidPlan, authorityPath+".placement", "Cloud human and workload authorities must remain at Cloud Sites")
+		}
+		if err := requireAuthorityCatalogOwner(authority.Owner, cloudIdentityTrustProviderRef, cloudIdentityTrustPolicyModuleID, authorityPath+".owner"); err != nil {
 			return nil, err
 		}
 	}
 	for index, issuer := range validated.inputs.IdentityTrust.CredentialIssuers {
 		issuerPath := fmt.Sprintf("%s.identityTrust.credentialIssuers[%d]", path, index)
-		if issuer.IssuanceWithinStackKit || issuer.Placement.Kind != "external" || issuer.Placement.ContractRef != externalDeviceAuthorityContractRef || issuer.Enrollment.Mode != "none" || issuer.Enrollment.Exposure != "none" {
-			return nil, fail(ErrInvalidPlan, issuerPath, "Cloud verifier policy cannot claim external credential issuance or enrollment")
+		if issuer.Enrollment.Mode != "none" || issuer.Enrollment.Exposure != "none" {
+			return nil, fail(ErrInvalidPlan, issuerPath+".enrollment", "Cloud identity trust cannot claim device enrollment")
 		}
-		if err := requireExternalAuthorityOwner(issuer.Owner, issuerPath+".owner"); err != nil {
+		if issuer.Principal == "device" {
+			if issuer.IssuanceWithinStackKit || issuer.Placement.Kind != "external" || issuer.Placement.ContractRef != externalDeviceAuthorityContractRef {
+				return nil, fail(ErrInvalidPlan, issuerPath, "Cloud cannot claim external device credential issuance")
+			}
+			if err := requireExternalAuthorityOwner(issuer.Owner, issuerPath+".owner"); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if !issuer.IssuanceWithinStackKit || issuer.Placement.Kind != "sites" || !allSiteRefsHaveKind(issuer.Placement.SiteRefs, validated.siteKinds, "cloud") {
+			return nil, fail(ErrInvalidPlan, issuerPath, "Cloud human and workload issuers must remain StackKit-owned at Cloud Sites")
+		}
+		if err := requireAuthorityCatalogOwner(issuer.Owner, cloudIdentityTrustProviderRef, cloudIdentityTrustPolicyModuleID, issuerPath+".owner"); err != nil {
 			return nil, err
 		}
 	}
@@ -636,13 +653,14 @@ func requireSortedSites(sites []localAutonomySite, path string) error {
 	return nil
 }
 
-func requireSortedIdentityID(value, previous, path string) error {
+func requireUniqueIdentityID(value string, seen map[string]struct{}, path string) error {
 	if err := requireContractID(value, path); err != nil {
 		return err
 	}
-	if previous != "" && value <= previous {
-		return fail(ErrInvalidPlan, path, "records must be unique and sorted by id")
+	if _, duplicate := seen[value]; duplicate {
+		return fail(ErrDuplicate, path, "record id must be unique")
 	}
+	seen[value] = struct{}{}
 	return nil
 }
 

@@ -1,26 +1,25 @@
-# Prompt: Generate And Apply Through SSH
+# Prompt: External Executor Handoff
 
-You are rolling out Basement Kit to a reachable SSH target. Keep the workflow non-interactive and evidence-based.
+Prepare an externally managed host for a governed Architecture v2 rollout. Raw SSH target selection, provider identity, credentials, and transport configuration are not StackSpec intent and must remain owned by the external executor/TechStack boundary.
 
-Collect or confirm:
+Collect or confirm outside StackSpec:
 
-- target host;
-- SSH user;
-- SSH key path;
-- admin email;
-- whether the host is dedicated to StackKits.
+- exact target identity and observed Inventory;
+- executor identity and authorization scope;
+- short-lived transport credentials held only by the executor;
+- candidate StackKits version and Definition digest.
 
-Then run:
+Then run the provider-free StackKits stages in the workspace:
 
 ```bash
-stackkit init basement-kit --non-interactive --admin-email <email>
+stackkit init basement-kit --non-interactive
 stackkit prepare --dry-run
 stackkit validate
-stackkit generate --force
+stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json
+stackkit generate
 stackkit plan
 stackkit apply
-stackkit verify --http --json
+stackkit verify --json
 ```
 
-If remote host preparation fails, stop and report the exact failing command, stderr summary, and likely failure class. Do not bypass host checks by editing generated artifacts.
-
+The external executor may use SSH or another transport to execute an authorized bundle, but must not write those transport facts back into StackSpec. Stop if observed Inventory, ResolvedPlan hashes, generation authorization, or executor receipt do not bind exactly.

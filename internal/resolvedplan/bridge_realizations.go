@@ -10,7 +10,7 @@ import (
 // reconstructed from the selected module service endpoint.
 //
 //nolint:gocyclo // Bridge realization atomically validates and derives every publication boundary before returning a plan.
-func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []string, authoritySiteRef string, nodeSites map[string]string, data, access map[string]any) (map[string]any, error) {
+func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []string, authoritySiteRef string, nodeSites map[string]string, data, access map[string]any, providers []any) (map[string]any, error) {
 	resolved, err := cloneObject(bridge, false)
 	if err != nil {
 		return nil, err
@@ -31,6 +31,12 @@ func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []
 	if err != nil {
 		return nil, err
 	}
+	resolvedOverlay, resolvedControl, err := resolveBridgeCatalogAuthority(bridge, providers)
+	if err != nil {
+		return nil, err
+	}
+	resolved["overlay"] = resolvedOverlay
+	resolved["controlAgent"] = resolvedControl
 	peerSiteRefs, err := stringListField(overlay, "bridge.overlay", "peerSiteRefs", true)
 	if err != nil {
 		return nil, err
@@ -99,6 +105,9 @@ func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []
 		if err != nil {
 			return nil, err
 		}
+		if err := validateServiceEndpointAccess(endpoint, accessDecision, path+".access"); err != nil {
+			return nil, err
+		}
 		authentication, err := stringField(accessDecision, path+".access", "authentication")
 		if err != nil {
 			return nil, err
@@ -137,6 +146,285 @@ func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []
 	}
 	resolved["publications"] = resolvedPublications
 	return resolved, nil
+}
+
+func resolveBridgeCatalogAuthority(bridge map[string]any, providers []any) (map[string]any, map[string]any, error) {
+	overlayIntent, err := objectField(bridge, "bridge", "overlay")
+	if err != nil {
+		return nil, nil, err
+	}
+	controlIntent, err := objectField(bridge, "bridge", "controlAgent")
+	if err != nil {
+		return nil, nil, err
+	}
+	linkProvider, err := selectedBridgeProvider(providers, "inter-site-link")
+	if err != nil {
+		return nil, nil, err
+	}
+	controlProvider, err := selectedBridgeProvider(providers, "outbound-control-agent")
+	if err != nil {
+		return nil, nil, err
+	}
+	overlayRef, err := stringField(overlayIntent, "bridge.overlay", "contractRef")
+	if err != nil {
+		return nil, nil, err
+	}
+	overlayContract, err := providerSubcontract(linkProvider, "overlayContracts", overlayRef, "bridge.overlay.contractRef")
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateBridgeSubcontractOwner(linkProvider, overlayContract, "inter-site-link", "bridge.overlay.contractRef"); err != nil {
+		return nil, nil, err
+	}
+	if err := validateOverlaySecurityContract(overlayContract, "catalog.providers.overlayContracts."+overlayRef); err != nil {
+		return nil, nil, err
+	}
+	trafficMode, err := stringField(overlayIntent, "bridge.overlay", "trafficMode")
+	if err != nil {
+		return nil, nil, err
+	}
+	allowedModes, err := stringListField(overlayContract, "catalog.providers.overlayContracts."+overlayRef, "allowedTrafficModes", true)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !contains(allowedModes, trafficMode) {
+		return nil, nil, fail(ErrProfileMismatch, "bridge.overlay.trafficMode", "overlay contract %q does not allow traffic mode %q", overlayRef, trafficMode)
+	}
+	resolvedOverlay, err := cloneObject(overlayContract, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	delete(resolvedOverlay, "id")
+	delete(resolvedOverlay, "capabilityRef")
+	delete(resolvedOverlay, "allowedTrafficModes")
+	resolvedOverlay["contractRef"] = overlayRef
+	resolvedOverlay["providerRef"] = linkProvider["id"]
+	resolvedOverlay["providerContractHash"] = linkProvider["contractHash"]
+	resolvedOverlay["trafficMode"] = trafficMode
+	peerSiteRefs, err := stringListField(overlayIntent, "bridge.overlay", "peerSiteRefs", true)
+	if err != nil {
+		return nil, nil, err
+	}
+	resolvedOverlay["peerSiteRefs"] = stringSliceAny(peerSiteRefs)
+
+	enabled, err := boolFieldDefault(controlIntent, "bridge.controlAgent", "enabled", false)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !enabled {
+		return nil, nil, fail(ErrProfileMismatch, "bridge.controlAgent.enabled", "Modern federation requires the outbound control agent")
+	}
+	actionRefs, err := stringListField(controlIntent, "bridge.controlAgent", "actionAllowlist", true)
+	if err != nil {
+		return nil, nil, err
+	}
+	resolvedActions := make([]any, 0, len(actionRefs))
+	var controlModuleRef string
+	seenActionRefs := make(map[string]struct{}, len(actionRefs))
+	for index, actionRef := range actionRefs {
+		path := fmt.Sprintf("bridge.controlAgent.actionAllowlist[%d]", index)
+		if _, duplicate := seenActionRefs[actionRef]; duplicate {
+			return nil, nil, fail(ErrContractConflict, path, "duplicate remote action %q", actionRef)
+		}
+		seenActionRefs[actionRef] = struct{}{}
+		action, err := providerSubcontract(controlProvider, "remoteActionContracts", actionRef, path)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := validateBridgeSubcontractOwner(controlProvider, action, "outbound-control-agent", path); err != nil {
+			return nil, nil, err
+		}
+		if err := validateRemoteActionSecurityContract(action, path); err != nil {
+			return nil, nil, err
+		}
+		moduleRef, err := stringField(action, "catalog.providers.remoteActionContracts."+actionRef, "moduleRef")
+		if err != nil {
+			return nil, nil, err
+		}
+		if controlModuleRef == "" {
+			controlModuleRef = moduleRef
+		} else if controlModuleRef != moduleRef {
+			return nil, nil, fail(ErrContractConflict, path, "remote actions span multiple control-agent modules")
+		}
+		projection, err := cloneObject(action, false)
+		if err != nil {
+			return nil, nil, err
+		}
+		projection["contractRef"] = actionRef
+		projection["providerRef"] = controlProvider["id"]
+		projection["providerContractHash"] = controlProvider["contractHash"]
+		resolvedActions = append(resolvedActions, projection)
+	}
+	resolvedControl := map[string]any{
+		"enabled": true, "providerRef": controlProvider["id"], "providerContractHash": controlProvider["contractHash"],
+		"moduleRef": controlModuleRef, "actionAllowlist": stringSliceAny(actionRefs), "actions": resolvedActions,
+	}
+	return resolvedOverlay, resolvedControl, nil
+}
+
+func validateOverlaySecurityContract(contract map[string]any, path string) error {
+	initiation, err := stringField(contract, path, "initiation")
+	if err != nil {
+		return err
+	}
+	outboundEstablished, err := boolFieldDefault(contract, path, "outboundEstablished", false)
+	if err != nil {
+		return err
+	}
+	advertiseDefaultRoute, err := boolFieldDefault(contract, path, "advertiseDefaultRoute", true)
+	if err != nil {
+		return err
+	}
+	advertisePrivateSubnets, err := boolFieldDefault(contract, path, "advertisePrivateSubnets", true)
+	if err != nil {
+		return err
+	}
+	allowBroadRoutes, err := boolFieldDefault(contract, path, "allowBroadRoutes", true)
+	if err != nil {
+		return err
+	}
+	if initiation != "local-outbound" || !outboundEstablished || advertiseDefaultRoute || advertisePrivateSubnets || allowBroadRoutes {
+		return fail(ErrContractConflict, path, "overlay contract must remain outbound-only without default, private-subnet, or broad route advertisement")
+	}
+	return nil
+}
+
+func validateRemoteActionSecurityContract(contract map[string]any, path string) error {
+	transport, err := stringField(contract, path, "transport")
+	if err != nil {
+		return err
+	}
+	if transport != "managed-agent" && transport != "mtls-agent" {
+		return fail(ErrContractConflict, path+".transport", "unsupported remote action transport %q", transport)
+	}
+	if _, err := stringField(contract, path, "audience"); err != nil {
+		return err
+	}
+	if _, err := stringField(contract, path, "issuerRef"); err != nil {
+		return err
+	}
+	ttl, err := intField(contract, path, "maxTTLSeconds")
+	if err != nil {
+		return err
+	}
+	if ttl < 1 || ttl > 300 {
+		return fail(ErrContractConflict, path+".maxTTLSeconds", "remote action TTL must be between 1 and 300 seconds")
+	}
+	for _, field := range []string{"capabilityScopedActions", "requiresSignedActions", "requiresNonce", "requiresIdempotencyKey", "requiresResolvedPlanHash", "replayProtection", "requiresApprovalForDestructive"} {
+		required, err := boolFieldDefault(contract, path, field, false)
+		if err != nil {
+			return err
+		}
+		if !required {
+			return fail(ErrContractConflict, path+"."+field, "remote action security invariant must be enabled")
+		}
+	}
+	destructive, err := boolFieldDefault(contract, path, "destructive", false)
+	if err != nil {
+		return err
+	}
+	approvalRequired, err := boolFieldDefault(contract, path, "approvalReceiptRequired", false)
+	if err != nil {
+		return err
+	}
+	approvalClass, err := stringField(contract, path, "approvalClass")
+	if err != nil {
+		return err
+	}
+	if approvalClass != "none" && approvalClass != "owner-step-up" && approvalClass != "break-glass" {
+		return fail(ErrContractConflict, path+".approvalClass", "unsupported remote action approval class %q", approvalClass)
+	}
+	if (destructive || approvalClass != "none") && !approvalRequired {
+		return fail(ErrContractConflict, path+".approvalReceiptRequired", "destructive remote actions require an approval receipt")
+	}
+	if destructive && approvalClass == "none" {
+		return fail(ErrContractConflict, path+".approvalClass", "destructive remote actions require owner step-up or break-glass approval")
+	}
+	return nil
+}
+
+func selectedBridgeProvider(providers []any, capabilityRef string) (map[string]any, error) {
+	var match map[string]any
+	for index, raw := range providers {
+		provider, err := asObject(raw, fmt.Sprintf("resolvedPlan.providers[%d]", index))
+		if err != nil {
+			return nil, err
+		}
+		provides, err := stringListField(provider, fmt.Sprintf("resolvedPlan.providers[%d]", index), "provides", true)
+		if err != nil {
+			return nil, err
+		}
+		if !contains(provides, capabilityRef) {
+			continue
+		}
+		if match != nil {
+			return nil, fail(ErrContractConflict, "resolvedPlan.providers", "multiple selected providers claim bridge capability %q", capabilityRef)
+		}
+		match = provider
+	}
+	if match == nil {
+		return nil, fail(ErrUnknownProvider, "bridge", "no selected provider owns bridge capability %q", capabilityRef)
+	}
+	return match, nil
+}
+
+func providerSubcontract(provider map[string]any, field, contractRef, path string) (map[string]any, error) {
+	contracts, err := objectListOptional(provider, field)
+	if err != nil {
+		return nil, err
+	}
+	var match map[string]any
+	for index, contract := range contracts {
+		id, err := stringField(contract, fmt.Sprintf("resolvedPlan.providers.%s[%d]", field, index), "id")
+		if err != nil {
+			return nil, err
+		}
+		if id != contractRef {
+			continue
+		}
+		if match != nil {
+			return nil, fail(ErrContractConflict, path, "provider duplicates contract %q", contractRef)
+		}
+		match = contract
+	}
+	if match == nil {
+		return nil, fail(ErrProfileMismatch, path, "selected provider does not own contract %q", contractRef)
+	}
+	return match, nil
+}
+
+func validateBridgeSubcontractOwner(provider, contract map[string]any, capabilityRef, path string) error {
+	contractCapability, err := stringField(contract, path, "capabilityRef")
+	if err != nil {
+		return err
+	}
+	if contractCapability != capabilityRef {
+		return fail(ErrContractConflict, path, "contract capability %q does not match selected authority %q", contractCapability, capabilityRef)
+	}
+	moduleRef, err := stringField(contract, path, "moduleRef")
+	if err != nil {
+		return err
+	}
+	realization, err := objectField(provider, path, "realization")
+	if err != nil {
+		return err
+	}
+	moduleRefs, err := objectField(realization, path+".realization", "moduleRefs")
+	if err != nil {
+		return err
+	}
+	required, err := stringListField(moduleRefs, path+".realization.moduleRefs", "required", false)
+	if err != nil {
+		return err
+	}
+	optional, err := stringListField(moduleRefs, path+".realization.moduleRefs", "optional", false)
+	if err != nil {
+		return err
+	}
+	if !contains(append(required, optional...), moduleRef) {
+		return fail(ErrContractConflict, path, "contract module %q is not owned by the selected provider", moduleRef)
+	}
+	return nil
 }
 
 // validateBridgePolicyFlows keeps every policy-only/private flow inside the
@@ -533,6 +821,10 @@ func validateBridgePublicationProjection(plan ResolvedPlan) error {
 	if err != nil {
 		return err
 	}
+	providers, err := objectListField(map[string]any(plan), "resolvedPlan", "providers")
+	if err != nil {
+		return err
+	}
 	nodeSites, _, _, err := resolvedTopologyIndex(plan)
 	if err != nil {
 		return err
@@ -557,7 +849,7 @@ func validateBridgePublicationProjection(plan ResolvedPlan) error {
 	if err != nil {
 		return err
 	}
-	want, err := resolveBridgePlan(bridge, objectMapsAsAny(modules), selectedSiteRefs, authoritySiteRef, nodeSites, data, access)
+	want, err := resolveBridgePlan(bridge, objectMapsAsAny(modules), selectedSiteRefs, authoritySiteRef, nodeSites, data, access, objectMapsAsAny(providers))
 	if err != nil {
 		return fmt.Errorf("recompute resolvedPlan.bridge publications: %w", err)
 	}

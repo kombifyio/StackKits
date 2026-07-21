@@ -2,6 +2,7 @@ package resolvedplan
 
 import (
 	"fmt"
+	"net/netip"
 	"sort"
 	"strings"
 )
@@ -123,53 +124,61 @@ func buildSystem(spec *specView) (map[string]any, error) {
 	return result, nil
 }
 
-func buildNetwork(profile *profileView, spec *specView, resolved *resolution, modules []any) (map[string]any, error) {
+func buildNetwork(profile *profileView, spec *specView, resolved *resolution, modules []any, providerSites map[string][]string, catalog *indexedCatalog) (map[string]any, []any, error) {
 	configuration, err := cloneObject(spec.network, true)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	serviceEndpoints, err := indexResolvedServiceEndpoints(modules)
 	if err != nil {
-		return nil, fmt.Errorf("index resolved service endpoints: %w", err)
+		return nil, nil, fmt.Errorf("index resolved service endpoints: %w", err)
 	}
-	routes, err := buildRoutes(profile, spec, resolved, serviceEndpoints)
+	if err := bindServiceEndpointHealthContracts(serviceEndpoints, catalog.modules); err != nil {
+		return nil, nil, fmt.Errorf("bind service endpoint health contracts: %w", err)
+	}
+	routes, backendPools, routeHealth, err := buildRoutes(profile, spec, resolved, modules, providerSites, serviceEndpoints, catalog)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return map[string]any{"configuration": configuration, "routes": routes}, nil
+	return map[string]any{"configuration": configuration, "routes": routes, "backendPools": backendPools}, routeHealth, nil
 }
 
-func buildRoutes(profile *profileView, spec *specView, resolved *resolution, serviceEndpoints resolvedServiceEndpointIndex) ([]any, error) {
+func buildRoutes(profile *profileView, spec *specView, resolved *resolution, modules []any, providerSites map[string][]string, serviceEndpoints resolvedServiceEndpointIndex, catalog *indexedCatalog) ([]any, []any, []any, error) {
 	if len(spec.routes) == 0 {
-		return []any{}, nil
+		return []any{}, []any{}, []any{}, nil
 	}
-	result := make([]any, 0, len(spec.routes))
+	routes := make([]any, 0, len(spec.routes))
+	backendPools := make([]any, 0, len(spec.routes))
+	routeHealth := make([]any, 0, len(spec.routes))
 	for _, routeID := range sortedStringMapKeys(spec.routes) {
-		route, err := buildRoute(profile, spec, resolved, serviceEndpoints, routeID)
+		route, backendPool, healthGate, err := buildRoute(profile, spec, resolved, modules, providerSites, serviceEndpoints, catalog, routeID)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
-		result = append(result, route)
+		routes = append(routes, route)
+		backendPools = append(backendPools, backendPool)
+		routeHealth = append(routeHealth, healthGate)
 	}
-	return result, nil
+	return routes, backendPools, routeHealth, nil
 }
 
-func buildRoute(profile *profileView, spec *specView, resolved *resolution, serviceEndpoints resolvedServiceEndpointIndex, routeID string) (map[string]any, error) {
+//nolint:gocyclo // Route lowering validates the complete reachability, endpoint, access, TLS, and backend-pool contract atomically.
+func buildRoute(profile *profileView, spec *specView, resolved *resolution, modules []any, providerSites map[string][]string, serviceEndpoints resolvedServiceEndpointIndex, catalog *indexedCatalog, routeID string) (map[string]any, map[string]any, map[string]any, error) {
 	routePath := "spec.routes." + routeID
 	intent, err := asObject(spec.routes[routeID], routePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	moduleRef, exists, err := optionalStringField(intent, routePath, "moduleRef")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if !exists {
-		return nil, fail(ErrUnresolvedPlacement, routePath+".moduleRef", "route must name a governed resolved module")
+		return nil, nil, nil, fail(ErrUnresolvedPlacement, routePath+".moduleRef", "route must name a governed resolved module")
 	}
 	serviceRef, err := stringField(intent, routePath, "serviceRef")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	nodeSites := make(map[string]string, len(spec.nodeByID))
 	for nodeID, node := range spec.nodeByID {
@@ -177,62 +186,88 @@ func buildRoute(profile *profileView, spec *specView, resolved *resolution, serv
 	}
 	endpoint, err := resolveRouteServiceEndpoint(serviceEndpoints, moduleRef, serviceRef, spec.authoritySiteRef, nodeSites, routePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	exposure, err := stringField(intent, routePath, "exposure")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if err := validateRouteReachability(profile, spec, resolved, routeID, exposure, endpoint.siteRefs[0]); err != nil {
-		return nil, err
+		return nil, nil, nil, err
+	}
+	realizations, err := buildRouteCapabilityRealizations(profile.reachability.routes[exposure].requiredRealizations, resolved, modules, providerSites, nodeSites, catalog, routePath+".capabilityRealizations")
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	protocol, err := stringField(intent, routePath, "protocol")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
+	}
+	if exposure == "public" {
+		host, err := stringField(intent, routePath, "host")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if _, err := netip.ParseAddr(host); err == nil {
+			return nil, nil, nil, fail(ErrProfileMismatch, routePath+".host", "public WebPKI routes require a DNS hostname, not an IP address")
+		}
 	}
 	port, err := intField(intent, routePath, "port")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	targetPort := endpoint.targetPort
 	if rawTarget, hasTarget := intent["targetPort"]; hasTarget {
 		targetPort, err = intField(map[string]any{"value": rawTarget}, routePath, "value")
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	}
 	if err := validateRouteEndpointContract(endpoint, spec, routePath, exposure, protocol, targetPort); err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	policyRef, err := stringField(intent, routePath, "accessPolicyRef")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	policy, exists := spec.access[policyRef]
 	if !exists {
-		return nil, fail(ErrProfileMismatch, routePath+".accessPolicyRef", "access policy %q does not exist", policyRef)
+		return nil, nil, nil, fail(ErrProfileMismatch, routePath+".accessPolicyRef", "access policy %q does not exist", policyRef)
 	}
 	resolvedAccess, err := resolveRouteAccess(routeID, exposure, policyRef, policy)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	resolvedTLS, err := resolveRouteTLS(routeID, protocol, exposure, spec.network)
+	if err := validateServiceEndpointAccess(endpoint, resolvedAccess, routePath+".access"); err != nil {
+		return nil, nil, nil, err
+	}
+	resolvedTLS, err := resolveRouteTLS(routeID, protocol, exposure, spec.network, catalog, resolved.providerByCap, profile.reachability.routes[exposure].requiredRealizations)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
+	}
+	backendPool, err := buildRouteBackendPool(routeID, endpoint)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	healthGate, err := buildRouteHealthGate(routeID, backendPool, endpoint)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	route := map[string]any{
 		"id": routeID, "serviceRef": serviceRef, "moduleRef": moduleRef,
 		"originSiteRef": endpoint.siteRefs[0], "originNodeRefs": stringSliceAny(endpoint.nodeRefs),
 		"exposure": exposure, "protocol": protocol, "upstreamProtocol": endpoint.upstreamProtocol, "port": port, "targetPort": targetPort,
 		"access": resolvedAccess, "tls": resolvedTLS,
-		"healthGateRef": contractID("module-" + endpoint.moduleRef + "-" + endpoint.healthRef),
+		"capabilityRealizations": realizations,
+		"healthGateRef":          healthGate["id"],
+		"backendPoolRef":         backendPool["id"],
 	}
 	for _, optional := range []string{"host", "path"} {
 		if value, present := intent[optional]; present {
 			route[optional] = value
 		}
 	}
-	return route, nil
+	return route, backendPool, healthGate, nil
 }
 
 func validateRouteReachability(profile *profileView, spec *specView, resolved *resolution, routeID, exposure, originSiteRef string) error {
@@ -245,9 +280,9 @@ func validateRouteReachability(profile *profileView, spec *specView, resolved *r
 		return fail(ErrProfileMismatch, path+".exposure", "route exposure %q is denied by the kit reachability contract", exposure)
 	}
 	resolvedCapabilities := stringSet(resolved.capabilityIDs)
-	for _, capability := range rule.requiredCapabilities {
-		if _, enabled := resolvedCapabilities[capability]; !enabled {
-			return fail(ErrProfileMismatch, path+".exposure", "route exposure %q requires resolved capability %q", exposure, capability)
+	for _, requirement := range rule.requiredRealizations {
+		if _, enabled := resolvedCapabilities[requirement.capabilityRef]; !enabled {
+			return fail(ErrProfileMismatch, path+".exposure", "route exposure %q requires resolved capability %q for role %q", exposure, requirement.capabilityRef, requirement.role)
 		}
 	}
 	origin, exists := spec.siteByID[originSiteRef]
@@ -301,7 +336,7 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 	if err != nil {
 		return nil, err
 	}
-	if (privilege == "admin" || privilege == "identity" || privilege == "secrets") &&
+	if isStepUpPrivilege(privilege) &&
 		(authentication != "human+device" || !enrolledDeviceRequired || !ownerStepUpRequired) {
 		return nil, fail(ErrProfileMismatch, referencePath, "privileged access requires human+device, enrolled-device, and owner step-up controls")
 	}
@@ -328,7 +363,16 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 	return resolved, nil
 }
 
-func resolveRouteTLS(routeID, protocol, exposure string, network map[string]any) (map[string]any, error) {
+func isStepUpPrivilege(privilege string) bool {
+	switch privilege {
+	case "admin", "identity", "secrets", "vault", "recovery":
+		return true
+	default:
+		return false
+	}
+}
+
+func resolveRouteTLS(routeID, protocol, exposure string, network map[string]any, catalog *indexedCatalog, capabilityProviders map[string]string, routeRequirements []routeCapabilityRealizationRequirement) (map[string]any, error) {
 	tls, err := objectField(network, "spec.network", "tls")
 	if err != nil {
 		return nil, err
@@ -337,55 +381,163 @@ func resolveRouteTLS(routeID, protocol, exposure string, network map[string]any)
 	if !required {
 		return map[string]any{"required": false, "mode": "off"}, nil
 	}
+	requestedMinimum, err := stringField(tls, "spec.network.tls", "minVersion")
+	if err != nil {
+		return nil, err
+	}
+	if exposure == "public" {
+		egressCapability := ""
+		for _, requirement := range routeRequirements {
+			if requirement.role != "egress" {
+				continue
+			}
+			if egressCapability != "" {
+				return nil, fail(ErrContractConflict, "spec.routes."+routeID+".tls", "public route has multiple egress TLS custody owners")
+			}
+			egressCapability = requirement.capabilityRef
+		}
+		if egressCapability != "" {
+			if _, selected := capabilityProviders[egressCapability]; !selected {
+				return nil, fail(ErrProfileMismatch, "spec.routes."+routeID+".tls", "external TLS custody requires resolved egress capability %q", egressCapability)
+			}
+			return map[string]any{
+				"required": true, "mode": "external", "minVersion": requestedMinimum,
+				"ownerCapabilityRef": egressCapability,
+			}, nil
+		}
+	}
 	defaultMode, err := stringField(tls, "spec.network.tls", "defaultMode")
 	if err != nil {
 		return nil, err
 	}
 	mode := ""
+	requiredCapability := ""
 	switch defaultMode {
 	case "internal":
+		if exposure == "public" {
+			return nil, fail(ErrProfileMismatch, "spec.routes."+routeID+".tls", "public route requires catalog-owned public TLS termination")
+		}
 		mode = "internal"
+		requiredCapability = "internal-pki"
 	case "public":
 		mode = "terminate-at-edge"
+		requiredCapability = "public-tls"
 	default:
 		return nil, fail(ErrProfileMismatch, "spec.routes."+routeID, "TLS-required route cannot use network TLS mode %q", defaultMode)
 	}
-	resolved := map[string]any{"required": true, "mode": mode, "minVersion": tls["minVersion"]}
-	for _, field := range []string{"providerRef", "credentialRefs"} {
-		if value, exists := tls[field]; exists {
-			resolved[field] = value
+	providerID, exists := capabilityProviders[requiredCapability]
+	if !exists {
+		return nil, fail(ErrProfileMismatch, "spec.routes."+routeID+".tls", "TLS mode %q requires resolved capability %q", defaultMode, requiredCapability)
+	}
+	capability := catalog.capabilities[requiredCapability]
+	profile, err := objectField(capability, "catalog.capabilities."+requiredCapability, "tlsProfile")
+	if err != nil {
+		return nil, fail(ErrContractConflict, "catalog.capabilities."+requiredCapability+".tlsProfile", "TLS capability has no governed profile")
+	}
+	profileCapability, err := stringField(profile, "catalog.capabilities."+requiredCapability+".tlsProfile", "capabilityRef")
+	if err != nil || profileCapability != requiredCapability {
+		return nil, fail(ErrContractConflict, "catalog.capabilities."+requiredCapability+".tlsProfile.capabilityRef", "TLS profile does not bind its capability")
+	}
+	profileMode, err := stringField(profile, "catalog.capabilities."+requiredCapability+".tlsProfile", "mode")
+	if err != nil || profileMode != mode {
+		return nil, fail(ErrContractConflict, "catalog.capabilities."+requiredCapability+".tlsProfile.mode", "TLS profile mode does not match resolved route mode %q", mode)
+	}
+	profileMinimum, err := stringField(profile, "catalog.capabilities."+requiredCapability+".tlsProfile", "minimumVersion")
+	if err != nil {
+		return nil, err
+	}
+	if tlsVersionRank(requestedMinimum) < tlsVersionRank(profileMinimum) {
+		return nil, fail(ErrProfileMismatch, "spec.network.tls.minVersion", "requested minimum %q is weaker than governed TLS profile minimum %q", requestedMinimum, profileMinimum)
+	}
+	allowedKinds, err := stringListField(profile, "catalog.capabilities."+requiredCapability+".tlsProfile", "allowedIssuerKinds", true)
+	if err != nil {
+		return nil, err
+	}
+	provider := catalog.providers[providerID]
+	capabilitySiteKinds, err := stringListField(capability, "catalog.capabilities."+requiredCapability, "supportedSiteKinds", true)
+	if err != nil {
+		return nil, err
+	}
+	providerSiteKinds, err := stringListField(provider, "catalog.providers."+providerID, "supportedSiteKinds", true)
+	if err != nil {
+		return nil, err
+	}
+	issuerValues, err := objectListField(provider, "catalog.providers."+providerID, "certificateIssuers")
+	if err != nil {
+		return nil, err
+	}
+	var issuer map[string]any
+	for index, candidate := range issuerValues {
+		candidatePath := fmt.Sprintf("catalog.providers.%s.certificateIssuers[%d]", providerID, index)
+		candidateCapability, candidateErr := stringField(candidate, candidatePath, "capabilityRef")
+		if candidateErr != nil {
+			return nil, candidateErr
+		}
+		candidateKind, candidateErr := stringField(candidate, candidatePath, "kind")
+		if candidateErr != nil {
+			return nil, candidateErr
+		}
+		if candidateCapability == requiredCapability && contains(allowedKinds, candidateKind) {
+			candidateSiteKinds, candidateErr := stringListField(candidate, candidatePath, "supportedSiteKinds", true)
+			if candidateErr != nil {
+				return nil, candidateErr
+			}
+			if !containsAll(providerSiteKinds, candidateSiteKinds) {
+				return nil, fail(ErrContractConflict, candidatePath+".supportedSiteKinds", "issuer site kinds must be contained by provider %q", providerID)
+			}
+			if !containsAll(candidateSiteKinds, capabilitySiteKinds) {
+				return nil, fail(ErrContractConflict, candidatePath+".supportedSiteKinds", "issuer site kinds must cover capability %q", requiredCapability)
+			}
+			if issuer != nil {
+				return nil, fail(ErrContractConflict, "catalog.providers."+providerID+".certificateIssuers", "TLS capability %q has multiple compatible issuers", requiredCapability)
+			}
+			issuer = candidate
 		}
 	}
-	return resolved, nil
+	if issuer == nil {
+		return nil, fail(ErrContractConflict, "catalog.providers."+providerID+".certificateIssuers", "TLS capability %q has no compatible issuer", requiredCapability)
+	}
+	profileID, err := stringField(profile, "catalog.capabilities."+requiredCapability+".tlsProfile", "id")
+	if err != nil {
+		return nil, err
+	}
+	issuerID, err := stringField(issuer, "catalog.providers."+providerID+".certificateIssuers", "id")
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"required": true, "mode": mode, "minVersion": requestedMinimum, "profileRef": profileID, "issuerRef": issuerID}, nil
 }
 
-func buildGates(profile *profileView, resolved *resolution, catalog *indexedCatalog, providerSites, providerNodes, moduleSites, moduleNodes map[string][]string, artifacts []any) (map[string]any, error) {
+func tlsVersionRank(version string) int {
+	switch version {
+	case "TLS1.3":
+		return 13
+	case "TLS1.2":
+		return 12
+	default:
+		return 0
+	}
+}
+
+func containsAll(values, required []string) bool {
+	for _, value := range required {
+		if !contains(values, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func buildGates(profile *profileView, resolved *resolution, catalog *indexedCatalog, providerSites, providerNodes, moduleSites, moduleNodes map[string][]string, nodeSites map[string]string, artifacts, routeHealth []any) (map[string]any, error) {
 	var health []any
 	var healthIDs []string
 	appendHealth := func(targetKind, targetRef string, contract map[string]any, siteRefs, nodeRefs []string) error {
-		healthContracts, err := objectListOptional(contract, "health")
+		gates, err := materializeContractHealthGates(targetKind, targetRef, contract, siteRefs, nodeRefs, nodeSites)
 		if err != nil {
 			return err
 		}
-		for _, healthContract := range healthContracts {
-			healthID, err := stringField(healthContract, "health", "id")
-			if err != nil {
-				return err
-			}
-			gateID := contractID(targetKind + "-" + targetRef + "-" + healthID)
-			gate, err := cloneObject(healthContract, true)
-			if err != nil {
-				return err
-			}
-			contractHash, err := canonicalHash(healthContract, true)
-			if err != nil {
-				return err
-			}
-			gate["id"], gate["contractHash"], gate["targetKind"], gate["targetRef"] = gateID, contractHash, targetKind, targetRef
-			gate["siteRefs"], gate["required"] = stringSliceAny(siteRefs), true
-			if len(nodeRefs) > 0 {
-				gate["nodeRefs"] = stringSliceAny(nodeRefs)
-			}
+		for _, gate := range gates {
+			gateID := gate["id"].(string)
 			health = append(health, gate)
 			healthIDs = append(healthIDs, gateID)
 		}
@@ -406,6 +558,18 @@ func buildGates(profile *profileView, resolved *resolution, catalog *indexedCata
 		if err := appendHealth("module", module, catalog.modules[module], moduleSites[module], moduleNodes[module]); err != nil {
 			return nil, err
 		}
+	}
+	for index, rawGate := range routeHealth {
+		gate, err := asObject(rawGate, fmt.Sprintf("routeHealth[%d]", index))
+		if err != nil {
+			return nil, err
+		}
+		gateID, err := stringField(gate, fmt.Sprintf("routeHealth[%d]", index), "id")
+		if err != nil {
+			return nil, err
+		}
+		health = append(health, gate)
+		healthIDs = append(healthIDs, gateID)
 	}
 	if len(health) == 0 {
 		return nil, fail(ErrUnrealizedCapability, "gates.health", "selected contracts provide no governed health gate")
@@ -436,6 +600,57 @@ func buildGates(profile *profileView, resolved *resolution, catalog *indexedCata
 			"requireGenerationArtifacts": true, "requireResolvedSecrets": true,
 		},
 	}, nil
+}
+
+func materializeContractHealthGates(targetKind, targetRef string, contract map[string]any, siteRefs, nodeRefs []string, nodeSites map[string]string) ([]map[string]any, error) {
+	healthContracts, err := objectListOptional(contract, "health")
+	if err != nil {
+		return nil, err
+	}
+	var result []map[string]any
+	for _, healthContract := range healthContracts {
+		healthID, err := stringField(healthContract, "health", "id")
+		if err != nil {
+			return nil, err
+		}
+		contractHash, err := canonicalHash(healthContract, true)
+		if err != nil {
+			return nil, err
+		}
+		scope, _ := healthContract["scope"].(string)
+		if scope == "each-node" {
+			if targetKind != "module" || len(nodeRefs) == 0 {
+				return nil, fail(ErrContractConflict, "health."+healthID+".scope", "each-node health is valid only for a placed module")
+			}
+			for _, nodeRef := range sortStringsUnique(nodeRefs) {
+				siteRef := nodeSites[nodeRef]
+				if siteRef == "" || !contains(siteRefs, siteRef) {
+					return nil, fail(ErrUnresolvedPlacement, "health."+healthID+".nodeRefs", "node %q has no exact module Site binding", nodeRef)
+				}
+				gate, err := cloneObject(healthContract, true)
+				if err != nil {
+					return nil, err
+				}
+				gateID := contractID(targetKind + "-" + targetRef + "-" + healthID + "-node-" + nodeRef)
+				gate["id"], gate["sourceRef"], gate["contractHash"], gate["targetKind"], gate["targetRef"] = gateID, healthID, contractHash, targetKind, targetRef
+				gate["siteRefs"], gate["nodeRefs"], gate["required"] = []any{siteRef}, []any{nodeRef}, true
+				result = append(result, gate)
+			}
+			continue
+		}
+		gate, err := cloneObject(healthContract, true)
+		if err != nil {
+			return nil, err
+		}
+		gateID := contractID(targetKind + "-" + targetRef + "-" + healthID)
+		gate["id"], gate["sourceRef"], gate["contractHash"], gate["targetKind"], gate["targetRef"] = gateID, healthID, contractHash, targetKind, targetRef
+		gate["siteRefs"], gate["required"] = stringSliceAny(siteRefs), true
+		if len(nodeRefs) > 0 {
+			gate["nodeRefs"] = stringSliceAny(nodeRefs)
+		}
+		result = append(result, gate)
+	}
+	return result, nil
 }
 
 func collectContractEvidence(resolved *resolution, catalog *indexedCatalog, moduleIDs []string) []string {

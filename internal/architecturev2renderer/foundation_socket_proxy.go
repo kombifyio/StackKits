@@ -148,6 +148,27 @@ func SocketProxyRendererContract() RendererContract {
 	}
 }
 
+// ExpectedSocketProxyComposeArtifact materializes the exact immutable
+// socket-proxy Compose policy for an already governed daemon binding and
+// runtime-network identity. It performs no discovery and grants no Docker
+// endpoint authority; local executors use it only for byte-exact admission.
+func ExpectedSocketProxyComposeArtifact(socketPath, networkInstanceRef string) ([]byte, error) {
+	if validateDockerSocketPath(socketPath) != nil || !contractIDPattern.MatchString(networkInstanceRef) {
+		return nil, fail(ErrInvalidPlan, "renderer.socket-proxy.binding", "invalid governed socket or network identity")
+	}
+	template := []byte(socketProxyComposeTemplate)
+	if socketProxyTemplateHash(template) != SocketProxyRendererContract().ContractHash ||
+		bytes.Count(template, []byte(socketProxySocketToken)) != 1 || bytes.Count(template, []byte(socketProxyNetworkToken)) != 1 {
+		return nil, fail(ErrOutputChanged, "renderer.socket-proxy.template", "embedded Compose policy does not match its registered contract")
+	}
+	output := bytes.Replace(template, []byte(socketProxySocketToken), []byte(socketPath), 1)
+	output = bytes.Replace(output, []byte(socketProxyNetworkToken), []byte(networkInstanceRef), 1)
+	if bytes.Contains(output, []byte("@@")) {
+		return nil, fail(ErrOutputChanged, "renderer.socket-proxy.template", "unresolved template authority token")
+	}
+	return output, nil
+}
+
 type socketProxyComposeRenderer struct {
 	template []byte
 	contract RendererContract
@@ -168,13 +189,12 @@ func (r socketProxyComposeRenderer) RenderUnit(ctx context.Context, unit RenderU
 	if err != nil {
 		return nil, err
 	}
-	if socketProxyTemplateHash(r.template) != r.contract.ContractHash || bytes.Count(r.template, []byte(socketProxySocketToken)) != 1 || bytes.Count(r.template, []byte(socketProxyNetworkToken)) != 1 {
+	if socketProxyTemplateHash(r.template) != r.contract.ContractHash || !bytes.Equal(r.template, []byte(socketProxyComposeTemplate)) {
 		return nil, fail(ErrOutputChanged, "renderer.socket-proxy.template", "embedded Compose policy does not match its registered contract")
 	}
-	output := bytes.Replace(r.template, []byte(socketProxySocketToken), []byte(socketPath), 1)
-	output = bytes.Replace(output, []byte(socketProxyNetworkToken), []byte(networkInstanceRef), 1)
-	if bytes.Contains(output, []byte("@@")) {
-		return nil, fail(ErrOutputChanged, "renderer.socket-proxy.template", "unresolved template authority token")
+	output, err := ExpectedSocketProxyComposeArtifact(socketPath, networkInstanceRef)
+	if err != nil {
+		return nil, err
 	}
 	return []UnitOutput{{Ref: socketProxyOutputRef, Bytes: output}}, nil
 }

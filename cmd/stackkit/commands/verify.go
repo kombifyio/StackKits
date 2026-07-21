@@ -13,6 +13,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/ssh"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	stackverify "github.com/kombifyio/stackkits/internal/verify"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
@@ -98,6 +99,7 @@ func init() {
 func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
 	wd := getWorkDir()
+	v2Gate := newArchitectureV2ExecutionGate()
 	rolloutEvent("verify", "started", "verify started", map[string]string{
 		"remote_host": verifyHost,
 	})
@@ -113,6 +115,16 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		rolloutEvent("verify", "succeeded", "verify succeeded", nil)
 	}()
 	if strings.TrimSpace(verifyHost) != "" {
+		rawSpec, sourceVersion, handled, classifyErr := classifyArchitectureV2ExecutionSpec(wd, specFile)
+		if classifyErr != nil {
+			return classifyErr
+		}
+		if v2Gate.rejectV1 {
+			if handled && sourceVersion == stackspecmigration.SourceVersionV1 {
+				return v2Gate.rejectV1Execution(rawSpec, architectureV2Verify)
+			}
+			return fmt.Errorf("verify: --legacy-remote-transport was removed after the v0.6 compatibility minor; Architecture v2 requires an external execution channel")
+		}
 		if !verifyLegacyRemote {
 			return fmt.Errorf("verify: --host uses deprecated raw SSH and is available only with --legacy-remote-transport for an explicit StackSpec v1 target; Architecture v2 requires an external execution channel")
 		}
@@ -132,7 +144,7 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		})
 		return emitVerifyReport(cmd.OutOrStdout(), report, verifyJSON)
 	}
-	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Verify, verifyV2ExecutionOptions); handled {
+	if handled, err := v2Gate.preflight(wd, specFile, architectureV2Verify, verifyV2ExecutionOptions); handled {
 		return err
 	}
 

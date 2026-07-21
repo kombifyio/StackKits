@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,12 +16,15 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/api/openapi"
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/backupplan"
 	"github.com/kombifyio/stackkits/internal/composition"
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
+	"github.com/kombifyio/stackkits/internal/stackspecadmission"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -71,22 +75,28 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // ── Capabilities ──────────────────────────────────────────────────
 
 func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
+	defaultsDescription := "Get default StackSpec values for a StackKit"
+	partialValidationDescription := "Validate partial spec fields (wizard step)"
+	if stackspecadmission.RejectOperationalV1(s.config.Version) {
+		defaultsDescription = "Read governed Architecture v2 initial-spec authoring metadata and spec-only evidence when no user override is required"
+		partialValidationDescription = "Materialize and CUE-validate Architecture v2 initial intent from explicitly governed authoring overrides"
+	}
 	writeSuccess(w, r, http.StatusOK, map[string]interface{}{
 		"service":     "kombify-stackkits",
 		"version":     s.config.Version,
 		"description": "kombify StackKits — pre-packaged homelab infrastructure templates with CUE validation and OpenTofu generation",
 		"openapi":     "/api/v1/openapi.yaml",
-		"capabilities": []map[string]interface{}{
+		"capabilities": s.versionedCapabilities([]map[string]interface{}{
 			// Architecture v2
 			{"name": "architecture.resolve", "description": "Resolve canonical Architecture v2 intent into a deterministic ResolvedPlan", "method": "POST", "path": "/api/v2/resolve"},
 			// Catalog
 			{"name": "stackkit.list", "description": "List all available StackKits", "method": "GET", "path": "/api/v1/stackkits"},
 			{"name": "stackkit.get", "description": "Get StackKit details by name", "method": "GET", "path": "/api/v1/stackkits/{name}"},
 			{"name": "stackkit.schema", "description": "Get raw CUE schema for a StackKit", "method": "GET", "path": "/api/v1/stackkits/{name}/schema"},
-			{"name": "stackkit.defaults", "description": "Get default StackSpec values for a StackKit", "method": "GET", "path": "/api/v1/stackkits/{name}/defaults"},
+			{"name": "stackkit.defaults", "description": defaultsDescription, "method": "GET", "path": "/api/v1/stackkits/{name}/defaults"},
 			// Validation
 			{"name": "validate.spec", "description": "Validate a stack-spec against its StackKit schema", "method": "POST", "path": "/api/v1/validate"},
-			{"name": "validate.partial", "description": "Validate partial spec fields (wizard step)", "method": "POST", "path": "/api/v1/validate/partial"},
+			{"name": "validate.partial", "description": partialValidationDescription, "method": "POST", "path": "/api/v1/validate/partial"},
 			// Generation
 			{"name": "generate.tfvars", "description": "Generate terraform.tfvars from a validated spec", "method": "POST", "path": "/api/v1/generate/tfvars"},
 			{"name": "generate.preview", "description": "Preview the generated infrastructure without writing files", "method": "POST", "path": "/api/v1/generate/preview"},
@@ -119,8 +129,39 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "health", "description": "Service health check", "method": "GET", "path": "/api/v1/health"},
 			{"name": "capabilities", "description": "List all API capabilities", "method": "GET", "path": "/api/v1/capabilities"},
 			{"name": "openapi", "description": "OpenAPI 3.1 specification", "method": "GET", "path": "/api/v1/openapi.yaml"},
-		},
+		}),
 	})
+}
+
+func (s *Server) versionedCapabilities(capabilities []map[string]interface{}) []map[string]interface{} {
+	if !stackspecadmission.RejectOperationalV1(s.config.Version) {
+		return capabilities
+	}
+	retired := map[string]bool{
+		"generate.tfvars":                  true,
+		"generate.preview":                 true,
+		"management.verify":                true,
+		"management.doctor":                true,
+		"management.plan":                  true,
+		"runtime.stackkit_rollout":         true,
+		"runtime.verify_rollout":           true,
+		"runtime.restore_drill":            true,
+		"setup.base_hub.protection.status": true,
+		"setup.base_hub.protection.apply":  true,
+		"setup.service.run":                true,
+		"registry.register":                true,
+		"registry.heartbeat":               true,
+		"registry.deregister":              true,
+	}
+	filtered := make([]map[string]interface{}, 0, len(capabilities)-len(retired))
+	for _, capability := range capabilities {
+		name, _ := capability["name"].(string)
+		if retired[name] {
+			continue
+		}
+		filtered = append(filtered, capability)
+	}
+	return filtered
 }
 
 // ── OpenAPI Spec ──────────────────────────────────────────────────
@@ -220,31 +261,8 @@ func (s *Server) handleGetStackKitSchema(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Look for the main CUE schema file
-	schemaPath := ""
-	candidates := []string{"schema.cue", "stackkit.cue", name + ".cue"}
-	for _, c := range candidates {
-		p := filepath.Join(dir, c)
-		if _, statErr := os.Stat(p); statErr == nil { // #nosec G304 G703 -- c is from a fixed candidate allow-list above.
-			schemaPath = p
-			break
-		}
-	}
-
-	if schemaPath == "" {
-		// Fall back: find any .cue file
-		entries, readErr := os.ReadDir(dir)
-		if readErr == nil {
-			for _, e := range entries {
-				if !e.IsDir() && strings.HasSuffix(e.Name(), ".cue") {
-					schemaPath = filepath.Join(dir, e.Name())
-					break
-				}
-			}
-		}
-	}
-
-	if schemaPath == "" {
+	schemaPath := filepath.Join(dir, "stackfile.cue")
+	if _, err := os.Stat(schemaPath); err != nil {
 		writeError(w, r, http.StatusNotFound, "no CUE schema found for stackkit: "+name)
 		return
 	}
@@ -266,6 +284,10 @@ func (s *Server) handleGetStackKitDefaults(w http.ResponseWriter, r *http.Reques
 	name := r.PathValue("name")
 	if err := validateStackKitName(name); err != nil {
 		writeStructuredError(w, r, http.StatusBadRequest, err)
+		return
+	}
+	if stackspecadmission.RejectOperationalV1(s.config.Version) {
+		s.handleGetArchitectureV2AuthoringDefaults(w, r, name)
 		return
 	}
 
@@ -295,6 +317,86 @@ func (s *Server) handleGetStackKitDefaults(w http.ResponseWriter, r *http.Reques
 	writeSuccess(w, r, http.StatusOK, defaultSpec)
 }
 
+const (
+	architectureV2AuthoringAPIVersion = "stackkit/v2alpha1"
+	architectureV2AuthoringKind       = "InitialStackSpecAuthoring"
+	overrideMetadataName              = "metadata.name"
+	overrideNetworkDomainBase         = "network.domain.base"
+)
+
+type architectureV2AuthoringResponse struct {
+	Valid                    bool                             `json:"valid,omitempty"`
+	SourceVersion            stackspecmigration.SourceVersion `json:"source_version"`
+	KitProfile               stackspecmigration.KitProfile    `json:"kit_profile"`
+	AuthoringContractVersion string                           `json:"authoring_contract_version"`
+	AuthoringStatus          string                           `json:"authoring_status"`
+	RequiredOverrides        []string                         `json:"required_overrides"`
+	StackSpec                json.RawMessage                  `json:"stack_spec,omitempty"`
+	SpecHash                 string                           `json:"spec_hash,omitempty"`
+	ValidationScope          string                           `json:"validation_scope,omitempty"`
+}
+
+type architectureV2AuthoringRequest struct {
+	APIVersion string                        `json:"apiVersion"`
+	Kind       string                        `json:"kind"`
+	KitProfile stackspecmigration.KitProfile `json:"kitProfile"`
+	Overrides  map[string]string             `json:"overrides,omitempty"`
+}
+
+func (s *Server) handleGetArchitectureV2AuthoringDefaults(w http.ResponseWriter, r *http.Request, name string) {
+	profile, ok := canonicalArchitectureV2KitProfile(name)
+	if !ok {
+		writeStructuredError(w, r, http.StatusNotFound, stackKitNotFoundError(name))
+		return
+	}
+	response, err := s.architectureV2AuthoringResponse(profile, architecturev2.AuthoringOverrides{}, false)
+	if err != nil {
+		writeMappedArchitectureV2ResolveError(w, err)
+		return
+	}
+	writeSuccess(w, r, http.StatusOK, response)
+}
+
+func canonicalArchitectureV2KitProfile(name string) (stackspecmigration.KitProfile, bool) {
+	profile := stackspecmigration.KitProfile(name)
+	switch profile {
+	case stackspecmigration.KitProfileBasement, stackspecmigration.KitProfileCloud, stackspecmigration.KitProfileModern:
+		return profile, true
+	default:
+		return "", false
+	}
+}
+
+func (s *Server) architectureV2AuthoringResponse(profile stackspecmigration.KitProfile, overrides architecturev2.AuthoringOverrides, requireMaterialized bool) (architectureV2AuthoringResponse, error) {
+	service, err := s.architectureV2ResolveService()
+	if err != nil {
+		return architectureV2AuthoringResponse{}, err
+	}
+	contract, err := service.InitialStackSpecAuthoringContract(profile)
+	if err != nil {
+		return architectureV2AuthoringResponse{}, err
+	}
+	response := architectureV2AuthoringResponse{
+		SourceVersion:            stackspecmigration.SourceVersionV2Alpha1,
+		KitProfile:               profile,
+		AuthoringContractVersion: contract.ContractVersion,
+		AuthoringStatus:          contract.Status,
+		RequiredOverrides:        append(make([]string, 0, len(contract.RequiredOverrides)), contract.RequiredOverrides...),
+	}
+	if !requireMaterialized && len(contract.RequiredOverrides) != 0 {
+		return response, nil
+	}
+	validation, err := service.MaterializeInitialStackSpec(profile, overrides)
+	if err != nil {
+		return architectureV2AuthoringResponse{}, err
+	}
+	response.Valid = requireMaterialized
+	response.StackSpec = append(json.RawMessage(nil), validation.CanonicalStackSpec...)
+	response.SpecHash = validation.SpecHash
+	response.ValidationScope = "spec-only"
+	return response, nil
+}
+
 // ── Validation ────────────────────────────────────────────────────
 
 func (s *Server) handleValidateSpec(w http.ResponseWriter, r *http.Request) {
@@ -304,21 +406,48 @@ func (s *Server) handleValidateSpec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-
-	var spec models.StackSpec
-	if unmarshalErr := json.Unmarshal(body, &spec); unmarshalErr != nil {
-		slog.Warn("JSON parse error in validate request", "error", unmarshalErr)
-		writeError(w, r, http.StatusBadRequest, "invalid JSON format")
+	if !json.Valid(body) {
+		writeMappedArchitectureV2ResolveError(w, &architecturev2.ResolveError{
+			Code: architecturev2.ErrInvalidStackSpec, Message: "invalid JSON format",
+		})
 		return
 	}
 
-	if spec.StackKit == "" {
+	document, err := stackspecmigration.Read(body)
+	if err != nil {
+		writeMappedArchitectureV2ResolveError(w, &architecturev2.ResolveError{
+			Code: architecturev2.ErrInvalidStackSpec, Message: err.Error(), Cause: err,
+		})
+		return
+	}
+	if document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+		service, serviceErr := s.architectureV2ResolveService()
+		if serviceErr != nil {
+			writeMappedArchitectureV2ResolveError(w, serviceErr)
+			return
+		}
+		result, resolveErr := service.ValidateStackSpec(document.Raw)
+		if resolveErr != nil {
+			writeMappedArchitectureV2ResolveError(w, resolveErr)
+			return
+		}
+		writeSuccess(w, r, http.StatusOK, map[string]any{
+			"valid":          true,
+			"source_version": document.Version,
+			"stackkit":       document.V2.KitProfile,
+			"spec_hash":      result.SpecHash,
+		})
+		return
+	}
+
+	if document.Legacy == nil || document.Legacy.StackKit == "" {
 		writeError(w, r, http.StatusBadRequest, "stackkit field is required")
 		return
 	}
+	spec := document.Legacy
 
 	validator := cuepkg.NewValidator(s.config.BaseDir)
-	result, err := validator.ValidateSpec(&spec)
+	result, err := validator.ValidateSpec(spec)
 	if err != nil {
 		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewValidationError(
 			"spec_validation_failed", "validation error: "+err.Error(),
@@ -326,6 +455,29 @@ func (s *Server) handleValidateSpec(w http.ResponseWriter, r *http.Request) {
 			skerrors.WithSuggestion("Check your spec against the schema: GET /api/v1/stackkits/"+spec.StackKit+"/schema"),
 			skerrors.WithSuggestion("Use partial validation to debug field-by-field: POST /api/v1/validate/partial"),
 		))
+		return
+	}
+	if stackspecadmission.RejectOperationalV1(s.config.Version) {
+		for _, field := range document.UnknownV1Fields {
+			result.Valid = false
+			result.Errors = append(result.Errors, models.ValidationError{
+				Path:    field,
+				Message: "unknown StackSpec v1 field has no governed validation or v2 migration mapping",
+				Code:    "UNKNOWN_V1_FIELD",
+			})
+		}
+		_, migrationReport, _ := stackspecmigration.MigrateDocument(document, stackspecmigration.Options{})
+		writeSuccess(w, r, http.StatusOK, map[string]any{
+			"valid":              result.Valid,
+			"errors":             result.Errors,
+			"warnings":           result.Warnings,
+			"source_version":     document.Version,
+			"stackkit":           spec.StackKit,
+			"operational":        false,
+			"migration_required": true,
+			"validation_scope":   "legacy-read-only",
+			"migration_report":   migrationReport,
+		})
 		return
 	}
 
@@ -339,6 +491,10 @@ func (s *Server) handleValidatePartial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
+	if stackspecadmission.RejectOperationalV1(s.config.Version) {
+		s.handleValidateArchitectureV2Authoring(w, r, body)
+		return
+	}
 
 	// Partial validation accepts a JSON object with a subset of spec fields
 	// and validates only those fields without requiring a full spec
@@ -373,6 +529,77 @@ func (s *Server) handleValidatePartial(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w, r, http.StatusOK, result)
+}
+
+func (s *Server) handleValidateArchitectureV2Authoring(w http.ResponseWriter, r *http.Request, body []byte) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	var request architectureV2AuthoringRequest
+	if err := decoder.Decode(&request); err != nil {
+		writeMappedArchitectureV2ResolveError(w, &architecturev2.ResolveError{
+			Code: architecturev2.ErrInvalidStackSpec, Message: "invalid Architecture v2 authoring request: " + err.Error(), Cause: err,
+		})
+		return
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		writeMappedArchitectureV2ResolveError(w, &architecturev2.ResolveError{
+			Code: architecturev2.ErrInvalidStackSpec, Message: err.Error(), Cause: err,
+		})
+		return
+	}
+	if request.APIVersion != architectureV2AuthoringAPIVersion || request.Kind != architectureV2AuthoringKind {
+		writeMappedArchitectureV2ResolveError(w, &architecturev2.ResolveError{
+			Code:    architecturev2.ErrInvalidStackSpec,
+			Message: fmt.Sprintf("native v0.7 authoring requires apiVersion %q and kind %q", architectureV2AuthoringAPIVersion, architectureV2AuthoringKind),
+		})
+		return
+	}
+	profile, ok := canonicalArchitectureV2KitProfile(string(request.KitProfile))
+	if !ok {
+		writeMappedArchitectureV2ResolveError(w, &architecturev2.ResolveError{
+			Code: architecturev2.ErrInvalidStackSpec, Message: fmt.Sprintf("kitProfile %q is not a canonical Architecture v2 product kit", request.KitProfile),
+		})
+		return
+	}
+	overrides, err := decodeArchitectureV2AuthoringOverrides(request.Overrides)
+	if err != nil {
+		writeMappedArchitectureV2ResolveError(w, err)
+		return
+	}
+	response, err := s.architectureV2AuthoringResponse(profile, overrides, true)
+	if err != nil {
+		writeMappedArchitectureV2ResolveError(w, err)
+		return
+	}
+	writeSuccess(w, r, http.StatusOK, response)
+}
+
+func decodeArchitectureV2AuthoringOverrides(raw map[string]string) (architecturev2.AuthoringOverrides, error) {
+	var overrides architecturev2.AuthoringOverrides
+	for path, value := range raw {
+		switch path {
+		case overrideMetadataName:
+			overrides.Name = value
+		case overrideNetworkDomainBase:
+			overrides.DomainBase = value
+		default:
+			return architecturev2.AuthoringOverrides{}, &architecturev2.ResolveError{
+				Code: architecturev2.ErrInvalidStackSpec, Message: fmt.Sprintf("authoring override %q is not governed by the initial StackSpec contract", path),
+			}
+		}
+	}
+	return overrides, nil
+}
+
+func requireJSONEOF(decoder *json.Decoder) error {
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("Architecture v2 authoring request must contain exactly one JSON object")
+		}
+		return fmt.Errorf("invalid trailing Architecture v2 authoring data: %w", err)
+	}
+	return nil
 }
 
 func validatePartialStackKit(partial map[string]interface{}, baseDir string) []models.ValidationError {
@@ -565,7 +792,42 @@ func validatePartialNodes(partial map[string]interface{}) []models.ValidationErr
 // ── Generation ────────────────────────────────────────────────────
 
 type generateRequest struct {
-	Spec models.StackSpec `json:"spec"`
+	Spec json.RawMessage `json:"spec"`
+}
+
+func (s *Server) admitLegacyGenerationSpec(raw json.RawMessage) (*models.StackSpec, error) {
+	document, err := stackspecmigration.Read(raw)
+	if err != nil {
+		return nil, &architecturev2.ResolveError{Code: architecturev2.ErrInvalidStackSpec, Message: err.Error(), Cause: err}
+	}
+	if document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+		return nil, &architecturev2.ResolveError{
+			Code:    architecturev2.ErrInvalidStackSpec,
+			Message: "canonical StackSpec v2 must use the governed /api/v2/resolve and generation path; the legacy /api/v1 generator cannot decode it",
+		}
+	}
+	if document.Version != stackspecmigration.SourceVersionV1 || document.Legacy == nil {
+		return nil, &architecturev2.ResolveError{Code: architecturev2.ErrInvalidStackSpec, Message: "legacy generation received no classified StackSpec v1"}
+	}
+	if stackspecadmission.RejectOperationalV1(s.config.Version) {
+		service, serviceErr := s.architectureV2ResolveService()
+		if serviceErr != nil {
+			return nil, serviceErr
+		}
+		_, resolveErr := service.Resolve(architecturev2.ResolveInput{StackSpec: document.Raw})
+		if resolveErr == nil {
+			return nil, &architecturev2.ResolveError{Code: architecturev2.ErrResolveFailed, Message: "StackSpec v1 unexpectedly entered the Architecture v2 resolver"}
+		}
+		return nil, resolveErr
+	}
+	if len(document.UnknownV1Fields) > 0 {
+		return nil, &architecturev2.ResolveError{
+			Code:    architecturev2.ErrMigrationBlocked,
+			Message: fmt.Sprintf("StackSpec v1 contains unknown fields (%s); refusing lossy legacy generation", strings.Join(document.UnknownV1Fields, ", ")),
+		}
+	}
+	spec := *document.Legacy
+	return &spec, nil
 }
 
 func (s *Server) handleGenerateTFVars(w http.ResponseWriter, r *http.Request) {
@@ -583,20 +845,25 @@ func (s *Server) handleGenerateTFVars(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Spec.StackKit == "" {
+	spec, admitErr := s.admitLegacyGenerationSpec(req.Spec)
+	if admitErr != nil {
+		writeMappedArchitectureV2ResolveError(w, admitErr)
+		return
+	}
+	if spec.StackKit == "" {
 		writeError(w, r, http.StatusBadRequest, "spec.stackkit field is required")
 		return
 	}
 
 	// Find the stackkit directory
 	loader := config.NewLoader(s.config.BaseDir)
-	dir, err := loader.FindStackKitDir(req.Spec.StackKit)
+	dir, err := loader.FindStackKitDir(spec.StackKit)
 	if err != nil {
-		writeStructuredError(w, r, http.StatusNotFound, stackKitNotFoundError(req.Spec.StackKit))
+		writeStructuredError(w, r, http.StatusNotFound, stackKitNotFoundError(spec.StackKit))
 		return
 	}
 
-	if !s.validateGenerationSpec(w, r, &req.Spec) {
+	if !s.validateGenerationSpec(w, r, spec) {
 		return
 	}
 
@@ -605,7 +872,7 @@ func (s *Server) handleGenerateTFVars(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusInternalServerError, "failed to load stackkit metadata")
 		return
 	}
-	compositionResult, compErr := s.resolveComposition(&req.Spec, sk)
+	compositionResult, compErr := s.resolveComposition(spec, sk)
 	if compErr != nil {
 		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
 			"composition_failed", "composition failed: "+compErr.Error(),
@@ -615,13 +882,13 @@ func (s *Server) handleGenerateTFVars(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, genErr := composition.GenerateTFVarsJSON(&req.Spec, compositionResult)
+	data, genErr := composition.GenerateTFVarsJSON(spec, compositionResult)
 	if genErr != nil {
 		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
 			"generation_failed", "generation failed: "+genErr.Error(),
 			skerrors.WithCause(genErr),
 			skerrors.WithSuggestion("Validate your spec first: POST /api/v1/validate"),
-			skerrors.WithSuggestion("Check CUE schema compliance: GET /api/v1/stackkits/"+req.Spec.StackKit+"/schema"),
+			skerrors.WithSuggestion("Check CUE schema compliance: GET /api/v1/stackkits/"+spec.StackKit+"/schema"),
 		))
 		return
 	}
@@ -636,8 +903,8 @@ func (s *Server) handleGenerateTFVars(w http.ResponseWriter, r *http.Request) {
 	writeSuccess(w, r, http.StatusOK, map[string]interface{}{
 		"tfvars":             tfvars,
 		"file":               "terraform.tfvars.json",
-		"composition":        composition.BuildMetadata(&req.Spec, compositionResult),
-		"backupRecoveryPlan": backupplan.Build(&req.Spec),
+		"composition":        composition.BuildMetadata(spec, compositionResult),
+		"backupRecoveryPlan": backupplan.Build(spec),
 	})
 }
 
@@ -656,19 +923,24 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Spec.StackKit == "" {
+	spec, admitErr := s.admitLegacyGenerationSpec(req.Spec)
+	if admitErr != nil {
+		writeMappedArchitectureV2ResolveError(w, admitErr)
+		return
+	}
+	if spec.StackKit == "" {
 		writeError(w, r, http.StatusBadRequest, "spec.stackkit field is required")
 		return
 	}
 
 	loader := config.NewLoader(s.config.BaseDir)
-	dir, err := loader.FindStackKitDir(req.Spec.StackKit)
+	dir, err := loader.FindStackKitDir(spec.StackKit)
 	if err != nil {
-		writeStructuredError(w, r, http.StatusNotFound, stackKitNotFoundError(req.Spec.StackKit))
+		writeStructuredError(w, r, http.StatusNotFound, stackKitNotFoundError(spec.StackKit))
 		return
 	}
 
-	if !s.validateGenerationSpec(w, r, &req.Spec) {
+	if !s.validateGenerationSpec(w, r, spec) {
 		return
 	}
 
@@ -677,7 +949,7 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusInternalServerError, "failed to load stackkit metadata")
 		return
 	}
-	compositionResult, compErr := s.resolveComposition(&req.Spec, sk)
+	compositionResult, compErr := s.resolveComposition(spec, sk)
 	if compErr != nil {
 		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
 			"composition_failed", "composition failed: "+compErr.Error(),
@@ -687,7 +959,7 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, genErr := composition.GenerateTFVarsJSON(&req.Spec, compositionResult)
+	data, genErr := composition.GenerateTFVarsJSON(spec, compositionResult)
 	if genErr != nil {
 		writeStructuredError(w, r, http.StatusUnprocessableEntity, skerrors.NewDeploymentError(
 			"preview_generation_failed", "preview generation failed: "+genErr.Error(),
@@ -707,8 +979,8 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 	preview := map[string]interface{}{
 		"tfvars":             tfvars,
 		"preview":            true,
-		"composition":        composition.BuildMetadata(&req.Spec, compositionResult),
-		"backupRecoveryPlan": backupplan.Build(&req.Spec),
+		"composition":        composition.BuildMetadata(spec, compositionResult),
+		"backupRecoveryPlan": backupplan.Build(spec),
 	}
 	if sk != nil {
 		preview["stackkit"] = stackKitSummary{

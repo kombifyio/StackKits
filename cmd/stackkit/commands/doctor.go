@@ -20,8 +20,9 @@ var (
 )
 
 var doctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Check host and spec readiness before production apply",
+	Use:         "doctor",
+	Short:       "Check host and spec readiness before production apply",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "doctor"},
 	Long: `Check the current StackKit spec and host assumptions before prepare/apply.
 
 Doctor is read-only. For the Base Kit local production reference it verifies
@@ -51,7 +52,7 @@ type doctorCheck struct {
 func runDoctor(cmd *cobra.Command, args []string) error {
 	wd := getWorkDir()
 	loader := config.NewLoader(wd)
-	spec, err := loader.LoadStackSpec(specFile)
+	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Doctor)
 	if err != nil {
 		return fmt.Errorf("doctor: failed to load spec: %w", err)
 	}

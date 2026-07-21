@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +23,16 @@ const (
 // Loader handles loading configuration files
 type Loader struct {
 	basePath string
+}
+
+// StackSpecDocument is the lossless, version-classified StackSpec read
+// boundary. Raw bytes remain owned by stackspecmigration.Document so callers
+// cannot accidentally decode v2 through the partial legacy Go model.
+type StackSpecDocument struct {
+	Path        string
+	DisplayPath string
+	AliasUsed   bool
+	Document    stackspecmigration.Document
 }
 
 // NewLoader creates a new configuration loader
@@ -49,33 +61,71 @@ func (l *Loader) LoadStackKit(path string) (*models.StackKit, error) {
 	return &stackkit, nil
 }
 
-// LoadStackSpec loads a StackKit deployment spec.
-// stack-spec.yaml remains the canonical CLI file. If the caller asks for the
-// canonical default and it is missing, kombination.yaml is accepted as a
-// user-intent alias for TechStack/CLI interoperability.
-func (l *Loader) LoadStackSpec(path string) (*models.StackSpec, error) {
-	fullPath, displayPath, _, err := l.ResolveStackSpecPathForRead(path)
+// ReadStackSpecDocument loads and strictly classifies a StackSpec without
+// applying legacy defaults or discarding fields. New operational readers must
+// start here and then route explicitly by Document.Version.
+func (l *Loader) ReadStackSpecDocument(path string) (StackSpecDocument, error) {
+	fullPath, displayPath, aliasUsed, err := l.ResolveStackSpecPathForRead(path)
 	if err != nil {
-		return nil, err
+		return StackSpecDocument{}, err
 	}
 
 	data, err := os.ReadFile(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", displayPath, err)
+		return StackSpecDocument{}, fmt.Errorf("failed to read %s: %w", displayPath, err)
+	}
+	document, err := stackspecmigration.Read(data)
+	if err != nil {
+		return StackSpecDocument{}, fmt.Errorf("failed to classify %s: %w", displayPath, err)
+	}
+	return StackSpecDocument{
+		Path:        fullPath,
+		DisplayPath: displayPath,
+		AliasUsed:   aliasUsed,
+		Document:    document,
+	}, nil
+}
+
+// LoadLegacyStackSpec loads only a classified StackSpec v1 document. It
+// rejects v2 before decoding through models.StackSpec and rejects unknown v1
+// fields so a later Save cannot silently erase operator intent.
+func (l *Loader) LoadLegacyStackSpec(path string) (*models.StackSpec, error) {
+	loaded, err := l.ReadStackSpecDocument(path)
+	if err != nil {
+		return nil, err
+	}
+	if loaded.Document.Version != stackspecmigration.SourceVersionV1 || loaded.Document.Legacy == nil {
+		return nil, fmt.Errorf(
+			"%s is %s; refusing to decode it through the legacy StackSpec model",
+			loaded.DisplayPath,
+			loaded.Document.Version,
+		)
+	}
+	if len(loaded.Document.UnknownV1Fields) > 0 {
+		return nil, fmt.Errorf(
+			"%s contains unknown StackSpec v1 fields (%s); use the migration adapter so intent is not discarded",
+			loaded.DisplayPath,
+			strings.Join(loaded.Document.UnknownV1Fields, ", "),
+		)
 	}
 
-	var spec models.StackSpec
-	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", displayPath, err)
-	}
-
-	// Apply defaults
+	spec := *loaded.Document.Legacy
 	applySpecDefaults(&spec)
 	if err := productkits.Validate(spec.StackKit); err != nil {
-		return nil, fmt.Errorf("invalid stackkit product in %s: %w", displayPath, err)
+		return nil, fmt.Errorf("invalid stackkit product in %s: %w", loaded.DisplayPath, err)
 	}
-
 	return &spec, nil
+}
+
+// LoadStackSpec is the v0.6 compatibility name for the legacy-only loader.
+// Deprecated: new code must call ReadStackSpecDocument and route by version.
+// Legacy compatibility code should call LoadLegacyStackSpec explicitly.
+//
+// stack-spec.yaml remains the canonical CLI file. If the caller asks for the
+// canonical default and it is missing, kombination.yaml is accepted as a
+// user-intent alias for TechStack/CLI interoperability.
+func (l *Loader) LoadStackSpec(path string) (*models.StackSpec, error) {
+	return l.LoadLegacyStackSpec(path)
 }
 
 // ResolveStackSpecPathForRead resolves the spec path and reports whether the
@@ -102,8 +152,10 @@ func (l *Loader) ResolveStackSpecPathForRead(path string) (string, string, bool,
 	return fullPath, defaultStackSpecPath, false, nil
 }
 
-// SaveStackSpec saves a stack-spec.yaml file
-func (l *Loader) SaveStackSpec(spec *models.StackSpec, path string) error {
+// SaveLegacyStackSpecV06 persists the bounded models.StackSpec compatibility
+// document. Callers must enforce the exact v0.6 build admission before using
+// this serializer; canonical v2 bytes must never pass through this model.
+func (l *Loader) SaveLegacyStackSpecV06(spec *models.StackSpec, path string) error {
 	fullPath := l.resolvePath(path)
 
 	data, err := yaml.Marshal(spec)
@@ -117,8 +169,21 @@ func (l *Loader) SaveStackSpec(spec *models.StackSpec, path string) error {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	if err := os.WriteFile(fullPath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write stack-spec.yaml: %w", err)
+	root, err := confinedfs.Open(dir)
+	if err != nil {
+		return fmt.Errorf("open stack-spec directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	view, err := root.View(".")
+	if err != nil {
+		return fmt.Errorf("open stack-spec directory view: %w", err)
+	}
+	result, err := view.WriteAtomic0600(filepath.Base(fullPath), data)
+	if err != nil {
+		if result.Installed {
+			return fmt.Errorf("stack-spec.yaml was atomically replaced but durability verification failed: %w", err)
+		}
+		return fmt.Errorf("failed to atomically write stack-spec.yaml: %w", err)
 	}
 
 	return nil

@@ -134,9 +134,12 @@ type RenderUnit struct {
 	runtimeEngine              string
 	containerImageRef          string
 	containerImageDigest       string
+	runtimeEntryComponentRef   string
+	runtimeComponentsJSON      []byte
 	publicInputRefs            []string
 	secretInputRefs            []string
 	planInputRefs              []string
+	inputBindingsJSON          []byte
 	logicalSiteRefs            []string
 	logicalNodeRefs            []string
 	valuesJSON                 []byte
@@ -171,9 +174,16 @@ func (u RenderUnit) ContainerImageRef() (string, bool) {
 func (u RenderUnit) ContainerImageDigest() (string, bool) {
 	return optionalAccessor(u.containerImageDigest)
 }
+func (u RenderUnit) RuntimeEntryComponentRef() (string, bool) {
+	return optionalAccessor(u.runtimeEntryComponentRef)
+}
+func (u RenderUnit) RuntimeComponentsJSON() []byte {
+	return append([]byte(nil), u.runtimeComponentsJSON...)
+}
 func (u RenderUnit) PublicInputRefs() []string { return append([]string(nil), u.publicInputRefs...) }
 func (u RenderUnit) SecretInputRefs() []string { return append([]string(nil), u.secretInputRefs...) }
 func (u RenderUnit) PlanInputRefs() []string   { return append([]string(nil), u.planInputRefs...) }
+func (u RenderUnit) InputBindingsJSON() []byte { return append([]byte(nil), u.inputBindingsJSON...) }
 
 // LogicalSiteRefs and LogicalNodeRefs expose the governed eligible set for a
 // module-scoped renderer. They are never an instruction to choose a node;
@@ -374,9 +384,11 @@ func newRenderUnit(moduleID string, contract renderUnitContract, instance render
 		templateRef: contract.templateRef, version: contract.version, contractHash: contract.contractHash,
 		runtimeKind: contract.runtime.kind, runtimeDelivery: contract.runtime.delivery, runtimeEngine: contract.runtime.engine,
 		containerImageRef: contract.runtime.imageRef, containerImageDigest: contract.runtime.imageDigest,
+		runtimeEntryComponentRef: contract.runtime.entryComponentRef, runtimeComponentsJSON: append([]byte(nil), contract.runtime.componentsCanonical...),
 		publicInputRefs: append([]string(nil), contract.publicInputRefs...), secretInputRefs: append([]string(nil), contract.secretInputRefs...),
-		planInputRefs:   append([]string(nil), contract.planInputRefs...),
-		logicalSiteRefs: append([]string(nil), contract.siteRefs...), logicalNodeRefs: append([]string(nil), contract.nodeRefs...),
+		planInputRefs:     append([]string(nil), contract.planInputRefs...),
+		inputBindingsJSON: append([]byte(nil), contract.inputBindingsCanonical...),
+		logicalSiteRefs:   append([]string(nil), contract.siteRefs...), logicalNodeRefs: append([]string(nil), contract.nodeRefs...),
 		valuesJSON: append([]byte(nil), contract.valuesCanonical...), secretRefsJSON: append([]byte(nil), contract.secretsCanonical...), planInputsJSON: append([]byte(nil), contract.planInputsCanonical...),
 		placementJSON:              append([]byte(nil), contract.placementCanonical...),
 		serviceEndpointsJSON:       append([]byte(nil), contract.serviceEndpointsCanonical...),

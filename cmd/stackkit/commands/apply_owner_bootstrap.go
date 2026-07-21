@@ -22,7 +22,7 @@ import (
 //
 // Empty owner data and bootstrapMode=none are no-ops. bootstrapMode=custom
 // provisions from spec.owner directly. bootstrapMode=auto provisions only when
-// a managed tenant deployment handoff supplied .stackkit/identity-bootstrap.json;
+// a managed tenant deployment handoff supplied the bound tenant-fetch identity sidecar;
 // otherwise managed apply fails loud instead of silently skipping the required
 // identity bootstrap. The --cluster-mode flag still gates which nodes provision
 // the daily-admin record: only "first" runs the bootstrap; "join" nodes are
@@ -211,8 +211,29 @@ func resolveOwnerBootstrapForApply(wd string, spec *models.StackSpec) (ownerBoot
 }
 
 func readIdentityBootstrapEnvelope(wd string) (*models.OwnerAdminBootstrapEnvelope, bool, error) {
-	path := identityBootstrapEnvelopePath(wd)
-	data, err := os.ReadFile(path)
+	path := legacyIdentityBootstrapEnvelopePath(wd)
+	bundleExists, err := tenantFetchManifestExists(wd)
+	if err != nil {
+		return nil, false, fmt.Errorf("inspect tenant identity bundle: %w", err)
+	}
+	var data []byte
+	if applyTenantDeployment != "" && !bundleExists {
+		return nil, false, fmt.Errorf("managed owner bootstrap requires a verified tenant-fetch bundle; move the existing spec aside and re-fetch deployment %s", applyTenantDeployment)
+	}
+	if bundleExists {
+		path = identityBootstrapEnvelopePath(wd)
+		var declared bool
+		var readErr error
+		data, declared, readErr = readVerifiedTenantSidecar(wd, specFile, applyTenantDeployment, "identity-bootstrap.json")
+		if readErr != nil {
+			return nil, false, fmt.Errorf("verify identity bootstrap handoff %s: %w", path, readErr)
+		}
+		if !declared {
+			return nil, false, fmt.Errorf("managed owner bootstrap requires identity bootstrap handoff declared by %s", filepath.Join(wd, filepath.FromSlash(tenantFetchBundleRelative), "manifest.json"))
+		}
+	} else {
+		data, err = os.ReadFile(path)
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, false, fmt.Errorf("managed owner bootstrap requires identity bootstrap handoff: %s is missing", path)
@@ -227,6 +248,10 @@ func readIdentityBootstrapEnvelope(wd string) (*models.OwnerAdminBootstrapEnvelo
 }
 
 func identityBootstrapEnvelopePath(wd string) string {
+	return filepath.Join(wd, filepath.FromSlash(tenantFetchBundleRelative), "identity-bootstrap.json")
+}
+
+func legacyIdentityBootstrapEnvelopePath(wd string) string {
 	return filepath.Join(wd, ".stackkit", "identity-bootstrap.json")
 }
 

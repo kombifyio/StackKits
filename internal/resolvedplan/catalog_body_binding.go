@@ -44,13 +44,17 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err != nil {
 		return err
 	}
-	if err := validateResolvedSelectionGraph(plan, catalog, capabilityProviders); err != nil {
+	workloadProviders, workloadModules, workloadPlacements, err := validateResolvedWorkloadBodies(plan, catalog)
+	if err != nil {
 		return err
 	}
-	if err := validateResolvedProviderBodies(plan, catalog, capabilityProviders); err != nil {
+	if err := validateResolvedSelectionGraph(plan, catalog, capabilityProviders, workloadProviders); err != nil {
 		return err
 	}
-	if err := validateResolvedModuleBodies(plan, catalog, capabilityProviders); err != nil {
+	if err := validateResolvedProviderBodies(plan, catalog, capabilityProviders, workloadProviders); err != nil {
+		return err
+	}
+	if err := validateResolvedModuleBodies(plan, catalog, capabilityProviders, workloadProviders, workloadModules, workloadPlacements); err != nil {
 		return err
 	}
 	if err := validateResolvedModuleCoverage(plan, catalog, capabilityProviders); err != nil {
@@ -59,13 +63,19 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err := validateRuntimeNetworkProjection(plan); err != nil {
 		return err
 	}
-	if err := validateRouteOriginProjection(plan); err != nil {
+	if err := validateRouteOriginProjection(plan, catalog, capabilityProviders); err != nil {
+		return err
+	}
+	if err := validateRouteCapabilityRealizationBodies(plan, catalog, capabilityProviders); err != nil {
 		return err
 	}
 	if err := validateBridgePublicationProjection(plan); err != nil {
 		return err
 	}
 	if err := validateExternalHostPlanProjection(plan); err != nil {
+		return err
+	}
+	if err := validateHomeAccessPlanProjection(plan); err != nil {
 		return err
 	}
 	if err := validateGenerationArtifactsProjection(plan, catalog); err != nil {
@@ -84,13 +94,16 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 }
 
 //nolint:gocyclo // Route-origin verification exhaustively compares the derived route, node, instance, and module identities.
-func validateRouteOriginProjection(plan ResolvedPlan) error {
+func validateRouteOriginProjection(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders map[string]string) error {
 	moduleValues, err := objectListField(map[string]any(plan), "resolvedPlan", "modules")
 	if err != nil {
 		return err
 	}
 	serviceEndpoints, err := indexResolvedServiceEndpoints(objectMapsAsAny(moduleValues))
 	if err != nil {
+		return err
+	}
+	if err := bindServiceEndpointHealthContracts(serviceEndpoints, catalog.modules); err != nil {
 		return err
 	}
 	nodeSites, _, _, err := resolvedTopologyIndex(plan)
@@ -116,6 +129,25 @@ func validateRouteOriginProjection(plan ResolvedPlan) error {
 	routes, err := objectListField(network, "resolvedPlan.network", "routes")
 	if err != nil {
 		return err
+	}
+	backendPools, err := objectListField(network, "resolvedPlan.network", "backendPools")
+	if err != nil {
+		return err
+	}
+	if len(backendPools) != len(routes) {
+		return fmt.Errorf("resolvedPlan.network.backendPools must contain exactly one pool per route")
+	}
+	poolsByID := make(map[string]map[string]any, len(backendPools))
+	for index, pool := range backendPools {
+		path := fmt.Sprintf("resolvedPlan.network.backendPools[%d]", index)
+		poolID, err := stringField(pool, path, "id")
+		if err != nil {
+			return err
+		}
+		if _, duplicate := poolsByID[poolID]; duplicate {
+			return fmt.Errorf("%s.id %q is duplicated", path, poolID)
+		}
+		poolsByID[poolID] = pool
 	}
 	accessPolicies := map[string]any{}
 	planData, err := objectField(map[string]any(plan), "resolvedPlan", "data")
@@ -149,6 +181,24 @@ func validateRouteOriginProjection(plan ResolvedPlan) error {
 		if err := validateResolvedRouteEndpoint(route, path, endpoint, planData); err != nil {
 			return err
 		}
+		poolRef, err := stringField(route, path, "backendPoolRef")
+		if err != nil {
+			return err
+		}
+		havePool, exists := poolsByID[poolRef]
+		if !exists {
+			return fmt.Errorf("%s.backendPoolRef %q has no persisted backend pool", path, poolRef)
+		}
+		wantPool, err := buildRouteBackendPool(routeID, endpoint)
+		if err != nil {
+			return fmt.Errorf("recompute %s backend pool: %w", path, err)
+		}
+		if equal, err := canonicalEqual(havePool, wantPool); err != nil {
+			return err
+		} else if !equal {
+			return fmt.Errorf("resolvedPlan.network.backendPools.%s is not the exact compiler-derived route backend pool", poolRef)
+		}
+		delete(poolsByID, poolRef)
 		exposure, err := stringField(route, path, "exposure")
 		if err != nil {
 			return err
@@ -157,7 +207,11 @@ func validateRouteOriginProjection(plan ResolvedPlan) error {
 		if err != nil {
 			return err
 		}
-		wantTLS, err := resolveRouteTLS(routeID, protocol, exposure, configuration)
+		routeRequirements, err := routeCapabilityRequirementsFromProjection(route, path)
+		if err != nil {
+			return err
+		}
+		wantTLS, err := resolveRouteTLS(routeID, protocol, exposure, configuration, catalog, capabilityProviders, routeRequirements)
 		if err != nil {
 			return fmt.Errorf("recompute %s.tls: %w", path, err)
 		}
@@ -191,6 +245,9 @@ func validateRouteOriginProjection(plan ResolvedPlan) error {
 		} else if !equal {
 			return fmt.Errorf("%s.access is not the exact compiler-derived access projection", path)
 		}
+	}
+	if len(poolsByID) != 0 {
+		return fmt.Errorf("resolvedPlan.network.backendPools contains orphan pools")
 	}
 	return nil
 }
@@ -456,6 +513,24 @@ func validateExecutionReadinessProjection(plan ResolvedPlan) error {
 	if !hasBridge {
 		bridge = nil
 	}
+	gates, err := objectField(map[string]any(plan), "resolvedPlan", "gates")
+	if err != nil {
+		return err
+	}
+	healthGates, err := objectListField(gates, "resolvedPlan.gates", "health")
+	if err != nil {
+		return err
+	}
+	var routeHealth []any
+	for _, gate := range healthGates {
+		targetKind, err := stringField(gate, "resolvedPlan.gates.health", "targetKind")
+		if err != nil {
+			return err
+		}
+		if targetKind == "route" {
+			routeHealth = append(routeHealth, gate)
+		}
+	}
 	want, err := buildExecutionReadiness(
 		objectMapsAsAny(providers),
 		objectMapsAsAny(modules),
@@ -463,6 +538,7 @@ func validateExecutionReadinessProjection(plan ResolvedPlan) error {
 		evidence,
 		rendererID,
 		outputRoot,
+		routeHealth,
 		bridge,
 	)
 	if err != nil {
@@ -491,11 +567,14 @@ func objectMapsAsAny(values []map[string]any) []any {
 }
 
 //nolint:gocyclo // Selection-graph validation is the fail-closed cross-product of dependencies, conflicts, providers, and modules.
-func validateResolvedSelectionGraph(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders map[string]string) error {
+func validateResolvedSelectionGraph(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders, workloadProviders map[string]string) error {
 	selectedCapabilities := make(map[string]struct{}, len(capabilityProviders))
 	selectedProviders := make(map[string]struct{})
 	for capabilityID, providerID := range capabilityProviders {
 		selectedCapabilities[capabilityID] = struct{}{}
+		selectedProviders[providerID] = struct{}{}
+	}
+	for _, providerID := range workloadProviders {
 		selectedProviders[providerID] = struct{}{}
 	}
 	moduleValues, err := objectListField(map[string]any(plan), "resolvedPlan", "modules")
@@ -526,6 +605,19 @@ func validateResolvedSelectionGraph(plan ResolvedPlan, catalog *indexedCatalog, 
 			selectedAddons[id] = struct{}{}
 		}
 	}
+	selectedContracts := make(map[string]struct{}, len(selectedCapabilities)+len(selectedProviders)+len(selectedAddons)+len(workloadProviders))
+	for id := range selectedCapabilities {
+		selectedContracts[id] = struct{}{}
+	}
+	for id := range selectedProviders {
+		selectedContracts[id] = struct{}{}
+	}
+	for id := range selectedAddons {
+		selectedContracts[id] = struct{}{}
+	}
+	for workloadID := range workloadProviders {
+		selectedContracts[workloadID] = struct{}{}
+	}
 
 	sites, err := objectListField(map[string]any(plan), "resolvedPlan", "sites")
 	if err != nil {
@@ -548,7 +640,7 @@ func validateResolvedSelectionGraph(plan ResolvedPlan, catalog *indexedCatalog, 
 		if err != nil {
 			return err
 		}
-		if err := rejectSelectedConflicts("catalog.capabilities."+capabilityID, conflicts, selectedCapabilities); err != nil {
+		if err := rejectSelectedConflicts("catalog.capabilities."+capabilityID, conflicts, selectedContracts); err != nil {
 			return err
 		}
 		supportedKinds, err := stringListField(contract, "catalog.capabilities."+capabilityID, "supportedSiteKinds", true)
@@ -568,7 +660,7 @@ func validateResolvedSelectionGraph(plan ResolvedPlan, catalog *indexedCatalog, 
 		if err != nil {
 			return err
 		}
-		if err := rejectSelectedConflicts("catalog.providers."+providerID, conflicts, selectedProviders); err != nil {
+		if err := rejectSelectedConflicts("catalog.providers."+providerID, conflicts, selectedContracts); err != nil {
 			return err
 		}
 	}
@@ -579,16 +671,6 @@ func validateResolvedSelectionGraph(plan ResolvedPlan, catalog *indexedCatalog, 
 	kitSlug, err := stringField(kit, "resolvedPlan.kit", "slug")
 	if err != nil {
 		return err
-	}
-	selectedAddOnConflicts := make(map[string]struct{}, len(selectedCapabilities)+len(selectedProviders)+len(selectedAddons))
-	for id := range selectedCapabilities {
-		selectedAddOnConflicts[id] = struct{}{}
-	}
-	for id := range selectedProviders {
-		selectedAddOnConflicts[id] = struct{}{}
-	}
-	for id := range selectedAddons {
-		selectedAddOnConflicts[id] = struct{}{}
 	}
 	for addonID := range selectedAddons {
 		contract := catalog.addons[addonID]
@@ -618,7 +700,7 @@ func validateResolvedSelectionGraph(plan ResolvedPlan, catalog *indexedCatalog, 
 		if err != nil {
 			return err
 		}
-		if err := rejectSelectedConflicts("catalog.addons."+addonID, conflicts, selectedAddOnConflicts); err != nil {
+		if err := rejectSelectedConflicts("catalog.addons."+addonID, conflicts, selectedContracts); err != nil {
 			return err
 		}
 	}
@@ -698,6 +780,9 @@ func resolvedCapabilityProviders(plan ResolvedPlan, catalog *indexedCatalog) (ma
 		if _, exists := catalog.capabilities[id]; !exists {
 			return nil, fmt.Errorf("%s id %q has no bound catalog body", path, id)
 		}
+		if err := requireCatalogOptionalObjectField(value, catalog.capabilities[id], path, "tlsProfile"); err != nil {
+			return nil, err
+		}
 		providerRef, err := stringField(value, path, "providerRef")
 		if err != nil {
 			return nil, err
@@ -763,7 +848,247 @@ func validateResolvedCapabilityProviderEligibility(plan ResolvedPlan, catalog *i
 }
 
 //nolint:gocyclo // Provider-body validation keeps every resolved provider field bound to its catalog authority.
-func validateResolvedProviderBodies(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders map[string]string) error {
+type resolvedWorkloadPlacement struct {
+	siteRefs []string
+	nodeRefs []string
+}
+
+func validateResolvedWorkloadBodies(plan ResolvedPlan, catalog *indexedCatalog) (map[string]string, map[string]string, map[string]resolvedWorkloadPlacement, error) {
+	values, err := objectListField(map[string]any(plan), "resolvedPlan", "workloads")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	providers := make(map[string]string, len(values))
+	modules := make(map[string]string, len(values))
+	placements := make(map[string]resolvedWorkloadPlacement, len(values))
+	nodeSites, nodeKinds, enabledNodes, err := resolvedTopologyIndex(plan)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	resolvedModules, err := objectListField(map[string]any(plan), "resolvedPlan", "modules")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	modulesByID, err := indexObjectsByID(resolvedModules, "resolvedPlan.modules")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	for index, value := range values {
+		path := fmt.Sprintf("resolvedPlan.workloads[%d]", index)
+		id, err := stringField(value, path, "id")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		contract := catalog.workloads[id]
+		if contract == nil {
+			return nil, nil, nil, fmt.Errorf("%s id %q has no bound workload body", path, id)
+		}
+		version, err := metadataVersion(contract, "catalog.workloads."+id)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		haveVersion, err := stringField(value, path, "version")
+		if err != nil || haveVersion != version {
+			return nil, nil, nil, fmt.Errorf("%s.version does not match the bound workload body", path)
+		}
+		wantHash, err := canonicalHash(contract, true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		haveHash, err := stringField(value, path, "contractHash")
+		if err != nil || haveHash != wantHash {
+			return nil, nil, nil, fmt.Errorf("%s.contractHash does not match the bound workload body", path)
+		}
+		for _, field := range []string{"kind", "functionalCapabilities", "dataClasses"} {
+			if err := requireCatalogField(value, contract, path, field); err != nil {
+				return nil, nil, nil, err
+			}
+		}
+		resolvedAlternative, err := objectField(value, path, "alternative")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		alternativeID, err := stringField(resolvedAlternative, path+".alternative", "id")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		alternative, err := workloadAlternative(contract, id, alternativeID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		wantAlternativeHash, err := canonicalHash(alternative, true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		haveAlternativeHash, err := stringField(resolvedAlternative, path+".alternative", "contractHash")
+		if err != nil || haveAlternativeHash != wantAlternativeHash {
+			return nil, nil, nil, fmt.Errorf("%s.alternative.contractHash does not match the bound alternative body", path)
+		}
+		for _, field := range []string{"providerRef", "moduleRef"} {
+			if err := requireCatalogField(resolvedAlternative, alternative, path+".alternative", field); err != nil {
+				return nil, nil, nil, err
+			}
+		}
+		for _, field := range []string{"route", "setup"} {
+			if err := requireCatalogObjectField(resolvedAlternative, alternative, path+".alternative", field); err != nil {
+				return nil, nil, nil, err
+			}
+		}
+		inputs, err := objectField(alternative, path+".alternative", "inputs")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		settingsContract, err := objectField(inputs, path+".alternative.inputs", "settings")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		secretContract, err := objectField(inputs, path+".alternative.inputs", "secretInputs")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		settings, _, err := optionalObjectField(value, path, "settings")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		secretRefs, _, err := optionalObjectField(value, path, "secretRefs")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if err := validateWorkloadInputMap(settings, settingsContract, path+".settings"); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := validateWorkloadInputMap(secretRefs, secretContract, path+".secretRefs"); err != nil {
+			return nil, nil, nil, err
+		}
+		providerID, err := stringField(resolvedAlternative, path+".alternative", "providerRef")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		moduleID, err := stringField(resolvedAlternative, path+".alternative", "moduleRef")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if owner, duplicate := modules[moduleID]; duplicate && owner != id {
+			return nil, nil, nil, fmt.Errorf("%s module %q is already bound to workload %q", path, moduleID, owner)
+		}
+		siteRefs, err := stringListField(value, path, "siteRefs", true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		nodeRefs, err := stringListField(value, path, "nodeRefs", true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		supportedKinds, err := stringListField(contract, "catalog.workloads."+id, "supportedSiteKinds", true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		for _, nodeRef := range nodeRefs {
+			if !contains(enabledNodes, nodeRef) || !contains(siteRefs, nodeSites[nodeRef]) || !contains(supportedKinds, nodeKinds[nodeRef]) {
+				return nil, nil, nil, fmt.Errorf("%s.nodeRefs contains node %q outside the bound workload placement envelope", path, nodeRef)
+			}
+		}
+		resolvedModule := modulesByID[moduleID]
+		if resolvedModule == nil {
+			return nil, nil, nil, fmt.Errorf("%s alternative module %q is absent", path, moduleID)
+		}
+		moduleContract := catalog.modules[moduleID]
+		if moduleContract == nil {
+			return nil, nil, nil, fmt.Errorf("%s alternative module %q has no bound module body", path, moduleID)
+		}
+		if err := validateResolvedWorkloadInputFanout(resolvedModule, moduleContract, moduleID, settings, secretRefs, settingsContract, secretContract, path); err != nil {
+			return nil, nil, nil, err
+		}
+		providers[id], modules[moduleID], placements[moduleID] = providerID, id, resolvedWorkloadPlacement{siteRefs: siteRefs, nodeRefs: nodeRefs}
+	}
+	return providers, modules, placements, nil
+}
+
+func validateResolvedWorkloadInputFanout(module, contract map[string]any, moduleID string, settings, secretRefs, settingsContract, secretContract map[string]any, workloadPath string) error {
+	defaults, hasDefaults, err := optionalObjectField(contract, "catalog.modules."+moduleID, "inputDefaults")
+	if err != nil {
+		return err
+	}
+	if !hasDefaults {
+		defaults = map[string]any{}
+	}
+	allowedSettings, err := stringListField(settingsContract, workloadPath+".alternative.inputs.settings", "allowedRefs", false)
+	if err != nil {
+		return err
+	}
+	allowedSecrets, err := stringListField(secretContract, workloadPath+".alternative.inputs.secretInputs", "allowedRefs", false)
+	if err != nil {
+		return err
+	}
+	moduleValues := make(map[string]any, len(defaults)+len(settings))
+	for key, value := range defaults {
+		if !contains(allowedSettings, key) {
+			return fmt.Errorf("catalog.modules.%s.inputDefaults.%s is not governed by %s.alternative inputs", moduleID, key, workloadPath)
+		}
+		moduleValues[key] = value
+	}
+	for key, value := range settings {
+		moduleValues[key] = value
+	}
+	units, err := objectListField(module, "resolvedPlan.modules."+moduleID, "renderUnits")
+	if err != nil {
+		return err
+	}
+	for index, unit := range units {
+		unitPath := fmt.Sprintf("resolvedPlan.modules.%s.renderUnits[%d]", moduleID, index)
+		publicRefs, err := stringListField(unit, unitPath, "publicInputRefs", false)
+		if err != nil {
+			return err
+		}
+		expectedValues := map[string]any{}
+		for _, key := range publicRefs {
+			if !contains(allowedSettings, key) {
+				return fmt.Errorf("%s.%s is not governed by %s.alternative inputs", unitPath+".publicInputRefs", key, workloadPath)
+			}
+			if value, exists := moduleValues[key]; exists {
+				expectedValues[key] = value
+			}
+		}
+		values, _, err := optionalObjectField(unit, unitPath, "values")
+		if err != nil {
+			return err
+		}
+		equal, err := canonicalEqual(values, expectedValues)
+		if err != nil {
+			return err
+		}
+		if !equal {
+			return fmt.Errorf("%s.values is not the exact workload-governed public input projection", unitPath)
+		}
+		declaredSecrets, err := stringListField(unit, unitPath, "secretInputRefs", false)
+		if err != nil {
+			return err
+		}
+		resolvedSecrets, _, err := optionalObjectField(unit, unitPath, "secretRefs")
+		if err != nil {
+			return err
+		}
+		expectedSecrets := map[string]any{}
+		for _, key := range declaredSecrets {
+			if !contains(allowedSecrets, key) {
+				return fmt.Errorf("%s.%s is not governed by %s.alternative inputs", unitPath+".secretInputRefs", key, workloadPath)
+			}
+			if value, exists := secretRefs[key]; exists {
+				expectedSecrets[key] = value
+			}
+		}
+		equal, err = canonicalEqual(resolvedSecrets, expectedSecrets)
+		if err != nil {
+			return err
+		}
+		if !equal {
+			return fmt.Errorf("%s.secretRefs is not the exact workload-governed secret input projection", unitPath)
+		}
+	}
+	return nil
+}
+
+func validateResolvedProviderBodies(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders, workloadProviders map[string]string) error {
 	capabilityValues, err := objectListField(map[string]any(plan), "resolvedPlan", "capabilities")
 	if err != nil {
 		return err
@@ -792,8 +1117,11 @@ func validateResolvedProviderBodies(plan ResolvedPlan, catalog *indexedCatalog, 
 	for _, providerRef := range capabilityProviders {
 		expectedIDs[providerRef] = struct{}{}
 	}
+	for _, providerRef := range workloadProviders {
+		expectedIDs[providerRef] = struct{}{}
+	}
 	if !sameStringSet(mapKeys(actual), mapKeys(expectedIDs)) {
-		return fmt.Errorf("resolvedPlan.providers is not the exact provider set selected by resolved capabilities")
+		return fmt.Errorf("resolvedPlan.providers is not the exact provider set selected by resolved capabilities and workloads")
 	}
 
 	nodeSites, nodeKinds, enabledNodes, err := resolvedTopologyIndex(plan)
@@ -814,6 +1142,15 @@ func validateResolvedProviderBodies(plan ResolvedPlan, catalog *indexedCatalog, 
 		if err := requireCatalogObjectField(provider, contract, path, "realization"); err != nil {
 			return err
 		}
+		if err := requireCatalogField(provider, contract, path, "certificateIssuers"); err != nil {
+			return err
+		}
+		if err := requireCatalogField(provider, contract, path, "overlayContracts"); err != nil {
+			return err
+		}
+		if err := requireCatalogField(provider, contract, path, "remoteActionContracts"); err != nil {
+			return err
+		}
 		wantProvides := capabilitiesForProvider(capabilityProviders, id)
 		haveProvides, err := stringListField(provider, path, "provides", true)
 		if err != nil {
@@ -821,6 +1158,20 @@ func validateResolvedProviderBodies(plan ResolvedPlan, catalog *indexedCatalog, 
 		}
 		if !reflect.DeepEqual(haveProvides, wantProvides) {
 			return fmt.Errorf("%s.provides is not the exact selected capability projection", path)
+		}
+		var wantWorkloads []string
+		for workloadID, providerRef := range workloadProviders {
+			if providerRef == id {
+				wantWorkloads = append(wantWorkloads, workloadID)
+			}
+		}
+		wantWorkloads = sortStringsUnique(wantWorkloads)
+		haveWorkloads, err := stringListField(provider, path, "workloadRefs", false)
+		if err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(haveWorkloads, wantWorkloads) {
+			return fmt.Errorf("%s.workloadRefs is not the exact selected workload projection", path)
 		}
 		supportedKinds, err := stringListField(contract, "catalog.providers."+id, "supportedSiteKinds", true)
 		if err != nil {
@@ -1007,7 +1358,7 @@ func expectedProviderOwnerInputs(realization map[string]any, capabilities map[st
 }
 
 //nolint:gocyclo // Module-body validation exhaustively binds placement, inputs, render units, and selected capabilities.
-func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders map[string]string) error {
+func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders, workloadProviders, workloadModules map[string]string, workloadPlacements map[string]resolvedWorkloadPlacement) error {
 	values, err := objectListField(map[string]any(plan), "resolvedPlan", "modules")
 	if err != nil {
 		return err
@@ -1027,6 +1378,9 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 
 	selectedProviders := make(map[string]struct{})
 	for _, providerRef := range capabilityProviders {
+		selectedProviders[providerRef] = struct{}{}
+	}
+	for _, providerRef := range workloadProviders {
 		selectedProviders[providerRef] = struct{}{}
 	}
 	requiredModules := make(map[string]struct{})
@@ -1056,6 +1410,11 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 	for id := range requiredModules {
 		if _, exists := actual[id]; !exists {
 			return fmt.Errorf("resolvedPlan.modules omits required bound module %q", id)
+		}
+	}
+	for moduleID := range workloadModules {
+		if _, exists := actual[moduleID]; !exists {
+			return fmt.Errorf("resolvedPlan.modules omits workload-selected module %q", moduleID)
 		}
 	}
 	for id := range actual {
@@ -1090,13 +1449,16 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if haveProviderRef != providerRef {
 			return fmt.Errorf("%s.providerRef does not match the bound module body", path)
 		}
+		if err := requireCatalogField(module, contract, path, "role"); err != nil {
+			return err
+		}
 		if err := requireCatalogObjectField(module, contract, path, "runtime"); err != nil {
 			return err
 		}
 		if err := requireCatalogObjectField(module, contract, path, "realizationSupport"); err != nil {
 			return err
 		}
-		for _, field := range []string{"nodeSelection", "runtimeRequirements"} {
+		for _, field := range []string{"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement"} {
 			if err := requireCatalogOptionalObjectField(module, contract, path, field); err != nil {
 				return err
 			}
@@ -1133,6 +1495,9 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if err != nil {
 			return fmt.Errorf("%s placement cannot be reconstructed from its bound contract: %w", path, err)
 		}
+		if placement, isWorkloadModule := workloadPlacements[id]; isWorkloadModule {
+			wantSites, wantNodes = placement.siteRefs, placement.nodeRefs
+		}
 		haveNodes, err := stringListField(module, path, "nodeRefs", true)
 		if err != nil {
 			return err
@@ -1148,6 +1513,9 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 			return err
 		}
 		if err := validateResolvedModuleInputProjection(module, contract, path); err != nil {
+			return err
+		}
+		if err := validateResolvedModuleSecretInputProjection(plan, module, path); err != nil {
 			return err
 		}
 		if err := validateResolvedModulePlanInputProjection(plan, module, path); err != nil {
@@ -1180,6 +1548,13 @@ func validateResolvedModuleCoverage(plan ResolvedPlan, catalog *indexedCatalog, 
 			}
 			if ownerRef != providerID {
 				return fmt.Errorf("resolved capability %q selects provider %q without its exact owner contract", capabilityID, providerID)
+			}
+			continue
+		case "contract":
+			continue
+		case "topology":
+			if err := validateTopologyProviderRealization(providerID, catalog.providers[providerID], realization); err != nil {
+				return err
 			}
 			continue
 		case "none":
@@ -1351,6 +1726,14 @@ func validateResolvedRenderUnitBodies(module, contract map[string]any, path stri
 				return fmt.Errorf("%s.%s does not match the bound render-unit body", unitPath, field)
 			}
 		}
+		if equal, err := canonicalEqual(
+			map[string]any{"inputBindings": have["inputBindings"], "secretInputBindings": have["secretInputBindings"]},
+			map[string]any{"inputBindings": want["inputBindings"], "secretInputBindings": want["secretInputBindings"]},
+		); err != nil {
+			return err
+		} else if !equal {
+			return fmt.Errorf("%s input bindings do not match the bound render-unit body", unitPath)
+		}
 		if err := requireCatalogObjectField(have, want, unitPath, "placement"); err != nil {
 			return err
 		}
@@ -1367,11 +1750,86 @@ func validateResolvedRenderUnitBodies(module, contract map[string]any, path stri
 	return nil
 }
 
+func validateResolvedModuleSecretInputProjection(plan ResolvedPlan, module map[string]any, path string) error {
+	moduleID, err := stringField(module, path, "id")
+	if err != nil {
+		return err
+	}
+	providerRef, err := stringField(module, path, "providerRef")
+	if err != nil {
+		return err
+	}
+	rawCapabilities, err := objectListField(map[string]any(plan), "resolvedPlan", "capabilities")
+	if err != nil {
+		return err
+	}
+	capabilities, err := indexObjectsByID(rawCapabilities, "resolvedPlan.capabilities")
+	if err != nil {
+		return err
+	}
+	units, err := objectListField(module, path, "renderUnits")
+	if err != nil {
+		return err
+	}
+	for index, unit := range units {
+		unitPath := fmt.Sprintf("%s.renderUnits[%d]", path, index)
+		unitID, err := stringField(unit, unitPath, "id")
+		if err != nil {
+			return err
+		}
+		unitPath = path + ".renderUnits." + unitID
+		bindings, err := moduleRenderSecretInputBindings(unit, unitPath)
+		if err != nil {
+			return err
+		}
+		secrets, err := objectField(unit, unitPath, "secretRefs")
+		if err != nil {
+			return err
+		}
+		for targetRef, binding := range bindings {
+			capability, exists := capabilities[binding.capabilityRef]
+			if !exists {
+				return fmt.Errorf("%s.secretInputBindings.%s references absent capability %q", unitPath, targetRef, binding.capabilityRef)
+			}
+			capabilityProvider, err := stringField(capability, "resolvedPlan.capabilities."+binding.capabilityRef, "providerRef")
+			if err != nil {
+				return err
+			}
+			if capabilityProvider != providerRef {
+				return fmt.Errorf("%s.secretInputBindings.%s capability is not owned by module provider %q", unitPath, targetRef, providerRef)
+			}
+			capabilitySecrets, exists, err := optionalObjectField(capability, "resolvedPlan.capabilities."+binding.capabilityRef, "secretRefs")
+			if err != nil || !exists {
+				return fmt.Errorf("%s.secretInputBindings.%s capability secret source is unavailable", unitPath, targetRef)
+			}
+			sourceSecret, sourceExists := capabilitySecrets[binding.key]
+			targetSecret, targetExists := secrets[targetRef]
+			if !sourceExists || !targetExists {
+				return fmt.Errorf("%s.secretInputBindings.%s does not resolve an exact source and target", unitPath, targetRef)
+			}
+			equal, err := canonicalEqual(sourceSecret, targetSecret)
+			if err != nil {
+				return err
+			}
+			if !equal {
+				return fmt.Errorf("%s.secretRefs.%s is not the exact capability secret projection for module %q", unitPath, targetRef, moduleID)
+			}
+		}
+	}
+	return nil
+}
+
 // validateResolvedModulePlanInputProjection reconstructs every compiler-owned
 // plan input from the persisted plan. Re-hashing a plan after changing,
 // omitting, or widening planInputs therefore cannot manufacture authority.
+//
+//nolint:gocyclo // Persisted-plan rebound validation exhaustively compares every governed module input projection.
 func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[string]any, path string) error {
 	source, err := modulePlanInputSourceFromResolvedPlan(plan)
+	if err != nil {
+		return err
+	}
+	moduleID, err := stringField(module, path, "id")
 	if err != nil {
 		return err
 	}
@@ -1401,7 +1859,7 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 			return fmt.Errorf("%s.planInputs is not the exact 1:1 planInputRefs projection", unitPath)
 		}
 		for _, ref := range refs {
-			want, err := source.resolve(ref)
+			want, err := source.resolve(ref, moduleID, module)
 			if err != nil {
 				return fmt.Errorf("recompute %s.planInputs.%s: %w", unitPath, ref, err)
 			}
@@ -1411,6 +1869,53 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 			}
 			if !equal {
 				return fmt.Errorf("%s.planInputs.%s is not the exact compiler-derived projection", unitPath, ref)
+			}
+		}
+		bindings, err := moduleRenderInputBindings(unit, unitPath)
+		if err != nil {
+			return err
+		}
+		if len(bindings) == 0 {
+			continue
+		}
+		values, err := objectField(unit, unitPath, "values")
+		if err != nil {
+			return err
+		}
+		identity, err := objectField(map[string]any(plan), "resolvedPlan", "identity")
+		if err != nil {
+			return err
+		}
+		network, err := objectField(map[string]any(plan), "resolvedPlan", "network")
+		if err != nil {
+			return err
+		}
+		gates, err := objectField(map[string]any(plan), "resolvedPlan", "gates")
+		if err != nil {
+			return err
+		}
+		bindingSource := moduleRenderInputSource{identity: identity, network: network, gates: gates}
+		for _, binding := range bindings {
+			want, available, err := bindingSource.resolve(binding)
+			if err != nil {
+				return fmt.Errorf("recompute %s.values.%s: %w", unitPath, binding.targetRef, err)
+			}
+			if !available {
+				if binding.required {
+					return fmt.Errorf("recompute %s.values.%s: required source %s is unavailable", unitPath, binding.targetRef, binding.sourceRef)
+				}
+				want = binding.defaultValue
+			}
+			have, exists := values[binding.targetRef]
+			if !exists {
+				return fmt.Errorf("%s.values.%s omits compiler-bound public input", unitPath, binding.targetRef)
+			}
+			equal, err := canonicalEqual(have, want)
+			if err != nil {
+				return err
+			}
+			if !equal {
+				return fmt.Errorf("%s.values.%s is not the exact compiler-derived input binding", unitPath, binding.targetRef)
 			}
 		}
 	}
@@ -1543,7 +2048,7 @@ func validateResolvedGateBodies(plan ResolvedPlan, catalog *indexedCatalog, capa
 	if err != nil {
 		return err
 	}
-	_, nodeKinds, enabledNodes, err := resolvedTopologyIndex(plan)
+	nodeSites, nodeKinds, enabledNodes, err := resolvedTopologyIndex(plan)
 	if err != nil {
 		return err
 	}
@@ -1570,33 +2075,12 @@ func validateResolvedGateBodies(plan ResolvedPlan, catalog *indexedCatalog, capa
 
 	expectedHealth := map[string]map[string]any{}
 	appendHealth := func(targetKind, targetRef string, contract map[string]any, siteRefs, nodeRefs []string) error {
-		healthContracts, err := objectListOptional(contract, "health")
+		gates, err := materializeContractHealthGates(targetKind, targetRef, contract, siteRefs, nodeRefs, nodeSites)
 		if err != nil {
 			return err
 		}
-		for _, healthContract := range healthContracts {
-			healthID, err := stringField(healthContract, "catalog health", "id")
-			if err != nil {
-				return err
-			}
-			gateID := contractID(targetKind + "-" + targetRef + "-" + healthID)
-			gate, err := cloneObject(healthContract, true)
-			if err != nil {
-				return err
-			}
-			contractHash, err := canonicalHash(healthContract, true)
-			if err != nil {
-				return err
-			}
-			gate["id"] = gateID
-			gate["contractHash"] = contractHash
-			gate["targetKind"] = targetKind
-			gate["targetRef"] = targetRef
-			gate["siteRefs"] = stringSliceAny(sortStringsUnique(siteRefs))
-			gate["required"] = true
-			if len(nodeRefs) > 0 {
-				gate["nodeRefs"] = stringSliceAny(sortStringsUnique(nodeRefs))
-			}
+		for _, gate := range gates {
+			gateID := gate["id"].(string)
 			if _, duplicate := expectedHealth[gateID]; duplicate {
 				return fmt.Errorf("bound catalog projects duplicate health gate %q", gateID)
 			}
@@ -1627,6 +2111,65 @@ func validateResolvedGateBodies(plan ResolvedPlan, catalog *indexedCatalog, capa
 		if err := appendHealth("module", moduleID, catalog.modules[moduleID], siteRefs, nodeRefs); err != nil {
 			return err
 		}
+	}
+	serviceEndpoints, err := indexResolvedServiceEndpoints(objectMapsAsAny(moduleValues))
+	if err != nil {
+		return err
+	}
+	if err := bindServiceEndpointHealthContracts(serviceEndpoints, catalog.modules); err != nil {
+		return err
+	}
+	network, err := objectField(map[string]any(plan), "resolvedPlan", "network")
+	if err != nil {
+		return err
+	}
+	routes, err := objectListField(network, "resolvedPlan.network", "routes")
+	if err != nil {
+		return err
+	}
+	backendPools, err := objectListField(network, "resolvedPlan.network", "backendPools")
+	if err != nil {
+		return err
+	}
+	poolsByID, err := indexObjectsByID(backendPools, "resolvedPlan.network.backendPools")
+	if err != nil {
+		return err
+	}
+	for routeIndex, route := range routes {
+		routePath := fmt.Sprintf("resolvedPlan.network.routes[%d]", routeIndex)
+		routeID, err := stringField(route, routePath, "id")
+		if err != nil {
+			return err
+		}
+		moduleRef, err := stringField(route, routePath, "moduleRef")
+		if err != nil {
+			return err
+		}
+		serviceRef, err := stringField(route, routePath, "serviceRef")
+		if err != nil {
+			return err
+		}
+		endpoint, exists := serviceEndpoints[moduleRef][serviceRef]
+		if !exists {
+			return fmt.Errorf("%s has no bound service endpoint", routePath)
+		}
+		poolRef, err := stringField(route, routePath, "backendPoolRef")
+		if err != nil {
+			return err
+		}
+		backendPool, exists := poolsByID[poolRef]
+		if !exists {
+			return fmt.Errorf("%s.backendPoolRef %q has no bound pool", routePath, poolRef)
+		}
+		gate, err := buildRouteHealthGate(routeID, backendPool, endpoint)
+		if err != nil {
+			return err
+		}
+		gateID := gate["id"].(string)
+		if _, duplicate := expectedHealth[gateID]; duplicate {
+			return fmt.Errorf("bound catalog projects duplicate route health gate %q", gateID)
+		}
+		expectedHealth[gateID] = gate
 	}
 
 	gates, err := objectField(map[string]any(plan), "resolvedPlan", "gates")
@@ -1936,6 +2479,25 @@ func requireCatalogObjectField(have, want map[string]any, path, field string) er
 		return err
 	}
 	equal, err := canonicalEqual(haveObject, wantObject)
+	if err != nil {
+		return err
+	}
+	if !equal {
+		return fmt.Errorf("%s.%s does not match the bound catalog body", path, field)
+	}
+	return nil
+}
+
+func requireCatalogField(have, want map[string]any, path, field string) error {
+	haveValue, haveField := have[field]
+	wantValue, wantField := want[field]
+	if haveField != wantField {
+		return fmt.Errorf("%s.%s presence does not match the bound catalog body", path, field)
+	}
+	if !haveField {
+		return nil
+	}
+	equal, err := canonicalEqual(haveValue, wantValue)
 	if err != nil {
 		return err
 	}

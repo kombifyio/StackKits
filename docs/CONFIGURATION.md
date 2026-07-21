@@ -45,31 +45,33 @@ The canonical schema and examples are documented in [stack-spec-reference.md](st
 | `--quiet`, `-q` | `false` | Suppress non-essential output. |
 | `--chdir`, `-C` | `.` | Change working directory before running. |
 | `--spec`, `-s` | `stack-spec.yaml` | Spec path; `kombination.yaml` fallback is supported. |
-| `--context` | auto | Override node context: `local`, `cloud`, or `pi`. |
+| `--context` | auto | Override node context for compatibility/runtime commands. Native v2 `init` rejects it because the selected kit owns placement. |
 | `--no-log` | `false` | Disable structured deploy logging. |
 
 ## Init, Generate, Apply, Verify
 
 | Command | Important flags/env | Purpose |
 | --- | --- | --- |
-| `stackkit init` | `--compute-tier`, `--domain`, `--local-dns`, `--local-name`, `--mode`, `--output`, `--force`, `--non-interactive`, `--admin-email`, `--service-profile` | Create an initial spec and deployment directory. |
-| `stackkit init` owner bootstrap | `--cluster-mode`, `--owner-bootstrap-mode`, `--owner-source`, `--owner-email`, `--owner-username`, `--owner-display-name`, `--recovery-passphrase-hash`, `--recovery-material-ref` | Configure owner and recovery bootstrap. `auto` is for TechStack/SaaS handoff, `custom` is explicit self-hosted Owner, and `none` skips Owner bootstrap. |
-| `stackkit init` cloud owner handoff | `--cloud-oidc-issuer`, `--cloud-oidc-client-id`, `--cloud-oidc-client-secret-ref`, `--cloud-oidc-foreign-subject` | Optional metadata for orchestrator-managed auto owner bootstrap. |
-| `stackkit app add` | `<name>`, `--image`, `--kind`, `--port`, `--host`, `--auth`, `--health-path`, repeated `--env`, repeated `--secret` | Add or update optional PaaS handoff metadata in `stack-spec.yaml`. StackKit generates manifest/compose handoff files; the selected PaaS owns user app deployment and lifecycle. |
+| `stackkit init` (native v2: development and v0.7+) | `--name`, `--domain`, `--expected-spec-hash`, `--non-interactive` | Materialize the selected product's embedded CUE authoring seed as canonical StackSpec v2. Create is atomic no-replace; an existing CUE-valid v2 spec changes only when its exact normalized hash is supplied. `--force` is rejected. Cloud Kit and Modern Home Lab require `--domain`. No empty deployment directory is created and no readiness claim is made. |
+| `stackkit init` (v0.6 compatibility) | `--compute-tier`, `--domain`, `--local-dns`, `--local-name`, `--mode`, `--output`, `--force`, `--non-interactive`, `--admin-email`, `--service-profile` | Create the legacy v1 initial spec and deployment directory. Local kit paths are supported only on this line. |
+| `stackkit init` owner bootstrap (v0.6 compatibility) | `--cluster-mode`, `--owner-bootstrap-mode`, `--owner-source`, `--owner-email`, `--owner-username`, `--owner-display-name`, `--recovery-passphrase-hash`, `--recovery-material-ref` | Configure legacy owner/recovery bootstrap. Native v2 keeps identity outside desired StackSpec intent. |
+| `stackkit init` cloud owner handoff (v0.6 compatibility) | `--cloud-oidc-issuer`, `--cloud-oidc-client-id`, `--cloud-oidc-client-secret-ref`, `--cloud-oidc-foreign-subject` | Optional legacy metadata for orchestrator-managed auto owner bootstrap. |
+| `stackkit addon list` | none | On v0.7, list the embedded CUE add-on catalog and, when a canonical v2 spec exists, its validated kit-filtered selection state. This is discovery only. `addon add/remove` remains v0.6 compatibility-only. |
+| `stackkit app add` (v0.6 compatibility) | `<name>`, `--image`, `--kind`, `--port`, `--host`, `--auth`, `--health-path`, repeated `--env`, repeated `--secret` | Add legacy PaaS handoff metadata. Native v2 fails closed: catalog apps remain StackKit-owned, and no TechStack customer-workload desired-state contract exists yet. |
 | `stackkit generate` | `--output`, `--force`, `--fragments`, `--inventory`, `--resolved-plan`, `KOMBIFY_API_KEY`, `STACKKIT_DNS_TOKEN`, `STACKKIT_DNS_EMAIL` | Generate rollout artifacts. StackSpec v1 retains the compatibility OpenTofu flags. Architecture v2 takes strategy/output from the exact ResolvedPlan, accepts `--output` only when it matches that governed root, and rejects `--force`/`--fragments`. |
 | `stackkit apply` | `--auto-approve`, `--tenant-deployment`, `--admin-endpoint`, `--admin-token`, `--verify`, `--verify-http`, `--verify-strict` | Apply generated infrastructure and optionally report or verify results. |
 | `stackkit apply` env | `STACKKIT_ADMIN_ENDPOINT`, `STACKKIT_ADMIN_URL`, `STACKKIT_ADMIN_TOKEN`, `STACKKIT_BOOTSTRAP_TOKEN`, `KOMBIFY_API_KEY` | Admin reporting, tenant bootstrap fetch, and kombify.me registration. |
 | `stackkit verify` | `--json`, `--http`, `--strict`, `--host`, `--user`, `--key`, `--port`, `--remote-dir`, `--inventory`, `--resolved-plan`, `--artifact-manifest`, `--generation-receipt` | Verify deployment state. Architecture v2 verifies the governed artifact closure before its typed verifier boundary; raw SSH remains an explicit v1-only compatibility transport. |
 
-`stackkit app add --host` accepts a DNS hostname only. Do not include `http://`, `https://`, paths, or ports; TLS and routing are derived from the StackKit domain/platform contract.
+On the v0.6 compatibility line, `stackkit app add --host` accepts a DNS hostname only. Do not include `http://`, `https://`, paths, or ports; TLS and routing are derived from the legacy StackKit domain/platform contract.
 
-Basement Kit currently supports `--service-profile admin-only` for managed first rollouts. It keeps L1/L2 services and admin access enabled while disabling L3 application modules such as Vaultwarden, Jellyfin, and Immich. The one-line installer exposes the same switch through `STACKKIT_SERVICE_PROFILE=admin-only`, which lets Admin-managed deployments roll out a stable platform baseline first and leave owner-specific Layer-3 setup for the SaaS surface.
+The v0.6 compatibility Basement Kit supports `--service-profile admin-only` for managed first rollouts. Native v2 init rejects this flag because application selection is not part of its initial authoring seed. On v0.6 the profile keeps L1/L2 services and admin access enabled while disabling L3 application modules such as Vaultwarden, Jellyfin, and Immich. The one-line installer exposes the same switch through `STACKKIT_SERVICE_PROFILE=admin-only`.
 
 The Basement Kit installer also configures the node-local StackKits API image. If `STACKKIT_SERVER_IMAGE` is set, that image is used directly. Otherwise current release archives install the static `stackkit-server` binary beside the CLI and `base-install.sh` builds a local `stackkit-server:local` scratch image after Docker preparation, copying the host CA bundle into the image. This keeps managed rollouts independent of a registry-hosted system image and avoids package-manager network access during the installer; operators can still point `STACKKIT_SERVER_IMAGE` at a pinned internal image when they want centralized image promotion.
 
 ## Platform App Deployment Env
 
-Generated platform app manifests use `stackkit.platform-apps/v2`. The manifest separates StackKit-owned `systemApps` such as the Node Hub and `stackkit-server` from L3 `apps`. Product-bundled L3 apps carry `ownership: "stackkit"` and are PaaS-intended through the selected adapter. Customer-owned apps created with `stackkit app add` carry `ownership: "customer"` or omit ownership; StackKit records those handoffs in status but does not deploy or manage their lifecycle. Apps installed outside these manifests are state-unmanaged by StackKit.
+Generated v0.6 platform app manifests use `stackkit.platform-apps/v2`. The manifest separates StackKit-owned `systemApps` such as the Node Hub and `stackkit-server` from L3 `apps`. Product-bundled L3 apps carry `ownership: "stackkit"` and are PaaS-intended through the selected adapter. Customer-owned apps created with the v0.6-only `stackkit app add` carry `ownership: "customer"` or omit ownership; StackKit records those handoffs but does not manage their lifecycle. Native Architecture v2 does not import arbitrary customer apps into StackSpec.
 
 Each platform app may also carry first-run setup metadata:
 
@@ -115,7 +117,12 @@ The fast Admin-generated-CUE freshness gate lives in `cmd/stackkit/commands/gene
 
 `demoData.enabled` defaults to `false`. Setup packs seed first-login sample content only when this is explicitly enabled.
 
-## Owner Bootstrap Contract
+## Owner Bootstrap Contract (v0.6 Compatibility)
+
+The fields below describe the bounded v1 compatibility contract. Native v2
+authoring deliberately carries no Owner identity, recovery material, OIDC
+handoff, or secrets; those enter later through separately bound operational
+sidecars and TechStack handoffs.
 
 `owner.bootstrapMode` is the lane selector for first-user setup:
 
@@ -163,7 +170,7 @@ Coolify is the default platform. StackKits bootstraps its root user during insta
 
 ## Dev PaaS App Handoff Env
 
-`base-install.sh` can add one dev-only PaaS handoff app before `generate` by calling `stackkit app add`. This is for local validation of handoff manifests and must not be treated as StackKit-managed app deployment. Set `STACKKIT_ENABLE_DEV_APP_HANDOFF=true` and `STACKKIT_DEV_APP_IMAGE` to enable this path.
+On the v0.6 compatibility line, `base-install.sh` can add one dev-only PaaS handoff app before `generate` by calling `stackkit app add`. This is only for local validation of legacy handoff manifests and must not be treated as StackKit-managed app deployment. Set `STACKKIT_ENABLE_DEV_APP_HANDOFF=true` and `STACKKIT_DEV_APP_IMAGE` to enable this compatibility path.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -191,7 +198,7 @@ If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackk
 | `stackkit kit list` | `--endpoint` or `STACKKIT_ADMIN_ENDPOINT` or `ADMIN_PUBLIC_API_URL`; `--token` or `STACKKIT_ADMIN_TOKEN` or `KOMBIFY_ADMIN_API_KEY`. |
 | `stackkit kit export` | `--slug`, `--from-api` or `STACKKIT_ADMIN_ENDPOINT`, `--token` or `STACKKIT_ADMIN_TOKEN`, `--output`, `--format`; `--from-yaml` for offline tests. |
 | `stackkit kit verify` | `--kit-dir`, optional Admin API endpoint/token, optional `--strict`. |
-| `stackkit wizard report` | `--endpoint` or `STACKKIT_ADMIN_ENDPOINT`; `--token` or `STACKKIT_ADMIN_TOKEN`; `--answers` or repeated `--intent`. |
+| `stackkit wizard report` | Exact-v0.6 compatibility only: `--endpoint` or `STACKKIT_ADMIN_ENDPOINT`; `--token` or `STACKKIT_ADMIN_TOKEN`; `--answers` or repeated `--intent`. Native v0.7 has no v1 wizard telemetry surface. |
 
 ## Server Configuration
 

@@ -73,16 +73,20 @@ func main() {
 	projectFlag := flag.Bool("project", false, "project the target repo to the selected profile set before bundling")
 	distributionFingerprintOutFlag := flag.String("distribution-fingerprint-out", "", "generated Go product distribution fingerprint pin (must be internal/resolvedplan/product_distribution_fingerprint_generated.go beneath -repo)")
 	contractFixtureFlag := flag.Bool("contract-fixture", false, "generate the isolated non-product contract-fixture authority bundle")
+	contractFixtureOutFlag := flag.String("contract-fixture-out", "", "also generate the isolated contract-fixture bundle at this path after the product bundle")
 	flag.Parse()
 	var err error
 	if *contractFixtureFlag {
-		if strings.TrimSpace(*sourceFlag) != "" || *profilesFlag != "all" || *projectFlag || strings.TrimSpace(*distributionFingerprintOutFlag) != "" {
-			err = fmt.Errorf("-contract-fixture cannot be combined with -manifest, -profiles, -project, or -distribution-fingerprint-out")
+		if strings.TrimSpace(*sourceFlag) != "" || *profilesFlag != "all" || *projectFlag || strings.TrimSpace(*distributionFingerprintOutFlag) != "" || strings.TrimSpace(*contractFixtureOutFlag) != "" {
+			err = fmt.Errorf("-contract-fixture cannot be combined with -manifest, -profiles, -project, -distribution-fingerprint-out, or -contract-fixture-out")
 		} else {
 			err = runContractFixture(*repoFlag, *outFlag)
 		}
 	} else {
 		err = runWithOptionsAndDistributionFingerprint(*repoFlag, *outFlag, *sourceFlag, *profilesFlag, *projectFlag, *distributionFingerprintOutFlag)
+		if err == nil && strings.TrimSpace(*contractFixtureOutFlag) != "" {
+			err = runContractFixture(*repoFlag, *contractFixtureOutFlag)
+		}
 	}
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "bundlegen:", err)
@@ -251,10 +255,15 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 		authoritySources[relativePath] = data
 	}
 
-	catalog, err := loadCUEJSON(repoRoot, "base", "ArchitectureV2Catalog")
+	requests := []cueJSONRequest{{Directory: "base", Expression: "ArchitectureV2Catalog"}}
+	for _, profile := range profiles {
+		requests = append(requests, cueJSONRequest{Directory: profile.Package, Expression: "Definition"})
+	}
+	documents, err := loadCUEJSONDocuments(repoRoot, requests)
 	if err != nil {
 		return "", err
 	}
+	catalog := documents[0]
 	if err := rejectProductFixtureValue("catalog.json", catalog); err != nil {
 		return "", err
 	}
@@ -267,11 +276,8 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 		return "", err
 	}
 	definitions := make([]resolvedplan.KitDefinition, 0, len(profiles))
-	for _, profile := range profiles {
-		document, err := loadCUEJSON(repoRoot, profile.Package, "Definition")
-		if err != nil {
-			return "", err
-		}
+	for index, profile := range profiles {
+		document := documents[index+1]
 		relativePath := filepath.ToSlash(filepath.Join("definitions", profile.Slug+".json"))
 		if err := validateProductBundlePath(relativePath); err != nil {
 			return "", err
@@ -339,17 +345,18 @@ func generateContractFixtureBundle(repoRoot, staging string, source sourceManife
 		result.SourceHashes[relativePath] = contentHash(data)
 	}
 
-	catalog, err := loadCUEJSON(repoRoot, "architecture/v2/contractfixture", "ArchitectureV2ContractFixtureCatalog")
+	documents, err := loadCUEJSONDocuments(repoRoot, []cueJSONRequest{
+		{Directory: "architecture/v2/contractfixture", Expression: "ArchitectureV2ContractFixtureCatalog"},
+		{Directory: "architecture/v2/contractfixture", Expression: "ContractFixtureDefinition"},
+	})
 	if err != nil {
 		return err
 	}
+	catalog := documents[0]
 	if err := writeCanonicalJSON(stagingRoot, "contract-fixture-catalog.json", catalog); err != nil {
 		return err
 	}
-	definition, err := loadCUEJSON(repoRoot, "architecture/v2/contractfixture", "ContractFixtureDefinition")
-	if err != nil {
-		return err
-	}
+	definition := documents[1]
 	if err := writeCanonicalJSON(stagingRoot, "definitions/basement-kit.json", definition); err != nil {
 		return err
 	}
@@ -402,6 +409,7 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 		Providers                    []resolvedplan.CapabilityProvider          `json:"providers"`
 		AddOns                       []resolvedplan.AddOnContract               `json:"addons"`
 		Modules                      []resolvedplan.ModuleContract              `json:"modules"`
+		Workloads                    []resolvedplan.WorkloadContract            `json:"workloads"`
 		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
 		PlanArtifacts                []resolvedplan.PlanArtifactContract        `json:"planArtifacts"`
 	}
@@ -412,7 +420,7 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 	}
 	return resolvedplan.Catalog{
 		Capabilities: wire.Capabilities, Providers: wire.Providers, AddOns: wire.AddOns,
-		Modules: wire.Modules, PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
+		Modules: wire.Modules, Workloads: wire.Workloads, PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
 		PlanArtifacts: wire.PlanArtifacts,
 	}, nil
 }
@@ -955,25 +963,85 @@ func yamlMappingValue(mapping *yaml.Node, key string) (*yaml.Node, error) {
 	return nil, fmt.Errorf("OpenAPI projection field %q is missing", key)
 }
 
-func loadCUEJSON(moduleRoot, directory, expression string) ([]byte, error) {
-	instances := load.Instances([]string{"./" + filepath.ToSlash(directory)}, &load.Config{
+type cueJSONRequest struct {
+	Directory  string
+	Expression string
+}
+
+// loadCUEJSONDocuments loads every distinct CUE package once. Product bundle
+// generation used to call load.Instances separately for the catalog and each
+// Kit Definition, repeatedly parsing the same imported authority graph.
+func loadCUEJSONDocuments(moduleRoot string, requests []cueJSONRequest) ([][]byte, error) {
+	if len(requests) == 0 {
+		return [][]byte{}, nil
+	}
+	directories := make([]string, 0, len(requests))
+	directoryIndex := make(map[string]int, len(requests))
+	for _, request := range requests {
+		directory, err := cleanCUEPackageDirectory(request.Directory)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(request.Expression) == "" {
+			return nil, fmt.Errorf("CUE document request requires an expression for %s", directory)
+		}
+		if _, exists := directoryIndex[directory]; exists {
+			continue
+		}
+		directoryIndex[directory] = len(directories)
+		directories = append(directories, directory)
+	}
+	args := make([]string, len(directories))
+	for index, directory := range directories {
+		args[index] = "./" + directory
+	}
+	instances := load.Instances(args, &load.Config{
 		Dir: moduleRoot, ModuleRoot: moduleRoot,
 	})
-	if len(instances) != 1 {
-		return nil, fmt.Errorf("CUE loader returned %d instances for %s", len(instances), directory)
+	if len(instances) != len(directories) {
+		return nil, fmt.Errorf("CUE loader returned %d instances for %d requested package directories", len(instances), len(directories))
 	}
-	if instances[0].Err != nil {
-		return nil, instances[0].Err
+	context := cuecontext.New()
+	roots := make([]cueapi.Value, len(instances))
+	for index, instance := range instances {
+		if instance.Err != nil {
+			return nil, fmt.Errorf("load CUE package %s: %w", directories[index], instance.Err)
+		}
+		roots[index] = context.BuildInstance(instance)
+		if err := roots[index].Err(); err != nil {
+			return nil, fmt.Errorf("build CUE package %s: %w", directories[index], err)
+		}
 	}
-	root := cuecontext.New().BuildInstance(instances[0])
-	if err := root.Err(); err != nil {
-		return nil, err
+	result := make([][]byte, len(requests))
+	for index, request := range requests {
+		directory, err := cleanCUEPackageDirectory(request.Directory)
+		if err != nil {
+			return nil, err
+		}
+		root := roots[directoryIndex[directory]]
+		value := root.LookupPath(cueapi.ParsePath(request.Expression))
+		if err := value.Validate(cueapi.Concrete(true)); err != nil {
+			return nil, fmt.Errorf("validate %s.%s: %w", directory, request.Expression, err)
+		}
+		data, err := value.MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("marshal %s.%s: %w", directory, request.Expression, err)
+		}
+		result[index] = data
 	}
-	value := root.LookupPath(cueapi.ParsePath(expression))
-	if err := value.Validate(cueapi.Concrete(true)); err != nil {
-		return nil, err
+	return result, nil
+}
+
+func cleanCUEPackageDirectory(raw string) (string, error) {
+	native := filepath.FromSlash(strings.TrimSpace(raw))
+	if native == "" || filepath.IsAbs(native) || filepath.VolumeName(native) != "" {
+		return "", fmt.Errorf("CUE package directory must be a non-empty repository-relative path")
 	}
-	return value.MarshalJSON()
+	directory := filepath.ToSlash(filepath.Clean(native))
+	if directory == "." || directory == ".." || strings.HasPrefix(directory, "../") || strings.HasPrefix(directory, "/") {
+		return "", fmt.Errorf("CUE package directory escapes the repository: %q", raw)
+	}
+	return directory, nil
 }
 
 func writeGeneratedJSON(root *os.Root, relativePath string, value any) error {

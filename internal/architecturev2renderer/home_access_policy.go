@@ -275,7 +275,7 @@ func validateHomeLocalTLS(tls homeLocalTLSDecision, protocol, path string) error
 		}
 		return nil
 	}
-	if tls.Mode != "internal" && tls.Mode != "terminate-at-edge" && tls.Mode != "passthrough" {
+	if tls.Mode != "internal" && tls.Mode != "terminate-at-edge" {
 		return fail(ErrInvalidPlan, path+".mode", "TLS-required route needs a governed termination mode")
 	}
 	if tls.MinVersion != "TLS1.2" && tls.MinVersion != "TLS1.3" {

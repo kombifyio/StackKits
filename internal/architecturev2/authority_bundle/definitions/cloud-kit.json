@@ -7,6 +7,129 @@
     "publicRoutesDefaultClosed": true
   },
   "apiVersion": "stackkit/v2alpha1",
+  "authoring": {
+    "contractVersion": "1.0.0",
+    "initialSpec": {
+      "apiVersion": "stackkit/v2alpha1",
+      "availability": {
+        "enabled": false,
+        "fencing": "none",
+        "mode": "single"
+      },
+      "capabilities": {
+        "disable": [],
+        "enable": []
+      },
+      "container": {
+        "dataRoot": "/var/lib/docker",
+        "engine": "docker",
+        "liveRestore": true,
+        "logDriver": "json-file",
+        "registryMirrors": [],
+        "rootless": false
+      },
+      "controlPlane": {
+        "authoritySiteRef": "cloud",
+        "members": [
+          "cloud-main"
+        ],
+        "mode": "single"
+      },
+      "data": {
+        "defaultAuthority": "cloud"
+      },
+      "generation": {
+        "outputRoot": "deploy",
+        "strategy": "kit-template",
+        "target": "opentofu"
+      },
+      "install": {
+        "mode": "bootstrapped",
+        "platform": {
+          "fallbackAllowed": false,
+          "management": "selected-provider",
+          "setupPolicy": {
+            "applicationDefault": "on-demand",
+            "platform": "automatic"
+          }
+        },
+        "runtime": "docker"
+      },
+      "kind": "StackSpec",
+      "kit": {
+        "slug": "cloud-kit"
+      },
+      "lanDiscovery": {
+        "advertiseRouteRefs": []
+      },
+      "metadata": {
+        "name": "my-cloud-homelab"
+      },
+      "network": {
+        "dns": {
+          "searchDomains": [],
+          "servers": [
+            "1.1.1.1",
+            "8.8.8.8"
+          ]
+        },
+        "domain": {
+          "base": "example.invalid"
+        },
+        "mode": "public-capable",
+        "tls": {
+          "defaultMode": "public",
+          "minVersion": "TLS1.2"
+        },
+        "transport": {
+          "ipv6": false,
+          "mtu": 1500,
+          "subnet": "172.20.0.0/16"
+        }
+      },
+      "nodes": [
+        {
+          "enabled": true,
+          "failureDomain": "node-cloud-main",
+          "hardware": {
+            "arch": "amd64",
+            "profile": "standard"
+          },
+          "id": "cloud-main",
+          "roles": [
+            "controller",
+            "worker",
+            "edge"
+          ],
+          "siteRef": "cloud"
+        }
+      ],
+      "partitionPolicy": {
+        "cloudEdge": "fail-closed",
+        "denyNewCrossSiteSessions": true,
+        "localIdentityAuthorityAvailable": false,
+        "maxStaleVerificationSeconds": 0,
+        "onCloudLoss": "fail-closed",
+        "onLinkLoss": "not-applicable"
+      },
+      "sites": [
+        {
+          "failureDomain": "cloud-primary",
+          "id": "cloud",
+          "kind": "cloud"
+        }
+      ],
+      "source": {
+        "kind": "native-v2"
+      },
+      "storage": {},
+      "system": {}
+    },
+    "initialSpecStatus": "supported",
+    "requiredOverrides": [
+      "network.domain.base"
+    ]
+  },
   "availability": {
     "policies": {
       "quorum": {
@@ -103,13 +226,11 @@
       "lan-discovery",
       "local-ingress",
       "lan-access-policy",
-      "device-enrollment-home",
-      "local-hardware-preflight"
+      "device-enrollment-home"
     ],
     "optional": [
       "private-admin-mesh",
       "failure-domain-placement",
-      "photos",
       "availability-ha"
     ],
     "required": [
@@ -485,15 +606,18 @@
         "allowedOriginKinds": [
           "cloud"
         ],
-        "requiredCapabilities": []
+        "requiredRealizations": []
       },
       "public": {
         "allowed": true,
         "allowedOriginKinds": [
           "cloud"
         ],
-        "requiredCapabilities": [
-          "public-edge"
+        "requiredRealizations": [
+          {
+            "capabilityRef": "public-edge",
+            "role": "edge"
+          }
         ]
       },
       "remote-private": {
@@ -501,8 +625,11 @@
         "allowedOriginKinds": [
           "cloud"
         ],
-        "requiredCapabilities": [
-          "private-admin-mesh"
+        "requiredRealizations": [
+          {
+            "capabilityRef": "private-admin-mesh",
+            "role": "access"
+          }
         ]
       }
     }
@@ -529,5 +656,13 @@
     "requiredSiteKinds": [
       "cloud"
     ]
+  },
+  "workloads": {
+    "defaults": [],
+    "forbidden": [],
+    "optional": [
+      "photos"
+    ],
+    "required": []
   }
 }

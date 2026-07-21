@@ -24,10 +24,9 @@ const privateDirectoryNameAttempts = 16
 // The named root may be checked explicitly with VerifyPathIdentity. Other
 // methods deliberately continue to address the held directory object after a
 // rename so rollback and cleanup cannot be redirected into a replacement at
-// the old pathname. Until the coordinator adds its cross-process lock and
-// recovery journal, callers must own the mutation namespace; these primitives
-// do not claim to serialize an uncooperative writer already inside the same
-// held root.
+// the old pathname. TryAcquireOutputLock provides the cross-process primitive,
+// but callers must acquire it explicitly; other Transaction methods do not
+// implicitly serialize an uncooperative writer inside the same held root.
 type Transaction struct {
 	root    *Root
 	release func()

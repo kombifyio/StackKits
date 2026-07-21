@@ -1193,7 +1193,7 @@ package base
 	required:    false
 	enabled:     true // Release default for standard+ compute tiers; the engine disables it on low tier (EnableImmich = isStandardPlus)
 	image:       "ghcr.io/immich-app/immich-server"
-	tag:         "release"
+	tag:         "v2.7.0@sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
 	description: "Self-hosted photo and video management with its own app login, AI-powered search, facial recognition, and mobile backup."
 	needs: ["traefik"]
 

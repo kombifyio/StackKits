@@ -86,6 +86,7 @@ type VerifiedPlan struct {
 	expectedArtifacts []expectedArtifact
 	outputRoot        string
 	readiness         map[ExecutionPhase]readinessPhase
+	applyRequirements ApplyRequirements
 }
 
 // VerifyPlan verifies a byte-for-byte canonical Architecture v2 ResolvedPlan
@@ -119,6 +120,10 @@ func VerifyPlan(data []byte, validator *resolvedplan.CUEContractValidator) (Veri
 	if err != nil {
 		return VerifiedPlan{}, err
 	}
+	applyRequirements, err := applyRequirementsFromPlan(plan, binding)
+	if err != nil {
+		return VerifiedPlan{}, err
+	}
 	return VerifiedPlan{
 		canonical:         append([]byte(nil), data...),
 		binding:           binding,
@@ -126,6 +131,7 @@ func VerifyPlan(data []byte, validator *resolvedplan.CUEContractValidator) (Veri
 		expectedArtifacts: artifacts,
 		outputRoot:        outputRoot,
 		readiness:         readiness,
+		applyRequirements: applyRequirements,
 	}, nil
 }
 

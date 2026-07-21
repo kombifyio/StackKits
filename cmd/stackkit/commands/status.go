@@ -21,8 +21,9 @@ var (
 )
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show deployment status",
+	Use:         "status",
+	Short:       "Show deployment status",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "status"},
 	Long: `Display the current status of the StackKit deployment.
 
 Shows:
@@ -45,9 +46,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	wd := getWorkDir()
 
-	// Load spec
 	loader := config.NewLoader(wd)
-	spec, err := loader.LoadStackSpec(specFile)
+	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Status)
 	if err != nil {
 		return fmt.Errorf("failed to load spec: %w", err)
 	}

@@ -1,28 +1,22 @@
-# Prompt: Inspect Existing Rollout
+# Prompt: Inspect Existing Architecture v2 Rollout
 
-You are inspecting an existing StackKits workspace. Do not mutate the rollout unless the operator explicitly approves a follow-up action.
+Inspect an existing StackKits workspace without mutating desired intent or rollout state.
 
 Run:
 
 ```bash
 stackkit status --json
-stackkit verify --http --json
+stackkit validate
+stackkit verify --json
 stackkit logs list --json
-stackkit doctor --json
 ```
 
-If `stackkit-server` is running locally, also read:
-
-```bash
-curl -s http://localhost:8082/api/v1/status
-curl -s -X POST http://localhost:8082/api/v1/verify -H 'Content-Type: application/json' -d '{"http":true}'
-```
+On native v0.7, node-local HTTP status is spec-only. If `stackkit-server` is running locally, `GET /api/v1/status` may prove `intent_valid` and `resolve-required`; it must not be reported as deployment readiness. Legacy HTTP Verify, Doctor, and Plan surfaces return a typed unavailable response until they consume an exact ResolvedPlan and execution evidence.
 
 Report:
 
-- current StackKit and mode;
-- Hub URL and service URLs;
+- StackKit profile and StackSpec hash;
+- exact ResolvedPlan, generation manifest, authorization, and receipt hashes when present;
+- whether each artifact is bound to the same desired intent and observed Inventory;
 - failing checks and likely failure class;
-- latest run ID and evidence paths;
 - whether generated rollout files appear to have been edited manually.
-

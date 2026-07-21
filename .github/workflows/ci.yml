@@ -1,4 +1,4 @@
-name: CI
+name: CI Fast (Affected)
 
 on:
   workflow_dispatch:
@@ -8,25 +8,26 @@ on:
     branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: public-ci-fast-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   GO_VERSION: "1.26.5"
   NODE_VERSION: "24"
 
 jobs:
-  go-test:
-    name: Go Tests
+  affected:
+    name: Fast affected checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
-      - name: Checkout code
+      - name: Checkout bounded history
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -34,68 +35,42 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Setup Node
+      - name: Build affected plan
+        id: plan
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base_sha="$PR_BASE_SHA"
+          if [ -z "$base_sha" ]; then base_sha="$PUSH_BEFORE_SHA"; fi
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]] || ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          go run ./cmd/stackkit-affected-tests --merge-base "$base_sha" --max-reverse 6 --format json > affected-plan.json
+          jq -r '.commands[].argv | @sh' affected-plan.json > affected-plan.sh
+          cat affected-plan.json
+          echo "need_cue=$(jq -r 'any(.commands[]; .kind == "cue")' affected-plan.json)" >> "$GITHUB_OUTPUT"
+          echo "need_node=$(jq -r 'any(.commands[]; .kind == "website" or .kind == "release")' affected-plan.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup CUE only when affected
+        if: steps.plan.outputs.need_cue == 'true'
+        uses: cue-lang/setup-cue@1713281ae501e533ff06108005dffeab9e2e5203 # v1.0.0
+        with:
+          version: 'latest'
+
+      - name: Setup Node only when affected
+        if: steps.plan.outputs.need_node == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Run Go tests
-        run: go test ./...
-
-      - name: Validate Architecture v2 contract proof
+      - name: Validate the small public Architecture v2 contract proof
         run: node scripts/release/validate-architecture-contract-fixture.mjs --repo-root .
 
-  cue-validation:
-    name: CUE Validation
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Install CUE
-        run: |
-          set -euo pipefail
-          CUE_VERSION="$(grep 'cuelang.org/go ' go.mod | awk '{print $2}')"
-          go install "cuelang.org/go/cmd/cue@${CUE_VERSION}"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Validate kit CUE contracts
-        run: |
-          set -euo pipefail
-          cue vet ./base/...
-          cue vet ./basement-kit/...
-          cue vet ./cloud-kit/...
-
-      - name: Validate public module contracts
-        run: |
-          set -euo pipefail
-          for dir in modules/*/; do
-            if [ -f "${dir}module.cue" ]; then
-              cue vet -c=false "./${dir}..."
-            fi
-          done
-
-  release-evidence:
-    name: Release Evidence and Installer Guards
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Test release evidence renderer
+      - name: Run affected public release-contract tests
+        if: steps.plan.outputs.need_node == 'true'
         run: |
           node --test \
             scripts/release/changelog.test.mjs \
@@ -110,8 +85,5 @@ jobs:
             scripts/evidence/capture-basekit-browser-evidence.test.mjs \
             scripts/evidence/update-homelab-setup-actions.test.mjs
 
-      - name: Validate default StackKit-owned L3 PaaS intent
-        run: node scripts/release/check-l3-paas-contract.mjs --repo-root . --generated basement-kit/templates/simple/main.tf
-
-      - name: Validate Node 24 action pins
-        run: node scripts/release/check-node24-actions.mjs --repo-root .
+      - name: Execute only planned checks
+        run: bash -euxo pipefail affected-plan.sh

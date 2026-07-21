@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/cue"
 	"github.com/kombifyio/stackkits/internal/iac"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
@@ -48,8 +50,23 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		targetFile = args[0]
 	}
+	if err := requireNativeV2StackSpec(wd, targetFile, architectureV2Validate); err != nil {
+		return err
+	}
 
 	hasErrors := false
+	v2Handled, v2Err := validateArchitectureV2Spec(wd, targetFile)
+	if v2Handled {
+		if v2Err != nil {
+			return v2Err
+		}
+		if validateAll && validateCUESchemas(validator, wd) {
+			return fmt.Errorf("validation failed")
+		}
+		fmt.Println()
+		printSuccess("All validations passed!")
+		return nil
+	}
 
 	// Validate spec file
 	spec, specHasErrors := validateSpecFile(loader, validator, targetFile)
@@ -79,6 +96,37 @@ func runValidate(cmd *cobra.Command, args []string) error {
 
 	printSuccess("All validations passed!")
 	return nil
+}
+
+func validateArchitectureV2Spec(wd, targetFile string) (bool, error) {
+	rawSpec, sourceVersion, handled, err := classifyArchitectureV2ExecutionSpec(wd, targetFile)
+	if err != nil || !handled {
+		return handled, err
+	}
+	gate := newArchitectureV2ExecutionGate()
+	if sourceVersion == stackspecmigration.SourceVersionV1 {
+		if !gate.rejectV1 {
+			return false, nil
+		}
+		return true, gate.rejectV1Execution(rawSpec, architectureV2Validate)
+	}
+	if gate.newAuthority == nil {
+		return true, fmt.Errorf("validate: Architecture v2 authority is not configured")
+	}
+	authority, err := gate.newAuthority()
+	if err != nil {
+		return true, err
+	}
+	current, err := authority.ResolveCurrent(architecturev2.ResolveInput{StackSpec: rawSpec})
+	if err != nil {
+		return true, err
+	}
+	result, err := current.Result()
+	if err != nil {
+		return true, err
+	}
+	printSuccess("StackSpec v2 is valid (plan %s)", result.PlanHash)
+	return true, nil
 }
 
 // validateSpecFile validates the stack-spec.yaml file and returns the parsed spec (may be nil) and whether errors occurred.

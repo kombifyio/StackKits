@@ -5,6 +5,8 @@ package execution
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -16,6 +18,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
 type Error = architecturev2renderer.Error
@@ -25,7 +28,9 @@ const (
 	ErrInvalidPath         = architecturev2renderer.ErrInvalidPath
 	ErrOutputChanged       = architecturev2renderer.ErrOutputChanged
 	ErrUnsafeOutputRoot    = architecturev2renderer.ErrUnsafeOutputRoot
+	ErrOutputBusy          = architecturev2renderer.ErrOutputBusy
 	ErrOutputTransaction   = architecturev2renderer.ErrOutputTransaction
+	ErrTransactionRecovery = architecturev2renderer.ErrTransactionRecovery
 	ErrTransactionCleanup  = architecturev2renderer.ErrTransactionCleanup
 	ErrTransactionRollback = architecturev2renderer.ErrTransactionRollback
 )
@@ -79,6 +84,22 @@ func installManagedOutput(plan generationartifact.VerifiedPlan, workspace *confi
 	if err != nil {
 		return architecturev2renderer.InstallResult{}, err
 	}
+	outputLock, err := workspace.TryAcquireOutputLock(prepared.finalRoot)
+	if err != nil {
+		if errors.Is(err, confinedfs.ErrOutputLockBusy) {
+			return architecturev2renderer.InstallResult{}, wrap(ErrOutputBusy, displayPath(workspace, prepared.finalRoot), "another process owns the managed output transaction", err)
+		}
+		return architecturev2renderer.InstallResult{}, wrap(ErrOutputTransaction, displayPath(workspace, prepared.finalRoot), "acquire managed output transaction lock", err)
+	}
+	defer func() {
+		returnErr = mergeCleanupResult(installed, returnErr, outputLock.Release(), displayPath(workspace, prepared.finalRoot)+" (output lock)")
+	}()
+	if err := initializeManagedInstall(prepared); err != nil {
+		return architecturev2renderer.InstallResult{}, err
+	}
+	if err := RequireNoPendingOutputTransaction(workspace, prepared.finalRoot); err != nil {
+		return architecturev2renderer.InstallResult{}, err
+	}
 	staged, err := stageManagedOutput(prepared, result, options.GeneratedAt)
 	if err != nil {
 		return architecturev2renderer.InstallResult{}, err
@@ -90,8 +111,20 @@ func installManagedOutput(plan generationartifact.VerifiedPlan, workspace *confi
 		}
 		returnErr = mergeCleanupResult(installed, returnErr, cleanupTree(workspace, staged.container), displayPath(workspace, staged.container))
 	}()
-	if preserve, err := swapAndVerifyManagedOutput(prepared, staged); err != nil {
+	journal, err := beginManagedOutputJournal(prepared, staged)
+	if err != nil {
+		preserveStage = true
+		return architecturev2renderer.InstallResult{}, wrap(ErrTransactionRecovery, displayPath(workspace, staged.container), "persist initial managed output transaction journal", err)
+	}
+	if preserve, err := swapAndVerifyManagedOutput(prepared, staged, &journal); err != nil {
 		preserveStage = preserve
+		if !preserve {
+			if cleanupErr := finishManagedOutputTransaction(workspace, staged.container, &journal, cleanupTree); cleanupErr != nil {
+				preserveStage = true
+				return architecturev2renderer.InstallResult{}, errors.Join(err, cleanupErr)
+			}
+			preserveStage = true
+		}
 		return architecturev2renderer.InstallResult{}, err
 	}
 	installed = architecturev2renderer.InstallResult{
@@ -100,7 +133,83 @@ func installManagedOutput(plan generationartifact.VerifiedPlan, workspace *confi
 		Manifest:   staged.manifest,
 		Receipt:    staged.receipt,
 	}
+	if err := finishManagedOutputTransaction(workspace, staged.container, &journal, cleanupTree); err != nil {
+		preserveStage = true
+		return installed, &Error{Code: ErrTransactionCleanup, Path: displayPath(workspace, staged.container), Message: "managed output is committed and verified, but durable transaction cleanup failed", Err: err, Committed: true}
+	}
+	preserveStage = true
 	return installed, nil
+}
+
+// RequireNoPendingOutputTransaction is the shared fail-closed admission check
+// for Generate, Plan, Apply, and Verify. The caller must already own the exact
+// output lock; this function never acquires or weakens that lease.
+func RequireNoPendingOutputTransaction(workspace *confinedfs.Transaction, outputRoot string) error {
+	pending, exists, err := findPendingOutputTransaction(workspace, outputRoot)
+	if err != nil {
+		return wrap(ErrTransactionRecovery, displayPath(workspace, outputRoot), "inspect durable output transaction recovery state", err)
+	}
+	if !exists {
+		return nil
+	}
+	return &Error{
+		Code:    ErrTransactionRecovery,
+		Path:    displayPath(workspace, outputRoot),
+		Message: fmt.Sprintf("durable output transaction %s requires recovery from phase %s", pending.TransactionID, pending.Phase),
+	}
+}
+
+func beginManagedOutputJournal(prepared installPreparation, staged stagedOutput) (transactionJournal, error) {
+	hadPrevious, _, err := prepared.workspace.Exists(prepared.finalRoot)
+	if err != nil {
+		return transactionJournal{}, err
+	}
+	manifestDigest, err := staged.manifest.Hash()
+	if err != nil {
+		return transactionJournal{}, err
+	}
+	receiptDigest, err := resolvedplan.CanonicalSHA256(staged.receipt)
+	if err != nil {
+		return transactionJournal{}, err
+	}
+	previousRootDigest := ""
+	if hadPrevious {
+		previousRootDigest, err = managedTreeDigest(prepared.workspace, prepared.finalRoot)
+		if err != nil {
+			return transactionJournal{}, err
+		}
+	}
+	binding, err := transactionBindingForStage(staged.container, prepared.finalRoot, prepared.plan.Binding().PlanHash, manifestDigest, receiptDigest, previousRootDigest, hadPrevious)
+	if err != nil {
+		return transactionJournal{}, err
+	}
+	journal, err := newTransactionJournal(binding, transactionPhaseStaged)
+	if err != nil {
+		return transactionJournal{}, err
+	}
+	if err := writeTransactionJournal(prepared.workspace, nil, journal); err != nil {
+		return transactionJournal{}, err
+	}
+	return journal, nil
+}
+
+func finishManagedOutputTransaction(workspace *confinedfs.Transaction, stageContainer string, journal *transactionJournal, cleanupTree cleanupTreeFunc) error {
+	if journal == nil {
+		return errors.New("managed output transaction journal is required")
+	}
+	if journal.Phase != transactionPhaseCommitCleanupIntent && journal.Phase != transactionPhaseRollbackCleanupIntent {
+		return fmt.Errorf("managed output transaction cannot clean up from phase %s", journal.Phase)
+	}
+	if err := cleanupTree(workspace, stageContainer); err != nil {
+		return err
+	}
+	if _, err := workspace.SyncDirectory(path.Dir(stageContainer)); err != nil {
+		return err
+	}
+	if err := advanceAndWriteTransactionJournal(workspace, journal, transactionPhaseComplete); err != nil {
+		return err
+	}
+	return removeTransactionJournal(workspace, journal.binding())
 }
 
 func mergeCleanupResult(installed architecturev2renderer.InstallResult, operationErr, cleanupErr error, cleanupPath string) error {
@@ -130,13 +239,17 @@ func prepareManagedInstall(plan generationartifact.VerifiedPlan, workspace *conf
 	if outputRoot == "." {
 		return installPreparation{}, fail(architecturev2renderer.ErrUnsafeOutputRoot, "resolvedPlan.generation.outputRoot", "managed stage/swap installation requires a dedicated outputRoot, not current workspace")
 	}
-	if err := workspace.MkdirAll(path.Dir(outputRoot), 0o750); err != nil {
-		return installPreparation{}, wrap(architecturev2renderer.ErrOutputTransaction, displayPath(workspace, path.Dir(outputRoot)), "create managed output parent", err)
-	}
-	if err := inspectExistingManagedRoot(workspace, outputRoot); err != nil {
-		return installPreparation{}, err
-	}
 	return installPreparation{plan: plan, workspace: workspace, finalRoot: outputRoot}, nil
+}
+
+func initializeManagedInstall(prepared installPreparation) error {
+	if err := prepared.workspace.MkdirAll(path.Dir(prepared.finalRoot), 0o750); err != nil {
+		return wrap(ErrOutputTransaction, displayPath(prepared.workspace, path.Dir(prepared.finalRoot)), "create managed output parent under output lock", err)
+	}
+	if err := inspectExistingManagedRoot(prepared.workspace, prepared.finalRoot); err != nil {
+		return err
+	}
+	return nil
 }
 
 func stageManagedOutput(prepared installPreparation, result architecturev2renderer.RenderResult, generatedAt string) (staged stagedOutput, returnErr error) {
@@ -192,63 +305,138 @@ func stageManagedOutput(prepared installPreparation, result architecturev2render
 	return stagedOutput{container: stageContainer, root: stageOutputRoot, manifest: manifest, receipt: receipt}, nil
 }
 
-func swapAndVerifyManagedOutput(prepared installPreparation, staged stagedOutput) (bool, error) {
-	hadPrevious, _, err := prepared.workspace.Exists(prepared.finalRoot)
-	if err != nil {
-		return false, wrap(ErrOutputTransaction, displayPath(prepared.workspace, prepared.finalRoot), "inspect existing managed output", err)
+func swapAndVerifyManagedOutput(prepared installPreparation, staged stagedOutput, journal *transactionJournal) (bool, error) {
+	if journal == nil {
+		return true, wrap(ErrTransactionRecovery, displayPath(prepared.workspace, staged.container), "managed output transaction journal is required", nil)
 	}
-	backupRoot := path.Join(staged.container, ".previous-managed-output")
-	if hadPrevious {
-		if preserve, err := movePreviousToBackup(prepared.workspace, prepared.finalRoot, backupRoot); err != nil {
+	if journal.HadPrevious {
+		if err := advanceAndWriteTransactionJournal(prepared.workspace, journal, transactionPhaseBackupIntent); err != nil {
+			return true, wrap(ErrTransactionRecovery, displayPath(prepared.workspace, journal.BackupRoot), "persist previous-output backup intent", err)
+		}
+		if preserve, err := movePreviousToBackup(prepared.workspace, prepared.finalRoot, journal.BackupRoot, journal.PreviousRootDigest); err != nil {
+			if !preserve {
+				if journalErr := markManagedOutputRolledBack(prepared.workspace, journal); journalErr != nil {
+					return true, errors.Join(err, journalErr)
+				}
+			}
 			return preserve, err
 		}
+		if err := advanceAndWriteTransactionJournal(prepared.workspace, journal, transactionPhaseBackupComplete); err != nil {
+			return true, wrap(ErrTransactionRecovery, displayPath(prepared.workspace, journal.BackupRoot), "persist previous-output backup completion", err)
+		}
+	}
+	if err := advanceAndWriteTransactionJournal(prepared.workspace, journal, transactionPhaseInstallIntent); err != nil {
+		return true, wrap(ErrTransactionRecovery, displayPath(prepared.workspace, prepared.finalRoot), "persist managed output install intent", err)
 	}
 	installed, err := prepared.workspace.Rename(staged.root, prepared.finalRoot)
-	if err != nil {
-		if installed {
-			if rollbackErr := rollbackManagedOutput(prepared.workspace, prepared.finalRoot, backupRoot, staged.container, hadPrevious); rollbackErr != nil {
-				return true, &Error{Code: ErrTransactionRollback, Path: displayPath(prepared.workspace, prepared.finalRoot), Message: "installed rename verification failed and previous output could not be restored", Err: errors.Join(err, rollbackErr)}
-			}
-			return false, wrap(ErrOutputTransaction, displayPath(prepared.workspace, prepared.finalRoot), "verify installed staged managed output rename", err)
+	if installed {
+		if syncErr := syncRenameParents(prepared.workspace, staged.root, prepared.finalRoot); syncErr != nil {
+			err = errors.Join(err, syncErr)
 		}
-		if hadPrevious {
-			if restored, rollbackErr := prepared.workspace.Rename(backupRoot, prepared.finalRoot); rollbackErr != nil || !restored {
-				return true, &Error{Code: ErrTransactionRollback, Path: displayPath(prepared.workspace, prepared.finalRoot), Message: "install rename failed and previous output could not be restored", Err: errors.Join(err, rollbackErr)}
-			}
-		}
-		return false, wrap(ErrOutputTransaction, displayPath(prepared.workspace, prepared.finalRoot), "install staged managed output", err)
 	}
-	if !installed {
-		return true, fail(ErrTransactionRollback, displayPath(prepared.workspace, prepared.finalRoot), "held rename returned without installing staged output")
+	if err != nil || !installed {
+		operationErr := err
+		if operationErr == nil {
+			operationErr = errors.New("held rename returned without installing staged output")
+		}
+		if rollbackErr := rollbackManagedOutput(prepared.workspace, prepared.finalRoot, journal, installed); rollbackErr != nil {
+			return true, &Error{Code: ErrTransactionRollback, Path: displayPath(prepared.workspace, prepared.finalRoot), Message: "managed output install failed and the previous state could not be restored", Err: errors.Join(operationErr, rollbackErr)}
+		}
+		return false, wrap(ErrOutputTransaction, displayPath(prepared.workspace, prepared.finalRoot), "install staged managed output", operationErr)
+	}
+	if err := advanceAndWriteTransactionJournal(prepared.workspace, journal, transactionPhaseInstallComplete); err != nil {
+		return true, wrap(ErrTransactionRecovery, displayPath(prepared.workspace, prepared.finalRoot), "persist managed output install completion", err)
 	}
 	if err := verifyInstalledOutput(prepared.plan, prepared.workspace, prepared.finalRoot, staged.manifest, staged.receipt); err != nil {
-		if rollbackErr := rollbackManagedOutput(prepared.workspace, prepared.finalRoot, backupRoot, staged.container, hadPrevious); rollbackErr != nil {
+		if rollbackErr := rollbackManagedOutput(prepared.workspace, prepared.finalRoot, journal, true); rollbackErr != nil {
 			return true, &Error{Code: ErrTransactionRollback, Path: displayPath(prepared.workspace, prepared.finalRoot), Message: "installed output failed verification and rollback failed", Err: errors.Join(err, rollbackErr)}
 		}
 		return false, err
 	}
+	if err := advanceAndWriteTransactionJournal(prepared.workspace, journal, transactionPhaseCommitCleanupIntent); err != nil {
+		return true, wrap(ErrTransactionRecovery, displayPath(prepared.workspace, prepared.finalRoot), "persist committed output cleanup intent", err)
+	}
 	return false, nil
 }
 
-func movePreviousToBackup(workspace *confinedfs.Transaction, finalRoot, backupRoot string) (bool, error) {
+func movePreviousToBackup(workspace *confinedfs.Transaction, finalRoot, backupRoot, expectedDigest string) (bool, error) {
 	if err := inspectManagedTree(workspace, finalRoot); err != nil {
 		return false, err
 	}
 	installed, err := workspace.Rename(finalRoot, backupRoot)
+	if installed {
+		err = errors.Join(err, syncRenameParents(workspace, finalRoot, backupRoot))
+	}
 	if err != nil {
 		return installed, wrap(ErrOutputTransaction, displayPath(workspace, finalRoot), "move previous managed output into transaction backup", err)
 	}
 	if !installed {
 		return true, fail(ErrTransactionRollback, displayPath(workspace, finalRoot), "previous managed output rename did not install its backup")
 	}
-	if err := inspectManagedTree(workspace, backupRoot); err != nil {
+	verificationErr := inspectManagedTree(workspace, backupRoot)
+	if verificationErr == nil {
+		verificationErr = requireManagedTreeDigest(workspace, backupRoot, expectedDigest)
+	}
+	if verificationErr != nil {
 		restored, rollbackErr := workspace.Rename(backupRoot, finalRoot)
-		if rollbackErr != nil || !restored {
-			return true, &Error{Code: ErrTransactionRollback, Path: displayPath(workspace, finalRoot), Message: "transaction backup verification failed and previous output could not be restored", Err: errors.Join(err, rollbackErr)}
+		if restored {
+			rollbackErr = errors.Join(rollbackErr, syncRenameParents(workspace, backupRoot, finalRoot))
 		}
-		return false, wrap(ErrOutputTransaction, displayPath(workspace, backupRoot), "verify transaction backup after rename", err)
+		if restored && rollbackErr == nil {
+			rollbackErr = requireManagedTreeDigest(workspace, finalRoot, expectedDigest)
+		}
+		if rollbackErr != nil || !restored {
+			return true, &Error{Code: ErrTransactionRollback, Path: displayPath(workspace, finalRoot), Message: "transaction backup verification failed and previous output could not be restored", Err: errors.Join(verificationErr, rollbackErr)}
+		}
+		return false, wrap(ErrOutputTransaction, displayPath(workspace, backupRoot), "verify transaction backup after rename", verificationErr)
 	}
 	return false, nil
+}
+
+type managedTreeIdentityEntry struct {
+	Path          string `json:"path"`
+	Kind          string `json:"kind"`
+	Mode          string `json:"mode"`
+	ContentDigest string `json:"contentDigest,omitempty"`
+}
+
+func managedTreeDigest(workspace *confinedfs.Transaction, root string) (string, error) {
+	entries, err := workspace.Walk(root)
+	if err != nil {
+		return "", err
+	}
+	identity := make([]managedTreeIdentityEntry, 0, len(entries))
+	for _, entry := range entries {
+		relative := "."
+		if entry.Path != root {
+			relative = strings.TrimPrefix(entry.Path, root+"/")
+		}
+		item := managedTreeIdentityEntry{Path: relative, Mode: fmt.Sprintf("%04o", entry.Info.Mode().Perm())}
+		if entry.Info.IsDir() {
+			item.Kind = "directory"
+		} else {
+			item.Kind = "file"
+			data, _, readErr := workspace.ReadStable(entry.Path)
+			if readErr != nil {
+				return "", readErr
+			}
+			digest := sha256.Sum256(data)
+			item.ContentDigest = "sha256:" + hex.EncodeToString(digest[:])
+		}
+		identity = append(identity, item)
+	}
+	return resolvedplan.CanonicalSHA256(identity)
+}
+
+func requireManagedTreeDigest(workspace *confinedfs.Transaction, root, expected string) error {
+	actual, err := managedTreeDigest(workspace, root)
+	if err != nil {
+		return err
+	}
+	if actual != expected {
+		return fail(ErrOutputChanged, displayPath(workspace, root), "managed tree identity changed: want %s, got %s", expected, actual)
+	}
+	return nil
 }
 
 func writeStagedArtifact(workspace *confinedfs.Transaction, stageContainer string, artifact architecturev2renderer.Artifact) error {
@@ -313,25 +501,67 @@ func verifyInstalledOutput(plan generationartifact.VerifiedPlan, workspace *conf
 	return nil
 }
 
-func rollbackManagedOutput(workspace *confinedfs.Transaction, finalRoot, backupRoot, stageContainer string, hadPrevious bool) error {
-	failedRoot := path.Join(stageContainer, ".failed-managed-output")
-	if err := inspectManagedTree(workspace, finalRoot); err != nil {
+func rollbackManagedOutput(workspace *confinedfs.Transaction, finalRoot string, journal *transactionJournal, installed bool) error {
+	if err := advanceAndWriteTransactionJournal(workspace, journal, transactionPhaseRollbackIntent); err != nil {
 		return err
 	}
-	installed, err := workspace.Rename(finalRoot, failedRoot)
-	if err != nil || !installed {
-		return fmt.Errorf("move failed installed output aside: %w", err)
-	}
-	if hadPrevious {
-		if err := inspectManagedTree(workspace, backupRoot); err != nil {
+	if installed {
+		if err := inspectManagedTree(workspace, finalRoot); err != nil {
 			return err
 		}
-		restored, err := workspace.Rename(backupRoot, finalRoot)
+		moved, err := workspace.Rename(finalRoot, journal.FailedRoot)
+		if moved {
+			err = errors.Join(err, syncRenameParents(workspace, finalRoot, journal.FailedRoot))
+		}
+		if err != nil || !moved {
+			return fmt.Errorf("move failed installed output aside: %w", err)
+		}
+	}
+	if journal.HadPrevious {
+		if err := inspectManagedTree(workspace, journal.BackupRoot); err != nil {
+			return err
+		}
+		if err := requireManagedTreeDigest(workspace, journal.BackupRoot, journal.PreviousRootDigest); err != nil {
+			return err
+		}
+		restored, err := workspace.Rename(journal.BackupRoot, finalRoot)
+		if restored {
+			err = errors.Join(err, syncRenameParents(workspace, journal.BackupRoot, finalRoot))
+		}
 		if err != nil || !restored {
 			return fmt.Errorf("restore previous managed output: %w", err)
 		}
+		if err := requireManagedTreeDigest(workspace, finalRoot, journal.PreviousRootDigest); err != nil {
+			return fmt.Errorf("verify restored previous managed output: %w", err)
+		}
 	}
-	return nil
+	return markManagedOutputRolledBack(workspace, journal)
+}
+
+func markManagedOutputRolledBack(workspace *confinedfs.Transaction, journal *transactionJournal) error {
+	if journal.Phase != transactionPhaseRollbackIntent {
+		if err := advanceAndWriteTransactionJournal(workspace, journal, transactionPhaseRollbackIntent); err != nil {
+			return err
+		}
+	}
+	if err := advanceAndWriteTransactionJournal(workspace, journal, transactionPhaseRollbackComplete); err != nil {
+		return err
+	}
+	return advanceAndWriteTransactionJournal(workspace, journal, transactionPhaseRollbackCleanupIntent)
+}
+
+func syncRenameParents(workspace *confinedfs.Transaction, source, destination string) error {
+	parents := []string{path.Dir(source), path.Dir(destination)}
+	if parents[0] == parents[1] {
+		parents = parents[:1]
+	}
+	var syncErr error
+	for _, parent := range parents {
+		if _, err := workspace.SyncDirectory(parent); err != nil {
+			syncErr = errors.Join(syncErr, err)
+		}
+	}
+	return syncErr
 }
 
 func validateWorkspaceRoot(root string) (string, error) {

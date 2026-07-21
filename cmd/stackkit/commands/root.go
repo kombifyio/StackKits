@@ -23,7 +23,10 @@ var (
 	buildDate = "unknown"
 )
 
-const noDeployObservabilityAnnotation = "stackkit.io/no-deploy-observability"
+const (
+	noDeployObservabilityAnnotation        = "stackkit.io/no-deploy-observability"
+	legacyV06BeforeObservabilityAnnotation = "stackkit.io/legacy-v0.6-before-observability"
+)
 
 // SetVersionInfo sets version information from build
 func SetVersionInfo(v, gc, bd string) {
@@ -87,14 +90,17 @@ Examples:
   stackkit status                      Check deployment status
   stackkit remove                      Tear down deployment`,
 	SilenceUsage: true,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Show banner for root help and key workflow commands
 		name := cmd.Name()
 		if name == "stackkit" || name == "init" || name == "apply" {
 			printBanner()
 		}
+		if err := admitCommandBeforeDeployObservability(cmd); err != nil {
+			return err
+		}
 		if commandDisablesDeployObservability(cmd) {
-			return
+			return nil
 		}
 
 		// Initialize structured deploy logger (skip for help/completion/version)
@@ -106,6 +112,7 @@ Examples:
 				initDeployLogger()
 			}
 		}
+		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		closeRolloutRecorder(rollout.Summary{Status: "success"})

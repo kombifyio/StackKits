@@ -2,8 +2,6 @@
 set -euo pipefail
 
 dist_dir="${1:-dist}"
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 fail() {
   printf 'release archive validation failed: %s\n' "$*" >&2
   exit 1
@@ -165,13 +163,18 @@ stage_stackkits_home() {
   done
 }
 
-# Full default-profile smoke for the LOCAL product (basement-kit, context local).
-# This is the SK-S1-proven path, so assert the full StackKit-owned default contract.
-smoke_basement_full() {
+# Native v2 archive smoke. Init proves that the released binary can materialize
+# the selected embedded KitDefinition without relying on the source checkout.
+# Generation is deliberately not attempted here: it requires an admitted
+# Inventory and exact ResolvedPlan, which init neither invents nor owns.
+smoke_v2_authoring() {
   local label="$1"
   local extract_dir="$2"
   local home_dir="$3"
   local project_dir="$4"
+  local kit="$5"
+  local name="$6"
+  local domain="${7:-}"
 
   mkdir -p "$project_dir"
   "$extract_dir/stackkit" version >/dev/null
@@ -183,78 +186,32 @@ smoke_basement_full() {
     --repo-root "$extract_dir" --proof-only
   smoke_public_backup_cli "$label" "$extract_dir"
 
+  local init_args=("$kit" --non-interactive --name "$name")
+  if [ -n "$domain" ]; then
+    init_args+=(--domain "$domain")
+  fi
   (
     cd "$project_dir"
     HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      --context local init basement-kit --non-interactive --force \
-      --admin-email release-smoke@example.com >"$tmp/${label}-init.log"
+      init "${init_args[@]}" >"$tmp/${label}-init.log"
     HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      --context local generate --force >"$tmp/${label}-generate.log"
+      validate stack-spec.yaml >"$tmp/${label}-validate.log"
   )
 
-  local tfvars="$project_dir/deploy/terraform.tfvars.json"
-  [ -f "$tfvars" ] || fail "$label smoke did not generate terraform.tfvars.json"
-  grep -q '"admin_email": "release-smoke@example.com"' "$tfvars" ||
-    fail "$label smoke did not preserve admin email"
-  grep -Eq '"tinyauth_users": "release-smoke@example.com:\$2[aby]\$' "$tfvars" ||
-    fail "$label smoke did not generate TinyAuth bcrypt users from module contracts"
-  grep -q '"paas": "coolify"' "$tfvars" ||
-    fail "$label smoke did not resolve Basement default to paas=coolify"
-  grep -q '"reverse_proxy_backend": "coolify"' "$tfvars" ||
-    fail "$label smoke did not resolve Basement reverse proxy to Coolify"
-  grep -q '"enable_coolify": true' "$tfvars" ||
-    fail "$label smoke did not enable Coolify"
-  grep -q '"enable_dokploy": false' "$tfvars" ||
-    fail "$label smoke did not keep Dokploy opt-in"
-  grep -q '"enable_whoami": true' "$tfvars" ||
-    fail "$label smoke did not enable Whoami routing diagnostics"
-  grep -q '"enable_immich": true' "$tfvars" ||
-    fail "$label smoke did not enable Immich"
-  grep -q '"enable_jellyfin": false' "$tfvars" ||
-    fail "$label smoke did not keep Jellyfin opt-in"
-  grep -q 'resource "null_resource" "coolify_platform_bootstrap"' "$project_dir/deploy/main.tf" ||
-    fail "$label smoke did not generate Coolify API bootstrap"
-  grep -q 'STACKKIT_COOLIFY_PLATFORM_JSON=' "$project_dir/deploy/main.tf" ||
-    fail "$label smoke did not emit Coolify platform config JSON"
-  node "$script_dir/check-l3-paas-contract.mjs" \
-    --repo-root "$extract_dir" \
-    --generated "$project_dir/deploy/main.tf" ||
-    fail "$label smoke violated the default StackKit-owned L3 PaaS contract"
-}
-
-# Core smoke for the CLOUD product (cloud-kit, context cloud). cloud-kit is
-# scaffolding (SK-S2/SK-S3 not yet green from released contents), so assert the
-# foundation contract (CLI runs, generates, Coolify, admin email) without the
-# full proven-L3 assertion set. A custom domain avoids the kombify.me API path.
-smoke_cloud_core() {
-  local label="$1"
-  local extract_dir="$2"
-  local home_dir="$3"
-  local project_dir="$4"
-
-  mkdir -p "$project_dir"
-  "$extract_dir/stackkit" version >/dev/null
-  node "$extract_dir/scripts/release/validate-architecture-contract-fixture.mjs" \
-    --repo-root "$extract_dir" --proof-only
-  smoke_public_backup_cli "$label" "$extract_dir"
-
-  (
-    cd "$project_dir"
-    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      --context cloud init cloud-kit --non-interactive --force \
-      --domain cloud-smoke.example.com --admin-email release-smoke@example.com >"$tmp/${label}-init.log"
-    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      --context cloud generate --force >"$tmp/${label}-generate.log"
-  )
-
-  local tfvars="$project_dir/deploy/terraform.tfvars.json"
-  [ -f "$tfvars" ] || fail "$label smoke did not generate terraform.tfvars.json"
-  grep -q '"admin_email": "release-smoke@example.com"' "$tfvars" ||
-    fail "$label smoke did not preserve admin email"
-  grep -q '"paas": "coolify"' "$tfvars" ||
-    fail "$label smoke did not resolve Cloud default to paas=coolify"
-  grep -q '"enable_coolify": true' "$tfvars" ||
-    fail "$label smoke did not enable Coolify"
+  local spec="$project_dir/stack-spec.yaml"
+  [ -f "$spec" ] || fail "$label smoke did not materialize stack-spec.yaml"
+  grep -q '"apiVersion":"stackkit/v2alpha1"' "$spec" ||
+    fail "$label smoke did not materialize a native v2 StackSpec"
+  grep -q "\"slug\":\"${kit}\"" "$spec" ||
+    fail "$label smoke selected the wrong kit profile"
+  grep -q "\"name\":\"${name}\"" "$spec" ||
+    fail "$label smoke did not preserve the approved deployment name override"
+  if [ -n "$domain" ]; then
+    grep -q "\"base\":\"${domain}\"" "$spec" ||
+      fail "$label smoke did not preserve the approved domain override"
+  fi
+  [ ! -e "$project_dir/deploy" ] ||
+    fail "$label native v2 init invented plan-owned generation output"
 }
 
 # Basement smokes: from the dedicated basement archive and from the full catalog archive.
@@ -264,7 +221,8 @@ basement_project="$tmp/basement-project"
 mkdir -p "$basement_extract"
 tar xzf "$basement_archive" -C "$basement_extract"
 stage_stackkits_home "$basement_extract" "$basement_home" basement-kit
-smoke_basement_full "basement-archive" "$basement_extract" "$basement_home" "$basement_project"
+smoke_v2_authoring "basement-archive" "$basement_extract" "$basement_home" "$basement_project" \
+  basement-kit release-smoke-basement
 
 full_extract="$tmp/full-extract"
 full_home="$tmp/full-home"
@@ -272,7 +230,8 @@ full_project="$tmp/full-project"
 mkdir -p "$full_extract"
 tar xzf "$full_archive" -C "$full_extract"
 stage_stackkits_home "$full_extract" "$full_home" basement-kit cloud-kit
-smoke_basement_full "full-archive-cli-catalog" "$full_extract" "$full_home" "$full_project"
+smoke_v2_authoring "full-archive-cli-catalog" "$full_extract" "$full_home" "$full_project" \
+  basement-kit release-smoke-full
 
 # Cloud smoke from the dedicated cloud archive.
 cloud_extract="$tmp/cloud-extract"
@@ -281,6 +240,7 @@ cloud_project="$tmp/cloud-project"
 mkdir -p "$cloud_extract"
 tar xzf "$cloud_archive" -C "$cloud_extract"
 stage_stackkits_home "$cloud_extract" "$cloud_home" cloud-kit
-smoke_cloud_core "cloud-archive" "$cloud_extract" "$cloud_home" "$cloud_project"
+smoke_v2_authoring "cloud-archive" "$cloud_extract" "$cloud_home" "$cloud_project" \
+  cloud-kit release-smoke-cloud cloud-smoke.example.com
 
 printf 'release archive validation passed\n'

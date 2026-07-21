@@ -82,7 +82,7 @@ stackkit verify --http --json
 
 | Command | Purpose |
 | --- | --- |
-| `init [stackkit]` | Create a deployment spec and initial output directory. |
+| `init [stackkit]` | Create a CUE-owned StackSpec. Explicit v0.6 compatibility builds also create the legacy output directory. |
 | `prepare` / `prep` | Prepare local or SSH target: prerequisites, Docker checks, packaged OpenTofu check, spec validation, hardware checks. |
 | `generate` / `gen` | Generate rollout artifacts from the spec and CUE contracts. |
 | `plan` | Run an OpenTofu plan for the generated deployment. |
@@ -91,7 +91,10 @@ stackkit verify --http --json
 | `remove` | Destroy a StackKit deployment. |
 | `status` | Show deployment state and service health. |
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
-| `app` | Write optional PaaS app handoff metadata for dev/customer-owned apps. |
+| `resolve [file]` | Resolve canonical StackSpec v2 through the embedded CUE authority or return a typed v1 migration report. |
+| `migrate [v1-spec-file]` | Classify v1, reconcile one explicit v2 draft, and optionally persist canonical migrated-v1 intent. |
+| `addon` | List add-ons from the embedded CUE catalog; add/remove remains v0.6 compatibility-only until a governed v2 mutation contract exists. |
+| `app` | v0.6 compatibility only: write optional customer-owned PaaS handoff metadata. |
 | `break-glass` | Inspect and rotate break-glass recovery bundles. |
 | `backup` | Configure, inspect, run, verify, restore, and migrate Kopia backups. |
 | `cluster` | Manage multi-node cluster membership. |
@@ -110,13 +113,25 @@ stackkit verify --http --json
 
 ### `stackkit init [stackkit]`
 
-Creates `stack-spec.yaml`. Without arguments it runs the interactive wizard.
+Development and v0.7+ builds create a canonical Architecture v2
+`stack-spec.yaml` directly from the selected product's embedded CUE
+`Definition.authoring.initialSpec`. They do not discover local kit paths or
+create an empty deployment directory, and they make no generation/apply
+readiness claim. Topology belongs to the KitDefinition, observed host facts to
+Inventory, and identity to a separate handoff.
 
-Common flags:
+Native Architecture v2 flags:
+
+- `--name`
+- `--domain` (required by Cloud Kit and Modern Home Lab)
+- `--force`, `-f`
+- `--non-interactive`
+
+The following flags and local-path input are available only in an explicitly
+versioned v0.6 compatibility binary:
 
 - `--mode`
 - `--compute-tier`
-- `--domain`
 - `--local-dns`
 - `--local-name`
 - `--admin-email`
@@ -128,10 +143,8 @@ Common flags:
 - `--recovery-passphrase-hash`
 - `--recovery-material-ref`
 - `--output`, `-o`
-- `--force`, `-f`
-- `--non-interactive`
 
-Owner bootstrap modes:
+v0.6 compatibility Owner bootstrap modes:
 
 | Mode | CLI shape | Notes |
 | --- | --- | --- |
@@ -219,7 +232,20 @@ Generated files are disposable outputs and must not be hand-edited.
 
 ### `stackkit plan`
 
-Runs the StackKit-packaged OpenTofu plan against the generated deployment directory. Generate first if artifacts are missing or stale.
+On exact v0.6, this runs the StackKit-packaged OpenTofu plan against the
+generated deployment directory.
+
+On native v0.7, `stackkit plan` is a deterministic read-only inspection of the
+current canonical ResolvedPlan and its verified generation manifest, receipt,
+and artifact hashes. It reports the exact Spec, Inventory, KitDefinition, plan,
+and renderer identity; generation and Apply readiness; and every governed Apply
+blocker. It explicitly reports `infrastructureDiff: not-available` and
+`executorInvoked: false`: the command does not initialize OpenTofu, contact a
+host or provider, or mutate files. Use `--json` for the machine-readable
+inspection consumed by the native MCP tool. `--out` and `--destroy` are rejected
+on v0.7 because no governed infrastructure-diff executor exists yet. The native
+MCP inspection remains available with its exact same-build CLI binding when the
+MCP write gate is disabled; a missing workspace is rejected rather than created.
 
 ### `stackkit apply [plan-file]`
 
@@ -250,6 +276,13 @@ Unless `--no-log` is set, rollout evidence is written under
 also post phase progress to Admin when
 `POST /api/v1/sk/tenants/deployments/{id}/events` is available; unsupported
 event endpoints degrade safely and the final lifecycle `PATCH` remains.
+On the native v0.7 line, apply intent is classified before deploy logging,
+rollout recording, telemetry, or tenant-event reporting starts. A managed job
+without local intent performs only its required read-only Admin fetch first;
+a fetched v1 document is rejected before local spec/bundle persistence and no
+lifecycle event is posted. A missing unmanaged intent or any admitted local v1
+document likewise leaves no `.stackkit` artifacts. Exact v0.6 retains its
+compatibility flow.
 
 Rollout telemetry is local-first by default. Remote traces are disabled unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is supplied, and Sentry is disabled unless
@@ -295,6 +328,14 @@ local-first; object-store targets remain part of deployment configuration.
 The portable emergency export is modeled in `backup.resilience.emergencyExport`
 and has a Kopia-independent manifest/runbook runner.
 
+The Kopia-agent and Restic operations below are exact-v0.6 compatibility
+commands. Development and v0.7+ builds reject configure, status, run, list,
+restore, verify, migrate, and managed enroll before target creation, Docker,
+Kopia, or network work because no CUE-governed native-v2 backup execution
+contract exists yet. The read-only `backup init` checklist and
+Kopia-independent `backup emergency-export` remain available without claiming
+v2 backup readiness.
+
 Common commands:
 
 - `stackkit backup init` prints the first-run checklist.
@@ -313,18 +354,71 @@ Fleet enrollment and controller operations are outside the public CLI contract.
 
 Validates `stack-spec.yaml` by default. It also validates CUE and generated OpenTofu output when those files are present.
 
+### `stackkit migrate [v1-spec-file]`
+
+Reads v1 only through the one-minor migration adapter. A projection-only run is
+diagnostic and cannot authorize generation. To produce executable intent, pass a
+complete explicit v2 draft with an explicit target kit:
+
+```bash
+stackkit migrate legacy.yaml \
+  --target-kit basement-kit \
+  --complete-with explicit-v2.yaml \
+  --spec-output stack-spec.v2.json \
+  --output .stackkit/migration-result.json
+```
+
+`--spec-output` always writes deterministic canonical JSON, regardless of the
+report `--format`. The adapter owns `source.kind: migrated-v1` and its report
+hash; callers must not pre-author migration lineage. Both files default to
+fail-if-exists, and `--force` atomically replaces each destination through a
+held filesystem root. The self-contained audit report is committed first; the
+canonical spec is installed only after report publication succeeds, so an
+in-place migration cannot replace the legacy source without its audit result.
+Report and spec paths must differ, remain beneath the working directory, and
+cannot both be stdout aliases. An in-place replacement of the legacy spec is
+allowed only when `--force` is explicit and after the exact v1 source has been
+read and resolved.
+
+v0.6 remains the sole compatibility minor for first-party v1 execution. From
+v0.7/M+1, raw v1 never falls through to the legacy implementation of `generate`,
+`plan`, `apply`, `verify`, or the legacy remote verifier. Those commands return the shared typed
+`migration_required` or `migration_blocked` error and retain the complete
+migration report. Retry them with `--spec <stack-spec.v2.json>` after completion.
+
+### `stackkit addon`
+
+`stackkit addon list` is native on the v0.7 line. It reads only the CUE-bound
+catalog embedded in the CLI; it never scans the checkout. With a validated
+canonical v2 StackSpec, the list is filtered to its explicit `kit.slug` and
+shows enabled selections. Without a spec it shows the product-wide catalog.
+Catalog presence means only that an add-on contract exists for a kit; it is not
+evidence that mutation, planning, generation, apply, or runtime execution is
+ready.
+
+`stackkit addon add` and `stackkit addon remove` remain available only in an
+explicit v0.6 build. In v0.7 they fail before reading or writing a spec because
+the current HA add-on requires a coordinated topology and availability
+transition. Native mutation will require a catalog-declared authoring mode,
+catalog-bound validation, and compare-and-swap-safe canonical spec persistence.
+
 ### `stackkit app`
 
-Writes optional PaaS app handoff metadata to `stack-spec.yaml`. This is a
-dev/handoff helper for customer-owned apps; it does not make the app
-StackKit-owned, and `stackkit apply` records handoff state rather than
-deploying or managing the customer app lifecycle.
+This command is available only on the explicit v0.6 compatibility line. It
+writes optional PaaS app handoff metadata to the legacy `stack-spec.yaml` and
+does not make the app StackKit-owned.
+
+Architecture v2 deliberately has no arbitrary image-to-module or image-to-route
+mapping: StackKit-owned applications come from the governed CUE catalog, while
+a future customer-workload desired-state contract belongs to TechStack. That
+TechStack contract does not exist yet, so v0.7+ fails closed instead of claiming
+that deployment ownership has already moved.
 
 Subcommands:
 
 - `app add <name>`
 
-Common flags for `app add`:
+v0.6 compatibility flags for `app add`:
 
 - `--image`
 - `--kind` (`sveltekit` currently)
@@ -449,7 +543,11 @@ Subcommands:
 
 - `wizard report`
 
-Posts locally captured wizard answers or free-form intents to the Admin API. Use `--dry-run` to inspect the payload without sending it.
+Exact-v0.6 compatibility only: posts locally captured wizard answers or
+free-form intents to the Admin API. Native v0.7 rejects the command before
+environment, answer-file, payload, or network access because the v1
+`answers`/derived-context/compute payload is not a canonical v2 intent contract.
+Use `--dry-run` to inspect the compatibility payload on an exact-v0.6 build.
 
 ### `stackkit completion [bash|zsh|fish|powershell]`
 

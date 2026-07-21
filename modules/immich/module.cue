@@ -9,7 +9,7 @@ Contract: base.#ModuleContract & {
 	metadata: {
 		name:        "immich"
 		displayName: "Immich"
-		version:     "1.0.0"
+		version:     "1.0.1"
 		layer:       "L3-application"
 		description: "Self-hosted photo and video management with AI-powered search and mobile backup"
 		maturity:    "default"
@@ -74,10 +74,11 @@ Contract: base.#ModuleContract & {
 			name:  "immich"
 			type:  "application"
 			image: "ghcr.io/immich-app/immich-server"
-			tag:   "release"
+			tag:   "v2.7.0@sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
 			upstream: {
 				github: {repo: "immich-app/immich"}
-				pinLine: "release"
+				track:   "patch"
+				pinLine: "v2.7"
 			}
 			required: false
 			status:   "implemented"
@@ -179,10 +180,11 @@ Contract: base.#ModuleContract & {
 			name:  "immich-machine-learning"
 			type:  "application"
 			image: "ghcr.io/immich-app/immich-machine-learning"
-			tag:   "release"
+			tag:   "v2.7.0@sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"
 			upstream: {
 				github: {repo: "immich-app/immich"}
-				pinLine: "release"
+				track:   "patch"
+				pinLine: "v2.7"
 			}
 			required: true
 			status:   "implemented"

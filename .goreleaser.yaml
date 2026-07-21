@@ -71,6 +71,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
+      - -X main.Version={{ .Version }}
+      - -X main.GitCommit={{ .Commit }}
+      - -X main.BuildDate={{ .Date }}
 
 archives:
   # Default public bundle — CLI + BaseKit catalog.
@@ -238,29 +241,10 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  use: github
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^chore:"
-      - "^style:"
-      - Merge pull request
-      - Merge branch
-  groups:
-    - title: "Breaking Changes"
-      regexp: '^.*?!:.+$'
-      order: 0
-    - title: "Features"
-      regexp: '^.*?feat(\(.+\))?:.+$'
-      order: 1
-    - title: "Bug Fixes"
-      regexp: '^.*?fix(\(.+\))?:.+$'
-      order: 2
-    - title: "Other"
-      order: 999
+  # Release notes are rendered deterministically from CHANGELOG.md by
+  # scripts/release/render-release-notes.mjs. Avoid a redundant GitHub compare
+  # API call while building the already validated archives.
+  disable: true
 
 release:
   github:

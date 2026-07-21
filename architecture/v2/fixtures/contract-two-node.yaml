@@ -46,7 +46,7 @@ network:
     servers: [1.1.1.1, 8.8.8.8]
     searchDomains: []
   tls:
-    defaultMode: internal
+    defaultMode: off
     minVersion: TLS1.2
 sites:
   - id: home
@@ -92,6 +92,24 @@ deviceEnrollment:
   hardwareBackedKey: preferred
   revocationSupported: true
   credentialTTLSeconds: 3600
+access:
+  fixture-dashboard-local:
+    exposure: lan
+    privilege: user
+    authentication: device
+    enrolledDeviceRequired: true
+    ownerStepUpRequired: false
+    lanStepDown: true
+routes:
+  fixture-dashboard:
+    moduleRef: fixture-http-consumer
+    serviceRef: fixture-dashboard
+    exposure: local
+    protocol: http
+    port: 8080
+    host: dashboard.contract.home.arpa
+    path: /
+    accessPolicyRef: fixture-dashboard-local
 partitionPolicy:
   onCloudLoss: not-applicable
   onLinkLoss: local-continues

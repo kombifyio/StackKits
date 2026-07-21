@@ -12,9 +12,23 @@ type providerModuleSelection struct {
 	governed map[string]string // every module exposed by a selected provider
 }
 
+func intersectStrings(left, right []string) []string {
+	allowed := stringSet(right)
+	var result []string
+	for _, value := range left {
+		if _, exists := allowed[value]; exists {
+			result = append(result, value)
+		}
+	}
+	return sortStringsUnique(result)
+}
+
 func (c *Compiler) buildModules(spec *specView, resolved *resolution, providerSites, providerNodes map[string][]string) ([]any, []any, map[string][]string, map[string][]string, error) {
 	selected, err := c.selectProviderModules(resolved)
 	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if err := c.selectWorkloadModules(resolved, selected); err != nil {
 		return nil, nil, nil, nil, err
 	}
 	if err := c.validateExplicitModuleIntent(spec, selected); err != nil {
@@ -40,6 +54,18 @@ func (c *Compiler) buildModules(spec *specView, resolved *resolution, providerSi
 	return modules, runtimeNetworks, moduleSites, moduleNodes, nil
 }
 
+func (c *Compiler) selectWorkloadModules(resolved *resolution, selection *providerModuleSelection) error {
+	for _, workloadID := range resolved.workloadIDs {
+		workload := resolved.workloads[workloadID]
+		providerID, governed := selection.governed[workload.moduleID]
+		if !governed || providerID != workload.providerID {
+			return fail(ErrUnrealizedModule, "spec.workloads."+workloadID+".alternative", "module %q is not governed by provider %q", workload.moduleID, workload.providerID)
+		}
+		selection.selected[workload.moduleID] = workload.providerID
+	}
+	return nil
+}
+
 func (c *Compiler) selectProviderModules(resolved *resolution) (*providerModuleSelection, error) {
 	selection := &providerModuleSelection{
 		selected: make(map[string]string),
@@ -60,6 +86,13 @@ func (c *Compiler) selectProviderModules(resolved *resolution) (*providerModuleS
 		switch kind {
 		case "none":
 			return nil, fail(ErrUnrealizedCapability, "catalog.providers."+providerID+".realization", "selected provider has no approved realization")
+		case "contract":
+			continue
+		case "topology":
+			if err := validateTopologyProviderRealization(providerID, provider, realization); err != nil {
+				return nil, err
+			}
+			continue
 		case "host", "external":
 			ownerRef, err := stringField(realization, "catalog.providers."+providerID+".realization", "ownerRef")
 			if err != nil {
@@ -101,6 +134,33 @@ func (c *Compiler) selectProviderModules(resolved *resolution) (*providerModuleS
 	return selection, nil
 }
 
+func validateTopologyProviderRealization(providerID string, provider, realization map[string]any) error {
+	path := "catalog.providers." + providerID
+	topology, err := objectField(realization, path+".realization", "topology")
+	if err != nil {
+		return err
+	}
+	siteKinds, err := stringListField(topology, path+".realization.topology", "siteKinds", true)
+	if err != nil {
+		return err
+	}
+	supported, err := stringListField(provider, path, "supportedSiteKinds", true)
+	if err != nil {
+		return err
+	}
+	siteKinds = sortStringsUnique(siteKinds)
+	supported = sortStringsUnique(supported)
+	if len(siteKinds) != len(supported) {
+		return fail(ErrContractConflict, path+".realization.topology.siteKinds", "must exactly match supportedSiteKinds")
+	}
+	for index := range siteKinds {
+		if siteKinds[index] != supported[index] {
+			return fail(ErrContractConflict, path+".realization.topology.siteKinds", "must exactly match supportedSiteKinds")
+		}
+	}
+	return nil
+}
+
 func (c *Compiler) registerProviderModuleRefs(selection *providerModuleSelection, providerID string, moduleIDs []string, required bool) error {
 	for _, moduleID := range moduleIDs {
 		contract, exists := c.catalog.modules[moduleID]
@@ -130,8 +190,16 @@ func (c *Compiler) validateExplicitModuleIntent(spec *specView, selection *provi
 	// Explicit module intent can refine a governed selected module, but cannot
 	// manufacture a module outside the provider realization graph.
 	for moduleID, rawIntent := range spec.modules {
-		if _, exists := c.catalog.modules[moduleID]; !exists {
+		contract, exists := c.catalog.modules[moduleID]
+		if !exists {
 			return fail(ErrUnknownModule, "spec.modules."+moduleID, "no governed module contract exists")
+		}
+		role, err := stringField(contract, "catalog.modules."+moduleID, "role")
+		if err != nil {
+			return err
+		}
+		if role == "workload" {
+			return fail(ErrUnrealizedModule, "spec.modules."+moduleID, "workload modules are selected only through spec.workloads")
 		}
 		providerID, governed := selection.governed[moduleID]
 		if !governed {
@@ -229,6 +297,13 @@ func (c *Compiler) validateModuleCoverage(resolved *resolution, modules []any) e
 				return fail(ErrUnrealizedCapability, "capabilities."+capability, "provider %q has no explicit matching owner contract", providerID)
 			}
 			continue
+		case "contract":
+			continue
+		case "topology":
+			if err := validateTopologyProviderRealization(providerID, c.catalog.providers[providerID], realization); err != nil {
+				return err
+			}
+			continue
 		case "none":
 			return fail(ErrUnrealizedCapability, "capabilities."+capability, "provider %q has no approved realization", providerID)
 		case "modules":
@@ -260,11 +335,38 @@ func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, m
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	rawIntent := spec.modules[moduleID]
+	if workloadID, isWorkload := resolved.workloadByModule[moduleID]; isWorkload {
+		workload := resolved.workloads[workloadID]
+		nodeRefs = intersectStrings(nodeRefs, workload.nodeRefs)
+		if len(nodeRefs) == 0 {
+			return nil, nil, nil, fail(ErrUnresolvedPlacement, "spec.workloads."+workloadID+".placement", "workload placement has no eligible module target")
+		}
+		var narrowedSites []string
+		for _, nodeRef := range nodeRefs {
+			narrowedSites = append(narrowedSites, spec.nodeByID[nodeRef].siteRef)
+		}
+		siteRefs = sortStringsUnique(narrowedSites)
+		rawIntent = map[string]any{
+			"enabled":    true,
+			"settings":   workload.settings,
+			"secretRefs": workload.secretRefs,
+		}
+		workload.siteRefs, workload.nodeRefs = siteRefs, nodeRefs
+	}
 	provides, err := resolveModuleProvides(moduleID, providerID, contract, resolved)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	module, err := c.resolveModuleContract(moduleID, providerID, provides, siteRefs, nodeRefs, contract, spec.modules[moduleID], spec.nodes)
+	capabilitySecretRefs, err := resolveModuleCapabilitySecretRefs(moduleID, providerID, contract, resolved)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	generationTarget, err := stringField(spec.generation, "spec.generation", "target")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	module, err := c.resolveModuleContract(moduleID, providerID, provides, siteRefs, nodeRefs, contract, rawIntent, capabilitySecretRefs, spec.nodes, generationTarget)
 	return module, siteRefs, nodeRefs, err
 }
 
@@ -521,6 +623,13 @@ func moduleTargetStringSet(values []string) map[string]struct{} {
 }
 
 func resolveModuleProvides(moduleID, providerID string, contract map[string]any, resolved *resolution) ([]string, error) {
+	role, err := stringField(contract, "catalog.modules."+moduleID, "role")
+	if err != nil {
+		return nil, err
+	}
+	if role == "workload" {
+		return []string{}, nil
+	}
 	contractProvides, err := stringListField(contract, "catalog.modules."+moduleID, "provides", true)
 	if err != nil {
 		return nil, err
@@ -581,7 +690,7 @@ func moduleProvidesImplementationInterface(moduleID string, contract map[string]
 	return false, nil
 }
 
-func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, siteRefs, nodeRefs []string, contract map[string]any, rawIntent any, nodes []nodeView) (map[string]any, error) {
+func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, siteRefs, nodeRefs []string, contract map[string]any, rawIntent any, capabilitySecretRefs map[string]any, nodes []nodeView, generationTarget string) (map[string]any, error) {
 	version, err := metadataVersion(contract, "catalog.modules."+moduleID)
 	if err != nil {
 		return nil, err
@@ -591,15 +700,23 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 		return nil, err
 	}
 	placement := newModuleRenderPlacementContext(siteRefs, nodeRefs, nodes)
-	resolvedRuntime, resolvedRenderUnits, resolvedSupport, err := resolveModuleRuntimeContracts(moduleID, contract, rawIntent, placement)
+	resolvedRuntime, resolvedRenderUnits, resolvedSupport, resolvedVariant, err := resolveModuleRuntimeContracts(moduleID, contract, rawIntent, capabilitySecretRefs, placement, generationTarget)
 	if err != nil {
 		return nil, err
 	}
 	module := map[string]any{
 		"id": moduleID, "version": version, "contractHash": contractHash,
 		"provides": stringSliceAny(provides), "siteRefs": stringSliceAny(siteRefs), "nodeRefs": stringSliceAny(nodeRefs),
-		"runtime": resolvedRuntime, "renderUnits": resolvedRenderUnits, "realizationSupport": resolvedSupport,
+		"runtime": resolvedRuntime, "renderTarget": generationTarget, "renderUnits": resolvedRenderUnits, "realizationSupport": resolvedSupport,
 	}
+	if resolvedVariant != nil {
+		module["renderVariant"] = resolvedVariant
+	}
+	role, err := stringField(contract, "catalog.modules."+moduleID, "role")
+	if err != nil {
+		return nil, err
+	}
+	module["role"] = role
 	if providerID != "" {
 		module["providerRef"] = providerID
 	}
@@ -610,7 +727,7 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	if requires = sortStringsUnique(requires); len(requires) > 0 {
 		module["requires"] = stringSliceAny(requires)
 	}
-	for _, field := range []string{"nodeSelection", "runtimeRequirements"} {
+	for _, field := range []string{"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement"} {
 		contractValue, exists, err := optionalObjectField(contract, "catalog.modules."+moduleID, field)
 		if err != nil {
 			return nil, err
@@ -627,31 +744,34 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	return module, nil
 }
 
-func resolveModuleRuntimeContracts(moduleID string, contract map[string]any, rawIntent any, placement moduleRenderPlacementContext) (map[string]any, []any, map[string]any, error) {
+func resolveModuleRuntimeContracts(moduleID string, contract map[string]any, rawIntent any, capabilitySecretRefs map[string]any, placement moduleRenderPlacementContext, generationTarget string) (map[string]any, []any, map[string]any, map[string]any, error) {
 	runtimeContract, err := objectField(contract, "catalog.modules."+moduleID, "runtime")
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	resolvedRuntime, err := cloneObject(runtimeContract, true)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	resolvedRenderUnits, err := resolveModuleRenderUnits(moduleID, contract, rawIntent, placement)
+	resolvedRenderUnits, selectedUnitIDs, declared, resolvedVariant, err := resolveModuleRenderUnits(moduleID, contract, rawIntent, capabilitySecretRefs, placement, generationTarget)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	supportContract, err := objectField(contract, "catalog.modules."+moduleID, "realizationSupport")
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	resolvedSupport, err := cloneObject(supportContract, true)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
+	}
+	if err := selectModuleRealizationSupport(moduleID, resolvedSupport, selectedUnitIDs, declared, resolvedVariant, generationTarget); err != nil {
+		return nil, nil, nil, nil, err
 	}
 	if err := bindResolvedRenderInstanceOutputs(moduleID, resolvedRenderUnits, resolvedSupport); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	return resolvedRuntime, resolvedRenderUnits, resolvedSupport, nil
+	return resolvedRuntime, resolvedRenderUnits, resolvedSupport, resolvedVariant, nil
 }
 
 type indexedModuleRenderUnit struct {
@@ -665,32 +785,313 @@ type moduleRenderIntent struct {
 }
 
 type moduleDeclaredInputs struct {
-	public map[string]struct{}
-	secret map[string]struct{}
-	plan   map[string]struct{}
+	public      map[string]struct{}
+	secret      map[string]struct{}
+	plan        map[string]struct{}
+	bound       map[string]struct{}
+	secretBound map[string]struct{}
 }
 
-func resolveModuleRenderUnits(moduleID string, contract map[string]any, rawIntent any, placement moduleRenderPlacementContext) ([]any, error) {
+func selectModuleRenderUnits(moduleID string, units []map[string]any, generationTarget string) ([]map[string]any, map[string]struct{}, error) {
+	selected := make([]map[string]any, 0, len(units))
+	selectedIDs := make(map[string]struct{}, len(units))
+	for index, unit := range units {
+		unitPath := fmt.Sprintf("catalog.modules.%s.renderUnits[%d]", moduleID, index)
+		targets, err := stringListField(unit, unitPath, "compatibleTargets", false)
+		if err != nil {
+			return nil, nil, err
+		}
+		// External catalogs are normalized by CUE, which materializes the
+		// default. The fallback keeps direct package-level contract tests honest.
+		if len(targets) == 0 {
+			targets = []string{"compose", "opentofu"}
+		}
+		if !contains(targets, generationTarget) {
+			continue
+		}
+		unitID, err := stringField(unit, unitPath, "id")
+		if err != nil {
+			return nil, nil, err
+		}
+		selectedUnit, err := cloneObject(unit, true)
+		if err != nil {
+			return nil, nil, err
+		}
+		// A ResolvedPlan carries the selected variant, not the catalog's wider
+		// compatibility set. This makes the projection exact and hash-visible.
+		selectedUnit["compatibleTargets"] = stringSliceAny([]string{generationTarget})
+		selected = append(selected, selectedUnit)
+		selectedIDs[unitID] = struct{}{}
+	}
+	if len(units) > 0 && len(selected) == 0 {
+		return nil, nil, fail(ErrUnrealizedModule, "catalog.modules."+moduleID+".renderUnits", "module has no render variant for generation target %q", generationTarget)
+	}
+	return selected, selectedIDs, nil
+}
+
+func selectExplicitModuleRenderVariant(moduleID string, contract map[string]any, units []map[string]any, generationTarget string) ([]map[string]any, map[string]struct{}, map[string]any, error) {
+	variants, err := objectListOptional(contract, "renderVariants")
+	if err != nil {
+		return nil, nil, nil, fail(ErrContractConflict, "catalog.modules."+moduleID+".renderVariants", "%v", err)
+	}
+	if len(variants) == 0 {
+		selected, selectedIDs, err := selectModuleRenderUnits(moduleID, units, generationTarget)
+		return selected, selectedIDs, nil, err
+	}
+	matches := make([]map[string]any, 0, 1)
+	for index, variant := range variants {
+		target, err := stringField(variant, fmt.Sprintf("catalog.modules.%s.renderVariants[%d]", moduleID, index), "target")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if target == generationTarget {
+			matches = append(matches, variant)
+		}
+	}
+	if len(matches) != 1 {
+		return nil, nil, nil, fail(ErrUnrealizedModule, "catalog.modules."+moduleID+".renderVariants", "generation target %q resolves %d variants, want exactly one", generationTarget, len(matches))
+	}
+	variant, err := cloneObject(matches[0], true)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	unitRefs, err := stringListField(variant, "catalog.modules."+moduleID+".renderVariants", "unitRefs", true)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	unitRefSet, err := uniqueStringSet(unitRefs, "catalog.modules."+moduleID+".renderVariants.unitRefs")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	selected := make([]map[string]any, 0, len(unitRefs))
+	selectedIDs := make(map[string]struct{}, len(unitRefs))
+	for index, unit := range units {
+		unitPath := fmt.Sprintf("catalog.modules.%s.renderUnits[%d]", moduleID, index)
+		unitID, err := stringField(unit, unitPath, "id")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if _, exists := unitRefSet[unitID]; !exists {
+			continue
+		}
+		targets, err := stringListField(unit, unitPath, "compatibleTargets", false)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if len(targets) == 0 {
+			targets = []string{"compose", "opentofu"}
+		}
+		if !contains(targets, generationTarget) {
+			return nil, nil, nil, fail(ErrContractConflict, unitPath+".compatibleTargets", "variant selects unit outside target %q", generationTarget)
+		}
+		selectedUnit, err := cloneObject(unit, true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		selectedUnit["compatibleTargets"] = stringSliceAny([]string{generationTarget})
+		selected = append(selected, selectedUnit)
+		selectedIDs[unitID] = struct{}{}
+	}
+	if len(selectedIDs) != len(unitRefSet) {
+		return nil, nil, nil, fail(ErrContractConflict, "catalog.modules."+moduleID+".renderVariants.unitRefs", "variant references unknown render unit")
+	}
+	return selected, selectedIDs, variant, nil
+}
+
+func selectModuleDefaults(defaults map[string]any, declared moduleDeclaredInputs) map[string]any {
+	selected := make(map[string]any, len(defaults))
+	for key, value := range defaults {
+		if _, exists := declared.public[key]; exists {
+			selected[key] = value
+		}
+	}
+	return selected
+}
+
+func selectModuleRealizationSupport(moduleID string, support map[string]any, selectedUnitIDs map[string]struct{}, declared moduleDeclaredInputs, variant map[string]any, generationTarget string) error {
+	path := "catalog.modules." + moduleID + ".realizationSupport"
+	if inputs, err := objectField(support, path, "inputs"); err != nil {
+		return err
+	} else if err := selectSupportRequiredRefs(inputs, path+".inputs", declared.public, declared.secret); err != nil {
+		return err
+	}
+	if planInputs, err := objectField(support, path, "planInputs"); err != nil {
+		return err
+	} else if err := selectSupportRequiredRefs(planInputs, path+".planInputs", declared.plan); err != nil {
+		return err
+	}
+
+	artifacts, err := objectField(support, path, "artifacts")
+	if err != nil {
+		return err
+	}
+	contracts, err := objectListField(artifacts, path+".artifacts", "contracts")
+	if err != nil {
+		return err
+	}
+	selectedContracts := make([]any, 0, len(contracts))
+	selectedArtifactIDs := make(map[string]struct{}, len(contracts))
+	var explicitArtifactIDs map[string]struct{}
+	if variant != nil {
+		artifactRefs, err := stringListField(variant, path, "artifactRefs", true)
+		if err != nil {
+			return err
+		}
+		explicitArtifactIDs, err = uniqueStringSet(artifactRefs, path+".artifactRefs")
+		if err != nil {
+			return err
+		}
+		if err := validateVariantInputRefs(moduleID, variant, declared); err != nil {
+			return err
+		}
+	}
+	for index, contract := range contracts {
+		contractPath := fmt.Sprintf("%s.artifacts.contracts[%d]", path, index)
+		targets, err := stringListField(contract, contractPath, "compatibleTargets", true)
+		if err != nil {
+			return err
+		}
+		if !contains(targets, generationTarget) {
+			continue
+		}
+		artifactID, err := stringField(contract, contractPath, "id")
+		if err != nil {
+			return err
+		}
+		if explicitArtifactIDs != nil {
+			if _, selected := explicitArtifactIDs[artifactID]; !selected {
+				continue
+			}
+		}
+		unitRef, err := stringField(contract, contractPath, "unitRef")
+		if err != nil {
+			return err
+		}
+		if _, exists := selectedUnitIDs[unitRef]; !exists {
+			return fail(ErrContractConflict, contractPath+".unitRef", "artifact selected for target %q belongs to unselected render unit %q", generationTarget, unitRef)
+		}
+		selectedContracts = append(selectedContracts, contract)
+		selectedArtifactIDs[artifactID] = struct{}{}
+	}
+	if explicitArtifactIDs != nil && len(selectedArtifactIDs) != len(explicitArtifactIDs) {
+		return fail(ErrContractConflict, path+".artifacts.contracts", "render variant artifactRefs do not resolve exactly for target %q", generationTarget)
+	}
+	artifacts["contracts"] = selectedContracts
+	if err := retainStringRefs(artifacts, path+".artifacts", "requiredRefs", selectedArtifactIDs); err != nil {
+		return err
+	}
+	bindings, err := objectListField(artifacts, path+".artifacts", "outputBindings")
+	if err != nil {
+		return err
+	}
+	selectedBindings := make([]any, 0, len(bindings))
+	for index, binding := range bindings {
+		bindingPath := fmt.Sprintf("%s.artifacts.outputBindings[%d]", path, index)
+		artifactRef, err := stringField(binding, bindingPath, "artifactRef")
+		if err != nil {
+			return err
+		}
+		unitRef, err := stringField(binding, bindingPath, "unitRef")
+		if err != nil {
+			return err
+		}
+		_, artifactSelected := selectedArtifactIDs[artifactRef]
+		_, unitSelected := selectedUnitIDs[unitRef]
+		if artifactSelected != unitSelected {
+			return fail(ErrContractConflict, bindingPath, "artifact and render-unit target variants do not close over target %q", generationTarget)
+		}
+		if artifactSelected {
+			selectedBindings = append(selectedBindings, binding)
+		}
+	}
+	artifacts["outputBindings"] = selectedBindings
+	return nil
+}
+
+func validateVariantInputRefs(moduleID string, variant map[string]any, declared moduleDeclaredInputs) error {
+	path := "catalog.modules." + moduleID + ".renderVariant"
+	for _, field := range []struct {
+		name string
+		set  map[string]struct{}
+	}{{"publicInputRefs", declared.public}, {"secretInputRefs", declared.secret}, {"planInputRefs", declared.plan}} {
+		refs, err := stringListField(variant, path, field.name, false)
+		if err != nil {
+			return err
+		}
+		refsSet, err := uniqueStringSet(refs, path+"."+field.name)
+		if err != nil {
+			return err
+		}
+		if len(refsSet) != len(field.set) {
+			return fail(ErrContractConflict, path+"."+field.name, "variant input projection is not exact")
+		}
+		for ref := range refsSet {
+			if _, exists := field.set[ref]; !exists {
+				return fail(ErrContractConflict, path+"."+field.name, "variant input projection contains undeclared ref %q", ref)
+			}
+		}
+	}
+	return nil
+}
+
+func selectSupportRequiredRefs(container map[string]any, path string, allowedSets ...map[string]struct{}) error {
+	allowed := map[string]struct{}{}
+	for _, values := range allowedSets {
+		for value := range values {
+			allowed[value] = struct{}{}
+		}
+	}
+	return retainStringRefs(container, path, "requiredRefs", allowed)
+}
+
+func retainStringRefs(container map[string]any, path, field string, allowed map[string]struct{}) error {
+	refs, err := stringListField(container, path, field, false)
+	if err != nil {
+		return err
+	}
+	selected := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		if _, exists := allowed[ref]; exists {
+			selected = append(selected, ref)
+		}
+	}
+	container[field] = stringSliceAny(selected)
+	return nil
+}
+
+func resolveModuleRenderUnits(moduleID string, contract map[string]any, rawIntent any, capabilitySecretRefs map[string]any, placement moduleRenderPlacementContext, generationTarget string) ([]any, map[string]struct{}, moduleDeclaredInputs, map[string]any, error) {
 	units, err := objectListField(contract, "catalog.modules."+moduleID, "renderUnits")
 	if err != nil {
-		return nil, err
+		return nil, nil, moduleDeclaredInputs{}, nil, err
+	}
+	units, selectedUnitIDs, resolvedVariant, err := selectExplicitModuleRenderVariant(moduleID, contract, units, generationTarget)
+	if err != nil {
+		return nil, nil, moduleDeclaredInputs{}, nil, err
 	}
 	defaults, err := resolveModuleInputDefaults(moduleID, contract)
 	if err != nil {
-		return nil, err
+		return nil, nil, moduleDeclaredInputs{}, nil, err
 	}
 	intent, err := resolveModuleRenderIntent(moduleID, rawIntent)
 	if err != nil {
-		return nil, err
+		return nil, nil, moduleDeclaredInputs{}, nil, err
 	}
 	indexed, declared, err := indexModuleRenderUnits(moduleID, units)
 	if err != nil {
-		return nil, err
+		return nil, nil, moduleDeclaredInputs{}, nil, err
 	}
+	defaults = selectModuleDefaults(defaults, declared)
 	if err := validateModuleRenderInputs(moduleID, defaults, intent, declared); err != nil {
-		return nil, err
+		return nil, nil, moduleDeclaredInputs{}, nil, err
 	}
-	return lowerModuleRenderUnits(moduleID, indexed, mergeModuleValues(defaults, intent.settings), intent.secretRefs, placement)
+	for key, value := range capabilitySecretRefs {
+		if _, overridden := intent.secretRefs[key]; overridden {
+			return nil, nil, moduleDeclaredInputs{}, nil, fail(ErrUnrealizedModule, "spec.modules."+moduleID+".secretRefs."+key, "compiler-bound capability secret cannot be overridden")
+		}
+		intent.secretRefs[key] = value
+	}
+	resolved, err := lowerModuleRenderUnits(moduleID, indexed, mergeModuleValues(defaults, intent.settings), intent.secretRefs, placement)
+	return resolved, selectedUnitIDs, declared, resolvedVariant, err
 }
 
 func resolveModuleInputDefaults(moduleID string, contract map[string]any) (map[string]any, error) {
@@ -731,7 +1132,7 @@ func cloneOptionalModuleIntentObject(intent map[string]any, intentPath, field st
 
 func indexModuleRenderUnits(moduleID string, units []map[string]any) ([]indexedModuleRenderUnit, moduleDeclaredInputs, error) {
 	indexed := make([]indexedModuleRenderUnit, 0, len(units))
-	declared := moduleDeclaredInputs{public: map[string]struct{}{}, secret: map[string]struct{}{}, plan: map[string]struct{}{}}
+	declared := moduleDeclaredInputs{public: map[string]struct{}{}, secret: map[string]struct{}{}, plan: map[string]struct{}{}, bound: map[string]struct{}{}, secretBound: map[string]struct{}{}}
 	seen := make(map[string]struct{}, len(units))
 	for index, unit := range units {
 		unitPath := fmt.Sprintf("catalog.modules.%s.renderUnits[%d]", moduleID, index)
@@ -768,6 +1169,10 @@ func collectModuleUnitInputs(unit map[string]any, unitPath string, declared modu
 	if err != nil {
 		return err
 	}
+	bindings, err := moduleRenderInputBindings(unit, unitPath)
+	if err != nil {
+		return err
+	}
 	for _, inputRef := range publicRefs {
 		declared.public[inputRef] = struct{}{}
 	}
@@ -776,6 +1181,16 @@ func collectModuleUnitInputs(unit map[string]any, unitPath string, declared modu
 	}
 	for _, inputRef := range planRefs {
 		declared.plan[inputRef] = struct{}{}
+	}
+	for _, binding := range bindings {
+		declared.bound[binding.targetRef] = struct{}{}
+	}
+	secretBindings, err := moduleRenderSecretInputBindings(unit, unitPath)
+	if err != nil {
+		return err
+	}
+	for targetRef := range secretBindings {
+		declared.secretBound[targetRef] = struct{}{}
 	}
 	return nil
 }
@@ -801,6 +1216,9 @@ func validateModuleRenderInputs(moduleID string, defaults map[string]any, intent
 		return err
 	}
 	for key := range intent.secretRefs {
+		if _, bound := declared.secretBound[key]; bound {
+			return fail(ErrUnrealizedModule, "spec.modules."+moduleID+".secretRefs."+key, "compiler-bound capability secret cannot be set by module intent")
+		}
 		if _, exists := declared.secret[key]; !exists {
 			return fail(ErrUnrealizedModule, "spec.modules."+moduleID+".secretRefs."+key, "secret input is not declared by any render unit")
 		}
@@ -810,6 +1228,9 @@ func validateModuleRenderInputs(moduleID string, defaults map[string]any, intent
 
 func validateModulePublicValues(valuePath string, values map[string]any, declared moduleDeclaredInputs, code ErrorCode) error {
 	for key := range values {
+		if _, bound := declared.bound[key]; bound {
+			return fail(code, valuePath+"."+key, "compiler-bound public input cannot be set by module defaults or StackSpec settings")
+		}
 		if _, secret := declared.secret[key]; secret {
 			return fail(code, valuePath+"."+key, "secret input must use spec.modules secretRefs")
 		}
@@ -875,10 +1296,15 @@ func resolveModuleRenderUnit(moduleID string, contract, moduleValues, moduleSecr
 	if err != nil {
 		return nil, err
 	}
+	inputBindings, err := moduleRenderInputBindings(contract, unitPath)
+	if err != nil {
+		return nil, err
+	}
 	outputs = sortStringsUnique(outputs)
 	resolved["publicInputRefs"] = stringSliceAny(publicInputRefs)
 	resolved["secretInputRefs"] = stringSliceAny(secretInputRefs)
 	resolved["planInputRefs"] = stringSliceAny(planInputRefs)
+	resolved["inputBindings"] = moduleRenderInputBindingsAny(inputBindings)
 	// The compiler attaches this closed projection only after bridge, identity,
 	// data, and topology resolution. It is never populated from module intent.
 	resolved["planInputs"] = map[string]any{}

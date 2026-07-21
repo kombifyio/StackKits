@@ -8,12 +8,12 @@
   },
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
-    "architecture/v2/contractfixture/catalog.cue": "sha256:ecb7626bdbc049e2ce9ee3d3f7faf624968054c0d12d8e0f2ec7ab4994df82d5",
-    "base/architecture_v2.cue": "sha256:c205441a4f0022aa0d0e719e381b376772c1f862b91922479bb409560a1ada07",
-    "base/architecture_v2_catalog.cue": "sha256:30ed3046007c2d8f2d0b62e3c7f13cb9dd9e9c4af273a51632385d8de23bd747",
-    "base/architecture_v2_definition_binding.cue": "sha256:32f742d455448ed299de645576d2ced1756fa94b84db32f836737570baa86743",
+    "architecture/v2/contractfixture/catalog.cue": "sha256:5f2f0039c54f3c7f27e934d03a102e5867f2fd0d3f9fa06ed24570e4b3d18f30",
+    "base/architecture_v2.cue": "sha256:9970acc1b96223fa29ee20cde2bb6230918504d7dd72201286ed7c07baed491b",
+    "base/architecture_v2_catalog.cue": "sha256:714856c0086669f08c11e7ea8abb369fe4ef6eaefe5bd7d0292ceedf35dccb8a",
+    "base/architecture_v2_definition_binding.cue": "sha256:d555bc0825986eee9665124c7d4c9a84f8de6212bc063fa9ec7a22e9a3f4a822",
     "base/architecture_v2_profiles.cue": "sha256:ba438f0a45755febdc5b212401990672259a5d5a8840c1443f894bb21c8f48ea",
-    "basement-kit/stackfile.cue": "sha256:9e4a540081e47b7bb6a9b220b81d689b3a681474c880f341c51526cd935c354e",
+    "basement-kit/stackfile.cue": "sha256:40746c57d77a4c78a756485d43a5620f1d4a20ee65efc4f2a74e9eb15a98eec2",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee"
   }
 }

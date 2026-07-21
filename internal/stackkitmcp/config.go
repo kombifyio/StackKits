@@ -13,6 +13,7 @@ type Options struct {
 	BaseDir    string
 	Binary     string
 	Version    string
+	GitCommit  string
 }
 
 func (o Options) normalized() Options {
@@ -24,8 +25,12 @@ func (o Options) normalized() Options {
 	o.MCPToken = strings.TrimSpace(o.MCPToken)
 	o.APIKey = strings.TrimSpace(o.APIKey)
 	o.BaseDir = FirstNonEmpty(o.BaseDir, ".")
-	o.Binary = FirstNonEmpty(o.Binary, "stackkit")
-	o.Version = FirstNonEmpty(o.Version, "0.1.0")
+	o.Binary = strings.TrimSpace(o.Binary)
+	// An unbound local development build is intentionally identified as dev.
+	// Never invent an older release line: version-gated admission must fail
+	// closed until the producing binary supplies its actual build version.
+	o.Version = FirstNonEmpty(o.Version, "dev")
+	o.GitCommit = FirstNonEmpty(o.GitCommit, "unknown")
 	return o
 }
 

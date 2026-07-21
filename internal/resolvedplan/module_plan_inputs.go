@@ -5,9 +5,10 @@ import "fmt"
 var allowedModulePlanInputRefs = map[string]struct{}{
 	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
 	"bridge": {}, "identity": {}, "data": {}, "failurePolicy": {},
-	"identityTrust":     {},
-	"localReachability": {},
-	"homeLANDiscovery":  {},
+	"identityTrust": {}, "localReachability": {}, "homeLANDiscovery": {},
+	"homeAccessRequirements": {}, "externalHomeAccessBindings": {},
+	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
+	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicTLS": {},
 }
 
 func validateModulePlanInputRefs(refs []string, path string) ([]string, error) {
@@ -27,17 +28,26 @@ func validateModulePlanInputRefs(refs []string, path string) ([]string, error) {
 }
 
 type modulePlanInputSource struct {
-	stackID           string
-	kit               map[string]any
-	sites             []any
-	controlPlane      map[string]any
-	bridge            map[string]any
-	identity          map[string]any
-	identityTrust     map[string]any
-	data              map[string]any
-	failurePolicy     map[string]any
-	localReachability map[string]any
-	homeLANDiscovery  map[string]any
+	stackID                    string
+	kit                        map[string]any
+	sites                      []any
+	controlPlane               map[string]any
+	bridge                     map[string]any
+	identity                   map[string]any
+	identityTrust              map[string]any
+	data                       map[string]any
+	failurePolicy              map[string]any
+	localReachability          map[string]any
+	homeLANDiscovery           map[string]any
+	homeAccessRequirements     map[string]any
+	externalHomeAccessBindings map[string]any
+	nodes                      []any
+	capabilities               []any
+	providers                  []any
+	install                    map[string]any
+	system                     map[string]any
+	storage                    map[string]any
+	network                    map[string]any
 }
 
 // bindResolvedModulePlanInputs is the only compiler seam that populates a
@@ -70,7 +80,7 @@ func bindResolvedModulePlanInputs(modules []any, source modulePlanInputSource) e
 			}
 			inputs := make(map[string]any, len(refs))
 			for _, ref := range refs {
-				projection, err := source.resolve(ref)
+				projection, err := source.resolve(ref, moduleID, module)
 				if err != nil {
 					return fail(ErrContractConflict, unitPath+".planInputRefs", "%v", err)
 				}
@@ -83,7 +93,7 @@ func bindResolvedModulePlanInputs(modules []any, source modulePlanInputSource) e
 	return nil
 }
 
-func (source modulePlanInputSource) resolve(ref string) (any, error) {
+func (source modulePlanInputSource) resolve(ref, moduleID string, module map[string]any) (any, error) {
 	if _, allowed := allowedModulePlanInputRefs[ref]; !allowed {
 		return nil, fmt.Errorf("unsupported compiler plan input %q", ref)
 	}
@@ -117,8 +127,395 @@ func (source modulePlanInputSource) resolve(ref string) (any, error) {
 		value = source.localReachability
 	case "homeLANDiscovery":
 		value = source.homeLANDiscovery
+	case "homeAccessRequirements":
+		return safeModuleHomeAccessProjection(moduleID, module, source.homeAccessRequirements, true)
+	case "externalHomeAccessBindings":
+		return safeModuleHomeAccessProjection(moduleID, module, source.externalHomeAccessBindings, false)
+	case "moduleTargets":
+		return safeModuleTargets(moduleID, module, source.nodes)
+	case "moduleCapabilities":
+		return safeModuleCapabilities(moduleID, module, source.capabilities)
+	case "hostRuntimePolicy":
+		return safeModuleHostRuntimePolicy(source.install, source.system)
+	case "storagePolicy":
+		return safeModuleStoragePolicy(source.storage)
+	case "localNetworkPolicy":
+		return safeModuleNetworkPolicy(source.network, "localNetworkPolicy")
+	case "cloudNetworkPolicy":
+		return safeModuleNetworkPolicy(source.network, "cloudNetworkPolicy")
+	case "publicTLS":
+		return safeModulePublicTLS(moduleID, module, source.capabilities, source.providers, source.network)
 	}
 	return normalizeJSON(value, false, ref)
+}
+
+func safeModuleTargets(moduleID string, module map[string]any, nodes []any) ([]any, error) {
+	nodeRefs, err := stringListField(module, "modules."+moduleID, "nodeRefs", true)
+	if err != nil {
+		return nil, err
+	}
+	nodeByID := make(map[string]map[string]any, len(nodes))
+	for index, rawNode := range nodes {
+		node, err := asObject(rawNode, fmt.Sprintf("nodes[%d]", index))
+		if err != nil {
+			return nil, err
+		}
+		id, err := stringField(node, fmt.Sprintf("nodes[%d]", index), "id")
+		if err != nil {
+			return nil, err
+		}
+		nodeByID[id] = node
+	}
+	result := make([]any, 0, len(nodeRefs))
+	for _, nodeRef := range nodeRefs {
+		node, exists := nodeByID[nodeRef]
+		if !exists {
+			return nil, fmt.Errorf("module %q target node %q is absent from resolved topology", moduleID, nodeRef)
+		}
+		siteRef, err := stringField(node, "nodes."+nodeRef, "siteRef")
+		if err != nil {
+			return nil, err
+		}
+		roles, err := stringListField(node, "nodes."+nodeRef, "roles", true)
+		if err != nil {
+			return nil, err
+		}
+		failureDomain, err := stringField(node, "nodes."+nodeRef, "failureDomain")
+		if err != nil {
+			return nil, err
+		}
+		hardware, err := objectField(node, "nodes."+nodeRef, "hardware")
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, map[string]any{
+			"id": nodeRef, "siteRef": siteRef, "roles": stringSliceAny(sortStringsUnique(roles)),
+			"failureDomain": failureDomain, "declaredHardware": hardware,
+		})
+	}
+	normalized, err := normalizeJSON(result, false, "moduleTargets")
+	if err != nil {
+		return nil, err
+	}
+	return normalized.([]any), nil
+}
+
+func safeModuleCapabilities(moduleID string, module map[string]any, capabilities []any) ([]any, error) {
+	provided, err := stringListField(module, "modules."+moduleID, "provides", true)
+	if err != nil {
+		return nil, err
+	}
+	capabilityByID := make(map[string]map[string]any, len(capabilities))
+	for index, rawCapability := range capabilities {
+		capability, err := asObject(rawCapability, fmt.Sprintf("capabilities[%d]", index))
+		if err != nil {
+			return nil, err
+		}
+		id, err := stringField(capability, fmt.Sprintf("capabilities[%d]", index), "id")
+		if err != nil {
+			return nil, err
+		}
+		capabilityByID[id] = capability
+	}
+	provided = sortStringsUnique(provided)
+	result := make([]any, 0, len(provided))
+	for _, id := range provided {
+		capability, exists := capabilityByID[id]
+		if !exists {
+			return nil, fmt.Errorf("module %q capability %q is absent from resolved capability contracts", moduleID, id)
+		}
+		if settings, exists, err := optionalObjectField(capability, "capabilities."+id, "settings"); err != nil {
+			return nil, err
+		} else if exists && len(settings) > 0 {
+			return nil, fmt.Errorf("module %q capability %q has settings not represented by its executor contract", moduleID, id)
+		}
+		if secretRefs, exists, err := optionalObjectField(capability, "capabilities."+id, "secretRefs"); err != nil {
+			return nil, err
+		} else if exists && len(secretRefs) > 0 {
+			return nil, fmt.Errorf("module %q capability %q has secretRefs not represented by its executor contract", moduleID, id)
+		}
+		contractHash, err := stringField(capability, "capabilities."+id, "contractHash")
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, map[string]any{"id": id, "contractHash": contractHash})
+	}
+	normalized, err := normalizeJSON(result, false, "moduleCapabilities")
+	if err != nil {
+		return nil, err
+	}
+	return normalized.([]any), nil
+}
+
+func safeModuleHostRuntimePolicy(install, system map[string]any) (map[string]any, error) {
+	installProjection, err := selectObjectFields(install, "install", []string{"mode", "runtime"})
+	if err != nil {
+		return nil, err
+	}
+	platform, err := objectField(install, "install", "platform")
+	if err != nil {
+		return nil, err
+	}
+	platformProjection, err := selectObjectFields(platform, "install.platform", []string{"management", "fallbackAllowed", "setupPolicy"})
+	if err != nil {
+		return nil, err
+	}
+	installProjection["platform"] = platformProjection
+	host, err := objectField(system, "system", "host")
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]any{"install": installProjection, "host": host}
+	if container, exists, err := optionalObjectField(system, "system", "container"); err != nil {
+		return nil, err
+	} else if exists {
+		containerProjection, err := selectOptionalObjectFields(container, "system.container", []string{"engine", "rootless", "liveRestore", "storageDriver", "dataRoot", "logDriver"})
+		if err != nil {
+			return nil, err
+		}
+		result["container"] = containerProjection
+	}
+	return normalizedObject(result, "hostRuntimePolicy")
+}
+
+func safeModuleStoragePolicy(storage map[string]any) (map[string]any, error) {
+	return normalizedObject(storage, "storagePolicy")
+}
+
+func safeModuleNetworkPolicy(network map[string]any, path string) (map[string]any, error) {
+	configuration, err := objectField(network, "network", "configuration")
+	if err != nil {
+		return nil, err
+	}
+	result, err := selectObjectFields(configuration, "network.configuration", []string{"mode", "domain", "transport", "dns"})
+	if err != nil {
+		return nil, err
+	}
+	tls, err := objectField(configuration, "network.configuration", "tls")
+	if err != nil {
+		return nil, err
+	}
+	tlsProjection, err := selectOptionalObjectFields(tls, "network.configuration.tls", []string{"defaultMode", "minVersion"})
+	if err != nil {
+		return nil, err
+	}
+	result["tls"] = tlsProjection
+	return normalizedObject(result, path)
+}
+
+func safeModulePublicTLS(moduleID string, module map[string]any, capabilities, providers []any, network map[string]any) (map[string]any, error) {
+	const capabilityID = "public-tls"
+	provided, err := stringListField(module, "modules."+moduleID, "provides", true)
+	if err != nil {
+		return nil, err
+	}
+	if len(provided) != 1 || provided[0] != capabilityID {
+		return nil, fmt.Errorf("module %q publicTLS projection requires exactly capability %q", moduleID, capabilityID)
+	}
+	providerRef, err := stringField(module, "modules."+moduleID, "providerRef")
+	if err != nil {
+		return nil, err
+	}
+	capability, err := resolvedPlanObjectByID(capabilities, capabilityID, "capabilities")
+	if err != nil {
+		return nil, err
+	}
+	capabilityProviderRef, err := stringField(capability, "capabilities."+capabilityID, "providerRef")
+	if err != nil {
+		return nil, err
+	}
+	if capabilityProviderRef != providerRef {
+		return nil, fmt.Errorf("module %q provider %q does not own resolved capability %q", moduleID, providerRef, capabilityID)
+	}
+	profile, err := objectField(capability, "capabilities."+capabilityID, "tlsProfile")
+	if err != nil {
+		return nil, err
+	}
+	profileProjection, err := selectObjectFields(profile, "capabilities."+capabilityID+".tlsProfile", []string{"id", "capabilityRef", "mode", "trustDomain", "minimumVersion", "allowedIssuerKinds"})
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := stringField(profileProjection, "publicTLS.profile", "id")
+	if err != nil {
+		return nil, err
+	}
+	profileMode, err := stringField(profileProjection, "publicTLS.profile", "mode")
+	if err != nil || profileMode != "terminate-at-edge" {
+		return nil, fmt.Errorf("public TLS profile must terminate at the edge")
+	}
+	allowedKinds, err := stringListField(profileProjection, "publicTLS.profile", "allowedIssuerKinds", true)
+	if err != nil {
+		return nil, err
+	}
+	provider, err := resolvedPlanObjectByID(providers, providerRef, "providers")
+	if err != nil {
+		return nil, err
+	}
+	issuerContracts, err := objectListField(provider, "providers."+providerRef, "certificateIssuers")
+	if err != nil {
+		return nil, err
+	}
+	var issuer map[string]any
+	for index, candidate := range issuerContracts {
+		path := fmt.Sprintf("providers.%s.certificateIssuers[%d]", providerRef, index)
+		candidateCapability, fieldErr := stringField(candidate, path, "capabilityRef")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		candidateKind, fieldErr := stringField(candidate, path, "kind")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		if candidateCapability != capabilityID || !contains(allowedKinds, candidateKind) {
+			continue
+		}
+		if issuer != nil {
+			return nil, fmt.Errorf("provider %q has multiple public TLS issuers", providerRef)
+		}
+		issuer = candidate
+	}
+	if issuer == nil {
+		return nil, fmt.Errorf("provider %q has no public TLS issuer", providerRef)
+	}
+	issuerProjection, err := selectObjectFields(issuer, "publicTLS.issuer", []string{"id", "capabilityRef", "kind", "challenge", "supportedSiteKinds", "validitySeconds", "requiredInputSlotIDs", "materialSlots", "renewal"})
+	if err != nil {
+		return nil, err
+	}
+	issuerID, err := stringField(issuerProjection, "publicTLS.issuer", "id")
+	if err != nil {
+		return nil, err
+	}
+	routes, err := objectListField(network, "network", "routes")
+	if err != nil {
+		return nil, err
+	}
+	routesByID := map[string]map[string]any{}
+	for index, route := range routes {
+		path := fmt.Sprintf("network.routes[%d]", index)
+		tls, err := objectField(route, path, "tls")
+		if err != nil {
+			return nil, err
+		}
+		routeProfileRef, hasProfile, err := optionalStringField(tls, path+".tls", "profileRef")
+		if err != nil {
+			return nil, err
+		}
+		routeIssuerRef, hasIssuer, err := optionalStringField(tls, path+".tls", "issuerRef")
+		if err != nil {
+			return nil, err
+		}
+		if !hasProfile && !hasIssuer {
+			continue
+		}
+		if routeProfileRef != profileID || routeIssuerRef != issuerID {
+			continue
+		}
+		exposure, err := stringField(route, path, "exposure")
+		if err != nil || exposure != "public" {
+			return nil, fmt.Errorf("%s bound to public TLS is not public", path)
+		}
+		protocol, err := stringField(route, path, "protocol")
+		if err != nil || protocol != "https" {
+			return nil, fmt.Errorf("%s bound to public TLS is not HTTPS", path)
+		}
+		id, err := stringField(route, path, "id")
+		if err != nil {
+			return nil, err
+		}
+		host, err := stringField(route, path, "host")
+		if err != nil {
+			return nil, err
+		}
+		port, err := intField(route, path, "port")
+		if err != nil {
+			return nil, err
+		}
+		pathValue, err := stringField(route, path, "path")
+		if err != nil {
+			return nil, err
+		}
+		minimumVersion, err := stringField(tls, path+".tls", "minVersion")
+		if err != nil {
+			return nil, err
+		}
+		routesByID[id] = map[string]any{
+			"id": id, "host": host, "port": port, "path": pathValue, "exposure": exposure, "protocol": protocol,
+			"tls": map[string]any{"mode": "terminate-at-edge", "minVersion": minimumVersion, "profileRef": profileID, "issuerRef": issuerID},
+		}
+	}
+	projectedRoutes := make([]any, 0, len(routesByID))
+	for _, id := range sortedStringMapKeys(routesByID) {
+		projectedRoutes = append(projectedRoutes, routesByID[id])
+	}
+	return normalizedObject(map[string]any{
+		"capabilityRef": capabilityID,
+		"providerRef":   providerRef,
+		"profile":       profileProjection,
+		"issuer":        issuerProjection,
+		"routes":        projectedRoutes,
+	}, "publicTLS")
+}
+
+func resolvedPlanObjectByID(values []any, wantedID, path string) (map[string]any, error) {
+	var match map[string]any
+	for index, raw := range values {
+		value, err := asObject(raw, fmt.Sprintf("%s[%d]", path, index))
+		if err != nil {
+			return nil, err
+		}
+		id, err := stringField(value, fmt.Sprintf("%s[%d]", path, index), "id")
+		if err != nil {
+			return nil, err
+		}
+		if id != wantedID {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("%s contains duplicate id %q", path, wantedID)
+		}
+		match = value
+	}
+	if match == nil {
+		return nil, fmt.Errorf("%s has no id %q", path, wantedID)
+	}
+	return match, nil
+}
+
+func selectObjectFields(source map[string]any, path string, fields []string) (map[string]any, error) {
+	result := make(map[string]any, len(fields))
+	for _, field := range fields {
+		value, exists := source[field]
+		if !exists {
+			return nil, fmt.Errorf("%s.%s is required", path, field)
+		}
+		result[field] = value
+	}
+	return result, nil
+}
+
+func selectOptionalObjectFields(source map[string]any, path string, fields []string) (map[string]any, error) {
+	result := make(map[string]any, len(fields))
+	for _, field := range fields {
+		if value, exists := source[field]; exists {
+			result[field] = value
+		}
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("%s has no represented fields", path)
+	}
+	return result, nil
+}
+
+func normalizedObject(value map[string]any, path string) (map[string]any, error) {
+	normalized, err := normalizeJSON(value, false, path)
+	if err != nil {
+		return nil, err
+	}
+	object, ok := normalized.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s projection has unexpected type %T", path, normalized)
+	}
+	return object, nil
 }
 
 func safeModulePlanSites(sites []any) ([]any, error) {
@@ -206,10 +603,44 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	if err != nil {
 		return modulePlanInputSource{}, err
 	}
+	homeAccessRequirements, err := objectField(top, "resolvedPlan", "homeAccessRequirements")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	externalHomeAccessBindings, err := objectField(top, "resolvedPlan", "externalHomeAccessBindings")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	nodes, err := objectListField(top, "resolvedPlan", "nodes")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	capabilities, err := objectListField(top, "resolvedPlan", "capabilities")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	providers, err := objectListField(top, "resolvedPlan", "providers")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	install, err := objectField(top, "resolvedPlan", "install")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	system, err := objectField(top, "resolvedPlan", "system")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	storage, err := objectField(top, "resolvedPlan", "storage")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
 	return modulePlanInputSource{
 		stackID: stackID, kit: kit, sites: objectMapsAsAny(sites),
 		controlPlane: controlPlane, bridge: bridge, identity: identity, identityTrust: identityTrust,
 		data: data, failurePolicy: failurePolicy, localReachability: localReachability,
-		homeLANDiscovery: homeLANDiscovery,
+		homeLANDiscovery: homeLANDiscovery, homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
+		nodes: objectMapsAsAny(nodes), capabilities: objectMapsAsAny(capabilities), providers: objectMapsAsAny(providers),
+		install: install, system: system, storage: storage, network: network,
 	}, nil
 }

@@ -19,6 +19,7 @@ type expectedAuthorityBinding struct {
 	capabilities  map[string]authorityContractIdentity
 	providers     map[string]authorityContractIdentity
 	modules       map[string]authorityContractIdentity
+	workloads     map[string]authorityContractIdentity
 	addons        map[string]authorityContractIdentity
 	approvals     map[string]map[string]string
 	compiler      string
@@ -52,6 +53,7 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 		capabilities: make(map[string]authorityContractIdentity, len(catalog.Capabilities)),
 		providers:    make(map[string]authorityContractIdentity, len(catalog.Providers)),
 		modules:      make(map[string]authorityContractIdentity, len(catalog.Modules)),
+		workloads:    make(map[string]authorityContractIdentity, len(catalog.Workloads)),
 		addons:       make(map[string]authorityContractIdentity, len(catalog.AddOns)),
 		approvals:    make(map[string]map[string]string, len(catalog.PrivilegedInterfaceApprovals)),
 		compiler:     options.CompilerVersion,
@@ -116,6 +118,9 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 		return PlanAuthority{}, err
 	}
 	if err := bindCatalogIdentities("modules", catalog.Modules, binding.modules); err != nil {
+		return PlanAuthority{}, err
+	}
+	if err := bindCatalogIdentities("workloads", catalog.Workloads, binding.workloads); err != nil {
 		return PlanAuthority{}, err
 	}
 	if err := bindCatalogIdentities("addons", catalog.AddOns, binding.addons); err != nil {
@@ -202,6 +207,9 @@ func canonicalAuthorityCatalogHash(catalog Catalog) (string, error) {
 	if projection["modules"], err = sortedAuthorityContracts("modules", catalog.Modules, true); err != nil {
 		return "", err
 	}
+	if projection["workloads"], err = sortedAuthorityContracts("workloads", catalog.Workloads, true); err != nil {
+		return "", err
+	}
 	if projection["privilegedInterfaceApprovals"], err = sortedAuthorityContracts("privilegedInterfaceApprovals", catalog.PrivilegedInterfaceApprovals, false); err != nil {
 		return "", err
 	}
@@ -281,6 +289,10 @@ func selectedAuthorityCatalogClosure(plan ResolvedPlan, catalog *indexedCatalog)
 	if err != nil {
 		return nil, err
 	}
+	workloadIDs, err := selectedResolvedObjectIDs(plan, "workloads")
+	if err != nil {
+		return nil, err
+	}
 	addonIDs, err := selectedResolvedAddonIDs(plan)
 	if err != nil {
 		return nil, err
@@ -306,6 +318,10 @@ func selectedAuthorityCatalogClosure(plan ResolvedPlan, catalog *indexedCatalog)
 	if err != nil {
 		return nil, err
 	}
+	workloads, err := selectMetadataAuthorityBodies("workloads", workloadIDs, catalog.workloads)
+	if err != nil {
+		return nil, err
+	}
 	addons, err := selectMetadataAuthorityBodies("addons", addonIDs, catalog.addons)
 	if err != nil {
 		return nil, err
@@ -326,6 +342,7 @@ func selectedAuthorityCatalogClosure(plan ResolvedPlan, catalog *indexedCatalog)
 		"capabilities":                 capabilities,
 		"providers":                    providers,
 		"modules":                      modules,
+		"workloads":                    workloads,
 		"addons":                       addons,
 		"privilegedInterfaceApprovals": approvals,
 		"planArtifacts":                planArtifacts,
@@ -605,6 +622,15 @@ func (v *CUEContractValidator) validateBoundAuthority(plan ResolvedPlan) error {
 	if err != nil {
 		return err
 	}
+	workloadIDs, err := validateResolvedContractIdentities(plan, "workloads", expected.workloads, true)
+	if err != nil {
+		return err
+	}
+	if selectedKit != "" {
+		if err := validateResolvedWorkloadPolicy(workloadIDs, expected.definitions[selectedKit].normalized); err != nil {
+			return err
+		}
+	}
 	if err := validateResolvedApprovals(plan, expected.approvals); err != nil {
 		return err
 	}
@@ -662,6 +688,45 @@ func (v *CUEContractValidator) validateBoundAuthority(plan ResolvedPlan) error {
 		}
 		if !reflect.DeepEqual(gateScenarios, expectedGateEvidence) {
 			return fmt.Errorf("resolvedPlan.gates.evidence scenarios are not the exact bound evidence union")
+		}
+	}
+	return nil
+}
+
+func validateResolvedWorkloadPolicy(selected []string, definition KitDefinition) error {
+	policy, err := objectField(map[string]any(definition), "definition", "workloads")
+	if err != nil {
+		return err
+	}
+	required, err := stringListField(policy, "definition.workloads", "required", false)
+	if err != nil {
+		return err
+	}
+	defaults, err := stringListField(policy, "definition.workloads", "defaults", false)
+	if err != nil {
+		return err
+	}
+	optional, err := stringListField(policy, "definition.workloads", "optional", false)
+	if err != nil {
+		return err
+	}
+	forbidden, err := stringListField(policy, "definition.workloads", "forbidden", false)
+	if err != nil {
+		return err
+	}
+	selectedSet := stringSet(selected)
+	allowed := stringSet(append(append(append([]string{}, required...), defaults...), optional...))
+	for _, id := range append(append([]string{}, required...), defaults...) {
+		if _, exists := selectedSet[id]; !exists {
+			return fmt.Errorf("resolvedPlan.workloads omits kit-mandated workload %q", id)
+		}
+	}
+	for _, id := range selected {
+		if _, denied := stringSet(forbidden)[id]; denied {
+			return fmt.Errorf("resolvedPlan.workloads selects kit-forbidden workload %q", id)
+		}
+		if _, exists := allowed[id]; !exists {
+			return fmt.Errorf("resolvedPlan.workloads selects workload %q outside the bound KitDefinition policy", id)
 		}
 	}
 	return nil

@@ -11,22 +11,25 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
 
 var (
-	initComputeTier    string
-	initDomain         string
-	initMode           string
-	initOutputDir      string
-	initForce          bool
-	initNonInteractive bool
-	initAdminEmail     string
-	initLocalDNS       bool
-	initLocalName      string
-	initServiceProfile string
+	initComputeTier      string
+	initName             string
+	initDomain           string
+	initMode             string
+	initOutputDir        string
+	initForce            bool
+	initExpectedSpecHash string
+	initNonInteractive   bool
+	initAdminEmail       string
+	initLocalDNS         bool
+	initLocalName        string
+	initServiceProfile   string
 
 	// Phase 1 owner-breakglass provisioning flags. Wired into init.go's
 	// flag block; consumed by resolveOwnerBootstrapConfig in init_owner.go
@@ -60,35 +63,43 @@ var initCmd = &cobra.Command{
 This command creates a new stack-spec.yaml file and sets up the deployment
 directory structure based on the selected StackKit.
 
-When run without arguments, an interactive wizard guides you through
-StackKit selection, compute tier, domain, and email.
+Native Architecture v2 init is CUE-owned and accepts only product selection,
+deployment name, and domain authoring intent. Topology comes from the selected
+KitDefinition; host facts come from Inventory; identity is a separate handoff.
+
+The compute, mode, local-path, local-DNS, service, owner, cluster, and output
+switches remain available only to an explicitly versioned v0.6 compatibility
+binary and are rejected by development and v0.7+ builds.
 
 Examples:
   stackkit init                         Interactive mode
   stackkit init basement-kit            Initialize with basement-kit
-  stackkit init ./basement-kit          Use an active product definition from a local path
+  stackkit init cloud-kit --domain cloud.example.com
+  stackkit init ./basement-kit          v0.6 compatibility only: local definition path
   stackkit init --non-interactive       Fail if arguments are missing`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
 }
 
 func init() {
-	initCmd.Flags().StringVar(&initComputeTier, "compute-tier", "", "Compute tier (low, standard, high)")
+	initCmd.Flags().StringVar(&initName, "name", "", "Deployment contract ID (defaults to a normalized working-directory name)")
+	initCmd.Flags().StringVar(&initComputeTier, "compute-tier", "", "v0.6 compatibility only: compute tier (low, standard, high)")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
-	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "Use Kombify Point local DNS names; optionally combine with --local-name")
-	initCmd.Flags().StringVar(&initLocalName, "local-name", "", "Local DNS short name for --local-dns (e.g. family -> family.home)")
-	initCmd.Flags().StringVar(&initMode, "mode", "", "Installation mode (bare, bootstrapped, advanced)")
-	initCmd.Flags().StringVarP(&initOutputDir, "output", "o", "deploy", "Output directory for generated files")
-	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "Overwrite existing files")
+	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "v0.6 compatibility only: use Kombify Point local DNS names")
+	initCmd.Flags().StringVar(&initLocalName, "local-name", "", "v0.6 compatibility only: local DNS short name for --local-dns")
+	initCmd.Flags().StringVar(&initMode, "mode", "", "v0.6 compatibility only: installation mode (bare, bootstrapped, advanced)")
+	initCmd.Flags().StringVarP(&initOutputDir, "output", "o", "deploy", "v0.6 compatibility only: output directory for generated files")
+	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "v0.6 compatibility only: overwrite existing files")
+	initCmd.Flags().StringVar(&initExpectedSpecHash, "expected-spec-hash", "", "Native v2 only: exact current CUE-normalized spec hash required for replacement")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (fail if input is required)")
-	initCmd.Flags().StringVar(&initAdminEmail, "admin-email", "", "Admin email for login accounts (TinyAuth, Coolify, Kuma)")
-	initCmd.Flags().StringVar(&initServiceProfile, "service-profile", "", "BaseKit service profile (default, admin-only)")
+	initCmd.Flags().StringVar(&initAdminEmail, "admin-email", "", "v0.6 compatibility only: admin email for login accounts")
+	initCmd.Flags().StringVar(&initServiceProfile, "service-profile", "", "v0.6 compatibility only: BaseKit service profile")
 
 	// Owner-breakglass flags. bootstrap-mode separates orchestrator-managed
 	// SaaS owner prep, explicit self-hosted owner bootstrap, and OSS/BYOS noop.
-	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "Cluster mode (first|join). Join nodes require a token from 'stackkit cluster join-token'.")
-	initCmd.Flags().StringVar(&initOwnerBootstrapMode, "owner-bootstrap-mode", "", "Owner bootstrap mode (auto|custom|none). Empty preserves legacy --owner-source behavior.")
-	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner source (local|cloud). Use local with custom bootstrap, cloud with auto bootstrap.")
+	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "v0.6 compatibility only: cluster mode (first|join)")
+	initCmd.Flags().StringVar(&initOwnerBootstrapMode, "owner-bootstrap-mode", "", "v0.6 compatibility only: owner bootstrap mode (auto|custom|none)")
+	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "v0.6 compatibility only: owner source (local|cloud)")
 	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Owner email (required only when --owner-bootstrap-mode=custom)")
 	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Owner username (required only when --owner-bootstrap-mode=custom)")
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Owner display name (defaults to username)")
@@ -406,7 +417,7 @@ func resolveSpecPath(wd string) (string, error) {
 
 // writeSpecAndOutput creates the spec YAML and the output directory.
 func writeSpecAndOutput(loader *config.Loader, spec *models.StackSpec, specPath, wd string) error {
-	if err := loader.SaveStackSpec(spec, specPath); err != nil {
+	if err := persistLegacyV06StackSpec(loader, spec, specPath, "init"); err != nil {
 		return fmt.Errorf("failed to save spec file: %w", err)
 	}
 	printSuccess("Created spec file: %s", specPath)
@@ -493,6 +504,12 @@ func gatherInitChoices(p *prompter, stackkit *models.StackKit, defaults initDefa
 
 func runInit(cmd *cobra.Command, args []string) error {
 	wd := getWorkDir()
+	if stackspecadmission.RejectOperationalV1(version) {
+		return runArchitectureV2Init(cmd, args, wd)
+	}
+	if strings.TrimSpace(initExpectedSpecHash) != "" {
+		return fmt.Errorf("--expected-spec-hash is a native Architecture v2 authoring contract and is unavailable on the exact-v0.6 compatibility line")
+	}
 	if err := validateInitLocalDNSFlags(); err != nil {
 		return err
 	}
@@ -618,9 +635,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	specName := strings.TrimSpace(initName)
+	if specName == "" {
+		specName = filepath.Base(wd)
+	}
 
 	spec := &models.StackSpec{
-		Name:       filepath.Base(wd),
+		Name:       specName,
 		StackKit:   stackkitName,
 		Mode:       mode,
 		Context:    string(defaults.Context),

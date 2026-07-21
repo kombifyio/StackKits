@@ -7,6 +7,139 @@
     "publicRoutesDefaultClosed": true
   },
   "apiVersion": "stackkit/v2alpha1",
+  "authoring": {
+    "contractVersion": "1.0.0",
+    "initialSpec": {
+      "apiVersion": "stackkit/v2alpha1",
+      "availability": {
+        "enabled": false,
+        "fencing": "none",
+        "mode": "single"
+      },
+      "capabilities": {
+        "disable": [],
+        "enable": []
+      },
+      "container": {
+        "dataRoot": "/var/lib/docker",
+        "engine": "docker",
+        "liveRestore": true,
+        "logDriver": "json-file",
+        "registryMirrors": [],
+        "rootless": false
+      },
+      "controlPlane": {
+        "authoritySiteRef": "home",
+        "members": [
+          "main"
+        ],
+        "mode": "single"
+      },
+      "data": {
+        "defaultAuthority": "home"
+      },
+      "deviceEnrollment": {
+        "authoritySiteRef": "home",
+        "credentialTTLSeconds": 3600,
+        "endpointExposure": "lan",
+        "hardwareBackedKey": "preferred",
+        "mode": "local-only",
+        "remoteEnrollment": false,
+        "requireDeviceGeneratedKey": true,
+        "requireLocalPairingProof": true,
+        "requireOwnerStepUp": true,
+        "requirePossessionProof": true,
+        "revocationSupported": true
+      },
+      "generation": {
+        "outputRoot": "deploy",
+        "strategy": "kit-template",
+        "target": "opentofu"
+      },
+      "install": {
+        "mode": "bootstrapped",
+        "platform": {
+          "fallbackAllowed": false,
+          "management": "selected-provider",
+          "setupPolicy": {
+            "applicationDefault": "on-demand",
+            "platform": "automatic"
+          }
+        },
+        "runtime": "docker"
+      },
+      "kind": "StackSpec",
+      "kit": {
+        "slug": "basement-kit"
+      },
+      "lanDiscovery": {
+        "advertiseRouteRefs": []
+      },
+      "metadata": {
+        "name": "my-homelab"
+      },
+      "network": {
+        "dns": {
+          "searchDomains": [],
+          "servers": [
+            "1.1.1.1",
+            "8.8.8.8"
+          ]
+        },
+        "domain": {
+          "base": "home.localhost"
+        },
+        "mode": "private",
+        "tls": {
+          "defaultMode": "internal",
+          "minVersion": "TLS1.2"
+        },
+        "transport": {
+          "ipv6": false,
+          "mtu": 1500,
+          "subnet": "172.20.0.0/16"
+        }
+      },
+      "nodes": [
+        {
+          "enabled": true,
+          "failureDomain": "node-main",
+          "hardware": {
+            "arch": "amd64",
+            "profile": "standard"
+          },
+          "id": "main",
+          "roles": [
+            "controller",
+            "worker"
+          ],
+          "siteRef": "home"
+        }
+      ],
+      "partitionPolicy": {
+        "cloudEdge": "not-applicable",
+        "denyNewCrossSiteSessions": true,
+        "localIdentityAuthorityAvailable": true,
+        "maxStaleVerificationSeconds": 0,
+        "onCloudLoss": "not-applicable",
+        "onLinkLoss": "local-continues"
+      },
+      "sites": [
+        {
+          "failureDomain": "home-primary",
+          "id": "home",
+          "kind": "home"
+        }
+      ],
+      "source": {
+        "kind": "native-v2"
+      },
+      "storage": {},
+      "system": {}
+    },
+    "initialSpecStatus": "supported",
+    "requiredOverrides": []
+  },
   "availability": {
     "policies": {
       "quorum": {
@@ -105,13 +238,12 @@
       "inter-site-link"
     ],
     "optional": [
-      "basement-compose-runtime",
+      "lan-discovery",
       "lan-dns",
       "internal-pki",
       "private-remote-access",
       "public-publish-egress",
       "encrypted-offsite-backup",
-      "photos",
       "availability-ha"
     ],
     "required": [
@@ -130,9 +262,8 @@
       "backup-core",
       "observability-evidence",
       "lifecycle-update",
+      "basement-compose-runtime",
       "site-local",
-      "local-hardware-preflight",
-      "lan-discovery",
       "local-ingress",
       "lan-access-policy",
       "device-enrollment-home",
@@ -490,15 +621,18 @@
         "allowedOriginKinds": [
           "home"
         ],
-        "requiredCapabilities": []
+        "requiredRealizations": []
       },
       "public": {
         "allowed": true,
         "allowedOriginKinds": [
           "home"
         ],
-        "requiredCapabilities": [
-          "public-publish-egress"
+        "requiredRealizations": [
+          {
+            "capabilityRef": "public-publish-egress",
+            "role": "egress"
+          }
         ]
       },
       "remote-private": {
@@ -506,8 +640,11 @@
         "allowedOriginKinds": [
           "home"
         ],
-        "requiredCapabilities": [
-          "private-remote-access"
+        "requiredRealizations": [
+          {
+            "capabilityRef": "private-remote-access",
+            "role": "access"
+          }
         ]
       }
     }
@@ -534,5 +671,13 @@
     "requiredSiteKinds": [
       "home"
     ]
+  },
+  "workloads": {
+    "defaults": [],
+    "forbidden": [],
+    "optional": [
+      "photos"
+    ],
+    "required": []
   }
 }

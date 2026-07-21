@@ -186,6 +186,7 @@ func decodeCatalog(document map[string]any) (resolvedplan.Catalog, error) {
 		Providers                    []resolvedplan.CapabilityProvider          `json:"providers"`
 		AddOns                       []resolvedplan.AddOnContract               `json:"addons"`
 		Modules                      []resolvedplan.ModuleContract              `json:"modules"`
+		Workloads                    []resolvedplan.WorkloadContract            `json:"workloads"`
 		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
 		PlanArtifacts                []resolvedplan.PlanArtifactContract        `json:"planArtifacts"`
 	}
@@ -204,6 +205,7 @@ func decodeCatalog(document map[string]any) (resolvedplan.Catalog, error) {
 		Providers:                    wire.Providers,
 		AddOns:                       wire.AddOns,
 		Modules:                      wire.Modules,
+		Workloads:                    wire.Workloads,
 		PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
 		PlanArtifacts:                wire.PlanArtifacts,
 	}, nil

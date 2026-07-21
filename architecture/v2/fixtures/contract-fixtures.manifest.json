@@ -12,13 +12,13 @@
       "scope": "contract",
       "graduationEligible": false,
       "authorityIssuer": "stackkits-contract-fixture-authority/v1",
-      "authorityCatalogHash": "sha256:d41da8c56781ea99ca3bcd19bfac9e9abc656e5b4e3b7de1f02e41b4ae679c99",
+      "authorityCatalogHash": "sha256:05a8c2ec105a76fc48af9074d46207c6c4abb2e3cd507db884e52d44f130c7cf",
       "rendererRef": "stackkit-contract-fixture",
       "compilerVersion": "stackkits-contract-fixture/0.6.0-fixtures.1",
-      "specSha256": "sha256:dc9e5e3c894a7e56920db6a21ba011a71cf96588f8006a8a329b988885f778a0",
+      "specSha256": "sha256:3c5fe2ef9de4854d2c791e3501be99f94e5bb60b1f84b3ccce2235834cb52b1a",
       "inventorySha256": "sha256:8c5452e0c3741b4a1f8581f85e659327110d6ddc52cb4236add57a1df6f29f39",
-      "planSha256": "sha256:2c1bb09728b3a1df1fb6009582cc128d2bba756b75df75961a4487ab7e63f73c",
-      "planHash": "sha256:c65beda86957d39603b971448a5c31775ebfa8d29db4d7f2e116d65a65f127e1"
+      "planSha256": "sha256:bf4ea9e3c92b0c2551b9c10b694e35a7c9f4aac505fb261f37f39ddc1a88bc15",
+      "planHash": "sha256:fc011b02d4a97f47e694887cf78eafbf6657e0ea0a04ff406ab4a6dad7d8a5de"
     }
   ]
 }

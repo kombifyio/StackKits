@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/cluster"
-	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
@@ -28,8 +27,9 @@ var clusterCmd = &cobra.Command{
 }
 
 var clusterJoinTokenCmd = &cobra.Command{
-	Use:   "join-token",
-	Short: "Create a join token for worker or storage nodes",
+	Use:         "join-token",
+	Short:       "Create a join token for worker or storage nodes",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "cluster join-token"},
 	Long: `Create a join token for worker or storage nodes.
 
 The token is the only supported path for treating another BaseKit install as a
@@ -49,7 +49,10 @@ func init() {
 
 func runClusterJoinToken(cmd *cobra.Command, args []string) error {
 	wd := getWorkDir()
-	spec, _ := config.NewLoader(wd).LoadStackSpec(specFile)
+	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Cluster)
+	if err != nil {
+		return fmt.Errorf("admit StackSpec before join-token issuance: %w", err)
+	}
 
 	homelabID := clusterTokenHomelabID
 	if homelabID == "" && spec != nil {

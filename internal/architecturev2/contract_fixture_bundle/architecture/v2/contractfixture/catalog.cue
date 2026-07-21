@@ -29,9 +29,15 @@ ContractFixtureDefinition: base.#KitDefinition & {
 		displayName: "Basement Contract Fixture"
 		description: "Non-product Basement semantics for the isolated Architecture v2 renderer contract proof"
 	}
-	topology:         basement.Definition.topology
-	availability:     basement.Definition.availability
-	capabilities:     basement.Definition.capabilities
+	topology:     basement.Definition.topology
+	availability: basement.Definition.availability
+	capabilities: basement.Definition.capabilities
+	workloads: {
+		required: []
+		defaults: []
+		optional: []
+		forbidden: []
+	}
 	accessDefaults:   basement.Definition.accessDefaults
 	reachability:     basement.Definition.reachability
 	dataDefaults:     basement.Definition.dataDefaults
@@ -65,14 +71,18 @@ ContractFixtureDefinition: base.#KitDefinition & {
 	}
 	partitionPolicy: basement.Definition.partitionPolicy
 	generation:      basement.Definition.generation
-	network:         basement.Definition.network
-	bridge:          basement.Definition.bridge
+	network: {
+		mode:           basement.Definition.network.mode
+		domainRequired: basement.Definition.network.domainRequired
+		defaultDomain:  basement.Definition.network.defaultDomain
+		defaultTLSMode: "off"
+	}
+	bridge: basement.Definition.bridge
 	evidenceScenarios: ["contract-fixture-two-node"]
 }
 
 _architectureV2ContractFixtureRequiredCapabilities: list.Concat([base.#CommonCapabilityIDs, [
 	"site-local",
-	"local-hardware-preflight",
 	"lan-discovery",
 	"local-ingress",
 	"lan-access-policy",
@@ -80,6 +90,7 @@ _architectureV2ContractFixtureRequiredCapabilities: list.Concat([base.#CommonCap
 	"local-control-authority",
 	"offline-autonomy",
 	"local-backup-target",
+	"basement-compose-runtime",
 ]])
 
 _architectureV2ContractFixtureRendererRef: "stackkit-contract-fixture"
@@ -92,6 +103,7 @@ _architectureV2ContractFixtureModules: [
 			description: "Non-product renderer contract fixture for a reviewed node-local Docker API proxy."
 		}
 		providerRef: "fixture-basement-provider"
+		role:        "platform"
 		// The proxy is an implementation-interface provider, not a product
 		// capability owner. This fixture exercises the same interface-only
 		// compiler path as the product Basement pilot.
@@ -105,8 +117,21 @@ _architectureV2ContractFixtureModules: [
 			templateRef:  "contract-fixture/socket-proxy"
 			version:      "1.0.0"
 			contractHash: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-			publicInputRefs: []
+			publicInputRefs: ["device-enrollment-policy", "service-routes"]
 			secretInputRefs: []
+			inputBindings: [{
+				targetRef:   "device-enrollment-policy"
+				sourceRef:   "identity.deviceEnrollment"
+				valueType:   "device-enrollment-public-v1"
+				cardinality: "single"
+				required:    true
+			}, {
+				targetRef:   "service-routes"
+				sourceRef:   "network.routes"
+				valueType:   "authority-bound-service-route-list-v4"
+				cardinality: "list"
+				required:    true
+			}]
 			outputs: ["compose/fixture-socket-proxy.yaml"]
 			placement: {
 				scope:       "node-local"
@@ -152,7 +177,7 @@ _architectureV2ContractFixtureModules: [
 			scope:           "concrete"
 			level:           "generation-ready"
 			compatibleRendererRefs: [_architectureV2ContractFixtureRendererRef]
-			inputs: {contractComplete: true, requiredRefs: []}
+			inputs: {contractComplete: true, requiredRefs: ["device-enrollment-policy", "service-routes"]}
 			artifacts: {
 				requiredRefs: ["fixture-socket-proxy-compose"]
 				outputBindings: [{
@@ -183,6 +208,7 @@ _architectureV2ContractFixtureModules: [
 			description: "Non-product renderer contract fixture for an exact node-local Docker API consumer."
 		}
 		providerRef: "fixture-basement-provider"
+		role:        "foundation"
 		provides:    _architectureV2ContractFixtureRequiredCapabilities
 		requires: ["fixture-socket-proxy"]
 		supportedSiteKinds: ["home"]
@@ -198,6 +224,15 @@ _architectureV2ContractFixtureModules: [
 			secretInputRefs: []
 			outputs: ["compose/fixture-http-consumer.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:       "fixture-dashboard"
+				upstreamProtocol: "http"
+				targetPort:       8080
+				allowedIngressProtocols: ["http"]
+				allowedExposures: ["local"]
+				originSelector: "single-site"
+				healthRef:      "fixture-http-consumer-contract"
+			}]
 			requiresInterfaces: [{
 				id:       "docker-api-observer"
 				kind:     "docker-http-readonly-v1"
@@ -243,7 +278,13 @@ _architectureV2ContractFixtureModules: [
 			}
 			evidence: requiredRefs: []
 		}
-		health: [{id: "fixture-http-consumer-contract", kind: "contract"}]
+		health: [{
+			id:   "fixture-http-consumer-contract"
+			kind: "http"
+			port: 8080
+			path: "/healthz"
+			expectedStatuses: [200]
+		}]
 		evidence: ["fixture-http-consumer-contract"]
 	},
 ]
@@ -267,6 +308,7 @@ ArchitectureV2ContractFixtureCatalog: base.#ArchitectureV2CatalogContract & {
 			if contract.secretInputs != _|_ {secretInputs: contract.secretInputs}
 			if contract.dataClasses != _|_ {dataClasses: contract.dataClasses}
 			if contract.health != _|_ {health: contract.health}
+			if contract.tlsProfile != _|_ {tlsProfile: contract.tlsProfile}
 		}},
 	]
 	providers: [for contract in [{
@@ -286,6 +328,7 @@ ArchitectureV2ContractFixtureCatalog: base.#ArchitectureV2CatalogContract & {
 	}] {base.#CapabilityProvider & contract}]
 	addons: []
 	modules: [for contract in _architectureV2ContractFixtureModules {base.#ModuleContractV2 & contract}]
+	workloads: []
 	privilegedInterfaceApprovals: [for contract in [{
 		id:            "approve-fixture-socket-proxy-backing"
 		kind:          "docker-socket-direct-v1"

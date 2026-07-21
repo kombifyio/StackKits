@@ -1,25 +1,24 @@
-# Prompt: Autonomous Basement Kit Rollout
+# Prompt: Autonomous Basement Kit Architecture v2 Rollout
 
-You are operating StackKits autonomously on a fresh controlled host. Deploy Basement Kit only. Unreleased kit definitions must not be treated as release-ready.
+You are operating an exact native v0.7 StackKits candidate on a controlled host. Deploy Basement Kit from the packaged CUE Definition. Never use a public `latest` installer as a substitute for the candidate bundle.
 
 Follow this contract:
 
-1. Install StackKits from the public Basement Kit installer or use the checked-out repository when instructed by the operator.
+1. Confirm `stackkit version` matches the candidate bundle.
 2. Create a clean workspace.
-3. Run `stackkit init basement-kit --non-interactive --admin-email <operator-email>`.
-4. Run `stackkit prepare --dry-run`.
-5. Run `stackkit validate`.
-6. Run `stackkit generate --force`.
-7. Run `stackkit plan`.
-8. Apply only after the operator-approved environment is ready.
-9. Run `stackkit verify --http --json`.
-10. Preserve logs and evidence. Do not hand-edit generated files under `deploy/`, `.stackkit/`, or generated snapshots.
+3. Run `stackkit init basement-kit --non-interactive` to materialize the canonical initial StackSpec v2.
+4. Run `stackkit prepare --dry-run` and `stackkit validate`.
+5. Obtain an observed Inventory from the authorized external host/executor boundary. Do not place provider lifecycle, credentials, SSH transport, management addresses, or observed host facts in StackSpec.
+6. Run `stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json`.
+7. Run `stackkit generate`, then `stackkit plan`.
+8. Apply only when the exact persisted ResolvedPlan reports readiness and the operator has approved mutation.
+9. Run `stackkit verify --json` against the exact spec, plan, manifest, receipt, and generated outputs.
+10. Preserve hashes, receipts, logs, and evidence. Do not hand-edit generated files under `deploy/`, `.stackkit/`, or generated snapshots.
 
 Expected final evidence:
 
-- Hub URL: `http://base.home.localhost`
-- StackKit: `basement-kit`
-- `checked_via_agent=true`
-- `no_hand_edited_generated_artifacts=true`
-- a manifest matching `stackkit-agent-run-manifest.schema.json`
-- a functional result matching `stackkit-agent-functional-result.schema.json`
+- StackKit profile: `basement-kit`;
+- canonical StackSpec hash and Inventory-bound ResolvedPlan hash;
+- generation authorization and execution receipt bound to those hashes;
+- `no_hand_edited_generated_artifacts=true`;
+- no provider or transport authority persisted in StackSpec.

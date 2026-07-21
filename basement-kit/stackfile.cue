@@ -26,7 +26,7 @@ import (
 
 // Definition is the additive v2 architecture profile. The existing
 // #BasementKitStack remains untouched until the resolved-plan compiler cutover.
-Definition: base.#KitDefinition & {
+Definition: base.#ProductKitDefinition & {
 	apiVersion: "stackkit/v2alpha1"
 	kind:       "KitDefinition"
 	metadata: {
@@ -99,11 +99,10 @@ Definition: base.#KitDefinition & {
 			evidenceAcceptance: requiredRefs: ["ha-basement-quorum-failure-domain-proof"]
 		}
 	}
-	capabilities: {
-		required: list.Concat([base.#CommonCapabilityIDs, [
-			"site-local",
-			"local-hardware-preflight",
-			"lan-discovery",
+		capabilities: {
+			required: list.Concat([base.#CommonCapabilityIDs, [
+				"basement-compose-runtime",
+				"site-local",
 			"local-ingress",
 			"lan-access-policy",
 			"device-enrollment-home",
@@ -112,18 +111,18 @@ Definition: base.#KitDefinition & {
 			"local-backup-target",
 		]])
 		defaults: []
-		optional: [
-			"basement-compose-runtime",
+			optional: [
+				"lan-discovery",
 			"lan-dns",
 			"internal-pki",
 			"private-remote-access",
 			"public-publish-egress",
 			"encrypted-offsite-backup",
-			"photos",
 			"availability-ha",
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
+	workloads: {required: [], defaults: [], optional: ["photos"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -139,17 +138,17 @@ Definition: base.#KitDefinition & {
 		routes: {
 			local: {
 				allowed: true
-				requiredCapabilities: []
+				requiredRealizations: []
 				allowedOriginKinds: ["home"]
 			}
 			"remote-private": {
 				allowed: true
-				requiredCapabilities: ["private-remote-access"]
+				requiredRealizations: [{capabilityRef: "private-remote-access", role: "access"}]
 				allowedOriginKinds: ["home"]
 			}
 			public: {
 				allowed: true
-				requiredCapabilities: ["public-publish-egress"]
+				requiredRealizations: [{capabilityRef: "public-publish-egress", role: "egress"}]
 				allowedOriginKinds: ["home"]
 			}
 		}
@@ -207,8 +206,89 @@ Definition: base.#KitDefinition & {
 		defaultDomain:  "home.localhost"
 		defaultTLSMode: "internal"
 	}
+	authoring: {
+		contractVersion:   "1.0.0"
+		initialSpecStatus: "supported"
+		requiredOverrides: []
+		initialSpec: {
+			apiVersion: "stackkit/v2alpha1"
+			kind:       "StackSpec"
+			metadata: name: "my-homelab"
+			source: kind:   "native-v2"
+			kit: slug:      "basement-kit"
+			install: {
+				mode:    "bootstrapped"
+				runtime: "docker"
+				platform: {
+					management:      "selected-provider"
+					fallbackAllowed: false
+					setupPolicy: {}
+				}
+			}
+			generation: {
+				strategy: "kit-template"
+				target:   "opentofu"
+			}
+			system: {}
+			storage: {}
+			container: {}
+			network: {
+				mode: "private"
+				domain: base: "home.localhost"
+				transport: {}
+				dns: {}
+				tls: defaultMode: "internal"
+			}
+			sites: [{
+				id:            "home"
+				kind:          "home"
+				failureDomain: "home-primary"
+			}]
+			nodes: [{
+				id:      "main"
+				siteRef: "home"
+				roles: ["controller", "worker"]
+				hardware: {}
+				failureDomain: "node-main"
+			}]
+			controlPlane: {
+				mode:             "single"
+				authoritySiteRef: "home"
+				members: ["main"]
+			}
+			capabilities: {enable: [], disable: []}
+			availability: {}
+			deviceEnrollment: {
+				mode:                      "local-only"
+				authoritySiteRef:          "home"
+				endpointExposure:          "lan"
+				remoteEnrollment:          false
+				requireOwnerStepUp:        true
+				requireLocalPairingProof:  true
+				requireDeviceGeneratedKey: true
+				requirePossessionProof:    true
+				hardwareBackedKey:         "preferred"
+				revocationSupported:       true
+				credentialTTLSeconds:      3600
+			}
+			partitionPolicy: {
+				onCloudLoss:                     "not-applicable"
+				onLinkLoss:                      "local-continues"
+				cloudEdge:                       "not-applicable"
+				localIdentityAuthorityAvailable: true
+				maxStaleVerificationSeconds:     0
+				denyNewCrossSiteSessions:        true
+			}
+			data: defaultAuthority: "home"
+		}
+	}
 	bridge: {required: false, sourceKinds: [], edgeKinds: []}
 	evidenceScenarios: ["SK-S1"]
 }
 
 #BasementKitStackV2: base.#KitSpecBinding & {definition: Definition}
+
+#BasementKitAuthoringBinding: base.#KitSpecBinding & {
+	definition: Definition
+	spec:       Definition.authoring.initialSpec
+}

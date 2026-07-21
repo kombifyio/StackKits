@@ -114,7 +114,7 @@ func (e *architectureV2ResolveEnvelope) UnmarshalJSON(data []byte) error {
 func (s *Server) architectureV2ResolveService() (*architecturev2.Service, error) {
 	s.architectureV2.once.Do(func() {
 		s.architectureV2.service, s.architectureV2.err = architecturev2.NewEmbeddedService(
-			architecturev2.StackKitsV06Contract(s.config.Version),
+			architecturev2.StackKitsV2Contract(s.config.Version),
 		)
 	})
 	return s.architectureV2.service, s.architectureV2.err
@@ -436,6 +436,8 @@ func writeMappedArchitectureV2ResolveError(w http.ResponseWriter, err error) {
 		w.Header().Set("Retry-After", architectureV2ResolveRetryAfterSeconds)
 	case architecturev2.ErrMigrationRequired, architecturev2.ErrMigrationBlocked, architecturev2.ErrResolveFailed:
 		status = http.StatusUnprocessableEntity
+	case architecturev2.ErrOperationalUnavailable:
+		status = http.StatusNotImplemented
 	case architecturev2.ErrAuthorityLoad:
 		status = http.StatusServiceUnavailable
 		publicError.Message = "Architecture v2 authority is unavailable"

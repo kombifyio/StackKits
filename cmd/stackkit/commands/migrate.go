@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/stackspeccompletion"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/spf13/cobra"
@@ -28,6 +31,7 @@ type migrateCLIOptions struct {
 	targetKit    string
 	completeWith string
 	outputPath   string
+	specOutput   string
 	format       string
 	force        bool
 }
@@ -64,6 +68,9 @@ type migrationResultCompletion struct {
 	Source                   migrationCompletionSource          `json:"source" yaml:"source"`
 	CanonicalStackSpec       map[string]any                     `json:"canonicalStackSpec" yaml:"canonicalStackSpec"`
 	CanonicalStackSpecSHA256 string                             `json:"canonicalStackSpecSHA256" yaml:"canonicalStackSpecSHA256"`
+	CandidateIntentSHA256    string                             `json:"candidateIntentSHA256" yaml:"candidateIntentSHA256"`
+	MigrationDecisionRecord  map[string]any                     `json:"migrationDecisionRecord" yaml:"migrationDecisionRecord"`
+	MigrationReportSHA256    string                             `json:"migrationReportSHA256" yaml:"migrationReportSHA256"`
 	ResolvedPlanHash         string                             `json:"resolvedPlanHash" yaml:"resolvedPlanHash"`
 }
 
@@ -121,6 +128,10 @@ the embedded governed Architecture v2 authority. A completed result contains the
 explicit canonical candidate and its ResolvedPlan hash. Generator eligibility is
 reported independently from CUE validity and follows ResolvedPlan readiness.
 
+--spec-output writes the exact completed canonical StackSpec v2 as deterministic
+JSON. It is valid only with --complete-with, never defaults to an in-place rewrite,
+and is governed by the same fail-if-exists/--force policy as --output.
+
 A ready-for-shadow-resolution result exits successfully. A blocked result is
 still emitted as machine-readable output, then the command exits unsuccessfully.
 Context maps legacy locality and Pi hardware only; it never selects a Kit.
@@ -128,7 +139,7 @@ Context maps legacy locality and Pi hardware only; it never selects a Kit.
 Examples:
   stackkit migrate stack-spec.yaml
   stackkit migrate legacy.yaml --target-kit cloud-kit
-  stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml
+  stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml --spec-output stack-spec.v2.json
   stackkit migrate legacy.yaml --format yaml
   stackkit migrate legacy.yaml --output .stackkit/migration-result.json`,
 		Args: cobra.MaximumNArgs(1),
@@ -139,14 +150,18 @@ Examples:
 	cmd.Flags().StringVar(&options.targetKit, "target-kit", "", "Explicit target KitProfile supported by the authority (never inferred from context)")
 	cmd.Flags().StringVar(&options.completeWith, "complete-with", "", "Full explicit StackSpec v2 candidate to reconcile and resolve with the embedded authority (never a partial overlay)")
 	cmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "Write the migration result beneath the working directory instead of stdout")
+	cmd.Flags().StringVar(&options.specOutput, "spec-output", "", "Write the completed canonical StackSpec v2 as deterministic JSON beneath the working directory (requires --complete-with)")
 	cmd.Flags().StringVar(&options.format, "format", "json", "Machine-readable output format: json or yaml")
-	cmd.Flags().BoolVar(&options.force, "force", false, "Atomically replace an existing output file")
+	cmd.Flags().BoolVar(&options.force, "force", false, "Atomically replace existing migration result and canonical StackSpec output files")
 	return cmd
 }
 
-func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, wd string) error {
+func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, wd string) (returnErr error) {
 	if options == nil {
 		return fmt.Errorf("migrate options are not initialized")
+	}
+	if strings.TrimSpace(options.specOutput) != "" && strings.TrimSpace(options.completeWith) == "" {
+		return fmt.Errorf("--spec-output requires --complete-with so only a governed completed StackSpec v2 can be persisted")
 	}
 
 	format, err := normalizeMigrationFormat(options.format)
@@ -162,10 +177,24 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 	if err != nil {
 		return err
 	}
+	var outputSession *migrationOutputSession
+	var reportTarget, specTarget string
+	if migrationNeedsOutputSession(options.outputPath, options.specOutput) {
+		outputSession, err = openMigrationOutputSession(wd)
+		if err != nil {
+			return err
+		}
+		defer func() { returnErr = errors.Join(returnErr, outputSession.Close()) }()
+		reportTarget, specTarget, err = outputSession.prepareTargets(inputPath, options.outputPath, options.specOutput, options.force)
+		if err != nil {
+			return err
+		}
+	}
 
 	document, readErr := stackspecmigration.Read(raw)
 	result := newMigrationResult(portableMigrationSourceRef(wd, inputPath), raw, options.targetKit)
 	var migrationErr error
+	var canonicalSpecBytes []byte
 	if readErr != nil {
 		result.Report = migrationReportForReadError(readErr)
 		result.Status = stackspecmigration.MigrationStatusBlocked
@@ -189,12 +218,13 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 			if candidateErr != nil {
 				return candidateErr
 			}
-			service, serviceErr := architecturev2.NewEmbeddedService(architecturev2.StackKitsV06Contract(version))
+			service, serviceErr := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
 			if serviceErr != nil {
 				return fmt.Errorf("initialize embedded Architecture v2 authority for migration completion: %w", serviceErr)
 			}
 			completed, completeErr := stackspeccompletion.Complete(service, stackspeccompletion.Input{
 				Legacy:           document,
+				LegacySourceRef:  result.Source.Ref,
 				Candidate:        candidate,
 				TargetKitProfile: stackspecmigration.KitProfile(strings.TrimSpace(options.targetKit)),
 			})
@@ -203,6 +233,11 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 			result.ArchitectureProjection = completed.ArchitectureProjection
 			migrationErr = completeErr
 			if completeErr == nil {
+				var migrationDecisionRecord map[string]any
+				if err := json.Unmarshal(completed.MigrationDecisionRecord, &migrationDecisionRecord); err != nil {
+					return fmt.Errorf("decode canonical migration decision record: %w", err)
+				}
+				canonicalSpecBytes = append([]byte(nil), completed.CanonicalStackSpecBytes...)
 				result.Completion = &migrationResultCompletion{
 					APIVersion: "stackkit.migration-completion/v1",
 					Kind:       "StackSpecV2Completion",
@@ -213,6 +248,9 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 					},
 					CanonicalStackSpec:       completed.CanonicalStackSpec,
 					CanonicalStackSpecSHA256: completed.CanonicalStackSpecSHA256,
+					CandidateIntentSHA256:    completed.CandidateIntentSHA256,
+					MigrationDecisionRecord:  migrationDecisionRecord,
+					MigrationReportSHA256:    completed.MigrationReportSHA256,
 					ResolvedPlanHash:         completed.PlanHash,
 				}
 				result.Safety.CUEValidV2 = true
@@ -230,14 +268,27 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 	if err != nil {
 		return fmt.Errorf("encode migration result as %s: %w", format, err)
 	}
-	if err := writeMigrationResult(cmd.OutOrStdout(), wd, options.outputPath, encoded, options.force); err != nil {
+	// Commit the self-contained audit result first. A later StackSpec install
+	// failure can therefore leave only an honest report, never a replaced
+	// in-place source whose audit record was not published.
+	if err := outputSession.write(cmd.OutOrStdout(), reportTarget, encoded, options.force, "migration result"); err != nil {
 		return err
+	}
+	if result.Completion != nil && specTarget != "" {
+		if err := outputSession.write(nil, specTarget, canonicalSpecBytes, options.force, "canonical StackSpec v2"); err != nil {
+			return err
+		}
 	}
 
 	if migrationErr != nil || (result.Status != stackspecmigration.MigrationStatusReady && result.Status != stackspecmigration.MigrationStatusCompleted) {
 		return &migrationCLIStatusError{Status: result.Status, Cause: migrationErr}
 	}
 	return nil
+}
+
+func migrationNeedsOutputSession(reportPath, specPath string) bool {
+	report := strings.TrimSpace(reportPath)
+	return (report != "" && report != "-") || strings.TrimSpace(specPath) != ""
 }
 
 func newMigrationResult(sourceRef string, raw []byte, requestedTarget string) migrationResult {
@@ -350,74 +401,162 @@ func encodeMigrationResult(result migrationResult, format string) ([]byte, error
 	return data, nil
 }
 
-func writeMigrationResult(stdout io.Writer, wd, outputPath string, data []byte, force bool) error {
-	if strings.TrimSpace(outputPath) == "" || strings.TrimSpace(outputPath) == "-" {
+type migrationOutputSession struct {
+	root        *confinedfs.Root
+	transaction *confinedfs.Transaction
+	view        confinedfs.View
+	lock        *confinedfs.OutputLock
+}
+
+func openMigrationOutputSession(wd string) (*migrationOutputSession, error) {
+	root, err := confinedfs.Open(wd)
+	if err != nil {
+		return nil, fmt.Errorf("open held migration output root: %w", err)
+	}
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		_ = root.Close()
+		return nil, fmt.Errorf("begin held migration output transaction: %w", err)
+	}
+	lock, err := transaction.TryAcquireOutputLock(".stackkit/migration-output")
+	if err != nil {
+		_ = transaction.Close()
+		_ = root.Close()
+		return nil, fmt.Errorf("acquire migration output lock: %w", err)
+	}
+	view, err := root.View(".")
+	if err != nil {
+		_ = lock.Close()
+		_ = transaction.Close()
+		_ = root.Close()
+		return nil, fmt.Errorf("open migration output view: %w", err)
+	}
+	return &migrationOutputSession{root: root, transaction: transaction, view: view, lock: lock}, nil
+}
+
+func (s *migrationOutputSession) Close() error {
+	if s == nil {
+		return nil
+	}
+	var closeErrors []error
+	if s.lock != nil {
+		closeErrors = append(closeErrors, s.lock.Close())
+		s.lock = nil
+	}
+	if s.transaction != nil {
+		closeErrors = append(closeErrors, s.transaction.Close())
+		s.transaction = nil
+	}
+	if s.root != nil {
+		closeErrors = append(closeErrors, s.root.Close())
+		s.root = nil
+	}
+	return errors.Join(closeErrors...)
+}
+
+func (s *migrationOutputSession) prepareTargets(inputPath, reportPath, specPath string, force bool) (string, string, error) {
+	reportTarget, err := s.prepareTarget(reportPath, true, force, "migration result")
+	if err != nil {
+		return "", "", err
+	}
+	specTarget, err := s.prepareTarget(specPath, false, force, "canonical StackSpec v2")
+	if err != nil {
+		return "", "", err
+	}
+	if reportTarget != "" && specTarget != "" && sameMigrationOutputPath(reportTarget, specTarget) {
+		return "", "", fmt.Errorf("--output and --spec-output must name different files")
+	}
+	inputTarget := s.portableTarget(inputPath)
+	if reportTarget != "" && inputTarget != "" && sameMigrationOutputPath(reportTarget, inputTarget) {
+		return "", "", fmt.Errorf("--output cannot replace the legacy input; use --spec-output with --force for an explicit in-place v2 migration")
+	}
+	if specTarget != "" && inputTarget != "" && sameMigrationOutputPath(specTarget, inputTarget) && !force {
+		return "", "", fmt.Errorf("canonical StackSpec v2 output %s is the legacy input; use --force for an explicit in-place migration", specTarget)
+	}
+	return reportTarget, specTarget, nil
+}
+
+func (s *migrationOutputSession) prepareTarget(outputPath string, stdoutAllowed, force bool, label string) (string, error) {
+	trimmed := strings.TrimSpace(outputPath)
+	if trimmed == "" || (stdoutAllowed && trimmed == "-") {
+		return "", nil
+	}
+	if trimmed == "-" {
+		return "", fmt.Errorf("%s output must be a file beneath the working directory", label)
+	}
+	absolute, err := containedMigrationOutputPath(s.root.Name(), outputPath)
+	if err != nil {
+		return "", err
+	}
+	relative := s.portableTarget(absolute)
+	if relative == "" {
+		return "", fmt.Errorf("%s output %s is outside the held working directory", label, absolute)
+	}
+	parent := path.Dir(relative)
+	if err := s.transaction.MkdirAll(parent, 0o750); err != nil {
+		return "", fmt.Errorf("create held %s output directory: %w", label, err)
+	}
+	exists, _, err := s.transaction.Exists(relative)
+	if err != nil {
+		return "", fmt.Errorf("inspect held %s output %s: %w", label, absolute, err)
+	}
+	if exists && !force {
+		return "", fmt.Errorf("%s output %s already exists; use --force to replace it", label, absolute)
+	}
+	return relative, nil
+}
+
+func (s *migrationOutputSession) portableTarget(target string) string {
+	if s == nil || s.root == nil {
+		return ""
+	}
+	absolute, err := filepath.Abs(target)
+	if err != nil || !pathWithin(s.root.Name(), absolute) {
+		return ""
+	}
+	relative, err := filepath.Rel(s.root.Name(), absolute)
+	if err != nil || relative == "." {
+		return ""
+	}
+	return filepath.ToSlash(relative)
+}
+
+func (s *migrationOutputSession) write(stdout io.Writer, target string, data []byte, force bool, label string) error {
+	if target == "" {
+		if stdout == nil {
+			return fmt.Errorf("%s output target is not configured", label)
+		}
 		_, err := stdout.Write(data)
 		return err
 	}
-
-	target, err := containedMigrationOutputPath(wd, outputPath)
-	if err != nil {
-		return err
+	if s == nil {
+		return fmt.Errorf("%s output session is not configured", label)
 	}
-	directory := filepath.Dir(target)
-	if err := os.MkdirAll(directory, 0o750); err != nil {
-		return fmt.Errorf("create migration output directory: %w", err)
-	}
-	if err := verifyMigrationOutputParent(wd, directory); err != nil {
-		return err
-	}
-
-	temporary, err := os.CreateTemp(directory, "."+filepath.Base(target)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create temporary migration result beside %s: %w", target, err)
-	}
-	temporaryPath := temporary.Name()
-	installed := false
-	defer func() {
-		if installed {
-			return
-		}
-		_ = temporary.Close()
-		_ = os.Remove(temporaryPath)
-	}()
-
-	if err := temporary.Chmod(0o600); err != nil {
-		return fmt.Errorf("set temporary migration result permissions: %w", err)
-	}
-	if _, err := temporary.Write(data); err != nil {
-		return fmt.Errorf("write temporary migration result: %w", err)
-	}
-	if err := temporary.Sync(); err != nil {
-		return fmt.Errorf("sync temporary migration result: %w", err)
-	}
-	if err := temporary.Close(); err != nil {
-		return fmt.Errorf("close temporary migration result: %w", err)
-	}
-
+	var (
+		result confinedfs.AtomicWriteResult
+		err    error
+	)
 	if force {
-		if err := atomicReplaceMigrationFile(temporaryPath, target); err != nil {
-			return fmt.Errorf("atomically install migration result %s: %w", target, err)
-		}
+		result, err = s.view.WriteAtomic0600(target, data)
 	} else {
-		// A same-directory hard link publishes the completely written inode in
-		// one operation and fails if the destination appeared concurrently.
-		if err := os.Link(temporaryPath, target); err != nil {
-			if errors.Is(err, os.ErrExist) {
-				return fmt.Errorf("migration output %s already exists; use --force to replace it", target)
-			}
-			return fmt.Errorf("atomically install migration result %s without overwrite: %w", target, err)
-		}
-		if err := os.Remove(temporaryPath); err != nil {
-			_ = os.Remove(target)
-			return fmt.Errorf("remove temporary migration result link: %w", err)
-		}
+		result, err = s.view.WriteAtomic0600NoReplace(target, data)
 	}
-	installed = true
-	if err := os.Chmod(target, 0o600); err != nil {
-		return fmt.Errorf("enforce migration result permissions: %w", err)
+	if err != nil {
+		return fmt.Errorf("atomically install held %s %s: %w", label, target, err)
+	}
+	if !result.Installed || !result.FileSynced {
+		return fmt.Errorf("atomically install held %s %s returned incomplete evidence: %#v", label, target, result)
 	}
 	return nil
+}
+
+func sameMigrationOutputPath(left, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 func containedMigrationOutputPath(wd, outputPath string) (string, error) {
@@ -440,25 +579,6 @@ func containedMigrationOutputPath(wd, outputPath string) (string, error) {
 		return "", fmt.Errorf("migration output must be a file beneath working directory %s", base)
 	}
 	return target, nil
-}
-
-func verifyMigrationOutputParent(wd, parent string) error {
-	base, err := filepath.Abs(wd)
-	if err != nil {
-		return fmt.Errorf("resolve migration working directory: %w", err)
-	}
-	baseReal, err := filepath.EvalSymlinks(base)
-	if err != nil {
-		return fmt.Errorf("resolve migration working directory links: %w", err)
-	}
-	parentReal, err := filepath.EvalSymlinks(parent)
-	if err != nil {
-		return fmt.Errorf("resolve migration output directory links: %w", err)
-	}
-	if !pathWithin(baseReal, parentReal) {
-		return fmt.Errorf("migration output directory %s resolves outside working directory %s", parentReal, baseReal)
-	}
-	return nil
 }
 
 func pathWithin(base, candidate string) bool {

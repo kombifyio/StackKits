@@ -245,20 +245,6 @@
         "resolved-plan-contract"
       ],
       "metadata": {
-        "description": "Home-site Architecture v2 contract for local-hardware-preflight.",
-        "id": "local-hardware-preflight",
-        "layer": "platform",
-        "version": "1.0.0"
-      },
-      "supportedSiteKinds": [
-        "home"
-      ]
-    },
-    {
-      "evidence": [
-        "resolved-plan-contract"
-      ],
-      "metadata": {
         "description": "Home-site Architecture v2 contract for lan-discovery.",
         "id": "lan-discovery",
         "layer": "platform",
@@ -351,12 +337,40 @@
       "supportedSiteKinds": [
         "home"
       ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
+        "description": "Basement-owned Compose rollout contract; it is not inferred from a home site or legacy context.",
+        "id": "basement-compose-runtime",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        }
+      ],
+      "supportedSiteKinds": [
+        "home"
+      ]
     }
   ],
   "integrity": {
     "addonCapabilities": [],
     "addonRequirements": [],
-    "capabilityRequirements": [],
+    "capabilityRequirements": [
+      {
+        "capability": "basement-compose-runtime",
+        "matches": [
+          "site-local"
+        ],
+        "requires": "site-local"
+      }
+    ],
     "defaultProviderUniqueness": [
       {
         "capability": "topology-core",
@@ -551,18 +565,6 @@
         "siteKind": "cloud"
       },
       {
-        "capability": "local-hardware-preflight",
-        "matches": [
-          "fixture-basement-provider"
-        ],
-        "siteKind": "home"
-      },
-      {
-        "capability": "local-hardware-preflight",
-        "matches": [],
-        "siteKind": "cloud"
-      },
-      {
         "capability": "lan-discovery",
         "matches": [
           "fixture-basement-provider"
@@ -643,6 +645,18 @@
       },
       {
         "capability": "local-backup-target",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "basement-compose-runtime",
+        "matches": [
+          "fixture-basement-provider"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "basement-compose-runtime",
         "matches": [],
         "siteKind": "cloud"
       }
@@ -761,13 +775,6 @@
         "module": "fixture-http-consumer"
       },
       {
-        "capability": "local-hardware-preflight",
-        "matches": [
-          "local-hardware-preflight"
-        ],
-        "module": "fixture-http-consumer"
-      },
-      {
         "capability": "lan-discovery",
         "matches": [
           "lan-discovery"
@@ -815,6 +822,13 @@
           "local-backup-target"
         ],
         "module": "fixture-http-consumer"
+      },
+      {
+        "capability": "basement-compose-runtime",
+        "matches": [
+          "basement-compose-runtime"
+        ],
+        "module": "fixture-http-consumer"
       }
     ],
     "moduleGovernance": [
@@ -848,6 +862,39 @@
         "requires": "fixture-socket-proxy"
       }
     ],
+    "ownership": {
+      "providerContractsNonEmpty": [
+        {
+          "contracts": [
+            "topology-core",
+            "host-bootstrap",
+            "external-host-admission",
+            "host-conformance",
+            "security-baseline",
+            "human-identity-core",
+            "device-trust-core",
+            "access-policy",
+            "runtime-paas",
+            "service-catalog",
+            "secrets-recovery",
+            "storage-data-policy",
+            "backup-core",
+            "observability-evidence",
+            "lifecycle-update",
+            "site-local",
+            "lan-discovery",
+            "local-ingress",
+            "lan-access-policy",
+            "device-enrollment-home",
+            "local-control-authority",
+            "offline-autonomy",
+            "local-backup-target",
+            "basement-compose-runtime"
+          ],
+          "providerID": "fixture-basement-provider"
+        }
+      ]
+    },
     "providerCapabilities": [
       {
         "capability": "topology-core",
@@ -962,13 +1009,6 @@
         "provider": "fixture-basement-provider"
       },
       {
-        "capability": "local-hardware-preflight",
-        "matches": [
-          "local-hardware-preflight"
-        ],
-        "provider": "fixture-basement-provider"
-      },
-      {
         "capability": "lan-discovery",
         "matches": [
           "lan-discovery"
@@ -1016,6 +1056,13 @@
           "local-backup-target"
         ],
         "provider": "fixture-basement-provider"
+      },
+      {
+        "capability": "basement-compose-runtime",
+        "matches": [
+          "basement-compose-runtime"
+        ],
+        "provider": "fixture-basement-provider"
       }
     ],
     "providerModuleOwnership": [
@@ -1035,6 +1082,20 @@
       }
     ],
     "providerRequirements": [],
+    "tls": {
+      "capabilityProfilesExact": [],
+      "issuerIDsUnique": true,
+      "issuerOwnersExact": [],
+      "profileIDsUnique": true,
+      "providerBindings": [
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "fixture-basement-provider"
+        }
+      ]
+    },
     "uniqueness": {
       "addonIDsUnique": true,
       "capabilityIDsUnique": true,
@@ -1048,7 +1109,12 @@
       "privilegedApprovalIDsUnique": true,
       "privilegedApprovalSubjectsUnique": true,
       "providedInterfaceIDsUnique": true,
-      "providerIDsUnique": true
+      "providerIDsUnique": true,
+      "workloadAlternativesUnique": true,
+      "workloadIDsUnique": true
+    },
+    "workloads": {
+      "alternativeBindings": []
     }
   },
   "modules": [
@@ -1107,7 +1173,10 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "device-enrollment-policy",
+            "service-routes"
+          ]
         },
         "level": "generation-ready",
         "planInputs": {
@@ -1118,8 +1187,27 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose"
+          ],
           "contractHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
           "id": "socket-proxy",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "identity.deviceEnrollment",
+              "targetRef": "device-enrollment-policy",
+              "valueType": "device-enrollment-public-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "service-routes",
+              "valueType": "authority-bound-service-route-list-v4"
+            }
+          ],
           "kind": "compose",
           "outputs": [
             "compose/fixture-socket-proxy.yaml"
@@ -1156,7 +1244,10 @@
               "version": "v1"
             }
           ],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "device-enrollment-policy",
+            "service-routes"
+          ],
           "rendererRef": "stackkit-contract-fixture",
           "requiresInterfaces": [
             {
@@ -1177,14 +1268,18 @@
               "version": "v1"
             }
           ],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "contract-fixture/socket-proxy",
           "version": "1.0.0"
         }
       ],
+      "renderVariants": [],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -1197,9 +1292,14 @@
       ],
       "health": [
         {
+          "expectedStatuses": [
+            200
+          ],
           "id": "fixture-http-consumer-contract",
-          "kind": "contract",
+          "kind": "http",
+          "path": "/healthz",
           "phase": "post-apply",
+          "port": 8080,
           "timeoutSeconds": 30
         }
       ],
@@ -1226,14 +1326,14 @@
         "observability-evidence",
         "lifecycle-update",
         "site-local",
-        "local-hardware-preflight",
         "lan-discovery",
         "local-ingress",
         "lan-access-policy",
         "device-enrollment-home",
         "local-control-authority",
         "offline-autonomy",
-        "local-backup-target"
+        "local-backup-target",
+        "basement-compose-runtime"
       ],
       "realizationSupport": {
         "artifacts": {
@@ -1282,8 +1382,12 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose"
+          ],
           "contractHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
           "id": "observer",
+          "inputBindings": [],
           "kind": "compose",
           "outputs": [
             "compose/fixture-http-consumer.yaml"
@@ -1319,17 +1423,36 @@
               "version": "v1"
             }
           ],
+          "secretInputBindings": {},
           "secretInputRefs": [],
-          "serviceEndpoints": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local"
+              ],
+              "allowedIngressProtocols": [
+                "http"
+              ],
+              "healthRef": "fixture-http-consumer-contract",
+              "originSelector": "single-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "fixture-dashboard",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
           "templateRef": "contract-fixture/http-consumer",
           "version": "1.0.0"
         }
       ],
+      "renderVariants": [],
       "requires": [
         "fixture-socket-proxy"
       ],
+      "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -1366,6 +1489,7 @@
   ],
   "providers": [
     {
+      "certificateIssuers": [],
       "evidence": [
         "fixture-basement-provider-contract"
       ],
@@ -1381,6 +1505,7 @@
         "id": "fixture-basement-provider",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "topology-core",
         "host-bootstrap",
@@ -1398,14 +1523,14 @@
         "observability-evidence",
         "lifecycle-update",
         "site-local",
-        "local-hardware-preflight",
         "lan-discovery",
         "local-ingress",
         "lan-access-policy",
         "device-enrollment-home",
         "local-control-authority",
         "offline-autonomy",
-        "local-backup-target"
+        "local-backup-target",
+        "basement-compose-runtime"
       ],
       "realization": {
         "kind": "modules",
@@ -1417,6 +1542,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -1424,7 +1550,9 @@
       },
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     }
-  ]
+  ],
+  "workloads": []
 }

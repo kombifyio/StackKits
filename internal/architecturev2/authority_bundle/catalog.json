@@ -274,20 +274,6 @@
         "SK-S1"
       ],
       "metadata": {
-        "description": "Home-site Architecture v2 contract for local-hardware-preflight.",
-        "id": "local-hardware-preflight",
-        "layer": "platform",
-        "version": "1.0.0"
-      },
-      "supportedSiteKinds": [
-        "home"
-      ]
-    },
-    {
-      "evidence": [
-        "SK-S1"
-      ],
-      "metadata": {
         "description": "Home-site Architecture v2 contract for lan-discovery.",
         "id": "lan-discovery",
         "layer": "platform",
@@ -388,20 +374,6 @@
       "metadata": {
         "description": "Home-site Architecture v2 contract for lan-dns.",
         "id": "lan-dns",
-        "layer": "platform",
-        "version": "1.0.0"
-      },
-      "supportedSiteKinds": [
-        "home"
-      ]
-    },
-    {
-      "evidence": [
-        "SK-S1"
-      ],
-      "metadata": {
-        "description": "Home-site Architecture v2 contract for internal-pki.",
-        "id": "internal-pki",
         "layer": "platform",
         "version": "1.0.0"
       },
@@ -537,21 +509,6 @@
         "SK-S3"
       ],
       "metadata": {
-        "description": "Cloud-site Architecture v2 contract for public-tls.",
-        "id": "public-tls",
-        "layer": "platform",
-        "version": "1.0.0"
-      },
-      "supportedSiteKinds": [
-        "cloud"
-      ]
-    },
-    {
-      "evidence": [
-        "SK-S2",
-        "SK-S3"
-      ],
-      "metadata": {
         "description": "Cloud-site Architecture v2 contract for internet-host-hardening.",
         "id": "internet-host-hardening",
         "layer": "platform",
@@ -637,38 +594,52 @@
       ]
     },
     {
-      "dataClasses": [
-        "personal"
-      ],
       "evidence": [
-        "SK-S1",
-        "SK-S2",
-        "SK-S4"
+        "internal-pki-contract"
       ],
       "metadata": {
-        "description": "Self-hosted photo management service with governed endpoint and personal-data locality.",
-        "id": "photos",
-        "layer": "application",
+        "description": "Home-private certificate policy resolved through a dedicated internal CA adapter.",
+        "id": "internal-pki",
+        "layer": "platform",
         "version": "1.0.0"
       },
-      "requires": [
-        {
-          "id": "runtime-paas",
-          "optional": false
-        },
-        {
-          "id": "service-catalog",
-          "optional": false
-        },
-        {
-          "id": "storage-data-policy",
-          "optional": false
-        }
-      ],
       "supportedSiteKinds": [
-        "home",
+        "home"
+      ],
+      "tlsProfile": {
+        "allowedIssuerKinds": [
+          "internal-ca"
+        ],
+        "capabilityRef": "internal-pki",
+        "id": "stackkits-internal-pki-profile",
+        "minimumVersion": "TLS1.2",
+        "mode": "internal",
+        "trustDomain": "private"
+      }
+    },
+    {
+      "evidence": [
+        "public-tls-contract"
+      ],
+      "metadata": {
+        "description": "Public WebPKI certificate policy resolved through a dedicated ACME edge adapter.",
+        "id": "public-tls",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
         "cloud"
-      ]
+      ],
+      "tlsProfile": {
+        "allowedIssuerKinds": [
+          "acme"
+        ],
+        "capabilityRef": "public-tls",
+        "id": "stackkits-public-tls-profile",
+        "minimumVersion": "TLS1.2",
+        "mode": "terminate-at-edge",
+        "trustDomain": "web-pki"
+      }
     },
     {
       "evidence": [
@@ -736,55 +707,34 @@
           "site-local"
         ],
         "requires": "site-local"
-      },
-      {
-        "capability": "photos",
-        "matches": [
-          "runtime-paas"
-        ],
-        "requires": "runtime-paas"
-      },
-      {
-        "capability": "photos",
-        "matches": [
-          "service-catalog"
-        ],
-        "requires": "service-catalog"
-      },
-      {
-        "capability": "photos",
-        "matches": [
-          "storage-data-policy"
-        ],
-        "requires": "storage-data-policy"
       }
     ],
     "defaultProviderUniqueness": [
       {
         "capability": "topology-core",
         "matches": [
-          "stackkits-core"
+          "stackkits-core-topology"
         ],
         "siteKind": "home"
       },
       {
         "capability": "topology-core",
         "matches": [
-          "stackkits-core"
+          "stackkits-core-topology"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "host-bootstrap",
         "matches": [
-          "stackkits-core"
+          "stackkits-core-host-bootstrap"
         ],
         "siteKind": "home"
       },
       {
         "capability": "host-bootstrap",
         "matches": [
-          "stackkits-core"
+          "stackkits-core-host-bootstrap"
         ],
         "siteKind": "cloud"
       },
@@ -819,14 +769,14 @@
       {
         "capability": "security-baseline",
         "matches": [
-          "stackkits-core"
+          "stackkits-security-baseline"
         ],
         "siteKind": "home"
       },
       {
         "capability": "security-baseline",
         "matches": [
-          "stackkits-core"
+          "stackkits-security-baseline"
         ],
         "siteKind": "cloud"
       },
@@ -861,112 +811,112 @@
       {
         "capability": "access-policy",
         "matches": [
-          "stackkits-core"
+          "stackkits-access-policy-contract"
         ],
         "siteKind": "home"
       },
       {
         "capability": "access-policy",
         "matches": [
-          "stackkits-core"
+          "stackkits-access-policy-contract"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "runtime-paas",
         "matches": [
-          "stackkits-core"
+          "stackkits-workload-runtime-contract"
         ],
         "siteKind": "home"
       },
       {
         "capability": "runtime-paas",
         "matches": [
-          "stackkits-core"
+          "stackkits-workload-runtime-contract"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "service-catalog",
         "matches": [
-          "stackkits-core"
+          "stackkits-service-catalog"
         ],
         "siteKind": "home"
       },
       {
         "capability": "service-catalog",
         "matches": [
-          "stackkits-core"
+          "stackkits-service-catalog"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "secrets-recovery",
         "matches": [
-          "stackkits-core"
+          "stackkits-secrets-recovery-contract"
         ],
         "siteKind": "home"
       },
       {
         "capability": "secrets-recovery",
         "matches": [
-          "stackkits-core"
+          "stackkits-secrets-recovery-contract"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "storage-data-policy",
         "matches": [
-          "stackkits-core"
+          "stackkits-storage-data-policy"
         ],
         "siteKind": "home"
       },
       {
         "capability": "storage-data-policy",
         "matches": [
-          "stackkits-core"
+          "stackkits-storage-data-policy"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "backup-core",
         "matches": [
-          "stackkits-core"
+          "stackkits-backup-core-contract"
         ],
         "siteKind": "home"
       },
       {
         "capability": "backup-core",
         "matches": [
-          "stackkits-core"
+          "stackkits-backup-core-contract"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "observability-evidence",
         "matches": [
-          "stackkits-core"
+          "stackkits-observability-evidence-contract"
         ],
         "siteKind": "home"
       },
       {
         "capability": "observability-evidence",
         "matches": [
-          "stackkits-core"
+          "stackkits-observability-evidence-contract"
         ],
         "siteKind": "cloud"
       },
       {
         "capability": "lifecycle-update",
         "matches": [
-          "stackkits-core"
+          "stackkits-lifecycle-update-contract"
         ],
         "siteKind": "home"
       },
       {
         "capability": "lifecycle-update",
         "matches": [
-          "stackkits-core"
+          "stackkits-lifecycle-update-contract"
         ],
         "siteKind": "cloud"
       },
@@ -979,18 +929,6 @@
       },
       {
         "capability": "site-local",
-        "matches": [],
-        "siteKind": "cloud"
-      },
-      {
-        "capability": "local-hardware-preflight",
-        "matches": [
-          "stackkits-local"
-        ],
-        "siteKind": "home"
-      },
-      {
-        "capability": "local-hardware-preflight",
         "matches": [],
         "siteKind": "cloud"
       },
@@ -1069,7 +1007,7 @@
       {
         "capability": "local-backup-target",
         "matches": [
-          "stackkits-local"
+          "stackkits-home-backup-target"
         ],
         "siteKind": "home"
       },
@@ -1081,7 +1019,7 @@
       {
         "capability": "lan-dns",
         "matches": [
-          "stackkits-local"
+          "stackkits-home-lan-dns-contract"
         ],
         "siteKind": "home"
       },
@@ -1091,21 +1029,9 @@
         "siteKind": "cloud"
       },
       {
-        "capability": "internal-pki",
-        "matches": [
-          "stackkits-local"
-        ],
-        "siteKind": "home"
-      },
-      {
-        "capability": "internal-pki",
-        "matches": [],
-        "siteKind": "cloud"
-      },
-      {
         "capability": "private-remote-access",
         "matches": [
-          "stackkits-local"
+          "stackkits-home-private-remote-access"
         ],
         "siteKind": "home"
       },
@@ -1117,7 +1043,7 @@
       {
         "capability": "public-publish-egress",
         "matches": [
-          "stackkits-local"
+          "stackkits-home-public-publish-egress"
         ],
         "siteKind": "home"
       },
@@ -1129,7 +1055,7 @@
       {
         "capability": "encrypted-offsite-backup",
         "matches": [
-          "stackkits-local"
+          "stackkits-home-encrypted-offsite-backup"
         ],
         "siteKind": "home"
       },
@@ -1156,7 +1082,7 @@
       {
         "capability": "site-cloud",
         "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-topology"
         ],
         "siteKind": "cloud"
       },
@@ -1168,7 +1094,7 @@
       {
         "capability": "host-local-internet-firewall",
         "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-host-security"
         ],
         "siteKind": "cloud"
       },
@@ -1180,7 +1106,7 @@
       {
         "capability": "public-edge",
         "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-public-edge"
         ],
         "siteKind": "cloud"
       },
@@ -1192,19 +1118,7 @@
       {
         "capability": "public-dns",
         "matches": [
-          "stackkits-cloud"
-        ],
-        "siteKind": "cloud"
-      },
-      {
-        "capability": "public-tls",
-        "matches": [],
-        "siteKind": "home"
-      },
-      {
-        "capability": "public-tls",
-        "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-public-dns-contract"
         ],
         "siteKind": "cloud"
       },
@@ -1216,7 +1130,7 @@
       {
         "capability": "internet-host-hardening",
         "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-host-security"
         ],
         "siteKind": "cloud"
       },
@@ -1240,7 +1154,7 @@
       {
         "capability": "offsite-object-backup",
         "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-offsite-backup"
         ],
         "siteKind": "cloud"
       },
@@ -1263,9 +1177,7 @@
       },
       {
         "capability": "private-admin-mesh",
-        "matches": [
-          "stackkits-cloud"
-        ],
+        "matches": [],
         "siteKind": "cloud"
       },
       {
@@ -1276,18 +1188,32 @@
       {
         "capability": "failure-domain-placement",
         "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-placement-policy"
         ],
         "siteKind": "cloud"
       },
       {
-        "capability": "photos",
+        "capability": "internal-pki",
+        "matches": [
+          "stackkits-internal-pki"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "internal-pki",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "public-tls",
         "matches": [],
         "siteKind": "home"
       },
       {
-        "capability": "photos",
-        "matches": [],
+        "capability": "public-tls",
+        "matches": [
+          "stackkits-public-tls"
+        ],
         "siteKind": "cloud"
       },
       {
@@ -1323,76 +1249,6 @@
     ],
     "moduleCapabilities": [
       {
-        "capability": "topology-core",
-        "matches": [
-          "topology-core"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "host-bootstrap",
-        "matches": [
-          "host-bootstrap"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "access-policy",
-        "matches": [
-          "access-policy"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "runtime-paas",
-        "matches": [
-          "runtime-paas"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "service-catalog",
-        "matches": [
-          "service-catalog"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "secrets-recovery",
-        "matches": [
-          "secrets-recovery"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "storage-data-policy",
-        "matches": [
-          "storage-data-policy"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "backup-core",
-        "matches": [
-          "backup-core"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "observability-evidence",
-        "matches": [
-          "observability-evidence"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
-        "capability": "lifecycle-update",
-        "matches": [
-          "lifecycle-update"
-        ],
-        "module": "stackkits-core-runtime"
-      },
-      {
         "capability": "security-baseline",
         "matches": [
           "security-baseline"
@@ -1400,60 +1256,46 @@
         "module": "security-baseline"
       },
       {
-        "capability": "site-local",
+        "capability": "host-bootstrap",
         "matches": [
-          "site-local"
+          "host-bootstrap"
         ],
-        "module": "stackkits-local-runtime"
-      },
-      {
-        "capability": "local-hardware-preflight",
-        "matches": [
-          "local-hardware-preflight"
-        ],
-        "module": "stackkits-local-runtime"
+        "module": "stackkits-core-host-bootstrap"
       },
       {
         "capability": "local-backup-target",
         "matches": [
           "local-backup-target"
         ],
-        "module": "stackkits-local-runtime"
-      },
-      {
-        "capability": "lan-dns",
-        "matches": [
-          "lan-dns"
-        ],
-        "module": "stackkits-local-runtime"
-      },
-      {
-        "capability": "internal-pki",
-        "matches": [
-          "internal-pki"
-        ],
-        "module": "stackkits-local-runtime"
+        "module": "stackkits-home-backup-target"
       },
       {
         "capability": "private-remote-access",
         "matches": [
           "private-remote-access"
         ],
-        "module": "stackkits-local-runtime"
+        "module": "stackkits-home-private-remote-access-runtime"
       },
       {
         "capability": "public-publish-egress",
         "matches": [
           "public-publish-egress"
         ],
-        "module": "stackkits-local-runtime"
+        "module": "stackkits-home-public-publish-egress-runtime"
       },
       {
         "capability": "encrypted-offsite-backup",
         "matches": [
           "encrypted-offsite-backup"
         ],
-        "module": "stackkits-local-runtime"
+        "module": "stackkits-home-encrypted-offsite-backup-runtime"
+      },
+      {
+        "capability": "internal-pki",
+        "matches": [
+          "internal-pki"
+        ],
+        "module": "stackkits-internal-pki-contract"
       },
       {
         "capability": "device-enrollment-home",
@@ -1512,67 +1354,46 @@
         "module": "stackkits-home-lan-discovery-policy-manifest"
       },
       {
-        "capability": "site-cloud",
-        "matches": [
-          "site-cloud"
-        ],
-        "module": "stackkits-cloud-runtime"
-      },
-      {
         "capability": "host-local-internet-firewall",
         "matches": [
           "host-local-internet-firewall"
         ],
-        "module": "stackkits-cloud-runtime"
-      },
-      {
-        "capability": "public-edge",
-        "matches": [
-          "public-edge"
-        ],
-        "module": "stackkits-cloud-runtime"
-      },
-      {
-        "capability": "public-dns",
-        "matches": [
-          "public-dns"
-        ],
-        "module": "stackkits-cloud-runtime"
-      },
-      {
-        "capability": "public-tls",
-        "matches": [
-          "public-tls"
-        ],
-        "module": "stackkits-cloud-runtime"
+        "module": "stackkits-cloud-host-security-runtime"
       },
       {
         "capability": "internet-host-hardening",
         "matches": [
           "internet-host-hardening"
         ],
-        "module": "stackkits-cloud-runtime"
+        "module": "stackkits-cloud-host-security-runtime"
+      },
+      {
+        "capability": "public-edge",
+        "matches": [
+          "public-edge"
+        ],
+        "module": "stackkits-cloud-public-edge-runtime"
       },
       {
         "capability": "offsite-object-backup",
         "matches": [
           "offsite-object-backup"
         ],
-        "module": "stackkits-cloud-runtime"
+        "module": "stackkits-cloud-offsite-backup-runtime"
       },
       {
         "capability": "private-admin-mesh",
         "matches": [
           "private-admin-mesh"
         ],
-        "module": "stackkits-cloud-runtime"
+        "module": "stackkits-cloud-private-admin-mesh-runtime"
       },
       {
-        "capability": "failure-domain-placement",
+        "capability": "public-tls",
         "matches": [
-          "failure-domain-placement"
+          "public-tls"
         ],
-        "module": "stackkits-cloud-runtime"
+        "module": "stackkits-public-tls-contract"
       },
       {
         "capability": "human-identity-core",
@@ -1608,13 +1429,6 @@
           "basement-compose-runtime"
         ],
         "module": "stackkits-basement-compose-runtime"
-      },
-      {
-        "capability": "photos",
-        "matches": [
-          "photos"
-        ],
-        "module": "stackkits-immich-runtime"
       },
       {
         "capability": "availability-ha",
@@ -1662,33 +1476,73 @@
     "moduleGovernance": [
       {
         "governanceMatches": [
-          "stackkits-core-runtime"
-        ],
-        "matches": [
-          "stackkits-core"
-        ],
-        "module": "stackkits-core-runtime",
-        "provider": "stackkits-core"
-      },
-      {
-        "governanceMatches": [
           "security-baseline"
         ],
         "matches": [
-          "stackkits-core"
+          "stackkits-security-baseline"
         ],
         "module": "security-baseline",
-        "provider": "stackkits-core"
+        "provider": "stackkits-security-baseline"
       },
       {
         "governanceMatches": [
-          "stackkits-local-runtime"
+          "stackkits-core-host-bootstrap"
         ],
         "matches": [
-          "stackkits-local"
+          "stackkits-core-host-bootstrap"
         ],
-        "module": "stackkits-local-runtime",
-        "provider": "stackkits-local"
+        "module": "stackkits-core-host-bootstrap",
+        "provider": "stackkits-core-host-bootstrap"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-backup-target"
+        ],
+        "matches": [
+          "stackkits-home-backup-target"
+        ],
+        "module": "stackkits-home-backup-target",
+        "provider": "stackkits-home-backup-target"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-private-remote-access-runtime"
+        ],
+        "matches": [
+          "stackkits-home-private-remote-access"
+        ],
+        "module": "stackkits-home-private-remote-access-runtime",
+        "provider": "stackkits-home-private-remote-access"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-public-publish-egress-runtime"
+        ],
+        "matches": [
+          "stackkits-home-public-publish-egress"
+        ],
+        "module": "stackkits-home-public-publish-egress-runtime",
+        "provider": "stackkits-home-public-publish-egress"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-encrypted-offsite-backup-runtime"
+        ],
+        "matches": [
+          "stackkits-home-encrypted-offsite-backup"
+        ],
+        "module": "stackkits-home-encrypted-offsite-backup-runtime",
+        "provider": "stackkits-home-encrypted-offsite-backup"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-internal-pki-contract"
+        ],
+        "matches": [
+          "stackkits-internal-pki"
+        ],
+        "module": "stackkits-internal-pki-contract",
+        "provider": "stackkits-internal-pki"
       },
       {
         "governanceMatches": [
@@ -1742,13 +1596,53 @@
       },
       {
         "governanceMatches": [
-          "stackkits-cloud-runtime"
+          "stackkits-cloud-host-security-runtime"
         ],
         "matches": [
-          "stackkits-cloud"
+          "stackkits-cloud-host-security"
         ],
-        "module": "stackkits-cloud-runtime",
-        "provider": "stackkits-cloud"
+        "module": "stackkits-cloud-host-security-runtime",
+        "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-cloud-public-edge-runtime"
+        ],
+        "matches": [
+          "stackkits-cloud-public-edge"
+        ],
+        "module": "stackkits-cloud-public-edge-runtime",
+        "provider": "stackkits-cloud-public-edge"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-cloud-offsite-backup-runtime"
+        ],
+        "matches": [
+          "stackkits-cloud-offsite-backup"
+        ],
+        "module": "stackkits-cloud-offsite-backup-runtime",
+        "provider": "stackkits-cloud-offsite-backup"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-cloud-private-admin-mesh-runtime"
+        ],
+        "matches": [
+          "stackkits-cloud-private-admin-mesh"
+        ],
+        "module": "stackkits-cloud-private-admin-mesh-runtime",
+        "provider": "stackkits-cloud-private-admin-mesh"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-public-tls-contract"
+        ],
+        "matches": [
+          "stackkits-public-tls"
+        ],
+        "module": "stackkits-public-tls-contract",
+        "provider": "stackkits-public-tls"
       },
       {
         "governanceMatches": [
@@ -1854,31 +1748,52 @@
     "moduleRequirements": [
       {
         "matches": [
-          "stackkits-core-runtime"
+          "stackkits-core-host-bootstrap"
         ],
-        "module": "security-baseline",
-        "requires": "stackkits-core-runtime"
+        "module": "stackkits-home-backup-target",
+        "requires": "stackkits-core-host-bootstrap"
       },
       {
         "matches": [
-          "stackkits-core-runtime"
+          "stackkits-core-host-bootstrap"
         ],
-        "module": "stackkits-local-runtime",
-        "requires": "stackkits-core-runtime"
+        "module": "stackkits-home-private-remote-access-runtime",
+        "requires": "stackkits-core-host-bootstrap"
       },
       {
         "matches": [
-          "stackkits-local-runtime"
+          "stackkits-home-access-policy-manifest"
         ],
-        "module": "stackkits-home-device-authority-policy-manifest",
-        "requires": "stackkits-local-runtime"
+        "module": "stackkits-home-private-remote-access-runtime",
+        "requires": "stackkits-home-access-policy-manifest"
       },
       {
         "matches": [
-          "stackkits-core-runtime"
+          "stackkits-core-host-bootstrap"
         ],
-        "module": "stackkits-basement-identity-trust-policy-manifest",
-        "requires": "stackkits-core-runtime"
+        "module": "stackkits-home-public-publish-egress-runtime",
+        "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "stackkits-home-access-policy-manifest"
+        ],
+        "module": "stackkits-home-public-publish-egress-runtime",
+        "requires": "stackkits-home-access-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
+        "module": "stackkits-home-encrypted-offsite-backup-runtime",
+        "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
+        "module": "stackkits-internal-pki-contract",
+        "requires": "stackkits-core-host-bootstrap"
       },
       {
         "matches": [
@@ -1889,20 +1804,6 @@
       },
       {
         "matches": [
-          "stackkits-local-runtime"
-        ],
-        "module": "stackkits-local-autonomy-policy-manifest",
-        "requires": "stackkits-local-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-local-runtime"
-        ],
-        "module": "stackkits-home-access-policy-manifest",
-        "requires": "stackkits-local-runtime"
-      },
-      {
-        "matches": [
           "stackkits-home-access-policy-manifest"
         ],
         "module": "stackkits-home-lan-discovery-policy-manifest",
@@ -1910,31 +1811,52 @@
       },
       {
         "matches": [
-          "stackkits-core-runtime"
+          "stackkits-core-host-bootstrap"
         ],
-        "module": "stackkits-cloud-runtime",
-        "requires": "stackkits-core-runtime"
+        "module": "stackkits-cloud-host-security-runtime",
+        "requires": "stackkits-core-host-bootstrap"
       },
       {
         "matches": [
-          "stackkits-core-runtime"
+          "security-baseline"
         ],
-        "module": "stackkits-cloud-identity-trust-policy-manifest",
-        "requires": "stackkits-core-runtime"
+        "module": "stackkits-cloud-host-security-runtime",
+        "requires": "security-baseline"
       },
       {
         "matches": [
-          "stackkits-cloud-runtime"
+          "stackkits-cloud-host-security-runtime"
         ],
-        "module": "stackkits-cloud-identity-trust-policy-manifest",
-        "requires": "stackkits-cloud-runtime"
+        "module": "stackkits-cloud-public-edge-runtime",
+        "requires": "stackkits-cloud-host-security-runtime"
       },
       {
         "matches": [
-          "stackkits-local-runtime"
+          "stackkits-cloud-host-security-runtime"
+        ],
+        "module": "stackkits-cloud-private-admin-mesh-runtime",
+        "requires": "stackkits-cloud-host-security-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-cloud-identity-trust-policy-manifest"
+        ],
+        "module": "stackkits-cloud-private-admin-mesh-runtime",
+        "requires": "stackkits-cloud-identity-trust-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-cloud-public-edge-runtime"
+        ],
+        "module": "stackkits-public-tls-contract",
+        "requires": "stackkits-cloud-public-edge-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
         ],
         "module": "stackkits-basement-compose-runtime",
-        "requires": "stackkits-local-runtime"
+        "requires": "stackkits-core-host-bootstrap"
       },
       {
         "matches": [
@@ -1942,134 +1864,343 @@
         ],
         "module": "socket-proxy",
         "requires": "stackkits-basement-compose-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-immich-runtime",
-        "requires": "stackkits-core-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-ha-basement-warm-runtime",
-        "requires": "stackkits-core-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-ha-basement-quorum-runtime",
-        "requires": "stackkits-core-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-ha-cloud-warm-runtime",
-        "requires": "stackkits-core-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-ha-cloud-quorum-runtime",
-        "requires": "stackkits-core-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-ha-modern-warm-runtime",
-        "requires": "stackkits-core-runtime"
-      },
-      {
-        "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-ha-modern-quorum-runtime",
-        "requires": "stackkits-core-runtime"
       }
     ],
+    "ownership": {
+      "providerContractsNonEmpty": [
+        {
+          "contracts": [
+            "topology-core"
+          ],
+          "providerID": "stackkits-core-topology"
+        },
+        {
+          "contracts": [
+            "service-catalog"
+          ],
+          "providerID": "stackkits-service-catalog"
+        },
+        {
+          "contracts": [
+            "access-policy"
+          ],
+          "providerID": "stackkits-access-policy-contract"
+        },
+        {
+          "contracts": [
+            "storage-data-policy"
+          ],
+          "providerID": "stackkits-storage-data-policy"
+        },
+        {
+          "contracts": [
+            "runtime-paas"
+          ],
+          "providerID": "stackkits-workload-runtime-contract"
+        },
+        {
+          "contracts": [
+            "secrets-recovery"
+          ],
+          "providerID": "stackkits-secrets-recovery-contract"
+        },
+        {
+          "contracts": [
+            "backup-core"
+          ],
+          "providerID": "stackkits-backup-core-contract"
+        },
+        {
+          "contracts": [
+            "observability-evidence"
+          ],
+          "providerID": "stackkits-observability-evidence-contract"
+        },
+        {
+          "contracts": [
+            "lifecycle-update"
+          ],
+          "providerID": "stackkits-lifecycle-update-contract"
+        },
+        {
+          "contracts": [
+            "security-baseline"
+          ],
+          "providerID": "stackkits-security-baseline"
+        },
+        {
+          "contracts": [
+            "host-bootstrap"
+          ],
+          "providerID": "stackkits-core-host-bootstrap"
+        },
+        {
+          "contracts": [
+            "external-host-admission",
+            "host-conformance"
+          ],
+          "providerID": "stackkits-host-admission"
+        },
+        {
+          "contracts": [
+            "device-enrollment-home",
+            "local-control-authority"
+          ],
+          "providerID": "stackkits-home-device-authority"
+        },
+        {
+          "contracts": [
+            "human-identity-core",
+            "device-trust-core"
+          ],
+          "providerID": "stackkits-basement-identity-trust-policy"
+        },
+        {
+          "contracts": [
+            "human-identity-core",
+            "device-trust-core",
+            "remote-owner-bootstrap",
+            "cloud-control-authority"
+          ],
+          "providerID": "stackkits-cloud-identity-trust-policy"
+        },
+        {
+          "contracts": [
+            "site-local"
+          ],
+          "providerID": "stackkits-local"
+        },
+        {
+          "contracts": [
+            "lan-dns"
+          ],
+          "providerID": "stackkits-home-lan-dns-contract"
+        },
+        {
+          "contracts": [
+            "private-remote-access"
+          ],
+          "providerID": "stackkits-home-private-remote-access"
+        },
+        {
+          "contracts": [
+            "public-publish-egress"
+          ],
+          "providerID": "stackkits-home-public-publish-egress"
+        },
+        {
+          "contracts": [
+            "encrypted-offsite-backup"
+          ],
+          "providerID": "stackkits-home-encrypted-offsite-backup"
+        },
+        {
+          "contracts": [
+            "local-backup-target"
+          ],
+          "providerID": "stackkits-home-backup-target"
+        },
+        {
+          "contracts": [
+            "internal-pki"
+          ],
+          "providerID": "stackkits-internal-pki"
+        },
+        {
+          "contracts": [
+            "offline-autonomy"
+          ],
+          "providerID": "stackkits-local-autonomy-policy"
+        },
+        {
+          "contracts": [
+            "local-ingress",
+            "lan-access-policy"
+          ],
+          "providerID": "stackkits-home-access-policy"
+        },
+        {
+          "contracts": [
+            "lan-discovery"
+          ],
+          "providerID": "stackkits-home-lan-discovery-policy"
+        },
+        {
+          "contracts": [
+            "site-cloud"
+          ],
+          "providerID": "stackkits-cloud-topology"
+        },
+        {
+          "contracts": [
+            "failure-domain-placement"
+          ],
+          "providerID": "stackkits-cloud-placement-policy"
+        },
+        {
+          "contracts": [
+            "host-local-internet-firewall",
+            "internet-host-hardening"
+          ],
+          "providerID": "stackkits-cloud-host-security"
+        },
+        {
+          "contracts": [
+            "public-dns"
+          ],
+          "providerID": "stackkits-cloud-public-dns-contract"
+        },
+        {
+          "contracts": [
+            "public-edge"
+          ],
+          "providerID": "stackkits-cloud-public-edge"
+        },
+        {
+          "contracts": [
+            "offsite-object-backup"
+          ],
+          "providerID": "stackkits-cloud-offsite-backup"
+        },
+        {
+          "contracts": [
+            "private-admin-mesh"
+          ],
+          "providerID": "stackkits-cloud-private-admin-mesh"
+        },
+        {
+          "contracts": [
+            "public-tls"
+          ],
+          "providerID": "stackkits-public-tls"
+        },
+        {
+          "contracts": [
+            "basement-compose-runtime"
+          ],
+          "providerID": "stackkits-basement-compose"
+        },
+        {
+          "contracts": [
+            "photos"
+          ],
+          "providerID": "stackkits-immich"
+        },
+        {
+          "contracts": [
+            "availability-ha"
+          ],
+          "providerID": "stackkits-ha-basement-warm"
+        },
+        {
+          "contracts": [
+            "availability-ha"
+          ],
+          "providerID": "stackkits-ha-basement-quorum"
+        },
+        {
+          "contracts": [
+            "availability-ha"
+          ],
+          "providerID": "stackkits-ha-cloud-warm"
+        },
+        {
+          "contracts": [
+            "availability-ha"
+          ],
+          "providerID": "stackkits-ha-cloud-quorum"
+        },
+        {
+          "contracts": [
+            "availability-ha"
+          ],
+          "providerID": "stackkits-ha-modern-warm"
+        },
+        {
+          "contracts": [
+            "availability-ha"
+          ],
+          "providerID": "stackkits-ha-modern-quorum"
+        }
+      ]
+    },
     "providerCapabilities": [
       {
         "capability": "topology-core",
         "matches": [
           "topology-core"
         ],
-        "provider": "stackkits-core"
-      },
-      {
-        "capability": "host-bootstrap",
-        "matches": [
-          "host-bootstrap"
-        ],
-        "provider": "stackkits-core"
-      },
-      {
-        "capability": "security-baseline",
-        "matches": [
-          "security-baseline"
-        ],
-        "provider": "stackkits-core"
-      },
-      {
-        "capability": "access-policy",
-        "matches": [
-          "access-policy"
-        ],
-        "provider": "stackkits-core"
-      },
-      {
-        "capability": "runtime-paas",
-        "matches": [
-          "runtime-paas"
-        ],
-        "provider": "stackkits-core"
+        "provider": "stackkits-core-topology"
       },
       {
         "capability": "service-catalog",
         "matches": [
           "service-catalog"
         ],
-        "provider": "stackkits-core"
+        "provider": "stackkits-service-catalog"
       },
       {
-        "capability": "secrets-recovery",
+        "capability": "access-policy",
         "matches": [
-          "secrets-recovery"
+          "access-policy"
         ],
-        "provider": "stackkits-core"
+        "provider": "stackkits-access-policy-contract"
       },
       {
         "capability": "storage-data-policy",
         "matches": [
           "storage-data-policy"
         ],
-        "provider": "stackkits-core"
+        "provider": "stackkits-storage-data-policy"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-workload-runtime-contract"
+      },
+      {
+        "capability": "secrets-recovery",
+        "matches": [
+          "secrets-recovery"
+        ],
+        "provider": "stackkits-secrets-recovery-contract"
       },
       {
         "capability": "backup-core",
         "matches": [
           "backup-core"
         ],
-        "provider": "stackkits-core"
+        "provider": "stackkits-backup-core-contract"
       },
       {
         "capability": "observability-evidence",
         "matches": [
           "observability-evidence"
         ],
-        "provider": "stackkits-core"
+        "provider": "stackkits-observability-evidence-contract"
       },
       {
         "capability": "lifecycle-update",
         "matches": [
           "lifecycle-update"
         ],
-        "provider": "stackkits-core"
+        "provider": "stackkits-lifecycle-update-contract"
+      },
+      {
+        "capability": "security-baseline",
+        "matches": [
+          "security-baseline"
+        ],
+        "provider": "stackkits-security-baseline"
+      },
+      {
+        "capability": "host-bootstrap",
+        "matches": [
+          "host-bootstrap"
+        ],
+        "provider": "stackkits-core-host-bootstrap"
       },
       {
         "capability": "external-host-admission",
@@ -2149,53 +2280,46 @@
         "provider": "stackkits-local"
       },
       {
-        "capability": "local-hardware-preflight",
-        "matches": [
-          "local-hardware-preflight"
-        ],
-        "provider": "stackkits-local"
-      },
-      {
-        "capability": "local-backup-target",
-        "matches": [
-          "local-backup-target"
-        ],
-        "provider": "stackkits-local"
-      },
-      {
         "capability": "lan-dns",
         "matches": [
           "lan-dns"
         ],
-        "provider": "stackkits-local"
-      },
-      {
-        "capability": "internal-pki",
-        "matches": [
-          "internal-pki"
-        ],
-        "provider": "stackkits-local"
+        "provider": "stackkits-home-lan-dns-contract"
       },
       {
         "capability": "private-remote-access",
         "matches": [
           "private-remote-access"
         ],
-        "provider": "stackkits-local"
+        "provider": "stackkits-home-private-remote-access"
       },
       {
         "capability": "public-publish-egress",
         "matches": [
           "public-publish-egress"
         ],
-        "provider": "stackkits-local"
+        "provider": "stackkits-home-public-publish-egress"
       },
       {
         "capability": "encrypted-offsite-backup",
         "matches": [
           "encrypted-offsite-backup"
         ],
-        "provider": "stackkits-local"
+        "provider": "stackkits-home-encrypted-offsite-backup"
+      },
+      {
+        "capability": "local-backup-target",
+        "matches": [
+          "local-backup-target"
+        ],
+        "provider": "stackkits-home-backup-target"
+      },
+      {
+        "capability": "internal-pki",
+        "matches": [
+          "internal-pki"
+        ],
+        "provider": "stackkits-internal-pki"
       },
       {
         "capability": "offline-autonomy",
@@ -2230,63 +2354,63 @@
         "matches": [
           "site-cloud"
         ],
-        "provider": "stackkits-cloud"
-      },
-      {
-        "capability": "host-local-internet-firewall",
-        "matches": [
-          "host-local-internet-firewall"
-        ],
-        "provider": "stackkits-cloud"
-      },
-      {
-        "capability": "public-edge",
-        "matches": [
-          "public-edge"
-        ],
-        "provider": "stackkits-cloud"
-      },
-      {
-        "capability": "public-dns",
-        "matches": [
-          "public-dns"
-        ],
-        "provider": "stackkits-cloud"
-      },
-      {
-        "capability": "public-tls",
-        "matches": [
-          "public-tls"
-        ],
-        "provider": "stackkits-cloud"
-      },
-      {
-        "capability": "internet-host-hardening",
-        "matches": [
-          "internet-host-hardening"
-        ],
-        "provider": "stackkits-cloud"
-      },
-      {
-        "capability": "offsite-object-backup",
-        "matches": [
-          "offsite-object-backup"
-        ],
-        "provider": "stackkits-cloud"
-      },
-      {
-        "capability": "private-admin-mesh",
-        "matches": [
-          "private-admin-mesh"
-        ],
-        "provider": "stackkits-cloud"
+        "provider": "stackkits-cloud-topology"
       },
       {
         "capability": "failure-domain-placement",
         "matches": [
           "failure-domain-placement"
         ],
-        "provider": "stackkits-cloud"
+        "provider": "stackkits-cloud-placement-policy"
+      },
+      {
+        "capability": "host-local-internet-firewall",
+        "matches": [
+          "host-local-internet-firewall"
+        ],
+        "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "capability": "internet-host-hardening",
+        "matches": [
+          "internet-host-hardening"
+        ],
+        "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "capability": "public-dns",
+        "matches": [
+          "public-dns"
+        ],
+        "provider": "stackkits-cloud-public-dns-contract"
+      },
+      {
+        "capability": "public-edge",
+        "matches": [
+          "public-edge"
+        ],
+        "provider": "stackkits-cloud-public-edge"
+      },
+      {
+        "capability": "offsite-object-backup",
+        "matches": [
+          "offsite-object-backup"
+        ],
+        "provider": "stackkits-cloud-offsite-backup"
+      },
+      {
+        "capability": "private-admin-mesh",
+        "matches": [
+          "private-admin-mesh"
+        ],
+        "provider": "stackkits-cloud-private-admin-mesh"
+      },
+      {
+        "capability": "public-tls",
+        "matches": [
+          "public-tls"
+        ],
+        "provider": "stackkits-public-tls"
       },
       {
         "capability": "basement-compose-runtime",
@@ -2294,13 +2418,6 @@
           "basement-compose-runtime"
         ],
         "provider": "stackkits-basement-compose"
-      },
-      {
-        "capability": "photos",
-        "matches": [
-          "photos"
-        ],
-        "provider": "stackkits-immich"
       },
       {
         "capability": "availability-ha",
@@ -2348,17 +2465,17 @@
     "providerModuleOwnership": [
       {
         "matches": [
-          "stackkits-core-runtime"
-        ],
-        "module": "stackkits-core-runtime",
-        "provider": "stackkits-core"
-      },
-      {
-        "matches": [
           "security-baseline"
         ],
         "module": "security-baseline",
-        "provider": "stackkits-core"
+        "provider": "stackkits-security-baseline"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
+        "module": "stackkits-core-host-bootstrap",
+        "provider": "stackkits-core-host-bootstrap"
       },
       {
         "matches": [
@@ -2383,10 +2500,38 @@
       },
       {
         "matches": [
-          "stackkits-local-runtime"
+          "stackkits-home-private-remote-access-runtime"
         ],
-        "module": "stackkits-local-runtime",
-        "provider": "stackkits-local"
+        "module": "stackkits-home-private-remote-access-runtime",
+        "provider": "stackkits-home-private-remote-access"
+      },
+      {
+        "matches": [
+          "stackkits-home-public-publish-egress-runtime"
+        ],
+        "module": "stackkits-home-public-publish-egress-runtime",
+        "provider": "stackkits-home-public-publish-egress"
+      },
+      {
+        "matches": [
+          "stackkits-home-encrypted-offsite-backup-runtime"
+        ],
+        "module": "stackkits-home-encrypted-offsite-backup-runtime",
+        "provider": "stackkits-home-encrypted-offsite-backup"
+      },
+      {
+        "matches": [
+          "stackkits-home-backup-target"
+        ],
+        "module": "stackkits-home-backup-target",
+        "provider": "stackkits-home-backup-target"
+      },
+      {
+        "matches": [
+          "stackkits-internal-pki-contract"
+        ],
+        "module": "stackkits-internal-pki-contract",
+        "provider": "stackkits-internal-pki"
       },
       {
         "matches": [
@@ -2411,10 +2556,38 @@
       },
       {
         "matches": [
-          "stackkits-cloud-runtime"
+          "stackkits-cloud-host-security-runtime"
         ],
-        "module": "stackkits-cloud-runtime",
-        "provider": "stackkits-cloud"
+        "module": "stackkits-cloud-host-security-runtime",
+        "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "matches": [
+          "stackkits-cloud-public-edge-runtime"
+        ],
+        "module": "stackkits-cloud-public-edge-runtime",
+        "provider": "stackkits-cloud-public-edge"
+      },
+      {
+        "matches": [
+          "stackkits-cloud-offsite-backup-runtime"
+        ],
+        "module": "stackkits-cloud-offsite-backup-runtime",
+        "provider": "stackkits-cloud-offsite-backup"
+      },
+      {
+        "matches": [
+          "stackkits-cloud-private-admin-mesh-runtime"
+        ],
+        "module": "stackkits-cloud-private-admin-mesh-runtime",
+        "provider": "stackkits-cloud-private-admin-mesh"
+      },
+      {
+        "matches": [
+          "stackkits-public-tls-contract"
+        ],
+        "module": "stackkits-public-tls-contract",
+        "provider": "stackkits-public-tls"
       },
       {
         "matches": [
@@ -2482,6 +2655,69 @@
     ],
     "providerRequirements": [
       {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-secrets-recovery-contract"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "capability": "topology-core",
+        "matches": [
+          "topology-core"
+        ],
+        "provider": "stackkits-observability-evidence-contract"
+      },
+      {
+        "capability": "topology-core",
+        "matches": [
+          "topology-core"
+        ],
+        "provider": "stackkits-lifecycle-update-contract"
+      },
+      {
+        "capability": "topology-core",
+        "matches": [
+          "topology-core"
+        ],
+        "provider": "stackkits-security-baseline"
+      },
+      {
+        "capability": "external-host-admission",
+        "matches": [
+          "external-host-admission"
+        ],
+        "provider": "stackkits-security-baseline"
+      },
+      {
+        "capability": "topology-core",
+        "matches": [
+          "topology-core"
+        ],
+        "provider": "stackkits-core-host-bootstrap"
+      },
+      {
+        "capability": "external-host-admission",
+        "matches": [
+          "external-host-admission"
+        ],
+        "provider": "stackkits-core-host-bootstrap"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-core-host-bootstrap"
+      },
+      {
         "capability": "topology-core",
         "matches": [
           "topology-core"
@@ -2536,6 +2772,90 @@
           "topology-core"
         ],
         "provider": "stackkits-local"
+      },
+      {
+        "capability": "site-local",
+        "matches": [
+          "site-local"
+        ],
+        "provider": "stackkits-home-lan-dns-contract"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-home-lan-dns-contract"
+      },
+      {
+        "capability": "site-local",
+        "matches": [
+          "site-local"
+        ],
+        "provider": "stackkits-home-private-remote-access"
+      },
+      {
+        "capability": "lan-access-policy",
+        "matches": [
+          "lan-access-policy"
+        ],
+        "provider": "stackkits-home-private-remote-access"
+      },
+      {
+        "capability": "device-trust-core",
+        "matches": [
+          "device-trust-core"
+        ],
+        "provider": "stackkits-home-private-remote-access"
+      },
+      {
+        "capability": "site-local",
+        "matches": [
+          "site-local"
+        ],
+        "provider": "stackkits-home-public-publish-egress"
+      },
+      {
+        "capability": "access-policy",
+        "matches": [
+          "access-policy"
+        ],
+        "provider": "stackkits-home-public-publish-egress"
+      },
+      {
+        "capability": "site-local",
+        "matches": [
+          "site-local"
+        ],
+        "provider": "stackkits-home-encrypted-offsite-backup"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-home-encrypted-offsite-backup"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-home-encrypted-offsite-backup"
+      },
+      {
+        "capability": "host-bootstrap",
+        "matches": [
+          "host-bootstrap"
+        ],
+        "provider": "stackkits-home-backup-target"
+      },
+      {
+        "capability": "site-local",
+        "matches": [
+          "site-local"
+        ],
+        "provider": "stackkits-internal-pki"
       },
       {
         "capability": "site-local",
@@ -2612,7 +2932,126 @@
         "matches": [
           "topology-core"
         ],
-        "provider": "stackkits-cloud"
+        "provider": "stackkits-cloud-topology"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-cloud-placement-policy"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "capability": "host-bootstrap",
+        "matches": [
+          "host-bootstrap"
+        ],
+        "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "capability": "security-baseline",
+        "matches": [
+          "security-baseline"
+        ],
+        "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-cloud-public-dns-contract"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-cloud-public-edge"
+      },
+      {
+        "capability": "host-local-internet-firewall",
+        "matches": [
+          "host-local-internet-firewall"
+        ],
+        "provider": "stackkits-cloud-public-edge"
+      },
+      {
+        "capability": "internet-host-hardening",
+        "matches": [
+          "internet-host-hardening"
+        ],
+        "provider": "stackkits-cloud-public-edge"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-cloud-offsite-backup"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-cloud-offsite-backup"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-cloud-offsite-backup"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-cloud-private-admin-mesh"
+      },
+      {
+        "capability": "host-local-internet-firewall",
+        "matches": [
+          "host-local-internet-firewall"
+        ],
+        "provider": "stackkits-cloud-private-admin-mesh"
+      },
+      {
+        "capability": "device-trust-core",
+        "matches": [
+          "device-trust-core"
+        ],
+        "provider": "stackkits-cloud-private-admin-mesh"
+      },
+      {
+        "capability": "human-identity-core",
+        "matches": [
+          "human-identity-core"
+        ],
+        "provider": "stackkits-cloud-private-admin-mesh"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-public-tls"
+      },
+      {
+        "capability": "public-edge",
+        "matches": [
+          "public-edge"
+        ],
+        "provider": "stackkits-public-tls"
       },
       {
         "capability": "topology-core",
@@ -2692,6 +3131,376 @@
         "provider": "stackkits-ha-modern-quorum"
       }
     ],
+    "tls": {
+      "capabilityProfilesExact": [
+        {
+          "capability": "internal-pki",
+          "profile": {
+            "allowedIssuerKinds": [
+              "internal-ca"
+            ],
+            "capabilityRef": "internal-pki",
+            "id": "stackkits-internal-pki-profile",
+            "minimumVersion": "TLS1.2",
+            "mode": "internal",
+            "trustDomain": "private"
+          }
+        },
+        {
+          "capability": "public-tls",
+          "profile": {
+            "allowedIssuerKinds": [
+              "acme"
+            ],
+            "capabilityRef": "public-tls",
+            "id": "stackkits-public-tls-profile",
+            "minimumVersion": "TLS1.2",
+            "mode": "terminate-at-edge",
+            "trustDomain": "web-pki"
+          }
+        }
+      ],
+      "issuerIDsUnique": true,
+      "issuerOwnersExact": [
+        {
+          "capabilitySiteKinds": [
+            {
+              "kind": "home",
+              "matches": [
+                "home"
+              ]
+            }
+          ],
+          "issuer": "stackkits-internal-ca",
+          "materializationSupport": "contract-only",
+          "moduleMatches": [
+            "stackkits-internal-pki-contract"
+          ],
+          "providerSiteKinds": [
+            {
+              "kind": "home",
+              "matches": [
+                "home"
+              ]
+            }
+          ]
+        },
+        {
+          "capabilitySiteKinds": [
+            {
+              "kind": "cloud",
+              "matches": [
+                "cloud"
+              ]
+            }
+          ],
+          "issuer": "stackkits-public-acme",
+          "materializationSupport": "contract-only",
+          "moduleMatches": [
+            "stackkits-public-tls-contract"
+          ],
+          "providerSiteKinds": [
+            {
+              "kind": "cloud",
+              "matches": [
+                "cloud"
+              ]
+            }
+          ]
+        }
+      ],
+      "profileIDsUnique": true,
+      "providerBindings": [
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-core-topology"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-service-catalog"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-access-policy-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-storage-data-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-workload-runtime-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-secrets-recovery-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-backup-core-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-observability-evidence-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-lifecycle-update-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-security-baseline"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-core-host-bootstrap"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-host-admission"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-device-authority"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-basement-identity-trust-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-identity-trust-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-local"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-lan-dns-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-private-remote-access"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-public-publish-egress"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-encrypted-offsite-backup"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-backup-target"
+        },
+        {
+          "capabilityBindings": [
+            {
+              "capability": "internal-pki",
+              "issuerMatches": [
+                "stackkits-internal-ca"
+              ]
+            }
+          ],
+          "issuerBindings": [
+            {
+              "capabilityMatches": [
+                "internal-pki"
+              ],
+              "healthMatches": [
+                "internal-pki-renewal-contract"
+              ],
+              "issuer": "stackkits-internal-ca",
+              "moduleMatches": [
+                "stackkits-internal-pki-contract"
+              ],
+              "provider": "stackkits-internal-pki"
+            }
+          ],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-internal-pki"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-local-autonomy-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-access-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-lan-discovery-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-topology"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-placement-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-host-security"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-public-dns-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-public-edge"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-offsite-backup"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-private-admin-mesh"
+        },
+        {
+          "capabilityBindings": [
+            {
+              "capability": "public-tls",
+              "issuerMatches": [
+                "stackkits-public-acme"
+              ]
+            }
+          ],
+          "issuerBindings": [
+            {
+              "capabilityMatches": [
+                "public-tls"
+              ],
+              "healthMatches": [
+                "public-tls-renewal-contract"
+              ],
+              "issuer": "stackkits-public-acme",
+              "moduleMatches": [
+                "stackkits-public-tls-contract"
+              ],
+              "provider": "stackkits-public-tls"
+            }
+          ],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-public-tls"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-basement-compose"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-immich"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-ha-basement-warm"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-ha-basement-quorum"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-ha-cloud-warm"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-ha-cloud-quorum"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-ha-modern-warm"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-ha-modern-quorum"
+        }
+      ]
+    },
     "uniqueness": {
       "addonIDsUnique": true,
       "capabilityIDsUnique": true,
@@ -2705,81 +3514,121 @@
       "privilegedApprovalIDsUnique": true,
       "privilegedApprovalSubjectsUnique": true,
       "providedInterfaceIDsUnique": true,
-      "providerIDsUnique": true
+      "providerIDsUnique": true,
+      "workloadAlternativesUnique": true,
+      "workloadIDsUnique": true
+    },
+    "workloads": {
+      "alternativeBindings": [
+        {
+          "alternativeID": "immich",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-immich-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "selected-paas"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "immich-server"
+                  ],
+                  "ref": "database-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "photos",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "immich-server",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-immich",
+              "workloadOwnership": [
+                "photos"
+              ]
+            }
+          ],
+          "workloadID": "photos"
+        }
+      ]
     }
   },
   "modules": [
     {
       "evidence": [
-        "resolved-plan-contract"
-      ],
-      "health": [
-        {
-          "id": "stackkits-core-contract",
-          "kind": "contract",
-          "phase": "post-apply",
-          "timeoutSeconds": 30
-        }
-      ],
-      "metadata": {
-        "description": "Residual shared topology, bootstrap, storage, backup, observability, and lifecycle runtime contract; identity ownership is kit-specific.",
-        "id": "stackkits-core-runtime",
-        "version": "1.0.0"
-      },
-      "providerRef": "stackkits-core",
-      "provides": [
-        "topology-core",
-        "host-bootstrap",
-        "access-policy",
-        "runtime-paas",
-        "service-catalog",
-        "secrets-recovery",
-        "storage-data-policy",
-        "backup-core",
-        "observability-evidence",
-        "lifecycle-update"
-      ],
-      "realizationSupport": {
-        "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
-        },
-        "compatibleRendererRefs": [],
-        "contractVersion": "1.0.0",
-        "evidence": {
-          "requiredRefs": []
-        },
-        "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
-          "contractComplete": true,
-          "requiredRefs": []
-        },
-        "scope": "umbrella"
-      },
-      "renderUnits": [],
-      "runtime": {
-        "delivery": "stackkit",
-        "kind": "host"
-      },
-      "supportedSiteKinds": [
-        "home",
-        "cloud"
-      ]
-    },
-    {
-      "evidence": [
-        "resolved-plan-contract"
+        "resolved-plan-contract",
+        "security-baseline-executor-contract"
       ],
       "health": [
         {
           "id": "security-baseline-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -2792,7 +3641,7 @@
         "authority": "any",
         "controlPlaneMembers": "any"
       },
-      "providerRef": "stackkits-core",
+      "providerRef": "stackkits-security-baseline",
       "provides": [
         "security-baseline"
       ],
@@ -2829,13 +3678,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "security-baseline-executor-contract"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
@@ -2844,8 +3695,13 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
           "contractHash": "sha256:0ac2e74a7bc0ed9cff5a1f00d9a6e0b913d75500a00f824562e34438dbe54eab",
           "id": "host-policy",
+          "inputBindings": [],
           "kind": "host",
           "outputs": [
             "foundation/security-baseline/apply.sh"
@@ -2859,17 +3715,18 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://foundation/security-baseline/apply.sh",
           "version": "1.0.0"
         }
       ],
-      "requires": [
-        "stackkits-core-runtime"
-      ],
+      "renderVariants": [],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -2879,31 +3736,743 @@
     },
     {
       "evidence": [
-        "SK-S1"
+        "core-host-bootstrap-executor-contract"
       ],
       "health": [
         {
-          "id": "stackkits-local-contract",
+          "id": "core-host-bootstrap-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Node-local, provider-free Core host preparation owner; it creates only declared StackKit storage roots and observes the required pre-existing runtime.",
+        "id": "stackkits-core-host-bootstrap",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any"
+      },
+      "providerRef": "stackkits-core-host-bootstrap",
+      "provides": [
+        "host-bootstrap"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "core-host-bootstrap-policy",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "foundation/host-bootstrap/policy.json",
+              "required": true,
+              "unitRef": "host-policy"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "core-host-bootstrap-policy",
+              "outputRef": "foundation/host-bootstrap/policy.json",
+              "unitRef": "host-policy"
+            }
+          ],
+          "requiredRefs": [
+            "core-host-bootstrap-policy"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "core-host-bootstrap-executor-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "hostRuntimePolicy",
+            "storagePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:871d10265613851dc4ad928b4b8e280a874eb10d99b10dfa289bac1f56cc0e35",
+          "id": "host-policy",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "foundation/host-bootstrap/policy.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "hostRuntimePolicy",
+            "storagePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://foundation/host-bootstrap/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "executable",
+        "kind": "host"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "home-backup-target-executor-contract"
+      ],
+      "health": [
+        {
+          "id": "home-backup-target-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Node-local Home backup-target verifier; it observes the CUE-declared backup root on Home control-plane nodes after Core host bootstrap and owns no provider, network, discovery, or backup-job lifecycle.",
+        "id": "stackkits-home-backup-target",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only"
+      },
+      "providerRef": "stackkits-home-backup-target",
+      "provides": [
+        "local-backup-target"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "home-backup-target-policy",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "home/backup/target-policy.json",
+              "required": true,
+              "unitRef": "backup-policy"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "home-backup-target-policy",
+              "outputRef": "home/backup/target-policy.json",
+              "unitRef": "backup-policy"
+            }
+          ],
+          "requiredRefs": [
+            "home-backup-target-policy"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "home-backup-target-executor-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "storagePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:7add0b8b8e643141ca2adb61b03a3aa229daf2c6a08b65ba169870aceb2abe83",
+          "id": "backup-policy",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "home/backup/target-policy.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "storagePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/backup-target/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap"
+      ],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "executable",
+        "kind": "host"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "home-private-remote-access-contract"
+      ],
+      "health": [
+        {
+          "id": "home-private-remote-access-contract",
           "kind": "contract",
           "phase": "post-apply",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Residual Home-site admission, local ingress, autonomy, and backup runtime contract for an already supplied host; device authority is separately owned.",
-        "id": "stackkits-local-runtime",
+        "description": "Provider-neutral Home private-access binding; transport, endpoints, credentials, provider lifecycle, discovery, and general LAN reachability remain external.",
+        "id": "stackkits-home-private-remote-access-runtime",
         "version": "1.0.0"
       },
-      "providerRef": "stackkits-local",
+      "providerRef": "stackkits-home-private-remote-access",
       "provides": [
-        "site-local",
-        "local-hardware-preflight",
-        "local-backup-target",
-        "lan-dns",
-        "internal-pki",
-        "private-remote-access",
-        "public-publish-egress",
+        "private-remote-access"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "home-private-remote-access-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "home/remote-access/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "home-private-remote-access-executor-contract",
+              "outputRef": "home/remote-access/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "home-private-remote-access-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability",
+            "homeAccessRequirements",
+            "externalHomeAccessBindings"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:d534d74860c5453ec0fb4f377306371e9a388b9ecf7725c495bff4b092219978",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "home/remote-access/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability",
+            "homeAccessRequirements",
+            "externalHomeAccessBindings"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/remote-access/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap",
+        "stackkits-home-access-policy-manifest"
+      ],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "private-remote-access"
+        ],
+        "operations": [
+          "bind-private-remote-access",
+          "remove-private-remote-access",
+          "verify-private-remote-access"
+        ],
+        "ownerRef": "stackkits-home-private-remote-access-executor",
+        "requiredEvidenceRef": "home-private-remote-access-evidence",
+        "requiredHealthRef": "home-private-remote-access-health",
+        "status": "unbound",
+        "targetScope": "home-sites"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "home-public-publish-egress-contract"
+      ],
+      "health": [
+        {
+          "id": "home-public-publish-egress-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Outbound-only Home publication boundary; public DNS, TLS issuance, credentials, inbound tunnels, and provider lifecycle remain external.",
+        "id": "stackkits-home-public-publish-egress-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-home-public-publish-egress",
+      "provides": [
+        "public-publish-egress"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "home-public-publish-egress-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "home/publication/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "home-public-publish-egress-executor-contract",
+              "outputRef": "home/publication/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "home-public-publish-egress-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability",
+            "homeAccessRequirements",
+            "externalHomeAccessBindings"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:16f928871e35f06c1f5960f90acfa8d88cebd23fb9aefe8630c0f0017d65a387",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "home/publication/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability",
+            "homeAccessRequirements",
+            "externalHomeAccessBindings"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/publication/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap",
+        "stackkits-home-access-policy-manifest"
+      ],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "public-publish-egress"
+        ],
+        "operations": [
+          "bind-public-publish-egress",
+          "remove-public-publish-egress",
+          "verify-public-publish-egress"
+        ],
+        "ownerRef": "stackkits-home-public-publish-egress-executor",
+        "requiredEvidenceRef": "home-public-publish-egress-evidence",
+        "requiredHealthRef": "home-public-publish-egress-health",
+        "status": "unbound",
+        "targetScope": "home-sites"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "home-encrypted-offsite-backup-contract"
+      ],
+      "health": [
+        {
+          "id": "home-encrypted-offsite-backup-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Provider-neutral encrypted Home offsite-backup binding; repositories, endpoints, credentials, retention execution, restore execution, and provider lifecycle remain external.",
+        "id": "stackkits-home-encrypted-offsite-backup-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-home-encrypted-offsite-backup",
+      "provides": [
         "encrypted-offsite-backup"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "home-encrypted-offsite-backup-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "home/backup/offsite-executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "home-encrypted-offsite-backup-executor-contract",
+              "outputRef": "home/backup/offsite-executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "home-encrypted-offsite-backup-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c6ba1e9050b63a30fc9436a5325f86801b2adf08e3857708aac91c6a93cab05b",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "home/backup/offsite-executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/backup/offsite-executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap"
+      ],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "encrypted-offsite-backup"
+        ],
+        "operations": [
+          "bind-encrypted-offsite-backup",
+          "remove-encrypted-offsite-backup",
+          "verify-encrypted-offsite-backup"
+        ],
+        "ownerRef": "stackkits-home-encrypted-offsite-backup-executor",
+        "requiredEvidenceRef": "home-encrypted-offsite-backup-evidence",
+        "requiredHealthRef": "home-encrypted-offsite-backup-health",
+        "status": "unbound",
+        "targetScope": "home-sites"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "internal-pki-contract"
+      ],
+      "health": [
+        {
+          "id": "internal-pki-renewal-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Contract-only internal CA and renewal owner; no certificate material or termination runtime is generated yet.",
+        "id": "stackkits-internal-pki-contract",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-internal-pki",
+      "provides": [
+        "internal-pki"
       ],
       "realizationSupport": {
         "artifacts": {
@@ -2922,24 +4491,42 @@
         },
         "level": "contract-only",
         "planInputs": {
-          "contractComplete": true,
+          "contractComplete": false,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "scope": "concrete"
       },
       "renderUnits": [],
+      "renderVariants": [],
       "requires": [
-        "stackkits-core-runtime"
+        "stackkits-core-host-bootstrap"
       ],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "kind": "host"
+        "execution": "executable",
+        "kind": "native"
       },
       "supportedSiteKinds": [
         "home"
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "enroll-device",
+          "issue-device-credential",
+          "revoke-device-credential"
+        ],
+        "ownerRef": "stackkits-home-device-authority-enforcer",
+        "policyArtifactRefs": [
+          "home-device-authority-policy"
+        ],
+        "requiredEvidenceRef": "home-device-authority-enforcement",
+        "requiredHealthRef": "home-device-authority-enforcement",
+        "status": "unbound",
+        "targetScope": "home-control-authority"
+      },
       "evidence": [
         "home-device-authority-policy-contract"
       ],
@@ -3016,8 +4603,13 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
           "contractHash": "sha256:1da194be46fdd36215a3cc9a3f877a100a6fee92d5520a1522885f33798488a7",
           "id": "policy-bundle",
+          "inputBindings": [],
           "kind": "native-config",
           "outputs": [
             "local/identity/device-authority-policy.json"
@@ -3036,17 +4628,18 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://home/device-authority-policy/v1.json",
           "version": "1.0.0"
         }
       ],
-      "requires": [
-        "stackkits-local-runtime"
-      ],
+      "renderVariants": [],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -3054,6 +4647,21 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "verify-device-session",
+          "verify-human-session",
+          "verify-workload-identity"
+        ],
+        "ownerRef": "stackkits-basement-identity-trust-enforcer",
+        "policyArtifactRefs": [
+          "basement-identity-trust-policy"
+        ],
+        "requiredEvidenceRef": "basement-identity-trust-enforcement",
+        "requiredHealthRef": "basement-identity-trust-enforcement",
+        "status": "unbound",
+        "targetScope": "home-control-authority"
+      },
       "evidence": [
         "basement-identity-trust-policy-contract"
       ],
@@ -3130,8 +4738,13 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
           "contractHash": "sha256:b377cd7476396aa820f2cd0002b8a526fbef3c9943ee14dcb69aec67b1578115",
           "id": "policy-bundle",
+          "inputBindings": [],
           "kind": "native-config",
           "outputs": [
             "local/identity/trust-policy.json"
@@ -3150,18 +4763,21 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://basement/identity-trust-policy/v1.json",
           "version": "1.0.0"
         }
       ],
+      "renderVariants": [],
       "requires": [
-        "stackkits-core-runtime",
         "stackkits-home-device-authority-policy-manifest"
       ],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -3169,6 +4785,21 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "deny-forbidden-cross-site-session",
+          "enforce-link-loss-policy",
+          "preserve-local-control"
+        ],
+        "ownerRef": "stackkits-local-autonomy-enforcer",
+        "policyArtifactRefs": [
+          "local-autonomy-policy"
+        ],
+        "requiredEvidenceRef": "local-autonomy-enforcement",
+        "requiredHealthRef": "local-autonomy-enforcement",
+        "status": "unbound",
+        "targetScope": "home-control-authority"
+      },
       "evidence": [
         "local-autonomy-policy-contract"
       ],
@@ -3245,8 +4876,13 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
           "contractHash": "sha256:86071b1b898dffdcf2330ea7376ae5e7178a7a54bb42d7278475d9f56d033dee",
           "id": "policy-bundle",
+          "inputBindings": [],
           "kind": "native-config",
           "outputs": [
             "local/autonomy/policy.json"
@@ -3268,17 +4904,18 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://home/local-autonomy/v1.json",
           "version": "1.0.0"
         }
       ],
-      "requires": [
-        "stackkits-local-runtime"
-      ],
+      "renderVariants": [],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -3286,6 +4923,21 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "enforce-lan-access",
+          "enforce-local-ingress",
+          "enforce-privileged-step-up"
+        ],
+        "ownerRef": "stackkits-home-access-enforcer",
+        "policyArtifactRefs": [
+          "home-access-policy"
+        ],
+        "requiredEvidenceRef": "home-access-enforcement",
+        "requiredHealthRef": "home-access-enforcement",
+        "status": "unbound",
+        "targetScope": "home-sites"
+      },
       "evidence": [
         "home-access-policy-contract"
       ],
@@ -3361,8 +5013,13 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
           "contractHash": "sha256:d194da4490b393393fb60327a3567583dee4a489a88cda7b3b029a06ea923577",
           "id": "policy-bundle",
+          "inputBindings": [],
           "kind": "native-config",
           "outputs": [
             "local/network/access-policy.json"
@@ -3382,17 +5039,18 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://home/access/v1.json",
           "version": "1.0.0"
         }
       ],
-      "requires": [
-        "stackkits-local-runtime"
-      ],
+      "renderVariants": [],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -3473,8 +5131,13 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
           "contractHash": "sha256:48eb8152174d0a9de62e57b7eb3d93dad25ee36894611caf5005d05f452ec68d",
           "id": "policy-bundle",
+          "inputBindings": [],
           "kind": "native-config",
           "outputs": [
             "local/network/discovery-policy.json"
@@ -3493,17 +5156,21 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://home/lan-discovery/v1.json",
           "version": "1.0.0"
         }
       ],
+      "renderVariants": [],
       "requires": [
         "stackkits-home-access-policy-manifest"
       ],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -3512,69 +5179,784 @@
     },
     {
       "evidence": [
-        "SK-S2",
-        "SK-S3"
+        "cloud-host-security-contract"
       ],
       "health": [
         {
-          "id": "stackkits-cloud-contract",
+          "id": "cloud-host-security-contract",
           "kind": "contract",
           "phase": "post-apply",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Residual Cloud-host admission, host-local firewall/hardening, and public edge/DNS/TLS intent for an already supplied host; identity authority is separately owned.",
-        "id": "stackkits-cloud-runtime",
+        "description": "Cloud-only node-local firewall and Internet-host hardening boundary; it owns no public edge, DNS, backup, mesh, or server-provider lifecycle.",
+        "id": "stackkits-cloud-host-security-runtime",
         "version": "1.0.0"
       },
-      "providerRef": "stackkits-cloud",
+      "providerRef": "stackkits-cloud-host-security",
       "provides": [
-        "site-cloud",
         "host-local-internet-firewall",
-        "public-edge",
-        "public-dns",
-        "public-tls",
-        "internet-host-hardening",
-        "offsite-object-backup",
-        "private-admin-mesh",
-        "failure-domain-placement"
+        "internet-host-hardening"
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "cloud-host-security-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "cloud/host-security/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "cloud-host-security-executor-contract",
+              "outputRef": "cloud/host-security/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "cloud-host-security-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
           "requiredRefs": []
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
-      "requires": [
-        "stackkits-core-runtime"
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:f10cd76135da04b9b062ee341dbdf1c00ce3b956a606ff0d25918c3cc62f57ae",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "cloud/host-security/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://cloud/host-security/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
       ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "cloud-host-security-executor-contract"
+          ],
+          "contractHash": "sha256:35ed972bd878291cf9c2aa6115acbcc2464c02b72090dfc41752daf79fa2fa36",
+          "id": "compose",
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "executor-contract"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "cloud-host-security-executor-contract"
+          ],
+          "contractHash": "sha256:cd6ea4d9f247ea6ee9a601722c87a61f8468960a2aa508fb00c78d46dea359cc",
+          "id": "opentofu",
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "executor-contract"
+          ]
+        }
+      ],
+      "requires": [
+        "stackkits-core-host-bootstrap",
+        "security-baseline"
+      ],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "host-local-internet-firewall",
+          "internet-host-hardening"
+        ],
+        "operations": [
+          "apply-cloud-host-firewall",
+          "apply-cloud-host-hardening",
+          "verify-cloud-host-security"
+        ],
+        "ownerRef": "stackkits-cloud-host-security-executor",
+        "requiredEvidenceRef": "cloud-host-security-evidence",
+        "requiredHealthRef": "cloud-host-security-health",
+        "status": "unbound",
+        "targetScope": "cloud-sites"
       },
       "supportedSiteKinds": [
         "cloud"
       ]
     },
     {
+      "evidence": [
+        "cloud-public-edge-contract"
+      ],
+      "health": [
+        {
+          "id": "cloud-public-edge-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Cloud-only public edge boundary; DNS provider mutation, TLS issuance, host hardening, backup, mesh, and server lifecycle remain separate.",
+        "id": "stackkits-cloud-public-edge-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-cloud-public-edge",
+      "provides": [
+        "public-edge"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "cloud-public-edge-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "cloud/public-edge/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "cloud-public-edge-executor-contract",
+              "outputRef": "cloud/public-edge/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "cloud-public-edge-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:55c47c16f0eac758080a66f6ff818bea7fd9d744daee3cb0858b3417905480f3",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "cloud/public-edge/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://cloud/public-edge/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-cloud-host-security-runtime"
+      ],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "public-edge"
+        ],
+        "operations": [
+          "apply-public-edge",
+          "remove-public-edge",
+          "verify-public-edge"
+        ],
+        "ownerRef": "stackkits-cloud-public-edge-executor",
+        "requiredEvidenceRef": "cloud-public-edge-evidence",
+        "requiredHealthRef": "cloud-public-edge-health",
+        "status": "unbound",
+        "targetScope": "cloud-sites"
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "cloud-offsite-backup-contract"
+      ],
+      "health": [
+        {
+          "id": "cloud-offsite-backup-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Provider-neutral Cloud offsite-backup target binding; object-storage provider lifecycle, buckets, endpoints, credentials, retention execution, and backup jobs remain external.",
+        "id": "stackkits-cloud-offsite-backup-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-cloud-offsite-backup",
+      "provides": [
+        "offsite-object-backup"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "cloud-offsite-backup-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "cloud/backup/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "cloud-offsite-backup-executor-contract",
+              "outputRef": "cloud/backup/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "cloud-offsite-backup-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:9fde3c773f0dc0c6d6e353caa82f52bb3d1b699f30e66ba87f2bf7aae3040a47",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "cloud/backup/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://cloud/backup/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "offsite-object-backup"
+        ],
+        "operations": [
+          "bind-offsite-backup-target",
+          "remove-offsite-backup-binding",
+          "verify-offsite-backup-target"
+        ],
+        "ownerRef": "stackkits-cloud-offsite-backup-executor",
+        "requiredEvidenceRef": "cloud-offsite-backup-evidence",
+        "requiredHealthRef": "cloud-offsite-backup-health",
+        "status": "unbound",
+        "targetScope": "cloud-sites"
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "cloud-private-admin-mesh-contract"
+      ],
+      "health": [
+        {
+          "id": "cloud-private-admin-mesh-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Optional provider-neutral private admin-mesh policy handoff; transport, endpoints, credentials, identity issuance, provider lifecycle, federation, and LAN reachability remain separate.",
+        "id": "stackkits-cloud-private-admin-mesh-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-cloud-private-admin-mesh",
+      "provides": [
+        "private-admin-mesh"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "cloud-private-admin-mesh-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "cloud/admin-mesh/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "cloud-private-admin-mesh-executor-contract",
+              "outputRef": "cloud/admin-mesh/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "cloud-private-admin-mesh-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:009e99ba8c84136dccaad45e99a1166cbdda3be9bf08b615d769538d5b290f1a",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "cloud/admin-mesh/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "cloudNetworkPolicy",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://cloud/admin-mesh/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-cloud-host-security-runtime",
+        "stackkits-cloud-identity-trust-policy-manifest"
+      ],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "private-admin-mesh"
+        ],
+        "operations": [
+          "bind-private-admin-mesh",
+          "remove-private-admin-mesh-binding",
+          "verify-private-admin-mesh"
+        ],
+        "ownerRef": "stackkits-cloud-private-admin-mesh-executor",
+        "requiredEvidenceRef": "cloud-private-admin-mesh-evidence",
+        "requiredHealthRef": "cloud-private-admin-mesh-health",
+        "status": "unbound",
+        "targetScope": "cloud-sites"
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "public-tls-contract"
+      ],
+      "health": [
+        {
+          "id": "public-tls-renewal-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Contract-only public ACME issuer and edge-termination owner; no certificate material or runtime adapter is generated yet.",
+        "id": "stackkits-public-tls-contract",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-public-tls",
+      "provides": [
+        "public-tls"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "public-tls-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "cloud/tls/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "public-tls-executor-contract",
+              "outputRef": "cloud/tls/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "public-tls-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "kit",
+            "moduleTargets",
+            "publicTLS",
+            "stackId"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:a0298b76b8d8215e19460a8e154381eee8675aab2c2fe8cd49d316c133ff6ae8",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "cloud/tls/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "kit",
+            "moduleTargets",
+            "publicTLS",
+            "stackId"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://cloud/tls/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-cloud-public-edge-runtime"
+      ],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "native"
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ]
+    },
+    {
+      "enforcementRequirement": {
+        "operations": [
+          "issue-human-credential",
+          "issue-workload-credential",
+          "verify-device-session",
+          "verify-human-session",
+          "verify-workload-identity"
+        ],
+        "ownerRef": "stackkits-cloud-identity-trust-enforcer",
+        "policyArtifactRefs": [
+          "cloud-identity-trust-policy"
+        ],
+        "requiredEvidenceRef": "cloud-identity-trust-enforcement",
+        "requiredHealthRef": "cloud-identity-trust-enforcement",
+        "status": "unbound",
+        "targetScope": "cloud-sites"
+      },
       "evidence": [
         "cloud-identity-trust-policy-contract"
       ],
@@ -3653,8 +6035,13 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
           "contractHash": "sha256:84b7e97941c6b36d24ee0a59c594cef45926e22dc20f7d16acbf6f8fa0c95ca4",
           "id": "policy-bundle",
+          "inputBindings": [],
           "kind": "native-config",
           "outputs": [
             "cloud/identity/trust-policy.json"
@@ -3673,18 +6060,18 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://cloud/identity-trust-policy/v1.json",
           "version": "1.0.0"
         }
       ],
-      "requires": [
-        "stackkits-core-runtime",
-        "stackkits-cloud-runtime"
-      ],
+      "renderVariants": [],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -3714,33 +6101,182 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "basement-compose-runtime-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "basement/runtime/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "basement-compose-runtime-executor-contract",
+              "outputRef": "basement/runtime/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "basement-compose-runtime-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
           "requiredRefs": []
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
-      "requires": [
-        "stackkits-local-runtime"
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:3e9795cc29f1d063184a5be004b796341f1c408d40bd7c4e41b814f979c795ad",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "basement/runtime/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://basement/runtime/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
       ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "basement-compose-runtime-executor-contract"
+          ],
+          "contractHash": "sha256:caa13cedcc306755ce50179a0e6ba5f6eecefa8c58f8e472770c04c8cde92212",
+          "id": "compose",
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability"
+          ],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "executor-contract"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "basement-compose-runtime-executor-contract"
+          ],
+          "contractHash": "sha256:d4b39bdc9ca285e10c899bbf0619035cbe66c596365bace374d69def776d69d4",
+          "id": "opentofu",
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "storagePolicy",
+            "localNetworkPolicy",
+            "data",
+            "failurePolicy",
+            "localReachability"
+          ],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "executor-contract"
+          ]
+        }
+      ],
+      "requires": [
+        "stackkits-core-host-bootstrap"
+      ],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "contract-handoff",
         "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "basement-compose-runtime"
+        ],
+        "operations": [
+          "apply-compose-project",
+          "remove-compose-project",
+          "verify-compose-project"
+        ],
+        "ownerRef": "stackkits-basement-compose-executor",
+        "requiredEvidenceRef": "basement-compose-runtime-evidence",
+        "requiredHealthRef": "basement-compose-runtime-health",
+        "status": "unbound",
+        "targetScope": "home-sites"
       },
       "supportedSiteKinds": [
         "home"
@@ -3816,8 +6352,12 @@
       },
       "renderUnits": [
         {
+          "compatibleTargets": [
+            "compose"
+          ],
           "contractHash": "sha256:3ea559c5ba0c528ad9ae99341bc2380ca781012a863a2c389a1565b4f183bd9d",
           "id": "compose",
+          "inputBindings": [],
           "kind": "compose",
           "outputs": [
             "foundation/socket-proxy/compose.yaml"
@@ -3875,18 +6415,38 @@
               "version": "v1"
             }
           ],
+          "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://foundation/socket-proxy/compose.yaml",
           "version": "1.0.0"
         }
       ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "socket-proxy-compose"
+          ],
+          "contractHash": "sha256:bf2cf9138330226055c10bf0de998ff20b4c96d61de2a183aca3b4a1997c3cdd",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "compose"
+          ]
+        }
+      ],
       "requires": [
         "stackkits-basement-compose-runtime"
       ],
+      "role": "platform",
       "runtime": {
         "delivery": "stackkit",
         "engine": "docker",
+        "execution": "executable",
         "image": {
           "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
           "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
@@ -3919,7 +6479,7 @@
       "metadata": {
         "description": "Immich photo service contract bound to the control-authority site and its personal-data primary.",
         "id": "stackkits-immich-runtime",
-        "version": "1.0.0"
+        "version": "1.0.1"
       },
       "nodeSelection": {
         "authority": "control-authority-site",
@@ -3929,9 +6489,7 @@
         ]
       },
       "providerRef": "stackkits-immich",
-      "provides": [
-        "photos"
-      ],
+      "provides": [],
       "realizationSupport": {
         "artifacts": {
           "contracts": [
@@ -3940,24 +6498,24 @@
                 "compose",
                 "opentofu"
               ],
-              "format": "yaml",
-              "id": "immich-service-contract",
+              "format": "json",
+              "id": "immich-workload-bundle",
               "kind": "native-config",
               "mode": "0640",
-              "outputRef": "modules/immich/service-contract.yaml",
+              "outputRef": "workloads/immich/bundle.json",
               "required": true,
               "unitRef": "immich-server"
             }
           ],
           "outputBindings": [
             {
-              "artifactRef": "immich-service-contract",
-              "outputRef": "modules/immich/service-contract.yaml",
+              "artifactRef": "immich-workload-bundle",
+              "outputRef": "workloads/immich/bundle.json",
               "unitRef": "immich-server"
             }
           ],
           "requiredRefs": [
-            "immich-service-contract"
+            "immich-workload-bundle"
           ]
         },
         "compatibleRendererRefs": [
@@ -3968,10 +6526,12 @@
           "requiredRefs": []
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password"
+          ]
         },
-        "level": "contract-only",
+        "level": "generation-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
@@ -3980,11 +6540,16 @@
       },
       "renderUnits": [
         {
-          "contractHash": "sha256:6a3dffc4782bb3c19bf2a61aff3b99b12d6f7f3e9c3f1ee90de41296ddfac305",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:dfd43f8ddbdf3ca812d2374b766b533ee1d94bcd3ea8d2e64f030c6872569269",
           "id": "immich-server",
+          "inputBindings": [],
           "kind": "native-config",
           "outputs": [
-            "modules/immich/service-contract.yaml"
+            "workloads/immich/bundle.json"
           ],
           "placement": {
             "cardinality": "one-per-node",
@@ -3995,7 +6560,10 @@
           "publicInputRefs": [],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
-          "secretInputRefs": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password"
+          ],
           "serviceEndpoints": [
             {
               "allowedExposures": [
@@ -4016,23 +6584,220 @@
               },
               "healthRef": "immich-http",
               "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
               "serviceRef": "photos",
               "targetPort": 2283,
               "upstreamProtocol": "http"
             }
           ],
-          "templateRef": "modules/immich/module.cue",
-          "version": "1.0.0"
+          "templateRef": "builtin://workloads/immich/bundle/v1.json",
+          "version": "2.0.0"
         }
       ],
-      "requires": [
-        "stackkits-core-runtime"
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "immich-workload-bundle"
+          ],
+          "contractHash": "sha256:383c8a53811d3c7abb2049a188af77152367ea56b7c47716dc9a7144b7cda99e",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "immich-server"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-workload-bundle"
+          ],
+          "contractHash": "sha256:c8cafbfb8ada7743566432b94ad908dfaef53b62db343f80e38fad5c34ab9d33",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "immich-server"
+          ]
+        }
       ],
+      "role": "workload",
       "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "immich-machine-learning",
+              "immich-postgres-init",
+              "immich-valkey"
+            ],
+            "environment": {
+              "DB_DATABASE_NAME": "immich",
+              "DB_HOSTNAME": "immich-postgres",
+              "DB_PORT": "5432",
+              "DB_USERNAME": "immich",
+              "IMMICH_MACHINE_LEARNING_URL": "http://immich-machine-learning:3003",
+              "REDIS_HOSTNAME": "immich-valkey",
+              "REDIS_PORT": "6379"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/api/server/ping",
+              "port": 2283
+            },
+            "id": "immich-server",
+            "image": {
+              "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
+              "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "role": "application",
+            "secretEnvironment": {
+              "DB_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "library",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "immich-machine-learning",
+            "image": {
+              "digest": "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952",
+              "ref": "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "role": "machine-learning",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "model-cache",
+                "target": "/cache"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "POSTGRES_DB": "immich",
+              "POSTGRES_INITDB_ARGS": "--data-checksums",
+              "POSTGRES_USER": "immich"
+            },
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "immich",
+                "-d",
+                "postgres"
+              ],
+              "kind": "command"
+            },
+            "id": "immich-postgres",
+            "image": {
+              "digest": "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
+              "ref": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "role": "database",
+            "secretEnvironment": {
+              "POSTGRES_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/postgresql/data"
+              }
+            ]
+          },
+          {
+            "command": [
+              "sh",
+              "-c",
+              "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"
+            ],
+            "dependsOn": [
+              "immich-postgres"
+            ],
+            "environment": {
+              "PGUSER": "immich"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "immich-postgres-init",
+            "image": {
+              "digest": "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
+              "ref": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "role": "database-init",
+            "secretEnvironment": {
+              "PGPASSWORD": "database-password"
+            }
+          },
+          {
+            "command": [
+              "valkey-server"
+            ],
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "redis-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "immich-valkey",
+            "image": {
+              "digest": "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+              "ref": "docker.io/valkey/valkey:9"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "role": "cache"
+          }
+        ],
         "delivery": "selected-paas",
         "engine": "docker",
+        "entryComponentRef": "immich-server",
+        "execution": "executable",
         "image": {
-          "ref": "ghcr.io/immich-app/immich-server:release"
+          "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
+          "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
         },
         "kind": "container"
       },
@@ -4089,11 +6854,11 @@
         "scope": "umbrella"
       },
       "renderUnits": [],
-      "requires": [
-        "stackkits-core-runtime"
-      ],
+      "renderVariants": [],
+      "role": "operations",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -4148,11 +6913,11 @@
         "scope": "umbrella"
       },
       "renderUnits": [],
-      "requires": [
-        "stackkits-core-runtime"
-      ],
+      "renderVariants": [],
+      "role": "operations",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -4207,11 +6972,11 @@
         "scope": "umbrella"
       },
       "renderUnits": [],
-      "requires": [
-        "stackkits-core-runtime"
-      ],
+      "renderVariants": [],
+      "role": "operations",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -4266,11 +7031,11 @@
         "scope": "umbrella"
       },
       "renderUnits": [],
-      "requires": [
-        "stackkits-core-runtime"
-      ],
+      "renderVariants": [],
+      "role": "operations",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -4325,11 +7090,11 @@
         "scope": "umbrella"
       },
       "renderUnits": [],
-      "requires": [
-        "stackkits-core-runtime"
-      ],
+      "renderVariants": [],
+      "role": "operations",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -4385,11 +7150,11 @@
         "scope": "umbrella"
       },
       "renderUnits": [],
-      "requires": [
-        "stackkits-core-runtime"
-      ],
+      "renderVariants": [],
+      "role": "operations",
       "runtime": {
         "delivery": "stackkit",
+        "execution": "executable",
         "kind": "host"
       },
       "supportedSiteKinds": [
@@ -4427,44 +7192,29 @@
   ],
   "providers": [
     {
-      "evidence": [
-        "resolved-plan-contract"
-      ],
-      "health": [
-        {
-          "id": "stackkits-core-contract",
-          "kind": "contract",
-          "phase": "post-apply",
-          "timeoutSeconds": 30
-        }
-      ],
+      "certificateIssuers": [],
       "metadata": {
-        "id": "stackkits-core",
+        "id": "stackkits-core-topology",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
-        "topology-core",
-        "host-bootstrap",
-        "security-baseline",
-        "access-policy",
-        "runtime-paas",
-        "service-catalog",
-        "secrets-recovery",
-        "storage-data-policy",
-        "backup-core",
-        "observability-evidence",
-        "lifecycle-update"
+        "topology-core"
       ],
       "realization": {
-        "kind": "modules",
+        "kind": "topology",
         "moduleRefs": {
           "optional": [],
-          "required": [
-            "stackkits-core-runtime",
-            "security-baseline"
+          "required": []
+        },
+        "topology": {
+          "siteKinds": [
+            "home",
+            "cloud"
           ]
         }
       },
+      "remoteActionContracts": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -4474,9 +7224,385 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-service-catalog",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "service-catalog"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-access-policy-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "access-policy"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-storage-data-policy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "storage-data-policy"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-workload-runtime-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "runtime-paas"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-secrets-recovery-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "secrets-recovery"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-backup-core-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "backup-core"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-observability-evidence-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "observability-evidence"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "topology-core",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-lifecycle-update-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "lifecycle-update"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "topology-core",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "security-baseline-executor-contract"
+      ],
+      "health": [
+        {
+          "id": "security-baseline-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-security-baseline",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "security-baseline"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "security-baseline"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "topology-core",
+          "optional": false
+        },
+        {
+          "id": "external-host-admission",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "core-host-bootstrap-executor-contract"
+      ],
+      "health": [
+        {
+          "id": "core-host-bootstrap-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-core-host-bootstrap",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "host-bootstrap"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-core-host-bootstrap"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "topology-core",
+          "optional": false
+        },
+        {
+          "id": "external-host-admission",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
       "evidence": [
         "host-conformance-receipt-contract"
       ],
@@ -4492,6 +7618,7 @@
         "id": "stackkits-host-admission",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "external-host-admission",
         "host-conformance"
@@ -4529,6 +7656,7 @@
           "scope": "concrete"
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -4544,9 +7672,11 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "home-device-authority-policy-contract"
       ],
@@ -4562,6 +7692,7 @@
         "id": "stackkits-home-device-authority",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "device-enrollment-home",
         "local-control-authority"
@@ -4575,6 +7706,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -4592,9 +7724,11 @@
       },
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "basement-identity-trust-policy-contract"
       ],
@@ -4610,6 +7744,7 @@
         "id": "stackkits-basement-identity-trust-policy",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "human-identity-core",
         "device-trust-core"
@@ -4623,6 +7758,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -4644,9 +7780,11 @@
       },
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "cloud-identity-trust-policy-contract"
       ],
@@ -4662,6 +7800,7 @@
         "id": "stackkits-cloud-identity-trust-policy",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "human-identity-core",
         "device-trust-core",
@@ -4677,6 +7816,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -4690,43 +7830,32 @@
       },
       "supportedSiteKinds": [
         "cloud"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
-      "evidence": [
-        "SK-S1"
-      ],
-      "health": [
-        {
-          "id": "stackkits-local-contract",
-          "kind": "contract",
-          "phase": "post-apply",
-          "timeoutSeconds": 30
-        }
-      ],
+      "certificateIssuers": [],
       "metadata": {
         "id": "stackkits-local",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
-        "site-local",
-        "local-hardware-preflight",
-        "local-backup-target",
-        "lan-dns",
-        "internal-pki",
-        "private-remote-access",
-        "public-publish-egress",
-        "encrypted-offsite-backup"
+        "site-local"
       ],
       "realization": {
-        "kind": "modules",
+        "kind": "topology",
         "moduleRefs": {
           "optional": [],
-          "required": [
-            "stackkits-local-runtime"
+          "required": []
+        },
+        "topology": {
+          "siteKinds": [
+            "home"
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -4740,9 +7869,343 @@
       },
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-home-lan-dns-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "lan-dns"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "home-private-remote-access-contract"
+      ],
+      "health": [
+        {
+          "id": "home-private-remote-access-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-home-private-remote-access",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "private-remote-access"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-home-private-remote-access-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        },
+        {
+          "id": "lan-access-policy",
+          "optional": false
+        },
+        {
+          "id": "device-trust-core",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "home-public-publish-egress-contract"
+      ],
+      "health": [
+        {
+          "id": "home-public-publish-egress-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-home-public-publish-egress",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "public-publish-egress"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-home-public-publish-egress-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        },
+        {
+          "id": "access-policy",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "home-encrypted-offsite-backup-contract"
+      ],
+      "health": [
+        {
+          "id": "home-encrypted-offsite-backup-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-home-encrypted-offsite-backup",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "encrypted-offsite-backup"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-home-encrypted-offsite-backup-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "home-backup-target-executor-contract"
+      ],
+      "health": [
+        {
+          "id": "home-backup-target-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-home-backup-target",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "local-backup-target"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-home-backup-target"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "host-bootstrap",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [
+        {
+          "capabilityRef": "internal-pki",
+          "challenge": "none",
+          "id": "stackkits-internal-ca",
+          "kind": "internal-ca",
+          "materialSlots": [
+            {
+              "id": "certificate",
+              "purpose": "certificate-chain",
+              "sensitivity": "public"
+            },
+            {
+              "id": "private-key",
+              "purpose": "private-key",
+              "sensitivity": "secret"
+            },
+            {
+              "id": "trust-root",
+              "purpose": "trust-root",
+              "sensitivity": "public"
+            }
+          ],
+          "owner": {
+            "materializationSupport": "contract-only",
+            "moduleRef": "stackkits-internal-pki-contract",
+            "providerRef": "stackkits-internal-pki"
+          },
+          "renewal": {
+            "healthGateRef": "internal-pki-renewal-contract",
+            "renewBeforeSeconds": 2592000,
+            "required": true
+          },
+          "requiredInputSlotIDs": [],
+          "supportedSiteKinds": [
+            "home"
+          ],
+          "validitySeconds": 7776000
+        }
+      ],
+      "evidence": [
+        "internal-pki-contract"
+      ],
+      "health": [
+        {
+          "id": "internal-pki-renewal-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-internal-pki",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "internal-pki"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-internal-pki-contract"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
       "evidence": [
         "local-autonomy-policy-contract"
       ],
@@ -4758,6 +8221,7 @@
         "id": "stackkits-local-autonomy-policy",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "offline-autonomy"
       ],
@@ -4770,6 +8234,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "site-local",
@@ -4791,9 +8256,11 @@
       },
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "home-access-policy-contract"
       ],
@@ -4809,6 +8276,7 @@
         "id": "stackkits-home-access-policy",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "local-ingress",
         "lan-access-policy"
@@ -4822,6 +8290,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "site-local",
@@ -4847,9 +8316,11 @@
       },
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "home-lan-discovery-policy-contract"
       ],
@@ -4865,6 +8336,7 @@
         "id": "stackkits-home-lan-discovery-policy",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "lan-discovery"
       ],
@@ -4877,6 +8349,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "site-local",
@@ -4898,45 +8371,32 @@
       },
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
-      "evidence": [
-        "SK-S2",
-        "SK-S3"
-      ],
-      "health": [
-        {
-          "id": "stackkits-cloud-contract",
-          "kind": "contract",
-          "phase": "post-apply",
-          "timeoutSeconds": 30
-        }
-      ],
+      "certificateIssuers": [],
       "metadata": {
-        "id": "stackkits-cloud",
+        "id": "stackkits-cloud-topology",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
-        "site-cloud",
-        "host-local-internet-firewall",
-        "public-edge",
-        "public-dns",
-        "public-tls",
-        "internet-host-hardening",
-        "offsite-object-backup",
-        "private-admin-mesh",
-        "failure-domain-placement"
+        "site-cloud"
       ],
       "realization": {
-        "kind": "modules",
+        "kind": "topology",
         "moduleRefs": {
           "optional": [],
-          "required": [
-            "stackkits-cloud-runtime"
+          "required": []
+        },
+        "topology": {
+          "siteKinds": [
+            "cloud"
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -4950,9 +8410,389 @@
       },
       "supportedSiteKinds": [
         "cloud"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-cloud-placement-policy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "failure-domain-placement"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-cloud",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "cloud-host-security-contract"
+      ],
+      "health": [
+        {
+          "id": "cloud-host-security-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-cloud-host-security",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "host-local-internet-firewall",
+        "internet-host-hardening"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-cloud-host-security-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-cloud",
+          "optional": false
+        },
+        {
+          "id": "host-bootstrap",
+          "optional": false
+        },
+        {
+          "id": "security-baseline",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-cloud-public-dns-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "public-dns"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-cloud",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "cloud-public-edge-contract"
+      ],
+      "health": [
+        {
+          "id": "cloud-public-edge-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-cloud-public-edge",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "public-edge"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-cloud-public-edge-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-cloud",
+          "optional": false
+        },
+        {
+          "id": "host-local-internet-firewall",
+          "optional": false
+        },
+        {
+          "id": "internet-host-hardening",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "cloud-offsite-backup-contract"
+      ],
+      "health": [
+        {
+          "id": "cloud-offsite-backup-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-cloud-offsite-backup",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "offsite-object-backup"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-cloud-offsite-backup-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-cloud",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "cloud-private-admin-mesh-contract"
+      ],
+      "health": [
+        {
+          "id": "cloud-private-admin-mesh-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-cloud-private-admin-mesh",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "private-admin-mesh"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-cloud-private-admin-mesh-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-cloud",
+          "optional": false
+        },
+        {
+          "id": "host-local-internet-firewall",
+          "optional": false
+        },
+        {
+          "id": "device-trust-core",
+          "optional": false
+        },
+        {
+          "id": "human-identity-core",
+          "optional": false
+        }
+      ],
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [
+        {
+          "capabilityRef": "public-tls",
+          "challenge": "tls-alpn-01",
+          "id": "stackkits-public-acme",
+          "kind": "acme",
+          "materialSlots": [
+            {
+              "id": "certificate",
+              "purpose": "certificate-chain",
+              "sensitivity": "public"
+            },
+            {
+              "id": "private-key",
+              "purpose": "private-key",
+              "sensitivity": "secret"
+            },
+            {
+              "id": "acme-account-key",
+              "purpose": "issuer-account-key",
+              "sensitivity": "secret"
+            }
+          ],
+          "owner": {
+            "materializationSupport": "contract-only",
+            "moduleRef": "stackkits-public-tls-contract",
+            "providerRef": "stackkits-public-tls"
+          },
+          "renewal": {
+            "healthGateRef": "public-tls-renewal-contract",
+            "renewBeforeSeconds": 2592000,
+            "required": true
+          },
+          "requiredInputSlotIDs": [],
+          "supportedSiteKinds": [
+            "cloud"
+          ],
+          "validitySeconds": 7776000
+        }
+      ],
+      "evidence": [
+        "public-tls-contract"
+      ],
+      "health": [
+        {
+          "id": "public-tls-renewal-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-public-tls",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "public-tls"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-public-tls-contract"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-cloud",
+          "optional": false
+        },
+        {
+          "id": "public-edge",
+          "optional": false
+        }
+      ],
+      "selection": {
+        "defaultForSiteKinds": [
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
       "evidence": [
         "basement-compose-contract-governance"
       ],
@@ -4968,19 +8808,22 @@
         "id": "stackkits-basement-compose",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "basement-compose-runtime"
       ],
       "realization": {
         "kind": "modules",
         "moduleRefs": {
-          "optional": [],
-          "required": [
-            "stackkits-basement-compose-runtime",
+          "optional": [
             "socket-proxy"
+          ],
+          "required": [
+            "stackkits-basement-compose-runtime"
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -4993,9 +8836,11 @@
       ],
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "SK-S1",
         "SK-S2",
@@ -5005,18 +8850,18 @@
         "id": "stackkits-immich",
         "version": "1.0.0"
       },
-      "provides": [
-        "photos"
-      ],
+      "overlayContracts": [],
+      "provides": [],
       "realization": {
         "kind": "modules",
         "moduleRefs": {
-          "optional": [],
-          "required": [
+          "optional": [
             "stackkits-immich-runtime"
-          ]
+          ],
+          "required": []
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "runtime-paas",
@@ -5034,9 +8879,13 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
+      ],
+      "workloadRefs": [
+        "photos"
       ]
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "ha-basement-warm-standby-failure-domain-proof"
       ],
@@ -5052,6 +8901,7 @@
         "id": "stackkits-ha-basement-warm",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "availability-ha"
       ],
@@ -5064,6 +8914,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -5072,9 +8923,11 @@
       ],
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "ha-basement-quorum-failure-domain-proof"
       ],
@@ -5090,6 +8943,7 @@
         "id": "stackkits-ha-basement-quorum",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "availability-ha"
       ],
@@ -5102,6 +8956,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -5110,9 +8965,11 @@
       ],
       "supportedSiteKinds": [
         "home"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "ha-cloud-warm-standby-failure-domain-proof"
       ],
@@ -5128,6 +8985,7 @@
         "id": "stackkits-ha-cloud-warm",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "availability-ha"
       ],
@@ -5140,6 +8998,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -5148,9 +9007,11 @@
       ],
       "supportedSiteKinds": [
         "cloud"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "ha-cloud-quorum-failure-domain-majority-proof"
       ],
@@ -5166,6 +9027,7 @@
         "id": "stackkits-ha-cloud-quorum",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "availability-ha"
       ],
@@ -5178,6 +9040,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -5186,9 +9049,11 @@
       ],
       "supportedSiteKinds": [
         "cloud"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "ha-modern-warm-standby-partition-isolation-proof"
       ],
@@ -5204,6 +9069,7 @@
         "id": "stackkits-ha-modern-warm",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "availability-ha"
       ],
@@ -5216,6 +9082,7 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
@@ -5225,9 +9092,11 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
-      ]
+      ],
+      "workloadRefs": []
     },
     {
+      "certificateIssuers": [],
       "evidence": [
         "ha-modern-quorum-partition-majority-proof"
       ],
@@ -5243,6 +9112,7 @@
         "id": "stackkits-ha-modern-quorum",
         "version": "1.0.0"
       },
+      "overlayContracts": [],
       "provides": [
         "availability-ha"
       ],
@@ -5255,12 +9125,74 @@
           ]
         }
       },
+      "remoteActionContracts": [],
       "requires": [
         {
           "id": "topology-core",
           "optional": false
         }
       ],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    }
+  ],
+  "workloads": [
+    {
+      "alternatives": [
+        {
+          "id": "immich",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password"
+              ],
+              "requiredRefs": [
+                "database-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-immich-runtime",
+          "providerRef": "stackkits-immich",
+          "route": {
+            "healthRef": "immich-http",
+            "serviceRef": "photos"
+          },
+          "runtime": {
+            "allowedDeliveries": [
+              "selected-paas"
+            ],
+            "allowedKinds": [
+              "container"
+            ]
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "immich",
+      "functionalCapabilities": [
+        "photo-library",
+        "mobile-photo-backup"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Self-hosted photo management selected independently from kit architecture capabilities.",
+        "id": "photos",
+        "version": "1.0.0"
+      },
       "supportedSiteKinds": [
         "home",
         "cloud"

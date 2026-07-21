@@ -20,7 +20,9 @@ const (
 	ErrMissingOutput       ErrorCode = "missing_render_output"
 	ErrOutputChanged       ErrorCode = "render_output_changed"
 	ErrUnsafeOutputRoot    ErrorCode = "unsafe_output_root"
+	ErrOutputBusy          ErrorCode = "output_transaction_busy"
 	ErrOutputTransaction   ErrorCode = "output_transaction_failed"
+	ErrTransactionRecovery ErrorCode = "output_transaction_recovery_required"
 	ErrTransactionCleanup  ErrorCode = "output_transaction_cleanup_failed"
 	ErrTransactionRollback ErrorCode = "output_transaction_rollback_failed"
 )

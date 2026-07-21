@@ -18,7 +18,7 @@ type executionReadinessBlocker struct {
 // implementable by this compiler's renderer. It never turns a support gap into
 // a resolve failure: contract-only plans remain useful for shadow planning,
 // while generators and apply runtimes get a signed fail-closed decision.
-func buildExecutionReadiness(providers, modules, artifacts []any, evidence []string, rendererID, outputRoot string, bridges ...map[string]any) (map[string]any, error) {
+func buildExecutionReadiness(providers, modules, artifacts []any, evidence []string, rendererID, outputRoot string, routeHealth []any, bridges ...map[string]any) (map[string]any, error) {
 	artifactIDs, err := indexReadinessArtifacts(artifacts)
 	if err != nil {
 		return nil, err
@@ -56,6 +56,11 @@ func buildExecutionReadiness(providers, modules, artifacts []any, evidence []str
 		}
 		generationBlockers = append(generationBlockers, bridgeBlockers...)
 	}
+	routeHealthBlockers, err := routeHealthExecutionReadinessBlockers(routeHealth)
+	if err != nil {
+		return nil, err
+	}
+	applyOnlyBlockers = append(applyOnlyBlockers, routeHealthBlockers...)
 
 	generationBlockers = normalizeExecutionReadinessBlockers(generationBlockers)
 	applyBlockers := normalizeExecutionReadinessBlockers(append(append([]executionReadinessBlocker{}, generationBlockers...), applyOnlyBlockers...))
@@ -64,6 +69,38 @@ func buildExecutionReadiness(providers, modules, artifacts []any, evidence []str
 		"generation":      executionReadinessPhase(generationBlockers),
 		"apply":           executionReadinessPhase(applyBlockers),
 	}, nil
+}
+
+func routeHealthExecutionReadinessBlockers(routeHealth []any) ([]executionReadinessBlocker, error) {
+	blockers := make([]executionReadinessBlocker, 0, len(routeHealth)*2)
+	for index, raw := range routeHealth {
+		gate, err := asObject(raw, fmt.Sprintf("gates.health.route[%d]", index))
+		if err != nil {
+			return nil, err
+		}
+		gateID, err := stringField(gate, fmt.Sprintf("gates.health.route[%d]", index), "id")
+		if err != nil {
+			return nil, err
+		}
+		routeRef, err := stringField(gate, "gates.health."+gateID, "routeRef")
+		if err != nil {
+			return nil, err
+		}
+		poolRef, err := stringField(gate, "gates.health."+gateID, "backendPoolRef")
+		if err != nil {
+			return nil, err
+		}
+		execution, err := stringField(gate, "gates.health."+gateID, "execution")
+		if err != nil {
+			return nil, err
+		}
+		refs := []string{"route:" + routeRef, "health:" + gateID, "backend-pool:" + poolRef}
+		blockers = append(blockers, executionReadinessBlocker{code: "route-health-executor-unbound", refs: refs})
+		if execution != "probe" {
+			blockers = append(blockers, executionReadinessBlocker{code: "health-gate-not-executable", refs: refs})
+		}
+	}
+	return blockers, nil
 }
 
 func bridgeExecutionReadinessBlockers(bridge map[string]any) ([]executionReadinessBlocker, error) {
@@ -141,6 +178,10 @@ func providerExecutionReadiness(raw any, index int, artifactIDs map[string]readi
 	case "none":
 		return []executionReadinessBlocker{{code: "provider-realization-none", refs: []string{ref}}}, nil, nil
 	case "modules":
+		return nil, nil, nil
+	case "contract":
+		return nil, nil, nil
+	case "topology":
 		return nil, nil, nil
 	case "host", "external":
 	default:
@@ -295,12 +336,14 @@ func indexReadinessArtifacts(artifacts []any) (map[string]readinessArtifact, err
 }
 
 type readinessModule struct {
-	id      string
-	ref     string
-	level   string
-	scope   string
-	support map[string]any
-	units   []readinessRenderUnit
+	id                      string
+	ref                     string
+	level                   string
+	scope                   string
+	support                 map[string]any
+	enforcementRequirement  map[string]any
+	runtimeOwnerRequirement map[string]any
+	units                   []readinessRenderUnit
 }
 
 // moduleArtifactOwnershipBlockers is the Go-side parity check for the CUE
@@ -454,6 +497,14 @@ func readReadinessModule(raw any, index int) (readinessModule, error) {
 		return result, err
 	}
 	result.level, err = stringField(result.support, "modules."+result.id+".realizationSupport", "level")
+	if err != nil {
+		return result, err
+	}
+	result.enforcementRequirement, _, err = optionalObjectField(module, "modules."+result.id, "enforcementRequirement")
+	if err != nil {
+		return result, err
+	}
+	result.runtimeOwnerRequirement, _, err = optionalObjectField(module, "modules."+result.id, "runtimeOwnerRequirement")
 	if err != nil {
 		return result, err
 	}
@@ -872,7 +923,7 @@ func readinessUnitOutputKey(unitRef, outputRef string) string {
 }
 
 func moduleApplyBlockers(module readinessModule, evidenceRefs map[string]struct{}) ([]executionReadinessBlocker, error) {
-	return realizationApplyBlockers(
+	blockers, err := realizationApplyBlockers(
 		module.level,
 		module.ref,
 		module.support,
@@ -880,6 +931,108 @@ func moduleApplyBlockers(module readinessModule, evidenceRefs map[string]struct{
 		"module-apply-support-missing",
 		evidenceRefs,
 	)
+	if err != nil {
+		return blockers, err
+	}
+	if module.enforcementRequirement != nil {
+		policyBlocker, err := unboundOwnerBlocker(module, module.enforcementRequirement, "enforcementRequirement", "policy-enforcement-owner-unbound", "enforcement:")
+		if err != nil {
+			return nil, err
+		}
+		blockers = append(blockers, policyBlocker)
+	}
+	if module.runtimeOwnerRequirement != nil {
+		runtimeBlocker, err := unboundOwnerBlocker(module, module.runtimeOwnerRequirement, "runtimeOwnerRequirement", "runtime-owner-unbound", "runtime-owner:")
+		if err != nil {
+			return nil, err
+		}
+		blockers = append(blockers, runtimeBlocker)
+	}
+	homeAccessBlockers, err := missingHomeAccessBindingBlockers(module)
+	if err != nil {
+		return nil, err
+	}
+	blockers = append(blockers, homeAccessBlockers...)
+	return blockers, nil
+}
+
+func missingHomeAccessBindingBlockers(module readinessModule) ([]executionReadinessBlocker, error) {
+	var blockers []executionReadinessBlocker
+	for _, unit := range module.units {
+		requirementsRaw, requiresHomeAccess := unit.planInputs["homeAccessRequirements"]
+		if !requiresHomeAccess {
+			continue
+		}
+		bindingsRaw, hasBindingProjection := unit.planInputs["externalHomeAccessBindings"]
+		if !hasBindingProjection {
+			return nil, fail(ErrContractConflict, "modules."+module.id+".renderUnits."+unit.id+".planInputs", "Home access requirement is missing its external binding projection")
+		}
+		requirements, err := asObject(requirementsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.homeAccessRequirements")
+		if err != nil {
+			return nil, err
+		}
+		bindings, err := asObject(bindingsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.externalHomeAccessBindings")
+		if err != nil {
+			return nil, err
+		}
+		for _, siteRef := range sortedStringMapKeys(requirements) {
+			capabilityRequirements, err := asObject(requirements[siteRef], "homeAccessRequirements."+siteRef)
+			if err != nil {
+				return nil, err
+			}
+			capabilityBindings, _ := bindings[siteRef].(map[string]any)
+			for _, capabilityRef := range sortedStringMapKeys(capabilityRequirements) {
+				if _, bound := capabilityBindings[capabilityRef]; bound {
+					continue
+				}
+				requirement, err := asObject(capabilityRequirements[capabilityRef], "homeAccessRequirements."+siteRef+"."+capabilityRef)
+				if err != nil {
+					return nil, err
+				}
+				requirementsHash, err := stringField(requirement, "homeAccessRequirements."+siteRef+"."+capabilityRef, "requirementsHash")
+				if err != nil {
+					return nil, err
+				}
+				blockers = append(blockers, executionReadinessBlocker{
+					code: "external-home-access-binding-missing",
+					refs: []string{module.ref, "site:" + siteRef, "capability:" + capabilityRef, "home-access-requirement:" + requirementsHash},
+				})
+			}
+		}
+	}
+	return blockers, nil
+}
+
+func unboundOwnerBlocker(module readinessModule, requirement map[string]any, field, code, ownerPrefix string) (executionReadinessBlocker, error) {
+	path := "modules." + module.id + "." + field
+	status, err := stringField(requirement, path, "status")
+	if err != nil {
+		return executionReadinessBlocker{}, err
+	}
+	ownerRef, err := stringField(requirement, path, "ownerRef")
+	if err != nil {
+		return executionReadinessBlocker{}, err
+	}
+	healthRef, err := stringField(requirement, path, "requiredHealthRef")
+	if err != nil {
+		return executionReadinessBlocker{}, err
+	}
+	evidenceRef, err := stringField(requirement, path, "requiredEvidenceRef")
+	if err != nil {
+		return executionReadinessBlocker{}, err
+	}
+	if status != "unbound" {
+		return executionReadinessBlocker{}, fail(ErrContractConflict, path+".status", "unsupported owner requirement status %q", status)
+	}
+	return executionReadinessBlocker{
+		code: code,
+		refs: []string{
+			module.ref,
+			ownerPrefix + ownerRef,
+			"health:" + healthRef,
+			"evidence:" + evidenceRef,
+		},
+	}, nil
 }
 
 func realizationApplyBlockers(level, ref string, support map[string]any, supportPath, missingSupportCode string, evidenceRefs map[string]struct{}) ([]executionReadinessBlocker, error) {

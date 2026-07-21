@@ -1,17 +1,16 @@
-# StackKits Agent Monitoring Notes
+# StackKits Architecture v2 Agent Monitoring Notes
 
-StackKits v1 does not expose a separate permanent MCP monitoring server.
-The durable day-2 surface is the same user-facing `stackkit` MCP connection backed by `stackkit-server /mcp`, not a second monitoring-specific connector.
+StackKits does not expose a separate permanent MCP monitoring server. The durable day-2 surface is the single `stackkit` MCP connection backed by `stackkit-server /mcp`.
 
-Use the node-local `stackkit-server` read-only API surface for agent-visible rollout state:
+On native v0.7, `GET /api/v1/status` is intentionally spec-only: it proves canonical desired intent and reports `resolve-required`, not deployment readiness. Legacy node-local HTTP Verify, Doctor, and Plan handlers are unavailable until they are rebuilt on exact ResolvedPlan and execution-evidence inputs.
 
-- `GET /api/v1/status`
-- `POST /api/v1/verify`
-- `POST /api/v1/doctor`
-- `POST /api/v1/plan`
-- `GET /api/v1/logs`
-- `GET /api/v1/runs/{runID}/evidence`
+Operational monitoring must be derived from the exact persisted Architecture v2 chain:
 
-BaseKit may deploy Uptime Kuma and generated service URLs, but autonomous release evidence should still include `stackkit verify --http --json` and `.stackkit/runs/<runID>/` evidence.
+- canonical StackSpec hash;
+- observed Inventory hash;
+- ResolvedPlan hash;
+- generation manifest and authorization;
+- executor receipt and runtime evidence;
+- `stackkit verify --json` output bound to that chain.
 
-If remote monitoring later needs agent access, extend the protected `stackkit-server /mcp` day-2 endpoint with read-only monitoring tools after the local MCP and management API are proven.
+BaseKit may deploy Uptime Kuma and generated service URLs, but those observations do not replace the governed artifact and receipt chain. Extend the protected day-2 MCP surface only with read-only tools that consume those authorities; do not reconstruct state from legacy rollout files.

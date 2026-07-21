@@ -759,11 +759,11 @@ func ensureKombifyMeRegistration(loader *config.Loader, spec *models.StackSpec, 
 		spec.AdminEmail = models.SyntheticAdminEmail(spec.Domain, spec.SubdomainPrefix)
 	}
 
-	if saveErr := loader.SaveStackSpec(spec, specFile); saveErr != nil {
-		printWarning("Could not persist assigned kombify.me subdomainPrefix: %v", saveErr)
+	if saveErr := persistLegacyV06StackSpec(loader, spec, specFile, "generate kombify.me registration"); saveErr != nil {
 		deployLog.Warn("kombifyme.persist_prefix",
 			slog.String("error", saveErr.Error()),
 		)
+		return fmt.Errorf("persist assigned kombify.me registration binding: %w", saveErr)
 	}
 	deployLog.Event("kombifyme.registration",
 		slog.String("prefix", spec.SubdomainPrefix),

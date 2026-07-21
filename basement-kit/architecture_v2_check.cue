@@ -5,15 +5,17 @@ _assertHomeOnly:              "home" & Definition.topology.allowedSiteKinds[0]
 _assertLocalAuthority:        "home" & Definition.topology.controlPlane.allowedAuthorityKinds[0]
 _assertBridgeOptional:        false & Definition.bridge.required
 _assertLANStepDown:           true & Definition.reachability.accessPolicies.lanStepDownAllowed
-_assertRemoteRouteCapability: "private-remote-access" & Definition.reachability.routes["remote-private"].requiredCapabilities[0]
-_assertPublicRouteCapability: "public-publish-egress" & Definition.reachability.routes.public.requiredCapabilities[0]
-_assertPhotosOptional: [for capability in Definition.capabilities.optional if capability == "photos" {capability}] & ["photos"]
+_assertRemoteRouteCapability: "private-remote-access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].capabilityRef
+_assertRemoteRouteRole:       "access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].role
+_assertPublicRouteCapability: "public-publish-egress" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
+_assertPublicRouteRole:       "egress" & Definition.reachability.routes.public.requiredRealizations[0].role
+_assertPhotosOptional: [for workload in Definition.workloads.optional if workload == "photos" {workload}] & ["photos"]
 _assertReachabilityMatrix: Definition.reachability & {
 	accessPolicies: {allowedExposures: ["private", "lan", "public"], lanStepDownAllowed: true}
 	routes: {
-		local: {allowed: true, requiredCapabilities: [], allowedOriginKinds: ["home"]}
-		"remote-private": {allowed: true, requiredCapabilities: ["private-remote-access"], allowedOriginKinds: ["home"]}
-		public: {allowed: true, requiredCapabilities: ["public-publish-egress"], allowedOriginKinds: ["home"]}
+		local: {allowed: true, requiredRealizations: [], allowedOriginKinds: ["home"]}
+		"remote-private": {allowed: true, requiredRealizations: [{capabilityRef: "private-remote-access", role: "access"}], allowedOriginKinds: ["home"]}
+		public: {allowed: true, requiredRealizations: [{capabilityRef: "public-publish-egress", role: "egress"}], allowedOriginKinds: ["home"]}
 	}
 }
 
@@ -33,13 +35,22 @@ _validBasementV2: #BasementKitStackV2 & {
 			tls: {defaultMode: "internal"}
 		}
 		sites: [{id: "home", kind: "home", failureDomain: "house-a"}]
-		nodes: [{
-			id:      "main"
-			siteRef: "home"
-			roles: ["controller", "worker"]
-			hardware: {}
-			failureDomain: "host-main"
-		}]
+		nodes: [
+			{
+				id:      "main"
+				siteRef: "home"
+				roles: ["controller", "worker"]
+				hardware: {}
+				failureDomain: "host-main"
+			},
+			{
+				id:      "worker"
+				siteRef: "home"
+				roles: ["worker", "storage"]
+				hardware: {}
+				failureDomain: "host-worker"
+			},
+		]
 		controlPlane: {authoritySiteRef: "home", members: ["main"]}
 		capabilities: enable: ["private-remote-access", "public-publish-egress"]
 		access: {

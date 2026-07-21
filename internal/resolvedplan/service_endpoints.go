@@ -15,15 +15,18 @@ type resolvedServiceEndpoint struct {
 	serviceRef              string
 	upstreamProtocol        string
 	targetPort              int
+	requiredPrivilege       string
 	allowedIngressProtocols []string
 	allowedExposures        []string
 	originSelector          string
 	healthRef               string
+	healthContract          map[string]any
 	data                    *serviceEndpointDataRequirement
 	siteRefs                []string
 	nodeRefs                []string
 	instanceRefs            []string
 	instanceSites           map[string]string
+	instanceNodes           map[string]string
 }
 
 type serviceEndpointDataRequirement struct {
@@ -74,6 +77,7 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 			}
 			instanceRefs := make([]string, 0, len(instances))
 			instanceSites := make(map[string]string, len(instances))
+			instanceNodes := make(map[string]string, len(instances))
 			for instanceIndex, instance := range instances {
 				instancePath := fmt.Sprintf("%s.instances[%d]", unitPath, instanceIndex)
 				instanceRef, err := stringField(instance, instancePath, "id")
@@ -87,6 +91,13 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 				}
 				if hasInstanceSite {
 					instanceSites[instanceRef] = instanceSiteRef
+				}
+				instanceNodeRef, hasInstanceNode, err := optionalStringField(instance, instancePath, "nodeRef")
+				if err != nil {
+					return nil, err
+				}
+				if hasInstanceNode {
+					instanceNodes[instanceRef] = instanceNodeRef
 				}
 			}
 			endpoints, err := objectListOptional(unit, "serviceEndpoints")
@@ -109,6 +120,13 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 				targetPort, err := intField(endpoint, endpointPath, "targetPort")
 				if err != nil {
 					return nil, err
+				}
+				requiredPrivilege, hasRequiredPrivilege, err := optionalStringField(endpoint, endpointPath, "requiredPrivilege")
+				if err != nil {
+					return nil, err
+				}
+				if !hasRequiredPrivilege {
+					requiredPrivilege = "user"
 				}
 				allowedExposures, err := stringListField(endpoint, endpointPath, "allowedExposures", true)
 				if err != nil {
@@ -138,15 +156,140 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 				}
 				result[moduleID][serviceRef] = resolvedServiceEndpoint{
 					moduleRef: moduleID, unitRef: unitID, serviceRef: serviceRef,
-					upstreamProtocol: upstreamProtocol, targetPort: targetPort,
+					upstreamProtocol: upstreamProtocol, targetPort: targetPort, requiredPrivilege: requiredPrivilege,
 					allowedIngressProtocols: sortStringsUnique(allowedIngressProtocols), allowedExposures: sortStringsUnique(allowedExposures),
 					originSelector: originSelector, healthRef: healthRef, data: dataRequirement,
-					siteRefs: sortStringsUnique(siteRefs), nodeRefs: sortStringsUnique(nodeRefs), instanceRefs: sortStringsUnique(instanceRefs), instanceSites: instanceSites,
+					siteRefs: sortStringsUnique(siteRefs), nodeRefs: sortStringsUnique(nodeRefs), instanceRefs: sortStringsUnique(instanceRefs), instanceSites: instanceSites, instanceNodes: instanceNodes,
 				}
 			}
 		}
 	}
 	return result, nil
+}
+
+func bindServiceEndpointHealthContracts(index resolvedServiceEndpointIndex, catalogModules map[string]map[string]any) error {
+	for moduleID, endpoints := range index {
+		module, exists := catalogModules[moduleID]
+		if !exists {
+			return fail(ErrContractConflict, "modules."+moduleID, "module is missing from the bound catalog")
+		}
+		healthContracts, err := objectListOptional(module, "health")
+		if err != nil {
+			return err
+		}
+		healthByID := make(map[string]map[string]any, len(healthContracts))
+		for healthIndex, healthContract := range healthContracts {
+			healthPath := fmt.Sprintf("modules.%s.health[%d]", moduleID, healthIndex)
+			healthID, err := stringField(healthContract, healthPath, "id")
+			if err != nil {
+				return err
+			}
+			if _, duplicate := healthByID[healthID]; duplicate {
+				return fail(ErrContractConflict, healthPath+".id", "health contract %q is duplicated", healthID)
+			}
+			healthByID[healthID] = healthContract
+		}
+		for serviceRef, endpoint := range endpoints {
+			healthContract, exists := healthByID[endpoint.healthRef]
+			if !exists {
+				return fail(ErrContractConflict, "modules."+moduleID+".serviceEndpoints."+serviceRef+".healthRef", "health contract %q is not declared by module %q", endpoint.healthRef, moduleID)
+			}
+			endpoint.healthContract = healthContract
+			endpoints[serviceRef] = endpoint
+		}
+	}
+	return nil
+}
+
+func buildRouteHealthGate(routeID string, backendPool map[string]any, endpoint resolvedServiceEndpoint) (map[string]any, error) {
+	if endpoint.healthContract == nil {
+		return nil, fail(ErrContractConflict, "spec.routes."+routeID+".healthGateRef", "source module health contract is unavailable")
+	}
+	healthPath := "modules." + endpoint.moduleRef + ".health." + endpoint.healthRef
+	kind, err := stringField(endpoint.healthContract, healthPath, "kind")
+	if err != nil {
+		return nil, err
+	}
+	timeoutSeconds, err := intField(endpoint.healthContract, healthPath, "timeoutSeconds")
+	if err != nil {
+		return nil, err
+	}
+	poolID, err := stringField(backendPool, "route backend pool", "id")
+	if err != nil {
+		return nil, err
+	}
+	gate := map[string]any{
+		"phase": "post-apply", "kind": "contract", "execution": "contract-only",
+		"protocol": endpoint.upstreamProtocol, "port": endpoint.targetPort,
+		"timeoutSeconds": timeoutSeconds, "targetKind": "route", "targetRef": routeID,
+		"routeRef": routeID, "backendPoolRef": poolID, "siteRefs": stringSliceAny(endpoint.siteRefs),
+		"nodeRefs": stringSliceAny(endpoint.nodeRefs), "sourceHealthGateRef": contractID("module-" + endpoint.moduleRef + "-" + endpoint.healthRef),
+		"scope": "each-backend-member", "required": true,
+	}
+	switch endpoint.upstreamProtocol {
+	case "http", "https":
+		if kind == "http" {
+			contractPort, err := intField(endpoint.healthContract, healthPath, "port")
+			if err != nil {
+				return nil, err
+			}
+			if contractPort != endpoint.targetPort {
+				return nil, fail(ErrContractConflict, healthPath+".port", "health port %d does not match service target port %d", contractPort, endpoint.targetPort)
+			}
+			path, err := stringField(endpoint.healthContract, healthPath, "path")
+			if err != nil {
+				return nil, err
+			}
+			expectedStatuses, exists := endpoint.healthContract["expectedStatuses"]
+			if !exists {
+				return nil, fail(ErrContractConflict, healthPath+".expectedStatuses", "http route health contract has no expected statuses")
+			}
+			gate["kind"], gate["execution"] = "http", "probe"
+			gate["method"], gate["followRedirects"] = "GET", false
+			gate["path"], gate["expectedStatuses"] = path, expectedStatuses
+		}
+	case "tcp":
+		if kind == "tcp" {
+			contractPort, err := intField(endpoint.healthContract, healthPath, "port")
+			if err != nil {
+				return nil, err
+			}
+			if contractPort != endpoint.targetPort {
+				return nil, fail(ErrContractConflict, healthPath+".port", "health port %d does not match service target port %d", contractPort, endpoint.targetPort)
+			}
+			gate["kind"], gate["execution"] = "tcp", "probe"
+		}
+	}
+	contractHash, err := canonicalHash(gate, true)
+	if err != nil {
+		return nil, fmt.Errorf("hash route health gate %s: %w", routeID, err)
+	}
+	gate["contractHash"] = contractHash
+	gate["id"] = contractID(routeID + "-health-" + contractHash[len("sha256:"):len("sha256:")+12])
+	return gate, nil
+}
+
+func buildRouteBackendPool(routeID string, endpoint resolvedServiceEndpoint) (map[string]any, error) {
+	members := make([]any, 0, len(endpoint.instanceRefs))
+	for _, instanceRef := range endpoint.instanceRefs {
+		siteRef := endpoint.instanceSites[instanceRef]
+		nodeRef := endpoint.instanceNodes[instanceRef]
+		if siteRef == "" || nodeRef == "" || !contains(endpoint.siteRefs, siteRef) || !contains(endpoint.nodeRefs, nodeRef) {
+			return nil, fail(ErrUnresolvedPlacement, "spec.routes."+routeID, "service %q instance %q has no exact selected site and node", endpoint.serviceRef, instanceRef)
+		}
+		members = append(members, map[string]any{"siteRef": siteRef, "nodeRef": nodeRef, "instanceRef": instanceRef})
+	}
+	pool := map[string]any{
+		"routeRef": routeID, "serviceRef": endpoint.serviceRef, "moduleRef": endpoint.moduleRef, "unitRef": endpoint.unitRef,
+		"originSelector": endpoint.originSelector, "upstreamProtocol": endpoint.upstreamProtocol, "targetPort": endpoint.targetPort,
+		"members": members,
+	}
+	hash, err := canonicalHash(pool, false)
+	if err != nil {
+		return nil, fmt.Errorf("hash route backend pool %s: %w", routeID, err)
+	}
+	pool["id"] = contractID(routeID + "-pool-" + hash[len("sha256:"):len("sha256:")+12])
+	return pool, nil
 }
 
 func parseServiceEndpointDataRequirement(endpoint map[string]any, endpointPath string) (*serviceEndpointDataRequirement, error) {
@@ -235,6 +378,18 @@ func validateRouteEndpointContract(endpoint resolvedServiceEndpoint, spec *specV
 	return nil
 }
 
+func validateServiceEndpointAccess(endpoint resolvedServiceEndpoint, access map[string]any, path string) error {
+	privilege, err := stringField(access, path, "privilege")
+	if err != nil {
+		return err
+	}
+	if privilege != endpoint.requiredPrivilege {
+		return fail(ErrProfileMismatch, path+".privilege", "service endpoint %q requires privilege %q, got %q", endpoint.serviceRef, endpoint.requiredPrivilege, privilege)
+	}
+	return nil
+}
+
+//nolint:gocyclo // Authority rebound validation checks the complete route, exact pool, placement, and data contract atomically.
 func validateResolvedRouteEndpoint(route map[string]any, routePath string, endpoint resolvedServiceEndpoint, planData map[string]any) error {
 	protocol, err := stringField(route, routePath, "protocol")
 	if err != nil {
@@ -255,12 +410,16 @@ func validateResolvedRouteEndpoint(route map[string]any, routePath string, endpo
 	if upstreamProtocol != endpoint.upstreamProtocol || !contains(endpoint.allowedIngressProtocols, protocol) || targetPort != endpoint.targetPort || !contains(endpoint.allowedExposures, exposure) {
 		return fmt.Errorf("%s is not the exact catalog-owned service endpoint protocol, target port, and exposure projection", routePath)
 	}
-	healthGateRef, err := stringField(route, routePath, "healthGateRef")
+	access, err := objectField(route, routePath, "access")
 	if err != nil {
 		return err
 	}
-	if healthGateRef != contractID("module-"+endpoint.moduleRef+"-"+endpoint.healthRef) {
-		return fmt.Errorf("%s.healthGateRef is not the exact catalog-owned service health projection", routePath)
+	if err := validateServiceEndpointAccess(endpoint, access, routePath+".access"); err != nil {
+		return err
+	}
+	healthGateRef, err := stringField(route, routePath, "healthGateRef")
+	if err != nil {
+		return err
 	}
 	originSiteRef, err := stringField(route, routePath, "originSiteRef")
 	if err != nil {
@@ -275,6 +434,28 @@ func validateResolvedRouteEndpoint(route map[string]any, routePath string, endpo
 	}
 	if !reflect.DeepEqual(originNodeRefs, endpoint.nodeRefs) {
 		return fmt.Errorf("%s.originNodeRefs is not the exact service endpoint node projection", routePath)
+	}
+	backendPoolRef, err := stringField(route, routePath, "backendPoolRef")
+	if err != nil {
+		return err
+	}
+	routeID, err := stringField(route, routePath, "id")
+	if err != nil {
+		return err
+	}
+	wantPool, err := buildRouteBackendPool(routeID, endpoint)
+	if err != nil {
+		return err
+	}
+	if backendPoolRef != wantPool["id"] {
+		return fmt.Errorf("%s.backendPoolRef is not the exact service endpoint backend pool projection", routePath)
+	}
+	wantHealthGate, err := buildRouteHealthGate(routeID, wantPool, endpoint)
+	if err != nil {
+		return err
+	}
+	if healthGateRef != wantHealthGate["id"] {
+		return fmt.Errorf("%s.healthGateRef is not the exact route and backend-pool health projection", routePath)
 	}
 	if endpoint.data != nil {
 		if err := validateServiceEndpointData(endpoint, planData, "resolvedPlan.data", routePath); err != nil {

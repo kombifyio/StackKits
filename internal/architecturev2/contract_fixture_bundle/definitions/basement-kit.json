@@ -105,13 +105,12 @@
       "inter-site-link"
     ],
     "optional": [
-      "basement-compose-runtime",
+      "lan-discovery",
       "lan-dns",
       "internal-pki",
       "private-remote-access",
       "public-publish-egress",
       "encrypted-offsite-backup",
-      "photos",
       "availability-ha"
     ],
     "required": [
@@ -130,9 +129,8 @@
       "backup-core",
       "observability-evidence",
       "lifecycle-update",
+      "basement-compose-runtime",
       "site-local",
-      "local-hardware-preflight",
-      "lan-discovery",
       "local-ingress",
       "lan-access-policy",
       "device-enrollment-home",
@@ -463,7 +461,7 @@
   },
   "network": {
     "defaultDomain": "home.localhost",
-    "defaultTLSMode": "internal",
+    "defaultTLSMode": "off",
     "domainRequired": false,
     "mode": "private"
   },
@@ -490,15 +488,18 @@
         "allowedOriginKinds": [
           "home"
         ],
-        "requiredCapabilities": []
+        "requiredRealizations": []
       },
       "public": {
         "allowed": true,
         "allowedOriginKinds": [
           "home"
         ],
-        "requiredCapabilities": [
-          "public-publish-egress"
+        "requiredRealizations": [
+          {
+            "capabilityRef": "public-publish-egress",
+            "role": "egress"
+          }
         ]
       },
       "remote-private": {
@@ -506,8 +507,11 @@
         "allowedOriginKinds": [
           "home"
         ],
-        "requiredCapabilities": [
-          "private-remote-access"
+        "requiredRealizations": [
+          {
+            "capabilityRef": "private-remote-access",
+            "role": "access"
+          }
         ]
       }
     }
@@ -534,5 +538,11 @@
     "requiredSiteKinds": [
       "home"
     ]
+  },
+  "workloads": {
+    "defaults": [],
+    "forbidden": [],
+    "optional": [],
+    "required": []
   }
 }

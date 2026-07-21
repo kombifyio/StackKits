@@ -22,6 +22,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/runtimeaction"
 	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
+	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -174,6 +175,14 @@ func (s *Server) requireRuntimeActionServiceAuth(next http.Handler) http.Handler
 }
 
 func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, expectedAction runtimeaction.Action) {
+	if stackspecadmission.RejectOperationalV1(s.config.Version) && isRetiredV1RuntimeAction(expectedAction) {
+		writeStructuredError(w, r, http.StatusGone, skerrors.NewValidationError(
+			"legacy_runtime_action_retired",
+			"runtime-action v1 deployment and backup execution are retired on the native Architecture v2 line",
+			skerrors.WithSuggestion("Use governed /api/v2 rollout or verify actions; backup execution requires a future native v2 contract"),
+		))
+		return
+	}
 	var req runtimeActionRequest
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err := decoder.Decode(&req); err != nil {
@@ -217,6 +226,17 @@ func (s *Server) handleRuntimeAction(w http.ResponseWriter, r *http.Request, exp
 		return
 	}
 	writeSuccess(w, r, http.StatusOK, resp)
+}
+
+func isRetiredV1RuntimeAction(action runtimeaction.Action) bool {
+	switch action {
+	case runtimeActionRollout, runtimeActionVerify, runtimeActionRestore,
+		runtimeaction.ActionBackupRun, runtimeaction.ActionBackupStatus,
+		runtimeaction.ActionBackupRestore, runtimeaction.ActionBackupWipe:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) executeRuntimeAction(ctx context.Context, req runtimeActionRequest) (resp runtimeActionResponse, status int, stackErr *skerrors.StackKitError) {

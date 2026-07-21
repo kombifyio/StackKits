@@ -24,9 +24,10 @@ type CompilerContract struct {
 	RendererVersion         string
 }
 
-// StackKitsV06Contract is the governed v0.6 Architecture v2 renderer contract.
-// Calling it is an explicit version choice by CLI/API integration code.
-func StackKitsV06Contract(buildVersion string) CompilerContract {
+// StackKitsV2Contract is the governed Architecture v2 renderer contract.
+// The minimum versions preserve the first supported v2 release line while
+// buildVersion binds each resolution to the exact producing build.
+func StackKitsV2Contract(buildVersion string) CompilerContract {
 	return CompilerContract{
 		CompilerVersion:         "stackkits-resolver/" + buildVersion,
 		MinimumCLIVersion:       "0.6.0",
@@ -35,6 +36,14 @@ func StackKitsV06Contract(buildVersion string) CompilerContract {
 		RendererID:              "stackkit",
 		RendererVersion:         buildVersion,
 	}
+}
+
+// StackKitsV06Contract is retained as a source-compatible transition alias.
+// New product integrations must use StackKitsV2Contract.
+//
+// Deprecated: use StackKitsV2Contract.
+func StackKitsV06Contract(buildVersion string) CompilerContract {
+	return StackKitsV2Contract(buildVersion)
 }
 
 // ContractFixtureV1Contract returns the only compiler/renderer namespace that
@@ -54,10 +63,27 @@ func ContractFixtureV1Contract(buildVersion string) CompilerContract {
 // Service owns one immutable CUE authority snapshot and one deterministic
 // compiler. It is safe for concurrent CLI/API resolution.
 type Service struct {
-	authority  *cueAuthority
-	compiler   *resolvedplan.Compiler
-	validator  *resolvedplan.CUEContractValidator
-	generation *generationCoordinator
+	authority         *cueAuthority
+	compiler          *resolvedplan.Compiler
+	validator         *resolvedplan.CUEContractValidator
+	generation        *generationCoordinator
+	productApplyTrust []productApplyTrustAnchor
+}
+
+// NewProductEmbeddedService creates the product authority used by native CLI
+// execution. Its public evidence anchors come only from the fixed OS-level
+// StackKit trust store; request callers cannot supply or override them.
+func NewProductEmbeddedService(contract CompilerContract) (*Service, error) {
+	trust, err := loadDefaultProductApplyTrust()
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "load product Apply producer trust", err)
+	}
+	service, err := NewEmbeddedService(contract)
+	if err != nil {
+		return nil, err
+	}
+	service.productApplyTrust = trust
+	return service, nil
 }
 
 // NewService is the compatibility name for an explicit filesystem authority.
@@ -249,6 +275,64 @@ type Result struct {
 	Plan          resolvedplan.ResolvedPlan
 	CanonicalPlan []byte
 	PlanHash      string
+}
+
+// StackSpecValidation is spec-only governed evidence. It deliberately makes
+// no inventory-specific ResolvedPlan or execution-readiness claim.
+type StackSpecValidation struct {
+	KitProfile         stackspecmigration.KitProfile
+	CanonicalStackSpec []byte
+	SpecHash           string
+}
+
+// ValidateStackSpec validates canonical desired intent against its selected
+// Kit Definition without substituting an empty Inventory.
+func (s *Service) ValidateStackSpec(raw []byte) (StackSpecValidation, error) {
+	if s == nil || s.authority == nil || s.validator == nil {
+		return StackSpecValidation{}, resolveError(ErrResolveFailed, "service is not initialized", nil)
+	}
+	document, err := stackspecmigration.Read(raw)
+	if err != nil {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
+	}
+	if document.Version == stackspecmigration.SourceVersionV1 {
+		_, report, migrationErr := stackspecmigration.MigrateDocument(document, stackspecmigration.Options{})
+		code := ErrMigrationRequired
+		message := "StackSpec v1 must be explicitly migrated and completed as CUE-valid v2 intent before validation"
+		if migrationErr != nil {
+			code = ErrMigrationBlocked
+			message = migrationErr.Error()
+		}
+		return StackSpecValidation{}, &ResolveError{Code: code, Message: message, Report: &report, Cause: migrationErr}
+	}
+	if document.Version != stackspecmigration.SourceVersionV2Alpha1 || document.V2 == nil {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, "StackSpec reader returned no canonical v2 identity", nil)
+	}
+	specDocument, err := decodeYAMLObject(document.Raw, "StackSpec")
+	if err != nil {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
+	}
+	definition, exists := s.authority.definitions[document.V2.KitProfile]
+	if !exists {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, fmt.Sprintf("no governed Definition exists for %q", document.V2.KitProfile), nil)
+	}
+	normalized, err := s.validator.NormalizeStackSpecBinding(definition, resolvedplan.StackSpecV2(specDocument))
+	if err != nil {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
+	}
+	canonical, err := resolvedplan.CanonicalJSON(normalized)
+	if err != nil {
+		return StackSpecValidation{}, resolveError(ErrResolveFailed, "marshal canonical StackSpec: "+err.Error(), err)
+	}
+	hash, err := resolvedplan.CanonicalSHA256(normalized)
+	if err != nil {
+		return StackSpecValidation{}, resolveError(ErrResolveFailed, "hash canonical StackSpec: "+err.Error(), err)
+	}
+	return StackSpecValidation{
+		KitProfile:         document.V2.KitProfile,
+		CanonicalStackSpec: canonical,
+		SpecHash:           hash,
+	}, nil
 }
 
 // Resolve accepts canonical v2 only. v1 is classified through the shared

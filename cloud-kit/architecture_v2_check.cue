@@ -5,15 +5,17 @@ _assertCloudOnly:             "cloud" & Definition.topology.allowedSiteKinds[0]
 _assertCloudAuthority:        "cloud" & Definition.topology.controlPlane.allowedAuthorityKinds[0]
 _assertRoutesClosed:          true & Definition.accessDefaults.publicRoutesDefaultClosed
 _assertLANStepDownDenied:     false & Definition.reachability.accessPolicies.lanStepDownAllowed
-_assertRemoteRouteCapability: "private-admin-mesh" & Definition.reachability.routes["remote-private"].requiredCapabilities[0]
-_assertPublicRouteCapability: "public-edge" & Definition.reachability.routes.public.requiredCapabilities[0]
-_assertPhotosOptional: [for capability in Definition.capabilities.optional if capability == "photos" {capability}] & ["photos"]
+_assertRemoteRouteCapability: "private-admin-mesh" & Definition.reachability.routes["remote-private"].requiredRealizations[0].capabilityRef
+_assertRemoteRouteRole:       "access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].role
+_assertPublicRouteCapability: "public-edge" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
+_assertPublicRouteRole:       "edge" & Definition.reachability.routes.public.requiredRealizations[0].role
+_assertPhotosOptional: [for workload in Definition.workloads.optional if workload == "photos" {workload}] & ["photos"]
 _assertReachabilityMatrix: Definition.reachability & {
 	accessPolicies: {allowedExposures: ["private", "public"], lanStepDownAllowed: false}
 	routes: {
-		local: {allowed: true, requiredCapabilities: [], allowedOriginKinds: ["cloud"]}
-		"remote-private": {allowed: true, requiredCapabilities: ["private-admin-mesh"], allowedOriginKinds: ["cloud"]}
-		public: {allowed: true, requiredCapabilities: ["public-edge"], allowedOriginKinds: ["cloud"]}
+		local: {allowed: true, requiredRealizations: [], allowedOriginKinds: ["cloud"]}
+		"remote-private": {allowed: true, requiredRealizations: [{capabilityRef: "private-admin-mesh", role: "access"}], allowedOriginKinds: ["cloud"]}
+		public: {allowed: true, requiredRealizations: [{capabilityRef: "public-edge", role: "edge"}], allowedOriginKinds: ["cloud"]}
 	}
 }
 
@@ -33,13 +35,22 @@ _validCloudV2: #CloudKitStackV2 & {
 			tls: {defaultMode: "public"}
 		}
 		sites: [{id: "cloud-eu", kind: "cloud", failureDomain: "eu-central-1a"}]
-		nodes: [{
-			id:      "main"
-			siteRef: "cloud-eu"
-			roles: ["controller", "worker", "edge"]
-			hardware: {}
-			failureDomain: "vps-a"
-		}]
+		nodes: [
+			{
+				id:      "main"
+				siteRef: "cloud-eu"
+				roles: ["controller", "worker", "edge"]
+				hardware: {}
+				failureDomain: "vps-a"
+			},
+			{
+				id:      "worker"
+				siteRef: "cloud-eu"
+				roles: ["worker"]
+				hardware: {}
+				failureDomain: "vps-b"
+			},
+		]
 		controlPlane: {authoritySiteRef: "cloud-eu", members: ["main"]}
 		capabilities: enable: ["private-admin-mesh"]
 		access: {

@@ -477,7 +477,7 @@
     <header>
       <div>
         <h1>StackKits Onboarding</h1>
-        <p class="sub">Native local connector flow for contact, StackKit, core settings, domain, rollout, and evidence.</p>
+        <p class="sub">Native Architecture v2 authoring from CUE, Inventory-bound resolution, governed generation, and evidence.</p>
       </div>
       <div class="mode" aria-live="polite">
         <span id="writeDot" class="dot"></span>
@@ -486,21 +486,17 @@
     </header>
 
     <nav class="steps" aria-label="Onboarding progress">
-      <button class="step-button" type="button" data-step="0"><strong>Contact</strong><span>Workspace</span></button>
+      <button class="step-button" type="button" data-step="0"><strong>Workspace</strong><span>Intent</span></button>
       <button class="step-button" type="button" data-step="1"><strong>StackKit</strong><span>Profile</span></button>
-      <button class="step-button" type="button" data-step="2"><strong>Domain</strong><span>Core</span></button>
+      <button class="step-button" type="button" data-step="2"><strong>Inventory</strong><span>Resolve</span></button>
       <button class="step-button" type="button" data-step="3"><strong>Review</strong><span>Plan</span></button>
       <button class="step-button" type="button" data-step="4"><strong>Rollout</strong><span>Evidence</span></button>
     </nav>
 
     <div class="layout">
       <section class="panel" id="panel-contact">
-        <h2>Contact and Workspace</h2>
+        <h2>Workspace and Stack Identity</h2>
         <div class="fields">
-          <label class="field">
-            <span>Email</span>
-            <input id="admin_email" name="admin_email" type="email" autocomplete="email" placeholder="admin@example.com">
-          </label>
           <label class="field">
             <span>Stack name</span>
             <input id="name" name="name" autocomplete="off" placeholder="my-homelab">
@@ -527,74 +523,28 @@
           <label class="field full">
             <span>StackKit</span>
             <select id="stackkit" name="stackkit">
-              <option value="basement-kit">Basement Kit (local)</option>
-              <option value="cloud-kit">Cloud Kit (cloud/VPS)</option>
+              <option value="basement-kit">Basement Kit (Home Site)</option>
+              <option value="cloud-kit">Cloud Kit (Cloud Site)</option>
+              <option value="modern-homelab">Modern Homelab (Home + Cloud Sites)</option>
             </select>
           </label>
-          <label class="field">
-            <span>Install mode</span>
-            <select id="mode" name="mode">
-              <option value="bootstrapped">Bootstrapped</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Service profile</span>
-            <select id="service_profile" name="service_profile">
-              <option value="">Default</option>
-              <option value="admin-only">Admin only</option>
-            </select>
-          </label>
-          <div class="field full">
-            <span class="label">Context</span>
-            <div class="segmented three" role="radiogroup" aria-label="Context">
-              <label><input type="radio" name="context" value="local"><span>Local</span></label>
-              <label><input type="radio" name="context" value="cloud"><span>Cloud</span></label>
-              <label><input type="radio" name="context" value="pi"><span>Pi</span></label>
-            </div>
-          </div>
-          <div class="field full">
-            <span class="label">Compute</span>
-            <div class="segmented three" role="radiogroup" aria-label="Compute tier">
-              <label><input type="radio" name="compute_tier" value="low"><span>Low</span></label>
-              <label><input type="radio" name="compute_tier" value="standard"><span>Standard</span></label>
-              <label><input type="radio" name="compute_tier" value="high"><span>High</span></label>
-            </div>
-          </div>
+          <p class="field full">The selected KitProfile owns locality and topology. Context, provider, host, compute-tier, and transport flags are not StackSpec v2 authoring inputs.</p>
         </div>
       </section>
 
       <section class="panel hidden" id="panel-domain">
-        <h2>Domain and Core Settings</h2>
-        <div class="field full">
-          <span class="label">Domain mode</span>
-          <div class="segmented" role="radiogroup" aria-label="Domain mode">
-            <label><input type="radio" name="domain_strategy" value="local"><span>Local</span></label>
-            <label><input type="radio" name="domain_strategy" value="managed"><span>kombify.me</span></label>
-            <label><input type="radio" name="domain_strategy" value="custom"><span>Custom</span></label>
-            <label><input type="radio" name="domain_strategy" value="local_dns"><span>LAN DNS</span></label>
-          </div>
-        </div>
+        <h2>Governed Override and Observed Inventory</h2>
         <div class="fields" style="margin-top: 12px;">
-          <label class="field" id="customDomainField">
-            <span>Domain</span>
-            <input id="custom_domain" name="custom_domain" inputmode="url" autocomplete="off" spellcheck="false" placeholder="apps.example.com">
-          </label>
-          <label class="field" id="localNameField">
-            <span>Local name</span>
-            <input id="local_name" name="local_name" autocomplete="off" spellcheck="false" placeholder="stack">
+          <label class="field">
+            <span>Domain base override</span>
+            <input id="domain_base" name="domain_base" inputmode="url" autocomplete="off" spellcheck="false" placeholder="apps.example.com">
           </label>
           <label class="field">
-            <span>Target host</span>
-            <input id="host" name="host" autocomplete="off" spellcheck="false" placeholder="192.168.1.100">
+            <span>Observed Inventory path</span>
+            <input id="inventory_path" name="inventory_path" autocomplete="off" spellcheck="false" placeholder="inventory.json">
           </label>
-          <label class="field">
-            <span>SSH user</span>
-            <input id="ssh_user" name="ssh_user" autocomplete="username" spellcheck="false" placeholder="admin">
-          </label>
-          <label class="field full">
-            <span>SSH key path</span>
-            <input id="key_path" name="key_path" autocomplete="off" spellcheck="false" placeholder="~/.ssh/id_ed25519">
-          </label>
+          <p class="field full">ResolvedPlan is persisted at the canonical <code>deploy/.stackkit/resolved-plan.json</code> path used by every later stage.</p>
+          <p class="field full">Inventory is externally observed. Do not enter provider credentials, lifecycle, SSH transport, or management addresses into StackSpec.</p>
         </div>
       </section>
 
@@ -602,30 +552,22 @@
         <h2>Review and Plan</h2>
         <div class="fields">
           <label class="field">
-            <span>Domain</span>
+            <span>Domain override</span>
             <input id="resolved_domain" readonly>
           </label>
           <label class="field">
-            <span>Network</span>
+            <span>Validation scope</span>
             <input id="network_mode" readonly>
           </label>
-          <label class="check">
-            <input id="force" name="force" type="checkbox">
-            <span>Replace existing spec</span>
-          </label>
-          <label class="check">
-            <input id="skip_platform_apps" name="skip_platform_apps" type="checkbox">
-            <span>Skip platform apps</span>
-          </label>
+          <p class="field full">Initial authoring is no-replace. Replacing existing v2 intent requires its exact CUE-normalized expected spec hash.</p>
         </div>
-        <h3>Spec preview</h3>
+        <h3>Initial authoring request</h3>
         <textarea id="spec_preview" spellcheck="false" aria-label="Spec preview"></textarea>
         <div class="actions">
           <button type="button" class="primary" id="createSpec">Create Spec</button>
-          <button type="button" id="saveSpecYaml">Save YAML</button>
           <button type="button" id="validateSpec">Validate</button>
           <button type="button" id="generatePreview">Preview</button>
-          <button type="button" id="planFlow">Run Plan</button>
+          <button type="button" id="planFlow">Resolve and Plan</button>
         </div>
       </section>
 
@@ -638,28 +580,24 @@
             <span>Auto approve apply</span>
           </label>
           <label class="check">
-            <input id="verify_http" name="verify_http" type="checkbox">
-            <span>HTTP verify</span>
+            <input id="verify_http" name="verify_http" type="checkbox" disabled>
+            <span>Runtime HTTP evidence is separate from plan verification</span>
           </label>
         </div>
         <div class="actions">
-          <button type="button" class="primary" id="runRollout">Run Rollout</button>
-          <button type="button" id="verify">Verify</button>
+          <button type="button" class="primary" id="runRollout">Run Governed Flow</button>
+          <button type="button" id="verify">Verify Plan</button>
           <button type="button" id="logs">Logs</button>
-          <button type="button" id="doctor">Doctor</button>
         </div>
       </section>
 
       <aside class="side">
         <h2>Current Selection</h2>
         <div class="summary">
-          <div class="summary-row"><span>Email</span><span data-summary="admin_email"></span></div>
           <div class="summary-row"><span>Workspace</span><span data-summary="workspace"></span></div>
           <div class="summary-row"><span>StackKit</span><span data-summary="stackkit"></span></div>
-          <div class="summary-row"><span>Context</span><span data-summary="context"></span></div>
-          <div class="summary-row"><span>Compute</span><span data-summary="compute_tier"></span></div>
-          <div class="summary-row"><span>Domain</span><span data-summary="domain"></span></div>
-          <div class="summary-row"><span>Host</span><span data-summary="host"></span></div>
+          <div class="summary-row"><span>Domain override</span><span data-summary="domain"></span></div>
+          <div class="summary-row"><span>Inventory</span><span data-summary="inventory"></span></div>
         </div>
         <h2>Tool Output</h2>
         <pre id="output">Ready.</pre>
@@ -677,37 +615,28 @@
       ["stackkit_init", "Init"],
       ["stackkit_prepare", "Prepare"],
       ["stackkit_validate_spec", "Validate"],
+      ["stackkit_resolve", "Resolve"],
       ["stackkit_generate", "Generate"],
       ["stackkit_plan", "Plan"],
       ["stackkit_apply", "Apply"],
-      ["stackkit_verify", "Verify"]
+      ["stackkit_verify_plan", "Verify"]
     ];
 
     const defaults = {
       step: 0,
       completed: {},
       runState: {},
+      specReady: false,
       lastOutput: "Ready.",
       form: {
-        admin_email: "",
         name: "my-homelab",
         base_dir: ".",
         spec_path: "stack-spec.yaml",
         stackkit: "basement-kit",
-        mode: "bootstrapped",
-        service_profile: "",
-        context: "local",
-        compute_tier: "standard",
-        domain_strategy: "local",
-        custom_domain: "apps.example.com",
-        local_name: "stack",
-        host: "",
-        ssh_user: "admin",
-        key_path: "~/.ssh/id_ed25519",
-        force: false,
-        skip_platform_apps: true,
+        domain_base: "",
+        inventory_path: "inventory.json",
         apply_auto_approve: false,
-        verify_http: true
+        verify_http: false
       }
     };
 
@@ -757,23 +686,21 @@
       render();
     }
 
+    function invalidatesPersistedSpec(element) {
+      return ["base_dir", "spec_path", "stackkit", "name", "domain_base"].includes(element.id || element.name);
+    }
+
+    function invalidatePersistedSpec() {
+      state.specReady = false;
+      delete state.runState.stackkit_init;
+    }
+
     function selectedDomain() {
-      const strategy = state.form.domain_strategy;
-      if (strategy === "managed") {
-        return "kombify.me";
-      }
-      if (strategy === "custom") {
-        return clean(state.form.custom_domain);
-      }
-      if (strategy === "local_dns") {
-        const localName = clean(state.form.local_name) || "stack";
-        return localName.endsWith(".home") ? localName : `${localName}.home`;
-      }
-      return "home.localhost";
+      return clean(state.form.domain_base);
     }
 
     function networkMode() {
-      return state.form.domain_strategy === "local" || state.form.domain_strategy === "local_dns" ? "local" : "public";
+      return "spec-only";
     }
 
     function baseArgs() {
@@ -784,43 +711,25 @@
     }
 
     function initArgs() {
-      const domainStrategy = state.form.domain_strategy;
       return prune({
         ...baseArgs(),
-        stackkit: state.form.stackkit,
-        admin_email: clean(state.form.admin_email),
-        mode: state.form.mode,
-        context: state.form.context,
-        domain: domainStrategy === "local_dns" ? "" : selectedDomain(),
-        compute_tier: state.form.compute_tier,
-        service_profile: state.form.service_profile,
-        force: !!state.form.force,
-        local_dns: domainStrategy === "local_dns",
-        local_name: domainStrategy === "local_dns" ? clean(state.form.local_name) : ""
+        kit_profile: state.form.stackkit,
+        name: clean(state.form.name),
+        domain_base: selectedDomain()
       });
     }
 
     function prepareArgs(dryRun) {
       return prune({
         ...baseArgs(),
-        dry_run: !!dryRun,
-        host: clean(state.form.host),
-        user: clean(state.form.ssh_user),
-        key_path: clean(state.form.key_path)
+        dry_run: !!dryRun
       });
     }
 
-    function rolloutArgs() {
+    function resolveArgs() {
       return prune({
-        ...initArgs(),
-        host: clean(state.form.host),
-        user: clean(state.form.ssh_user),
-        key_path: clean(state.form.key_path),
-        skip_init: false,
-        prepare_dry_run: false,
-        apply_auto_approve: !!state.form.apply_auto_approve,
-        skip_platform_apps: !!state.form.skip_platform_apps,
-        verify_http: !!state.form.verify_http
+        ...baseArgs(),
+        inventory_path: clean(state.form.inventory_path)
       });
     }
 
@@ -836,38 +745,16 @@
     }
 
     function specPreview() {
-      const lines = [
-        `name: ${clean(state.form.name) || "my-homelab"}`,
-        `stackkit: ${state.form.stackkit}`,
-        `mode: ${state.form.mode}`,
-        `context: ${state.form.context}`,
-        `domain: ${selectedDomain()}`
-      ];
-      const email = clean(state.form.admin_email);
-      if (email) {
-        lines.push(`email: ${email}`);
-        lines.push(`adminEmail: ${email}`);
+      const overrides = { "metadata.name": clean(state.form.name) || "my-homelab" };
+      if (selectedDomain()) {
+        overrides["network.domain.base"] = selectedDomain();
       }
-      lines.push("");
-      lines.push("network:");
-      lines.push(`  mode: ${networkMode()}`);
-      lines.push("");
-      lines.push("compute:");
-      lines.push(`  tier: ${state.form.compute_tier}`);
-      const host = clean(state.form.host);
-      if (host) {
-        lines.push("");
-        lines.push("ssh:");
-        lines.push(`  user: ${clean(state.form.ssh_user) || "admin"}`);
-        lines.push("  port: 22");
-        lines.push(`  keyPath: ${clean(state.form.key_path) || "~/.ssh/id_ed25519"}`);
-        lines.push("");
-        lines.push("nodes:");
-        lines.push("  - name: main");
-        lines.push("    role: standalone");
-        lines.push(`    ip: ${host}`);
-      }
-      return lines.join("\n") + "\n";
+      return JSON.stringify({
+        apiVersion: "stackkit/v2alpha1",
+        kind: "InitialStackSpecAuthoring",
+        kitProfile: state.form.stackkit,
+        overrides
+      }, null, 2);
     }
 
     function setOutput(value) {
@@ -935,38 +822,38 @@
 
     function hydrateFromConfig(result) {
       const data = structured(result);
+      if (data?.migration_required) {
+        setOutput({
+          migration_required: true,
+          source_version: data.source_version,
+          migration_report: data.migration_report,
+          message: "StackSpec v1 is migration input only and was not loaded into the v2 editor."
+        });
+        return;
+      }
       const parsed = data?.parsed;
       if (!parsed || typeof parsed !== "object") {
         return;
       }
-      state.form.stackkit = parsed.stackkit || state.form.stackkit;
-      state.form.mode = parsed.mode || state.form.mode;
-      state.form.context = parsed.context || state.form.context;
-      state.form.admin_email = parsed.adminEmail || parsed.email || state.form.admin_email;
-      state.form.compute_tier = parsed.compute?.tier || state.form.compute_tier;
-      if (parsed.domain) {
-        state.form.custom_domain = parsed.domain;
-        if (parsed.domain === "home.localhost") {
-          state.form.domain_strategy = "local";
-        } else if (parsed.domain === "kombify.me") {
-          state.form.domain_strategy = "managed";
-        } else if (parsed.domain.endsWith(".home")) {
-          state.form.domain_strategy = "local_dns";
-          state.form.local_name = parsed.domain.replace(/\.home$/, "");
-        } else {
-          state.form.domain_strategy = "custom";
-        }
-      }
+      state.form.stackkit = parsed.kit?.slug || state.form.stackkit;
+      state.form.name = parsed.metadata?.name || state.form.name;
+      state.form.domain_base = parsed.network?.domain?.base || state.form.domain_base;
+      state.specReady = true;
+      markRun("stackkit_init", "ok");
       persist();
       render();
     }
 
     async function runPlanFlow() {
+      if (!state.specReady) {
+        setOutput({ blocked: true, error: "Create or load a canonical StackSpec v2 before resolving and planning." });
+        return;
+      }
       const sequence = [
-        ["stackkit_init", initArgs()],
         ["stackkit_prepare", prepareArgs(true)],
         ["stackkit_validate_spec", baseArgs()],
-        ["stackkit_generate", { ...baseArgs(), force: true }],
+        ["stackkit_resolve", resolveArgs()],
+        ["stackkit_generate", baseArgs()],
         ["stackkit_plan", baseArgs()]
       ];
       clearRunMarks(sequence);
@@ -986,12 +873,40 @@
     }
 
     async function runRollout() {
-      const args = rolloutArgs();
-      if (!args.apply_auto_approve) {
+      if (!state.specReady) {
+        setOutput({ blocked: true, error: "Create or load a canonical StackSpec v2 before running the governed flow." });
+        return;
+      }
+      if (!state.form.apply_auto_approve) {
         setOutput({ blocked: true, error: "apply_auto_approve must be selected before running rollout from the widget" });
         return;
       }
-      await callTool("stackkit_rollout", args);
+      const sequence = [
+        ["stackkit_prepare", prepareArgs(false)],
+        ["stackkit_validate_spec", baseArgs()],
+        ["stackkit_resolve", resolveArgs()],
+        ["stackkit_generate", baseArgs()],
+        ["stackkit_plan", baseArgs()],
+        ["stackkit_apply", { ...baseArgs(), auto_approve: true }],
+        ["stackkit_verify_plan", baseArgs()]
+      ];
+      clearRunMarks(sequence);
+      for (const [tool, args] of sequence) {
+        const result = await callTool(tool, args);
+        if (!toolSucceeded(result)) {
+          markSkippedAfter(sequence, tool);
+          setOutput({ halted: true, failed_tool: tool, result: result || null });
+          return;
+        }
+      }
+    }
+
+    async function createSpec() {
+      const result = await callTool("stackkit_init", initArgs());
+      if (toolSucceeded(result)) {
+        state.specReady = true;
+        persist();
+      }
     }
 
     function renderRunList() {
@@ -1024,7 +939,7 @@
       });
 
       for (const [key, value] of Object.entries(state.form)) {
-        const el = field(key === "ssh_user" ? "ssh_user" : key);
+        const el = field(key);
         if (!el) continue;
         if (el.type === "checkbox") {
           el.checked = !!value;
@@ -1037,21 +952,14 @@
         input.checked = state.form[input.name] === input.value;
       });
 
-      const custom = state.form.domain_strategy === "custom";
-      const localDNS = state.form.domain_strategy === "local_dns";
-      document.getElementById("customDomainField").classList.toggle("hidden", !custom);
-      document.getElementById("localNameField").classList.toggle("hidden", !localDNS);
       field("resolved_domain").value = selectedDomain();
       field("network_mode").value = networkMode();
       field("spec_preview").value = specPreview();
 
-      document.querySelector('[data-summary="admin_email"]').textContent = clean(state.form.admin_email) || "not set";
       document.querySelector('[data-summary="workspace"]').textContent = `${state.form.base_dir}/${state.form.spec_path}`;
       document.querySelector('[data-summary="stackkit"]').textContent = state.form.stackkit;
-      document.querySelector('[data-summary="context"]').textContent = state.form.context;
-      document.querySelector('[data-summary="compute_tier"]').textContent = state.form.compute_tier;
-      document.querySelector('[data-summary="domain"]').textContent = selectedDomain();
-      document.querySelector('[data-summary="host"]').textContent = clean(state.form.host) || "local";
+      document.querySelector('[data-summary="domain"]').textContent = selectedDomain() || "Definition default";
+      document.querySelector('[data-summary="inventory"]').textContent = clean(state.form.inventory_path) || "required";
 
       output.textContent = state.lastOutput;
       renderRunList();
@@ -1064,11 +972,17 @@
           return;
         }
         state.form[el.name || el.id] = el.type === "checkbox" ? el.checked : el.value;
+        if (invalidatesPersistedSpec(el)) {
+          invalidatePersistedSpec();
+        }
         persist();
         render();
       });
       el.addEventListener("change", () => {
         state.form[el.name || el.id] = el.type === "checkbox" ? el.checked : el.value;
+        if (invalidatesPersistedSpec(el)) {
+          invalidatePersistedSpec();
+        }
         persist();
         render();
       });
@@ -1084,22 +998,19 @@
     document.getElementById("selfCheck").addEventListener("click", () => callTool("stackkit_self_check_plan"));
     document.getElementById("status").addEventListener("click", () => callTool("stackkit_status"));
     document.getElementById("createSpec").dataset.write = "true";
-    document.getElementById("createSpec").addEventListener("click", () => callTool("stackkit_init", initArgs()));
-    document.getElementById("saveSpecYaml").dataset.write = "true";
-    document.getElementById("saveSpecYaml").addEventListener("click", () => callTool("stackkit_config_set", { ...baseArgs(), yaml: field("spec_preview").value }));
+    document.getElementById("createSpec").addEventListener("click", createSpec);
     document.getElementById("validateSpec").addEventListener("click", () => callTool("stackkit_validate_spec", baseArgs()));
     document.getElementById("generatePreview").addEventListener("click", () => callTool("stackkit_generate_preview", baseArgs()));
     document.getElementById("planFlow").dataset.write = "true";
     document.getElementById("planFlow").addEventListener("click", runPlanFlow);
     document.getElementById("runRollout").dataset.write = "true";
     document.getElementById("runRollout").addEventListener("click", runRollout);
-    document.getElementById("verify").addEventListener("click", () => callTool("stackkit_verify", { http: !!state.form.verify_http }));
+    document.getElementById("verify").addEventListener("click", () => callTool("stackkit_verify_plan", baseArgs()));
     document.getElementById("logs").addEventListener("click", () => callTool("stackkit_logs_list"));
-    document.getElementById("doctor").addEventListener("click", () => callTool("stackkit_doctor"));
 
     callTool("stackkit_onboarding_app").then((result) => {
       const meta = structured(result);
-      state.writeEnabled = !!meta?.write_tools_enabled;
+      state.writeEnabled = !!meta?.cli_actions_enabled;
       writeDot.classList.toggle("ok", state.writeEnabled);
       writeDot.classList.toggle("error", !window.openai?.callTool);
       writeStatus.textContent = state.writeEnabled ? "Write tools enabled" : "Read-only connector";

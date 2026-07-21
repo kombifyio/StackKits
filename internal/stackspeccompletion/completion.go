@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path"
 	"sort"
 	"strings"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
+
+const migrationAdapterVersion = "0.6.0"
 
 // Resolver is the exact architecture resolution boundary used by the CLI.
 // Production callers pass *architecturev2.Service; the interface only keeps
@@ -33,6 +36,7 @@ type Resolver interface {
 // context remains locality/hardware migration input only.
 type Input struct {
 	Legacy           stackspecmigration.Document
+	LegacySourceRef  string
 	Candidate        []byte
 	TargetKitProfile stackspecmigration.KitProfile
 }
@@ -42,7 +46,11 @@ type Input struct {
 // CUE-valid but is intentionally not described as CUE-default-expanded.
 type Result struct {
 	Status                   stackspecmigration.MigrationStatus
+	LegacySourceSHA256       string
 	CandidateSourceSHA256    string
+	CandidateIntentSHA256    string
+	MigrationReportSHA256    string
+	MigrationDecisionRecord  []byte
 	CanonicalStackSpec       map[string]any
 	CanonicalStackSpecBytes  []byte
 	CanonicalStackSpecSHA256 string
@@ -106,6 +114,18 @@ func Complete(resolver Resolver, input Input) (Result, error) {
 			RequiredInputs: []string{"embedded Architecture v2 authority"},
 		}, nil)
 	}
+	legacySourceRef := strings.TrimSpace(input.LegacySourceRef)
+	if blocker := validateLegacySourceRef(input.LegacySourceRef); blocker != nil {
+		return block(result, *blocker, nil)
+	}
+	if len(input.Legacy.Raw) == 0 {
+		return block(result, stackspecmigration.Blocker{
+			Code:           "completion.legacy-source-bytes-required",
+			Field:          "legacy.raw",
+			Message:        "completion requires the exact losslessly read v1 source bytes for migration lineage",
+			RequiredInputs: []string{"exact v1 StackSpec source bytes"},
+		}, nil)
+	}
 
 	projection, report, migrationErr := stackspecmigration.MigrateDocument(input.Legacy, stackspecmigration.Options{TargetKitProfile: target})
 	result.Report = report
@@ -136,7 +156,7 @@ func Complete(resolver Resolver, input Input) (Result, error) {
 		}, nil)
 	}
 
-	candidate, canonical, err := decodeCanonicalCandidate(input.Candidate)
+	candidate, _, err := decodeCanonicalCandidate(input.Candidate)
 	if err != nil {
 		return block(result, stackspecmigration.Blocker{
 			Code:           "completion.candidate-invalid",
@@ -145,6 +165,10 @@ func Complete(resolver Resolver, input Input) (Result, error) {
 			RequiredInputs: []string{"one explicit StackSpec v2 document without aliases or duplicate fields"},
 		}, err)
 	}
+	if blocker := validateCandidateSource(candidate); blocker != nil {
+		return block(result, *blocker, nil)
+	}
+	delete(candidate, "source")
 	if blocker := validateExplicitCompletion(candidate, target, input.Legacy.Legacy); blocker != nil {
 		return block(result, *blocker, nil)
 	}
@@ -156,8 +180,65 @@ func Complete(resolver Resolver, input Input) (Result, error) {
 		return block(result, *blocker, nil)
 	}
 
+	acceptedReport, unresolved := reconcileCompletionReport(result.Report)
+	result.Report = acceptedReport
+	if unresolved != nil {
+		result.Status = stackspecmigration.MigrationStatusBlocked
+		return block(result, *unresolved, nil)
+	}
+
+	result.LegacySourceSHA256 = sha256Digest(input.Legacy.Raw)
+	result.CandidateSourceSHA256 = sha256Digest(input.Candidate)
+	candidateIntent, err := resolvedplan.CanonicalJSON(candidate)
+	if err != nil {
+		return block(result, stackspecmigration.Blocker{
+			Code:           "completion.candidate-intent-canonicalization-failed",
+			Field:          "completion",
+			Message:        "the operator candidate intent could not be canonicalized without its system-owned source lineage",
+			RequiredInputs: []string{"canonical native-v2 draft intent"},
+		}, err)
+	}
+	result.CandidateIntentSHA256 = sha256Digest(candidateIntent)
+	decisionRecord, reportHash, err := canonicalMigrationDecisionRecord(migrationDecisionRecordInput{
+		LegacySourceRef:        legacySourceRef,
+		LegacySourceSHA256:     result.LegacySourceSHA256,
+		CandidateIntentSHA256:  result.CandidateIntentSHA256,
+		TargetKitProfile:       target,
+		ArchitectureProjection: result.ArchitectureProjection,
+		Report:                 acceptedReport,
+	})
+	if err != nil {
+		return block(result, stackspecmigration.Blocker{
+			Code:           "completion.migration-record-failed",
+			Field:          "completion.source.migration.reportHash",
+			Message:        "the canonical non-circular migration decision record could not be encoded",
+			RequiredInputs: []string{"canonical migration decision record"},
+		}, err)
+	}
+	result.MigrationDecisionRecord = decisionRecord
+	result.MigrationReportSHA256 = reportHash
+	candidate["source"] = migratedSourceLineage(legacySourceRef, reportHash, acceptedReport.Warnings)
+	canonical, err := canonicalJSON(candidate)
+	if err != nil {
+		return block(result, stackspecmigration.Blocker{
+			Code:           "completion.canonical-final-spec-failed",
+			Field:          "completion",
+			Message:        "the synthesized migrated-v1 StackSpec could not be encoded canonically",
+			RequiredInputs: []string{"canonical final StackSpec v2"},
+		}, err)
+	}
+	canonicalSpec, err := resolvedplan.DecodeDocument[map[string]any](canonical)
+	if err != nil {
+		return block(result, stackspecmigration.Blocker{
+			Code:           "completion.canonical-final-spec-decode-failed",
+			Field:          "completion",
+			Message:        "the canonical synthesized StackSpec could not be decoded for the completion result",
+			RequiredInputs: []string{"canonical final StackSpec v2"},
+		}, err)
+	}
+
 	resolved, err := resolver.Resolve(architecturev2.ResolveInput{
-		StackSpec:        input.Candidate,
+		StackSpec:        canonical,
 		TargetKitProfile: target,
 	})
 	if err != nil {
@@ -170,34 +251,30 @@ func Complete(resolver Resolver, input Input) (Result, error) {
 	}
 
 	result.Status = stackspecmigration.MigrationStatusCompleted
-	result.CandidateSourceSHA256 = sha256Digest(input.Candidate)
-	result.CanonicalStackSpec = candidate
+	result.CanonicalStackSpec = canonicalSpec
 	result.CanonicalStackSpecBytes = canonical
 	result.CanonicalStackSpecSHA256 = sha256Digest(canonical)
 	result.PlanHash = resolved.PlanHash
 	result.GeneratorEligible = generationReady(resolved.Plan)
-	completed, unresolved := completedReport(
-		result.Report,
+	result.Report = bindCompletedReport(
+		acceptedReport,
 		result.CandidateSourceSHA256,
+		result.CandidateIntentSHA256,
+		result.MigrationReportSHA256,
 		result.CanonicalStackSpecSHA256,
 		resolved.PlanHash,
 	)
-	result.Report = completed
-	if unresolved != nil {
-		result.Status = stackspecmigration.MigrationStatusBlocked
-		return block(result, *unresolved, nil)
-	}
 	return result, nil
 }
 
-func completedReport(report stackspecmigration.Report, sourceSHA, canonicalSHA, planHash string) (stackspecmigration.Report, *stackspecmigration.Blocker) {
+func reconcileCompletionReport(report stackspecmigration.Report) (stackspecmigration.Report, *stackspecmigration.Blocker) {
 	for _, blocker := range report.Blockers {
 		report.Decisions = append(report.Decisions, stackspecmigration.Decision{
 			Code:   "completion.explicit-intent-satisfied",
 			Field:  blocker.Field,
 			From:   blocker.Code,
 			To:     "explicit-v2",
-			Reason: "the candidate supplied the previously non-derivable intent and passed governed CUE resolution",
+			Reason: "the complete candidate supplied and reconciled the previously non-derivable intent; governed resolution is bound separately after it succeeds",
 		})
 	}
 	manual := make([]stackspecmigration.ManualAction, 0, len(report.ManualActions))
@@ -208,7 +285,7 @@ func completedReport(report stackspecmigration.Report, sourceSHA, canonicalSHA, 
 				Field:  strings.Join(action.Fields, ","),
 				From:   action.Code,
 				To:     "explicit-v2",
-				Reason: "the complete candidate supplied this intent and passed governed CUE resolution",
+				Reason: "the complete candidate supplied and reconciled this intent; governed resolution is bound separately after it succeeds",
 			})
 			continue
 		}
@@ -235,7 +312,7 @@ func completedReport(report stackspecmigration.Report, sourceSHA, canonicalSHA, 
 			Field:  report.Warnings[index].Field,
 			From:   report.Warnings[index].RequiredAction,
 			To:     "explicit-v2",
-			Reason: "the operator supplied and CUE-resolved a complete explicit v2 candidate",
+			Reason: "the operator supplied and reconciled a complete explicit v2 candidate; governed resolution is bound separately after it succeeds",
 		})
 		report.Warnings[index].RequiredAction = ""
 	}
@@ -249,30 +326,169 @@ func completedReport(report stackspecmigration.Report, sourceSHA, canonicalSHA, 
 			RequiredInputs: append([]string(nil), action.Fields...),
 		}
 	}
+	report.Status = stackspecmigration.MigrationStatusCompleted
+	report.RequiresExplicitAcceptance = false
+	return report, nil
+}
+
+func bindCompletedReport(report stackspecmigration.Report, candidateSourceSHA, candidateIntentSHA, reportHash, canonicalSHA, planHash string) stackspecmigration.Report {
 	report.Decisions = append(report.Decisions,
 		stackspecmigration.Decision{
 			Code:   "completion.candidate-source-bound",
-			Field:  "completion.source.sha256",
-			To:     sourceSHA,
-			Reason: "the exact operator-supplied completion document is bound to this completed migration",
+			Field:  "completion.candidateSourceSHA256",
+			To:     candidateSourceSHA,
+			Reason: "the exact operator-supplied native-v2 draft is bound to this completed migration",
+		},
+		stackspecmigration.Decision{
+			Code:   "completion.candidate-intent-bound",
+			Field:  "completion.candidateIntentSHA256",
+			From:   candidateSourceSHA,
+			To:     candidateIntentSHA,
+			Reason: "canonical operator intent excludes system-owned source lineage and normalizes semantic sets before migration",
+		},
+		stackspecmigration.Decision{
+			Code:   "completion.migration-report-bound",
+			Field:  "completion.source.migration.reportHash",
+			From:   candidateIntentSHA,
+			To:     reportHash,
+			Reason: "the synthesized source lineage binds the canonical non-circular migration decision record",
 		},
 		stackspecmigration.Decision{
 			Code:   "completion.canonical-spec-bound",
 			Field:  "completion.canonicalStackSpecSHA256",
-			From:   sourceSHA,
+			From:   reportHash,
 			To:     canonicalSHA,
-			Reason: "deterministic JSON represents the explicit candidate without claiming CUE default expansion",
+			Reason: "deterministic JSON represents the final synthesized migrated-v1 StackSpec without claiming CUE default expansion",
+		},
+		stackspecmigration.Decision{
+			Code:   "completion.cue-resolved",
+			Field:  "resolvedPlan.planHash",
+			From:   canonicalSHA,
+			To:     planHash,
+			Reason: "the final synthesized StackSpec resolved through the governed embedded Architecture v2 authority",
 		},
 	)
-	report.Decisions = append(report.Decisions, stackspecmigration.Decision{
-		Code:   "completion.cue-resolved",
-		Field:  "resolvedPlan.planHash",
-		To:     planHash,
-		Reason: "explicit v2 candidate resolved through the governed embedded Architecture v2 authority",
-	})
-	report.Status = stackspecmigration.MigrationStatusCompleted
-	report.RequiresExplicitAcceptance = false
-	return report, nil
+	return report
+}
+
+type migrationDecisionRecordInput struct {
+	LegacySourceRef        string
+	LegacySourceSHA256     string
+	CandidateIntentSHA256  string
+	TargetKitProfile       stackspecmigration.KitProfile
+	ArchitectureProjection *stackspecmigration.NormalizedArchitecture
+	Report                 stackspecmigration.Report
+}
+
+type migrationDecisionRecord struct {
+	APIVersion             string                                     `json:"apiVersion"`
+	AdapterVersion         string                                     `json:"adapterVersion"`
+	Source                 migrationDecisionSource                    `json:"source"`
+	TargetKitProfile       stackspecmigration.KitProfile              `json:"targetKitProfile"`
+	CandidateIntentSHA256  string                                     `json:"candidateIntentSHA256"`
+	ArchitectureProjection *stackspecmigration.NormalizedArchitecture `json:"architectureProjection"`
+	Report                 stackspecmigration.Report                  `json:"report"`
+}
+
+type migrationDecisionSource struct {
+	APIVersion string `json:"apiVersion"`
+	Ref        string `json:"ref"`
+	SHA256     string `json:"sha256"`
+}
+
+func canonicalMigrationDecisionRecord(input migrationDecisionRecordInput) ([]byte, string, error) {
+	record := migrationDecisionRecord{
+		APIVersion:     "stackkit.migration-decision/v1",
+		AdapterVersion: migrationAdapterVersion,
+		Source: migrationDecisionSource{
+			APIVersion: stackspecmigration.APIVersionV1,
+			Ref:        input.LegacySourceRef,
+			SHA256:     input.LegacySourceSHA256,
+		},
+		TargetKitProfile:       input.TargetKitProfile,
+		CandidateIntentSHA256:  input.CandidateIntentSHA256,
+		ArchitectureProjection: input.ArchitectureProjection,
+		Report:                 input.Report,
+	}
+	canonical, err := resolvedplan.CanonicalJSON(record)
+	if err != nil {
+		return nil, "", err
+	}
+	return canonical, sha256Digest(canonical), nil
+}
+
+func migratedSourceLineage(legacySourceRef, reportHash string, warnings []stackspecmigration.Warning) map[string]any {
+	warningCodes := make([]string, 0, len(warnings))
+	seen := make(map[string]struct{}, len(warnings))
+	for _, warning := range warnings {
+		code := strings.TrimSpace(warning.Code)
+		if code == "" {
+			continue
+		}
+		if _, exists := seen[code]; exists {
+			continue
+		}
+		seen[code] = struct{}{}
+		warningCodes = append(warningCodes, code)
+	}
+	sort.Strings(warningCodes)
+	warningValues := make([]any, len(warningCodes))
+	for index, code := range warningCodes {
+		warningValues[index] = code
+	}
+	return map[string]any{
+		"kind": "migrated-v1",
+		"ref":  legacySourceRef,
+		"migration": map[string]any{
+			"fromAPIVersion": stackspecmigration.APIVersionV1,
+			"adapterVersion": migrationAdapterVersion,
+			"reportHash":     reportHash,
+			"accepted":       true,
+			"ambiguous":      false,
+			"warnings":       warningValues,
+			"manualActions":  []any{},
+		},
+	}
+}
+
+func canonicalJSON(value map[string]any) ([]byte, error) {
+	return resolvedplan.CanonicalJSON(value)
+}
+
+func validateCandidateSource(candidate map[string]any) *stackspecmigration.Blocker {
+	value, exists := candidate["source"]
+	if !exists {
+		return nil
+	}
+	source, ok := value.(map[string]any)
+	if !ok || len(source) != 1 || stringValue(source["kind"]) != "native-v2" {
+		return &stackspecmigration.Blocker{
+			Code:    "completion.candidate-source-forbidden",
+			Field:   "completion.source",
+			Message: "operator completion input may omit source or declare only the exact native-v2 draft source; migration lineage is synthesized by the adapter",
+			RequiredInputs: []string{
+				"source omitted", "source.kind=native-v2 without ref or migration",
+			},
+		}
+	}
+	return nil
+}
+
+func validateLegacySourceRef(raw string) *stackspecmigration.Blocker {
+	ref := strings.TrimSpace(raw)
+	valid := ref != "" && ref == raw && !strings.ContainsAny(ref, "\\?#") &&
+		!strings.Contains(ref, "://") && !strings.HasPrefix(ref, "/") &&
+		!strings.Contains(ref, ":") && path.Clean(ref) == ref && ref != "." && ref != ".." &&
+		!strings.HasPrefix(ref, "../")
+	if valid {
+		return nil
+	}
+	return &stackspecmigration.Blocker{
+		Code:           "completion.legacy-source-ref-invalid",
+		Field:          "legacySourceRef",
+		Message:        "legacySourceRef must be a portable, normalized relative POSIX path without traversal, URI, query, fragment, drive, or backslash syntax",
+		RequiredInputs: []string{"portable relative legacy StackSpec reference"},
+	}
 }
 
 func completionActionSatisfied(code string) bool {
@@ -314,7 +530,7 @@ func completionCanResolve(blockers []stackspecmigration.Blocker, target stackspe
 
 func validateExplicitCompletion(candidate map[string]any, target stackspecmigration.KitProfile, legacy *models.StackSpec) *stackspecmigration.Blocker {
 	required := []string{
-		"apiVersion", "kind", "metadata", "source", "kit", "install", "generation",
+		"apiVersion", "kind", "metadata", "kit", "install", "generation",
 		"system", "storage", "network", "sites", "nodes", "controlPlane",
 		"capabilities", "addons", "access", "availability", "partitionPolicy",
 		"workloads", "modules", "routes", "data",

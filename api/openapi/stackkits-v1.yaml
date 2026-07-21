@@ -247,7 +247,9 @@ paths:
   /api/v1/stackkits/{name}/defaults:
     get:
       operationId: getStackKitDefaults
-      summary: Get default StackSpec values for a StackKit
+      summary: Read versioned initial StackSpec authoring data for a StackKit
+      description: >-
+        Exact v0.6 servers return the legacy StackSpec defaults. Native v0.7 servers return CUE-governed Architecture v2 authoring metadata and include a canonical initial StackSpec only when no user override is required. The v2 response is spec-only evidence and never asserts inventory, plan, generation, or execution readiness.
       tags: [Catalog]
       parameters:
         - $ref: "#/components/parameters/StackKitName"
@@ -261,20 +263,26 @@ paths:
                   - $ref: "#/components/schemas/SuccessEnvelope"
                   - properties:
                       data:
-                        $ref: "#/components/schemas/StackSpec"
+                        oneOf:
+                          - $ref: "#/components/schemas/StackSpec"
+                          - $ref: "#/components/schemas/ArchitectureV2InitialAuthoringResponse"
         "404":
           $ref: "#/components/responses/NotFound"
   /api/v1/validate:
     post:
       operationId: validateSpec
       summary: Validate a stack-spec against its StackKit schema
+      description: >-
+        Canonical StackSpec v2 is validated against the embedded CUE authority and produces spec-only evidence. On native v0.7, StackSpec v1 remains accepted only for read-only validation and migration diagnostics; it is never operationally admitted.
       tags: [Validation]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/StackSpec"
+              oneOf:
+                - $ref: "#/components/schemas/ArchitectureV2StackSpec"
+                - $ref: "#/components/schemas/ArchitectureV1DiagnosticsInput"
       responses:
         "200":
           description: Validation result
@@ -285,7 +293,10 @@ paths:
                   - $ref: "#/components/schemas/SuccessEnvelope"
                   - properties:
                       data:
-                        $ref: "#/components/schemas/ValidationResult"
+                        oneOf:
+                          - $ref: "#/components/schemas/ArchitectureV2SpecValidation"
+                          - $ref: "#/components/schemas/ArchitectureV1ReadOnlyValidation"
+                          - $ref: "#/components/schemas/LegacyValidationResult"
         "400":
           $ref: "#/components/responses/BadRequest"
         "422":
@@ -293,15 +304,21 @@ paths:
   /api/v1/validate/partial:
     post:
       operationId: validatePartial
-      summary: Validate partial spec fields (for wizard step-by-step validation)
+      summary: Validate versioned initial StackSpec authoring input
+      description: >-
+        Exact v0.6 servers retain legacy partial StackSpec validation. Native v0.7 servers accept only the governed Architecture v2 initial-authoring request and materialize a complete CUE-valid StackSpec. Arbitrary partial StackSpec overlays are not accepted on the v0.7 line.
       tags: [Validation]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              description: Partial StackSpec fields to validate
+              oneOf:
+                - type: object
+                  description: Legacy v0.6 partial StackSpec fields without an Architecture v2 discriminator.
+                  not:
+                    required: [apiVersion]
+                - $ref: "#/components/schemas/ArchitectureV2InitialAuthoringRequest"
       responses:
         "200":
           description: Partial validation result
@@ -312,13 +329,18 @@ paths:
                   - $ref: "#/components/schemas/SuccessEnvelope"
                   - properties:
                       data:
-                        $ref: "#/components/schemas/ValidationResult"
+                        oneOf:
+                          - $ref: "#/components/schemas/ValidationResult"
+                          - $ref: "#/components/schemas/ArchitectureV2InitialAuthoringValidation"
         "400":
           $ref: "#/components/responses/BadRequest"
   /api/v1/generate/tfvars:
     post:
       operationId: generateTFVars
       summary: Generate terraform.tfvars from a validated spec
+      description: >-
+        Exact-v0.6 compatibility endpoint only. Native v0.7 does not advertise this capability and returns a typed migration/not-supported error before composition. Architecture v2 generation consumes an Inventory-bound ResolvedPlan through the governed CLI/executor path.
+      deprecated: true
       tags: [Generation]
       requestBody:
         required: true
@@ -347,6 +369,9 @@ paths:
     post:
       operationId: generatePreview
       summary: Preview generated infrastructure without writing files
+      description: >-
+        Exact-v0.6 compatibility endpoint only. Native v0.7 does not advertise this capability and never treats spec-only input as generation-ready.
+      deprecated: true
       tags: [Generation]
       requestBody:
         required: true
@@ -375,7 +400,8 @@ paths:
     get:
       operationId: getManagementStatus
       summary: Read node-local StackKit rollout status
-      description: Read-only management endpoint for local agents and dashboards.
+      description: >-
+        Read-only status. Native v0.7 validates the local StackSpec v2 and reports spec-only/resolve-required state without claiming operational readiness. Exact v0.6 retains legacy rollout status fields.
       tags: [Management]
       responses:
         "200":
@@ -392,7 +418,9 @@ paths:
     post:
       operationId: runManagementVerify
       summary: Run node-local StackKit verification
-      description: Runs the same read-only verification surface as `stackkit verify`.
+      description: >-
+        Exact-v0.6 compatibility verifier. Native v0.7 returns 501 until this endpoint consumes the exact verified ResolvedPlan and execution evidence; use the Architecture v2 CLI/executor verification path meanwhile.
+      deprecated: true
       tags: [Management]
       requestBody:
         required: false
@@ -413,10 +441,15 @@ paths:
                         $ref: "#/components/schemas/VerifyReport"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/doctor:
     post:
       operationId: runManagementDoctor
       summary: Run read-only node-local diagnostics
+      description: >-
+        Exact-v0.6 compatibility diagnostics. Native v0.7 returns 501 instead of interpreting legacy deployment files as Architecture v2 readiness.
+      deprecated: true
       tags: [Management]
       responses:
         "200":
@@ -429,11 +462,15 @@ paths:
                   - properties:
                       data:
                         $ref: "#/components/schemas/DoctorResult"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/plan:
     post:
       operationId: runManagementPlan
       summary: Preview local rollout readiness without mutation
-      description: Mutating apply/remove actions are intentionally not exposed by default.
+      description: >-
+        Exact-v0.6 compatibility preview. Native v0.7 returns 501 because plan readiness belongs to the exact verified ResolvedPlan, not Terraform file presence.
+      deprecated: true
       tags: [Management]
       responses:
         "200":
@@ -446,6 +483,8 @@ paths:
                   - properties:
                       data:
                         $ref: "#/components/schemas/ManagementPlan"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/runs/{runID}/evidence:
     get:
       operationId: getRunEvidence
@@ -586,7 +625,7 @@ paths:
     get:
       operationId: getBaseHubProtection
       summary: Read Base Hub protection state
-      description: Used by the Node Hub to hide first-run bootstrap warnings once Base Hub is protected.
+      description: Exact-v0.6 Node Hub compatibility state. Native v0.7 returns 501 before legacy artifact reads.
       tags: [Setup]
       responses:
         "200":
@@ -601,6 +640,8 @@ paths:
                         $ref: "#/components/schemas/BaseHubProtectionResponse"
         "409":
           $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
     post:
       operationId: protectBaseHub
       summary: Protect Base Hub and the node-local API with TinyAuth
@@ -609,6 +650,8 @@ paths:
         The action persists the protection setting and updates the local Traefik
         dynamic middleware so Base Hub and its node-local API are protected
         without requiring the user to edit variables or run OpenTofu manually.
+        This is exact-v0.6 compatibility behavior. Native v0.7 returns 501
+        before reading or writing legacy tfvars, state, or Traefik artifacts.
       tags: [Setup]
       responses:
         "200":
@@ -635,6 +678,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/setup/initial-access:
     get:
       operationId: getInitialAccess
@@ -644,6 +689,7 @@ paths:
         includes the plaintext password, but it labels the credential boundary
         so clients do not confuse technical bootstrap admin material with the
         PocketID Owner/passkey login.
+        This is exact-v0.6 compatibility state; native v0.7 returns 501.
       tags: [Setup]
       responses:
         "200":
@@ -658,6 +704,8 @@ paths:
                         $ref: "#/components/schemas/InitialAccessResponse"
         "409":
           $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/setup/initial-access/reveal:
     post:
       operationId: revealInitialAccess
@@ -667,6 +715,8 @@ paths:
         after Base Hub is protected. The Owner login remains PocketID passkey.
         The persisted marker records role and boundary metadata, never the
         plaintext password.
+        This is exact-v0.6 compatibility behavior; native v0.7 returns 501
+        before credential-state access.
       tags: [Setup]
       responses:
         "200":
@@ -687,6 +737,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/setup/services/{service}/run:
     post:
       operationId: runServiceSetup
@@ -700,6 +752,8 @@ paths:
         Every runner attempt persists a `SetupRun` with phase logs,
         machine-readable evidence, failure class, retry timestamps, and
         rollback notes in `.stackkit/state.yaml`.
+        This is exact-v0.6 compatibility behavior. Native v0.7 returns 501
+        before manifest reads, external service calls, or state writes.
       tags: [Setup]
       parameters:
         - name: service
@@ -735,6 +789,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "502":
           $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   # ── Internal runtime actions (TechStack servicecall) ────────────
   /api/v2/internal/runtime-actions/stackkit-rollout:
     post:
@@ -821,8 +877,10 @@ paths:
   /api/v1/internal/runtime-actions/stackkit-rollout:
     post:
       operationId: runtimeStackKitRollout
-      summary: Run or dry-run StackKits rollout for TechStack
-      description: Requires X-Kombify-Service-Auth from caller techstack. This is the legacy node-side rollout path.
+      summary: Run the exact-v0.6 legacy StackKits rollout for TechStack
+      deprecated: true
+      description: >-
+        Exact-v0.6 compatibility only. Native v0.7 returns 410 before decoding or executing this legacy deployment action; use the governed Architecture v2 runtime-action contract instead.
       tags: [Runtime]
       requestBody:
         required: true
@@ -843,11 +901,15 @@ paths:
                         $ref: "#/components/schemas/RuntimeActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/LegacyRuntimeActionRetired"
   /api/v1/internal/runtime-actions/stackkit-verify:
     post:
       operationId: runtimeStackKitVerify
-      summary: Verify StackKits rollout state for TechStack
-      description: Requires X-Kombify-Service-Auth from caller techstack. This is the legacy node-side verification path.
+      summary: Verify exact-v0.6 legacy StackKits rollout state for TechStack
+      deprecated: true
+      description: >-
+        Exact-v0.6 compatibility only. Native v0.7 returns 410 before decoding or executing this legacy deployment action; use the governed Architecture v2 verification contract instead.
       tags: [Runtime]
       requestBody:
         required: true
@@ -868,11 +930,15 @@ paths:
                         $ref: "#/components/schemas/RuntimeActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/LegacyRuntimeActionRetired"
   /api/v1/internal/runtime-actions/restore-drill:
     post:
       operationId: runtimeRestoreDrill
-      summary: Run or dry-run StackKits restore-drill handoff for TechStack
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      summary: Run the exact-v0.6 legacy restore-drill handoff for TechStack
+      deprecated: true
+      description: >-
+        Exact-v0.6 compatibility only. Native v0.7 returns 410 before decoding or executing this legacy deployment action. This deployment restore drill is distinct from the independently versioned backup API.
       tags: [Runtime]
       requestBody:
         required: true
@@ -893,15 +959,18 @@ paths:
                         $ref: "#/components/schemas/RuntimeActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/LegacyRuntimeActionRetired"
   # ── Registry (Direct Connect) ───────────────────────────────────
   /api/v1/registry/instances:
     post:
       operationId: registerInstance
       summary: Register a stackkit-server instance for Direct Connect
       description: |
-        Called by stackkit-server after `stackkit apply` to register itself with
-        kombify. Cloudflare Edge uses this registry to discover and proxy requests to the
-        instance directly.
+        Exact-v0.6 in-memory compatibility registry only. It does not publish
+        to Kombify, Cloudflare, TechStack, or another central authority and
+        cannot prove Direct Connect registration. Native v0.7 returns 501
+        before payload decode or map mutation.
       tags: [Registry]
       requestBody:
         required: true
@@ -922,10 +991,13 @@ paths:
                         $ref: "#/components/schemas/RegistryResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/registry/instances/{instanceId}:
     delete:
       operationId: deregisterInstance
       summary: Remove an instance from the registry
+      description: Exact-v0.6 in-memory compatibility operation. Native v0.7 returns 501.
       tags: [Registry]
       parameters:
         - $ref: "#/components/parameters/InstanceId"
@@ -934,14 +1006,16 @@ paths:
           description: Instance deregistered
         "404":
           $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
   /api/v1/registry/instances/{instanceId}/heartbeat:
     put:
       operationId: heartbeat
       summary: Send a heartbeat for a registered instance
       description: |
-        Sent every 60 seconds by stackkit-server. If no heartbeat is received
-        within 3 minutes, the platform edge registry marks the instance as unreachable and stops
-        routing traffic to it.
+        Exact-v0.6 in-memory compatibility heartbeat only. It has no external
+        edge-registry effect. Native v0.7 returns 501 before payload decode or
+        map mutation.
       tags: [Registry]
       parameters:
         - $ref: "#/components/parameters/InstanceId"
@@ -963,6 +1037,8 @@ paths:
           description: Heartbeat acknowledged
         "404":
           $ref: "#/components/responses/NotFound"
+        "501":
+          $ref: "#/components/responses/OperationalUnavailable"
 components:
   securitySchemes:
     StackKitsAPIKey:
@@ -1064,6 +1140,75 @@ components:
             - $ref: "#/components/schemas/ArchitectureV1DiagnosticsInput"
         inventory:
           $ref: "#/components/schemas/ArchitectureV2Inventory"
+    ArchitectureV2InitialAuthoringRequest:
+      type: object
+      description: >-
+        Native v0.7 initial StackSpec materialization request. Overrides are deliberately limited to the paths governed by the embedded Definition authoring contract; this is not an arbitrary partial-spec overlay.
+      additionalProperties: false
+      required: [apiVersion, kind, kitProfile]
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit/v2alpha1
+        kind:
+          type: string
+          const: InitialStackSpecAuthoring
+        kitProfile:
+          $ref: "#/components/schemas/ArchitectureV2KitProfile"
+        overrides:
+          type: object
+          additionalProperties: false
+          properties:
+            "metadata.name":
+              $ref: "#/components/schemas/ArchitectureV2ContractID"
+            "network.domain.base":
+              type: string
+    ArchitectureV2InitialAuthoringResponse:
+      type: object
+      description: >-
+        CUE-governed initial StackSpec authoring contract. stack_spec, spec_hash, and validation_scope are omitted when required user overrides prevent honest materialization. No field in this response is an inventory, plan, generation, or execution-readiness claim.
+      additionalProperties: false
+      required:
+        - source_version
+        - kit_profile
+        - authoring_contract_version
+        - authoring_status
+        - required_overrides
+      properties:
+        valid:
+          type: boolean
+        source_version:
+          type: string
+          const: v2alpha1
+        kit_profile:
+          $ref: "#/components/schemas/ArchitectureV2KitProfile"
+        authoring_contract_version:
+          type: string
+        authoring_status:
+          type: string
+          enum: [supported, preview]
+        required_overrides:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [metadata.name, network.domain.base]
+        stack_spec:
+          $ref: "#/components/schemas/ArchitectureV2StackSpec"
+        spec_hash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        validation_scope:
+          type: string
+          const: spec-only
+    ArchitectureV2InitialAuthoringValidation:
+      allOf:
+        - $ref: "#/components/schemas/ArchitectureV2InitialAuthoringResponse"
+        - type: object
+          required: [valid, stack_spec, spec_hash, validation_scope]
+          properties:
+            valid:
+              type: boolean
+              const: true
     ArchitectureV2StackSpec:
       type: object
       description: |
@@ -1388,6 +1533,14 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/ArchitectureV2InventoryNode"
+        externalHomeAccessBindings:
+          type: object
+          description: >-
+            Optional externally issued Home access bindings, keyed first by Home Site and then by the exact access capability.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalHomeAccessBinding"
     ArchitectureV2InventoryNode:
       type: object
       additionalProperties: false
@@ -1477,6 +1630,142 @@ components:
         hostRequirementsHash:
           $ref: "#/components/schemas/ArchitectureV2ContentHash"
         inventoryHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        issuedAt:
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        validUntil:
+          description: Must be after issuedAt and no more than 24 hours later.
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        bindingHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2HomeAccessRequirement:
+      type: object
+      description: >-
+        Provider-neutral, hash-bound Shadow Plan requirement for one Home Site access capability. It grants no endpoint, LAN route, credential, or provider lifecycle authority.
+      additionalProperties: false
+      required:
+        - apiVersion
+        - kind
+        - stackId
+        - siteRef
+        - capabilityRef
+        - contractOwnerRef
+        - capabilityContractHash
+        - targetNodeRefs
+        - policy
+        - specHash
+        - requirementsHash
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.home-access-requirement/v1
+        kind:
+          type: string
+          const: HomeAccessRequirement
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityRef:
+          type: string
+          enum: [private-remote-access, public-publish-egress]
+        contractOwnerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        targetNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policy:
+          type: object
+          additionalProperties: false
+          required: [defaultDeny, initiation, routeScope, allowDefaultRoute, allowBroadLAN, identityMode, credentialCustody, fabricLifecycle]
+          properties:
+            defaultDeny:
+              type: boolean
+              const: true
+            initiation:
+              type: string
+              const: home-outbound
+            routeScope:
+              type: string
+              const: declared-services-only
+            allowDefaultRoute:
+              type: boolean
+              const: false
+            allowBroadLAN:
+              type: boolean
+              const: false
+            identityMode:
+              type: string
+              enum: [device-bound, service-identity]
+            credentialCustody:
+              type: string
+              const: external
+            fabricLifecycle:
+              type: string
+              const: external
+        specHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        requirementsHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2ExternalHomeAccessBinding:
+      type: object
+      description: >-
+        Opaque external realization of one exact HomeAccessRequirement. The contract intentionally excludes transport, endpoint, address, secret, provider-resource, account, region, and lifecycle fields.
+      additionalProperties: false
+      required:
+        - apiVersion
+        - kind
+        - bindingRef
+        - stackId
+        - siteRef
+        - capabilityRef
+        - contractOwnerRef
+        - capabilityContractHash
+        - requirementsHash
+        - accessFabricRef
+        - stackkitsVersion
+        - candidateDigest
+        - specHash
+        - issuedAt
+        - validUntil
+        - bindingHash
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.external-home-access-binding/v1
+        kind:
+          type: string
+          const: ExternalHomeAccessBinding
+        bindingRef:
+          type: string
+          pattern: '^home-access-binding://sha256/[a-f0-9]{64}$'
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityRef:
+          type: string
+          enum: [private-remote-access, public-publish-egress]
+        contractOwnerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        requirementsHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        accessFabricRef:
+          type: string
+          pattern: '^home-access-fabric://sha256/[a-f0-9]{64}$'
+        stackkitsVersion:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+        candidateDigest:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        specHash:
           $ref: "#/components/schemas/ArchitectureV2ContentHash"
         issuedAt:
           $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
@@ -1647,6 +1936,8 @@ components:
         - nodes
         - externalHostBindings
         - hostConformanceReceipts
+        - homeAccessRequirements
+        - externalHomeAccessBindings
         - controlPlane
         - capabilities
         - providers
@@ -1730,6 +2021,22 @@ components:
             OS compatibility and host diagnostics keyed by nodeRef. Absence is honest pending evidence, not an implicit pass or release gate.
           additionalProperties:
             $ref: "#/components/schemas/ArchitectureV2HostConformanceReceipt"
+        homeAccessRequirements:
+          type: object
+          description: >-
+            Exact provider-neutral access requirements keyed by Home Site and selected access capability. Empty when no such capability exists.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2HomeAccessRequirement"
+        externalHomeAccessBindings:
+          type: object
+          description: >-
+            Validated external bindings for the exact Home access requirements. Missing entries remain an explicit apply-readiness blocker.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalHomeAccessBinding"
         controlPlane:
           type: object
         capabilities:
@@ -2126,6 +2433,7 @@ components:
         - publicInputRefs
         - secretInputRefs
         - planInputRefs
+        - inputBindings
         - values
         - secretRefs
         - planInputs
@@ -2169,6 +2477,11 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ModulePlanInputRef"
+        inputBindings:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModuleRenderInputBinding"
         values:
           type: object
         secretRefs:
@@ -2240,6 +2553,266 @@ components:
                 properties:
                   scope:
                     const: node-local
+    ArchitectureV2ModuleRenderInputBinding:
+      type: object
+      additionalProperties: false
+      required: [targetRef, sourceRef, valueType, cardinality, required]
+      properties:
+        targetRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        sourceRef:
+          type: string
+          enum: [identity.deviceEnrollment, network.routes]
+        valueType:
+          type: string
+          enum: [device-enrollment-public-v1, authority-bound-service-route-list-v4]
+        cardinality:
+          type: string
+          enum: [single, list]
+        required:
+          type: boolean
+        defaultValue:
+          anyOf:
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicDeviceEnrollment"
+            - type: array
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicResolvedRouteV4"
+      allOf:
+        - if:
+            properties: {sourceRef: {const: identity.deviceEnrollment}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: device-enrollment-public-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicDeviceEnrollment"
+        - if:
+            properties: {sourceRef: {const: network.routes}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {type: string, const: authority-bound-service-route-list-v4}
+              cardinality: {const: list}
+        - if:
+            properties: {valueType: {const: authority-bound-service-route-list-v4}}
+            required: [valueType]
+          then:
+            properties:
+              defaultValue:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArchitectureV2ModulePublicResolvedRouteV4"
+        - if:
+            properties: {required: {const: true}}
+            required: [required]
+          then:
+            not: {required: [defaultValue]}
+          else:
+            required: [defaultValue]
+    ArchitectureV2ModulePublicDeviceEnrollment:
+      type: object
+      additionalProperties: false
+      required: [mode, authoritySiteRef, endpointExposure, remoteEnrollment, requireOwnerStepUp, requireLocalPairingProof, requireDeviceGeneratedKey, requirePossessionProof, hardwareBackedKey, revocationSupported, lifetimeSeconds]
+      properties:
+        mode: {type: string, const: local-only}
+        authoritySiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        endpointExposure: {type: string, const: lan}
+        remoteEnrollment: {type: boolean, const: false}
+        requireOwnerStepUp: {type: boolean, const: true}
+        requireLocalPairingProof: {type: boolean, const: true}
+        requireDeviceGeneratedKey: {type: boolean, const: true}
+        requirePossessionProof: {type: boolean, const: true}
+        hardwareBackedKey: {type: string, enum: [preferred, required]}
+        revocationSupported: {type: boolean, const: true}
+        lifetimeSeconds: {type: integer, minimum: 300, maximum: 86400}
+    ArchitectureV2ModulePublicResolvedRoute:
+      type: object
+      additionalProperties: false
+      required: [id, serviceRef, moduleRef, originSiteRef, originNodeRefs, backendPoolRef, backendPool, exposure, protocol, upstreamProtocol, port, targetPort, access, tls, healthGateRef]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        backendPoolRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        backendPool:
+          $ref: "#/components/schemas/ArchitectureV2ModulePublicRouteBackendPool"
+        exposure: {type: string, enum: [local, remote-private, public]}
+        protocol: {type: string, enum: [http, https, tcp, udp]}
+        upstreamProtocol: {type: string, enum: [http, https, tcp, udp]}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        targetPort: {type: integer, minimum: 1, maximum: 65535}
+        host: {type: string, minLength: 1}
+        path: {type: string, pattern: ^/}
+        access:
+          $ref: "#/components/schemas/ArchitectureV2ModulePublicRouteAccess"
+        tls:
+          type: object
+          additionalProperties: false
+          required: [required, mode]
+          properties:
+            required: {type: boolean}
+            mode: {type: string, enum: [off, internal, terminate-at-edge, passthrough]}
+            minVersion: {type: string, enum: [TLS1.2, TLS1.3]}
+        healthGateRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2ModulePublicRouteBackendPool:
+      type: object
+      additionalProperties: false
+      required: [upstreamProtocol, targetPort, members]
+      properties:
+        upstreamProtocol: {type: string, enum: [http, https, tcp, udp]}
+        targetPort: {type: integer, minimum: 1, maximum: 65535}
+        members:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2RouteBackendMember"
+    ArchitectureV2ModulePublicResolvedRouteV3:
+      type: object
+      additionalProperties: false
+      required: [id, serviceRef, moduleRef, originSiteRef, originNodeRefs, backendPoolRef, backendPool, exposure, protocol, upstreamProtocol, port, targetPort, access, tls, healthGateRef, healthProbe]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        backendPoolRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        backendPool: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteBackendPool"}
+        exposure: {type: string, enum: [local, remote-private, public]}
+        protocol: {type: string, enum: [http, https, tcp, udp]}
+        upstreamProtocol: {type: string, enum: [http, https, tcp]}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        targetPort: {type: integer, minimum: 1, maximum: 65535}
+        host: {type: string, minLength: 1}
+        path: {type: string, pattern: ^/}
+        access: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteAccess"}
+        tls:
+          type: object
+          additionalProperties: false
+          required: [required, mode]
+          properties:
+            required: {type: boolean}
+            mode: {type: string, enum: [off, internal, terminate-at-edge, passthrough]}
+            minVersion: {type: string, enum: [TLS1.2, TLS1.3]}
+        healthGateRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        healthProbe: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteHealthProbeV3"}
+    ArchitectureV2ModulePublicResolvedRouteV4:
+      type: object
+      additionalProperties: false
+      required: [id, serviceRef, moduleRef, originSiteRef, originNodeRefs, backendPoolRef, backendPool, exposure, protocol, upstreamProtocol, port, targetPort, access, tls, healthGateRef, healthProbe, capabilityAuthorities]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        backendPoolRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        backendPool: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteBackendPool"}
+        exposure: {type: string, enum: [local, remote-private, public]}
+        protocol: {type: string, enum: [http, https, tcp, udp]}
+        upstreamProtocol: {type: string, enum: [http, https, tcp]}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        targetPort: {type: integer, minimum: 1, maximum: 65535}
+        host: {type: string, minLength: 1}
+        path: {type: string, pattern: ^/}
+        access: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteAccess"}
+        tls:
+          type: object
+          additionalProperties: false
+          required: [required, mode]
+          properties:
+            required: {type: boolean}
+            mode: {type: string, enum: [off, internal, terminate-at-edge, external]}
+            minVersion: {type: string, enum: [TLS1.2, TLS1.3]}
+            profileRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            issuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            ownerCapabilityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        healthGateRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        healthProbe: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteHealthProbeV3"}
+        capabilityAuthorities:
+          type: array
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [capabilityRef, role]
+            properties:
+              capabilityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              role: {type: string, enum: [access, transport, edge, egress]}
+    ArchitectureV2ModulePublicRouteHealthProbeV3:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, protocol, port, timeoutSeconds, method, followRedirects, path, expectedStatuses]
+          properties:
+            kind: {type: string, const: http}
+            protocol: {type: string, enum: [http, https]}
+            port: {type: integer, minimum: 1, maximum: 65535}
+            timeoutSeconds: {type: integer, minimum: 1, maximum: 300}
+            method: {type: string, const: GET}
+            followRedirects: {type: boolean, const: false}
+            path: {type: string, pattern: ^/}
+            expectedStatuses:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items: {type: integer, minimum: 100, maximum: 599}
+        - type: object
+          additionalProperties: false
+          required: [kind, protocol, port, timeoutSeconds]
+          properties:
+            kind: {type: string, const: tcp}
+            protocol: {type: string, const: tcp}
+            port: {type: integer, minimum: 1, maximum: 65535}
+            timeoutSeconds: {type: integer, minimum: 1, maximum: 300}
+    ArchitectureV2RouteBackendMember:
+      type: object
+      additionalProperties: false
+      required: [siteRef, nodeRef, instanceRef]
+      properties:
+        siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        nodeRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        instanceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2ModulePublicRouteAccess:
+      type: object
+      additionalProperties: false
+      required: [exposure, policyExposure, authentication, privilege, enrolledDeviceRequired, ownerStepUpRequired, lanStepDown, defaultClosed, policyRef]
+      properties:
+        exposure: {type: string, enum: [local, remote-private, public]}
+        policyExposure: {type: string, enum: [private, lan, public]}
+        authentication: {type: string, enum: [human, device, human+device, workload, none]}
+        privilege: {type: string, enum: [user, admin, identity, secrets, vault, recovery]}
+        enrolledDeviceRequired: {type: boolean}
+        ownerStepUpRequired: {type: boolean}
+        lanStepDown: {type: boolean}
+        allowedSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        allowedMethods:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS]}
+        defaultClosed: {type: boolean, const: true}
+        policyRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
     ArchitectureV2ModulePlanInputRef:
       type: string
       enum: [stackId, kit, sites, controlPlane, bridge, identity, identityTrust, data, failurePolicy, localReachability, homeLANDiscovery]
@@ -2323,7 +2896,7 @@ components:
         policyRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         policyExposure: {type: string, enum: [private, lan]}
         authentication: {type: string, enum: [human, device, human+device, workload, none]}
-        privilege: {type: string, enum: [user, admin, identity, secrets]}
+        privilege: {type: string, enum: [user, admin, identity, secrets, vault, recovery]}
         enrolledDeviceRequired: {type: boolean}
         ownerStepUpRequired: {type: boolean}
         lanStepDown: {type: boolean}
@@ -2405,9 +2978,17 @@ components:
     ArchitectureV2ModulePlanBridgeOverlay:
       type: object
       additionalProperties: false
-      required: [provider, initiation, outboundEstablished, trafficMode, advertisePrivateSubnets, advertiseDefaultRoute, allowBroadRoutes, peerSiteRefs]
+      required: [contractRef, providerRef, providerContractHash, moduleRef, implementation, initiation, outboundEstablished, trafficMode, advertisePrivateSubnets, advertiseDefaultRoute, allowBroadRoutes, peerSiteRefs]
       properties:
-        provider:
+        contractRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        providerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        providerContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        implementation:
           type: string
           enum: [wireguard, headscale, tailscale, netbird, pangolin]
         initiation:
@@ -2623,7 +3204,7 @@ components:
           const: human+device
         privilege:
           type: string
-          enum: [user, admin, identity, secrets]
+          enum: [user, admin, identity, secrets, vault, recovery]
         enrolledDeviceRequired:
           type: boolean
           const: true
@@ -2647,15 +3228,16 @@ components:
     ArchitectureV2ModulePlanControlAgent:
       type: object
       additionalProperties: false
-      required: [enabled, transport, audience, actionAllowlist, maxTTLSeconds, requiresSignedActions, requiresNonce, requiresResolvedPlanHash, requiresIdempotencyKey, capabilityScopedActions, replayProtection, requiresApprovalForDestructive]
+      required: [enabled, providerRef, providerContractHash, moduleRef, actionAllowlist, actions]
       properties:
         enabled:
           type: boolean
           const: true
-        transport:
-          type: string
-          enum: [managed-agent, mtls-agent]
-        audience:
+        providerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        providerContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        moduleRef:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         actionAllowlist:
           type: array
@@ -2663,10 +3245,48 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ContractID"
+        actions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanRemoteAction"
+    ArchitectureV2ModulePlanRemoteAction:
+      type: object
+      additionalProperties: false
+      required: [id, contractRef, capabilityRef, providerRef, providerContractHash, moduleRef, transport, issuerRef, audience, maxTTLSeconds, destructive, approvalClass, approvalReceiptRequired, requiresSignedActions, requiresNonce, requiresResolvedPlanHash, requiresIdempotencyKey, capabilityScopedActions, replayProtection, requiresApprovalForDestructive]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        contractRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityRef:
+          type: string
+          const: outbound-control-agent
+        providerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        providerContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        transport:
+          type: string
+          enum: [managed-agent, mtls-agent]
+        issuerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        audience:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
         maxTTLSeconds:
           type: integer
           minimum: 1
           maximum: 300
+        destructive:
+          type: boolean
+        approvalClass:
+          type: string
+          enum: [none, owner-step-up, break-glass]
+        approvalReceiptRequired:
+          type: boolean
         requiresSignedActions:
           type: boolean
           const: true
@@ -2996,6 +3616,7 @@ components:
         - serviceRef
         - upstreamProtocol
         - targetPort
+        - requiredPrivilege
         - allowedIngressProtocols
         - allowedExposures
         - originSelector
@@ -3010,6 +3631,9 @@ components:
           type: integer
           minimum: 1
           maximum: 65535
+        requiredPrivilege:
+          type: string
+          enum: [user, admin, identity, secrets, vault, recovery]
         allowedIngressProtocols:
           type: array
           minItems: 1
@@ -3804,6 +4428,9 @@ components:
             - required-artifact-missing
             - artifact-output-mismatch
             - module-apply-support-missing
+            - policy-enforcement-owner-unbound
+            - runtime-owner-unbound
+            - external-home-access-binding-missing
             - required-evidence-missing
             - bridge-overlay-unverified
             - bridge-control-agent-unverified
@@ -3814,13 +4441,14 @@ components:
             - origin-identity-unbound
             - tls-profile-unbound
             - health-gate-not-executable
+            - route-health-executor-unbound
         refs:
           type: array
           minItems: 1
           uniqueItems: true
           items:
             type: string
-            pattern: '^(module|unit|provider|renderer|input|artifact|evidence|bridge|publication|identity|tls|health):\S+$'
+            pattern: '^(module|unit|provider|renderer|input|artifact|evidence|enforcement|runtime-owner|bridge|publication|identity|tls|health|route|backend-pool|site|capability|home-access-requirement):\S+$'
     ArchitectureV2ContractID:
       type: string
       pattern: "^[a-z][a-z0-9-]*$"
@@ -4103,6 +4731,50 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ValidationError"
+    LegacyValidationResult:
+      allOf:
+        - $ref: "#/components/schemas/ValidationResult"
+        - type: object
+          description: Exact-v0.6 validation response without a version discriminator.
+          not:
+            required: [source_version]
+    ArchitectureV2SpecValidation:
+      type: object
+      additionalProperties: false
+      required: [valid, source_version, stackkit, spec_hash]
+      properties:
+        valid:
+          type: boolean
+          const: true
+        source_version:
+          type: string
+          const: v2alpha1
+        stackkit:
+          $ref: "#/components/schemas/ArchitectureV2KitProfile"
+        spec_hash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV1ReadOnlyValidation:
+      allOf:
+        - $ref: "#/components/schemas/ValidationResult"
+        - type: object
+          required: [source_version, stackkit, operational, migration_required, validation_scope, migration_report]
+          properties:
+            source_version:
+              type: string
+              const: v1
+            stackkit:
+              type: string
+            operational:
+              type: boolean
+              const: false
+            migration_required:
+              type: boolean
+              const: true
+            validation_scope:
+              type: string
+              const: legacy-read-only
+            migration_report:
+              $ref: "#/components/schemas/ArchitectureV2MigrationReport"
     ValidationError:
       type: object
       properties:
@@ -4200,6 +4872,24 @@ components:
           type: boolean
         stackkit:
           type: string
+        sourceVersion:
+          type: string
+          enum: [v1, v2alpha1]
+        validationScope:
+          type: string
+          enum: [legacy-operational, spec-only]
+        specHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        operational:
+          type: boolean
+        readiness:
+          type: string
+          enum: [resolve-required]
+        stateAuthority:
+          type: string
+          enum: [resolved-plan-and-execution-evidence]
+        migrationReport:
+          $ref: "#/components/schemas/ArchitectureV2MigrationReport"
         mode:
           type: string
         domain:
@@ -5144,6 +5834,18 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     UnprocessableEntity:
       description: Validation or generation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    OperationalUnavailable:
+      description: Native Architecture v2 operation requires an exact verified ResolvedPlan and execution evidence.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ArchitectureV2ResolveError"
+    LegacyRuntimeActionRetired:
+      description: Native v0.7 retired this legacy deployment action before request decoding or execution.
       content:
         application/json:
           schema:

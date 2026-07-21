@@ -32,8 +32,9 @@ var (
 )
 
 var wizardCmd = &cobra.Command{
-	Use:   "wizard",
-	Short: "Wizard telemetry operations",
+	Use:         "wizard",
+	Short:       "Wizard telemetry operations",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 }
 
 var wizardReportCmd = &cobra.Command{
@@ -71,6 +72,9 @@ type wizardReportPayload struct {
 }
 
 func runWizardReport(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyV06Command("wizard report", "the v1 answers/context/compute payload has no canonical Architecture v2 intent-telemetry contract"); err != nil {
+		return err
+	}
 	endpoint := wizardReportEndpoint
 	if endpoint == "" {
 		endpoint = os.Getenv("STACKKIT_ADMIN_ENDPOINT")

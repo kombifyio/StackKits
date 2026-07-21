@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -20,6 +21,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/rollout"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/terramate"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	stackverify "github.com/kombifyio/stackkits/internal/verify"
@@ -40,17 +42,19 @@ var (
 )
 
 var applyCmd = &cobra.Command{
-	Use:   "apply [plan-file]",
-	Short: "Apply infrastructure changes",
+	Use:         "apply [plan-file]",
+	Short:       "Apply infrastructure changes",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Long: `Apply the planned changes to the infrastructure.
 
-This command runs StackKit-packaged OpenTofu to create, update, or
-destroy infrastructure resources as needed.
+On the v0.7 line this command executes only the canonical Architecture-v2
+ResolvedPlan through the product runtime-executor registry. Exact v0.6 builds
+retain the bounded OpenTofu compatibility implementation.
 
 Examples:
   stackkit apply                   Apply changes (with confirmation)
   stackkit apply --auto-approve    Apply without confirmation
-  stackkit apply plan.tfplan       Apply a saved plan`,
+  stackkit apply plan.tfplan       Apply a saved plan (exact-v0.6 v1 compatibility only)`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runApply,
 }
@@ -68,11 +72,26 @@ func init() {
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.evidencePath, "apply-evidence", "", "Architecture v2 authenticated Apply evidence (must resolve to <outputRoot>/.stackkit/apply-evidence.json)")
 }
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
+	applyV2ExecutionOptions.legacyPlanFile = ""
+	if len(args) > 0 {
+		applyV2ExecutionOptions.legacyPlanFile = args[0]
+	}
 	wd := getWorkDir()
+	if err := admitApplyBeforeDeployObservability(wd, specFile); err != nil {
+		return err
+	}
+	managedCandidate, err := prefetchManagedNativeV2IntentBeforeDeployObservability(ctx, wd, specFile)
+	if err != nil {
+		return err
+	}
+	if !noLog {
+		initDeployLogger()
+	}
 	rolloutEvent("apply", "started", "apply started", nil)
 	defer func() {
 		if retErr != nil {
@@ -104,8 +123,30 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			}
 		}()
 	}
-	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
+	if managedCandidate != nil {
+		rolloutEvent("tenant_spec_fetch", "started", "publishing admitted tenant deployment spec", map[string]string{
+			"tenant_deployment_id": applyTenantDeployment,
+		})
+		recordTenantDeploymentEvent(applyTenantDeployment, "tenant_spec_fetch", "started", "publishing admitted tenant deployment spec", "")
+		if _, err := persistTenantSpecCandidate(wd, applyTenantDeployment, *managedCandidate); err != nil {
+			return fmt.Errorf("publish admitted tenant-deployment spec: %w", err)
+		}
+	}
+	managedBundle, handled, managedErr := preflightManagedTenantBundle(wd)
+	if managedErr != nil {
+		return managedErr
+	}
+	if managedBundle {
+		if handled {
+			return nil
+		}
+	} else if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
 		return err
+	}
+	if applyTenantDeployment == "" {
+		if err := requireNativeV2StackSpec(wd, specFile, architectureV2Apply); err != nil {
+			return err
+		}
 	}
 
 	// Load spec — three-tier resolution:
@@ -134,14 +175,17 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 					rolloutFailure("tenant_spec_fetch", fetchErr)
 					return fmt.Errorf("tenant-deployment spec fetch: %w", fetchErr)
 				}
-				// Re-load from disk so downstream code goes through
-				// the usual validation + defaulting path in the loader.
-				spec, err = loader.LoadStackSpec(specFile)
+				var handled bool
+				var routeErr error
+				spec, handled, routeErr = loadFetchedTenantSpecForApply(wd, applyTenantDeployment, fetched, func() (bool, error) {
+					return newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions)
+				})
+				if handled {
+					return routeErr
+				}
+				err = routeErr
 				if err != nil {
-					// Defensive: the fetched spec didn't round-trip.
-					// Use it directly and log the loader error.
-					printWarning("Admin-fetched spec failed loader validation: %v (using raw spec)", err)
-					spec = fetched
+					return fmt.Errorf("load admitted tenant StackSpec v1: %w", err)
 				}
 			} else {
 				rolloutEvent("spec.load", "failed", "local stack spec missing; creating default spec", nil)
@@ -480,6 +524,59 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	return nil
+}
+
+func loadFetchedTenantSpecForApply(wd, deploymentID string, fetched tenantSpecFetchResult, preflight func() (bool, error)) (*models.StackSpec, bool, error) {
+	if preflight == nil {
+		return nil, false, fmt.Errorf("tenant StackSpec governed preflight is required")
+	}
+	handled, err := withVerifiedTenantFetchBundle(wd, specFile, deploymentID, fetched, preflight)
+	if handled || err != nil {
+		return nil, handled, err
+	}
+	if fetched.Version != stackspecmigration.SourceVersionV1 {
+		return nil, false, fmt.Errorf("tenant StackSpec %s escaped governed Architecture-v2 preflight", fetched.Version)
+	}
+	spec, err := config.NewLoader(wd).LoadLegacyStackSpec(specFile)
+	return spec, false, err
+}
+
+func preflightManagedTenantBundle(wd string) (bool, bool, error) {
+	exists, err := tenantFetchManifestExists(wd)
+	if err != nil || !exists {
+		return exists, false, err
+	}
+	if applyTenantDeployment == "" {
+		return true, false, fmt.Errorf("managed tenant bundle exists but --tenant-deployment is missing")
+	}
+	loaded, err := config.NewLoader(wd).ReadStackSpecDocument(specFile)
+	if err != nil {
+		if os.IsNotExist(err) || errors.Is(err, os.ErrNotExist) {
+			// A bundle published immediately before a process crash is resumed
+			// by the normal fetch branch, which revalidates the exact envelope.
+			return false, false, nil
+		}
+		return true, false, err
+	}
+	result := tenantSpecFetchResult{Version: loaded.Document.Version}
+	switch loaded.Document.Version {
+	case stackspecmigration.SourceVersionV1:
+		if loaded.Document.Legacy == nil {
+			return true, false, fmt.Errorf("managed tenant StackSpec v1 has no legacy identity")
+		}
+		result.KitProfile = stackspecmigration.KitProfile(loaded.Document.Legacy.StackKit)
+	case stackspecmigration.SourceVersionV2Alpha1:
+		if loaded.Document.V2 == nil {
+			return true, false, fmt.Errorf("managed tenant StackSpec v2 has no kit identity")
+		}
+		result.KitProfile = loaded.Document.V2.KitProfile
+	default:
+		return true, false, fmt.Errorf("managed tenant StackSpec has unsupported version %q", loaded.Document.Version)
+	}
+	handled, err := withVerifiedTenantFetchBundle(wd, specFile, applyTenantDeployment, result, func() (bool, error) {
+		return newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions)
+	})
+	return true, handled, err
 }
 
 func preserveExistingSetupRuns(loader *config.Loader, stateFile string, state *models.DeploymentState) error {

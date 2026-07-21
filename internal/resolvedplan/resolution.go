@@ -5,19 +5,35 @@ import (
 )
 
 type resolution struct {
-	capabilityIDs   []string
-	providerByCap   map[string]string
-	providerIDs     []string
-	addonIDs        []string
-	addonSelection  map[string]any
-	settingsByCap   map[string]map[string]any
-	secretRefsByCap map[string]map[string]any
-	availability    *availabilityPolicyView
+	capabilityIDs    []string
+	providerByCap    map[string]string
+	providerIDs      []string
+	addonIDs         []string
+	addonSelection   map[string]any
+	settingsByCap    map[string]map[string]any
+	secretRefsByCap  map[string]map[string]any
+	workloadIDs      []string
+	workloads        map[string]*resolvedWorkloadSelection
+	workloadByModule map[string]string
+	availability     *availabilityPolicyView
 }
 
 func resolveContracts(profile *profileView, spec *specView, catalog *indexedCatalog) (*resolution, error) {
 	enabled, allowed, forbidden, disabled, err := initializeCapabilitySelection(profile, spec)
 	if err != nil {
+		return nil, err
+	}
+	workloads, err := resolveWorkloadSelections(profile, spec, catalog)
+	if err != nil {
+		return nil, err
+	}
+	workloadProviderSet := make(map[string]struct{}, len(workloads))
+	workloadByModule := make(map[string]string, len(workloads))
+	for id, workload := range workloads {
+		workloadProviderSet[workload.providerID] = struct{}{}
+		workloadByModule[workload.moduleID] = id
+	}
+	if _, err := closeRequirements("providers", sortedSet(workloadProviderSet), catalog.providers, enabled, allowed, forbidden, catalog); err != nil {
 		return nil, err
 	}
 
@@ -41,7 +57,14 @@ func resolveContracts(profile *profileView, spec *specView, catalog *indexedCata
 	if err != nil {
 		return nil, err
 	}
-	if err := validateConflicts(enabled, providerByCap, addonIDs, catalog); err != nil {
+	conflictProviders := make(map[string]string, len(providerByCap)+len(workloads))
+	for capabilityID, providerID := range providerByCap {
+		conflictProviders[capabilityID] = providerID
+	}
+	for workloadID, workload := range workloads {
+		conflictProviders["workload:"+workloadID] = workload.providerID
+	}
+	if err := validateConflicts(enabled, conflictProviders, addonIDs, sortedStringMapKeys(workloads), catalog); err != nil {
 		return nil, err
 	}
 
@@ -50,11 +73,15 @@ func resolveContracts(profile *profileView, spec *specView, catalog *indexedCata
 	for _, provider := range providerByCap {
 		providerSet[provider] = struct{}{}
 	}
+	for provider := range workloadProviderSet {
+		providerSet[provider] = struct{}{}
+	}
 	return &resolution{
 		capabilityIDs: capabilityIDs, providerByCap: providerByCap,
 		providerIDs: sortedSet(providerSet), addonIDs: addonIDs,
 		addonSelection: addonSelection, settingsByCap: settings,
-		secretRefsByCap: secretRefs, availability: availability,
+		secretRefsByCap: secretRefs, workloadIDs: sortedStringMapKeys(workloads),
+		workloads: workloads, workloadByModule: workloadByModule, availability: availability,
 	}, nil
 }
 
@@ -423,21 +450,34 @@ func applyContractRequirement(requirement requirement, requirementPath string, e
 	return true, nil
 }
 
-func validateConflicts(enabled map[string]struct{}, selected map[string]string, addonIDs []string, catalog *indexedCatalog) error {
+func validateConflicts(enabled map[string]struct{}, selected map[string]string, addonIDs, workloadIDs []string, catalog *indexedCatalog) error {
+	providerSet := make(map[string]struct{})
+	for _, provider := range selected {
+		providerSet[provider] = struct{}{}
+	}
+	selectedContracts := make(map[string]struct{}, len(enabled)+len(providerSet)+len(addonIDs)+len(workloadIDs))
+	for id := range enabled {
+		selectedContracts[id] = struct{}{}
+	}
+	for id := range providerSet {
+		selectedContracts[id] = struct{}{}
+	}
+	for _, id := range addonIDs {
+		selectedContracts[id] = struct{}{}
+	}
+	for _, id := range workloadIDs {
+		selectedContracts[id] = struct{}{}
+	}
 	for _, id := range sortedSet(enabled) {
 		conflicts, err := stringListField(catalog.capabilities[id], "catalog.capabilities."+id, "conflicts", false)
 		if err != nil {
 			return err
 		}
 		for _, conflict := range conflicts {
-			if _, exists := enabled[conflict]; exists {
-				return fail(ErrContractConflict, "catalog.capabilities."+id+".conflicts", "%q conflicts with enabled capability %q", id, conflict)
+			if _, exists := selectedContracts[conflict]; exists {
+				return fail(ErrContractConflict, "catalog.capabilities."+id+".conflicts", "%q conflicts with selected contract %q", id, conflict)
 			}
 		}
-	}
-	providerSet := make(map[string]struct{})
-	for _, provider := range selected {
-		providerSet[provider] = struct{}{}
 	}
 	for _, id := range sortedSet(providerSet) {
 		conflicts, err := stringListField(catalog.providers[id], "catalog.providers."+id, "conflicts", false)
@@ -445,14 +485,10 @@ func validateConflicts(enabled map[string]struct{}, selected map[string]string, 
 			return err
 		}
 		for _, conflict := range conflicts {
-			if _, exists := providerSet[conflict]; exists {
-				return fail(ErrContractConflict, "catalog.providers."+id+".conflicts", "%q conflicts with selected provider %q", id, conflict)
+			if _, exists := selectedContracts[conflict]; exists {
+				return fail(ErrContractConflict, "catalog.providers."+id+".conflicts", "%q conflicts with selected contract %q", id, conflict)
 			}
 		}
-	}
-	addonSet := make(map[string]struct{}, len(addonIDs))
-	for _, id := range addonIDs {
-		addonSet[id] = struct{}{}
 	}
 	for _, id := range addonIDs {
 		conflicts, err := stringListField(catalog.addons[id], "catalog.addons."+id, "conflicts", false)
@@ -460,10 +496,7 @@ func validateConflicts(enabled map[string]struct{}, selected map[string]string, 
 			return err
 		}
 		for _, conflict := range conflicts {
-			_, addonConflict := addonSet[conflict]
-			_, providerConflict := providerSet[conflict]
-			_, capabilityConflict := enabled[conflict]
-			if addonConflict || providerConflict || capabilityConflict {
+			if _, exists := selectedContracts[conflict]; exists {
 				return fail(ErrContractConflict, "catalog.addons."+id+".conflicts", "%q conflicts with selected contract %q", id, conflict)
 			}
 		}

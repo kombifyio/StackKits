@@ -18,6 +18,7 @@ import (
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
+	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -26,6 +27,7 @@ type ServerConfig struct {
 	Port                          int
 	BaseDir                       string
 	Version                       string
+	GitCommit                     string
 	APIKey                        string   // If set, all non-health endpoints require X-API-Key header
 	CORSOrigins                   []string // Allowed CORS origins; empty disables browser CORS, "*" allows wildcard
 	RateLimit                     int      // Max requests per IP per minute; 0 = no limit
@@ -159,21 +161,39 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/logs/{runID}/stream", s.handleStreamLog)
 
 	// Node-local setup actions
-	s.mux.HandleFunc("GET /api/v1/setup/base-hub/protection", s.handleGetBaseHubProtection)
-	s.mux.HandleFunc("POST /api/v1/setup/base-hub/protection", s.handleProtectBaseHub)
-	s.mux.HandleFunc("GET /api/v1/setup/initial-access", s.handleGetInitialAccess)
-	s.mux.HandleFunc("POST /api/v1/setup/initial-access/reveal", s.handleRevealInitialAccess)
-	s.mux.HandleFunc("POST /api/v1/setup/services/{service}/run", s.handleRunServiceSetup)
-	s.mux.HandleFunc("GET /stackkit/files/session", s.handleFilesSessionBridge)
+	s.mux.HandleFunc("GET /api/v1/setup/base-hub/protection", s.exactV06OperationalSurface("Base Hub protection status", s.handleGetBaseHubProtection))
+	s.mux.HandleFunc("POST /api/v1/setup/base-hub/protection", s.exactV06OperationalSurface("Base Hub protection mutation", s.handleProtectBaseHub))
+	s.mux.HandleFunc("GET /api/v1/setup/initial-access", s.exactV06OperationalSurface("initial-access bootstrap state", s.handleGetInitialAccess))
+	s.mux.HandleFunc("POST /api/v1/setup/initial-access/reveal", s.exactV06OperationalSurface("initial-access credential reveal", s.handleRevealInitialAccess))
+	s.mux.HandleFunc("POST /api/v1/setup/services/{service}/run", s.exactV06OperationalSurface("legacy service setup runner", s.handleRunServiceSetup))
+	s.mux.HandleFunc("GET /stackkit/files/session", s.exactV06OperationalSurface("legacy Files session bridge", s.handleFilesSessionBridge))
 
 	// Direct Connect registry
-	s.mux.HandleFunc("POST /api/v1/registry/instances", s.handleRegisterInstance)
-	s.mux.HandleFunc("DELETE /api/v1/registry/instances/{instanceId}", s.handleDeregisterInstance)
-	s.mux.HandleFunc("PUT /api/v1/registry/instances/{instanceId}/heartbeat", s.handleRegistryHeartbeat)
+	s.mux.HandleFunc("POST /api/v1/registry/instances", s.exactV06OperationalSurface("in-memory Direct Connect registration", s.handleRegisterInstance))
+	s.mux.HandleFunc("DELETE /api/v1/registry/instances/{instanceId}", s.exactV06OperationalSurface("in-memory Direct Connect deregistration", s.handleDeregisterInstance))
+	s.mux.HandleFunc("PUT /api/v1/registry/instances/{instanceId}/heartbeat", s.exactV06OperationalSurface("in-memory Direct Connect heartbeat", s.handleRegistryHeartbeat))
+}
+
+func (s *Server) exactV06OperationalSurface(surface string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if stackspecadmission.RejectOperationalV1(s.config.Version) {
+			writeStructuredError(w, r, http.StatusNotImplemented, skerrors.NewValidationError(
+				"operational_surface_unavailable",
+				fmt.Sprintf("%s is an exact-v0.6 compatibility surface and has no native Architecture v2 contract", strings.TrimSpace(surface)),
+				skerrors.WithSuggestion("Use a governed native v2 intent, plan, and executor contract instead of legacy Node Hub artifacts or in-memory registry state"),
+			))
+			return
+		}
+		next(w, r)
+	}
 }
 
 func (s *Server) registerMCPRoutes() {
 	serverURL := fmt.Sprintf("http://localhost:%d", s.config.Port)
+	cliBinary, cliBinaryErr := stackkitmcp.SiblingStackkitBinary()
+	if cliBinaryErr != nil && s.config.MCPAllowWrite {
+		slog.Error("write-capable MCP CLI sibling is unavailable; process-backed action tools stay disabled", "error", cliBinaryErr)
+	}
 	app := stackkitmcp.New(stackkitmcp.Options{
 		Modes:      stackkitmcp.ParseModes("docs,local,server,actions"),
 		ServerURL:  serverURL,
@@ -181,6 +201,9 @@ func (s *Server) registerMCPRoutes() {
 		MCPToken:   s.config.MCPToken,
 		AllowWrite: s.config.MCPAllowWrite,
 		BaseDir:    s.config.BaseDir,
+		Binary:     cliBinary,
+		Version:    s.config.Version,
+		GitCommit:  s.config.GitCommit,
 	})
 	mcpHandler := app.ProtectedStreamableHTTPHandler()
 	s.mux.Handle("POST /mcp", withoutWriteDeadline(mcpHandler))

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/spf13/cobra"
 )
 
@@ -50,20 +51,21 @@ var agentPromptBodies = map[string]string{
 	"basekit-autonomous-rollout": `You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only.
 
 Run:
-stackkit init basement-kit --non-interactive --admin-email <operator-email>
+stackkit init basement-kit --non-interactive
 stackkit prepare --dry-run
 stackkit validate
-stackkit generate --force
+stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json
+stackkit generate
 stackkit plan
 stackkit apply
-stackkit verify --http --json
+stackkit verify --json
 
-Preserve logs and evidence. Do not hand-edit generated files under deploy/, .stackkit/, or generated snapshots. Expected Hub URL: http://base.home.localhost.`,
+Do not put provider lifecycle, credentials, management addresses, or observed host facts into StackSpec. Preserve logs and evidence. Do not hand-edit generated files under deploy/, .stackkit/, or generated snapshots.`,
 	"inspect-existing-rollout": `Inspect an existing StackKits workspace without mutation.
 
 Run:
 stackkit status --json
-stackkit verify --http --json
+stackkit verify --json
 stackkit logs list --json
 stackkit doctor --json
 
@@ -74,22 +76,23 @@ Run:
 stackkit logs list --json
 stackkit logs latest --json
 stackkit doctor --json
-stackkit verify --http --json
+stackkit verify --json
 stackkit status --json
 
 Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or-dns, generated-config, opentofu-plan, opentofu-apply, service-health, or unknown.`,
-	"ssh-rollout": `Roll out BaseKit to a reachable SSH target. Keep the workflow non-interactive and evidence-based.
+	"ssh-rollout": `Prepare an externally handed-over host for a governed Basement Kit rollout. Raw SSH target selection is not StackSpec intent.
 
-Confirm target host, SSH user, SSH key path, admin email, and whether the host is dedicated to StackKits.
+Require an observed Inventory plus any ExternalHostBinding/HostConformanceReceipt from the host or TechStack owner. Never put provider credentials, lifecycle, or management addresses into StackSpec.
 
 Run:
-stackkit init basement-kit --non-interactive --admin-email <email>
+stackkit init basement-kit --non-interactive
 stackkit prepare --dry-run
 stackkit validate
-stackkit generate --force
+stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json
+stackkit generate
 stackkit plan
 stackkit apply
-stackkit verify --http --json`,
+stackkit verify --json`,
 }
 
 var agentCmd = &cobra.Command{
@@ -251,30 +254,57 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 	if workspace == "" {
 		workspace = "my-homelab"
 	}
+	if !stackspecadmission.RejectOperationalV1(version) {
+		return legacyAgentInstallPlan(kit, target, workspace)
+	}
+	initCommand := "stackkit init " + kit + " --non-interactive"
+	if kit == "cloud-kit" || kit == "modern-homelab" {
+		initCommand += " --domain <domain-base>"
+	}
 	return agentInstallPlan{
 		Scenario:  "basekit-autonomous-rollout",
 		Kit:       kit,
 		Target:    target,
 		Workspace: workspace,
 		Commands: []agentCommandStep{
-			{Command: "curl -sSL https://base.stackkit.cc | sh", Purpose: "install StackKits CLI, server, local MCP adapter, packaged OpenTofu, and BaseKit definitions", Mutation: true},
+			{Command: "stackkit version", Purpose: "require the exact native v0.7 candidate bundle; never fall back to public v0.6", Mutation: false},
 			{Command: "mkdir -p " + workspace + " && cd " + workspace, Purpose: "create a clean workspace", Mutation: true},
-			{Command: "stackkit init " + kit + " --non-interactive --admin-email <operator-email>", Purpose: "write stack-spec.yaml from the release-ready kit", Mutation: true},
+			{Command: initCommand, Purpose: "materialize canonical StackSpec v2 from the embedded CUE authoring contract", Mutation: true},
 			{Command: "stackkit prepare --dry-run", Purpose: "check host prerequisites without changing the host", Mutation: false},
-			{Command: "stackkit validate", Purpose: "validate StackSpec and CUE contracts", Mutation: false},
-			{Command: "stackkit generate --force", Purpose: "generate deployment artifacts from source-of-truth inputs", Mutation: true},
-			{Command: "stackkit plan", Purpose: "preview OpenTofu changes", Mutation: false},
-			{Command: "stackkit apply", Purpose: "apply the approved rollout", Mutation: true},
-			{Command: "stackkit verify --http --json", Purpose: "produce machine-readable functional evidence", Mutation: false},
+			{Command: "stackkit validate", Purpose: "validate desired StackSpec v2 intent against the embedded CUE authority", Mutation: false},
+			{Command: "stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json", Purpose: "bind desired intent to externally observed host Inventory", Mutation: true},
+			{Command: "stackkit generate", Purpose: "render the exact authorized ResolvedPlan", Mutation: true},
+			{Command: "stackkit plan", Purpose: "preview the exact persisted Architecture v2 plan", Mutation: false},
+			{Command: "stackkit apply", Purpose: "apply only when the ResolvedPlan reports apply readiness", Mutation: true},
+			{Command: "stackkit verify --json", Purpose: "verify the exact spec, plan, manifest, receipt, and outputs", Mutation: false},
 		},
 		Evidence: []string{
-			"stackkit verify --http --json output",
+			"stackkit verify --json output",
 			".stackkit/logs/<runID>.jsonl",
 			".stackkit/runs/<runID>/summary.json",
 			"manifest matching stackkit-agent-run-manifest.schema.json",
 			"functional result matching stackkit-agent-functional-result.schema.json",
 		},
-		ReadinessNote: "BaseKit is release-ready; unreleased kit definitions remain outside the public beta release matrix.",
+		ReadinessNote: "StackSpec validity is not generation or apply readiness; the Inventory-bound ResolvedPlan is authoritative.",
+	}
+}
+
+func legacyAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
+	return agentInstallPlan{
+		Scenario: "basekit-autonomous-rollout", Kit: kit, Target: target, Workspace: workspace,
+		Commands: []agentCommandStep{
+			{Command: "curl -sSL https://base.stackkit.cc | sh", Purpose: "install the exact v0.6 compatibility bundle", Mutation: true},
+			{Command: "mkdir -p " + workspace + " && cd " + workspace, Purpose: "create a clean workspace", Mutation: true},
+			{Command: "stackkit init " + kit + " --non-interactive --admin-email <operator-email>", Purpose: "write the exact v0.6 StackSpec", Mutation: true},
+			{Command: "stackkit prepare --dry-run", Purpose: "check host prerequisites", Mutation: false},
+			{Command: "stackkit validate", Purpose: "validate v0.6 intent", Mutation: false},
+			{Command: "stackkit generate --force", Purpose: "generate v0.6 artifacts", Mutation: true},
+			{Command: "stackkit plan", Purpose: "preview v0.6 changes", Mutation: false},
+			{Command: "stackkit apply", Purpose: "apply the approved v0.6 rollout", Mutation: true},
+			{Command: "stackkit verify --http --json", Purpose: "produce v0.6 evidence", Mutation: false},
+		},
+		Evidence:      []string{"stackkit verify --http --json output", ".stackkit/logs/<runID>.jsonl", ".stackkit/runs/<runID>/summary.json"},
+		ReadinessNote: "Exact v0.6 compatibility workflow; migrate to StackSpec v2 before native v0.7 operations.",
 	}
 }
 

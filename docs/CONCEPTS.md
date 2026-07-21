@@ -55,8 +55,8 @@ the HA add-on may replicate its members.
 
 | StackKit | Pattern | Maturity | Default Scope |
 |----------|---------|----------|---------------|
-| **Basement Kit** | One or more home Sites; local Control Authority | stable runtime; v2 profile migration active | Local provisioning, LAN access/enrollment, hardware gates, offline autonomy |
-| **Cloud Kit** | One or more cloud Sites; cloud Control Authority | stable runtime; v2 profile migration active | VPS provisioning, default-closed public edge, public DNS/TLS, internet hardening |
+| **Basement Kit** | Exactly one home Site with one or more nodes; local Control Authority | stable runtime; v2 profile migration active | Local host installation, LAN access/enrollment, hardware gates, offline autonomy |
+| **Cloud Kit** | Exactly one cloud Site with one or more nodes; cloud Control Authority | stable runtime; v2 profile migration active | Admission of an externally supplied host, default-closed public edge, public DNS/TLS, internet hardening |
 | **Modern Homelab** | At least one home and one cloud Site; home authority + five bridge contracts | preview/early-access | Protected Site federation, explicit publication/placement/residency/partition policy |
 | **HA** *(add-on, never a kit)* | Replicates one logical ControlPlane against explicit RPO/RTO | `addons/ha` | Kit-specific active-passive/quorum realization with real nodes, failure domains, and fencing |
 
@@ -74,7 +74,7 @@ Canonical v2 separates facts that the legacy `context` enum combined:
 | Site kind | `home`, `cloud` | Explicit StackSpec/KitDefinition constraint |
 | Reachability | private, NAT/CGNAT, public-capable | Detected inventory + validated intent |
 | Hardware | amd64/arm64, `pi`, GPU, storage | Node inventory and hardware profile |
-| Provider | VPS/cloud account, region, failure domain | Site provider reference + observed facts |
+| External host custody | Opaque host binding, observed failure domain | TechStack/external executor; StackKits receives only provider-neutral binding and conformance evidence |
 | Exposure | local, remote-private, public | Per-service access/publication policy |
 
 The current CLI still accepts `--context local|cloud|pi` as a v1 compatibility

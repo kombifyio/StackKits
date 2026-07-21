@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 )
 
 //go:embed assets/onboarding.html
@@ -21,14 +23,20 @@ const onboardingResourceURI = "ui://stackkits/onboarding.html"
 
 // App owns the StackKits MCP registration shared by stackkit-mcp and stackkit-server.
 type App struct {
-	opts Options
-	docs map[string]string
+	opts            Options
+	docs            map[string]string
+	cliBinding      *cliBinaryBinding
+	cliBindingError error
 }
 
 // New creates a configured StackKits MCP app.
 func New(opts Options) *App {
 	opts = opts.normalized()
-	return &App{opts: opts, docs: loadDocs()}
+	app := &App{opts: opts, docs: loadDocs()}
+	if opts.Modes["actions"] && (opts.AllowWrite || stackspecadmission.RejectOperationalV1(opts.Version)) {
+		app.cliBinding, app.cliBindingError = bindCLIBinary(opts)
+	}
+	return app
 }
 
 // NewHTTPServer creates a hardened Streamable HTTP server. WriteTimeout stays
@@ -57,8 +65,11 @@ func (a *App) Server() *mcp.Server {
 	if a.opts.Modes["server"] {
 		a.addServerTools(server)
 	}
-	if a.opts.Modes["actions"] && a.opts.AllowWrite {
-		a.addActions(server)
+	if a.opts.Modes["actions"] {
+		a.addReadOnlyActions(server)
+		if a.opts.AllowWrite {
+			a.addActions(server)
+		}
 	}
 	return server
 }
@@ -102,34 +113,53 @@ func (a *App) OpenMCP() map[string]any {
 	if a.opts.Modes["server"] {
 		tools = append(tools,
 			toolDefinition("stackkit_status", true, false, true),
-			toolDefinition("stackkit_verify", true, false, false),
 			toolDefinition("stackkit_logs_list", true, false, true),
 			toolDefinition("stackkit_log_get", true, false, true),
-			toolDefinition("stackkit_doctor", true, false, false),
 		)
+		if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
+			tools = append(tools,
+				toolDefinition("stackkit_verify", true, false, false),
+				toolDefinition("stackkit_doctor", true, false, false),
+			)
+		}
+	}
+	if a.opts.Modes["actions"] && a.cliBinding != nil && stackspecadmission.RejectOperationalV1(a.opts.Version) {
+		tools = append(tools, toolDefinition("stackkit_plan", true, false, true))
 	}
 	if a.opts.Modes["actions"] && a.opts.AllowWrite {
-		tools = append(tools,
-			toolDefinition("stackkit_init", false, false, false),
-			toolDefinition("stackkit_prepare", false, false, false),
-			toolDefinition("stackkit_generate", false, false, false),
-			toolDefinition("stackkit_plan", false, false, true),
-			toolDefinition("stackkit_apply", false, true, false),
-			toolDefinition("stackkit_update", false, true, false),
-			toolDefinition("stackkit_config_set", false, true, false),
-			toolDefinition("stackkit_rollout", false, true, false),
-		)
+		tools = append(tools, toolDefinition("stackkit_config_set", false, true, true))
+		if a.cliBinding != nil {
+			writeTools := []map[string]any{
+				toolDefinition("stackkit_init", false, false, false),
+				toolDefinition("stackkit_prepare", false, false, false),
+				toolDefinition("stackkit_resolve", false, false, false),
+				toolDefinition("stackkit_generate", false, false, false),
+				toolDefinition("stackkit_apply", false, true, false),
+				toolDefinition("stackkit_verify_plan", true, false, true),
+			}
+			if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
+				writeTools = append(writeTools, toolDefinition("stackkit_plan", false, false, true))
+			}
+			tools = append(tools, writeTools...)
+			if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
+				tools = append(tools,
+					toolDefinition("stackkit_update", false, true, false),
+					toolDefinition("stackkit_rollout", false, true, false),
+				)
+			}
+		}
 	}
 	return map[string]any{
 		"schemaVersion": "2026-06-08",
 		"name":          "stackkit",
+		"version":       a.opts.Version,
 		"title":         "StackKits Native MCP Connector",
-		"description":   "One user-facing StackKits MCP connection for docs, host checks, rollout guidance, and gated CLI-equivalent StackKits operations.",
+		"description":   "One user-facing StackKits MCP connection for CUE-governed authoring, resolution guidance, and gated same-build StackKits operations.",
 		"userModel": map[string]any{
 			"connectionName":   "stackkit",
 			"localEntrypoint":  "stackkit-mcp stdio or loopback adapter",
 			"serverEntrypoint": "stackkit-server POST /mcp",
-			"mcpUse":           "authoring/build layer for the onboarding app, not a second production connector",
+			"appAuthority":     "embedded CUE Definition metadata; not a second production connector",
 		},
 		"transport": map[string]any{
 			"type":     "streamable-http",
@@ -142,9 +172,9 @@ func (a *App) OpenMCP() map[string]any {
 		},
 		"policy": map[string]any{
 			"websiteSurface":          "read-only discovery only",
-			"localConnectorAuthority": "same authority as a user running stackkit on this server when write mode is enabled",
+			"localConnectorAuthority": "same-build sibling CLI required; mutating actions additionally require write mode",
 			"managedServerless":       "out-of-scope",
-			"appDay2Orchestration":    "out-of-scope; MCP apply skips platform app lifecycle by default",
+			"providerLifecycle":       "out-of-scope; owned by TechStack or another external executor",
 		},
 		"modes":      enabledModes(a.opts.Modes),
 		"allowWrite": a.opts.AllowWrite,
@@ -156,7 +186,7 @@ func (a *App) OpenMCP() map[string]any {
 			"uri":                  onboardingResourceURI,
 			"mimeType":             "text/html;profile=mcp-app",
 			"description":          "Stateful StackKits MCP App onboarding widget",
-			"steps":                []string{"contact-and-workspace", "stackkit-select", "domain-and-core-settings", "review-and-plan", "rollout-and-evidence"},
+			"steps":                []string{"workspace", "stackkit-profile", "resolution-inputs", "review-and-plan", "apply-and-evidence"},
 			"callsToolsFromWidget": true,
 			"appsSdkMetadata":      onboardingResourceMeta(),
 		}},
@@ -245,21 +275,42 @@ func (a *App) addLocal(server *mcp.Server) {
 
 func (a *App) addServerTools(server *mcp.Server) {
 	mcp.AddTool(server, mcpTool("stackkit_status", "GET /api/v1/status from stackkit-server.", true, false, true), a.status)
-	mcp.AddTool(server, mcpTool("stackkit_verify", "POST /api/v1/verify against stackkit-server.", true, false, false), a.verify)
 	mcp.AddTool(server, mcpTool("stackkit_logs_list", "GET /api/v1/logs from stackkit-server.", true, false, true), a.logsList)
 	mcp.AddTool(server, mcpTool("stackkit_log_get", "GET /api/v1/logs/{runID} from stackkit-server.", true, false, true), a.logGet)
-	mcp.AddTool(server, mcpTool("stackkit_doctor", "POST /api/v1/doctor against stackkit-server.", true, false, false), a.doctor)
+	if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
+		mcp.AddTool(server, mcpTool("stackkit_verify", "POST /api/v1/verify against the exact v0.6 stackkit-server.", true, false, false), a.verify)
+		mcp.AddTool(server, mcpTool("stackkit_doctor", "POST /api/v1/doctor against the exact v0.6 stackkit-server.", true, false, false), a.doctor)
+	}
 }
 
 func (a *App) addActions(server *mcp.Server) {
-	mcp.AddTool(server, mcpTool("stackkit_init", "Run stackkit init on the local server workspace.", false, false, false), a.stackkitInit)
-	mcp.AddTool(server, mcpTool("stackkit_prepare", "Run stackkit prepare on the local server workspace.", false, false, false), a.stackkitPrepare)
-	mcp.AddTool(server, mcpTool("stackkit_generate", "Run stackkit generate on the local server workspace.", false, false, false), a.stackkitGenerate)
-	mcp.AddTool(server, mcpTool("stackkit_plan", "Run stackkit plan on the local server workspace.", false, false, true), a.stackkitPlan)
-	mcp.AddTool(server, mcpTool("stackkit_apply", "Run stackkit apply on the local server workspace; platform app lifecycle is skipped by default.", false, true, false), a.stackkitApply)
-	mcp.AddTool(server, mcpTool("stackkit_update", "Run stackkit kit upgrade on the local server workspace.", false, true, false), a.stackkitUpdate)
-	mcp.AddTool(server, mcpTool("stackkit_config_set", "Replace stack-spec.yaml after validation in the local workspace.", false, true, false), a.configSet)
-	mcp.AddTool(server, mcpTool("stackkit_rollout", "Run init, prepare, validate, generate, plan, apply, and verify as one bounded local StackKits rollout.", false, true, false), a.stackkitRollout)
+	mcp.AddTool(server, mcpTool("stackkit_config_set", "Create or expected-spec-hash compare-and-swap a canonical CUE-validated StackSpec v2.", false, true, true), a.configSet)
+	if a.cliBinding == nil {
+		return
+	}
+	if stackspecadmission.RejectOperationalV1(a.opts.Version) {
+		mcp.AddTool(server, mcpTool("stackkit_init", "Materialize a native Architecture v2 StackSpec from the embedded CUE authoring contract.", false, false, false), a.stackkitInitV2)
+		mcp.AddTool(server, mcpTool("stackkit_prepare", "Prepare the local Architecture v2 workspace without accepting a transport or provider target.", false, false, false), a.stackkitPrepareV2)
+		mcp.AddTool(server, mcpTool("stackkit_resolve", "Resolve StackSpec v2 plus observed Inventory into the canonical persisted ResolvedPlan.", false, false, false), a.stackkitResolveV2)
+		mcp.AddTool(server, mcpTool("stackkit_generate", "Generate from the exact persisted Architecture v2 ResolvedPlan.", false, false, false), a.stackkitGenerateV2)
+		mcp.AddTool(server, mcpTool("stackkit_apply", "Apply the exact persisted Architecture v2 plan after explicit approval.", false, true, false), a.stackkitApplyV2)
+		mcp.AddTool(server, mcpTool("stackkit_verify_plan", "Verify the exact Architecture v2 spec, plan, manifest, receipt, and generated outputs.", true, false, true), a.stackkitVerifyV2)
+		return
+	}
+	mcp.AddTool(server, mcpTool("stackkit_init", "Run stackkit init on the exact v0.6 compatibility workspace.", false, false, false), a.stackkitInit)
+	mcp.AddTool(server, mcpTool("stackkit_prepare", "Run stackkit prepare on the exact v0.6 compatibility workspace.", false, false, false), a.stackkitPrepare)
+	mcp.AddTool(server, mcpTool("stackkit_generate", "Run stackkit generate on the exact v0.6 compatibility workspace.", false, false, false), a.stackkitGenerate)
+	mcp.AddTool(server, mcpTool("stackkit_plan", "Run stackkit plan on the exact v0.6 compatibility workspace.", false, false, true), a.stackkitPlan)
+	mcp.AddTool(server, mcpTool("stackkit_apply", "Run stackkit apply on the exact v0.6 compatibility workspace.", false, true, false), a.stackkitApply)
+	mcp.AddTool(server, mcpTool("stackkit_update", "Run stackkit kit upgrade on the exact v0.6 compatibility workspace.", false, true, false), a.stackkitUpdate)
+	mcp.AddTool(server, mcpTool("stackkit_rollout", "Run the exact v0.6 compatibility rollout.", false, true, false), a.stackkitRollout)
+}
+
+func (a *App) addReadOnlyActions(server *mcp.Server) {
+	if a.cliBinding == nil || !stackspecadmission.RejectOperationalV1(a.opts.Version) {
+		return
+	}
+	mcp.AddTool(server, mcpTool("stackkit_plan", "Inspect the exact persisted Architecture v2 ResolvedPlan and generated artifact closure without mutation or executor invocation.", true, false, true), a.stackkitPlanV2)
 }
 
 func mcpTool(name, description string, readOnly, destructive, idempotent bool) *mcp.Tool {
@@ -288,10 +339,12 @@ var onboardingWidgetToolNames = map[string]bool{
 	"stackkit_validate_spec":    true,
 	"stackkit_generate_preview": true,
 	"stackkit_prepare":          true,
+	"stackkit_resolve":          true,
 	"stackkit_generate":         true,
 	"stackkit_plan":             true,
 	"stackkit_rollout":          true,
 	"stackkit_verify":           true,
+	"stackkit_verify_plan":      true,
 	"stackkit_logs_list":        true,
 	"stackkit_doctor":           true,
 }
@@ -316,7 +369,7 @@ func onboardingResourceMeta() mcp.Meta {
 				"resourceDomains": []string{"https://stackkit.cc"},
 			},
 		},
-		"openai/widgetDescription":      "Guided StackKits onboarding for email, kit selection, core settings, domain choice, rollout progress, and evidence review.",
+		"openai/widgetDescription":      "Guided Architecture v2 authoring, Inventory-bound resolution, planning, apply approval, and evidence review.",
 		"openai/widgetPrefersBorder":    true,
 		"openai/widgetAccessible":       true,
 		"openai/resultCanProduceWidget": true,

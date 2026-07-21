@@ -25,6 +25,26 @@ _architectureV2CoreCapabilities: [
 	"lifecycle-update",
 ]
 
+// Topology is declarative plan authority, not host runtime work. Keeping it
+// outside the residual Core module prevents a generated executor handoff from
+// falsely claiming that it creates sites or owns their lifecycle.
+_architectureV2CoreTopologyCapabilities: ["topology-core"]
+
+// The service catalog is resolved plan data consumed by runtime owners. It is
+// neither a daemon nor a generated executor contract of its own.
+_architectureV2ServiceCatalogCapabilities: ["service-catalog"]
+
+// These are shared policy contracts consumed by kit-specific enforcement and
+// runtime owners. Selection binds plan intent; it does not enforce access or
+// mutate storage on its own.
+_architectureV2AccessPolicyCapabilities: ["access-policy"]
+_architectureV2StorageDataPolicyCapabilities: ["storage-data-policy"]
+
+// runtime-paas is the shared workload delivery interface. Basement Compose,
+// Cloud runtime, and Modern federation remain distinct realizations and must
+// not be inferred from this cross-kit contract.
+_architectureV2WorkloadRuntimeContractCapabilities: ["runtime-paas"]
+
 _architectureV2HostAdmissionCapabilities: [
 	"external-host-admission",
 	"host-conformance",
@@ -35,23 +55,17 @@ _architectureV2IdentityCapabilities: [
 	"device-trust-core",
 ]
 
-_architectureV2CoreModuleCapabilities: [
-	for capabilityID in _architectureV2CoreCapabilities
-	if !list.Contains(list.Concat([_architectureV2HostAdmissionCapabilities, _architectureV2IdentityCapabilities]), capabilityID) {capabilityID},
-]
-
-// Concrete Foundation modules take ownership away from the residual umbrella
-// one capability at a time. The umbrella remains useful for shadow planning,
-// but it must never duplicate a capability already owned by an executable
-// module contract.
-_architectureV2CoreUmbrellaCapabilities: [
-	for capabilityID in _architectureV2CoreModuleCapabilities
-	if capabilityID != "security-baseline" {capabilityID},
-]
+// These shared Core capabilities are contracts consumed by kit-specific
+// owners. None of them is permission for one generic host executor.
+_architectureV2SecretsRecoveryCapabilities: ["secrets-recovery"]
+_architectureV2BackupCoreCapabilities: ["backup-core"]
+_architectureV2ObservabilityEvidenceCapabilities: ["observability-evidence"]
+_architectureV2LifecycleUpdateCapabilities: ["lifecycle-update"]
+_architectureV2SecurityBaselineCapabilities: ["security-baseline"]
+_architectureV2CoreHostBootstrapCapabilities: ["host-bootstrap"]
 
 _architectureV2LocalCapabilities: [
 	"site-local",
-	"local-hardware-preflight",
 	"lan-discovery",
 	"local-ingress",
 	"lan-access-policy",
@@ -60,13 +74,14 @@ _architectureV2LocalCapabilities: [
 	"offline-autonomy",
 	"local-backup-target",
 	"lan-dns",
-	"internal-pki",
 	"private-remote-access",
 	"public-publish-egress",
 	"encrypted-offsite-backup",
 ]
 
 _architectureV2LocalAutonomyCapabilities: ["offline-autonomy"]
+
+_architectureV2InternalPKICapabilities: ["internal-pki"]
 
 _architectureV2HomeAccessCapabilities: ["local-ingress", "lan-access-policy"]
 
@@ -77,10 +92,17 @@ _architectureV2HomeIdentityAuthorityCapabilities: [
 	"local-control-authority",
 ]
 
-_architectureV2LocalUmbrellaCapabilities: [
-	for capabilityID in _architectureV2LocalCapabilities
-	if !list.Contains(list.Concat([_architectureV2LocalAutonomyCapabilities, _architectureV2HomeAccessCapabilities, _architectureV2HomeLANDiscoveryCapabilities, _architectureV2HomeIdentityAuthorityCapabilities]), capabilityID) {capabilityID},
-]
+// A prepared Home backup target is an executable, node-bound concern. It is
+// selected by Basement Kit because that kit requires local-backup-target; a
+// Modern Homelab has a Home site but does not inherit this Basement default.
+_architectureV2HomeBackupTargetCapabilities: ["local-backup-target"]
+
+_architectureV2LocalTopologyCapabilities: ["site-local"]
+
+_architectureV2HomeLANDNSCapabilities: ["lan-dns"]
+_architectureV2HomePrivateRemoteAccessCapabilities: ["private-remote-access"]
+_architectureV2HomePublicPublishEgressCapabilities: ["public-publish-egress"]
+_architectureV2HomeEncryptedOffsiteBackupCapabilities: ["encrypted-offsite-backup"]
 
 // The first product Compose lowering lane is Basement-owned rather than a
 // generic home-site behavior. Modern Homelab also has home sites, so placing
@@ -93,7 +115,6 @@ _architectureV2CloudCapabilities: [
 	"host-local-internet-firewall",
 	"public-edge",
 	"public-dns",
-	"public-tls",
 	"internet-host-hardening",
 	"remote-owner-bootstrap",
 	"offsite-object-backup",
@@ -107,34 +128,94 @@ _architectureV2CloudIdentityAuthorityCapabilities: [
 	"cloud-control-authority",
 ]
 
-_architectureV2CloudUmbrellaCapabilities: [
-	for capabilityID in _architectureV2CloudCapabilities
-	if !list.Contains(_architectureV2CloudIdentityAuthorityCapabilities, capabilityID) {capabilityID},
+_architectureV2CloudTopologyCapabilities: ["site-cloud"]
+_architectureV2CloudPlacementPolicyCapabilities: ["failure-domain-placement"]
+_architectureV2CloudHostSecurityCapabilities: [
+	"host-local-internet-firewall",
+	"internet-host-hardening",
 ]
+_architectureV2CloudPublicDNSCapabilities: ["public-dns"]
+_architectureV2CloudPublicEdgeCapabilities: ["public-edge"]
+_architectureV2CloudOffsiteBackupCapabilities: ["offsite-object-backup"]
+_architectureV2CloudPrivateAdminMeshCapabilities: ["private-admin-mesh"]
+
+_architectureV2PublicTLSCapabilities: ["public-tls"]
 
 // Public edge, DNS, and TLS capabilities above are desired host/service
-// behavior. They never authorize a server-provider or DNS-provider mutation;
-// an external platform adapter owns any such realization.
-//
-// Application capabilities stay independent of kit/site semantics. A kit may
-// allow an application without making it part of the kit baseline, while the
-// selected provider and module retain ownership of its runtime contract.
-_architectureV2ApplicationCapabilityContracts: [#CapabilityContract & {
+// behavior. DNS is declarative only; edge and TLS are separate generation
+// handoffs. None authorize a server-provider or DNS-provider mutation; an
+// external platform adapter owns any such realization.
+// Application selection is owned exclusively by logical Workload contracts.
+// It must never re-enter the architecture capability closure.
+_architectureV2ApplicationCapabilityContracts: []
+
+_architectureV2WorkloadContracts: [#WorkloadContractV2 & {
 	metadata: {
 		id:          "photos"
 		version:     "1.0.0"
-		description: "Self-hosted photo management service with governed endpoint and personal-data locality."
-		layer:       "application"
+		description: "Self-hosted photo management selected independently from kit architecture capabilities."
 	}
-	requires: [
-		{id: "runtime-paas"},
-		{id: "service-catalog"},
-		{id: "storage-data-policy"},
-	]
+	kind: "application"
+	functionalCapabilities: ["photo-library", "mobile-photo-backup"]
 	supportedSiteKinds: ["home", "cloud"]
 	dataClasses: ["personal"]
-	evidence: ["SK-S1", "SK-S2", "SK-S4"]
+	defaultAlternative: "immich"
+	alternatives: [{
+		id:          "immich"
+		providerRef: "stackkits-immich"
+		moduleRef:   "stackkits-immich-runtime"
+		route: {serviceRef: "photos", healthRef: "immich-http"}
+		runtime: {
+			allowedKinds: ["container"]
+			allowedDeliveries: ["selected-paas"]
+		}
+		setup: {
+			mode:  "manual"
+			owner: "operator"
+			actionRefs: []
+		}
+		inputs: {
+			settings: {allowedRefs: [], requiredRefs: []}
+			secretInputs: {
+				allowedRefs:  ["database-password"]
+				requiredRefs: ["database-password"]
+			}
+		}
+	}]
 }]
+
+_architectureV2TLSCapabilityContracts: [
+	{
+		metadata: {
+			id:          "internal-pki"
+			version:     "1.0.0"
+			description: "Home-private certificate policy resolved through a dedicated internal CA adapter."
+			layer:       "platform"
+		}
+		supportedSiteKinds: ["home"]
+		evidence: ["internal-pki-contract"]
+		tlsProfile: {
+			id:   "stackkits-internal-pki-profile", capabilityRef: "internal-pki"
+			mode: "internal", trustDomain:                         "private", minimumVersion: "TLS1.2"
+			allowedIssuerKinds: ["internal-ca"]
+		}
+	},
+	{
+		metadata: {
+			id:          "public-tls"
+			version:     "1.0.0"
+			description: "Public WebPKI certificate policy resolved through a dedicated ACME edge adapter."
+			layer:       "platform"
+		}
+		supportedSiteKinds: ["cloud"]
+		evidence: ["public-tls-contract"]
+		tlsProfile: {
+			id:   "stackkits-public-tls-profile", capabilityRef: "public-tls"
+			mode: "terminate-at-edge", trustDomain:              "web-pki", minimumVersion: "TLS1.2"
+			allowedIssuerKinds: ["acme"]
+		}
+	},
+]
 
 // Product-private catalog extensions override these defaults in a separate CUE
 // source owned by the corresponding authority profile. A public projection can
@@ -252,6 +333,7 @@ _architectureV2Capabilities: list.Concat([
 		evidence: ["SK-S2", "SK-S3"]
 	}],
 	_architectureV2ApplicationCapabilityContracts,
+	_architectureV2TLSCapabilityContracts,
 	_architectureV2ProfileExtensionCapabilityContracts,
 	[for capabilityID in _architectureV2HACapabilities {
 		metadata: {
@@ -276,19 +358,91 @@ _architectureV2Capabilities: list.Concat([
 
 _architectureV2Providers: list.Concat([[
 	{
-		metadata: {id: "stackkits-core", version: "1.0.0"}
-		provides: _architectureV2CoreModuleCapabilities
+		metadata: {id: "stackkits-core-topology", version: "1.0.0"}
+		provides: _architectureV2CoreTopologyCapabilities
 		supportedSiteKinds: ["home", "cloud"]
-		realization: {
-			kind: "modules"
-			moduleRefs: {
-				required: ["stackkits-core-runtime", "security-baseline"]
-				optional: []
-			}
-		}
+		realization: {kind: "topology", topology: {siteKinds: ["home", "cloud"]}}
 		selection: defaultForSiteKinds: ["home", "cloud"]
-		health: [{id: "stackkits-core-contract", kind: "contract"}]
-		evidence: ["resolved-plan-contract"]
+	},
+	{
+		metadata: {id: "stackkits-service-catalog", version: "1.0.0"}
+		provides: _architectureV2ServiceCatalogCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-access-policy-contract", version: "1.0.0"}
+		provides: _architectureV2AccessPolicyCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-storage-data-policy", version: "1.0.0"}
+		provides: _architectureV2StorageDataPolicyCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-workload-runtime-contract", version: "1.0.0"}
+		provides: _architectureV2WorkloadRuntimeContractCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-secrets-recovery-contract", version: "1.0.0"}
+		provides: _architectureV2SecretsRecoveryCapabilities
+		requires: [{id: "storage-data-policy"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-backup-core-contract", version: "1.0.0"}
+		provides: _architectureV2BackupCoreCapabilities
+		requires: [{id: "storage-data-policy"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-observability-evidence-contract", version: "1.0.0"}
+		provides: _architectureV2ObservabilityEvidenceCapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-lifecycle-update-contract", version: "1.0.0"}
+		provides: _architectureV2LifecycleUpdateCapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-security-baseline", version: "1.0.0"}
+		provides: _architectureV2SecurityBaselineCapabilities
+		requires: [{id: "topology-core"}, {id: "external-host-admission"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["security-baseline"], optional: []}}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "security-baseline-contract", kind: "contract"}]
+		evidence: ["security-baseline-executor-contract"]
+	},
+	{
+		metadata: {id: "stackkits-core-host-bootstrap", version: "1.0.0"}
+		provides: _architectureV2CoreHostBootstrapCapabilities
+		requires: [{id: "topology-core"}, {id: "external-host-admission"}, {id: "storage-data-policy"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-core-host-bootstrap"], optional: []}}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "core-host-bootstrap-contract", kind: "contract"}]
+		evidence: ["core-host-bootstrap-executor-contract"]
 	},
 	{
 		metadata: {id: "stackkits-host-admission", version: "1.0.0"}
@@ -337,13 +491,81 @@ _architectureV2Providers: list.Concat([[
 	},
 	{
 		metadata: {id: "stackkits-local", version: "1.0.0"}
-		provides: _architectureV2LocalUmbrellaCapabilities
+		provides: _architectureV2LocalTopologyCapabilities
 		requires: [{id: "topology-core"}]
 		supportedSiteKinds: ["home"]
-		realization: {kind: "modules", moduleRefs: {required: ["stackkits-local-runtime"], optional: []}}
+		realization: {kind: "topology", topology: {siteKinds: ["home"]}}
 		selection: defaultForSiteKinds: ["home"]
-		health: [{id: "stackkits-local-contract", kind: "contract"}]
-		evidence: ["SK-S1"]
+	},
+	{
+		metadata: {id: "stackkits-home-lan-dns-contract", version: "1.0.0"}
+		provides: _architectureV2HomeLANDNSCapabilities
+		requires: [{id: "site-local"}, {id: "service-catalog"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home"]
+	},
+	{
+		metadata: {id: "stackkits-home-private-remote-access", version: "1.0.0"}
+		provides: _architectureV2HomePrivateRemoteAccessCapabilities
+		requires: [{id: "site-local"}, {id: "lan-access-policy"}, {id: "device-trust-core"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-private-remote-access-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-private-remote-access-contract", kind: "contract"}]
+		evidence: ["home-private-remote-access-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-public-publish-egress", version: "1.0.0"}
+		provides: _architectureV2HomePublicPublishEgressCapabilities
+		requires: [{id: "site-local"}, {id: "access-policy"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-public-publish-egress-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-public-publish-egress-contract", kind: "contract"}]
+		evidence: ["home-public-publish-egress-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-encrypted-offsite-backup", version: "1.0.0"}
+		provides: _architectureV2HomeEncryptedOffsiteBackupCapabilities
+		requires: [{id: "site-local"}, {id: "backup-core"}, {id: "storage-data-policy"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-encrypted-offsite-backup-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-encrypted-offsite-backup-contract", kind: "contract"}]
+		evidence: ["home-encrypted-offsite-backup-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-backup-target", version: "1.0.0"}
+		provides: _architectureV2HomeBackupTargetCapabilities
+		requires: [{id: "host-bootstrap"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-backup-target"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-backup-target-contract", kind: "contract"}]
+		evidence: ["home-backup-target-executor-contract"]
+	},
+	{
+		metadata: {id: "stackkits-internal-pki", version: "1.0.0"}
+		provides: _architectureV2InternalPKICapabilities
+		requires: [{id: "site-local"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-internal-pki-contract"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "internal-pki-renewal-contract", kind: "contract"}]
+		evidence: ["internal-pki-contract"]
+		certificateIssuers: [{
+			id: "stackkits-internal-ca", capabilityRef: "internal-pki", kind: "internal-ca", challenge: "none"
+			supportedSiteKinds: ["home"], validitySeconds: 7776000
+			owner: {providerRef: "stackkits-internal-pki", moduleRef: "stackkits-internal-pki-contract", materializationSupport: "contract-only"}
+			requiredInputSlotIDs: []
+			materialSlots: [
+				{id: "certificate", purpose: "certificate-chain", sensitivity: "public"},
+				{id: "private-key", purpose: "private-key", sensitivity: "secret"},
+				{id: "trust-root", purpose: "trust-root", sensitivity: "public"},
+			]
+			renewal: {required: true, healthGateRef: "internal-pki-renewal-contract", renewBeforeSeconds: 2592000}
+		}]
 	},
 	{
 		metadata: {id: "stackkits-local-autonomy-policy", version: "1.0.0"}
@@ -376,14 +598,89 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["home-lan-discovery-policy-contract"]
 	},
 	{
-		metadata: {id: "stackkits-cloud", version: "1.0.0"}
-		provides: _architectureV2CloudUmbrellaCapabilities
+		metadata: {id: "stackkits-cloud-topology", version: "1.0.0"}
+		provides: _architectureV2CloudTopologyCapabilities
 		requires: [{id: "topology-core"}]
 		supportedSiteKinds: ["cloud"]
-		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-runtime"], optional: []}}
+		realization: {kind: "topology", topology: {siteKinds: ["cloud"]}}
 		selection: defaultForSiteKinds: ["cloud"]
-		health: [{id: "stackkits-cloud-contract", kind: "contract"}]
-		evidence: ["SK-S2", "SK-S3"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-placement-policy", version: "1.0.0"}
+		provides: _architectureV2CloudPlacementPolicyCapabilities
+		requires: [{id: "site-cloud"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["cloud"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-host-security", version: "1.0.0"}
+		provides: _architectureV2CloudHostSecurityCapabilities
+		requires: [{id: "site-cloud"}, {id: "host-bootstrap"}, {id: "security-baseline"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-host-security-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "cloud-host-security-contract", kind: "contract"}]
+		evidence: ["cloud-host-security-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-public-dns-contract", version: "1.0.0"}
+		provides: _architectureV2CloudPublicDNSCapabilities
+		requires: [{id: "site-cloud"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["cloud"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-public-edge", version: "1.0.0"}
+		provides: _architectureV2CloudPublicEdgeCapabilities
+		requires: [{id: "site-cloud"}, {id: "host-local-internet-firewall"}, {id: "internet-host-hardening"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-public-edge-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "cloud-public-edge-contract", kind: "contract"}]
+		evidence: ["cloud-public-edge-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-offsite-backup", version: "1.0.0"}
+		provides: _architectureV2CloudOffsiteBackupCapabilities
+		requires: [{id: "site-cloud"}, {id: "storage-data-policy"}, {id: "backup-core"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-offsite-backup-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "cloud-offsite-backup-contract", kind: "contract"}]
+		evidence: ["cloud-offsite-backup-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-private-admin-mesh", version: "1.0.0"}
+		provides: _architectureV2CloudPrivateAdminMeshCapabilities
+		requires: [{id: "site-cloud"}, {id: "host-local-internet-firewall"}, {id: "device-trust-core"}, {id: "human-identity-core"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-private-admin-mesh-runtime"], optional: []}}
+		health: [{id: "cloud-private-admin-mesh-contract", kind: "contract"}]
+		evidence: ["cloud-private-admin-mesh-contract"]
+	},
+	{
+		metadata: {id: "stackkits-public-tls", version: "1.0.0"}
+		provides: _architectureV2PublicTLSCapabilities
+		requires: [{id: "site-cloud"}, {id: "public-edge"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-public-tls-contract"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "public-tls-renewal-contract", kind: "contract"}]
+		evidence: ["public-tls-contract"]
+		certificateIssuers: [{
+			id: "stackkits-public-acme", capabilityRef: "public-tls", kind: "acme", challenge: "tls-alpn-01"
+			supportedSiteKinds: ["cloud"], validitySeconds: 7776000
+			owner: {providerRef: "stackkits-public-tls", moduleRef: "stackkits-public-tls-contract", materializationSupport: "contract-only"}
+			requiredInputSlotIDs: []
+			materialSlots: [
+				{id: "certificate", purpose: "certificate-chain", sensitivity: "public"},
+				{id: "private-key", purpose: "private-key", sensitivity: "secret"},
+				{id: "acme-account-key", purpose: "issuer-account-key", sensitivity: "secret"},
+			]
+			renewal: {required: true, healthGateRef: "public-tls-renewal-contract", renewBeforeSeconds: 2592000}
+		}]
 	},
 	{
 		metadata: {id: "stackkits-basement-compose", version: "1.0.0"}
@@ -393,8 +690,8 @@ _architectureV2Providers: list.Concat([[
 		realization: {
 			kind: "modules"
 			moduleRefs: {
-				required: ["stackkits-basement-compose-runtime", "socket-proxy"]
-				optional: []
+				required: ["stackkits-basement-compose-runtime"]
+				optional: ["socket-proxy"]
 			}
 		}
 		health: [{id: "stackkits-basement-compose-contract", kind: "contract"}]
@@ -402,7 +699,8 @@ _architectureV2Providers: list.Concat([[
 	},
 	{
 		metadata: {id: "stackkits-immich", version: "1.0.0"}
-		provides: ["photos"]
+		provides: []
+		workloadRefs: ["photos"]
 		requires: [
 			{id: "runtime-paas"},
 			{id: "service-catalog"},
@@ -412,8 +710,8 @@ _architectureV2Providers: list.Concat([[
 		realization: {
 			kind: "modules"
 			moduleRefs: {
-				required: ["stackkits-immich-runtime"]
-				optional: []
+				required: []
+				optional: ["stackkits-immich-runtime"]
 			}
 		}
 		evidence: ["SK-S1", "SK-S2", "SK-S4"]
@@ -444,6 +742,243 @@ _architectureV2UmbrellaSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: []
 }
 
+_architectureV2TLSContractSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "contract-only"
+	compatibleRendererRefs: []
+	inputs: {contractComplete: false, requiredRefs: []}
+	planInputs: {contractComplete: false, requiredRefs: []}
+	artifacts: {requiredRefs: [], outputBindings: [], contracts: []}
+	evidence: requiredRefs: []
+}
+
+_architectureV2PublicTLSGenerationSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["kit", "moduleTargets", "publicTLS", "stackId"]}
+	artifacts: {
+		requiredRefs: ["public-tls-executor-contract"]
+		outputBindings: [{artifactRef: "public-tls-executor-contract", unitRef: "executor-contract", outputRef: "cloud/tls/executor-contract.json"}]
+		contracts: [{
+			id: "public-tls-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["opentofu", "compose"]
+			unitRef: "executor-contract", outputRef: "cloud/tls/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2CoreHostBootstrapSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "hostRuntimePolicy", "storagePolicy"]
+	}
+	artifacts: {
+		requiredRefs: ["core-host-bootstrap-policy"]
+		outputBindings: [{
+			artifactRef: "core-host-bootstrap-policy", unitRef: "host-policy", outputRef: "foundation/host-bootstrap/policy.json"
+		}]
+		contracts: [{
+			id: "core-host-bootstrap-policy", kind: "native-config", format: "json", mode: "0600", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "host-policy", outputRef: "foundation/host-bootstrap/policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["core-host-bootstrap-executor-contract"]
+}
+
+_architectureV2HomeBackupTargetSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "storagePolicy"]
+	}
+	artifacts: {
+		requiredRefs: ["home-backup-target-policy"]
+		outputBindings: [{
+			artifactRef: "home-backup-target-policy", unitRef: "backup-policy", outputRef: "home/backup/target-policy.json"
+		}]
+		contracts: [{
+			id: "home-backup-target-policy", kind: "native-config", format: "json", mode: "0600", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "backup-policy", outputRef: "home/backup/target-policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["home-backup-target-executor-contract"]
+}
+
+_architectureV2HomeExtensionRuntimeArtifacts: {
+	privateRemoteAccess: {
+		id:                    "home-private-remote-access-executor-contract"
+		outputRef:             "home/remote-access/executor-contract.json"
+		requiresAccessBinding: true
+	}
+	publicPublishEgress: {
+		id:                    "home-public-publish-egress-executor-contract"
+		outputRef:             "home/publication/executor-contract.json"
+		requiresAccessBinding: true
+	}
+	encryptedOffsiteBackup: {
+		id:                    "home-encrypted-offsite-backup-executor-contract"
+		outputRef:             "home/backup/offsite-executor-contract.json"
+		requiresAccessBinding: false
+	}
+}
+
+_architectureV2HomeExtensionRuntimeSupports: {
+	for runtimeName, artifact in _architectureV2HomeExtensionRuntimeArtifacts {
+		"\(runtimeName)": #ModuleRealizationSupportV2 & {
+			contractVersion: "1.0.0"
+			scope:           "concrete"
+			level:           "generation-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: []}
+			planInputs: {
+				contractComplete: true
+				requiredRefs: list.Concat([
+					["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"],
+					[for ref in ["homeAccessRequirements", "externalHomeAccessBindings"] if artifact.requiresAccessBinding {ref}],
+				])
+			}
+			artifacts: {
+				requiredRefs: [artifact.id]
+				outputBindings: [{artifactRef: artifact.id, unitRef: "executor-contract", outputRef: artifact.outputRef}]
+				contracts: [{
+					id: artifact.id, kind: "native-config", format: "json", mode: "0640", required: true
+					compatibleTargets: ["compose", "opentofu"]
+					unitRef: "executor-contract", outputRef: artifact.outputRef
+				}]
+			}
+			evidence: requiredRefs: []
+		}
+	}
+}
+
+_architectureV2BasementComposeExecutorContractSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+	}
+	artifacts: {
+		requiredRefs: ["basement-compose-runtime-executor-contract"]
+		outputBindings: [{
+			artifactRef: "basement-compose-runtime-executor-contract", unitRef: "executor-contract", outputRef: "basement/runtime/executor-contract.json"
+		}]
+		contracts: [{
+			id: "basement-compose-runtime-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "basement/runtime/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2CloudHostSecuritySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-host-security-executor-contract"]
+		outputBindings: [{artifactRef: "cloud-host-security-executor-contract", unitRef: "executor-contract", outputRef: "cloud/host-security/executor-contract.json"}]
+		contracts: [{
+			id: "cloud-host-security-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/host-security/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-public-edge-executor-contract"]
+		outputBindings: [{artifactRef: "cloud-public-edge-executor-contract", unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"}]
+		contracts: [{
+			id: "cloud-public-edge-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2CloudOffsiteBackupSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-offsite-backup-executor-contract"]
+		outputBindings: [{artifactRef: "cloud-offsite-backup-executor-contract", unitRef: "executor-contract", outputRef: "cloud/backup/executor-contract.json"}]
+		contracts: [{
+			id: "cloud-offsite-backup-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/backup/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2CloudPrivateAdminMeshSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-private-admin-mesh-executor-contract"]
+		outputBindings: [{artifactRef: "cloud-private-admin-mesh-executor-contract", unitRef: "executor-contract", outputRef: "cloud/admin-mesh/executor-contract.json"}]
+		contracts: [{
+			id: "cloud-private-admin-mesh-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/admin-mesh/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
 // Host admission and conformance are pre-generation runtime gates, not
 // generated files. Their concrete implementation is the binding/receipt
 // producer and admission path; modeling them as a host owner keeps them out of
@@ -464,7 +999,7 @@ _architectureV2HostAdmissionSupport: #NonRenderingProviderOwnerRealizationSuppor
 _architectureV2SecurityBaselineSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
 		contractComplete: true
@@ -488,7 +1023,7 @@ _architectureV2SecurityBaselineSupport: #ModuleRealizationSupportV2 & {
 			outputRef: "foundation/security-baseline/apply.sh"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["security-baseline-executor-contract"]
 }
 
 _architectureV2LocalAutonomySupport: #ModuleRealizationSupportV2 & {
@@ -701,35 +1236,35 @@ _architectureV2SocketProxySupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: []
 }
 
-// The existing v1 Immich module is enough to bind service identity, locality,
-// backend protocol, health, and data ownership, but it has not yet graduated
-// to an Architecture v2 renderer/apply implementation. Keeping this concrete
-// contract at contract-only prevents the plan from claiming runtime readiness.
+// Immich owns one complete provider-neutral, target-bound selected-PaaS bundle.
+// Generation is concrete; provider/PaaS lifecycle and runtime evidence remain
+// separate Apply authority and therefore deliberately do not graduate with
+// this renderer.
 _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "contract-only"
+	level:           "generation-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
-		contractComplete: false
-		requiredRefs: []
+		contractComplete: true
+		requiredRefs: ["database-password"]
 	}
 	artifacts: {
-		requiredRefs: ["immich-service-contract"]
+		requiredRefs: ["immich-workload-bundle"]
 		outputBindings: [{
-			artifactRef: "immich-service-contract"
+			artifactRef: "immich-workload-bundle"
 			unitRef:     "immich-server"
-			outputRef:   "modules/immich/service-contract.yaml"
+			outputRef:   "workloads/immich/bundle.json"
 		}]
 		contracts: [{
-			id:       "immich-service-contract"
+			id:       "immich-workload-bundle"
 			kind:     "native-config"
-			format:   "yaml"
+			format:   "json"
 			mode:     "0640"
 			required: true
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "immich-server"
-			outputRef: "modules/immich/service-contract.yaml"
+			outputRef: "workloads/immich/bundle.json"
 		}]
 	}
 	evidence: requiredRefs: []
@@ -738,28 +1273,13 @@ _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
-			id:          "stackkits-core-runtime"
-			version:     "1.0.0"
-			description: "Residual shared topology, bootstrap, storage, backup, observability, and lifecycle runtime contract; identity ownership is kit-specific."
-		}
-		providerRef: "stackkits-core"
-		provides:    _architectureV2CoreUmbrellaCapabilities
-		supportedSiteKinds: ["home", "cloud"]
-		runtime: {kind: "host", delivery: "stackkit"}
-		renderUnits: []
-		realizationSupport: _architectureV2UmbrellaSupport
-		health: [{id: "stackkits-core-contract", kind: "contract"}]
-		evidence: ["resolved-plan-contract"]
-	},
-	{
-		metadata: {
 			id:          "security-baseline"
 			version:     "1.0.0"
 			description: "Deterministic target-neutral OS-hardening policy generated once for every managed StackKit node; access and network controls remain delegated."
 		}
-		providerRef: "stackkits-core"
+		role:        "platform"
+		providerRef: "stackkits-security-baseline"
 		provides: ["security-baseline"]
-		requires: ["stackkits-core-runtime"]
 		supportedSiteKinds: ["home", "cloud"]
 		nodeSelection: {
 			authority:           "any"
@@ -782,24 +1302,177 @@ _architectureV2Modules: list.Concat([[
 			}
 		}]
 		realizationSupport: _architectureV2SecurityBaselineSupport
-		health: [{id: "security-baseline-contract", kind: "contract"}]
-		evidence: ["resolved-plan-contract"]
+		health: [{id: "security-baseline-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["resolved-plan-contract", "security-baseline-executor-contract"]
 	},
 	{
 		metadata: {
-			id:          "stackkits-local-runtime"
+			id:          "stackkits-core-host-bootstrap"
 			version:     "1.0.0"
-			description: "Residual Home-site admission, local ingress, autonomy, and backup runtime contract for an already supplied host; device authority is separately owned."
+			description: "Node-local, provider-free Core host preparation owner; it creates only declared StackKit storage roots and observes the required pre-existing runtime."
 		}
-		providerRef: "stackkits-local"
-		provides:    _architectureV2LocalUmbrellaCapabilities
-		requires: ["stackkits-core-runtime"]
-		supportedSiteKinds: ["home"]
+		role:        "foundation"
+		providerRef: "stackkits-core-host-bootstrap"
+		provides: ["host-bootstrap"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+		}
 		runtime: {kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "host-policy"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://foundation/host-bootstrap/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:871d10265613851dc4ad928b4b8e280a874eb10d99b10dfa289bac1f56cc0e35"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "hostRuntimePolicy", "storagePolicy"]
+			inputBindings: []
+			outputs: ["foundation/host-bootstrap/policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2CoreHostBootstrapSupport
+		health: [{id: "core-host-bootstrap-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["core-host-bootstrap-executor-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-backup-target"
+			version:     "1.0.0"
+			description: "Node-local Home backup-target verifier; it observes the CUE-declared backup root on Home control-plane nodes after Core host bootstrap and owns no provider, network, discovery, or backup-job lifecycle."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-home-backup-target"
+		provides:    _architectureV2HomeBackupTargetCapabilities
+		requires: ["stackkits-core-host-bootstrap"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+		}
+		runtime: {kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "backup-policy"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://home/backup-target/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:7add0b8b8e643141ca2adb61b03a3aa229daf2c6a08b65ba169870aceb2abe83"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "storagePolicy"]
+			inputBindings: []
+			outputs: ["home/backup/target-policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HomeBackupTargetSupport
+		health: [{id: "home-backup-target-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["home-backup-target-executor-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-private-remote-access-runtime"
+			version:     "1.0.0"
+			description: "Provider-neutral Home private-access binding; transport, endpoints, credentials, provider lifecycle, discovery, and general LAN reachability remain external."
+		}
+		role: "platform", providerRef: "stackkits-home-private-remote-access", provides: _architectureV2HomePrivateRemoteAccessCapabilities
+		requires: ["stackkits-core-host-bootstrap", "stackkits-home-access-policy-manifest"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-home-private-remote-access-executor"
+			capabilityRefs: _architectureV2HomePrivateRemoteAccessCapabilities
+			targetScope:    "home-sites", operations: ["bind-private-remote-access", "remove-private-remote-access", "verify-private-remote-access"]
+			requiredHealthRef: "home-private-remote-access-health", requiredEvidenceRef: "home-private-remote-access-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                         "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/remote-access/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:d534d74860c5453ec0fb4f377306371e9a388b9ecf7725c495bff4b092219978"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability", "homeAccessRequirements", "externalHomeAccessBindings"]
+			inputBindings: [], outputs: ["home/remote-access/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2HomeExtensionRuntimeSupports.privateRemoteAccess
+		health: [{id: "home-private-remote-access-contract", kind: "contract"}]
+		evidence: ["home-private-remote-access-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-public-publish-egress-runtime"
+			version:     "1.0.0"
+			description: "Outbound-only Home publication boundary; public DNS, TLS issuance, credentials, inbound tunnels, and provider lifecycle remain external."
+		}
+		role: "platform", providerRef: "stackkits-home-public-publish-egress", provides: _architectureV2HomePublicPublishEgressCapabilities
+		requires: ["stackkits-core-host-bootstrap", "stackkits-home-access-policy-manifest"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-home-public-publish-egress-executor"
+			capabilityRefs: _architectureV2HomePublicPublishEgressCapabilities
+			targetScope:    "home-sites", operations: ["bind-public-publish-egress", "remove-public-publish-egress", "verify-public-publish-egress"]
+			requiredHealthRef: "home-public-publish-egress-health", requiredEvidenceRef: "home-public-publish-egress-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                       "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/publication/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:16f928871e35f06c1f5960f90acfa8d88cebd23fb9aefe8630c0f0017d65a387"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability", "homeAccessRequirements", "externalHomeAccessBindings"]
+			inputBindings: [], outputs: ["home/publication/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2HomeExtensionRuntimeSupports.publicPublishEgress
+		health: [{id: "home-public-publish-egress-contract", kind: "contract"}]
+		evidence: ["home-public-publish-egress-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-encrypted-offsite-backup-runtime"
+			version:     "1.0.0"
+			description: "Provider-neutral encrypted Home offsite-backup binding; repositories, endpoints, credentials, retention execution, restore execution, and provider lifecycle remain external."
+		}
+		role: "foundation", providerRef: "stackkits-home-encrypted-offsite-backup", provides: _architectureV2HomeEncryptedOffsiteBackupCapabilities
+		requires: ["stackkits-core-host-bootstrap"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-home-encrypted-offsite-backup-executor"
+			capabilityRefs: _architectureV2HomeEncryptedOffsiteBackupCapabilities
+			targetScope:    "home-sites", operations: ["bind-encrypted-offsite-backup", "remove-encrypted-offsite-backup", "verify-encrypted-offsite-backup"]
+			requiredHealthRef: "home-encrypted-offsite-backup-health", requiredEvidenceRef: "home-encrypted-offsite-backup-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                          "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/backup/offsite-executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:c6ba1e9050b63a30fc9436a5325f86801b2adf08e3857708aac91c6a93cab05b"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+			inputBindings: [], outputs: ["home/backup/offsite-executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2HomeExtensionRuntimeSupports.encryptedOffsiteBackup
+		health: [{id: "home-encrypted-offsite-backup-contract", kind: "contract"}]
+		evidence: ["home-encrypted-offsite-backup-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-internal-pki-contract"
+			version:     "1.0.0"
+			description: "Contract-only internal CA and renewal owner; no certificate material or termination runtime is generated yet."
+		}
+		role:        "platform"
+		providerRef: "stackkits-internal-pki"
+		provides:    _architectureV2InternalPKICapabilities
+		requires: ["stackkits-core-host-bootstrap"]
+		supportedSiteKinds: ["home"]
+		runtime: {kind: "native", delivery: "stackkit"}
 		renderUnits: []
-		realizationSupport: _architectureV2UmbrellaSupport
-		health: [{id: "stackkits-local-contract", kind: "contract"}]
-		evidence: ["SK-S1"]
+		realizationSupport: _architectureV2TLSContractSupport
+		health: [{id: "internal-pki-renewal-contract", kind: "contract"}]
+		evidence: ["internal-pki-contract"]
 	},
 	{
 		metadata: {
@@ -807,11 +1480,19 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Generation-only Home enrollment and credential-authority policy; credential material, endpoints, and runtime enforcement are excluded."
 		}
+		role:        "platform"
 		providerRef: "stackkits-home-device-authority"
 		provides:    _architectureV2HomeIdentityAuthorityCapabilities
-		requires: ["stackkits-local-runtime"]
 		supportedSiteKinds: ["home"]
-		runtime: {kind: "native", delivery: "stackkit"}
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "unbound", ownerRef: "stackkits-home-device-authority-enforcer"
+			policyArtifactRefs: ["home-device-authority-policy"]
+			targetScope: "home-control-authority"
+			operations: ["enroll-device", "issue-device-credential", "revoke-device-credential"]
+			requiredHealthRef:   "home-device-authority-enforcement"
+			requiredEvidenceRef: "home-device-authority-enforcement"
+		}
 		renderUnits: [{
 			id:           "policy-bundle", kind:                                     "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://home/device-authority-policy/v1.json", version: "1.0.0"
@@ -831,11 +1512,20 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Generation-only Basement identity verifier and trust policy; runtime enforcement and credential material are excluded."
 		}
+		role:        "platform"
 		providerRef: "stackkits-basement-identity-trust-policy"
 		provides:    _architectureV2IdentityCapabilities
-		requires: ["stackkits-core-runtime", "stackkits-home-device-authority-policy-manifest"]
+		requires: ["stackkits-home-device-authority-policy-manifest"]
 		supportedSiteKinds: ["home"]
-		runtime: {kind: "native", delivery: "stackkit"}
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "unbound", ownerRef: "stackkits-basement-identity-trust-enforcer"
+			policyArtifactRefs: ["basement-identity-trust-policy"]
+			targetScope: "home-control-authority"
+			operations: ["verify-device-session", "verify-human-session", "verify-workload-identity"]
+			requiredHealthRef:   "basement-identity-trust-enforcement"
+			requiredEvidenceRef: "basement-identity-trust-enforcement"
+		}
 		renderUnits: [{
 			id:           "policy-bundle", kind:                                       "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://basement/identity-trust-policy/v1.json", version: "1.0.0"
@@ -855,11 +1545,19 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Generation-only Home-site offline-autonomy policy; runtime and air-gapped installation enforcement remain separate claims."
 		}
+		role:        "platform"
 		providerRef: "stackkits-local-autonomy-policy"
 		provides:    _architectureV2LocalAutonomyCapabilities
-		requires: ["stackkits-local-runtime"]
 		supportedSiteKinds: ["home"]
-		runtime: {kind: "native", delivery: "stackkit"}
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "unbound", ownerRef: "stackkits-local-autonomy-enforcer"
+			policyArtifactRefs: ["local-autonomy-policy"]
+			targetScope: "home-control-authority"
+			operations: ["deny-forbidden-cross-site-session", "enforce-link-loss-policy", "preserve-local-control"]
+			requiredHealthRef:   "local-autonomy-enforcement"
+			requiredEvidenceRef: "local-autonomy-enforcement"
+		}
 		renderUnits: [{
 			id:           "policy-bundle"
 			kind:         "native-config"
@@ -886,11 +1584,19 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Generation-only Home local-ingress and LAN access policy; discovery and runtime enforcement remain separate claims."
 		}
+		role:        "platform"
 		providerRef: "stackkits-home-access-policy"
 		provides:    _architectureV2HomeAccessCapabilities
-		requires: ["stackkits-local-runtime"]
 		supportedSiteKinds: ["home"]
-		runtime: {kind: "native", delivery: "stackkit"}
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "unbound", ownerRef: "stackkits-home-access-enforcer"
+			policyArtifactRefs: ["home-access-policy"]
+			targetScope: "home-sites"
+			operations: ["enforce-lan-access", "enforce-local-ingress", "enforce-privileged-step-up"]
+			requiredHealthRef:   "home-access-enforcement"
+			requiredEvidenceRef: "home-access-enforcement"
+		}
 		renderUnits: [{
 			id:           "policy-bundle"
 			kind:         "native-config"
@@ -917,11 +1623,12 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Generation-only explicit Home LAN discovery policy; empty intent emits no advertisements and runtime publication remains separately verified."
 		}
+		role:        "platform"
 		providerRef: "stackkits-home-lan-discovery-policy"
 		provides:    _architectureV2HomeLANDiscoveryCapabilities
 		requires: ["stackkits-home-access-policy-manifest"]
 		supportedSiteKinds: ["home"]
-		runtime: {kind: "native", delivery: "stackkit"}
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
 		renderUnits: [{
 			id:           "policy-bundle"
 			kind:         "native-config"
@@ -944,19 +1651,177 @@ _architectureV2Modules: list.Concat([[
 	},
 	{
 		metadata: {
-			id:          "stackkits-cloud-runtime"
+			id:          "stackkits-cloud-host-security-runtime"
 			version:     "1.0.0"
-			description: "Residual Cloud-host admission, host-local firewall/hardening, and public edge/DNS/TLS intent for an already supplied host; identity authority is separately owned."
+			description: "Cloud-only node-local firewall and Internet-host hardening boundary; it owns no public edge, DNS, backup, mesh, or server-provider lifecycle."
 		}
-		providerRef: "stackkits-cloud"
-		provides:    _architectureV2CloudUmbrellaCapabilities
-		requires: ["stackkits-core-runtime"]
+		role:        "platform"
+		providerRef: "stackkits-cloud-host-security"
+		provides:    _architectureV2CloudHostSecurityCapabilities
+		requires: ["stackkits-core-host-bootstrap", "security-baseline"]
 		supportedSiteKinds: ["cloud"]
-		runtime: {kind: "host", delivery: "stackkit"}
-		renderUnits: []
-		realizationSupport: _architectureV2UmbrellaSupport
-		health: [{id: "stackkits-cloud-contract", kind: "contract"}]
-		evidence: ["SK-S2", "SK-S3"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-cloud-host-security-executor"
+			capabilityRefs: _architectureV2CloudHostSecurityCapabilities
+			targetScope:    "cloud-sites"
+			operations: ["apply-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security"]
+			requiredHealthRef:   "cloud-host-security-health"
+			requiredEvidenceRef: "cloud-host-security-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                          "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/host-security/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:f10cd76135da04b9b062ee341dbdf1c00ce3b956a606ff0d25918c3cc62f57ae"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			outputs: ["cloud/host-security/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:35ed972bd878291cf9c2aa6115acbcc2464c02b72090dfc41752daf79fa2fa36"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["cloud-host-security-executor-contract"]
+				publicInputRefs: [], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:cd6ea4d9f247ea6ee9a601722c87a61f8468960a2aa508fb00c78d46dea359cc"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["cloud-host-security-executor-contract"]
+				publicInputRefs: [], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			},
+		]
+		realizationSupport: _architectureV2CloudHostSecuritySupport
+		health: [{id: "cloud-host-security-contract", kind: "contract"}]
+		evidence: ["cloud-host-security-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-public-edge-runtime"
+			version:     "1.0.0"
+			description: "Cloud-only public edge boundary; DNS provider mutation, TLS issuance, host hardening, backup, mesh, and server lifecycle remain separate."
+		}
+		role:        "platform"
+		providerRef: "stackkits-cloud-public-edge"
+		provides:    _architectureV2CloudPublicEdgeCapabilities
+		requires: ["stackkits-cloud-host-security-runtime"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-cloud-public-edge-executor"
+			capabilityRefs: _architectureV2CloudPublicEdgeCapabilities
+			targetScope:    "cloud-sites"
+			operations: ["apply-public-edge", "remove-public-edge", "verify-public-edge"]
+			requiredHealthRef:   "cloud-public-edge-health"
+			requiredEvidenceRef: "cloud-public-edge-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                        "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/public-edge/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:55c47c16f0eac758080a66f6ff818bea7fd9d744daee3cb0858b3417905480f3"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			outputs: ["cloud/public-edge/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2CloudPublicEdgeSupport
+		health: [{id: "cloud-public-edge-contract", kind: "contract"}]
+		evidence: ["cloud-public-edge-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-offsite-backup-runtime"
+			version:     "1.0.0"
+			description: "Provider-neutral Cloud offsite-backup target binding; object-storage provider lifecycle, buckets, endpoints, credentials, retention execution, and backup jobs remain external."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-cloud-offsite-backup"
+		provides:    _architectureV2CloudOffsiteBackupCapabilities
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-cloud-offsite-backup-executor"
+			capabilityRefs: _architectureV2CloudOffsiteBackupCapabilities
+			targetScope:    "cloud-sites"
+			operations: ["bind-offsite-backup-target", "remove-offsite-backup-binding", "verify-offsite-backup-target"]
+			requiredHealthRef:   "cloud-offsite-backup-health"
+			requiredEvidenceRef: "cloud-offsite-backup-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                   "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/backup/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:9fde3c773f0dc0c6d6e353caa82f52bb3d1b699f30e66ba87f2bf7aae3040a47"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			outputs: ["cloud/backup/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2CloudOffsiteBackupSupport
+		health: [{id: "cloud-offsite-backup-contract", kind: "contract"}]
+		evidence: ["cloud-offsite-backup-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-private-admin-mesh-runtime"
+			version:     "1.0.0"
+			description: "Optional provider-neutral private admin-mesh policy handoff; transport, endpoints, credentials, identity issuance, provider lifecycle, federation, and LAN reachability remain separate."
+		}
+		role:        "platform"
+		providerRef: "stackkits-cloud-private-admin-mesh"
+		provides:    _architectureV2CloudPrivateAdminMeshCapabilities
+		requires: ["stackkits-cloud-host-security-runtime", "stackkits-cloud-identity-trust-policy-manifest"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-cloud-private-admin-mesh-executor"
+			capabilityRefs: _architectureV2CloudPrivateAdminMeshCapabilities
+			targetScope:    "cloud-sites"
+			operations: ["bind-private-admin-mesh", "remove-private-admin-mesh-binding", "verify-private-admin-mesh"]
+			requiredHealthRef:   "cloud-private-admin-mesh-health"
+			requiredEvidenceRef: "cloud-private-admin-mesh-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                       "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/admin-mesh/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:009e99ba8c84136dccaad45e99a1166cbdda3be9bf08b615d769538d5b290f1a"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			inputBindings: []
+			outputs: ["cloud/admin-mesh/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2CloudPrivateAdminMeshSupport
+		health: [{id: "cloud-private-admin-mesh-contract", kind: "contract"}]
+		evidence: ["cloud-private-admin-mesh-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-public-tls-contract"
+			version:     "1.0.0"
+			description: "Contract-only public ACME issuer and edge-termination owner; no certificate material or runtime adapter is generated yet."
+		}
+		role:        "platform"
+		providerRef: "stackkits-public-tls"
+		provides:    _architectureV2PublicTLSCapabilities
+		requires: ["stackkits-cloud-public-edge-runtime"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/tls/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:a0298b76b8d8215e19460a8e154381eee8675aab2c2fe8cd49d316c133ff6ae8"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["kit", "moduleTargets", "publicTLS", "stackId"]
+			outputs: ["cloud/tls/executor-contract.json"]
+		}]
+		realizationSupport: _architectureV2PublicTLSGenerationSupport
+		health: [{id: "public-tls-renewal-contract", kind: "contract"}]
+		evidence: ["public-tls-contract"]
 	},
 	{
 		metadata: {
@@ -964,11 +1829,19 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Generation-only Cloud identity trust policy with external device authority and Cloud-local verification; no device issuance or enrollment is owned."
 		}
+		role:        "platform"
 		providerRef: "stackkits-cloud-identity-trust-policy"
 		provides: list.Concat([_architectureV2IdentityCapabilities, _architectureV2CloudIdentityAuthorityCapabilities])
-		requires: ["stackkits-core-runtime", "stackkits-cloud-runtime"]
 		supportedSiteKinds: ["cloud"]
-		runtime: {kind: "native", delivery: "stackkit"}
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "unbound", ownerRef: "stackkits-cloud-identity-trust-enforcer"
+			policyArtifactRefs: ["cloud-identity-trust-policy"]
+			targetScope: "cloud-sites"
+			operations: ["issue-human-credential", "issue-workload-credential", "verify-device-session", "verify-human-session", "verify-workload-identity"]
+			requiredHealthRef:   "cloud-identity-trust-enforcement"
+			requiredEvidenceRef: "cloud-identity-trust-enforcement"
+		}
 		renderUnits: [{
 			id:           "policy-bundle", kind:                                    "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/identity-trust-policy/v1.json", version: "1.0.0"
@@ -988,13 +1861,48 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Residual Basement-only Compose rollout owner; concrete foundation helpers lower independently beneath it."
 		}
+		role:        "platform"
 		providerRef: "stackkits-basement-compose"
 		provides:    _architectureV2BasementComposeCapabilities
-		requires: ["stackkits-local-runtime"]
+		requires: ["stackkits-core-host-bootstrap"]
 		supportedSiteKinds: ["home"]
-		runtime: {kind: "host", delivery: "stackkit"}
-		renderUnits: []
-		realizationSupport: _architectureV2UmbrellaSupport
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-basement-compose-executor"
+			capabilityRefs: _architectureV2BasementComposeCapabilities
+			targetScope:    "home-sites"
+			operations: ["apply-compose-project", "remove-compose-project", "verify-compose-project"]
+			requiredHealthRef:   "basement-compose-runtime-health"
+			requiredEvidenceRef: "basement-compose-runtime-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                       "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://basement/runtime/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:3e9795cc29f1d063184a5be004b796341f1c408d40bd7c4e41b814f979c795ad"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+			outputs: ["basement/runtime/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:caa13cedcc306755ce50179a0e6ba5f6eecefa8c58f8e472770c04c8cde92212"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["basement-compose-runtime-executor-contract"]
+				publicInputRefs: [], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:d4b39bdc9ca285e10c899bbf0619035cbe66c596365bace374d69def776d69d4"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["basement-compose-runtime-executor-contract"]
+				publicInputRefs: [], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+			},
+		]
+		realizationSupport: _architectureV2BasementComposeExecutorContractSupport
 		health: [{id: "stackkits-basement-compose-contract", kind: "contract"}]
 		evidence: ["basement-compose-contract-governance"]
 	},
@@ -1004,6 +1912,7 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Basement node-local Docker API isolation proxy backed by one explicitly approved daemon socket."
 		}
+		role:        "platform"
 		providerRef: "stackkits-basement-compose"
 		// This helper provides an implementation interface, not a product
 		// capability. The Basement Compose runtime owner above carries the
@@ -1073,6 +1982,13 @@ _architectureV2Modules: list.Concat([[
 				policyProfile: "docker-provider-backing"
 			}]
 		}]
+		renderVariants: [{
+			id:           "compose", target: "compose", rendererRef: "stackkit"
+			contractHash: "sha256:bf2cf9138330226055c10bf0de998ff20b4c96d61de2a183aca3b4a1997c3cdd"
+			unitRefs: ["compose"]
+			artifactRefs: ["socket-proxy-compose"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}]
 		realizationSupport: _architectureV2SocketProxySupport
 		health: [{id: "socket-proxy-contract", kind: "contract"}]
 		evidence: ["socket-proxy-provider-backing-governance"]
@@ -1080,12 +1996,12 @@ _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
 			id:          "stackkits-immich-runtime"
-			version:     "1.0.0"
+			version:     "1.0.1"
 			description: "Immich photo service contract bound to the control-authority site and its personal-data primary."
 		}
+		role:        "workload"
 		providerRef: "stackkits-immich"
-		provides: ["photos"]
-		requires: ["stackkits-core-runtime"]
+		provides: []
 		supportedSiteKinds: ["home", "cloud"]
 		nodeSelection: {
 			authority: "control-authority-site"
@@ -1095,18 +2011,85 @@ _architectureV2Modules: list.Concat([[
 			kind:     "container"
 			delivery: "selected-paas"
 			engine:   "docker"
-			image: ref: "ghcr.io/immich-app/immich-server:release"
+			image: {
+				ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
+				digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
+			}
+			entryComponentRef: "immich-server"
+			components: [
+				{
+					id: "immich-server", role: "application", lifecycle: "daemon"
+					image: {
+						ref: "ghcr.io/immich-app/immich-server:v2.7.0"
+						digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
+					}
+					dependsOn: ["immich-machine-learning", "immich-postgres-init", "immich-valkey"]
+					networkRefs: ["immich-internal"]
+					environment: {
+						DB_HOSTNAME: "immich-postgres", DB_PORT: "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"
+						REDIS_HOSTNAME: "immich-valkey", REDIS_PORT: "6379", IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
+					}
+					secretEnvironment: DB_PASSWORD: "database-password"
+					volumes: [{id: "library", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/api/server/ping", port: 2283}
+				},
+				{
+					id: "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
+					image: {
+						ref: "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
+						digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					volumes: [{id: "model-cache", target: "/cache", class: "cache", backup: false}]
+					health: {kind: "image"}
+				},
+				{
+					id: "immich-postgres", role: "database", lifecycle: "daemon"
+					image: {
+						ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					environment: {POSTGRES_USER: "immich", POSTGRES_DB: "immich", POSTGRES_INITDB_ARGS: "--data-checksums"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [{id: "database", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["pg_isready", "-U", "immich", "-d", "postgres"]}
+				},
+				{
+					id: "immich-postgres-init", role: "database-init", lifecycle: "one-shot"
+					image: {
+						ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: ["immich-postgres"], networkRefs: ["immich-internal"]
+					command: ["sh", "-c", "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"]
+					environment: {PGUSER: "immich"}
+					secretEnvironment: PGPASSWORD: "database-password"
+					health: {kind: "completion"}
+				},
+				{
+					id: "immich-valkey", role: "cache", lifecycle: "daemon"
+					image: {
+						ref: "docker.io/valkey/valkey:9"
+						digest: "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					command: ["valkey-server"]
+					health: {kind: "command", command: ["redis-cli", "ping"]}
+				},
+			]
 		}
 		renderUnits: [{
 			id:           "immich-server"
 			kind:         "native-config"
 			rendererRef:  "stackkit"
-			templateRef:  "modules/immich/module.cue"
-			version:      "1.0.0"
-			contractHash: "sha256:6a3dffc4782bb3c19bf2a61aff3b99b12d6f7f3e9c3f1ee90de41296ddfac305"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/immich/bundle/v1.json"
+			version:      "2.0.0"
+			contractHash: "sha256:dfd43f8ddbdf3ca812d2374b766b533ee1d94bcd3ea8d2e64f030c6872569269"
 			publicInputRefs: []
-			secretInputRefs: []
-			outputs: ["modules/immich/service-contract.yaml"]
+			secretInputRefs: ["database-password"]
+			outputs: ["workloads/immich/bundle.json"]
 			placement: {
 				scope:       "node-local"
 				cardinality: "one-per-node"
@@ -1126,6 +2109,20 @@ _architectureV2Modules: list.Concat([[
 				}
 			}]
 		}]
+		renderVariants: [
+			{
+				id: "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:383c8a53811d3c7abb2049a188af77152367ea56b7c47716dc9a7144b7cda99e"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
+				publicInputRefs: [], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id: "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:c8cafbfb8ada7743566432b94ad908dfaef53b62db343f80e38fad5c34ab9d33"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
+				publicInputRefs: [], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+		]
 		realizationSupport: _architectureV2ImmichSupport
 		health: [{
 			id:             "immich-http"
@@ -1146,9 +2143,9 @@ _architectureV2Modules: list.Concat([[
 			version:     "1.0.0"
 			description: "Kit and mode specific high-availability realization bound exclusively to explicit control-plane members."
 		}
-		providerRef: haRealization.providerID
-		provides:    _architectureV2HACapabilities
-		requires: ["stackkits-core-runtime"]
+		role:               "operations"
+		providerRef:        haRealization.providerID
+		provides:           _architectureV2HACapabilities
 		supportedSiteKinds: haRealization.supportedSiteKinds
 		nodeSelection: {
 			authority:           haRealization.authoritySelection
@@ -1197,6 +2194,7 @@ ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	providers: [for contract in _architectureV2Providers {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
 	modules: [for contract in _architectureV2Modules {#ModuleContractV2 & contract}]
+	workloads: _architectureV2WorkloadContracts
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
 	planArtifacts: _architectureV2PlanArtifacts
 

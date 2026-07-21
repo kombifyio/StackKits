@@ -422,6 +422,8 @@ const (
 	generationStageIssued uint8 = iota + 1
 	generationStageAuthorizing
 	generationStageAuthorized
+	generationStageApplyAuthorizing
+	generationStageApplyAuthorized
 )
 
 type generationCoordinator struct {

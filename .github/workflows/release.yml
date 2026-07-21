@@ -1,4 +1,4 @@
-name: Release Verification
+name: Public Tag Fast Follow-up
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - "v*"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: public-tag-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -19,16 +19,13 @@ env:
   GO_VERSION: "1.26.5"
 
 jobs:
-  test:
-    name: Test before release
-    if: github.repository == 'kombifyio/stackKits'
+  artifact-smoke:
+    name: Public source/artifact smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Checkout code
+      - name: Checkout published tag
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -36,189 +33,51 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Run tests
-        run: go test ./...
+      - name: Build only the three shipped binaries
+        run: go build ./cmd/stackkit ./cmd/stackkit-server ./cmd/stackkit-mcp
 
-  validate-archive:
-    name: Validate release archive
-    if: github.repository == 'kombifyio/stackKits'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 24
-
-      - name: Bake registry snapshot from public CUE tree
-        run: |
-          set -euo pipefail
-          go build -o /tmp/stackkit ./cmd/stackkit
-          /tmp/stackkit registry bake-from-cue \
-            --modules-dir modules \
-            --output internal/registry/data/registry_snapshot.json
-
-      - name: Build dry-run archive
-        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --snapshot --clean
-
-      - name: Verify archive contents
-        run: bash scripts/release/validate-release-archives.sh dist
-
-      - name: Install Syft
-        run: |
-          go install github.com/anchore/syft/cmd/syft@v1.38.0
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Generate dry-run SBOMs and release evidence
-        run: |
-          set -euo pipefail
-          bash scripts/release/generate-sboms.sh dist
-          bash scripts/release/package-browser-evidence.sh dist
-          browser_preflight_args=()
-          if [ -f artifacts/scenarios/SK-S1/browser-evidence-preflight.json ]; then
-            browser_preflight_args=(--browser-preflight artifacts/scenarios/SK-S1/browser-evidence-preflight.json)
-          fi
-          browser_evidence_args=()
-          if [ -f artifacts/scenarios/SK-S1/browser-evidence.json ]; then
-            browser_evidence_args=(
-              --browser-evidence artifacts/scenarios/SK-S1/browser-evidence.json
-              --browser-evidence-root .
-            )
-          fi
-          scenario_artifact_args=()
-          for scenario_artifact in \
-            artifacts/scenarios/SK-S1/homelab.json \
-            artifacts/scenarios/SK-S2/homelab.json \
-            artifacts/scenarios/SK-S3/homelab.json \
-            artifacts/scenarios/SK-S5/homelab.json; do
-            if [ -f "$scenario_artifact" ]; then
-              node scripts/release/validate-scenario-artifact.mjs "$scenario_artifact"
-              scenario_artifact_args+=(--scenario-artifact "$scenario_artifact")
-            fi
-          done
-          node scripts/release/render-release-evidence.mjs \
-            --tag "${GITHUB_REF_NAME}" \
-            --commit "${GITHUB_SHA}" \
-            --source-repo "kombifyio/stackKits" \
-            --release-repo "kombifyio/stackKits" \
-            --visibility public \
-            --workflow-run-id "${GITHUB_RUN_ID}" \
-            --workflow-run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --release-url "https://github.com/kombifyio/stackKits/releases/tag/${GITHUB_REF_NAME}" \
-            --dist dist \
-            --output dist/release-evidence.json \
-            "${browser_preflight_args[@]}" \
-            "${browser_evidence_args[@]}" \
-            "${scenario_artifact_args[@]}" \
-            --check "publicExport=pass,public tag workflow is running on exported contents" \
-            --check "archiveValidation=pass,dry-run archive validation passed" \
-            --check "defaultL3PaaSDelivery=pass,default StackKit-owned L3 apps are PaaS-intended" \
-            --check "attestationVerification=pending,verify published release assets and image after workflows complete"
-          node scripts/release/validate-release-evidence.mjs dist/release-evidence.json
+      - name: Confirm publisher-created release assets exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "${GITHUB_REF_NAME}" --json tagName,assets --jq 'select(.tagName == env.GITHUB_REF_NAME and (.assets | length) > 0)'
 
   publish-image:
-    name: Publish StackKit Server Image
-    if: github.repository == 'kombifyio/stackKits'
-    needs: [test, validate-archive]
+    name: Publish StackKit Server image
+    needs: artifact-smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Checkout code
+      - name: Checkout published tag
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
 
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      - name: Log in to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
-      - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 24
-
-      - name: Build and push GHCR image
+      - name: Build and push exact tag
+        id: image
         shell: bash
         env:
           IMAGE: ghcr.io/kombifyio/stackkits
           TAG: ${{ github.ref_name }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          stable_tag_args=()
-          if [[ "$TAG" != *-* ]]; then
-            stable_tag_args=(--tag "${IMAGE}:latest")
-          fi
-          docker build \
+          stable_args=()
+          if [[ "$TAG" != *-* ]]; then stable_args+=(--tag "${IMAGE}:latest"); fi
+          docker buildx build \
+            --push \
             --tag "${IMAGE}:${TAG}" \
-            "${stable_tag_args[@]}" \
+            "${stable_args[@]}" \
             .
-          docker push "${IMAGE}:${TAG}"
-          if [[ "$TAG" != *-* ]]; then
-            docker push "${IMAGE}:latest"
-          fi
-
-      - name: Resolve image digest
-        id: image-digest
-        shell: bash
-        env:
-          IMAGE: ghcr.io/kombifyio/stackkits
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
           digest="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{.Manifest.Digest}}')"
-          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Install Syft
-        run: |
-          go install github.com/anchore/syft/cmd/syft@v1.38.0
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Generate server image SBOM
-        env:
-          IMAGE: ghcr.io/kombifyio/stackkits
-          TAG: ${{ github.ref_name }}
-        run: syft "${IMAGE}:${TAG}" -o spdx-json=stackkits-server-image.spdx.json
-
-      - name: Attest server image SBOM
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-name: ghcr.io/kombifyio/stackkits
-          subject-digest: ${{ steps.image-digest.outputs.digest }}
-          sbom-path: stackkits-server-image.spdx.json
-          push-to-registry: true
-
-      - name: Attest server image
+      - name: Attest published image
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-name: ghcr.io/kombifyio/stackkits
-          subject-digest: ${{ steps.image-digest.outputs.digest }}
+          subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
-
-      - name: Verify server image attestations
-        env:
-          GH_TOKEN: ${{ github.token }}
-          IMAGE: ghcr.io/kombifyio/stackkits
-          TAG: ${{ github.ref_name }}
-        run: |
-          node scripts/release/verify-release-attestations.mjs \
-            --repo "${GITHUB_REPOSITORY}" \
-            --image "${IMAGE}:${TAG}"

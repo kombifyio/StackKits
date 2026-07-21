@@ -12,6 +12,14 @@ import (
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 )
 
+// Build identity is injected by GoReleaser. Local builds remain explicitly
+// unbound so write-capable action tools cannot impersonate a release.
+var (
+	Version   = "dev"
+	GitCommit = "unknown"
+	BuildDate = "unknown"
+)
+
 func main() {
 	modeFlag := flag.String("mode", "docs", "comma-separated modes: docs,local,server,actions")
 	serverURL := flag.String("server-url", stackkitmcp.FirstNonEmpty(os.Getenv("STACKKITS_SERVER_URL"), "http://localhost:8082"), "stackkit-server URL")
@@ -21,6 +29,7 @@ func main() {
 	mcpToken := flag.String("mcp-token", "", "Bearer token required by MCP HTTP transport")
 	flag.Parse()
 
+	cliBinary, _ := stackkitmcp.SiblingStackkitBinary()
 	opts := stackkitmcp.Options{
 		Modes:      stackkitmcp.ParseModes(*modeFlag),
 		ServerURL:  strings.TrimRight(*serverURL, "/"),
@@ -28,6 +37,9 @@ func main() {
 		Transport:  strings.ToLower(strings.TrimSpace(*transport)),
 		MCPToken:   stackkitmcp.FirstNonEmpty(*mcpToken, os.Getenv("STACKKIT_MCP_TOKEN")),
 		AllowWrite: stackkitmcp.EnvBoolValue(os.Getenv("STACKKIT_MCP_ALLOW_WRITE")),
+		Binary:     cliBinary,
+		Version:    Version,
+		GitCommit:  GitCommit,
 	}
 	app := stackkitmcp.New(opts)
 

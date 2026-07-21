@@ -108,8 +108,9 @@ verify and configure an already materialized local kopia-agent deployment.`,
 }
 
 var backupConfigureCmd = &cobra.Command{
-	Use:   "configure",
-	Short: "Configure or reconnect the local Kopia repository",
+	Use:         "configure",
+	Short:       "Configure or reconnect the local Kopia repository",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup configure"},
 	Long: `Configure or reconnect the local Kopia repository used by the backup addon.
 
 This command intentionally covers the local-first self-hosted path only:
@@ -119,34 +120,39 @@ Object-store onboarding remains an explicit deployment configuration concern.`,
 }
 
 var backupStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show local Kopia repository status",
-	RunE:  runBackupStatus,
+	Use:         "status",
+	Short:       "Show local Kopia repository status",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup status"},
+	RunE:        runBackupStatus,
 }
 
 var backupRunCmd = &cobra.Command{
-	Use:   "run",
-	Short: "Force a snapshot now (out of band)",
-	RunE:  runBackupRun,
+	Use:         "run",
+	Short:       "Force a snapshot now (out of band)",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup run"},
+	RunE:        runBackupRun,
 }
 
 var backupListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List snapshots in the local repository",
-	RunE:  runBackupList,
+	Use:         "list",
+	Short:       "List snapshots in the local repository",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup list"},
+	RunE:        runBackupList,
 }
 
 var backupRestoreCmd = &cobra.Command{
-	Use:   "restore <snapshot-id>",
-	Short: "Restore a snapshot to a target directory",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runBackupRestore,
+	Use:         "restore <snapshot-id>",
+	Short:       "Restore a snapshot to a target directory",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup restore"},
+	Args:        cobra.ExactArgs(1),
+	RunE:        runBackupRestore,
 }
 
 var backupVerifyCmd = &cobra.Command{
-	Use:   "verify",
-	Short: "Validate the repository against its storage provider",
-	RunE:  runBackupVerify,
+	Use:         "verify",
+	Short:       "Validate the repository against its storage provider",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup verify"},
+	RunE:        runBackupVerify,
 }
 
 var backupEmergencyExportCmd = &cobra.Command{
@@ -164,8 +170,9 @@ without depending on Docker or Kopia.`,
 }
 
 var backupMigrateResticCmd = &cobra.Command{
-	Use:   "migrate-from-restic",
-	Short: "Import an existing Restic repository into Kopia (one-shot)",
+	Use:         "migrate-from-restic",
+	Short:       "Import an existing Restic repository into Kopia (one-shot)",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup migrate-from-restic"},
 	Long: `Drive the one-shot Restic-to-Kopia importer.
 
 Reads the Restic repository configured in the v1 addon, walks every
@@ -237,6 +244,9 @@ func runBackupInit(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupConfigure(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyBackupCLI("configure"); err != nil {
+		return err
+	}
 	repo, err := parseBackupRepository(backupConfigureRepo)
 	if err != nil {
 		return err
@@ -274,6 +284,9 @@ func runBackupConfigure(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupStatus(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyBackupCLI("status"); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), backupQuickOperationTimeout)
 	defer cancel()
 
@@ -302,6 +315,9 @@ func runBackupStatus(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupRun(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyBackupCLI("run"); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), backupLongOperationTimeout)
 	defer cancel()
 
@@ -325,6 +341,9 @@ func runBackupRun(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupList(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyBackupCLI("list"); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), backupQuickOperationTimeout)
 	defer cancel()
 
@@ -362,6 +381,9 @@ func runBackupList(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupRestore(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyBackupCLI("restore"); err != nil {
+		return err
+	}
 	snapshotID := args[0]
 	if backupRestoreTarget == "" {
 		return fmt.Errorf("--target is required (use a path on the host that the agent can write to)")
@@ -384,6 +406,9 @@ func runBackupRestore(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupVerify(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyBackupCLI("verify"); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), backupLongOperationTimeout)
 	defer cancel()
 	printInfo("Running kopia repository validate-provider (this may take a while)…")
@@ -470,6 +495,9 @@ func runBackupEmergencyExport(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupMigrateRestic(cmd *cobra.Command, args []string) error {
+	if err := requireLegacyBackupCLI("migrate-from-restic"); err != nil {
+		return err
+	}
 	if backupMigrateDryRun {
 		printInfo("DRY RUN — no data will be written")
 	}
@@ -499,6 +527,13 @@ func runBackupMigrateRestic(cmd *cobra.Command, args []string) error {
 		printSuccess("Restic snapshots imported into Kopia. Update addons/backup engine: \"restic-import\" → \"kopia\" and re-apply.")
 	}
 	return nil
+}
+
+func requireLegacyBackupCLI(operation string) error {
+	return requireLegacyV06Command(
+		"backup "+strings.TrimSpace(operation),
+		"the local Kopia-agent executor and Restic importer have no canonical StackSpec v2 backup contract; use exact v0.6 compatibility or wait for the native v2 recovery authority",
+	)
 }
 
 // =============================================================================

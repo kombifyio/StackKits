@@ -4,6 +4,62 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0-beta.1] - 2026-07-21
+
+> **Prerelease** of the native Architecture-v2 line. Basement and Cloud now
+> author, resolve, generate, inspect, and enter Apply through the same
+> CUE-governed v2 identity without operational StackSpec-v1 or global-context
+> fallback. Modern Homelab, HA realizations, external Home-access fabrics, and
+> adapters without concrete evidence remain explicit Preview or fail-closed
+> surfaces and do not become runtime-graduation claims.
+
+### Highlights
+
+- **One native v2 authority:** CLI, HTTP API, MCP, managed fetch, CAS storage,
+  compiler, generators, evidence, and governed executors bind the same
+  StackSpec, catalog, ResolvedPlan, artifact, and result identities.
+- **Kit semantics are structural:** Basement and Cloud remain distinct
+  single-Site/multi-node products over a shared foundation. Modern is the
+  independent Home-plus-Cloud federation product; multi-node alone never
+  selects it, and High Availability remains only an add-on.
+- **Provider-free execution boundary:** StackKits consumes the merged shared
+  `runtimeexecutor/v1beta1` contract while provider lifecycle, leases,
+  credentials, endpoints, and cleanup remain TechStack authority.
+- **Fast v0.x feedback:** normal development and publication use deterministic
+  affected slices. Device, provider, browser, compatibility, and broad suites
+  remain optional evidence rather than beta release gates.
+
+### Added
+
+- Exact StackInstance, Control Authority, multi-node, Fleet-isolation,
+  device-bound identity, Home-access custody, host-conformance, route,
+  federation, publication, data, failure, and executor-bundle contracts.
+- Distinct Core, Basement-local, Cloud, workload, TLS, backup, observability,
+  and Modern federation generation handoffs with typed readiness blockers.
+- Canonical Apply requirements and evidence bounded by actual binding expiry,
+  immutable artifact digests, one captured authorization instant, exact
+  child-dispatch subsets, and adapter-declared access capabilities.
+
+### Changed
+
+- Operational StackSpec-v1 writers, mutators, runtime actions, setup/recovery
+  paths, and remote transports are retired on v0.7. v1 remains only a
+  read-only classification/validation and explicit migration input.
+- The public OSS projection remains reproducible Basement/Cloud source. Private
+  Modern authority, provider operations, credentials, and product-only
+  surfaces are excluded structurally.
+
+### Known limitations
+
+- Modern Homelab and every HA realization remain Preview until their separate
+  runtime and fault evidence exists.
+- Optional external Home-access fabrics and runtime adapters without an exact
+  registered implementation return typed blockers. No general LAN tunnel,
+  provider lifecycle, or implicit fallback is introduced.
+- Compatibility and Candidate evidence may remain `pending/unverified` for
+  this v0.x prerelease; source and exported artifact integrity are still
+  validated exactly.
+
 ## [0.6.0] - 2026-07-19
 
 > **Stable** Architecture v2 contract release. This promotes the v0.6 line to

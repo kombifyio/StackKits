@@ -10,6 +10,7 @@ type indexedCatalog struct {
 	providers                    map[string]map[string]any
 	addons                       map[string]map[string]any
 	modules                      map[string]map[string]any
+	workloads                    map[string]map[string]any
 	privilegedInterfaceApprovals []map[string]any
 	planArtifacts                []map[string]any
 }
@@ -26,6 +27,7 @@ func indexCatalog(catalog Catalog) (*indexedCatalog, error) {
 		providers:                    make(map[string]map[string]any, len(catalog.Providers)),
 		addons:                       make(map[string]map[string]any, len(catalog.AddOns)),
 		modules:                      make(map[string]map[string]any, len(catalog.Modules)),
+		workloads:                    make(map[string]map[string]any, len(catalog.Workloads)),
 		privilegedInterfaceApprovals: make([]map[string]any, 0, len(catalog.PrivilegedInterfaceApprovals)),
 		planArtifacts:                make([]map[string]any, 0, len(catalog.PlanArtifacts)),
 	}
@@ -81,6 +83,17 @@ func indexCatalog(catalog Catalog) (*indexedCatalog, error) {
 			return nil, fail(ErrInvalidInput, "catalog.modules", "duplicate module contract %q", id)
 		}
 		indexed.modules[id] = object
+	}
+	for i, workload := range catalog.Workloads {
+		object := map[string]any(workload)
+		id, err := metadataID(object, fmt.Sprintf("catalog.workloads[%d]", i))
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := indexed.workloads[id]; exists {
+			return nil, fail(ErrInvalidInput, "catalog.workloads", "duplicate workload contract %q", id)
+		}
+		indexed.workloads[id] = object
 	}
 	return indexed, nil
 }

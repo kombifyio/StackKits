@@ -127,7 +127,7 @@ func newArchitectureV2CLIService(wd, flagRoot, environmentRoot string) (*archite
 	if err != nil {
 		return nil, err
 	}
-	contract := architecturev2.StackKitsV06Contract(version)
+	contract := architecturev2.StackKitsV2Contract(version)
 	if !overridden {
 		return architecturev2.NewEmbeddedService(contract)
 	}

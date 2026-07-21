@@ -3,7 +3,6 @@ package resolvedplan
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -255,6 +254,16 @@ func freezeCatalog(catalog Catalog) (Catalog, error) {
 		}
 		frozen.Modules = append(frozen.Modules, ModuleContract(clone))
 	}
+	for _, workload := range catalog.Workloads {
+		if err := validateSecretReferences(map[string]any(workload), "catalog.workloads", ""); err != nil {
+			return Catalog{}, err
+		}
+		clone, err := cloneObject(map[string]any(workload), false)
+		if err != nil {
+			return Catalog{}, err
+		}
+		frozen.Workloads = append(frozen.Workloads, WorkloadContract(clone))
+	}
 	for _, approval := range catalog.PrivilegedInterfaceApprovals {
 		if err := validateSecretReferences(map[string]any(approval), "catalog.privilegedInterfaceApprovals", ""); err != nil {
 			return Catalog{}, err
@@ -284,7 +293,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err := c.attachProviderOwnerGateRefs(contracts.providers, deployment.gates); err != nil {
 		return nil, err
 	}
-	topology, err := buildPlanTopology(profile, spec)
+	topology, err := c.buildPlanTopology(profile, spec, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +307,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
-	resolvedBridge, err := buildResolvedBridgePlan(spec, contracts.modules, topology)
+	resolvedBridge, err := buildResolvedBridgePlan(spec, contracts.modules, contracts.providers, topology)
 	if err != nil {
 		return nil, err
 	}
@@ -315,15 +324,31 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
+	homeAccessRequirements, externalHomeAccessBindings, err := buildHomeAccessProjection(
+		spec, hashes.spec, topology.sites, topology.nodes, contracts.capabilities, contracts.modules,
+	)
+	if err != nil {
+		return nil, err
+	}
 	if err := bindResolvedModulePlanInputs(contracts.modules, modulePlanInputSource{
 		stackID: spec.stackID, kit: resolvedKit, sites: topology.sites,
 		controlPlane: topology.controlPlane, bridge: resolvedBridge,
 		identity: deployment.identity, identityTrust: identityTrust, data: topology.data, failurePolicy: topology.failurePolicy,
 		localReachability: localReachability, homeLANDiscovery: homeLANDiscovery,
+		homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
+		nodes: topology.nodes, capabilities: contracts.capabilities, providers: contracts.providers,
+		install: deployment.install, system: deployment.system, storage: deployment.storage, network: deployment.network,
 	}); err != nil {
 		return nil, err
 	}
-	executionReadiness, err := buildExecutionReadiness(contracts.providers, contracts.modules, deployment.artifacts, planEvidence, c.options.RendererID, outputRoot, resolvedBridge)
+	if err := bindResolvedModuleRenderInputs(contracts.modules, moduleRenderInputSource{
+		identity: deployment.identity,
+		network:  deployment.network,
+		gates:    deployment.gates,
+	}); err != nil {
+		return nil, err
+	}
+	executionReadiness, err := buildExecutionReadiness(contracts.providers, contracts.modules, deployment.artifacts, planEvidence, c.options.RendererID, outputRoot, deployment.routeHealth, resolvedBridge)
 	if err != nil {
 		return nil, err
 	}
@@ -345,9 +370,12 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"nodes":                        topology.nodes,
 		"externalHostBindings":         externalHostBindings,
 		"hostConformanceReceipts":      hostConformanceReceipts,
+		"homeAccessRequirements":       homeAccessRequirements,
+		"externalHomeAccessBindings":   externalHomeAccessBindings,
 		"controlPlane":                 topology.controlPlane,
 		"capabilities":                 contracts.capabilities,
 		"providers":                    contracts.providers,
+		"workloads":                    contracts.workloads,
 		"modules":                      contracts.modules,
 		"runtimeNetworks":              contracts.runtimeNetworks,
 		"privilegedInterfaceApprovals": privilegedInterfaceApprovals,
@@ -398,7 +426,7 @@ func (c *Compiler) finalizePlan(plan ResolvedPlan, spec *specView, resolved *res
 	return plan, nil
 }
 
-func buildResolvedBridgePlan(spec *specView, modules []any, topology planTopology) (map[string]any, error) {
+func buildResolvedBridgePlan(spec *specView, modules, providers []any, topology planTopology) (map[string]any, error) {
 	if spec.bridge == nil {
 		return nil, nil
 	}
@@ -414,6 +442,7 @@ func buildResolvedBridgePlan(spec *specView, modules []any, topology planTopolog
 		resolvedNodeSiteIndex(spec.nodes),
 		topology.data,
 		spec.access,
+		providers,
 	)
 }
 
@@ -453,6 +482,7 @@ func buildPlanHashes(spec *specView) (planHashes, error) {
 type planContracts struct {
 	capabilities    []any
 	providers       []any
+	workloads       []any
 	modules         []any
 	runtimeNetworks []any
 	evidence        []string
@@ -476,21 +506,25 @@ func (c *Compiler) buildPlanContracts(spec *specView, resolved *resolution) (pla
 	if contracts.modules, contracts.runtimeNetworks, contracts.moduleSites, contracts.moduleNodes, err = c.buildModules(spec, resolved, contracts.providerSites, contracts.providerNodes); err != nil {
 		return contracts, err
 	}
+	if contracts.workloads, err = c.buildWorkloads(resolved, contracts.modules); err != nil {
+		return contracts, err
+	}
 	contracts.evidence = append(contracts.evidence, collectModuleEvidence(c.catalog, sortedStringMapKeys(contracts.moduleSites))...)
 	return contracts, nil
 }
 
 type planDeployment struct {
-	install    map[string]any
-	generation map[string]any
-	artifacts  []any
-	source     map[string]any
-	system     map[string]any
-	storage    map[string]any
-	network    map[string]any
-	gates      map[string]any
-	placement  []any
-	identity   map[string]any
+	install     map[string]any
+	generation  map[string]any
+	artifacts   []any
+	source      map[string]any
+	system      map[string]any
+	storage     map[string]any
+	network     map[string]any
+	routeHealth []any
+	gates       map[string]any
+	placement   []any
+	identity    map[string]any
 }
 
 func (c *Compiler) buildPlanDeployment(profile *profileView, spec *specView, resolved *resolution, contracts planContracts, hashes planHashes, sourceIntentHash string) (planDeployment, error) {
@@ -517,13 +551,17 @@ func (c *Compiler) buildPlanDeployment(profile *profileView, spec *specView, res
 	if deployment.storage, err = cloneObject(spec.storage, true); err != nil {
 		return deployment, err
 	}
-	if deployment.network, err = buildNetwork(profile, spec, resolved, contracts.modules); err != nil {
+	if deployment.network, deployment.routeHealth, err = buildNetwork(profile, spec, resolved, contracts.modules, contracts.providerSites, c.catalog); err != nil {
 		return deployment, err
 	}
-	if deployment.gates, err = buildGates(profile, resolved, c.catalog, contracts.providerSites, contracts.providerNodes, contracts.moduleSites, contracts.moduleNodes, deployment.artifacts); err != nil {
+	nodeSites := make(map[string]string, len(spec.nodeByID))
+	for nodeRef, node := range spec.nodeByID {
+		nodeSites[nodeRef] = node.siteRef
+	}
+	if deployment.gates, err = buildGates(profile, resolved, c.catalog, contracts.providerSites, contracts.providerNodes, contracts.moduleSites, contracts.moduleNodes, nodeSites, deployment.artifacts, deployment.routeHealth); err != nil {
 		return deployment, err
 	}
-	if deployment.placement, err = buildPlacement(spec); err != nil {
+	if deployment.placement, err = buildPlacement(contracts.workloads); err != nil {
 		return deployment, err
 	}
 	deployment.identity, err = buildIdentity(profile, spec)
@@ -539,7 +577,7 @@ type planTopology struct {
 	data          map[string]any
 }
 
-func buildPlanTopology(profile *profileView, spec *specView) (planTopology, error) {
+func (c *Compiler) buildPlanTopology(profile *profileView, spec *specView, resolved *resolution) (planTopology, error) {
 	var topology planTopology
 	var err error
 	if topology.sites, err = cloneSites(spec.sites); err != nil {
@@ -557,7 +595,7 @@ func buildPlanTopology(profile *profileView, spec *specView) (planTopology, erro
 	if topology.failurePolicy, err = cloneObject(spec.partitionPolicy, true); err != nil {
 		return topology, err
 	}
-	topology.data, err = buildData(profile, spec)
+	topology.data, err = c.buildData(profile, spec, resolved)
 	return topology, err
 }
 
@@ -585,6 +623,14 @@ func (c *Compiler) buildCapabilities(spec *specView, resolved *resolution) ([]an
 			return nil, nil, err
 		}
 		entry := map[string]any{"id": id, "providerRef": resolved.providerByCap[id], "contractHash": contractHash}
+		if tlsProfile, exists, err := optionalObjectField(contract, "catalog.capabilities."+id, "tlsProfile"); err != nil {
+			return nil, nil, err
+		} else if exists {
+			entry["tlsProfile"], err = cloneObject(tlsProfile, true)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 		if settings := resolved.settingsByCap[id]; len(settings) > 0 {
 			clean, err := cloneObject(settings, true)
 			if err != nil {
@@ -679,13 +725,40 @@ func (c *Compiler) buildProvider(spec *specView, resolved *resolution, id string
 	}
 	entry := map[string]any{
 		"id": id, "version": version, "contractHash": contractHash,
-		"provides": stringSliceAny(providerCapabilities(id, resolved)),
-		"siteRefs": stringSliceAny(siteRefs), "realization": resolvedRealization,
+		"provides":     stringSliceAny(providerCapabilities(id, resolved)),
+		"workloadRefs": stringSliceAny(providerWorkloads(id, resolved)),
+		"siteRefs":     stringSliceAny(siteRefs), "realization": resolvedRealization,
+	}
+	if rawIssuers, exists := contract["certificateIssuers"]; exists {
+		cloned, err := cloneObject(map[string]any{"certificateIssuers": rawIssuers}, true)
+		if err != nil {
+			return builtProvider{}, err
+		}
+		entry["certificateIssuers"] = cloned["certificateIssuers"]
+	}
+	for _, field := range []string{"overlayContracts", "remoteActionContracts"} {
+		if rawContracts, exists := contract[field]; exists {
+			cloned, err := cloneObject(map[string]any{field: rawContracts}, true)
+			if err != nil {
+				return builtProvider{}, err
+			}
+			entry[field] = cloned[field]
+		}
 	}
 	if owner != nil {
 		entry["owner"] = owner
 	}
 	return builtProvider{entry: entry, evidence: providerEvidence, siteRefs: siteRefs, nodeRefs: nodeRefs}, nil
+}
+
+func providerWorkloads(providerID string, resolved *resolution) []string {
+	var workloads []string
+	for id, workload := range resolved.workloads {
+		if workload.providerID == providerID {
+			workloads = append(workloads, id)
+		}
+	}
+	return sortStringsUnique(workloads)
 }
 
 func providerCapabilities(providerID string, resolved *resolution) []string {
@@ -731,7 +804,7 @@ func buildProviderOwner(providerID, kind, version, contractHash string, contract
 	switch kind {
 	case "host", "external":
 		return buildHostExternalProviderOwner(providerID, kind, version, contractHash, contract, realization, evidence, resolved)
-	case "modules", "none":
+	case "modules", "none", "contract", "topology":
 		return nil, nil
 	default:
 		return nil, fail(ErrInvalidInput, "catalog.providers."+providerID+".realization.kind", "unsupported realization %q", kind)
@@ -904,56 +977,125 @@ func (c *Compiler) attachProviderOwnerGateRefs(providers []any, gates map[string
 	return nil
 }
 
-func buildPlacement(spec *specView) ([]any, error) {
-	if len(spec.workloads) == 0 {
-		return []any{}, nil
+func (c *Compiler) buildWorkloads(resolved *resolution, modules []any) ([]any, error) {
+	result := make([]any, 0, len(resolved.workloadIDs))
+	moduleByID := make(map[string]map[string]any, len(modules))
+	for _, rawModule := range modules {
+		module := rawModule.(map[string]any)
+		id, err := stringField(module, "modules", "id")
+		if err != nil {
+			return nil, err
+		}
+		moduleByID[id] = module
 	}
-	ids := make([]string, 0, len(spec.workloads))
-	for id := range spec.workloads {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	result := make([]any, 0, len(ids))
-	for _, id := range ids {
-		intent, err := asObject(spec.workloads[id], "spec.workloads."+id)
+	for _, id := range resolved.workloadIDs {
+		selection := resolved.workloads[id]
+		path := "catalog.workloads." + id
+		version, err := metadataVersion(selection.contract, path)
 		if err != nil {
 			return nil, err
 		}
-		siteFilter, err := stringListField(intent, "spec.workloads."+id, "siteRefs", false)
+		contractHash, err := canonicalHash(selection.contract, true)
 		if err != nil {
 			return nil, err
 		}
-		nodeFilter, err := stringListField(intent, "spec.workloads."+id, "nodeRefs", false)
+		alternativeHash, err := canonicalHash(selection.alternative, true)
 		if err != nil {
 			return nil, err
 		}
-		roles, err := stringListField(intent, "spec.workloads."+id, "requiresRoles", false)
+		kind, err := stringField(selection.contract, path, "kind")
 		if err != nil {
 			return nil, err
 		}
-		var nodeRefs, siteRefs []string
-		for _, node := range spec.nodes {
-			if !node.enabled || (len(siteFilter) > 0 && !contains(siteFilter, node.siteRef)) || (len(nodeFilter) > 0 && !contains(nodeFilter, node.id)) {
-				continue
+		functionalCapabilities, err := stringListField(selection.contract, path, "functionalCapabilities", true)
+		if err != nil {
+			return nil, err
+		}
+		dataClasses, err := stringListField(selection.contract, path, "dataClasses", false)
+		if err != nil {
+			return nil, err
+		}
+		route, err := objectField(selection.alternative, path+".alternatives."+selection.alternativeID, "route")
+		if err != nil {
+			return nil, err
+		}
+		setup, err := objectField(selection.alternative, path+".alternatives."+selection.alternativeID, "setup")
+		if err != nil {
+			return nil, err
+		}
+		module, exists := moduleByID[selection.moduleID]
+		if !exists {
+			return nil, fail(ErrUnrealizedModule, "spec.workloads."+id, "resolved workload module %q is missing", selection.moduleID)
+		}
+		runtime, err := objectField(module, "modules."+selection.moduleID, "runtime")
+		if err != nil {
+			return nil, err
+		}
+		resolvedRuntime := map[string]any{}
+		for _, field := range []string{"kind", "delivery"} {
+			value, err := stringField(runtime, "modules."+selection.moduleID+".runtime", field)
+			if err != nil {
+				return nil, err
 			}
-			matchesRoles := true
-			for _, role := range roles {
-				if !contains(node.roles, role) {
-					matchesRoles = false
-					break
-				}
-			}
-			if matchesRoles {
-				nodeRefs = append(nodeRefs, node.id)
-				siteRefs = append(siteRefs, node.siteRef)
-			}
+			resolvedRuntime[field] = value
 		}
-		if len(nodeRefs) == 0 {
-			return nil, fail(ErrUnresolvedPlacement, "spec.workloads."+id, "no enabled node satisfies the placement intent")
+		settings, err := cloneObject(selection.settings, true)
+		if err != nil {
+			return nil, err
+		}
+		secretRefs, err := cloneObject(selection.secretRefs, true)
+		if err != nil {
+			return nil, err
+		}
+		resolvedRoute, err := cloneObject(route, true)
+		if err != nil {
+			return nil, err
+		}
+		resolvedSetup, err := cloneObject(setup, true)
+		if err != nil {
+			return nil, err
 		}
 		result = append(result, map[string]any{
-			"workloadRef": id, "siteRefs": stringSliceAny(sortStringsUnique(siteRefs)),
-			"nodeRefs": stringSliceAny(sortStringsUnique(nodeRefs)),
+			"id": id, "version": version, "contractHash": contractHash, "kind": kind,
+			"functionalCapabilities": stringSliceAny(functionalCapabilities),
+			"dataClasses":            stringSliceAny(dataClasses),
+			"alternative": map[string]any{
+				"id": selection.alternativeID, "contractHash": alternativeHash,
+				"providerRef": selection.providerID, "moduleRef": selection.moduleID,
+				"route": resolvedRoute, "runtime": resolvedRuntime, "setup": resolvedSetup,
+			},
+			"siteRefs": stringSliceAny(selection.siteRefs), "nodeRefs": stringSliceAny(selection.nodeRefs),
+			"settings": settings, "secretRefs": secretRefs,
+		})
+	}
+	return result, nil
+}
+
+func buildPlacement(workloads []any) ([]any, error) {
+	if len(workloads) == 0 {
+		return []any{}, nil
+	}
+	result := make([]any, 0, len(workloads))
+	for _, rawWorkload := range workloads {
+		workload, err := asObject(rawWorkload, "workloads")
+		if err != nil {
+			return nil, err
+		}
+		id, err := stringField(workload, "workloads", "id")
+		if err != nil {
+			return nil, err
+		}
+		siteRefs, err := stringListField(workload, "workloads."+id, "siteRefs", true)
+		if err != nil {
+			return nil, err
+		}
+		nodeRefs, err := stringListField(workload, "workloads."+id, "nodeRefs", true)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, map[string]any{
+			"workloadRef": id, "siteRefs": stringSliceAny(siteRefs),
+			"nodeRefs": stringSliceAny(nodeRefs),
 			"reason":   "matched explicit site, node, and role constraints",
 		})
 	}
@@ -990,11 +1132,106 @@ func buildIdentity(profile *profileView, spec *specView) (map[string]any, error)
 	return identity, nil
 }
 
-func buildData(profile *profileView, spec *specView) (map[string]any, error) {
+func (c *Compiler) buildData(profile *profileView, spec *specView, resolved *resolution) (map[string]any, error) {
+	data := map[string]any{"defaultAuthority": profile.dataAuthority}
+	var err error
 	if spec.data != nil {
-		return cloneObject(spec.data, true)
+		data, err = cloneObject(spec.data, true)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return map[string]any{"defaultAuthority": profile.dataAuthority}, nil
+	bindings, _, err := optionalObjectField(data, "resolvedPlan.data", "bindings")
+	if err != nil {
+		return nil, err
+	}
+	if bindings == nil {
+		bindings = map[string]any{}
+	}
+	defaultAuthority, err := stringField(data, "resolvedPlan.data", "defaultAuthority")
+	if err != nil {
+		return nil, err
+	}
+	for _, workloadID := range resolved.workloadIDs {
+		workload := resolved.workloads[workloadID]
+		bindingRef, err := c.workloadDataBindingRef(workload)
+		if err != nil {
+			return nil, err
+		}
+		if bindingRef == "" {
+			continue
+		}
+		if _, exists := bindings[bindingRef]; exists {
+			continue
+		}
+		if defaultAuthority == "per-workload" {
+			return nil, fail(ErrInvalidInput, "spec.data.bindings."+bindingRef, "data-bearing workload %q requires an explicit binding", workloadID)
+		}
+		var authoritySites []string
+		for _, site := range spec.sites {
+			if site.kind == defaultAuthority && contains(workload.siteRefs, site.id) {
+				authoritySites = append(authoritySites, site.id)
+			}
+		}
+		if len(authoritySites) != 1 {
+			return nil, fail(ErrInvalidInput, "spec.data.bindings."+bindingRef, "data-bearing workload %q needs one explicit primary site; default authority %q matched %d workload sites", workloadID, defaultAuthority, len(authoritySites))
+		}
+		classes, err := stringListField(workload.contract, "catalog.workloads."+workloadID, "dataClasses", true)
+		if err != nil {
+			return nil, err
+		}
+		bindings[bindingRef] = map[string]any{
+			"classes": stringSliceAny(classes), "primarySiteRef": authoritySites[0],
+			"replicaSiteRefs": []any{}, "cloudCopyAllowed": false,
+		}
+	}
+	data["bindings"] = bindings
+	return data, nil
+}
+
+func (c *Compiler) workloadDataBindingRef(workload *resolvedWorkloadSelection) (string, error) {
+	route, err := objectField(workload.alternative, "catalog.workloads."+workload.id+".alternative", "route")
+	if err != nil {
+		return "", err
+	}
+	serviceRef, err := stringField(route, "catalog.workloads."+workload.id+".alternative.route", "serviceRef")
+	if err != nil {
+		return "", err
+	}
+	healthRef, err := stringField(route, "catalog.workloads."+workload.id+".alternative.route", "healthRef")
+	if err != nil {
+		return "", err
+	}
+	module := c.catalog.modules[workload.moduleID]
+	units, err := objectListField(module, "catalog.modules."+workload.moduleID, "renderUnits")
+	if err != nil {
+		return "", err
+	}
+	for _, unit := range units {
+		endpoints, err := objectListOptional(unit, "serviceEndpoints")
+		if err != nil {
+			return "", err
+		}
+		for _, endpoint := range endpoints {
+			candidateService, err := stringField(endpoint, "catalog.modules."+workload.moduleID+".serviceEndpoints", "serviceRef")
+			if err != nil {
+				return "", err
+			}
+			candidateHealth, err := stringField(endpoint, "catalog.modules."+workload.moduleID+".serviceEndpoints", "healthRef")
+			if err != nil {
+				return "", err
+			}
+			if candidateService != serviceRef || candidateHealth != healthRef {
+				continue
+			}
+			endpointData, exists, err := optionalObjectField(endpoint, "catalog.modules."+workload.moduleID+".serviceEndpoints", "data")
+			if err != nil || !exists {
+				return "", err
+			}
+			return stringField(endpointData, "catalog.modules."+workload.moduleID+".serviceEndpoints.data", "bindingRef")
+		}
+	}
+	return "", fail(ErrContractConflict, "catalog.workloads."+workload.id+".alternative.route", "selected route has no exact module service endpoint")
 }
 
 func cloneSites(sites []siteView) ([]any, error) {

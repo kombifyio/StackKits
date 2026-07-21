@@ -26,7 +26,7 @@ import (
 
 // Definition is the additive v2 architecture profile. Public-capable does not
 // mean publicly open: service publications remain default-closed.
-Definition: base.#KitDefinition & {
+Definition: base.#ProductKitDefinition & {
 	apiVersion: "stackkit/v2alpha1"
 	kind:       "KitDefinition"
 	metadata: {
@@ -112,9 +112,10 @@ Definition: base.#KitDefinition & {
 			"cloud-control-authority",
 		]])
 		defaults: []
-		optional: ["private-admin-mesh", "failure-domain-placement", "photos", "availability-ha"]
-		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home", "local-hardware-preflight"]
+		optional: ["private-admin-mesh", "failure-domain-placement", "availability-ha"]
+		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
+	workloads: {required: [], defaults: [], optional: ["photos"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -130,17 +131,17 @@ Definition: base.#KitDefinition & {
 		routes: {
 			local: {
 				allowed: true
-				requiredCapabilities: []
+				requiredRealizations: []
 				allowedOriginKinds: ["cloud"]
 			}
 			"remote-private": {
 				allowed: true
-				requiredCapabilities: ["private-admin-mesh"]
+				requiredRealizations: [{capabilityRef: "private-admin-mesh", role: "access"}]
 				allowedOriginKinds: ["cloud"]
 			}
 			public: {
 				allowed: true
-				requiredCapabilities: ["public-edge"]
+				requiredRealizations: [{capabilityRef: "public-edge", role: "edge"}]
 				allowedOriginKinds: ["cloud"]
 			}
 		}
@@ -197,8 +198,76 @@ Definition: base.#KitDefinition & {
 		domainRequired: true
 		defaultTLSMode: "public"
 	}
+	authoring: {
+		contractVersion:   "1.0.0"
+		initialSpecStatus: "supported"
+		requiredOverrides: ["network.domain.base"]
+		initialSpec: {
+			apiVersion: "stackkit/v2alpha1"
+			kind:       "StackSpec"
+			metadata: name: "my-cloud-homelab"
+			source: kind:   "native-v2"
+			kit: slug:      "cloud-kit"
+			install: {
+				mode:    "bootstrapped"
+				runtime: "docker"
+				platform: {
+					management:      "selected-provider"
+					fallbackAllowed: false
+					setupPolicy: {}
+				}
+			}
+			generation: {
+				strategy: "kit-template"
+				target:   "opentofu"
+			}
+			system: {}
+			storage: {}
+			container: {}
+			network: {
+				mode: "public-capable"
+				domain: base: "example.invalid"
+				transport: {}
+				dns: {}
+				tls: defaultMode: "public"
+			}
+			sites: [{
+				id:            "cloud"
+				kind:          "cloud"
+				failureDomain: "cloud-primary"
+			}]
+			nodes: [{
+				id:      "cloud-main"
+				siteRef: "cloud"
+				roles: ["controller", "worker", "edge"]
+				hardware: {}
+				failureDomain: "node-cloud-main"
+			}]
+			controlPlane: {
+				mode:             "single"
+				authoritySiteRef: "cloud"
+				members: ["cloud-main"]
+			}
+			capabilities: {enable: [], disable: []}
+			availability: {}
+			partitionPolicy: {
+				onCloudLoss:                     "fail-closed"
+				onLinkLoss:                      "not-applicable"
+				cloudEdge:                       "fail-closed"
+				localIdentityAuthorityAvailable: false
+				maxStaleVerificationSeconds:     0
+				denyNewCrossSiteSessions:        true
+			}
+			data: defaultAuthority: "cloud"
+		}
+	}
 	bridge: {required: false, sourceKinds: [], edgeKinds: []}
 	evidenceScenarios: ["SK-S2", "SK-S3"]
 }
 
 #CloudKitStackV2: base.#KitSpecBinding & {definition: Definition}
+
+#CloudKitAuthoringBinding: base.#KitSpecBinding & {
+	definition: Definition
+	spec:       Definition.authoring.initialSpec
+}

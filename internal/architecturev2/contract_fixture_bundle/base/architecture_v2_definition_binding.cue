@@ -220,6 +220,10 @@ import "list"
 		node: member
 		matches: [for controller in _enabledControllerIDs if controller == member {controller}] & list.MinItems(1) & list.MaxItems(1)
 	}]
+	integrity: enabledControllersAreControlMembers: [for controller in _enabledControllerIDs {
+		node: controller
+		matches: [for member in plan.controlPlane.members if member == controller {member}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	if definition.topology.controlPlane.memberSiteScope == "authority-site" {
 		integrity: controlMembersAtAuthoritySite: [for member in plan.controlPlane.members {
 			node: member
@@ -285,9 +289,16 @@ import "list"
 			for allowed in definition.reachability.routes[route.exposure].allowedOriginKinds
 			if site.kind == allowed {site.kind},
 		] & list.MinItems(1) & list.MaxItems(1)
-		requiredCapabilities: [for required in definition.reachability.routes[route.exposure].requiredCapabilities {
-			capability: required
-			matches: [for selected in plan.capabilities if selected.id == required {selected.id}] & list.MinItems(1) & list.MaxItems(1)
+		requiredRealizations: [for required in definition.reachability.routes[route.exposure].requiredRealizations {
+			capability: required.capabilityRef
+			role:       required.role
+			matches: [for selected in plan.capabilities if selected.id == required.capabilityRef {selected.id}] & list.MinItems(1) & list.MaxItems(1)
+			realizations: [for realization in route.capabilityRealizations if realization.capabilityRef == required.capabilityRef && realization.role == required.role {realization.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+		declaredRealizations: [for realization in route.capabilityRealizations {
+			capability: realization.capabilityRef
+			role:       realization.role
+			matches: [for required in definition.reachability.routes[route.exposure].requiredRealizations if realization.capabilityRef == required.capabilityRef && realization.role == required.role {required.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
 		}]
 	}]
 	if len(plan.network.routes) > 0 {
@@ -374,10 +385,10 @@ import "list"
 		}
 	}]
 	integrity: routeTLS: [for route in plan.network.routes {
-		if route.tls.required == true if plan.network.configuration.tls.defaultMode == "internal" {
+		if route.tls.required == true if route.tls.mode != "external" if plan.network.configuration.tls.defaultMode == "internal" {
 			mode: route.tls.mode & "internal"
 		}
-		if route.tls.required == true if plan.network.configuration.tls.defaultMode == "public" {
+		if route.tls.required == true if route.tls.mode != "external" if plan.network.configuration.tls.defaultMode == "public" {
 			mode: route.tls.mode & "terminate-at-edge"
 		}
 		if route.tls.required == true {

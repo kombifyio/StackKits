@@ -28,6 +28,17 @@ type AtomicWriteResult struct {
 // recovery, callers may use this only in a private staging tree without
 // concurrent writers.
 func (v View) WriteAtomic0600(relative string, data []byte) (result AtomicWriteResult, returnErr error) {
+	return v.writeAtomic0600(relative, data, true)
+}
+
+// WriteAtomic0600NoReplace publishes a fully written 0600 file through a
+// same-parent hard link. The link is the atomic commit point and fails if the
+// destination appeared concurrently; an existing file is never replaced.
+func (v View) WriteAtomic0600NoReplace(relative string, data []byte) (result AtomicWriteResult, returnErr error) {
+	return v.writeAtomic0600(relative, data, false)
+}
+
+func (v View) writeAtomic0600(relative string, data []byte, replace bool) (result AtomicWriteResult, returnErr error) {
 	full, release, err := v.begin("atomic-write", relative, false)
 	if err != nil {
 		return result, err
@@ -68,10 +79,24 @@ func (v View) WriteAtomic0600(relative string, data []byte) (result AtomicWriteR
 	if err := validateAtomicInstallPaths(parentRoot, full, targetName, temporaryName, openedInfo); err != nil {
 		return result, err
 	}
-	if err := parentRoot.Rename(nativePath(temporaryName), nativePath(targetName)); err != nil {
-		return result, wrap(ErrIO, "atomic-write", full, "install temporary file with confined rename", err)
+	if replace {
+		if err := parentRoot.Rename(nativePath(temporaryName), nativePath(targetName)); err != nil {
+			return result, wrap(ErrIO, "atomic-write", full, "install temporary file with confined rename", err)
+		}
+		result.Installed = true
+	} else {
+		if err := parentRoot.Link(nativePath(temporaryName), nativePath(targetName)); err != nil {
+			installErr := wrap(ErrIO, "atomic-write", full, "install temporary file with confined no-replace link", err)
+			if cleanupErr := parentRoot.Remove(nativePath(temporaryName)); cleanupErr != nil {
+				return result, errors.Join(installErr, wrap(ErrIO, "atomic-write", full, "remove rejected no-replace temporary", cleanupErr))
+			}
+			return result, installErr
+		}
+		result.Installed = true
+		if err := parentRoot.Remove(nativePath(temporaryName)); err != nil {
+			return result, markInstalled(wrap(ErrIO, "atomic-write", full, "remove temporary no-replace link after install", err))
+		}
 	}
-	result.Installed = true
 	installedInfo, err := parentRoot.Lstat(nativePath(targetName))
 	if err != nil {
 		return result, markInstalled(wrap(ErrIO, "atomic-write", full, "inspect installed file", err))

@@ -24,8 +24,9 @@ var (
 const removeConfirmationValue = "yes"
 
 var removeCmd = &cobra.Command{
-	Use:   "remove",
-	Short: "Remove the deployed infrastructure",
+	Use:         "remove",
+	Short:       "Remove the deployed infrastructure",
+	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "remove"},
 	Long: `Remove all resources created by the deployment.
 
 This command runs 'tofu destroy' to tear down all infrastructure
@@ -54,12 +55,10 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	wd := getWorkDir()
 
-	// Load spec
 	loader := config.NewLoader(wd)
-	spec, err := loader.LoadStackSpec(specFile)
+	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Remove)
 	if err != nil {
-		printWarning("Could not load spec file, continuing with remove")
-		spec = &models.StackSpec{StackKit: "unknown"}
+		return fmt.Errorf("admit StackSpec before remove: %w", err)
 	}
 
 	printWarning("Removing deployment: %s", spec.StackKit)

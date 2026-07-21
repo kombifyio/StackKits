@@ -7,6 +7,7 @@ package base
 
 import (
 	"list"
+	"net"
 	"path"
 	"strings"
 	"struct"
@@ -16,6 +17,7 @@ import (
 
 #ContractID:   string & =~"^[a-z][a-z0-9-]*$"
 #CapabilityID: #ContractID
+#WorkloadID:   #ContractID
 #SiteID:       #ContractID
 #NodeID:       #ContractID
 
@@ -27,12 +29,14 @@ import (
 // External host references are opaque control-plane handles. Their fixed
 // schemes deliberately carry no server-provider, account, region, native
 // resource, address, or credential semantics into StackKits.
-#ExternalHostBindingRef: string & =~"^host-binding://sha256/[a-f0-9]{64}$"
-#ExternalHostRef:        string & =~"^host://sha256/[a-f0-9]{64}$"
-#ExternalInventoryRef:   string & =~"^host-inventory://sha256/[a-f0-9]{64}$"
-#ExecutionChannelRef:    string & =~"^execution-channel://sha256/[a-f0-9]{64}$"
-#HostConformanceRef:     string & =~"^host-conformance://sha256/[a-f0-9]{64}$"
-#RFC3339Timestamp:       string & =~"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+#ExternalHostBindingRef:       string & =~"^host-binding://sha256/[a-f0-9]{64}$"
+#ExternalHostRef:              string & =~"^host://sha256/[a-f0-9]{64}$"
+#ExternalInventoryRef:         string & =~"^host-inventory://sha256/[a-f0-9]{64}$"
+#ExecutionChannelRef:          string & =~"^execution-channel://sha256/[a-f0-9]{64}$"
+#HostConformanceRef:           string & =~"^host-conformance://sha256/[a-f0-9]{64}$"
+#ExternalHomeAccessBindingRef: string & =~"^home-access-binding://sha256/[a-f0-9]{64}$"
+#HomeAccessFabricRef:          string & =~"^home-access-fabric://sha256/[a-f0-9]{64}$"
+#RFC3339Timestamp:             string & =~"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{0,8}[1-9])?Z$"
 
 // #UnixSocketPath is a canonical absolute Unix-domain socket path. The
 // portable ASCII segment set keeps the path deterministic across authority,
@@ -180,6 +184,7 @@ import (
 			if left == denied {left},
 		] & list.MaxItems(0)
 	}
+	workloads: #KitWorkloadPolicyV2
 
 	accessDefaults:   #KitAccessDefaults
 	reachability:     #KitReachabilityContractV2
@@ -191,6 +196,7 @@ import (
 	generation:       #KitGenerationContract
 	network:          #KitNetworkContract
 	availability:     #KitAvailabilityContractV2
+	authoring?:       #KitAuthoringContractV2
 
 	bridge: {
 		required: bool | *false
@@ -208,15 +214,15 @@ import (
 	]
 	_reachabilityCapabilityChecks: [
 		for rule in _reachabilityRules
-		for requiredCapability in rule.requiredCapabilities {
-			capability: requiredCapability
+		for requirement in rule.requiredRealizations {
+			capability: requirement.capabilityRef
 			declared: [
 				for declared in list.Concat([capabilities.required, capabilities.defaults, capabilities.optional])
-				if requiredCapability == declared {declared},
+				if requirement.capabilityRef == declared {declared},
 			] & list.MinItems(1)
 			forbidden: [
 				for denied in capabilities.forbidden
-				if requiredCapability == denied {denied},
+				if requirement.capabilityRef == denied {denied},
 			] & list.MaxItems(0)
 		},
 	]
@@ -303,19 +309,27 @@ import (
 // #KitRouteExposureRuleV2 makes route reachability a definition-owned
 // capability contract. A route is never made reachable merely because its
 // intent asks for an exposure mode.
+#KitRouteRealizationRoleV2: "access" | "transport" | "edge" | "egress"
+
+#KitRouteCapabilityRealizationRequirementV2: {
+	capabilityRef: #CapabilityID
+	role:          #KitRouteRealizationRoleV2
+}
+
 #KitRouteExposureRuleV2: {
 	allowed: bool
-	requiredCapabilities: [...#CapabilityID] | *[]
+	requiredRealizations: [...#KitRouteCapabilityRealizationRequirementV2] | *[]
 	allowedOriginKinds: [...#SiteKind] | *[]
 
-	_requiredCapabilitiesUnique: list.UniqueItems(requiredCapabilities) & true
-	_allowedOriginKindsUnique:   list.UniqueItems(allowedOriginKinds) & true
+	_requiredRealizationCapabilitiesUnique: list.UniqueItems([for requirement in requiredRealizations {requirement.capabilityRef}]) & true
+	_requiredRealizationRolesUnique: list.UniqueItems([for requirement in requiredRealizations {requirement.role}]) & true
+	_allowedOriginKindsUnique: list.UniqueItems(allowedOriginKinds) & true
 
 	if allowed == true {
 		allowedOriginKinds: list.MinItems(1)
 	}
 	if allowed == false {
-		requiredCapabilities: []
+		requiredRealizations: []
 		allowedOriginKinds: []
 	}
 }
@@ -340,6 +354,13 @@ import (
 		local:            #KitRouteExposureRuleV2
 		"remote-private": #KitRouteExposureRuleV2
 		public:           #KitRouteExposureRuleV2
+		local: requiredRealizations: []
+	}
+	if routes["remote-private"].allowed == true {
+		routes: "remote-private": requiredRealizations: list.MinItems(1)
+	}
+	if routes.public.allowed == true {
+		routes: public: requiredRealizations: list.MinItems(1)
 	}
 }
 
@@ -708,6 +729,12 @@ import (
 	}
 }
 
+#DNSNameV2:        string & =~"^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9])$" & net.FQDN
+#PublicDNSNameV2:  #DNSNameV2 & =~"[A-Za-z]" & =~"\\."
+#NetworkHostV2:    string & (net.IP | #DNSNameV2)
+#NetworkAddressV2: string & net.IP
+#NetworkCIDRV2:    string & net.IPCIDR
+
 #StorageIntentV2: {
 	dataRoot:     #AbsolutePath | *"/opt/data"
 	backupRoot:   #AbsolutePath | *"/opt/backups"
@@ -720,7 +747,7 @@ import (
 	}
 	if volumeDriver == "nfs" {
 		nfs: {
-			server: string & =~"^.+$"
+			server: #NetworkHostV2
 			path:   #AbsolutePath
 		}
 	}
@@ -743,21 +770,20 @@ import (
 		subdomainPrefix?: #ContractID
 	}
 	transport: {
-		subnet:   string | *"172.20.0.0/16"
-		gateway?: string
+		subnet:   #NetworkCIDRV2 | *"172.20.0.0/16"
+		gateway?: #NetworkAddressV2
 		mtu:      int & >=576 & <=9216 | *1500
 		ipv6:     bool | *false
 	}
 	dns: {
-		servers: [...string] & list.MinItems(1) | *["1.1.1.1", "8.8.8.8"]
-		searchDomains: [...string] | *[]
+		servers: [...#NetworkAddressV2] & list.MinItems(1) | *["1.1.1.1", "8.8.8.8"]
+		searchDomains: [...#DNSNameV2] | *[]
 	}
 	tls: {
-		defaultMode:  "internal" | "off" | "public"
-		providerRef?: #ContractID
-		challenge?:   "tls-alpn-01" | "http-01" | "dns-01"
-		minVersion:   *"TLS1.2" | "TLS1.3"
-		credentialRefs?: [string]: #SecretReference
+		// Intent selects policy only. Certificate issuers, challenges,
+		// credentials, and termination adapters are catalog-owned realizations.
+		defaultMode: "internal" | "off" | "public"
+		minVersion:  *"TLS1.2" | "TLS1.3"
 	}
 }
 
@@ -827,9 +853,9 @@ import (
 	availability: #AvailabilityIntent & {mode: controlPlane.mode}
 	deviceEnrollment?: #DeviceEnrollmentPolicy
 	partitionPolicy:   #PartitionPolicy
-	workloads?: [string]: #WorkloadPlacementIntent
-	modules?: [string]:   #ModuleIntentV2
-	routes?: [string]:    #ServiceRouteIntentV2
+	workloads?: [#WorkloadID]: #WorkloadSelectionV2
+	modules?: [string]:        #ModuleIntentV2
+	routes?: [string]:         #ServiceRouteIntentV2
 	data?: #DataPlacementIntent
 
 	if install.runtime == "docker" {
@@ -848,10 +874,14 @@ import (
 		matches: [for site in sites if site.id == node.siteRef {site.id}] & list.MinItems(1) & list.MaxItems(1)
 	}]
 
-	_controllerIDs: [for node in nodes for role in node.roles if role == "controller" {node.id}]
+	_controllerIDs: [for node in nodes if node.enabled for role in node.roles if role == "controller" {node.id}]
 	_memberControllers: [for member in controlPlane.members {
 		node: member
 		matches: [for controller in _controllerIDs if controller == member {controller}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_controllersAreMembers: [for controller in _controllerIDs {
+		node: controller
+		matches: [for member in controlPlane.members if member == controller {member}] & list.MinItems(1) & list.MaxItems(1)
 	}]
 	_authoritySite: [for site in sites if site.id == controlPlane.authoritySiteRef {site.id}] & list.MinItems(1) & list.MaxItems(1)
 	_memberFailureDomains: [
@@ -1034,6 +1064,29 @@ import (
 	}
 }
 
+// #KitAuthoringContractV2 is the CUE-owned starting intent for native v2
+// authoring. It deliberately contains no operator identity, SSH transport,
+// provider lease, discovered host capacity, or application selection. Those
+// concerns are supplied later through their governed operational contracts.
+#KitAuthoringOverrideV2: "metadata.name" | "network.domain.base"
+
+#KitAuthoringContractV2: {
+	contractVersion:   #SemanticVersion
+	initialSpecStatus: "supported" | "preview"
+	requiredOverrides: [...#KitAuthoringOverrideV2] | *[]
+	initialSpec: #StackSpecV2
+
+	_requiredOverridesUnique: list.UniqueItems(requiredOverrides) & true
+}
+
+// #ProductKitDefinition makes authoring intent mandatory only for the three
+// product KitDefinitions. Non-product contract fixtures remain valid generic
+// #KitDefinition values and cannot become user-facing authoring authorities by
+// inheriting a product seed accidentally.
+#ProductKitDefinition: #KitDefinition & {
+	authoring: #KitAuthoringContractV2
+}
+
 // #StackInstanceRecordV2 is the Fleet-facing identity of one independently
 // planned and operated StackInstance. A Fleet groups instances for inventory
 // and lifecycle visibility; it never merges their control authorities or
@@ -1073,7 +1126,13 @@ import (
 			members:        list.MaxItems(1)
 			haAddOnEnabled: false
 		}
-		if mode != "single" {
+		if mode == "warm-standby" {
+			members:        list.MinItems(2)
+			haAddOnEnabled: true
+		}
+		if mode == "quorum" {
+			members:        list.MinItems(3)
+			_memberCount:   len(members) & (3 | 5 | 7)
 			haAddOnEnabled: true
 		}
 	}
@@ -1086,11 +1145,20 @@ import (
 		node: node.id
 		matches: [for site in sites if site.id == node.siteRef {site.id}] & list.MinItems(1) & list.MaxItems(1)
 	}]
+	_nodeRolesUnique: [for node in nodes {list.UniqueItems(node.roles) & true}]
 	_authoritySiteRef: [for site in sites if site.id == controlAuthority.siteRef {site.id}] & list.MinItems(1) & list.MaxItems(1)
 	_controllerIDs: [for node in nodes for role in node.roles if role == "controller" {node.id}]
 	_memberControllers: [for member in controlAuthority.members {
 		node: member
 		matches: [for controller in _controllerIDs if controller == member {controller}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_controllersAreMembers: [for controller in _controllerIDs {
+		node: controller
+		matches: [for member in controlAuthority.members if member == controller {member}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_memberAuthoritySites: [for member in controlAuthority.members {
+		node: member
+		matches: [for node in nodes if node.id == member && node.siteRef == controlAuthority.siteRef {node.id}] & list.MinItems(1) & list.MaxItems(1)
 	}]
 }
 
@@ -1120,10 +1188,38 @@ import (
 }
 
 #WorkloadPlacementIntent: {
-	siteRefs?: [...#SiteID]
-	nodeRefs?: [...#NodeID]
-	requiresRoles?: [...#NodeRoleV2]
-	dataClasses?: [...#DataClass]
+	siteRefs: [...#SiteID] | *[]
+	nodeRefs: [...#NodeID] | *[]
+	requiresRoles: [...#NodeRoleV2] | *[]
+
+	_siteRefsUnique:      list.UniqueItems(siteRefs) & true
+	_nodeRefsUnique:      list.UniqueItems(nodeRefs) & true
+	_requiresRolesUnique: list.UniqueItems(requiresRoles) & true
+}
+
+#WorkloadSelectionV2: {
+	alternative: #ContractID
+	placement: #WorkloadPlacementIntent | *{}
+	settings?: #PublicSettings
+	secretRefs?: [string]: #SecretReference
+}
+
+#KitWorkloadPolicyV2: {
+	required: [...#WorkloadID] | *[]
+	defaults: [...#WorkloadID] | *[]
+	optional: [...#WorkloadID] | *[]
+	forbidden: [...#WorkloadID] | *[]
+
+	_requiredUnique:  list.UniqueItems(required) & true
+	_defaultsUnique:  list.UniqueItems(defaults) & true
+	_optionalUnique:  list.UniqueItems(optional) & true
+	_forbiddenUnique: list.UniqueItems(forbidden) & true
+	_selectedDisjoint: list.UniqueItems(list.Concat([required, defaults, optional])) & true
+	_forbiddenDisjoint: [
+		for selected in list.Concat([required, defaults, optional])
+		for denied in forbidden
+		if selected == denied {selected},
+	] & list.MaxItems(0)
 }
 
 #DataClass: "public" | "internal" | "personal" | "sensitive" | "secret"
@@ -1205,7 +1301,7 @@ import (
 // convenience is allowed only in combination with an enrolled device.
 #AccessPolicyV2: {
 	exposure:       *"private" | "lan" | "public"
-	privilege:      *"user" | "admin" | "identity" | "secrets"
+	privilege:      *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
 	authentication: *"human" | "device" | "human+device" | "none"
 
 	enrolledDeviceRequired: bool | *false
@@ -1225,7 +1321,7 @@ import (
 		enrolledDeviceRequired: true
 		authentication:         "device" | "human+device"
 	}
-	if privilege == "admin" || privilege == "identity" || privilege == "secrets" {
+	if privilege == "admin" || privilege == "identity" || privilege == "secrets" || privilege == "vault" || privilege == "recovery" {
 		authentication:         "human+device"
 		ownerStepUpRequired:    true
 		enrolledDeviceRequired: true
@@ -1243,6 +1339,10 @@ import (
 	serviceRef:       #ContractID
 	upstreamProtocol: #NetworkProtocol
 	targetPort:       int & >=1 & <=65535
+	// A route may not downgrade a catalog-owned sensitive service surface to
+	// ordinary user access. Vault and recovery surfaces therefore retain their
+	// mandatory device-bound owner step-up through compilation and publication.
+	requiredPrivilege: *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
 	allowedIngressProtocols: [...#NetworkProtocol] & list.MinItems(1)
 	allowedExposures: [...#ServiceExposureV2] & list.MinItems(1)
 	originSelector: *"single-site" | "control-authority-site"
@@ -1276,6 +1376,10 @@ import (
 	if protocol == "http" || protocol == "https" {
 		host: string & =~"^.+$"
 		path: string & =~"^/"
+	}
+	if exposure == "public" {
+		protocol: "https"
+		host:     #PublicDNSNameV2
 	}
 }
 
@@ -1320,7 +1424,7 @@ import (
 	exposure:               #ServiceExposureV2
 	policyExposure:         #AccessPolicyExposureV2
 	authentication:         "human" | "device" | "human+device" | "workload" | "none"
-	privilege:              *"user" | "admin" | "identity" | "secrets"
+	privilege:              *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
 	enrolledDeviceRequired: bool | *false
 	ownerStepUpRequired:    bool | *false
 	lanStepDown:            bool | *false
@@ -1341,7 +1445,7 @@ import (
 		authentication:         "device" | "human+device"
 		enrolledDeviceRequired: true
 	}
-	if privilege == "admin" || privilege == "identity" || privilege == "secrets" {
+	if privilege == "admin" || privilege == "identity" || privilege == "secrets" || privilege == "vault" || privilege == "recovery" {
 		authentication:         "human+device"
 		enrolledDeviceRequired: true
 		ownerStepUpRequired:    true
@@ -1349,16 +1453,63 @@ import (
 }
 
 #ResolvedRouteTLSV2: {
-	required:     bool
-	mode:         "off" | "internal" | "terminate-at-edge" | "passthrough"
-	minVersion?:  "TLS1.2" | "TLS1.3"
-	providerRef?: #ContractID
-	credentialRefs?: [string]: #SecretReference
+	required:            bool
+	mode:                "off" | "internal" | "terminate-at-edge" | "external"
+	minVersion?:         "TLS1.2" | "TLS1.3"
+	profileRef?:         #ContractID
+	issuerRef?:          #ContractID
+	ownerCapabilityRef?: #CapabilityID
 
-	if required == false {mode: "off"}
+	if required == false {
+		mode:                "off"
+		profileRef?:         _|_
+		issuerRef?:          _|_
+		ownerCapabilityRef?: _|_
+	}
 	if required == true {
-		mode:       "internal" | "terminate-at-edge" | "passthrough"
+		mode:       "internal" | "terminate-at-edge" | "external"
 		minVersion: "TLS1.2" | "TLS1.3"
+	}
+	if mode == "internal" || mode == "terminate-at-edge" {
+		profileRef:          #ContractID
+		issuerRef:           #ContractID
+		ownerCapabilityRef?: _|_
+	}
+	if mode == "external" {
+		ownerCapabilityRef: #CapabilityID
+		profileRef?:        _|_
+		issuerRef?:         _|_
+	}
+}
+
+// #ResolvedRouteCapabilityRealizationV2 is the immutable, provider-neutral
+// proof of which selected contract owns one Definition-required route
+// capability. Module-backed providers must resolve to exactly one concrete
+// module placement; contract/topology/host/external providers remain explicit
+// without leaking infrastructure-provider configuration into StackKits.
+#ResolvedRouteCapabilityRealizationV2: {
+	capabilityRef:          #CapabilityID
+	role:                   #KitRouteRealizationRoleV2
+	capabilityContractHash: #ContentHash
+	providerRef:            #ContractID
+	providerContractHash:   #ContentHash
+	realizationKind:        "modules" | "contract" | "topology" | "host" | "external"
+	providerSiteRefs: [...#SiteID] & list.MinItems(1)
+	moduleOwner?: {
+		moduleRef:          #ContractID
+		moduleContractHash: #ContentHash
+		siteRefs: [...#SiteID] & list.MinItems(1)
+		nodeRefs: [...#NodeID] & list.MinItems(1)
+		_siteRefsUnique: list.UniqueItems(siteRefs) & true
+		_nodeRefsUnique: list.UniqueItems(nodeRefs) & true
+	}
+	_providerSiteRefsUnique: list.UniqueItems(providerSiteRefs) & true
+
+	if realizationKind == "modules" {
+		moduleOwner: _
+	}
+	if realizationKind != "modules" {
+		moduleOwner?: _|_
 	}
 }
 
@@ -1376,8 +1527,10 @@ import (
 	host?:            string & =~"^.+$"
 	path?:            string & =~"^/"
 	access: #ResolvedAccessDecisionV2 & {exposure: exposure}
-	tls:           #ResolvedRouteTLSV2
-	healthGateRef: #ContractID
+	capabilityRealizations: [...#ResolvedRouteCapabilityRealizationV2] | *[]
+	tls:            #ResolvedRouteTLSV2
+	healthGateRef:  #ContractID
+	backendPoolRef: #ContractID
 
 	if protocol == "http" || protocol == "https" {
 		host: string & =~"^.+$"
@@ -1388,9 +1541,47 @@ import (
 	}
 	if exposure == "public" {
 		protocol: "https"
+		host:     #PublicDNSNameV2
 		access: defaultClosed: true
-		tls: required:         true
+		tls: {
+			required: true
+			mode:     "terminate-at-edge" | "external"
+		}
 	}
+	if exposure == "local" {
+		capabilityRealizations: []
+	}
+	if exposure == "remote-private" || exposure == "public" {
+		capabilityRealizations: list.MinItems(1)
+	}
+	_capabilityRealizationRefsUnique: list.UniqueItems([for realization in capabilityRealizations {realization.capabilityRef}]) & true
+}
+
+// #ResolvedRouteBackendMemberV2 is one exact node-local render instance that
+// may receive traffic for a resolved service route. It deliberately carries
+// logical identities only; addresses, sockets and provider metadata remain
+// outside renderer-visible routing authority.
+#ResolvedRouteBackendMemberV2: {
+	siteRef:     #SiteID
+	nodeRef:     #NodeID
+	instanceRef: #ContractID
+}
+
+// #ResolvedRouteBackendPoolV2 is compiler-owned routing authority. Membership
+// is reconstructed from the catalog endpoint and exact resolved render-unit
+// instances, never inferred by a renderer from labels, exposure or context.
+#ResolvedRouteBackendPoolV2: {
+	id:               #ContractID
+	routeRef:         #ContractID
+	serviceRef:       #ContractID
+	moduleRef:        #ContractID
+	unitRef:          #ContractID
+	originSelector:   "single-site" | "control-authority-site"
+	upstreamProtocol: #NetworkProtocol
+	targetPort:       int & >=1 & <=65535
+	members: [...#ResolvedRouteBackendMemberV2] & list.MinItems(1)
+
+	_memberRefsUnique: list.UniqueItems([for member in members {member.instanceRef}]) & true
 }
 
 #NetworkProtocol: "tcp" | "udp" | "http" | "https"
@@ -1421,8 +1612,38 @@ import (
 	}
 }
 
-#ConnectivityOverlay: {
-	provider:                "wireguard" | "headscale" | "tailscale" | "netbird" | "pangolin"
+#ConnectivityOverlayIntentV2: {
+	contractRef: #ContractID
+	trafficMode: "management-only" | "policy-scoped"
+	peerSiteRefs: [...#SiteID] & list.MinItems(2)
+
+	_peerUnique: list.UniqueItems(peerSiteRefs) & true
+}
+
+// #OverlayProviderContractV2 is catalog authority for one outbound-only
+// federation transport. StackSpec selects the contract, never a concrete
+// server provider, endpoint, credential, route advertisement, or lifecycle.
+#OverlayProviderContractV2: {
+	id:                  #ContractID
+	capabilityRef:       "inter-site-link"
+	moduleRef:           #ContractID
+	implementation:      "wireguard" | "headscale" | "tailscale" | "netbird" | "pangolin"
+	initiation:          "local-outbound"
+	outboundEstablished: true
+	allowedTrafficModes: [...("management-only" | "policy-scoped")] & list.MinItems(1)
+	advertiseDefaultRoute:   false
+	advertisePrivateSubnets: false
+	allowBroadRoutes:        false
+
+	_allowedTrafficModesUnique: list.UniqueItems(allowedTrafficModes) & true
+}
+
+#ResolvedConnectivityOverlayV2: {
+	contractRef:             #ContractID
+	providerRef:             #ContractID
+	providerContractHash:    #ContentHash
+	moduleRef:               #ContractID
+	implementation:          "wireguard" | "headscale" | "tailscale" | "netbird" | "pangolin"
 	initiation:              "local-outbound"
 	outboundEstablished:     true
 	trafficMode:             "management-only" | "policy-scoped"
@@ -1480,12 +1701,25 @@ _servicePublicationShape: {
 	cloudMayIssueDeviceCredentials: false
 }
 
-#OutboundControlContract: {
-	enabled:   true
-	transport: "managed-agent" | "mtls-agent"
-	audience:  #ContractID
+#OutboundControlIntentV2: {
+	enabled: true
 	actionAllowlist: [...#ContractID] & list.MinItems(1)
+	_actionAllowlistUnique: list.UniqueItems(actionAllowlist) & true
+}
+
+// Each remote action is a closed catalog-owned command envelope. Destructive
+// actions cannot be admitted without an approval receipt requirement.
+#RemoteActionContractV2: {
+	id:                             #ContractID
+	capabilityRef:                  "outbound-control-agent"
+	moduleRef:                      #ContractID
+	transport:                      "managed-agent" | "mtls-agent"
+	issuerRef:                      #ContractID
+	audience:                       #ContractID
 	maxTTLSeconds:                  int & >=1 & <=300
+	destructive:                    bool
+	approvalClass:                  "none" | "owner-step-up" | "break-glass"
+	approvalReceiptRequired:        bool
 	capabilityScopedActions:        true
 	requiresSignedActions:          true
 	requiresNonce:                  true
@@ -1493,13 +1727,73 @@ _servicePublicationShape: {
 	requiresResolvedPlanHash:       true
 	replayProtection:               true
 	requiresApprovalForDestructive: true
+	if destructive {
+		approvalClass:           "owner-step-up" | "break-glass"
+		approvalReceiptRequired: true
+	}
+	if approvalClass != "none" {
+		approvalReceiptRequired: true
+	}
+}
+
+#ResolvedRemoteActionContractV2: {
+	id:                             #ContractID
+	contractRef:                    #ContractID
+	capabilityRef:                  "outbound-control-agent"
+	providerRef:                    #ContractID
+	providerContractHash:           #ContentHash
+	moduleRef:                      #ContractID
+	transport:                      "managed-agent" | "mtls-agent"
+	issuerRef:                      #ContractID
+	audience:                       #ContractID
+	maxTTLSeconds:                  int & >=1 & <=300
+	destructive:                    bool
+	approvalClass:                  "none" | "owner-step-up" | "break-glass"
+	approvalReceiptRequired:        bool
+	capabilityScopedActions:        true
+	requiresSignedActions:          true
+	requiresNonce:                  true
+	requiresIdempotencyKey:         true
+	requiresResolvedPlanHash:       true
+	replayProtection:               true
+	requiresApprovalForDestructive: true
+	if destructive {
+		approvalClass:           "owner-step-up" | "break-glass"
+		approvalReceiptRequired: true
+	}
+	if approvalClass != "none" {
+		approvalReceiptRequired: true
+	}
+}
+
+#ResolvedOutboundControlContractV2: {
+	enabled:              true
+	providerRef:          #ContractID
+	providerContractHash: #ContentHash
+	moduleRef:            #ContractID
+	actionAllowlist: [...#ContractID] & list.MinItems(1)
+	actions: [...#ResolvedRemoteActionContractV2] & list.MinItems(1)
+
+	_actionAllowlistUnique: list.UniqueItems(actionAllowlist) & true
+	_actionIDsUnique: list.UniqueItems([for action in actions {action.id}]) & true
+	_actionClosure: [for actionRef in actionAllowlist {
+		matches: [for action in actions if action.id == actionRef && action.contractRef == actionRef {action.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_noExtraActions: [for action in actions {
+		matches: [for actionRef in actionAllowlist if actionRef == action.id {actionRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_ownerClosure: [for action in actions {
+		providerRef:          action.providerRef & providerRef
+		providerContractHash: action.providerContractHash & providerContractHash
+		moduleRef:            action.moduleRef & moduleRef
+	}]
 }
 
 #BridgeContract: {
-	overlay: #ConnectivityOverlay
+	overlay: #ConnectivityOverlayIntentV2
 	publications: [...#ServicePublication] | *[]
 	policy:       #BridgePolicy
-	controlAgent: #OutboundControlContract
+	controlAgent: #OutboundControlIntentV2
 
 	if overlay.trafficMode == "management-only" {
 		publications: []
@@ -1537,10 +1831,10 @@ _servicePublicationShape: {
 }
 
 #ResolvedBridgeContractV2: {
-	overlay: #ConnectivityOverlay
+	overlay: #ResolvedConnectivityOverlayV2
 	publications: [...#ResolvedServicePublicationV2] | *[]
 	policy:       #BridgePolicy
-	controlAgent: #OutboundControlContract
+	controlAgent: #ResolvedOutboundControlContractV2
 
 	_publicationsUnique: list.UniqueItems(publications) & true
 	_flowsUnique:        list.UniqueItems(policy.allowedFlows) & true
@@ -1706,6 +2000,79 @@ _servicePublicationShape: {
 	dataClasses?: [...#DataClass]
 	health?: [...#HealthCheckContractV2]
 	evidence?: [...string]
+	tlsProfile?: #TLSProfileV2
+}
+
+// TLS issuers and profiles are immutable catalog realizations. StackSpec may
+// select only the desired TLS mode; it cannot select an issuer, challenge,
+// credential location, or termination adapter.
+#TLSCatalogOwnerV2: {
+	providerRef:            #ContractID
+	moduleRef:              #ContractID
+	materializationSupport: "contract-only"
+}
+
+#TLSMaterialSlotV2: {
+	id:          #ContractID
+	purpose:     "certificate-chain" | "private-key" | "trust-root" | "issuer-account-key"
+	sensitivity: "public" | "secret"
+
+	if purpose == "certificate-chain" || purpose == "trust-root" {
+		sensitivity: "public"
+	}
+	if purpose == "private-key" || purpose == "issuer-account-key" {
+		sensitivity: "secret"
+	}
+}
+
+#CertificateIssuerV2: {
+	id:            #ContractID
+	capabilityRef: "internal-pki" | "public-tls"
+	kind:          "internal-ca" | "acme"
+	challenge:     "none" | "tls-alpn-01" | "http-01" | "dns-01"
+	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
+	owner:           #TLSCatalogOwnerV2
+	validitySeconds: int & >3600
+	requiredInputSlotIDs: [...#ContractID] | *[]
+	materialSlots: [...#TLSMaterialSlotV2] & list.MinItems(2)
+	_requiredInputSlotIDsUnique: list.UniqueItems(requiredInputSlotIDs) & true
+	_materialSlotIDsUnique: list.UniqueItems([for slot in materialSlots {slot.id}]) & true
+	renewal: {
+		required:           true
+		healthGateRef:      #ContractID
+		renewBeforeSeconds: int & >=3600
+	}
+	_renewBeforeValidity: renewal.renewBeforeSeconds & <validitySeconds
+
+	if kind == "internal-ca" {
+		capabilityRef: "internal-pki"
+		challenge:     "none"
+	}
+	if kind == "acme" {
+		capabilityRef: "public-tls"
+		challenge:     "tls-alpn-01" | "http-01" | "dns-01"
+	}
+}
+
+#TLSProfileV2: {
+	id:             #ContractID
+	capabilityRef:  "internal-pki" | "public-tls"
+	mode:           "internal" | "terminate-at-edge"
+	trustDomain:    "private" | "web-pki"
+	minimumVersion: "TLS1.2" | "TLS1.3"
+	allowedIssuerKinds: [...("internal-ca" | "acme")] & list.MinItems(1)
+	_allowedIssuerKindsUnique: list.UniqueItems(allowedIssuerKinds) & true
+
+	if mode == "internal" {
+		capabilityRef: "internal-pki"
+		trustDomain:   "private"
+		allowedIssuerKinds: ["internal-ca"]
+	}
+	if mode == "terminate-at-edge" {
+		capabilityRef: "public-tls"
+		trustDomain:   "web-pki"
+		allowedIssuerKinds: ["acme"]
+	}
 }
 
 #ProviderModuleRefsV2: {
@@ -1777,13 +2144,18 @@ _servicePublicationShape: {
 
 // #ProviderRealizationContractV2 makes provider ownership explicit. Required
 // modules are selected by the compiler; optional modules are selected only by
-// governed StackSpec module intent. Host/external owners remain providers and
-// must never be projected into synthetic modules.
+// governed StackSpec module intent. A contract realization is selectable
+// declarative authority without runtime work. Host/external owners remain
+// providers and must never be projected into synthetic modules.
 #ProviderRealizationContractV2: {
-	kind:                *"none" | "host" | "external" | "modules"
+	kind:                *"none" | "contract" | "host" | "external" | "modules" | "topology"
 	ownerRef?:           #ContractID
 	realizationSupport?: #ProviderOwnerRealizationSupportV2
 	inputBindings?: [#ContractID]: #ProviderOwnerInputBindingV2
+	topology?: {
+		siteKinds: [...#SiteKind] & list.MinItems(1)
+		_siteKindsUnique: list.UniqueItems(siteKinds) & true
+	}
 	moduleRefs: #ProviderModuleRefsV2 | *{
 		required: []
 		optional: []
@@ -1795,6 +2167,7 @@ _servicePublicationShape: {
 		ownerRef?:           _|_
 		realizationSupport?: _|_
 		inputBindings?:      _|_
+		topology?:           _|_
 	}
 	if kind == "host" || kind == "external" {
 		ownerRef:           #ContractID
@@ -1804,11 +2177,33 @@ _servicePublicationShape: {
 			required: []
 			optional: []
 		}
+		topology?: _|_
+	}
+	if kind == "topology" {
+		topology: siteKinds: [...#SiteKind] & list.MinItems(1)
+		ownerRef?:           _|_
+		realizationSupport?: _|_
+		inputBindings?:      _|_
+		moduleRefs: {
+			required: []
+			optional: []
+		}
+	}
+	if kind == "contract" {
+		ownerRef?:           _|_
+		realizationSupport?: _|_
+		inputBindings?:      _|_
+		topology?:           _|_
+		moduleRefs: {
+			required: []
+			optional: []
+		}
 	}
 	if kind == "none" {
 		ownerRef?:           _|_
 		realizationSupport?: _|_
 		inputBindings?:      _|_
+		topology?:           _|_
 		moduleRefs: {
 			required: []
 			optional: []
@@ -1825,7 +2220,8 @@ _servicePublicationShape: {
 		id:      #ContractID
 		version: string
 	}
-	provides: [...#CapabilityID] & list.MinItems(1)
+	provides: [...#CapabilityID]
+	workloadRefs: [...#WorkloadID] | *[]
 	requires?: [...#CapabilityRequirement]
 	conflicts?: [...#ContractID]
 	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
@@ -1847,6 +2243,34 @@ _servicePublicationShape: {
 	}
 	health?: [...#HealthCheckContractV2]
 	evidence?: [...string]
+	certificateIssuers: [...#CertificateIssuerV2] | *[]
+	overlayContracts: [...#OverlayProviderContractV2] | *[]
+	remoteActionContracts: [...#RemoteActionContractV2] | *[]
+	_providesUnique:     list.UniqueItems(provides) & true
+	_workloadRefsUnique: list.UniqueItems(workloadRefs) & true
+	_overlayContractIDsUnique: list.UniqueItems([for contract in overlayContracts {contract.id}]) & true
+	_remoteActionIDsUnique: list.UniqueItems([for contract in remoteActionContracts {contract.id}]) & true
+
+	_tlsIssuerIDsUnique: list.UniqueItems([for issuer in certificateIssuers {issuer.id}]) & true
+	_tlsIssuerBindings: [for issuerContract in certificateIssuers {
+		issuer:   issuerContract.id
+		provider: issuerContract.owner.providerRef & metadata.id
+		capabilityMatches: [for capabilityRef in provides if capabilityRef == issuerContract.capabilityRef {capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+		moduleMatches: [for moduleRef in realization._allModuleRefs if moduleRef == issuerContract.owner.moduleRef {moduleRef}] & list.MinItems(1) & list.MaxItems(1)
+		healthMatches: [for healthContract in health if healthContract.id == issuerContract.renewal.healthGateRef {healthContract.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_tlsCapabilityBindings: [for capabilityRef in provides if capabilityRef == "internal-pki" || capabilityRef == "public-tls" {
+		capability: capabilityRef
+		issuerMatches: [for issuer in certificateIssuers if issuer.capabilityRef == capabilityRef {issuer.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_overlayContractBindings: [for contract in overlayContracts {
+		capabilityMatches: [for capabilityRef in provides if capabilityRef == contract.capabilityRef {capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+		moduleMatches: [for moduleRef in realization._allModuleRefs if moduleRef == contract.moduleRef {moduleRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_remoteActionBindings: [for contract in remoteActionContracts {
+		capabilityMatches: [for capabilityRef in provides if capabilityRef == contract.capabilityRef {capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+		moduleMatches: [for moduleRef in realization._allModuleRefs if moduleRef == contract.moduleRef {moduleRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 
 	if realization.kind == "host" || realization.kind == "external" {
 		realization: ownerRef: metadata.id
@@ -1866,17 +2290,81 @@ _servicePublicationShape: {
 			},
 		]
 	}
+	if realization.kind == "topology" {
+		realization: topology: siteKinds: supportedSiteKinds
+	}
+}
+
+#ModuleRuntimeComponentV2: {
+	id:        #ContractID
+	role:      "application" | "machine-learning" | "database" | "cache" | "database-init"
+	lifecycle: "daemon" | "one-shot"
+	image: {
+		ref:    string & =~"^[^[:space:]]+$"
+		digest: #ContentHash
+	}
+	dependsOn: [...#ContractID] | *[]
+	networkRefs: [...#ContractID] & list.MinItems(1)
+	command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
+	environment?: [string]:       string
+	secretEnvironment?: [string]: #ContractID
+	volumes?: [...{
+		id:     #ContractID
+		target: #AbsolutePath
+		class:  "persistent" | "cache"
+		backup: bool
+	}]
+	health: {
+		kind:  "http" | "command" | "image" | "completion"
+		path?: string & =~"^/.*$"
+		port?: int & >=1 & <=65535
+		command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
+	}
+
+	_dependsOnUnique:   list.UniqueItems(dependsOn) & true
+	_networkRefsUnique: list.UniqueItems(networkRefs) & true
+	if volumes != _|_ {
+		_volumeIDsUnique: list.UniqueItems([for volume in volumes {volume.id}]) & true
+		_volumeTargetsUnique: list.UniqueItems([for volume in volumes {volume.target}]) & true
+	}
+	if lifecycle == "one-shot" {
+		command: list.MinItems(1)
+		health: kind: "completion"
+	}
+	if lifecycle == "daemon" {command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)}
+	if health.kind == "http" {health: {path: string, port: int}}
+	if health.kind == "command" {health: command: list.MinItems(1)}
+	if health.kind == "image" || health.kind == "completion" {
+		health: {path?: _|_, port?: _|_, command?: _|_}
+	}
 }
 
 #ModuleRuntimeContractV2: {
-	kind:     "container" | "native" | "host" | "external" | "control-plane"
-	delivery: "stackkit" | "selected-paas" | "external-control-plane"
-	engine?:  "docker" | "podman" | "systemd" | "binary" | "api"
+	// A rendered contract is not automatically executable authority. Modules
+	// that only project an executor handoff or policy document use
+	// contract-handoff and therefore produce no Apply runtime target.
+	execution: *"executable" | "contract-handoff"
+	kind:      "container" | "native" | "host" | "external" | "control-plane"
+	delivery:  "stackkit" | "selected-paas" | "external-control-plane"
+	engine?:   "docker" | "podman" | "systemd" | "binary" | "api"
 	image?: {
 		ref:     string & =~"^[^[:space:]]+$"
 		digest?: #ContentHash
 	}
+	entryComponentRef?: #ContractID
+	components?: [...#ModuleRuntimeComponentV2] & list.MinItems(1)
 	settings?: #PublicSettings
+
+	if components != _|_ {
+		entryComponentRef: #ContractID
+		_componentIDsUnique: list.UniqueItems([for component in components {component.id}]) & true
+		_entryComponentExact: [for component in components if component.id == entryComponentRef {component.id}] & list.MinItems(1) & list.MaxItems(1)
+		_componentDependenciesClosed: [for component in components for dependencyRef in component.dependsOn {
+			component:  component.id
+			dependency: dependencyRef
+			matches: [for candidate in components if candidate.id == dependencyRef {candidate.id}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	}
 
 	if kind == "container" {
 		engine: "docker" | "podman"
@@ -1884,6 +2372,12 @@ _servicePublicationShape: {
 	}
 	if kind == "external" || kind == "control-plane" {
 		delivery: "external-control-plane"
+	}
+	if execution == "contract-handoff" {
+		engine?:            _|_
+		image?:             _|_
+		entryComponentRef?: _|_
+		components?:        _|_
 	}
 }
 
@@ -1925,6 +2419,39 @@ _servicePublicationShape: {
 		_requiredInventoryFactsUnique: list.UniqueItems(requireInventoryFacts) & true
 	}
 } & struct.MinFields(1)
+
+// #PolicyEnforcementRequirementV1 names the runtime authority that must later
+// consume a generated policy. v1 deliberately admits only unbound
+// requirements: naming an owner is not evidence that the owner exists or ran.
+#PolicyEnforcementRequirementV1: {
+	status:   "unbound"
+	ownerRef: #ContractID
+	policyArtifactRefs: [...#ContractID] & list.MinItems(1)
+	targetScope: "home-sites" | "home-control-authority" | "cloud-sites" | "federated-sites"
+	operations: [...#ContractID] & list.MinItems(1)
+	requiredHealthRef:   #ContractID
+	requiredEvidenceRef: #ContractID
+
+	_policyArtifactRefsUnique: list.UniqueItems(policyArtifactRefs) & true
+	_operationsUnique:         list.UniqueItems(operations) & true
+}
+
+// #RuntimeOwnerRequirementV1 names an exact kit/runtime authority that is
+// required but not yet bound. Unlike a policy enforcer it need not consume a
+// generated policy artifact. v1 remains deliberately unbound so a catalog
+// declaration can never be mistaken for successful execution.
+#RuntimeOwnerRequirementV1: {
+	status:   "unbound"
+	ownerRef: #ContractID
+	capabilityRefs: [...#CapabilityID] & list.MinItems(1)
+	targetScope: "home-sites" | "cloud-sites" | "federated-sites"
+	operations: [...#ContractID] & list.MinItems(1)
+	requiredHealthRef:   #ContractID
+	requiredEvidenceRef: #ContractID
+
+	_capabilityRefsUnique: list.UniqueItems(capabilityRefs) & true
+	_operationsUnique:     list.UniqueItems(operations) & true
+}
 
 #ModuleRenderUnitKindV2: "compose" | "cue-fragment" | "host" | "job" | "opentofu" | "native-config"
 
@@ -2216,12 +2743,290 @@ _servicePublicationShape: {
 // resolved-plan views that a render unit may consume. These are not user
 // settings and they never expose the full plan, node inventory, secretRefs,
 // management endpoints, or daemon/socket bindings.
-#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery"
+#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicTLS"
+
+// #ModuleRenderInputBindingV2 is the closed field-level seam from resolved
+// architecture authority into public renderer inputs. Sources are finite and
+// typed; arbitrary paths, raw StackSpec access, module outputs, and secrets are
+// intentionally unrepresentable.
+#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "network.routes"
+#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "authority-bound-service-route-list-v4"
+#ModuleRenderInputCardinalityV2: "single" | "list"
+
+// This projection renames credentialTTLSeconds to lifetimeSeconds so the
+// compiler-derived public value cannot collide with the recursively closed
+// secret-like key namespace used by #PublicSettings.
+#ModulePublicDeviceEnrollmentV2: {
+	mode:                      "local-only"
+	authoritySiteRef:          #SiteID
+	endpointExposure:          "lan"
+	remoteEnrollment:          false
+	requireOwnerStepUp:        true
+	requireLocalPairingProof:  true
+	requireDeviceGeneratedKey: true
+	requirePossessionProof:    true
+	hardwareBackedKey:         "preferred" | "required"
+	revocationSupported:       true
+	lifetimeSeconds:           int & >=300 & <=86400
+}
+
+// #ModulePublicResolvedRouteV2 excludes TLS credentialRefs and providerRef.
+// It is the only network.routes representation a public renderer input can
+// receive through a field binding.
+#ModulePublicResolvedRouteV2: {
+	id:            #ContractID
+	serviceRef:    #ContractID
+	moduleRef:     #ContractID
+	originSiteRef: #SiteID
+	originNodeRefs: [...#NodeID] & list.MinItems(1)
+	backendPoolRef: #ContractID
+	backendPool: {
+		upstreamProtocol: #NetworkProtocol
+		targetPort:       int & >=1 & <=65535
+		members: [...#ResolvedRouteBackendMemberV2] & list.MinItems(1)
+	}
+	exposure:         #ServiceExposureV2
+	protocol:         #NetworkProtocol
+	upstreamProtocol: #NetworkProtocol
+	port:             int & >=1 & <=65535
+	targetPort:       int & >=1 & <=65535
+	host?:            string & =~"^.+$"
+	path?:            string & =~"^/"
+	access:           #ResolvedAccessDecisionV2
+	tls:              #ResolvedRouteTLSV2
+	healthGateRef:    #ContractID
+
+	_originNodeRefsUnique: list.UniqueItems(originNodeRefs) & true
+	_backendMemberRefsUnique: list.UniqueItems([for member in backendPool.members {member.instanceRef}]) & true
+	if exposure == "public" {
+		host: #PublicDNSNameV2
+	}
+}
+
+#ModulePublicRouteHealthProbeV3: {
+	kind:             "http" | "tcp"
+	protocol:         "http" | "https" | "tcp"
+	port:             int & >=1 & <=65535
+	timeoutSeconds:   int & >=1 & <=300
+	method?:          "GET"
+	followRedirects?: false
+	path?:            string & =~"^/"
+	expectedStatuses?: [...int & >=100 & <=599]
+	if kind == "http" {
+		protocol:        "http" | "https"
+		method:          "GET"
+		followRedirects: false
+		path:            string & =~"^/"
+		expectedStatuses: [...int & >=100 & <=599] & list.MinItems(1)
+		_statusesUnique: list.UniqueItems(expectedStatuses) & true
+	}
+	if kind == "tcp" {
+		protocol:          "tcp"
+		method?:           _|_
+		followRedirects?:  _|_
+		path?:             _|_
+		expectedStatuses?: _|_
+	}
+}
+
+#ModulePublicResolvedRouteV3: {
+	#ModulePublicResolvedRouteV2
+	healthProbe: #ModulePublicRouteHealthProbeV3
+}
+
+// V4 is the current renderer boundary. It exposes only the capability identity
+// and route-relative role from the full compiler-owned realization; provider,
+// module, credential, endpoint, and lifecycle authority remain unreachable.
+#ModulePublicRouteCapabilityAuthorityV4: {
+	capabilityRef: #CapabilityID
+	role:          #KitRouteRealizationRoleV2
+}
+
+#ModulePublicResolvedRouteV4: {
+	#ModulePublicResolvedRouteV3
+	exposure: #ServiceExposureV2
+	tls:      #ResolvedRouteTLSV2
+	capabilityAuthorities: [...#ModulePublicRouteCapabilityAuthorityV4] | *[]
+
+	_capabilityRefsUnique: list.UniqueItems([for authority in capabilityAuthorities {authority.capabilityRef}]) & true
+	_rolesUnique: list.UniqueItems([for authority in capabilityAuthorities {authority.role}]) & true
+	if exposure == "local" {
+		capabilityAuthorities: []
+	}
+	if exposure != "local" {
+		capabilityAuthorities: list.MinItems(1)
+	}
+	if exposure == "public" && tls.mode == "external" {
+		egressAuthority: [for authority in capabilityAuthorities if authority.capabilityRef == tls.ownerCapabilityRef && authority.role == "egress" {authority.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+		edgeAuthorities: [for authority in capabilityAuthorities if authority.role == "edge" {authority.capabilityRef}] & list.MaxItems(0)
+	}
+	if exposure == "public" && tls.mode == "terminate-at-edge" {
+		edgeAuthorities: [for authority in capabilityAuthorities if authority.role == "edge" {authority.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+		egressAuthorities: [for authority in capabilityAuthorities if authority.role == "egress" {authority.capabilityRef}] & list.MaxItems(0)
+	}
+}
+
+#ModuleRenderInputBindingV2: {
+	targetRef:   #ContractID
+	sourceRef:   #ModuleRenderInputSourceRefV2
+	valueType:   #ModuleRenderInputValueTypeV2
+	cardinality: #ModuleRenderInputCardinalityV2
+	required:    bool
+
+	if sourceRef == "identity.deviceEnrollment" {
+		valueType:   "device-enrollment-public-v1"
+		cardinality: "single"
+		if required == false {defaultValue: #ModulePublicDeviceEnrollmentV2}
+	}
+	if sourceRef == "network.routes" {
+		valueType:   "authority-bound-service-route-list-v4"
+		cardinality: "list"
+		if required == false && valueType == "authority-bound-service-route-list-v4" {defaultValue: [...#ModulePublicResolvedRouteV4]}
+	}
+} & ({
+	required:      true
+	defaultValue?: _|_
+} | {
+	required: false
+	defaultValue!: #ModulePublicDeviceEnrollmentV2 | [...#ModulePublicResolvedRouteV4]
+})
+
+// #ModuleSecretInputBindingV2 is the closed compiler-owned seam from a
+// selected capability secret into a module renderer secret slot. The binding
+// carries authority and key provenance; renderers still receive only the
+// opaque secret reference.
+#ModuleSecretInputBindingV2: {
+	source:        "capability-secret"
+	capabilityRef: #CapabilityID
+	key:           #ContractID
+}
 
 #ModulePlanSiteV2: {
 	id:            #SiteID
 	kind:          #SiteKind
 	failureDomain: string & =~"^.+$"
+}
+
+// The executor-contract projections deliberately contain desired intent only.
+// Inventory facts, management addresses, sockets, provider lifecycle, and
+// credentials are not representable on this renderer seam.
+#ModulePlanTargetV2: {
+	id:      #NodeID
+	siteRef: #SiteID
+	roles: [...#NodeRoleV2] & list.MinItems(1)
+	failureDomain: string & =~"^.+$"
+	declaredHardware: {
+		arch:            "amd64" | "arm64"
+		virtualization?: #RuntimeVirtualizationV2
+		profile:         "standard" | "pi" | "gpu" | "storage"
+		cpuCores?:       int & >=1
+		ramGB?:          int & >=1
+		storageGB?:      int & >=1
+	}
+	_rolesUnique: list.UniqueItems(roles) & true
+}
+
+#ModulePlanCapabilityV2: {
+	id:           #CapabilityID
+	contractHash: #ContentHash
+}
+
+#ModuleHostRuntimePolicyV2: {
+	install: {
+		mode:    "bootstrapped" | "bare" | "advanced"
+		runtime: "docker" | "native"
+		platform: {
+			management:      "selected-provider" | "standalone" | "native"
+			fallbackAllowed: bool
+			setupPolicy: {
+				platform:           "automatic" | "on-demand" | "manual"
+				applicationDefault: "on-demand" | "automatic" | "manual"
+			}
+		}
+	}
+	host: #SystemIntentV2
+	container?: {
+		engine:         "docker" | "podman"
+		rootless:       bool
+		liveRestore:    bool
+		storageDriver?: "overlay2" | "btrfs" | "zfs" | "vfs"
+		dataRoot:       #AbsolutePath
+		logDriver:      "json-file" | "journald" | "syslog" | "none"
+	}
+	if install.runtime == "docker" {container: _}
+	if install.runtime == "native" {container?: _|_}
+}
+
+#ModuleStoragePolicyV2: #StorageIntentV2
+
+#ModuleNetworkPolicyV2: {
+	mode: #NetworkModeV2
+	domain: {
+		base:             string & =~"^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$"
+		subdomainPrefix?: #ContractID
+	}
+	transport: {
+		subnet:   #NetworkCIDRV2
+		gateway?: #NetworkAddressV2
+		mtu:      int & >=576 & <=9216
+		ipv6:     bool
+	}
+	dns: {
+		servers: [...#NetworkAddressV2] & list.MinItems(1)
+		searchDomains: [...#DNSNameV2]
+	}
+	tls: {
+		defaultMode: "internal" | "off" | "public"
+		minVersion:  "TLS1.2" | "TLS1.3"
+	}
+}
+
+#ModuleLocalNetworkPolicyV2: #ModuleNetworkPolicyV2 & {mode: "private" | "hybrid"}
+#ModuleCloudNetworkPolicyV2: #ModuleNetworkPolicyV2 & {mode: "public-capable" | "private" | "hybrid"}
+
+// #ModulePublicTLSV2 is a generation-only executor handoff. It contains the
+// exact catalog profile, issuer policy, typed logical material slots, and
+// public route bindings, but never certificate/key bytes, SecretReferences,
+// DNS/provider lifecycle, management addresses, or observed runtime state.
+#ModulePublicTLSV2: {
+	capabilityRef: "public-tls"
+	providerRef:   #ContractID
+	profile: #TLSProfileV2 & {
+		capabilityRef: "public-tls"
+		mode:          "terminate-at-edge"
+		trustDomain:   "web-pki"
+	}
+	issuer: {
+		id:            #ContractID
+		capabilityRef: "public-tls"
+		kind:          "acme"
+		challenge:     "tls-alpn-01" | "http-01" | "dns-01"
+		supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
+		validitySeconds: int & >3600
+		requiredInputSlotIDs: [...#ContractID] | *[]
+		materialSlots: [...#TLSMaterialSlotV2] & list.MinItems(2)
+		renewal: {
+			required:           true
+			healthGateRef:      #ContractID
+			renewBeforeSeconds: int & >=3600
+		}
+	}
+	routes: [...{
+		id:       #ContractID
+		host:     #PublicDNSNameV2
+		port:     int & >=1 & <=65535
+		path:     string & =~"^/"
+		exposure: "public"
+		protocol: "https"
+		tls: {
+			mode:       "terminate-at-edge"
+			minVersion: "TLS1.2" | "TLS1.3"
+			profileRef: profile.id
+			issuerRef:  issuer.id
+		}
+	}] | *[]
+
+	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
 }
 
 // #ModuleLocalReachabilityV2 is the only network/access view available to a
@@ -2248,7 +3053,7 @@ _servicePublicationShape: {
 			policyRef:              #ContractID
 			policyExposure:         "private" | "lan"
 			authentication:         "human" | "device" | "human+device" | "workload" | "none"
-			privilege:              "user" | "admin" | "identity" | "secrets"
+			privilege:              "user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
 			enrolledDeviceRequired: bool
 			ownerStepUpRequired:    bool
 			lanStepDown:            bool
@@ -2256,11 +3061,7 @@ _servicePublicationShape: {
 			allowedMethods?: [...#HTTPMethod] & list.MinItems(1)
 			defaultClosed: true
 		}
-		tls: {
-			required:    bool
-			mode:        "off" | "internal" | "terminate-at-edge" | "passthrough"
-			minVersion?: "TLS1.2" | "TLS1.3"
-		}
+		tls: #ResolvedRouteTLSV2
 	}] | *[]
 
 	_homeSiteRefsUnique: list.UniqueItems(homeSiteRefs) & true
@@ -2286,15 +3087,28 @@ _servicePublicationShape: {
 	failurePolicy?:     #PartitionPolicy
 	localReachability?: #ModuleLocalReachabilityV2
 	homeLANDiscovery?:  #HomeLANDiscoveryProjectionV2
+	homeAccessRequirements?: [#SiteID]: [#CapabilityID]:     #HomeAccessRequirementV1
+	externalHomeAccessBindings?: [#SiteID]: [#CapabilityID]: #ExternalHomeAccessBindingV1
+	moduleTargets?: [...#ModulePlanTargetV2] & list.MinItems(1)
+	moduleCapabilities?: [...#ModulePlanCapabilityV2] & list.MinItems(1)
+	hostRuntimePolicy?:  #ModuleHostRuntimePolicyV2
+	storagePolicy?:      #ModuleStoragePolicyV2
+	localNetworkPolicy?: #ModuleLocalNetworkPolicyV2
+	cloudNetworkPolicy?: #ModuleCloudNetworkPolicyV2
+	publicTLS?:          #ModulePublicTLSV2
 }
 
 // #ModuleRenderUnitContractV2 is one independently renderable, hash-bound
 // implementation unit. rendererRef is exact: selection never falls back to a
 // compatible engine or infers a renderer from kind/templateRef.
 #ModuleRenderUnitContractV2: {
-	id:           #ContractID
-	kind:         #ModuleRenderUnitKindV2
-	rendererRef:  #ContractID
+	id:          #ContractID
+	kind:        #ModuleRenderUnitKindV2
+	rendererRef: #ContractID
+	// compatibleTargets makes target selection an explicit module contract.
+	// The compiler selects units before resolving inputs and artifacts; callers
+	// never filter a mixed realization after compilation.
+	compatibleTargets: [...#GenerationTarget] & list.MinItems(1) | *["compose", "opentofu"]
 	templateRef:  string & =~"^[^[:space:]]+$"
 	version:      #SemanticVersion
 	contractHash: #ContentHash
@@ -2302,6 +3116,8 @@ _servicePublicationShape: {
 	publicInputRefs: [...#ContractID] | *[]
 	secretInputRefs: [...#ContractID] | *[]
 	planInputRefs: [...#ModulePlanInputRefV2] | *[]
+	inputBindings: [...#ModuleRenderInputBindingV2] | *[]
+	secretInputBindings: [#ContractID]: #ModuleSecretInputBindingV2 | *{}
 	outputs: [...#ModuleArtifactOutputPathV2] & list.MinItems(1)
 	placement: #RenderUnitPlacementV2 | *{
 		scope:       "module"
@@ -2314,6 +3130,15 @@ _servicePublicationShape: {
 	_publicInputRefsUnique: list.UniqueItems(publicInputRefs) & true
 	_secretInputRefsUnique: list.UniqueItems(secretInputRefs) & true
 	_planInputRefsUnique:   list.UniqueItems(planInputRefs) & true
+	_inputBindingTargetsUnique: list.UniqueItems([for binding in inputBindings {binding.targetRef}]) & true
+	_inputBindingTargetsDeclared: [for binding in inputBindings {
+		target: binding.targetRef
+		matches: [for publicRef in publicInputRefs if publicRef == binding.targetRef {publicRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_secretInputBindingTargetsDeclared: [for targetRef, _ in secretInputBindings {
+		target: targetRef
+		matches: [for secretRef in secretInputRefs if secretRef == targetRef {secretRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_providedInterfaceIDsUnique: list.UniqueItems([for contract in providesInterfaces {contract.id}]) & true
 	_requiredInterfaceIDsUnique: list.UniqueItems([for contract in requiresInterfaces {contract.id}]) & true
 	_inputKindsDisjoint: [for inputRef in publicInputRefs {
@@ -2325,7 +3150,14 @@ _servicePublicationShape: {
 		publicMatches: [for publicRef in publicInputRefs if publicRef == planInputRef {publicRef}] & list.MaxItems(0)
 		secretMatches: [for secretRef in secretInputRefs if secretRef == planInputRef {secretRef}] & list.MaxItems(0)
 	}]
-	_outputsUnique: list.UniqueItems(outputs) & true
+	_outputsUnique:           list.UniqueItems(outputs) & true
+	_compatibleTargetsUnique: list.UniqueItems(compatibleTargets) & true
+	if kind == "compose" {
+		compatibleTargets: ["compose"]
+	}
+	if kind == "opentofu" {
+		compatibleTargets: ["opentofu"]
+	}
 	_serviceRefsUnique: list.UniqueItems([for endpoint in serviceEndpoints {endpoint.serviceRef}]) & true
 	if len(serviceEndpoints) > 0 {
 		// Routable backends require concrete site/node/instance locality. A
@@ -2361,6 +3193,28 @@ _servicePublicationShape: {
 			matches: [if placement.cardinality == "one-per-daemon" && placement.daemonRef == contract.daemonRef {contract.daemonRef}] & list.MinItems(1) & list.MaxItems(1)
 		},
 	]
+}
+
+// #ModuleRenderVariantContractV2 binds one exact target-specific realization.
+// A variant may contain multiple render units, but a module may expose at most
+// one variant for a given target. All referenced inputs and artifacts remain
+// explicit so selection cannot be implemented as an ungoverned output filter.
+#ModuleRenderVariantContractV2: {
+	id:           #ContractID
+	target:       #GenerationTarget
+	rendererRef:  #ContractID
+	contractHash: #ContentHash
+	unitRefs: [...#ContractID] & list.MinItems(1)
+	artifactRefs: [...#ContractID] & list.MinItems(1)
+	publicInputRefs: [...#ContractID] | *[]
+	secretInputRefs: [...#ContractID] | *[]
+	planInputRefs: [...#ModulePlanInputRefV2] | *[]
+
+	_unitRefsUnique:        list.UniqueItems(unitRefs) & true
+	_artifactRefsUnique:    list.UniqueItems(artifactRefs) & true
+	_publicInputRefsUnique: list.UniqueItems(publicInputRefs) & true
+	_secretInputRefsUnique: list.UniqueItems(secretInputRefs) & true
+	_planInputRefsUnique:   list.UniqueItems(planInputRefs) & true
 }
 
 // #ModuleRealizationSupportV2 separates a resolvable module contract from an
@@ -2433,6 +3287,7 @@ _servicePublicationShape: {
 		version:     #SemanticVersion
 		description: string & =~"^.+$"
 	}
+	role:        "foundation" | "platform" | "workload" | "operations"
 	providerRef: #ContractID
 	// Implementation-only helper modules may intentionally own no product
 	// capability. They are valid only when they provide at least one typed
@@ -2441,22 +3296,37 @@ _servicePublicationShape: {
 	provides: [...#CapabilityID]
 	requires?: [...#ContractID] & list.MinItems(1)
 	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
-	nodeSelection?:       #ModuleNodeSelectionV2
-	runtimeRequirements?: #ModuleRuntimeRequirementsV2
-	runtime:              #ModuleRuntimeContractV2
+	nodeSelection?:           #ModuleNodeSelectionV2
+	runtimeRequirements?:     #ModuleRuntimeRequirementsV2
+	enforcementRequirement?:  #PolicyEnforcementRequirementV1
+	runtimeOwnerRequirement?: #RuntimeOwnerRequirementV1
+	runtime:                  #ModuleRuntimeContractV2
 	// inputDefaults is resolved once per module and then fanned out unchanged to
 	// every render unit declaring the public input. Per-unit defaults are
 	// intentionally forbidden so one logical input cannot resolve differently
 	// across implementation units.
 	inputDefaults?: #PublicSettings
 	renderUnits: [...#ModuleRenderUnitContractV2] | *[]
+	renderVariants: [...#ModuleRenderVariantContractV2] | *[]
 	realizationSupport: #ModuleRealizationSupportV2
 	health?: [...#HealthCheckContractV2]
 	evidence?: [...string]
 
 	_renderUnitIDsUnique: list.UniqueItems([for unit in renderUnits {unit.id}]) & true
+	_renderVariantIDsUnique: list.UniqueItems([for variant in renderVariants {variant.id}]) & true
+	_renderVariantTargetsUnique: list.UniqueItems([for variant in renderVariants {variant.target}]) & true
+	_renderVariantUnitsGoverned: [for variant in renderVariants for unitRef in variant.unitRefs {
+		variant: variant.id
+		unit:    unitRef
+		matches: [for unit in renderUnits if unit.id == unitRef && unit.rendererRef == variant.rendererRef for target in unit.compatibleTargets if target == variant.target {unit.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_renderVariantArtifactsGoverned: [for variant in renderVariants for artifactRef in variant.artifactRefs {
+		variant:  variant.id
+		artifact: artifactRef
+		matches: [for contract in realizationSupport.artifacts.contracts if contract.id == artifactRef for unitRef in variant.unitRefs if unitRef == contract.unitRef for target in contract.compatibleTargets if target == variant.target {contract.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_providesUnique: list.UniqueItems(provides) & true
-	if len(provides) == 0 {
+	if len(provides) == 0 && role != "workload" {
 		realizationSupport: {
 			scope: "concrete"
 			level: "generation-ready" | "apply-ready"
@@ -2466,8 +3336,25 @@ _servicePublicationShape: {
 			for contract in unit.providesInterfaces {"\(unit.id)/\(contract.id)"},
 		] & list.MinItems(1)
 	}
+	if role == "workload" {
+		provides: []
+	}
 	if requires != _|_ {
 		_requiresUnique: list.UniqueItems(requires) & true
+	}
+	if enforcementRequirement != _|_ {
+		runtime: execution: "contract-handoff"
+		_enforcementArtifactsOwned: [for artifactRef in enforcementRequirement.policyArtifactRefs {
+			artifact: artifactRef
+			matches: [for requiredRef in realizationSupport.artifacts.requiredRefs if requiredRef == artifactRef {requiredRef}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	}
+	if runtimeOwnerRequirement != _|_ {
+		runtime: execution: "contract-handoff"
+		_runtimeOwnerCapabilitiesOwned: [for capabilityRef in runtimeOwnerRequirement.capabilityRefs {
+			capability: capabilityRef
+			matches: [for providedRef in provides if providedRef == capabilityRef {providedRef}] & list.MinItems(1) & list.MaxItems(1)
+		}]
 	}
 	_renderUnitOutputsUnique: list.UniqueItems([for unit in renderUnits for outputRef in unit.outputs {outputRef}]) & true
 	_moduleServiceRefsUnique: list.UniqueItems([for unit in renderUnits for endpoint in unit.serviceEndpoints {endpoint.serviceRef}]) & true
@@ -2509,6 +3396,30 @@ _servicePublicationShape: {
 			for inputRef in unit.secretInputRefs
 			if inputRef == key {unit.id},
 		] & list.MaxItems(0)
+	}]
+	_inputDefaultsDoNotOverrideBindings: [if inputDefaults != _|_ for key, _ in inputDefaults {
+		input: key
+		matches: [
+			for unit in renderUnits
+			for binding in unit.inputBindings
+			if binding.targetRef == key {unit.id},
+		] & list.MaxItems(0)
+	}]
+	_secretInputBindingCapabilitiesProvided: [for unit in renderUnits for inputRef, binding in unit.secretInputBindings {
+		unit:       unit.id
+		input:      inputRef
+		capability: binding.capabilityRef
+		matches: [for capabilityRef in provides if capabilityRef == binding.capabilityRef {capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_requiredInputBindingsGoverned: [for unit in renderUnits for binding in unit.inputBindings if binding.required {
+		unit:  unit.id
+		input: binding.targetRef
+		matches: [for requiredRef in realizationSupport.inputs.requiredRefs if requiredRef == binding.targetRef {requiredRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_optionalInputBindingsNotRequired: [for unit in renderUnits for binding in unit.inputBindings if binding.required == false {
+		unit:  unit.id
+		input: binding.targetRef
+		matches: [for requiredRef in realizationSupport.inputs.requiredRefs if requiredRef == binding.targetRef {requiredRef}] & list.MaxItems(0)
 	}]
 	_renderUnitRequiredInputsDeclared: [for requiredRef in realizationSupport.inputs.requiredRefs {
 		input: requiredRef
@@ -2603,12 +3514,22 @@ _servicePublicationShape: {
 		renderUnits: list.MinItems(1)
 		realizationSupport: artifacts: contracts: list.MinItems(1)
 	}
+	if runtime.execution == "contract-handoff" {
+		realizationSupport: level: "contract-only" | "generation-ready"
+		_handoffSecretInputsForbidden: [for unit in renderUnits {
+			unit:         unit.id
+			secretInputs: unit.secretInputRefs & list.MaxItems(0)
+		}]
+	}
 }
 
 #HealthCheckContractV2: {
-	id:             #ContractID
-	phase:          *"post-apply" | "pre-apply" | "continuous"
-	kind:           "contract" | "http" | "tcp" | "container" | "process"
+	id:    #ContractID
+	phase: *"post-apply" | "pre-apply" | "continuous"
+	kind:  "contract" | "http" | "tcp" | "container" | "process"
+	// each-node materializes one independently receipted gate per selected
+	// node. Omitted scope keeps the aggregate contract.
+	scope?:         "each-node"
 	path?:          string & =~"^/"
 	port?:          int & >=1 & <=65535
 	timeoutSeconds: int & >=1 & <=300 | *30
@@ -2631,7 +3552,39 @@ _servicePublicationShape: {
 	providers: [...#CapabilityProvider]
 	addons: [...#AddOnContract]
 	modules: [...#ModuleContractV2] | *[]
+	workloads: [...#WorkloadContractV2] | *[]
 	privilegedInterfaceApprovals: [...#PrivilegedInterfaceApprovalV2] | *[]
+	_tlsIssuerIDsUnique: list.UniqueItems([for provider in providers for issuer in provider.certificateIssuers {issuer.id}]) & true
+	_tlsProfileIDsUnique: list.UniqueItems([for capability in capabilities if capability.tlsProfile != _|_ {capability.tlsProfile.id}]) & true
+	_tlsCapabilityProfilesExact: [for capabilityContract in capabilities if capabilityContract.metadata.id == "internal-pki" || capabilityContract.metadata.id == "public-tls" {
+		capability: capabilityContract.metadata.id
+		profile: capabilityContract.tlsProfile & {capabilityRef: capabilityContract.metadata.id}
+	}]
+	_tlsIssuerOwnersExact: [for providerContract in providers for issuerContract in providerContract.certificateIssuers {
+		issuer:                 issuerContract.id
+		materializationSupport: issuerContract.owner.materializationSupport & "contract-only"
+		moduleMatches: [for module in modules if module.metadata.id == issuerContract.owner.moduleRef && module.providerRef == providerContract.metadata.id for healthContract in module.health if healthContract.id == issuerContract.renewal.healthGateRef {module.metadata.id}] & list.MinItems(1) & list.MaxItems(1)
+		providerSiteKinds: [for issuerSiteKind in issuerContract.supportedSiteKinds {
+			kind: issuerSiteKind
+			matches: [for providerSiteKind in providerContract.supportedSiteKinds if providerSiteKind == issuerSiteKind {providerSiteKind}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+		capabilitySiteKinds: [for capabilityContract in capabilities if capabilityContract.metadata.id == issuerContract.capabilityRef for capabilitySiteKind in capabilityContract.supportedSiteKinds {
+			kind: capabilitySiteKind
+			matches: [for issuerSiteKind in issuerContract.supportedSiteKinds if issuerSiteKind == capabilitySiteKind {issuerSiteKind}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	}]
+	integrity: tls: {
+		issuerIDsUnique:         _tlsIssuerIDsUnique
+		profileIDsUnique:        _tlsProfileIDsUnique
+		capabilityProfilesExact: _tlsCapabilityProfilesExact
+		issuerOwnersExact:       _tlsIssuerOwnersExact
+		providerBindings: [for providerContract in providers {
+			provider:           providerContract.metadata.id
+			issuerIDsUnique:    providerContract._tlsIssuerIDsUnique
+			issuerBindings:     providerContract._tlsIssuerBindings
+			capabilityBindings: providerContract._tlsCapabilityBindings
+		}]
+	}
 	planArtifacts: [...#CatalogPlanArtifactV2] & list.MinItems(1) & list.MaxItems(1) | *[{
 		id:       "resolved-plan"
 		kind:     "metadata"
@@ -2651,6 +3604,11 @@ _servicePublicationShape: {
 		providerIDsUnique: list.UniqueItems([for contract in providers {contract.metadata.id}]) & true
 		addonIDsUnique: list.UniqueItems([for contract in addons {contract.metadata.id}]) & true
 		moduleIDsUnique: list.UniqueItems([for contract in modules {contract.metadata.id}]) & true
+		workloadIDsUnique: list.UniqueItems([for contract in workloads {contract.metadata.id}]) & true
+		workloadAlternativesUnique: list.UniqueItems([
+			for workload in workloads
+			for alternative in workload.alternatives {"\(workload.metadata.id)/\(alternative.id)"},
+		]) & true
 		providedInterfaceIDsUnique: list.UniqueItems([
 			for module in modules
 			for unit in module.renderUnits
@@ -2688,6 +3646,67 @@ _servicePublicationShape: {
 			for module in modules
 			for contract in module.realizationSupport.artifacts.contracts {strings.ToLower(contract.outputRef)},
 		]) & true
+	}
+	integrity: ownership: {
+		providerContractsNonEmpty: [for provider in providers {
+			providerID: provider.metadata.id
+			contracts: list.Concat([provider.provides, provider.workloadRefs]) & list.MinItems(1)
+		}]
+	}
+	_workloadAlternativeBindings: [
+		for workload in workloads
+		for alternative in workload.alternatives {
+			workloadID:    workload.metadata.id
+			alternativeID: alternative.id
+			providerMatches: [for provider in providers if provider.metadata.id == alternative.providerRef {
+				providerID: provider.metadata.id
+				workloadOwnership: [for workloadRef in provider.workloadRefs if workloadRef == workload.metadata.id {workloadRef}] & list.MinItems(1) & list.MaxItems(1)
+				capabilityAliasForbidden: [for capabilityRef in provider.provides if capabilityRef == workload.metadata.id {capabilityRef}] & list.MaxItems(0)
+			}] & list.MinItems(1) & list.MaxItems(1)
+			moduleMatches: [for module in modules if module.metadata.id == alternative.moduleRef && module.providerRef == alternative.providerRef && module.role == "workload" {
+				moduleID: module.metadata.id
+				capabilityProvides: module.provides & []
+				providerSiteKinds: [for provider in providers if provider.metadata.id == alternative.providerRef {
+					workloadCoverage: [for siteKind in workload.supportedSiteKinds {
+						kind: siteKind
+						matches: [for providerSiteKind in provider.supportedSiteKinds if providerSiteKind == siteKind {providerSiteKind}] & list.MinItems(1) & list.MaxItems(1)
+					}]
+				}]
+				moduleSiteKinds: [for siteKind in workload.supportedSiteKinds {
+					kind: siteKind
+					matches: [for moduleSiteKind in module.supportedSiteKinds if moduleSiteKind == siteKind {moduleSiteKind}] & list.MinItems(1) & list.MaxItems(1)
+				}]
+				runtimeKind: [for allowed in alternative.runtime.allowedKinds if module.runtime.kind == allowed {allowed}] & list.MinItems(1) & list.MaxItems(1)
+				runtimeDelivery: [for allowed in alternative.runtime.allowedDeliveries if module.runtime.delivery == allowed {allowed}] & list.MinItems(1) & list.MaxItems(1)
+				serviceMatches: [for unit in module.renderUnits for endpoint in unit.serviceEndpoints if endpoint.serviceRef == alternative.route.serviceRef && endpoint.healthRef == alternative.route.healthRef {
+					unitID: unit.id
+					if len(workload.dataClasses) > 0 {
+						dataContract: endpoint.data
+						workloadDataClasses: [for dataClass in workload.dataClasses {
+							class: dataClass
+							matches: [for requiredClass in endpoint.data.requiredClasses if requiredClass == dataClass {requiredClass}] & list.MinItems(1) & list.MaxItems(1)
+						}]
+					}
+					if endpoint.data != _|_ {
+						endpointDataClasses: [for requiredClass in endpoint.data.requiredClasses {
+							class: requiredClass
+							matches: [for dataClass in workload.dataClasses if dataClass == requiredClass {dataClass}] & list.MinItems(1) & list.MaxItems(1)
+						}]
+					}
+				}] & list.MinItems(1) & list.MaxItems(1)
+				settingsRefs: [for inputRef in alternative.inputs.settings.allowedRefs {
+					ref: inputRef
+					matches: [for unit in module.renderUnits for publicInputRef in unit.publicInputRefs if publicInputRef == inputRef {unit.id}] & list.MinItems(1) & list.MaxItems(1)
+				}]
+				secretRefs: [for inputRef in alternative.inputs.secretInputs.allowedRefs {
+					ref: inputRef
+					matches: [for unit in module.renderUnits for secretInputRef in unit.secretInputRefs if secretInputRef == inputRef {unit.id}] & list.MinItems(1) & list.MaxItems(1)
+				}]
+			}] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
+	integrity: workloads: {
+		alternativeBindings: _workloadAlternativeBindings
 	}
 	_directInterfaceRequirementsApproved: [
 		for module in modules
@@ -2874,6 +3893,64 @@ _servicePublicationShape: {
 	bindingHash:          #ContentHash
 }
 
+// #HomeAccessRequirementV1 is StackKits-owned, provider-neutral intent for one
+// Home Site and one explicitly selected access capability. It is emitted by a
+// Shadow Plan so an external execution platform can prepare a matching access
+// fabric without receiving LAN routes, addresses, endpoints, credentials, or
+// provider lifecycle authority.
+#HomeAccessRequirementV1: {
+	apiVersion:             "stackkit.home-access-requirement/v1"
+	kind:                   "HomeAccessRequirement"
+	stackId:                #ContractID
+	siteRef:                #SiteID
+	capabilityRef:          "private-remote-access" | "public-publish-egress"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	targetNodeRefs: [...#NodeID] & list.MinItems(1)
+	policy: {
+		defaultDeny:       true
+		initiation:        "home-outbound"
+		routeScope:        "declared-services-only"
+		allowDefaultRoute: false
+		allowBroadLAN:     false
+		identityMode:      "device-bound" | "service-identity"
+		credentialCustody: "external"
+		fabricLifecycle:   "external"
+	}
+	specHash:              #ContentHash
+	requirementsHash:      #ContentHash
+	_targetNodeRefsUnique: list.UniqueItems(targetNodeRefs) & true
+	if capabilityRef == "private-remote-access" {
+		policy: identityMode: "device-bound"
+	}
+	if capabilityRef == "public-publish-egress" {
+		policy: identityMode: "service-identity"
+	}
+}
+
+// #ExternalHomeAccessBindingV1 is issued only after the external platform has
+// consumed the exact Shadow-Plan requirement. The fabric remains opaque: the
+// contract cannot carry transport selection, endpoint/address data, secrets,
+// provider resources, accounts, regions, or lifecycle handles.
+#ExternalHomeAccessBindingV1: {
+	apiVersion:             "stackkit.external-home-access-binding/v1"
+	kind:                   "ExternalHomeAccessBinding"
+	bindingRef:             #ExternalHomeAccessBindingRef
+	stackId:                #ContractID
+	siteRef:                #SiteID
+	capabilityRef:          "private-remote-access" | "public-publish-egress"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	requirementsHash:       #ContentHash
+	accessFabricRef:        #HomeAccessFabricRef
+	stackkitsVersion:       #SemanticVersion
+	candidateDigest:        #ContentHash
+	specHash:               #ContentHash
+	issuedAt:               #RFC3339Timestamp
+	validUntil:             #RFC3339Timestamp
+	bindingHash:            #ContentHash
+}
+
 // Host facts are conformance diagnostics. Only the OS tuple participates in
 // the StackKits support/compatibility statement; kernel, runtime, and
 // virtualization observations explain why a particular host is or is not
@@ -2951,6 +4028,11 @@ _servicePublicationShape: {
 // fast shadow planning; their presence is nevertheless strict and hash-bound.
 #InventoryFacts: {
 	schemaVersion: "stackkit.inventory/v1"
+	externalHomeAccessBindings: [#SiteID]: [#CapabilityID]: #ExternalHomeAccessBindingV1 | *{}
+	_externalHomeAccessBindingKeys: [for siteRef, capabilityBindings in externalHomeAccessBindings for capabilityRef, binding in capabilityBindings {
+		site:       siteRef & binding.siteRef
+		capability: capabilityRef & binding.capabilityRef
+	}]
 	nodes: [#NodeID]: {
 		observedSiteKind?:       #SiteKind
 		arch?:                   "amd64" | "arm64"
@@ -2973,6 +4055,7 @@ _servicePublicationShape: {
 	id:           #CapabilityID
 	providerRef?: #ContractID
 	contractHash: #ContentHash
+	tlsProfile?:  #TLSProfileV2
 	settings?:    #PublicSettings & struct.MinFields(1)
 	secretRefs?: {
 		[string]: #SecretReference
@@ -2983,10 +4066,16 @@ _servicePublicationShape: {
 	id:           #ContractID
 	version:      string
 	contractHash: #ContentHash
-	provides: [...#CapabilityID] & list.MinItems(1)
+	provides: [...#CapabilityID]
+	workloadRefs: [...#WorkloadID] | *[]
 	siteRefs: [...#SiteID] & list.MinItems(1)
 	realization: #ProviderRealizationContractV2
 	owner?:      #ResolvedProviderOwnerV2
+	certificateIssuers: [...#CertificateIssuerV2] | *[]
+	overlayContracts: [...#OverlayProviderContractV2] | *[]
+	remoteActionContracts: [...#RemoteActionContractV2] | *[]
+	_providesUnique:     list.UniqueItems(provides) & true
+	_workloadRefsUnique: list.UniqueItems(workloadRefs) & true
 
 	if realization.kind == "host" || realization.kind == "external" {
 		owner: {
@@ -2997,7 +4086,7 @@ _servicePublicationShape: {
 			realizationSupport: realization.realizationSupport
 		}
 	}
-	if realization.kind == "none" || realization.kind == "modules" {
+	if realization.kind == "none" || realization.kind == "contract" || realization.kind == "modules" || realization.kind == "topology" {
 		owner?: _|_
 	}
 }
@@ -3084,9 +4173,10 @@ _servicePublicationShape: {
 }
 
 #ResolvedModuleRenderUnitV2: {
-	id:           #ContractID
-	kind:         #ModuleRenderUnitKindV2
-	rendererRef:  #ContractID
+	id:          #ContractID
+	kind:        #ModuleRenderUnitKindV2
+	rendererRef: #ContractID
+	compatibleTargets: [...#GenerationTarget] & list.MinItems(1)
 	templateRef:  string & =~"^[^[:space:]]+$"
 	version:      #SemanticVersion
 	contractHash: #ContentHash
@@ -3094,6 +4184,8 @@ _servicePublicationShape: {
 	publicInputRefs: [...#ContractID] | *[]
 	secretInputRefs: [...#ContractID] | *[]
 	planInputRefs: [...#ModulePlanInputRefV2] | *[]
+	inputBindings: [...#ModuleRenderInputBindingV2] | *[]
+	secretInputBindings: [#ContractID]: #ModuleSecretInputBindingV2 | *{}
 	values: #PublicSettings
 	secretRefs: [string]: #SecretReference
 	planInputs: #ModulePlanInputsV2
@@ -3124,8 +4216,17 @@ _servicePublicationShape: {
 	_publicInputRefsUnique: list.UniqueItems(publicInputRefs) & true
 	_secretInputRefsUnique: list.UniqueItems(secretInputRefs) & true
 	_planInputRefsUnique:   list.UniqueItems(planInputRefs) & true
-	_siteRefsUnique:        list.UniqueItems(siteRefs) & true
-	_nodeRefsUnique:        list.UniqueItems(nodeRefs) & true
+	_inputBindingTargetsUnique: list.UniqueItems([for binding in inputBindings {binding.targetRef}]) & true
+	_inputBindingTargetsDeclared: [for binding in inputBindings {
+		target: binding.targetRef
+		matches: [for publicRef in publicInputRefs if publicRef == binding.targetRef {publicRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_secretInputBindingTargetsDeclared: [for targetRef, _ in secretInputBindings {
+		target: targetRef
+		matches: [for secretRef in secretInputRefs if secretRef == targetRef {secretRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_siteRefsUnique: list.UniqueItems(siteRefs) & true
+	_nodeRefsUnique: list.UniqueItems(nodeRefs) & true
 	_providedInterfaceIDsUnique: list.UniqueItems([for contract in providesInterfaces {contract.id}]) & true
 	_requiredInterfaceIDsUnique: list.UniqueItems([for contract in requiresInterfaces {contract.id}]) & true
 	_inputKindsDisjoint: [for inputRef in publicInputRefs {
@@ -3153,7 +4254,14 @@ _servicePublicationShape: {
 		input: inputRef
 		matches: [for key, _ in planInputs if key == inputRef {key}] & list.MinItems(1) & list.MaxItems(1)
 	}]
-	_outputsUnique: list.UniqueItems(outputs) & true
+	_outputsUnique:           list.UniqueItems(outputs) & true
+	_compatibleTargetsUnique: list.UniqueItems(compatibleTargets) & true
+	if kind == "compose" {
+		compatibleTargets: ["compose"]
+	}
+	if kind == "opentofu" {
+		compatibleTargets: ["opentofu"]
+	}
 	_instanceIDsUnique: list.UniqueItems([for instance in instances {instance.id}]) & true
 	_instanceArtifactRefsUnique: list.UniqueItems([
 		for instance in instances
@@ -3279,18 +4387,43 @@ _servicePublicationShape: {
 	]
 }
 
+#ResolvedModuleRenderVariantV2: {
+	id:           #ContractID
+	target:       #GenerationTarget
+	rendererRef:  #ContractID
+	contractHash: #ContentHash
+	unitRefs: [...#ContractID] & list.MinItems(1)
+	artifactRefs: [...#ContractID] & list.MinItems(1)
+	publicInputRefs: [...#ContractID] | *[]
+	secretInputRefs: [...#ContractID] | *[]
+	planInputRefs: [...#ModulePlanInputRefV2] | *[]
+
+	_unitRefsUnique:        list.UniqueItems(unitRefs) & true
+	_artifactRefsUnique:    list.UniqueItems(artifactRefs) & true
+	_publicInputRefsUnique: list.UniqueItems(publicInputRefs) & true
+	_secretInputRefsUnique: list.UniqueItems(secretInputRefs) & true
+	_planInputRefsUnique:   list.UniqueItems(planInputRefs) & true
+}
+
 #ResolvedModuleV2: {
 	id:           #ContractID
 	version:      #SemanticVersion
 	contractHash: #ContentHash
+	role:         "foundation" | "platform" | "workload" | "operations"
 	providerRef:  #ContractID
 	provides: [...#CapabilityID]
 	siteRefs: [...#SiteID] & list.MinItems(1)
 	nodeRefs: [...#NodeID] & list.MinItems(1)
 	requires?: [...#ContractID] & list.MinItems(1)
-	nodeSelection?:       #ModuleNodeSelectionV2
-	runtimeRequirements?: #ModuleRuntimeRequirementsV2
-	runtime:              #ModuleRuntimeContractV2
+	nodeSelection?:           #ModuleNodeSelectionV2
+	runtimeRequirements?:     #ModuleRuntimeRequirementsV2
+	enforcementRequirement?:  #PolicyEnforcementRequirementV1
+	runtimeOwnerRequirement?: #RuntimeOwnerRequirementV1
+	runtime:                  #ModuleRuntimeContractV2
+	// renderTarget records the exact target used to select this module's
+	// render-unit and artifact projection.
+	renderTarget:   #GenerationTarget
+	renderVariant?: #ResolvedModuleRenderVariantV2
 	renderUnits: [...#ResolvedModuleRenderUnitV2] | *[]
 	realizationSupport: #ModuleRealizationSupportV2
 	// Gate references are currently projected only onto explicit host/external
@@ -3300,7 +4433,7 @@ _servicePublicationShape: {
 	evidenceGateRefs?: _|_
 	let moduleID = id
 	_providesUnique: list.UniqueItems(provides) & true
-	if len(provides) == 0 {
+	if len(provides) == 0 && role != "workload" {
 		realizationSupport: {
 			scope: "concrete"
 			level: "generation-ready" | "apply-ready"
@@ -3310,8 +4443,17 @@ _servicePublicationShape: {
 			for contract in unit.providesInterfaces {"\(unit.id)/\(contract.id)"},
 		] & list.MinItems(1)
 	}
+	if role == "workload" {
+		provides: []
+	}
 	if requires != _|_ {
 		_requiresUnique: list.UniqueItems(requires) & true
+	}
+	if enforcementRequirement != _|_ {
+		runtime: execution: "contract-handoff"
+	}
+	if runtimeOwnerRequirement != _|_ {
+		runtime: execution: "contract-handoff"
 	}
 
 	// Instance outputs are a materialized projection of the logical unit
@@ -3414,6 +4556,12 @@ _servicePublicationShape: {
 		input: publicRef
 		matches: [for candidate in renderUnits for secretRef in candidate.secretInputRefs if secretRef == publicRef {candidate.id}] & list.MaxItems(0)
 	}]
+	_secretInputBindingCapabilitiesProvided: [for unit in renderUnits for inputRef, binding in unit.secretInputBindings {
+		unit:       unit.id
+		input:      inputRef
+		capability: binding.capabilityRef
+		matches: [for capabilityRef in provides if capabilityRef == binding.capabilityRef {capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_renderUnitRequiredInputsDeclared: [for requiredRef in realizationSupport.inputs.requiredRefs {
 		input: requiredRef
 		matches: [
@@ -3496,6 +4644,79 @@ _servicePublicationShape: {
 	}
 }
 
+#WorkloadAlternativeV2: {
+	id:          #ContractID
+	providerRef: #ContractID
+	moduleRef:   #ContractID
+	route: {
+		serviceRef: #ContractID
+		healthRef:  #ContractID
+	}
+	runtime: {
+		allowedKinds: [...("container" | "native" | "host" | "external" | "control-plane")] & list.MinItems(1)
+		allowedDeliveries: [...("stackkit" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
+	}
+	setup: {
+		mode:  "automatic" | "on-demand" | "manual"
+		owner: "module" | "operator"
+		actionRefs: [...#ContractID] | *[]
+	}
+	inputs: {
+		settings: {
+			allowedRefs: [...#ContractID] | *[]
+			requiredRefs: [...#ContractID] | *[]
+		}
+		secretInputs: {
+			allowedRefs: [...#ContractID] | *[]
+			requiredRefs: [...#ContractID] | *[]
+		}
+	}
+
+	_runtimeKindsUnique:      list.UniqueItems(runtime.allowedKinds) & true
+	_runtimeDeliveriesUnique: list.UniqueItems(runtime.allowedDeliveries) & true
+	_setupActionsUnique:      list.UniqueItems(setup.actionRefs) & true
+	if setup.mode == "manual" {
+		setup: {owner: "operator", actionRefs: []}
+	}
+	if setup.mode == "automatic" || setup.mode == "on-demand" {
+		setup: {owner: "module", actionRefs: list.MinItems(1)}
+	}
+	_settingsAllowedUnique:  list.UniqueItems(inputs.settings.allowedRefs) & true
+	_settingsRequiredUnique: list.UniqueItems(inputs.settings.requiredRefs) & true
+	_secretsAllowedUnique:   list.UniqueItems(inputs.secretInputs.allowedRefs) & true
+	_secretsRequiredUnique:  list.UniqueItems(inputs.secretInputs.requiredRefs) & true
+	_settingsRequiredAllowed: [for required in inputs.settings.requiredRefs {
+		ref: required
+		matches: [for allowed in inputs.settings.allowedRefs if required == allowed {allowed}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_secretsRequiredAllowed: [for required in inputs.secretInputs.requiredRefs {
+		ref: required
+		matches: [for allowed in inputs.secretInputs.allowedRefs if required == allowed {allowed}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+}
+
+#WorkloadContractV2: {
+	metadata: {
+		id:          #WorkloadID
+		version:     #SemanticVersion
+		description: string & =~"^.+$"
+	}
+	kind: "application" | "service"
+	functionalCapabilities: [...#ContractID] & list.MinItems(1)
+	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
+	dataClasses: [...#DataClass] | *[]
+	defaultAlternative?: #ContractID
+	alternatives: [...#WorkloadAlternativeV2] & list.MinItems(1)
+
+	_functionalCapabilitiesUnique: list.UniqueItems(functionalCapabilities) & true
+	_supportedSiteKindsUnique:     list.UniqueItems(supportedSiteKinds) & true
+	_dataClassesUnique:            list.UniqueItems(dataClasses) & true
+	_alternativeIDsUnique: list.UniqueItems([for alternative in alternatives {alternative.id}]) & true
+	if defaultAlternative != _|_ {
+		_defaultAlternativeExact: [for alternative in alternatives if alternative.id == defaultAlternative {alternative.id}] & list.MinItems(1) & list.MaxItems(1)
+	}
+}
+
 #ResolvedPlacementV2: {
 	workloadRef: #ContractID
 	siteRefs: [...#SiteID] & list.MinItems(1)
@@ -3503,6 +4724,43 @@ _servicePublicationShape: {
 	// Until placement explanations have a separately governed reason-code
 	// contract, this is the sole deterministic compiler projection.
 	reason: "matched explicit site, node, and role constraints"
+}
+
+#ResolvedWorkloadV2: {
+	id:           #WorkloadID
+	version:      #SemanticVersion
+	contractHash: #ContentHash
+	kind:         "application" | "service"
+	functionalCapabilities: [...#ContractID] & list.MinItems(1)
+	dataClasses: [...#DataClass] | *[]
+	alternative: {
+		id:           #ContractID
+		contractHash: #ContentHash
+		providerRef:  #ContractID
+		moduleRef:    #ContractID
+		route: {
+			serviceRef: #ContractID
+			healthRef:  #ContractID
+		}
+		runtime: {
+			kind:     "container" | "native" | "host" | "external" | "control-plane"
+			delivery: "stackkit" | "selected-paas" | "external-control-plane"
+		}
+		setup: {
+			mode:  "automatic" | "on-demand" | "manual"
+			owner: "module" | "operator"
+			actionRefs: [...#ContractID] | *[]
+		}
+	}
+	siteRefs: [...#SiteID] & list.MinItems(1)
+	nodeRefs: [...#NodeID] & list.MinItems(1)
+	settings: #PublicSettings | *{}
+	secretRefs: [string]: #SecretReference | *{}
+
+	_functionalCapabilitiesUnique: list.UniqueItems(functionalCapabilities) & true
+	_dataClassesUnique:            list.UniqueItems(dataClasses) & true
+	_siteRefsUnique:               list.UniqueItems(siteRefs) & true
+	_nodeRefsUnique:               list.UniqueItems(nodeRefs) & true
 }
 
 #ResolvedIdentityPlan: {
@@ -3737,7 +4995,17 @@ _servicePublicationShape: {
 #ResolvedNetworkPlanV2: {
 	configuration: #NetworkIntentV2
 	routes: [...#ResolvedServiceRouteV2] | *[]
+	backendPools: [...#ResolvedRouteBackendPoolV2] | *[]
 	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
+	_backendPoolIDsUnique: list.UniqueItems([for pool in backendPools {pool.id}]) & true
+	_routePoolRefsExact: [for route in routes {
+		route: route.id
+		matches: [for pool in backendPools if pool.id == route.backendPoolRef && pool.routeRef == route.id {pool.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_poolRouteRefsExact: [for pool in backendPools {
+		pool: pool.id
+		matches: [for route in routes if route.id == pool.routeRef && route.backendPoolRef == pool.id {route.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 }
 
 #ResolvedSystemPlanV2: {
@@ -3772,20 +5040,68 @@ _servicePublicationShape: {
 }
 
 #ResolvedHealthGateV2: {
-	id:             #ContractID
-	phase:          "pre-apply" | "post-apply" | "continuous"
-	kind:           "contract" | "http" | "tcp" | "container" | "process"
-	path?:          string & =~"^/"
-	port?:          int & >=1 & <=65535
-	timeoutSeconds: int & >=1 & <=300
+	id:               #ContractID
+	sourceRef?:       #ContractID
+	phase:            "pre-apply" | "post-apply" | "continuous"
+	kind:             "contract" | "http" | "tcp" | "container" | "process"
+	execution?:       "contract-only" | "probe"
+	protocol?:        "http" | "https" | "tcp" | "udp"
+	method?:          "GET" | "HEAD"
+	followRedirects?: false
+	path?:            string & =~"^/"
+	port?:            int & >=1 & <=65535
+	timeoutSeconds:   int & >=1 & <=300
 	expectedStatuses?: [...int & >=100 & <=599]
 	contractHash: #ContentHash
 	targetKind:   "capability" | "provider" | "module" | "route" | "node"
 	targetRef:    #ContractID
 	siteRefs: [...#SiteID] & list.MinItems(1)
 	nodeRefs?: [...#NodeID]
-	routeRef?: #ContractID
-	required:  true
+	routeRef?:            #ContractID
+	backendPoolRef?:      #ContractID
+	sourceHealthGateRef?: #ContractID
+	scope?:               "each-backend-member" | "each-node"
+	required:             true
+	if targetKind == "route" {
+		sourceRef?:          _|_
+		phase:               "post-apply"
+		targetRef:           routeRef
+		routeRef:            #ContractID
+		backendPoolRef:      #ContractID
+		sourceHealthGateRef: #ContractID
+		scope:               "each-backend-member"
+		execution:           "contract-only" | "probe"
+		protocol:            "http" | "https" | "tcp" | "udp"
+		port:                int & >=1 & <=65535
+		kind:                "contract" | "http" | "tcp"
+		if execution == "contract-only" {
+			kind: "contract"
+		}
+		if execution == "probe" {
+			kind: "http" | "tcp"
+		}
+		if protocol == "http" || protocol == "https" {
+			if execution == "probe" {
+				kind:            "http"
+				method:          "GET" | "HEAD"
+				followRedirects: false
+			}
+		}
+		if protocol == "tcp" && execution == "probe" {
+			kind: "tcp"
+		}
+	}
+	if targetKind != "route" {
+		sourceRef:            #ContractID
+		execution?:           _|_
+		protocol?:            _|_
+		method?:              _|_
+		followRedirects?:     _|_
+		routeRef?:            _|_
+		backendPoolRef?:      _|_
+		sourceHealthGateRef?: _|_
+		if scope != _|_ {scope: "each-node"}
+	}
 
 	if kind == "http" {
 		path: string & =~"^/"
@@ -3834,6 +5150,9 @@ _servicePublicationShape: {
 	"required-artifact-missing" |
 	"artifact-output-mismatch" |
 	"module-apply-support-missing" |
+	"policy-enforcement-owner-unbound" |
+	"runtime-owner-unbound" |
+	"external-home-access-binding-missing" |
 	"required-evidence-missing" |
 	"bridge-overlay-unverified" |
 	"bridge-control-agent-unverified" |
@@ -3843,13 +5162,14 @@ _servicePublicationShape: {
 	"bridge-renderer-missing" |
 	"origin-identity-unbound" |
 	"tls-profile-unbound" |
-	"health-gate-not-executable"
+	"health-gate-not-executable" |
+	"route-health-executor-unbound"
 
 // #ExecutionReadinessBlockerV1 uses stable machine-readable codes and refs.
 // Human prose deliberately stays outside the signed plan contract.
 #ExecutionReadinessBlockerV1: {
 	code: #ExecutionReadinessBlockerCodeV1
-	refs: [...string & =~"^(module|unit|provider|renderer|input|artifact|evidence|bridge|publication|identity|tls|health):[^[:space:]]+$"] & list.MinItems(1)
+	refs: [...string & =~"^(module|unit|provider|renderer|input|artifact|evidence|enforcement|runtime-owner|bridge|publication|identity|tls|health|route|backend-pool|site|capability|home-access-requirement):[^[:space:]]+$"] & list.MinItems(1)
 	_refsUnique: list.UniqueItems(refs) & true
 }
 
@@ -3964,6 +5284,8 @@ _servicePublicationShape: {
 	nodes: [...#NodeSpecV2] & list.MinItems(1)
 	externalHostBindings: [#NodeID]:    #ExternalHostBindingV1
 	hostConformanceReceipts: [#NodeID]: #HostConformanceReceiptV1
+	homeAccessRequirements: [#SiteID]: [#CapabilityID]:     #HomeAccessRequirementV1
+	externalHomeAccessBindings: [#SiteID]: [#CapabilityID]: #ExternalHomeAccessBindingV1
 	_siteIDsUnique: list.UniqueItems([for site in sites {site.id}]) & true
 	_nodeIDsUnique: list.UniqueItems([for node in nodes {node.id}]) & true
 	_externalHostBindingNodes: [for nodeRef, binding in externalHostBindings {
@@ -3977,17 +5299,93 @@ _servicePublicationShape: {
 			if bindingNodeRef == nodeRef && binding.bindingRef == receipt.bindingRef && binding.bindingHash == receipt.bindingHash && receipt.nodeRef == nodeRef && receipt.stackId == stackId {bindingNodeRef},
 		] & list.MinItems(1) & list.MaxItems(1)
 	}]
+	_homeAccessRequirementKeys: [for siteRef, capabilityRequirements in homeAccessRequirements for capabilityRef, requirement in capabilityRequirements {
+		site:       siteRef & requirement.siteRef
+		capability: capabilityRef & requirement.capabilityRef
+		stack:      stackId & requirement.stackId
+		spec:       specHash & requirement.specHash
+	}]
+	_externalHomeAccessBindingKeys: [for siteRef, capabilityBindings in externalHomeAccessBindings for capabilityRef, binding in capabilityBindings {
+		site:       siteRef
+		capability: capabilityRef
+		matches: [
+			for requirementSiteRef, capabilityRequirements in homeAccessRequirements
+			for requirementCapabilityRef, requirement in capabilityRequirements
+			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && binding.siteRef == siteRef && binding.capabilityRef == capabilityRef && binding.stackId == stackId && binding.specHash == specHash && binding.contractOwnerRef == requirement.contractOwnerRef && binding.capabilityContractHash == requirement.capabilityContractHash && binding.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	controlPlane: #ControlPlaneIntent
 	capabilities: [...#ResolvedCapability] & list.MinItems(1)
 	providers: [...#ResolvedProvider] & list.MinItems(1)
+	workloads: [...#ResolvedWorkloadV2] | *[]
 	// The field is mandatory, but an empty list is valid when every selected
 	// provider realizes behavior through host/external contracts. Providers do
 	// not become modules by name.
 	modules: [...#ResolvedModuleV2] | *[]
+	_moduleSecretInputSourcesExact: [
+		for module in modules
+		for unit in module.renderUnits
+		for targetRef, binding in unit.secretInputBindings {
+			module:     module.id
+			unit:       unit.id
+			target:     targetRef
+			capability: binding.capabilityRef
+			matches: [
+				for capability in capabilities
+				if capability.id == binding.capabilityRef && capability.providerRef == module.providerRef
+				if capability.secretRefs != _|_
+				for sourceInputRef, sourceSecretRef in capability.secretRefs
+				if sourceInputRef == binding.key && sourceSecretRef == unit.secretRefs[targetRef] {capability.id},
+			] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
 	runtimeNetworks!: [...#ResolvedRuntimeNetworkInstanceV1]
 	privilegedInterfaceApprovals: [...#ResolvedPrivilegedInterfaceApprovalV2] | *[]
 	placement: [...#ResolvedPlacementV2] | *[]
+	_workloadIDsUnique: list.UniqueItems([for workload in workloads {workload.id}]) & true
 	_placementWorkloadRefsUnique: list.UniqueItems([for item in placement {item.workloadRef}]) & true
+	_placementWorkloadRefsExact: [for item in placement {
+		workloadRef: item.workloadRef
+		matches: [for workload in workloads if workload.id == item.workloadRef && workload.siteRefs == item.siteRefs && workload.nodeRefs == item.nodeRefs {workload.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_workloadBindings: [for workload in workloads {
+		workloadID: workload.id
+		providerMatches: [for provider in providers if provider.id == workload.alternative.providerRef && list.Contains(provider.workloadRefs, workload.id) {provider.id}] & list.MinItems(1) & list.MaxItems(1)
+		moduleMatches: [for module in modules if module.id == workload.alternative.moduleRef && module.providerRef == workload.alternative.providerRef && module.role == "workload" && module.runtime.kind == workload.alternative.runtime.kind && module.runtime.delivery == workload.alternative.runtime.delivery {
+			moduleID: module.id
+			siteRefs: module.siteRefs & workload.siteRefs
+			nodeRefs: module.nodeRefs & workload.nodeRefs
+			serviceMatches: [for unit in module.renderUnits for endpoint in unit.serviceEndpoints if endpoint.serviceRef == workload.alternative.route.serviceRef && endpoint.healthRef == workload.alternative.route.healthRef {unit.id}] & list.MinItems(1) & list.MaxItems(1)
+		}] & list.MinItems(1) & list.MaxItems(1)
+		placementMatches: [for item in placement if item.workloadRef == workload.id && item.siteRefs == workload.siteRefs && item.nodeRefs == workload.nodeRefs {item.workloadRef}] & list.MinItems(1) & list.MaxItems(1)
+		if len(workload.dataClasses) > 0 {
+			dataMatches: [
+				for module in modules
+				if module.id == workload.alternative.moduleRef
+				for unit in module.renderUnits
+				for endpoint in unit.serviceEndpoints
+				if endpoint.serviceRef == workload.alternative.route.serviceRef && endpoint.healthRef == workload.alternative.route.healthRef
+				for bindingID, binding in data.bindings
+				if bindingID == endpoint.data.bindingRef && list.Contains(workload.siteRefs, binding.primarySiteRef) {
+					bindingRef: bindingID
+					classes:    binding.classes & workload.dataClasses
+				},
+			] & list.MinItems(1) & list.MaxItems(1)
+		}
+	}]
+	_workloadProviderRefsExact: [for provider in providers for workloadRef in provider.workloadRefs {
+		providerID: provider.id
+		workloadID: workloadRef
+		matches: [for workload in workloads if workload.id == workloadRef && workload.alternative.providerRef == provider.id {workload.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_providerContractsNonEmpty: [for provider in providers {
+		providerID: provider.id
+		contracts: list.Concat([provider.provides, provider.workloadRefs]) & list.MinItems(1)
+	}]
+	_workloadModulesExact: [for module in modules if module.role == "workload" {
+		moduleID: module.id
+		matches: [for workload in workloads if workload.alternative.moduleRef == module.id && workload.alternative.providerRef == module.providerRef {workload.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_placementSiteRefsUnique: [for item in placement {
 		workloadRef: item.workloadRef
 		valid:       list.UniqueItems(item.siteRefs) & true
@@ -4072,6 +5470,8 @@ _servicePublicationShape: {
 		kind:          site.kind
 		failureDomain: site.failureDomain
 	}]
+	let modulePlanInstall = install
+	let modulePlanSystem = system
 	_homeLANDiscoverySitesExact: homeLANDiscovery.homeSiteRefs & [for site in sites if site.kind == "home" {site.id}]
 	_homeLANDiscoveryAdvertisementsExact: [for advertisement in homeLANDiscovery.advertisements {
 		routeRef: advertisement.routeRef
@@ -4137,9 +5537,131 @@ _servicePublicationShape: {
 			if inputRef == "homeLANDiscovery" {
 				value: unit.planInputs.homeLANDiscovery & homeLANDiscovery
 			}
+			if inputRef == "moduleTargets" {
+				value: unit.planInputs.moduleTargets & [
+					for moduleNodeRef in module.nodeRefs
+					for node in nodes
+					if node.id == moduleNodeRef {
+						id:               node.id
+						siteRef:          node.siteRef
+						roles:            node.roles
+						failureDomain:    node.failureDomain
+						declaredHardware: node.hardware
+					},
+				]
+			}
+			if inputRef == "moduleCapabilities" {
+				value: unit.planInputs.moduleCapabilities & [
+					for moduleCapabilityRef in module.provides
+					for capability in capabilities
+					if capability.id == moduleCapabilityRef {
+						id:           capability.id
+						contractHash: capability.contractHash
+					},
+				]
+			}
+			if inputRef == "hostRuntimePolicy" {
+				value: unit.planInputs.hostRuntimePolicy & {
+					install: {
+						mode:    modulePlanInstall.mode
+						runtime: modulePlanInstall.runtime
+						platform: {
+							management:      modulePlanInstall.platform.management
+							fallbackAllowed: modulePlanInstall.platform.fallbackAllowed
+							setupPolicy:     modulePlanInstall.platform.setupPolicy
+						}
+					}
+					host: modulePlanSystem.host
+					if modulePlanSystem.container != _|_ {
+						container: {
+							engine:      modulePlanSystem.container.engine
+							rootless:    modulePlanSystem.container.rootless
+							liveRestore: modulePlanSystem.container.liveRestore
+							dataRoot:    modulePlanSystem.container.dataRoot
+							logDriver:   modulePlanSystem.container.logDriver
+							if modulePlanSystem.container.storageDriver != _|_ {storageDriver: modulePlanSystem.container.storageDriver}
+						}
+					}
+				}
+			}
+			if inputRef == "storagePolicy" {
+				value: unit.planInputs.storagePolicy & storage
+			}
+			if inputRef == "localNetworkPolicy" {
+				value: unit.planInputs.localNetworkPolicy & {
+					mode:      network.configuration.mode
+					domain:    network.configuration.domain
+					transport: network.configuration.transport
+					dns:       network.configuration.dns
+					tls: {
+						defaultMode: network.configuration.tls.defaultMode
+						minVersion:  network.configuration.tls.minVersion
+					}
+				}
+			}
+			if inputRef == "cloudNetworkPolicy" {
+				value: unit.planInputs.cloudNetworkPolicy & {
+					mode:      network.configuration.mode
+					domain:    network.configuration.domain
+					transport: network.configuration.transport
+					dns:       network.configuration.dns
+					tls: {
+						defaultMode: network.configuration.tls.defaultMode
+						minVersion:  network.configuration.tls.minVersion
+					}
+				}
+			}
+			if inputRef == "publicTLS" {
+				let publicTLSCapabilities = [for capability in capabilities if capability.id == "public-tls" && capability.providerRef == module.providerRef {capability}]
+				let publicTLSIssuers = [for provider in providers if provider.id == module.providerRef for issuer in provider.certificateIssuers if issuer.capabilityRef == "public-tls" {issuer}]
+				value: unit.planInputs.publicTLS & {
+					_profileMatches: publicTLSCapabilities & list.MinItems(1) & list.MaxItems(1)
+					_issuerMatches:  publicTLSIssuers & list.MinItems(1) & list.MaxItems(1)
+					capabilityRef:   "public-tls"
+					providerRef:     module.providerRef
+					profile:         publicTLSCapabilities[0].tlsProfile
+					issuer: {
+						id:                   publicTLSIssuers[0].id
+						capabilityRef:        publicTLSIssuers[0].capabilityRef
+						kind:                 publicTLSIssuers[0].kind
+						challenge:            publicTLSIssuers[0].challenge
+						supportedSiteKinds:   publicTLSIssuers[0].supportedSiteKinds
+						validitySeconds:      publicTLSIssuers[0].validitySeconds
+						requiredInputSlotIDs: publicTLSIssuers[0].requiredInputSlotIDs
+						materialSlots:        publicTLSIssuers[0].materialSlots
+						renewal:              publicTLSIssuers[0].renewal
+					}
+					routes: [for route in network.routes if route.exposure == "public" && route.protocol == "https" && route.tls.mode == "terminate-at-edge" && route.tls.profileRef == publicTLSCapabilities[0].tlsProfile.id && route.tls.issuerRef == publicTLSIssuers[0].id {
+						id:       route.id
+						host:     route.host
+						port:     route.port
+						path:     route.path
+						exposure: route.exposure
+						protocol: route.protocol
+						tls: {
+							mode:       route.tls.mode
+							minVersion: route.tls.minVersion
+							profileRef: route.tls.profileRef
+							issuerRef:  route.tls.issuerRef
+						}
+					}]
+				}
+			}
 		},
 	]
 	if bridge != _|_ {
+		_bridgeActionIdentityClosure: [for action in bridge.controlAgent.actions {
+			action: action.id
+			issuerMatches: [
+				for issuer in identityTrust.credentialIssuers
+				if issuer.principal == "workload" && strings.HasSuffix(issuer.issuer, ":issuer:\(action.issuerRef)")
+				for audience in issuer.audiences
+				if strings.HasSuffix(audience, ":audience:\(action.audience)")
+				if issuer.placement.kind == "sites"
+				for siteRef in issuer.placement.siteRefs
+				if siteRef == controlPlane.authoritySiteRef {issuer.id},
+			] & list.MinItems(1) & list.MaxItems(1)
+		}]
 		_resolvedBridgePeersExist: [for peer in bridge.overlay.peerSiteRefs {
 			site: peer
 			matches: [for site in sites if site.id == peer {site.id}] & list.MinItems(1) & list.MaxItems(1)
@@ -4609,6 +6131,10 @@ _servicePublicationShape: {
 	_controlMembersExact: [for member in controlPlane.members {
 		nodeRef: member
 		matches: [for controller in _enabledControllerIDs if controller == member {controller}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_enabledControllersExact: [for controller in _enabledControllerIDs {
+		nodeRef: controller
+		matches: [for member in controlPlane.members if member == controller {member}] & list.MinItems(1) & list.MaxItems(1)
 	}]
 	_controlAuthoritySiteExact: [for site in sites if site.id == controlPlane.authoritySiteRef {site.id}] & list.MinItems(1) & list.MaxItems(1)
 	_controlMemberFailureDomains: [
@@ -5398,6 +6924,38 @@ _servicePublicationShape: {
 			}
 		},
 	]
+	_modulePolicyEnforcementReadiness: [
+		for module in modules
+		if module.enforcementRequirement != _|_
+		if module.enforcementRequirement.status == "unbound" {
+			apply: #ExecutionReadinessRequirementV1 & {
+				phase: executionReadiness.apply
+				code:  "policy-enforcement-owner-unbound"
+				refs: [
+					"module:\(module.id)",
+					"enforcement:\(module.enforcementRequirement.ownerRef)",
+					"health:\(module.enforcementRequirement.requiredHealthRef)",
+					"evidence:\(module.enforcementRequirement.requiredEvidenceRef)",
+				]
+			}
+		},
+	]
+	_moduleRuntimeOwnerReadiness: [
+		for module in modules
+		if module.runtimeOwnerRequirement != _|_
+		if module.runtimeOwnerRequirement.status == "unbound" {
+			apply: #ExecutionReadinessRequirementV1 & {
+				phase: executionReadiness.apply
+				code:  "runtime-owner-unbound"
+				refs: [
+					"module:\(module.id)",
+					"runtime-owner:\(module.runtimeOwnerRequirement.ownerRef)",
+					"health:\(module.runtimeOwnerRequirement.requiredHealthRef)",
+					"evidence:\(module.runtimeOwnerRequirement.requiredEvidenceRef)",
+				]
+			}
+		},
+	]
 	_moduleRequiredEvidenceReadiness: [
 		for module in modules
 		if module.realizationSupport.level == "apply-ready"
@@ -5514,6 +7072,69 @@ _servicePublicationShape: {
 		module: route.moduleRef
 		matches: [for module in modules if module.id == route.moduleRef {module.id}] & list.MinItems(1) & list.MaxItems(1)
 	}]
+	_routeCapabilityRealizationBindings: [
+		for serviceRoute in network.routes
+		for realization in serviceRoute.capabilityRealizations {
+			route:      serviceRoute.id
+			capability: realization.capabilityRef
+			capabilityMatches: [for capability in capabilities if capability.id == realization.capabilityRef && capability.contractHash == realization.capabilityContractHash && capability.providerRef == realization.providerRef {capability.id}] & list.MinItems(1) & list.MaxItems(1)
+			providerMatches: [for provider in providers if provider.id == realization.providerRef && provider.contractHash == realization.providerContractHash && provider.realization.kind == realization.realizationKind {
+				providerRef: provider.id
+				siteRefs:    provider.siteRefs & realization.providerSiteRefs
+			}] & list.MinItems(1) & list.MaxItems(1)
+			if realization.realizationKind == "modules" {
+				moduleMatches: [for module in modules if module.id == realization.moduleOwner.moduleRef && module.contractHash == realization.moduleOwner.moduleContractHash && module.providerRef == realization.providerRef && list.Contains(module.provides, realization.capabilityRef) {
+					moduleRef: module.id
+					siteRefs:  module.siteRefs & realization.moduleOwner.siteRefs
+					nodeRefs:  module.nodeRefs & realization.moduleOwner.nodeRefs
+				}] & list.MinItems(1) & list.MaxItems(1)
+			}
+		},
+	]
+	// TLS policy is derived from selected capabilities. A rehashed plan cannot
+	// invent a certificate provider, retain HTTPS after removing its capability,
+	// or terminate a public route with the Home-internal trust domain.
+	_routeTLSCapabilityBindings: [for serviceRoute in network.routes {
+		route: serviceRoute.id
+		if serviceRoute.tls.required == false {
+			mode: serviceRoute.tls.mode & "off"
+		}
+		if serviceRoute.tls.required == true {
+			mode:           serviceRoute.tls.mode & ("internal" | "terminate-at-edge" | "external")
+			minimumVersion: serviceRoute.tls.minVersion & network.configuration.tls.minVersion
+			if serviceRoute.tls.mode != "external" {
+				profileMinimumMatches: [for capability in capabilities if capability.tlsProfile != _|_ if capability.tlsProfile.id == serviceRoute.tls.profileRef {
+					profile: capability.tlsProfile.id
+					minimum: capability.tlsProfile.minimumVersion
+					if capability.tlsProfile.minimumVersion == "TLS1.3" {
+						routeMinimum: serviceRoute.tls.minVersion & "TLS1.3"
+					}
+				}] & list.MinItems(1) & list.MaxItems(1)
+			}
+			if serviceRoute.tls.mode == "internal" {
+				defaultMode: network.configuration.tls.defaultMode & "internal"
+				profileMatches: [for capability in capabilities if capability.id == "internal-pki" if capability.tlsProfile != _|_ if capability.tlsProfile.id == serviceRoute.tls.profileRef && capability.tlsProfile.mode == "internal" {capability.id}] & list.MinItems(1) & list.MaxItems(1)
+				issuerMatches: [for capability in capabilities if capability.id == "internal-pki" if capability.tlsProfile != _|_ for provider in providers if provider.id == capability.providerRef for issuer in provider.certificateIssuers for allowedKind in capability.tlsProfile.allowedIssuerKinds if issuer.id == serviceRoute.tls.issuerRef && issuer.capabilityRef == capability.id && issuer.kind == allowedKind {issuer.id}] & list.MinItems(1) & list.MaxItems(1)
+			}
+			if serviceRoute.tls.mode == "terminate-at-edge" {
+				defaultMode: network.configuration.tls.defaultMode & "public"
+				profileMatches: [for capability in capabilities if capability.id == "public-tls" if capability.tlsProfile != _|_ if capability.tlsProfile.id == serviceRoute.tls.profileRef && capability.tlsProfile.mode == "terminate-at-edge" {capability.id}] & list.MinItems(1) & list.MaxItems(1)
+				issuerMatches: [for capability in capabilities if capability.id == "public-tls" if capability.tlsProfile != _|_ for provider in providers if provider.id == capability.providerRef for issuer in provider.certificateIssuers for allowedKind in capability.tlsProfile.allowedIssuerKinds if issuer.id == serviceRoute.tls.issuerRef && issuer.capabilityRef == capability.id && issuer.kind == allowedKind {issuer.id}] & list.MinItems(1) & list.MaxItems(1)
+			}
+			if serviceRoute.tls.mode == "external" {
+				egressOwnerMatches: [for realization in serviceRoute.capabilityRealizations if realization.capabilityRef == serviceRoute.tls.ownerCapabilityRef && realization.role == "egress" {realization.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+				homeAccessRequirementMatches: [
+					for requirementSiteRef, capabilityRequirements in homeAccessRequirements
+					if requirementSiteRef == serviceRoute.originSiteRef
+					for capabilityRef, requirement in capabilityRequirements
+					if capabilityRef == serviceRoute.tls.ownerCapabilityRef && requirement.capabilityRef == capabilityRef && requirement.siteRef == serviceRoute.originSiteRef {requirement.requirementsHash},
+				] & list.MinItems(1) & list.MaxItems(1)
+			}
+		}
+		if serviceRoute.exposure == "public" {
+			publicTermination: serviceRoute.tls.mode & ("terminate-at-edge" | "external")
+		}
+	}]
 	_routeServiceEndpointBindings: [for serviceRoute in network.routes {
 		route:   serviceRoute.id
 		service: serviceRoute.serviceRef
@@ -5523,7 +7144,6 @@ _servicePublicationShape: {
 			for unit in module.renderUnits
 			for endpoint in unit.serviceEndpoints
 			if endpoint.serviceRef == serviceRoute.serviceRef && endpoint.upstreamProtocol == serviceRoute.upstreamProtocol && endpoint.targetPort == serviceRoute.targetPort
-			if serviceRoute.healthGateRef == "module-\(module.id)-\(endpoint.healthRef)"
 			for allowedProtocol in endpoint.allowedIngressProtocols
 			if allowedProtocol == serviceRoute.protocol
 			for allowedExposure in endpoint.allowedExposures
@@ -5579,6 +7199,54 @@ _servicePublicationShape: {
 			matches: [for routeNodeRef in serviceRoute.originNodeRefs if routeNodeRef == unitNodeRef {routeNodeRef}] & list.MinItems(1) & list.MaxItems(1)
 		},
 	]
+	_routeBackendPoolBindings: [
+		for pool in network.backendPools
+		for serviceRoute in network.routes
+		if serviceRoute.id == pool.routeRef && serviceRoute.backendPoolRef == pool.id
+		for module in modules
+		if module.id == serviceRoute.moduleRef && module.id == pool.moduleRef
+		for unit in module.renderUnits
+		if unit.id == pool.unitRef
+		for endpoint in unit.serviceEndpoints
+		if endpoint.serviceRef == serviceRoute.serviceRef && endpoint.serviceRef == pool.serviceRef {
+			poolID:           pool.id
+			originSelector:   pool.originSelector & endpoint.originSelector
+			upstreamProtocol: pool.upstreamProtocol & serviceRoute.upstreamProtocol & endpoint.upstreamProtocol
+			targetPort:       pool.targetPort & serviceRoute.targetPort & endpoint.targetPort
+			memberCountExact: len(pool.members) & len([for instance in unit.instances if instance.scope == "node-local" && instance.siteRef == serviceRoute.originSiteRef {instance.id}])
+			members: [for member in pool.members {
+				instanceRef: member.instanceRef
+				matches: [
+					for instance in unit.instances
+					if instance.scope == "node-local"
+					if instance.id == member.instanceRef && instance.siteRef == member.siteRef && instance.nodeRef == member.nodeRef
+					if member.siteRef == serviceRoute.originSiteRef
+					for routeNodeRef in serviceRoute.originNodeRefs
+					if routeNodeRef == member.nodeRef {instance.id},
+				] & list.MinItems(1) & list.MaxItems(1)
+			}]
+			instancesComplete: [
+				for instance in unit.instances
+				if instance.scope == "node-local" && instance.siteRef == serviceRoute.originSiteRef {
+					instanceRef: instance.id
+					matches: [for member in pool.members if member.instanceRef == instance.id && member.siteRef == instance.siteRef && member.nodeRef == instance.nodeRef {member.instanceRef}] & list.MinItems(1) & list.MaxItems(1)
+				},
+			]
+		},
+	]
+	_routeBackendPoolCatalogMatches: [for pool in network.backendPools {
+		poolID: pool.id
+		matches: [
+			for serviceRoute in network.routes
+			if serviceRoute.id == pool.routeRef && serviceRoute.backendPoolRef == pool.id
+			for module in modules
+			if module.id == serviceRoute.moduleRef && module.id == pool.moduleRef
+			for unit in module.renderUnits
+			if unit.id == pool.unitRef
+			for endpoint in unit.serviceEndpoints
+			if endpoint.serviceRef == serviceRoute.serviceRef && endpoint.serviceRef == pool.serviceRef {endpoint.serviceRef},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_routeServiceDataBindings: [
 		for serviceRoute in network.routes
 		for module in modules
@@ -5613,13 +7281,87 @@ _servicePublicationShape: {
 			}
 		},
 	]
-	_routeServiceHealthGates: [for serviceRoute in network.routes {
-		route: serviceRoute.id
-		matches: [
-			for healthGate in gates.health
-			if healthGate.id == serviceRoute.healthGateRef && healthGate.targetKind == "module" && healthGate.targetRef == serviceRoute.moduleRef {healthGate.id},
-		] & list.MinItems(1) & list.MaxItems(1)
-	}]
+	_routeServiceHealthGates: [
+		for serviceRoute in network.routes
+		for backendPool in network.backendPools
+		if backendPool.id == serviceRoute.backendPoolRef
+		for module in modules
+		if module.id == serviceRoute.moduleRef
+		for unit in module.renderUnits
+		for endpoint in unit.serviceEndpoints
+		if endpoint.serviceRef == serviceRoute.serviceRef {
+			route: serviceRoute.id
+			matches: [
+				for healthGate in gates.health
+				if healthGate.id == serviceRoute.healthGateRef
+				if healthGate.targetKind == "route" && healthGate.targetRef == serviceRoute.id
+				if healthGate.routeRef == serviceRoute.id && healthGate.backendPoolRef == backendPool.id {healthGate.id},
+			] & list.MinItems(1) & list.MaxItems(1)
+			bindings: [
+				for healthGate in gates.health
+				if healthGate.id == serviceRoute.healthGateRef
+				for sourceHealthGate in gates.health
+				if sourceHealthGate.id == healthGate.sourceHealthGateRef
+				if sourceHealthGate.targetKind == "module" && sourceHealthGate.targetRef == module.id {
+					sourceHealthGateRef: healthGate.sourceHealthGateRef & "module-\(module.id)-\(endpoint.healthRef)"
+					protocol:            healthGate.protocol & serviceRoute.upstreamProtocol & backendPool.upstreamProtocol
+					port:                healthGate.port & serviceRoute.targetPort & backendPool.targetPort
+					scope:               healthGate.scope & "each-backend-member"
+					siteRefs: healthGate.siteRefs & [serviceRoute.originSiteRef]
+					nodeRefs: healthGate.nodeRefs & serviceRoute.originNodeRefs
+					if sourceHealthGate.kind == "http" && (serviceRoute.upstreamProtocol == "http" || serviceRoute.upstreamProtocol == "https") {
+						sourcePort:       sourceHealthGate.port & serviceRoute.targetPort
+						execution:        healthGate.execution & "probe"
+						kind:             healthGate.kind & "http"
+						method:           healthGate.method & "GET"
+						followRedirects:  healthGate.followRedirects & false
+						path:             healthGate.path & sourceHealthGate.path
+						expectedStatuses: healthGate.expectedStatuses & sourceHealthGate.expectedStatuses
+					}
+					if sourceHealthGate.kind == "tcp" && serviceRoute.upstreamProtocol == "tcp" {
+						sourcePort: sourceHealthGate.port & serviceRoute.targetPort
+						execution:  healthGate.execution & "probe"
+						kind:       healthGate.kind & "tcp"
+					}
+					if sourceHealthGate.kind != "http" && (serviceRoute.upstreamProtocol == "http" || serviceRoute.upstreamProtocol == "https") {
+						execution: healthGate.execution & "contract-only"
+						kind:      healthGate.kind & "contract"
+					}
+					if sourceHealthGate.kind != "tcp" && serviceRoute.upstreamProtocol == "tcp" {
+						execution: healthGate.execution & "contract-only"
+						kind:      healthGate.kind & "contract"
+					}
+					if serviceRoute.upstreamProtocol == "udp" {
+						execution: healthGate.execution & "contract-only"
+						kind:      healthGate.kind & "contract"
+					}
+				},
+			] & list.MinItems(1) & list.MaxItems(1)
+			sourceMatches: [
+				for healthGate in gates.health
+				if healthGate.id == "module-\(module.id)-\(endpoint.healthRef)"
+				if healthGate.targetKind == "module" && healthGate.targetRef == module.id {healthGate.id},
+			] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
+	_routeHealthReadinessRequirements: [
+		for serviceRoute in network.routes
+		for healthGate in gates.health
+		if healthGate.id == serviceRoute.healthGateRef {
+			executor: #ExecutionReadinessRequirementV1 & {
+				phase: executionReadiness.apply
+				code:  "route-health-executor-unbound"
+				refs: ["route:\(serviceRoute.id)", "health:\(healthGate.id)", "backend-pool:\(serviceRoute.backendPoolRef)"]
+			}
+			if healthGate.execution == "contract-only" {
+				executable: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "health-gate-not-executable"
+					refs: ["route:\(serviceRoute.id)", "health:\(healthGate.id)", "backend-pool:\(serviceRoute.backendPoolRef)"]
+				}
+			}
+		},
+	]
 	_capabilityProviderRefs: [for capability in capabilities if capability.providerRef != _|_ {
 		capability: capability.id
 		provider:   capability.providerRef
@@ -5703,11 +7445,18 @@ _servicePublicationShape: {
 	}
 	integrity: placement: {
 		workloadRefsUnique: plan._placementWorkloadRefsUnique
+		workloadRefsExact:  plan._placementWorkloadRefsExact
 		siteRefsUnique:     plan._placementSiteRefsUnique
 		nodeRefsUnique:     plan._placementNodeRefsUnique
 		sitesExist:         plan._placementSitesExist
 		nodesExact:         plan._placementNodesExact
 		sitesBackedByNodes: plan._placementSitesBackedByNodes
+	}
+	integrity: workloads: {
+		bindings:                  plan._workloadBindings
+		providerRefsExact:         plan._workloadProviderRefsExact
+		providerContractsNonEmpty: plan._providerContractsNonEmpty
+		modulesExact:              plan._workloadModulesExact
 	}
 	integrity: data: {
 		if plan.data != _|_ {
@@ -5737,12 +7486,17 @@ _servicePublicationShape: {
 	}
 	integrity: install: providerRef: plan._installProviderRef
 	integrity: routes: {
-		serviceEndpointBindings:    plan._routeServiceEndpointBindings
-		serviceOriginSites:         plan._routeServiceOriginSites
-		serviceOriginNodes:         plan._routeServiceOriginNodes
-		serviceOriginNodesComplete: plan._routeServiceOriginNodesComplete
-		serviceDataBindings:        plan._routeServiceDataBindings
-		serviceHealthGates:         plan._routeServiceHealthGates
+		serviceEndpointBindings:     plan._routeServiceEndpointBindings
+		serviceOriginSites:          plan._routeServiceOriginSites
+		serviceOriginNodes:          plan._routeServiceOriginNodes
+		serviceOriginNodesComplete:  plan._routeServiceOriginNodesComplete
+		backendPoolBindings:         plan._routeBackendPoolBindings
+		backendPoolCatalogMatches:   plan._routeBackendPoolCatalogMatches
+		serviceDataBindings:         plan._routeServiceDataBindings
+		serviceHealthGates:          plan._routeServiceHealthGates
+		healthReadinessRequirements: plan._routeHealthReadinessRequirements
+		tlsCapabilityBindings:       plan._routeTLSCapabilityBindings
+		capabilityRealizations:      plan._routeCapabilityRealizationBindings
 	}
 	integrity: runtimeNetworks: {
 		idsUnique:                   plan._runtimeNetworkIDsUnique
@@ -5766,6 +7520,27 @@ _servicePublicationShape: {
 		kit: slug: definition.metadata.slug
 		sites:           list.MinItems(definition.topology.minSites) & list.MaxItems(definition.topology.maxSites)
 		partitionPolicy: definition.partitionPolicy
+	}
+	if spec.workloads != _|_ {
+		_requestedWorkloadPolicyChecks: [for workloadID, selection in spec.workloads {
+			_workloadID: workloadID
+			_allowed: [for declared in list.Concat([definition.workloads.required, definition.workloads.defaults, definition.workloads.optional]) if declared == workloadID {declared}] & list.MinItems(1) & list.MaxItems(1)
+			_forbidden: [for denied in definition.workloads.forbidden if denied == workloadID {denied}] & list.MaxItems(0)
+			_selectedSites: [for siteRef in selection.placement.siteRefs {
+				_siteRef: siteRef
+				_matches: [for site in spec.sites if site.id == siteRef {site.id}] & list.MinItems(1) & list.MaxItems(1)
+			}]
+			_selectedNodes: [for nodeRef in selection.placement.nodeRefs {
+				_nodeRef: nodeRef
+				_matches: [for node in spec.nodes if node.id == nodeRef && node.enabled {node.id}] & list.MinItems(1) & list.MaxItems(1)
+			}]
+			_eligibleNodes: [for node in spec.nodes
+				if node.enabled
+				if len(selection.placement.siteRefs) == 0 || list.Contains(selection.placement.siteRefs, node.siteRef)
+				if len(selection.placement.nodeRefs) == 0 || list.Contains(selection.placement.nodeRefs, node.id)
+				if len([for requiredRole in selection.placement.requiresRoles if list.Contains(node.roles, requiredRole) {requiredRole}]) == len(selection.placement.requiresRoles) {node.id},
+			] & list.MinItems(1)
+		}]
 	}
 
 	_siteKindChecks: [for site in spec.sites {
@@ -5807,6 +7582,12 @@ _servicePublicationShape: {
 	_networkTLSModeCheck: definition.network.defaultTLSMode & spec.network.tls.defaultMode
 	if definition.network.domainRequired == true {
 		spec: network: domain: base: string & =~"^[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+$" & !~"(?i)(^|\\.)(localhost|local)$"
+		if definition.authoring != _|_ {
+			_authoringDomainOverrideRequired: [for field in definition.authoring.requiredOverrides if field == "network.domain.base" {field}] & list.MinItems(1) & list.MaxItems(1)
+		}
+	}
+	if definition.network.domainRequired == false if definition.authoring != _|_ {
+		_authoringDomainOverrideForbidden: [for field in definition.authoring.requiredOverrides if field == "network.domain.base" {field}] & list.MaxItems(0)
 	}
 	_authorityKindCheck: [
 		for site in spec.sites
@@ -5868,12 +7649,12 @@ _servicePublicationShape: {
 		}]
 		_routeCapabilityChecks: [
 			for routeID, serviceRoute in spec.routes
-			for required in definition.reachability.routes[serviceRoute.exposure].requiredCapabilities {
+			for required in definition.reachability.routes[serviceRoute.exposure].requiredRealizations {
 				route:      routeID
-				capability: required
+				capability: required.capabilityRef
 				matches: [
 					for selected in _effectiveCapabilities
-					if required == selected {selected},
+					if required.capabilityRef == selected {selected},
 				] & list.MinItems(1)
 			},
 		]
