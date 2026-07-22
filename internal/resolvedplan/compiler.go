@@ -330,12 +330,33 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
+	backupTargetRequirements, externalBackupTargetBindings, err := buildBackupTargetProjection(
+		spec, hashes.spec, topology.sites, topology.nodes, contracts.capabilities, contracts.modules,
+	)
+	if err != nil {
+		return nil, err
+	}
+	homeBackupTargetRequirements, externalHomeBackupTargetBindings, err := buildHomeBackupTargetProjection(
+		spec, hashes.spec, topology.sites, topology.nodes, contracts.capabilities, contracts.modules,
+	)
+	if err != nil {
+		return nil, err
+	}
+	federationLinkRequirements, externalFederationLinkBindings, err := buildFederationLinkProjection(
+		spec, hashes.spec, topology.sites, topology.nodes, contracts.capabilities, contracts.modules, resolvedBridge,
+	)
+	if err != nil {
+		return nil, err
+	}
 	if err := bindResolvedModulePlanInputs(contracts.modules, modulePlanInputSource{
 		stackID: spec.stackID, kit: resolvedKit, sites: topology.sites,
 		controlPlane: topology.controlPlane, bridge: resolvedBridge,
 		identity: deployment.identity, identityTrust: identityTrust, data: topology.data, failurePolicy: topology.failurePolicy,
 		localReachability: localReachability, homeLANDiscovery: homeLANDiscovery,
 		homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
+		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
+		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
+		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
 		nodes: topology.nodes, capabilities: contracts.capabilities, providers: contracts.providers,
 		install: deployment.install, system: deployment.system, storage: deployment.storage, network: deployment.network,
 	}); err != nil {
@@ -354,44 +375,50 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	}
 
 	plan := ResolvedPlan{
-		"apiVersion":                   "stackkit.resolved-plan/v1",
-		"kind":                         "ResolvedPlan",
-		"stackId":                      spec.stackID,
-		"kit":                          resolvedKit,
-		"compilerVersion":              c.options.CompilerVersion,
-		"sourceIntentHash":             sourceIntentHash,
-		"specHash":                     hashes.spec,
-		"inventoryHash":                hashes.inventory,
-		"install":                      deployment.install,
-		"compatibility":                c.buildCompatibility(),
-		"generation":                   deployment.generation,
-		"source":                       deployment.source,
-		"sites":                        topology.sites,
-		"nodes":                        topology.nodes,
-		"externalHostBindings":         externalHostBindings,
-		"hostConformanceReceipts":      hostConformanceReceipts,
-		"homeAccessRequirements":       homeAccessRequirements,
-		"externalHomeAccessBindings":   externalHomeAccessBindings,
-		"controlPlane":                 topology.controlPlane,
-		"capabilities":                 contracts.capabilities,
-		"providers":                    contracts.providers,
-		"workloads":                    contracts.workloads,
-		"modules":                      contracts.modules,
-		"runtimeNetworks":              contracts.runtimeNetworks,
-		"privilegedInterfaceApprovals": privilegedInterfaceApprovals,
-		"placement":                    deployment.placement,
-		"availability":                 topology.availability,
-		"identity":                     deployment.identity,
-		"identityTrust":                identityTrust,
-		"data":                         topology.data,
-		"failurePolicy":                topology.failurePolicy,
-		"system":                       deployment.system,
-		"storage":                      deployment.storage,
-		"network":                      deployment.network,
-		"homeLANDiscovery":             homeLANDiscovery,
-		"gates":                        deployment.gates,
-		"executionReadiness":           executionReadiness,
-		"evidence":                     planEvidence,
+		"apiVersion":                       "stackkit.resolved-plan/v1",
+		"kind":                             "ResolvedPlan",
+		"stackId":                          spec.stackID,
+		"kit":                              resolvedKit,
+		"compilerVersion":                  c.options.CompilerVersion,
+		"sourceIntentHash":                 sourceIntentHash,
+		"specHash":                         hashes.spec,
+		"inventoryHash":                    hashes.inventory,
+		"install":                          deployment.install,
+		"compatibility":                    c.buildCompatibility(),
+		"generation":                       deployment.generation,
+		"source":                           deployment.source,
+		"sites":                            topology.sites,
+		"nodes":                            topology.nodes,
+		"externalHostBindings":             externalHostBindings,
+		"hostConformanceReceipts":          hostConformanceReceipts,
+		"homeAccessRequirements":           homeAccessRequirements,
+		"externalHomeAccessBindings":       externalHomeAccessBindings,
+		"backupTargetRequirements":         backupTargetRequirements,
+		"externalBackupTargetBindings":     externalBackupTargetBindings,
+		"homeBackupTargetRequirements":     homeBackupTargetRequirements,
+		"externalHomeBackupTargetBindings": externalHomeBackupTargetBindings,
+		"federationLinkRequirements":       federationLinkRequirements,
+		"externalFederationLinkBindings":   externalFederationLinkBindings,
+		"controlPlane":                     topology.controlPlane,
+		"capabilities":                     contracts.capabilities,
+		"providers":                        contracts.providers,
+		"workloads":                        contracts.workloads,
+		"modules":                          contracts.modules,
+		"runtimeNetworks":                  contracts.runtimeNetworks,
+		"privilegedInterfaceApprovals":     privilegedInterfaceApprovals,
+		"placement":                        deployment.placement,
+		"availability":                     topology.availability,
+		"identity":                         deployment.identity,
+		"identityTrust":                    identityTrust,
+		"data":                             topology.data,
+		"failurePolicy":                    topology.failurePolicy,
+		"system":                           deployment.system,
+		"storage":                          deployment.storage,
+		"network":                          deployment.network,
+		"homeLANDiscovery":                 homeLANDiscovery,
+		"gates":                            deployment.gates,
+		"executionReadiness":               executionReadiness,
+		"evidence":                         planEvidence,
 	}
 	return c.finalizePlan(plan, spec, resolved, resolvedBridge)
 }

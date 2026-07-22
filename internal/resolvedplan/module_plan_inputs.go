@@ -7,8 +7,11 @@ var allowedModulePlanInputRefs = map[string]struct{}{
 	"bridge": {}, "identity": {}, "data": {}, "failurePolicy": {},
 	"identityTrust": {}, "localReachability": {}, "homeLANDiscovery": {},
 	"homeAccessRequirements": {}, "externalHomeAccessBindings": {},
+	"backupTargetRequirements": {}, "externalBackupTargetBindings": {},
+	"homeBackupTargetRequirements": {}, "externalHomeBackupTargetBindings": {},
+	"federationLinkRequirements": {}, "externalFederationLinkBindings": {},
 	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
-	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicTLS": {},
+	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicEdge": {}, "publicTLS": {},
 }
 
 func validateModulePlanInputRefs(refs []string, path string) ([]string, error) {
@@ -28,26 +31,32 @@ func validateModulePlanInputRefs(refs []string, path string) ([]string, error) {
 }
 
 type modulePlanInputSource struct {
-	stackID                    string
-	kit                        map[string]any
-	sites                      []any
-	controlPlane               map[string]any
-	bridge                     map[string]any
-	identity                   map[string]any
-	identityTrust              map[string]any
-	data                       map[string]any
-	failurePolicy              map[string]any
-	localReachability          map[string]any
-	homeLANDiscovery           map[string]any
-	homeAccessRequirements     map[string]any
-	externalHomeAccessBindings map[string]any
-	nodes                      []any
-	capabilities               []any
-	providers                  []any
-	install                    map[string]any
-	system                     map[string]any
-	storage                    map[string]any
-	network                    map[string]any
+	stackID                          string
+	kit                              map[string]any
+	sites                            []any
+	controlPlane                     map[string]any
+	bridge                           map[string]any
+	identity                         map[string]any
+	identityTrust                    map[string]any
+	data                             map[string]any
+	failurePolicy                    map[string]any
+	localReachability                map[string]any
+	homeLANDiscovery                 map[string]any
+	homeAccessRequirements           map[string]any
+	externalHomeAccessBindings       map[string]any
+	backupTargetRequirements         map[string]any
+	externalBackupTargetBindings     map[string]any
+	homeBackupTargetRequirements     map[string]any
+	externalHomeBackupTargetBindings map[string]any
+	federationLinkRequirements       map[string]any
+	externalFederationLinkBindings   map[string]any
+	nodes                            []any
+	capabilities                     []any
+	providers                        []any
+	install                          map[string]any
+	system                           map[string]any
+	storage                          map[string]any
+	network                          map[string]any
 }
 
 // bindResolvedModulePlanInputs is the only compiler seam that populates a
@@ -131,6 +140,18 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 		return safeModuleHomeAccessProjection(moduleID, module, source.homeAccessRequirements, true)
 	case "externalHomeAccessBindings":
 		return safeModuleHomeAccessProjection(moduleID, module, source.externalHomeAccessBindings, false)
+	case "backupTargetRequirements":
+		return safeModuleBackupTargetProjection(moduleID, module, source.backupTargetRequirements, true)
+	case "externalBackupTargetBindings":
+		return safeModuleBackupTargetProjection(moduleID, module, source.externalBackupTargetBindings, false)
+	case "homeBackupTargetRequirements":
+		return safeModuleHomeBackupTargetProjection(moduleID, module, source.homeBackupTargetRequirements, true)
+	case "externalHomeBackupTargetBindings":
+		return safeModuleHomeBackupTargetProjection(moduleID, module, source.externalHomeBackupTargetBindings, false)
+	case "federationLinkRequirements":
+		return safeModuleFederationLinkProjection(moduleID, module, source.federationLinkRequirements, true)
+	case "externalFederationLinkBindings":
+		return safeModuleFederationLinkProjection(moduleID, module, source.externalFederationLinkBindings, false)
 	case "moduleTargets":
 		return safeModuleTargets(moduleID, module, source.nodes)
 	case "moduleCapabilities":
@@ -143,10 +164,93 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 		return safeModuleNetworkPolicy(source.network, "localNetworkPolicy")
 	case "cloudNetworkPolicy":
 		return safeModuleNetworkPolicy(source.network, "cloudNetworkPolicy")
+	case "publicEdge":
+		return safeModulePublicEdge(moduleID, module, source.capabilities, source.network)
 	case "publicTLS":
 		return safeModulePublicTLS(moduleID, module, source.capabilities, source.providers, source.network)
 	}
 	return normalizeJSON(value, false, ref)
+}
+
+func safeModulePublicEdge(moduleID string, module map[string]any, capabilities []any, network map[string]any) (map[string]any, error) {
+	const capabilityID = "public-edge"
+	provided, err := stringListField(module, "modules."+moduleID, "provides", true)
+	if err != nil {
+		return nil, err
+	}
+	if len(provided) != 1 || provided[0] != capabilityID {
+		return nil, fmt.Errorf("module %q publicEdge projection requires exactly capability %q", moduleID, capabilityID)
+	}
+	providerRef, err := stringField(module, "modules."+moduleID, "providerRef")
+	if err != nil {
+		return nil, err
+	}
+	capability, err := resolvedPlanObjectByID(capabilities, capabilityID, "capabilities")
+	if err != nil {
+		return nil, err
+	}
+	capabilityProviderRef, err := stringField(capability, "capabilities."+capabilityID, "providerRef")
+	if err != nil {
+		return nil, err
+	}
+	if capabilityProviderRef != providerRef {
+		return nil, fmt.Errorf("module %q provider %q does not own resolved capability %q", moduleID, providerRef, capabilityID)
+	}
+	routes, err := objectListField(network, "network", "routes")
+	if err != nil {
+		return nil, err
+	}
+	projectedByID := map[string]map[string]any{}
+	for index, route := range routes {
+		path := fmt.Sprintf("network.routes[%d]", index)
+		authorities, err := objectListField(route, path, "capabilityAuthorities")
+		if err != nil {
+			return nil, err
+		}
+		owned := false
+		for authorityIndex, authority := range authorities {
+			authorityPath := fmt.Sprintf("%s.capabilityAuthorities[%d]", path, authorityIndex)
+			capabilityRef, fieldErr := stringField(authority, authorityPath, "capabilityRef")
+			if fieldErr != nil {
+				return nil, fieldErr
+			}
+			role, fieldErr := stringField(authority, authorityPath, "role")
+			if fieldErr != nil {
+				return nil, fieldErr
+			}
+			if capabilityRef == capabilityID && role == "edge" {
+				owned = true
+			}
+		}
+		if !owned {
+			continue
+		}
+		exposure, err := stringField(route, path, "exposure")
+		if err != nil || exposure != "public" {
+			return nil, fmt.Errorf("%s owned by public-edge is not public", path)
+		}
+		id, err := stringField(route, path, "id")
+		if err != nil {
+			return nil, err
+		}
+		projection, err := selectObjectFields(route, path, []string{
+			"id", "serviceRef", "moduleRef", "originSiteRef", "originNodeRefs", "backendPoolRef", "backendPool",
+			"exposure", "protocol", "upstreamProtocol", "port", "targetPort", "host", "path", "access", "tls",
+			"healthGateRef", "healthProbe", "capabilityAuthorities",
+		})
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := projectedByID[id]; duplicate {
+			return nil, fmt.Errorf("publicEdge projection contains duplicate route %q", id)
+		}
+		projectedByID[id] = projection
+	}
+	projectedRoutes := make([]any, 0, len(projectedByID))
+	for _, id := range sortedStringMapKeys(projectedByID) {
+		projectedRoutes = append(projectedRoutes, projectedByID[id])
+	}
+	return normalizedObject(map[string]any{"capabilityRef": capabilityID, "routes": projectedRoutes}, "publicEdge")
 }
 
 func safeModuleTargets(moduleID string, module map[string]any, nodes []any) ([]any, error) {
@@ -611,6 +715,30 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	if err != nil {
 		return modulePlanInputSource{}, err
 	}
+	backupTargetRequirements, err := objectField(top, "resolvedPlan", "backupTargetRequirements")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	externalBackupTargetBindings, err := objectField(top, "resolvedPlan", "externalBackupTargetBindings")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	homeBackupTargetRequirements, err := objectField(top, "resolvedPlan", "homeBackupTargetRequirements")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	externalHomeBackupTargetBindings, err := objectField(top, "resolvedPlan", "externalHomeBackupTargetBindings")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	federationLinkRequirements, err := objectField(top, "resolvedPlan", "federationLinkRequirements")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	externalFederationLinkBindings, err := objectField(top, "resolvedPlan", "externalFederationLinkBindings")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
 	nodes, err := objectListField(top, "resolvedPlan", "nodes")
 	if err != nil {
 		return modulePlanInputSource{}, err
@@ -640,6 +768,9 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 		controlPlane: controlPlane, bridge: bridge, identity: identity, identityTrust: identityTrust,
 		data: data, failurePolicy: failurePolicy, localReachability: localReachability,
 		homeLANDiscovery: homeLANDiscovery, homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
+		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
+		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
+		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
 		nodes: objectMapsAsAny(nodes), capabilities: objectMapsAsAny(capabilities), providers: objectMapsAsAny(providers),
 		install: install, system: system, storage: storage, network: network,
 	}, nil

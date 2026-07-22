@@ -191,9 +191,23 @@ validity window. Its `accessFabricRef` is opaque; transport, endpoint/address,
 credentials, server-provider resources, accounts, regions, discovery, and
 lifecycle handles are structurally forbidden. Missing bindings preserve useful
 Shadow Plan and generation output but add
-`external-home-access-binding-missing` to Apply readiness. Encrypted backup is
-deliberately excluded from this access seam and requires its own future backup
-target/repository binding.
+`external-home-access-binding-missing` to Apply readiness. Backup authority is
+deliberately excluded from this access seam and uses separate Home and Cloud
+target handshakes. Their infrastructure materialization belongs to the external
+TechStack/provider-management layer.
+
+Home encrypted offsite backup uses its own
+`HomeBackupTargetRequirement` -> `ExternalHomeBackupTargetBinding` handshake.
+The compiler binds the exact Basement StackInstance, Home Site/node,
+`encrypted-offsite-backup` capability/contract, spec, and policy. Home-side
+encryption is mandatory before egress, plaintext egress is forbidden, target
+and credential custody remain external, and restore verification is required.
+The maximum-24-hour binding carries only opaque target and custody-attestation
+references plus exact Candidate/version/hash validity. Provider, account,
+region, bucket, repository, endpoint, credential, resource, lease, lifecycle,
+transport, address, discovery, and general-LAN details are structurally
+excluded. Without the binding generation remains usable and Apply reports
+`external-home-backup-target-binding-missing`; no backup executor is claimed.
 
 When Apply becomes eligible, the compiler projects every verified binding into
 `ApplyRequirements` and assigns it to exactly one runtime requirement. Node
@@ -295,10 +309,16 @@ residual Cloud runtime no longer participates in a default Cloud Kit.
 
 Cloud offsite backup is independently owned by
 `stackkits-cloud-offsite-backup-runtime`. The generated contract expresses
-only the Kit's provider-neutral backup-target binding intent and names the
-unbound `stackkits-cloud-offsite-backup-executor`. Object-storage provider and
-bucket lifecycle, endpoints, accounts, credentials, retention execution, and
-backup jobs remain outside this owner.
+the compiler-owned `BackupTargetRequirement` for each exact Cloud Site/node and
+may include only a matching, maximum-24-hour `ExternalBackupTargetBinding`.
+That binding contains opaque target and custody-attestation refs plus exact
+StackInstance, capability/contract, requirement, Candidate, version, spec, and
+validity hashes. Provider accounts, regions, buckets, endpoints, credentials,
+resource IDs, leases, and lifecycle handles are structurally excluded. Missing
+bindings preserve generation and add `external-backup-target-binding-missing`
+to Apply readiness. The module still names the unbound
+`stackkits-cloud-offsite-backup-executor`; no Apply-ready claim exists until an
+authenticated adapter supplies fresh backup and restore/readback evidence.
 
 Optional Cloud private administration is independently owned by
 `stackkits-cloud-private-admin-mesh-runtime`. The capability is selected only
@@ -338,6 +358,18 @@ Unknown contracts and actions, provider/module substitution, broad route
 advertisement, and destructive actions without an approval receipt fail closed.
 The resulting contract remains provider-neutral: it does not contain a VPS
 provider, account, endpoint, credential, lease, or server lifecycle operation.
+
+The inter-Site link now has an explicit external realization boundary. The
+compiler emits one `FederationLinkRequirement` that binds the exact
+StackInstance, Home and Cloud Sites, Site/node pairs, selected capability and
+contract, complete resolved bridge hash, and default-deny outbound policy. An
+external fabric authority may return only a maximum-24-hour
+`ExternalFederationLinkBinding` with opaque fabric and custody-attestation
+references. It cannot return transport, address, endpoint, route, credential,
+relay, provider-resource, account, region, lease, or lifecycle information.
+Generation remains available without that receipt; Apply exposes
+`external-federation-link-binding-missing`. StackKits does not register a link
+executor or mutate TechStack/provider control planes through this contract.
 
 ### Home backup-target ownership
 
@@ -391,6 +423,16 @@ contract therefore names `stackkits-local-autonomy-enforcer` as an explicitly
 Home control-authority scope, Health ref, and evidence ref that owner must later
 satisfy.
 
+An isolated typed adapter now implements that exact consumption boundary for
+both Basement and Modern semantics. It binds the policy to the service-owned
+catalog hashes and exact Home Control Authority placement, then separately
+denies forbidden cross-Site sessions, enforces link-loss behavior, preserves
+local control, and requires a fresh readback of all three under one policy
+digest. It rejects Cloud authority widening, an open Modern edge, stale or
+partial evidence, and any caller execution channel. The adapter has no product
+registration or authenticated operations backend yet, so the CUE owner remains
+`unbound` and Apply remains blocked.
+
 ### Kit-owned identity authority and verifier distribution
 
 `human-identity-core` and `device-trust-core` remain shared capability
@@ -435,6 +477,57 @@ preserve the chosen kit's trust graph.
 These contracts authenticate StackKit access only; they are not a Companion,
 SpeechKit, Home Assistant, or general smart-home authority.
 
+The isolated Home device-authority adapter configures the policy behind local
+device enrollment, the possession-bound device credential issuer, and device
+credential revocation. These are deployment-time configuration operations; an
+Apply request does not enroll a particular device or mint/revoke an individual
+credential. The CUE operation names say this explicitly. The adapter binds one
+exact device issuer to the Home Control Authority, LAN-local enrollment,
+bounded credential/session lifetimes, service-owned catalog hashes, and fresh
+digest-bound readback. It contains no signing/private key bytes, credentials,
+runtime endpoints, remote enrollment, Cloud authority, transport, or provider
+lifecycle. Product registration and CUE remain `unbound` until an authenticated
+authority backend supplies observable enforcement.
+
+The isolated Basement identity-trust adapter now implements the verifier side
+of that boundary without claiming product readiness. It accepts only the exact
+`BasementIdentityTrustPolicy`, service-owned provider/module/unit/Health hashes,
+the Home Site/node binding, and one device, human, and workload verifier. Its
+closed operations configure those three verifier classes and perform a fresh
+exact-policy readback; all observations bind one derived policy digest. It has
+no enrollment, credential issuance, signing, key bytes, credentials, endpoints,
+provider lifecycle, or generic execution capability. The adapter remains
+outside product registration and its CUE requirement remains `unbound` until an
+authenticated operations backend exists.
+
+Cloud has a separate isolated adapter because its authority is materially
+different. It configures only the StackKit-owned human and workload credential
+issuers, consumes the external owner-bound device issuer solely as a verifier
+reference, configures device/human/workload verification at Cloud Sites, and
+requires a fresh digest-bound readback across all five responsibilities. The
+artifact now names `cloudDeviceEnrollment: deny` and
+`cloudDeviceIssuance: deny` explicitly; it no longer uses an ambiguous blanket
+Cloud-issuance label that conflicted with the intentional human/workload issuer
+authority. The deployment operation configures issuers; it does not mint an
+end-user credential. Device enrollment/issuance, key bytes, credentials,
+endpoints, provider lifecycle, Home/LAN authority, and generic signing remain
+outside the adapter. Product registration and the CUE owner remain unbound.
+
+Modern uses neither of those adapters. Its isolated two-artifact adapter binds
+the jointly hashed trust and verifier-distribution policies, exact Home and
+Cloud Sites/nodes, three zero-stale Home verifiers, three partition-bounded
+Cloud verifiers, and one Home-to-Cloud distribution per human/device/workload
+issuer. The renderer now validates the actual product graph: every principal
+must have verifier coverage at every governed Home and Cloud Site, while every
+Cloud Site must receive that principal's verification-key reference and
+revocation state from Home. This closes an earlier fixture bug that modeled
+only one Cloud device verifier and incorrectly rejected the canonical Home
+verifiers. The adapter can distribute those two non-secret material classes,
+enforce one-way flow, and configure Home/Cloud verification. It cannot sign,
+enroll, carry keys or credentials, realize transport, open general LAN access,
+or manage a provider. Product registration and CUE remain `unbound` pending an
+authenticated backend and fresh operational evidence.
+
 ### Shared Home local-ingress and access policy
 
 `local-ingress` and `lan-access-policy` are now owned by the dedicated,
@@ -469,6 +562,17 @@ a caller cannot relabel those surfaces as ordinary `user` access. This is a
 contract and admission guarantee. Replay prevention, revocation enforcement,
 session issuance, and the live access decision remain unclaimed until the exact
 typed enforcer consumes the artifact and returns fresh bound Health/evidence.
+
+The first isolated `stackkits-home-access-enforcer` adapter now proves that
+runtime boundary without changing product readiness. It accepts only the exact
+CUE-rendered Home access artifact plus service-owned provider/module/unit/Health
+hashes and exact Home Site/node placement. It exposes only the three closed
+operations `enforce-lan-access`, `enforce-local-ingress`, and
+`enforce-privileged-step-up`, followed by a fresh exact-policy readback. Every
+operation and the Health result must bind the same derived policy digest; stale,
+partial, substituted, or widened observations fail closed. The adapter remains
+outside product registration and the CUE requirement remains `unbound` until an
+authenticated operations backend exists, so this is no Apply-graduation claim.
 
 ### Explicit Home LAN discovery policy
 
@@ -802,9 +906,9 @@ not a service-registration mechanism:
 
 | Policy module | Selected architecture | Target scope | Unbound enforcement owner | Closed responsibility |
 | --- | --- | --- | --- | --- |
-| `stackkits-home-device-authority-policy-manifest` | Basement, Modern | Home control authority | `stackkits-home-device-authority-enforcer` | Device enrollment, credential issue, credential revocation |
+| `stackkits-home-device-authority-policy-manifest` | Basement, Modern | Home control authority | `stackkits-home-device-authority-enforcer` | Configure device enrollment, credential issuer, and credential revocation policy |
 | `stackkits-basement-identity-trust-policy-manifest` | Basement | Home control authority | `stackkits-basement-identity-trust-enforcer` | Device, human, and workload verification under Basement trust |
-| `stackkits-cloud-identity-trust-policy-manifest` | Cloud | Cloud Sites | `stackkits-cloud-identity-trust-enforcer` | Cloud human/workload issue plus device, human, and workload verification; never device enrollment/issue |
+| `stackkits-cloud-identity-trust-policy-manifest` | Cloud | Cloud Sites | `stackkits-cloud-identity-trust-enforcer` | Configure Cloud human/workload issuers plus device, human, and workload verification; never device enrollment/issue |
 | `stackkits-modern-identity-trust-policy-manifest` | Modern | Federated Home+Cloud Sites | `stackkits-modern-identity-trust-enforcer` | Home/Cloud verification and one-way verification-key/revocation distribution |
 | `stackkits-home-access-policy-manifest` | Basement, Modern | Home Sites | `stackkits-home-access-enforcer` | LAN/local ingress decisions and privileged step-up; LAN presence is not identity |
 | `stackkits-local-autonomy-policy-manifest` | Basement, Modern | Home control authority | `stackkits-local-autonomy-enforcer` | Link-loss policy, forbidden cross-Site denial, and preserved local control |
@@ -833,10 +937,10 @@ future enforcement owners, not evidence that enforcement happened:
 | `stackkits-basement-compose-runtime` | Required Basement-only generation contract with exact unbound runtime owner; no daemon inventory is needed to plan it | Implement the typed Compose executor and bind the socket-proxy helper only to an exact observed Docker daemon |
 | `stackkits-secrets-recovery-contract`, `stackkits-backup-core-contract`, `stackkits-observability-evidence-contract`, `stackkits-lifecycle-update-contract` | Four distinct non-executable shared contracts; none creates a runtime target, artifact, Health claim, evidence claim, or host operation | Bind kit-specific recovery, backup, telemetry, and update owners independently without recreating a Core executor umbrella |
 | `stackkits-home-backup-target` | Exact node-local Home Control Plane adapter observes the CUE-declared prepared backup root | Retain the observation-only boundary; add backup jobs, repository lifecycle, retention, and restore as separate typed owners |
-| `stackkits-home-device-authority-policy-manifest` | Policy JSON plus exact unbound-owner requirement | Implement `stackkits-home-device-authority-enforcer` with local pairing, possession proof, revocation, and fresh Health/evidence |
-| `stackkits-basement-identity-trust-policy-manifest` | Policy JSON plus exact unbound-owner requirement | Implement `stackkits-basement-identity-trust-enforcer`; no credential material enters generated output |
-| `stackkits-home-access-policy-manifest` | Policy JSON plus exact unbound-owner requirement | Implement `stackkits-home-access-enforcer`; LAN presence never becomes identity |
-| `stackkits-local-autonomy-policy-manifest` | Policy JSON plus exact unbound-owner requirement | Implement `stackkits-local-autonomy-enforcer` with observable link-loss behavior |
+| `stackkits-home-device-authority-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed configuration adapter exists | Bind an authenticated Home authority backend and product registration only with local pairing, possession proof, revocation, and fresh exact-policy readback |
+| `stackkits-basement-identity-trust-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed verifier adapter exists | Bind an authenticated operations backend and product registration only with fresh device/human/workload verifier readback; no enrollment, issuance, signing, or credential material enters the adapter |
+| `stackkits-home-access-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed adapter exists | Bind an authenticated operations backend and product registration only with fresh exact-policy readback; LAN presence never becomes identity |
+| `stackkits-local-autonomy-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed adapter exists | Bind an authenticated operations backend and product registration only with observable link-loss and local-control evidence |
 
 These map to three implementation classes, not seven bespoke CLI branches:
 Core host execution is limited to the separately selected Security Baseline and

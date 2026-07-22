@@ -10,6 +10,8 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
 const (
@@ -37,6 +39,7 @@ const (
 	homeEncryptedOffsiteBackupModuleID    = "stackkits-home-encrypted-offsite-backup-runtime"
 	homeEncryptedOffsiteBackupTemplateRef = "builtin://home/backup/offsite-executor-contract/v1.json"
 	homeEncryptedOffsiteBackupOutputRef   = "home/backup/offsite-executor-contract.json"
+	homeBackupCapability                  = "encrypted-offsite-backup"
 	homeExtensionRuntimeModuleVersion     = "1.0.0"
 
 	cloudPrivateAdminMeshModuleID      = "stackkits-cloud-private-admin-mesh-runtime"
@@ -68,6 +71,7 @@ const (
 	cloudOffsiteBackupModuleVersion = "1.0.0"
 	cloudOffsiteBackupTemplateRef   = "builtin://cloud/backup/executor-contract/v1.json"
 	cloudOffsiteBackupOutputRef     = "cloud/backup/executor-contract.json"
+	cloudBackupTargetCapability     = "offsite-object-backup"
 
 	federationLinkModuleID             = "stackkits-federation-link-runtime"
 	federationControlAgentModuleID     = "stackkits-federation-control-agent-runtime"
@@ -79,6 +83,7 @@ const (
 	federationBackupTemplateRef        = "builtin://modern/federation/backup/executor-contract/v1.json"
 	federationObservabilityTemplateRef = "builtin://modern/federation/observability/executor-contract/v1.json"
 	federationLinkOutputRef            = "modern/federation/link/executor-contract.json"
+	federationLinkCapability           = "inter-site-link"
 	federationControlOutputRef         = "modern/federation/control-agent/executor-contract.json"
 	federationBackupOutputRef          = "modern/federation/backup/executor-contract.json"
 	federationObservabilityOutputRef   = "modern/federation/observability/executor-contract.json"
@@ -86,6 +91,7 @@ const (
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
 const cloudHostSecurityExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"not-included","firewallPolicy":"default-deny-declared-services-only","generation":"supported","hardeningProfile":"internet-host-baseline-v1","operations":["apply-cloud-host-firewall","apply-cloud-host-hardening","verify-cloud-host-security"],"providerLifecycle":"not-owned","runtimeEnforcement":"adapter-verified","scope":"cloud-host-node","serverProviderAuthority":"not-owned"}`
+const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
 
 var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
@@ -116,7 +122,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: cloudPrivateAdminMeshModuleID, moduleVersion: cloudPrivateAdminMeshModuleVersion,
 		templateRef: cloudPrivateAdminMeshTemplateRef, outputRef: cloudPrivateAdminMeshOutputRef,
-		planInputRefs: []string{"cloudNetworkPolicy", "controlPlane", "data", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"backupTargetRequirements", "cloudNetworkPolicy", "controlPlane", "data", "externalBackupTargetBindings", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
 		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities:  []string{"private-admin-mesh"},
 		requiredCapabilities: []string{"private-admin-mesh"},
@@ -153,7 +159,8 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: cloudPublicEdgeModuleID, moduleVersion: cloudPublicEdgeModuleVersion,
 		templateRef: cloudPublicEdgeTemplateRef, outputRef: cloudPublicEdgeOutputRef,
-		planInputRefs: []string{"cloudNetworkPolicy", "controlPlane", "data", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		contractJSON:  cloudPublicEdgeExecutorContract,
+		planInputRefs: []string{"cloudNetworkPolicy", "controlPlane", "data", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "publicEdge", "sites", "stackId", "storagePolicy"},
 		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities:  []string{"public-edge"},
 		requiredCapabilities: []string{"public-edge"},
@@ -171,7 +178,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: federationLinkModuleID, moduleVersion: federationRuntimeModuleVersion,
 		templateRef: federationLinkTemplateRef, outputRef: federationLinkOutputRef,
-		planInputRefs:       []string{"bridge", "controlPlane", "data", "failurePolicy", "identity", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
+		planInputRefs:       []string{"bridge", "controlPlane", "data", "externalFederationLinkBindings", "failurePolicy", "federationLinkRequirements", "identity", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
 		allowedCapabilities: []string{"inter-site-link"}, requiredCapabilities: []string{"inter-site-link"},
 		decodePlan: decodeFederationRuntimeExecutorPlan,
@@ -219,7 +226,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: homeEncryptedOffsiteBackupModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
 		templateRef: homeEncryptedOffsiteBackupTemplateRef, outputRef: homeEncryptedOffsiteBackupOutputRef,
-		planInputRefs: []string{"controlPlane", "data", "failurePolicy", "kit", "localNetworkPolicy", "localReachability", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"controlPlane", "data", "externalHomeBackupTargetBindings", "failurePolicy", "homeBackupTargetRequirements", "kit", "localNetworkPolicy", "localReachability", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
 		allowedKits:   []string{"basement-kit"}, siteKind: "home",
 		allowedCapabilities: []string{"encrypted-offsite-backup"}, requiredCapabilities: []string{"encrypted-offsite-backup"},
 		decodePlan: decodeLocalRuntimeExecutorPlan,
@@ -373,6 +380,85 @@ func ValidateCloudHostSecurityExecutorArtifact(raw []byte, siteRef, nodeRef stri
 // generation-only Cloud public-edge handoff identity.
 func CloudPublicEdgeExecutorBundleRendererContract() RendererContract {
 	return newExecutorContractBundleRenderer(executorContractBundleSpecs[6]).contract
+}
+
+// CloudPublicEdgePolicy is the exact provider-free route policy carried by a
+// validated public-edge artifact. Runtime addresses, credentials, certificate
+// material, DNS mutation and server lifecycle are deliberately absent.
+type CloudPublicEdgePolicy struct {
+	StackID         string
+	KitSlug         string
+	SiteRef         string
+	NodeRef         string
+	NetworkMode     string
+	TransportSubnet string
+	IPv6            bool
+	TLSMinVersion   string
+	Routes          []CloudPublicEdgeRoute
+}
+
+type cloudPublicEdgeExecutorDocument struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Module     struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	} `json:"module"`
+	Contract struct {
+		Apply                   string   `json:"apply"`
+		CertificateIssuance     string   `json:"certificateIssuance"`
+		Credentials             string   `json:"credentials"`
+		DNSMutation             string   `json:"dnsMutation"`
+		Generation              string   `json:"generation"`
+		Operations              []string `json:"operations"`
+		ProviderLifecycle       string   `json:"providerLifecycle"`
+		RouteAuthority          string   `json:"routeAuthority"`
+		RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+		Scope                   string   `json:"scope"`
+		ServerProviderAuthority string   `json:"serverProviderAuthority"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// ValidateCloudPublicEdgeExecutorArtifact verifies the complete artifact and
+// selects one caller-bound Cloud edge node without discovering a target.
+func ValidateCloudPublicEdgeExecutorArtifact(raw []byte, siteRef, nodeRef string) (CloudPublicEdgePolicy, error) {
+	var document cloudPublicEdgeExecutorDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return CloudPublicEdgePolicy{}, wrap(ErrInvalidPlan, "cloudPublicEdgeArtifact", "decode exact Cloud public-edge artifact", err)
+	}
+	spec := executorContractBundleSpecs[6]
+	if document.APIVersion != "stackkit.executor-contract-bundle/v1" || document.Kind != "ExecutorContractBundle" ||
+		document.Module.ID != spec.moduleID || document.Module.Version != spec.moduleVersion ||
+		document.Contract.Apply != "typed-local-operations" || document.Contract.CertificateIssuance != "not-owned" ||
+		document.Contract.Credentials != "not-included" || document.Contract.DNSMutation != "not-owned" ||
+		document.Contract.Generation != "supported" ||
+		!exactStringList(document.Contract.Operations, []string{"apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.RouteAuthority != "compiler-owned-exact" ||
+		document.Contract.RuntimeEnforcement != "adapter-verified" || document.Contract.Scope != "cloud-edge-node" ||
+		document.Contract.ServerProviderAuthority != "not-owned" {
+		return CloudPublicEdgePolicy{}, fail(ErrInvalidPlan, "cloudPublicEdgeArtifact.contract", "artifact widens or contradicts the typed Cloud public-edge authority")
+	}
+	decoded, err := decodeCloudRuntimeExecutorPlan(document.PlanInputs, "cloudPublicEdgeArtifact.planInputs", spec)
+	if err != nil {
+		return CloudPublicEdgePolicy{}, err
+	}
+	plan := decoded.(cloudRuntimeExecutorPlan)
+	found := 0
+	for _, target := range plan.ModuleTargets {
+		if target.SiteRef == siteRef && target.ID == nodeRef {
+			found++
+		}
+	}
+	if found != 1 {
+		return CloudPublicEdgePolicy{}, fail(ErrInvalidPlan, "cloudPublicEdgeArtifact.planInputs.moduleTargets", "must contain exactly one explicitly bound Cloud Site/node target")
+	}
+	routes := append([]CloudPublicEdgeRoute(nil), plan.PublicEdge.Routes...)
+	return CloudPublicEdgePolicy{
+		StackID: plan.StackID, KitSlug: plan.Kit.Slug, SiteRef: siteRef, NodeRef: nodeRef,
+		NetworkMode: plan.CloudNetworkPolicy.Mode, TransportSubnet: plan.CloudNetworkPolicy.Transport.Subnet,
+		IPv6: plan.CloudNetworkPolicy.Transport.IPv6, TLSMinVersion: plan.CloudNetworkPolicy.TLS.MinVersion, Routes: routes,
+	}, nil
 }
 
 // CloudOffsiteBackupExecutorBundleRendererContract returns the exact
@@ -531,14 +617,27 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef || unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version || unit.ContractHash() != contract.ContractHash {
 		return fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered executor contract")
 	}
-	if unit.RuntimeKind() != "host" || unit.RuntimeDelivery() != "stackkit" || unit.InstanceScope() != "module" || unit.InstanceID() != executorContractBundleUnitID+"-logical" {
-		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact host/stackkit module-single ownership")
+	if unit.RuntimeKind() != "host" || unit.RuntimeDelivery() != "stackkit" {
+		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact host/stackkit ownership")
 	}
-	if _, present := unit.SiteRef(); present {
-		return fail(ErrInvalidPlan, path+".instances", "module-scoped executor contract must not receive a site binding")
-	}
-	if _, present := unit.NodeRef(); present {
-		return fail(ErrInvalidPlan, path+".instances", "module-scoped executor contract must not receive a node binding")
+	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID
+	if nodeLocal {
+		siteRef, hasSite := unit.SiteRef()
+		nodeRef, hasNode := unit.NodeRef()
+		if unit.InstanceScope() != "node-local" || !hasSite || !hasNode || unit.InstanceID() != executorContractBundleUnitID+"-node-"+nodeRef ||
+			!stringListContains(unit.LogicalSiteRefs(), siteRef) || !stringListContains(unit.LogicalNodeRefs(), nodeRef) {
+			return fail(ErrInvalidPlan, path+".instances", "node-local executor contract requires one exact governed Site/node instance")
+		}
+	} else {
+		if unit.InstanceScope() != "module" || unit.InstanceID() != executorContractBundleUnitID+"-logical" {
+			return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact module-single ownership")
+		}
+		if _, present := unit.SiteRef(); present {
+			return fail(ErrInvalidPlan, path+".instances", "module-scoped executor contract must not receive a site binding")
+		}
+		if _, present := unit.NodeRef(); present {
+			return fail(ErrInvalidPlan, path+".instances", "module-scoped executor contract must not receive a node binding")
+		}
 	}
 	if _, present := unit.DaemonRef(); present {
 		return fail(ErrInvalidPlan, path+".instances", "executor contract must not receive daemon authority")
@@ -565,8 +664,12 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 		Scope       string `json:"scope"`
 		Cardinality string `json:"cardinality"`
 	}
-	if err := decodeStrict(unit.PlacementJSON(), &placement); err != nil || placement.Scope != "module" || placement.Cardinality != "single" {
-		return fail(ErrInvalidPlan, path+".placement", "executor contract requires exact module/single placement")
+	wantScope, wantCardinality := "module", "single"
+	if nodeLocal {
+		wantScope, wantCardinality = "node-local", "one-per-node"
+	}
+	if err := decodeStrict(unit.PlacementJSON(), &placement); err != nil || placement.Scope != wantScope || placement.Cardinality != wantCardinality {
+		return fail(ErrInvalidPlan, path+".placement", "executor contract requires exact %s/%s placement", wantScope, wantCardinality)
 	}
 	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != renderer.spec.outputRef {
 		return fail(ErrInvalidPlan, path+".outputs", "executor contract requires exactly output %q", renderer.spec.outputRef)
@@ -773,49 +876,134 @@ type coreRuntimeExecutorPlan struct {
 func (coreRuntimeExecutorPlan) executorContractPlanMarker() {}
 
 type localRuntimeExecutorPlan struct {
-	StackID                    string                      `json:"stackId"`
-	Kit                        executorBundleKit           `json:"kit"`
-	Sites                      []executorBundleSite        `json:"sites"`
-	ModuleTargets              []executorBundleTarget      `json:"moduleTargets"`
-	ModuleCapabilities         []executorBundleCapability  `json:"moduleCapabilities"`
-	ControlPlane               executorBundleControlPlane  `json:"controlPlane"`
-	StoragePolicy              executorBundleStoragePolicy `json:"storagePolicy"`
-	LocalNetworkPolicy         executorBundleNetworkPolicy `json:"localNetworkPolicy"`
-	Data                       executorBundleData          `json:"data"`
-	FailurePolicy              executorBundleFailurePolicy `json:"failurePolicy"`
-	LocalReachability          homeLocalReachability       `json:"localReachability"`
-	HomeAccessRequirements     json.RawMessage             `json:"homeAccessRequirements,omitempty"`
-	ExternalHomeAccessBindings json.RawMessage             `json:"externalHomeAccessBindings,omitempty"`
+	StackID                          string                      `json:"stackId"`
+	Kit                              executorBundleKit           `json:"kit"`
+	Sites                            []executorBundleSite        `json:"sites"`
+	ModuleTargets                    []executorBundleTarget      `json:"moduleTargets"`
+	ModuleCapabilities               []executorBundleCapability  `json:"moduleCapabilities"`
+	ControlPlane                     executorBundleControlPlane  `json:"controlPlane"`
+	StoragePolicy                    executorBundleStoragePolicy `json:"storagePolicy"`
+	LocalNetworkPolicy               executorBundleNetworkPolicy `json:"localNetworkPolicy"`
+	Data                             executorBundleData          `json:"data"`
+	FailurePolicy                    executorBundleFailurePolicy `json:"failurePolicy"`
+	LocalReachability                homeLocalReachability       `json:"localReachability"`
+	HomeAccessRequirements           json.RawMessage             `json:"homeAccessRequirements,omitempty"`
+	ExternalHomeAccessBindings       json.RawMessage             `json:"externalHomeAccessBindings,omitempty"`
+	HomeBackupTargetRequirements     json.RawMessage             `json:"homeBackupTargetRequirements,omitempty"`
+	ExternalHomeBackupTargetBindings json.RawMessage             `json:"externalHomeBackupTargetBindings,omitempty"`
 }
 
 func (localRuntimeExecutorPlan) executorContractPlanMarker() {}
 
 type cloudRuntimeExecutorPlan struct {
-	StackID            string                      `json:"stackId"`
-	Kit                executorBundleKit           `json:"kit"`
-	Sites              []executorBundleSite        `json:"sites"`
-	ModuleTargets      []executorBundleTarget      `json:"moduleTargets"`
-	ModuleCapabilities []executorBundleCapability  `json:"moduleCapabilities"`
-	ControlPlane       executorBundleControlPlane  `json:"controlPlane"`
-	StoragePolicy      executorBundleStoragePolicy `json:"storagePolicy"`
-	CloudNetworkPolicy executorBundleNetworkPolicy `json:"cloudNetworkPolicy"`
-	Data               executorBundleData          `json:"data"`
-	FailurePolicy      executorBundleFailurePolicy `json:"failurePolicy"`
+	StackID                      string                      `json:"stackId"`
+	Kit                          executorBundleKit           `json:"kit"`
+	Sites                        []executorBundleSite        `json:"sites"`
+	ModuleTargets                []executorBundleTarget      `json:"moduleTargets"`
+	ModuleCapabilities           []executorBundleCapability  `json:"moduleCapabilities"`
+	ControlPlane                 executorBundleControlPlane  `json:"controlPlane"`
+	StoragePolicy                executorBundleStoragePolicy `json:"storagePolicy"`
+	CloudNetworkPolicy           executorBundleNetworkPolicy `json:"cloudNetworkPolicy"`
+	PublicEdge                   *CloudPublicEdgeProjection  `json:"publicEdge,omitempty"`
+	BackupTargetRequirements     json.RawMessage             `json:"backupTargetRequirements,omitempty"`
+	ExternalBackupTargetBindings json.RawMessage             `json:"externalBackupTargetBindings,omitempty"`
+	Data                         executorBundleData          `json:"data"`
+	FailurePolicy                executorBundleFailurePolicy `json:"failurePolicy"`
+}
+
+type CloudPublicEdgeProjection struct {
+	CapabilityRef string                 `json:"capabilityRef"`
+	Routes        []CloudPublicEdgeRoute `json:"routes"`
+}
+
+type CloudPublicEdgeRoute struct {
+	ID                    string                               `json:"id"`
+	ServiceRef            string                               `json:"serviceRef"`
+	ModuleRef             string                               `json:"moduleRef"`
+	OriginSiteRef         string                               `json:"originSiteRef"`
+	OriginNodeRefs        []string                             `json:"originNodeRefs"`
+	BackendPoolRef        string                               `json:"backendPoolRef"`
+	BackendPool           CloudPublicEdgeBackendPool           `json:"backendPool"`
+	Exposure              string                               `json:"exposure"`
+	Protocol              string                               `json:"protocol"`
+	UpstreamProtocol      string                               `json:"upstreamProtocol"`
+	Port                  int                                  `json:"port"`
+	TargetPort            int                                  `json:"targetPort"`
+	Host                  string                               `json:"host"`
+	Path                  string                               `json:"path"`
+	Access                CloudPublicEdgeAccess                `json:"access"`
+	TLS                   CloudPublicEdgeTLS                   `json:"tls"`
+	HealthGateRef         string                               `json:"healthGateRef"`
+	HealthProbe           CloudPublicEdgeHealthProbe           `json:"healthProbe"`
+	CapabilityAuthorities []CloudPublicEdgeCapabilityAuthority `json:"capabilityAuthorities"`
+}
+
+type CloudPublicEdgeBackendPool struct {
+	UpstreamProtocol string                         `json:"upstreamProtocol"`
+	TargetPort       int                            `json:"targetPort"`
+	Members          []CloudPublicEdgeBackendMember `json:"members"`
+}
+
+type CloudPublicEdgeBackendMember struct {
+	SiteRef     string `json:"siteRef"`
+	NodeRef     string `json:"nodeRef"`
+	InstanceRef string `json:"instanceRef"`
+}
+
+type CloudPublicEdgeAccess struct {
+	Exposure               string   `json:"exposure"`
+	PolicyExposure         string   `json:"policyExposure"`
+	Authentication         string   `json:"authentication"`
+	Privilege              string   `json:"privilege"`
+	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
+	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
+	LANStepDown            bool     `json:"lanStepDown"`
+	AllowedSiteRefs        []string `json:"allowedSiteRefs,omitempty"`
+	AllowedMethods         []string `json:"allowedMethods,omitempty"`
+	DefaultClosed          bool     `json:"defaultClosed"`
+	PolicyRef              string   `json:"policyRef"`
+}
+
+type CloudPublicEdgeTLS struct {
+	Required           bool   `json:"required"`
+	Mode               string `json:"mode"`
+	MinVersion         string `json:"minVersion,omitempty"`
+	ProfileRef         string `json:"profileRef,omitempty"`
+	IssuerRef          string `json:"issuerRef,omitempty"`
+	OwnerCapabilityRef string `json:"ownerCapabilityRef,omitempty"`
+}
+
+type CloudPublicEdgeHealthProbe struct {
+	Kind             string `json:"kind"`
+	Protocol         string `json:"protocol"`
+	Port             int    `json:"port"`
+	TimeoutSeconds   int    `json:"timeoutSeconds"`
+	Method           string `json:"method,omitempty"`
+	FollowRedirects  *bool  `json:"followRedirects,omitempty"`
+	Path             string `json:"path,omitempty"`
+	ExpectedStatuses []int  `json:"expectedStatuses,omitempty"`
+}
+
+type CloudPublicEdgeCapabilityAuthority struct {
+	CapabilityRef string `json:"capabilityRef"`
+	Role          string `json:"role"`
 }
 
 func (cloudRuntimeExecutorPlan) executorContractPlanMarker() {}
 
 type federationRuntimeExecutorPlan struct {
-	StackID            string                        `json:"stackId"`
-	Kit                executorBundleKit             `json:"kit"`
-	Sites              []executorBundleSite          `json:"sites"`
-	ModuleTargets      []executorBundleTarget        `json:"moduleTargets"`
-	ModuleCapabilities []executorBundleCapability    `json:"moduleCapabilities"`
-	ControlPlane       executorBundleControlPlane    `json:"controlPlane"`
-	Bridge             json.RawMessage               `json:"bridge"`
-	Identity           modernFederationIdentity      `json:"identity"`
-	Data               json.RawMessage               `json:"data"`
-	FailurePolicy      modernFederationFailurePolicy `json:"failurePolicy"`
+	StackID                        string                        `json:"stackId"`
+	Kit                            executorBundleKit             `json:"kit"`
+	Sites                          []executorBundleSite          `json:"sites"`
+	ModuleTargets                  []executorBundleTarget        `json:"moduleTargets"`
+	ModuleCapabilities             []executorBundleCapability    `json:"moduleCapabilities"`
+	ControlPlane                   executorBundleControlPlane    `json:"controlPlane"`
+	Bridge                         json.RawMessage               `json:"bridge"`
+	Identity                       modernFederationIdentity      `json:"identity"`
+	Data                           json.RawMessage               `json:"data"`
+	FailurePolicy                  modernFederationFailurePolicy `json:"failurePolicy"`
+	FederationLinkRequirements     json.RawMessage               `json:"federationLinkRequirements,omitempty"`
+	ExternalFederationLinkBindings json.RawMessage               `json:"externalFederationLinkBindings,omitempty"`
 }
 
 func (federationRuntimeExecutorPlan) executorContractPlanMarker() {}
@@ -879,7 +1067,153 @@ func decodeLocalRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 	if err := validateHomeAccessExecutorProjection(plan, spec, path); err != nil {
 		return nil, err
 	}
+	if err := validateHomeBackupTargetExecutorProjection(plan, spec, path); err != nil {
+		return nil, err
+	}
 	return plan, nil
+}
+
+type homeBackupTargetRequirementProjection struct {
+	APIVersion             string   `json:"apiVersion"`
+	Kind                   string   `json:"kind"`
+	StackID                string   `json:"stackId"`
+	SiteRef                string   `json:"siteRef"`
+	CapabilityRef          string   `json:"capabilityRef"`
+	ContractOwnerRef       string   `json:"contractOwnerRef"`
+	CapabilityContractHash string   `json:"capabilityContractHash"`
+	TargetNodeRefs         []string `json:"targetNodeRefs"`
+	Policy                 struct {
+		Scope                       string `json:"scope"`
+		EncryptionRequired          bool   `json:"encryptionRequired"`
+		EncryptionAuthority         string `json:"encryptionAuthority"`
+		PlaintextEgressAllowed      bool   `json:"plaintextEgressAllowed"`
+		CredentialCustody           string `json:"credentialCustody"`
+		TargetLifecycle             string `json:"targetLifecycle"`
+		RestoreVerificationRequired bool   `json:"restoreVerificationRequired"`
+		ProviderSelection           string `json:"providerSelection"`
+	} `json:"policy"`
+	SpecHash         string `json:"specHash"`
+	RequirementsHash string `json:"requirementsHash"`
+}
+
+type externalHomeBackupTargetBindingProjection struct {
+	APIVersion             string `json:"apiVersion"`
+	Kind                   string `json:"kind"`
+	BindingRef             string `json:"bindingRef"`
+	BackupTargetRef        string `json:"backupTargetRef"`
+	CustodyAttestationRef  string `json:"custodyAttestationRef"`
+	StackID                string `json:"stackId"`
+	SiteRef                string `json:"siteRef"`
+	CapabilityRef          string `json:"capabilityRef"`
+	ContractOwnerRef       string `json:"contractOwnerRef"`
+	CapabilityContractHash string `json:"capabilityContractHash"`
+	RequirementsHash       string `json:"requirementsHash"`
+	StackKitsVersion       string `json:"stackkitsVersion"`
+	CandidateDigest        string `json:"candidateDigest"`
+	SpecHash               string `json:"specHash"`
+	IssuedAt               string `json:"issuedAt"`
+	ValidUntil             string `json:"validUntil"`
+	BindingHash            string `json:"bindingHash"`
+}
+
+func validateHomeBackupTargetExecutorProjection(plan localRuntimeExecutorPlan, spec executorContractBundleSpec, path string) error {
+	isHomeBackup := containsExecutorBundleString(spec.requiredCapabilities, homeBackupCapability)
+	if !isHomeBackup {
+		if len(plan.HomeBackupTargetRequirements) != 0 || len(plan.ExternalHomeBackupTargetBindings) != 0 {
+			return fail(ErrInvalidPlan, path, "non-backup Home module received a Home backup target projection")
+		}
+		return nil
+	}
+	if len(plan.HomeBackupTargetRequirements) == 0 || len(plan.ExternalHomeBackupTargetBindings) == 0 {
+		return fail(ErrInvalidPlan, path, "Home encrypted offsite backup requires exact requirement and binding projections")
+	}
+	var requirements map[string]map[string]json.RawMessage
+	if err := decodeStrict(plan.HomeBackupTargetRequirements, &requirements); err != nil {
+		return wrap(ErrInvalidPlan, path+".homeBackupTargetRequirements", "decode closed Home backup requirements", err)
+	}
+	var bindings map[string]map[string]json.RawMessage
+	if err := decodeStrict(plan.ExternalHomeBackupTargetBindings, &bindings); err != nil {
+		return wrap(ErrInvalidPlan, path+".externalHomeBackupTargetBindings", "decode closed external Home backup bindings", err)
+	}
+	if len(requirements) != len(plan.Sites) {
+		return fail(ErrInvalidPlan, path+".homeBackupTargetRequirements", "must contain exactly one requirement per module Home Site")
+	}
+	for _, site := range plan.Sites {
+		targetNodeRefs := make([]string, 0, len(plan.ModuleTargets))
+		for _, target := range plan.ModuleTargets {
+			if target.SiteRef == site.ID {
+				targetNodeRefs = append(targetNodeRefs, target.ID)
+			}
+		}
+		sort.Strings(targetNodeRefs)
+		byCapability, exists := requirements[site.ID]
+		if !exists || len(byCapability) != 1 {
+			return fail(ErrInvalidPlan, path+".homeBackupTargetRequirements."+site.ID, "must contain only the encrypted offsite backup capability")
+		}
+		rawRequirement, exists := byCapability[homeBackupCapability]
+		if !exists {
+			return fail(ErrInvalidPlan, path+".homeBackupTargetRequirements."+site.ID, "missing exact Home backup capability requirement")
+		}
+		var requirement homeBackupTargetRequirementProjection
+		if err := decodeStrict(rawRequirement, &requirement); err != nil {
+			return wrap(ErrInvalidPlan, path+".homeBackupTargetRequirements."+site.ID+"."+homeBackupCapability, "decode closed requirement", err)
+		}
+		if requirement.APIVersion != "stackkit.home-backup-target-requirement/v1" || requirement.Kind != "HomeBackupTargetRequirement" ||
+			requirement.StackID != plan.StackID || requirement.SiteRef != site.ID || requirement.CapabilityRef != homeBackupCapability ||
+			requirement.ContractOwnerRef == "" || !validSHA256(requirement.CapabilityContractHash) || !validSHA256(requirement.SpecHash) || !validSHA256(requirement.RequirementsHash) ||
+			!exactStringList(requirement.TargetNodeRefs, targetNodeRefs) || requirement.Policy.Scope != "governed-home-data-only" || !requirement.Policy.EncryptionRequired ||
+			requirement.Policy.EncryptionAuthority != "home" || requirement.Policy.PlaintextEgressAllowed || requirement.Policy.CredentialCustody != "external" ||
+			requirement.Policy.TargetLifecycle != "external" || !requirement.Policy.RestoreVerificationRequired || requirement.Policy.ProviderSelection != "external" {
+			return fail(ErrInvalidPlan, path+".homeBackupTargetRequirements."+site.ID+"."+homeBackupCapability, "requirement widens or contradicts the exact Home backup authority")
+		}
+		rawBody, _ := json.Marshal(requirement)
+		var body map[string]any
+		if err := decodeStrict(rawBody, &body); err != nil {
+			return err
+		}
+		wantHash, err := resolvedplan.ComputeHomeBackupTargetRequirementHash(resolvedplan.HomeBackupTargetRequirement(body))
+		if err != nil || requirement.RequirementsHash != wantHash {
+			return fail(ErrInvalidPlan, path+".homeBackupTargetRequirements."+site.ID+"."+homeBackupCapability+".requirementsHash", "does not match the canonical requirement body")
+		}
+		bindingByCapability := bindings[site.ID]
+		if len(bindingByCapability) == 0 {
+			continue
+		}
+		if len(bindingByCapability) != 1 {
+			return fail(ErrInvalidPlan, path+".externalHomeBackupTargetBindings."+site.ID, "must contain only the encrypted offsite backup capability")
+		}
+		rawBinding, exists := bindingByCapability[homeBackupCapability]
+		if !exists {
+			return fail(ErrInvalidPlan, path+".externalHomeBackupTargetBindings."+site.ID, "binding capability does not match the module")
+		}
+		var binding externalHomeBackupTargetBindingProjection
+		if err := decodeStrict(rawBinding, &binding); err != nil {
+			return wrap(ErrInvalidPlan, path+".externalHomeBackupTargetBindings."+site.ID+"."+homeBackupCapability, "decode closed binding", err)
+		}
+		if binding.APIVersion != "stackkit.external-home-backup-target-binding/v1" || binding.Kind != "ExternalHomeBackupTargetBinding" ||
+			binding.StackID != requirement.StackID || binding.SiteRef != requirement.SiteRef || binding.CapabilityRef != requirement.CapabilityRef ||
+			binding.ContractOwnerRef != requirement.ContractOwnerRef || binding.CapabilityContractHash != requirement.CapabilityContractHash ||
+			binding.RequirementsHash != requirement.RequirementsHash || binding.SpecHash != requirement.SpecHash ||
+			!validOpaqueSHA256Ref(binding.BindingRef, "home-backup-target-binding") || !validOpaqueSHA256Ref(binding.BackupTargetRef, "home-backup-target") ||
+			!validOpaqueSHA256Ref(binding.CustodyAttestationRef, "home-backup-custody-attestation") {
+			return fail(ErrInvalidPlan, path+".externalHomeBackupTargetBindings."+site.ID, "binding does not exactly match the provider-free Home backup requirement")
+		}
+		rawBody, _ = json.Marshal(binding)
+		body = map[string]any{}
+		if err := decodeStrict(rawBody, &body); err != nil {
+			return err
+		}
+		wantBindingHash, err := resolvedplan.ComputeExternalHomeBackupTargetBindingHash(resolvedplan.ExternalHomeBackupTargetBinding(body))
+		if err != nil || binding.BindingHash != wantBindingHash {
+			return fail(ErrInvalidPlan, path+".externalHomeBackupTargetBindings."+site.ID+"."+homeBackupCapability+".bindingHash", "does not match the canonical binding body")
+		}
+	}
+	for siteRef := range bindings {
+		if _, ok := requirements[siteRef]; !ok {
+			return fail(ErrInvalidPlan, path+".externalHomeBackupTargetBindings."+siteRef, "binding targets a Site outside the exact requirement")
+		}
+	}
+	return nil
 }
 
 type homeAccessRequirementProjection struct {
@@ -1048,6 +1382,26 @@ func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 	if err := validateExecutorBundleNetworkPolicy(plan.CloudNetworkPolicy, plan.Kit.Slug, true, path+".cloudNetworkPolicy"); err != nil {
 		return nil, err
 	}
+	if spec.moduleID == cloudPublicEdgeModuleID {
+		if plan.PublicEdge == nil {
+			return nil, fail(ErrInvalidPlan, path+".publicEdge", "Cloud public-edge module requires the exact resolved route projection")
+		}
+		if err := validateCloudPublicEdgeProjection(*plan.PublicEdge, plan, path+".publicEdge"); err != nil {
+			return nil, err
+		}
+	} else if plan.PublicEdge != nil {
+		return nil, fail(ErrInvalidPlan, path+".publicEdge", "public-edge route authority is forbidden for this Cloud module")
+	}
+	if spec.moduleID == cloudOffsiteBackupModuleID {
+		if len(plan.BackupTargetRequirements) == 0 || len(plan.ExternalBackupTargetBindings) == 0 {
+			return nil, fail(ErrInvalidPlan, path, "Cloud offsite backup requires both target requirement and external binding projections")
+		}
+		if err := validateCloudBackupTargetProjection(plan, path); err != nil {
+			return nil, err
+		}
+	} else if len(plan.BackupTargetRequirements) != 0 || len(plan.ExternalBackupTargetBindings) != 0 {
+		return nil, fail(ErrInvalidPlan, path, "backup target authority is forbidden for this Cloud module")
+	}
 	if err := validateExecutorBundleData(plan.Data, plan.Sites, path+".data"); err != nil {
 		return nil, err
 	}
@@ -1057,6 +1411,186 @@ func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 	return plan, nil
 }
 
+type cloudBackupTargetRequirement struct {
+	APIVersion             string                  `json:"apiVersion"`
+	Kind                   string                  `json:"kind"`
+	StackID                string                  `json:"stackId"`
+	SiteRef                string                  `json:"siteRef"`
+	CapabilityRef          string                  `json:"capabilityRef"`
+	ContractOwnerRef       string                  `json:"contractOwnerRef"`
+	CapabilityContractHash string                  `json:"capabilityContractHash"`
+	TargetNodeRefs         []string                `json:"targetNodeRefs"`
+	Policy                 cloudBackupTargetPolicy `json:"policy"`
+	SpecHash               string                  `json:"specHash"`
+	RequirementsHash       string                  `json:"requirementsHash"`
+}
+
+type cloudBackupTargetPolicy struct {
+	Scope                       string `json:"scope"`
+	EncryptionRequired          bool   `json:"encryptionRequired"`
+	CredentialCustody           string `json:"credentialCustody"`
+	TargetLifecycle             string `json:"targetLifecycle"`
+	RestoreVerificationRequired bool   `json:"restoreVerificationRequired"`
+	ProviderSelection           string `json:"providerSelection"`
+}
+
+type cloudExternalBackupTargetBinding struct {
+	APIVersion             string `json:"apiVersion"`
+	Kind                   string `json:"kind"`
+	BindingRef             string `json:"bindingRef"`
+	BackupTargetRef        string `json:"backupTargetRef"`
+	CustodyAttestationRef  string `json:"custodyAttestationRef"`
+	StackID                string `json:"stackId"`
+	SiteRef                string `json:"siteRef"`
+	CapabilityRef          string `json:"capabilityRef"`
+	ContractOwnerRef       string `json:"contractOwnerRef"`
+	CapabilityContractHash string `json:"capabilityContractHash"`
+	RequirementsHash       string `json:"requirementsHash"`
+	StackKitsVersion       string `json:"stackkitsVersion"`
+	CandidateDigest        string `json:"candidateDigest"`
+	SpecHash               string `json:"specHash"`
+	IssuedAt               string `json:"issuedAt"`
+	ValidUntil             string `json:"validUntil"`
+	BindingHash            string `json:"bindingHash"`
+}
+
+func validateCloudBackupTargetProjection(plan cloudRuntimeExecutorPlan, path string) error {
+	var requirements map[string]map[string]cloudBackupTargetRequirement
+	if err := decodeStrict(plan.BackupTargetRequirements, &requirements); err != nil {
+		return wrap(ErrInvalidPlan, path+".backupTargetRequirements", "decode closed backup target requirements", err)
+	}
+	var bindings map[string]map[string]cloudExternalBackupTargetBinding
+	if err := decodeStrict(plan.ExternalBackupTargetBindings, &bindings); err != nil {
+		return wrap(ErrInvalidPlan, path+".externalBackupTargetBindings", "decode closed external backup target bindings", err)
+	}
+	cloudSites := sortedExecutorBundleSites(plan.Sites, "cloud")
+	targetNodes := make(map[string]string, len(plan.ModuleTargets))
+	for _, target := range plan.ModuleTargets {
+		targetNodes[target.ID] = target.SiteRef
+	}
+	if len(requirements) == 0 {
+		return fail(ErrInvalidPlan, path+".backupTargetRequirements", "must contain the compiler-owned Cloud backup target requirement")
+	}
+	for siteRef, capabilityRequirements := range requirements {
+		if !containsExecutorBundleString(cloudSites, siteRef) || len(capabilityRequirements) != 1 {
+			return fail(ErrInvalidPlan, path+".backupTargetRequirements."+siteRef, "must contain one requirement for a module Cloud Site")
+		}
+		requirement, ok := capabilityRequirements[cloudBackupTargetCapability]
+		if !ok || requirement.APIVersion != "stackkit.backup-target-requirement/v1" || requirement.Kind != "BackupTargetRequirement" ||
+			requirement.StackID != plan.StackID || requirement.SiteRef != siteRef || requirement.CapabilityRef != cloudBackupTargetCapability ||
+			requirement.Policy.Scope != "governed-data-only" || !requirement.Policy.EncryptionRequired || requirement.Policy.CredentialCustody != "external" ||
+			requirement.Policy.TargetLifecycle != "external" || !requirement.Policy.RestoreVerificationRequired || requirement.Policy.ProviderSelection != "external" {
+			return fail(ErrInvalidPlan, path+".backupTargetRequirements."+siteRef, "widens or mismatches the closed provider-free backup target requirement")
+		}
+		if len(requirement.TargetNodeRefs) == 0 {
+			return fail(ErrInvalidPlan, path+".backupTargetRequirements."+siteRef+".targetNodeRefs", "must select at least one module target")
+		}
+		for _, nodeRef := range requirement.TargetNodeRefs {
+			if targetNodes[nodeRef] != siteRef {
+				return fail(ErrInvalidPlan, path+".backupTargetRequirements."+siteRef+".targetNodeRefs", "contains a node outside the exact module Site")
+			}
+		}
+		rawRequirement, err := json.Marshal(requirement)
+		if err != nil {
+			return wrap(ErrInvalidPlan, path+".backupTargetRequirements."+siteRef, "marshal requirement", err)
+		}
+		var requirementBody map[string]any
+		if err := decodeStrict(rawRequirement, &requirementBody); err != nil {
+			return wrap(ErrInvalidPlan, path+".backupTargetRequirements."+siteRef, "decode requirement body", err)
+		}
+		wantRequirementHash, err := resolvedplan.ComputeBackupTargetRequirementHash(resolvedplan.BackupTargetRequirement(requirementBody))
+		if err != nil || requirement.RequirementsHash != wantRequirementHash {
+			return fail(ErrInvalidPlan, path+".backupTargetRequirements."+siteRef+".requirementsHash", "does not match the canonical requirement body")
+		}
+		capabilityBindings := bindings[siteRef]
+		if len(capabilityBindings) == 0 {
+			continue
+		}
+		if len(capabilityBindings) != 1 {
+			return fail(ErrInvalidPlan, path+".externalBackupTargetBindings."+siteRef, "must contain only the exact backup capability")
+		}
+		binding, ok := capabilityBindings[cloudBackupTargetCapability]
+		if !ok || binding.APIVersion != "stackkit.external-backup-target-binding/v1" || binding.Kind != "ExternalBackupTargetBinding" ||
+			binding.StackID != requirement.StackID || binding.SiteRef != requirement.SiteRef || binding.CapabilityRef != requirement.CapabilityRef ||
+			binding.ContractOwnerRef != requirement.ContractOwnerRef || binding.CapabilityContractHash != requirement.CapabilityContractHash ||
+			binding.RequirementsHash != requirement.RequirementsHash || binding.SpecHash != requirement.SpecHash ||
+			!validOpaqueSHA256Ref(binding.BindingRef, "backup-target-binding") || !validOpaqueSHA256Ref(binding.BackupTargetRef, "backup-target") ||
+			!validOpaqueSHA256Ref(binding.CustodyAttestationRef, "backup-custody-attestation") {
+			return fail(ErrInvalidPlan, path+".externalBackupTargetBindings."+siteRef, "does not exactly match the provider-free backup target requirement")
+		}
+		rawBinding, err := json.Marshal(binding)
+		if err != nil {
+			return wrap(ErrInvalidPlan, path+".externalBackupTargetBindings."+siteRef, "marshal binding", err)
+		}
+		var bindingBody map[string]any
+		if err := decodeStrict(rawBinding, &bindingBody); err != nil {
+			return wrap(ErrInvalidPlan, path+".externalBackupTargetBindings."+siteRef, "decode binding body", err)
+		}
+		wantBindingHash, err := resolvedplan.ComputeExternalBackupTargetBindingHash(resolvedplan.ExternalBackupTargetBinding(bindingBody))
+		if err != nil || binding.BindingHash != wantBindingHash {
+			return fail(ErrInvalidPlan, path+".externalBackupTargetBindings."+siteRef+".bindingHash", "does not match the canonical binding body")
+		}
+	}
+	for siteRef := range bindings {
+		if _, ok := requirements[siteRef]; !ok {
+			return fail(ErrInvalidPlan, path+".externalBackupTargetBindings."+siteRef, "binding targets a Site outside the exact requirement")
+		}
+	}
+	return nil
+}
+
+func validateCloudPublicEdgeProjection(projection CloudPublicEdgeProjection, plan cloudRuntimeExecutorPlan, path string) error {
+	if projection.CapabilityRef != "public-edge" || projection.Routes == nil {
+		return fail(ErrInvalidPlan, path, "projection must carry only the exact public-edge capability and a closed route list")
+	}
+	rawRoutes, err := json.Marshal(projection.Routes)
+	if err != nil {
+		return wrap(ErrInvalidPlan, path+".routes", "marshal public-edge routes", err)
+	}
+	if err := validatePublicServiceRouteListV4(rawRoutes, path+".routes"); err != nil {
+		return err
+	}
+	siteKinds := executorBundleSiteKinds(plan.Sites)
+	targetSites := make(map[string]string, len(plan.ModuleTargets))
+	for _, target := range plan.ModuleTargets {
+		targetSites[target.ID] = target.SiteRef
+	}
+	previousRouteID := ""
+	for index, route := range projection.Routes {
+		routePath := fmt.Sprintf("%s.routes[%d]", path, index)
+		if previousRouteID != "" && route.ID <= previousRouteID {
+			return fail(ErrInvalidPlan, routePath+".id", "public-edge routes must be unique and sorted")
+		}
+		previousRouteID = route.ID
+		if route.Exposure != "public" || route.TLS.Mode != "terminate-at-edge" || !route.TLS.Required || !route.Access.DefaultClosed {
+			return fail(ErrInvalidPlan, routePath, "public-edge route must be public, default-closed, and terminate required TLS at the edge")
+		}
+		edgeAuthorityCount := 0
+		for _, authority := range route.CapabilityAuthorities {
+			if authority.CapabilityRef == "public-edge" && authority.Role == "edge" {
+				edgeAuthorityCount++
+			}
+		}
+		if edgeAuthorityCount != 1 {
+			return fail(ErrInvalidPlan, routePath+".capabilityAuthorities", "route must bind exactly one public-edge edge authority")
+		}
+		if siteKinds[route.OriginSiteRef] != "cloud" {
+			return fail(ErrInvalidPlan, routePath+".originSiteRef", "public-edge origin must be an exact projected Cloud Site")
+		}
+		for nodeIndex, nodeRef := range route.OriginNodeRefs {
+			if targetSites[nodeRef] != route.OriginSiteRef {
+				return fail(ErrInvalidPlan, fmt.Sprintf("%s.originNodeRefs[%d]", routePath, nodeIndex), "origin node is outside the exact Cloud module targets")
+			}
+		}
+		for memberIndex, member := range route.BackendPool.Members {
+			if siteKinds[member.SiteRef] != "cloud" || targetSites[member.NodeRef] != member.SiteRef {
+				return fail(ErrInvalidPlan, fmt.Sprintf("%s.backendPool.members[%d]", routePath, memberIndex), "backend member is outside the exact Cloud module targets")
+			}
+		}
+	}
+	return nil
+}
+
 func decodeFederationRuntimeExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
 	var plan federationRuntimeExecutorPlan
 	if err := decodeStrict(raw, &plan); err != nil {
@@ -1064,6 +1598,13 @@ func decodeFederationRuntimeExecutorPlan(raw []byte, path string, spec executorC
 	}
 	if err := validateExecutorContractPlanCommon(plan.StackID, plan.Kit, plan.Sites, plan.ModuleTargets, plan.ModuleCapabilities, plan.ControlPlane, spec, path); err != nil {
 		return nil, err
+	}
+	if spec.moduleID == federationLinkModuleID {
+		if err := validateFederationLinkExecutorProjection(plan, path); err != nil {
+			return nil, err
+		}
+	} else if len(plan.FederationLinkRequirements) != 0 || len(plan.ExternalFederationLinkBindings) != 0 {
+		return nil, fail(ErrInvalidPlan, path, "non-link Federation module received the external link projection")
 	}
 	policyInputs := modernFederationPlanInputs{
 		StackID:      plan.StackID,
@@ -1083,6 +1624,95 @@ func decodeFederationRuntimeExecutorPlan(raw []byte, path string, spec executorC
 		return nil, err
 	}
 	return plan, nil
+}
+
+func validateFederationLinkExecutorProjection(plan federationRuntimeExecutorPlan, path string) error {
+	if len(plan.FederationLinkRequirements) == 0 || len(plan.ExternalFederationLinkBindings) == 0 {
+		return fail(ErrInvalidPlan, path, "Federation link executor requires both requirement and external binding projections")
+	}
+	var requirements map[string]map[string]any
+	if err := json.Unmarshal(plan.FederationLinkRequirements, &requirements); err != nil {
+		return wrap(ErrInvalidPlan, path+".federationLinkRequirements", "decode closed federation link requirements", err)
+	}
+	if len(requirements) != 1 {
+		return fail(ErrInvalidPlan, path+".federationLinkRequirements", "must contain exactly the inter-site-link requirement")
+	}
+	requirement, ok := requirements[federationLinkCapability]
+	if !ok {
+		return fail(ErrInvalidPlan, path+".federationLinkRequirements", "must contain the inter-site-link requirement")
+	}
+	allowedRequirement := map[string]struct{}{
+		"apiVersion": {}, "kind": {}, "stackId": {}, "capabilityRef": {}, "contractOwnerRef": {}, "capabilityContractHash": {},
+		"homeSiteRefs": {}, "cloudSiteRefs": {}, "targetNodes": {}, "bridgeContractHash": {}, "policy": {}, "specHash": {}, "requirementsHash": {},
+	}
+	for key := range requirement {
+		if _, allowed := allowedRequirement[key]; !allowed {
+			return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link."+key, "field is outside the closed federation link requirement")
+		}
+	}
+	if requirement["apiVersion"] != "stackkit.federation-link-requirement/v1" || requirement["kind"] != "FederationLinkRequirement" || requirement["stackId"] != plan.StackID || requirement["capabilityRef"] != federationLinkCapability {
+		return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link", "identity does not match the exact executor contract")
+	}
+	wantHash, err := resolvedplan.ComputeFederationLinkRequirementHash(resolvedplan.FederationLinkRequirement(requirement))
+	if err != nil || requirement["requirementsHash"] != wantHash {
+		return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link.requirementsHash", "does not match the canonical requirement body")
+	}
+	wantHome, wantCloud := []string{}, []string{}
+	for _, site := range plan.Sites {
+		if site.Kind == "home" {
+			wantHome = append(wantHome, site.ID)
+		}
+		if site.Kind == "cloud" {
+			wantCloud = append(wantCloud, site.ID)
+		}
+	}
+	wantTargets := make([]map[string]any, 0, len(plan.ModuleTargets))
+	for _, target := range plan.ModuleTargets {
+		wantTargets = append(wantTargets, map[string]any{"siteRef": target.SiteRef, "nodeRef": target.ID})
+	}
+	for field, want := range map[string]any{"homeSiteRefs": wantHome, "cloudSiteRefs": wantCloud, "targetNodes": wantTargets} {
+		haveJSON, _ := json.Marshal(requirement[field])
+		wantJSON, _ := json.Marshal(want)
+		if !bytes.Equal(haveJSON, wantJSON) {
+			return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link."+field, "widens or mismatches the exact module target scope")
+		}
+	}
+	var bindings map[string]map[string]any
+	if err := json.Unmarshal(plan.ExternalFederationLinkBindings, &bindings); err != nil {
+		return wrap(ErrInvalidPlan, path+".externalFederationLinkBindings", "decode closed external federation link bindings", err)
+	}
+	if len(bindings) == 0 {
+		return nil
+	}
+	if len(bindings) != 1 {
+		return fail(ErrInvalidPlan, path+".externalFederationLinkBindings", "must contain only the exact inter-site-link binding")
+	}
+	binding, ok := bindings[federationLinkCapability]
+	if !ok {
+		return fail(ErrInvalidPlan, path+".externalFederationLinkBindings", "contains no exact inter-site-link binding")
+	}
+	allowedBinding := map[string]struct{}{
+		"apiVersion": {}, "kind": {}, "bindingRef": {}, "fabricRef": {}, "custodyAttestationRef": {}, "stackId": {}, "capabilityRef": {},
+		"contractOwnerRef": {}, "capabilityContractHash": {}, "homeSiteRefs": {}, "cloudSiteRefs": {}, "targetNodes": {}, "bridgeContractHash": {},
+		"requirementsHash": {}, "stackkitsVersion": {}, "candidateDigest": {}, "specHash": {}, "issuedAt": {}, "validUntil": {}, "bindingHash": {},
+	}
+	for key := range binding {
+		if _, allowed := allowedBinding[key]; !allowed {
+			return fail(ErrInvalidPlan, path+".externalFederationLinkBindings.inter-site-link."+key, "field is outside the closed external federation link binding")
+		}
+	}
+	for _, field := range []string{"stackId", "capabilityRef", "contractOwnerRef", "capabilityContractHash", "homeSiteRefs", "cloudSiteRefs", "targetNodes", "bridgeContractHash", "requirementsHash", "specHash"} {
+		haveJSON, _ := json.Marshal(binding[field])
+		wantJSON, _ := json.Marshal(requirement[field])
+		if !bytes.Equal(haveJSON, wantJSON) {
+			return fail(ErrInvalidPlan, path+".externalFederationLinkBindings.inter-site-link."+field, "does not exactly match the provider-free requirement")
+		}
+	}
+	wantBindingHash, err := resolvedplan.ComputeExternalFederationLinkBindingHash(resolvedplan.ExternalFederationLinkBinding(binding))
+	if err != nil || binding["bindingHash"] != wantBindingHash {
+		return fail(ErrInvalidPlan, path+".externalFederationLinkBindings.inter-site-link.bindingHash", "does not match the canonical binding body")
+	}
+	return nil
 }
 
 //nolint:gocyclo // Identity, topology, capability ownership, and placement are one fail-closed handoff boundary.

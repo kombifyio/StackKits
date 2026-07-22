@@ -4378,7 +4378,9 @@
             "localNetworkPolicy",
             "data",
             "failurePolicy",
-            "localReachability"
+            "localReachability",
+            "homeBackupTargetRequirements",
+            "externalHomeBackupTargetBindings"
           ]
         },
         "scope": "concrete"
@@ -4411,7 +4413,9 @@
             "localNetworkPolicy",
             "data",
             "failurePolicy",
-            "localReachability"
+            "localReachability",
+            "homeBackupTargetRequirements",
+            "externalHomeBackupTargetBindings"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -4514,9 +4518,9 @@
     {
       "enforcementRequirement": {
         "operations": [
-          "enroll-device",
-          "issue-device-credential",
-          "revoke-device-credential"
+          "configure-device-enrollment",
+          "configure-device-credential-issuer",
+          "configure-device-credential-revocation"
         ],
         "ownerRef": "stackkits-home-device-authority-enforcer",
         "policyArtifactRefs": [
@@ -5452,6 +5456,7 @@
             "controlPlane",
             "storagePolicy",
             "cloudNetworkPolicy",
+            "publicEdge",
             "data",
             "failurePolicy"
           ]
@@ -5464,7 +5469,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:55c47c16f0eac758080a66f6ff818bea7fd9d744daee3cb0858b3417905480f3",
+          "contractHash": "sha256:a80935bb0beb77bd3d226317be6f4756612eaac96037554783efdd6200a7f439",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -5484,6 +5489,7 @@
             "controlPlane",
             "storagePolicy",
             "cloudNetworkPolicy",
+            "publicEdge",
             "data",
             "failurePolicy"
           ],
@@ -5514,7 +5520,7 @@
         ],
         "operations": [
           "apply-public-edge",
-          "remove-public-edge",
+          "remove-obsolete-public-edge",
           "verify-public-edge"
         ],
         "ownerRef": "stackkits-cloud-public-edge-executor",
@@ -5600,7 +5606,9 @@
             "storagePolicy",
             "cloudNetworkPolicy",
             "data",
-            "failurePolicy"
+            "failurePolicy",
+            "backupTargetRequirements",
+            "externalBackupTargetBindings"
           ]
         },
         "scope": "concrete"
@@ -5632,7 +5640,9 @@
             "storagePolicy",
             "cloudNetworkPolicy",
             "data",
-            "failurePolicy"
+            "failurePolicy",
+            "backupTargetRequirements",
+            "externalBackupTargetBindings"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -5942,8 +5952,8 @@
     {
       "enforcementRequirement": {
         "operations": [
-          "issue-human-credential",
-          "issue-workload-credential",
+          "configure-human-credential-issuer",
+          "configure-workload-credential-issuer",
           "verify-device-session",
           "verify-human-session",
           "verify-workload-identity"
@@ -6039,7 +6049,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:84b7e97941c6b36d24ee0a59c594cef45926e22dc20f7d16acbf6f8fa0c95ca4",
+          "contractHash": "sha256:a62d3f2df95c7384af6a46df1436a811ca5a163fd9361c1b07e8db0422bbb8c2",
           "id": "policy-bundle",
           "inputBindings": [],
           "kind": "native-config",

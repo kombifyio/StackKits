@@ -953,6 +953,152 @@ func moduleApplyBlockers(module readinessModule, evidenceRefs map[string]struct{
 		return nil, err
 	}
 	blockers = append(blockers, homeAccessBlockers...)
+	backupTargetBlockers, err := missingBackupTargetBindingBlockers(module)
+	if err != nil {
+		return nil, err
+	}
+	blockers = append(blockers, backupTargetBlockers...)
+	homeBackupTargetBlockers, err := missingHomeBackupTargetBindingBlockers(module)
+	if err != nil {
+		return nil, err
+	}
+	blockers = append(blockers, homeBackupTargetBlockers...)
+	federationLinkBlockers, err := missingFederationLinkBindingBlockers(module)
+	if err != nil {
+		return nil, err
+	}
+	blockers = append(blockers, federationLinkBlockers...)
+	return blockers, nil
+}
+
+func missingFederationLinkBindingBlockers(module readinessModule) ([]executionReadinessBlocker, error) {
+	var blockers []executionReadinessBlocker
+	for _, unit := range module.units {
+		requirementsRaw, requiresLink := unit.planInputs["federationLinkRequirements"]
+		if !requiresLink {
+			continue
+		}
+		bindingsRaw, hasBindings := unit.planInputs["externalFederationLinkBindings"]
+		if !hasBindings {
+			return nil, fail(ErrContractConflict, "modules."+module.id+".renderUnits."+unit.id+".planInputs", "federation link requirement is missing its external binding projection")
+		}
+		requirements, err := asObject(requirementsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.federationLinkRequirements")
+		if err != nil {
+			return nil, err
+		}
+		bindings, err := asObject(bindingsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.externalFederationLinkBindings")
+		if err != nil {
+			return nil, err
+		}
+		for _, capabilityRef := range sortedStringMapKeys(requirements) {
+			if _, bound := bindings[capabilityRef]; bound {
+				continue
+			}
+			requirement, err := asObject(requirements[capabilityRef], "federationLinkRequirements."+capabilityRef)
+			if err != nil {
+				return nil, err
+			}
+			hash, err := stringField(requirement, "federationLinkRequirements."+capabilityRef, "requirementsHash")
+			if err != nil {
+				return nil, err
+			}
+			blockers = append(blockers, executionReadinessBlocker{
+				code: "external-federation-link-binding-missing",
+				refs: []string{module.ref, "capability:" + capabilityRef, "federation-link-requirement:" + hash},
+			})
+		}
+	}
+	return blockers, nil
+}
+
+func missingBackupTargetBindingBlockers(module readinessModule) ([]executionReadinessBlocker, error) {
+	var blockers []executionReadinessBlocker
+	for _, unit := range module.units {
+		requirementsRaw, requiresTarget := unit.planInputs["backupTargetRequirements"]
+		if !requiresTarget {
+			continue
+		}
+		bindingsRaw, hasBindings := unit.planInputs["externalBackupTargetBindings"]
+		if !hasBindings {
+			return nil, fail(ErrContractConflict, "modules."+module.id+".renderUnits."+unit.id+".planInputs", "backup target requirement is missing its external binding projection")
+		}
+		requirements, err := asObject(requirementsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.backupTargetRequirements")
+		if err != nil {
+			return nil, err
+		}
+		bindings, err := asObject(bindingsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.externalBackupTargetBindings")
+		if err != nil {
+			return nil, err
+		}
+		for _, siteRef := range sortedStringMapKeys(requirements) {
+			capabilityRequirements, err := asObject(requirements[siteRef], "backupTargetRequirements."+siteRef)
+			if err != nil {
+				return nil, err
+			}
+			capabilityBindings, _ := bindings[siteRef].(map[string]any)
+			for _, capabilityRef := range sortedStringMapKeys(capabilityRequirements) {
+				if _, bound := capabilityBindings[capabilityRef]; bound {
+					continue
+				}
+				requirement, err := asObject(capabilityRequirements[capabilityRef], "backupTargetRequirements."+siteRef+"."+capabilityRef)
+				if err != nil {
+					return nil, err
+				}
+				hash, err := stringField(requirement, "backupTargetRequirements."+siteRef+"."+capabilityRef, "requirementsHash")
+				if err != nil {
+					return nil, err
+				}
+				blockers = append(blockers, executionReadinessBlocker{
+					code: "external-backup-target-binding-missing",
+					refs: []string{module.ref, "site:" + siteRef, "capability:" + capabilityRef, "backup-target-requirement:" + hash},
+				})
+			}
+		}
+	}
+	return blockers, nil
+}
+
+func missingHomeBackupTargetBindingBlockers(module readinessModule) ([]executionReadinessBlocker, error) {
+	var blockers []executionReadinessBlocker
+	for _, unit := range module.units {
+		requirementsRaw, requiresTarget := unit.planInputs["homeBackupTargetRequirements"]
+		if !requiresTarget {
+			continue
+		}
+		bindingsRaw, hasBindings := unit.planInputs["externalHomeBackupTargetBindings"]
+		if !hasBindings {
+			return nil, fail(ErrContractConflict, "modules."+module.id+".renderUnits."+unit.id+".planInputs", "Home backup target requirement is missing its external binding projection")
+		}
+		requirements, err := asObject(requirementsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.homeBackupTargetRequirements")
+		if err != nil {
+			return nil, err
+		}
+		bindings, err := asObject(bindingsRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.externalHomeBackupTargetBindings")
+		if err != nil {
+			return nil, err
+		}
+		for _, siteRef := range sortedStringMapKeys(requirements) {
+			capabilityRequirements, err := asObject(requirements[siteRef], "homeBackupTargetRequirements."+siteRef)
+			if err != nil {
+				return nil, err
+			}
+			capabilityBindings, _ := bindings[siteRef].(map[string]any)
+			for _, capabilityRef := range sortedStringMapKeys(capabilityRequirements) {
+				if _, bound := capabilityBindings[capabilityRef]; bound {
+					continue
+				}
+				requirement, err := asObject(capabilityRequirements[capabilityRef], "homeBackupTargetRequirements."+siteRef+"."+capabilityRef)
+				if err != nil {
+					return nil, err
+				}
+				hash, err := stringField(requirement, "homeBackupTargetRequirements."+siteRef+"."+capabilityRef, "requirementsHash")
+				if err != nil {
+					return nil, err
+				}
+				blockers = append(blockers, executionReadinessBlocker{code: "external-home-backup-target-binding-missing", refs: []string{module.ref, "site:" + siteRef, "capability:" + capabilityRef, "home-backup-target-requirement:" + hash}})
+			}
+		}
+	}
 	return blockers, nil
 }
 

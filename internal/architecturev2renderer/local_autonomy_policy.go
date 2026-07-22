@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 )
@@ -164,6 +165,119 @@ type localAutonomyFailurePolicy struct {
 	LocalIdentityAuthorityAvailable bool   `json:"localIdentityAuthorityAvailable"`
 	MaxStaleVerificationSeconds     int    `json:"maxStaleVerificationSeconds"`
 	DenyNewCrossSiteSessions        bool   `json:"denyNewCrossSiteSessions"`
+}
+
+// LocalAutonomyEnforcementPolicy is the closed policy projection available to
+// the distinct runtime enforcer. It retains Home/Cloud failure semantics and
+// data placement authority without exposing endpoints, credentials, network
+// configuration, provider lifecycle, or general LAN reachability.
+type LocalAutonomyEnforcementPolicy struct {
+	StackID                         string
+	KitSlug                         string
+	HomeSiteRefs                    []string
+	CloudSiteRefs                   []string
+	ControlMode                     string
+	AuthoritySiteRef                string
+	ControlMembers                  []string
+	HumanAuthoritySiteRef           string
+	DeviceAuthoritySiteRef          string
+	EdgeVerifierSiteRefs            []string
+	DataDefaultAuthority            string
+	DataBindings                    []LocalAutonomyEnforcementDataBinding
+	OnCloudLoss                     string
+	OnLinkLoss                      string
+	CloudEdge                       string
+	LocalIdentityAuthorityAvailable bool
+	MaxStaleVerificationSeconds     int
+	DenyNewCrossSiteSessions        bool
+}
+
+type LocalAutonomyEnforcementDataBinding struct {
+	Ref                string
+	Classes            []string
+	PrimarySiteRef     string
+	ReplicaSiteRefs    []string
+	CloudCopyAllowed   bool
+	CloudCopyPolicyRef string
+	AllowedClasses     []string
+	AllowPrimary       bool
+	AllowReplicas      bool
+}
+
+type localAutonomyPolicyArtifact struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Contract   struct {
+		AirGappedInstallation string `json:"airGappedInstallation"`
+		Capability            string `json:"capability"`
+		RuntimeEnforcement    string `json:"runtimeEnforcement"`
+		Scope                 string `json:"scope"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// ValidateLocalAutonomyPolicyArtifact validates the exact generation-only
+// artifact before returning a defensive runtime projection. The unverified
+// marker is required because these bytes are policy input, never execution
+// evidence by themselves.
+func ValidateLocalAutonomyPolicyArtifact(raw []byte) (LocalAutonomyEnforcementPolicy, error) {
+	var document localAutonomyPolicyArtifact
+	if err := decodeStrict(raw, &document); err != nil {
+		return LocalAutonomyEnforcementPolicy{}, wrap(ErrInvalidPlan, "localAutonomyPolicy", "decode exact local-autonomy policy artifact", err)
+	}
+	if document.APIVersion != "stackkit.local-autonomy-policy/v1" || document.Kind != "LocalAutonomyPolicy" ||
+		document.Contract.AirGappedInstallation != "not-included" || document.Contract.Capability != "offline-autonomy" ||
+		document.Contract.RuntimeEnforcement != "unverified" || document.Contract.Scope != "generation-only" {
+		return LocalAutonomyEnforcementPolicy{}, fail(ErrInvalidPlan, "localAutonomyPolicy.contract", "artifact widens or fabricates the generation-only local-autonomy contract")
+	}
+	var inputs localAutonomyPlanInputs
+	if err := decodeStrict(document.PlanInputs, &inputs); err != nil {
+		return LocalAutonomyEnforcementPolicy{}, wrap(ErrInvalidPlan, "localAutonomyPolicy.planInputs", "decode exact local-autonomy policy inputs", err)
+	}
+	homeSiteRefs, err := validateLocalAutonomyPlanInputs(document.PlanInputs, "localAutonomyPolicy.planInputs")
+	if err != nil {
+		return LocalAutonomyEnforcementPolicy{}, err
+	}
+	cloudSiteRefs := make([]string, 0, len(inputs.Sites))
+	for _, site := range inputs.Sites {
+		if site.Kind == "cloud" {
+			cloudSiteRefs = append(cloudSiteRefs, site.ID)
+		}
+	}
+	sort.Strings(cloudSiteRefs)
+	policy := LocalAutonomyEnforcementPolicy{
+		StackID: inputs.StackID, KitSlug: inputs.Kit.Slug,
+		HomeSiteRefs: append([]string(nil), homeSiteRefs...), CloudSiteRefs: cloudSiteRefs,
+		ControlMode: inputs.ControlPlane.Mode, AuthoritySiteRef: inputs.ControlPlane.AuthoritySiteRef,
+		ControlMembers:        append([]string(nil), inputs.ControlPlane.Members...),
+		HumanAuthoritySiteRef: inputs.Identity.HumanAuthoritySiteRef, DeviceAuthoritySiteRef: inputs.Identity.DeviceAuthoritySiteRef,
+		EdgeVerifierSiteRefs: append([]string(nil), inputs.Identity.EdgeVerifierSiteRefs...), DataDefaultAuthority: inputs.Data.DefaultAuthority,
+		OnCloudLoss: inputs.FailurePolicy.OnCloudLoss, OnLinkLoss: inputs.FailurePolicy.OnLinkLoss, CloudEdge: inputs.FailurePolicy.CloudEdge,
+		LocalIdentityAuthorityAvailable: inputs.FailurePolicy.LocalIdentityAuthorityAvailable,
+		MaxStaleVerificationSeconds:     inputs.FailurePolicy.MaxStaleVerificationSeconds,
+		DenyNewCrossSiteSessions:        inputs.FailurePolicy.DenyNewCrossSiteSessions,
+	}
+	bindingRefs := make([]string, 0, len(inputs.Data.Bindings))
+	for ref := range inputs.Data.Bindings {
+		bindingRefs = append(bindingRefs, ref)
+	}
+	sort.Strings(bindingRefs)
+	policy.DataBindings = make([]LocalAutonomyEnforcementDataBinding, 0, len(bindingRefs))
+	for _, ref := range bindingRefs {
+		binding := inputs.Data.Bindings[ref]
+		projected := LocalAutonomyEnforcementDataBinding{
+			Ref: ref, Classes: append([]string(nil), binding.Classes...), PrimarySiteRef: binding.PrimarySiteRef,
+			ReplicaSiteRefs: append([]string(nil), binding.ReplicaSiteRefs...), CloudCopyAllowed: binding.CloudCopyAllowed,
+		}
+		if binding.CloudCopyPolicy != nil {
+			projected.CloudCopyPolicyRef = binding.CloudCopyPolicy.PolicyRef
+			projected.AllowedClasses = append([]string(nil), binding.CloudCopyPolicy.AllowedClasses...)
+			projected.AllowPrimary = binding.CloudCopyPolicy.AllowPrimary
+			projected.AllowReplicas = binding.CloudCopyPolicy.AllowReplicas
+		}
+		policy.DataBindings = append(policy.DataBindings, projected)
+	}
+	return policy, nil
 }
 
 func validateLocalAutonomyPolicyUnit(unit RenderUnit, contract RendererContract) ([]byte, error) {

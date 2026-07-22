@@ -29,12 +29,18 @@ const (
 )
 
 const (
-	ErrExternalHostBindingStale          ErrorCode = "external_host_binding_stale"
-	ErrHostConformanceReceiptMissing     ErrorCode = "host_conformance_receipt_missing"
-	ErrHostConformanceReceiptStale       ErrorCode = "host_conformance_receipt_stale"
-	ErrHostConformanceReceiptRejected    ErrorCode = "host_conformance_receipt_rejected"
-	ErrExternalHomeAccessBindingStale    ErrorCode = "external_home_access_binding_stale"
-	ErrExternalHomeAccessBindingMismatch ErrorCode = "external_home_access_binding_mismatch"
+	ErrExternalHostBindingStale                ErrorCode = "external_host_binding_stale"
+	ErrHostConformanceReceiptMissing           ErrorCode = "host_conformance_receipt_missing"
+	ErrHostConformanceReceiptStale             ErrorCode = "host_conformance_receipt_stale"
+	ErrHostConformanceReceiptRejected          ErrorCode = "host_conformance_receipt_rejected"
+	ErrExternalHomeAccessBindingStale          ErrorCode = "external_home_access_binding_stale"
+	ErrExternalHomeAccessBindingMismatch       ErrorCode = "external_home_access_binding_mismatch"
+	ErrExternalBackupTargetBindingStale        ErrorCode = "external_backup_target_binding_stale"
+	ErrExternalBackupTargetBindingMismatch     ErrorCode = "external_backup_target_binding_mismatch"
+	ErrExternalHomeBackupTargetBindingStale    ErrorCode = "external_home_backup_target_binding_stale"
+	ErrExternalHomeBackupTargetBindingMismatch ErrorCode = "external_home_backup_target_binding_mismatch"
+	ErrExternalFederationLinkBindingStale      ErrorCode = "external_federation_link_binding_stale"
+	ErrExternalFederationLinkBindingMismatch   ErrorCode = "external_federation_link_binding_mismatch"
 )
 
 // CompileError identifies a fail-closed compiler decision.

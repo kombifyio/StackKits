@@ -177,7 +177,7 @@ _architectureV2WorkloadContracts: [#WorkloadContractV2 & {
 		inputs: {
 			settings: {allowedRefs: [], requiredRefs: []}
 			secretInputs: {
-				allowedRefs:  ["database-password"]
+				allowedRefs: ["database-password"]
 				requiredRefs: ["database-password"]
 			}
 		}
@@ -835,7 +835,10 @@ _architectureV2HomeExtensionRuntimeArtifacts: {
 		id:                    "home-encrypted-offsite-backup-executor-contract"
 		outputRef:             "home/backup/offsite-executor-contract.json"
 		requiresAccessBinding: false
+		requiresBackupBinding: true
 	}
+	privateRemoteAccess: requiresBackupBinding: false
+	publicPublishEgress: requiresBackupBinding: false
 }
 
 _architectureV2HomeExtensionRuntimeSupports: {
@@ -851,6 +854,7 @@ _architectureV2HomeExtensionRuntimeSupports: {
 				requiredRefs: list.Concat([
 					["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"],
 					[for ref in ["homeAccessRequirements", "externalHomeAccessBindings"] if artifact.requiresAccessBinding {ref}],
+					[for ref in ["homeBackupTargetRequirements", "externalHomeBackupTargetBindings"] if artifact.requiresBackupBinding {ref}],
 				])
 			}
 			artifacts: {
@@ -921,7 +925,7 @@ _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "publicEdge", "data", "failurePolicy"]
 	}
 	artifacts: {
 		requiredRefs: ["cloud-public-edge-executor-contract"]
@@ -943,7 +947,7 @@ _architectureV2CloudOffsiteBackupSupport: #ModuleRealizationSupportV2 & {
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy", "backupTargetRequirements", "externalBackupTargetBindings"]
 	}
 	artifacts: {
 		requiredRefs: ["cloud-offsite-backup-executor-contract"]
@@ -1449,7 +1453,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://home/backup/offsite-executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:c6ba1e9050b63a30fc9436a5325f86801b2adf08e3857708aac91c6a93cab05b"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability", "homeBackupTargetRequirements", "externalHomeBackupTargetBindings"]
 			inputBindings: [], outputs: ["home/backup/offsite-executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1489,7 +1493,7 @@ _architectureV2Modules: list.Concat([[
 			status: "unbound", ownerRef: "stackkits-home-device-authority-enforcer"
 			policyArtifactRefs: ["home-device-authority-policy"]
 			targetScope: "home-control-authority"
-			operations: ["enroll-device", "issue-device-credential", "revoke-device-credential"]
+			operations: ["configure-device-enrollment", "configure-device-credential-issuer", "configure-device-credential-revocation"]
 			requiredHealthRef:   "home-device-authority-enforcement"
 			requiredEvidenceRef: "home-device-authority-enforcement"
 		}
@@ -1716,16 +1720,16 @@ _architectureV2Modules: list.Concat([[
 			status:         "unbound", ownerRef: "stackkits-cloud-public-edge-executor"
 			capabilityRefs: _architectureV2CloudPublicEdgeCapabilities
 			targetScope:    "cloud-sites"
-			operations: ["apply-public-edge", "remove-public-edge", "verify-public-edge"]
+			operations: ["apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge"]
 			requiredHealthRef:   "cloud-public-edge-health"
 			requiredEvidenceRef: "cloud-public-edge-evidence"
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                        "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/public-edge/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:55c47c16f0eac758080a66f6ff818bea7fd9d744daee3cb0858b3417905480f3"
+			contractHash: "sha256:a80935bb0beb77bd3d226317be6f4756612eaac96037554783efdd6200a7f439"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "publicEdge", "data", "failurePolicy"]
 			outputs: ["cloud/public-edge/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1757,7 +1761,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://cloud/backup/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:9fde3c773f0dc0c6d6e353caa82f52bb3d1b699f30e66ba87f2bf7aae3040a47"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy", "backupTargetRequirements", "externalBackupTargetBindings"]
 			outputs: ["cloud/backup/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1838,14 +1842,14 @@ _architectureV2Modules: list.Concat([[
 			status: "unbound", ownerRef: "stackkits-cloud-identity-trust-enforcer"
 			policyArtifactRefs: ["cloud-identity-trust-policy"]
 			targetScope: "cloud-sites"
-			operations: ["issue-human-credential", "issue-workload-credential", "verify-device-session", "verify-human-session", "verify-workload-identity"]
+			operations: ["configure-human-credential-issuer", "configure-workload-credential-issuer", "verify-device-session", "verify-human-session", "verify-workload-identity"]
 			requiredHealthRef:   "cloud-identity-trust-enforcement"
 			requiredEvidenceRef: "cloud-identity-trust-enforcement"
 		}
 		renderUnits: [{
 			id:           "policy-bundle", kind:                                    "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/identity-trust-policy/v1.json", version: "1.0.0"
-			contractHash: "sha256:84b7e97941c6b36d24ee0a59c594cef45926e22dc20f7d16acbf6f8fa0c95ca4"
+			contractHash: "sha256:a62d3f2df95c7384af6a46df1436a811ca5a163fd9361c1b07e8db0422bbb8c2"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "sites", "identityTrust"]
 			outputs: ["cloud/identity/trust-policy.json"]
@@ -2020,13 +2024,13 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "immich-server", role: "application", lifecycle: "daemon"
 					image: {
-						ref: "ghcr.io/immich-app/immich-server:v2.7.0"
+						ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
 						digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
 					}
 					dependsOn: ["immich-machine-learning", "immich-postgres-init", "immich-valkey"]
 					networkRefs: ["immich-internal"]
 					environment: {
-						DB_HOSTNAME: "immich-postgres", DB_PORT: "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"
+						DB_HOSTNAME:    "immich-postgres", DB_PORT:  "5432", DB_USERNAME:                 "immich", DB_DATABASE_NAME: "immich"
 						REDIS_HOSTNAME: "immich-valkey", REDIS_PORT: "6379", IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
 					}
 					secretEnvironment: DB_PASSWORD: "database-password"
@@ -2036,7 +2040,7 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
 					image: {
-						ref: "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
+						ref:    "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
 						digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"
 					}
 					dependsOn: [], networkRefs: ["immich-internal"]
@@ -2046,7 +2050,7 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "immich-postgres", role: "database", lifecycle: "daemon"
 					image: {
-						ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
 						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
 					}
 					dependsOn: [], networkRefs: ["immich-internal"]
@@ -2058,7 +2062,7 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "immich-postgres-init", role: "database-init", lifecycle: "one-shot"
 					image: {
-						ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
 						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
 					}
 					dependsOn: ["immich-postgres"], networkRefs: ["immich-internal"]
@@ -2070,7 +2074,7 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "immich-valkey", role: "cache", lifecycle: "daemon"
 					image: {
-						ref: "docker.io/valkey/valkey:9"
+						ref:    "docker.io/valkey/valkey:9"
 						digest: "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9"
 					}
 					dependsOn: [], networkRefs: ["immich-internal"]
@@ -2080,9 +2084,9 @@ _architectureV2Modules: list.Concat([[
 			]
 		}
 		renderUnits: [{
-			id:           "immich-server"
-			kind:         "native-config"
-			rendererRef:  "stackkit"
+			id:          "immich-server"
+			kind:        "native-config"
+			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/immich/bundle/v1.json"
 			version:      "2.0.0"
@@ -2111,13 +2115,13 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [
 			{
-				id: "compose", target: "compose", rendererRef: "stackkit"
+				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:383c8a53811d3c7abb2049a188af77152367ea56b7c47716dc9a7144b7cda99e"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
 				publicInputRefs: [], secretInputRefs: ["database-password"], planInputRefs: []
 			},
 			{
-				id: "opentofu", target: "opentofu", rendererRef: "stackkit"
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:c8cafbfb8ada7743566432b94ad908dfaef53b62db343f80e38fad5c34ab9d33"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
 				publicInputRefs: [], secretInputRefs: ["database-password"], planInputRefs: []

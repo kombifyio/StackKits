@@ -378,6 +378,69 @@ func earliestApplyEvidenceExpiry(bundle ApplyEvidenceBundle, plan resolvedplan.R
 			}
 		}
 	}
+	backupSites, ok := plan["externalBackupTargetBindings"].(map[string]any)
+	if !ok {
+		return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalBackupTargetBindings", "must be an object")
+	}
+	for siteRef, rawCapabilities := range backupSites {
+		capabilities, ok := rawCapabilities.(map[string]any)
+		if !ok {
+			return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalBackupTargetBindings."+siteRef, "must be an object")
+		}
+		for capabilityRef, rawBinding := range capabilities {
+			binding, ok := rawBinding.(map[string]any)
+			if !ok {
+				return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalBackupTargetBindings."+siteRef+"."+capabilityRef, "must be an object")
+			}
+			validUntil, ok := binding["validUntil"].(string)
+			if !ok || validUntil == "" {
+				return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalBackupTargetBindings."+siteRef+"."+capabilityRef+".validUntil", "must be a canonical timestamp")
+			}
+			if err := include(validUntil, "resolvedPlan.externalBackupTargetBindings."+siteRef+"."+capabilityRef+".validUntil"); err != nil {
+				return time.Time{}, err
+			}
+		}
+	}
+	homeBackupSites, ok := plan["externalHomeBackupTargetBindings"].(map[string]any)
+	if !ok {
+		return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalHomeBackupTargetBindings", "must be an object")
+	}
+	for siteRef, rawCapabilities := range homeBackupSites {
+		capabilities, ok := rawCapabilities.(map[string]any)
+		if !ok {
+			return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalHomeBackupTargetBindings."+siteRef, "must be an object")
+		}
+		for capabilityRef, rawBinding := range capabilities {
+			binding, ok := rawBinding.(map[string]any)
+			if !ok {
+				return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalHomeBackupTargetBindings."+siteRef+"."+capabilityRef, "must be an object")
+			}
+			validUntil, ok := binding["validUntil"].(string)
+			if !ok || validUntil == "" {
+				return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalHomeBackupTargetBindings."+siteRef+"."+capabilityRef+".validUntil", "must be a canonical timestamp")
+			}
+			if err := include(validUntil, "resolvedPlan.externalHomeBackupTargetBindings."+siteRef+"."+capabilityRef+".validUntil"); err != nil {
+				return time.Time{}, err
+			}
+		}
+	}
+	federationBindings, ok := plan["externalFederationLinkBindings"].(map[string]any)
+	if !ok {
+		return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalFederationLinkBindings", "must be an object")
+	}
+	for capabilityRef, rawBinding := range federationBindings {
+		binding, ok := rawBinding.(map[string]any)
+		if !ok {
+			return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalFederationLinkBindings."+capabilityRef, "must be an object")
+		}
+		validUntil, ok := binding["validUntil"].(string)
+		if !ok || validUntil == "" {
+			return time.Time{}, fail(ErrInvalidPlan, "resolvedPlan.externalFederationLinkBindings."+capabilityRef+".validUntil", "must be a canonical timestamp")
+		}
+		if err := include(validUntil, "resolvedPlan.externalFederationLinkBindings."+capabilityRef+".validUntil"); err != nil {
+			return time.Time{}, err
+		}
+	}
 	if earliest.IsZero() {
 		return time.Time{}, fail(ErrEvidenceFreshness, "applyEvidence.bundle.receipts", "no finite evidence expiry was projected")
 	}

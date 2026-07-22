@@ -29,14 +29,23 @@ import (
 // External host references are opaque control-plane handles. Their fixed
 // schemes deliberately carry no server-provider, account, region, native
 // resource, address, or credential semantics into StackKits.
-#ExternalHostBindingRef:       string & =~"^host-binding://sha256/[a-f0-9]{64}$"
-#ExternalHostRef:              string & =~"^host://sha256/[a-f0-9]{64}$"
-#ExternalInventoryRef:         string & =~"^host-inventory://sha256/[a-f0-9]{64}$"
-#ExecutionChannelRef:          string & =~"^execution-channel://sha256/[a-f0-9]{64}$"
-#HostConformanceRef:           string & =~"^host-conformance://sha256/[a-f0-9]{64}$"
-#ExternalHomeAccessBindingRef: string & =~"^home-access-binding://sha256/[a-f0-9]{64}$"
-#HomeAccessFabricRef:          string & =~"^home-access-fabric://sha256/[a-f0-9]{64}$"
-#RFC3339Timestamp:             string & =~"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{0,8}[1-9])?Z$"
+#ExternalHostBindingRef:             string & =~"^host-binding://sha256/[a-f0-9]{64}$"
+#ExternalHostRef:                    string & =~"^host://sha256/[a-f0-9]{64}$"
+#ExternalInventoryRef:               string & =~"^host-inventory://sha256/[a-f0-9]{64}$"
+#ExecutionChannelRef:                string & =~"^execution-channel://sha256/[a-f0-9]{64}$"
+#HostConformanceRef:                 string & =~"^host-conformance://sha256/[a-f0-9]{64}$"
+#ExternalHomeAccessBindingRef:       string & =~"^home-access-binding://sha256/[a-f0-9]{64}$"
+#HomeAccessFabricRef:                string & =~"^home-access-fabric://sha256/[a-f0-9]{64}$"
+#ExternalBackupTargetBindingRef:     string & =~"^backup-target-binding://sha256/[a-f0-9]{64}$"
+#ExternalBackupTargetRef:            string & =~"^backup-target://sha256/[a-f0-9]{64}$"
+#BackupCustodyAttestationRef:        string & =~"^backup-custody-attestation://sha256/[a-f0-9]{64}$"
+#ExternalHomeBackupTargetBindingRef: string & =~"^home-backup-target-binding://sha256/[a-f0-9]{64}$"
+#ExternalHomeBackupTargetRef:        string & =~"^home-backup-target://sha256/[a-f0-9]{64}$"
+#HomeBackupCustodyAttestationRef:    string & =~"^home-backup-custody-attestation://sha256/[a-f0-9]{64}$"
+#ExternalFederationLinkBindingRef:   string & =~"^federation-link-binding://sha256/[a-f0-9]{64}$"
+#FederationLinkFabricRef:            string & =~"^federation-link-fabric://sha256/[a-f0-9]{64}$"
+#FederationLinkCustodyRef:           string & =~"^federation-link-custody-attestation://sha256/[a-f0-9]{64}$"
+#RFC3339Timestamp:                   string & =~"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{0,8}[1-9])?Z$"
 
 // #UnixSocketPath is a canonical absolute Unix-domain socket path. The
 // portable ASCII segment set keeps the path deterministic across authority,
@@ -2743,7 +2752,7 @@ _servicePublicationShape: {
 // resolved-plan views that a render unit may consume. These are not user
 // settings and they never expose the full plan, node inventory, secretRefs,
 // management endpoints, or daemon/socket bindings.
-#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicTLS"
+#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS"
 
 // #ModuleRenderInputBindingV2 is the closed field-level seam from resolved
 // architecture authority into public renderer inputs. Sources are finite and
@@ -3071,6 +3080,21 @@ _servicePublicationShape: {
 // Definitions are closed in CUE, so planInputs rejects every field outside
 // the catalog-governed projection union. Presence is bound 1:1 to
 // planInputRefs by #ResolvedModuleRenderUnitV2 below.
+#ModulePublicEdgeV1: {
+	capabilityRef: "public-edge"
+	routes: [...#ModulePublicResolvedRouteV4] | *[]
+	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
+	_exactEdgeRoutes: [for route in routes {
+		exposure: route.exposure & "public"
+		tls: {
+			required: route.tls.required & true
+			mode:     route.tls.mode & "terminate-at-edge"
+		}
+		access: defaultClosed: route.access.defaultClosed & true
+		edgeAuthority: [for authority in route.capabilityAuthorities if authority.capabilityRef == capabilityRef && authority.role == "edge" {authority.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+}
+
 #ModulePlanInputsV2: {
 	stackId?: #ContractID
 	kit?: {
@@ -3087,14 +3111,21 @@ _servicePublicationShape: {
 	failurePolicy?:     #PartitionPolicy
 	localReachability?: #ModuleLocalReachabilityV2
 	homeLANDiscovery?:  #HomeLANDiscoveryProjectionV2
-	homeAccessRequirements?: [#SiteID]: [#CapabilityID]:     #HomeAccessRequirementV1
-	externalHomeAccessBindings?: [#SiteID]: [#CapabilityID]: #ExternalHomeAccessBindingV1
+	homeAccessRequirements?: [#SiteID]: [#CapabilityID]:           #HomeAccessRequirementV1
+	externalHomeAccessBindings?: [#SiteID]: [#CapabilityID]:       #ExternalHomeAccessBindingV1
+	backupTargetRequirements?: [#SiteID]: [#CapabilityID]:         #BackupTargetRequirementV1
+	externalBackupTargetBindings?: [#SiteID]: [#CapabilityID]:     #ExternalBackupTargetBindingV1
+	homeBackupTargetRequirements?: [#SiteID]: [#CapabilityID]:     #HomeBackupTargetRequirementV1
+	externalHomeBackupTargetBindings?: [#SiteID]: [#CapabilityID]: #ExternalHomeBackupTargetBindingV1
+	federationLinkRequirements?: [#CapabilityID]:     #FederationLinkRequirementV1
+	externalFederationLinkBindings?: [#CapabilityID]: #ExternalFederationLinkBindingV1
 	moduleTargets?: [...#ModulePlanTargetV2] & list.MinItems(1)
 	moduleCapabilities?: [...#ModulePlanCapabilityV2] & list.MinItems(1)
 	hostRuntimePolicy?:  #ModuleHostRuntimePolicyV2
 	storagePolicy?:      #ModuleStoragePolicyV2
 	localNetworkPolicy?: #ModuleLocalNetworkPolicyV2
 	cloudNetworkPolicy?: #ModuleCloudNetworkPolicyV2
+	publicEdge?:         #ModulePublicEdgeV1
 	publicTLS?:          #ModulePublicTLSV2
 }
 
@@ -3951,6 +3982,170 @@ _servicePublicationShape: {
 	bindingHash:            #ContentHash
 }
 
+// #BackupTargetRequirementV1 is the StackKits-owned, provider-neutral
+// requirement for one Cloud offsite backup target. It identifies only the
+// governed Site/node/capability scope and custody properties. Provider,
+// account, region, bucket, endpoint, credential, lease, and lifecycle details
+// are deliberately outside this contract.
+#BackupTargetRequirementV1: {
+	apiVersion:             "stackkit.backup-target-requirement/v1"
+	kind:                   "BackupTargetRequirement"
+	stackId:                #ContractID
+	siteRef:                #SiteID
+	capabilityRef:          "offsite-object-backup"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	targetNodeRefs: [...#NodeID] & list.MinItems(1)
+	policy: {
+		scope:                       "governed-data-only"
+		encryptionRequired:          true
+		credentialCustody:           "external"
+		targetLifecycle:             "external"
+		restoreVerificationRequired: true
+		providerSelection:           "external"
+	}
+	specHash:         #ContentHash
+	requirementsHash: #ContentHash
+
+	_targetNodeRefsUnique: list.UniqueItems(targetNodeRefs) & true
+}
+
+// #ExternalBackupTargetBindingV1 attests that an external authority has
+// prepared one logical target for the exact requirement. References remain
+// opaque, so this receipt cannot smuggle provider or secret material into a
+// StackKit plan.
+#ExternalBackupTargetBindingV1: {
+	apiVersion:             "stackkit.external-backup-target-binding/v1"
+	kind:                   "ExternalBackupTargetBinding"
+	bindingRef:             #ExternalBackupTargetBindingRef
+	backupTargetRef:        #ExternalBackupTargetRef
+	custodyAttestationRef:  #BackupCustodyAttestationRef
+	stackId:                #ContractID
+	siteRef:                #SiteID
+	capabilityRef:          "offsite-object-backup"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	requirementsHash:       #ContentHash
+	stackkitsVersion:       #SemanticVersion
+	candidateDigest:        #ContentHash
+	specHash:               #ContentHash
+	issuedAt:               #RFC3339Timestamp
+	validUntil:             #RFC3339Timestamp
+	bindingHash:            #ContentHash
+}
+
+// #HomeBackupTargetRequirementV1 is the provider-free Home offsite backup
+// handoff. Home owns encryption before egress; the external authority owns
+// target custody and lifecycle without exposing infrastructure details.
+#HomeBackupTargetRequirementV1: {
+	apiVersion:             "stackkit.home-backup-target-requirement/v1"
+	kind:                   "HomeBackupTargetRequirement"
+	stackId:                #ContractID
+	siteRef:                #SiteID
+	capabilityRef:          "encrypted-offsite-backup"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	targetNodeRefs: [...#NodeID] & list.MinItems(1)
+	policy: {
+		scope:                       "governed-home-data-only"
+		encryptionRequired:          true
+		encryptionAuthority:         "home"
+		plaintextEgressAllowed:      false
+		credentialCustody:           "external"
+		targetLifecycle:             "external"
+		restoreVerificationRequired: true
+		providerSelection:           "external"
+	}
+	specHash:         #ContentHash
+	requirementsHash: #ContentHash
+
+	_targetNodeRefsUnique: list.UniqueItems(targetNodeRefs) & true
+}
+
+#ExternalHomeBackupTargetBindingV1: {
+	apiVersion:             "stackkit.external-home-backup-target-binding/v1"
+	kind:                   "ExternalHomeBackupTargetBinding"
+	bindingRef:             #ExternalHomeBackupTargetBindingRef
+	backupTargetRef:        #ExternalHomeBackupTargetRef
+	custodyAttestationRef:  #HomeBackupCustodyAttestationRef
+	stackId:                #ContractID
+	siteRef:                #SiteID
+	capabilityRef:          "encrypted-offsite-backup"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	requirementsHash:       #ContentHash
+	stackkitsVersion:       #SemanticVersion
+	candidateDigest:        #ContentHash
+	specHash:               #ContentHash
+	issuedAt:               #RFC3339Timestamp
+	validUntil:             #RFC3339Timestamp
+	bindingHash:            #ContentHash
+}
+
+// #FederationLinkRequirementV1 is the complete provider-free handoff for the
+// exact Modern Homelab Home<->Cloud link scope. The external fabric authority
+// receives identities and hashes, never transport, routes, addresses,
+// endpoints, credentials, relay handles, or infrastructure lifecycle fields.
+#FederationLinkRequirementV1: {
+	apiVersion:             "stackkit.federation-link-requirement/v1"
+	kind:                   "FederationLinkRequirement"
+	stackId:                #ContractID
+	capabilityRef:          "inter-site-link"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	homeSiteRefs: [...#SiteID] & list.MinItems(1)
+	cloudSiteRefs: [...#SiteID] & list.MinItems(1)
+	targetNodes: [...{
+		siteRef: #SiteID
+		nodeRef: #NodeID
+	}] & list.MinItems(1)
+	bridgeContractHash: #ContentHash
+	policy: {
+		defaultDeny:       true
+		initiation:        "home-outbound"
+		trafficMode:       "management-only" | "policy-scoped"
+		routeScope:        "declared-flows-only"
+		allowDefaultRoute: false
+		allowBroadLAN:     false
+		credentialCustody: "external"
+		fabricLifecycle:   "external"
+	}
+	specHash:         #ContentHash
+	requirementsHash: #ContentHash
+
+	_homeSiteRefsUnique:  list.UniqueItems(homeSiteRefs) & true
+	_cloudSiteRefsUnique: list.UniqueItems(cloudSiteRefs) & true
+	_targetNodesUnique:   list.UniqueItems(targetNodes) & true
+}
+
+// #ExternalFederationLinkBindingV1 is a short-lived opaque attestation from
+// the external fabric authority for exactly one compiler-owned requirement.
+#ExternalFederationLinkBindingV1: {
+	apiVersion:             "stackkit.external-federation-link-binding/v1"
+	kind:                   "ExternalFederationLinkBinding"
+	bindingRef:             #ExternalFederationLinkBindingRef
+	fabricRef:              #FederationLinkFabricRef
+	custodyAttestationRef:  #FederationLinkCustodyRef
+	stackId:                #ContractID
+	capabilityRef:          "inter-site-link"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	homeSiteRefs: [...#SiteID] & list.MinItems(1)
+	cloudSiteRefs: [...#SiteID] & list.MinItems(1)
+	targetNodes: [...{
+		siteRef: #SiteID
+		nodeRef: #NodeID
+	}] & list.MinItems(1)
+	bridgeContractHash: #ContentHash
+	requirementsHash:   #ContentHash
+	stackkitsVersion:   #SemanticVersion
+	candidateDigest:    #ContentHash
+	specHash:           #ContentHash
+	issuedAt:           #RFC3339Timestamp
+	validUntil:         #RFC3339Timestamp
+	bindingHash:        #ContentHash
+}
+
 // Host facts are conformance diagnostics. Only the OS tuple participates in
 // the StackKits support/compatibility statement; kernel, runtime, and
 // virtualization observations explain why a particular host is or is not
@@ -4029,8 +4224,22 @@ _servicePublicationShape: {
 #InventoryFacts: {
 	schemaVersion: "stackkit.inventory/v1"
 	externalHomeAccessBindings: [#SiteID]: [#CapabilityID]: #ExternalHomeAccessBindingV1 | *{}
+	externalBackupTargetBindings: [#SiteID]: [#CapabilityID]: #ExternalBackupTargetBindingV1 | *{}
+	externalHomeBackupTargetBindings: [#SiteID]: [#CapabilityID]: #ExternalHomeBackupTargetBindingV1 | *{}
+	externalFederationLinkBindings: [#CapabilityID]: #ExternalFederationLinkBindingV1 | *{}
 	_externalHomeAccessBindingKeys: [for siteRef, capabilityBindings in externalHomeAccessBindings for capabilityRef, binding in capabilityBindings {
 		site:       siteRef & binding.siteRef
+		capability: capabilityRef & binding.capabilityRef
+	}]
+	_externalBackupTargetBindingKeys: [for siteRef, capabilityBindings in externalBackupTargetBindings for capabilityRef, binding in capabilityBindings {
+		site:       siteRef & binding.siteRef
+		capability: capabilityRef & binding.capabilityRef
+	}]
+	_externalHomeBackupTargetBindingKeys: [for siteRef, capabilityBindings in externalHomeBackupTargetBindings for capabilityRef, binding in capabilityBindings {
+		site:       siteRef & binding.siteRef
+		capability: capabilityRef & binding.capabilityRef
+	}]
+	_externalFederationLinkBindingKeys: [for capabilityRef, binding in externalFederationLinkBindings {
 		capability: capabilityRef & binding.capabilityRef
 	}]
 	nodes: [#NodeID]: {
@@ -5153,6 +5362,9 @@ _servicePublicationShape: {
 	"policy-enforcement-owner-unbound" |
 	"runtime-owner-unbound" |
 	"external-home-access-binding-missing" |
+	"external-backup-target-binding-missing" |
+	"external-home-backup-target-binding-missing" |
+	"external-federation-link-binding-missing" |
 	"required-evidence-missing" |
 	"bridge-overlay-unverified" |
 	"bridge-control-agent-unverified" |
@@ -5169,7 +5381,7 @@ _servicePublicationShape: {
 // Human prose deliberately stays outside the signed plan contract.
 #ExecutionReadinessBlockerV1: {
 	code: #ExecutionReadinessBlockerCodeV1
-	refs: [...string & =~"^(module|unit|provider|renderer|input|artifact|evidence|enforcement|runtime-owner|bridge|publication|identity|tls|health|route|backend-pool|site|capability|home-access-requirement):[^[:space:]]+$"] & list.MinItems(1)
+	refs: [...string & =~"^(module|unit|provider|renderer|input|artifact|evidence|enforcement|runtime-owner|bridge|publication|identity|tls|health|route|backend-pool|site|capability|home-access-requirement|backup-target-requirement|home-backup-target-requirement|federation-link-requirement):[^[:space:]]+$"] & list.MinItems(1)
 	_refsUnique: list.UniqueItems(refs) & true
 }
 
@@ -5284,8 +5496,14 @@ _servicePublicationShape: {
 	nodes: [...#NodeSpecV2] & list.MinItems(1)
 	externalHostBindings: [#NodeID]:    #ExternalHostBindingV1
 	hostConformanceReceipts: [#NodeID]: #HostConformanceReceiptV1
-	homeAccessRequirements: [#SiteID]: [#CapabilityID]:     #HomeAccessRequirementV1
-	externalHomeAccessBindings: [#SiteID]: [#CapabilityID]: #ExternalHomeAccessBindingV1
+	homeAccessRequirements: [#SiteID]: [#CapabilityID]:           #HomeAccessRequirementV1
+	externalHomeAccessBindings: [#SiteID]: [#CapabilityID]:       #ExternalHomeAccessBindingV1
+	backupTargetRequirements: [#SiteID]: [#CapabilityID]:         #BackupTargetRequirementV1
+	externalBackupTargetBindings: [#SiteID]: [#CapabilityID]:     #ExternalBackupTargetBindingV1
+	homeBackupTargetRequirements: [#SiteID]: [#CapabilityID]:     #HomeBackupTargetRequirementV1
+	externalHomeBackupTargetBindings: [#SiteID]: [#CapabilityID]: #ExternalHomeBackupTargetBindingV1
+	federationLinkRequirements: [#CapabilityID]:     #FederationLinkRequirementV1
+	externalFederationLinkBindings: [#CapabilityID]: #ExternalFederationLinkBindingV1
 	_siteIDsUnique: list.UniqueItems([for site in sites {site.id}]) & true
 	_nodeIDsUnique: list.UniqueItems([for node in nodes {node.id}]) & true
 	_externalHostBindingNodes: [for nodeRef, binding in externalHostBindings {
@@ -5312,6 +5530,48 @@ _servicePublicationShape: {
 			for requirementSiteRef, capabilityRequirements in homeAccessRequirements
 			for requirementCapabilityRef, requirement in capabilityRequirements
 			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && binding.siteRef == siteRef && binding.capabilityRef == capabilityRef && binding.stackId == stackId && binding.specHash == specHash && binding.contractOwnerRef == requirement.contractOwnerRef && binding.capabilityContractHash == requirement.capabilityContractHash && binding.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_backupTargetRequirementKeys: [for siteRef, capabilityRequirements in backupTargetRequirements for capabilityRef, requirement in capabilityRequirements {
+		site:       siteRef & requirement.siteRef
+		capability: capabilityRef & requirement.capabilityRef
+		stack:      stackId & requirement.stackId
+		spec:       specHash & requirement.specHash
+	}]
+	_externalBackupTargetBindingKeys: [for siteRef, capabilityBindings in externalBackupTargetBindings for capabilityRef, binding in capabilityBindings {
+		site:       siteRef
+		capability: capabilityRef
+		matches: [
+			for requirementSiteRef, capabilityRequirements in backupTargetRequirements
+			for requirementCapabilityRef, requirement in capabilityRequirements
+			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && binding.siteRef == siteRef && binding.capabilityRef == capabilityRef && binding.stackId == stackId && binding.specHash == specHash && binding.contractOwnerRef == requirement.contractOwnerRef && binding.capabilityContractHash == requirement.capabilityContractHash && binding.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_homeBackupTargetRequirementKeys: [for siteRef, capabilityRequirements in homeBackupTargetRequirements for capabilityRef, requirement in capabilityRequirements {
+		site:       siteRef & requirement.siteRef
+		capability: capabilityRef & requirement.capabilityRef
+		stack:      stackId & requirement.stackId
+		spec:       specHash & requirement.specHash
+	}]
+	_externalHomeBackupTargetBindingKeys: [for siteRef, capabilityBindings in externalHomeBackupTargetBindings for capabilityRef, binding in capabilityBindings {
+		site:       siteRef
+		capability: capabilityRef
+		matches: [
+			for requirementSiteRef, capabilityRequirements in homeBackupTargetRequirements
+			for requirementCapabilityRef, requirement in capabilityRequirements
+			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && binding.siteRef == siteRef && binding.capabilityRef == capabilityRef && binding.stackId == stackId && binding.specHash == specHash && binding.contractOwnerRef == requirement.contractOwnerRef && binding.capabilityContractHash == requirement.capabilityContractHash && binding.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_federationLinkRequirementKeys: [for capabilityRef, requirement in federationLinkRequirements {
+		capability: capabilityRef & requirement.capabilityRef
+		stack:      stackId & requirement.stackId
+		spec:       specHash & requirement.specHash
+	}]
+	_externalFederationLinkBindingKeys: [for capabilityRef, binding in externalFederationLinkBindings {
+		capability: capabilityRef
+		matches: [
+			for requirementCapabilityRef, requirement in federationLinkRequirements
+			if requirementCapabilityRef == capabilityRef && binding.capabilityRef == capabilityRef && binding.stackId == stackId && binding.specHash == specHash && binding.contractOwnerRef == requirement.contractOwnerRef && binding.capabilityContractHash == requirement.capabilityContractHash && binding.bridgeContractHash == requirement.bridgeContractHash && binding.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
 		] & list.MinItems(1) & list.MaxItems(1)
 	}]
 	controlPlane: #ControlPlaneIntent

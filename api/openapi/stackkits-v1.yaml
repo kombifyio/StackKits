@@ -1541,6 +1541,27 @@ components:
             type: object
             additionalProperties:
               $ref: "#/components/schemas/ArchitectureV2ExternalHomeAccessBinding"
+        externalBackupTargetBindings:
+          type: object
+          description: >-
+            Optional externally issued Cloud backup target bindings, keyed by Cloud Site and offsite-object-backup capability.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalBackupTargetBinding"
+        externalHomeBackupTargetBindings:
+          type: object
+          description: >-
+            Optional opaque Home encrypted-backup target bindings, keyed by Home Site and encrypted-offsite-backup capability.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalHomeBackupTargetBinding"
+        externalFederationLinkBindings:
+          type: object
+          description: Optional opaque Modern Federation link bindings keyed by inter-site-link.
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ExternalFederationLinkBinding"
     ArchitectureV2InventoryNode:
       type: object
       additionalProperties: false
@@ -1773,6 +1794,266 @@ components:
           $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
         bindingHash:
           $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2BackupTargetRequirement:
+      type: object
+      description: Provider-neutral requirement for one exact Cloud offsite backup target.
+      additionalProperties: false
+      required: [apiVersion, kind, stackId, siteRef, capabilityRef, contractOwnerRef, capabilityContractHash, targetNodeRefs, policy, specHash, requirementsHash]
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.backup-target-requirement/v1
+        kind:
+          type: string
+          const: BackupTargetRequirement
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityRef:
+          type: string
+          const: offsite-object-backup
+        contractOwnerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        targetNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        policy:
+          type: object
+          additionalProperties: false
+          required: [scope, encryptionRequired, credentialCustody, targetLifecycle, restoreVerificationRequired, providerSelection]
+          properties:
+            scope:
+              type: string
+              const: governed-data-only
+            encryptionRequired:
+              type: boolean
+              const: true
+            credentialCustody:
+              type: string
+              const: external
+            targetLifecycle:
+              type: string
+              const: external
+            restoreVerificationRequired:
+              type: boolean
+              const: true
+            providerSelection:
+              type: string
+              const: external
+        specHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        requirementsHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2ExternalBackupTargetBinding:
+      type: object
+      description: >-
+        Opaque, time-bound external custody attestation for one exact backup target requirement; provider, endpoint, bucket, credential, and lease fields are structurally excluded.
+      additionalProperties: false
+      required: [apiVersion, kind, bindingRef, backupTargetRef, custodyAttestationRef, stackId, siteRef, capabilityRef, contractOwnerRef, capabilityContractHash, requirementsHash, stackkitsVersion, candidateDigest, specHash, issuedAt, validUntil, bindingHash]
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.external-backup-target-binding/v1
+        kind:
+          type: string
+          const: ExternalBackupTargetBinding
+        bindingRef:
+          type: string
+          pattern: '^backup-target-binding://sha256/[a-f0-9]{64}$'
+        backupTargetRef:
+          type: string
+          pattern: '^backup-target://sha256/[a-f0-9]{64}$'
+        custodyAttestationRef:
+          type: string
+          pattern: '^backup-custody-attestation://sha256/[a-f0-9]{64}$'
+        stackId:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityRef:
+          type: string
+          const: offsite-object-backup
+        contractOwnerRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilityContractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        requirementsHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        stackkitsVersion:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+        candidateDigest:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        specHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        issuedAt:
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        validUntil:
+          description: Must be after issuedAt and no more than 24 hours later.
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        bindingHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2HomeBackupTargetRequirement:
+      type: object
+      description: >-
+        Provider-free requirement for one exact encrypted Home offsite backup target; Home encryption precedes egress and target custody is external.
+      additionalProperties: false
+      required: [apiVersion, kind, stackId, siteRef, capabilityRef, contractOwnerRef, capabilityContractHash, targetNodeRefs, policy, specHash, requirementsHash]
+      properties:
+        apiVersion: {type: string, const: stackkit.home-backup-target-requirement/v1}
+        kind: {type: string, const: HomeBackupTargetRequirement}
+        stackId: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityRef: {type: string, const: encrypted-offsite-backup}
+        contractOwnerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        targetNodeRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        policy:
+          type: object
+          additionalProperties: false
+          required: [scope, encryptionRequired, encryptionAuthority, plaintextEgressAllowed, credentialCustody, targetLifecycle, restoreVerificationRequired, providerSelection]
+          properties:
+            scope: {type: string, const: governed-home-data-only}
+            encryptionRequired: {type: boolean, const: true}
+            encryptionAuthority: {type: string, const: home}
+            plaintextEgressAllowed: {type: boolean, const: false}
+            credentialCustody: {type: string, const: external}
+            targetLifecycle: {type: string, const: external}
+            restoreVerificationRequired: {type: boolean, const: true}
+            providerSelection: {type: string, const: external}
+        specHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        requirementsHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+    ArchitectureV2ExternalHomeBackupTargetBinding:
+      type: object
+      description: >-
+        Opaque maximum-24-hour external custody attestation for one exact Home backup requirement. Provider, target topology, endpoint, credential, resource, lease, lifecycle, transport, address, and discovery fields are structurally excluded.
+      additionalProperties: false
+      required: [apiVersion, kind, bindingRef, backupTargetRef, custodyAttestationRef, stackId, siteRef, capabilityRef, contractOwnerRef, capabilityContractHash, requirementsHash, stackkitsVersion, candidateDigest, specHash, issuedAt, validUntil, bindingHash]
+      properties:
+        apiVersion: {type: string, const: stackkit.external-home-backup-target-binding/v1}
+        kind: {type: string, const: ExternalHomeBackupTargetBinding}
+        bindingRef: {type: string, pattern: '^home-backup-target-binding://sha256/[a-f0-9]{64}$'}
+        backupTargetRef: {type: string, pattern: '^home-backup-target://sha256/[a-f0-9]{64}$'}
+        custodyAttestationRef: {type: string, pattern: '^home-backup-custody-attestation://sha256/[a-f0-9]{64}$'}
+        stackId: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityRef: {type: string, const: encrypted-offsite-backup}
+        contractOwnerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        requirementsHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        stackkitsVersion: {type: string, pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'}
+        candidateDigest: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        specHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        issuedAt: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+        validUntil:
+          description: Must be after issuedAt and no more than 24 hours later.
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        bindingHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+    ArchitectureV2FederationLinkRequirement:
+      type: object
+      description: Provider-free requirement for one exact Modern Home-to-Cloud link scope.
+      additionalProperties: false
+      required: [apiVersion, kind, stackId, capabilityRef, contractOwnerRef, capabilityContractHash, homeSiteRefs, cloudSiteRefs, targetNodes, bridgeContractHash, policy, specHash, requirementsHash]
+      properties:
+        apiVersion: {type: string, const: stackkit.federation-link-requirement/v1}
+        kind: {type: string, const: FederationLinkRequirement}
+        stackId: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityRef: {type: string, const: inter-site-link}
+        contractOwnerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        homeSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        cloudSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        targetNodes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [siteRef, nodeRef]
+            properties:
+              siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              nodeRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        bridgeContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        policy:
+          type: object
+          additionalProperties: false
+          required: [defaultDeny, initiation, trafficMode, routeScope, allowDefaultRoute, allowBroadLAN, credentialCustody, fabricLifecycle]
+          properties:
+            defaultDeny: {type: boolean, const: true}
+            initiation: {type: string, const: home-outbound}
+            trafficMode: {type: string, enum: [management-only, policy-scoped]}
+            routeScope: {type: string, const: declared-flows-only}
+            allowDefaultRoute: {type: boolean, const: false}
+            allowBroadLAN: {type: boolean, const: false}
+            credentialCustody: {type: string, const: external}
+            fabricLifecycle: {type: string, const: external}
+        specHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        requirementsHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+    ArchitectureV2ExternalFederationLinkBinding:
+      type: object
+      description: Opaque, time-bound attestation for one exact Federation link requirement; operational fabric details are excluded.
+      additionalProperties: false
+      required: [apiVersion, kind, bindingRef, fabricRef, custodyAttestationRef, stackId, capabilityRef, contractOwnerRef, capabilityContractHash, homeSiteRefs, cloudSiteRefs, targetNodes, bridgeContractHash, requirementsHash, stackkitsVersion, candidateDigest, specHash, issuedAt, validUntil, bindingHash]
+      properties:
+        apiVersion: {type: string, const: stackkit.external-federation-link-binding/v1}
+        kind: {type: string, const: ExternalFederationLinkBinding}
+        bindingRef: {type: string, pattern: '^federation-link-binding://sha256/[a-f0-9]{64}$'}
+        fabricRef: {type: string, pattern: '^federation-link-fabric://sha256/[a-f0-9]{64}$'}
+        custodyAttestationRef: {type: string, pattern: '^federation-link-custody-attestation://sha256/[a-f0-9]{64}$'}
+        stackId: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityRef: {type: string, const: inter-site-link}
+        contractOwnerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        homeSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        cloudSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        targetNodes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [siteRef, nodeRef]
+            properties:
+              siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              nodeRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        bridgeContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        requirementsHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        stackkitsVersion: {type: string, pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'}
+        candidateDigest: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        specHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        issuedAt: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+        validUntil:
+          description: Must be after issuedAt and no more than 24 hours later.
+          $ref: "#/components/schemas/ArchitectureV2UTCTimestamp"
+        bindingHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
     ArchitectureV2HostConformanceFacts:
       type: object
       description: >-
@@ -1938,6 +2219,12 @@ components:
         - hostConformanceReceipts
         - homeAccessRequirements
         - externalHomeAccessBindings
+        - backupTargetRequirements
+        - externalBackupTargetBindings
+        - homeBackupTargetRequirements
+        - externalHomeBackupTargetBindings
+        - federationLinkRequirements
+        - externalFederationLinkBindings
         - controlPlane
         - capabilities
         - providers
@@ -2037,6 +2324,44 @@ components:
             type: object
             additionalProperties:
               $ref: "#/components/schemas/ArchitectureV2ExternalHomeAccessBinding"
+        backupTargetRequirements:
+          type: object
+          description: Exact compiler-owned Cloud backup target requirements.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2BackupTargetRequirement"
+        externalBackupTargetBindings:
+          type: object
+          description: Validated external bindings; missing entries block Apply only.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalBackupTargetBinding"
+        homeBackupTargetRequirements:
+          type: object
+          description: Exact compiler-owned encrypted Home backup target requirements.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2HomeBackupTargetRequirement"
+        externalHomeBackupTargetBindings:
+          type: object
+          description: Validated external Home backup bindings; missing entries block Apply only.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalHomeBackupTargetBinding"
+        federationLinkRequirements:
+          type: object
+          description: Exact compiler-owned provider-free Federation link requirements.
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2FederationLinkRequirement"
+        externalFederationLinkBindings:
+          type: object
+          description: Validated external link bindings; missing entries block Apply only.
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ExternalFederationLinkBinding"
         controlPlane:
           type: object
         capabilities:

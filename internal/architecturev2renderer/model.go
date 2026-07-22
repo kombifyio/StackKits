@@ -183,6 +183,7 @@ type rawRenderUnit struct {
 	ID                  string                     `json:"id"`
 	Kind                string                     `json:"kind"`
 	RendererRef         string                     `json:"rendererRef"`
+	CompatibleTargets   []string                   `json:"compatibleTargets"`
 	TemplateRef         string                     `json:"templateRef"`
 	Version             string                     `json:"version"`
 	ContractHash        string                     `json:"contractHash"`
@@ -2632,6 +2633,9 @@ func validateRenderUnitIdentity(unit rawRenderUnit, unitPath string) error {
 	if !validSHA256(unit.ContractHash) {
 		return fail(ErrInvalidPlan, unitPath+".contractHash", "must be a lowercase sha256 digest")
 	}
+	if len(unit.CompatibleTargets) != 1 || !oneOf(unit.CompatibleTargets[0], "compose", "opentofu") {
+		return fail(ErrInvalidPlan, unitPath+".compatibleTargets", "resolved render unit must carry exactly one selected generation target")
+	}
 	return nil
 }
 
@@ -2708,7 +2712,7 @@ var allowedRendererPlanInputRefs = map[string]struct{}{
 	"bridge": {}, "identity": {}, "data": {}, "failurePolicy": {},
 	"localReachability": {}, "identityTrust": {}, "homeLANDiscovery": {},
 	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
-	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicTLS": {},
+	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicEdge": {}, "publicTLS": {},
 }
 
 func requireCompleteSecretRefs(refs map[string]json.RawMessage, declared map[string]struct{}, valuePath string) error {

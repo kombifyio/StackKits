@@ -44,7 +44,7 @@ const homeDeviceAuthorityPolicyTemplate = `{"apiVersion":"stackkit.home-device-a
 const basementIdentityTrustPolicyTemplate = `{"apiVersion":"stackkit.basement-identity-trust-policy/v1","kind":"BasementIdentityTrustPolicy","contract":{"credentialIssuanceRuntime":"unverified","credentialMaterial":"not-included","externalTrust":"not-applicable","jwksBytes":"not-included","privateKeys":"not-included","runtimeEndpoints":"not-included","runtimeEnforcement":"unverified","scope":"generation-only","signingAuthority":"not-owned"},"planInputs":@@PLAN_INPUTS@@}
 `
 
-const cloudIdentityTrustPolicyTemplate = `{"apiVersion":"stackkit.cloud-identity-trust-policy/v1","kind":"CloudIdentityTrustPolicy","contract":{"cloudEnrollment":"deny","cloudIssuance":"deny","credentialIssuanceRuntime":"unverified","credentialMaterial":"not-included","enrollmentAuthority":"not-owned","externalIssuer":"owner-bound","jwksBytes":"not-included","privateKeys":"not-included","runtimeEndpoints":"not-included","runtimeEnforcement":"unverified","scope":"generation-only","signingAuthority":"not-owned"},"planInputs":@@PLAN_INPUTS@@}
+const cloudIdentityTrustPolicyTemplate = `{"apiVersion":"stackkit.cloud-identity-trust-policy/v1","kind":"CloudIdentityTrustPolicy","contract":{"cloudDeviceEnrollment":"deny","cloudDeviceIssuance":"deny","credentialIssuanceRuntime":"unverified","credentialMaterial":"not-included","enrollmentAuthority":"not-owned","externalDeviceIssuer":"owner-bound","jwksBytes":"not-included","privateKeys":"not-included","runtimeEndpoints":"not-included","runtimeEnforcement":"unverified","scope":"generation-only","signingAuthority":"not-owned"},"planInputs":@@PLAN_INPUTS@@}
 `
 
 var identityTrustPolicyPlanInputRefs = []string{"identityTrust", "kit", "sites", "stackId"}
@@ -109,6 +109,294 @@ func BasementIdentityTrustPolicyRendererContract() RendererContract {
 
 func CloudIdentityTrustPolicyRendererContract() RendererContract {
 	return newCloudIdentityTrustPolicyRenderer().contract
+}
+
+type HomeDeviceAuthorityEnforcementPolicy struct {
+	StackID  string
+	SiteRefs []string
+	Issuer   HomeDeviceCredentialIssuer
+}
+
+type HomeDeviceCredentialIssuer struct {
+	ID                            string
+	Issuer                        string
+	Audiences                     []string
+	VerificationKeySetRef         string
+	SiteRefs                      []string
+	CredentialTTLSeconds          int
+	SessionTTLSeconds             int
+	ProofOfPossessionRequired     bool
+	RevocationMaxStalenessSeconds int
+	EnrollmentMode                string
+	EnrollmentExposure            string
+}
+
+type homeDeviceAuthorityPolicyArtifact struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Contract   struct {
+		CredentialIssuanceRuntime string `json:"credentialIssuanceRuntime"`
+		CredentialMaterial        string `json:"credentialMaterial"`
+		Enrollment                string `json:"enrollment"`
+		JWKSBytes                 string `json:"jwksBytes"`
+		PrivateKeys               string `json:"privateKeys"`
+		RuntimeEndpoints          string `json:"runtimeEndpoints"`
+		RuntimeEnforcement        string `json:"runtimeEnforcement"`
+		Scope                     string `json:"scope"`
+		SigningRuntime            string `json:"signingRuntime"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// ValidateHomeDeviceAuthorityPolicyArtifact validates the exact generated Home
+// authority policy and returns only device enrollment/issuer/revocation
+// configuration. Key bytes, credentials, endpoints, transport, and provider
+// lifecycle are structurally absent.
+func ValidateHomeDeviceAuthorityPolicyArtifact(raw []byte) (HomeDeviceAuthorityEnforcementPolicy, error) {
+	var document homeDeviceAuthorityPolicyArtifact
+	if err := decodeStrict(raw, &document); err != nil {
+		return HomeDeviceAuthorityEnforcementPolicy{}, wrap(ErrInvalidPlan, "homeDeviceAuthorityPolicy", "decode exact Home device-authority artifact", err)
+	}
+	contract := document.Contract
+	if document.APIVersion != "stackkit.home-device-authority-policy/v1" || document.Kind != "HomeDeviceAuthorityPolicy" ||
+		contract.CredentialIssuanceRuntime != "unverified" || contract.CredentialMaterial != "not-included" || contract.Enrollment != "home-local" ||
+		contract.JWKSBytes != "not-included" || contract.PrivateKeys != "not-included" || contract.RuntimeEndpoints != "not-included" ||
+		contract.RuntimeEnforcement != "unverified" || contract.Scope != "generation-only" || contract.SigningRuntime != "not-included" {
+		return HomeDeviceAuthorityEnforcementPolicy{}, fail(ErrInvalidPlan, "homeDeviceAuthorityPolicy.contract", "artifact widens or fabricates the generation-only Home device-authority contract")
+	}
+	siteRefs, err := validateHomeDeviceAuthorityPlanInputs(document.PlanInputs, "homeDeviceAuthorityPolicy.planInputs")
+	if err != nil {
+		return HomeDeviceAuthorityEnforcementPolicy{}, err
+	}
+	validated, err := decodeIdentityTrustPlanInputs(document.PlanInputs, "homeDeviceAuthorityPolicy.planInputs")
+	if err != nil {
+		return HomeDeviceAuthorityEnforcementPolicy{}, err
+	}
+	deviceIssuers := make([]identityTrustCredentialIssuer, 0, 1)
+	for _, issuer := range validated.inputs.IdentityTrust.CredentialIssuers {
+		if issuer.Principal == "device" {
+			deviceIssuers = append(deviceIssuers, issuer)
+		}
+	}
+	if len(deviceIssuers) != 1 {
+		return HomeDeviceAuthorityEnforcementPolicy{}, fail(ErrInvalidPlan, "homeDeviceAuthorityPolicy.planInputs.identityTrust.credentialIssuers", "Home enforcement requires exactly one device credential issuer")
+	}
+	issuer := deviceIssuers[0]
+	return HomeDeviceAuthorityEnforcementPolicy{
+		StackID: validated.inputs.StackID, SiteRefs: append([]string(nil), siteRefs...),
+		Issuer: HomeDeviceCredentialIssuer{
+			ID: issuer.ID, Issuer: issuer.Issuer, Audiences: append([]string(nil), issuer.Audiences...), VerificationKeySetRef: issuer.VerificationKeySetRef,
+			SiteRefs: append([]string(nil), issuer.Placement.SiteRefs...), CredentialTTLSeconds: issuer.CredentialTTLSeconds, SessionTTLSeconds: issuer.SessionTTLSeconds,
+			ProofOfPossessionRequired: issuer.ProofOfPossessionRequired, RevocationMaxStalenessSeconds: issuer.RevocationMaxStalenessSeconds,
+			EnrollmentMode: issuer.Enrollment.Mode, EnrollmentExposure: issuer.Enrollment.Exposure,
+		},
+	}, nil
+}
+
+// BasementIdentityTrustEnforcementPolicy is the finite secret-free verifier
+// projection consumed by the Basement trust enforcer. It carries references
+// and policy only; key bytes, credentials, endpoints, enrollment, issuance,
+// provider lifecycle, and signing authority are intentionally absent.
+type BasementIdentityTrustEnforcementPolicy struct {
+	StackID   string
+	SiteRefs  []string
+	Verifiers []BasementIdentityTrustVerifier
+}
+
+type BasementIdentityTrustVerifier struct {
+	ID                            string
+	Principal                     string
+	CredentialIssuerRef           string
+	Issuer                        string
+	Audiences                     []string
+	VerificationKeySetRef         string
+	SiteRefs                      []string
+	ProofOfPossessionRequired     bool
+	RevocationMaxStalenessSeconds int
+	CredentialTTLSeconds          int
+	SessionTTLSeconds             int
+}
+
+type basementIdentityTrustPolicyArtifact struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Contract   struct {
+		CredentialIssuanceRuntime string `json:"credentialIssuanceRuntime"`
+		CredentialMaterial        string `json:"credentialMaterial"`
+		ExternalTrust             string `json:"externalTrust"`
+		JWKSBytes                 string `json:"jwksBytes"`
+		PrivateKeys               string `json:"privateKeys"`
+		RuntimeEndpoints          string `json:"runtimeEndpoints"`
+		RuntimeEnforcement        string `json:"runtimeEnforcement"`
+		Scope                     string `json:"scope"`
+		SigningAuthority          string `json:"signingAuthority"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// ValidateBasementIdentityTrustPolicyArtifact validates the exact generated
+// policy and returns only the verifier configuration a future authenticated
+// enforcer may consume. All three principal classes are required because the
+// CUE enforcement requirement owns device, human, and workload verification.
+func ValidateBasementIdentityTrustPolicyArtifact(raw []byte) (BasementIdentityTrustEnforcementPolicy, error) {
+	var document basementIdentityTrustPolicyArtifact
+	if err := decodeStrict(raw, &document); err != nil {
+		return BasementIdentityTrustEnforcementPolicy{}, wrap(ErrInvalidPlan, "basementIdentityTrustPolicy", "decode exact Basement identity-trust artifact", err)
+	}
+	contract := document.Contract
+	if document.APIVersion != "stackkit.basement-identity-trust-policy/v1" || document.Kind != "BasementIdentityTrustPolicy" ||
+		contract.CredentialIssuanceRuntime != "unverified" || contract.CredentialMaterial != "not-included" || contract.ExternalTrust != "not-applicable" ||
+		contract.JWKSBytes != "not-included" || contract.PrivateKeys != "not-included" || contract.RuntimeEndpoints != "not-included" ||
+		contract.RuntimeEnforcement != "unverified" || contract.Scope != "generation-only" || contract.SigningAuthority != "not-owned" {
+		return BasementIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "basementIdentityTrustPolicy.contract", "artifact widens or fabricates the generation-only Basement verifier contract")
+	}
+	siteRefs, err := validateBasementIdentityTrustPlanInputs(document.PlanInputs, "basementIdentityTrustPolicy.planInputs")
+	if err != nil {
+		return BasementIdentityTrustEnforcementPolicy{}, err
+	}
+	validated, err := decodeIdentityTrustPlanInputs(document.PlanInputs, "basementIdentityTrustPolicy.planInputs")
+	if err != nil {
+		return BasementIdentityTrustEnforcementPolicy{}, err
+	}
+	policy := BasementIdentityTrustEnforcementPolicy{StackID: validated.inputs.StackID, SiteRefs: append([]string(nil), siteRefs...)}
+	policy.Verifiers = make([]BasementIdentityTrustVerifier, 0, len(validated.inputs.IdentityTrust.VerifierPlacements))
+	principalCounts := map[string]int{"device": 0, "human": 0, "workload": 0}
+	for _, verifier := range validated.inputs.IdentityTrust.VerifierPlacements {
+		issuer := validated.issuers[verifier.CredentialIssuerRef]
+		policy.Verifiers = append(policy.Verifiers, BasementIdentityTrustVerifier{
+			ID: verifier.ID, Principal: verifier.Principal, CredentialIssuerRef: verifier.CredentialIssuerRef, Issuer: verifier.Issuer,
+			Audiences: append([]string(nil), verifier.Audiences...), VerificationKeySetRef: verifier.VerificationKeySetRef,
+			SiteRefs: append([]string(nil), verifier.Placement.SiteRefs...), ProofOfPossessionRequired: verifier.ProofOfPossessionRequired,
+			RevocationMaxStalenessSeconds: verifier.RevocationMaxStalenessSeconds,
+			CredentialTTLSeconds:          issuer.CredentialTTLSeconds, SessionTTLSeconds: issuer.SessionTTLSeconds,
+		})
+		principalCounts[verifier.Principal]++
+	}
+	for principal, count := range principalCounts {
+		if count == 0 {
+			return BasementIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "basementIdentityTrustPolicy.planInputs.identityTrust.verifierPlacements", "Basement enforcement requires at least one %s verifier", principal)
+		}
+	}
+	sort.Slice(policy.Verifiers, func(left, right int) bool { return policy.Verifiers[left].ID < policy.Verifiers[right].ID })
+	return policy, nil
+}
+
+// CloudIdentityTrustEnforcementPolicy is the closed secret-free policy for the
+// Cloud trust enforcer. Issuers contains only StackKit-owned human/workload
+// issuers; the external device issuer remains a verifier reference and can
+// never become Cloud issuance or enrollment authority.
+type CloudIdentityTrustEnforcementPolicy struct {
+	StackID   string
+	SiteRefs  []string
+	Issuers   []CloudIdentityTrustIssuer
+	Verifiers []CloudIdentityTrustVerifier
+}
+
+type CloudIdentityTrustIssuer struct {
+	ID                            string
+	Principal                     string
+	Issuer                        string
+	Audiences                     []string
+	VerificationKeySetRef         string
+	SiteRefs                      []string
+	ProofOfPossessionRequired     bool
+	RevocationMaxStalenessSeconds int
+	CredentialTTLSeconds          int
+	SessionTTLSeconds             int
+}
+
+type CloudIdentityTrustVerifier struct {
+	ID                            string
+	Principal                     string
+	CredentialIssuerRef           string
+	Issuer                        string
+	Audiences                     []string
+	VerificationKeySetRef         string
+	SiteRefs                      []string
+	ProofOfPossessionRequired     bool
+	RevocationMaxStalenessSeconds int
+}
+
+type cloudIdentityTrustPolicyArtifact struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Contract   struct {
+		CloudDeviceEnrollment     string `json:"cloudDeviceEnrollment"`
+		CloudDeviceIssuance       string `json:"cloudDeviceIssuance"`
+		CredentialIssuanceRuntime string `json:"credentialIssuanceRuntime"`
+		CredentialMaterial        string `json:"credentialMaterial"`
+		EnrollmentAuthority       string `json:"enrollmentAuthority"`
+		ExternalDeviceIssuer      string `json:"externalDeviceIssuer"`
+		JWKSBytes                 string `json:"jwksBytes"`
+		PrivateKeys               string `json:"privateKeys"`
+		RuntimeEndpoints          string `json:"runtimeEndpoints"`
+		RuntimeEnforcement        string `json:"runtimeEnforcement"`
+		Scope                     string `json:"scope"`
+		SigningAuthority          string `json:"signingAuthority"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// ValidateCloudIdentityTrustPolicyArtifact validates the exact generation-only
+// Cloud policy and projects only the authority named by its future enforcer.
+func ValidateCloudIdentityTrustPolicyArtifact(raw []byte) (CloudIdentityTrustEnforcementPolicy, error) {
+	var document cloudIdentityTrustPolicyArtifact
+	if err := decodeStrict(raw, &document); err != nil {
+		return CloudIdentityTrustEnforcementPolicy{}, wrap(ErrInvalidPlan, "cloudIdentityTrustPolicy", "decode exact Cloud identity-trust artifact", err)
+	}
+	contract := document.Contract
+	if document.APIVersion != "stackkit.cloud-identity-trust-policy/v1" || document.Kind != "CloudIdentityTrustPolicy" ||
+		contract.CloudDeviceEnrollment != "deny" || contract.CloudDeviceIssuance != "deny" || contract.CredentialIssuanceRuntime != "unverified" ||
+		contract.CredentialMaterial != "not-included" || contract.EnrollmentAuthority != "not-owned" || contract.ExternalDeviceIssuer != "owner-bound" ||
+		contract.JWKSBytes != "not-included" || contract.PrivateKeys != "not-included" || contract.RuntimeEndpoints != "not-included" ||
+		contract.RuntimeEnforcement != "unverified" || contract.Scope != "generation-only" || contract.SigningAuthority != "not-owned" {
+		return CloudIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "cloudIdentityTrustPolicy.contract", "artifact widens or fabricates the generation-only Cloud trust contract")
+	}
+	siteRefs, err := validateCloudIdentityTrustPlanInputs(document.PlanInputs, "cloudIdentityTrustPolicy.planInputs")
+	if err != nil {
+		return CloudIdentityTrustEnforcementPolicy{}, err
+	}
+	validated, err := decodeIdentityTrustPlanInputs(document.PlanInputs, "cloudIdentityTrustPolicy.planInputs")
+	if err != nil {
+		return CloudIdentityTrustEnforcementPolicy{}, err
+	}
+	policy := CloudIdentityTrustEnforcementPolicy{StackID: validated.inputs.StackID, SiteRefs: append([]string(nil), siteRefs...)}
+	issuerCounts := map[string]int{"human": 0, "workload": 0}
+	for _, issuer := range validated.inputs.IdentityTrust.CredentialIssuers {
+		if issuer.Principal == "device" {
+			continue
+		}
+		policy.Issuers = append(policy.Issuers, CloudIdentityTrustIssuer{
+			ID: issuer.ID, Principal: issuer.Principal, Issuer: issuer.Issuer, Audiences: append([]string(nil), issuer.Audiences...),
+			VerificationKeySetRef: issuer.VerificationKeySetRef, SiteRefs: append([]string(nil), issuer.Placement.SiteRefs...),
+			ProofOfPossessionRequired: issuer.ProofOfPossessionRequired, RevocationMaxStalenessSeconds: issuer.RevocationMaxStalenessSeconds,
+			CredentialTTLSeconds: issuer.CredentialTTLSeconds, SessionTTLSeconds: issuer.SessionTTLSeconds,
+		})
+		issuerCounts[issuer.Principal]++
+	}
+	verifierCounts := map[string]int{"device": 0, "human": 0, "workload": 0}
+	for _, verifier := range validated.inputs.IdentityTrust.VerifierPlacements {
+		policy.Verifiers = append(policy.Verifiers, CloudIdentityTrustVerifier{
+			ID: verifier.ID, Principal: verifier.Principal, CredentialIssuerRef: verifier.CredentialIssuerRef, Issuer: verifier.Issuer,
+			Audiences: append([]string(nil), verifier.Audiences...), VerificationKeySetRef: verifier.VerificationKeySetRef,
+			SiteRefs: append([]string(nil), verifier.Placement.SiteRefs...), ProofOfPossessionRequired: verifier.ProofOfPossessionRequired,
+			RevocationMaxStalenessSeconds: verifier.RevocationMaxStalenessSeconds,
+		})
+		verifierCounts[verifier.Principal]++
+	}
+	for principal, count := range issuerCounts {
+		if count == 0 {
+			return CloudIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "cloudIdentityTrustPolicy.planInputs.identityTrust.credentialIssuers", "Cloud enforcement requires at least one %s issuer", principal)
+		}
+	}
+	for principal, count := range verifierCounts {
+		if count == 0 {
+			return CloudIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "cloudIdentityTrustPolicy.planInputs.identityTrust.verifierPlacements", "Cloud enforcement requires at least one %s verifier", principal)
+		}
+	}
+	sort.Slice(policy.Issuers, func(left, right int) bool { return policy.Issuers[left].ID < policy.Issuers[right].ID })
+	sort.Slice(policy.Verifiers, func(left, right int) bool { return policy.Verifiers[left].ID < policy.Verifiers[right].ID })
+	return policy, nil
 }
 
 func (r identityTrustPolicyRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]UnitOutput, error) {

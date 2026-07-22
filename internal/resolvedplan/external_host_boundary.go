@@ -272,6 +272,15 @@ func ValidateHostConformanceReceiptsForApply(plan ResolvedPlan, at time.Time) er
 	if err := ValidateExternalHomeAccessBindingsFreshness(plan, at); err != nil {
 		return err
 	}
+	if err := ValidateExternalBackupTargetBindingsFreshness(plan, at); err != nil {
+		return err
+	}
+	if err := ValidateExternalHomeBackupTargetBindingsFreshness(plan, at); err != nil {
+		return err
+	}
+	if err := ValidateExternalFederationLinkBindingsFreshness(plan, at); err != nil {
+		return err
+	}
 	planObject := map[string]any(plan)
 	bindings, err := objectField(planObject, "resolvedPlan", "externalHostBindings")
 	if err != nil {

@@ -78,6 +78,15 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err := validateHomeAccessPlanProjection(plan); err != nil {
 		return err
 	}
+	if err := validateBackupTargetPlanProjection(plan); err != nil {
+		return err
+	}
+	if err := validateHomeBackupTargetPlanProjection(plan); err != nil {
+		return err
+	}
+	if err := validateFederationLinkPlanProjection(plan); err != nil {
+		return err
+	}
 	if err := validateGenerationArtifactsProjection(plan, catalog); err != nil {
 		return err
 	}

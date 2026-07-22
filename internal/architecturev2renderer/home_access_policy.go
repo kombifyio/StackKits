@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -125,6 +127,104 @@ type homeLocalTLSDecision struct {
 	Required   bool   `json:"required"`
 	Mode       string `json:"mode"`
 	MinVersion string `json:"minVersion,omitempty"`
+}
+
+// HomeAccessEnforcementPolicy is the closed, secret-free projection an
+// authenticated Home access enforcer may consume. It deliberately excludes
+// raw network configuration, addresses, credentials, discovery, sockets, and
+// provider lifecycle authority.
+type HomeAccessEnforcementPolicy struct {
+	StackID  string
+	KitSlug  string
+	SiteRefs []string
+	Routes   []HomeAccessEnforcementRoute
+}
+
+// HomeAccessEnforcementRoute preserves only the compiler-owned local route and
+// access decision that the Home enforcer must apply and read back.
+type HomeAccessEnforcementRoute struct {
+	ID                     string
+	ServiceRef             string
+	ModuleRef              string
+	OriginSiteRef          string
+	OriginNodeRefs         []string
+	Protocol               string
+	UpstreamProtocol       string
+	Port                   int
+	TargetPort             int
+	Host                   string
+	Path                   string
+	PolicyRef              string
+	PolicyExposure         string
+	Authentication         string
+	Privilege              string
+	EnrolledDeviceRequired bool
+	OwnerStepUpRequired    bool
+	LANStepDown            bool
+	AllowedSiteRefs        []string
+	AllowedMethods         []string
+	TLSRequired            bool
+	TLSMode                string
+	TLSMinVersion          string
+}
+
+type homeAccessPolicyArtifact struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Contract   struct {
+		Capabilities       []string `json:"capabilities"`
+		DefaultDecision    string   `json:"defaultDecision"`
+		Discovery          string   `json:"discovery"`
+		IngressEnforcement string   `json:"ingressEnforcement"`
+		RuntimeEnforcement string   `json:"runtimeEnforcement"`
+		Scope              string   `json:"scope"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// ValidateHomeAccessPolicyArtifact validates the exact generated policy bytes
+// before they cross into a runtime adapter and returns a defensive projection.
+// The generation-only markers are required: the artifact is policy input, not
+// evidence that an enforcer already exists or ran.
+func ValidateHomeAccessPolicyArtifact(raw []byte) (HomeAccessEnforcementPolicy, error) {
+	var document homeAccessPolicyArtifact
+	if err := decodeStrict(raw, &document); err != nil {
+		return HomeAccessEnforcementPolicy{}, wrap(ErrInvalidPlan, "homeAccessPolicy", "decode exact Home access policy artifact", err)
+	}
+	if document.APIVersion != "stackkit.home-access-policy/v1" || document.Kind != "HomeAccessPolicy" ||
+		!slices.Equal(document.Contract.Capabilities, []string{"lan-access-policy", "local-ingress"}) ||
+		document.Contract.DefaultDecision != "deny" || document.Contract.Discovery != "not-included" ||
+		document.Contract.IngressEnforcement != "unverified" || document.Contract.RuntimeEnforcement != "unverified" ||
+		document.Contract.Scope != "generation-only" {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, "homeAccessPolicy.contract", "artifact widens or fabricates the generation-only Home access contract")
+	}
+	var inputs homeAccessPlanInputs
+	if err := decodeStrict(document.PlanInputs, &inputs); err != nil {
+		return HomeAccessEnforcementPolicy{}, wrap(ErrInvalidPlan, "homeAccessPolicy.planInputs", "decode exact Home access policy inputs", err)
+	}
+	siteRefs, err := validateHomeAccessPlanInputs(document.PlanInputs, "homeAccessPolicy.planInputs")
+	if err != nil {
+		return HomeAccessEnforcementPolicy{}, err
+	}
+	policy := HomeAccessEnforcementPolicy{
+		StackID: inputs.StackID, KitSlug: inputs.Kit.Slug,
+		SiteRefs: append([]string(nil), siteRefs...),
+		Routes:   make([]HomeAccessEnforcementRoute, len(inputs.LocalReachability.Routes)),
+	}
+	for index, route := range inputs.LocalReachability.Routes {
+		policy.Routes[index] = HomeAccessEnforcementRoute{
+			ID: route.ID, ServiceRef: route.ServiceRef, ModuleRef: route.ModuleRef,
+			OriginSiteRef: route.OriginSiteRef, OriginNodeRefs: append([]string(nil), route.OriginNodeRefs...),
+			Protocol: route.Protocol, UpstreamProtocol: route.UpstreamProtocol, Port: route.Port, TargetPort: route.TargetPort,
+			Host: route.Host, Path: route.Path, PolicyRef: route.Access.PolicyRef, PolicyExposure: route.Access.PolicyExposure,
+			Authentication: route.Access.Authentication, Privilege: route.Access.Privilege,
+			EnrolledDeviceRequired: route.Access.EnrolledDeviceRequired, OwnerStepUpRequired: route.Access.OwnerStepUpRequired,
+			LANStepDown: route.Access.LANStepDown, AllowedSiteRefs: append([]string(nil), route.Access.AllowedSiteRefs...),
+			AllowedMethods: append([]string(nil), route.Access.AllowedMethods...), TLSRequired: route.TLS.Required,
+			TLSMode: route.TLS.Mode, TLSMinVersion: route.TLS.MinVersion,
+		}
+	}
+	return policy, nil
 }
 
 func validateHomeAccessPolicyUnit(unit RenderUnit, contract RendererContract) ([]byte, error) {

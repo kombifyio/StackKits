@@ -48,6 +48,30 @@ type HomeAccessRequirement map[string]any
 // carries no transport, endpoint, credential, or provider lifecycle data.
 type ExternalHomeAccessBinding map[string]any
 
+// BackupTargetRequirement is StackKits-owned provider-free intent for one
+// Cloud offsite backup destination.
+type BackupTargetRequirement map[string]any
+
+// ExternalBackupTargetBinding is the opaque, time-bound custody attestation
+// supplied by the external backup-target authority.
+type ExternalBackupTargetBinding map[string]any
+
+// HomeBackupTargetRequirement is StackKits-owned provider-free intent for one
+// encrypted Home offsite backup destination.
+type HomeBackupTargetRequirement map[string]any
+
+// ExternalHomeBackupTargetBinding is the opaque, time-bound custody
+// attestation supplied by the external Home backup-target authority.
+type ExternalHomeBackupTargetBinding map[string]any
+
+// FederationLinkRequirement is the compiler-owned, provider-free Modern
+// Home-to-Cloud fabric requirement.
+type FederationLinkRequirement map[string]any
+
+// ExternalFederationLinkBinding is the opaque, time-bound attestation for one
+// exact FederationLinkRequirement.
+type ExternalFederationLinkBinding map[string]any
+
 // CapabilityContract is a JSON-decoded base.#CapabilityContract document.
 type CapabilityContract map[string]any
 

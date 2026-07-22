@@ -218,6 +218,10 @@ func resolveBridgeCatalogAuthority(bridge map[string]any, providers []any) (map[
 	if err != nil {
 		return nil, nil, err
 	}
+	// The CUE contract treats the allowlist as a set. Sort before deriving the
+	// parallel action projection so persisted plans remain idempotent when the
+	// catalog body binding recomputes the bridge from normalized CUE output.
+	sort.Strings(actionRefs)
 	resolvedActions := make([]any, 0, len(actionRefs))
 	var controlModuleRef string
 	seenActionRefs := make(map[string]struct{}, len(actionRefs))
@@ -856,7 +860,9 @@ func validateBridgePublicationProjection(plan ResolvedPlan) error {
 	if equal, err := canonicalEqual(bridge, want); err != nil {
 		return err
 	} else if !equal {
-		return fmt.Errorf("resolvedPlan.bridge is not the exact catalog-owned publication projection")
+		haveHash, _ := canonicalHash(bridge, false)
+		wantHash, _ := canonicalHash(want, false)
+		return fmt.Errorf("resolvedPlan.bridge is not the exact catalog-owned publication projection (%s != %s)", haveHash, wantHash)
 	}
 	return nil
 }
