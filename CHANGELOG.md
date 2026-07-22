@@ -4,6 +4,58 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0] - 2026-07-22
+
+> **Stable v0.x release** of the native Architecture-v2 line. Basement and
+> Cloud use the same CUE-governed v2 identity from authoring through Apply;
+> kit-specific topology, trust, ingress, backup, and runtime requirements stay
+> explicit. Modern Homelab and adapters without concrete runtime evidence
+> remain Preview or fail closed instead of falling back to v1 behavior.
+
+### Highlights
+
+- **Native v2 product path:** CLI, API, MCP, catalog, compiler, generators,
+  artifacts, evidence, and governed executor handoffs bind exact v2 identities.
+- **Three structural kit products:** Basement is Home-local, Cloud is
+  Cloud-hosted, and Modern is Home-plus-Cloud federation. Multi-node does not
+  select a kit, and High Availability remains an add-on.
+- **Provider-free StackKits boundary:** external hosts, Cloud backup targets,
+  Home encrypted backup targets, and federation access enter through opaque,
+  hash-bound contracts. Provider lifecycle, credentials, leases, endpoints,
+  and cleanup remain TechStack authority.
+- **Fast beta operations:** v0.x publication validates source, public export,
+  and release artifacts. Candidate, device, provider, browser, and
+  compatibility evidence remains optional and is reported honestly when not
+  supplied.
+
+### Added
+
+- Exact external Cloud and Home backup target bindings with customer/Home-held
+  encryption authority, plaintext-egress denial, bounded freshness, and
+  restore-verification requirements.
+- Exact Modern federation and Home-access projections with typed blockers for
+  missing or expired custody evidence and no general LAN or implicit transport
+  fallback.
+- Runtime adapter, workload, TLS, observability, backup, and executor-bundle
+  contracts that remain fail closed until the responsible implementation and
+  evidence are available.
+
+### Changed
+
+- New operational writes and rollout paths are v2-only. Legacy StackSpec v1 is
+  limited to explicit read/migration compatibility and is no longer an
+  operational fallback.
+- Generated architecture authority, OpenAPI contracts, fixtures, and public
+  export checks now track the same provider-neutral v2 source.
+
+### Known limitations
+
+- Modern Homelab, High Availability realizations, and runtime adapters still
+  require their own implementation and fault evidence before graduation.
+- Candidate E2E and compatibility evidence for this v0.x release is
+  `pending/unverified`; no pass is claimed. Exact source/export/archive
+  integrity is validated by the release workflow.
+
 ## [0.7.0-beta.1] - 2026-07-21
 
 > **Prerelease** of the native Architecture-v2 line. Basement and Cloud now
