@@ -25,10 +25,12 @@ const (
 )
 
 type architectureV2ServiceState struct {
-	once    sync.Once
-	service *architecturev2.Service
-	err     error
-	slots   chan struct{}
+	once       sync.Once
+	service    *architecturev2.Service
+	err        error
+	slots      chan struct{}
+	rilMu      sync.RWMutex
+	rilCurrent map[string]architecturev2.CurrentResolution
 }
 
 type architectureV2RequestError struct {
@@ -56,7 +58,10 @@ func newArchitectureV2ServiceState(configuredConcurrency int) architectureV2Serv
 	if configuredConcurrency <= 0 {
 		configuredConcurrency = architectureV2ResolveDefaultConcurrency
 	}
-	return architectureV2ServiceState{slots: make(chan struct{}, configuredConcurrency)}
+	return architectureV2ServiceState{
+		slots:      make(chan struct{}, configuredConcurrency),
+		rilCurrent: make(map[string]architecturev2.CurrentResolution),
+	}
 }
 
 func architectureV2RequestFailure(status int, code architecturev2.ErrorCode, message string, cause error) error {

@@ -274,6 +274,16 @@ func freezeCatalog(catalog Catalog) (Catalog, error) {
 		}
 		frozen.PrivilegedInterfaceApprovals = append(frozen.PrivilegedInterfaceApprovals, PrivilegedInterfaceApproval(clone))
 	}
+	for _, primitive := range catalog.RILActionPrimitives {
+		if err := validateSecretReferences(map[string]any(primitive), "catalog.rilActionPrimitives", ""); err != nil {
+			return Catalog{}, err
+		}
+		clone, err := cloneObject(map[string]any(primitive), false)
+		if err != nil {
+			return Catalog{}, err
+		}
+		frozen.RILActionPrimitives = append(frozen.RILActionPrimitives, RILActionPrimitiveContract(clone))
+	}
 	return frozen, nil
 }
 

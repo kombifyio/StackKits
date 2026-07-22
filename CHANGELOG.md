@@ -4,6 +4,48 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.1] - 2026-07-22
+
+> **Stable v0.x patch** for the provider-free RIL action handoff. This release
+> adds an exact approval, execution, replay, and evidence boundary over the
+> native Architecture-v2 plan without exposing provider lifecycle, raw host
+> access, credentials, endpoints, or caller-selected commands.
+
+### Added
+
+- A CUE-governed catalog of seven closed RIL primitives with deterministic
+  contract hashes, explicit approval and grant requirements, typed inputs,
+  verification/recovery policy, and raw-authority prohibitions.
+- The authenticated, tenant-isolated two-step StackKits delivery surface:
+  `POST /api/v2/internal/ril-actions/resolve` binds the exact StackSpec and
+  Inventory, while `POST /api/v2/internal/ril-actions/execute` accepts only the
+  shared approved-action request and returns the shared redacted evidence.
+- A persistence-neutral atomic execution-ledger contract with acquire, replay,
+  in-progress, conflict, and token-fenced completion semantics. TechStack owns
+  the durable Postgres/RLS implementation and outer dispatch custody.
+- One deliberately read-only owner, `verify-stackkit-state`, which verifies
+  the exact current governed plan and truthfully reports that no host/runtime
+  state was observed.
+
+### Security
+
+- Requests with missing or expired approval/grants, stale or substituted
+  plan/primitive/tenant/stack/target identity, conflicting replay, provider
+  fields, raw SSH/Docker/OpenTofu authority, arbitrary paths, or caller
+  commands fail before the governed owner.
+- Internal resolution state is scoped by authenticated tenant plus Stack ID;
+  the tenant scope cannot enter generated plans, action requests, evidence, or
+  exported artifacts.
+
+### Known limitations
+
+- The remaining six primitives are `contract-only`. Mutating node owners,
+  recovery execution, protected diagnostic retention, and product startup/API
+  registration continue after this patch and do not silently fall back to v1.
+- Candidate, device, provider, browser, and compatibility evidence is
+  `pending/unverified` for this v0.x release. No pass is claimed; the publisher
+  validates exact main, public export, archives, checksums, and release assets.
+
 ## [0.7.0] - 2026-07-22
 
 > **Stable v0.x release** of the native Architecture-v2 line. Basement and

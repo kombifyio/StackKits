@@ -89,6 +89,8 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 		"capabilities": s.versionedCapabilities([]map[string]interface{}{
 			// Architecture v2
 			{"name": "architecture.resolve", "description": "Resolve canonical Architecture v2 intent into a deterministic ResolvedPlan", "method": "POST", "path": "/api/v2/resolve"},
+			{"name": "ril.v2.resolve", "description": "Bind tenant-owned StackSpec and Inventory to the current governed RIL execution resolution", "method": "POST", "path": rilActionResolvePath},
+			{"name": "ril.v2.execute", "description": "Execute one approved provider-free RIL action against the exact tenant-bound current resolution", "method": "POST", "path": rilActionExecutePath},
 			// Catalog
 			{"name": "stackkit.list", "description": "List all available StackKits", "method": "GET", "path": "/api/v1/stackkits"},
 			{"name": "stackkit.get", "description": "Get StackKit details by name", "method": "GET", "path": "/api/v1/stackkits/{name}"},

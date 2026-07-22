@@ -3515,6 +3515,7 @@
       "privilegedApprovalSubjectsUnique": true,
       "providedInterfaceIDsUnique": true,
       "providerIDsUnique": true,
+      "rilActionPrimitiveIDsUnique": true,
       "workloadAlternativesUnique": true,
       "workloadIDsUnique": true
     },
@@ -9147,6 +9148,574 @@
         "cloud"
       ],
       "workloadRefs": []
+    }
+  ],
+  "rilActionPrimitives": [
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "owner-step-up",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "plan",
+      "destructive": false,
+      "evidence": {
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-plan"
+        ]
+      },
+      "id": "plan-drift-repair",
+      "inputs": [],
+      "mutation": false,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "plan-inspection"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "none",
+        "requiredOnFailure": false
+      },
+      "risk": "read-only",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "contract-only",
+      "target": {
+        "requiresNodeRef": false,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "stack"
+      },
+      "title": "Plan a governed drift repair",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "owner-step-up",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "apply",
+      "destructive": false,
+      "evidence": {
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-apply"
+        ]
+      },
+      "id": "apply-stackkit-change",
+      "inputs": [
+        {
+          "id": "approved-change-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "product-apply"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "primitive",
+        "primitiveRef": "rollback-stackkit-change",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "contract-only",
+      "target": {
+        "requiresNodeRef": false,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "stack"
+      },
+      "title": "Apply an approved StackKit change",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "owner-step-up",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "verify",
+      "destructive": false,
+      "evidence": {
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-governed-state-verifier-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-verify"
+        ]
+      },
+      "id": "verify-stackkit-state",
+      "inputs": [],
+      "mutation": false,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "product-verify"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "none",
+        "requiredOnFailure": false
+      },
+      "risk": "read-only",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": false,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "stack"
+      },
+      "title": "Verify governed StackKit state",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "break-glass",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "rollback",
+      "destructive": true,
+      "evidence": {
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-rollback"
+        ]
+      },
+      "id": "rollback-stackkit-change",
+      "inputs": [
+        {
+          "id": "checkpoint-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "product-rollback"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "critical",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "contract-only",
+      "target": {
+        "requiresNodeRef": false,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "stack"
+      },
+      "title": "Roll back an approved StackKit change",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "owner-step-up",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-service-restart"
+        ]
+      },
+      "id": "restart-service",
+      "inputs": [
+        {
+          "id": "runtime-instance-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "runtime-service-action"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "contract-only",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Restart one governed runtime service",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "owner-step-up",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "certificate",
+      "destructive": false,
+      "evidence": {
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-certificate-rotate"
+        ]
+      },
+      "id": "rotate-certificate",
+      "inputs": [
+        {
+          "id": "certificate-binding-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "certificate-action"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "contract-only",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "module-instance"
+      },
+      "title": "Rotate one governed certificate binding",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "owner-step-up",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "backup",
+      "destructive": false,
+      "evidence": {
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-backup-check"
+        ]
+      },
+      "id": "check-backup",
+      "inputs": [
+        {
+          "id": "backup-contract-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": false,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "backup-evidence"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "none",
+        "requiredOnFailure": false
+      },
+      "risk": "read-only",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "contract-only",
+      "target": {
+        "requiresNodeRef": false,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "module-instance"
+      },
+      "title": "Check governed backup and restore evidence",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
     }
   ],
   "workloads": [

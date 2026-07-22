@@ -792,6 +792,75 @@ paths:
         "501":
           $ref: "#/components/responses/OperationalUnavailable"
   # ── Internal runtime actions (TechStack servicecall) ────────────
+  /api/v2/internal/ril-actions/resolve:
+    post:
+      operationId: resolveRILActionAuthorityV2
+      summary: Bind a tenant-owned current resolution for RIL execution
+      description: >-
+        Requires X-Kombify-Service-Auth from caller techstack and the exact X-Kombify-Tenant-ID transport context. The response is the raw canonical ResolvedPlan and the server retains only its opaque CurrentResolution execution proof.
+      tags: [Runtime]
+      parameters:
+        - $ref: "#/components/parameters/RILActionTenantHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArchitectureV2ResolveRequest"
+      responses:
+        "200":
+          description: Canonical ResolvedPlan bound as the current tenant execution authority
+          headers:
+            ETag:
+              schema: {type: string, pattern: '^"sha256:[a-f0-9]{64}"$'}
+            X-StackKit-Plan-Hash:
+              schema: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ResolvedPlan"
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {$ref: "#/components/responses/BadRequest"}
+        "415": {$ref: "#/components/responses/BadRequest"}
+        "422": {$ref: "#/components/responses/BadRequest"}
+        "429": {$ref: "#/components/responses/BadRequest"}
+        "503": {$ref: "#/components/responses/BadRequest"}
+  /api/v2/internal/ril-actions/execute:
+    post:
+      operationId: executeApprovedRILActionV2
+      summary: Execute one exact approved provider-free RIL action
+      description: >-
+        Requires X-Kombify-Service-Auth from caller techstack and the exact X-Kombify-Tenant-ID transport context. The body and response are the shared kombify-go-common/rilaction request and evidence documents, without a StackKits success envelope.
+      tags: [Runtime]
+      parameters:
+        - $ref: "#/components/parameters/RILActionTenantHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RILActionHandoffRequest"
+      responses:
+        "200":
+          description: Stable public-safe action evidence; inspect evidence.status for success or failure
+          headers:
+            X-StackKits-RIL-Execution-Status:
+              schema: {type: string, enum: [succeeded, failed]}
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RILActionEvidence"
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/BadRequest"}
+        "413": {$ref: "#/components/responses/BadRequest"}
+        "415": {$ref: "#/components/responses/BadRequest"}
+        "422": {$ref: "#/components/responses/BadRequest"}
+        "501": {$ref: "#/components/responses/BadRequest"}
+        "503": {$ref: "#/components/responses/BadRequest"}
   /api/v2/internal/runtime-actions/stackkit-rollout:
     post:
       operationId: runtimeStackKitRolloutV2
@@ -1058,6 +1127,13 @@ components:
         type: string
         pattern: "^[1-9][0-9]*$"
   parameters:
+    RILActionTenantHeader:
+      name: X-Kombify-Tenant-ID
+      in: header
+      required: true
+      description: Exact tenant identity asserted by the authenticated TechStack service caller.
+      schema:
+        $ref: "#/components/schemas/RILActionStableID"
     StackKitName:
       name: name
       in: path
@@ -1140,6 +1216,160 @@ components:
             - $ref: "#/components/schemas/ArchitectureV1DiagnosticsInput"
         inventory:
           $ref: "#/components/schemas/ArchitectureV2Inventory"
+    RILActionHandoffRequest:
+      type: object
+      description: Exact provider-free kombify-go-common/rilaction approved-action handoff.
+      additionalProperties: false
+      required: [api_version, action_card_id, execution_id, trace_id, tenant_id, stack_id, primitive, resolved_plan_hash, approval, grant, target, inputs, evidence_sink_ref, issued_at, valid_until, nonce, idempotency_key]
+      properties:
+        api_version: {type: string, const: stackkit.ril-action-handoff/v1alpha1}
+        action_card_id: {$ref: "#/components/schemas/RILActionStableID"}
+        execution_id: {$ref: "#/components/schemas/RILActionStableID"}
+        trace_id: {$ref: "#/components/schemas/RILActionStableID"}
+        tenant_id: {$ref: "#/components/schemas/RILActionStableID"}
+        stack_id: {$ref: "#/components/schemas/RILActionStableID"}
+        primitive: {$ref: "#/components/schemas/RILActionPrimitiveBinding"}
+        resolved_plan_hash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        approval: {$ref: "#/components/schemas/RILActionApprovalBinding"}
+        grant: {$ref: "#/components/schemas/RILActionGrantBinding"}
+        target: {$ref: "#/components/schemas/RILActionTargetBinding"}
+        inputs:
+          type: [array, "null"]
+          maxItems: 16
+          items: {$ref: "#/components/schemas/RILActionInput"}
+        evidence_sink_ref: {$ref: "#/components/schemas/RILActionOpaqueRef"}
+        issued_at: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+        valid_until: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+        nonce: {$ref: "#/components/schemas/RILActionStableID"}
+        idempotency_key: {$ref: "#/components/schemas/RILActionStableID"}
+    RILActionPrimitiveBinding:
+      type: object
+      additionalProperties: false
+      required: [id, contract_hash, operation_class]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        contract_hash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        operation_class: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    RILActionApprovalBinding:
+      type: object
+      additionalProperties: false
+      required: [receipt_ref, receipt_hash, decision, class, approved_at, valid_until]
+      properties:
+        receipt_ref: {$ref: "#/components/schemas/RILActionOpaqueRef"}
+        receipt_hash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        decision: {type: string, const: approved}
+        class: {type: string, enum: [owner-step-up, break-glass]}
+        approved_at: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+        valid_until: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+    RILActionGrantBinding:
+      type: object
+      additionalProperties: false
+      required: [binding_ref, binding_hash, audience, scopes, granted_at, valid_until]
+      properties:
+        binding_ref: {$ref: "#/components/schemas/RILActionOpaqueRef"}
+        binding_hash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        audience: {type: string, const: stackkits}
+        scopes:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        granted_at: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+        valid_until: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+    RILActionTargetBinding:
+      type: object
+      additionalProperties: false
+      required: [scope]
+      properties:
+        scope: {type: string, enum: [stack, module-instance, runtime-instance]}
+        site_ref: {$ref: "#/components/schemas/RILActionStableID"}
+        node_ref: {$ref: "#/components/schemas/RILActionStableID"}
+        module_instance_ref: {$ref: "#/components/schemas/RILActionStableID"}
+        runtime_instance_ref: {$ref: "#/components/schemas/RILActionStableID"}
+        execution_channel_ref: {$ref: "#/components/schemas/RILActionStableID"}
+    RILActionInput:
+      type: object
+      additionalProperties: false
+      required: [id, type]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        type: {type: string, enum: [opaque-reference, boolean, integer, string-enum]}
+        opaque_ref: {$ref: "#/components/schemas/RILActionOpaqueRef"}
+        boolean: {type: boolean}
+        integer: {type: integer, format: int64}
+        enum: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    RILActionEvidence:
+      type: object
+      description: Exact public-safe kombify-go-common/rilaction execution evidence.
+      additionalProperties: false
+      required: [api_version, evidence_id, evidence_sink_ref, action_card_id, execution_id, trace_id, tenant_id, stack_id, primitive_id, primitive_contract_hash, resolved_plan_hash, request_digest, executor_ref, target_ref, status, verification, recovery, summary_codes, evaluated_at]
+      properties:
+        api_version: {type: string, const: stackkit.ril-action-evidence/v1}
+        evidence_id: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        evidence_sink_ref: {$ref: "#/components/schemas/RILActionOpaqueRef"}
+        action_card_id: {$ref: "#/components/schemas/RILActionStableID"}
+        execution_id: {$ref: "#/components/schemas/RILActionStableID"}
+        trace_id: {$ref: "#/components/schemas/RILActionStableID"}
+        tenant_id: {$ref: "#/components/schemas/RILActionStableID"}
+        stack_id: {$ref: "#/components/schemas/RILActionStableID"}
+        primitive_id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        primitive_contract_hash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        resolved_plan_hash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        request_digest: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        executor_ref: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        target_ref: {$ref: "#/components/schemas/RILActionOpaqueRef"}
+        status: {type: string, enum: [succeeded, failed]}
+        verification: {$ref: "#/components/schemas/RILActionVerificationEvidence"}
+        recovery: {$ref: "#/components/schemas/RILActionRecoveryEvidence"}
+        summary_codes:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        protected_diagnostic_ref: {$ref: "#/components/schemas/RILActionOpaqueRef"}
+        evaluated_at: {$ref: "#/components/schemas/ArchitectureV2UTCTimestamp"}
+    RILActionVerificationEvidence:
+      type: object
+      additionalProperties: false
+      required: [kind, status, runtime_state_observed, checks]
+      properties:
+        kind: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        status: {type: string, enum: [passed, failed]}
+        runtime_state_observed: {type: boolean}
+        checks:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, status]
+            properties:
+              id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              status: {type: string, enum: [passed, failed]}
+    RILActionRecoveryEvidence:
+      type: object
+      additionalProperties: false
+      required: [kind, status]
+      properties:
+        kind: {type: string, enum: [none, primitive, manual]}
+        status: {type: string, enum: [not-required, succeeded, failed, manual-required]}
+        primitive_ref: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    RILActionStableID:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+      not: {pattern: '://'}
+    RILActionOpaqueRef:
+      type: string
+      maxLength: 223
+      pattern: '^[a-z][a-z0-9-]{0,31}:[A-Za-z0-9][A-Za-z0-9._/-]{0,190}$'
+      not:
+        pattern: '^(credential|doppler|key|password|secret|token|vault):'
     ArchitectureV2InitialAuthoringRequest:
       type: object
       description: >-
@@ -6147,6 +6377,18 @@ components:
                     $ref: "#/components/schemas/HealthData"
     BadRequest:
       description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing internal service authentication
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Invalid internal service authentication or tenant binding
       content:
         application/json:
           schema:

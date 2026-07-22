@@ -411,6 +411,7 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 		Modules                      []resolvedplan.ModuleContract              `json:"modules"`
 		Workloads                    []resolvedplan.WorkloadContract            `json:"workloads"`
 		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
+		RILActionPrimitives          []resolvedplan.RILActionPrimitiveContract  `json:"rilActionPrimitives"`
 		PlanArtifacts                []resolvedplan.PlanArtifactContract        `json:"planArtifacts"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -421,7 +422,8 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 	return resolvedplan.Catalog{
 		Capabilities: wire.Capabilities, Providers: wire.Providers, AddOns: wire.AddOns,
 		Modules: wire.Modules, Workloads: wire.Workloads, PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
-		PlanArtifacts: wire.PlanArtifacts,
+		RILActionPrimitives: wire.RILActionPrimitives,
+		PlanArtifacts:       wire.PlanArtifacts,
 	}, nil
 }
 

@@ -115,7 +115,8 @@ func (s *Server) Handler() http.Handler {
 
 func architectureV2NoStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v2/resolve" || strings.HasPrefix(r.URL.Path, sharedruntimeaction.ArchitectureV2PathPrefix) {
+		if r.URL.Path == "/api/v2/resolve" || strings.HasPrefix(r.URL.Path, sharedruntimeaction.ArchitectureV2PathPrefix) ||
+			strings.HasPrefix(r.URL.Path, rilActionPathPrefix) {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		next.ServeHTTP(w, r)

@@ -2193,6 +2193,86 @@ _architectureV2PrivilegedInterfaceApprovals: list.Concat([[
 	},
 ], _architectureV2ProfileExtensionPrivilegedInterfaceApprovals])
 
+_architectureV2RILActionPrimitives: [
+	{
+		id: "plan-drift-repair", version: "1.0.0", title: "Plan a governed drift repair", category: "plan"
+		support: "contract-only", mutation: false, destructive: false, risk: "read-only"
+		owner: {authority: "stackkits", operationClass: "plan-inspection"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-plan"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: []
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+		recovery: {kind: "none", requiredOnFailure: false}
+	},
+	{
+		id: "apply-stackkit-change", version: "1.0.0", title: "Apply an approved StackKit change", category: "apply"
+		support: "contract-only", mutation: true, destructive: false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "product-apply"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-apply"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "approved-change-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "primitive", requiredOnFailure: true, primitiveRef: "rollback-stackkit-change"}
+	},
+	{
+		id: "verify-stackkit-state", version: "1.0.0", title: "Verify governed StackKit state", category: "verify"
+		support: "executor-bound", executorRef: "stackkits-governed-state-verifier-v1", mutation: false, destructive: false, risk: "read-only"
+		owner: {authority: "stackkits", operationClass: "product-verify"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-verify"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: []
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+		recovery: {kind: "none", requiredOnFailure: false}
+	},
+	{
+		id: "rollback-stackkit-change", version: "1.0.0", title: "Roll back an approved StackKit change", category: "rollback"
+		support: "contract-only", mutation: true, destructive: true, risk: "critical"
+		owner: {authority: "stackkits", operationClass: "product-rollback"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "break-glass", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-rollback"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "checkpoint-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id: "restart-service", version: "1.0.0", title: "Restart one governed runtime service", category: "service"
+		support: "contract-only", mutation: true, destructive: false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "runtime-service-action"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-restart"], connectorBindingRequired: true}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		inputs: [{id: "runtime-instance-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id: "rotate-certificate", version: "1.0.0", title: "Rotate one governed certificate binding", category: "certificate"
+		support: "contract-only", mutation: true, destructive: false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "certificate-action"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-certificate-rotate"], connectorBindingRequired: true}
+		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "certificate-binding-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id: "check-backup", version: "1.0.0", title: "Check governed backup and restore evidence", category: "backup"
+		support: "contract-only", mutation: false, destructive: false, risk: "read-only"
+		owner: {authority: "stackkits", operationClass: "backup-evidence"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-check"], connectorBindingRequired: true}
+		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "backup-contract-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+		recovery: {kind: "none", requiredOnFailure: false}
+	},
+]
+
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
 	providers: [for contract in _architectureV2Providers {#CapabilityProvider & contract}]
@@ -2200,6 +2280,7 @@ ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	modules: [for contract in _architectureV2Modules {#ModuleContractV2 & contract}]
 	workloads: _architectureV2WorkloadContracts
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
+	rilActionPrimitives: [for contract in _architectureV2RILActionPrimitives {#RILActionPrimitiveContractV1 & contract}]
 	planArtifacts: _architectureV2PlanArtifacts
 
 	_capabilityIDsUnique: list.UniqueItems([for contract in capabilities {contract.metadata.id}]) & true

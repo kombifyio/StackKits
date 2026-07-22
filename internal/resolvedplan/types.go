@@ -97,6 +97,11 @@ type PrivilegedInterfaceApproval map[string]any
 // It is CUE catalog authority, not caller-supplied compiler configuration.
 type PlanArtifactContract map[string]any
 
+// RILActionPrimitiveContract is a CUE-governed approved-action catalog entry.
+// Presence in the catalog is not execution support; the contract's support
+// field remains contract-only until an authenticated runtime owner is bound.
+type RILActionPrimitiveContract map[string]any
+
 // ResolvedPlan is a JSON-decoded base.#ResolvedPlan document. It must only be
 // constructed through Compiler.Compile so its source and plan hashes agree.
 type ResolvedPlan map[string]any
@@ -118,6 +123,7 @@ type Catalog struct {
 	Modules                      []ModuleContract
 	Workloads                    []WorkloadContract
 	PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval
+	RILActionPrimitives          []RILActionPrimitiveContract
 	PlanArtifacts                []PlanArtifactContract
 }
 

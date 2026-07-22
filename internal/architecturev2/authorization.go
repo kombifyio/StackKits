@@ -26,18 +26,34 @@ import (
 // plan used for authorization. Mutating a Result returned by Result therefore
 // cannot change the plan that may be authorized.
 type CurrentResolution struct {
-	owner  *generationCoordinator
-	plan   generationartifact.VerifiedPlan
-	result Result
-	key    string
-	epoch  uint64
-	valid  bool
+	owner   *generationCoordinator
+	plan    generationartifact.VerifiedPlan
+	result  Result
+	key     string
+	stackID string
+	epoch   uint64
+	valid   bool
 }
 
 // ResolveCurrent resolves current StackSpec intent plus observed inventory and
 // seals the exact canonical output for the later renderer-authorization gate.
 // Ordinary Resolve results intentionally cannot be upgraded into this proof.
 func (s *Service) ResolveCurrent(input ResolveInput) (CurrentResolution, error) {
+	return s.resolveCurrent(input, "")
+}
+
+// ResolveCurrentScoped isolates freshness and replay state for callers whose
+// Stack IDs are unique only inside an authenticated authority scope. The scope
+// never enters the ResolvedPlan, request wire, evidence, or generated output.
+func (s *Service) ResolveCurrentScoped(input ResolveInput, authorityScope string) (CurrentResolution, error) {
+	authorityScope = strings.TrimSpace(authorityScope)
+	if authorityScope == "" || strings.ContainsRune(authorityScope, '\x00') {
+		return CurrentResolution{}, resolveError(ErrGenerationAuthorization, "a non-empty authority scope without NUL characters is required", nil)
+	}
+	return s.resolveCurrent(input, authorityScope)
+}
+
+func (s *Service) resolveCurrent(input ResolveInput, authorityScope string) (CurrentResolution, error) {
 	result, err := s.Resolve(input)
 	if err != nil {
 		return CurrentResolution{}, err
@@ -46,15 +62,19 @@ func (s *Service) ResolveCurrent(input ResolveInput) (CurrentResolution, error) 
 	if err != nil {
 		return CurrentResolution{}, resolveError(ErrGenerationAuthorization, "verify the current resolver result against the service authority", err)
 	}
-	key, err := currentResolutionKey(result)
+	stackID, err := currentResolutionKey(result)
 	if err != nil {
 		return CurrentResolution{}, err
 	}
 	if s.generation == nil {
 		return CurrentResolution{}, resolveError(ErrGenerationAuthorization, "Architecture v2 generation coordinator is not initialized", nil)
 	}
+	key := stackID
+	if authorityScope != "" {
+		key = authorityScope + "\x00" + stackID
+	}
 	epoch := s.generation.issueCurrentGeneration(key, plan.Binding())
-	return CurrentResolution{owner: s.generation, plan: plan, result: result, key: key, epoch: epoch, valid: true}, nil
+	return CurrentResolution{owner: s.generation, plan: plan, result: result, key: key, stackID: stackID, epoch: epoch, valid: true}, nil
 }
 
 // Result returns a defensive projection of the current resolution for plan

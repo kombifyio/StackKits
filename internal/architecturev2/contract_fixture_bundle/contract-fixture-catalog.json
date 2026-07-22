@@ -1110,6 +1110,7 @@
       "privilegedApprovalSubjectsUnique": true,
       "providedInterfaceIDsUnique": true,
       "providerIDsUnique": true,
+      "rilActionPrimitiveIDsUnique": true,
       "workloadAlternativesUnique": true,
       "workloadIDsUnique": true
     },
@@ -1554,5 +1555,6 @@
       "workloadRefs": []
     }
   ],
+  "rilActionPrimitives": [],
   "workloads": []
 }

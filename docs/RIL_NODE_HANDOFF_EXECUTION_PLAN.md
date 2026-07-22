@@ -1,6 +1,6 @@
 ---
 title: RIL Node Handoff Execution Plan
-last_verified: 2026-07-01
+last_verified: 2026-07-22
 status: implementation plan
 ---
 
@@ -13,48 +13,70 @@ connector binding where required.
 
 ## Primitive Catalog
 
-The first public-beta primitive catalog should include:
+The first product-authority catalog now includes:
 
-- `apply_stackkit_change`
-- `verify_stackkit_state`
-- `rollback_stackkit_change`
-- `restart_service`
-- `rotate_certificate`
-- `check_backup`
-- `plan_drift_repair`
-- package-specific safe actions declared by the active StackKit manifest.
+- `apply-stackkit-change`
+- `verify-stackkit-state`
+- `rollback-stackkit-change`
+- `restart-service`
+- `rotate-certificate`
+- `check-backup`
+- `plan-drift-repair`
 
-Each primitive declares inputs, risk, required grants, verification steps,
-rollback behavior, redaction rules, and evidence fields.
+Each primitive declares typed inputs, risk, required approval and grants,
+target scope, verification steps, recovery behavior, redaction rules,
+prohibited raw authorities, and evidence fields. Six remain `contract-only`.
+`verify-stackkit-state` is bound to the in-process governed-plan readback
+owner; it explicitly does not observe a node or host runtime. No external
+node-handoff readiness is claimed.
 
 ## Cloudflare Agent Node Handoff
 
-When execution must run near the node, the handoff contract carries:
+The shared provider-free handoff now carries:
 
-- `actionCardId`
+- `actionCardId` and approval-receipt reference
 - `executionId`
 - `traceId`
 - `tenantId`
-- `serverId`
-- `primitiveId`
-- `connectorBindingId`
+- `stackId`, exact `resolvedPlanHash`, Site/node and runtime-owner references
+- `primitiveId` and exact primitive-contract hash
+- opaque connector-grant and execution-channel bindings
+- expiry, nonce, and idempotency key
 - redaction policy
-- callback URL or event sink
+- opaque evidence-sink reference
 
-The node handoff is authenticated, idempotent, and tenant/server scoped. Missing
-approval, missing binding, wrong tenant, or unsupported primitive fails closed.
+No callback URL, host address, raw command, provider/server resource, transport
+selection, or credential enters the StackKits envelope. TechStack and its
+native provider-control/lease authority resolve external lifecycle and delivery;
+StackKits validates only the exact opaque bindings and dispatches to the
+primitive's governed runtime owner. A Cloudflare Agent may implement that
+external delivery, but Cloudflare-specific fields are not part of the
+StackKits contract.
+
+The current StackKits validator binds this envelope to an authenticated tenant
+context, one fresh `CurrentResolution`, the exact CUE primitive, and the
+current plan target graph. It rejects all `contract-only` primitives before an
+execution path is reached. The built-in verifier is process-local,
+replay-guarded, and read-only. A later external node dispatch must additionally
+be durably idempotent, authenticated, expiry-bound, and
+tenant/stack/node scoped. Missing approval, missing grant/binding, wrong
+tenant/stack/node, stale plan, substituted primitive hash, or unsupported
+primitive fails closed.
 
 ## Evidence Model
 
-Every completed or failed execution returns:
+The governed-plan verifier returns:
 
-- action card ID, execution ID, primitive ID, trace ID;
-- target node/server reference;
-- command class, not raw command text when sensitive;
+- action-card ID, execution ID, primitive ID/hash, plan hash, and trace ID;
+- exact stack target and executor reference;
 - redacted logs or log references;
 - verification result;
-- rollback or compensation result;
-- public-safe status and protected diagnostic reference.
+- explicit no-recovery result;
+- public-safe status without a protected diagnostic payload.
+
+Future mutating or node-local owners must extend this with exact
+Site/node/runtime target evidence, durable custody, protected diagnostic
+references, and rollback or compensation results.
 
 ## Work Packages
 
@@ -66,7 +88,8 @@ Every completed or failed execution returns:
 
 ## Beta Acceptance
 
-StackKits is ready for RIL public beta when a TechStack-approved action can call
-one primitive, return verification evidence, and fail closed for unapproved raw
-SSH, raw Docker, raw OpenTofu, direct provider-key, wrong tenant, and missing
-grant-binding attempts.
+StackKits is ready for RIL public beta only when a TechStack-approved action
+can execute the bound verifier through the provider-free envelope, durable
+verification/recovery evidence is returned, and unapproved raw SSH, Docker,
+OpenTofu, direct provider-input, wrong tenant/stack/node, stale plan, primitive
+substitution, and missing grant attempts all fail closed.

@@ -25,6 +25,11 @@ const (
 	ErrUnsupportedMedia        ErrorCode = "unsupported_media_type"
 	ErrResolveBusy             ErrorCode = "resolve_busy"
 	ErrOperationalUnavailable  ErrorCode = "operational_surface_unavailable"
+	ErrRILActionAdmission      ErrorCode = "ril_action_admission_failed"
+	ErrRILActionUnavailable    ErrorCode = "ril_action_executor_unavailable"
+	ErrRILActionReplay         ErrorCode = "ril_action_replay_conflict"
+	ErrRILActionBusy           ErrorCode = "ril_action_execution_in_progress"
+	ErrRILActionExecution      ErrorCode = "ril_action_execution_failed"
 )
 
 // ResolveError preserves the underlying diagnostic and, for v1 input, the

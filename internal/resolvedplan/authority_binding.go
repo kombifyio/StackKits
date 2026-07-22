@@ -213,6 +213,9 @@ func canonicalAuthorityCatalogHash(catalog Catalog) (string, error) {
 	if projection["privilegedInterfaceApprovals"], err = sortedAuthorityContracts("privilegedInterfaceApprovals", catalog.PrivilegedInterfaceApprovals, false); err != nil {
 		return "", err
 	}
+	if projection["rilActionPrimitives"], err = sortedAuthorityContracts("rilActionPrimitives", catalog.RILActionPrimitives, false); err != nil {
+		return "", err
+	}
 	if projection["planArtifacts"], err = sortedAuthorityContracts("planArtifacts", catalog.PlanArtifacts, false); err != nil {
 		return "", err
 	}

@@ -1798,6 +1798,125 @@ _servicePublicationShape: {
 	}]
 }
 
+// RIL actions are catalog-owned references to governed StackKits operations.
+// They never carry raw commands, provider credentials, transport endpoints, or
+// arbitrary paths. `contract-only` is intentionally non-executable: a later
+// product slice must bind the exact contract hash to an authenticated runtime
+// owner before an approved action can leave admission.
+#RILActionPrimitiveInputV1: {
+	id:                #ContractID
+	type:              "opaque-reference" | "boolean" | "integer" | "string-enum"
+	required:          bool
+	source:            "approved-action-card"
+	opaqueReferenceOnly: true
+	inlineMaterial:      false
+}
+
+#RILActionPrimitiveContractV1: {
+	schemaVersion: "stackkit.ril-action-primitive/v1"
+	id:            #ContractID
+	version:       string & =~"^[0-9]+\\.[0-9]+\\.[0-9]+$"
+	title:         string & =~"^.{3,120}$"
+	category:      "plan" | "apply" | "verify" | "rollback" | "service" | "certificate" | "backup"
+	support:       "contract-only" | "executor-bound"
+	mutation:      bool
+	destructive:   bool
+	risk:          "read-only" | "low" | "high" | "critical"
+	owner: {
+		authority:      "stackkits"
+		operationClass: #ContractID
+	}
+	approval: {
+		required:        true
+		authority:       "techstack"
+		policyAuthority: "gateway"
+		class:           "owner-step-up" | "break-glass"
+		receiptRequired: true
+	}
+	grant: {
+		required:                 true
+		audience:                 "stackkits"
+		scopes:                   [...#ContractID] & list.MinItems(1)
+		connectorBindingRequired: true
+		_scopesUnique:             list.UniqueItems(scopes) & true
+	}
+	target: {
+		scope:                      "stack" | "module-instance" | "runtime-instance"
+		requiresStackID:            true
+		requiresResolvedPlanHash:   true
+		requiresNodeRef:            bool
+		requiresRuntimeInstanceRef: bool
+	}
+	inputs: [...#RILActionPrimitiveInputV1] | *[]
+	_inputsUnique: list.UniqueItems([for input in inputs {input.id}]) & true
+	verification: {
+		required:       true
+		evidenceSchema: "stackkit.ril-action-evidence/v1"
+		phases: [...("preflight" | "post-action" | "readback")] & list.MinItems(1)
+		_phasesUnique: list.UniqueItems(phases) & true
+	}
+	recovery: {
+		kind:              "none" | "primitive" | "manual"
+		requiredOnFailure: bool
+		primitiveRef?:     #ContractID
+		if kind == "primitive" {
+			primitiveRef: #ContractID
+		}
+		if kind != "primitive" {
+			primitiveRef?: _|_
+		}
+	}
+	evidence: {
+		requiredFields: [
+			"action-card-id",
+			"execution-id",
+			"primitive-id",
+			"primitive-contract-hash",
+			"resolved-plan-hash",
+			"trace-id",
+			"target-ref",
+			"status",
+			"verification",
+			"recovery",
+		]
+		redactedLogsOnly: true
+	}
+	prohibitions: {
+		rawSSH:             true
+		rawDocker:          true
+		rawOpenTofu:        true
+		providerInputs:      true
+		callerCommands:     true
+		arbitraryPaths:     true
+		providerLifecycle:  true
+	}
+	if support == "contract-only" {
+		executorRef?: _|_
+	}
+	if support == "executor-bound" {
+		executorRef: #ContractID
+	}
+	if destructive {
+		mutation:       true
+		risk:           "critical"
+		approval: class: "break-glass"
+	}
+	if mutation {
+		recovery: {
+			kind:              "primitive" | "manual"
+			requiredOnFailure: true
+		}
+	}
+	if !mutation {
+		destructive: false
+		risk:        "read-only"
+		recovery: {
+			kind:              "none"
+			requiredOnFailure: false
+		}
+	}
+}
+
 #BridgeContract: {
 	overlay: #ConnectivityOverlayIntentV2
 	publications: [...#ServicePublication] | *[]
@@ -3585,6 +3704,12 @@ _servicePublicationShape: {
 	modules: [...#ModuleContractV2] | *[]
 	workloads: [...#WorkloadContractV2] | *[]
 	privilegedInterfaceApprovals: [...#PrivilegedInterfaceApprovalV2] | *[]
+	rilActionPrimitives: [...#RILActionPrimitiveContractV1] | *[]
+	_rilRecoveryClosure: [for primitive in rilActionPrimitives if primitive.recovery.kind == "primitive" {
+		primitive: primitive.id
+		recovery:  primitive.recovery.primitiveRef
+		matches: [for target in rilActionPrimitives if target.id == primitive.recovery.primitiveRef && target.mutation {target.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_tlsIssuerIDsUnique: list.UniqueItems([for provider in providers for issuer in provider.certificateIssuers {issuer.id}]) & true
 	_tlsProfileIDsUnique: list.UniqueItems([for capability in capabilities if capability.tlsProfile != _|_ {capability.tlsProfile.id}]) & true
 	_tlsCapabilityProfilesExact: [for capabilityContract in capabilities if capabilityContract.metadata.id == "internal-pki" || capabilityContract.metadata.id == "public-tls" {
@@ -3651,6 +3776,7 @@ _servicePublicationShape: {
 			for contract in unit.providesInterfaces {"\(contract.daemonRef)/\(contract.policyProfile)"},
 		]) & true
 		privilegedApprovalIDsUnique: list.UniqueItems([for approval in privilegedInterfaceApprovals {approval.id}]) & true
+		rilActionPrimitiveIDsUnique: list.UniqueItems([for primitive in rilActionPrimitives {primitive.id}]) & true
 		privilegedApprovalSubjectsUnique: list.UniqueItems([
 			for approval in privilegedInterfaceApprovals {"\(approval.moduleRef)/\(approval.unitRef)/\(approval.daemonRef)/\(approval.policyProfile)"},
 		]) & true

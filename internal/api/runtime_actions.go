@@ -97,6 +97,10 @@ type runtimeActionRuntimeMetrics struct {
 }
 
 func (s *Server) registerRuntimeActionRoutes() {
+	s.mux.Handle("POST "+rilActionResolvePath,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(s.handleRILActionResolve)))
+	s.mux.Handle("POST "+rilActionExecutePath,
+		s.requireRuntimeActionServiceAuth(http.HandlerFunc(s.handleRILActionExecute)))
 	s.mux.Handle("POST "+sharedruntimeaction.ArchitectureV2PathStackKitRollout,
 		s.requireRuntimeActionServiceAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			s.handleArchitectureV2RuntimeAction(w, r, runtimeActionRollout)

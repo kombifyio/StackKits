@@ -257,6 +257,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 		"modules":                      catalog.Modules,
 		"workloads":                    catalog.Workloads,
 		"privilegedInterfaceApprovals": catalog.PrivilegedInterfaceApprovals,
+		"rilActionPrimitives":          catalog.RILActionPrimitives,
 	}
 	// A nil slice means the caller did not provide an authority value. Let CUE
 	// materialize its governed minimal default instead of inventing one in Go.
@@ -285,6 +286,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 		Modules                      []ModuleContract              `json:"modules"`
 		Workloads                    []WorkloadContract            `json:"workloads"`
 		PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
+		RILActionPrimitives          []RILActionPrimitiveContract  `json:"rilActionPrimitives"`
 		PlanArtifacts                []PlanArtifactContract        `json:"planArtifacts"`
 	}
 	if err := decoder.Decode(&wire); err != nil {
@@ -296,6 +298,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	normalized.Modules = wire.Modules
 	normalized.Workloads = wire.Workloads
 	normalized.PrivilegedInterfaceApprovals = wire.PrivilegedInterfaceApprovals
+	normalized.RILActionPrimitives = wire.RILActionPrimitives
 	normalized.PlanArtifacts = wire.PlanArtifacts
 	return normalized, nil
 }

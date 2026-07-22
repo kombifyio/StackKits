@@ -35,10 +35,16 @@ Internal runtime-action endpoints are not browser/API-key endpoints. They requir
 
 The three deployment routes below `/api/v1/internal/runtime-actions/` are exact-v0.6 compatibility only. Native v0.7 returns `410 legacy_runtime_action_retired` before decoding or execution. This StackSpec/deployment retirement does not silently re-version the independently shared backup-operation protocol (`backup-run`, `backup-status`, `backup-restore`, `backup-wipe`); those actions are a separate go-common contract and are not evidence that StackSpec v1 remains operational.
 
-For `ril-ops` public beta, these internal runtime actions are the only StackKit
-execution lane the harness may reach, and only through TechStack plus Gateway
-approval. Agents and Workbench never receive raw SSH, Docker socket, or
-OpenTofu apply authority. See
+For `ril-ops` public beta, the only StackKit execution lane is the paired
+`/api/v2/internal/ril-actions/resolve` and
+`/api/v2/internal/ril-actions/execute` service surface. Both require a valid
+TechStack service token and exact `X-Kombify-Tenant-ID`. Resolve accepts
+StackSpec plus Inventory and retains an opaque current resolution; execute
+accepts only the shared provider-free `rilaction.Request` and returns the exact
+shared evidence document. Only `verify-stackkit-state` currently has an
+executor; every other catalog primitive remains contract-only. Agents and
+Workbench never receive raw SSH, Docker socket, OpenTofu apply, provider input,
+or caller-selected command authority. See
 [RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md).
 
 ## Response Model
@@ -66,6 +72,8 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `GET` | `/api/v1/stackkits/{name}/defaults` | Read versioned initial StackSpec authoring data. | Yes |
 | `POST` | `/api/v1/validate` | Validate v2 against CUE or v1 as read-only migration input. | Yes |
 | `POST` | `/api/v1/validate/partial` | Validate versioned initial StackSpec authoring input. | Yes |
+| `POST` | `/api/v2/internal/ril-actions/resolve` | Bind StackSpec + Inventory to one tenant-owned current RIL resolution. | TechStack service auth + tenant header |
+| `POST` | `/api/v2/internal/ril-actions/execute` | Execute the exact shared approved-action request and return shared evidence. | TechStack service auth + tenant header |
 | `POST` | `/api/v1/generate/tfvars` | Exact-v0.6 compatibility generator; not advertised on native v0.7. | Yes |
 | `POST` | `/api/v1/generate/preview` | Exact-v0.6 compatibility preview; not advertised on native v0.7. | Yes |
 | `GET` | `/api/v1/status` | Read node-local StackKit rollout status. | Yes |
