@@ -796,10 +796,29 @@ _architectureV2TLSContractSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: []
 }
 
-_architectureV2PublicTLSGenerationSupport: #ModuleRealizationSupportV2 & {
+_architectureV2InternalPKIGenerationSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
 	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["internalPKI", "kit", "moduleTargets", "stackId"]}
+	artifacts: {
+		requiredRefs: ["internal-pki-executor-contract"]
+		outputBindings: [{artifactRef: "internal-pki-executor-contract", unitRef: "executor-contract", outputRef: "home/tls/internal-pki-executor-contract.json"}]
+		contracts: [{
+			id: "internal-pki-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["opentofu", "compose"]
+			unitRef: "executor-contract", outputRef: "home/tls/internal-pki-executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2PublicTLSGenerationSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {contractComplete: true, requiredRefs: ["kit", "moduleTargets", "publicTLS", "stackId"]}
@@ -812,7 +831,7 @@ _architectureV2PublicTLSGenerationSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "executor-contract", outputRef: "cloud/tls/executor-contract.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["public-tls-contract"]
 }
 
 _architectureV2CoreHostBootstrapSupport: #ModuleRealizationSupportV2 & {
@@ -896,8 +915,7 @@ _architectureV2HomeExtensionRuntimeSupports: {
 				contractComplete: true
 				requiredRefs: list.Concat([
 					["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"],
-					[for ref in ["storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"] if !artifact.requiresBackupBinding {ref}],
-					[for ref in ["homeAccessRequirements", "externalHomeAccessBindings"] if artifact.requiresAccessBinding {ref}],
+					[for ref in ["homeAccessHandoff"] if artifact.requiresAccessBinding {ref}],
 					[for ref in ["homeOffsiteBackup"] if artifact.requiresBackupBinding {ref}],
 				])
 			}
@@ -923,7 +941,7 @@ _architectureV2BasementComposeExecutorContractSupport: #ModuleRealizationSupport
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 	}
 	artifacts: {
 		requiredRefs: ["basement-compose-runtime-executor-contract"]
@@ -1081,11 +1099,11 @@ _architectureV2LocalAutonomySupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
 		contractComplete: true
-		requiredRefs: []
+		requiredRefs: ["local-autonomy-policy"]
 	}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "controlPlane", "identity", "data", "failurePolicy"]
+		requiredRefs: []
 	}
 	artifacts: {
 		requiredRefs: ["local-autonomy-policy"]
@@ -1115,11 +1133,11 @@ _architectureV2HomeAccessSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
 		contractComplete: true
-		requiredRefs: []
+		requiredRefs: ["home-access-policy"]
 	}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "identity", "localReachability"]
+		requiredRefs: []
 	}
 	artifacts: {
 		requiredRefs: ["home-access-policy"]
@@ -1544,7 +1562,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://home/remote-access/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:d534d74860c5453ec0fb4f377306371e9a388b9ecf7725c495bff4b092219978"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability", "homeAccessRequirements", "externalHomeAccessBindings"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "homeAccessHandoff"]
 			inputBindings: [], outputs: ["home/remote-access/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1573,7 +1591,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://home/publication/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:16f928871e35f06c1f5960f90acfa8d88cebd23fb9aefe8630c0f0017d65a387"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability", "homeAccessRequirements", "externalHomeAccessBindings"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "homeAccessHandoff"]
 			inputBindings: [], outputs: ["home/publication/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1614,16 +1632,29 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-internal-pki-contract"
 			version:     "1.0.0"
-			description: "Contract-only internal CA and renewal owner; no certificate material or termination runtime is generated yet."
+			description: "Provider-free internal CA materialization handoff; secret material and execution remain owned by an authenticated Home runtime."
 		}
 		role:        "platform"
 		providerRef: "stackkits-internal-pki"
 		provides:    _architectureV2InternalPKICapabilities
 		requires: ["stackkits-core-host-bootstrap"]
 		supportedSiteKinds: ["home"]
-		runtime: {kind: "native", delivery: "stackkit"}
-		renderUnits: []
-		realizationSupport: _architectureV2TLSContractSupport
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:      "unbound", ownerRef: "stackkits-internal-pki-executor", capabilityRefs: _architectureV2InternalPKICapabilities
+			targetScope: "home-sites", operations: ["materialize-internal-certificate", "renew-internal-certificate", "verify-internal-pki"]
+			requiredHealthRef: "internal-pki-renewal-contract", requiredEvidenceRef: "internal-pki-contract"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                            "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/tls/internal-pki-executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:8a33d26b598c120ed200f4e09c96e4dc5d9d9fa05de9d42a2a853527683bac09"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "internalPKI"]
+			outputs: ["home/tls/internal-pki-executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2InternalPKIGenerationSupport
 		health: [{id: "internal-pki-renewal-contract", kind: "contract"}]
 		evidence: ["internal-pki-contract"]
 	},
@@ -1732,10 +1763,14 @@ _architectureV2Modules: list.Concat([[
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://home/local-autonomy/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:86071b1b898dffdcf2330ea7376ae5e7178a7a54bb42d7278475d9f56d033dee"
-			publicInputRefs: []
+			contractHash: "sha256:423ed27c579f6e7232c069535203c07dd2993183758525fcde6303795f20094c"
+			publicInputRefs: ["local-autonomy-policy"]
 			secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "controlPlane", "identity", "data", "failurePolicy"]
+			planInputRefs: []
+			inputBindings: [{
+				targetRef: "local-autonomy-policy", sourceRef:      "localAutonomy.policy"
+				valueType: "local-autonomy-policy-v1", cardinality: "single", required: true
+			}]
 			outputs: ["local/autonomy/policy.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
@@ -1769,10 +1804,14 @@ _architectureV2Modules: list.Concat([[
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://home/access/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:d194da4490b393393fb60327a3567583dee4a489a88cda7b3b029a06ea923577"
-			publicInputRefs: []
+			contractHash: "sha256:22afca6d222abf93e1454ce97ce4b1dc74326a1b6f120796da5b8ea2fbd80f76"
+			publicInputRefs: ["home-access-policy"]
 			secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "identity", "localReachability"]
+			planInputRefs: []
+			inputBindings: [{
+				targetRef: "home-access-policy", sourceRef:           "access.homeEnforcement"
+				valueType: "home-access-enforcement-v1", cardinality: "single", required: true
+			}]
 			outputs: ["local/network/access-policy.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
@@ -1970,24 +2009,33 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-public-tls-contract"
 			version:     "1.0.0"
-			description: "Contract-only public ACME issuer and edge-termination owner; no certificate material or runtime adapter is generated yet."
+			description: "Exact public TLS termination and renewal handoff; certificate material and ACME credentials remain owned by an authenticated external operations implementation."
 		}
 		role:        "platform"
 		providerRef: "stackkits-public-tls"
 		provides:    _architectureV2PublicTLSCapabilities
 		requires: ["stackkits-cloud-public-edge-runtime"]
 		supportedSiteKinds: ["cloud"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-public-tls-enforcer"
+			policyArtifactRefs: ["public-tls-executor-contract"]
+			targetScope: "cloud-sites"
+			operations: ["materialize-public-tls", "renew-public-tls", "verify-public-tls"]
+			requiredHealthRef:   "public-tls-renewal-contract"
+			requiredEvidenceRef: "public-tls-contract"
+		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/tls/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:a0298b76b8d8215e19460a8e154381eee8675aab2c2fe8cd49d316c133ff6ae8"
+			contractHash: "sha256:7779966dc102170d25a75c0a508427d5cb7462b2b7108b311036b2b3b02f97c8"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["kit", "moduleTargets", "publicTLS", "stackId"]
 			outputs: ["cloud/tls/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2PublicTLSGenerationSupport
-		health: [{id: "public-tls-renewal-contract", kind: "contract"}]
+		health: [{id: "public-tls-renewal-contract", kind: "contract", scope: "each-node"}]
 		evidence: ["public-tls-contract"]
 	},
 	{
@@ -2052,7 +2100,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://basement/runtime/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:3e9795cc29f1d063184a5be004b796341f1c408d40bd7c4e41b814f979c795ad"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 			outputs: ["basement/runtime/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -2063,7 +2111,7 @@ _architectureV2Modules: list.Concat([[
 				unitRefs: ["executor-contract"]
 				artifactRefs: ["basement-compose-runtime-executor-contract"]
 				publicInputRefs: [], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
@@ -2071,7 +2119,7 @@ _architectureV2Modules: list.Concat([[
 				unitRefs: ["executor-contract"]
 				artifactRefs: ["basement-compose-runtime-executor-contract"]
 				publicInputRefs: [], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"]
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 			},
 		]
 		realizationSupport: _architectureV2BasementComposeExecutorContractSupport

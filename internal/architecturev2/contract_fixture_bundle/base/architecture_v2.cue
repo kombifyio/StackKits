@@ -2964,14 +2964,14 @@ _servicePublicationShape: {
 // resolved-plan views that a render unit may consume. These are not user
 // settings and they never expose the full plan, node inventory, secretRefs,
 // management endpoints, or daemon/socket bindings.
-#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "homeOffsiteBackup" | "cloudOffsiteBackup" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS" | "cloudAdminMesh"
+#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "bridgePublications" | "bridgeOriginMTLS" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "homeAccessHandoff" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "homeOffsiteBackup" | "cloudOffsiteBackup" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS" | "internalPKI" | "cloudAdminMesh"
 
 // #ModuleRenderInputBindingV2 is the closed field-level seam from resolved
 // architecture authority into public renderer inputs. Sources are finite and
 // typed; arbitrary paths, raw StackSpec access, module outputs, and secrets are
 // intentionally unrepresentable.
-#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "network.routes" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot"
-#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "authority-bound-service-route-list-v4" | "cloud-host-security-network-v1" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1"
+#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot"
+#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "cloud-host-security-network-v1" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1"
 #ModuleRenderInputCardinalityV2: "single" | "list"
 
 // This projection renames credentialTTLSeconds to lifetimeSeconds so the
@@ -2989,6 +2989,99 @@ _servicePublicationShape: {
 	hardwareBackedKey:         "preferred" | "required"
 	revocationSupported:       true
 	lifetimeSeconds:           int & >=300 & <=86400
+}
+
+// #ModulePublicHomeAccessEnforcementV1 is the complete compiler-owned access
+// decision available to the Home access renderer. Fixed local/default-deny
+// invariants are validated before projection and therefore do not become
+// caller-controlled runtime fields. Identity enrollment, discovery, network
+// configuration, endpoints, credentials and provider lifecycle are absent.
+#ModulePublicHomeAccessEnforcementV1: {
+	stackId: #ContractID
+	routes: [...{
+		id:            #ContractID
+		serviceRef:    #ContractID
+		moduleRef:     #ContractID
+		originSiteRef: #SiteID
+		originNodeRefs: [...#NodeID] & list.MinItems(1)
+		protocol:               #NetworkProtocol
+		upstreamProtocol:       #NetworkProtocol
+		port:                   int & >=1 & <=65535
+		targetPort:             int & >=1 & <=65535
+		host?:                  string & =~"^.+$"
+		path?:                  string & =~"^/"
+		policyRef:              #ContractID
+		policyExposure:         "private" | "lan"
+		authentication:         "human" | "device" | "human+device" | "workload" | "none"
+		privilege:              "user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+		enrolledDeviceRequired: bool
+		ownerStepUpRequired:    bool
+		lanStepDown:            bool
+		allowedSiteRefs: [...#SiteID] & list.MinItems(1)
+		allowedMethods?: [...#HTTPMethod] & list.MinItems(1)
+		tlsRequired:    bool
+		tlsMode:        "off" | "internal" | "terminate-at-edge"
+		tlsMinVersion?: "TLS1.2" | "TLS1.3"
+	}] | []
+
+	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
+}
+
+#ModulePublicLocalAutonomyDataBindingV1: {
+	bindingRef:     #ContractID
+	primarySiteRef: #SiteID
+	replicaSiteRefs: [...#SiteID] | []
+	cloudPlacement:      "denied" | "policy-authorized"
+	cloudCopyPolicyRef?: #ContractID
+	if cloudPlacement == "denied" {
+		cloudCopyPolicyRef?: _|_
+	}
+	if cloudPlacement == "policy-authorized" {
+		cloudCopyPolicyRef: #ContractID
+	}
+	_replicaSiteRefsUnique: list.UniqueItems(replicaSiteRefs) & true
+}
+
+// #ModulePublicLocalAutonomyPolicyV1 is an atomic, operation-shaped partition
+// and local-control decision. Device enrollment ceremony, data classes,
+// provider/transport authority and general LAN reachability stay with their
+// dedicated owners.
+#ModulePublicLocalAutonomyPolicyV1: {
+	stackId: #ContractID
+	kitSlug: "basement-kit" | "modern-homelab"
+	topology: {
+		authorityHomeSiteRef: #SiteID
+		cloudSiteRefs: [...#SiteID] | []
+	}
+	control: {
+		mode:             #ControlPlaneMode
+		authoritySiteRef: #SiteID
+		memberNodeRefs: [...#NodeID] & list.MinItems(1)
+	}
+	identity: {
+		authoritySiteRef: #SiteID
+		enrollmentMode:   "local-only"
+		edgeVerifierSiteRefs: [...#SiteID] | []
+		possessionBoundSessions:  true
+		lanLocationIsIdentity:    false
+		availableDuringPartition: true
+	}
+	data: {
+		defaultAuthoritySiteRef: #SiteID
+		bindings: [...#ModulePublicLocalAutonomyDataBindingV1] | []
+	}
+	failure: {
+		onCloudLoss:                 "local-continues" | "not-applicable"
+		onLinkLoss:                  "local-continues"
+		cloudEdge:                   "fail-closed" | "not-applicable"
+		maxStaleVerificationSeconds: int & >=0
+		denyNewCrossSiteSessions:    true
+	}
+
+	_cloudSiteRefsUnique:        list.UniqueItems(topology.cloudSiteRefs) & true
+	_memberNodeRefsUnique:       list.UniqueItems(control.memberNodeRefs) & true
+	_edgeVerifierSiteRefsUnique: list.UniqueItems(identity.edgeVerifierSiteRefs) & true
+	_bindingRefsUnique: list.UniqueItems([for binding in data.bindings {binding.bindingRef}]) & true
 }
 
 #ModulePublicHomeDeviceAuthorityV1: {
@@ -3126,23 +3219,23 @@ _servicePublicationShape: {
 }
 
 #ModulePublicModernVerifierDistributionV1: {
-	id:          #ContractID
-	principal:   "device" | "human" | "workload"
-	issuerRef:   #ContractID
-	issuer:      #ResolvedIdentityIssuerURNV2
-	materials:   ["revocation-state", "verification-key-reference"]
+	id:        #ContractID
+	principal: "device" | "human" | "workload"
+	issuerRef: #ContractID
+	issuer:    #ResolvedIdentityIssuerURNV2
+	materials: ["revocation-state", "verification-key-reference"]
 	maxStalenessSeconds: int & >=0 & <=86400
 }
 
 #ModulePublicModernHomeIdentityAuthorityV1: {
-	homeSiteRef:  #SiteID
+	homeSiteRef: #SiteID
 	cloudSiteRefs: [...#SiteID] & list.MinItems(1)
 	partition: {
-		onCloudLoss:                    "local-continues"
-		onLinkLoss:                     "local-continues"
+		onCloudLoss:                     "local-continues"
+		onLinkLoss:                      "local-continues"
 		localIdentityAuthorityAvailable: true
-		maxStaleVerificationSeconds: int & >=0 & <=86400
-		denyNewCrossSiteSessions:    true
+		maxStaleVerificationSeconds:     int & >=0 & <=86400
+		denyNewCrossSiteSessions:        true
 	}
 	issuers: [...#ModulePublicModernHomeIdentityIssuerV1] & list.MinItems(3) & list.MaxItems(3)
 	verifiers: [...#ModulePublicModernIdentityVerifierV1] & list.MinItems(3) & list.MaxItems(3)
@@ -3155,10 +3248,10 @@ _servicePublicationShape: {
 }
 
 #ModulePublicModernCloudIdentityVerificationV1: {
-	homeSiteRef:  #SiteID
+	homeSiteRef: #SiteID
 	cloudSiteRefs: [...#SiteID] & list.MinItems(1)
 	partition: {
-		cloudEdge:                      "fail-closed"
+		cloudEdge:                   "fail-closed"
 		maxStaleVerificationSeconds: int & >=0 & <=86400
 		denyNewCrossSiteSessions:    true
 	}
@@ -3392,6 +3485,16 @@ _servicePublicationShape: {
 		cardinality: "single"
 		if required == false {defaultValue: #ModulePublicModernCloudIdentityVerificationV1}
 	}
+	if sourceRef == "access.homeEnforcement" {
+		valueType:   "home-access-enforcement-v1"
+		cardinality: "single"
+		if required == false {defaultValue: #ModulePublicHomeAccessEnforcementV1}
+	}
+	if sourceRef == "localAutonomy.policy" {
+		valueType:   "local-autonomy-policy-v1"
+		cardinality: "single"
+		if required == false {defaultValue: #ModulePublicLocalAutonomyPolicyV1}
+	}
 	if sourceRef == "network.routes" {
 		valueType:   "authority-bound-service-route-list-v4"
 		cardinality: "list"
@@ -3563,6 +3666,70 @@ _servicePublicationShape: {
 	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
 }
 
+#ModuleInternalPKIV1: {
+	capabilityRef: "internal-pki"
+	providerRef:   #ContractID
+	profile: #TLSProfileV2 & {
+		capabilityRef: "internal-pki"
+		mode:          "internal"
+		trustDomain:   "private"
+	}
+	issuer: {
+		id:            #ContractID
+		capabilityRef: "internal-pki"
+		kind:          "internal-ca"
+		challenge:     "none"
+		supportedSiteKinds: ["home"]
+		validitySeconds: int & >3600
+		requiredInputSlotIDs: []
+		materialSlots: [...#TLSMaterialSlotV2] & list.MinItems(3)
+		renewal: {
+			required:           true
+			healthGateRef:      #ContractID
+			renewBeforeSeconds: int & >=3600
+		}
+	}
+}
+
+#ModuleBridgeOriginMTLSV1: {
+	publications: [...{
+		serviceRef:    #ContractID
+		identityRef:   #ContractID
+		sourceSiteRef: #SiteID
+		edgeSiteRef:   #SiteID
+		moduleRef:     #ContractID
+		unitRef:       #ContractID
+		originNodeRefs: [...#NodeID] & list.MinItems(1)
+		originInstanceRefs: [...#ContractID] & list.MinItems(1)
+		upstreamProtocol: #NetworkProtocol
+		targetPort:       int & >=1 & <=65535
+		transport: {
+			mode:              "mtls-origin-proxy"
+			minimumTLSVersion: "TLS1.3"
+			serverName:        #DNSNameV2
+			outboundOnly:      true
+			generalLANAccess:  false
+		}
+		workloadIdentity: {
+			credentialIssuerRef:       #ContractID
+			issuer:                    string & =~"^urn:stackkit:"
+			audience:                  string & =~"^urn:stackkit:"
+			verificationKeySetRef:     string & =~"^urn:stackkit:"
+			proofOfPossessionRequired: true
+		}
+		edgeVerifier: {
+			verifierRef:                #ContractID
+			distributionRef:            #ContractID
+			verificationKeySetRef:      string & =~"^urn:stackkit:"
+			maxStalenessSeconds:        int & >=1 & <=300
+			includesPrivateKeyMaterial: false
+			includesSigningAuthority:   false
+			reverseAllowed:             false
+		}
+	}] & list.MinItems(1)
+	_serviceRefsUnique: list.UniqueItems([for publication in publications {publication.serviceRef}]) & true
+}
+
 // #ModuleLocalReachabilityV2 is the only network/access view available to a
 // Home-local policy renderer. It deliberately excludes network configuration,
 // DNS/provider settings, credential refs, management addresses, bridge data,
@@ -3634,7 +3801,7 @@ _servicePublicationShape: {
 	capabilityRef: "private-admin-mesh"
 	siteRefs: [...#SiteID] & list.MinItems(1)
 	nodeRefs: [...#NodeID] & list.MinItems(1)
-	network:  #ModuleCloudNetworkPostureV1
+	network: #ModuleCloudNetworkPostureV1
 	routes: [...#ModulePublicResolvedRouteV4] & list.MinItems(1)
 
 	_siteRefsUnique: list.UniqueItems(siteRefs) & true
@@ -3655,12 +3822,17 @@ _servicePublicationShape: {
 
 #ModuleHomeOffsiteBackupV1: {
 	requirements: [#SiteID]: [#CapabilityID]: #HomeBackupTargetRequirementV1
-	bindings:     [#SiteID]: [#CapabilityID]: #ExternalHomeBackupTargetBindingV1
+	bindings: [#SiteID]: [#CapabilityID]:     #ExternalHomeBackupTargetBindingV1
+}
+
+#ModuleHomeAccessHandoffV1: {
+	requirements: [#SiteID]: [#CapabilityID]: #HomeAccessRequirementV1
+	bindings: [#SiteID]: [#CapabilityID]:     #ExternalHomeAccessBindingV1
 }
 
 #ModuleCloudOffsiteBackupV1: {
 	requirements: [#SiteID]: [#CapabilityID]: #BackupTargetRequirementV1
-	bindings:     [#SiteID]: [#CapabilityID]: #ExternalBackupTargetBindingV1
+	bindings: [#SiteID]: [#CapabilityID]:     #ExternalBackupTargetBindingV1
 }
 
 #ModulePlanInputsV2: {
@@ -3671,8 +3843,9 @@ _servicePublicationShape: {
 		definitionHash: #ContentHash
 	}
 	sites?: [...#ModulePlanSiteV2] & list.MinItems(1)
-	controlPlane?:      #ControlPlaneIntent
-	bridge?:            #ResolvedBridgeContractV2
+	controlPlane?: #ControlPlaneIntent
+	bridge?:       #ResolvedBridgeContractV2
+	bridgePublications?: [...#ResolvedServicePublicationV2] & list.MinItems(1)
 	identity?:          #ResolvedIdentityPlan
 	identityTrust?:     #ResolvedIdentityTrustV2
 	data?:              #DataPlacementIntent
@@ -3695,7 +3868,10 @@ _servicePublicationShape: {
 	cloudNetworkPolicy?: #ModuleCloudNetworkPolicyV2
 	publicEdge?:         #ModulePublicEdgeV1
 	publicTLS?:          #ModulePublicTLSV2
+	internalPKI?:        #ModuleInternalPKIV1
+	bridgeOriginMTLS?:   #ModuleBridgeOriginMTLSV1
 	cloudAdminMesh?:     #ModuleCloudAdminMeshV1
+	homeAccessHandoff?:  #ModuleHomeAccessHandoffV1
 	homeOffsiteBackup?:  #ModuleHomeOffsiteBackupV1
 	cloudOffsiteBackup?: #ModuleCloudOffsiteBackupV1
 }
@@ -6135,9 +6311,6 @@ _servicePublicationShape: {
 	"policy-enforcement-unverified" |
 	"partition-policy-enforcement-unverified" |
 	"device-verifier-unbound" |
-	"bridge-renderer-missing" |
-	"origin-identity-unbound" |
-	"tls-profile-unbound" |
 	"health-gate-not-executable" |
 	"route-health-executor-unbound"
 
@@ -8056,36 +8229,6 @@ _servicePublicationShape: {
 			}
 		}
 		_bridgePublicationReadiness: [for publication in bridge.publications {
-			bridgeRendererGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "bridge-renderer-missing"
-				refs: ["publication:\(publication.serviceRef)", "renderer:bridge-edge"]
-			}
-			bridgeRendererApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "bridge-renderer-missing"
-				refs: ["publication:\(publication.serviceRef)", "renderer:bridge-edge"]
-			}
-			originIdentityGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "origin-identity-unbound"
-				refs: ["publication:\(publication.serviceRef)", "identity:\(publication.origin.identityRef)"]
-			}
-			originIdentityApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "origin-identity-unbound"
-				refs: ["publication:\(publication.serviceRef)", "identity:\(publication.origin.identityRef)"]
-			}
-			tlsGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "tls-profile-unbound"
-				refs: ["publication:\(publication.serviceRef)", "tls:\(publication.serviceRef)"]
-			}
-			tlsApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "tls-profile-unbound"
-				refs: ["publication:\(publication.serviceRef)", "tls:\(publication.serviceRef)"]
-			}
 			healthGeneration: #ExecutionReadinessRequirementV1 & {
 				phase: executionReadiness.generation
 				code:  "health-gate-not-executable"

@@ -752,21 +752,37 @@ edge-to-origin flow is a subset of that method set; a private/LAN policy,
 authority intentionally uses the same stable `serviceRef` as the endpoint identity,
 so a publication cannot silently switch to a second data binding.
 
-Public WebPKI policy is already a separate catalog-owned capability/provider/
-module chain. Its generation-only executor contract contains the exact TLS
-profile, ACME issuer policy, renewal health reference, sensitivity-typed logical
-material slots, Cloud targets, and matching public HTTPS routes. It performs no
-certificate issuance or network action and carries no credential, DNS provider,
-server-provider, or management authority. Issuer materialization stays
-`contract-only`, and Apply stays blocked independently from generation.
+Public WebPKI is a separate catalog-owned capability/provider/module chain with
+an authenticated node-local runtime seam. Its operation-shaped artifact
+contains the exact TLS profile, ACME issuer policy, renewal health reference,
+sensitivity-typed logical material slots, Cloud target, and matching public
+HTTPS routes. The Product Runtime binds the sealed request and artifact
+digests, Site, node, and execution channel into a stable idempotency policy
+digest, then captures one evaluation time before it admits materialization,
+renewal, and fresh readback. ACME credentials,
+certificate/private-key bytes, DNS mutation, provider resources, and
+server-provider lifecycle remain construction-owned by the external Operations
+implementation and cannot enter the artifact or caller request.
 
-Modern publication health execution, origin mTLS, and one-way
-identity-verifier distribution remain explicit graduation gates. Until those
-implementations exist, every Modern publication contributes the independent
-generation and apply blockers `bridge-renderer-missing`,
-`origin-identity-unbound`, `tls-profile-unbound`, and
-`health-gate-not-executable`; a generic module contract blocker cannot hide or
-replace them.
+Home-internal PKI follows the same separation without importing Cloud/WebPKI
+semantics. It is selected only by explicit `internal-pki` capability intent and
+generates a Home-scoped handoff containing the exact private profile, internal
+CA issuer, logical certificate/private-key/trust-root slots, renewal policy,
+and governed targets. The artifact contains no material bytes or credentials;
+an authenticated Home runtime must materialize, renew, and read back those
+slots before Apply can become ready.
+
+Modern origin mTLS is now an exact, provider-free generation handoff rather
+than an untyped graduation promise. For every publication, a dedicated
+Home-side proxy contract binds the selected local backend, TLS 1.3 SNI,
+possession-bound Home workload issuer, and the matching one-way Cloud verifier
+distribution. The handoff is outbound-only and cannot carry private/signing
+material, reverse authority, endpoints, credentials, or general LAN access.
+Its authenticated runtime owner remains explicitly unbound, so Apply stays
+fail-closed through `runtime-owner-unbound`. Public edge TLS materialization is
+now separately executable and hash-bound; publication backend Health remains
+the independent `health-gate-not-executable` gate. A generic module contract
+blocker cannot hide or replace either boundary.
 
 ### Executable render instances
 

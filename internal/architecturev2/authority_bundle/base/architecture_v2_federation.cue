@@ -152,6 +152,44 @@ _architectureV2ModernCloudIdentityVerifierSupport: #ModuleRealizationSupportV2 &
 	evidence: requiredRefs: ["modern-cloud-identity-verifier-enforcement"]
 }
 
+_architectureV2BridgePublicationSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgePublications"]}
+	artifacts: {
+		requiredRefs: ["bridge-publication-executor-contract"]
+		outputBindings: [{artifactRef: "bridge-publication-executor-contract", unitRef: "executor-contract", outputRef: "modern/federation/publication/executor-contract.json"}]
+		contracts: [{
+			id: "bridge-publication-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "modern/federation/publication/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2BridgeOriginMTLSSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["bridgeOriginMTLS", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"]}
+	artifacts: {
+		requiredRefs: ["bridge-origin-mtls-executor-contract"]
+		outputBindings: [{artifactRef: "bridge-origin-mtls-executor-contract", unitRef: "executor-contract", outputRef: "modern/federation/origin-mtls/executor-contract.json"}]
+		contracts: [{
+			id: "bridge-origin-mtls-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "modern/federation/origin-mtls/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
 _architectureV2FederationRuntimeArtifacts: {
 	link: {id: "federation-link-executor-contract", outputRef: "modern/federation/link/executor-contract.json"}
 	controlAgent: {id: "federation-control-agent-executor-contract", outputRef: "modern/federation/control-agent/executor-contract.json"}
@@ -203,7 +241,7 @@ _architectureV2ProfileExtensionProviders: [
 		provides: _architectureV2ServicePublicationCapabilities
 		requires: [{id: "site-federation"}, {id: "public-edge"}]
 		supportedSiteKinds: ["home", "cloud"]
-		realization: {kind: "contract"}
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-bridge-publication-runtime", "stackkits-bridge-origin-mtls-runtime"], optional: []}}
 	},
 	{
 		metadata: {id: "stackkits-cross-site-placement-policy", version: "1.0.0"}
@@ -332,6 +370,54 @@ _architectureV2ProfileExtensionProviders: [
 
 _architectureV2ProfileExtensionModules: [
 	{
+		metadata: {id: "stackkits-bridge-origin-mtls-runtime", version: "1.0.0", description: "Exact outbound-only Modern origin-mTLS handoff; Home signing material, endpoints, transport, provider lifecycle, and general LAN access remain external."}
+		role: "platform", providerRef: "stackkits-service-publication-contract", provides: ["service-publication"]
+		requires: ["stackkits-bridge-publication-runtime", "stackkits-modern-home-identity-trust-policy-manifest", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status: "unbound", ownerRef: "stackkits-bridge-origin-mtls-executor", capabilityRefs: ["service-publication"]
+			targetScope: "home-sites", operations: ["bind-origin-mtls-proxy", "remove-origin-mtls-proxy", "verify-origin-mtls"]
+			requiredHealthRef: "bridge-origin-mtls-contract", requiredEvidenceRef: "bridge-origin-mtls-contract"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                                    "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://modern/federation/origin-mtls/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:cc265255207ae991e3ff02b71a70031fa93d36674c7c2bc23778c25ac76ad8de"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgeOriginMTLS"]
+			outputs: ["modern/federation/origin-mtls/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2BridgeOriginMTLSSupport
+		health: [{id: "bridge-origin-mtls-contract", kind: "contract"}]
+		evidence: ["bridge-origin-mtls-contract"]
+	},
+	{
+		metadata: {id: "stackkits-bridge-publication-runtime", version: "1.0.0", description: "Exact Modern Home-to-Cloud service-publication handoff; edge transport, DNS, certificates, credentials, provider lifecycle, and general LAN access remain external."}
+		role: "platform", providerRef: "stackkits-service-publication-contract", provides: ["service-publication"]
+		requires: ["stackkits-cloud-public-edge-runtime", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status: "unbound", ownerRef: "stackkits-bridge-publication-executor", capabilityRefs: ["service-publication"]
+			targetScope: "cloud-sites", operations: ["apply-service-publication", "remove-service-publication", "verify-service-publication"]
+			requiredHealthRef: "bridge-publication-health", requiredEvidenceRef: "bridge-publication-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                                    "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://modern/federation/publication/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:83df2382c3d2e8b9ca768d0946dff19da68f9f3a707923a5c2a756374e317d35"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgePublications"]
+			outputs: ["modern/federation/publication/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2BridgePublicationSupport
+		health: [{id: "bridge-publication-contract", kind: "contract"}]
+		evidence: ["bridge-publication-contract"]
+	},
+	{
 		metadata: {id: "stackkits-federation-link-runtime", version: "1.0.0", description: "Typed inter-Site link boundary; transport, endpoint discovery, credentials, provider lifecycle, and general LAN reachability remain external."}
 		role: "foundation", providerRef: "stackkits-federation-link", provides: ["inter-site-link"]
 		requires: ["stackkits-modern-federation-policy-manifest"]
@@ -441,12 +527,12 @@ _architectureV2ProfileExtensionModules: [
 			requiredEvidenceRef: "modern-home-identity-trust-enforcement"
 		}
 		renderUnits: [{
-			id:           "policy-bundle", kind:                                     "native-config", rendererRef: "stackkit"
+			id:           "policy-bundle", kind:                                          "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://modern/home-identity-trust-policy/v1.json", version: "1.0.0"
 			contractHash: "sha256:c267902e6021a66ac15e889cf3c041d630e4fedc0544058445409856a230fabc"
 			publicInputRefs: ["modern-home-identity-authority"], secretInputRefs: []
 			inputBindings: [{
-				targetRef: "modern-home-identity-authority", sourceRef: "identityTrust.modernHomeAuthority"
+				targetRef: "modern-home-identity-authority", sourceRef:      "identityTrust.modernHomeAuthority"
 				valueType: "modern-home-identity-authority-v1", cardinality: "single", required: true
 			}]
 			planInputRefs: ["stackId", "kit"]
@@ -479,12 +565,12 @@ _architectureV2ProfileExtensionModules: [
 			requiredEvidenceRef: "modern-cloud-identity-verifier-enforcement"
 		}
 		renderUnits: [{
-			id:           "policy-bundle", kind:                                     "native-config", rendererRef: "stackkit"
+			id:           "policy-bundle", kind:                                              "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://modern/cloud-identity-verifier-policy/v1.json", version: "1.0.0"
 			contractHash: "sha256:9906f37e867e7392daea5ff2d581d9b1a1842b00fe15f8ec67ea0e7efe850e1f"
 			publicInputRefs: ["modern-cloud-identity-verification"], secretInputRefs: []
 			inputBindings: [{
-				targetRef: "modern-cloud-identity-verification", sourceRef: "identityTrust.modernCloudVerification"
+				targetRef: "modern-cloud-identity-verification", sourceRef:      "identityTrust.modernCloudVerification"
 				valueType: "modern-cloud-identity-verification-v1", cardinality: "single", required: true
 			}]
 			planInputRefs: ["stackId", "kit"]

@@ -148,7 +148,7 @@ func (e *LocalAutonomyPolicyExecutor) Execute(ctx context.Context, request runti
 	}
 	expectation := LocalAutonomyVerifyExpectation{
 		PolicyDigest: policy.PolicyDigest, StackID: policy.Policy.StackID, KitSlug: policy.Policy.KitSlug,
-		HomeSiteRefs: append([]string(nil), policy.Policy.HomeSiteRefs...), CloudSiteRefs: append([]string(nil), policy.Policy.CloudSiteRefs...),
+		HomeSiteRefs: []string{policy.Policy.SiteRef}, CloudSiteRefs: append([]string(nil), policy.Policy.CloudSiteRefs...),
 		ControlMembers: append([]string(nil), policy.Policy.ControlMembers...), OnLinkLoss: policy.Policy.OnLinkLoss,
 		OnCloudLoss: policy.Policy.OnCloudLoss, CloudEdge: policy.Policy.CloudEdge, DenyCrossSite: policy.Policy.DenyNewCrossSiteSessions,
 		MaxStaleSeconds: policy.Policy.MaxStaleVerificationSeconds, NotBefore: startedAt,
@@ -216,8 +216,9 @@ func validateLocalAutonomyPolicyRequest(request runtimeexecutor.ExecutionRequest
 	if err != nil {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, fmt.Errorf("validate governed local-autonomy policy: %w", err)
 	}
-	if !slices.Equal(projection.HomeSiteRefs, binding.HomeSiteRefs) || projection.AuthoritySiteRef != binding.HomeSiteRefs[0] || !slices.Contains(projection.ControlMembers, binding.NodeRefs[0]) ||
-		projection.HumanAuthoritySiteRef != projection.AuthoritySiteRef || projection.DeviceAuthoritySiteRef != projection.AuthoritySiteRef || !projection.LocalIdentityAuthorityAvailable || !projection.DenyNewCrossSiteSessions {
+	if projection.SiteRef != binding.HomeSiteRefs[0] || projection.NodeRef != binding.NodeRefs[0] ||
+		!slices.Contains(projection.ControlMembers, binding.NodeRefs[0]) ||
+		projection.DataDefaultAuthority != projection.SiteRef || !projection.LocalIdentityAuthorityAvailable || !projection.DenyNewCrossSiteSessions {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("local-autonomy policy does not bind the exact Home control authority")
 	}
 	policyDigestInput, err := json.Marshal(struct {
@@ -262,15 +263,12 @@ func cloneLocalAutonomyRuntimePolicy(policy LocalAutonomyRuntimePolicy) LocalAut
 }
 
 func cloneLocalAutonomyEnforcementPolicy(policy architecturev2renderer.LocalAutonomyEnforcementPolicy) architecturev2renderer.LocalAutonomyEnforcementPolicy {
-	policy.HomeSiteRefs = append([]string(nil), policy.HomeSiteRefs...)
 	policy.CloudSiteRefs = append([]string(nil), policy.CloudSiteRefs...)
 	policy.ControlMembers = append([]string(nil), policy.ControlMembers...)
 	policy.EdgeVerifierSiteRefs = append([]string(nil), policy.EdgeVerifierSiteRefs...)
 	policy.DataBindings = append([]architecturev2renderer.LocalAutonomyEnforcementDataBinding(nil), policy.DataBindings...)
 	for index := range policy.DataBindings {
-		policy.DataBindings[index].Classes = append([]string(nil), policy.DataBindings[index].Classes...)
 		policy.DataBindings[index].ReplicaSiteRefs = append([]string(nil), policy.DataBindings[index].ReplicaSiteRefs...)
-		policy.DataBindings[index].AllowedClasses = append([]string(nil), policy.DataBindings[index].AllowedClasses...)
 	}
 	return policy
 }

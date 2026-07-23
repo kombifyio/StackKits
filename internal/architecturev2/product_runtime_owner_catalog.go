@@ -19,6 +19,7 @@ const (
 	ProductRuntimeOwnerCloudIdentityTrust    ProductRuntimeOwnerID = "stackkits-cloud-identity-trust-policy-manifest"
 	ProductRuntimeOwnerCloudHostSecurity     ProductRuntimeOwnerID = "stackkits-cloud-host-security-runtime"
 	ProductRuntimeOwnerCloudPublicEdge       ProductRuntimeOwnerID = "stackkits-cloud-public-edge-runtime"
+	ProductRuntimeOwnerPublicTLS             ProductRuntimeOwnerID = "stackkits-public-tls-contract"
 	ProductRuntimeOwnerHomeDeviceAuthority   ProductRuntimeOwnerID = "stackkits-home-device-authority-policy-manifest"
 	ProductRuntimeOwnerHomeAccess            ProductRuntimeOwnerID = "stackkits-home-access-policy-manifest"
 	ProductRuntimeOwnerLocalAutonomy         ProductRuntimeOwnerID = "stackkits-local-autonomy-policy-manifest"
@@ -48,6 +49,7 @@ func ProductStaticRuntimeOwnerCatalog() []ProductRuntimeOwnerDescriptor {
 		{ID: ProductRuntimeOwnerCloudIdentityTrust, Selector: productCloudIdentityTrustSelector()},
 		{ID: ProductRuntimeOwnerCloudHostSecurity, Selector: productCloudHostSecuritySelector()},
 		{ID: ProductRuntimeOwnerCloudPublicEdge, Selector: productCloudPublicEdgeSelector()},
+		{ID: ProductRuntimeOwnerPublicTLS, Selector: productPublicTLSSelector()},
 		{ID: ProductRuntimeOwnerHomeDeviceAuthority, Selector: productHomeDeviceAuthoritySelector()},
 		{ID: ProductRuntimeOwnerHomeAccess, Selector: productHomeAccessSelector()},
 		{ID: ProductRuntimeOwnerLocalAutonomy, Selector: productLocalAutonomySelector()},

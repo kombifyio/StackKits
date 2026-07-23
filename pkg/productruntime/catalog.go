@@ -26,6 +26,7 @@ const (
 	OwnerCloudIdentityTrust    = architecturev2.ProductRuntimeOwnerCloudIdentityTrust
 	OwnerCloudHostSecurity     = architecturev2.ProductRuntimeOwnerCloudHostSecurity
 	OwnerCloudPublicEdge       = architecturev2.ProductRuntimeOwnerCloudPublicEdge
+	OwnerPublicTLS             = architecturev2.ProductRuntimeOwnerPublicTLS
 	OwnerHomeDeviceAuthority   = architecturev2.ProductRuntimeOwnerHomeDeviceAuthority
 	OwnerHomeAccess            = architecturev2.ProductRuntimeOwnerHomeAccess
 	OwnerLocalAutonomy         = architecturev2.ProductRuntimeOwnerLocalAutonomy

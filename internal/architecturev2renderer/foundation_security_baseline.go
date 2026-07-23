@@ -97,6 +97,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(publicTLS.contract, publicTLS); err != nil {
 		return nil, err
 	}
+	internalPKI := newInternalPKIRenderer()
+	if err := registry.Register(internalPKI.contract, internalPKI); err != nil {
+		return nil, err
+	}
 	immichWorkload := newImmichWorkloadBundleRenderer()
 	if err := registry.Register(immichWorkload.contract, immichWorkload); err != nil {
 		return nil, err

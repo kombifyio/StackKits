@@ -1732,6 +1732,20 @@
         "module": "stackkits-basement-compose-runtime"
       },
       {
+        "capability": "service-publication",
+        "matches": [
+          "service-publication"
+        ],
+        "module": "stackkits-bridge-origin-mtls-runtime"
+      },
+      {
+        "capability": "service-publication",
+        "matches": [
+          "service-publication"
+        ],
+        "module": "stackkits-bridge-publication-runtime"
+      },
+      {
         "capability": "inter-site-link",
         "matches": [
           "inter-site-link"
@@ -2080,6 +2094,26 @@
       },
       {
         "governanceMatches": [
+          "stackkits-bridge-origin-mtls-runtime"
+        ],
+        "matches": [
+          "stackkits-service-publication-contract"
+        ],
+        "module": "stackkits-bridge-origin-mtls-runtime",
+        "provider": "stackkits-service-publication-contract"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-bridge-publication-runtime"
+        ],
+        "matches": [
+          "stackkits-service-publication-contract"
+        ],
+        "module": "stackkits-bridge-publication-runtime",
+        "provider": "stackkits-service-publication-contract"
+      },
+      {
+        "governanceMatches": [
           "stackkits-federation-link-runtime"
         ],
         "matches": [
@@ -2335,6 +2369,41 @@
         ],
         "module": "stackkits-komodo-periphery-runtime",
         "requires": "stackkits-komodo-core-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-bridge-publication-runtime"
+        ],
+        "module": "stackkits-bridge-origin-mtls-runtime",
+        "requires": "stackkits-bridge-publication-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-modern-home-identity-trust-policy-manifest"
+        ],
+        "module": "stackkits-bridge-origin-mtls-runtime",
+        "requires": "stackkits-modern-home-identity-trust-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-modern-cloud-identity-verifier-policy-manifest"
+        ],
+        "module": "stackkits-bridge-origin-mtls-runtime",
+        "requires": "stackkits-modern-cloud-identity-verifier-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-cloud-public-edge-runtime"
+        ],
+        "module": "stackkits-bridge-publication-runtime",
+        "requires": "stackkits-cloud-public-edge-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-modern-cloud-identity-verifier-policy-manifest"
+        ],
+        "module": "stackkits-bridge-publication-runtime",
+        "requires": "stackkits-modern-cloud-identity-verifier-policy-manifest"
       },
       {
         "matches": [
@@ -3343,6 +3412,20 @@
         ],
         "module": "stackkits-komodo-periphery-runtime",
         "provider": "stackkits-komodo"
+      },
+      {
+        "matches": [
+          "stackkits-bridge-publication-runtime"
+        ],
+        "module": "stackkits-bridge-publication-runtime",
+        "provider": "stackkits-service-publication-contract"
+      },
+      {
+        "matches": [
+          "stackkits-bridge-origin-mtls-runtime"
+        ],
+        "module": "stackkits-bridge-origin-mtls-runtime",
+        "provider": "stackkits-service-publication-contract"
       },
       {
         "matches": [
@@ -5183,13 +5266,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability",
-            "homeAccessRequirements",
-            "externalHomeAccessBindings"
+            "homeAccessHandoff"
           ]
         },
         "scope": "concrete"
@@ -5218,13 +5295,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability",
-            "homeAccessRequirements",
-            "externalHomeAccessBindings"
+            "homeAccessHandoff"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -5338,13 +5409,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability",
-            "homeAccessRequirements",
-            "externalHomeAccessBindings"
+            "homeAccessHandoff"
           ]
         },
         "scope": "concrete"
@@ -5373,13 +5438,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability",
-            "homeAccessRequirements",
-            "externalHomeAccessBindings"
+            "homeAccessHandoff"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -5578,7 +5637,7 @@
         }
       ],
       "metadata": {
-        "description": "Contract-only internal CA and renewal owner; no certificate material or termination runtime is generated yet.",
+        "description": "Provider-free internal CA materialization handoff; secret material and execution remain owned by an authenticated Home runtime.",
         "id": "stackkits-internal-pki-contract",
         "version": "1.0.0"
       },
@@ -5588,27 +5647,89 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "internal-pki-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "home/tls/internal-pki-executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "internal-pki-executor-contract",
+              "outputRef": "home/tls/internal-pki-executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "internal-pki-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
           "requiredRefs": []
         },
         "inputs": {
-          "contractComplete": false,
+          "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "contract-only",
+        "level": "generation-ready",
         "planInputs": {
-          "contractComplete": false,
-          "requiredRefs": []
+          "contractComplete": true,
+          "requiredRefs": [
+            "internalPKI",
+            "kit",
+            "moduleTargets",
+            "stackId"
+          ]
         },
         "scope": "concrete"
       },
-      "renderUnits": [],
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:8a33d26b598c120ed200f4e09c96e4dc5d9d9fa05de9d42a2a853527683bac09",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "home/tls/internal-pki-executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "internalPKI"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/tls/internal-pki-executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
       "renderVariants": [],
       "requires": [
         "stackkits-core-host-bootstrap"
@@ -5617,8 +5738,23 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "executable",
+        "execution": "contract-handoff",
         "kind": "native"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "internal-pki"
+        ],
+        "operations": [
+          "materialize-internal-certificate",
+          "renew-internal-certificate",
+          "verify-internal-pki"
+        ],
+        "ownerRef": "stackkits-internal-pki-executor",
+        "requiredEvidenceRef": "internal-pki-contract",
+        "requiredHealthRef": "internal-pki-renewal-contract",
+        "status": "unbound",
+        "targetScope": "home-sites"
       },
       "supportedSiteKinds": [
         "home"
@@ -6014,20 +6150,14 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "local-autonomy-policy"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
-          "requiredRefs": [
-            "stackId",
-            "kit",
-            "sites",
-            "controlPlane",
-            "identity",
-            "data",
-            "failurePolicy"
-          ]
+          "requiredRefs": []
         },
         "scope": "concrete"
       },
@@ -6037,9 +6167,17 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:86071b1b898dffdcf2330ea7376ae5e7178a7a54bb42d7278475d9f56d033dee",
+          "contractHash": "sha256:423ed27c579f6e7232c069535203c07dd2993183758525fcde6303795f20094c",
           "id": "policy-bundle",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "localAutonomy.policy",
+              "targetRef": "local-autonomy-policy",
+              "valueType": "local-autonomy-policy-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "local/autonomy/policy.json"
@@ -6048,17 +6186,11 @@
             "cardinality": "one-per-node",
             "scope": "node-local"
           },
-          "planInputRefs": [
-            "stackId",
-            "kit",
-            "sites",
-            "controlPlane",
-            "identity",
-            "data",
-            "failurePolicy"
-          ],
+          "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "local-autonomy-policy"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -6161,18 +6293,14 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "home-access-policy"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
-          "requiredRefs": [
-            "stackId",
-            "kit",
-            "sites",
-            "identity",
-            "localReachability"
-          ]
+          "requiredRefs": []
         },
         "scope": "concrete"
       },
@@ -6182,9 +6310,17 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:d194da4490b393393fb60327a3567583dee4a489a88cda7b3b029a06ea923577",
+          "contractHash": "sha256:22afca6d222abf93e1454ce97ce4b1dc74326a1b6f120796da5b8ea2fbd80f76",
           "id": "policy-bundle",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "access.homeEnforcement",
+              "targetRef": "home-access-policy",
+              "valueType": "home-access-enforcement-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "local/network/access-policy.json"
@@ -6193,15 +6329,11 @@
             "cardinality": "one-per-node",
             "scope": "node-local"
           },
-          "planInputRefs": [
-            "stackId",
-            "kit",
-            "sites",
-            "identity",
-            "localReachability"
-          ],
+          "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "home-access-policy"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -6973,6 +7105,21 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "materialize-public-tls",
+          "renew-public-tls",
+          "verify-public-tls"
+        ],
+        "ownerRef": "stackkits-public-tls-enforcer",
+        "policyArtifactRefs": [
+          "public-tls-executor-contract"
+        ],
+        "requiredEvidenceRef": "public-tls-contract",
+        "requiredHealthRef": "public-tls-renewal-contract",
+        "status": "bound",
+        "targetScope": "cloud-sites"
+      },
       "evidence": [
         "public-tls-contract"
       ],
@@ -6981,11 +7128,12 @@
           "id": "public-tls-renewal-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Contract-only public ACME issuer and edge-termination owner; no certificate material or runtime adapter is generated yet.",
+        "description": "Exact public TLS termination and renewal handoff; certificate material and ACME credentials remain owned by an authenticated external operations implementation.",
         "id": "stackkits-public-tls-contract",
         "version": "1.0.0"
       },
@@ -7026,13 +7174,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "public-tls-contract"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -7050,7 +7200,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:a0298b76b8d8215e19460a8e154381eee8675aab2c2fe8cd49d316c133ff6ae8",
+          "contractHash": "sha256:7779966dc102170d25a75c0a508427d5cb7462b2b7108b311036b2b3b02f97c8",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -7058,8 +7208,8 @@
             "cloud/tls/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "kit",
@@ -7086,7 +7236,7 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -7318,12 +7468,7 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability"
+            "controlPlane"
           ]
         },
         "scope": "concrete"
@@ -7351,12 +7496,7 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability"
+            "controlPlane"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -7382,12 +7522,7 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability"
+            "controlPlane"
           ],
           "publicInputRefs": [],
           "rendererRef": "stackkit",
@@ -7409,12 +7544,7 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability"
+            "controlPlane"
           ],
           "publicInputRefs": [],
           "rendererRef": "stackkit",
@@ -8560,6 +8690,293 @@
       },
       "supportedSiteKinds": [
         "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "bridge-origin-mtls-contract"
+      ],
+      "health": [
+        {
+          "id": "bridge-origin-mtls-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Exact outbound-only Modern origin-mTLS handoff; Home signing material, endpoints, transport, provider lifecycle, and general LAN access remain external.",
+        "id": "stackkits-bridge-origin-mtls-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-service-publication-contract",
+      "provides": [
+        "service-publication"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "bridge-origin-mtls-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/federation/origin-mtls/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "bridge-origin-mtls-executor-contract",
+              "outputRef": "modern/federation/origin-mtls/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "bridge-origin-mtls-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "bridgeOriginMTLS",
+            "controlPlane",
+            "kit",
+            "moduleCapabilities",
+            "moduleTargets",
+            "sites",
+            "stackId"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:cc265255207ae991e3ff02b71a70031fa93d36674c7c2bc23778c25ac76ad8de",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "modern/federation/origin-mtls/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridgeOriginMTLS"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/federation/origin-mtls/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-bridge-publication-runtime",
+        "stackkits-modern-home-identity-trust-policy-manifest",
+        "stackkits-modern-cloud-identity-verifier-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "native"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "service-publication"
+        ],
+        "operations": [
+          "bind-origin-mtls-proxy",
+          "remove-origin-mtls-proxy",
+          "verify-origin-mtls"
+        ],
+        "ownerRef": "stackkits-bridge-origin-mtls-executor",
+        "requiredEvidenceRef": "bridge-origin-mtls-contract",
+        "requiredHealthRef": "bridge-origin-mtls-contract",
+        "status": "unbound",
+        "targetScope": "home-sites"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "bridge-publication-contract"
+      ],
+      "health": [
+        {
+          "id": "bridge-publication-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Exact Modern Home-to-Cloud service-publication handoff; edge transport, DNS, certificates, credentials, provider lifecycle, and general LAN access remain external.",
+        "id": "stackkits-bridge-publication-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-service-publication-contract",
+      "provides": [
+        "service-publication"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "bridge-publication-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/federation/publication/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "bridge-publication-executor-contract",
+              "outputRef": "modern/federation/publication/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "bridge-publication-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridgePublications"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:83df2382c3d2e8b9ca768d0946dff19da68f9f3a707923a5c2a756374e317d35",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "modern/federation/publication/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridgePublications"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/federation/publication/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-cloud-public-edge-runtime",
+        "stackkits-modern-cloud-identity-verifier-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "native"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "service-publication"
+        ],
+        "operations": [
+          "apply-service-publication",
+          "remove-service-publication",
+          "verify-service-publication"
+        ],
+        "ownerRef": "stackkits-bridge-publication-executor",
+        "requiredEvidenceRef": "bridge-publication-evidence",
+        "requiredHealthRef": "bridge-publication-health",
+        "status": "unbound",
+        "targetScope": "cloud-sites"
+      },
+      "supportedSiteKinds": [
         "cloud"
       ]
     },
@@ -11868,10 +12285,13 @@
         "service-publication"
       ],
       "realization": {
-        "kind": "contract",
+        "kind": "modules",
         "moduleRefs": {
           "optional": [],
-          "required": []
+          "required": [
+            "stackkits-bridge-publication-runtime",
+            "stackkits-bridge-origin-mtls-runtime"
+          ]
         }
       },
       "remoteActionContracts": [],

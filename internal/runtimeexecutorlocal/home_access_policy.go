@@ -47,7 +47,6 @@ type HomeAccessPolicyAuthority struct {
 type HomeAccessRuntimePolicy struct {
 	PolicyDigest string
 	StackID      string
-	KitSlug      string
 	SiteRefs     []string
 	NodeRefs     []string
 	Routes       []architecturev2renderer.HomeAccessEnforcementRoute
@@ -61,7 +60,6 @@ type HomeAccessApplyObservation struct {
 type HomeAccessVerifyExpectation struct {
 	PolicyDigest string
 	StackID      string
-	KitSlug      string
 	SiteRefs     []string
 	NodeRefs     []string
 	RouteCount   int
@@ -152,7 +150,7 @@ func (e *HomeAccessPolicyExecutor) Execute(ctx context.Context, request runtimee
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("privileged step-up observation does not prove the exact enforced policy")
 	}
 	expectation := HomeAccessVerifyExpectation{
-		PolicyDigest: policy.PolicyDigest, StackID: policy.StackID, KitSlug: policy.KitSlug,
+		PolicyDigest: policy.PolicyDigest, StackID: policy.StackID,
 		SiteRefs: append([]string(nil), policy.SiteRefs...), NodeRefs: append([]string(nil), policy.NodeRefs...),
 		RouteCount: len(policy.Routes), NotBefore: startedAt,
 	}
@@ -222,8 +220,7 @@ func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, b
 	if err != nil {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, fmt.Errorf("validate governed Home access policy: %w", err)
 	}
-	localRoutes, err := homeAccessRoutesForBinding(projection.Routes, binding)
-	if !slices.Equal(projection.SiteRefs, binding.SiteRefs) || err != nil {
+	if projection.SiteRef != binding.SiteRefs[0] || projection.NodeRef != binding.NodeRefs[0] {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("Home access policy does not bind the exact authorized Home placement")
 	}
 	policyDigestInput, err := json.Marshal(struct {
@@ -240,8 +237,8 @@ func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, b
 	}
 	policyDigestBytes := sha256.Sum256(policyDigestInput)
 	policy := HomeAccessRuntimePolicy{
-		PolicyDigest: "sha256:" + hex.EncodeToString(policyDigestBytes[:]), StackID: projection.StackID, KitSlug: projection.KitSlug,
-		SiteRefs: append([]string(nil), projection.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...), Routes: localRoutes,
+		PolicyDigest: "sha256:" + hex.EncodeToString(policyDigestBytes[:]), StackID: projection.StackID,
+		SiteRefs: append([]string(nil), binding.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...), Routes: cloneHomeAccessRoutes(projection.Routes),
 	}
 	return target, health, policy, nil
 }
@@ -256,22 +253,6 @@ func validExactRefSet(refs []string) bool {
 		}
 	}
 	return true
-}
-
-func homeAccessRoutesForBinding(routes []architecturev2renderer.HomeAccessEnforcementRoute, binding HomeAccessPolicyBinding) ([]architecturev2renderer.HomeAccessEnforcementRoute, error) {
-	local := make([]architecturev2renderer.HomeAccessEnforcementRoute, 0, len(routes))
-	for _, route := range routes {
-		if !slices.Contains(binding.SiteRefs, route.OriginSiteRef) {
-			return nil, errors.New("route origin exceeds the bound Home Site")
-		}
-		if !slices.Contains(route.OriginNodeRefs, binding.NodeRefs[0]) {
-			continue
-		}
-		copy := route
-		copy.OriginNodeRefs = append([]string(nil), binding.NodeRefs...)
-		local = append(local, copy)
-	}
-	return local, nil
 }
 
 func validHomeAccessApplyObservation(observation HomeAccessApplyObservation, policyDigest string) bool {

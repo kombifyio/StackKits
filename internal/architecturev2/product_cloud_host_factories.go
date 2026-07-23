@@ -11,6 +11,7 @@ import (
 const (
 	productCloudHostSecurityAdapterID = "stackkits-cloud-host-security-local"
 	productCloudPublicEdgeAdapterID   = "stackkits-cloud-public-edge-local"
+	productPublicTLSAdapterID         = "stackkits-public-tls-local"
 )
 
 type productCloudHostSecurityFactory struct {
@@ -21,6 +22,11 @@ type productCloudHostSecurityFactory struct {
 type productCloudPublicEdgeFactory struct {
 	runtimeVersion string
 	operations     runtimeexecutorlocal.CloudPublicEdgeOperations
+}
+
+type productPublicTLSFactory struct {
+	runtimeVersion string
+	operations     runtimeexecutorlocal.PublicTLSOperations
 }
 
 // NewProductCloudHostSecurityRegistration binds the exact node-local Cloud
@@ -97,6 +103,43 @@ func (f *productCloudPublicEdgeFactory) PrepareRuntimeOwner(request ProductRunti
 	}, f.operations), nil
 }
 
+// NewProductPublicTLSRegistration binds the node-local public TLS policy to an
+// authenticated Cloud operations implementation. ACME credentials and
+// certificate material remain construction-owned by that implementation.
+func NewProductPublicTLSRegistration(runtimeVersion string, operations runtimeexecutorlocal.PublicTLSOperations) (ProductRuntimeOwnerRegistration, error) {
+	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
+		return ProductRuntimeOwnerRegistration{}, errors.New("public TLS product registration requires a runtime version and operations owner")
+	}
+	return ProductRuntimeOwnerRegistration{
+		Selector: productPublicTLSSelector(),
+		Factory:  &productPublicTLSFactory{runtimeVersion: runtimeVersion, operations: operations},
+	}, nil
+}
+
+func (f *productPublicTLSFactory) PrepareRuntimeOwner(request ProductRuntimeOwnerRequest) (runtimeexecutor.Executor, error) {
+	if f == nil || strings.TrimSpace(f.runtimeVersion) == "" || nilProductRuntimeOwnerValue(f.operations) {
+		return nil, errors.New("public TLS product factory is not initialized")
+	}
+	target := cloneProductRuntimeTarget(request.Target)
+	health := cloneProductHealthTargets(request.HealthTargets)
+	if productRuntimeOwnerSelectorForTarget(target) != productPublicTLSSelector() ||
+		len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || strings.TrimSpace(target.ExecutionChannelRef) == "" ||
+		len(health) != 1 || !productHealthTargetsRuntime(health[0], target) {
+		return nil, errors.New("public TLS product factory requires one exact channel-bound target and renewal health contract")
+	}
+	identity, err := productRuntimeOwnerAdapterIdentity(productPublicTLSAdapterID, f.runtimeVersion, target, health)
+	if err != nil {
+		return nil, err
+	}
+	return runtimeexecutorlocal.NewPublicTLSExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
+	}, runtimeexecutorlocal.PublicTLSAuthority{
+		ProviderContractHash: target.ProviderContractHash,
+		ModuleContractHash:   target.ModuleContractHash,
+		HealthContractHash:   health[0].ContractHash,
+	}, f.operations), nil
+}
+
 func productCloudHostSecuritySelector() ProductRuntimeOwnerSelector {
 	return ProductRuntimeOwnerSelector{
 		OwnerKind: "module", OwnerRef: "stackkits-cloud-host-security-runtime",
@@ -113,7 +156,16 @@ func productCloudPublicEdgeSelector() ProductRuntimeOwnerSelector {
 	}
 }
 
+func productPublicTLSSelector() ProductRuntimeOwnerSelector {
+	return ProductRuntimeOwnerSelector{
+		OwnerKind: "module", OwnerRef: "stackkits-public-tls-contract",
+		ProviderRef: "stackkits-public-tls", ModuleRef: "stackkits-public-tls-contract", UnitRef: "executor-contract",
+		RuntimeKind: "native", RuntimeDelivery: "stackkit",
+	}
+}
+
 var (
 	_ ProductRuntimeOwnerFactory = (*productCloudHostSecurityFactory)(nil)
 	_ ProductRuntimeOwnerFactory = (*productCloudPublicEdgeFactory)(nil)
+	_ ProductRuntimeOwnerFactory = (*productPublicTLSFactory)(nil)
 )

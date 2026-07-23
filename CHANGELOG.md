@@ -4,6 +4,49 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.4] - 2026-07-23
+
+> **Stable v0.x Modern Homelab runtime-boundary patch** that ships Modern
+> Homelab alongside Basement Kit and Cloud Kit and advances the provider-free
+> Architecture-v2 execution handoff.
+
+### Added
+
+- Modern Homelab bridge-publication artifacts with an exact two-Site
+  Home-to-Cloud projection and a dedicated outbound-only origin-mTLS executor
+  contract.
+- An authenticated public-TLS runtime owner with typed materialize, renew, and
+  verify operations; external ACME credentials and certificate custody remain
+  outside StackKits.
+- Optional Home internal-PKI, local-autonomy, and access-executor handoffs with
+  closed Site, node, route, capability, and evidence scope.
+
+### Changed
+
+- Basement Compose generation now receives only its narrow, hash-bound
+  workload handoff instead of a wider resolved-plan projection.
+- Modern Homelab remains a first-class release family with dedicated Linux,
+  macOS, and Windows archives in addition to the full release bundle.
+- Obsolete unbound TLS and origin-identity readiness states were removed once
+  their exact runtime contracts became construction-owned.
+
+### Security
+
+- Modern origin transport is TLS 1.3, exact-SNI, outbound-only, and cannot
+  grant general LAN, reverse-tunnel, signing-key, credential, provider, lease,
+  or lifecycle authority.
+- Public-TLS execution rejects stale or widened claims, credential material,
+  provider fields, shell authority, route substitution, and certificate-slot
+  substitution.
+
+### Known limitations
+
+- Modern Homelab remains Preview. This release proves its public packaging and
+  provider-free contract boundaries, not live provider/device compatibility
+  or production federation.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.3] - 2026-07-23
 
 > **Stable v0.x architecture patch** that closes the Cloud network and

@@ -87,6 +87,12 @@ const (
 	federationControlOutputRef         = "modern/federation/control-agent/executor-contract.json"
 	federationBackupOutputRef          = "modern/federation/backup/executor-contract.json"
 	federationObservabilityOutputRef   = "modern/federation/observability/executor-contract.json"
+	bridgePublicationModuleID          = "stackkits-bridge-publication-runtime"
+	bridgePublicationTemplateRef       = "builtin://modern/federation/publication/executor-contract/v1.json"
+	bridgePublicationOutputRef         = "modern/federation/publication/executor-contract.json"
+	bridgeOriginMTLSModuleID           = "stackkits-bridge-origin-mtls-runtime"
+	bridgeOriginMTLSTemplateRef        = "builtin://modern/federation/origin-mtls/executor-contract/v1.json"
+	bridgeOriginMTLSOutputRef          = "modern/federation/origin-mtls/executor-contract.json"
 )
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
@@ -130,11 +136,11 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: basementComposeRuntimeModuleID, moduleVersion: basementComposeRuntimeModuleVersion,
 		templateRef: basementComposeRuntimeTemplateRef, outputRef: basementComposeRuntimeOutputRef,
-		planInputRefs: []string{"controlPlane", "data", "failurePolicy", "kit", "localNetworkPolicy", "localReachability", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"basement-kit"}, siteKind: "home",
 		allowedCapabilities:  []string{"basement-compose-runtime"},
 		requiredCapabilities: []string{"basement-compose-runtime"},
-		decodePlan:           decodeLocalRuntimeExecutorPlan,
+		decodePlan:           decodeBasementComposeExecutorPlan,
 	},
 	{
 		moduleID: modernHomeRuntimeModuleID, moduleVersion: modernHomeRuntimeModuleVersion,
@@ -208,18 +214,18 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: homePrivateRemoteAccessModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
 		templateRef: homePrivateRemoteAccessTemplateRef, outputRef: homePrivateRemoteAccessOutputRef,
-		planInputRefs: []string{"controlPlane", "data", "externalHomeAccessBindings", "failurePolicy", "homeAccessRequirements", "kit", "localNetworkPolicy", "localReachability", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"controlPlane", "homeAccessHandoff", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"basement-kit", "modern-homelab"}, siteKind: "home",
 		allowedCapabilities: []string{"private-remote-access"}, requiredCapabilities: []string{"private-remote-access"},
-		decodePlan: decodeLocalRuntimeExecutorPlan,
+		decodePlan: decodeHomeAccessExecutorPlan,
 	},
 	{
 		moduleID: homePublicPublishEgressModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
 		templateRef: homePublicPublishEgressTemplateRef, outputRef: homePublicPublishEgressOutputRef,
-		planInputRefs: []string{"controlPlane", "data", "externalHomeAccessBindings", "failurePolicy", "homeAccessRequirements", "kit", "localNetworkPolicy", "localReachability", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"controlPlane", "homeAccessHandoff", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"basement-kit"}, siteKind: "home",
 		allowedCapabilities: []string{"public-publish-egress"}, requiredCapabilities: []string{"public-publish-egress"},
-		decodePlan: decodeLocalRuntimeExecutorPlan,
+		decodePlan: decodeHomeAccessExecutorPlan,
 	},
 	{
 		moduleID: homeEncryptedOffsiteBackupModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
@@ -228,6 +234,22 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		allowedKits:   []string{"basement-kit"}, siteKind: "home",
 		allowedCapabilities: []string{"encrypted-offsite-backup"}, requiredCapabilities: []string{"encrypted-offsite-backup"},
 		decodePlan: decodeLocalRuntimeExecutorPlan,
+	},
+	{
+		moduleID: bridgePublicationModuleID, moduleVersion: federationRuntimeModuleVersion,
+		templateRef: bridgePublicationTemplateRef, outputRef: bridgePublicationOutputRef,
+		planInputRefs: []string{"bridgePublications", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
+		allowedKits:   []string{"modern-homelab"}, siteKind: "cloud",
+		allowedCapabilities: []string{"service-publication"}, requiredCapabilities: []string{"service-publication"},
+		decodePlan: decodeBridgePublicationExecutorPlan,
+	},
+	{
+		moduleID: bridgeOriginMTLSModuleID, moduleVersion: federationRuntimeModuleVersion,
+		templateRef: bridgeOriginMTLSTemplateRef, outputRef: bridgeOriginMTLSOutputRef,
+		planInputRefs: []string{"bridgeOriginMTLS", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
+		allowedKits:   []string{"modern-homelab"}, siteKind: "home",
+		allowedCapabilities: []string{"service-publication"}, requiredCapabilities: []string{"service-publication"},
+		decodePlan: decodeBridgeOriginMTLSExecutorPlan,
 	},
 }
 
@@ -409,6 +431,14 @@ func HomePublicPublishEgressExecutorBundleRendererContract() RendererContract {
 
 func HomeEncryptedOffsiteBackupExecutorBundleRendererContract() RendererContract {
 	return newExecutorContractBundleRenderer(executorContractBundleSpecs[14]).contract
+}
+
+func BridgePublicationExecutorBundleRendererContract() RendererContract {
+	return newExecutorContractBundleRenderer(executorContractBundleSpecs[15]).contract
+}
+
+func BridgeOriginMTLSExecutorBundleRendererContract() RendererContract {
+	return newExecutorContractBundleRenderer(executorContractBundleSpecs[16]).contract
 }
 
 func registerExecutorContractBundleRenderers(registry *Registry) error {
@@ -820,6 +850,34 @@ type homeOffsiteBackupProjection struct {
 	Bindings     json.RawMessage `json:"bindings"`
 }
 
+type homeAccessHandoffProjection struct {
+	Requirements json.RawMessage `json:"requirements"`
+	Bindings     json.RawMessage `json:"bindings"`
+}
+
+type homeAccessExecutorPlan struct {
+	StackID            string                      `json:"stackId"`
+	Kit                executorBundleKit           `json:"kit"`
+	Sites              []executorBundleSite        `json:"sites"`
+	ModuleTargets      []executorBundleTarget      `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability  `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane  `json:"controlPlane"`
+	HomeAccessHandoff  homeAccessHandoffProjection `json:"homeAccessHandoff"`
+}
+
+func (homeAccessExecutorPlan) executorContractPlanMarker() {}
+
+type basementComposeExecutorPlan struct {
+	StackID            string                     `json:"stackId"`
+	Kit                executorBundleKit          `json:"kit"`
+	Sites              []executorBundleSite       `json:"sites"`
+	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane `json:"controlPlane"`
+}
+
+func (basementComposeExecutorPlan) executorContractPlanMarker() {}
+
 type homeOffsiteBackupExecutorPlan struct {
 	StackID            string                      `json:"stackId"`
 	Kit                executorBundleKit           `json:"kit"`
@@ -1008,6 +1066,76 @@ type federationRuntimeExecutorPlan struct {
 
 func (federationRuntimeExecutorPlan) executorContractPlanMarker() {}
 
+type bridgePublicationExecutorPlan struct {
+	StackID            string                     `json:"stackId"`
+	Kit                executorBundleKit          `json:"kit"`
+	Sites              []executorBundleSite       `json:"sites"`
+	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane `json:"controlPlane"`
+	BridgePublications []json.RawMessage          `json:"bridgePublications"`
+}
+
+func (bridgePublicationExecutorPlan) executorContractPlanMarker() {}
+
+type bridgeOriginMTLSExecutorPlan struct {
+	StackID            string                     `json:"stackId"`
+	Kit                executorBundleKit          `json:"kit"`
+	Sites              []executorBundleSite       `json:"sites"`
+	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane `json:"controlPlane"`
+	BridgeOriginMTLS   bridgeOriginMTLSProjection `json:"bridgeOriginMTLS"`
+}
+
+type bridgeOriginMTLSProjection struct {
+	Publications []bridgeOriginMTLSPublication `json:"publications"`
+}
+
+type bridgeOriginMTLSPublication struct {
+	ServiceRef         string                           `json:"serviceRef"`
+	IdentityRef        string                           `json:"identityRef"`
+	SourceSiteRef      string                           `json:"sourceSiteRef"`
+	EdgeSiteRef        string                           `json:"edgeSiteRef"`
+	ModuleRef          string                           `json:"moduleRef"`
+	UnitRef            string                           `json:"unitRef"`
+	OriginNodeRefs     []string                         `json:"originNodeRefs"`
+	OriginInstanceRefs []string                         `json:"originInstanceRefs"`
+	UpstreamProtocol   string                           `json:"upstreamProtocol"`
+	TargetPort         int                              `json:"targetPort"`
+	Transport          bridgeOriginMTLSTransport        `json:"transport"`
+	WorkloadIdentity   bridgeOriginMTLSWorkloadIdentity `json:"workloadIdentity"`
+	EdgeVerifier       bridgeOriginMTLSEdgeVerifier     `json:"edgeVerifier"`
+}
+
+type bridgeOriginMTLSTransport struct {
+	Mode              string `json:"mode"`
+	MinimumTLSVersion string `json:"minimumTLSVersion"`
+	ServerName        string `json:"serverName"`
+	OutboundOnly      bool   `json:"outboundOnly"`
+	GeneralLANAccess  bool   `json:"generalLANAccess"`
+}
+
+type bridgeOriginMTLSWorkloadIdentity struct {
+	CredentialIssuerRef       string `json:"credentialIssuerRef"`
+	Issuer                    string `json:"issuer"`
+	Audience                  string `json:"audience"`
+	VerificationKeySetRef     string `json:"verificationKeySetRef"`
+	ProofOfPossessionRequired bool   `json:"proofOfPossessionRequired"`
+}
+
+type bridgeOriginMTLSEdgeVerifier struct {
+	VerifierRef                string `json:"verifierRef"`
+	DistributionRef            string `json:"distributionRef"`
+	VerificationKeySetRef      string `json:"verificationKeySetRef"`
+	MaxStalenessSeconds        int    `json:"maxStalenessSeconds"`
+	IncludesPrivateKeyMaterial bool   `json:"includesPrivateKeyMaterial"`
+	IncludesSigningAuthority   bool   `json:"includesSigningAuthority"`
+	ReverseAllowed             bool   `json:"reverseAllowed"`
+}
+
+func (bridgeOriginMTLSExecutorPlan) executorContractPlanMarker() {}
+
 func decodeCoreRuntimeExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
 	var plan coreRuntimeExecutorPlan
 	if err := decodeStrict(raw, &plan); err != nil {
@@ -1030,6 +1158,98 @@ func decodeCoreRuntimeExecutorPlan(raw []byte, path string, spec executorContrac
 	}
 	if err := validateExecutorBundleFailurePolicy(plan.FailurePolicy, path+".failurePolicy"); err != nil {
 		return nil, err
+	}
+	return plan, nil
+}
+
+func decodeBridgePublicationExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
+	var plan bridgePublicationExecutorPlan
+	if err := decodeStrict(raw, &plan); err != nil {
+		return nil, wrap(ErrInvalidPlan, path, "decode exact bridge publication handoff", err)
+	}
+	if err := validateExecutorContractPlanCommon(plan.StackID, plan.Kit, plan.Sites, plan.ModuleTargets, plan.ModuleCapabilities, plan.ControlPlane, spec, path); err != nil {
+		return nil, err
+	}
+	if len(plan.BridgePublications) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".bridgePublications", "requires at least one compiler-owned service publication")
+	}
+	for index, publication := range plan.BridgePublications {
+		var object map[string]any
+		if err := decodeStrict(publication, &object); err != nil {
+			return nil, wrap(ErrInvalidPlan, fmt.Sprintf("%s.bridgePublications[%d]", path, index), "decode publication", err)
+		}
+		if len(object) == 0 {
+			return nil, fail(ErrInvalidPlan, fmt.Sprintf("%s.bridgePublications[%d]", path, index), "publication must be a non-empty exact object")
+		}
+	}
+	return plan, nil
+}
+
+func decodeBridgeOriginMTLSExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
+	var plan bridgeOriginMTLSExecutorPlan
+	if err := decodeStrict(raw, &plan); err != nil {
+		return nil, wrap(ErrInvalidPlan, path, "decode exact bridge origin mTLS handoff", err)
+	}
+	if err := validateExecutorContractPlanCommon(plan.StackID, plan.Kit, plan.Sites, plan.ModuleTargets, plan.ModuleCapabilities, plan.ControlPlane, spec, path); err != nil {
+		return nil, err
+	}
+	if len(plan.BridgeOriginMTLS.Publications) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".bridgeOriginMTLS.publications", "requires at least one exact publication")
+	}
+	targetRefs := make([]string, len(plan.ModuleTargets))
+	for index := range plan.ModuleTargets {
+		targetRefs[index] = plan.ModuleTargets[index].ID
+	}
+	originRefs := map[string]struct{}{}
+	previousService := ""
+	for index, publication := range plan.BridgeOriginMTLS.Publications {
+		itemPath := fmt.Sprintf("%s.bridgeOriginMTLS.publications[%d]", path, index)
+		if err := requireContractID(publication.ServiceRef, itemPath+".serviceRef"); err != nil {
+			return nil, err
+		}
+		if previousService != "" && publication.ServiceRef <= previousService {
+			return nil, fail(ErrDuplicate, itemPath+".serviceRef", "publications must be unique and sorted")
+		}
+		previousService = publication.ServiceRef
+		if publication.IdentityRef != publication.ServiceRef+"-origin" || publication.SourceSiteRef == publication.EdgeSiteRef ||
+			publication.ModuleRef == "" || publication.UnitRef == "" || !sortedUniqueNonEmpty(publication.OriginNodeRefs) ||
+			!sortedUniqueNonEmpty(publication.OriginInstanceRefs) || publication.TargetPort < 1 || publication.TargetPort > 65535 ||
+			!containsExecutorBundleString([]string{"http", "https", "tcp"}, publication.UpstreamProtocol) {
+			return nil, fail(ErrInvalidPlan, itemPath, "publication origin closure is incomplete or widened")
+		}
+		for _, nodeRef := range publication.OriginNodeRefs {
+			originRefs[nodeRef] = struct{}{}
+		}
+		transport := publication.Transport
+		if transport.Mode != "mtls-origin-proxy" || transport.MinimumTLSVersion != "TLS1.3" ||
+			transport.ServerName != publication.ServiceRef+".origin.stackkit.internal" ||
+			!transport.OutboundOnly || transport.GeneralLANAccess {
+			return nil, fail(ErrInvalidPlan, itemPath+".transport", "origin transport must be outbound-only TLS1.3 mTLS without LAN authority")
+		}
+		identity := publication.WorkloadIdentity
+		if identity.CredentialIssuerRef != "home-workload-credential-issuer" ||
+			!strings.HasPrefix(identity.Issuer, "urn:stackkit:") ||
+			!strings.HasSuffix(identity.Audience, ":audience:stackkit-workload") ||
+			!strings.HasSuffix(identity.VerificationKeySetRef, ":keyset:home-workload-verification-keys") ||
+			!identity.ProofOfPossessionRequired {
+			return nil, fail(ErrInvalidPlan, itemPath+".workloadIdentity", "origin must bind the exact possession-bound Home workload identity")
+		}
+		verifier := publication.EdgeVerifier
+		if verifier.VerifierRef != "modern-cloud-workload-verifier" ||
+			verifier.DistributionRef != "modern-workload-verifier-distribution" ||
+			verifier.VerificationKeySetRef != identity.VerificationKeySetRef ||
+			verifier.MaxStalenessSeconds != 300 || verifier.IncludesPrivateKeyMaterial ||
+			verifier.IncludesSigningAuthority || verifier.ReverseAllowed {
+			return nil, fail(ErrInvalidPlan, itemPath+".edgeVerifier", "Cloud edge verifier must receive only fresh one-way verification authority")
+		}
+	}
+	originNodeRefs := make([]string, 0, len(originRefs))
+	for nodeRef := range originRefs {
+		originNodeRefs = append(originNodeRefs, nodeRef)
+	}
+	sort.Strings(originNodeRefs)
+	if !exactStringList(originNodeRefs, targetRefs) {
+		return nil, fail(ErrInvalidPlan, path+".bridgeOriginMTLS.publications", "origin nodes must exactly equal module targets")
 	}
 	return plan, nil
 }
@@ -1091,6 +1311,56 @@ func decodeLocalRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 		return nil, err
 	}
 	return plan, nil
+}
+
+func decodeHomeAccessExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
+	var exact homeAccessExecutorPlan
+	if err := decodeStrict(raw, &exact); err != nil {
+		return nil, wrap(ErrInvalidPlan, path, "decode exact Home access executor handoff", err)
+	}
+	if err := validateExecutorContractPlanCommon(
+		exact.StackID,
+		exact.Kit,
+		exact.Sites,
+		exact.ModuleTargets,
+		exact.ModuleCapabilities,
+		exact.ControlPlane,
+		spec,
+		path,
+	); err != nil {
+		return nil, err
+	}
+	validationPlan := localRuntimeExecutorPlan{
+		StackID: exact.StackID, Kit: exact.Kit, Sites: exact.Sites,
+		ModuleTargets: exact.ModuleTargets, ModuleCapabilities: exact.ModuleCapabilities,
+		ControlPlane:               exact.ControlPlane,
+		HomeAccessRequirements:     exact.HomeAccessHandoff.Requirements,
+		ExternalHomeAccessBindings: exact.HomeAccessHandoff.Bindings,
+	}
+	if err := validateHomeAccessExecutorProjection(validationPlan, spec, path+".homeAccessHandoff"); err != nil {
+		return nil, err
+	}
+	return exact, nil
+}
+
+func decodeBasementComposeExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
+	var exact basementComposeExecutorPlan
+	if err := decodeStrict(raw, &exact); err != nil {
+		return nil, wrap(ErrInvalidPlan, path, "decode exact Basement Compose selection handoff", err)
+	}
+	if err := validateExecutorContractPlanCommon(
+		exact.StackID,
+		exact.Kit,
+		exact.Sites,
+		exact.ModuleTargets,
+		exact.ModuleCapabilities,
+		exact.ControlPlane,
+		spec,
+		path,
+	); err != nil {
+		return nil, err
+	}
+	return exact, nil
 }
 
 type homeBackupTargetRequirementProjection struct {

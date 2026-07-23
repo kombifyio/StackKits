@@ -16,6 +16,8 @@ const (
 	moduleInputSourceCloudAuthority   = "identityTrust.cloudAuthority"
 	moduleInputSourceModernHome       = "identityTrust.modernHomeAuthority"
 	moduleInputSourceModernCloud      = "identityTrust.modernCloudVerification"
+	moduleInputSourceHomeAccess       = "access.homeEnforcement"
+	moduleInputSourceLocalAutonomy    = "localAutonomy.policy"
 	moduleInputSourceNetworkRoutes    = "network.routes"
 	moduleInputSourceCloudHostNetwork = "network.cloudHostSecurity"
 	moduleInputSourceHostBootstrap    = "host.bootstrapRuntime"
@@ -27,6 +29,8 @@ const (
 	moduleInputTypeCloudAuthority     = "cloud-identity-authority-v1"
 	moduleInputTypeModernHome         = "modern-home-identity-authority-v1"
 	moduleInputTypeModernCloud        = "modern-cloud-identity-verification-v1"
+	moduleInputTypeHomeAccess         = "home-access-enforcement-v1"
+	moduleInputTypeLocalAutonomy      = "local-autonomy-policy-v1"
 	moduleInputTypeNetworkRoutesV4    = "authority-bound-service-route-list-v4"
 	moduleInputTypeCloudHostNetwork   = "cloud-host-security-network-v1"
 	moduleInputTypeHostBootstrap      = "host-bootstrap-runtime-v1"
@@ -52,6 +56,8 @@ type moduleRenderInputSource struct {
 	sites         []any
 	identity      map[string]any
 	identityTrust map[string]any
+	controlPlane  map[string]any
+	data          map[string]any
 	failurePolicy map[string]any
 	network       map[string]any
 	gates         map[string]any
@@ -209,6 +215,20 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 		}
 		if hasDefault {
 			return fail(ErrContractConflict, path+".defaultValue", "Modern Cloud identity verification is compiler-owned and cannot declare a default")
+		}
+	case moduleInputSourceHomeAccess:
+		if valueType != moduleInputTypeHomeAccess || cardinality != "single" {
+			return fail(ErrContractConflict, path, "access.homeEnforcement requires type %q and single cardinality", moduleInputTypeHomeAccess)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "Home access enforcement is compiler-owned and cannot declare a default")
+		}
+	case moduleInputSourceLocalAutonomy:
+		if valueType != moduleInputTypeLocalAutonomy || cardinality != "single" {
+			return fail(ErrContractConflict, path, "localAutonomy.policy requires type %q and single cardinality", moduleInputTypeLocalAutonomy)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "local-autonomy policy is compiler-owned and cannot declare a default")
 		}
 	case moduleInputSourceNetworkRoutes:
 		if valueType != moduleInputTypeNetworkRoutesV4 || cardinality != "list" {
@@ -405,6 +425,24 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding) 
 		projected, err := projectPublicModernCloudIdentityVerification(
 			source.identityTrust, source.failurePolicy, source.kit, source.sites, source.stackID,
 			"resolvedPlan.identityTrust.modernCloudVerification", false,
+		)
+		return projected, err == nil, err
+	case moduleInputSourceHomeAccess:
+		if source.network == nil || source.sites == nil || source.stackID == "" {
+			return nil, false, nil
+		}
+		projected, err := projectPublicHomeAccessEnforcement(
+			source.stackID, source.network, source.sites, "resolvedPlan.access.homeEnforcement",
+		)
+		return projected, err == nil, err
+	case moduleInputSourceLocalAutonomy:
+		if source.stackID == "" || source.kit == nil || source.sites == nil || source.controlPlane == nil ||
+			source.identity == nil || source.data == nil || source.failurePolicy == nil {
+			return nil, false, nil
+		}
+		projected, err := projectPublicLocalAutonomyPolicy(
+			source.stackID, source.kit, source.sites, source.controlPlane, source.identity, source.data, source.failurePolicy,
+			"resolvedPlan.localAutonomy.policy",
 		)
 		return projected, err == nil, err
 	case moduleInputSourceNetworkRoutes:

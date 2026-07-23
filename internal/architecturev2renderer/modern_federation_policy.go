@@ -32,7 +32,6 @@ var modernFederationPolicyPlanInputRefs = []string{
 var modernFederationArchitectureV2IDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 func init() {
-	registerLocalAutonomyKitPlanValidator("modern-homelab", validateModernLocalAutonomyPlanInputs)
 	registerHomeAccessKitPlanValidator("modern-homelab", func(inputs homeAccessPlanInputs, raw []byte, path string) ([]string, error) {
 		homeSites, cloudSites := 0, 0
 		for _, site := range inputs.Sites {
@@ -67,39 +66,6 @@ func init() {
 		renderer := newModernFederationPolicyRenderer()
 		return registry.Register(renderer.contract, renderer)
 	})
-}
-
-//nolint:gocyclo // The private hybrid kit binds Home authority, Cloud verifiers, governed copies, and partition behavior together.
-func validateModernLocalAutonomyPlanInputs(inputs localAutonomyPlanInputs, raw []byte, path string) ([]string, error) {
-	siteKinds, homeSiteRefs, cloudSiteRefs, err := validateLocalAutonomySites(inputs.Sites, path)
-	if err != nil {
-		return nil, err
-	}
-	if len(inputs.Sites) < 2 || len(homeSiteRefs) == 0 || len(cloudSiteRefs) == 0 {
-		return nil, fail(ErrInvalidPlan, path+".sites", "Modern Homelab local autonomy requires explicit Home and Cloud Sites")
-	}
-	authoritySiteRef, err := validateLocalAutonomyControlPlane(inputs.ControlPlane, siteKinds, path)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateLocalAutonomyIdentity(inputs.Identity, authoritySiteRef, path+".identity"); err != nil {
-		return nil, err
-	}
-	if !sameSortedStrings(inputs.Identity.EdgeVerifierSiteRefs, cloudSiteRefs) {
-		return nil, fail(ErrInvalidPlan, path+".identity.edgeVerifierSiteRefs", "edge verifiers must exactly cover the projected Cloud Sites")
-	}
-	if err := validateLocalAutonomyData(inputs.Data, siteKinds, authoritySiteRef, true, path+".data"); err != nil {
-		return nil, err
-	}
-	failure := inputs.FailurePolicy
-	if failure.OnCloudLoss != "local-continues" || failure.OnLinkLoss != "local-continues" || failure.CloudEdge != "fail-closed" ||
-		failure.MaxStaleVerificationSeconds < 0 || !failure.LocalIdentityAuthorityAvailable || !failure.DenyNewCrossSiteSessions {
-		return nil, fail(ErrInvalidPlan, path+".failurePolicy", "partition policy must preserve local authority and fail the Cloud edge closed")
-	}
-	if err := rejectLocalAutonomyProjectionLeaks(raw, path); err != nil {
-		return nil, err
-	}
-	return homeSiteRefs, nil
 }
 
 // ModernFederationPolicyRendererContract returns the exact built-in identity

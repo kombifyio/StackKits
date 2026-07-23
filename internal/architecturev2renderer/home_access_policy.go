@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 )
@@ -18,13 +19,16 @@ const (
 	homeAccessPolicyTemplateRef = "builtin://home/access/v1.json"
 	homeAccessPolicyVersion     = "1.0.0"
 	homeAccessPolicyOutputRef   = "local/network/access-policy.json"
-	homeAccessPolicyToken       = "@@PLAN_INPUTS@@"
+	homeAccessPolicyToken       = "@@POLICY@@"
 )
 
-const homeAccessPolicyTemplate = `{"apiVersion":"stackkit.home-access-policy/v1","kind":"HomeAccessPolicy","contract":{"capabilities":["lan-access-policy","local-ingress"],"defaultDecision":"deny","discovery":"not-included","ingressEnforcement":"unverified","runtimeEnforcement":"unverified","scope":"generation-only"},"planInputs":@@PLAN_INPUTS@@}
+const homeAccessPolicyTemplate = `{"apiVersion":"stackkit.home-access-policy/v1","kind":"HomeAccessPolicy","contract":{"capabilities":["lan-access-policy","local-ingress"],"defaultDecision":"deny","discovery":"not-included","ingressEnforcement":"unverified","runtimeEnforcement":"unverified","scope":"generation-only"},"policy":@@POLICY@@}
 `
 
-var homeAccessPolicyPlanInputRefs = []string{"identity", "kit", "localReachability", "sites", "stackId"}
+var (
+	homeAccessPolicyPlanInputRefs   = []string{}
+	homeAccessPolicyPublicInputRefs = []string{"home-access-policy"}
+)
 
 type homeAccessKitPlanValidator func(homeAccessPlanInputs, []byte, string) ([]string, error)
 
@@ -63,14 +67,18 @@ func (r homeAccessPolicyRenderer) RenderUnit(ctx context.Context, unit RenderUni
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	planInputs, err := validateHomeAccessPolicyUnit(unit, r.contract)
+	policy, err := validateHomeAccessPolicyUnit(unit, r.contract)
 	if err != nil {
 		return nil, err
 	}
 	if homeAccessTemplateHash(r.template) != r.contract.ContractHash || bytes.Count(r.template, []byte(homeAccessPolicyToken)) != 1 {
 		return nil, fail(ErrOutputChanged, "renderer.home-access-policy.template", "embedded policy manifest does not match its registered contract")
 	}
-	output := bytes.Replace(r.template, []byte(homeAccessPolicyToken), planInputs, 1)
+	policyBytes, err := json.Marshal(policy)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, "renderer.home-access-policy.policy", "marshal exact node-local Home access policy", err)
+	}
+	output := bytes.Replace(r.template, []byte(homeAccessPolicyToken), policyBytes, 1)
 	return []UnitOutput{{Ref: homeAccessPolicyOutputRef, Bytes: output}}, nil
 }
 
@@ -134,38 +142,47 @@ type homeLocalTLSDecision struct {
 // raw network configuration, addresses, credentials, discovery, sockets, and
 // provider lifecycle authority.
 type HomeAccessEnforcementPolicy struct {
-	StackID  string
-	KitSlug  string
-	SiteRefs []string
-	Routes   []HomeAccessEnforcementRoute
+	StackID string                       `json:"stackId"`
+	SiteRef string                       `json:"siteRef"`
+	NodeRef string                       `json:"nodeRef"`
+	Routes  []HomeAccessEnforcementRoute `json:"routes"`
 }
 
 // HomeAccessEnforcementRoute preserves only the compiler-owned local route and
 // access decision that the Home enforcer must apply and read back.
 type HomeAccessEnforcementRoute struct {
-	ID                     string
-	ServiceRef             string
-	ModuleRef              string
-	OriginSiteRef          string
-	OriginNodeRefs         []string
-	Protocol               string
-	UpstreamProtocol       string
-	Port                   int
-	TargetPort             int
-	Host                   string
-	Path                   string
-	PolicyRef              string
-	PolicyExposure         string
-	Authentication         string
-	Privilege              string
-	EnrolledDeviceRequired bool
-	OwnerStepUpRequired    bool
-	LANStepDown            bool
-	AllowedSiteRefs        []string
-	AllowedMethods         []string
-	TLSRequired            bool
-	TLSMode                string
-	TLSMinVersion          string
+	ID                     string   `json:"id"`
+	ServiceRef             string   `json:"serviceRef"`
+	ModuleRef              string   `json:"moduleRef"`
+	OriginSiteRef          string   `json:"originSiteRef"`
+	OriginNodeRefs         []string `json:"originNodeRefs"`
+	Protocol               string   `json:"protocol"`
+	UpstreamProtocol       string   `json:"upstreamProtocol"`
+	Port                   int      `json:"port"`
+	TargetPort             int      `json:"targetPort"`
+	Host                   string   `json:"host,omitempty"`
+	Path                   string   `json:"path,omitempty"`
+	PolicyRef              string   `json:"policyRef"`
+	PolicyExposure         string   `json:"policyExposure"`
+	Authentication         string   `json:"authentication"`
+	Privilege              string   `json:"privilege"`
+	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
+	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
+	LANStepDown            bool     `json:"lanStepDown"`
+	AllowedSiteRefs        []string `json:"allowedSiteRefs"`
+	AllowedMethods         []string `json:"allowedMethods,omitempty"`
+	TLSRequired            bool     `json:"tlsRequired"`
+	TLSMode                string   `json:"tlsMode"`
+	TLSMinVersion          string   `json:"tlsMinVersion,omitempty"`
+}
+
+type homeAccessEnforcementValue struct {
+	StackID string                       `json:"stackId"`
+	Routes  []HomeAccessEnforcementRoute `json:"routes"`
+}
+
+type homeAccessPolicyValues struct {
+	Policy json.RawMessage `json:"home-access-policy"`
 }
 
 type homeAccessPolicyArtifact struct {
@@ -179,7 +196,7 @@ type homeAccessPolicyArtifact struct {
 		RuntimeEnforcement string   `json:"runtimeEnforcement"`
 		Scope              string   `json:"scope"`
 	} `json:"contract"`
-	PlanInputs json.RawMessage `json:"planInputs"`
+	Policy json.RawMessage `json:"policy"`
 }
 
 // ValidateHomeAccessPolicyArtifact validates the exact generated policy bytes
@@ -198,43 +215,242 @@ func ValidateHomeAccessPolicyArtifact(raw []byte) (HomeAccessEnforcementPolicy, 
 		document.Contract.Scope != "generation-only" {
 		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, "homeAccessPolicy.contract", "artifact widens or fabricates the generation-only Home access contract")
 	}
-	var inputs homeAccessPlanInputs
-	if err := decodeStrict(document.PlanInputs, &inputs); err != nil {
-		return HomeAccessEnforcementPolicy{}, wrap(ErrInvalidPlan, "homeAccessPolicy.planInputs", "decode exact Home access policy inputs", err)
+	var policy HomeAccessEnforcementPolicy
+	if err := decodeStrict(document.Policy, &policy); err != nil {
+		return HomeAccessEnforcementPolicy{}, wrap(ErrInvalidPlan, "homeAccessPolicy.policy", "decode exact node-local Home access policy", err)
 	}
-	siteRefs, err := validateHomeAccessPlanInputs(document.PlanInputs, "homeAccessPolicy.planInputs")
-	if err != nil {
+	if err := validateNodeLocalHomeAccessPolicy(policy, document.Policy, "homeAccessPolicy.policy"); err != nil {
 		return HomeAccessEnforcementPolicy{}, err
 	}
-	policy := HomeAccessEnforcementPolicy{
-		StackID: inputs.StackID, KitSlug: inputs.Kit.Slug,
-		SiteRefs: append([]string(nil), siteRefs...),
-		Routes:   make([]HomeAccessEnforcementRoute, len(inputs.LocalReachability.Routes)),
-	}
-	for index, route := range inputs.LocalReachability.Routes {
-		policy.Routes[index] = HomeAccessEnforcementRoute{
-			ID: route.ID, ServiceRef: route.ServiceRef, ModuleRef: route.ModuleRef,
-			OriginSiteRef: route.OriginSiteRef, OriginNodeRefs: append([]string(nil), route.OriginNodeRefs...),
-			Protocol: route.Protocol, UpstreamProtocol: route.UpstreamProtocol, Port: route.Port, TargetPort: route.TargetPort,
-			Host: route.Host, Path: route.Path, PolicyRef: route.Access.PolicyRef, PolicyExposure: route.Access.PolicyExposure,
-			Authentication: route.Access.Authentication, Privilege: route.Access.Privilege,
-			EnrolledDeviceRequired: route.Access.EnrolledDeviceRequired, OwnerStepUpRequired: route.Access.OwnerStepUpRequired,
-			LANStepDown: route.Access.LANStepDown, AllowedSiteRefs: append([]string(nil), route.Access.AllowedSiteRefs...),
-			AllowedMethods: append([]string(nil), route.Access.AllowedMethods...), TLSRequired: route.TLS.Required,
-			TLSMode: route.TLS.Mode, TLSMinVersion: route.TLS.MinVersion,
-		}
-	}
-	return policy, nil
+	return cloneHomeAccessEnforcementPolicy(policy), nil
 }
 
-func validateHomeAccessPolicyUnit(unit RenderUnit, contract RendererContract) ([]byte, error) {
-	return validateGenerationOnlyPolicyUnit(unit, generationOnlyPolicyUnitSpec{
-		moduleID: homeAccessPolicyModuleID, unitID: homeAccessPolicyUnitID,
-		outputRef: homeAccessPolicyOutputRef, policyName: "home-access policy",
-		placementScope: "node-local", placementCardinality: "one-per-node",
-		contract: contract, planInputRefs: homeAccessPolicyPlanInputRefs,
-		validatePlanInput: validateHomeAccessPlanInputs,
-	})
+//nolint:gocyclo // This boundary closes compiler-owned global policy onto one exact Site/node.
+func validateHomeAccessPolicyUnit(unit RenderUnit, contract RendererContract) (HomeAccessEnforcementPolicy, error) {
+	path := "resolvedPlan.modules." + homeAccessPolicyModuleID + ".renderUnits." + homeAccessPolicyUnitID
+	if unit.ModuleID() != homeAccessPolicyModuleID || unit.ID() != homeAccessPolicyUnitID {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", homeAccessPolicyModuleID, homeAccessPolicyUnitID)
+	}
+	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef || unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version || unit.ContractHash() != contract.ContractHash {
+		return HomeAccessEnforcementPolicy{}, fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered Home access contract")
+	}
+	siteRef, hasSite := unit.SiteRef()
+	nodeRef, hasNode := unit.NodeRef()
+	if unit.RuntimeKind() != "native" || unit.RuntimeDelivery() != "stackkit" || unit.InstanceScope() != "node-local" ||
+		!hasSite || !hasNode || unit.InstanceID() != homeAccessPolicyUnitID+"-node-"+nodeRef ||
+		!containsExact(unit.LogicalSiteRefs(), siteRef) || !containsExact(unit.LogicalNodeRefs(), nodeRef) {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "Home access policy requires one exact governed native/stackkit Site/node instance")
+	}
+	if _, present := unit.RuntimeEngine(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".runtime", "native Home access policy must not receive a runtime engine")
+	}
+	if _, present := unit.ContainerImageRef(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".runtime", "native Home access policy must not receive a container image")
+	}
+	if _, present := unit.ContainerImageDigest(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".runtime", "native Home access policy must not receive a container digest")
+	}
+	if _, present := unit.RuntimeEntryComponentRef(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".runtime", "native Home access policy must not receive an entry component")
+	}
+	if !emptyJSONArray(unit.RuntimeComponentsJSON()) {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".runtime", "native Home access policy must not receive runtime components")
+	}
+	if _, present := unit.DaemonRef(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "Home access policy must not receive daemon authority")
+	}
+	if _, present := unit.DaemonInstanceRef(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "Home access policy must not receive a daemon instance")
+	}
+	if _, present := unit.DaemonEngine(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "Home access policy must not receive a daemon engine")
+	}
+	if _, present := unit.DaemonSocketPath(); present {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "Home access policy must not receive a daemon socket")
+	}
+	if !exactStringList(unit.PublicInputRefs(), homeAccessPolicyPublicInputRefs) || len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.SecretRefsJSON()) ||
+		!exactStringList(unit.PlanInputRefs(), homeAccessPolicyPlanInputRefs) || !emptyJSONObject(unit.PlanInputsJSON()) {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".inputs", "Home access policy accepts only its exact typed compiler-owned input")
+	}
+	if err := validateHomeAccessPolicyBindings(unit.InputBindingsJSON(), path+".inputBindings"); err != nil {
+		return HomeAccessEnforcementPolicy{}, err
+	}
+	if !emptyJSONArray(unit.ServiceEndpointsJSON()) || !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
+		!emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) || !emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".interfaces", "Home access policy has no service, network, interface, approval, or socket authority")
+	}
+	var placement struct {
+		Scope       string `json:"scope"`
+		Cardinality string `json:"cardinality"`
+	}
+	if err := decodeStrict(unit.PlacementJSON(), &placement); err != nil || placement.Scope != "node-local" || placement.Cardinality != "one-per-node" {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".placement", "Home access policy requires exact node-local/one-per-node placement")
+	}
+	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != homeAccessPolicyOutputRef {
+		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".outputs", "Home access policy requires exactly output %q", homeAccessPolicyOutputRef)
+	}
+	var values homeAccessPolicyValues
+	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
+		return HomeAccessEnforcementPolicy{}, wrap(ErrInvalidPlan, path+".values", "decode exact Home access policy typed value", err)
+	}
+	var value homeAccessEnforcementValue
+	if err := decodeStrict(values.Policy, &value); err != nil {
+		return HomeAccessEnforcementPolicy{}, wrap(ErrInvalidPlan, path+".values.home-access-policy", "decode exact compiler-owned Home access policy", err)
+	}
+	if err := requireContractID(value.StackID, path+".values.home-access-policy.stackId"); err != nil {
+		return HomeAccessEnforcementPolicy{}, err
+	}
+	if err := validateHomeAccessEnforcementRoutes(value.Routes, values.Policy, path+".values.home-access-policy"); err != nil {
+		return HomeAccessEnforcementPolicy{}, err
+	}
+	localRoutes := make([]HomeAccessEnforcementRoute, 0, len(value.Routes))
+	for _, route := range value.Routes {
+		if containsExact(route.OriginNodeRefs, nodeRef) && route.OriginSiteRef != siteRef {
+			return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, path+".values.home-access-policy.routes", "node is claimed by a route outside its exact Site")
+		}
+		if route.OriginSiteRef != siteRef || !containsExact(route.OriginNodeRefs, nodeRef) {
+			continue
+		}
+		local := cloneHomeAccessEnforcementRoute(route)
+		local.OriginNodeRefs = []string{nodeRef}
+		localRoutes = append(localRoutes, local)
+	}
+	return HomeAccessEnforcementPolicy{StackID: value.StackID, SiteRef: siteRef, NodeRef: nodeRef, Routes: localRoutes}, nil
+}
+
+func validateHomeAccessPolicyBindings(raw []byte, path string) error {
+	var bindings []rawModuleRenderInputBinding
+	if err := decodeStrict(raw, &bindings); err != nil {
+		return wrap(ErrInvalidPlan, path, "decode Home access input bindings", err)
+	}
+	expected := []rawModuleRenderInputBinding{{
+		TargetRef: "home-access-policy", SourceRef: "access.homeEnforcement",
+		ValueType: "home-access-enforcement-v1", Cardinality: "single", Required: true,
+	}}
+	if !reflect.DeepEqual(bindings, expected) {
+		return fail(ErrInvalidPlan, path, "must exactly match the governed Home access binding")
+	}
+	return nil
+}
+
+func validateNodeLocalHomeAccessPolicy(policy HomeAccessEnforcementPolicy, raw []byte, path string) error {
+	if err := requireContractID(policy.StackID, path+".stackId"); err != nil {
+		return err
+	}
+	if err := requireContractID(policy.SiteRef, path+".siteRef"); err != nil {
+		return err
+	}
+	if err := requireContractID(policy.NodeRef, path+".nodeRef"); err != nil {
+		return err
+	}
+	if err := validateHomeAccessEnforcementRoutes(policy.Routes, raw, path); err != nil {
+		return err
+	}
+	for index, route := range policy.Routes {
+		if route.OriginSiteRef != policy.SiteRef || !slices.Equal(route.OriginNodeRefs, []string{policy.NodeRef}) {
+			return fail(ErrInvalidPlan, fmt.Sprintf("%s.routes[%d]", path, index), "artifact route must be closed to the exact artifact Site/node")
+		}
+	}
+	return nil
+}
+
+func validateHomeAccessEnforcementRoutes(routes []HomeAccessEnforcementRoute, raw []byte, path string) error {
+	previousID := ""
+	for index, route := range routes {
+		routePath := fmt.Sprintf("%s.routes[%d]", path, index)
+		if err := validateHomeAccessEnforcementRoute(route, routePath); err != nil {
+			return err
+		}
+		if previousID != "" && route.ID <= previousID {
+			return fail(ErrInvalidPlan, routePath+".id", "routes must be unique and sorted by id")
+		}
+		previousID = route.ID
+	}
+	return rejectGenerationOnlyPolicyProjectionLeaks(raw, path, "home-access policy")
+}
+
+func validateHomeAccessEnforcementRoute(route HomeAccessEnforcementRoute, path string) error {
+	for field, value := range map[string]string{
+		"id": route.ID, "serviceRef": route.ServiceRef, "moduleRef": route.ModuleRef,
+		"originSiteRef": route.OriginSiteRef, "policyRef": route.PolicyRef,
+	} {
+		if err := requireContractID(value, path+"."+field); err != nil {
+			return err
+		}
+	}
+	if route.Protocol == "" || route.UpstreamProtocol == "" || route.Port < 1 || route.Port > 65535 || route.TargetPort < 1 || route.TargetPort > 65535 {
+		return fail(ErrInvalidPlan, path, "route requires protocols and valid listener/target ports")
+	}
+	if host := strings.ToLower(strings.TrimSuffix(route.Host, ".")); route.PolicyExposure == "lan" && (host == "localhost" || strings.HasSuffix(host, ".localhost")) {
+		return fail(ErrInvalidPlan, path+".host", ".localhost is process-local and cannot be a Home LAN route")
+	}
+	if err := validateExactContractIDs(route.OriginNodeRefs, path+".originNodeRefs"); err != nil {
+		return err
+	}
+	if err := validateExactContractIDs(route.AllowedSiteRefs, path+".allowedSiteRefs"); err != nil {
+		return err
+	}
+	if !containsExact(route.AllowedSiteRefs, route.OriginSiteRef) {
+		return fail(ErrInvalidPlan, path+".allowedSiteRefs", "route origin must be explicitly authorized")
+	}
+	if len(route.AllowedMethods) > 0 && !validExactStringValues(route.AllowedMethods) {
+		return fail(ErrInvalidPlan, path+".allowedMethods", "allowed methods must be exact, unique, and sorted")
+	}
+	if route.PolicyExposure == "lan" {
+		if !route.LANStepDown || !route.EnrolledDeviceRequired || (route.Authentication != "device" && route.Authentication != "human+device") {
+			return fail(ErrInvalidPlan, path, "LAN step-down requires device-bound authentication and enrollment")
+		}
+	} else if route.PolicyExposure != "private" || route.LANStepDown {
+		return fail(ErrInvalidPlan, path+".policyExposure", "policy exposure must be private or explicit LAN step-down")
+	}
+	if route.Privilege == "admin" || route.Privilege == "identity" || route.Privilege == "secrets" {
+		if route.Authentication != "human+device" || !route.EnrolledDeviceRequired || !route.OwnerStepUpRequired {
+			return fail(ErrInvalidPlan, path, "privileged access requires human+device, enrollment, and owner step-up")
+		}
+	}
+	return validateHomeLocalTLS(homeLocalTLSDecision{Required: route.TLSRequired, Mode: route.TLSMode, MinVersion: route.TLSMinVersion}, route.Protocol, path+".tls")
+}
+
+func validateExactContractIDs(values []string, path string) error {
+	if len(values) == 0 || !slices.IsSorted(values) {
+		return fail(ErrInvalidPlan, path, "must be non-empty, unique, and sorted")
+	}
+	for index, value := range values {
+		if err := requireContractID(value, fmt.Sprintf("%s[%d]", path, index)); err != nil {
+			return err
+		}
+		if index > 0 && values[index-1] == value {
+			return fail(ErrDuplicate, fmt.Sprintf("%s[%d]", path, index), "duplicate contract ref")
+		}
+	}
+	return nil
+}
+
+func validExactStringValues(values []string) bool {
+	if !slices.IsSorted(values) {
+		return false
+	}
+	for index, value := range values {
+		if value == "" || value != strings.TrimSpace(value) || index > 0 && values[index-1] == value {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneHomeAccessEnforcementPolicy(policy HomeAccessEnforcementPolicy) HomeAccessEnforcementPolicy {
+	policy.Routes = append([]HomeAccessEnforcementRoute(nil), policy.Routes...)
+	for index := range policy.Routes {
+		policy.Routes[index] = cloneHomeAccessEnforcementRoute(policy.Routes[index])
+	}
+	return policy
+}
+
+func cloneHomeAccessEnforcementRoute(route HomeAccessEnforcementRoute) HomeAccessEnforcementRoute {
+	route.OriginNodeRefs = append([]string(nil), route.OriginNodeRefs...)
+	route.AllowedSiteRefs = append([]string(nil), route.AllowedSiteRefs...)
+	route.AllowedMethods = append([]string(nil), route.AllowedMethods...)
+	return route
 }
 
 func validateHomeAccessPlanInputs(raw []byte, path string) ([]string, error) {

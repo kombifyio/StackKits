@@ -5491,9 +5491,6 @@ components:
             - policy-enforcement-unverified
             - partition-policy-enforcement-unverified
             - device-verifier-unbound
-            - bridge-renderer-missing
-            - origin-identity-unbound
-            - tls-profile-unbound
             - health-gate-not-executable
             - route-health-executor-unbound
         refs:

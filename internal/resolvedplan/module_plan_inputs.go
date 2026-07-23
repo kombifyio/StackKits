@@ -4,15 +4,15 @@ import "fmt"
 
 var allowedModulePlanInputRefs = map[string]struct{}{
 	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
-	"bridge": {}, "identity": {}, "data": {}, "failurePolicy": {},
+	"bridge": {}, "bridgePublications": {}, "bridgeOriginMTLS": {}, "identity": {}, "data": {}, "failurePolicy": {},
 	"identityTrust": {}, "localReachability": {}, "homeLANDiscovery": {},
 	"homeAccessRequirements": {}, "externalHomeAccessBindings": {},
 	"backupTargetRequirements": {}, "externalBackupTargetBindings": {},
 	"homeBackupTargetRequirements": {}, "externalHomeBackupTargetBindings": {},
-	"homeOffsiteBackup": {}, "cloudOffsiteBackup": {},
+	"homeAccessHandoff": {}, "homeOffsiteBackup": {}, "cloudOffsiteBackup": {},
 	"federationLinkRequirements": {}, "externalFederationLinkBindings": {},
 	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
-	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicEdge": {}, "publicTLS": {}, "cloudAdminMesh": {},
+	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicEdge": {}, "publicTLS": {}, "internalPKI": {}, "cloudAdminMesh": {},
 }
 
 func validateModulePlanInputRefs(refs []string, path string) ([]string, error) {
@@ -123,6 +123,10 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 			return nil, fmt.Errorf("bridge projection is unavailable")
 		}
 		value = source.bridge
+	case "bridgePublications":
+		return safeModuleBridgePublications(moduleID, module, source.bridge)
+	case "bridgeOriginMTLS":
+		return safeModuleBridgeOriginMTLS(moduleID, source.bridge, source.identityTrust)
 	case "identity":
 		value = source.identity
 	case "identityTrust":
@@ -142,6 +146,8 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 		return safeModuleHomeAccessProjection(moduleID, module, source.homeAccessRequirements, true)
 	case "externalHomeAccessBindings":
 		return safeModuleHomeAccessProjection(moduleID, module, source.externalHomeAccessBindings, false)
+	case "homeAccessHandoff":
+		return safeModuleHomeAccessHandoff(moduleID, module, source)
 	case "backupTargetRequirements":
 		return safeModuleBackupTargetProjection(moduleID, module, source.backupTargetRequirements, true)
 	case "externalBackupTargetBindings":
@@ -174,10 +180,364 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 		return safeModulePublicEdge(moduleID, module, source.capabilities, source.network, source.gates)
 	case "publicTLS":
 		return safeModulePublicTLS(moduleID, module, source.capabilities, source.providers, source.network)
+	case "internalPKI":
+		return safeModuleInternalPKI(moduleID, module, source.capabilities, source.providers)
 	case "cloudAdminMesh":
 		return safeModuleCloudAdminMesh(moduleID, module, source.capabilities, source.nodes, source.network, source.gates)
 	}
 	return normalizeJSON(value, false, ref)
+}
+
+func safeModuleBridgeOriginMTLS(moduleID string, bridge, identityTrust map[string]any) (map[string]any, error) {
+	if moduleID != "stackkits-bridge-origin-mtls-runtime" {
+		return nil, fmt.Errorf("module %q cannot consume bridge origin mTLS authority", moduleID)
+	}
+	if bridge == nil || identityTrust == nil {
+		return nil, fmt.Errorf("bridge origin mTLS requires resolved bridge and identity trust")
+	}
+	publications, err := objectListField(bridge, "bridge", "publications")
+	if err != nil {
+		return nil, err
+	}
+	issuers, err := objectListField(identityTrust, "identityTrust", "credentialIssuers")
+	if err != nil {
+		return nil, err
+	}
+	verifiers, err := objectListField(identityTrust, "identityTrust", "verifierPlacements")
+	if err != nil {
+		return nil, err
+	}
+	distributions, err := objectListField(identityTrust, "identityTrust", "verifierDistributions")
+	if err != nil {
+		return nil, err
+	}
+	projected := make([]any, 0, len(publications))
+	for index, publication := range publications {
+		path := fmt.Sprintf("bridge.publications[%d]", index)
+		serviceRef, err := stringField(publication, path, "serviceRef")
+		if err != nil {
+			return nil, err
+		}
+		sourceSiteRef, err := stringField(publication, path, "sourceSiteRef")
+		if err != nil {
+			return nil, err
+		}
+		edgeSiteRef, err := stringField(publication, path, "edgeSiteRef")
+		if err != nil {
+			return nil, err
+		}
+		origin, err := objectField(publication, path, "origin")
+		if err != nil {
+			return nil, err
+		}
+		identityRef, err := stringField(origin, path+".origin", "identityRef")
+		if err != nil {
+			return nil, err
+		}
+		if identityRef != serviceRef+"-origin" {
+			return nil, fmt.Errorf("%s.origin.identityRef must equal the compiler-bound service origin identity", path)
+		}
+		issuer, err := exactWorkloadIssuerForSite(issuers, sourceSiteRef, path)
+		if err != nil {
+			return nil, err
+		}
+		issuerRef, err := stringField(issuer, "identityTrust.credentialIssuers", "id")
+		if err != nil {
+			return nil, err
+		}
+		verifier, err := exactWorkloadVerifierForSite(verifiers, issuerRef, edgeSiteRef, path)
+		if err != nil {
+			return nil, err
+		}
+		distribution, err := exactVerifierDistribution(distributions, issuerRef, sourceSiteRef, edgeSiteRef, path)
+		if err != nil {
+			return nil, err
+		}
+		audiences, err := stringListField(issuer, "identityTrust.credentialIssuers."+issuerRef, "audiences", true)
+		if err != nil || len(audiences) != 1 {
+			return nil, fmt.Errorf("%s workload issuer must bind exactly one audience", path)
+		}
+		issuerURI, err := stringField(issuer, "identityTrust.credentialIssuers."+issuerRef, "issuer")
+		if err != nil {
+			return nil, err
+		}
+		keySetRef, err := stringField(issuer, "identityTrust.credentialIssuers."+issuerRef, "verificationKeySetRef")
+		if err != nil {
+			return nil, err
+		}
+		proofRequired, err := boolFieldDefault(issuer, "identityTrust.credentialIssuers."+issuerRef, "proofOfPossessionRequired", false)
+		if err != nil || !proofRequired {
+			return nil, fmt.Errorf("%s workload issuer must require proof of possession", path)
+		}
+		verifierRef, err := stringField(verifier, "identityTrust.verifierPlacements", "id")
+		if err != nil {
+			return nil, err
+		}
+		distributionRef, err := stringField(distribution, "identityTrust.verifierDistributions", "id")
+		if err != nil {
+			return nil, err
+		}
+		maxStaleness, err := intField(distribution, "identityTrust.verifierDistributions."+distributionRef, "maxStalenessSeconds")
+		if err != nil {
+			return nil, err
+		}
+		moduleRef, err := stringField(publication, path, "moduleRef")
+		if err != nil {
+			return nil, err
+		}
+		unitRef, err := stringField(publication, path, "unitRef")
+		if err != nil {
+			return nil, err
+		}
+		nodeRefs, err := stringListField(publication, path, "originNodeRefs", true)
+		if err != nil {
+			return nil, err
+		}
+		instanceRefs, err := stringListField(publication, path, "originInstanceRefs", true)
+		if err != nil {
+			return nil, err
+		}
+		upstreamProtocol, err := stringField(publication, path, "upstreamProtocol")
+		if err != nil {
+			return nil, err
+		}
+		targetPort, err := intField(publication, path, "targetPort")
+		if err != nil {
+			return nil, err
+		}
+		projected = append(projected, map[string]any{
+			"serviceRef": serviceRef, "identityRef": identityRef, "sourceSiteRef": sourceSiteRef, "edgeSiteRef": edgeSiteRef,
+			"moduleRef": moduleRef, "unitRef": unitRef, "originNodeRefs": stringSliceAny(nodeRefs), "originInstanceRefs": stringSliceAny(instanceRefs),
+			"upstreamProtocol": upstreamProtocol, "targetPort": targetPort,
+			"transport": map[string]any{
+				"mode": "mtls-origin-proxy", "minimumTLSVersion": "TLS1.3",
+				"serverName": serviceRef + ".origin.stackkit.internal", "outboundOnly": true, "generalLANAccess": false,
+			},
+			"workloadIdentity": map[string]any{
+				"credentialIssuerRef": issuerRef, "issuer": issuerURI, "audience": audiences[0],
+				"verificationKeySetRef": keySetRef, "proofOfPossessionRequired": true,
+			},
+			"edgeVerifier": map[string]any{
+				"verifierRef": verifierRef, "distributionRef": distributionRef, "verificationKeySetRef": keySetRef,
+				"maxStalenessSeconds": maxStaleness, "includesPrivateKeyMaterial": false,
+				"includesSigningAuthority": false, "reverseAllowed": false,
+			},
+		})
+	}
+	if len(projected) == 0 {
+		return nil, fmt.Errorf("bridge origin mTLS requires at least one publication")
+	}
+	return normalizedObject(map[string]any{"publications": projected}, "bridgeOriginMTLS")
+}
+
+func exactWorkloadIssuerForSite(issuers []map[string]any, siteRef, path string) (map[string]any, error) {
+	return exactIdentityObjectForSite(issuers, "credential issuer", siteRef, func(candidate map[string]any) (bool, error) {
+		principal, err := stringField(candidate, "identityTrust.credentialIssuers", "principal")
+		return principal == "workload", err
+	}, path)
+}
+
+func exactWorkloadVerifierForSite(verifiers []map[string]any, issuerRef, siteRef, path string) (map[string]any, error) {
+	return exactIdentityObjectForSite(verifiers, "verifier", siteRef, func(candidate map[string]any) (bool, error) {
+		principal, err := stringField(candidate, "identityTrust.verifierPlacements", "principal")
+		if err != nil || principal != "workload" {
+			return false, err
+		}
+		ref, err := stringField(candidate, "identityTrust.verifierPlacements", "credentialIssuerRef")
+		return ref == issuerRef, err
+	}, path)
+}
+
+func exactIdentityObjectForSite(values []map[string]any, kind, siteRef string, predicate func(map[string]any) (bool, error), path string) (map[string]any, error) {
+	var match map[string]any
+	for _, candidate := range values {
+		ok, err := predicate(candidate)
+		if err != nil || !ok {
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		placement, err := objectField(candidate, "identityTrust."+kind, "placement")
+		if err != nil {
+			return nil, err
+		}
+		siteRefs, err := stringListField(placement, "identityTrust."+kind+".placement", "siteRefs", true)
+		if err != nil || !contains(siteRefs, siteRef) {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("%s has multiple workload %s bindings for Site %q", path, kind, siteRef)
+		}
+		match = candidate
+	}
+	if match == nil {
+		return nil, fmt.Errorf("%s has no workload %s binding for Site %q", path, kind, siteRef)
+	}
+	return match, nil
+}
+
+func exactVerifierDistribution(distributions []map[string]any, issuerRef, fromSiteRef, toSiteRef, path string) (map[string]any, error) {
+	var match map[string]any
+	for _, candidate := range distributions {
+		ref, err := stringField(candidate, "identityTrust.verifierDistributions", "credentialIssuerRef")
+		if err != nil || ref != issuerRef {
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		from, err := objectField(candidate, "identityTrust.verifierDistributions", "from")
+		if err != nil {
+			return nil, err
+		}
+		to, err := objectField(candidate, "identityTrust.verifierDistributions", "to")
+		if err != nil {
+			return nil, err
+		}
+		fromRefs, err := stringListField(from, "identityTrust.verifierDistributions.from", "siteRefs", true)
+		if err != nil {
+			return nil, err
+		}
+		toRefs, err := stringListField(to, "identityTrust.verifierDistributions.to", "siteRefs", true)
+		if err != nil {
+			return nil, err
+		}
+		if !sameStringSet(fromRefs, []string{fromSiteRef}) || !sameStringSet(toRefs, []string{toSiteRef}) {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("%s has multiple workload verifier distributions", path)
+		}
+		match = candidate
+	}
+	if match == nil {
+		return nil, fmt.Errorf("%s has no exact Home-to-Cloud workload verifier distribution", path)
+	}
+	return match, nil
+}
+
+func safeModuleBridgePublications(moduleID string, module, bridge map[string]any) ([]any, error) {
+	const publicationModuleID = "stackkits-bridge-publication-runtime"
+	if moduleID != publicationModuleID {
+		return nil, fmt.Errorf("module %q cannot consume bridge publications", moduleID)
+	}
+	provided, err := stringListField(module, "modules."+moduleID, "provides", true)
+	if err != nil {
+		return nil, err
+	}
+	if len(provided) != 1 || provided[0] != "service-publication" {
+		return nil, fmt.Errorf("module %q bridge publication projection requires exactly capability %q", moduleID, "service-publication")
+	}
+	if bridge == nil {
+		return nil, fmt.Errorf("bridge projection is unavailable")
+	}
+	publications, err := objectListField(bridge, "bridge", "publications")
+	if err != nil {
+		return nil, err
+	}
+	if len(publications) == 0 {
+		return nil, fmt.Errorf("bridge publication projection is empty")
+	}
+	projected := make([]any, 0, len(publications))
+	for index, publication := range publications {
+		normalized, err := normalizeJSON(publication, false, fmt.Sprintf("bridgePublications[%d]", index))
+		if err != nil {
+			return nil, err
+		}
+		projected = append(projected, normalized)
+	}
+	return projected, nil
+}
+
+func safeModuleInternalPKI(moduleID string, module map[string]any, capabilities, providers []any) (map[string]any, error) {
+	const capabilityID = "internal-pki"
+	provided, err := stringListField(module, "modules."+moduleID, "provides", true)
+	if err != nil {
+		return nil, err
+	}
+	if len(provided) != 1 || provided[0] != capabilityID {
+		return nil, fmt.Errorf("module %q internalPKI projection requires exactly capability %q", moduleID, capabilityID)
+	}
+	providerRef, err := stringField(module, "modules."+moduleID, "providerRef")
+	if err != nil {
+		return nil, err
+	}
+	capability, err := resolvedPlanObjectByID(capabilities, capabilityID, "capabilities")
+	if err != nil {
+		return nil, err
+	}
+	capabilityProviderRef, err := stringField(capability, "capabilities."+capabilityID, "providerRef")
+	if err != nil || capabilityProviderRef != providerRef {
+		return nil, fmt.Errorf("module %q provider %q does not own resolved capability %q", moduleID, providerRef, capabilityID)
+	}
+	profile, err := objectField(capability, "capabilities."+capabilityID, "tlsProfile")
+	if err != nil {
+		return nil, err
+	}
+	profileProjection, err := selectObjectFields(profile, "capabilities."+capabilityID+".tlsProfile", []string{"id", "capabilityRef", "mode", "trustDomain", "minimumVersion", "allowedIssuerKinds"})
+	if err != nil {
+		return nil, err
+	}
+	if mode, fieldErr := stringField(profileProjection, "internalPKI.profile", "mode"); fieldErr != nil || mode != "internal" {
+		return nil, fmt.Errorf("internal PKI profile must use internal TLS mode")
+	}
+	allowedKinds, err := stringListField(profileProjection, "internalPKI.profile", "allowedIssuerKinds", true)
+	if err != nil {
+		return nil, err
+	}
+	provider, err := resolvedPlanObjectByID(providers, providerRef, "providers")
+	if err != nil {
+		return nil, err
+	}
+	issuerContracts, err := objectListField(provider, "providers."+providerRef, "certificateIssuers")
+	if err != nil {
+		return nil, err
+	}
+	var issuer map[string]any
+	for index, candidate := range issuerContracts {
+		path := fmt.Sprintf("providers.%s.certificateIssuers[%d]", providerRef, index)
+		candidateCapability, fieldErr := stringField(candidate, path, "capabilityRef")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		candidateKind, fieldErr := stringField(candidate, path, "kind")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		if candidateCapability != capabilityID || !contains(allowedKinds, candidateKind) {
+			continue
+		}
+		if issuer != nil {
+			return nil, fmt.Errorf("provider %q has multiple internal PKI issuers", providerRef)
+		}
+		issuer = candidate
+	}
+	if issuer == nil {
+		return nil, fmt.Errorf("provider %q has no internal PKI issuer", providerRef)
+	}
+	issuerProjection, err := selectObjectFields(issuer, "internalPKI.issuer", []string{"id", "capabilityRef", "kind", "challenge", "supportedSiteKinds", "validitySeconds", "requiredInputSlotIDs", "materialSlots", "renewal"})
+	if err != nil {
+		return nil, err
+	}
+	return normalizedObject(map[string]any{
+		"capabilityRef": capabilityID,
+		"providerRef":   providerRef,
+		"profile":       profileProjection,
+		"issuer":        issuerProjection,
+	}, "internalPKI")
+}
+
+func safeModuleHomeAccessHandoff(moduleID string, module map[string]any, source modulePlanInputSource) (map[string]any, error) {
+	requirements, err := safeModuleHomeAccessProjection(moduleID, module, source.homeAccessRequirements, true)
+	if err != nil {
+		return nil, err
+	}
+	bindings, err := safeModuleHomeAccessProjection(moduleID, module, source.externalHomeAccessBindings, false)
+	if err != nil {
+		return nil, err
+	}
+	return normalizedObject(map[string]any{"requirements": requirements, "bindings": bindings}, "homeAccessHandoff")
 }
 
 func safeModuleHomeOffsiteBackup(moduleID string, module map[string]any, source modulePlanInputSource) (map[string]any, error) {

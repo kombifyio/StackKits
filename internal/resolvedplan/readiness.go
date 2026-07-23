@@ -124,23 +124,12 @@ func bridgeExecutionReadinessBlockers(bridge map[string]any) ([]executionReadine
 		if err != nil {
 			return nil, err
 		}
-		origin, err := objectField(publication, publicationPath, "origin")
-		if err != nil {
-			return nil, err
-		}
-		identityRef, err := stringField(origin, publicationPath+".origin", "identityRef")
-		if err != nil {
-			return nil, err
-		}
 		healthGateRef, err := stringField(publication, publicationPath, "healthGateRef")
 		if err != nil {
 			return nil, err
 		}
 		publicationRef := "publication:" + serviceRef
 		blockers = append(blockers,
-			executionReadinessBlocker{code: "bridge-renderer-missing", refs: []string{publicationRef, "renderer:bridge-edge"}},
-			executionReadinessBlocker{code: "origin-identity-unbound", refs: []string{publicationRef, "identity:" + identityRef}},
-			executionReadinessBlocker{code: "tls-profile-unbound", refs: []string{publicationRef, "tls:" + serviceRef}},
 			executionReadinessBlocker{code: "health-gate-not-executable", refs: []string{publicationRef, "health:" + healthGateRef}},
 		)
 	}

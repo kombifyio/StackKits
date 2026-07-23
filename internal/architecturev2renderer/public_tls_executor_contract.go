@@ -27,13 +27,13 @@ const (
 	publicTLSIssuerRef     = "stackkits-public-acme"
 )
 
-const publicTLSExecutorContractTemplate = `{"apiVersion":"stackkit.public-tls-executor-contract/v1","kind":"PublicTLSExecutorContract","module":{"id":"stackkits-public-tls-contract","version":"1.0.0"},"contract":{"certificateIssuance":"not-included","credentials":"not-included","execution":"unverified","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"},"planInputs":@@PLAN_INPUTS@@}
+const publicTLSExecutorContractTemplate = `{"apiVersion":"stackkit.public-tls-executor-contract/v1","kind":"PublicTLSExecutorContract","module":{"id":"stackkits-public-tls-contract","version":"1.0.0"},"contract":{"certificateIssuance":"external-operations","credentials":"external-owner","execution":"typed-local-operations","generation":"supported","operations":["materialize-public-tls","renew-public-tls","verify-public-tls"],"providerLifecycle":"not-owned","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"},"planInputs":@@PLAN_INPUTS@@}
 `
 
 var publicTLSExecutorContractPlanInputRefs = []string{"kit", "moduleTargets", "publicTLS", "stackId"}
 
 // PublicTLSExecutorContractRendererContract returns the exact immutable
-// generation-only handoff identity for the catalog-owned public TLS contract.
+// operation-shaped handoff identity for the catalog-owned public TLS contract.
 func PublicTLSExecutorContractRendererContract() RendererContract {
 	sum := sha256.Sum256([]byte(publicTLSExecutorContractTemplate))
 	return RendererContract{
@@ -153,10 +153,58 @@ type publicTLSExecutorRouteTLS struct {
 	IssuerRef  string `json:"issuerRef"`
 }
 
+// PublicTLSExecutorArtifact is the closed, credential-free policy consumed by
+// an authenticated Cloud TLS operations owner. Material slot names are logical
+// handles only; material bytes and ACME credentials never enter this value.
+type PublicTLSExecutorArtifact struct {
+	StackID string
+	SiteRef string
+	NodeRef string
+	Profile PublicTLSRuntimeProfile
+	Issuer  PublicTLSRuntimeIssuer
+	Routes  []PublicTLSRuntimeRoute
+}
+
+type PublicTLSRuntimeProfile struct {
+	ID             string
+	Mode           string
+	TrustDomain    string
+	MinimumVersion string
+}
+
+type PublicTLSRuntimeIssuer struct {
+	ID                   string
+	Kind                 string
+	Challenge            string
+	ValiditySeconds      int
+	MaterialSlots        []PublicTLSRuntimeMaterialSlot
+	RenewBeforeSeconds   int
+	RenewalHealthGateRef string
+}
+
+type PublicTLSRuntimeMaterialSlot struct {
+	ID          string
+	Purpose     string
+	Sensitivity string
+}
+
+type PublicTLSRuntimeRoute struct {
+	ID         string
+	Host       string
+	Port       int
+	Path       string
+	Protocol   string
+	TLSMode    string
+	MinVersion string
+	ProfileRef string
+	IssuerRef  string
+}
+
 func validatePublicTLSExecutorContractUnit(unit RenderUnit, contract RendererContract) (publicTLSExecutorPlan, error) {
 	raw, err := validateGenerationOnlyPolicyUnit(unit, generationOnlyPolicyUnitSpec{
 		moduleID: publicTLSExecutorContractModuleID, unitID: publicTLSExecutorContractUnitID,
 		outputRef: publicTLSExecutorContractOutputRef, policyName: "public TLS executor contract",
+		placementScope: "node-local", placementCardinality: "one-per-node",
 		contract: contract, planInputRefs: publicTLSExecutorContractPlanInputRefs,
 		validatePlanInput: validatePublicTLSExecutorPlanInputs,
 	})
@@ -273,6 +321,99 @@ func validatePublicTLSExecutorPlanInputs(raw []byte, path string) ([]string, err
 		return nil, err
 	}
 	return siteRefs, nil
+}
+
+// ValidatePublicTLSExecutorArtifact validates the immutable artifact shell,
+// recomputes the closed plan projection, and binds it to one exact Cloud
+// Site/node instance. It returns no credential or material content.
+func ValidatePublicTLSExecutorArtifact(raw []byte, siteRef, nodeRef string) (PublicTLSExecutorArtifact, error) {
+	const path = "publicTLSExecutorArtifact"
+	var document struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+		Module     struct {
+			ID      string `json:"id"`
+			Version string `json:"version"`
+		} `json:"module"`
+		Contract struct {
+			CertificateIssuance     string   `json:"certificateIssuance"`
+			Credentials             string   `json:"credentials"`
+			Execution               string   `json:"execution"`
+			Generation              string   `json:"generation"`
+			Operations              []string `json:"operations"`
+			ProviderLifecycle       string   `json:"providerLifecycle"`
+			RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+			Scope                   string   `json:"scope"`
+			ServerProviderAuthority string   `json:"serverProviderAuthority"`
+		} `json:"contract"`
+		PlanInputs publicTLSExecutorPlan `json:"planInputs"`
+	}
+	if err := decodeStrict(raw, &document); err != nil {
+		return PublicTLSExecutorArtifact{}, wrap(ErrInvalidPlan, path, "decode exact public TLS executor artifact", err)
+	}
+	if document.APIVersion != "stackkit.public-tls-executor-contract/v1" ||
+		document.Kind != "PublicTLSExecutorContract" ||
+		document.Module.ID != publicTLSExecutorContractModuleID ||
+		document.Module.Version != publicTLSExecutorContractVersion ||
+		document.Contract.CertificateIssuance != "external-operations" ||
+		document.Contract.Credentials != "external-owner" ||
+		document.Contract.Execution != "typed-local-operations" ||
+		document.Contract.Generation != "supported" ||
+		!exactStringList(document.Contract.Operations, []string{"materialize-public-tls", "renew-public-tls", "verify-public-tls"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" ||
+		document.Contract.RuntimeEnforcement != "adapter-verified" ||
+		document.Contract.Scope != "cloud-edge-node" ||
+		document.Contract.ServerProviderAuthority != "not-owned" {
+		return PublicTLSExecutorArtifact{}, fail(ErrInvalidPlan, path+".contract", "artifact shell widens or contradicts the authenticated public TLS runtime contract")
+	}
+	planRaw, err := json.Marshal(document.PlanInputs)
+	if err != nil {
+		return PublicTLSExecutorArtifact{}, wrap(ErrInvalidPlan, path+".planInputs", "marshal exact public TLS projection", err)
+	}
+	if _, err := validatePublicTLSExecutorPlanInputs(planRaw, path+".planInputs"); err != nil {
+		return PublicTLSExecutorArtifact{}, err
+	}
+	if strings.TrimSpace(siteRef) == "" || strings.TrimSpace(nodeRef) == "" {
+		return PublicTLSExecutorArtifact{}, fail(ErrInvalidPlan, path+".target", "exact Site and node bindings are required")
+	}
+	matches := 0
+	for _, target := range document.PlanInputs.ModuleTargets {
+		if target.ID == nodeRef && target.SiteRef == siteRef {
+			matches++
+		}
+	}
+	if matches != 1 {
+		return PublicTLSExecutorArtifact{}, fail(ErrInvalidPlan, path+".target", "artifact does not bind the exact Cloud Site/node target")
+	}
+	projection := document.PlanInputs.PublicTLS
+	result := PublicTLSExecutorArtifact{
+		StackID: document.PlanInputs.StackID,
+		SiteRef: siteRef,
+		NodeRef: nodeRef,
+		Profile: PublicTLSRuntimeProfile{
+			ID: projection.Profile.ID, Mode: projection.Profile.Mode,
+			TrustDomain: projection.Profile.TrustDomain, MinimumVersion: projection.Profile.MinimumVersion,
+		},
+		Issuer: PublicTLSRuntimeIssuer{
+			ID: projection.Issuer.ID, Kind: projection.Issuer.Kind, Challenge: projection.Issuer.Challenge,
+			ValiditySeconds:      projection.Issuer.ValiditySeconds,
+			RenewBeforeSeconds:   projection.Issuer.Renewal.RenewBeforeSeconds,
+			RenewalHealthGateRef: projection.Issuer.Renewal.HealthGateRef,
+		},
+	}
+	result.Issuer.MaterialSlots = make([]PublicTLSRuntimeMaterialSlot, len(projection.Issuer.MaterialSlots))
+	for index, slot := range projection.Issuer.MaterialSlots {
+		result.Issuer.MaterialSlots[index] = PublicTLSRuntimeMaterialSlot(slot)
+	}
+	result.Routes = make([]PublicTLSRuntimeRoute, len(projection.Routes))
+	for index, route := range projection.Routes {
+		result.Routes[index] = PublicTLSRuntimeRoute{
+			ID: route.ID, Host: route.Host, Port: route.Port, Path: route.Path, Protocol: route.Protocol,
+			TLSMode: route.TLS.Mode, MinVersion: route.TLS.MinVersion,
+			ProfileRef: route.TLS.ProfileRef, IssuerRef: route.TLS.IssuerRef,
+		}
+	}
+	return result, nil
 }
 
 func rejectPublicTLSExecutorContractLeaks(raw []byte, path string) error {

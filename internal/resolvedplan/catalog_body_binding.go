@@ -2076,6 +2076,14 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 		if err != nil {
 			return err
 		}
+		controlPlane, err := objectField(map[string]any(plan), "resolvedPlan", "controlPlane")
+		if err != nil {
+			return err
+		}
+		data, err := objectField(map[string]any(plan), "resolvedPlan", "data")
+		if err != nil {
+			return err
+		}
 		sites, err := objectListField(map[string]any(plan), "resolvedPlan", "sites")
 		if err != nil {
 			return err
@@ -2110,7 +2118,8 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 		}
 		bindingSource := moduleRenderInputSource{
 			stackID: stackID, kit: kit, sites: objectMapsAsAny(sites),
-			identity: identity, identityTrust: identityTrust, failurePolicy: failurePolicy, network: network, gates: gates,
+			identity: identity, identityTrust: identityTrust, controlPlane: controlPlane, data: data,
+			failurePolicy: failurePolicy, network: network, gates: gates,
 			install: install, system: system, storage: storage,
 		}
 		for _, binding := range bindings {
