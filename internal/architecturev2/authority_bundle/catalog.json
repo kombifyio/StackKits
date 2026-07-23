@@ -5637,7 +5637,7 @@
         }
       ],
       "metadata": {
-        "description": "Provider-free internal CA materialization handoff; secret material and execution remain owned by an authenticated Home runtime.",
+        "description": "Provider-free, single-authority Home root-CA and trust-distribution contract. Leaf issuance, secret material, execution, and fresh evidence remain unbound.",
         "id": "stackkits-internal-pki-contract",
         "version": "1.0.0"
       },
@@ -5690,7 +5690,6 @@
           "requiredRefs": [
             "internalPKI",
             "kit",
-            "moduleTargets",
             "stackId"
           ]
         },
@@ -5702,7 +5701,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:8a33d26b598c120ed200f4e09c96e4dc5d9d9fa05de9d42a2a853527683bac09",
+          "contractHash": "sha256:3632f16dba073a4576996a75982c69a5196605fed510736767e9fec05e58ca55",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -5716,7 +5715,6 @@
           "planInputRefs": [
             "stackId",
             "kit",
-            "moduleTargets",
             "internalPKI"
           ],
           "providesInterfaces": [],
@@ -11364,12 +11362,12 @@
           "kind": "internal-ca",
           "materialSlots": [
             {
-              "id": "certificate",
+              "id": "root-certificate",
               "purpose": "certificate-chain",
               "sensitivity": "public"
             },
             {
-              "id": "private-key",
+              "id": "root-private-key",
               "purpose": "private-key",
               "sensitivity": "secret"
             },

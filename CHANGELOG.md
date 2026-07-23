@@ -4,6 +4,39 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.5] - 2026-07-23
+
+> **Stable v0.x Home-PKI architecture patch** that makes the v2 trust boundary
+> explicit without claiming certificate execution that is not yet bound.
+
+### Changed
+
+- Home internal PKI now binds exactly one Stack-scoped root-CA authority to the
+  explicit single Home control member.
+- Trust distribution carries only the public root to exact compiler-derived
+  Home Site/node pairs, including multi-Home-Site topologies.
+- Leaf issuance is a separate, explicitly unbound contract with
+  compiler-derived service subjects and SANs, `CA=false`, bounded usages, and
+  required fingerprint, serial, validity, and observation evidence.
+- Internal-PKI artifacts no longer carry host roles, failure domains, hardware
+  inventory, or a generic private-key slot for every target node.
+
+### Security
+
+- Multi-controller internal PKI fails closed until a distinct CA-authority and
+  HA/replication realization is defined.
+- Worker and trust-distribution targets cannot acquire CA signing custody.
+- Runtime materialization, rotation, and verification remain blocked until
+  exact root/leaf custody and fresh postcondition owners are implemented.
+
+### Known limitations
+
+- Modern Homelab remains Preview. This patch changes its optional Home PKI
+  contract but does not claim live provider/device compatibility or production
+  federation.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.4] - 2026-07-23
 
 > **Stable v0.x Modern Homelab runtime-boundary patch** that ships Modern

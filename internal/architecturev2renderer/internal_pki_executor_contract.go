@@ -19,10 +19,10 @@ const (
 	internalPKIToken       = "@@PLAN_INPUTS@@"
 )
 
-const internalPKITemplate = `{"apiVersion":"stackkit.internal-pki-executor-contract/v1","kind":"InternalPKIExecutorContract","module":{"id":"stackkits-internal-pki-contract","version":"1.0.0"},"contract":{"certificateMaterial":"owner-held","credentials":"not-included","execution":"unverified","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"home-generation-handoff","serverProviderAuthority":"not-owned"},"planInputs":@@PLAN_INPUTS@@}
+const internalPKITemplate = `{"apiVersion":"stackkit.internal-pki-executor-contract/v1","kind":"InternalPKIExecutorContract","module":{"id":"stackkits-internal-pki-contract","version":"1.0.0"},"contract":{"caAuthority":"single-explicit-home-node","certificateMaterial":"owner-held","credentials":"not-included","execution":"unverified","generation":"supported","leafIssuance":"unbound","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"home-pki-contract","serverProviderAuthority":"not-owned","trustDistribution":"public-root-only"},"planInputs":@@PLAN_INPUTS@@}
 `
 
-var internalPKIPlanInputRefs = []string{"internalPKI", "kit", "moduleTargets", "stackId"}
+var internalPKIPlanInputRefs = []string{"internalPKI", "kit", "stackId"}
 
 func InternalPKIExecutorContractRendererContract() RendererContract {
 	sum := sha256.Sum256([]byte(internalPKITemplate))
@@ -41,17 +41,55 @@ func newInternalPKIRenderer() internalPKIRenderer {
 }
 
 type internalPKIPlan struct {
-	StackID       string                 `json:"stackId"`
-	Kit           publicTLSExecutorKit   `json:"kit"`
-	ModuleTargets []executorBundleTarget `json:"moduleTargets"`
-	InternalPKI   internalPKIProjection  `json:"internalPKI"`
+	StackID     string                `json:"stackId"`
+	Kit         publicTLSExecutorKit  `json:"kit"`
+	InternalPKI internalPKIProjection `json:"internalPKI"`
 }
 
 type internalPKIProjection struct {
-	CapabilityRef string                   `json:"capabilityRef"`
-	ProviderRef   string                   `json:"providerRef"`
-	Profile       publicTLSExecutorProfile `json:"profile"`
-	Issuer        publicTLSExecutorIssuer  `json:"issuer"`
+	CapabilityRef     string                       `json:"capabilityRef"`
+	ProviderRef       string                       `json:"providerRef"`
+	Authority         internalPKIAuthority         `json:"authority"`
+	TrustDistribution internalPKITrustDistribution `json:"trustDistribution"`
+	LeafIssuance      internalPKILeafIssuance      `json:"leafIssuance"`
+	Profile           publicTLSExecutorProfile     `json:"profile"`
+	Issuer            publicTLSExecutorIssuer      `json:"issuer"`
+}
+
+type internalPKIAuthority struct {
+	ID               string `json:"id"`
+	Role             string `json:"role"`
+	SiteRef          string `json:"siteRef"`
+	NodeRef          string `json:"nodeRef"`
+	TrustDomainRef   string `json:"trustDomainRef"`
+	SubjectRef       string `json:"subjectRef"`
+	KeyAlgorithm     string `json:"keyAlgorithm"`
+	BasicConstraints struct {
+		CA      bool `json:"ca"`
+		PathLen int  `json:"pathLen"`
+	} `json:"basicConstraints"`
+	KeyUsage []string `json:"keyUsage"`
+}
+
+type internalPKITrustDistribution struct {
+	Targets      []internalPKITrustTarget      `json:"targets"`
+	MaterialSlot publicTLSExecutorMaterialSlot `json:"materialSlot"`
+}
+
+type internalPKITrustTarget struct {
+	SiteRef string `json:"siteRef"`
+	NodeRef string `json:"nodeRef"`
+}
+
+type internalPKILeafIssuance struct {
+	Status                    string   `json:"status"`
+	SubjectAuthority          string   `json:"subjectAuthority"`
+	SANAuthority              string   `json:"sanAuthority"`
+	CA                        bool     `json:"ca"`
+	KeyAlgorithm              string   `json:"keyAlgorithm"`
+	KeyUsage                  []string `json:"keyUsage"`
+	ExtendedKeyUsage          []string `json:"extendedKeyUsage"`
+	RequiredObservationFields []string `json:"requiredObservationFields"`
 }
 
 func (r internalPKIRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]UnitOutput, error) {
@@ -70,9 +108,9 @@ func (r internalPKIRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([
 	if err := decodeStrict(raw, &plan); err != nil {
 		return nil, wrap(ErrInvalidPlan, "renderer.internal-pki.planInputs", "decode exact internal PKI inputs", err)
 	}
-	nodeRefs := make([]string, len(plan.ModuleTargets))
-	for index := range plan.ModuleTargets {
-		nodeRefs[index] = plan.ModuleTargets[index].ID
+	nodeRefs := make([]string, len(plan.InternalPKI.TrustDistribution.Targets))
+	for index := range plan.InternalPKI.TrustDistribution.Targets {
+		nodeRefs[index] = plan.InternalPKI.TrustDistribution.Targets[index].NodeRef
 	}
 	if !exactStringList(unit.LogicalNodeRefs(), nodeRefs) {
 		return nil, fail(ErrInvalidPlan, "renderer.internal-pki.placement", "logical nodes must exactly equal internal PKI targets")
@@ -100,36 +138,69 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 		strings.TrimSpace(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
 		return nil, fail(ErrInvalidPlan, path+".kit", "internal PKI requires an exact Home-capable kit")
 	}
-	if len(plan.ModuleTargets) == 0 {
-		return nil, fail(ErrInvalidPlan, path+".moduleTargets", "internal PKI requires governed Home targets")
-	}
-	nodeRefs := make([]string, len(plan.ModuleTargets))
-	siteSet := map[string]struct{}{}
-	previousNodeRef := ""
-	for index, target := range plan.ModuleTargets {
-		targetPath := fmt.Sprintf("%s.moduleTargets[%d]", path, index)
-		if err := requireContractID(target.ID, targetPath+".id"); err != nil {
-			return nil, err
-		}
-		if err := requireContractID(target.SiteRef, targetPath+".siteRef"); err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(target.FailureDomain) == "" || !sortedUniqueNonEmpty(target.Roles) ||
-			target.DeclaredHardware.Arch != "amd64" && target.DeclaredHardware.Arch != "arm64" ||
-			target.DeclaredHardware.Profile == "" || target.DeclaredHardware.CPUCores < 0 ||
-			target.DeclaredHardware.RAMGB < 0 || target.DeclaredHardware.StorageGB < 0 {
-			return nil, fail(ErrInvalidPlan, targetPath, "internal PKI target is incomplete")
-		}
-		if previousNodeRef != "" && target.ID <= previousNodeRef {
-			return nil, fail(ErrDuplicate, targetPath+".id", "targets must be unique and sorted")
-		}
-		previousNodeRef = target.ID
-		nodeRefs[index] = target.ID
-		siteSet[target.SiteRef] = struct{}{}
-	}
 	pki := plan.InternalPKI
 	if pki.CapabilityRef != "internal-pki" || pki.ProviderRef != "stackkits-internal-pki" {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI", "projection must bind the exact internal PKI adapter")
+	}
+	authority := pki.Authority
+	if authority.ID != "stackkits-home-root-ca" || authority.Role != "root-ca" ||
+		authority.TrustDomainRef != plan.StackID || authority.SubjectRef != "stackkits-home-root-ca" ||
+		authority.KeyAlgorithm != "ecdsa-p256" || !authority.BasicConstraints.CA ||
+		authority.BasicConstraints.PathLen != 0 ||
+		!exactStringList(authority.KeyUsage, []string{"cert-sign", "crl-sign"}) {
+		return nil, fail(ErrInvalidPlan, path+".internalPKI.authority", "root CA authority is ambiguous or widened")
+	}
+	if err := requireContractID(authority.SiteRef, path+".internalPKI.authority.siteRef"); err != nil {
+		return nil, err
+	}
+	if err := requireContractID(authority.NodeRef, path+".internalPKI.authority.nodeRef"); err != nil {
+		return nil, err
+	}
+	targets := pki.TrustDistribution.Targets
+	if len(targets) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".internalPKI.trustDistribution.targets", "trust distribution requires exact Home targets")
+	}
+	nodeRefs := make([]string, len(targets))
+	siteSet := make(map[string]struct{}, len(targets))
+	authorityTargets := 0
+	previousNodeRef := ""
+	for index, target := range targets {
+		targetPath := fmt.Sprintf("%s.internalPKI.trustDistribution.targets[%d]", path, index)
+		if err := requireContractID(target.SiteRef, targetPath+".siteRef"); err != nil {
+			return nil, err
+		}
+		if err := requireContractID(target.NodeRef, targetPath+".nodeRef"); err != nil {
+			return nil, err
+		}
+		if previousNodeRef != "" && target.NodeRef <= previousNodeRef {
+			return nil, fail(ErrDuplicate, targetPath+".nodeRef", "trust targets must be unique and sorted")
+		}
+		if target.SiteRef == authority.SiteRef && target.NodeRef == authority.NodeRef {
+			authorityTargets++
+		}
+		previousNodeRef = target.NodeRef
+		nodeRefs[index] = target.NodeRef
+		siteSet[target.SiteRef] = struct{}{}
+	}
+	if authorityTargets != 1 {
+		return nil, fail(ErrInvalidPlan, path+".internalPKI.authority", "root CA authority must be exactly one trust target")
+	}
+	if slot := pki.TrustDistribution.MaterialSlot; slot != (publicTLSExecutorMaterialSlot{
+		ID: "trust-root", Purpose: "trust-root", Sensitivity: "public",
+	}) {
+		return nil, fail(ErrInvalidPlan, path+".internalPKI.trustDistribution.materialSlot", "trust distribution may expose only the public trust root")
+	}
+	leaf := pki.LeafIssuance
+	if leaf.Status != "unbound" || leaf.SubjectAuthority != "compiler-derived-service" ||
+		leaf.SANAuthority != "compiler-derived-route" || leaf.CA ||
+		leaf.KeyAlgorithm != "ecdsa-p256" ||
+		!exactStringList(leaf.KeyUsage, []string{"digital-signature", "key-agreement"}) ||
+		!exactStringList(leaf.ExtendedKeyUsage, []string{"server-auth", "client-auth"}) ||
+		!exactStringList(leaf.RequiredObservationFields, []string{
+			"certificate-fingerprint", "public-key-fingerprint", "trust-root-fingerprint",
+			"serial", "not-before", "not-after", "observed-at",
+		}) {
+		return nil, fail(ErrInvalidPlan, path+".internalPKI.leafIssuance", "leaf issuance must remain compiler-derived and explicitly unbound")
 	}
 	if pki.Profile.ID != "stackkits-internal-pki-profile" || pki.Profile.CapabilityRef != "internal-pki" ||
 		pki.Profile.Mode != "internal" || pki.Profile.TrustDomain != "private" ||
@@ -145,8 +216,8 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.issuer", "issuer is outside the exact internal CA contract")
 	}
 	wantSlots := []publicTLSExecutorMaterialSlot{
-		{ID: "certificate", Purpose: "certificate-chain", Sensitivity: "public"},
-		{ID: "private-key", Purpose: "private-key", Sensitivity: "secret"},
+		{ID: "root-certificate", Purpose: "certificate-chain", Sensitivity: "public"},
+		{ID: "root-private-key", Purpose: "private-key", Sensitivity: "secret"},
 		{ID: "trust-root", Purpose: "trust-root", Sensitivity: "public"},
 	}
 	if len(issuer.MaterialSlots) != len(wantSlots) {

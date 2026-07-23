@@ -3669,6 +3669,50 @@ _servicePublicationShape: {
 #ModuleInternalPKIV1: {
 	capabilityRef: "internal-pki"
 	providerRef:   #ContractID
+	authority: {
+		id:             "stackkits-home-root-ca"
+		role:           "root-ca"
+		siteRef:        #SiteID
+		nodeRef:        #NodeID
+		trustDomainRef: #ContractID
+		subjectRef:     "stackkits-home-root-ca"
+		keyAlgorithm:   "ecdsa-p256"
+		basicConstraints: {
+			ca:      true
+			pathLen: 0
+		}
+		keyUsage: ["cert-sign", "crl-sign"]
+	}
+	trustDistribution: {
+		targets: [...{
+			siteRef: #SiteID
+			nodeRef: #NodeID
+		}] & list.MinItems(1)
+		materialSlot: {
+			id:          "trust-root"
+			purpose:     "trust-root"
+			sensitivity: "public"
+		}
+		_targetPairsUnique: list.UniqueItems([for target in targets {"\(target.siteRef)/\(target.nodeRef)"}]) & true
+	}
+	leafIssuance: {
+		status:           "unbound"
+		subjectAuthority: "compiler-derived-service"
+		sanAuthority:     "compiler-derived-route"
+		ca:               false
+		keyAlgorithm:     "ecdsa-p256"
+		keyUsage: ["digital-signature", "key-agreement"]
+		extendedKeyUsage: ["server-auth", "client-auth"]
+		requiredObservationFields: [
+			"certificate-fingerprint",
+			"public-key-fingerprint",
+			"trust-root-fingerprint",
+			"serial",
+			"not-before",
+			"not-after",
+			"observed-at",
+		]
+	}
 	profile: #TLSProfileV2 & {
 		capabilityRef: "internal-pki"
 		mode:          "internal"
@@ -3874,6 +3918,7 @@ _servicePublicationShape: {
 	homeAccessHandoff?:  #ModuleHomeAccessHandoffV1
 	homeOffsiteBackup?:  #ModuleHomeOffsiteBackupV1
 	cloudOffsiteBackup?: #ModuleCloudOffsiteBackupV1
+
 }
 
 // #ModuleRenderUnitContractV2 is one independently renderable, hash-bound
@@ -6751,6 +6796,24 @@ _servicePublicationShape: {
 						declaredHardware: node.hardware
 					},
 				]
+			}
+			if inputRef == "internalPKI" {
+				authorityMemberCount: len(controlPlane.members) & 1
+				value: unit.planInputs.internalPKI & {
+					authority: {
+						siteRef:        controlPlane.authoritySiteRef
+						nodeRef:        controlPlane.members[0]
+						trustDomainRef: stackId
+					}
+					trustDistribution: targets: [
+						for moduleNodeRef in module.nodeRefs
+						for node in nodes
+						if node.id == moduleNodeRef {
+							siteRef: node.siteRef
+							nodeRef: node.id
+						},
+					]
+				}
 			}
 			if inputRef == "moduleCapabilities" {
 				value: unit.planInputs.moduleCapabilities & [

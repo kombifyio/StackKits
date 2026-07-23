@@ -562,8 +562,8 @@ _architectureV2Providers: list.Concat([[
 			owner: {providerRef: "stackkits-internal-pki", moduleRef: "stackkits-internal-pki-contract", materializationSupport: "contract-only"}
 			requiredInputSlotIDs: []
 			materialSlots: [
-				{id: "certificate", purpose: "certificate-chain", sensitivity: "public"},
-				{id: "private-key", purpose: "private-key", sensitivity: "secret"},
+				{id: "root-certificate", purpose: "certificate-chain", sensitivity: "public"},
+				{id: "root-private-key", purpose: "private-key", sensitivity: "secret"},
 				{id: "trust-root", purpose: "trust-root", sensitivity: "public"},
 			]
 			renewal: {required: true, healthGateRef: "internal-pki-renewal-contract", renewBeforeSeconds: 2592000}
@@ -802,7 +802,7 @@ _architectureV2InternalPKIGenerationSupport: #ModuleRealizationSupportV2 & {
 	level:           "generation-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
-	planInputs: {contractComplete: true, requiredRefs: ["internalPKI", "kit", "moduleTargets", "stackId"]}
+	planInputs: {contractComplete: true, requiredRefs: ["internalPKI", "kit", "stackId"]}
 	artifacts: {
 		requiredRefs: ["internal-pki-executor-contract"]
 		outputBindings: [{artifactRef: "internal-pki-executor-contract", unitRef: "executor-contract", outputRef: "home/tls/internal-pki-executor-contract.json"}]
@@ -1632,7 +1632,7 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-internal-pki-contract"
 			version:     "1.0.0"
-			description: "Provider-free internal CA materialization handoff; secret material and execution remain owned by an authenticated Home runtime."
+			description: "Provider-free, single-authority Home root-CA and trust-distribution contract. Leaf issuance, secret material, execution, and fresh evidence remain unbound."
 		}
 		role:        "platform"
 		providerRef: "stackkits-internal-pki"
@@ -1648,9 +1648,9 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "executor-contract", kind:                                            "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://home/tls/internal-pki-executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:8a33d26b598c120ed200f4e09c96e4dc5d9d9fa05de9d42a2a853527683bac09"
+			contractHash: "sha256:3632f16dba073a4576996a75982c69a5196605fed510736767e9fec05e58ca55"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "internalPKI"]
+			planInputRefs: ["stackId", "kit", "internalPKI"]
 			outputs: ["home/tls/internal-pki-executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]

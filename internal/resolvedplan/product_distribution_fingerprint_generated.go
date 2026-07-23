@@ -4,4 +4,4 @@ package resolvedplan
 
 // pinnedProductDistributionFingerprint is regenerated from the exact product
 // CUE sources plus their complete concrete Catalog and Definition projections.
-const pinnedProductDistributionFingerprint = "sha256:b5c3eebc4a94eb40f02fd04830404744d426e0646a880e196b20ac5b33336d16"
+const pinnedProductDistributionFingerprint = "sha256:122e890e7f9c31a063d4a8804e69e8e492b8dab013bc79ffff5a4d794643ee86"

@@ -181,7 +181,7 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 	case "publicTLS":
 		return safeModulePublicTLS(moduleID, module, source.capabilities, source.providers, source.network)
 	case "internalPKI":
-		return safeModuleInternalPKI(moduleID, module, source.capabilities, source.providers)
+		return safeModuleInternalPKI(moduleID, module, source)
 	case "cloudAdminMesh":
 		return safeModuleCloudAdminMesh(moduleID, module, source.capabilities, source.nodes, source.network, source.gates)
 	}
@@ -450,7 +450,7 @@ func safeModuleBridgePublications(moduleID string, module, bridge map[string]any
 	return projected, nil
 }
 
-func safeModuleInternalPKI(moduleID string, module map[string]any, capabilities, providers []any) (map[string]any, error) {
+func safeModuleInternalPKI(moduleID string, module map[string]any, source modulePlanInputSource) (map[string]any, error) {
 	const capabilityID = "internal-pki"
 	provided, err := stringListField(module, "modules."+moduleID, "provides", true)
 	if err != nil {
@@ -463,7 +463,7 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, capabilities,
 	if err != nil {
 		return nil, err
 	}
-	capability, err := resolvedPlanObjectByID(capabilities, capabilityID, "capabilities")
+	capability, err := resolvedPlanObjectByID(source.capabilities, capabilityID, "capabilities")
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +486,7 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, capabilities,
 	if err != nil {
 		return nil, err
 	}
-	provider, err := resolvedPlanObjectByID(providers, providerRef, "providers")
+	provider, err := resolvedPlanObjectByID(source.providers, providerRef, "providers")
 	if err != nil {
 		return nil, err
 	}
@@ -520,11 +520,95 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, capabilities,
 	if err != nil {
 		return nil, err
 	}
+	authoritySiteRef, err := stringField(source.controlPlane, "controlPlane", "authoritySiteRef")
+	if err != nil {
+		return nil, err
+	}
+	controlMembers, err := stringListField(source.controlPlane, "controlPlane", "members", true)
+	if err != nil || len(controlMembers) != 1 {
+		return nil, fmt.Errorf("internal PKI requires exactly one explicit Home CA authority node")
+	}
+	authorityNodeRef := controlMembers[0]
+	site, err := resolvedPlanObjectByID(source.sites, authoritySiteRef, "sites")
+	if err != nil {
+		return nil, err
+	}
+	siteKind, err := stringField(site, "sites."+authoritySiteRef, "kind")
+	if err != nil || siteKind != "home" {
+		return nil, fmt.Errorf("internal PKI authority Site %q must be Home", authoritySiteRef)
+	}
+	nodeRefs, err := stringListField(module, "modules."+moduleID, "nodeRefs", true)
+	if err != nil {
+		return nil, err
+	}
+	nodeByID := make(map[string]map[string]any, len(source.nodes))
+	for index, rawNode := range source.nodes {
+		node, fieldErr := asObject(rawNode, fmt.Sprintf("nodes[%d]", index))
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		id, fieldErr := stringField(node, fmt.Sprintf("nodes[%d]", index), "id")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		nodeByID[id] = node
+	}
+	targets := make([]any, 0, len(nodeRefs))
+	authorityFound := false
+	for _, nodeRef := range sortStringsUnique(nodeRefs) {
+		node, exists := nodeByID[nodeRef]
+		if !exists {
+			return nil, fmt.Errorf("internal PKI target node %q is absent from resolved topology", nodeRef)
+		}
+		targetSiteRef, fieldErr := stringField(node, "nodes."+nodeRef, "siteRef")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		targetSite, fieldErr := resolvedPlanObjectByID(source.sites, targetSiteRef, "sites")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		targetKind, fieldErr := stringField(targetSite, "sites."+targetSiteRef, "kind")
+		if fieldErr != nil || targetKind != "home" {
+			return nil, fmt.Errorf("internal PKI trust target %q must belong to a Home Site", nodeRef)
+		}
+		if nodeRef == authorityNodeRef && targetSiteRef == authoritySiteRef {
+			authorityFound = true
+		}
+		targets = append(targets, map[string]any{"siteRef": targetSiteRef, "nodeRef": nodeRef})
+	}
+	if !authorityFound {
+		return nil, fmt.Errorf("internal PKI CA authority %q is not an exact module target", authorityNodeRef)
+	}
 	return normalizedObject(map[string]any{
 		"capabilityRef": capabilityID,
 		"providerRef":   providerRef,
-		"profile":       profileProjection,
-		"issuer":        issuerProjection,
+		"authority": map[string]any{
+			"id": "stackkits-home-root-ca", "role": "root-ca",
+			"siteRef": authoritySiteRef, "nodeRef": authorityNodeRef,
+			"trustDomainRef": source.stackID, "subjectRef": "stackkits-home-root-ca",
+			"keyAlgorithm":     "ecdsa-p256",
+			"basicConstraints": map[string]any{"ca": true, "pathLen": 0},
+			"keyUsage":         []any{"cert-sign", "crl-sign"},
+		},
+		"trustDistribution": map[string]any{
+			"targets": targets,
+			"materialSlot": map[string]any{
+				"id": "trust-root", "purpose": "trust-root", "sensitivity": "public",
+			},
+		},
+		"leafIssuance": map[string]any{
+			"status": "unbound", "subjectAuthority": "compiler-derived-service",
+			"sanAuthority": "compiler-derived-route", "ca": false, "keyAlgorithm": "ecdsa-p256",
+			"keyUsage":         []any{"digital-signature", "key-agreement"},
+			"extendedKeyUsage": []any{"server-auth", "client-auth"},
+			"requiredObservationFields": []any{
+				"certificate-fingerprint", "public-key-fingerprint", "trust-root-fingerprint",
+				"serial", "not-before", "not-after", "observed-at",
+			},
+		},
+		"profile": profileProjection,
+		"issuer":  issuerProjection,
 	}, "internalPKI")
 }
 

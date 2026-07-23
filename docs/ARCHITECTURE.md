@@ -766,11 +766,18 @@ implementation and cannot enter the artifact or caller request.
 
 Home-internal PKI follows the same separation without importing Cloud/WebPKI
 semantics. It is selected only by explicit `internal-pki` capability intent and
-generates a Home-scoped handoff containing the exact private profile, internal
-CA issuer, logical certificate/private-key/trust-root slots, renewal policy,
-and governed targets. The artifact contains no material bytes or credentials;
-an authenticated Home runtime must materialize, renew, and read back those
-slots before Apply can become ready.
+generates a Home-scoped contract with exactly one root-CA authority on the
+single explicit control member. The authority binds the Stack trust domain,
+root role, CA/path-length constraints, signing usages, and key algorithm.
+Every governed Home target receives only the public trust-root slot; CA signing
+custody is never fanned out to workers. Leaf issuance remains a separate,
+explicitly unbound contract whose subjects and SANs must be compiler-derived
+from exact services and routes, with `CA=false`, bounded usages, and fresh
+fingerprint/serial/validity evidence. The artifact contains no material bytes,
+credentials, endpoints, or host inventory. Multi-controller Home PKI therefore
+fails closed until a distinct CA-authority selection/HA realization is defined,
+and Apply remains blocked until authenticated root, leaf, rotation, and
+postcondition owners are bound.
 
 Modern origin mTLS is now an exact, provider-free generation handoff rather
 than an untyped graduation promise. For every publication, a dedicated
