@@ -303,6 +303,13 @@ func safeCoreHostBootstrapDirectory(value string) bool {
 
 type osCoreHostBootstrapOperations struct{}
 
+// NewOSCoreHostBootstrapOperations explicitly selects the local operating
+// system as the closed Core host-bootstrap capability owner. Merely creating
+// an executor does not grant this authority; product composition must opt in.
+func NewOSCoreHostBootstrapOperations() CoreHostBootstrapOperations {
+	return osCoreHostBootstrapOperations{}
+}
+
 func (osCoreHostBootstrapOperations) EnsureDirectory(ctx context.Context, path string, mode fs.FileMode) error {
 	if err := ctx.Err(); err != nil {
 		return err

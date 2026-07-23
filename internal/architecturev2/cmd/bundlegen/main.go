@@ -40,6 +40,23 @@ var contractFixtureSourceAllowlist = []string{
 	"basement-kit/stackfile.cue",
 }
 
+var modernPrivateOpenAPISchemas = []string{
+	"ArchitectureV2FederationLinkRequirement",
+	"ArchitectureV2ExternalFederationLinkBinding",
+	"ArchitectureV2ModulePlanBridge",
+	"ArchitectureV2ModulePlanBridgeOverlay",
+	"ArchitectureV2ModulePlanBridgePolicy",
+	"ArchitectureV2ModulePlanBridgeFlow",
+	"ArchitectureV2ModulePlanPublication",
+	"ArchitectureV2ModulePlanPublicationTLS",
+	"ArchitectureV2ModulePlanPublicationAuth",
+	"ArchitectureV2ModulePlanPublicationOrigin",
+	"ArchitectureV2ModulePlanPublicationRateLimit",
+	"ArchitectureV2ModulePlanPublicationAccess",
+	"ArchitectureV2ModulePlanControlAgent",
+	"ArchitectureV2ModulePlanRemoteAction",
+}
+
 type sourceManifest struct {
 	SchemaVersion string          `json:"schemaVersion"`
 	ProfileSource string          `json:"profileSource"`
@@ -411,6 +428,7 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 		Modules                      []resolvedplan.ModuleContract              `json:"modules"`
 		Workloads                    []resolvedplan.WorkloadContract            `json:"workloads"`
 		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
+		RILActionExecutors           []resolvedplan.RILActionExecutorContract   `json:"rilActionExecutors"`
 		RILActionPrimitives          []resolvedplan.RILActionPrimitiveContract  `json:"rilActionPrimitives"`
 		PlanArtifacts                []resolvedplan.PlanArtifactContract        `json:"planArtifacts"`
 	}
@@ -422,6 +440,7 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 	return resolvedplan.Catalog{
 		Capabilities: wire.Capabilities, Providers: wire.Providers, AddOns: wire.AddOns,
 		Modules: wire.Modules, Workloads: wire.Workloads, PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
+		RILActionExecutors:  wire.RILActionExecutors,
 		RILActionPrimitives: wire.RILActionPrimitives,
 		PlanArtifacts:       wire.PlanArtifacts,
 	}, nil
@@ -926,6 +945,11 @@ func projectOpenAPI(repoRoot, relativePath string, profiles []sourceProfile) err
 	for _, profile := range profiles {
 		enumNode.Content = append(enumNode.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: profile.Slug})
 	}
+	if !selectedProfileExists(profiles, "modern-homelab") {
+		if err := projectOpenAPIWithoutModern(&document); err != nil {
+			return err
+		}
+	}
 	var output bytes.Buffer
 	encoder := yaml.NewEncoder(&output)
 	encoder.SetIndent(2)
@@ -936,6 +960,108 @@ func projectOpenAPI(repoRoot, relativePath string, profiles []sourceProfile) err
 		return err
 	}
 	return writeProjectedSource(repoRoot, relativePath, output.Bytes())
+}
+
+func selectedProfileExists(profiles []sourceProfile, slug string) bool {
+	for _, profile := range profiles {
+		if profile.Slug == slug {
+			return true
+		}
+	}
+	return false
+}
+
+func projectOpenAPIWithoutModern(document *yaml.Node) error {
+	schemas, err := yamlMappingPath(document, "components", "schemas")
+	if err != nil {
+		return err
+	}
+	for _, schema := range modernPrivateOpenAPISchemas {
+		if err := removeYAMLMappingValue(schemas, schema, true); err != nil {
+			return fmt.Errorf("remove private OpenAPI schema %s: %w", schema, err)
+		}
+	}
+	for _, target := range []struct {
+		schema     string
+		properties []string
+	}{
+		{schema: "ArchitectureV2Inventory", properties: []string{"externalFederationLinkBindings"}},
+		{schema: "ArchitectureV2ResolvedPlan", properties: []string{"federationLinkRequirements", "externalFederationLinkBindings"}},
+		{schema: "ArchitectureV2ModulePlanInputs", properties: []string{"bridge"}},
+	} {
+		for _, property := range target.properties {
+			if err := removeOpenAPISchemaProperty(schemas, target.schema, property); err != nil {
+				return err
+			}
+		}
+	}
+	inputRef, err := yamlMappingValue(schemas, "ArchitectureV2ModulePlanInputRef")
+	if err != nil {
+		return err
+	}
+	enumNode, err := yamlMappingValue(inputRef, "enum")
+	if err != nil {
+		return err
+	}
+	if err := removeYAMLSequenceValue(enumNode, "bridge", true); err != nil {
+		return fmt.Errorf("remove private ModulePlan input ref: %w", err)
+	}
+	return nil
+}
+
+func removeOpenAPISchemaProperty(schemas *yaml.Node, schemaName, property string) error {
+	schema, err := yamlMappingValue(schemas, schemaName)
+	if err != nil {
+		return err
+	}
+	properties, err := yamlMappingValue(schema, "properties")
+	if err != nil {
+		return err
+	}
+	if err := removeYAMLMappingValue(properties, property, true); err != nil {
+		return fmt.Errorf("remove %s.properties.%s: %w", schemaName, property, err)
+	}
+	required, requiredErr := yamlMappingValue(schema, "required")
+	if requiredErr == nil {
+		if err := removeYAMLSequenceValue(required, property, false); err != nil {
+			return fmt.Errorf("remove %s.required %s: %w", schemaName, property, err)
+		}
+	}
+	return nil
+}
+
+func removeYAMLMappingValue(mapping *yaml.Node, key string, required bool) error {
+	if mapping.Kind != yaml.MappingNode {
+		return fmt.Errorf("node containing %q is not a mapping", key)
+	}
+	for index := 0; index+1 < len(mapping.Content); index += 2 {
+		if mapping.Content[index].Value != key {
+			continue
+		}
+		mapping.Content = append(mapping.Content[:index], mapping.Content[index+2:]...)
+		return nil
+	}
+	if required {
+		return fmt.Errorf("field %q is missing", key)
+	}
+	return nil
+}
+
+func removeYAMLSequenceValue(sequence *yaml.Node, value string, required bool) error {
+	if sequence.Kind != yaml.SequenceNode {
+		return fmt.Errorf("node containing %q is not a sequence", value)
+	}
+	for index, item := range sequence.Content {
+		if item.Value != value {
+			continue
+		}
+		sequence.Content = append(sequence.Content[:index], sequence.Content[index+1:]...)
+		return nil
+	}
+	if required {
+		return fmt.Errorf("value %q is missing", value)
+	}
+	return nil
 }
 
 func yamlMappingPath(root *yaml.Node, keys ...string) (*yaml.Node, error) {

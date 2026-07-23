@@ -13,6 +13,13 @@ func ComputeArtifactSetHash(input []Artifact) (string, error) {
 	artifacts := cloneArtifacts(input)
 	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].ID < artifacts[j].ID })
 	for i := range artifacts {
+		if artifacts[i].ExecutionClass == "" {
+			if artifacts[i].OwnerKind == "plan" {
+				artifacts[i].ExecutionClass = ArtifactExecutionClassPlan
+			} else {
+				artifacts[i].ExecutionClass = ArtifactExecutionClassExecutable
+			}
+		}
 		sort.Strings(artifacts[i].SiteRefs)
 		sort.Strings(artifacts[i].NodeRefs)
 	}
@@ -20,7 +27,7 @@ func ComputeArtifactSetHash(input []Artifact) (string, error) {
 		return "", err
 	}
 	type identity struct {
-		ID, Kind, Format, Mode                                                string
+		ID, Kind, Format, Mode, ExecutionClass                                string
 		OwnerKind, OwnerRef, OwnerContractHash                                string
 		ProviderRef, ProviderContractHash                                     string
 		ModuleRef, ModuleContractHash, UnitRef, UnitContractHash, InstanceRef string
@@ -31,7 +38,7 @@ func ComputeArtifactSetHash(input []Artifact) (string, error) {
 	identities := make([]identity, len(artifacts))
 	for i, artifact := range artifacts {
 		identities[i] = identity{
-			ID: artifact.ID, Kind: artifact.Kind, Format: artifact.Format, Mode: artifact.Mode,
+			ID: artifact.ID, Kind: artifact.Kind, Format: artifact.Format, Mode: artifact.Mode, ExecutionClass: artifact.ExecutionClass,
 			OwnerKind: artifact.OwnerKind, OwnerRef: artifact.OwnerRef, OwnerContractHash: artifact.OwnerContractHash,
 			ProviderRef: artifact.ProviderRef, ProviderContractHash: artifact.ProviderContractHash,
 			ModuleRef: artifact.ModuleRef, ModuleContractHash: artifact.ModuleContractHash,

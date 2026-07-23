@@ -6,8 +6,6 @@ project_name: stackkits
 
 before:
   hooks:
-    - go mod tidy
-    - go generate ./...
     - sh scripts/release/fetch-opentofu.sh
     - sh scripts/release/fetch-terramate.sh
 
@@ -17,6 +15,7 @@ builds:
     binary: stackkit
     env:
       - CGO_ENABLED=0
+      - GOFLAGS=-mod=readonly
     goos:
       - linux
       - darwin
@@ -38,6 +37,7 @@ builds:
     binary: stackkit-server
     env:
       - CGO_ENABLED=0
+      - GOFLAGS=-mod=readonly
     goos:
       - linux
       - darwin
@@ -59,6 +59,7 @@ builds:
     binary: stackkit-mcp
     env:
       - CGO_ENABLED=0
+      - GOFLAGS=-mod=readonly
     goos:
       - linux
       - darwin
@@ -82,8 +83,11 @@ archives:
       - stackkit
       - stackkit-server
       - stackkit-mcp
+    # GoReleaser assembles uncompressed Unix tar archives. The release workflow
+    # compresses them deterministically at level 1 and in parallel, then creates
+    # the checksum over the final publishable bytes.
     formats:
-      - tar.gz
+      - tar
     format_overrides:
       - goos: windows
         formats:
@@ -119,6 +123,7 @@ archives:
       - cue.mod/**
       - basement-kit/**
       - cloud-kit/**
+      - modern-homelab/**
       - base/**
       - modules/**
 
@@ -129,7 +134,7 @@ archives:
       - stackkit-server
       - stackkit-mcp
     formats:
-      - tar.gz
+      - tar
     format_overrides:
       - goos: windows
         formats:
@@ -173,7 +178,7 @@ archives:
       - stackkit-server
       - stackkit-mcp
     formats:
-      - tar.gz
+      - tar
     format_overrides:
       - goos: windows
         formats:
@@ -211,6 +216,50 @@ archives:
       - base/**
       - modules/**
 
+  - id: modern-homelab
+    ids:
+      - stackkit
+      - stackkit-server
+      - stackkit-mcp
+    formats:
+      - tar
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}-modern-homelab_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - src: ".dist-tools/opentofu/{{ .Os }}_{{ .Arch }}/tofu*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
+      - src: ".dist-tools/terramate/{{ .Os }}_{{ .Arch }}/terramate*"
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0755
+      - README.md
+      - LICENSE
+      - docs/CLI.md
+      - docs/ENTERPRISE_READINESS.md
+      - schemas/release-evidence.schema.json
+      - scripts/release/validate-architecture-contract-fixture.mjs
+      - architecture/v2/contractfixture/catalog.cue
+      - architecture/v2/fixtures/contract-two-node.yaml
+      - architecture/v2/fixtures/contract-two-node.inventory.yaml
+      - architecture/v2/fixtures/contract-two-node.resolved-plan.json
+      - architecture/v2/fixtures/contract-fixtures.manifest.json
+      - addons/backup/README.md
+      - addons/backup/addon.cue
+      - addons/backup/integrity.cue
+      - addons/backup/restic-importer.cue
+      - cue.mod/**
+      - modern-homelab/**
+      - base/**
+      - modules/**
+
 nfpms:
   - id: deb
     package_name: kombify-stackkits
@@ -235,7 +284,9 @@ nfpms:
           mode: 0755
 
 checksum:
-  name_template: "checksums.txt"
+  # Checksums are generated after the Unix tar archives have been compressed
+  # into their final publishable form.
+  disable: true
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
@@ -280,5 +331,6 @@ release:
     | `stackkits_*` | CLI + all public kits |
     | `stackkits-basement-kit_*` | CLI + basement-kit only |
     | `stackkits-cloud-kit_*` | CLI + cloud-kit only |
+    | `stackkits-modern-homelab_*` | CLI + Modern Homelab Preview definition |
   footer: |
     **Full Changelog**: https://github.com/kombifyio/stackKits/compare/{{ .PreviousTag }}...{{ .Tag }}

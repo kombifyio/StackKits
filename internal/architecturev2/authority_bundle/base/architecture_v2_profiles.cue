@@ -2,9 +2,10 @@
 // Package base declares the exact product profiles present in this authority.
 package base
 
-#KitSlug: "basement-kit" | "cloud-kit"
+#KitSlug: "basement-kit" | "cloud-kit" | "modern-homelab"
 
 ArchitectureV2AuthorityProfiles: [
 	{slug: "basement-kit", package: "basement-kit"},
 	{slug: "cloud-kit", package: "cloud-kit"},
+	{slug: "modern-homelab", package: "modern-homelab"},
 ]

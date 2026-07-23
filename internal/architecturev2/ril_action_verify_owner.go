@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/rilactionpolicy"
 	"github.com/kombifyio/stackkits/internal/rilactionv2"
 )
 
@@ -61,6 +62,18 @@ func (s *Service) ExecuteRILAction(ctx context.Context, input RILActionAdmission
 	if err != nil {
 		return RILActionEvidence{}, resolveError(ErrRILActionAdmission, "approved action envelope changed after admission", err)
 	}
+	primitive, err := s.rilActionPrimitive(request.Primitive.ID)
+	if err != nil {
+		return RILActionEvidence{}, err
+	}
+	executor, err := s.rilActionExecutors.prepare(s, stableInput.Current, validated, primitive.executorIdentity())
+	if err != nil {
+		return RILActionEvidence{}, resolveError(ErrRILActionUnavailable, "prepare CUE-selected RIL action executor", err)
+	}
+	invocation, err := rilaction.NewExecutorInvocation(request, validated.RequestDigest, stableInput.EvaluatedAt)
+	if err != nil {
+		return RILActionEvidence{}, resolveError(ErrRILActionAdmission, "construct immutable RIL action executor invocation", err)
+	}
 	reservationRequest, err := rilaction.NewLedgerReservationRequest(request, validated.RequestDigest, stableInput.EvaluatedAt)
 	if err != nil {
 		return RILActionEvidence{}, resolveError(ErrRILActionAdmission, "construct RIL action ledger reservation", err)
@@ -75,6 +88,15 @@ func (s *Service) ExecuteRILAction(ctx context.Context, input RILActionAdmission
 	switch reservation.Disposition {
 	case rilaction.LedgerReplay:
 		evidence := *reservation.Evidence
+		if err := rilactionpolicy.ValidateExecutorEvidence(primitive.ID, primitive.Support, primitive.executorIdentity(), evidence); err != nil {
+			return RILActionEvidence{}, resolveError(ErrRILActionExecution, "replayed RIL action evidence violates the CUE executor contract", err)
+		}
+		if err := rilactionpolicy.ValidateProtectedDiagnostic(primitive.ID, primitive.Evidence.ProtectedDiagnostics, evidence); err != nil {
+			return RILActionEvidence{}, resolveError(ErrRILActionExecution, "replayed RIL action evidence violates the CUE protected-diagnostic contract", err)
+		}
+		if err := rilactionpolicy.ValidateRecovery(primitive.ID, primitive.Recovery, evidence); err != nil {
+			return RILActionEvidence{}, resolveError(ErrRILActionExecution, "replayed RIL action evidence violates the CUE recovery contract", err)
+		}
 		if evidence.Status == "failed" {
 			return evidence, resolveError(ErrRILActionExecution, "replayed RIL action previously failed", nil)
 		}
@@ -85,7 +107,16 @@ func (s *Service) ExecuteRILAction(ctx context.Context, input RILActionAdmission
 		return RILActionEvidence{}, resolveError(ErrRILActionReplay, "idempotency identity is already bound to another approved action", nil)
 	}
 
-	evidence, executionErr := s.executeGovernedStateVerification(stableInput.Current, request, validated)
+	evidence, executionErr := executor.Execute(ctx, invocation)
+	if err := rilactionpolicy.ValidateExecutorEvidence(primitive.ID, primitive.Support, primitive.executorIdentity(), evidence); err != nil {
+		return RILActionEvidence{}, resolveError(ErrRILActionExecution, "RIL action evidence violates the CUE executor contract", err)
+	}
+	if err := rilactionpolicy.ValidateProtectedDiagnostic(primitive.ID, primitive.Evidence.ProtectedDiagnostics, evidence); err != nil {
+		return RILActionEvidence{}, resolveError(ErrRILActionExecution, "RIL action evidence violates the CUE protected-diagnostic contract", err)
+	}
+	if err := rilactionpolicy.ValidateRecovery(primitive.ID, primitive.Recovery, evidence); err != nil {
+		return RILActionEvidence{}, resolveError(ErrRILActionExecution, "RIL action evidence violates the CUE recovery contract", err)
+	}
 	completion, err := rilaction.NewLedgerCompletion(request, reservationRequest, reservation.ReservationToken, evidence)
 	if err != nil {
 		return evidence, resolveError(ErrRILActionExecution, "construct RIL action ledger completion", err)

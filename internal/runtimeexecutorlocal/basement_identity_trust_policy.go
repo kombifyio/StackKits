@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
@@ -18,7 +19,6 @@ const (
 	basementIdentityTrustProviderRef      = "stackkits-basement-identity-trust-policy"
 	basementIdentityTrustModuleRef        = "stackkits-basement-identity-trust-policy-manifest"
 	basementIdentityTrustUnitRef          = "policy-bundle"
-	basementIdentityTrustInstanceRef      = "policy-bundle-logical"
 	basementIdentityTrustArtifactRef      = "basement-identity-trust-policy"
 	basementIdentityTrustOutputRef        = "local/identity/trust-policy.json"
 	basementIdentityTrustHealthSourceRef  = "basement-identity-trust-enforcement"
@@ -26,8 +26,9 @@ const (
 )
 
 type BasementIdentityTrustPolicyBinding struct {
-	SiteRefs []string
-	NodeRefs []string
+	SiteRefs            []string
+	NodeRefs            []string
+	ExecutionChannelRef string
 }
 
 type BasementIdentityTrustPolicyAuthority struct {
@@ -91,8 +92,7 @@ func NewBasementIdentityTrustPolicyExecutor(identity runtimeexecutor.ExecutorIde
 	return &BasementIdentityTrustPolicyExecutor{
 		identity: identity,
 		binding: BasementIdentityTrustPolicyBinding{
-			SiteRefs: append([]string(nil), binding.SiteRefs...),
-			NodeRefs: append([]string(nil), binding.NodeRefs...),
+			SiteRefs: append([]string(nil), binding.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...), ExecutionChannelRef: binding.ExecutionChannelRef,
 		},
 		authority: authority, operations: operations,
 		clock: func() time.Time { return time.Now().UTC() },
@@ -107,7 +107,8 @@ func (e *BasementIdentityTrustPolicyExecutor) Execute(ctx context.Context, reque
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement identity-trust executor requires a context")
 	}
-	if e == nil || e.operations == nil || e.clock == nil || !validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) ||
+	if e == nil || e.operations == nil || e.clock == nil || len(e.binding.SiteRefs) != 1 || len(e.binding.NodeRefs) != 1 ||
+		!validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) || !validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || !validCoreHostBootstrapDigest(e.authority.HealthContractHash) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement identity-trust executor requires exact catalog authority, Home placement, and authenticated operations")
 	}
@@ -180,13 +181,15 @@ func validateBasementIdentityTrustPolicyRequest(request runtimeexecutor.Executio
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.BasementIdentityTrustPolicyRendererContract()
+	expectedInstanceRef := basementIdentityTrustUnitRef + "-node-" + binding.NodeRefs[0]
+	expectedArtifactRef := basementIdentityTrustArtifactRef + "-instance-" + expectedInstanceRef
 	if target.OwnerKind != "module" || target.OwnerRef != basementIdentityTrustModuleRef || target.OwnerVersion != "" ||
 		target.ProviderRef != basementIdentityTrustProviderRef || target.ProviderContractHash != authority.ProviderContractHash ||
 		target.ModuleRef != basementIdentityTrustModuleRef || target.ModuleContractHash != authority.ModuleContractHash || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.UnitRef != basementIdentityTrustUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != basementIdentityTrustInstanceRef ||
-		target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "" || target.ExecutionChannelRef != "" || target.WorkloadRef != "" || target.ImageRef != "" ||
+		target.UnitRef != basementIdentityTrustUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != expectedInstanceRef ||
+		target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "" || target.ExecutionChannelRef != binding.ExecutionChannelRef || target.WorkloadRef != "" || target.ImageRef != "" ||
 		len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 || !slices.Equal(target.SiteRefs, binding.SiteRefs) ||
-		!slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{basementIdentityTrustArtifactRef}) {
+		!slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{expectedArtifactRef}) {
 		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, errors.New("runtime target is not the exact bound Basement identity-trust contract")
 	}
 	health := request.HealthTargets[0]
@@ -195,10 +198,10 @@ func validateBasementIdentityTrustPolicyRequest(request runtimeexecutor.Executio
 		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, errors.New("health target is not the exact Basement identity-trust enforcement postcondition")
 	}
 	artifact := request.Artifacts[0]
-	if artifact.ID != basementIdentityTrustArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
-		artifact.OwnerRef != basementIdentityTrustInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != basementIdentityTrustProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
+	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
+		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != basementIdentityTrustProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != basementIdentityTrustModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != basementIdentityTrustUnitRef || artifact.UnitContractHash != contract.ContractHash ||
-		artifact.InstanceRef != basementIdentityTrustInstanceRef || artifact.OutputRef != basementIdentityTrustOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
+		artifact.InstanceRef != expectedInstanceRef || artifact.OutputRef != basementIdentityTrustOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
 		len(artifact.Content) == 0 || len(artifact.Content) > basementIdentityTrustMaxArtifactBytes {
 		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, errors.New("artifact is not the exact CUE-owned Basement identity-trust policy")
 	}
@@ -210,7 +213,7 @@ func validateBasementIdentityTrustPolicyRequest(request runtimeexecutor.Executio
 	if err != nil {
 		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, fmt.Errorf("validate governed Basement identity-trust policy: %w", err)
 	}
-	if !slices.Equal(projection.SiteRefs, binding.SiteRefs) || !basementIdentityTrustVerifiersWithinBinding(projection.Verifiers, binding.SiteRefs) {
+	if projection.SiteRef != binding.SiteRefs[0] {
 		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, errors.New("Basement identity-trust policy does not bind the exact authorized Home placement")
 	}
 	policyDigestInput, err := json.Marshal(struct {
@@ -220,25 +223,17 @@ func validateBasementIdentityTrustPolicyRequest(request runtimeexecutor.Executio
 		HealthContractHash   string   `json:"healthContractHash"`
 		SiteRefs             []string `json:"siteRefs"`
 		NodeRefs             []string `json:"nodeRefs"`
-	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs})
+		ExecutionChannelRef  string   `json:"executionChannelRef"`
+	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs, binding.ExecutionChannelRef})
 	if err != nil {
 		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, fmt.Errorf("bind Basement identity-trust authority: %w", err)
 	}
 	policyDigestBytes := sha256.Sum256(policyDigestInput)
 	return target, health, BasementIdentityTrustRuntimePolicy{
 		PolicyDigest: "sha256:" + hex.EncodeToString(policyDigestBytes[:]), StackID: projection.StackID,
-		SiteRefs: append([]string(nil), projection.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...),
+		SiteRefs: []string{projection.SiteRef}, NodeRefs: append([]string(nil), binding.NodeRefs...),
 		Verifiers: cloneBasementIdentityTrustVerifiers(projection.Verifiers),
 	}, nil
-}
-
-func basementIdentityTrustVerifiersWithinBinding(verifiers []architecturev2renderer.BasementIdentityTrustVerifier, siteRefs []string) bool {
-	for _, verifier := range verifiers {
-		if !slices.Equal(verifier.SiteRefs, siteRefs) {
-			return false
-		}
-	}
-	return true
 }
 
 func validBasementIdentityTrustApplyObservation(observation BasementIdentityTrustApplyObservation, policyDigest string) bool {
@@ -268,7 +263,6 @@ func cloneBasementIdentityTrustVerifiers(verifiers []architecturev2renderer.Base
 	cloned := append([]architecturev2renderer.BasementIdentityTrustVerifier(nil), verifiers...)
 	for index := range cloned {
 		cloned[index].Audiences = append([]string(nil), cloned[index].Audiences...)
-		cloned[index].SiteRefs = append([]string(nil), cloned[index].SiteRefs...)
 	}
 	return cloned
 }

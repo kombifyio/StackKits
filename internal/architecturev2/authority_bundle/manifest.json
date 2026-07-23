@@ -1,5 +1,5 @@
 {
-  "distributionFingerprint": "sha256:71b71ee3b0fb4c6067b61631b6fbbc210454a45a0fdaaf80f974072ee7a063b1",
+  "distributionFingerprint": "sha256:b84430844cabd81b76388ba613b8dfd6021f116ddbd8b8103d23f6b5539e042c",
   "documents": {
     "catalog": "catalog.json"
   },
@@ -7,14 +7,16 @@
   "profileScope": "oss",
   "profiles": {
     "basement-kit": "definitions/basement-kit.json",
-    "cloud-kit": "definitions/cloud-kit.json"
+    "cloud-kit": "definitions/cloud-kit.json",
+    "modern-homelab": "definitions/modern-homelab.json"
   },
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
-    "base/architecture_v2.cue": "sha256:9cd1c384574aeaf66e88ec6cc3a4a632deab88d029befa79822e470229d6e490",
-    "base/architecture_v2_catalog.cue": "sha256:f541f214b0c82058c6e103b9ecfa20f496c5556fbbe41f50d6751509f9a7e298",
-    "base/architecture_v2_definition_binding.cue": "sha256:d555bc0825986eee9665124c7d4c9a84f8de6212bc063fa9ec7a22e9a3f4a822",
-    "base/architecture_v2_profiles.cue": "sha256:ba438f0a45755febdc5b212401990672259a5d5a8840c1443f894bb21c8f48ea",
+    "base/architecture_v2.cue": "sha256:2c654d0997e46dda0ef9f2b3cb8833a609a491c99c3ad15313fbe8a915d26113",
+    "base/architecture_v2_catalog.cue": "sha256:5418959846fbceb2fe38a43355fa6a7105a1cf037f91140de4688285406b79c4",
+    "base/architecture_v2_definition_binding.cue": "sha256:b1592a28315cf23af846ebcfc35f27e43103ab4ecbf9c226ef1d0c4c392944bb",
+    "base/architecture_v2_federation.cue": "sha256:f1c3dc32b1b9146ff788edd2b8f9d0aa8f5e567fd71d2feb1d51fe3e16d607ab",
+    "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee"
   }
 }

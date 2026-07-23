@@ -18,6 +18,35 @@ var coreCUERoots = []string{
 	"./addons/...",
 }
 
+// fileFocusedTests keeps focused production and shared-fixture slices explicit
+// for packages whose historical full test suite is not a useful beta feedback
+// gate. Adding or renaming a test in one of these slices must update this
+// reviewable binding.
+var fileFocusedTests = map[string][]string{
+	"cmd/stackkit/commands/init_architecture_v2.go": {
+		"TestRunArchitectureV2InitMaterializesCanonicalProductSpecs",
+		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
+		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
+		"TestRunArchitectureV2InitFailsBeforeWriteForMissingRequiredDomain",
+		"TestRunArchitectureV2InitRejectsLegacySemanticsAndLocalPathsBeforeWrite",
+		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
+		"TestRunArchitectureV2InitUsesExistingSpecAliasWithoutCreatingSecondAuthority",
+	},
+	"internal/resolvedplan/identity_trust.go": {
+		"TestBuildResolvedIdentityTrustBindsGraphToStackAndExactSites",
+		"TestBuildResolvedIdentityTrustLowersBasementWithoutCloudDistribution",
+		"TestBuildResolvedIdentityTrustRejectsGraphAndAuthorityDrift",
+		"TestBuildResolvedIdentityTrustSupportsExternalAuthorityWithoutExternalIssuance",
+	},
+	"internal/architecturev2/generation_execution_test.go": {
+		"TestMaterializeInitialStackSpecUsesEmbeddedDefinitionAuthority",
+	},
+	"internal/runtimeexecutorlocal/modern_identity_site_policy_test.go": {
+		"TestModernIdentitySiteExecutorsKeepHomeAndCloudAuthoritySeparate",
+		"TestModernIdentitySiteExecutorsRejectCrossSiteAndChannelSubstitution",
+	},
+}
+
 type goPackage struct {
 	ImportPath   string
 	Dir          string
@@ -30,6 +59,7 @@ type plannerInput struct {
 	BaseRef              string
 	MergeBase            string
 	ChangedFiles         []string
+	CoreCUERoots         []string
 	GoPackages           []goPackage
 	MaxReverse           int
 	GoListWarning        string
@@ -74,6 +104,10 @@ func buildPlan(input plannerInput) testPlan {
 
 	files := sortedUnique(normalizePaths(input.ChangedFiles))
 	classes := classifyFiles(files)
+	coreRoots := input.CoreCUERoots
+	if coreRoots == nil {
+		coreRoots = coreCUERoots
+	}
 	commands := []testCommand{{
 		Kind:   "hygiene",
 		Scope:  "changed-files",
@@ -83,18 +117,26 @@ func buildPlan(input plannerInput) testPlan {
 
 	goSelection := affectedGoSelectionFor(files, input.GoPackages, maxReverse)
 	if classes.GoShared {
-		goSelection.Changed = append(goSelection.Changed, "./internal/architecturev2", "./internal/resolvedplan")
-		goSelection.Changed = sortedUnique(goSelection.Changed)
+		changed := make(map[string]struct{}, len(goSelection.Changed))
+		for _, pattern := range goSelection.Changed {
+			changed[pattern] = struct{}{}
+		}
+		for _, anchor := range []string{"./internal/architecturev2", "./internal/resolvedplan"} {
+			if _, alreadyChanged := changed[anchor]; !alreadyChanged {
+				goSelection.Reverse = append(goSelection.Reverse, anchor)
+			}
+		}
+		goSelection.Reverse = sortedUnique(goSelection.Reverse)
 	}
-	goPatterns := sortedUnique(append(append([]string(nil), goSelection.Changed...), goSelection.Reverse...))
+	goPatterns := sortedUnique(append(append(append([]string(nil), goSelection.Changed...), goSelection.CompileOnly...), goSelection.Reverse...))
 	classes.GoPackages = append([]string(nil), goPatterns...)
-	commands = append(commands, affectedGoCommands(goSelection, input.ChangedTests)...)
+	commands = append(commands, affectedGoCommands(goSelection, focusedGoTests(files, input.ChangedTests))...)
 
 	if classes.CUEShared {
 		commands = append(commands, testCommand{
 			Kind:   "cue",
 			Scope:  "shared-contract-and-core-consumers",
-			Argv:   append([]string{"cue", "vet"}, coreCUERoots...),
+			Argv:   append([]string{"cue", "vet"}, coreRoots...),
 			Reason: "shared CUE changes can affect each core kit but do not require every catalog module",
 		})
 	} else if len(classes.CUEKits) > 0 {
@@ -177,6 +219,25 @@ func buildPlan(input plannerInput) testPlan {
 	}
 }
 
+func focusedGoTests(files []string, changedTests map[string][]string) map[string][]string {
+	result := make(map[string][]string, len(changedTests))
+	for dir, names := range changedTests {
+		result[dir] = append([]string(nil), names...)
+	}
+	for _, file := range files {
+		tests := fileFocusedTests[file]
+		if len(tests) == 0 {
+			continue
+		}
+		dir := path.Dir(file)
+		result[dir] = append(result[dir], tests...)
+	}
+	for dir, names := range result {
+		result[dir] = sortedUnique(names)
+	}
+	return result
+}
+
 func classifyFiles(files []string) classification {
 	result := classification{}
 	modules := map[string]struct{}{}
@@ -247,14 +308,16 @@ func isReleasePath(file string) bool {
 }
 
 type affectedGoSelection struct {
-	Changed []string
-	Reverse []string
+	Changed     []string
+	CompileOnly []string
+	Reverse     []string
 }
 
 func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int) affectedGoSelection {
 	dirToPackage := map[string]goPackage{}
 	changedImports := map[string]struct{}{}
 	changedPatterns := map[string]struct{}{}
+	generatedOnlyPatterns := map[string]bool{}
 	reversePatterns := map[string]struct{}{}
 	productionChange := map[string]struct{}{}
 
@@ -274,6 +337,12 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 		dir := path.Dir(file)
 		pattern := packagePattern(dir)
 		changedPatterns[pattern] = struct{}{}
+		if _, seen := generatedOnlyPatterns[pattern]; !seen {
+			generatedOnlyPatterns[pattern] = true
+		}
+		if strings.HasSuffix(file, "_test.go") || !strings.HasSuffix(file, "_generated.go") {
+			generatedOnlyPatterns[pattern] = false
+		}
 		if pkg, ok := dirToPackage[dir]; ok {
 			changedImports[pkg.ImportPath] = struct{}{}
 			if !strings.HasSuffix(file, "_test.go") {
@@ -301,12 +370,20 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 		}
 	}
 
-	return affectedGoSelection{Changed: sortedKeys(changedPatterns), Reverse: sortedKeys(reversePatterns)}
+	compileOnlyPatterns := map[string]struct{}{}
+	for pattern, generatedOnly := range generatedOnlyPatterns {
+		if generatedOnly {
+			delete(changedPatterns, pattern)
+			compileOnlyPatterns[pattern] = struct{}{}
+			delete(reversePatterns, pattern)
+		}
+	}
+	return affectedGoSelection{Changed: sortedKeys(changedPatterns), CompileOnly: sortedKeys(compileOnlyPatterns), Reverse: sortedKeys(reversePatterns)}
 }
 
 func affectedGoPatterns(files []string, packages []goPackage, maxReverse int) []string {
 	selection := affectedGoSelectionFor(files, packages, maxReverse)
-	return sortedUnique(append(selection.Changed, selection.Reverse...))
+	return sortedUnique(append(append(selection.Changed, selection.CompileOnly...), selection.Reverse...))
 }
 
 func affectedGoCommands(selection affectedGoSelection, changedTests map[string][]string) []testCommand {
@@ -340,6 +417,14 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-packages", Argv: append([]string{"go", "test", "-count=1", "-timeout=90s"}, fullPatterns...),
 			Reason: "run changed packages that have no changed test-function boundary",
+		})
+	}
+	if len(selection.CompileOnly) > 0 {
+		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
+		args = append(args, selection.CompileOnly...)
+		commands = append(commands, testCommand{
+			Kind: "go", Scope: "changed-generated-compile", Argv: args,
+			Reason: "compile changed generated authority without running unrelated historical package tests",
 		})
 	}
 	if len(selection.Reverse) > 0 {

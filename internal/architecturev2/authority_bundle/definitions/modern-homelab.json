@@ -1,0 +1,941 @@
+{
+  "accessDefaults": {
+    "deviceBoundSessions": true,
+    "deviceEnrollment": "local-only",
+    "lanLocationIsIdentity": false,
+    "privilegedStepUpRequired": true,
+    "publicRoutesDefaultClosed": true
+  },
+  "apiVersion": "stackkit/v2alpha1",
+  "authoring": {
+    "contractVersion": "1.0.0",
+    "initialSpec": {
+      "apiVersion": "stackkit/v2alpha1",
+      "availability": {
+        "enabled": false,
+        "fencing": "none",
+        "mode": "single"
+      },
+      "bridge": {
+        "controlAgent": {
+          "actionAllowlist": [
+            "plan",
+            "apply",
+            "verify"
+          ],
+          "enabled": true
+        },
+        "overlay": {
+          "contractRef": "outbound-private-mesh",
+          "peerSiteRefs": [
+            "home",
+            "cloud"
+          ],
+          "trafficMode": "management-only"
+        },
+        "policy": {
+          "allowRFC1918Transit": false,
+          "allowedFlows": [],
+          "cloudMayEnrollDevices": false,
+          "cloudMayIssueDeviceCredentials": false,
+          "defaultDeny": true
+        },
+        "publications": []
+      },
+      "capabilities": {
+        "disable": [],
+        "enable": []
+      },
+      "container": {
+        "dataRoot": "/var/lib/docker",
+        "engine": "docker",
+        "liveRestore": true,
+        "logDriver": "json-file",
+        "registryMirrors": [],
+        "rootless": false
+      },
+      "controlPlane": {
+        "authoritySiteRef": "home",
+        "members": [
+          "home-main"
+        ],
+        "mode": "single"
+      },
+      "data": {
+        "defaultAuthority": "home"
+      },
+      "deviceEnrollment": {
+        "authoritySiteRef": "home",
+        "credentialTTLSeconds": 3600,
+        "endpointExposure": "lan",
+        "hardwareBackedKey": "required",
+        "mode": "local-only",
+        "remoteEnrollment": false,
+        "requireDeviceGeneratedKey": true,
+        "requireLocalPairingProof": true,
+        "requireOwnerStepUp": true,
+        "requirePossessionProof": true,
+        "revocationSupported": true
+      },
+      "generation": {
+        "outputRoot": "deploy",
+        "strategy": "kit-template",
+        "target": "opentofu"
+      },
+      "install": {
+        "mode": "bootstrapped",
+        "platform": {
+          "fallbackAllowed": false,
+          "management": "selected-provider",
+          "setupPolicy": {
+            "applicationDefault": "on-demand",
+            "platform": "automatic"
+          }
+        },
+        "runtime": "docker"
+      },
+      "kind": "StackSpec",
+      "kit": {
+        "slug": "modern-homelab"
+      },
+      "lanDiscovery": {
+        "advertiseRouteRefs": []
+      },
+      "metadata": {
+        "name": "modern-homelab-preview"
+      },
+      "network": {
+        "dns": {
+          "searchDomains": [],
+          "servers": [
+            "1.1.1.1",
+            "8.8.8.8"
+          ]
+        },
+        "domain": {
+          "base": "example.invalid"
+        },
+        "mode": "hybrid",
+        "tls": {
+          "defaultMode": "public",
+          "minVersion": "TLS1.2"
+        },
+        "transport": {
+          "ipv6": false,
+          "mtu": 1500,
+          "subnet": "172.20.0.0/16"
+        }
+      },
+      "nodes": [
+        {
+          "enabled": true,
+          "failureDomain": "node-home-main",
+          "hardware": {
+            "arch": "amd64",
+            "profile": "standard"
+          },
+          "id": "home-main",
+          "roles": [
+            "controller",
+            "worker"
+          ],
+          "siteRef": "home"
+        },
+        {
+          "enabled": true,
+          "failureDomain": "node-cloud-edge",
+          "hardware": {
+            "arch": "amd64",
+            "profile": "standard"
+          },
+          "id": "cloud-edge",
+          "roles": [
+            "edge",
+            "worker"
+          ],
+          "siteRef": "cloud"
+        }
+      ],
+      "partitionPolicy": {
+        "cloudEdge": "fail-closed",
+        "denyNewCrossSiteSessions": true,
+        "localIdentityAuthorityAvailable": true,
+        "maxStaleVerificationSeconds": 300,
+        "onCloudLoss": "local-continues",
+        "onLinkLoss": "local-continues"
+      },
+      "sites": [
+        {
+          "failureDomain": "home-primary",
+          "id": "home",
+          "kind": "home"
+        },
+        {
+          "failureDomain": "cloud-primary",
+          "id": "cloud",
+          "kind": "cloud"
+        }
+      ],
+      "source": {
+        "kind": "native-v2"
+      },
+      "storage": {},
+      "system": {}
+    },
+    "initialSpecStatus": "preview",
+    "requiredOverrides": [
+      "network.domain.base"
+    ]
+  },
+  "availability": {
+    "policies": {
+      "quorum": {
+        "defaults": {
+          "failureDomainSpread": 3,
+          "fencing": "automatic",
+          "rpoSeconds": 30,
+          "rtoSeconds": 180
+        },
+        "evidenceAcceptance": {
+          "requiredRefs": [
+            "ha-modern-quorum-partition-majority-proof"
+          ]
+        },
+        "failureModel": {
+          "basis": "site-and-link",
+          "memberSiteScope": "authority-site-control-members",
+          "partitionBehavior": "home-authority-continues-cloud-edge-fails-closed"
+        },
+        "healthAcceptance": {
+          "memberReadiness": "majority",
+          "requiredGateRefs": [
+            "provider-stackkits-ha-modern-quorum-ha-modern-quorum-contract",
+            "module-stackkits-ha-modern-quorum-runtime-ha-modern-quorum-contract"
+          ]
+        },
+        "limits": {
+          "allowedFencing": [
+            "automatic"
+          ],
+          "maxFailureDomainSpread": 7,
+          "maxRpoSeconds": 120,
+          "maxRtoSeconds": 600,
+          "minFailureDomainSpread": 3
+        },
+        "mode": "quorum",
+        "moduleRef": "stackkits-ha-modern-quorum-runtime",
+        "policyRef": "modern-ha-quorum-policy",
+        "providerRef": "stackkits-ha-modern-quorum",
+        "realizationRef": "modern-ha-quorum-v1",
+        "selector": "control-plane-members"
+      },
+      "warm-standby": {
+        "defaults": {
+          "failureDomainSpread": 2,
+          "fencing": "automatic",
+          "rpoSeconds": 120,
+          "rtoSeconds": 600
+        },
+        "evidenceAcceptance": {
+          "requiredRefs": [
+            "ha-modern-warm-standby-partition-isolation-proof"
+          ]
+        },
+        "failureModel": {
+          "basis": "site-and-link",
+          "memberSiteScope": "authority-site-control-members",
+          "partitionBehavior": "home-authority-continues-cloud-edge-fails-closed"
+        },
+        "healthAcceptance": {
+          "memberReadiness": "all",
+          "requiredGateRefs": [
+            "provider-stackkits-ha-modern-warm-ha-modern-warm-contract",
+            "module-stackkits-ha-modern-warm-runtime-ha-modern-warm-contract"
+          ]
+        },
+        "limits": {
+          "allowedFencing": [
+            "automatic"
+          ],
+          "maxFailureDomainSpread": 3,
+          "maxRpoSeconds": 600,
+          "maxRtoSeconds": 1200,
+          "minFailureDomainSpread": 2
+        },
+        "mode": "warm-standby",
+        "moduleRef": "stackkits-ha-modern-warm-runtime",
+        "policyRef": "modern-ha-warm-standby-policy",
+        "providerRef": "stackkits-ha-modern-warm",
+        "realizationRef": "modern-ha-warm-standby-v1",
+        "selector": "control-plane-members"
+      }
+    }
+  },
+  "bridge": {
+    "edgeKinds": [
+      "cloud"
+    ],
+    "required": true,
+    "sourceKinds": [
+      "home"
+    ]
+  },
+  "capabilities": {
+    "defaults": [],
+    "forbidden": [
+      "cloud-enrollment-authority",
+      "broad-lan-route-advertisement"
+    ],
+    "optional": [
+      "lan-discovery",
+      "lan-dns",
+      "internal-pki",
+      "private-admin-mesh",
+      "failure-domain-placement",
+      "availability-ha"
+    ],
+    "required": [
+      "topology-core",
+      "host-bootstrap",
+      "external-host-admission",
+      "host-conformance",
+      "security-baseline",
+      "human-identity-core",
+      "device-trust-core",
+      "access-policy",
+      "runtime-paas",
+      "service-catalog",
+      "secrets-recovery",
+      "storage-data-policy",
+      "backup-core",
+      "observability-evidence",
+      "lifecycle-update",
+      "site-local",
+      "site-cloud",
+      "site-federation",
+      "inter-site-link",
+      "service-publication",
+      "host-local-internet-firewall",
+      "internet-host-hardening",
+      "public-edge",
+      "public-dns",
+      "public-tls",
+      "bridge-policy",
+      "private-remote-access",
+      "outbound-control-agent",
+      "edge-identity-verifier",
+      "local-control-authority",
+      "device-enrollment-home",
+      "local-ingress",
+      "lan-access-policy",
+      "offline-autonomy",
+      "cross-site-placement",
+      "data-residency",
+      "split-horizon-naming",
+      "cross-site-backup",
+      "partition-failure-contract",
+      "bridge-observability"
+    ]
+  },
+  "dataDefaults": {
+    "authority": "home",
+    "cloudCopyRequiresPolicy": true
+  },
+  "deviceEnrollment": {
+    "authorityKinds": [
+      "home"
+    ],
+    "mode": "local-only",
+    "required": true
+  },
+  "evidenceScenarios": [
+    "SK-S4"
+  ],
+  "generation": {
+    "allowedStrategies": [
+      "kit-template",
+      "module-fragments"
+    ],
+    "allowedTargets": [
+      "opentofu",
+      "compose"
+    ],
+    "contractVersion": "1.0.0",
+    "defaultStrategy": "kit-template",
+    "defaultTarget": "opentofu"
+  },
+  "identityTrust": {
+    "authorities": [
+      {
+        "id": "home-human-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-home-device-authority-policy-manifest",
+          "providerRef": "stackkits-home-device-authority"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "trustDomainRef": "home-stackkit-trust"
+      },
+      {
+        "id": "home-device-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-home-device-authority-policy-manifest",
+          "providerRef": "stackkits-home-device-authority"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "device",
+        "trustDomainRef": "home-stackkit-trust"
+      },
+      {
+        "id": "home-workload-authority",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-home-device-authority-policy-manifest",
+          "providerRef": "stackkits-home-device-authority"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "trustDomainRef": "home-stackkit-trust"
+      }
+    ],
+    "credentialIssuers": [
+      {
+        "audienceRefs": [
+          "stackkit-human-session"
+        ],
+        "authorityRef": "home-human-authority",
+        "credentialTTLSeconds": 86400,
+        "enrollment": {
+          "exposure": "none",
+          "mode": "none"
+        },
+        "id": "home-human-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "home-human-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-home-device-authority-policy-manifest",
+          "providerRef": "stackkits-home-device-authority"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "proofOfPossessionRequired": false,
+        "revocationMaxStalenessSeconds": 300,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 900,
+        "verificationKeySetRef": "home-human-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-device-session"
+        ],
+        "authorityRef": "home-device-authority",
+        "credentialTTLSeconds": 3600,
+        "enrollment": {
+          "exposure": "lan",
+          "mode": "local-only"
+        },
+        "id": "home-device-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "home-device-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-home-device-authority-policy-manifest",
+          "providerRef": "stackkits-home-device-authority"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "device",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 300,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 900,
+        "verificationKeySetRef": "home-device-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-workload"
+        ],
+        "authorityRef": "home-workload-authority",
+        "credentialTTLSeconds": 300,
+        "enrollment": {
+          "exposure": "none",
+          "mode": "none"
+        },
+        "id": "home-workload-credential-issuer",
+        "issuanceWithinStackKit": true,
+        "issuerRef": "home-workload-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-home-device-authority-policy-manifest",
+          "providerRef": "stackkits-home-device-authority"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 300,
+        "revocationSupported": true,
+        "sessionTTLSeconds": 300,
+        "verificationKeySetRef": "home-workload-verification-keys"
+      }
+    ],
+    "integrity": {
+      "authorityIDsUnique": true,
+      "distributionIDsUnique": true,
+      "distributionIssuers": [
+        {
+          "distributionID": "modern-human-verifier-distribution",
+          "matches": [
+            "home-human-credential-issuer"
+          ]
+        },
+        {
+          "distributionID": "modern-device-verifier-distribution",
+          "matches": [
+            "home-device-credential-issuer"
+          ]
+        },
+        {
+          "distributionID": "modern-workload-verifier-distribution",
+          "matches": [
+            "home-workload-credential-issuer"
+          ]
+        }
+      ],
+      "issuerAuthorities": [
+        {
+          "issuerID": "home-human-credential-issuer",
+          "matches": [
+            "home-human-authority"
+          ]
+        },
+        {
+          "issuerID": "home-device-credential-issuer",
+          "matches": [
+            "home-device-authority"
+          ]
+        },
+        {
+          "issuerID": "home-workload-credential-issuer",
+          "matches": [
+            "home-workload-authority"
+          ]
+        }
+      ],
+      "issuerIDsUnique": true,
+      "issuerRefsUnique": true,
+      "issuerVerifiers": [
+        {
+          "issuerID": "home-human-credential-issuer",
+          "matches": [
+            "modern-home-human-verifier",
+            "modern-cloud-human-verifier"
+          ]
+        },
+        {
+          "issuerID": "home-device-credential-issuer",
+          "matches": [
+            "modern-home-device-verifier",
+            "modern-cloud-device-verifier"
+          ]
+        },
+        {
+          "issuerID": "home-workload-credential-issuer",
+          "matches": [
+            "modern-home-workload-verifier",
+            "modern-cloud-workload-verifier"
+          ]
+        }
+      ],
+      "verifierIDsUnique": true,
+      "verifierIssuers": [
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-human-session"
+              ],
+              "value": "stackkit-human-session"
+            }
+          ],
+          "matches": [
+            "home-human-credential-issuer"
+          ],
+          "verifierID": "modern-home-human-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-human-session"
+              ],
+              "value": "stackkit-human-session"
+            }
+          ],
+          "matches": [
+            "home-human-credential-issuer"
+          ],
+          "verifierID": "modern-cloud-human-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-device-session"
+              ],
+              "value": "stackkit-device-session"
+            }
+          ],
+          "matches": [
+            "home-device-credential-issuer"
+          ],
+          "verifierID": "modern-home-device-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-device-session"
+              ],
+              "value": "stackkit-device-session"
+            }
+          ],
+          "matches": [
+            "home-device-credential-issuer"
+          ],
+          "verifierID": "modern-cloud-device-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-workload"
+              ],
+              "value": "stackkit-workload"
+            }
+          ],
+          "matches": [
+            "home-workload-credential-issuer"
+          ],
+          "verifierID": "modern-home-workload-verifier"
+        },
+        {
+          "audiences": [
+            {
+              "matches": [
+                "stackkit-workload"
+              ],
+              "value": "stackkit-workload"
+            }
+          ],
+          "matches": [
+            "home-workload-credential-issuer"
+          ],
+          "verifierID": "modern-cloud-workload-verifier"
+        }
+      ]
+    },
+    "verifierDistributions": [
+      {
+        "from": {
+          "selector": "control-authority-site"
+        },
+        "id": "modern-human-verifier-distribution",
+        "includesCredentialMaterial": false,
+        "includesEnrollmentAuthority": false,
+        "includesPrivateKeyMaterial": false,
+        "includesSigningAuthority": false,
+        "issuerRef": "home-human-issuer",
+        "materials": [
+          "revocation-state",
+          "verification-key-reference"
+        ],
+        "maxStalenessSeconds": 300,
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-home-identity-trust-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "reverseAllowed": false,
+        "to": {
+          "selector": "cloud-sites"
+        }
+      },
+      {
+        "from": {
+          "selector": "control-authority-site"
+        },
+        "id": "modern-device-verifier-distribution",
+        "includesCredentialMaterial": false,
+        "includesEnrollmentAuthority": false,
+        "includesPrivateKeyMaterial": false,
+        "includesSigningAuthority": false,
+        "issuerRef": "home-device-issuer",
+        "materials": [
+          "revocation-state",
+          "verification-key-reference"
+        ],
+        "maxStalenessSeconds": 300,
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-home-identity-trust-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "reverseAllowed": false,
+        "to": {
+          "selector": "cloud-sites"
+        }
+      },
+      {
+        "from": {
+          "selector": "control-authority-site"
+        },
+        "id": "modern-workload-verifier-distribution",
+        "includesCredentialMaterial": false,
+        "includesEnrollmentAuthority": false,
+        "includesPrivateKeyMaterial": false,
+        "includesSigningAuthority": false,
+        "issuerRef": "home-workload-issuer",
+        "materials": [
+          "revocation-state",
+          "verification-key-reference"
+        ],
+        "maxStalenessSeconds": 300,
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-home-identity-trust-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "reverseAllowed": false,
+        "to": {
+          "selector": "cloud-sites"
+        }
+      }
+    ],
+    "verifierPlacements": [
+      {
+        "audienceRefs": [
+          "stackkit-human-session"
+        ],
+        "id": "modern-home-human-verifier",
+        "issuerRef": "home-human-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-home-identity-trust-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "human",
+        "proofOfPossessionRequired": false,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "home-human-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-human-session"
+        ],
+        "id": "modern-cloud-human-verifier",
+        "issuerRef": "home-human-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "cloud-sites"
+        },
+        "principal": "human",
+        "proofOfPossessionRequired": false,
+        "revocationMaxStalenessSeconds": 300,
+        "verificationKeySetRef": "home-human-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-device-session"
+        ],
+        "id": "modern-home-device-verifier",
+        "issuerRef": "home-device-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-home-identity-trust-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "device",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "home-device-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-device-session"
+        ],
+        "id": "modern-cloud-device-verifier",
+        "issuerRef": "home-device-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "cloud-sites"
+        },
+        "principal": "device",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 300,
+        "verificationKeySetRef": "home-device-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-workload"
+        ],
+        "id": "modern-home-workload-verifier",
+        "issuerRef": "home-workload-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-home-identity-trust-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "control-authority-site"
+        },
+        "principal": "workload",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 0,
+        "verificationKeySetRef": "home-workload-verification-keys"
+      },
+      {
+        "audienceRefs": [
+          "stackkit-workload"
+        ],
+        "id": "modern-cloud-workload-verifier",
+        "issuerRef": "home-workload-issuer",
+        "owner": {
+          "kind": "catalog",
+          "moduleRef": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+          "providerRef": "stackkits-modern-identity-trust-policy"
+        },
+        "placement": {
+          "selector": "cloud-sites"
+        },
+        "principal": "workload",
+        "proofOfPossessionRequired": true,
+        "revocationMaxStalenessSeconds": 300,
+        "verificationKeySetRef": "home-workload-verification-keys"
+      }
+    ]
+  },
+  "kind": "KitDefinition",
+  "metadata": {
+    "description": "Federated local and cloud StackKit with a policy-constrained bridge",
+    "displayName": "Modern Homelab",
+    "slug": "modern-homelab",
+    "version": "1.0.0-alpha"
+  },
+  "network": {
+    "defaultTLSMode": "public",
+    "domainRequired": true,
+    "mode": "hybrid"
+  },
+  "partitionPolicy": {
+    "cloudEdge": "fail-closed",
+    "denyNewCrossSiteSessions": true,
+    "localIdentityAuthorityAvailable": true,
+    "maxStaleVerificationSeconds": 300,
+    "onCloudLoss": "local-continues",
+    "onLinkLoss": "local-continues"
+  },
+  "reachability": {
+    "accessPolicies": {
+      "allowedExposures": [
+        "private",
+        "lan",
+        "public"
+      ],
+      "lanStepDownAllowed": true
+    },
+    "routes": {
+      "local": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "home"
+        ],
+        "requiredRealizations": []
+      },
+      "public": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "cloud"
+        ],
+        "requiredRealizations": [
+          {
+            "capabilityRef": "public-edge",
+            "role": "edge"
+          }
+        ]
+      },
+      "remote-private": {
+        "allowed": true,
+        "allowedOriginKinds": [
+          "home"
+        ],
+        "requiredRealizations": [
+          {
+            "capabilityRef": "private-remote-access",
+            "role": "access"
+          }
+        ]
+      }
+    }
+  },
+  "topology": {
+    "allowedSiteKinds": [
+      "home",
+      "cloud"
+    ],
+    "controlPlane": {
+      "allowedAuthorityKinds": [
+        "home"
+      ],
+      "allowedModes": [
+        "single",
+        "warm-standby",
+        "quorum"
+      ],
+      "defaultMode": "single",
+      "memberSiteScope": "authority-site"
+    },
+    "maxSites": 64,
+    "minSites": 2,
+    "multiNode": true,
+    "requiredSiteKinds": [
+      "home",
+      "cloud"
+    ]
+  },
+  "workloads": {
+    "defaults": [],
+    "forbidden": [],
+    "optional": [
+      "photos"
+    ],
+    "required": []
+  }
+}

@@ -1,0 +1,29 @@
+# Registry and read-only migration metadata only.
+#
+# The Modern Homelab architecture, topology, capabilities, workload choices,
+# placement, federation, identity, and execution contracts live exclusively in
+# stackfile.cue Definition and the shared Architecture-v2 CUE catalog. This file
+# must never select a PaaS, transport, provider, service graph, context, mode,
+# add-on, secret implementation, or runtime.
+apiVersion: stackkit.catalog/v1alpha1
+kind: KitCatalogMetadata
+
+metadata:
+  name: modern-homelab
+  version: "1.0.0-alpha"
+  description: "Federated Home and Cloud StackKit with Home-owned authority and a policy-constrained bridge"
+  author: "kombify Team"
+  license: "Apache-2.0"
+  repository: "https://github.com/kombifyio/stackkits"
+  status: scaffolding
+  tags:
+    - homelab
+    - federation
+    - home
+    - cloud
+
+# Compatibility evidence only; this does not provision or select a host.
+supportedOS:
+  - ubuntu-24
+  - ubuntu-22
+  - debian-12

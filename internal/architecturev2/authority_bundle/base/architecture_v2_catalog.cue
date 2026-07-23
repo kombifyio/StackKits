@@ -168,6 +168,8 @@ _architectureV2WorkloadContracts: [#WorkloadContractV2 & {
 		runtime: {
 			allowedKinds: ["container"]
 			allowedDeliveries: ["selected-paas"]
+			allowedAdapterRefs: ["coolify", "komodo"]
+			defaultAdapterRef: "coolify"
 		}
 		setup: {
 			mode:  "manual"
@@ -716,6 +718,47 @@ _architectureV2Providers: list.Concat([[
 		}
 		evidence: ["SK-S1", "SK-S2", "SK-S4"]
 	},
+	{
+		metadata: {id: "stackkits-coolify", version: "1.0.0"}
+		provides: []
+		runtimeAdapterRefs: ["coolify"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-coolify-runtime"]
+				optional: []
+			}
+		}
+		health: [{id: "coolify-runtime-contract", kind: "contract"}]
+		evidence: ["coolify-adapter-contract"]
+	},
+	{
+		metadata: {id: "stackkits-komodo", version: "1.0.0"}
+		provides: []
+		runtimeAdapterRefs: ["komodo"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-komodo-core-runtime", "stackkits-komodo-periphery-runtime"]
+				optional: []
+			}
+		}
+		health: [
+			{id: "komodo-core-runtime-contract", kind: "contract"},
+			{id: "komodo-periphery-runtime-contract", kind: "contract"},
+		]
+		evidence: ["komodo-core-adapter-contract", "komodo-periphery-agent-contract"]
+	},
 ],
 	_architectureV2ProfileExtensionProviders,
 	[for haRealization in _architectureV2HARealizations {
@@ -777,10 +820,10 @@ _architectureV2CoreHostBootstrapSupport: #ModuleRealizationSupportV2 & {
 	scope:           "concrete"
 	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: []}
+	inputs: {contractComplete: true, requiredRefs: ["host-runtime", "storage-roots"]}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "hostRuntimePolicy", "storagePolicy"]
+		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 	}
 	artifacts: {
 		requiredRefs: ["core-host-bootstrap-policy"]
@@ -801,10 +844,10 @@ _architectureV2HomeBackupTargetSupport: #ModuleRealizationSupportV2 & {
 	scope:           "concrete"
 	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: []}
+	inputs: {contractComplete: true, requiredRefs: ["backup-root"]}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "storagePolicy"]
+		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 	}
 	artifacts: {
 		requiredRefs: ["home-backup-target-policy"]
@@ -900,10 +943,10 @@ _architectureV2CloudHostSecuritySupport: #ModuleRealizationSupportV2 & {
 	scope:           "concrete"
 	level:           "generation-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: []}
+	inputs: {contractComplete: true, requiredRefs: ["host-security-network"]}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 	}
 	artifacts: {
 		requiredRefs: ["cloud-host-security-executor-contract"]
@@ -1033,7 +1076,7 @@ _architectureV2SecurityBaselineSupport: #ModuleRealizationSupportV2 & {
 _architectureV2LocalAutonomySupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
 		contractComplete: true
@@ -1061,13 +1104,13 @@ _architectureV2LocalAutonomySupport: #ModuleRealizationSupportV2 & {
 			outputRef: "local/autonomy/policy.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["local-autonomy-enforcement"]
 }
 
 _architectureV2HomeAccessSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
 		contractComplete: true
@@ -1095,7 +1138,7 @@ _architectureV2HomeAccessSupport: #ModuleRealizationSupportV2 & {
 			outputRef: "local/network/access-policy.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["home-access-enforcement"]
 }
 
 _architectureV2HomeLANDiscoverySupport: #ModuleRealizationSupportV2 & {
@@ -1135,12 +1178,12 @@ _architectureV2HomeLANDiscoverySupport: #ModuleRealizationSupportV2 & {
 _architectureV2HomeDeviceAuthoritySupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: []}
+	inputs: {contractComplete: true, requiredRefs: ["home-device-authority"]}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "identityTrust"]
+		requiredRefs: ["stackId", "kit"]
 	}
 	artifacts: {
 		requiredRefs: ["home-device-authority-policy"]
@@ -1155,18 +1198,18 @@ _architectureV2HomeDeviceAuthoritySupport: #ModuleRealizationSupportV2 & {
 			unitRef: "policy-bundle", outputRef: "local/identity/device-authority-policy.json"
 		}]
 	}
-	evidence: requiredRefs: ["home-device-authority-runtime-proof"]
+	evidence: requiredRefs: ["home-device-authority-enforcement"]
 }
 
 _architectureV2BasementIdentityTrustSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: []}
+	inputs: {contractComplete: true, requiredRefs: ["basement-verification-policy"]}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "identityTrust"]
+		requiredRefs: ["stackId", "kit"]
 	}
 	artifacts: {
 		requiredRefs: ["basement-identity-trust-policy"]
@@ -1181,18 +1224,18 @@ _architectureV2BasementIdentityTrustSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "policy-bundle", outputRef: "local/identity/trust-policy.json"
 		}]
 	}
-	evidence: requiredRefs: ["basement-identity-trust-runtime-proof"]
+	evidence: requiredRefs: ["basement-identity-trust-enforcement"]
 }
 
 _architectureV2CloudIdentityTrustSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: []}
+	inputs: {contractComplete: true, requiredRefs: ["cloud-identity-authority"]}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "identityTrust"]
+		requiredRefs: ["stackId", "kit"]
 	}
 	artifacts: {
 		requiredRefs: ["cloud-identity-trust-policy"]
@@ -1207,7 +1250,7 @@ _architectureV2CloudIdentityTrustSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "policy-bundle", outputRef: "cloud/identity/trust-policy.json"
 		}]
 	}
-	evidence: requiredRefs: ["cloud-identity-verifier-runtime-proof"]
+	evidence: requiredRefs: ["cloud-identity-trust-enforcement"]
 }
 
 _architectureV2SocketProxySupport: #ModuleRealizationSupportV2 & {
@@ -1274,6 +1317,90 @@ _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: []
 }
 
+// Coolify owns a deterministic provider-free adapter handoff. Generation does
+// not claim that StackKits can install Coolify, hold its credentials, discover
+// an endpoint, or mutate its provider lifecycle.
+_architectureV2CoolifyAdapterSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["coolify-runtime-adapter"]
+		outputBindings: [{
+			artifactRef: "coolify-runtime-adapter"
+			unitRef:     "coolify-adapter"
+			outputRef:   "platform/coolify/runtime-adapter.json"
+		}]
+		contracts: [{
+			id:       "coolify-runtime-adapter"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "coolify-adapter"
+			outputRef: "platform/coolify/runtime-adapter.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2KomodoCoreAdapterSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["komodo-core-runtime-adapter"]
+		outputBindings: [{
+			artifactRef: "komodo-core-runtime-adapter"
+			unitRef:     "komodo-core-adapter"
+			outputRef:   "platform/komodo/core-runtime-adapter.json"
+		}]
+		contracts: [{
+			id:       "komodo-core-runtime-adapter"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "komodo-core-adapter"
+			outputRef: "platform/komodo/core-runtime-adapter.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2KomodoPeripheryAgentSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["komodo-periphery-runtime-agent"]
+		outputBindings: [{
+			artifactRef: "komodo-periphery-runtime-agent"
+			unitRef:     "komodo-periphery-agent"
+			outputRef:   "platform/komodo/periphery-agent.json"
+		}]
+		contracts: [{
+			id:       "komodo-periphery-runtime-agent"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "komodo-periphery-agent"
+			outputRef: "platform/komodo/periphery-agent.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
@@ -1331,9 +1458,24 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://foundation/host-bootstrap/v1.json"
 			version:      "1.0.0"
 			contractHash: "sha256:871d10265613851dc4ad928b4b8e280a874eb10d99b10dfa289bac1f56cc0e35"
-			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "hostRuntimePolicy", "storagePolicy"]
-			inputBindings: []
+			publicInputRefs: ["host-runtime", "storage-roots"], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+			inputBindings: [
+				{
+					targetRef:   "host-runtime"
+					sourceRef:   "host.bootstrapRuntime"
+					valueType:   "host-bootstrap-runtime-v1"
+					cardinality: "single"
+					required:    true
+				},
+				{
+					targetRef:   "storage-roots"
+					sourceRef:   "storage.hostRoots"
+					valueType:   "host-storage-roots-v1"
+					cardinality: "single"
+					required:    true
+				},
+			]
 			outputs: ["foundation/host-bootstrap/policy.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
@@ -1364,9 +1506,15 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://home/backup-target/v1.json"
 			version:      "1.0.0"
 			contractHash: "sha256:7add0b8b8e643141ca2adb61b03a3aa229daf2c6a08b65ba169870aceb2abe83"
-			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "storagePolicy"]
-			inputBindings: []
+			publicInputRefs: ["backup-root"], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+			inputBindings: [{
+				targetRef:   "backup-root"
+				sourceRef:   "storage.backupRoot"
+				valueType:   "local-backup-root-v1"
+				cardinality: "single"
+				required:    true
+			}]
 			outputs: ["home/backup/target-policy.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
@@ -1482,15 +1630,20 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-home-device-authority-policy-manifest"
 			version:     "1.0.0"
-			description: "Generation-only Home enrollment and credential-authority policy; credential material, endpoints, and runtime enforcement are excluded."
+			description: "Node-local Home enrollment and credential-authority policy enforced by an explicit runtime owner; credential material, endpoints, and provider lifecycle are excluded."
 		}
 		role:        "platform"
 		providerRef: "stackkits-home-device-authority"
 		provides:    _architectureV2HomeIdentityAuthorityCapabilities
 		supportedSiteKinds: ["home"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller"]
+		}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
 		enforcementRequirement: {
-			status: "unbound", ownerRef: "stackkits-home-device-authority-enforcer"
+			status: "bound", ownerRef: "stackkits-home-device-authority-enforcer"
 			policyArtifactRefs: ["home-device-authority-policy"]
 			targetScope: "home-control-authority"
 			operations: ["configure-device-enrollment", "configure-device-credential-issuer", "configure-device-credential-revocation"]
@@ -1500,30 +1653,35 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "policy-bundle", kind:                                     "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://home/device-authority-policy/v1.json", version: "1.0.0"
-			contractHash: "sha256:1da194be46fdd36215a3cc9a3f877a100a6fee92d5520a1522885f33798488a7"
-			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "identityTrust"]
+			contractHash: "sha256:6645794f097ca1b778fa3833075c1ffdc1dea7aff3cfbbc5e3ac7f0801466ffa"
+			publicInputRefs: ["home-device-authority"], secretInputRefs: []
+			inputBindings: [{
+				targetRef: "home-device-authority", sourceRef:      "identityTrust.homeDeviceAuthority"
+				valueType: "home-device-authority-v1", cardinality: "single", required: true
+			}]
+			planInputRefs: ["stackId", "kit"]
 			outputs: ["local/identity/device-authority-policy.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2HomeDeviceAuthoritySupport
-		health: [{id: "home-device-authority-policy-contract", kind: "contract"}]
-		evidence: ["home-device-authority-policy-contract"]
+		health: [{id: "home-device-authority-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["home-device-authority-enforcement"]
 	},
 	{
 		metadata: {
 			id:          "stackkits-basement-identity-trust-policy-manifest"
 			version:     "1.0.0"
-			description: "Generation-only Basement identity verifier and trust policy; runtime enforcement and credential material are excluded."
+			description: "Node-local Basement identity verifier and trust policy enforced on the Home control authority; credential material and provider lifecycle are excluded."
 		}
 		role:        "platform"
 		providerRef: "stackkits-basement-identity-trust-policy"
 		provides:    _architectureV2IdentityCapabilities
 		requires: ["stackkits-home-device-authority-policy-manifest"]
 		supportedSiteKinds: ["home"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		nodeSelection: {authority: "control-authority-site", controlPlaneMembers: "only", requiredRoles: ["controller"]}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
 		enforcementRequirement: {
-			status: "unbound", ownerRef: "stackkits-basement-identity-trust-enforcer"
+			status: "bound", ownerRef: "stackkits-basement-identity-trust-enforcer"
 			policyArtifactRefs: ["basement-identity-trust-policy"]
 			targetScope: "home-control-authority"
 			operations: ["verify-device-session", "verify-human-session", "verify-workload-identity"]
@@ -1533,29 +1691,34 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "policy-bundle", kind:                                       "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://basement/identity-trust-policy/v1.json", version: "1.0.0"
-			contractHash: "sha256:b377cd7476396aa820f2cd0002b8a526fbef3c9943ee14dcb69aec67b1578115"
-			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "identityTrust"]
+			contractHash: "sha256:57e0d7eaba4751adc07c689bb78ae99df3e331def33694af68fad6bc770f6c7f"
+			publicInputRefs: ["basement-verification-policy"], secretInputRefs: []
+			inputBindings: [{
+				targetRef: "basement-verification-policy", sourceRef:        "identityTrust.basementVerification"
+				valueType: "basement-identity-verification-v1", cardinality: "single", required: true
+			}]
+			planInputRefs: ["stackId", "kit"]
 			outputs: ["local/identity/trust-policy.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2BasementIdentityTrustSupport
-		health: [{id: "basement-identity-trust-policy-contract", kind: "contract"}]
-		evidence: ["basement-identity-trust-policy-contract"]
+		health: [{id: "basement-identity-trust-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["basement-identity-trust-enforcement"]
 	},
 	{
 		metadata: {
 			id:          "stackkits-local-autonomy-policy-manifest"
 			version:     "1.0.0"
-			description: "Generation-only Home-site offline-autonomy policy; runtime and air-gapped installation enforcement remain separate claims."
+			description: "Node-local Home control-authority offline-autonomy policy; air-gapped installation remains a separate claim."
 		}
 		role:        "platform"
 		providerRef: "stackkits-local-autonomy-policy"
 		provides:    _architectureV2LocalAutonomyCapabilities
 		supportedSiteKinds: ["home"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		nodeSelection: {authority: "control-authority-site", controlPlaneMembers: "only", requiredRoles: ["controller"]}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
 		enforcementRequirement: {
-			status: "unbound", ownerRef: "stackkits-local-autonomy-enforcer"
+			status: "bound", ownerRef: "stackkits-local-autonomy-enforcer"
 			policyArtifactRefs: ["local-autonomy-policy"]
 			targetScope: "home-control-authority"
 			operations: ["deny-forbidden-cross-site-session", "enforce-link-loss-policy", "preserve-local-control"]
@@ -1573,28 +1736,26 @@ _architectureV2Modules: list.Concat([[
 			secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "sites", "controlPlane", "identity", "data", "failurePolicy"]
 			outputs: ["local/autonomy/policy.json"]
-			placement: {
-				scope:       "module"
-				cardinality: "single"
-			}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2LocalAutonomySupport
-		health: [{id: "local-autonomy-policy-contract", kind: "contract"}]
-		evidence: ["local-autonomy-policy-contract"]
+		health: [{id: "local-autonomy-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["local-autonomy-enforcement"]
 	},
 	{
 		metadata: {
 			id:          "stackkits-home-access-policy-manifest"
 			version:     "1.0.0"
-			description: "Generation-only Home local-ingress and LAN access policy; discovery and runtime enforcement remain separate claims."
+			description: "Node-local Home local-ingress and LAN access enforcement policy; discovery remains a separate optional claim."
 		}
 		role:        "platform"
 		providerRef: "stackkits-home-access-policy"
 		provides:    _architectureV2HomeAccessCapabilities
 		supportedSiteKinds: ["home"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		nodeSelection: {authority: "any", controlPlaneMembers: "any"}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
 		enforcementRequirement: {
-			status: "unbound", ownerRef: "stackkits-home-access-enforcer"
+			status: "bound", ownerRef: "stackkits-home-access-enforcer"
 			policyArtifactRefs: ["home-access-policy"]
 			targetScope: "home-sites"
 			operations: ["enforce-lan-access", "enforce-local-ingress", "enforce-privileged-step-up"]
@@ -1612,14 +1773,11 @@ _architectureV2Modules: list.Concat([[
 			secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "sites", "identity", "localReachability"]
 			outputs: ["local/network/access-policy.json"]
-			placement: {
-				scope:       "module"
-				cardinality: "single"
-			}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2HomeAccessSupport
-		health: [{id: "home-access-policy-contract", kind: "contract"}]
-		evidence: ["home-access-policy-contract"]
+		health: [{id: "home-access-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["home-access-enforcement"]
 	},
 	{
 		metadata: {
@@ -1676,28 +1834,32 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "executor-contract", kind:                                          "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/host-security/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:f10cd76135da04b9b062ee341dbdf1c00ce3b956a606ff0d25918c3cc62f57ae"
-			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			contractHash: "sha256:f62133491c0a87f42a87ee56639b8ab69e404abb188fbfbfe8461c96a530291c"
+			publicInputRefs: ["host-security-network"], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+			inputBindings: [{
+				targetRef: "host-security-network", sourceRef:            "network.cloudHostSecurity"
+				valueType: "cloud-host-security-network-v1", cardinality: "single", required: true
+			}]
 			outputs: ["cloud/host-security/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
-				contractHash: "sha256:35ed972bd878291cf9c2aa6115acbcc2464c02b72090dfc41752daf79fa2fa36"
+				contractHash: "sha256:4d6339d1b9ae81c6b62edd28e3738f100f4d12959b54867a611497cca4e5056c"
 				unitRefs: ["executor-contract"]
 				artifactRefs: ["cloud-host-security-executor-contract"]
-				publicInputRefs: [], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+				publicInputRefs: ["host-security-network"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-				contractHash: "sha256:cd6ea4d9f247ea6ee9a601722c87a61f8468960a2aa508fb00c78d46dea359cc"
+				contractHash: "sha256:4764ee33223ee9b43f03c4880b23168f807503f3ed120016c7a5c4d7f9873ace"
 				unitRefs: ["executor-contract"]
 				artifactRefs: ["cloud-host-security-executor-contract"]
-				publicInputRefs: [], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+				publicInputRefs: ["host-security-network"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 			},
 		]
 		realizationSupport: _architectureV2CloudHostSecuritySupport
@@ -1831,15 +1993,16 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-cloud-identity-trust-policy-manifest"
 			version:     "1.0.0"
-			description: "Generation-only Cloud identity trust policy with external device authority and Cloud-local verification; no device issuance or enrollment is owned."
+			description: "Node-local Cloud identity trust policy with external device authority and Cloud-local enforcement; no device issuance or enrollment is owned."
 		}
 		role:        "platform"
 		providerRef: "stackkits-cloud-identity-trust-policy"
 		provides: list.Concat([_architectureV2IdentityCapabilities, _architectureV2CloudIdentityAuthorityCapabilities])
 		supportedSiteKinds: ["cloud"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		nodeSelection: {authority: "control-authority-site", controlPlaneMembers: "only", requiredRoles: ["controller"]}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
 		enforcementRequirement: {
-			status: "unbound", ownerRef: "stackkits-cloud-identity-trust-enforcer"
+			status: "bound", ownerRef: "stackkits-cloud-identity-trust-enforcer"
 			policyArtifactRefs: ["cloud-identity-trust-policy"]
 			targetScope: "cloud-sites"
 			operations: ["configure-human-credential-issuer", "configure-workload-credential-issuer", "verify-device-session", "verify-human-session", "verify-workload-identity"]
@@ -1849,15 +2012,19 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "policy-bundle", kind:                                    "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/identity-trust-policy/v1.json", version: "1.0.0"
-			contractHash: "sha256:a62d3f2df95c7384af6a46df1436a811ca5a163fd9361c1b07e8db0422bbb8c2"
-			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "identityTrust"]
+			contractHash: "sha256:0522a70d6833d2c6d9b1a85971fa90e549b7a105a3042843929b9ab14c442362"
+			publicInputRefs: ["cloud-identity-authority"], secretInputRefs: []
+			inputBindings: [{
+				targetRef: "cloud-identity-authority", sourceRef:      "identityTrust.cloudAuthority"
+				valueType: "cloud-identity-authority-v1", cardinality: "single", required: true
+			}]
+			planInputRefs: ["stackId", "kit"]
 			outputs: ["cloud/identity/trust-policy.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2CloudIdentityTrustSupport
-		health: [{id: "cloud-identity-trust-policy-contract", kind: "contract"}]
-		evidence: ["cloud-identity-trust-policy-contract"]
+		health: [{id: "cloud-identity-trust-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-identity-trust-enforcement"]
 	},
 	{
 		metadata: {
@@ -2138,6 +2305,193 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["SK-S1", "SK-S2", "SK-S4"]
+		rilActionPrimitives: [{
+			id:      "inspect-immich-runtime-health", version: "1.0.0", title:     "Inspect governed Immich runtime health", category: "verify"
+			support: "contract-only", mutation:                false, destructive: false, risk:                                        "read-only"
+			owner: {authority: "stackkits", operationClass: "immich-health-readback"}
+			extensionAuthority: {
+				kind: "module", moduleRef: "stackkits-immich-runtime", providerRef: "stackkits-immich"
+			}
+			approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+			grant: {required: true, audience: "stackkits", scopes: ["stackkit-immich-health-read"], connectorBindingRequired: true}
+			target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+			inputs: []
+			verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+			recovery: {kind: "none", requiredOnFailure: false}
+		}]
+	},
+	{
+		metadata: {
+			id:          "stackkits-coolify-runtime"
+			version:     "1.0.0"
+			description: "Workload-scoped Coolify adapter contract; provider lifecycle, endpoints, leases, and credential material remain outside StackKits."
+		}
+		role:        "platform"
+		providerRef: "stackkits-coolify"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapter: {
+			id: "coolify"
+			supportedKinds: ["container"]
+			supportedDeliveries: ["selected-paas"]
+			operations: ["apply", "observe", "rollback"]
+			credentialCustody: "external-owner"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+		}
+		runtime: {execution: "contract-handoff", kind: "control-plane", delivery: "external-control-plane"}
+		renderUnits: [{
+			id:          "coolify-adapter"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/coolify/runtime-adapter/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:b86c0645b02361fb94fa6b03ae71ba78174fec126578df3da10d4b700bcbf993"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/coolify/runtime-adapter.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:3860bf406244e848711a32034420330018147993188eeaa43fa6b7f9428cff86"
+				unitRefs: ["coolify-adapter"], artifactRefs: ["coolify-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b9331740d5a3ab65809133c45bb771fa671ad9c2c74c8b504c862c542e267d09"
+				unitRefs: ["coolify-adapter"], artifactRefs: ["coolify-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2CoolifyAdapterSupport
+		health: [{id: "coolify-runtime-contract", kind: "contract"}]
+		evidence: ["coolify-adapter-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-komodo-core-runtime"
+			version:     "1.0.0"
+			description: "Workload-scoped Komodo Core API adapter contract; installation, endpoints, credentials, leases, and provider lifecycle remain outside StackKits."
+		}
+		role:        "platform"
+		providerRef: "stackkits-komodo"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapter: {
+			id: "komodo"
+			supportedKinds: ["container"]
+			supportedDeliveries: ["selected-paas"]
+			operations: ["apply", "observe", "rollback", "backup", "restore"]
+			agentRefs: ["komodo-periphery"]
+			credentialCustody: "external-owner"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+		}
+		runtime: {execution: "contract-handoff", kind: "control-plane", delivery: "external-control-plane"}
+		renderUnits: [{
+			id:          "komodo-core-adapter"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/komodo/core-runtime-adapter/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:4e2f9d1f68d2f5ff28f5a51f181254c71f3ab6742c88927d9e8937f3db197bd8"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/komodo/core-runtime-adapter.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:2c3b41071fea2cc762fe0051473e2b8dca24c7469964b875cd1bc8b5e3697274"
+				unitRefs: ["komodo-core-adapter"], artifactRefs: ["komodo-core-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:3a03864406d17b324d61c923ce55c12616364e9cdb8a844c699b81da8badaaff"
+				unitRefs: ["komodo-core-adapter"], artifactRefs: ["komodo-core-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2KomodoCoreAdapterSupport
+		health: [{id: "komodo-core-runtime-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["komodo-core-adapter-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-komodo-periphery-runtime"
+			version:     "1.0.0"
+			description: "Komodo Periphery node-agent handoff for control-authority-site workers; host execution and all trust material remain executor-mediated."
+		}
+		role:        "platform"
+		providerRef: "stackkits-komodo"
+		provides: []
+		requires: ["stackkits-komodo-core-runtime"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapterAgent: {
+			id:          "komodo-periphery"
+			adapterRef:  "komodo"
+			role:        "node-agent"
+			targetScope: "control-authority-site-workers"
+			connection: {
+				direction:         "outbound-to-control-plane"
+				transport:         "tls"
+				minimumTLSVersion: "TLS1.3"
+				authentication:    "mutual-key"
+			}
+			credentialCustody: "external-owner"
+			hostExecution:     "executor-mediated"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "external-control-plane"}
+		renderUnits: [{
+			id:          "komodo-periphery-agent"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/komodo/periphery-agent/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:73f2410689ff511901d9e8a255022f4a499816662fb5f387a3f2a16f9e0e6b95"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/komodo/periphery-agent.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:6ad3cfd8d11856955479bce39d0d06219cf4df410f3d5395c0b24d42c698c58a"
+				unitRefs: ["komodo-periphery-agent"], artifactRefs: ["komodo-periphery-runtime-agent"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:08fd20fcd5a4d80d0c6b3c3a8ec41dc872aa3effc1b8d33435c1d665eb280aa3"
+				unitRefs: ["komodo-periphery-agent"], artifactRefs: ["komodo-periphery-runtime-agent"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2KomodoPeripheryAgentSupport
+		health: [{id: "komodo-periphery-runtime-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["komodo-periphery-agent-contract"]
 	},
 ],
 	_architectureV2ProfileExtensionModules,
@@ -2195,8 +2549,8 @@ _architectureV2PrivilegedInterfaceApprovals: list.Concat([[
 
 _architectureV2RILActionPrimitives: [
 	{
-		id: "plan-drift-repair", version: "1.0.0", title: "Plan a governed drift repair", category: "plan"
-		support: "contract-only", mutation: false, destructive: false, risk: "read-only"
+		id:      "plan-drift-repair", version: "1.0.0", title:     "Plan a governed drift repair", category: "plan"
+		support: "contract-only", mutation:    false, destructive: false, risk:                              "read-only"
 		owner: {authority: "stackkits", operationClass: "plan-inspection"}
 		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-plan"], connectorBindingRequired: true}
@@ -2206,8 +2560,8 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "none", requiredOnFailure: false}
 	},
 	{
-		id: "apply-stackkit-change", version: "1.0.0", title: "Apply an approved StackKit change", category: "apply"
-		support: "contract-only", mutation: true, destructive: false, risk: "high"
+		id:      "apply-stackkit-change", version: "1.0.0", title:    "Apply an approved StackKit change", category: "apply"
+		support: "contract-only", mutation:        true, destructive: false, risk:                                   "high"
 		owner: {authority: "stackkits", operationClass: "product-apply"}
 		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-apply"], connectorBindingRequired: true}
@@ -2217,8 +2571,8 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "primitive", requiredOnFailure: true, primitiveRef: "rollback-stackkit-change"}
 	},
 	{
-		id: "verify-stackkit-state", version: "1.0.0", title: "Verify governed StackKit state", category: "verify"
-		support: "executor-bound", executorRef: "stackkits-governed-state-verifier-v1", mutation: false, destructive: false, risk: "read-only"
+		id:      "verify-stackkit-state", version: "1.0.0", title:                                   "Verify governed StackKit state", category: "verify"
+		support: "executor-bound", executorRef:    "stackkits-governed-state-verifier-v1", mutation: false, destructive:                         false, risk: "read-only"
 		owner: {authority: "stackkits", operationClass: "product-verify"}
 		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-verify"], connectorBindingRequired: true}
@@ -2228,8 +2582,8 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "none", requiredOnFailure: false}
 	},
 	{
-		id: "rollback-stackkit-change", version: "1.0.0", title: "Roll back an approved StackKit change", category: "rollback"
-		support: "contract-only", mutation: true, destructive: true, risk: "critical"
+		id:      "rollback-stackkit-change", version: "1.0.0", title:    "Roll back an approved StackKit change", category: "rollback"
+		support: "contract-only", mutation:           true, destructive: true, risk:                                        "critical"
 		owner: {authority: "stackkits", operationClass: "product-rollback"}
 		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "break-glass", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-rollback"], connectorBindingRequired: true}
@@ -2239,8 +2593,8 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "manual", requiredOnFailure: true}
 	},
 	{
-		id: "restart-service", version: "1.0.0", title: "Restart one governed runtime service", category: "service"
-		support: "contract-only", mutation: true, destructive: false, risk: "high"
+		id:      "restart-service", version: "1.0.0", title:    "Restart one governed runtime service", category: "service"
+		support: "contract-only", mutation:  true, destructive: false, risk:                                      "high"
 		owner: {authority: "stackkits", operationClass: "runtime-service-action"}
 		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-restart"], connectorBindingRequired: true}
@@ -2250,8 +2604,8 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "manual", requiredOnFailure: true}
 	},
 	{
-		id: "rotate-certificate", version: "1.0.0", title: "Rotate one governed certificate binding", category: "certificate"
-		support: "contract-only", mutation: true, destructive: false, risk: "high"
+		id:      "rotate-certificate", version: "1.0.0", title:    "Rotate one governed certificate binding", category: "certificate"
+		support: "contract-only", mutation:     true, destructive: false, risk:                                         "high"
 		owner: {authority: "stackkits", operationClass: "certificate-action"}
 		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-certificate-rotate"], connectorBindingRequired: true}
@@ -2261,8 +2615,8 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "manual", requiredOnFailure: true}
 	},
 	{
-		id: "check-backup", version: "1.0.0", title: "Check governed backup and restore evidence", category: "backup"
-		support: "contract-only", mutation: false, destructive: false, risk: "read-only"
+		id:      "check-backup", version:   "1.0.0", title:     "Check governed backup and restore evidence", category: "backup"
+		support: "contract-only", mutation: false, destructive: false, risk:                                            "read-only"
 		owner: {authority: "stackkits", operationClass: "backup-evidence"}
 		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-check"], connectorBindingRequired: true}
@@ -2273,6 +2627,23 @@ _architectureV2RILActionPrimitives: [
 	},
 ]
 
+_architectureV2RILActionExecutors: [{
+	schemaVersion: "stackkit.ril-action-executor/v1"
+	ref:           "stackkits-governed-state-verifier-v1"
+	version:       "1.0.0"
+	owner: authority: "stackkits"
+	operationClasses: ["product-verify"]
+	prohibitions: {
+		providerLifecycle:    true
+		providerInputs:       true
+		leaseAuthority:       true
+		credentialResolution: true
+		transport:            true
+		callerCommands:       true
+		arbitraryPaths:       true
+	}
+}]
+
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
 	providers: [for contract in _architectureV2Providers {#CapabilityProvider & contract}]
@@ -2280,7 +2651,13 @@ ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	modules: [for contract in _architectureV2Modules {#ModuleContractV2 & contract}]
 	workloads: _architectureV2WorkloadContracts
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
-	rilActionPrimitives: [for contract in _architectureV2RILActionPrimitives {#RILActionPrimitiveContractV1 & contract}]
+	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]
+	rilActionPrimitives: list.Concat([
+		[for contract in _architectureV2RILActionPrimitives {
+			#RILActionPrimitiveContractV1 & contract & {extensionAuthority?: _|_}
+		}],
+		[for module in modules for contract in module.rilActionPrimitives {contract}],
+	])
 	planArtifacts: _architectureV2PlanArtifacts
 
 	_capabilityIDsUnique: list.UniqueItems([for contract in capabilities {contract.metadata.id}]) & true

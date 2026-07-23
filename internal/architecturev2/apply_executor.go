@@ -204,16 +204,16 @@ func (r *applyExecutorRegistry) authorizer(service *Service) (*applyAuthorizer, 
 }
 
 type applyRuntimeExecutionRequest struct {
-	Binding               generationartifact.PlanBinding
-	ManifestHash          string
-	GenerationReceiptHash string
-	RequirementsHash      string
-	EvidenceBundleHash    string
-	ArtifactSetHash       string
-	Executor              generationartifact.ApplyExecutorIdentity
-	Requirements          generationartifact.ApplyRequirements
-	Artifacts             []applyArtifactSnapshot
-	ExecutionAt           time.Time
+	Binding               generationartifact.PlanBinding           `json:"binding"`
+	ManifestHash          string                                   `json:"manifest_hash"`
+	GenerationReceiptHash string                                   `json:"generation_receipt_hash"`
+	RequirementsHash      string                                   `json:"requirements_hash"`
+	EvidenceBundleHash    string                                   `json:"evidence_bundle_hash"`
+	ArtifactSetHash       string                                   `json:"artifact_set_hash"`
+	Executor              generationartifact.ApplyExecutorIdentity `json:"executor"`
+	Requirements          generationartifact.ApplyRequirements     `json:"requirements"`
+	Artifacts             []applyArtifactSnapshot                  `json:"artifacts"`
+	ExecutionAt           time.Time                                `json:"execution_at"`
 }
 
 type applyRuntimeObservation struct {
@@ -331,6 +331,14 @@ func (r *applyExecutorRegistry) executeWithClock(ctx context.Context, authorizat
 		EvidenceBundleHash: grant.bundleHash, ArtifactSetHash: artifactSetHash, Executor: grant.executor,
 		Requirements: requirements, Artifacts: cloneApplyArtifactSnapshots(grant.artifacts), ExecutionAt: grant.evaluatedAt,
 	}
+	if preparer, ok := r.entry.adapter.(applyRuntimeRecoveryPreparer); ok {
+		recoveryRequest := request
+		recoveryRequest.Requirements = grant.plan.ApplyRequirements()
+		recoveryRequest.Artifacts = cloneApplyArtifactSnapshots(grant.artifacts)
+		if err := preparer.PrepareProductApplyRecovery(ctx, recoveryRequest, grant.plan.OutputRoot(), grant.expiresAt); err != nil {
+			return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.recovery", "persist exact Product Apply recovery authority", err)
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.context", "execution context is already cancelled", err)
 	}
@@ -339,7 +347,15 @@ func (r *applyExecutorRegistry) executeWithClock(ctx context.Context, authorizat
 	adapterRequest.Artifacts = cloneApplyArtifactSnapshots(grant.artifacts)
 	result, err := callApplyRuntimeExecutor(ctx, r.entry.adapter, adapterRequest)
 	if err != nil {
-		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor", "runtime executor failed", err)
+		cause := applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor", "runtime executor failed", err)
+		requestDigest := ""
+		if shared, sealErr := sharedExecutionRequest(request); sealErr == nil {
+			requestDigest = shared.RequestDigest
+		}
+		if reconcile := newProductApplyReconcileRequiredError(cause, requestDigest); reconcile != nil {
+			return VerifiedApplyResult{}, reconcile
+		}
+		return VerifiedApplyResult{}, cause
 	}
 	if err := ctx.Err(); err != nil {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.context", "execution context was cancelled during the adapter call", err)
@@ -519,7 +535,10 @@ func hashApplyArtifactSet(artifacts []applyArtifactSnapshot) (string, error) {
 			InstanceRef: artifact.InstanceRef, OutputRef: artifact.OutputRef, SiteRefs: append([]string(nil), artifact.SiteRefs...), NodeRefs: append([]string(nil), artifact.NodeRefs...), SHA256: artifact.SHA256,
 		})
 	}
-	canonical, err := resolvedplan.CanonicalJSON(identities)
+	// Artifact requirements are a contract set. Wrap the projection under its
+	// canonical field name so declaration/readback order cannot change the
+	// identity across recovery-capsule canonicalization.
+	canonical, err := resolvedplan.CanonicalJSON(map[string]any{"artifacts": identities})
 	if err != nil {
 		return "", applyExecutorError(generationartifact.ErrInvalidContract, "apply.executor.artifacts", "canonicalize immutable artifact set", err)
 	}

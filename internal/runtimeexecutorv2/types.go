@@ -25,6 +25,7 @@ const (
 	MaxTotalArtifactBytes = 32 << 20
 	MaxNodeRefsPerTarget  = 128
 	MaxSiteRefsPerTarget  = 128
+	MaxAdapterAgents      = 128
 )
 
 // MaxAccessBindingValidity bounds one externally issued admission receipt.
@@ -60,6 +61,35 @@ type AccessCapability struct {
 	ContractHash string `json:"contract_hash"`
 }
 
+// RuntimeAdapterAgentBinding binds one adapter-owned companion agent module
+// and its exact contract-handoff artifacts. It carries authority identity
+// only; endpoints, credentials, host access, provider lifecycle, and transport
+// configuration remain in the selected executor's custody.
+type RuntimeAdapterAgentBinding struct {
+	ID                 string   `json:"id"`
+	ModuleRef          string   `json:"module_ref"`
+	ModuleVersion      string   `json:"module_version"`
+	ModuleContractHash string   `json:"module_contract_hash"`
+	ArtifactRefs       []string `json:"artifact_refs"`
+}
+
+// RuntimeAdapterBinding is the exact workload-scoped adapter authority chosen
+// by the upstream plan. Provider/module versions and hashes bind that choice;
+// ArtifactRefs bind only provider-neutral, content-addressed handoff material.
+// Agents are separately named so a control-plane adapter cannot silently
+// widen itself into node-agent authority.
+type RuntimeAdapterBinding struct {
+	ID                   string                       `json:"id"`
+	ProviderRef          string                       `json:"provider_ref"`
+	ProviderVersion      string                       `json:"provider_version"`
+	ProviderContractHash string                       `json:"provider_contract_hash"`
+	ModuleRef            string                       `json:"module_ref"`
+	ModuleVersion        string                       `json:"module_version"`
+	ModuleContractHash   string                       `json:"module_contract_hash"`
+	ArtifactRefs         []string                     `json:"artifact_refs"`
+	Agents               []RuntimeAdapterAgentBinding `json:"agents,omitempty"`
+}
+
 // RuntimeTarget is one exact governed runtime instance. Contract hashes bind
 // every authority level involved in selecting it. Module and unit pairs may be
 // absent only when the corresponding authority level is not used.
@@ -67,31 +97,32 @@ type AccessCapability struct {
 // never an endpoint, address, provider reference, credential, or permission to
 // discover a target.
 type RuntimeTarget struct {
-	RequirementID        string             `json:"requirement_id"`
-	OwnerKind            string             `json:"owner_kind"`
-	OwnerRef             string             `json:"owner_ref"`
-	OwnerVersion         string             `json:"owner_version,omitempty"`
-	OwnerContractHash    string             `json:"owner_contract_hash"`
-	ProviderRef          string             `json:"provider_ref"`
-	ProviderContractHash string             `json:"provider_contract_hash"`
-	ModuleRef            string             `json:"module_ref,omitempty"`
-	ModuleContractHash   string             `json:"module_contract_hash,omitempty"`
-	UnitRef              string             `json:"unit_ref,omitempty"`
-	UnitContractHash     string             `json:"unit_contract_hash,omitempty"`
-	RuntimeKind          string             `json:"runtime_kind"`
-	RuntimeDelivery      string             `json:"runtime_delivery"`
-	RuntimeEngine        string             `json:"runtime_engine,omitempty"`
-	InstanceRef          string             `json:"instance_ref"`
-	ExecutionChannelRef  string             `json:"execution_channel_ref,omitempty"`
-	SiteRefs             []string           `json:"site_refs"`
-	NodeRefs             []string           `json:"node_refs"`
-	WorkloadRef          string             `json:"workload_ref,omitempty"`
-	ImageRef             string             `json:"image_ref,omitempty"`
-	ImageDigest          string             `json:"image_digest,omitempty"`
-	DaemonBindings       []DaemonTarget     `json:"daemon_bindings"`
-	ArtifactRefs         []string           `json:"artifact_refs"`
-	AccessCapabilities   []AccessCapability `json:"access_capabilities,omitempty"`
-	AccessBindingRefs    []string           `json:"access_binding_refs,omitempty"`
+	RequirementID        string                 `json:"requirement_id"`
+	OwnerKind            string                 `json:"owner_kind"`
+	OwnerRef             string                 `json:"owner_ref"`
+	OwnerVersion         string                 `json:"owner_version,omitempty"`
+	OwnerContractHash    string                 `json:"owner_contract_hash"`
+	ProviderRef          string                 `json:"provider_ref"`
+	ProviderContractHash string                 `json:"provider_contract_hash"`
+	ModuleRef            string                 `json:"module_ref,omitempty"`
+	ModuleContractHash   string                 `json:"module_contract_hash,omitempty"`
+	UnitRef              string                 `json:"unit_ref,omitempty"`
+	UnitContractHash     string                 `json:"unit_contract_hash,omitempty"`
+	RuntimeKind          string                 `json:"runtime_kind"`
+	RuntimeDelivery      string                 `json:"runtime_delivery"`
+	RuntimeEngine        string                 `json:"runtime_engine,omitempty"`
+	InstanceRef          string                 `json:"instance_ref"`
+	ExecutionChannelRef  string                 `json:"execution_channel_ref,omitempty"`
+	SiteRefs             []string               `json:"site_refs"`
+	NodeRefs             []string               `json:"node_refs"`
+	WorkloadRef          string                 `json:"workload_ref,omitempty"`
+	ImageRef             string                 `json:"image_ref,omitempty"`
+	ImageDigest          string                 `json:"image_digest,omitempty"`
+	DaemonBindings       []DaemonTarget         `json:"daemon_bindings"`
+	ArtifactRefs         []string               `json:"artifact_refs"`
+	RuntimeAdapter       *RuntimeAdapterBinding `json:"runtime_adapter,omitempty"`
+	AccessCapabilities   []AccessCapability     `json:"access_capabilities,omitempty"`
+	AccessBindingRefs    []string               `json:"access_binding_refs,omitempty"`
 }
 
 // AccessBinding is one exact, already-authorized Home access dependency for a
@@ -123,19 +154,34 @@ type AccessBinding struct {
 	ProjectionHash         string   `json:"projection_hash"`
 }
 
+// HealthProbe is a closed, address-free probe descriptor. The authenticated
+// runtime owner resolves the target inside its exact execution channel; callers
+// cannot provide a URL, host, credential, trust root, or redirect policy.
+type HealthProbe struct {
+	Protocol         string `json:"protocol"`
+	Port             int    `json:"port"`
+	TimeoutSeconds   int    `json:"timeout_seconds"`
+	Method           string `json:"method,omitempty"`
+	FollowRedirects  bool   `json:"follow_redirects,omitempty"`
+	Path             string `json:"path,omitempty"`
+	ExpectedStatuses []int  `json:"expected_statuses,omitempty"`
+}
+
 // HealthTarget is one exact post-execution health requirement.
 type HealthTarget struct {
-	RequirementID  string   `json:"requirement_id"`
-	SourceRef      string   `json:"source_ref"`
-	ContractHash   string   `json:"contract_hash"`
-	Phase          string   `json:"phase"`
-	Kind           string   `json:"kind"`
-	TargetKind     string   `json:"target_kind"`
-	TargetRef      string   `json:"target_ref"`
-	RouteRef       string   `json:"route_ref,omitempty"`
-	BackendPoolRef string   `json:"backend_pool_ref,omitempty"`
-	SiteRefs       []string `json:"site_refs"`
-	NodeRefs       []string `json:"node_refs"`
+	RequirementID        string       `json:"requirement_id"`
+	RuntimeRequirementID string       `json:"runtime_requirement_id,omitempty"`
+	SourceRef            string       `json:"source_ref"`
+	ContractHash         string       `json:"contract_hash"`
+	Phase                string       `json:"phase"`
+	Kind                 string       `json:"kind"`
+	TargetKind           string       `json:"target_kind"`
+	TargetRef            string       `json:"target_ref"`
+	RouteRef             string       `json:"route_ref,omitempty"`
+	BackendPoolRef       string       `json:"backend_pool_ref,omitempty"`
+	Probe                *HealthProbe `json:"probe,omitempty"`
+	SiteRefs             []string     `json:"site_refs"`
+	NodeRefs             []string     `json:"node_refs"`
 }
 
 // Artifact is an immutable content-addressed artifact snapshot. It deliberately
@@ -145,6 +191,7 @@ type Artifact struct {
 	Kind                 string   `json:"kind"`
 	Format               string   `json:"format"`
 	Mode                 string   `json:"mode"`
+	ExecutionClass       string   `json:"execution_class"`
 	OwnerKind            string   `json:"owner_kind"`
 	OwnerRef             string   `json:"owner_ref"`
 	OwnerContractHash    string   `json:"owner_contract_hash"`
@@ -187,6 +234,14 @@ type RuntimeStatus string
 
 // RuntimeStatusApplied means the exact governed instance was applied.
 const RuntimeStatusApplied RuntimeStatus = "applied"
+
+// Artifact execution classes separate executable runtime material from
+// workload-scoped adapter handoffs and immutable plan metadata.
+const (
+	ArtifactExecutionClassExecutable      = "executable"
+	ArtifactExecutionClassContractHandoff = "contract-handoff"
+	ArtifactExecutionClassPlan            = "plan"
+)
 
 // HealthStatus is the closed successful health outcome vocabulary.
 type HealthStatus string

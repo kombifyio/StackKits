@@ -69,6 +69,21 @@ func canonicalInventoryHash(inventory map[string]any) (string, error) {
 	return canonicalHash(clone, true)
 }
 
+// ComputeExternalHostInventoryHash returns the canonical provider-free digest
+// an ExternalHostBinding must carry. It first applies the same CUE inventory
+// normalization as Compile, then excludes the self-referential binding and
+// conformance envelopes exactly as plan compilation does.
+func (c *Compiler) ComputeExternalHostInventoryHash(inventory InventoryFacts) (string, error) {
+	if c == nil || c.options.ContractValidator == nil {
+		return "", fmt.Errorf("compiler with CUE contract authority is required")
+	}
+	normalized, err := c.options.ContractValidator.normalizeInventory(inventory)
+	if err != nil {
+		return "", fmt.Errorf("normalize inventory for external host hash: %w", err)
+	}
+	return canonicalInventoryHash(map[string]any(normalized))
+}
+
 // ComputeExternalHostBindingHash returns the canonical digest of a normalized
 // ExternalHostBinding with bindingHash omitted. It performs no provider action.
 func ComputeExternalHostBindingHash(binding ExternalHostBinding) (string, error) {

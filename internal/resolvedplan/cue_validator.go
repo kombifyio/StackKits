@@ -250,6 +250,12 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	if catalog.PrivilegedInterfaceApprovals == nil {
 		catalog.PrivilegedInterfaceApprovals = []PrivilegedInterfaceApproval{}
 	}
+	if catalog.RILActionPrimitives == nil {
+		catalog.RILActionPrimitives = []RILActionPrimitiveContract{}
+	}
+	if catalog.RILActionExecutors == nil {
+		catalog.RILActionExecutors = []RILActionExecutorContract{}
+	}
 	document := map[string]any{
 		"capabilities":                 catalog.Capabilities,
 		"providers":                    catalog.Providers,
@@ -257,6 +263,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 		"modules":                      catalog.Modules,
 		"workloads":                    catalog.Workloads,
 		"privilegedInterfaceApprovals": catalog.PrivilegedInterfaceApprovals,
+		"rilActionExecutors":           catalog.RILActionExecutors,
 		"rilActionPrimitives":          catalog.RILActionPrimitives,
 	}
 	// A nil slice means the caller did not provide an authority value. Let CUE
@@ -286,6 +293,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 		Modules                      []ModuleContract              `json:"modules"`
 		Workloads                    []WorkloadContract            `json:"workloads"`
 		PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
+		RILActionExecutors           []RILActionExecutorContract   `json:"rilActionExecutors"`
 		RILActionPrimitives          []RILActionPrimitiveContract  `json:"rilActionPrimitives"`
 		PlanArtifacts                []PlanArtifactContract        `json:"planArtifacts"`
 	}
@@ -298,6 +306,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	normalized.Modules = wire.Modules
 	normalized.Workloads = wire.Workloads
 	normalized.PrivilegedInterfaceApprovals = wire.PrivilegedInterfaceApprovals
+	normalized.RILActionExecutors = wire.RILActionExecutors
 	normalized.RILActionPrimitives = wire.RILActionPrimitives
 	normalized.PlanArtifacts = wire.PlanArtifacts
 	return normalized, nil

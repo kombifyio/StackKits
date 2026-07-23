@@ -1,10 +1,9 @@
 // Package productkits owns the active product allowlist used by CLI execution,
 // discovery, and registry projections.
 //
-// The public OSS distribution contains Basement and Cloud. The private source
-// distribution registers Modern Home Lab from private_modern.go; the public
-// exporter deliberately removes that file. This keeps one runtime guard while
-// preserving the narrower public product surface.
+// The public OSS distribution contains Basement, Cloud, and Modern Homelab.
+// Keeping that taxonomy in one source prevents the private and exported CLIs
+// from disagreeing about which release artifacts they can initialize.
 package productkits
 
 import (
@@ -15,9 +14,10 @@ import (
 const (
 	Basement = "basement-kit"
 	Cloud    = "cloud-kit"
+	Modern   = "modern-homelab"
 )
 
-var active = []string{Basement, Cloud}
+var active = []string{Basement, Cloud, Modern}
 
 // Slugs returns a copy of the active distribution's product taxonomy.
 func Slugs() []string {
@@ -25,7 +25,7 @@ func Slugs() []string {
 }
 
 // IsActive reports whether name is a canonical installable product slug in
-// the current private or public source distribution.
+// the current source distribution.
 func IsActive(name string) bool {
 	name = strings.TrimSpace(name)
 	for _, slug := range active {
@@ -48,10 +48,4 @@ func Validate(name string) error {
 		name,
 		strings.Join(active, ", "),
 	)
-}
-
-func registerPrivate(slug string) {
-	if !IsActive(slug) {
-		active = append(active, slug)
-	}
 }

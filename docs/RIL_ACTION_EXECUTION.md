@@ -1,6 +1,6 @@
 ---
 title: RIL Action Execution Contract
-last_verified: 2026-07-22
+last_verified: 2026-07-23
 status: target-contract
 ---
 
@@ -55,6 +55,16 @@ the plan hash, embedded CUE contract, product authority, and current generation
 binding. Its evidence explicitly records `runtime_state_observed=false`: it is
 not a host, container, service-health, provider, or Apply check.
 
+The owner itself is now a first-class closed CUE contract rather than a Go
+special case. Its exact reference, version, allowed operation class, and
+provider-free prohibitions receive a deterministic contract hash. The
+executor-bound primitive hash also covers that executor-contract hash.
+StackKits builds an immutable registry from the embedded authority and marks a
+primitive executable only when the registered shared `rilaction.Executor`
+identity matches CUE byte-for-byte. Invocation uses the immutable shared
+request/digest/time handoff, and both newly returned and durably replayed
+evidence must name the exact CUE-selected executor.
+
 The current validation boundary consumes the exact pinned
 `kombify-go-common/rilaction` envelope. It samples one trusted UTC instant and
 checks request, approval, and grant freshness; authenticated tenant, current
@@ -108,6 +118,24 @@ closed, sorted verification/recovery/summary codes and an optional opaque
 `diagnostic:` reference; free-form logs and runtime output are not part of the
 wire.
 
+The optional diagnostic reference is also closed by the CUE primitive
+authority: it is never required, must use the `diagnostic:` opaque-reference
+scheme, has no inline material or direct-access semantics, and remains under
+TechStack evidence-sink custody. StackKits rechecks that policy before ledger
+completion and on replay; it does not receive a log store, URL, path,
+credential, retention setting, or diagnostic retrieval capability.
+
+One evidence document can represent only one approval ceremony. When a failed
+primitive names another primitive as recovery, the original evidence reports
+only `kind=primitive`, `status=required`, and the exact recovery primitive ID.
+It cannot report nested rollback success or failure. TechStack must submit that
+recovery primitive as a new request with its own approval, grant, idempotency
+reservation, and evidence. StackKits rebinds the returned recovery disposition
+to the exact CUE primitive before ledger completion and again on replay. This
+prevents the owner-step-up approval for `apply-stackkit-change` from being
+silently widened into the break-glass authority required by
+`rollback-stackkit-change`.
+
 ## Execution Rules
 
 - No StackKit action executes without an approved TechStack action card, a
@@ -117,6 +145,9 @@ wire.
 - A handoff selects only the catalog primitive and its governed runtime owner;
   it cannot select a command, binary, path, endpoint, provider, transport, or
   credential.
+- An executor reference alone never selects an owner. Reference, version,
+  contract hash, operation class, and construction-owned registry identity must
+  all close over the same CUE authority.
 - TechStack lease/generation/CAS and provider lifecycle stay outside the
   StackKits envelope; opaque approval and grant bindings are authority
   references, not provider-control handles.
@@ -151,5 +182,7 @@ Tracking:
   handoff.
 - `kombify-StackKits-6nrh.1`: approved action primitive catalog.
 - `kombify-StackKits-6nrh.2`: Cloudflare Agent node handoff executor contract.
+- `kombify-StackKits-6nrh.2.1`: exact CUE executor contracts and StackKits
+  runtime-owner registry.
 - `kombify-StackKits-6nrh.3`: verification rollback evidence model.
 - `kombify-StackKits-6nrh.4`: unapproved/raw execution denial paths.

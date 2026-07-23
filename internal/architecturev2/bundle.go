@@ -249,10 +249,8 @@ func validateAuthorityRoleManifest(role embeddedAuthorityRole, manifest authorit
 	}
 	var expectedProfileCount int
 	switch manifest.ProfileScope {
-	case "platform":
+	case "platform", "oss":
 		expectedProfileCount = 3
-	case "oss":
-		expectedProfileCount = 2
 	default:
 		return fmt.Errorf("embedded product authority uses unsupported profile scope %q", manifest.ProfileScope)
 	}

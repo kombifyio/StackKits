@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "stackkits.applyevidence-projection/v1",
+  "source": "kombify-go-common/applyevidence",
+  "sourceVersion": "v0.3.1-0.20260723080802-44f086616fa5",
+  "sourceCommit": "44f086616fa5018c86b42fe06e8a98ee4a4eba40",
+  "sourceSum": "h1:iACdgD9K9RFbiBhuqFyM/cRXRcuyzdOE3InaRa13Au4=",
+  "sourceFiles": [
+    "README.md",
+    "applyevidence_test.go",
+    "collection.go",
+    "collection_test.go",
+    "collector.go",
+    "collector_test.go",
+    "seal.go",
+    "types.go"
+  ],
+  "projectedFiles": [
+    "collection.go",
+    "collector.go",
+    "seal.go",
+    "types.go"
+  ]
+}

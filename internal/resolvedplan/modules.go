@@ -62,6 +62,13 @@ func (c *Compiler) selectWorkloadModules(resolved *resolution, selection *provid
 			return fail(ErrUnrealizedModule, "spec.workloads."+workloadID+".alternative", "module %q is not governed by provider %q", workload.moduleID, workload.providerID)
 		}
 		selection.selected[workload.moduleID] = workload.providerID
+		if workload.runtimeAdapterModuleID != "" {
+			adapterProviderID, governed := selection.governed[workload.runtimeAdapterModuleID]
+			if !governed || adapterProviderID != workload.runtimeAdapterProviderID {
+				return fail(ErrUnrealizedModule, "spec.workloads."+workloadID+".runtimeAdapterRef", "runtime adapter module %q is not governed by provider %q", workload.runtimeAdapterModuleID, workload.runtimeAdapterProviderID)
+			}
+			selection.selected[workload.runtimeAdapterModuleID] = workload.runtimeAdapterProviderID
+		}
 	}
 	return nil
 }
@@ -635,12 +642,12 @@ func resolveModuleProvides(moduleID, providerID string, contract map[string]any,
 		return nil, err
 	}
 	if len(contractProvides) == 0 {
-		hasProvidedInterface, err := moduleProvidesImplementationInterface(moduleID, contract)
+		hasTypedImplementation, err := moduleProvidesTypedImplementation(moduleID, contract)
 		if err != nil {
 			return nil, err
 		}
-		if !hasProvidedInterface {
-			return nil, fail(ErrUnrealizedModule, "catalog.modules."+moduleID, "selected module realizes neither a selected capability nor a provided implementation interface")
+		if !hasTypedImplementation {
+			return nil, fail(ErrUnrealizedModule, "catalog.modules."+moduleID, "selected module realizes neither a selected capability nor a typed implementation contract")
 		}
 		return []string{}, nil
 	}
@@ -657,8 +664,18 @@ func resolveModuleProvides(moduleID, providerID string, contract map[string]any,
 	return provides, nil
 }
 
-func moduleProvidesImplementationInterface(moduleID string, contract map[string]any) (bool, error) {
+func moduleProvidesTypedImplementation(moduleID string, contract map[string]any) (bool, error) {
 	path := "catalog.modules." + moduleID
+	if _, exists, err := optionalObjectField(contract, path, "runtimeAdapter"); err != nil {
+		return false, err
+	} else if exists {
+		return true, nil
+	}
+	if _, exists, err := optionalObjectField(contract, path, "runtimeAdapterAgent"); err != nil {
+		return false, err
+	} else if exists {
+		return true, nil
+	}
 	support, err := objectField(contract, path, "realizationSupport")
 	if err != nil {
 		return false, err
@@ -727,7 +744,7 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	if requires = sortStringsUnique(requires); len(requires) > 0 {
 		module["requires"] = stringSliceAny(requires)
 	}
-	for _, field := range []string{"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement"} {
+	for _, field := range []string{"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement", "runtimeAdapter", "runtimeAdapterAgent"} {
 		contractValue, exists, err := optionalObjectField(contract, "catalog.modules."+moduleID, field)
 		if err != nil {
 			return nil, err

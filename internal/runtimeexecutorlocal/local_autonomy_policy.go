@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
@@ -18,7 +19,6 @@ const (
 	localAutonomyProviderRef      = "stackkits-local-autonomy-policy"
 	localAutonomyModuleRef        = "stackkits-local-autonomy-policy-manifest"
 	localAutonomyUnitRef          = "policy-bundle"
-	localAutonomyInstanceRef      = "policy-bundle-logical"
 	localAutonomyArtifactRef      = "local-autonomy-policy"
 	localAutonomyOutputRef        = "local/autonomy/policy.json"
 	localAutonomyHealthSourceRef  = "local-autonomy-enforcement"
@@ -26,8 +26,9 @@ const (
 )
 
 type LocalAutonomyPolicyBinding struct {
-	HomeSiteRefs []string
-	NodeRefs     []string
+	HomeSiteRefs        []string
+	NodeRefs            []string
+	ExecutionChannelRef string
 }
 
 type LocalAutonomyPolicyAuthority struct {
@@ -96,8 +97,9 @@ func NewLocalAutonomyPolicyExecutor(identity runtimeexecutor.ExecutorIdentity, b
 	return &LocalAutonomyPolicyExecutor{
 		identity: identity,
 		binding: LocalAutonomyPolicyBinding{
-			HomeSiteRefs: append([]string(nil), binding.HomeSiteRefs...),
-			NodeRefs:     append([]string(nil), binding.NodeRefs...),
+			HomeSiteRefs:        append([]string(nil), binding.HomeSiteRefs...),
+			NodeRefs:            append([]string(nil), binding.NodeRefs...),
+			ExecutionChannelRef: binding.ExecutionChannelRef,
 		},
 		authority: authority, operations: operations,
 		clock: func() time.Time { return time.Now().UTC() },
@@ -110,7 +112,8 @@ func (e *LocalAutonomyPolicyExecutor) Execute(ctx context.Context, request runti
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("local-autonomy executor requires a context")
 	}
-	if e == nil || e.operations == nil || e.clock == nil || !validExactRefSet(e.binding.HomeSiteRefs) || !validExactRefSet(e.binding.NodeRefs) ||
+	if e == nil || e.operations == nil || e.clock == nil || len(e.binding.HomeSiteRefs) != 1 || len(e.binding.NodeRefs) != 1 ||
+		!validExactRefSet(e.binding.HomeSiteRefs) || !validExactRefSet(e.binding.NodeRefs) || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) || !validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || !validCoreHostBootstrapDigest(e.authority.HealthContractHash) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("local-autonomy executor requires exact catalog authority, Home control placement, and authenticated operations")
 	}
@@ -182,12 +185,14 @@ func validateLocalAutonomyPolicyRequest(request runtimeexecutor.ExecutionRequest
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.LocalAutonomyPolicyRendererContract()
+	expectedInstanceRef := localAutonomyUnitRef + "-node-" + binding.NodeRefs[0]
+	expectedArtifactRef := localAutonomyArtifactRef + "-instance-" + expectedInstanceRef
 	if target.OwnerKind != "module" || target.OwnerRef != localAutonomyModuleRef || target.OwnerVersion != "" || target.ProviderRef != localAutonomyProviderRef || target.ProviderContractHash != authority.ProviderContractHash ||
 		target.ModuleRef != localAutonomyModuleRef || target.ModuleContractHash != authority.ModuleContractHash || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.UnitRef != localAutonomyUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != localAutonomyInstanceRef ||
-		target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "" || target.ExecutionChannelRef != "" || target.WorkloadRef != "" || target.ImageRef != "" ||
+		target.UnitRef != localAutonomyUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != expectedInstanceRef ||
+		target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "" || target.ExecutionChannelRef != binding.ExecutionChannelRef || target.WorkloadRef != "" || target.ImageRef != "" ||
 		len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 || !slices.Equal(target.SiteRefs, binding.HomeSiteRefs) ||
-		!slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{localAutonomyArtifactRef}) {
+		!slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{expectedArtifactRef}) {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("runtime target is not the exact bound local-autonomy policy contract")
 	}
 	health := request.HealthTargets[0]
@@ -196,10 +201,10 @@ func validateLocalAutonomyPolicyRequest(request runtimeexecutor.ExecutionRequest
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("health target is not the exact local-autonomy enforcement postcondition")
 	}
 	artifact := request.Artifacts[0]
-	if artifact.ID != localAutonomyArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
-		artifact.OwnerRef != localAutonomyInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != localAutonomyProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
+	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
+		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != localAutonomyProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != localAutonomyModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != localAutonomyUnitRef || artifact.UnitContractHash != contract.ContractHash ||
-		artifact.InstanceRef != localAutonomyInstanceRef || artifact.OutputRef != localAutonomyOutputRef || !slices.Equal(artifact.SiteRefs, binding.HomeSiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
+		artifact.InstanceRef != expectedInstanceRef || artifact.OutputRef != localAutonomyOutputRef || !slices.Equal(artifact.SiteRefs, binding.HomeSiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
 		len(artifact.Content) == 0 || len(artifact.Content) > localAutonomyMaxArtifactBytes {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("artifact is not the exact CUE-owned local-autonomy policy")
 	}
@@ -211,7 +216,7 @@ func validateLocalAutonomyPolicyRequest(request runtimeexecutor.ExecutionRequest
 	if err != nil {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, fmt.Errorf("validate governed local-autonomy policy: %w", err)
 	}
-	if !slices.Equal(projection.HomeSiteRefs, binding.HomeSiteRefs) || projection.AuthoritySiteRef != binding.HomeSiteRefs[0] || !slices.Equal(projection.ControlMembers, binding.NodeRefs) ||
+	if !slices.Equal(projection.HomeSiteRefs, binding.HomeSiteRefs) || projection.AuthoritySiteRef != binding.HomeSiteRefs[0] || !slices.Contains(projection.ControlMembers, binding.NodeRefs[0]) ||
 		projection.HumanAuthoritySiteRef != projection.AuthoritySiteRef || projection.DeviceAuthoritySiteRef != projection.AuthoritySiteRef || !projection.LocalIdentityAuthorityAvailable || !projection.DenyNewCrossSiteSessions {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("local-autonomy policy does not bind the exact Home control authority")
 	}
@@ -222,7 +227,8 @@ func validateLocalAutonomyPolicyRequest(request runtimeexecutor.ExecutionRequest
 		HealthContractHash   string   `json:"healthContractHash"`
 		HomeSiteRefs         []string `json:"homeSiteRefs"`
 		NodeRefs             []string `json:"nodeRefs"`
-	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.HomeSiteRefs, binding.NodeRefs})
+		ExecutionChannelRef  string   `json:"executionChannelRef"`
+	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.HomeSiteRefs, binding.NodeRefs, binding.ExecutionChannelRef})
 	if err != nil {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, fmt.Errorf("bind local-autonomy policy authority: %w", err)
 	}

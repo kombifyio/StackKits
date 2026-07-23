@@ -35,7 +35,7 @@ func (s *Service) ExecuteProductApply(ctx context.Context, input ProductApplyInp
 	if s == nil || !input.Current.valid || input.Current.owner != s.generation {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Apply requires a current resolution issued by this product service", nil)
 	}
-	registry, err := newProductApplyExecutorRegistry(input.Current.plan, input.Versions.Runtime, s.productApplyTrust)
+	registry, err := s.productApplyExecutorRegistry(input.Current.plan, input.Versions.Runtime)
 	if err != nil {
 		return VerifiedApplyResult{}, err
 	}
@@ -44,7 +44,7 @@ func (s *Service) ExecuteProductApply(ctx context.Context, input ProductApplyInp
 		return VerifiedApplyResult{}, err
 	}
 	authorization, err := authorizer.authorize(applyAuthorizationInput{
-		Current: input.Current, Workspace: input.Workspace, OutputLock: input.OutputLock,
+		Context: ctx, Current: input.Current, Workspace: input.Workspace, OutputLock: input.OutputLock,
 		Versions: input.Versions, EvidenceBundle: append([]byte(nil), input.EvidenceBundle...),
 	})
 	if err != nil {
@@ -52,6 +52,93 @@ func (s *Service) ExecuteProductApply(ctx context.Context, input ProductApplyInp
 	}
 	defer func() { returnErr = errors.Join(returnErr, authorization.Close()) }()
 	return registry.execute(ctx, authorization)
+}
+
+func (s *Service) productApplyExecutorRegistry(plan generationartifact.VerifiedPlan, runtimeVersion string) (*applyExecutorRegistry, error) {
+	if s != nil && s.productRuntimeOwners != nil {
+		return newProductRuntimeOwnerApplyExecutorRegistry(plan, runtimeVersion, s.productApplyTrust, s.productRuntimeOwners)
+	}
+	return newProductApplyExecutorRegistry(plan, runtimeVersion, s.productApplyTrust)
+}
+
+func newProductRuntimeOwnerApplyExecutorRegistry(
+	plan generationartifact.VerifiedPlan,
+	runtimeVersion string,
+	anchors []productApplyTrustAnchor,
+	owners *ProductRuntimeOwnerRegistry,
+) (*applyExecutorRegistry, error) {
+	if owners == nil || owners.Identity() == (runtimeexecutor.ExecutorIdentity{}) {
+		return nil, applyExecutorError(generationartifact.ErrExecutorMissing, "apply.executor", "product runtime-owner registry is not initialized", nil)
+	}
+	if strings.TrimSpace(runtimeVersion) == "" || owners.Identity().Version != runtimeVersion {
+		return nil, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.executor.identity", "product runtime version does not match the service-owned registry identity", nil)
+	}
+	requirements := plan.ApplyRequirements()
+	if len(requirements.RuntimeInstances) == 0 || len(requirements.HealthRequirements) == 0 {
+		return nil, applyExecutorError(generationartifact.ErrExecutorMissing, "apply.executor.capabilities", "product runtime-owner execution requires runtime and health targets", nil)
+	}
+	capabilities := make([]applyRuntimeCapability, 0, len(requirements.RuntimeInstances))
+	capabilitySet := make(map[applyRuntimeCapability]struct{}, len(requirements.RuntimeInstances))
+	runtimeByID := make(map[string]generationartifact.ApplyRuntimeRequirement, len(requirements.RuntimeInstances))
+	for _, target := range requirements.RuntimeInstances {
+		runtimeByID[target.ID] = target
+		capability := applyRuntimeCapability{
+			OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef, OwnerContractHash: target.OwnerContractHash,
+			ProviderRef: target.ProviderRef, ProviderContractHash: target.ProviderContractHash,
+			ModuleRef: target.ModuleRef, ModuleContractHash: target.ModuleContractHash,
+			UnitRef: target.UnitRef, UnitContractHash: target.UnitContractHash,
+			RuntimeKind: target.RuntimeKind, RuntimeDelivery: target.RuntimeDelivery, RuntimeEngine: target.RuntimeEngine,
+		}
+		if _, exists := capabilitySet[capability]; !exists {
+			capabilitySet[capability] = struct{}{}
+			capabilities = append(capabilities, capability)
+		}
+	}
+	accessCapabilities := make([]applyAccessCapability, 0, len(requirements.AccessBindings))
+	accessCapabilitySet := make(map[applyAccessCapability]struct{}, len(requirements.AccessBindings))
+	for _, binding := range requirements.AccessBindings {
+		target, exists := runtimeByID[binding.RuntimeRequirementID]
+		if !exists || binding.ContractOwnerRef != target.ProviderRef {
+			return nil, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.executor.accessCapabilities", "Home access binding has no exact runtime owner", nil)
+		}
+		capability := applyAccessCapability{
+			OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef, OwnerContractHash: target.OwnerContractHash,
+			ProviderRef: target.ProviderRef, ProviderContractHash: target.ProviderContractHash,
+			ModuleRef: target.ModuleRef, ModuleContractHash: target.ModuleContractHash,
+			UnitRef: target.UnitRef, UnitContractHash: target.UnitContractHash,
+			CapabilityRef: binding.CapabilityRef, CapabilityContractHash: binding.CapabilityContractHash,
+		}
+		if _, exists := accessCapabilitySet[capability]; !exists {
+			accessCapabilitySet[capability] = struct{}{}
+			accessCapabilities = append(accessCapabilities, capability)
+		}
+	}
+	artifacts := make([]applyArtifactCapability, 0, len(requirements.Artifacts))
+	artifactSet := make(map[applyArtifactCapability]struct{}, len(requirements.Artifacts))
+	for _, artifact := range requirements.Artifacts {
+		contract := applyArtifactCapability{
+			OwnerKind: artifact.OwnerKind, OwnerContractHash: artifact.OwnerContractHash,
+			ProviderRef: artifact.ProviderRef, ProviderContractHash: artifact.ProviderContractHash,
+			ModuleRef: artifact.ModuleRef, ModuleContractHash: artifact.ModuleContractHash,
+			UnitRef: artifact.UnitRef, UnitContractHash: artifact.UnitContractHash,
+			Kind: artifact.Kind, Format: artifact.Format, Mode: artifact.Mode,
+		}
+		if artifact.OwnerKind == "plan" {
+			contract.OwnerContractHash = ""
+		}
+		if _, exists := artifactSet[contract]; !exists {
+			artifactSet[contract] = struct{}{}
+			artifacts = append(artifacts, contract)
+		}
+	}
+	trustedProducers, err := materializeProductApplyTrust(plan, anchors)
+	if err != nil {
+		return nil, err
+	}
+	return newApplyExecutorRegistry(applyExecutorRegistration{
+		Adapter: owners, Capabilities: capabilities, AccessCapabilities: accessCapabilities,
+		ArtifactContracts: artifacts, TrustedProducers: trustedProducers,
+	})
 }
 
 func newProductApplyExecutorRegistry(plan generationartifact.VerifiedPlan, runtimeVersion string, anchors []productApplyTrustAnchor) (*applyExecutorRegistry, error) {

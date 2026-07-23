@@ -3,16 +3,19 @@ package resolvedplan
 import "sort"
 
 type resolvedWorkloadSelection struct {
-	id            string
-	alternativeID string
-	providerID    string
-	moduleID      string
-	contract      map[string]any
-	alternative   map[string]any
-	settings      map[string]any
-	secretRefs    map[string]any
-	siteRefs      []string
-	nodeRefs      []string
+	id                       string
+	alternativeID            string
+	providerID               string
+	moduleID                 string
+	runtimeAdapterID         string
+	runtimeAdapterProviderID string
+	runtimeAdapterModuleID   string
+	contract                 map[string]any
+	alternative              map[string]any
+	settings                 map[string]any
+	secretRefs               map[string]any
+	siteRefs                 []string
+	nodeRefs                 []string
 }
 
 func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *indexedCatalog) (map[string]*resolvedWorkloadSelection, error) {
@@ -77,6 +80,10 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		if err := validateWorkloadImplementation(id, providerID, moduleID, catalog); err != nil {
 			return nil, err
 		}
+		adapterID, adapterProviderID, adapterModuleID, err := resolveWorkloadRuntimeAdapter(id, selection, alternative, moduleID, catalog)
+		if err != nil {
+			return nil, err
+		}
 		if owner, exists := moduleOwners[moduleID]; exists && owner != id {
 			return nil, fail(ErrContractConflict, path+".alternative", "module %q is already owned by workload %q", moduleID, owner)
 		}
@@ -91,11 +98,128 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		}
 		resolved[id] = &resolvedWorkloadSelection{
 			id: id, alternativeID: alternativeID, providerID: providerID, moduleID: moduleID,
+			runtimeAdapterID: adapterID, runtimeAdapterProviderID: adapterProviderID, runtimeAdapterModuleID: adapterModuleID,
 			contract: contract, alternative: alternative, settings: settings, secretRefs: secretRefs,
 			siteRefs: siteRefs, nodeRefs: nodeRefs,
 		}
 	}
 	return resolved, nil
+}
+
+func resolveWorkloadRuntimeAdapter(workloadID string, selection, alternative map[string]any, workloadModuleID string, catalog *indexedCatalog) (string, string, string, error) {
+	path := "spec.workloads." + workloadID + ".runtimeAdapterRef"
+	runtimeContract, err := objectField(alternative, "catalog.workloads."+workloadID+".alternative.runtime", "runtime")
+	if err != nil {
+		return "", "", "", err
+	}
+	allowed, err := stringListField(runtimeContract, "catalog.workloads."+workloadID+".alternative.runtime", "allowedAdapterRefs", false)
+	if err != nil {
+		return "", "", "", err
+	}
+	selected, explicitlySelected, err := optionalStringField(selection, "spec.workloads."+workloadID, "runtimeAdapterRef")
+	if err != nil {
+		return "", "", "", err
+	}
+	if len(allowed) == 0 {
+		if explicitlySelected {
+			return "", "", "", fail(ErrContractConflict, path, "workload alternative does not allow a runtime adapter")
+		}
+		return "", "", "", nil
+	}
+	if !explicitlySelected {
+		selected, _, err = optionalStringField(runtimeContract, "catalog.workloads."+workloadID+".alternative.runtime", "defaultAdapterRef")
+		if err != nil {
+			return "", "", "", err
+		}
+		if selected == "" {
+			return "", "", "", fail(ErrContractConflict, path, "workload alternative requires one exact default runtime adapter")
+		}
+	}
+	if !contains(allowed, selected) {
+		return "", "", "", fail(ErrContractConflict, path, "runtime adapter %q is not allowed by the selected workload alternative", selected)
+	}
+
+	providerID := ""
+	for _, candidateID := range sortedStringMapKeys(catalog.providers) {
+		candidate := catalog.providers[candidateID]
+		refs, fieldErr := stringListField(candidate, "catalog.providers."+candidateID, "runtimeAdapterRefs", false)
+		if fieldErr != nil {
+			return "", "", "", fieldErr
+		}
+		if contains(refs, selected) {
+			if providerID != "" {
+				return "", "", "", fail(ErrContractConflict, path, "runtime adapter %q has multiple catalog owners", selected)
+			}
+			providerID = candidateID
+		}
+	}
+	if providerID == "" {
+		return "", "", "", fail(ErrUnknownProvider, path, "runtime adapter %q has no catalog owner", selected)
+	}
+
+	moduleID := ""
+	for _, candidateID := range sortedStringMapKeys(catalog.modules) {
+		candidate := catalog.modules[candidateID]
+		declaredProvider, fieldErr := stringField(candidate, "catalog.modules."+candidateID, "providerRef")
+		if fieldErr != nil || declaredProvider != providerID {
+			continue
+		}
+		adapter, exists, fieldErr := optionalObjectField(candidate, "catalog.modules."+candidateID, "runtimeAdapter")
+		if fieldErr != nil {
+			return "", "", "", fieldErr
+		}
+		if !exists {
+			continue
+		}
+		adapterID, fieldErr := stringField(adapter, "catalog.modules."+candidateID+".runtimeAdapter", "id")
+		if fieldErr != nil {
+			return "", "", "", fieldErr
+		}
+		if adapterID == selected {
+			if moduleID != "" {
+				return "", "", "", fail(ErrContractConflict, path, "runtime adapter %q has multiple module implementations", selected)
+			}
+			moduleID = candidateID
+		}
+	}
+	if moduleID == "" {
+		return "", "", "", fail(ErrUnknownModule, path, "runtime adapter %q has no governed module", selected)
+	}
+	if err := validateRuntimeAdapterCompatibility(workloadID, workloadModuleID, selected, moduleID, catalog); err != nil {
+		return "", "", "", err
+	}
+	return selected, providerID, moduleID, nil
+}
+
+func validateRuntimeAdapterCompatibility(workloadID, workloadModuleID, adapterID, adapterModuleID string, catalog *indexedCatalog) error {
+	workloadRuntime, err := objectField(catalog.modules[workloadModuleID], "catalog.modules."+workloadModuleID, "runtime")
+	if err != nil {
+		return err
+	}
+	kind, err := stringField(workloadRuntime, "catalog.modules."+workloadModuleID+".runtime", "kind")
+	if err != nil {
+		return err
+	}
+	delivery, err := stringField(workloadRuntime, "catalog.modules."+workloadModuleID+".runtime", "delivery")
+	if err != nil {
+		return err
+	}
+	adapter, err := objectField(catalog.modules[adapterModuleID], "catalog.modules."+adapterModuleID, "runtimeAdapter")
+	if err != nil {
+		return err
+	}
+	kinds, err := stringListField(adapter, "catalog.modules."+adapterModuleID+".runtimeAdapter", "supportedKinds", true)
+	if err != nil {
+		return err
+	}
+	deliveries, err := stringListField(adapter, "catalog.modules."+adapterModuleID+".runtimeAdapter", "supportedDeliveries", true)
+	if err != nil {
+		return err
+	}
+	if !contains(kinds, kind) || !contains(deliveries, delivery) {
+		return fail(ErrContractConflict, "spec.workloads."+workloadID+".runtimeAdapterRef", "runtime adapter %q does not support %s/%s", adapterID, kind, delivery)
+	}
+	return nil
 }
 
 func workloadAlternative(contract map[string]any, workloadID, alternativeID string) (map[string]any, error) {

@@ -136,13 +136,14 @@ import "list"
 	}
 	integrity: identityTrustRouteVerifiers: [
 		for route in plan.network.routes
+		for originSiteRef in route.originSiteRefs
 		for principal in ["human", "device", "workload"]
 		if (principal == "human" && (route.access.authentication == "human" || route.access.authentication == "human+device")) ||
 			(principal == "device" && (route.access.authentication == "device" || route.access.authentication == "human+device")) ||
 			(principal == "workload" && route.access.authentication == "workload") {
 			routeRef:      route.id
 			principalKind: principal
-			matches: [for verifier in plan.identityTrust.verifierPlacements if verifier.principal == principal && list.Contains(verifier.placement.siteRefs, route.originSiteRef) {verifier.id}] & list.MinItems(1)
+			matches: [for verifier in plan.identityTrust.verifierPlacements if verifier.principal == principal && list.Contains(verifier.placement.siteRefs, originSiteRef) {verifier.id}] & list.MinItems(1)
 		},
 	]
 	if plan.bridge != _|_ {
@@ -280,12 +281,12 @@ import "list"
 			allowed:   definition.reachability.accessPolicies.lanStepDownAllowed & true
 		}]
 	}
-	integrity: routeReachability: [for route in plan.network.routes {
+	integrity: routeReachability: [for route in plan.network.routes for originSiteRef in route.originSiteRefs {
 		routeRef: route.id
 		allowed:  definition.reachability.routes[route.exposure].allowed & true
 		originKind: [
 			for site in plan.sites
-			if site.id == route.originSiteRef
+			if site.id == originSiteRef
 			for allowed in definition.reachability.routes[route.exposure].allowedOriginKinds
 			if site.kind == allowed {site.kind},
 		] & list.MinItems(1) & list.MaxItems(1)
@@ -461,9 +462,10 @@ import "list"
 					if allowedProtocol == publication.protocol
 					if endpoint.upstreamProtocol == publication.upstreamProtocol && endpoint.targetPort == publication.targetPort
 					if endpoint.data.bindingRef == publication.dataBindingRef {
-						moduleRef:     publication.moduleRef & module.id
-						unitRef:       publication.unitRef & unit.id
-						healthGateRef: publication.healthGateRef & "module-\(module.id)-\(endpoint.healthRef)"
+						moduleRef:               publication.moduleRef & module.id
+						unitRef:                 publication.unitRef & unit.id
+						supportedOriginSelector: endpoint.originSelector & ("single-site" | "control-authority-site")
+						healthGateRef:           publication.healthGateRef & "module-\(module.id)-\(endpoint.healthRef)"
 						originNodes: [for originNodeRef in publication.originNodeRefs {
 							node: originNodeRef
 							matches: [
@@ -610,7 +612,8 @@ import "list"
 						for requiredClass in endpoint.data.requiredClasses
 						if flowClass == requiredClass {flowClass},
 					]) == len(flow.dataClasses) {
-						service: endpoint.serviceRef
+						service:                 endpoint.serviceRef
+						supportedOriginSelector: endpoint.originSelector & ("single-site" | "control-authority-site")
 						originNodes: [
 							for unitNodeRef in unit.nodeRefs
 							for node in plan.nodes

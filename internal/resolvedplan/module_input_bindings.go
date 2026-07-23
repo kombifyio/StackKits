@@ -2,15 +2,36 @@ package resolvedplan
 
 import (
 	"fmt"
+	"net/netip"
+	pathpkg "path"
+	"reflect"
 	"sort"
 	"strings"
 )
 
 const (
 	moduleInputSourceDeviceEnrollment = "identity.deviceEnrollment"
+	moduleInputSourceHomeAuthority    = "identityTrust.homeDeviceAuthority"
+	moduleInputSourceBasementVerify   = "identityTrust.basementVerification"
+	moduleInputSourceCloudAuthority   = "identityTrust.cloudAuthority"
+	moduleInputSourceModernHome       = "identityTrust.modernHomeAuthority"
+	moduleInputSourceModernCloud      = "identityTrust.modernCloudVerification"
 	moduleInputSourceNetworkRoutes    = "network.routes"
+	moduleInputSourceCloudHostNetwork = "network.cloudHostSecurity"
+	moduleInputSourceHostBootstrap    = "host.bootstrapRuntime"
+	moduleInputSourceStorageHostRoots = "storage.hostRoots"
+	moduleInputSourceStorageBackup    = "storage.backupRoot"
 	moduleInputTypeDeviceEnrollment   = "device-enrollment-public-v1"
+	moduleInputTypeHomeAuthority      = "home-device-authority-v1"
+	moduleInputTypeBasementVerify     = "basement-identity-verification-v1"
+	moduleInputTypeCloudAuthority     = "cloud-identity-authority-v1"
+	moduleInputTypeModernHome         = "modern-home-identity-authority-v1"
+	moduleInputTypeModernCloud        = "modern-cloud-identity-verification-v1"
 	moduleInputTypeNetworkRoutesV4    = "authority-bound-service-route-list-v4"
+	moduleInputTypeCloudHostNetwork   = "cloud-host-security-network-v1"
+	moduleInputTypeHostBootstrap      = "host-bootstrap-runtime-v1"
+	moduleInputTypeStorageHostRoots   = "host-storage-roots-v1"
+	moduleInputTypeStorageBackup      = "local-backup-root-v1"
 	moduleInputTypeNetworkRoutes      = moduleInputTypeNetworkRoutesV4
 )
 
@@ -26,9 +47,17 @@ type moduleRenderInputBinding struct {
 }
 
 type moduleRenderInputSource struct {
-	identity map[string]any
-	network  map[string]any
-	gates    map[string]any
+	stackID       string
+	kit           map[string]any
+	sites         []any
+	identity      map[string]any
+	identityTrust map[string]any
+	failurePolicy map[string]any
+	network       map[string]any
+	gates         map[string]any
+	install       map[string]any
+	system        map[string]any
+	storage       map[string]any
 }
 
 func moduleRenderInputBindings(unit map[string]any, unitPath string) ([]moduleRenderInputBinding, error) {
@@ -146,6 +175,41 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 				return fail(ErrContractConflict, path+".defaultValue", "device enrollment default is not the exact public projection")
 			}
 		}
+	case moduleInputSourceHomeAuthority:
+		if valueType != moduleInputTypeHomeAuthority || cardinality != "single" {
+			return fail(ErrContractConflict, path, "identityTrust.homeDeviceAuthority requires type %q and single cardinality", moduleInputTypeHomeAuthority)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "Home device authority is compiler-owned and cannot declare a default")
+		}
+	case moduleInputSourceBasementVerify:
+		if valueType != moduleInputTypeBasementVerify || cardinality != "single" {
+			return fail(ErrContractConflict, path, "identityTrust.basementVerification requires type %q and single cardinality", moduleInputTypeBasementVerify)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "Basement identity verification is compiler-owned and cannot declare a default")
+		}
+	case moduleInputSourceCloudAuthority:
+		if valueType != moduleInputTypeCloudAuthority || cardinality != "single" {
+			return fail(ErrContractConflict, path, "identityTrust.cloudAuthority requires type %q and single cardinality", moduleInputTypeCloudAuthority)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "Cloud identity authority is compiler-owned and cannot declare a default")
+		}
+	case moduleInputSourceModernHome:
+		if valueType != moduleInputTypeModernHome || cardinality != "single" {
+			return fail(ErrContractConflict, path, "identityTrust.modernHomeAuthority requires type %q and single cardinality", moduleInputTypeModernHome)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "Modern Home identity authority is compiler-owned and cannot declare a default")
+		}
+	case moduleInputSourceModernCloud:
+		if valueType != moduleInputTypeModernCloud || cardinality != "single" {
+			return fail(ErrContractConflict, path, "identityTrust.modernCloudVerification requires type %q and single cardinality", moduleInputTypeModernCloud)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "Modern Cloud identity verification is compiler-owned and cannot declare a default")
+		}
 	case moduleInputSourceNetworkRoutes:
 		if valueType != moduleInputTypeNetworkRoutesV4 || cardinality != "list" {
 			return fail(ErrContractConflict, path, "network.routes requires current type %q and list cardinality", moduleInputTypeNetworkRoutesV4)
@@ -159,6 +223,66 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 				return err
 			} else if !equal {
 				return fail(ErrContractConflict, path+".defaultValue", "route default is not the exact secret-safe public projection")
+			}
+		}
+	case moduleInputSourceCloudHostNetwork:
+		if valueType != moduleInputTypeCloudHostNetwork || cardinality != "single" {
+			return fail(ErrContractConflict, path, "network.cloudHostSecurity requires type %q and single cardinality", moduleInputTypeCloudHostNetwork)
+		}
+		if hasDefault {
+			projected, err := projectPublicCloudHostSecurityNetwork(defaultValue, nil, path+".defaultValue", true)
+			if err != nil {
+				return err
+			}
+			if equal, err := canonicalEqual(defaultValue, projected); err != nil {
+				return err
+			} else if !equal {
+				return fail(ErrContractConflict, path+".defaultValue", "Cloud host-security default is not the exact public projection")
+			}
+		}
+	case moduleInputSourceHostBootstrap:
+		if valueType != moduleInputTypeHostBootstrap || cardinality != "single" {
+			return fail(ErrContractConflict, path, "host.bootstrapRuntime requires type %q and single cardinality", moduleInputTypeHostBootstrap)
+		}
+		if hasDefault {
+			projected, err := projectPublicHostBootstrapRuntime(defaultValue, path+".defaultValue", true)
+			if err != nil {
+				return err
+			}
+			if equal, err := canonicalEqual(defaultValue, projected); err != nil {
+				return err
+			} else if !equal {
+				return fail(ErrContractConflict, path+".defaultValue", "host bootstrap default is not the exact public projection")
+			}
+		}
+	case moduleInputSourceStorageHostRoots:
+		if valueType != moduleInputTypeStorageHostRoots || cardinality != "single" {
+			return fail(ErrContractConflict, path, "storage.hostRoots requires type %q and single cardinality", moduleInputTypeStorageHostRoots)
+		}
+		if hasDefault {
+			projected, err := projectPublicHostStorageRoots(defaultValue, path+".defaultValue", true)
+			if err != nil {
+				return err
+			}
+			if equal, err := canonicalEqual(defaultValue, projected); err != nil {
+				return err
+			} else if !equal {
+				return fail(ErrContractConflict, path+".defaultValue", "host storage default is not the exact public projection")
+			}
+		}
+	case moduleInputSourceStorageBackup:
+		if valueType != moduleInputTypeStorageBackup || cardinality != "single" {
+			return fail(ErrContractConflict, path, "storage.backupRoot requires type %q and single cardinality", moduleInputTypeStorageBackup)
+		}
+		if hasDefault {
+			projected, err := projectPublicLocalBackupRoot(defaultValue, path+".defaultValue", true)
+			if err != nil {
+				return err
+			}
+			if equal, err := canonicalEqual(defaultValue, projected); err != nil {
+				return err
+			} else if !equal {
+				return fail(ErrContractConflict, path+".defaultValue", "backup-root default is not the exact public projection")
 			}
 		}
 	default:
@@ -238,6 +362,51 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding) 
 		}
 		projected, err := projectPublicDeviceEnrollment(value, "resolvedPlan.identity.deviceEnrollment", false)
 		return projected, err == nil, err
+	case moduleInputSourceHomeAuthority:
+		if source.identityTrust == nil || source.kit == nil || source.sites == nil || source.stackID == "" {
+			return nil, false, nil
+		}
+		projected, err := projectPublicHomeDeviceAuthority(
+			source.identityTrust, source.kit, source.sites, source.stackID,
+			"resolvedPlan.identityTrust.homeDeviceAuthority", false,
+		)
+		return projected, err == nil, err
+	case moduleInputSourceBasementVerify:
+		if source.identityTrust == nil || source.kit == nil || source.sites == nil || source.stackID == "" {
+			return nil, false, nil
+		}
+		projected, err := projectPublicBasementIdentityVerification(
+			source.identityTrust, source.kit, source.sites, source.stackID,
+			"resolvedPlan.identityTrust.basementVerification", false,
+		)
+		return projected, err == nil, err
+	case moduleInputSourceCloudAuthority:
+		if source.identityTrust == nil || source.kit == nil || source.sites == nil || source.stackID == "" {
+			return nil, false, nil
+		}
+		projected, err := projectPublicCloudIdentityAuthority(
+			source.identityTrust, source.kit, source.sites, source.stackID,
+			"resolvedPlan.identityTrust.cloudAuthority", false,
+		)
+		return projected, err == nil, err
+	case moduleInputSourceModernHome:
+		if source.identityTrust == nil || source.failurePolicy == nil || source.kit == nil || source.sites == nil || source.stackID == "" {
+			return nil, false, nil
+		}
+		projected, err := projectPublicModernHomeIdentityAuthority(
+			source.identityTrust, source.failurePolicy, source.kit, source.sites, source.stackID,
+			"resolvedPlan.identityTrust.modernHomeAuthority", false,
+		)
+		return projected, err == nil, err
+	case moduleInputSourceModernCloud:
+		if source.identityTrust == nil || source.failurePolicy == nil || source.kit == nil || source.sites == nil || source.stackID == "" {
+			return nil, false, nil
+		}
+		projected, err := projectPublicModernCloudIdentityVerification(
+			source.identityTrust, source.failurePolicy, source.kit, source.sites, source.stackID,
+			"resolvedPlan.identityTrust.modernCloudVerification", false,
+		)
+		return projected, err == nil, err
 	case moduleInputSourceNetworkRoutes:
 		if source.network == nil {
 			return nil, false, nil
@@ -247,9 +416,562 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding) 
 		}
 		projected, err := projectPublicRouteListFromNetwork(source.network, source.gates, "resolvedPlan.network", true, true)
 		return projected, err == nil, err
+	case moduleInputSourceCloudHostNetwork:
+		if source.network == nil || source.kit == nil {
+			return nil, false, nil
+		}
+		projected, err := projectPublicCloudHostSecurityNetwork(source.network, source.kit, "resolvedPlan.network.cloudHostSecurity", false)
+		return projected, err == nil, err
+	case moduleInputSourceHostBootstrap:
+		if source.install == nil || source.system == nil {
+			return nil, false, nil
+		}
+		projected, err := projectPublicHostBootstrapRuntime(
+			map[string]any{"install": source.install, "system": source.system},
+			"resolvedPlan.host.bootstrapRuntime", false,
+		)
+		return projected, err == nil, err
+	case moduleInputSourceStorageHostRoots:
+		if source.storage == nil {
+			return nil, false, nil
+		}
+		projected, err := projectPublicHostStorageRoots(source.storage, "resolvedPlan.storage.hostRoots", false)
+		return projected, err == nil, err
+	case moduleInputSourceStorageBackup:
+		if source.storage == nil {
+			return nil, false, nil
+		}
+		projected, err := projectPublicLocalBackupRoot(source.storage, "resolvedPlan.storage.backupRoot", false)
+		return projected, err == nil, err
 	default:
 		return nil, false, fmt.Errorf("unsupported resolved-plan input source %q", binding.sourceRef)
 	}
+}
+
+func projectPublicHomeDeviceAuthority(value any, kit map[string]any, sites []any, stackID, path string, alreadyPublic bool) (map[string]any, error) {
+	input, err := asObject(value, path)
+	if err != nil {
+		return nil, err
+	}
+	if alreadyPublic {
+		return exactPublicHomeDeviceAuthority(input, kit, sites, stackID, path)
+	}
+	slug, err := stringField(kit, "resolvedPlan.kit", "slug")
+	if err != nil {
+		return nil, err
+	}
+	if slug != "basement-kit" && slug != "modern-homelab" {
+		return nil, fail(ErrContractConflict, "resolvedPlan.kit.slug", "Home device authority is unavailable to kit %q", slug)
+	}
+	authorities, err := objectListField(input, path, "authorities")
+	if err != nil {
+		return nil, err
+	}
+	var authority map[string]any
+	for index, candidate := range authorities {
+		principal, err := stringField(candidate, fmt.Sprintf("%s.authorities[%d]", path, index), "principal")
+		if err != nil {
+			return nil, err
+		}
+		if principal == "device" {
+			if authority != nil {
+				return nil, fail(ErrContractConflict, path+".authorities", "Home authority projection requires exactly one device authority")
+			}
+			authority = candidate
+		}
+	}
+	if authority == nil {
+		return nil, fail(ErrContractConflict, path+".authorities", "Home authority projection requires exactly one device authority")
+	}
+	authorityID, err := stringField(authority, path+".authorities.device", "id")
+	if err != nil || !identityTrustIDPattern.MatchString(authorityID) {
+		return nil, fail(ErrContractConflict, path+".authorities.device.id", "requires a canonical device authority ID")
+	}
+	trustDomainRef, err := stringField(authority, path+".authorities.device", "trustDomainRef")
+	if err != nil || !identityTrustIDPattern.MatchString(trustDomainRef) {
+		return nil, fail(ErrContractConflict, path+".authorities.device.trustDomainRef", "requires a canonical trust-domain reference")
+	}
+	siteRef, err := requireHomeAuthorityPlacement(authority, sites, path+".authorities.device")
+	if err != nil {
+		return nil, err
+	}
+	if err := requireHomeAuthorityOwner(authority, path+".authorities.device"); err != nil {
+		return nil, err
+	}
+
+	issuers, err := objectListField(input, path, "credentialIssuers")
+	if err != nil {
+		return nil, err
+	}
+	var issuer map[string]any
+	for index, candidate := range issuers {
+		principal, err := stringField(candidate, fmt.Sprintf("%s.credentialIssuers[%d]", path, index), "principal")
+		if err != nil {
+			return nil, err
+		}
+		if principal == "device" {
+			if issuer != nil {
+				return nil, fail(ErrContractConflict, path+".credentialIssuers", "Home authority projection requires exactly one device credential issuer")
+			}
+			issuer = candidate
+		}
+	}
+	if issuer == nil {
+		return nil, fail(ErrContractConflict, path+".credentialIssuers", "Home authority projection requires exactly one device credential issuer")
+	}
+	issuerSiteRef, err := requireHomeAuthorityPlacement(issuer, sites, path+".credentialIssuers.device")
+	if err != nil {
+		return nil, err
+	}
+	if issuerSiteRef != siteRef {
+		return nil, fail(ErrContractConflict, path+".credentialIssuers.device.placement", "device authority and issuer must bind the same Home Site")
+	}
+	if err := requireHomeAuthorityOwner(issuer, path+".credentialIssuers.device"); err != nil {
+		return nil, err
+	}
+
+	projected := map[string]any{
+		"authority": map[string]any{"id": authorityID, "trustDomainRef": trustDomainRef, "siteRef": siteRef},
+	}
+	projectedIssuer, err := projectHomeDeviceIssuer(issuer, authorityID, stackID, path+".credentialIssuers.device")
+	if err != nil {
+		return nil, err
+	}
+	projected["issuer"] = projectedIssuer
+	return exactPublicHomeDeviceAuthority(projected, kit, sites, stackID, path+".public")
+}
+
+func requireHomeAuthorityPlacement(value map[string]any, sites []any, path string) (string, error) {
+	placement, err := objectField(value, path, "placement")
+	if err != nil {
+		return "", err
+	}
+	if len(placement) != 2 {
+		return "", fail(ErrContractConflict, path+".placement", "Home authority placement must contain exactly kind and siteRefs")
+	}
+	kind, err := stringField(placement, path+".placement", "kind")
+	if err != nil || kind != "sites" {
+		return "", fail(ErrContractConflict, path+".placement.kind", "Home authority placement must be Site-owned")
+	}
+	refs, err := stringListField(placement, path+".placement", "siteRefs", true)
+	if err != nil || len(refs) != 1 {
+		return "", fail(ErrContractConflict, path+".placement.siteRefs", "Home authority placement requires exactly one Site")
+	}
+	matches := 0
+	for index, rawSite := range sites {
+		site, err := asObject(rawSite, fmt.Sprintf("resolvedPlan.sites[%d]", index))
+		if err != nil {
+			return "", err
+		}
+		id, err := stringField(site, fmt.Sprintf("resolvedPlan.sites[%d]", index), "id")
+		if err != nil {
+			return "", err
+		}
+		if id != refs[0] {
+			continue
+		}
+		siteKind, err := stringField(site, fmt.Sprintf("resolvedPlan.sites[%d]", index), "kind")
+		if err != nil {
+			return "", err
+		}
+		if siteKind != "home" {
+			return "", fail(ErrContractConflict, path+".placement.siteRefs", "Home authority Site %q has kind %q", id, siteKind)
+		}
+		matches++
+	}
+	if matches != 1 {
+		return "", fail(ErrContractConflict, path+".placement.siteRefs", "Home authority Site %q must exist exactly once", refs[0])
+	}
+	return refs[0], nil
+}
+
+func requireHomeAuthorityOwner(value map[string]any, path string) error {
+	owner, err := objectField(value, path, "owner")
+	if err != nil {
+		return err
+	}
+	if len(owner) != 3 {
+		return fail(ErrContractConflict, path+".owner", "Home authority owner must contain exactly kind, providerRef, and moduleRef")
+	}
+	for field, expected := range map[string]string{
+		"kind": "catalog", "providerRef": "stackkits-home-device-authority", "moduleRef": "stackkits-home-device-authority-policy-manifest",
+	} {
+		actual, err := stringField(owner, path+".owner", field)
+		if err != nil || actual != expected {
+			return fail(ErrContractConflict, path+".owner."+field, "Home authority owner requires %q", expected)
+		}
+	}
+	return nil
+}
+
+func projectHomeDeviceIssuer(issuer map[string]any, authorityID, stackID, path string) (map[string]any, error) {
+	result := map[string]any{}
+	for _, field := range []string{"id", "authorityRef", "issuer", "verificationKeySetRef"} {
+		value, err := stringField(issuer, path, field)
+		if err != nil {
+			return nil, err
+		}
+		result[field] = value
+	}
+	if result["authorityRef"] != authorityID {
+		return nil, fail(ErrContractConflict, path+".authorityRef", "device issuer must bind the projected authority")
+	}
+	if !identityTrustIDPattern.MatchString(result["id"].(string)) {
+		return nil, fail(ErrContractConflict, path+".id", "requires a canonical issuer ID")
+	}
+	if err := requireResolvedIdentityURN(result["issuer"].(string), stackID, "issuer", path+".issuer"); err != nil {
+		return nil, err
+	}
+	if err := requireResolvedIdentityURN(result["verificationKeySetRef"].(string), stackID, "keyset", path+".verificationKeySetRef"); err != nil {
+		return nil, err
+	}
+	audiences, err := stringListField(issuer, path, "audiences", true)
+	if err != nil || len(audiences) == 0 || !reflect.DeepEqual(audiences, sortStringsUnique(audiences)) {
+		return nil, fail(ErrContractConflict, path+".audiences", "device issuer audiences must be non-empty, sorted, and unique")
+	}
+	for index, audience := range audiences {
+		if err := requireResolvedIdentityURN(audience, stackID, "audience", fmt.Sprintf("%s.audiences[%d]", path, index)); err != nil {
+			return nil, err
+		}
+	}
+	result["audiences"] = stringSliceAny(audiences)
+	for _, field := range []string{"credentialTTLSeconds", "sessionTTLSeconds", "revocationMaxStalenessSeconds"} {
+		value, err := intField(issuer, path, field)
+		if err != nil {
+			return nil, err
+		}
+		targetField := field
+		if field == "credentialTTLSeconds" {
+			targetField = "lifetimeSeconds"
+		}
+		result[targetField] = value
+	}
+	credentialTTL := result["lifetimeSeconds"].(int)
+	sessionTTL := result["sessionTTLSeconds"].(int)
+	staleness := result["revocationMaxStalenessSeconds"].(int)
+	if credentialTTL < 300 || credentialTTL > 86400 || sessionTTL < 60 || sessionTTL > 86400 || staleness < 0 || staleness > credentialTTL {
+		return nil, fail(ErrContractConflict, path, "device issuer TTL and revocation policy are outside the closed bounds")
+	}
+	for _, field := range []string{"proofOfPossessionRequired", "revocationSupported", "issuanceWithinStackKit"} {
+		value, exists := issuer[field]
+		boolean, ok := value.(bool)
+		if !exists || !ok || !boolean {
+			return nil, fail(ErrContractConflict, path+"."+field, "Home device issuer requires true")
+		}
+		if field != "issuanceWithinStackKit" {
+			result[field] = boolean
+		}
+	}
+	enrollment, err := objectField(issuer, path, "enrollment")
+	if err != nil || len(enrollment) != 2 {
+		return nil, fail(ErrContractConflict, path+".enrollment", "Home device enrollment must contain exactly mode and exposure")
+	}
+	mode, err := stringField(enrollment, path+".enrollment", "mode")
+	if err != nil || mode != "local-only" {
+		return nil, fail(ErrContractConflict, path+".enrollment.mode", "Home device enrollment must be local-only")
+	}
+	exposure, err := stringField(enrollment, path+".enrollment", "exposure")
+	if err != nil || exposure != "lan" {
+		return nil, fail(ErrContractConflict, path+".enrollment.exposure", "Home device enrollment must remain LAN-only")
+	}
+	result["enrollment"] = map[string]any{"mode": mode, "exposure": exposure}
+	return result, nil
+}
+
+func exactPublicHomeDeviceAuthority(input map[string]any, kit map[string]any, sites []any, stackID, path string) (map[string]any, error) {
+	if len(input) != 2 {
+		return nil, fail(ErrContractConflict, path, "Home device authority projection must contain exactly authority and issuer")
+	}
+	authority, err := objectField(input, path, "authority")
+	if err != nil || len(authority) != 3 {
+		return nil, fail(ErrContractConflict, path+".authority", "Home device authority must contain exactly id, trustDomainRef, and siteRef")
+	}
+	issuer, err := objectField(input, path, "issuer")
+	if err != nil || len(issuer) != 11 {
+		return nil, fail(ErrContractConflict, path+".issuer", "Home device issuer contains authority outside the closed projection")
+	}
+	authorityID, err := stringField(authority, path+".authority", "id")
+	if err != nil || !identityTrustIDPattern.MatchString(authorityID) {
+		return nil, fail(ErrContractConflict, path+".authority.id", "requires a canonical authority ID")
+	}
+	trustDomainRef, err := stringField(authority, path+".authority", "trustDomainRef")
+	if err != nil || !identityTrustIDPattern.MatchString(trustDomainRef) {
+		return nil, fail(ErrContractConflict, path+".authority.trustDomainRef", "requires a canonical trust-domain reference")
+	}
+	siteRef, err := stringField(authority, path+".authority", "siteRef")
+	if err != nil || !identityTrustIDPattern.MatchString(siteRef) {
+		return nil, fail(ErrContractConflict, path+".authority.siteRef", "requires a canonical Site reference")
+	}
+	if kit != nil && sites != nil {
+		synthetic := map[string]any{"placement": map[string]any{"kind": "sites", "siteRefs": []any{siteRef}}}
+		if _, err := requireHomeAuthorityPlacement(synthetic, sites, path+".authority"); err != nil {
+			return nil, err
+		}
+		slug, err := stringField(kit, "resolvedPlan.kit", "slug")
+		if err != nil || slug != "basement-kit" && slug != "modern-homelab" {
+			return nil, fail(ErrContractConflict, "resolvedPlan.kit.slug", "Home device authority is unavailable to this kit")
+		}
+	}
+	projectedIssuer, err := projectHomeDeviceIssuerPublic(issuer, authorityID, stackID, path+".issuer")
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"authority": map[string]any{"id": authorityID, "trustDomainRef": trustDomainRef, "siteRef": siteRef},
+		"issuer":    projectedIssuer,
+	}, nil
+}
+
+func projectHomeDeviceIssuerPublic(issuer map[string]any, authorityID, stackID, path string) (map[string]any, error) {
+	source := make(map[string]any, len(issuer)+1)
+	for key, value := range issuer {
+		source[key] = value
+	}
+	lifetime, exists := source["lifetimeSeconds"]
+	if !exists {
+		return nil, fail(ErrInvalidInput, path+".lifetimeSeconds", "required integer is missing")
+	}
+	source["credentialTTLSeconds"] = lifetime
+	delete(source, "lifetimeSeconds")
+	source["issuanceWithinStackKit"] = true
+	return projectHomeDeviceIssuer(source, authorityID, stackID, path)
+}
+
+func requireResolvedIdentityURN(value, stackID, kind, path string) error {
+	prefix := "urn:stackkit:"
+	if stackID != "" {
+		prefix += stackID + ":" + kind + ":"
+	} else {
+		parts := strings.Split(value, ":")
+		if len(parts) != 5 || parts[0] != "urn" || parts[1] != "stackkit" || parts[3] != kind || !identityTrustIDPattern.MatchString(parts[2]) {
+			return fail(ErrContractConflict, path, "requires a canonical StackInstance %s URN", kind)
+		}
+		prefix = strings.Join(parts[:4], ":") + ":"
+	}
+	if !strings.HasPrefix(value, prefix) || !identityTrustIDPattern.MatchString(strings.TrimPrefix(value, prefix)) {
+		return fail(ErrContractConflict, path, "requires a canonical StackInstance %s URN", kind)
+	}
+	return nil
+}
+
+func projectPublicCloudHostSecurityNetwork(value any, kit map[string]any, path string, alreadyPublic bool) (map[string]any, error) {
+	input, err := asObject(value, path)
+	if err != nil {
+		return nil, err
+	}
+	if !alreadyPublic {
+		input, err = objectField(input, path, "configuration")
+		if err != nil {
+			return nil, err
+		}
+	}
+	if alreadyPublic && len(input) != 4 {
+		return nil, fail(ErrContractConflict, path, "Cloud host-security network must contain exactly four public fields")
+	}
+	modeField, subnetField, tlsField := "mode", "transport", "tls"
+	if alreadyPublic {
+		modeField, subnetField, tlsField = "networkMode", "transportSubnet", "tlsMinVersion"
+	}
+	mode, err := stringField(input, path, modeField)
+	if err != nil {
+		return nil, err
+	}
+	if mode != "public-capable" && mode != "hybrid" {
+		return nil, fail(ErrContractConflict, path+"."+modeField, "Cloud host security permits only public-capable or hybrid network mode")
+	}
+	if kit != nil {
+		slug, err := stringField(kit, "resolvedPlan.kit", "slug")
+		if err != nil {
+			return nil, err
+		}
+		expected := "public-capable"
+		if slug == "modern-homelab" {
+			expected = "hybrid"
+		} else if slug != "cloud-kit" {
+			return nil, fail(ErrContractConflict, "resolvedPlan.kit.slug", "Cloud host-security input is unavailable to kit %q", slug)
+		}
+		if mode != expected {
+			return nil, fail(ErrContractConflict, path+"."+modeField, "kit %s requires network mode %s", slug, expected)
+		}
+	}
+	var subnet, minVersion string
+	var ipv6 bool
+	if alreadyPublic {
+		subnet, err = stringField(input, path, subnetField)
+		if err != nil {
+			return nil, err
+		}
+		ipv6Value, exists := input["ipv6"]
+		if !exists {
+			return nil, fail(ErrContractConflict, path+".ipv6", "expected boolean")
+		}
+		ipv6, exists = ipv6Value.(bool)
+		if !exists {
+			return nil, fail(ErrContractConflict, path+".ipv6", "expected boolean")
+		}
+		minVersion, err = stringField(input, path, tlsField)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		transport, err := objectField(input, path, subnetField)
+		if err != nil {
+			return nil, err
+		}
+		subnet, err = stringField(transport, path+".transport", "subnet")
+		if err != nil {
+			return nil, err
+		}
+		ipv6Value, exists := transport["ipv6"]
+		if !exists {
+			return nil, fail(ErrContractConflict, path+".transport.ipv6", "expected boolean")
+		}
+		ipv6, exists = ipv6Value.(bool)
+		if !exists {
+			return nil, fail(ErrContractConflict, path+".transport.ipv6", "expected boolean")
+		}
+		tls, err := objectField(input, path, tlsField)
+		if err != nil {
+			return nil, err
+		}
+		minVersion, err = stringField(tls, path+".tls", "minVersion")
+		if err != nil {
+			return nil, err
+		}
+	}
+	prefix, err := netip.ParsePrefix(subnet)
+	if err != nil || prefix.String() != subnet {
+		return nil, fail(ErrContractConflict, path+"."+subnetField, "requires a canonical transport CIDR")
+	}
+	if minVersion != "TLS1.2" && minVersion != "TLS1.3" {
+		return nil, fail(ErrContractConflict, path+"."+tlsField, "requires TLS1.2 or TLS1.3")
+	}
+	return map[string]any{
+		"networkMode": mode, "transportSubnet": subnet, "ipv6": ipv6, "tlsMinVersion": minVersion,
+	}, nil
+}
+
+func projectPublicLocalBackupRoot(value any, path string, alreadyPublic bool) (map[string]any, error) {
+	input, err := asObject(value, path)
+	if err != nil {
+		return nil, err
+	}
+	if alreadyPublic && len(input) != 2 {
+		return nil, fail(ErrContractConflict, path, "local backup root must contain exactly path and volumeDriver")
+	}
+	pathField := "backupRoot"
+	if alreadyPublic {
+		pathField = "path"
+	}
+	backupRoot, err := stringField(input, path, pathField)
+	if err != nil || !pathpkg.IsAbs(backupRoot) || pathpkg.Clean(backupRoot) != backupRoot {
+		return nil, fail(ErrContractConflict, path+"."+pathField, "requires a clean absolute backup root")
+	}
+	driver, err := stringField(input, path, "volumeDriver")
+	if err != nil || driver != "local" {
+		return nil, fail(ErrContractConflict, path+".volumeDriver", "Home backup target requires local storage")
+	}
+	return map[string]any{"path": backupRoot, "volumeDriver": driver}, nil
+}
+
+func projectPublicHostBootstrapRuntime(value any, path string, alreadyPublic bool) (map[string]any, error) {
+	input, err := asObject(value, path)
+	if err != nil {
+		return nil, err
+	}
+	if alreadyPublic {
+		return exactHostBootstrapRuntime(input, path)
+	}
+	install, err := objectField(input, path, "install")
+	if err != nil {
+		return nil, err
+	}
+	system, err := objectField(input, path, "system")
+	if err != nil {
+		return nil, err
+	}
+	container, err := objectField(system, path+".system", "container")
+	if err != nil {
+		return nil, err
+	}
+	mode, err := stringField(install, path+".install", "mode")
+	if err != nil {
+		return nil, err
+	}
+	runtime, err := stringField(install, path+".install", "runtime")
+	if err != nil {
+		return nil, err
+	}
+	engine, err := stringField(container, path+".system.container", "engine")
+	if err != nil {
+		return nil, err
+	}
+	dataRoot, err := stringField(container, path+".system.container", "dataRoot")
+	if err != nil {
+		return nil, err
+	}
+	return exactHostBootstrapRuntime(map[string]any{
+		"installMode": mode, "runtime": runtime, "engine": engine, "dataRoot": dataRoot,
+	}, path)
+}
+
+func exactHostBootstrapRuntime(input map[string]any, path string) (map[string]any, error) {
+	if len(input) != 4 {
+		return nil, fail(ErrContractConflict, path, "host bootstrap runtime must contain exactly four public fields")
+	}
+	result := map[string]any{}
+	for field, expected := range map[string]string{"installMode": "bootstrapped", "runtime": "docker", "engine": "docker"} {
+		value, err := stringField(input, path, field)
+		if err != nil {
+			return nil, err
+		}
+		if value != expected {
+			return nil, fail(ErrContractConflict, path+"."+field, "Core host bootstrap requires %q", expected)
+		}
+		result[field] = value
+	}
+	dataRoot, err := stringField(input, path, "dataRoot")
+	if err != nil || !pathpkg.IsAbs(dataRoot) || pathpkg.Clean(dataRoot) != dataRoot {
+		return nil, fail(ErrContractConflict, path+".dataRoot", "requires an absolute container data root")
+	}
+	result["dataRoot"] = dataRoot
+	return result, nil
+}
+
+func projectPublicHostStorageRoots(value any, path string, alreadyPublic bool) (map[string]any, error) {
+	input, err := asObject(value, path)
+	if err != nil {
+		return nil, err
+	}
+	allowed := map[string]struct{}{"dataRoot": {}, "backupRoot": {}, "stacksRoot": {}, "mediaRoot": {}, "volumeDriver": {}}
+	if alreadyPublic {
+		for field := range input {
+			if _, ok := allowed[field]; !ok {
+				return nil, fail(ErrContractConflict, path+"."+field, "field is outside the public host storage projection")
+			}
+		}
+	}
+	result := map[string]any{}
+	for _, field := range []string{"dataRoot", "backupRoot", "stacksRoot"} {
+		item, err := stringField(input, path, field)
+		if err != nil || !pathpkg.IsAbs(item) || pathpkg.Clean(item) != item {
+			return nil, fail(ErrContractConflict, path+"."+field, "requires an absolute host storage root")
+		}
+		result[field] = item
+	}
+	if item, exists := input["mediaRoot"]; exists {
+		mediaRoot, ok := item.(string)
+		if !ok || !pathpkg.IsAbs(mediaRoot) || pathpkg.Clean(mediaRoot) != mediaRoot {
+			return nil, fail(ErrContractConflict, path+".mediaRoot", "requires an absolute host storage root")
+		}
+		result["mediaRoot"] = mediaRoot
+	}
+	driver, err := stringField(input, path, "volumeDriver")
+	if err != nil || driver != "local" {
+		return nil, fail(ErrContractConflict, path+".volumeDriver", "Core host bootstrap requires local storage")
+	}
+	result["volumeDriver"] = driver
+	return result, nil
 }
 
 func projectPublicDeviceEnrollment(value any, path string, alreadyPublic bool) (map[string]any, error) {
@@ -403,12 +1125,62 @@ func projectPublicRouteListFromNetwork(network, gates map[string]any, path strin
 
 func projectPublicRoute(route, pool, probe map[string]any, path string, withAuthority bool) (map[string]any, error) {
 	result := map[string]any{}
-	for _, field := range []string{"id", "serviceRef", "moduleRef", "originSiteRef", "exposure", "protocol", "upstreamProtocol", "healthGateRef", "backendPoolRef"} {
+	for _, field := range []string{"id", "serviceRef", "moduleRef", "exposure", "protocol", "upstreamProtocol", "healthGateRef", "backendPoolRef"} {
 		value, err := stringField(route, path, field)
 		if err != nil {
 			return nil, err
 		}
 		result[field] = value
+	}
+	selector, hasSelector, err := optionalStringField(route, path, "originSelector")
+	if err != nil {
+		return nil, err
+	}
+	if !hasSelector {
+		return nil, fail(ErrInvalidInput, path+".originSelector", "current route selector is missing")
+	}
+	if !contains([]string{"single-site", "control-authority-site", "multi-zone", "edge-pool"}, selector) {
+		return nil, fail(ErrInvalidInput, path+".originSelector", "unsupported selector %q", selector)
+	}
+	result["originSelector"] = selector
+	sites, err := stringListField(route, path, "originSiteRefs", true)
+	if err != nil {
+		return nil, err
+	}
+	result["originSiteRefs"] = stringSliceAny(sortStringsUnique(sites))
+	originSiteRef, hasOriginSiteRef, err := optionalStringField(route, path, "originSiteRef")
+	if err != nil {
+		return nil, err
+	}
+	if selector == "single-site" || selector == "control-authority-site" {
+		if !hasOriginSiteRef || len(sites) != 1 || originSiteRef != sites[0] {
+			return nil, fail(ErrContractConflict, path+".originSiteRef", "single-Site selector requires one exact origin Site")
+		}
+		if _, exists := route["originSelection"]; exists {
+			return nil, fail(ErrContractConflict, path+".originSelection", "single-Site selector forbids an origin selection policy")
+		}
+		result["originSiteRef"] = originSiteRef
+	} else {
+		if hasOriginSiteRef {
+			return nil, fail(ErrContractConflict, path+".originSiteRef", "multi-Site selector forbids an invented primary Site")
+		}
+		selection, err := objectField(route, path, "originSelection")
+		if err != nil {
+			return nil, err
+		}
+		projectedSelection, err := projectPublicOriginSelection(selection, selector, sites, path+".originSelection")
+		if err != nil {
+			return nil, err
+		}
+		result["originSelection"] = projectedSelection
+		if poolSelection, exists, err := optionalObjectField(pool, path+".backendPool", "originSelection"); err != nil {
+			return nil, err
+		} else if exists {
+			equal, err := canonicalEqual(selection, poolSelection)
+			if err != nil || !equal {
+				return nil, fail(ErrContractConflict, path+".originSelection", "route and backend pool selection contracts differ")
+			}
+		}
 	}
 	for _, field := range []string{"port", "targetPort"} {
 		value, err := intField(route, path, field)
@@ -434,6 +1206,9 @@ func projectPublicRoute(route, pool, probe map[string]any, path string, withAuth
 		return nil, err
 	}
 	result["backendPool"] = publicPool
+	if err := validatePublicRouteOriginSets(route, pool, path); err != nil {
+		return nil, err
+	}
 	if probe != nil {
 		result["healthProbe"] = probe
 	}
@@ -507,6 +1282,123 @@ func projectPublicRouteCapabilityAuthorities(route map[string]any, path string) 
 		return result[i].(map[string]any)["capabilityRef"].(string) < result[j].(map[string]any)["capabilityRef"].(string)
 	})
 	return result, nil
+}
+
+func projectPublicOriginSelection(selection map[string]any, selector string, originSiteRefs []string, path string) (map[string]any, error) {
+	result := map[string]any{}
+	thresholds := map[string]int{}
+	for _, field := range []string{"minSites", "siteFailureDomainSpread", "nodeFailureDomainSpread"} {
+		value, err := intField(selection, path, field)
+		if err != nil || value < 1 {
+			return nil, fail(ErrInvalidInput, path+"."+field, "expected positive integer")
+		}
+		result[field] = value
+		thresholds[field] = value
+	}
+	stringLists := map[string][]string{}
+	for _, field := range []string{"siteKinds", "requiredRoles", "siteFailureDomains"} {
+		values, err := stringListField(selection, path, field, field != "requiredRoles")
+		if err != nil {
+			return nil, err
+		}
+		unique := sortStringsUnique(values)
+		if len(unique) != len(values) {
+			return nil, fail(ErrContractConflict, path+"."+field, "values must be unique")
+		}
+		stringLists[field] = unique
+		result[field] = stringSliceAny(unique)
+	}
+	if len(stringLists["siteKinds"]) == 0 || len(originSiteRefs) < thresholds["minSites"] || len(stringLists["siteFailureDomains"]) < thresholds["siteFailureDomainSpread"] {
+		return nil, fail(ErrContractConflict, path, "resolved Site selection is below its declared thresholds")
+	}
+	for _, kind := range stringLists["siteKinds"] {
+		if kind != "home" && kind != "cloud" {
+			return nil, fail(ErrContractConflict, path+".siteKinds", "unsupported Site kind %q", kind)
+		}
+	}
+	if selector == "multi-zone" && (thresholds["nodeFailureDomainSpread"] < 2 || len(stringLists["requiredRoles"]) != 0) {
+		return nil, fail(ErrContractConflict, path, "multi-zone requires node failure-domain spread >= 2 and no role filter")
+	}
+	if selector == "edge-pool" && !reflect.DeepEqual(stringLists["requiredRoles"], []string{"edge"}) {
+		return nil, fail(ErrContractConflict, path+".requiredRoles", "edge-pool requires exactly the edge role")
+	}
+	nodeDomains, err := objectListField(selection, path, "nodeFailureDomains")
+	if err != nil {
+		return nil, err
+	}
+	projectedDomains := make([]any, 0, len(nodeDomains))
+	seen := map[string]struct{}{}
+	for index, domain := range nodeDomains {
+		domainPath := fmt.Sprintf("%s.nodeFailureDomains[%d]", path, index)
+		siteRef, err := stringField(domain, domainPath, "siteRef")
+		if err != nil {
+			return nil, err
+		}
+		failureDomain, err := stringField(domain, domainPath, "failureDomain")
+		if err != nil {
+			return nil, err
+		}
+		if !contains(originSiteRefs, siteRef) {
+			return nil, fail(ErrContractConflict, domainPath+".siteRef", "node failure domain is outside the origin Site set")
+		}
+		key := siteRef + "\x00" + failureDomain
+		if _, duplicate := seen[key]; duplicate {
+			return nil, fail(ErrContractConflict, domainPath, "duplicate site-scoped node failure domain")
+		}
+		seen[key] = struct{}{}
+		projectedDomains = append(projectedDomains, map[string]any{"siteRef": siteRef, "failureDomain": failureDomain})
+	}
+	if len(projectedDomains) < thresholds["nodeFailureDomainSpread"] {
+		return nil, fail(ErrContractConflict, path+".nodeFailureDomains", "resolved node failure-domain evidence is below the declared spread")
+	}
+	sort.Slice(projectedDomains, func(i, j int) bool {
+		left, right := projectedDomains[i].(map[string]any), projectedDomains[j].(map[string]any)
+		if left["siteRef"] != right["siteRef"] {
+			return left["siteRef"].(string) < right["siteRef"].(string)
+		}
+		return left["failureDomain"].(string) < right["failureDomain"].(string)
+	})
+	result["nodeFailureDomains"] = projectedDomains
+	return result, nil
+}
+
+func validatePublicRouteOriginSets(route, pool map[string]any, path string) error {
+	sites, err := stringListField(route, path, "originSiteRefs", true)
+	if err != nil {
+		return err
+	}
+	nodes, err := stringListField(route, path, "originNodeRefs", true)
+	if err != nil {
+		return err
+	}
+	members, err := objectListField(pool, path+".backendPool", "members")
+	if err != nil {
+		return err
+	}
+	memberSites, memberNodes, instances := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
+	for index, member := range members {
+		memberPath := fmt.Sprintf("%s.backendPool.members[%d]", path, index)
+		siteRef, err := stringField(member, memberPath, "siteRef")
+		if err != nil {
+			return err
+		}
+		nodeRef, err := stringField(member, memberPath, "nodeRef")
+		if err != nil {
+			return err
+		}
+		instanceRef, err := stringField(member, memberPath, "instanceRef")
+		if err != nil {
+			return err
+		}
+		if _, duplicate := instances[instanceRef]; duplicate {
+			return fail(ErrContractConflict, memberPath+".instanceRef", "backend instance is duplicated")
+		}
+		instances[instanceRef], memberSites[siteRef], memberNodes[nodeRef] = struct{}{}, struct{}{}, struct{}{}
+	}
+	if !reflect.DeepEqual(moduleInputStringSet(sites), memberSites) || !reflect.DeepEqual(moduleInputStringSet(nodes), memberNodes) {
+		return fail(ErrContractConflict, path+".backendPool.members", "backend member Site and node sets must exactly equal the route origin sets")
+	}
+	return nil
 }
 
 func projectPublicRouteHealthProbe(input, route, pool map[string]any, path string, alreadyPublic bool) (map[string]any, error) {

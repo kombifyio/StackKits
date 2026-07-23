@@ -430,8 +430,12 @@ func resolveIdentityTrustDistributions(values []map[string]any, spec *specView, 
 		if identityTrustSiteSetsOverlap(identityTrustPlacementSiteRefs(from), identityTrustPlacementSiteRefs(to)) {
 			return nil, fail(ErrContractConflict, path+".to", "reverse or same-authority verifier distribution is forbidden")
 		}
-		ownerSites := append(identityTrustPlacementSiteRefs(from), identityTrustPlacementSiteRefs(to)...)
-		owner, err := resolveIdentityTrustOwner(value, path, map[string]any{"kind": "sites", "siteRefs": stringSliceAny(sortStringsUnique(ownerSites))}, owners, ownerSites)
+		// A verifier distribution is a one-way publication owned at its source.
+		// Target Sites are independently covered by their verifier-placement
+		// owners; requiring one module to execute at both ends would collapse the
+		// Modern Home authority and Cloud verifier into a false cross-Site owner.
+		ownerSites := identityTrustPlacementSiteRefs(from)
+		owner, err := resolveIdentityTrustOwner(value, path, from, owners, ownerSites)
 		if err != nil {
 			return nil, err
 		}

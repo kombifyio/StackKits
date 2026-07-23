@@ -216,6 +216,12 @@ func validateHomeBackupTargetDocument(document homeBackupTargetDocument, binding
 
 type osHomeBackupTargetOperations struct{}
 
+// NewOSHomeBackupTargetOperations explicitly selects local filesystem
+// observation as the closed Home backup-target capability owner.
+func NewOSHomeBackupTargetOperations() HomeBackupTargetOperations {
+	return osHomeBackupTargetOperations{}
+}
+
 func (osHomeBackupTargetOperations) ObserveBackupDirectory(ctx context.Context, path string) (BackupDirectoryObservation, error) {
 	if err := ctx.Err(); err != nil {
 		return BackupDirectoryObservation{}, err

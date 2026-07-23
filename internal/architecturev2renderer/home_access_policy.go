@@ -231,6 +231,7 @@ func validateHomeAccessPolicyUnit(unit RenderUnit, contract RendererContract) ([
 	return validateGenerationOnlyPolicyUnit(unit, generationOnlyPolicyUnitSpec{
 		moduleID: homeAccessPolicyModuleID, unitID: homeAccessPolicyUnitID,
 		outputRef: homeAccessPolicyOutputRef, policyName: "home-access policy",
+		placementScope: "node-local", placementCardinality: "one-per-node",
 		contract: contract, planInputRefs: homeAccessPolicyPlanInputRefs,
 		validatePlanInput: validateHomeAccessPlanInputs,
 	})

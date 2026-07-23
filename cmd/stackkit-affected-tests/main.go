@@ -102,6 +102,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		BaseRef:              opts.baseRef,
 		MergeBase:            opts.mergeBase,
 		ChangedFiles:         changed,
+		CoreCUERoots:         existingCoreCUERoots(repo),
 		GoPackages:           packages,
 		MaxReverse:           opts.maxReverse,
 		GoListWarning:        goListWarning,
@@ -123,6 +124,18 @@ func run(args []string, stdout, stderr io.Writer) error {
 	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(plan)
+}
+
+func existingCoreCUERoots(repo string) []string {
+	roots := make([]string, 0, len(coreCUERoots))
+	for _, pattern := range coreCUERoots {
+		relative := strings.TrimSuffix(strings.TrimPrefix(pattern, "./"), "/...")
+		info, err := os.Stat(filepath.Join(repo, filepath.FromSlash(relative)))
+		if err == nil && info.IsDir() {
+			roots = append(roots, pattern)
+		}
+	}
+	return roots
 }
 
 type commandExecutor func(repo string, argv []string, stdout, stderr io.Writer) error

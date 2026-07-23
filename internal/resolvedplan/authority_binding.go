@@ -213,6 +213,9 @@ func canonicalAuthorityCatalogHash(catalog Catalog) (string, error) {
 	if projection["privilegedInterfaceApprovals"], err = sortedAuthorityContracts("privilegedInterfaceApprovals", catalog.PrivilegedInterfaceApprovals, false); err != nil {
 		return "", err
 	}
+	if projection["rilActionExecutors"], err = sortedAuthorityContractsByField("rilActionExecutors", catalog.RILActionExecutors, "ref"); err != nil {
+		return "", err
+	}
 	if projection["rilActionPrimitives"], err = sortedAuthorityContracts("rilActionPrimitives", catalog.RILActionPrimitives, false); err != nil {
 		return "", err
 	}
@@ -455,6 +458,13 @@ func selectPlainAuthorityBodies(name string, selectedIDs []string, contracts []m
 }
 
 func sortedAuthorityContracts[T ~map[string]any](name string, contracts []T, metadataKey bool) ([]any, error) {
+	if metadataKey {
+		return sortedMetadataAuthorityContracts(name, contracts)
+	}
+	return sortedAuthorityContractsByField(name, contracts, "id")
+}
+
+func sortedMetadataAuthorityContracts[T ~map[string]any](name string, contracts []T) ([]any, error) {
 	type keyedContract struct {
 		key      string
 		contract map[string]any
@@ -462,13 +472,29 @@ func sortedAuthorityContracts[T ~map[string]any](name string, contracts []T, met
 	keyed := make([]keyedContract, 0, len(contracts))
 	for index, contract := range contracts {
 		object := map[string]any(contract)
-		var key string
-		var err error
-		if metadataKey {
-			key, err = metadataID(object, fmt.Sprintf("catalog.%s[%d]", name, index))
-		} else {
-			key, err = stringField(object, fmt.Sprintf("catalog.%s[%d]", name, index), "id")
+		key, err := metadataID(object, fmt.Sprintf("catalog.%s[%d]", name, index))
+		if err != nil {
+			return nil, err
 		}
+		keyed = append(keyed, keyedContract{key: key, contract: object})
+	}
+	sort.Slice(keyed, func(i, j int) bool { return keyed[i].key < keyed[j].key })
+	result := make([]any, len(keyed))
+	for index := range keyed {
+		result[index] = keyed[index].contract
+	}
+	return result, nil
+}
+
+func sortedAuthorityContractsByField[T ~map[string]any](name string, contracts []T, keyField string) ([]any, error) {
+	type keyedContract struct {
+		key      string
+		contract map[string]any
+	}
+	keyed := make([]keyedContract, 0, len(contracts))
+	for index, contract := range contracts {
+		object := map[string]any(contract)
+		key, err := stringField(object, fmt.Sprintf("catalog.%s[%d]", name, index), keyField)
 		if err != nil {
 			return nil, err
 		}

@@ -790,8 +790,12 @@ func resolvePublicationServiceEndpoint(index resolvedServiceEndpointIndex, servi
 	sort.Strings(moduleRefs)
 	candidates := make([]resolvedServiceEndpoint, 0, 1)
 	for _, moduleRef := range moduleRefs {
-		if _, exists := index[moduleRef][serviceRef]; !exists {
+		catalogEndpoint, exists := index[moduleRef][serviceRef]
+		if !exists {
 			continue
+		}
+		if catalogEndpoint.originSelector == "multi-zone" || catalogEndpoint.originSelector == "edge-pool" {
+			return resolvedServiceEndpoint{}, fail(ErrContractConflict, path+".serviceRef", "bridge publications require one exact source Site; selector %q needs a separately versioned bridge contract", catalogEndpoint.originSelector)
 		}
 		endpoint, err := resolveRouteServiceEndpoint(index, moduleRef, serviceRef, authoritySiteRef, nodeSites, path)
 		if err != nil {

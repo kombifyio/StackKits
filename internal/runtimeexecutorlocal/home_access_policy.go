@@ -19,20 +19,19 @@ const (
 	homeAccessProviderRef      = "stackkits-home-access-policy"
 	homeAccessModuleRef        = "stackkits-home-access-policy-manifest"
 	homeAccessUnitRef          = "policy-bundle"
-	homeAccessInstanceRef      = "policy-bundle-logical"
 	homeAccessArtifactRef      = "home-access-policy"
 	homeAccessOutputRef        = "local/network/access-policy.json"
 	homeAccessHealthSourceRef  = "home-access-enforcement"
 	homeAccessMaxArtifactBytes = 256 << 10
 )
 
-// HomeAccessPolicyBinding is service-owned placement authority. A module-level
-// Home policy intentionally has no provider endpoint or caller-selected
-// execution channel; the authenticated operations implementation owns its
-// transport separately.
+// HomeAccessPolicyBinding is service-owned placement and execution-channel
+// authority. It carries no endpoint, credential, transport configuration,
+// discovery authority, provider handle, or provider lifecycle.
 type HomeAccessPolicyBinding struct {
-	SiteRefs []string
-	NodeRefs []string
+	SiteRefs            []string
+	NodeRefs            []string
+	ExecutionChannelRef string
 }
 
 // HomeAccessPolicyAuthority is selected from the service-owned catalog during
@@ -103,8 +102,9 @@ func NewHomeAccessPolicyExecutor(identity runtimeexecutor.ExecutorIdentity, bind
 	return &HomeAccessPolicyExecutor{
 		identity: identity,
 		binding: HomeAccessPolicyBinding{
-			SiteRefs: append([]string(nil), binding.SiteRefs...),
-			NodeRefs: append([]string(nil), binding.NodeRefs...),
+			SiteRefs:            append([]string(nil), binding.SiteRefs...),
+			NodeRefs:            append([]string(nil), binding.NodeRefs...),
+			ExecutionChannelRef: binding.ExecutionChannelRef,
 		},
 		authority: authority, operations: operations,
 		clock: func() time.Time { return time.Now().UTC() },
@@ -117,7 +117,8 @@ func (e *HomeAccessPolicyExecutor) Execute(ctx context.Context, request runtimee
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Home access policy executor requires a context")
 	}
-	if e == nil || e.operations == nil || e.clock == nil || !validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) ||
+	if e == nil || e.operations == nil || e.clock == nil || len(e.binding.SiteRefs) != 1 || len(e.binding.NodeRefs) != 1 ||
+		!validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) || !validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || !validCoreHostBootstrapDigest(e.authority.HealthContractHash) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Home access policy executor requires exact catalog authority, placement, and authenticated operations")
 	}
@@ -188,13 +189,15 @@ func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, b
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.HomeAccessPolicyRendererContract()
+	expectedInstanceRef := homeAccessUnitRef + "-node-" + binding.NodeRefs[0]
+	expectedArtifactRef := homeAccessArtifactRef + "-instance-" + expectedInstanceRef
 	if target.OwnerKind != "module" || target.OwnerRef != homeAccessModuleRef || target.OwnerVersion != "" ||
 		target.ProviderRef != homeAccessProviderRef || target.ProviderContractHash != authority.ProviderContractHash ||
 		target.ModuleRef != homeAccessModuleRef || target.ModuleContractHash != authority.ModuleContractHash || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.UnitRef != homeAccessUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != homeAccessInstanceRef ||
-		target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "" || target.ExecutionChannelRef != "" ||
+		target.UnitRef != homeAccessUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != expectedInstanceRef ||
+		target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "" || target.ExecutionChannelRef != binding.ExecutionChannelRef ||
 		target.WorkloadRef != "" || target.ImageRef != "" || len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
-		!slices.Equal(target.SiteRefs, binding.SiteRefs) || !slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{homeAccessArtifactRef}) {
+		!slices.Equal(target.SiteRefs, binding.SiteRefs) || !slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{expectedArtifactRef}) {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("runtime target is not the exact bound Home access policy contract")
 	}
 	health := request.HealthTargets[0]
@@ -203,11 +206,11 @@ func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, b
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("health target is not the exact Home access enforcement postcondition")
 	}
 	artifact := request.Artifacts[0]
-	if artifact.ID != homeAccessArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" ||
-		artifact.OwnerKind != "render-instance" || artifact.OwnerRef != homeAccessInstanceRef || artifact.OwnerContractHash != contract.ContractHash ||
+	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" ||
+		artifact.OwnerKind != "render-instance" || artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash ||
 		artifact.ProviderRef != homeAccessProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != homeAccessModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != homeAccessUnitRef || artifact.UnitContractHash != contract.ContractHash ||
-		artifact.InstanceRef != homeAccessInstanceRef || artifact.OutputRef != homeAccessOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
+		artifact.InstanceRef != expectedInstanceRef || artifact.OutputRef != homeAccessOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
 		len(artifact.Content) == 0 || len(artifact.Content) > homeAccessMaxArtifactBytes {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("artifact is not the exact CUE-owned Home access policy")
 	}
@@ -219,7 +222,8 @@ func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, b
 	if err != nil {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, fmt.Errorf("validate governed Home access policy: %w", err)
 	}
-	if !slices.Equal(projection.SiteRefs, binding.SiteRefs) || !homeAccessRoutesWithinBinding(projection.Routes, binding) {
+	localRoutes, err := homeAccessRoutesForBinding(projection.Routes, binding)
+	if !slices.Equal(projection.SiteRefs, binding.SiteRefs) || err != nil {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("Home access policy does not bind the exact authorized Home placement")
 	}
 	policyDigestInput, err := json.Marshal(struct {
@@ -229,14 +233,15 @@ func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, b
 		HealthContractHash   string   `json:"healthContractHash"`
 		SiteRefs             []string `json:"siteRefs"`
 		NodeRefs             []string `json:"nodeRefs"`
-	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs})
+		ExecutionChannelRef  string   `json:"executionChannelRef"`
+	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs, binding.ExecutionChannelRef})
 	if err != nil {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, fmt.Errorf("bind Home access policy authority: %w", err)
 	}
 	policyDigestBytes := sha256.Sum256(policyDigestInput)
 	policy := HomeAccessRuntimePolicy{
 		PolicyDigest: "sha256:" + hex.EncodeToString(policyDigestBytes[:]), StackID: projection.StackID, KitSlug: projection.KitSlug,
-		SiteRefs: append([]string(nil), projection.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...), Routes: cloneHomeAccessRoutes(projection.Routes),
+		SiteRefs: append([]string(nil), projection.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...), Routes: localRoutes,
 	}
 	return target, health, policy, nil
 }
@@ -253,18 +258,20 @@ func validExactRefSet(refs []string) bool {
 	return true
 }
 
-func homeAccessRoutesWithinBinding(routes []architecturev2renderer.HomeAccessEnforcementRoute, binding HomeAccessPolicyBinding) bool {
+func homeAccessRoutesForBinding(routes []architecturev2renderer.HomeAccessEnforcementRoute, binding HomeAccessPolicyBinding) ([]architecturev2renderer.HomeAccessEnforcementRoute, error) {
+	local := make([]architecturev2renderer.HomeAccessEnforcementRoute, 0, len(routes))
 	for _, route := range routes {
 		if !slices.Contains(binding.SiteRefs, route.OriginSiteRef) {
-			return false
+			return nil, errors.New("route origin exceeds the bound Home Site")
 		}
-		for _, nodeRef := range route.OriginNodeRefs {
-			if !slices.Contains(binding.NodeRefs, nodeRef) {
-				return false
-			}
+		if !slices.Contains(route.OriginNodeRefs, binding.NodeRefs[0]) {
+			continue
 		}
+		copy := route
+		copy.OriginNodeRefs = append([]string(nil), binding.NodeRefs...)
+		local = append(local, copy)
 	}
-	return true
+	return local, nil
 }
 
 func validHomeAccessApplyObservation(observation HomeAccessApplyObservation, policyDigest string) bool {

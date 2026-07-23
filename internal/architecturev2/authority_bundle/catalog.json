@@ -25,7 +25,8 @@
       ],
       "supportedKits": [
         "basement-kit",
-        "cloud-kit"
+        "cloud-kit",
+        "modern-homelab"
       ]
     }
   ],
@@ -643,6 +644,186 @@
     },
     {
       "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for inter-site-link.",
+        "id": "inter-site-link",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for outbound-control-agent.",
+        "id": "outbound-control-agent",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for cross-site-backup.",
+        "id": "cross-site-backup",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for bridge-observability.",
+        "id": "bridge-observability",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for site-federation.",
+        "id": "site-federation",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for service-publication.",
+        "id": "service-publication",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for cross-site-placement.",
+        "id": "cross-site-placement",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for data-residency.",
+        "id": "data-residency",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S4"
+      ],
+      "metadata": {
+        "description": "Hybrid federation Architecture v2 contract for split-horizon-naming.",
+        "id": "split-horizon-naming",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
+        "description": "Generation-only Modern federation policy contract for bridge-policy; runtime enforcement is not claimed.",
+        "id": "bridge-policy",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
+        "description": "Generation-only Modern federation policy contract for partition-failure-contract; runtime enforcement is not claimed.",
+        "id": "partition-failure-contract",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "modern-identity-trust-policy-contract"
+      ],
+      "metadata": {
+        "description": "Verifier-only Cloud-side identity contract for Modern Homelab; authority and signing remain Home-owned.",
+        "id": "edge-identity-verifier",
+        "layer": "foundation",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
         "ha-failure-domain-proof"
       ],
       "metadata": {
@@ -1217,6 +1398,126 @@
         "siteKind": "cloud"
       },
       {
+        "capability": "inter-site-link",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "inter-site-link",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "outbound-control-agent",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "outbound-control-agent",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "cross-site-backup",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "cross-site-backup",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "bridge-observability",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "bridge-observability",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "service-publication",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "service-publication",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "cross-site-placement",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "cross-site-placement",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "data-residency",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "data-residency",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "split-horizon-naming",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "split-horizon-naming",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "bridge-policy",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "bridge-policy",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "partition-failure-contract",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "partition-failure-contract",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "edge-identity-verifier",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "edge-identity-verifier",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
         "capability": "availability-ha",
         "matches": [],
         "siteKind": "home"
@@ -1429,6 +1730,69 @@
           "basement-compose-runtime"
         ],
         "module": "stackkits-basement-compose-runtime"
+      },
+      {
+        "capability": "inter-site-link",
+        "matches": [
+          "inter-site-link"
+        ],
+        "module": "stackkits-federation-link-runtime"
+      },
+      {
+        "capability": "outbound-control-agent",
+        "matches": [
+          "outbound-control-agent"
+        ],
+        "module": "stackkits-federation-control-agent-runtime"
+      },
+      {
+        "capability": "cross-site-backup",
+        "matches": [
+          "cross-site-backup"
+        ],
+        "module": "stackkits-federation-backup-runtime"
+      },
+      {
+        "capability": "bridge-observability",
+        "matches": [
+          "bridge-observability"
+        ],
+        "module": "stackkits-federation-observability-runtime"
+      },
+      {
+        "capability": "human-identity-core",
+        "matches": [
+          "human-identity-core"
+        ],
+        "module": "stackkits-modern-home-identity-trust-policy-manifest"
+      },
+      {
+        "capability": "device-trust-core",
+        "matches": [
+          "device-trust-core"
+        ],
+        "module": "stackkits-modern-home-identity-trust-policy-manifest"
+      },
+      {
+        "capability": "edge-identity-verifier",
+        "matches": [
+          "edge-identity-verifier"
+        ],
+        "module": "stackkits-modern-cloud-identity-verifier-policy-manifest"
+      },
+      {
+        "capability": "bridge-policy",
+        "matches": [
+          "bridge-policy"
+        ],
+        "module": "stackkits-modern-federation-policy-manifest"
+      },
+      {
+        "capability": "partition-failure-contract",
+        "matches": [
+          "partition-failure-contract"
+        ],
+        "module": "stackkits-modern-federation-policy-manifest"
       },
       {
         "capability": "availability-ha",
@@ -1686,6 +2050,106 @@
       },
       {
         "governanceMatches": [
+          "stackkits-coolify-runtime"
+        ],
+        "matches": [
+          "stackkits-coolify"
+        ],
+        "module": "stackkits-coolify-runtime",
+        "provider": "stackkits-coolify"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-komodo-core-runtime"
+        ],
+        "matches": [
+          "stackkits-komodo"
+        ],
+        "module": "stackkits-komodo-core-runtime",
+        "provider": "stackkits-komodo"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-komodo-periphery-runtime"
+        ],
+        "matches": [
+          "stackkits-komodo"
+        ],
+        "module": "stackkits-komodo-periphery-runtime",
+        "provider": "stackkits-komodo"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-federation-link-runtime"
+        ],
+        "matches": [
+          "stackkits-federation-link"
+        ],
+        "module": "stackkits-federation-link-runtime",
+        "provider": "stackkits-federation-link"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-federation-control-agent-runtime"
+        ],
+        "matches": [
+          "stackkits-federation-control-agent"
+        ],
+        "module": "stackkits-federation-control-agent-runtime",
+        "provider": "stackkits-federation-control-agent"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-federation-backup-runtime"
+        ],
+        "matches": [
+          "stackkits-federation-backup"
+        ],
+        "module": "stackkits-federation-backup-runtime",
+        "provider": "stackkits-federation-backup"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-federation-observability-runtime"
+        ],
+        "matches": [
+          "stackkits-federation-observability"
+        ],
+        "module": "stackkits-federation-observability-runtime",
+        "provider": "stackkits-federation-observability"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-modern-home-identity-trust-policy-manifest"
+        ],
+        "matches": [
+          "stackkits-modern-identity-trust-policy"
+        ],
+        "module": "stackkits-modern-home-identity-trust-policy-manifest",
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-modern-cloud-identity-verifier-policy-manifest"
+        ],
+        "matches": [
+          "stackkits-modern-identity-trust-policy"
+        ],
+        "module": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-modern-federation-policy-manifest"
+        ],
+        "matches": [
+          "stackkits-modern-federation-policy"
+        ],
+        "module": "stackkits-modern-federation-policy-manifest",
+        "provider": "stackkits-modern-federation-policy"
+      },
+      {
+        "governanceMatches": [
           "stackkits-ha-basement-warm-runtime"
         ],
         "matches": [
@@ -1864,6 +2328,76 @@
         ],
         "module": "socket-proxy",
         "requires": "stackkits-basement-compose-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-komodo-core-runtime"
+        ],
+        "module": "stackkits-komodo-periphery-runtime",
+        "requires": "stackkits-komodo-core-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-modern-federation-policy-manifest"
+        ],
+        "module": "stackkits-federation-link-runtime",
+        "requires": "stackkits-modern-federation-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-modern-federation-policy-manifest"
+        ],
+        "module": "stackkits-federation-control-agent-runtime",
+        "requires": "stackkits-modern-federation-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-modern-home-identity-trust-policy-manifest"
+        ],
+        "module": "stackkits-federation-control-agent-runtime",
+        "requires": "stackkits-modern-home-identity-trust-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-modern-cloud-identity-verifier-policy-manifest"
+        ],
+        "module": "stackkits-federation-control-agent-runtime",
+        "requires": "stackkits-modern-cloud-identity-verifier-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-modern-federation-policy-manifest"
+        ],
+        "module": "stackkits-federation-backup-runtime",
+        "requires": "stackkits-modern-federation-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-modern-federation-policy-manifest"
+        ],
+        "module": "stackkits-federation-observability-runtime",
+        "requires": "stackkits-modern-federation-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-home-device-authority-policy-manifest"
+        ],
+        "module": "stackkits-modern-home-identity-trust-policy-manifest",
+        "requires": "stackkits-home-device-authority-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-modern-home-identity-trust-policy-manifest"
+        ],
+        "module": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+        "requires": "stackkits-modern-home-identity-trust-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-home-device-authority-policy-manifest"
+        ],
+        "module": "stackkits-modern-federation-policy-manifest",
+        "requires": "stackkits-home-device-authority-policy-manifest"
       }
     ],
     "ownership": {
@@ -2085,6 +2619,87 @@
             "photos"
           ],
           "providerID": "stackkits-immich"
+        },
+        {
+          "contracts": [
+            "coolify"
+          ],
+          "providerID": "stackkits-coolify"
+        },
+        {
+          "contracts": [
+            "komodo"
+          ],
+          "providerID": "stackkits-komodo"
+        },
+        {
+          "contracts": [
+            "site-federation"
+          ],
+          "providerID": "stackkits-federation-topology-contract"
+        },
+        {
+          "contracts": [
+            "service-publication"
+          ],
+          "providerID": "stackkits-service-publication-contract"
+        },
+        {
+          "contracts": [
+            "cross-site-placement"
+          ],
+          "providerID": "stackkits-cross-site-placement-policy"
+        },
+        {
+          "contracts": [
+            "data-residency"
+          ],
+          "providerID": "stackkits-data-residency-policy"
+        },
+        {
+          "contracts": [
+            "split-horizon-naming"
+          ],
+          "providerID": "stackkits-split-horizon-naming-contract"
+        },
+        {
+          "contracts": [
+            "inter-site-link"
+          ],
+          "providerID": "stackkits-federation-link"
+        },
+        {
+          "contracts": [
+            "outbound-control-agent"
+          ],
+          "providerID": "stackkits-federation-control-agent"
+        },
+        {
+          "contracts": [
+            "cross-site-backup"
+          ],
+          "providerID": "stackkits-federation-backup"
+        },
+        {
+          "contracts": [
+            "bridge-observability"
+          ],
+          "providerID": "stackkits-federation-observability"
+        },
+        {
+          "contracts": [
+            "bridge-policy",
+            "partition-failure-contract"
+          ],
+          "providerID": "stackkits-modern-federation-policy"
+        },
+        {
+          "contracts": [
+            "human-identity-core",
+            "device-trust-core",
+            "edge-identity-verifier"
+          ],
+          "providerID": "stackkits-modern-identity-trust-policy"
         },
         {
           "contracts": [
@@ -2420,6 +3035,104 @@
         "provider": "stackkits-basement-compose"
       },
       {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-federation-topology-contract"
+      },
+      {
+        "capability": "service-publication",
+        "matches": [
+          "service-publication"
+        ],
+        "provider": "stackkits-service-publication-contract"
+      },
+      {
+        "capability": "cross-site-placement",
+        "matches": [
+          "cross-site-placement"
+        ],
+        "provider": "stackkits-cross-site-placement-policy"
+      },
+      {
+        "capability": "data-residency",
+        "matches": [
+          "data-residency"
+        ],
+        "provider": "stackkits-data-residency-policy"
+      },
+      {
+        "capability": "split-horizon-naming",
+        "matches": [
+          "split-horizon-naming"
+        ],
+        "provider": "stackkits-split-horizon-naming-contract"
+      },
+      {
+        "capability": "inter-site-link",
+        "matches": [
+          "inter-site-link"
+        ],
+        "provider": "stackkits-federation-link"
+      },
+      {
+        "capability": "outbound-control-agent",
+        "matches": [
+          "outbound-control-agent"
+        ],
+        "provider": "stackkits-federation-control-agent"
+      },
+      {
+        "capability": "cross-site-backup",
+        "matches": [
+          "cross-site-backup"
+        ],
+        "provider": "stackkits-federation-backup"
+      },
+      {
+        "capability": "bridge-observability",
+        "matches": [
+          "bridge-observability"
+        ],
+        "provider": "stackkits-federation-observability"
+      },
+      {
+        "capability": "bridge-policy",
+        "matches": [
+          "bridge-policy"
+        ],
+        "provider": "stackkits-modern-federation-policy"
+      },
+      {
+        "capability": "partition-failure-contract",
+        "matches": [
+          "partition-failure-contract"
+        ],
+        "provider": "stackkits-modern-federation-policy"
+      },
+      {
+        "capability": "human-identity-core",
+        "matches": [
+          "human-identity-core"
+        ],
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
+        "capability": "device-trust-core",
+        "matches": [
+          "device-trust-core"
+        ],
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
+        "capability": "edge-identity-verifier",
+        "matches": [
+          "edge-identity-verifier"
+        ],
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
         "capability": "availability-ha",
         "matches": [
           "availability-ha"
@@ -2609,6 +3322,76 @@
         ],
         "module": "stackkits-immich-runtime",
         "provider": "stackkits-immich"
+      },
+      {
+        "matches": [
+          "stackkits-coolify-runtime"
+        ],
+        "module": "stackkits-coolify-runtime",
+        "provider": "stackkits-coolify"
+      },
+      {
+        "matches": [
+          "stackkits-komodo-core-runtime"
+        ],
+        "module": "stackkits-komodo-core-runtime",
+        "provider": "stackkits-komodo"
+      },
+      {
+        "matches": [
+          "stackkits-komodo-periphery-runtime"
+        ],
+        "module": "stackkits-komodo-periphery-runtime",
+        "provider": "stackkits-komodo"
+      },
+      {
+        "matches": [
+          "stackkits-federation-link-runtime"
+        ],
+        "module": "stackkits-federation-link-runtime",
+        "provider": "stackkits-federation-link"
+      },
+      {
+        "matches": [
+          "stackkits-federation-control-agent-runtime"
+        ],
+        "module": "stackkits-federation-control-agent-runtime",
+        "provider": "stackkits-federation-control-agent"
+      },
+      {
+        "matches": [
+          "stackkits-federation-backup-runtime"
+        ],
+        "module": "stackkits-federation-backup-runtime",
+        "provider": "stackkits-federation-backup"
+      },
+      {
+        "matches": [
+          "stackkits-federation-observability-runtime"
+        ],
+        "module": "stackkits-federation-observability-runtime",
+        "provider": "stackkits-federation-observability"
+      },
+      {
+        "matches": [
+          "stackkits-modern-federation-policy-manifest"
+        ],
+        "module": "stackkits-modern-federation-policy-manifest",
+        "provider": "stackkits-modern-federation-policy"
+      },
+      {
+        "matches": [
+          "stackkits-modern-home-identity-trust-policy-manifest"
+        ],
+        "module": "stackkits-modern-home-identity-trust-policy-manifest",
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
+        "matches": [
+          "stackkits-modern-cloud-identity-verifier-policy-manifest"
+        ],
+        "module": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+        "provider": "stackkits-modern-identity-trust-policy"
       },
       {
         "matches": [
@@ -3089,6 +3872,230 @@
         "provider": "stackkits-immich"
       },
       {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-coolify"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-coolify"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-komodo"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-komodo"
+      },
+      {
+        "capability": "site-local",
+        "matches": [
+          "site-local"
+        ],
+        "provider": "stackkits-federation-topology-contract"
+      },
+      {
+        "capability": "site-cloud",
+        "matches": [
+          "site-cloud"
+        ],
+        "provider": "stackkits-federation-topology-contract"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-service-publication-contract"
+      },
+      {
+        "capability": "public-edge",
+        "matches": [
+          "public-edge"
+        ],
+        "provider": "stackkits-service-publication-contract"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-cross-site-placement-policy"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-cross-site-placement-policy"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-data-residency-policy"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-data-residency-policy"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-split-horizon-naming-contract"
+      },
+      {
+        "capability": "public-dns",
+        "matches": [
+          "public-dns"
+        ],
+        "provider": "stackkits-split-horizon-naming-contract"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-federation-link"
+      },
+      {
+        "capability": "bridge-policy",
+        "matches": [
+          "bridge-policy"
+        ],
+        "provider": "stackkits-federation-link"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-federation-control-agent"
+      },
+      {
+        "capability": "bridge-policy",
+        "matches": [
+          "bridge-policy"
+        ],
+        "provider": "stackkits-federation-control-agent"
+      },
+      {
+        "capability": "edge-identity-verifier",
+        "matches": [
+          "edge-identity-verifier"
+        ],
+        "provider": "stackkits-federation-control-agent"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-federation-backup"
+      },
+      {
+        "capability": "data-residency",
+        "matches": [
+          "data-residency"
+        ],
+        "provider": "stackkits-federation-backup"
+      },
+      {
+        "capability": "cross-site-placement",
+        "matches": [
+          "cross-site-placement"
+        ],
+        "provider": "stackkits-federation-backup"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-federation-backup"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-federation-observability"
+      },
+      {
+        "capability": "bridge-policy",
+        "matches": [
+          "bridge-policy"
+        ],
+        "provider": "stackkits-federation-observability"
+      },
+      {
+        "capability": "observability-evidence",
+        "matches": [
+          "observability-evidence"
+        ],
+        "provider": "stackkits-federation-observability"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-modern-federation-policy"
+      },
+      {
+        "capability": "local-control-authority",
+        "matches": [
+          "local-control-authority"
+        ],
+        "provider": "stackkits-modern-federation-policy"
+      },
+      {
+        "capability": "device-enrollment-home",
+        "matches": [
+          "device-enrollment-home"
+        ],
+        "provider": "stackkits-modern-federation-policy"
+      },
+      {
+        "capability": "site-federation",
+        "matches": [
+          "site-federation"
+        ],
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
+        "capability": "local-control-authority",
+        "matches": [
+          "local-control-authority"
+        ],
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
+        "capability": "device-enrollment-home",
+        "matches": [
+          "device-enrollment-home"
+        ],
+        "provider": "stackkits-modern-identity-trust-policy"
+      },
+      {
         "capability": "topology-core",
         "matches": [
           "topology-core"
@@ -3467,6 +4474,84 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-coolify"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-komodo"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-federation-topology-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-service-publication-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-cross-site-placement-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-data-residency-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-split-horizon-naming-contract"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-federation-link"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-federation-control-agent"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-federation-backup"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-federation-observability"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-modern-federation-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-modern-identity-trust-policy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-ha-basement-warm"
         },
         {
@@ -3515,6 +4600,7 @@
       "privilegedApprovalSubjectsUnique": true,
       "providedInterfaceIDsUnique": true,
       "providerIDsUnique": true,
+      "rilActionExecutorRefsUnique": true,
       "rilActionPrimitiveIDsUnique": true,
       "workloadAlternativesUnique": true,
       "workloadIDsUnique": true
@@ -3724,6 +4810,7 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -3800,7 +4887,10 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "host-runtime",
+            "storage-roots"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
@@ -3810,9 +4900,7 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities",
-            "hostRuntimePolicy",
-            "storagePolicy"
+            "moduleCapabilities"
           ]
         },
         "scope": "concrete"
@@ -3825,7 +4913,22 @@
           ],
           "contractHash": "sha256:871d10265613851dc4ad928b4b8e280a874eb10d99b10dfa289bac1f56cc0e35",
           "id": "host-policy",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "host.bootstrapRuntime",
+              "targetRef": "host-runtime",
+              "valueType": "host-bootstrap-runtime-v1"
+            },
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "storage.hostRoots",
+              "targetRef": "storage-roots",
+              "valueType": "host-storage-roots-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "foundation/host-bootstrap/policy.json"
@@ -3839,12 +4942,13 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities",
-            "hostRuntimePolicy",
-            "storagePolicy"
+            "moduleCapabilities"
           ],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "host-runtime",
+            "storage-roots"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -3855,6 +4959,7 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
@@ -3931,7 +5036,9 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "backup-root"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
@@ -3941,8 +5048,7 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities",
-            "storagePolicy"
+            "moduleCapabilities"
           ]
         },
         "scope": "concrete"
@@ -3955,7 +5061,15 @@
           ],
           "contractHash": "sha256:7add0b8b8e643141ca2adb61b03a3aa229daf2c6a08b65ba169870aceb2abe83",
           "id": "backup-policy",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "storage.backupRoot",
+              "targetRef": "backup-root",
+              "valueType": "local-backup-root-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "home/backup/target-policy.json"
@@ -3969,11 +5083,12 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities",
-            "storagePolicy"
+            "moduleCapabilities"
           ],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-root"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -3987,6 +5102,7 @@
       "requires": [
         "stackkits-core-host-bootstrap"
       ],
+      "rilActionPrimitives": [],
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
@@ -4126,6 +5242,7 @@
         "stackkits-core-host-bootstrap",
         "stackkits-home-access-policy-manifest"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -4280,6 +5397,7 @@
         "stackkits-core-host-bootstrap",
         "stackkits-home-access-policy-manifest"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -4433,6 +5551,7 @@
       "requires": [
         "stackkits-core-host-bootstrap"
       ],
+      "rilActionPrimitives": [],
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
@@ -4506,6 +5625,7 @@
       "requires": [
         "stackkits-core-host-bootstrap"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -4529,24 +5649,32 @@
         ],
         "requiredEvidenceRef": "home-device-authority-enforcement",
         "requiredHealthRef": "home-device-authority-enforcement",
-        "status": "unbound",
+        "status": "bound",
         "targetScope": "home-control-authority"
       },
       "evidence": [
-        "home-device-authority-policy-contract"
+        "home-device-authority-enforcement"
       ],
       "health": [
         {
-          "id": "home-device-authority-policy-contract",
+          "id": "home-device-authority-enforcement",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Generation-only Home enrollment and credential-authority policy; credential material, endpoints, and runtime enforcement are excluded.",
+        "description": "Node-local Home enrollment and credential-authority policy enforced by an explicit runtime owner; credential material, endpoints, and provider lifecycle are excluded.",
         "id": "stackkits-home-device-authority-policy-manifest",
         "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller"
+        ]
       },
       "providerRef": "stackkits-home-device-authority",
       "provides": [
@@ -4587,21 +5715,21 @@
         "contractVersion": "1.0.0",
         "evidence": {
           "requiredRefs": [
-            "home-device-authority-runtime-proof"
+            "home-device-authority-enforcement"
           ]
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "home-device-authority"
+          ]
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
             "stackId",
-            "kit",
-            "sites",
-            "identityTrust"
+            "kit"
           ]
         },
         "scope": "concrete"
@@ -4612,25 +5740,33 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:1da194be46fdd36215a3cc9a3f877a100a6fee92d5520a1522885f33798488a7",
+          "contractHash": "sha256:6645794f097ca1b778fa3833075c1ffdc1dea7aff3cfbbc5e3ac7f0801466ffa",
           "id": "policy-bundle",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "identityTrust.homeDeviceAuthority",
+              "targetRef": "home-device-authority",
+              "valueType": "home-device-authority-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "local/identity/device-authority-policy.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
-            "kit",
-            "sites",
-            "identityTrust"
+            "kit"
           ],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "home-device-authority"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -4641,10 +5777,11 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -4664,24 +5801,32 @@
         ],
         "requiredEvidenceRef": "basement-identity-trust-enforcement",
         "requiredHealthRef": "basement-identity-trust-enforcement",
-        "status": "unbound",
+        "status": "bound",
         "targetScope": "home-control-authority"
       },
       "evidence": [
-        "basement-identity-trust-policy-contract"
+        "basement-identity-trust-enforcement"
       ],
       "health": [
         {
-          "id": "basement-identity-trust-policy-contract",
+          "id": "basement-identity-trust-enforcement",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Generation-only Basement identity verifier and trust policy; runtime enforcement and credential material are excluded.",
+        "description": "Node-local Basement identity verifier and trust policy enforced on the Home control authority; credential material and provider lifecycle are excluded.",
         "id": "stackkits-basement-identity-trust-policy-manifest",
         "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller"
+        ]
       },
       "providerRef": "stackkits-basement-identity-trust-policy",
       "provides": [
@@ -4722,21 +5867,21 @@
         "contractVersion": "1.0.0",
         "evidence": {
           "requiredRefs": [
-            "basement-identity-trust-runtime-proof"
+            "basement-identity-trust-enforcement"
           ]
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "basement-verification-policy"
+          ]
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
             "stackId",
-            "kit",
-            "sites",
-            "identityTrust"
+            "kit"
           ]
         },
         "scope": "concrete"
@@ -4747,25 +5892,33 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:b377cd7476396aa820f2cd0002b8a526fbef3c9943ee14dcb69aec67b1578115",
+          "contractHash": "sha256:57e0d7eaba4751adc07c689bb78ae99df3e331def33694af68fad6bc770f6c7f",
           "id": "policy-bundle",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "identityTrust.basementVerification",
+              "targetRef": "basement-verification-policy",
+              "valueType": "basement-identity-verification-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "local/identity/trust-policy.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
-            "kit",
-            "sites",
-            "identityTrust"
+            "kit"
           ],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "basement-verification-policy"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -4779,10 +5932,11 @@
       "requires": [
         "stackkits-home-device-authority-policy-manifest"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -4802,24 +5956,32 @@
         ],
         "requiredEvidenceRef": "local-autonomy-enforcement",
         "requiredHealthRef": "local-autonomy-enforcement",
-        "status": "unbound",
+        "status": "bound",
         "targetScope": "home-control-authority"
       },
       "evidence": [
-        "local-autonomy-policy-contract"
+        "local-autonomy-enforcement"
       ],
       "health": [
         {
-          "id": "local-autonomy-policy-contract",
+          "id": "local-autonomy-enforcement",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Generation-only Home-site offline-autonomy policy; runtime and air-gapped installation enforcement remain separate claims.",
+        "description": "Node-local Home control-authority offline-autonomy policy; air-gapped installation remains a separate claim.",
         "id": "stackkits-local-autonomy-policy-manifest",
         "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller"
+        ]
       },
       "providerRef": "stackkits-local-autonomy-policy",
       "provides": [
@@ -4858,13 +6020,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "local-autonomy-enforcement"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -4893,8 +6057,8 @@
             "local/autonomy/policy.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -4917,10 +6081,11 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -4940,24 +6105,29 @@
         ],
         "requiredEvidenceRef": "home-access-enforcement",
         "requiredHealthRef": "home-access-enforcement",
-        "status": "unbound",
+        "status": "bound",
         "targetScope": "home-sites"
       },
       "evidence": [
-        "home-access-policy-contract"
+        "home-access-enforcement"
       ],
       "health": [
         {
-          "id": "home-access-policy-contract",
+          "id": "home-access-enforcement",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Generation-only Home local-ingress and LAN access policy; discovery and runtime enforcement remain separate claims.",
+        "description": "Node-local Home local-ingress and LAN access enforcement policy; discovery remains a separate optional claim.",
         "id": "stackkits-home-access-policy-manifest",
         "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any"
       },
       "providerRef": "stackkits-home-access-policy",
       "provides": [
@@ -4997,13 +6167,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "home-access-enforcement"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -5030,8 +6202,8 @@
             "local/network/access-policy.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -5052,10 +6224,11 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -5172,6 +6345,7 @@
       "requires": [
         "stackkits-home-access-policy-manifest"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -5241,7 +6415,9 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "host-security-network"
+          ]
         },
         "level": "generation-ready",
         "planInputs": {
@@ -5252,11 +6428,7 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy"
+            "controlPlane"
           ]
         },
         "scope": "concrete"
@@ -5267,9 +6439,17 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:f10cd76135da04b9b062ee341dbdf1c00ce3b956a606ff0d25918c3cc62f57ae",
+          "contractHash": "sha256:f62133491c0a87f42a87ee56639b8ab69e404abb188fbfbfe8461c96a530291c",
           "id": "executor-contract",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "network.cloudHostSecurity",
+              "targetRef": "host-security-network",
+              "valueType": "cloud-host-security-network-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "cloud/host-security/executor-contract.json"
@@ -5284,14 +6464,12 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy"
+            "controlPlane"
           ],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "host-security-network"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -5306,7 +6484,7 @@
           "artifactRefs": [
             "cloud-host-security-executor-contract"
           ],
-          "contractHash": "sha256:35ed972bd878291cf9c2aa6115acbcc2464c02b72090dfc41752daf79fa2fa36",
+          "contractHash": "sha256:4d6339d1b9ae81c6b62edd28e3738f100f4d12959b54867a611497cca4e5056c",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -5314,13 +6492,11 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy"
+            "controlPlane"
           ],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "host-security-network"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "compose",
@@ -5332,7 +6508,7 @@
           "artifactRefs": [
             "cloud-host-security-executor-contract"
           ],
-          "contractHash": "sha256:cd6ea4d9f247ea6ee9a601722c87a61f8468960a2aa508fb00c78d46dea359cc",
+          "contractHash": "sha256:4764ee33223ee9b43f03c4880b23168f807503f3ed120016c7a5c4d7f9873ace",
           "id": "opentofu",
           "planInputRefs": [
             "stackId",
@@ -5340,13 +6516,11 @@
             "moduleTargets",
             "moduleCapabilities",
             "sites",
-            "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy"
+            "controlPlane"
           ],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "host-security-network"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "opentofu",
@@ -5359,6 +6533,7 @@
         "stackkits-core-host-bootstrap",
         "security-baseline"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -5509,6 +6684,7 @@
       "requires": [
         "stackkits-cloud-host-security-runtime"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -5657,6 +6833,7 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
@@ -5805,6 +6982,7 @@
         "stackkits-cloud-host-security-runtime",
         "stackkits-cloud-identity-trust-policy-manifest"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -5940,6 +7118,7 @@
       "requires": [
         "stackkits-cloud-public-edge-runtime"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -5965,24 +7144,32 @@
         ],
         "requiredEvidenceRef": "cloud-identity-trust-enforcement",
         "requiredHealthRef": "cloud-identity-trust-enforcement",
-        "status": "unbound",
+        "status": "bound",
         "targetScope": "cloud-sites"
       },
       "evidence": [
-        "cloud-identity-trust-policy-contract"
+        "cloud-identity-trust-enforcement"
       ],
       "health": [
         {
-          "id": "cloud-identity-trust-policy-contract",
+          "id": "cloud-identity-trust-enforcement",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Generation-only Cloud identity trust policy with external device authority and Cloud-local verification; no device issuance or enrollment is owned.",
+        "description": "Node-local Cloud identity trust policy with external device authority and Cloud-local enforcement; no device issuance or enrollment is owned.",
         "id": "stackkits-cloud-identity-trust-policy-manifest",
         "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller"
+        ]
       },
       "providerRef": "stackkits-cloud-identity-trust-policy",
       "provides": [
@@ -6025,21 +7212,21 @@
         "contractVersion": "1.0.0",
         "evidence": {
           "requiredRefs": [
-            "cloud-identity-verifier-runtime-proof"
+            "cloud-identity-trust-enforcement"
           ]
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "cloud-identity-authority"
+          ]
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
             "stackId",
-            "kit",
-            "sites",
-            "identityTrust"
+            "kit"
           ]
         },
         "scope": "concrete"
@@ -6050,25 +7237,33 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:a62d3f2df95c7384af6a46df1436a811ca5a163fd9361c1b07e8db0422bbb8c2",
+          "contractHash": "sha256:0522a70d6833d2c6d9b1a85971fa90e549b7a105a3042843929b9ab14c442362",
           "id": "policy-bundle",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "identityTrust.cloudAuthority",
+              "targetRef": "cloud-identity-authority",
+              "valueType": "cloud-identity-authority-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "cloud/identity/trust-policy.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
-            "kit",
-            "sites",
-            "identityTrust"
+            "kit"
           ],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "cloud-identity-authority"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -6079,10 +7274,11 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "supportedSiteKinds": [
@@ -6268,6 +7464,7 @@
       "requires": [
         "stackkits-core-host-bootstrap"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -6453,6 +7650,7 @@
       "requires": [
         "stackkits-basement-compose-runtime"
       ],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -6641,6 +7839,94 @@
           ]
         }
       ],
+      "rilActionPrimitives": [
+        {
+          "approval": {
+            "authority": "techstack",
+            "class": "owner-step-up",
+            "policyAuthority": "gateway",
+            "receiptRequired": true,
+            "required": true
+          },
+          "category": "verify",
+          "destructive": false,
+          "evidence": {
+            "protectedDiagnostics": {
+              "allowed": true,
+              "custodyAuthority": "techstack",
+              "directAccess": false,
+              "inlineMaterial": false,
+              "referenceScheme": "diagnostic",
+              "required": false
+            },
+            "redactedLogsOnly": true,
+            "requiredFields": [
+              "action-card-id",
+              "execution-id",
+              "primitive-id",
+              "primitive-contract-hash",
+              "resolved-plan-hash",
+              "trace-id",
+              "target-ref",
+              "status",
+              "verification",
+              "recovery"
+            ]
+          },
+          "extensionAuthority": {
+            "kind": "module",
+            "moduleRef": "stackkits-immich-runtime",
+            "providerRef": "stackkits-immich"
+          },
+          "grant": {
+            "audience": "stackkits",
+            "connectorBindingRequired": true,
+            "required": true,
+            "scopes": [
+              "stackkit-immich-health-read"
+            ]
+          },
+          "id": "inspect-immich-runtime-health",
+          "inputs": [],
+          "mutation": false,
+          "owner": {
+            "authority": "stackkits",
+            "operationClass": "immich-health-readback"
+          },
+          "prohibitions": {
+            "arbitraryPaths": true,
+            "callerCommands": true,
+            "providerInputs": true,
+            "providerLifecycle": true,
+            "rawDocker": true,
+            "rawOpenTofu": true,
+            "rawSSH": true
+          },
+          "recovery": {
+            "kind": "none",
+            "requiredOnFailure": false
+          },
+          "risk": "read-only",
+          "schemaVersion": "stackkit.ril-action-primitive/v1",
+          "support": "contract-only",
+          "target": {
+            "requiresNodeRef": false,
+            "requiresResolvedPlanHash": true,
+            "requiresRuntimeInstanceRef": false,
+            "requiresStackID": true,
+            "scope": "module-instance"
+          },
+          "title": "Inspect governed Immich runtime health",
+          "verification": {
+            "evidenceSchema": "stackkit.ril-action-evidence/v1",
+            "phases": [
+              "readback"
+            ],
+            "required": true
+          },
+          "version": "1.0.0"
+        }
+      ],
       "role": "workload",
       "runtime": {
         "components": [
@@ -6819,6 +8105,1538 @@
     },
     {
       "evidence": [
+        "coolify-adapter-contract"
+      ],
+      "health": [
+        {
+          "id": "coolify-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Workload-scoped Coolify adapter contract; provider lifecycle, endpoints, leases, and credential material remain outside StackKits.",
+        "id": "stackkits-coolify-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-coolify",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "coolify-runtime-adapter",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "platform/coolify/runtime-adapter.json",
+              "required": true,
+              "unitRef": "coolify-adapter"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "coolify-runtime-adapter",
+              "outputRef": "platform/coolify/runtime-adapter.json",
+              "unitRef": "coolify-adapter"
+            }
+          ],
+          "requiredRefs": [
+            "coolify-runtime-adapter"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:b86c0645b02361fb94fa6b03ae71ba78174fec126578df3da10d4b700bcbf993",
+          "id": "coolify-adapter",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/coolify/runtime-adapter.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/coolify/runtime-adapter/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "coolify-runtime-adapter"
+          ],
+          "contractHash": "sha256:3860bf406244e848711a32034420330018147993188eeaa43fa6b7f9428cff86",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "coolify-adapter"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "coolify-runtime-adapter"
+          ],
+          "contractHash": "sha256:b9331740d5a3ab65809133c45bb771fa671ad9c2c74c8b504c862c542e267d09",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "coolify-adapter"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "execution": "contract-handoff",
+        "kind": "control-plane"
+      },
+      "runtimeAdapter": {
+        "agentRefs": [],
+        "credentialCustody": "external-owner",
+        "evidenceRequired": true,
+        "id": "coolify",
+        "operations": [
+          "apply",
+          "observe",
+          "rollback"
+        ],
+        "providerLifecycle": "not-owned",
+        "supportedDeliveries": [
+          "selected-paas"
+        ],
+        "supportedKinds": [
+          "container"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "komodo-core-adapter-contract"
+      ],
+      "health": [
+        {
+          "id": "komodo-core-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Workload-scoped Komodo Core API adapter contract; installation, endpoints, credentials, leases, and provider lifecycle remain outside StackKits.",
+        "id": "stackkits-komodo-core-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-komodo",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "komodo-core-runtime-adapter",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "platform/komodo/core-runtime-adapter.json",
+              "required": true,
+              "unitRef": "komodo-core-adapter"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "komodo-core-runtime-adapter",
+              "outputRef": "platform/komodo/core-runtime-adapter.json",
+              "unitRef": "komodo-core-adapter"
+            }
+          ],
+          "requiredRefs": [
+            "komodo-core-runtime-adapter"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:4e2f9d1f68d2f5ff28f5a51f181254c71f3ab6742c88927d9e8937f3db197bd8",
+          "id": "komodo-core-adapter",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/komodo/core-runtime-adapter.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/komodo/core-runtime-adapter/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "komodo-core-runtime-adapter"
+          ],
+          "contractHash": "sha256:2c3b41071fea2cc762fe0051473e2b8dca24c7469964b875cd1bc8b5e3697274",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "komodo-core-adapter"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "komodo-core-runtime-adapter"
+          ],
+          "contractHash": "sha256:3a03864406d17b324d61c923ce55c12616364e9cdb8a844c699b81da8badaaff",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "komodo-core-adapter"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "execution": "contract-handoff",
+        "kind": "control-plane"
+      },
+      "runtimeAdapter": {
+        "agentRefs": [
+          "komodo-periphery"
+        ],
+        "credentialCustody": "external-owner",
+        "evidenceRequired": true,
+        "id": "komodo",
+        "operations": [
+          "apply",
+          "observe",
+          "rollback",
+          "backup",
+          "restore"
+        ],
+        "providerLifecycle": "not-owned",
+        "supportedDeliveries": [
+          "selected-paas"
+        ],
+        "supportedKinds": [
+          "container"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "komodo-periphery-agent-contract"
+      ],
+      "health": [
+        {
+          "id": "komodo-periphery-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Komodo Periphery node-agent handoff for control-authority-site workers; host execution and all trust material remain executor-mediated.",
+        "id": "stackkits-komodo-periphery-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-komodo",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "komodo-periphery-runtime-agent",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "platform/komodo/periphery-agent.json",
+              "required": true,
+              "unitRef": "komodo-periphery-agent"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "komodo-periphery-runtime-agent",
+              "outputRef": "platform/komodo/periphery-agent.json",
+              "unitRef": "komodo-periphery-agent"
+            }
+          ],
+          "requiredRefs": [
+            "komodo-periphery-runtime-agent"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:73f2410689ff511901d9e8a255022f4a499816662fb5f387a3f2a16f9e0e6b95",
+          "id": "komodo-periphery-agent",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/komodo/periphery-agent.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/komodo/periphery-agent/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "komodo-periphery-runtime-agent"
+          ],
+          "contractHash": "sha256:6ad3cfd8d11856955479bce39d0d06219cf4df410f3d5395c0b24d42c698c58a",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "komodo-periphery-agent"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "komodo-periphery-runtime-agent"
+          ],
+          "contractHash": "sha256:08fd20fcd5a4d80d0c6b3c3a8ec41dc872aa3effc1b8d33435c1d665eb280aa3",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "komodo-periphery-agent"
+          ]
+        }
+      ],
+      "requires": [
+        "stackkits-komodo-core-runtime"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeAdapterAgent": {
+        "adapterRef": "komodo",
+        "connection": {
+          "authentication": "mutual-key",
+          "direction": "outbound-to-control-plane",
+          "minimumTLSVersion": "TLS1.3",
+          "transport": "tls"
+        },
+        "credentialCustody": "external-owner",
+        "evidenceRequired": true,
+        "hostExecution": "executor-mediated",
+        "id": "komodo-periphery",
+        "providerLifecycle": "not-owned",
+        "role": "node-agent",
+        "targetScope": "control-authority-site-workers"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "federation-link-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-link-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Typed inter-Site link boundary; transport, endpoint discovery, credentials, provider lifecycle, and general LAN reachability remain external.",
+        "id": "stackkits-federation-link-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-federation-link",
+      "provides": [
+        "inter-site-link"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "federation-link-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/federation/link/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "federation-link-executor-contract",
+              "outputRef": "modern/federation/link/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "federation-link-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy",
+            "federationLinkRequirements",
+            "externalFederationLinkBindings"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:7884542488c9e95c6dd47431f4b3bd194c4705aa3c164aa3a0d925e9432dc316",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "modern/federation/link/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy",
+            "federationLinkRequirements",
+            "externalFederationLinkBindings"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/federation/link/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-modern-federation-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "inter-site-link"
+        ],
+        "operations": [
+          "establish-inter-site-link",
+          "remove-inter-site-link",
+          "verify-inter-site-link"
+        ],
+        "ownerRef": "stackkits-federation-link-executor",
+        "requiredEvidenceRef": "federation-link-evidence",
+        "requiredHealthRef": "federation-link-health",
+        "status": "unbound",
+        "targetScope": "federated-sites"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "federation-control-agent-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-control-agent-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Typed outbound-only Federation control-agent boundary; inbound tunnels, credentials, identity issuance, provider lifecycle, and general LAN reachability remain external.",
+        "id": "stackkits-federation-control-agent-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-federation-control-agent",
+      "provides": [
+        "outbound-control-agent"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "federation-control-agent-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/federation/control-agent/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "federation-control-agent-executor-contract",
+              "outputRef": "modern/federation/control-agent/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "federation-control-agent-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:9c3de036682330f48113f5cfbf56ca925df6e345c8a10bbccbfc81d04ca85ebf",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "modern/federation/control-agent/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/federation/control-agent/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-modern-federation-policy-manifest",
+        "stackkits-modern-home-identity-trust-policy-manifest",
+        "stackkits-modern-cloud-identity-verifier-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "outbound-control-agent"
+        ],
+        "operations": [
+          "bind-outbound-control-agent",
+          "remove-outbound-control-agent",
+          "verify-outbound-control-agent"
+        ],
+        "ownerRef": "stackkits-federation-control-agent-executor",
+        "requiredEvidenceRef": "federation-control-agent-evidence",
+        "requiredHealthRef": "federation-control-agent-health",
+        "status": "unbound",
+        "targetScope": "federated-sites"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "federation-backup-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-backup-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Typed cross-Site backup boundary; repository provider lifecycle, endpoints, credentials, retention execution, and restore authority remain external.",
+        "id": "stackkits-federation-backup-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-federation-backup",
+      "provides": [
+        "cross-site-backup"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "federation-backup-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/federation/backup/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "federation-backup-executor-contract",
+              "outputRef": "modern/federation/backup/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "federation-backup-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:a6bc9cd6a895b4059a4576dccae77ef5e08696a6c0a4ea480485bbde259c17c5",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "modern/federation/backup/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/federation/backup/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-modern-federation-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "cross-site-backup"
+        ],
+        "operations": [
+          "bind-cross-site-backup",
+          "remove-cross-site-backup-binding",
+          "verify-cross-site-backup"
+        ],
+        "ownerRef": "stackkits-federation-backup-executor",
+        "requiredEvidenceRef": "federation-backup-evidence",
+        "requiredHealthRef": "federation-backup-health",
+        "status": "unbound",
+        "targetScope": "federated-sites"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "federation-observability-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-observability-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Typed bridge-observability boundary; telemetry backend lifecycle, credentials, transport, and provider configuration remain external.",
+        "id": "stackkits-federation-observability-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-federation-observability",
+      "provides": [
+        "bridge-observability"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "federation-observability-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/federation/observability/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "federation-observability-executor-contract",
+              "outputRef": "modern/federation/observability/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "federation-observability-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:a39448203af27efa2e7b638074e3da78b26cd1fd8906cec32620a335d4b40f5d",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "modern/federation/observability/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "moduleTargets",
+            "moduleCapabilities",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/federation/observability/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-modern-federation-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "operations",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeOwnerRequirement": {
+        "capabilityRefs": [
+          "bridge-observability"
+        ],
+        "operations": [
+          "bind-bridge-observability",
+          "remove-bridge-observability",
+          "verify-bridge-observability"
+        ],
+        "ownerRef": "stackkits-federation-observability-executor",
+        "requiredEvidenceRef": "federation-observability-evidence",
+        "requiredHealthRef": "federation-observability-health",
+        "status": "unbound",
+        "targetScope": "federated-sites"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "enforcementRequirement": {
+        "operations": [
+          "verify-home-session",
+          "publish-revocation-state-reference",
+          "publish-verification-key-reference",
+          "enforce-outbound-only-verifier-distribution"
+        ],
+        "ownerRef": "stackkits-modern-home-identity-trust-enforcer",
+        "policyArtifactRefs": [
+          "modern-identity-trust-policy"
+        ],
+        "requiredEvidenceRef": "modern-home-identity-trust-enforcement",
+        "requiredHealthRef": "modern-home-identity-trust-enforcement",
+        "status": "bound",
+        "targetScope": "home-control-authority"
+      },
+      "evidence": [
+        "modern-home-identity-trust-enforcement"
+      ],
+      "health": [
+        {
+          "id": "modern-home-identity-trust-enforcement",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Node-local Modern Home identity authority and verifier policy; it publishes only bounded verifier state and never owns transport.",
+        "id": "stackkits-modern-home-identity-trust-policy-manifest",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller"
+        ]
+      },
+      "providerRef": "stackkits-modern-identity-trust-policy",
+      "provides": [
+        "human-identity-core",
+        "device-trust-core"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "modern-identity-trust-policy",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/identity/trust-policy.json",
+              "required": true,
+              "unitRef": "policy-bundle"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "modern-identity-trust-policy",
+              "outputRef": "modern/identity/trust-policy.json",
+              "unitRef": "policy-bundle"
+            }
+          ],
+          "requiredRefs": [
+            "modern-identity-trust-policy"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "modern-home-identity-trust-enforcement"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "modern-home-identity-authority"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c267902e6021a66ac15e889cf3c041d630e4fedc0544058445409856a230fabc",
+          "id": "policy-bundle",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "identityTrust.modernHomeAuthority",
+              "targetRef": "modern-home-identity-authority",
+              "valueType": "modern-home-identity-authority-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "modern/identity/trust-policy.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "modern-home-identity-authority"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/home-identity-trust-policy/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-home-device-authority-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "executable",
+        "kind": "native"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "enforcementRequirement": {
+        "operations": [
+          "apply-inbound-revocation-state-reference",
+          "apply-inbound-verification-key-reference",
+          "verify-cloud-session",
+          "deny-reverse-verifier-distribution"
+        ],
+        "ownerRef": "stackkits-modern-cloud-identity-verifier-enforcer",
+        "policyArtifactRefs": [
+          "modern-identity-verifier-distribution-policy"
+        ],
+        "requiredEvidenceRef": "modern-cloud-identity-verifier-enforcement",
+        "requiredHealthRef": "modern-cloud-identity-verifier-enforcement",
+        "status": "bound",
+        "targetScope": "cloud-sites"
+      },
+      "evidence": [
+        "modern-cloud-identity-verifier-enforcement"
+      ],
+      "health": [
+        {
+          "id": "modern-cloud-identity-verifier-enforcement",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Node-local Modern Cloud verifier-only policy; it consumes bounded Home verifier state and can neither issue credentials nor reverse the distribution.",
+        "id": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "non-control-authority-sites",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-modern-identity-trust-policy",
+      "provides": [
+        "edge-identity-verifier"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "modern-identity-verifier-distribution-policy",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/identity/verifier-distribution-policy.json",
+              "required": true,
+              "unitRef": "policy-bundle"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "modern-identity-verifier-distribution-policy",
+              "outputRef": "modern/identity/verifier-distribution-policy.json",
+              "unitRef": "policy-bundle"
+            }
+          ],
+          "requiredRefs": [
+            "modern-identity-verifier-distribution-policy"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "modern-cloud-identity-verifier-enforcement"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "modern-cloud-identity-verification"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:9906f37e867e7392daea5ff2d581d9b1a1842b00fe15f8ec67ea0e7efe850e1f",
+          "id": "policy-bundle",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "identityTrust.modernCloudVerification",
+              "targetRef": "modern-cloud-identity-verification",
+              "valueType": "modern-cloud-identity-verification-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "modern/identity/verifier-distribution-policy.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "modern-cloud-identity-verification"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/cloud-identity-verifier-policy/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-modern-home-identity-trust-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "executable",
+        "kind": "native"
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
+        "description": "Generation-only Modern federation and partition policy manifest; transport, publication, control-agent, and verifier realization remain separately blocked.",
+        "id": "stackkits-modern-federation-policy-manifest",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-modern-federation-policy",
+      "provides": [
+        "bridge-policy",
+        "partition-failure-contract"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "modern-federation-policy-manifest",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "modern/federation/policy.json",
+              "required": true,
+              "unitRef": "policy-bundle"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "modern-federation-policy-manifest",
+              "outputRef": "modern/federation/policy.json",
+              "unitRef": "policy-bundle"
+            }
+          ],
+          "requiredRefs": [
+            "modern-federation-policy-manifest"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c01184d17e95defe6550aa7b1292a0205c1de747895af8e2a61bcb350d423c50",
+          "id": "policy-bundle",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "modern/federation/policy.json"
+          ],
+          "placement": {
+            "cardinality": "single",
+            "scope": "module"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "bridge",
+            "identity",
+            "data",
+            "failurePolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://modern/federation-policy/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-home-device-authority-policy-manifest"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "native"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
         "ha-basement-warm-standby-failure-domain-proof"
       ],
       "health": [
@@ -6866,6 +9684,7 @@
       },
       "renderUnits": [],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "operations",
       "runtime": {
         "delivery": "stackkit",
@@ -6925,6 +9744,7 @@
       },
       "renderUnits": [],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "operations",
       "runtime": {
         "delivery": "stackkit",
@@ -6984,6 +9804,7 @@
       },
       "renderUnits": [],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "operations",
       "runtime": {
         "delivery": "stackkit",
@@ -7043,6 +9864,7 @@
       },
       "renderUnits": [],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "operations",
       "runtime": {
         "delivery": "stackkit",
@@ -7102,6 +9924,7 @@
       },
       "renderUnits": [],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "operations",
       "runtime": {
         "delivery": "stackkit",
@@ -7162,6 +9985,7 @@
       },
       "renderUnits": [],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "operations",
       "runtime": {
         "delivery": "stackkit",
@@ -7226,6 +10050,7 @@
         }
       },
       "remoteActionContracts": [],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7256,6 +10081,7 @@
         }
       },
       "remoteActionContracts": [],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7286,6 +10112,7 @@
         }
       },
       "remoteActionContracts": [],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7316,6 +10143,7 @@
         }
       },
       "remoteActionContracts": [],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7346,6 +10174,7 @@
         }
       },
       "remoteActionContracts": [],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7382,6 +10211,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7418,6 +10248,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7454,6 +10285,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7490,6 +10322,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7543,6 +10376,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7600,6 +10434,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7674,6 +10509,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home",
@@ -7728,6 +10564,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -7784,6 +10621,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -7834,6 +10672,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -7873,6 +10712,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -7911,6 +10751,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -7966,6 +10807,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8017,6 +10859,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8072,6 +10915,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8119,6 +10963,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8205,6 +11050,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8260,6 +11106,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8320,6 +11167,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8375,6 +11223,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -8414,6 +11263,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -8448,6 +11298,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -8504,6 +11355,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -8538,6 +11390,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -8593,6 +11446,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -8648,6 +11502,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -8707,6 +11562,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "cloud"
       ],
@@ -8792,6 +11648,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "cloud"
@@ -8845,6 +11702,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "home"
       ],
@@ -8887,6 +11745,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -8894,6 +11753,686 @@
       "workloadRefs": [
         "photos"
       ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "coolify-adapter-contract"
+      ],
+      "health": [
+        {
+          "id": "coolify-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-coolify",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-coolify-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [
+        "coolify"
+      ],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "komodo-core-adapter-contract",
+        "komodo-periphery-agent-contract"
+      ],
+      "health": [
+        {
+          "id": "komodo-core-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        },
+        {
+          "id": "komodo-periphery-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-komodo",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-komodo-core-runtime",
+            "stackkits-komodo-periphery-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [
+        "komodo"
+      ],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-federation-topology-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "site-federation"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        },
+        {
+          "id": "site-cloud",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-service-publication-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "service-publication"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "public-edge",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-cross-site-placement-policy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "cross-site-placement"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-data-residency-policy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "data-residency"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "metadata": {
+        "id": "stackkits-split-horizon-naming-contract",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "split-horizon-naming"
+      ],
+      "realization": {
+        "kind": "contract",
+        "moduleRefs": {
+          "optional": [],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "public-dns",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "federation-link-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-link-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-federation-link",
+        "version": "1.1.0"
+      },
+      "overlayContracts": [
+        {
+          "advertiseDefaultRoute": false,
+          "advertisePrivateSubnets": false,
+          "allowBroadRoutes": false,
+          "allowedTrafficModes": [
+            "management-only",
+            "policy-scoped"
+          ],
+          "capabilityRef": "inter-site-link",
+          "id": "outbound-private-mesh",
+          "implementation": "wireguard",
+          "initiation": "local-outbound",
+          "moduleRef": "stackkits-federation-link-runtime",
+          "outboundEstablished": true
+        }
+      ],
+      "provides": [
+        "inter-site-link"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-federation-link-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "bridge-policy",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "federation-control-agent-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-control-agent-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-federation-control-agent",
+        "version": "1.1.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "outbound-control-agent"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-federation-control-agent-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [
+        {
+          "approvalClass": "none",
+          "approvalReceiptRequired": false,
+          "audience": "stackkit-workload",
+          "capabilityRef": "outbound-control-agent",
+          "capabilityScopedActions": true,
+          "destructive": false,
+          "id": "plan",
+          "issuerRef": "home-workload-issuer",
+          "maxTTLSeconds": 60,
+          "moduleRef": "stackkits-federation-control-agent-runtime",
+          "replayProtection": true,
+          "requiresApprovalForDestructive": true,
+          "requiresIdempotencyKey": true,
+          "requiresNonce": true,
+          "requiresResolvedPlanHash": true,
+          "requiresSignedActions": true,
+          "transport": "mtls-agent"
+        },
+        {
+          "approvalClass": "none",
+          "approvalReceiptRequired": false,
+          "audience": "stackkit-workload",
+          "capabilityRef": "outbound-control-agent",
+          "capabilityScopedActions": true,
+          "destructive": false,
+          "id": "verify",
+          "issuerRef": "home-workload-issuer",
+          "maxTTLSeconds": 60,
+          "moduleRef": "stackkits-federation-control-agent-runtime",
+          "replayProtection": true,
+          "requiresApprovalForDestructive": true,
+          "requiresIdempotencyKey": true,
+          "requiresNonce": true,
+          "requiresResolvedPlanHash": true,
+          "requiresSignedActions": true,
+          "transport": "mtls-agent"
+        },
+        {
+          "approvalClass": "owner-step-up",
+          "approvalReceiptRequired": true,
+          "audience": "stackkit-workload",
+          "capabilityRef": "outbound-control-agent",
+          "capabilityScopedActions": true,
+          "destructive": false,
+          "id": "apply",
+          "issuerRef": "home-workload-issuer",
+          "maxTTLSeconds": 60,
+          "moduleRef": "stackkits-federation-control-agent-runtime",
+          "replayProtection": true,
+          "requiresApprovalForDestructive": true,
+          "requiresIdempotencyKey": true,
+          "requiresNonce": true,
+          "requiresResolvedPlanHash": true,
+          "requiresSignedActions": true,
+          "transport": "mtls-agent"
+        },
+        {
+          "approvalClass": "owner-step-up",
+          "approvalReceiptRequired": true,
+          "audience": "stackkit-workload",
+          "capabilityRef": "outbound-control-agent",
+          "capabilityScopedActions": true,
+          "destructive": true,
+          "id": "destroy",
+          "issuerRef": "home-workload-issuer",
+          "maxTTLSeconds": 30,
+          "moduleRef": "stackkits-federation-control-agent-runtime",
+          "replayProtection": true,
+          "requiresApprovalForDestructive": true,
+          "requiresIdempotencyKey": true,
+          "requiresNonce": true,
+          "requiresResolvedPlanHash": true,
+          "requiresSignedActions": true,
+          "transport": "mtls-agent"
+        }
+      ],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "bridge-policy",
+          "optional": false
+        },
+        {
+          "id": "edge-identity-verifier",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "federation-backup-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-backup-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-federation-backup",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "cross-site-backup"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-federation-backup-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "data-residency",
+          "optional": false
+        },
+        {
+          "id": "cross-site-placement",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "federation-observability-contract"
+      ],
+      "health": [
+        {
+          "id": "federation-observability-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-federation-observability",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "bridge-observability"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-federation-observability-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "bridge-policy",
+          "optional": false
+        },
+        {
+          "id": "observability-evidence",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-modern-federation-policy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "bridge-policy",
+        "partition-failure-contract"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-modern-federation-policy-manifest"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "local-control-authority",
+          "optional": false
+        },
+        {
+          "id": "device-enrollment-home",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "modern-identity-trust-policy-contract"
+      ],
+      "health": [
+        {
+          "id": "modern-identity-trust-policy-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-modern-identity-trust-policy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "human-identity-core",
+        "device-trust-core",
+        "edge-identity-verifier"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-modern-home-identity-trust-policy-manifest",
+            "stackkits-modern-cloud-identity-verifier-policy-manifest"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-federation",
+          "optional": false
+        },
+        {
+          "id": "local-control-authority",
+          "optional": false
+        },
+        {
+          "id": "device-enrollment-home",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
     },
     {
       "certificateIssuers": [],
@@ -8932,6 +12471,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "home"
       ],
@@ -8974,6 +12514,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "home"
       ],
@@ -9016,6 +12557,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "cloud"
       ],
@@ -9058,6 +12600,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "cloud"
       ],
@@ -9100,6 +12643,7 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -9143,11 +12687,34 @@
           "optional": false
         }
       ],
+      "runtimeAdapterRefs": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
       ],
       "workloadRefs": []
+    }
+  ],
+  "rilActionExecutors": [
+    {
+      "operationClasses": [
+        "product-verify"
+      ],
+      "owner": {
+        "authority": "stackkits"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "credentialResolution": true,
+        "leaseAuthority": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "transport": true
+      },
+      "ref": "stackkits-governed-state-verifier-v1",
+      "schemaVersion": "stackkit.ril-action-executor/v1",
+      "version": "1.0.0"
     }
   ],
   "rilActionPrimitives": [
@@ -9162,6 +12729,14 @@
       "category": "plan",
       "destructive": false,
       "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
         "redactedLogsOnly": true,
         "requiredFields": [
           "action-card-id",
@@ -9235,6 +12810,14 @@
       "category": "apply",
       "destructive": false,
       "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
         "redactedLogsOnly": true,
         "requiredFields": [
           "action-card-id",
@@ -9320,6 +12903,14 @@
       "category": "verify",
       "destructive": false,
       "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
         "redactedLogsOnly": true,
         "requiredFields": [
           "action-card-id",
@@ -9394,6 +12985,14 @@
       "category": "rollback",
       "destructive": true,
       "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
         "redactedLogsOnly": true,
         "requiredFields": [
           "action-card-id",
@@ -9478,6 +13077,14 @@
       "category": "service",
       "destructive": false,
       "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
         "redactedLogsOnly": true,
         "requiredFields": [
           "action-card-id",
@@ -9562,6 +13169,14 @@
       "category": "certificate",
       "destructive": false,
       "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
         "redactedLogsOnly": true,
         "requiredFields": [
           "action-card-id",
@@ -9646,6 +13261,14 @@
       "category": "backup",
       "destructive": false,
       "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
         "redactedLogsOnly": true,
         "requiredFields": [
           "action-card-id",
@@ -9716,6 +13339,92 @@
         "required": true
       },
       "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "owner-step-up",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "verify",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "extensionAuthority": {
+        "kind": "module",
+        "moduleRef": "stackkits-immich-runtime",
+        "providerRef": "stackkits-immich"
+      },
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": true,
+        "required": true,
+        "scopes": [
+          "stackkit-immich-health-read"
+        ]
+      },
+      "id": "inspect-immich-runtime-health",
+      "inputs": [],
+      "mutation": false,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "immich-health-readback"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "none",
+        "requiredOnFailure": false
+      },
+      "risk": "read-only",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "contract-only",
+      "target": {
+        "requiresNodeRef": false,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "module-instance"
+      },
+      "title": "Inspect governed Immich runtime health",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
     }
   ],
   "workloads": [
@@ -9744,12 +13453,17 @@
             "serviceRef": "photos"
           },
           "runtime": {
+            "allowedAdapterRefs": [
+              "coolify",
+              "komodo"
+            ],
             "allowedDeliveries": [
               "selected-paas"
             ],
             "allowedKinds": [
               "container"
-            ]
+            ],
+            "defaultAdapterRef": "coolify"
           },
           "setup": {
             "actionRefs": [],

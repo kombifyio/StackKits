@@ -1110,6 +1110,7 @@
       "privilegedApprovalSubjectsUnique": true,
       "providedInterfaceIDsUnique": true,
       "providerIDsUnique": true,
+      "rilActionExecutorRefsUnique": true,
       "rilActionPrimitiveIDsUnique": true,
       "workloadAlternativesUnique": true,
       "workloadIDsUnique": true
@@ -1277,6 +1278,7 @@
         }
       ],
       "renderVariants": [],
+      "rilActionPrimitives": [],
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
@@ -1450,6 +1452,7 @@
       "requires": [
         "fixture-socket-proxy"
       ],
+      "rilActionPrimitives": [],
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
@@ -1544,6 +1547,7 @@
         }
       },
       "remoteActionContracts": [],
+      "runtimeAdapterRefs": [],
       "selection": {
         "defaultForSiteKinds": [
           "home"
@@ -1555,6 +1559,7 @@
       "workloadRefs": []
     }
   ],
+  "rilActionExecutors": [],
   "rilActionPrimitives": [],
   "workloads": []
 }

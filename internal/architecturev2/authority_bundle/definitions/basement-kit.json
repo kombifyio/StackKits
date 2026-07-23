@@ -244,6 +244,7 @@
       "private-remote-access",
       "public-publish-egress",
       "encrypted-offsite-backup",
+      "basement-compose-runtime",
       "availability-ha"
     ],
     "required": [
@@ -262,7 +263,6 @@
       "backup-core",
       "observability-evidence",
       "lifecycle-update",
-      "basement-compose-runtime",
       "site-local",
       "local-ingress",
       "lan-access-policy",
@@ -286,11 +286,6 @@
   "evidenceScenarios": [
     "SK-S1"
   ],
-  "failureDefaults": {
-    "cloudEdgeFailsClosed": true,
-    "localServicesSurviveCloudLoss": true,
-    "offlineOperation": true
-  },
   "generation": {
     "allowedStrategies": [
       "kit-template",

@@ -153,7 +153,10 @@ func validateProductApplyRequirementKinds(kinds []string) error {
 		if kind <= previous {
 			return fmt.Errorf("requirement kinds must be strictly sorted and unique")
 		}
-		if !strings.Contains(" evidence health host provider-owner runtime secret workload ", " "+kind+" ") {
+		// Product trust is authority to attest only facts required before the
+		// executor mutates state. Runtime/workload/provider-owner/health are
+		// post-execution result authority and can never be granted here.
+		if !strings.Contains(" evidence host secret ", " "+kind+" ") {
 			return fmt.Errorf("unsupported requirement kind %q", kind)
 		}
 		previous = kind

@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"slices"
 	"sort"
-	"time"
 
+	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -20,8 +20,9 @@ var channelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$`)
 // Route binds one opaque plan-owned channel identity to one executor selected
 // by the owning control plane. ChannelRef is not an endpoint or credential.
 type Route struct {
-	ChannelRef string
-	Executor   runtimeexecutor.Executor
+	ChannelRef   string
+	Executor     runtimeexecutor.Executor
+	Compensation runtimeapply.CompensationMode
 }
 
 // Dispatcher is a provider-neutral composite executor. Every child invocation
@@ -29,14 +30,29 @@ type Route struct {
 type Dispatcher struct {
 	identity runtimeexecutor.ExecutorIdentity
 	routes   map[string]routedExecutor
+	journal  runtimeapply.Journal
 }
 
 type routedExecutor struct {
-	identity runtimeexecutor.ExecutorIdentity
-	executor runtimeexecutor.Executor
+	identity     runtimeexecutor.ExecutorIdentity
+	executor     runtimeexecutor.Executor
+	compensation runtimeapply.CompensationMode
 }
 
 func New(identity runtimeexecutor.ExecutorIdentity, routes []Route) (*Dispatcher, error) {
+	return newDispatcher(identity, routes, nil)
+}
+
+// NewWithJournal fixes a durable provider-neutral operation journal at
+// construction. Apply callers cannot supply or replace it.
+func NewWithJournal(identity runtimeexecutor.ExecutorIdentity, routes []Route, journal runtimeapply.Journal) (*Dispatcher, error) {
+	if nilRuntimeApplyJournal(journal) {
+		return nil, errors.New("execution-channel dispatcher requires a journal")
+	}
+	return newDispatcher(identity, routes, journal)
+}
+
+func newDispatcher(identity runtimeexecutor.ExecutorIdentity, routes []Route, journal runtimeapply.Journal) (*Dispatcher, error) {
 	if len(routes) == 0 {
 		return nil, errors.New("execution-channel dispatcher requires at least one route")
 	}
@@ -52,9 +68,13 @@ func New(identity runtimeexecutor.ExecutorIdentity, routes []Route) (*Dispatcher
 		if err != nil {
 			return nil, fmt.Errorf("execution-channel route %d identity: %w", index, err)
 		}
-		registered[route.ChannelRef] = routedExecutor{identity: childIdentity, executor: route.Executor}
+		compensation, err := normalizeCompensationMode(route.Compensation)
+		if err != nil {
+			return nil, fmt.Errorf("execution-channel route %d: %w", index, err)
+		}
+		registered[route.ChannelRef] = routedExecutor{identity: childIdentity, executor: route.Executor, compensation: compensation}
 	}
-	return &Dispatcher{identity: identity, routes: registered}, nil
+	return &Dispatcher{identity: identity, routes: registered, journal: journal}, nil
 }
 
 func (d *Dispatcher) Identity() runtimeexecutor.ExecutorIdentity { return d.identity }
@@ -81,34 +101,19 @@ func (d *Dispatcher) Execute(ctx context.Context, request runtimeexecutor.Execut
 		channels = append(channels, channelRef)
 	}
 	sort.Strings(channels)
-	outcome := runtimeexecutor.ExecutionOutcome{}
+	prepared := make([]preparedExecution, 0, len(channels))
 	for _, channelRef := range channels {
-		if err := ctx.Err(); err != nil {
-			return runtimeexecutor.ExecutionOutcome{}, err
-		}
 		group := groups[channelRef]
 		child := d.routes[channelRef]
 		childRequest, err := sealChildRequest(request, child.identity, group)
 		if err != nil {
 			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("seal execution-channel child request for %q: %w", channelRef, err)
 		}
-		var result runtimeexecutor.ExecutionResult
-		if len(childRequest.AccessBindings) == 0 {
-			result, err = runtimeexecutor.Invoke(ctx, child.executor, childRequest)
-		} else {
-			authorizationTime, parseErr := time.Parse(time.RFC3339Nano, childRequest.AuthorizationTime)
-			if parseErr != nil {
-				return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("parse execution-channel authorization time for %q: %w", channelRef, parseErr)
-			}
-			result, err = runtimeexecutor.InvokeAt(ctx, child.executor, childRequest, authorizationTime)
-		}
-		if err != nil {
-			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("execute channel %q: %w", channelRef, err)
-		}
-		outcome.Runtime = append(outcome.Runtime, result.Runtime...)
-		outcome.Health = append(outcome.Health, result.Health...)
+		prepared = append(prepared, preparedExecution{
+			label: channelRef, executor: child.executor, request: childRequest, compensation: child.compensation,
+		})
 	}
-	return outcome, nil
+	return executePrepared(ctx, request, prepared, d.journal)
 }
 
 type requestGroup struct {
@@ -144,6 +149,7 @@ func partitionRequest(request runtimeexecutor.ExecutionRequest, routes map[strin
 				continue
 			}
 			if health.TargetKind == "module" && health.TargetRef == target.ModuleRef ||
+				health.TargetKind == "provider" && health.TargetRef == target.ProviderRef ||
 				health.TargetKind == "runtime" && health.TargetRef == target.InstanceRef {
 				matchedChannel = target.ExecutionChannelRef
 				matches++
@@ -197,6 +203,16 @@ func sealChildRequest(parent runtimeexecutor.ExecutionRequest, identity runtimee
 		for _, artifactRef := range target.ArtifactRefs {
 			referenced[artifactRef] = struct{}{}
 		}
+		if target.RuntimeAdapter != nil {
+			for _, artifactRef := range target.RuntimeAdapter.ArtifactRefs {
+				referenced[artifactRef] = struct{}{}
+			}
+			for _, agent := range target.RuntimeAdapter.Agents {
+				for _, artifactRef := range agent.ArtifactRefs {
+					referenced[artifactRef] = struct{}{}
+				}
+			}
+		}
 	}
 	artifacts := make([]runtimeexecutor.Artifact, 0, len(referenced)+1)
 	for _, artifact := range parent.Artifacts {
@@ -209,15 +225,18 @@ func sealChildRequest(parent runtimeexecutor.ExecutionRequest, identity runtimee
 	if len(referenced) != 0 {
 		return runtimeexecutor.ExecutionRequest{}, errors.New("execution-channel child request is missing a target artifact")
 	}
-	return runtimeexecutor.SealRequest(runtimeexecutor.ExecutionRequest{
+	child := runtimeexecutor.ExecutionRequest{
 		APIVersion: runtimeexecutor.APIVersion, Executor: identity,
 		PlanHash: parent.PlanHash, ManifestHash: parent.ManifestHash,
 		GenerationReceiptHash: parent.GenerationReceiptHash, RequirementsHash: parent.RequirementsHash,
 		EvidenceBundleHash: parent.EvidenceBundleHash,
-		AuthorizationTime:  parent.AuthorizationTime,
 		RuntimeTargets:     append([]runtimeexecutor.RuntimeTarget(nil), group.runtime...),
 		HealthTargets:      append([]runtimeexecutor.HealthTarget(nil), group.health...),
 		AccessBindings:     append([]runtimeexecutor.AccessBinding(nil), group.accessBindings...),
 		Artifacts:          artifacts,
-	})
+	}
+	if len(child.AccessBindings) != 0 {
+		child.AuthorizationTime = parent.AuthorizationTime
+	}
+	return runtimeexecutor.SealRequest(child)
 }

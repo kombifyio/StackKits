@@ -8,12 +8,12 @@
   },
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
-    "architecture/v2/contractfixture/catalog.cue": "sha256:5f2f0039c54f3c7f27e934d03a102e5867f2fd0d3f9fa06ed24570e4b3d18f30",
-    "base/architecture_v2.cue": "sha256:9cd1c384574aeaf66e88ec6cc3a4a632deab88d029befa79822e470229d6e490",
-    "base/architecture_v2_catalog.cue": "sha256:f541f214b0c82058c6e103b9ecfa20f496c5556fbbe41f50d6751509f9a7e298",
-    "base/architecture_v2_definition_binding.cue": "sha256:d555bc0825986eee9665124c7d4c9a84f8de6212bc063fa9ec7a22e9a3f4a822",
-    "base/architecture_v2_profiles.cue": "sha256:ba438f0a45755febdc5b212401990672259a5d5a8840c1443f894bb21c8f48ea",
-    "basement-kit/stackfile.cue": "sha256:40746c57d77a4c78a756485d43a5620f1d4a20ee65efc4f2a74e9eb15a98eec2",
+    "architecture/v2/contractfixture/catalog.cue": "sha256:81909d223d0573ac1acd3b0762f4ca7e5daf1297f30c89151601c9faa6fd63ec",
+    "base/architecture_v2.cue": "sha256:2c654d0997e46dda0ef9f2b3cb8833a609a491c99c3ad15313fbe8a915d26113",
+    "base/architecture_v2_catalog.cue": "sha256:5418959846fbceb2fe38a43355fa6a7105a1cf037f91140de4688285406b79c4",
+    "base/architecture_v2_definition_binding.cue": "sha256:b1592a28315cf23af846ebcfc35f27e43103ab4ecbf9c226ef1d0c4c392944bb",
+    "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",
+    "basement-kit/stackfile.cue": "sha256:d656b8a30a468b5f467f2539dd38fe8e08ccf1db7b14e05a85bf3c9ca3f2228c",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee"
   }
 }

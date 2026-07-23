@@ -82,7 +82,7 @@ func (s *Service) ValidateRILActionHandoffAt(input RILActionAdmissionInput) (RIL
 	if err := json.Unmarshal(current.plan.Canonical(), &plan); err != nil {
 		return RILActionValidation{}, resolveError(ErrRILActionAdmission, "decode current governed plan", err)
 	}
-	if err := validateRILActionTarget(request, plan, current.plan.ApplyRequirements()); err != nil {
+	if err := validateRILActionTarget(request, primitive, plan, current.plan.ApplyRequirements()); err != nil {
 		return RILActionValidation{}, resolveError(ErrRILActionAdmission, err.Error(), err)
 	}
 	digest, err := rilaction.ComputeRequestDigest(request)
@@ -95,7 +95,7 @@ func (s *Service) ValidateRILActionHandoffAt(input RILActionAdmissionInput) (RIL
 		PrimitiveID: request.Primitive.ID, PrimitiveContractHash: request.Primitive.ContractHash,
 		ResolvedPlanHash: request.ResolvedPlanHash, TargetScope: string(request.Target.Scope),
 		RequestDigest: digest, EvaluatedAt: input.EvaluatedAt, Support: primitive.Support,
-		Executable: primitive.ID == "verify-stackkit-state" && primitive.Support == "executor-bound" && primitive.ExecutorRef == rilGovernedStateVerifierRef,
+		Executable: primitive.Support == "executor-bound" && s.rilActionExecutors.owns(primitive.executorIdentity()),
 	}, nil
 }
 
@@ -172,7 +172,7 @@ func validateRILActionPrimitiveBinding(request rilaction.Request, primitive RILA
 	return nil
 }
 
-func validateRILActionTarget(request rilaction.Request, plan resolvedplan.ResolvedPlan, requirements generationartifact.ApplyRequirements) error {
+func validateRILActionTarget(request rilaction.Request, primitive RILActionPrimitiveCatalogEntry, plan resolvedplan.ResolvedPlan, requirements generationartifact.ApplyRequirements) error {
 	if request.Target.Scope == rilaction.TargetScopeStack {
 		return nil
 	}
@@ -187,14 +187,31 @@ func validateRILActionTarget(request rilaction.Request, plan resolvedplan.Resolv
 		if !planContainsModule(plan, request.Target.ModuleInstanceRef, request.Target.SiteRef, request.Target.NodeRef) {
 			return fmt.Errorf("approved action module target is absent from the current plan placement")
 		}
+		if authority := primitive.ExtensionAuthority; authority != nil &&
+			!planContainsModuleAuthority(plan, request.Target.ModuleInstanceRef, authority.ModuleRef, authority.ProviderRef) {
+			return fmt.Errorf("approved action module target does not match its CUE extension authority")
+		}
 	case rilaction.TargetScopeRuntimeInstance:
 		if !requirementsContainRuntime(requirements, request.Target) {
 			return fmt.Errorf("approved action runtime target is absent from the current plan execution graph")
+		}
+		if authority := primitive.ExtensionAuthority; authority != nil &&
+			!requirementsContainRuntimeAuthority(requirements, request.Target.RuntimeInstanceRef, authority.ModuleRef, authority.ProviderRef) {
+			return fmt.Errorf("approved action runtime target does not match its CUE extension authority")
 		}
 	default:
 		return fmt.Errorf("approved action target scope is unsupported")
 	}
 	return nil
+}
+
+func planContainsModuleAuthority(plan resolvedplan.ResolvedPlan, instanceRef, moduleRef, providerRef string) bool {
+	for _, value := range objectList(plan["modules"]) {
+		if value["id"] == instanceRef && value["id"] == moduleRef && value["providerRef"] == providerRef {
+			return true
+		}
+	}
+	return false
 }
 
 func planContainsSite(plan resolvedplan.ResolvedPlan, siteRef string) bool {
@@ -238,6 +255,16 @@ func requirementsContainRuntime(requirements generationartifact.ApplyRequirement
 			continue
 		}
 		matches++
+	}
+	return matches == 1
+}
+
+func requirementsContainRuntimeAuthority(requirements generationartifact.ApplyRequirements, instanceRef, moduleRef, providerRef string) bool {
+	matches := 0
+	for _, runtime := range requirements.RuntimeInstances {
+		if runtime.InstanceRef == instanceRef && runtime.ModuleRef == moduleRef && runtime.ProviderRef == providerRef {
+			matches++
+		}
 	}
 	return matches == 1
 }

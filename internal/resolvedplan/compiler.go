@@ -274,6 +274,16 @@ func freezeCatalog(catalog Catalog) (Catalog, error) {
 		}
 		frozen.PrivilegedInterfaceApprovals = append(frozen.PrivilegedInterfaceApprovals, PrivilegedInterfaceApproval(clone))
 	}
+	for _, executor := range catalog.RILActionExecutors {
+		if err := validateSecretReferences(map[string]any(executor), "catalog.rilActionExecutors", ""); err != nil {
+			return Catalog{}, err
+		}
+		clone, err := cloneObject(map[string]any(executor), false)
+		if err != nil {
+			return Catalog{}, err
+		}
+		frozen.RILActionExecutors = append(frozen.RILActionExecutors, RILActionExecutorContract(clone))
+	}
 	for _, primitive := range catalog.RILActionPrimitives {
 		if err := validateSecretReferences(map[string]any(primitive), "catalog.rilActionPrimitives", ""); err != nil {
 			return Catalog{}, err
@@ -368,14 +378,22 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
 		nodes: topology.nodes, capabilities: contracts.capabilities, providers: contracts.providers,
-		install: deployment.install, system: deployment.system, storage: deployment.storage, network: deployment.network,
+		install: deployment.install, system: deployment.system, storage: deployment.storage, network: deployment.network, gates: deployment.gates,
 	}); err != nil {
 		return nil, err
 	}
 	if err := bindResolvedModuleRenderInputs(contracts.modules, moduleRenderInputSource{
-		identity: deployment.identity,
-		network:  deployment.network,
-		gates:    deployment.gates,
+		stackID:       spec.stackID,
+		kit:           resolvedKit,
+		sites:         topology.sites,
+		identity:      deployment.identity,
+		identityTrust: identityTrust,
+		failurePolicy: topology.failurePolicy,
+		network:       deployment.network,
+		gates:         deployment.gates,
+		install:       deployment.install,
+		system:        deployment.system,
+		storage:       deployment.storage,
 	}); err != nil {
 		return nil, err
 	}
@@ -762,9 +780,10 @@ func (c *Compiler) buildProvider(spec *specView, resolved *resolution, id string
 	}
 	entry := map[string]any{
 		"id": id, "version": version, "contractHash": contractHash,
-		"provides":     stringSliceAny(providerCapabilities(id, resolved)),
-		"workloadRefs": stringSliceAny(providerWorkloads(id, resolved)),
-		"siteRefs":     stringSliceAny(siteRefs), "realization": resolvedRealization,
+		"provides":           stringSliceAny(providerCapabilities(id, resolved)),
+		"workloadRefs":       stringSliceAny(providerWorkloads(id, resolved)),
+		"runtimeAdapterRefs": stringSliceAny(providerRuntimeAdapters(id, resolved)),
+		"siteRefs":           stringSliceAny(siteRefs), "realization": resolvedRealization,
 	}
 	if rawIssuers, exists := contract["certificateIssuers"]; exists {
 		cloned, err := cloneObject(map[string]any{"certificateIssuers": rawIssuers}, true)
@@ -786,6 +805,16 @@ func (c *Compiler) buildProvider(spec *specView, resolved *resolution, id string
 		entry["owner"] = owner
 	}
 	return builtProvider{entry: entry, evidence: providerEvidence, siteRefs: siteRefs, nodeRefs: nodeRefs}, nil
+}
+
+func providerRuntimeAdapters(providerID string, resolved *resolution) []string {
+	var adapters []string
+	for _, workload := range resolved.workloads {
+		if workload.runtimeAdapterProviderID == providerID && workload.runtimeAdapterID != "" {
+			adapters = append(adapters, workload.runtimeAdapterID)
+		}
+	}
+	return sortStringsUnique(adapters)
 }
 
 func providerWorkloads(providerID string, resolved *resolution) []string {
@@ -1075,6 +1104,35 @@ func (c *Compiler) buildWorkloads(resolved *resolution, modules []any) ([]any, e
 				return nil, err
 			}
 			resolvedRuntime[field] = value
+		}
+		if selection.runtimeAdapterID != "" {
+			adapterProvider := c.catalog.providers[selection.runtimeAdapterProviderID]
+			adapterModule := c.catalog.modules[selection.runtimeAdapterModuleID]
+			providerVersion, err := metadataVersion(adapterProvider, "catalog.providers."+selection.runtimeAdapterProviderID)
+			if err != nil {
+				return nil, err
+			}
+			providerHash, err := canonicalHash(adapterProvider, true)
+			if err != nil {
+				return nil, err
+			}
+			moduleVersion, err := metadataVersion(adapterModule, "catalog.modules."+selection.runtimeAdapterModuleID)
+			if err != nil {
+				return nil, err
+			}
+			moduleHash, err := canonicalHash(adapterModule, true)
+			if err != nil {
+				return nil, err
+			}
+			resolvedRuntime["adapter"] = map[string]any{
+				"id":                   selection.runtimeAdapterID,
+				"providerRef":          selection.runtimeAdapterProviderID,
+				"providerVersion":      providerVersion,
+				"providerContractHash": providerHash,
+				"moduleRef":            selection.runtimeAdapterModuleID,
+				"moduleVersion":        moduleVersion,
+				"moduleContractHash":   moduleHash,
+			}
 		}
 		settings, err := cloneObject(selection.settings, true)
 		if err != nil {

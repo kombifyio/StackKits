@@ -2,328 +2,626 @@ package architecturev2renderer
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"reflect"
 	"sort"
+	"strconv"
 )
 
 const (
-	modernIdentityTrustPolicyModuleID         = "stackkits-modern-identity-trust-policy-manifest"
-	modernIdentityTrustPolicyTemplateRef      = "builtin://modern/identity-trust-policy/v1.json"
+	modernHomeIdentityTrustPolicyModuleID     = "stackkits-modern-home-identity-trust-policy-manifest"
+	modernCloudIdentityVerifierPolicyModuleID = "stackkits-modern-cloud-identity-verifier-policy-manifest"
+	modernIdentityTrustPolicyTemplateRef      = "builtin://modern/home-identity-trust-policy/v1.json"
+	modernCloudIdentityPolicyTemplateRef      = "builtin://modern/cloud-identity-verifier-policy/v1.json"
 	modernIdentityTrustPolicyOutputRef        = "modern/identity/trust-policy.json"
 	modernVerifierDistributionPolicyOutputRef = "modern/identity/verifier-distribution-policy.json"
 	modernIdentityTrustProviderRef            = "stackkits-modern-identity-trust-policy"
 	modernIdentityTrustContractRef            = "modern-identity-trust-policy-contract"
+	modernIdentityPolicyToken                 = "@@POLICY@@"
 )
 
-const modernIdentityTrustPolicyTemplate = `{"apiVersion":"stackkit.modern-identity-trust-policy/v1","kind":"ModernIdentityTrustPolicy","contract":{"cloudEnrollment":"deny","cloudIssuance":"deny","credentialIssuanceRuntime":"unverified","credentialMaterial":"not-included","enrollmentAuthority":"home-only","generalLANReachability":"deny","jwksBytes":"not-included","privateKeys":"not-included","reverseDistribution":"deny","runtimeEndpoints":"not-included","runtimeEnforcement":"unverified","scope":"generation-only","signingAuthority":"home-only","transportRealization":"not-included"},"planInputs":@@PLAN_INPUTS@@}
+const modernIdentityTrustPolicyTemplate = `{"apiVersion":"stackkit.modern-identity-trust-policy/v1","kind":"ModernIdentityTrustPolicy","contract":{"cloudEnrollment":"deny","cloudIssuance":"deny","credentialIssuanceRuntime":"unverified","credentialMaterial":"not-included","enrollmentAuthority":"home-only","generalLANReachability":"deny","jwksBytes":"not-included","privateKeys":"not-included","reverseDistribution":"deny","runtimeEndpoints":"not-included","runtimeEnforcement":"unverified","scope":"generation-only","signingRuntime":"not-included","transportRealization":"not-included"},"policy":@@POLICY@@}
 `
 
-const modernVerifierDistributionPolicyTemplate = `{"apiVersion":"stackkit.modern-verifier-distribution-policy/v1","kind":"ModernVerifierDistributionPolicy","contract":{"cloudEnrollment":"deny","cloudIssuance":"deny","credentialIssuanceRuntime":"unverified","credentialMaterial":"not-included","direction":"home-to-cloud-only","enrollmentAuthority":"not-included","generalLANReachability":"deny","jwksBytes":"not-included","privateKeys":"not-included","reverseDistribution":"deny","runtimeDistribution":"unverified","runtimeEndpoints":"not-included","runtimeEnforcement":"unverified","scope":"generation-only","signingAuthority":"not-included","transportRealization":"not-included"},"planInputs":@@PLAN_INPUTS@@}
+const modernVerifierDistributionPolicyTemplate = `{"apiVersion":"stackkit.modern-verifier-distribution-policy/v1","kind":"ModernVerifierDistributionPolicy","contract":{"cloudEnrollment":"deny","cloudIssuance":"deny","credentialIssuanceRuntime":"unverified","credentialMaterial":"not-included","direction":"home-to-cloud-only","enrollmentAuthority":"not-included","generalLANReachability":"deny","jwksBytes":"not-included","privateKeys":"not-included","reverseDistribution":"deny","runtimeDistribution":"unverified","runtimeEndpoints":"not-included","runtimeEnforcement":"unverified","scope":"generation-only","signingRuntime":"not-included","transportRealization":"not-included"},"policy":@@POLICY@@}
 `
 
-var modernIdentityTrustPolicyPlanInputRefs = []string{"failurePolicy", "identityTrust", "kit", "sites", "stackId"}
+var modernIdentityProjectionPlanInputRefs = []string{"kit", "stackId"}
 
-type modernIdentityTrustPlanInputs struct {
-	StackID       string                     `json:"stackId"`
-	Kit           localAutonomyKit           `json:"kit"`
-	Sites         []localAutonomySite        `json:"sites"`
-	IdentityTrust identityTrustGraph         `json:"identityTrust"`
-	FailurePolicy localAutonomyFailurePolicy `json:"failurePolicy"`
+type modernIdentityProjectionRenderer struct {
+	role, moduleID, inputRef, sourceRef, valueType, outputRef string
+	template                                                  []byte
+	contract                                                  RendererContract
 }
 
 func init() {
 	registerProductRegistryExtension(func(registry *Registry) error {
-		renderer := newModernIdentityTrustPolicyRenderer()
-		return registry.Register(renderer.contract, renderer)
+		home := newModernHomeIdentityTrustPolicyRenderer()
+		if err := registry.Register(home.contract, home); err != nil {
+			return err
+		}
+		cloud := newModernCloudIdentityVerifierPolicyRenderer()
+		return registry.Register(cloud.contract, cloud)
 	})
 }
 
-func newModernIdentityTrustPolicyRenderer() identityTrustPolicyRenderer {
-	return newIdentityTrustPolicyRenderer(
-		modernIdentityTrustPolicyModuleID, "Modern identity-federation policy", modernIdentityTrustPolicyTemplateRef,
-		[]identityTrustPolicyOutputTemplate{
-			{ref: modernIdentityTrustPolicyOutputRef, template: []byte(modernIdentityTrustPolicyTemplate)},
-			{ref: modernVerifierDistributionPolicyOutputRef, template: []byte(modernVerifierDistributionPolicyTemplate)},
-		},
-		modernIdentityTrustPolicyPlanInputRefs, validateModernIdentityTrustPlanInputs,
+func newModernHomeIdentityTrustPolicyRenderer() modernIdentityProjectionRenderer {
+	return newModernIdentityProjectionRenderer(
+		"home", modernHomeIdentityTrustPolicyModuleID, "modern-home-identity-authority",
+		"identityTrust.modernHomeAuthority", "modern-home-identity-authority-v1",
+		modernIdentityTrustPolicyTemplateRef, modernIdentityTrustPolicyOutputRef, modernIdentityTrustPolicyTemplate,
 	)
 }
 
-// ModernIdentityTrustPolicyRendererContract returns the exact private hybrid
-// contract. Its hash jointly binds both generated outputs, so neither the
-// trust manifest nor the one-way distribution manifest can drift alone.
-func ModernIdentityTrustPolicyRendererContract() RendererContract {
-	return newModernIdentityTrustPolicyRenderer().contract
+func newModernCloudIdentityVerifierPolicyRenderer() modernIdentityProjectionRenderer {
+	return newModernIdentityProjectionRenderer(
+		"cloud", modernCloudIdentityVerifierPolicyModuleID, "modern-cloud-identity-verification",
+		"identityTrust.modernCloudVerification", "modern-cloud-identity-verification-v1",
+		modernCloudIdentityPolicyTemplateRef, modernVerifierDistributionPolicyOutputRef, modernVerifierDistributionPolicyTemplate,
+	)
+}
+
+func newModernIdentityProjectionRenderer(role, moduleID, inputRef, sourceRef, valueType, templateRef, outputRef, template string) modernIdentityProjectionRenderer {
+	sum := sha256.Sum256([]byte(template))
+	return modernIdentityProjectionRenderer{
+		role: role, moduleID: moduleID, inputRef: inputRef, sourceRef: sourceRef, valueType: valueType, outputRef: outputRef,
+		template: []byte(template),
+		contract: RendererContract{Kind: "native-config", RendererRef: identityTrustPolicyRendererRef, TemplateRef: templateRef, Version: identityTrustPolicyVersion, ContractHash: "sha256:" + hex.EncodeToString(sum[:])},
+	}
+}
+
+func ModernHomeIdentityTrustPolicyRendererContract() RendererContract {
+	return newModernHomeIdentityTrustPolicyRenderer().contract
+}
+
+func ModernCloudIdentityVerifierPolicyRendererContract() RendererContract {
+	return newModernCloudIdentityVerifierPolicyRenderer().contract
 }
 
 type ModernIdentityTrustEnforcementPolicy struct {
-	StackID         string
-	HomeSiteRefs    []string
-	CloudSiteRefs   []string
-	MaxStaleSeconds int
-	Verifiers       []ModernIdentityTrustVerifier
-	Distributions   []ModernIdentityTrustDistribution
+	StackID         string                            `json:"stackId"`
+	KitSlug         string                            `json:"kitSlug"`
+	HomeSiteRefs    []string                          `json:"homeSiteRefs"`
+	CloudSiteRefs   []string                          `json:"cloudSiteRefs"`
+	MaxStaleSeconds int                               `json:"maxStaleSeconds"`
+	Issuers         []ModernIdentityTrustIssuer       `json:"issuers,omitempty"`
+	Verifiers       []ModernIdentityTrustVerifier     `json:"verifiers"`
+	Distributions   []ModernIdentityTrustDistribution `json:"distributions"`
+}
+
+type ModernIdentityTrustIssuer struct {
+	ID                            string   `json:"id"`
+	AuthorityRef                  string   `json:"authorityRef"`
+	Principal                     string   `json:"principal"`
+	Issuer                        string   `json:"issuer"`
+	Audiences                     []string `json:"audiences"`
+	VerificationKeySetRef         string   `json:"verificationKeySetRef"`
+	ProofOfPossessionRequired     bool     `json:"proofOfPossessionRequired"`
+	RevocationMaxStalenessSeconds int      `json:"revocationMaxStalenessSeconds"`
+	CredentialTTLSeconds          int      `json:"lifetimeSeconds"`
+	SessionTTLSeconds             int      `json:"sessionTTLSeconds"`
+	EnrollmentMode                string   `json:"enrollmentMode"`
+	EnrollmentExposure            string   `json:"enrollmentExposure"`
 }
 
 type ModernIdentityTrustVerifier struct {
-	ID                            string
-	Principal                     string
-	CredentialIssuerRef           string
-	Issuer                        string
-	Audiences                     []string
-	VerificationKeySetRef         string
-	SiteRefs                      []string
-	SiteKind                      string
-	ProofOfPossessionRequired     bool
-	RevocationMaxStalenessSeconds int
+	ID                            string   `json:"id"`
+	Principal                     string   `json:"principal"`
+	CredentialIssuerRef           string   `json:"issuerRef"`
+	Issuer                        string   `json:"issuer"`
+	Audiences                     []string `json:"audiences"`
+	VerificationKeySetRef         string   `json:"verificationKeySetRef"`
+	SiteRefs                      []string `json:"siteRefs,omitempty"`
+	SiteKind                      string   `json:"siteKind,omitempty"`
+	ProofOfPossessionRequired     bool     `json:"proofOfPossessionRequired"`
+	RevocationMaxStalenessSeconds int      `json:"revocationMaxStalenessSeconds"`
 }
 
 type ModernIdentityTrustDistribution struct {
-	ID                  string
-	Principal           string
-	CredentialIssuerRef string
-	Issuer              string
-	FromSiteRefs        []string
-	ToSiteRefs          []string
-	Materials           []string
-	MaxStalenessSeconds int
+	ID                  string   `json:"id"`
+	Principal           string   `json:"principal"`
+	CredentialIssuerRef string   `json:"issuerRef"`
+	Issuer              string   `json:"issuer"`
+	FromSiteRefs        []string `json:"fromSiteRefs,omitempty"`
+	ToSiteRefs          []string `json:"toSiteRefs,omitempty"`
+	Materials           []string `json:"materials"`
+	MaxStalenessSeconds int      `json:"maxStalenessSeconds"`
 }
 
-type modernIdentityTrustPolicyArtifact struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Contract   struct {
-		CloudEnrollment           string `json:"cloudEnrollment"`
-		CloudIssuance             string `json:"cloudIssuance"`
-		CredentialIssuanceRuntime string `json:"credentialIssuanceRuntime"`
-		CredentialMaterial        string `json:"credentialMaterial"`
-		EnrollmentAuthority       string `json:"enrollmentAuthority"`
-		GeneralLANReachability    string `json:"generalLANReachability"`
-		JWKSBytes                 string `json:"jwksBytes"`
-		PrivateKeys               string `json:"privateKeys"`
-		ReverseDistribution       string `json:"reverseDistribution"`
-		RuntimeEndpoints          string `json:"runtimeEndpoints"`
-		RuntimeEnforcement        string `json:"runtimeEnforcement"`
-		Scope                     string `json:"scope"`
-		SigningAuthority          string `json:"signingAuthority"`
-		TransportRealization      string `json:"transportRealization"`
-	} `json:"contract"`
-	PlanInputs json.RawMessage `json:"planInputs"`
+type modernIdentityPartition struct {
+	OnCloudLoss                     string `json:"onCloudLoss,omitempty"`
+	OnLinkLoss                      string `json:"onLinkLoss,omitempty"`
+	CloudEdge                       string `json:"cloudEdge,omitempty"`
+	LocalIdentityAuthorityAvailable bool   `json:"localIdentityAuthorityAvailable,omitempty"`
+	MaxStaleVerificationSeconds     int    `json:"maxStaleVerificationSeconds"`
+	DenyNewCrossSiteSessions        bool   `json:"denyNewCrossSiteSessions"`
 }
 
-type modernVerifierDistributionPolicyArtifact struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Contract   struct {
-		CloudEnrollment           string `json:"cloudEnrollment"`
-		CloudIssuance             string `json:"cloudIssuance"`
-		CredentialIssuanceRuntime string `json:"credentialIssuanceRuntime"`
-		CredentialMaterial        string `json:"credentialMaterial"`
-		Direction                 string `json:"direction"`
-		EnrollmentAuthority       string `json:"enrollmentAuthority"`
-		GeneralLANReachability    string `json:"generalLANReachability"`
-		JWKSBytes                 string `json:"jwksBytes"`
-		PrivateKeys               string `json:"privateKeys"`
-		ReverseDistribution       string `json:"reverseDistribution"`
-		RuntimeDistribution       string `json:"runtimeDistribution"`
-		RuntimeEndpoints          string `json:"runtimeEndpoints"`
-		RuntimeEnforcement        string `json:"runtimeEnforcement"`
-		Scope                     string `json:"scope"`
-		SigningAuthority          string `json:"signingAuthority"`
-		TransportRealization      string `json:"transportRealization"`
-	} `json:"contract"`
-	PlanInputs json.RawMessage `json:"planInputs"`
+type modernHomeIdentityInput struct {
+	HomeSiteRef   string                            `json:"homeSiteRef"`
+	CloudSiteRefs []string                          `json:"cloudSiteRefs"`
+	Partition     modernIdentityPartition           `json:"partition"`
+	Issuers       []ModernIdentityTrustIssuer       `json:"issuers"`
+	Verifiers     []ModernIdentityTrustVerifier     `json:"verifiers"`
+	Distributions []ModernIdentityTrustDistribution `json:"distributions"`
 }
 
-// ValidateModernIdentityTrustPolicyArtifacts validates both jointly hashed
-// Modern artifacts and returns only verifier/distribution policy. Home signing
-// and enrollment, key bytes, credentials, transport, endpoints, provider
-// lifecycle, and general LAN authority remain structurally absent.
-func ValidateModernIdentityTrustPolicyArtifacts(trustRaw, distributionRaw []byte) (ModernIdentityTrustEnforcementPolicy, error) {
-	var trust modernIdentityTrustPolicyArtifact
-	if err := decodeStrict(trustRaw, &trust); err != nil {
-		return ModernIdentityTrustEnforcementPolicy{}, wrap(ErrInvalidPlan, "modernIdentityTrustPolicy", "decode exact Modern trust artifact", err)
+type modernCloudIdentityInput struct {
+	HomeSiteRef   string                            `json:"homeSiteRef"`
+	CloudSiteRefs []string                          `json:"cloudSiteRefs"`
+	Partition     modernIdentityPartition           `json:"partition"`
+	Verifiers     []ModernIdentityTrustVerifier     `json:"verifiers"`
+	Distributions []ModernIdentityTrustDistribution `json:"distributions"`
+}
+
+type modernIdentityPlanInputs struct {
+	StackID string           `json:"stackId"`
+	Kit     localAutonomyKit `json:"kit"`
+}
+
+func (r modernIdentityProjectionRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]UnitOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	var distribution modernVerifierDistributionPolicyArtifact
-	if err := decodeStrict(distributionRaw, &distribution); err != nil {
-		return ModernIdentityTrustEnforcementPolicy{}, wrap(ErrInvalidPlan, "modernVerifierDistributionPolicy", "decode exact Modern distribution artifact", err)
-	}
-	tc, dc := trust.Contract, distribution.Contract
-	if trust.APIVersion != "stackkit.modern-identity-trust-policy/v1" || trust.Kind != "ModernIdentityTrustPolicy" ||
-		tc.CloudEnrollment != "deny" || tc.CloudIssuance != "deny" || tc.CredentialIssuanceRuntime != "unverified" || tc.CredentialMaterial != "not-included" ||
-		tc.EnrollmentAuthority != "home-only" || tc.GeneralLANReachability != "deny" || tc.JWKSBytes != "not-included" || tc.PrivateKeys != "not-included" ||
-		tc.ReverseDistribution != "deny" || tc.RuntimeEndpoints != "not-included" || tc.RuntimeEnforcement != "unverified" || tc.Scope != "generation-only" ||
-		tc.SigningAuthority != "home-only" || tc.TransportRealization != "not-included" {
-		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "modernIdentityTrustPolicy.contract", "artifact widens or fabricates the Modern Home-authority contract")
-	}
-	if distribution.APIVersion != "stackkit.modern-verifier-distribution-policy/v1" || distribution.Kind != "ModernVerifierDistributionPolicy" ||
-		dc.CloudEnrollment != "deny" || dc.CloudIssuance != "deny" || dc.CredentialIssuanceRuntime != "unverified" || dc.CredentialMaterial != "not-included" ||
-		dc.Direction != "home-to-cloud-only" || dc.EnrollmentAuthority != "not-included" || dc.GeneralLANReachability != "deny" || dc.JWKSBytes != "not-included" || dc.PrivateKeys != "not-included" ||
-		dc.ReverseDistribution != "deny" || dc.RuntimeDistribution != "unverified" || dc.RuntimeEndpoints != "not-included" || dc.RuntimeEnforcement != "unverified" ||
-		dc.Scope != "generation-only" || dc.SigningAuthority != "not-included" || dc.TransportRealization != "not-included" {
-		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "modernVerifierDistributionPolicy.contract", "artifact widens or fabricates the one-way verifier distribution contract")
-	}
-	if !bytes.Equal(trust.PlanInputs, distribution.PlanInputs) {
-		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "modernIdentityTrustPolicy.planInputs", "joint Modern artifacts must carry byte-identical canonical plan inputs")
-	}
-	governedSites, err := validateModernIdentityTrustPlanInputs(trust.PlanInputs, "modernIdentityTrustPolicy.planInputs")
+	policy, err := validateModernIdentityProjectionUnit(unit, r)
 	if err != nil {
+		return nil, err
+	}
+	canonical, err := json.Marshal(policy)
+	if err != nil {
+		return nil, wrap(ErrRendererFailure, "renderer.modern-identity.policy", "marshal Modern identity projection", err)
+	}
+	sum := sha256.Sum256(r.template)
+	if "sha256:"+hex.EncodeToString(sum[:]) != r.contract.ContractHash || bytes.Count(r.template, []byte(modernIdentityPolicyToken)) != 1 {
+		return nil, fail(ErrOutputChanged, "renderer.modern-identity.template", "embedded Modern identity policy changed")
+	}
+	return []UnitOutput{{Ref: r.outputRef, Bytes: bytes.Replace(r.template, []byte(modernIdentityPolicyToken), canonical, 1)}}, nil
+}
+
+//nolint:gocyclo // The complete closed renderer boundary is validated together.
+func validateModernIdentityProjectionUnit(unit RenderUnit, renderer modernIdentityProjectionRenderer) (ModernIdentityTrustEnforcementPolicy, error) {
+	path := "resolvedPlan.modules." + renderer.moduleID + ".renderUnits.policy-bundle"
+	if unit.ModuleID() != renderer.moduleID || unit.ID() != identityTrustPolicyUnitID ||
+		unit.Kind() != renderer.contract.Kind || unit.RendererRef() != renderer.contract.RendererRef ||
+		unit.TemplateRef() != renderer.contract.TemplateRef || unit.Version() != renderer.contract.Version || unit.ContractHash() != renderer.contract.ContractHash {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrOutputChanged, path, "render-unit identity differs from the registered Modern identity contract")
+	}
+	siteRef, hasSite := unit.SiteRef()
+	nodeRef, hasNode := unit.NodeRef()
+	if unit.RuntimeKind() != "native" || unit.RuntimeDelivery() != "stackkit" || unit.InstanceScope() != "node-local" || !hasSite || !hasNode ||
+		unit.InstanceID() != identityTrustPolicyUnitID+"-node-"+nodeRef {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "requires one exact node-local native/stackkit target")
+	}
+	if _, present := unit.RuntimeEngine(); present {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".runtime.engine", "runtime-engine authority is forbidden")
+	}
+	if _, present := unit.DaemonRef(); present {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "daemon authority is forbidden")
+	}
+	if !exactStringList(unit.PublicInputRefs(), []string{renderer.inputRef}) || len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.SecretRefsJSON()) ||
+		!exactStringList(unit.PlanInputRefs(), modernIdentityProjectionPlanInputRefs) {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".inputs", "accepts only the exact owner-specific Modern identity input")
+	}
+	if err := validateModernIdentityProjectionBinding(unit.InputBindingsJSON(), renderer, path+".inputBindings"); err != nil {
 		return ModernIdentityTrustEnforcementPolicy{}, err
 	}
-	var inputs modernIdentityTrustPlanInputs
-	if err := decodeStrict(trust.PlanInputs, &inputs); err != nil {
-		return ModernIdentityTrustEnforcementPolicy{}, wrap(ErrInvalidPlan, "modernIdentityTrustPolicy.planInputs", "decode validated Modern policy", err)
+	if !emptyJSONArray(unit.ServiceEndpointsJSON()) || !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
+		!emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) || !emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".interfaces", "network, endpoint, socket and privileged-interface authority is forbidden")
 	}
-	_, homeSites, cloudSites, err := validateLocalAutonomySites(inputs.Sites, "modernIdentityTrustPolicy.planInputs")
-	if err != nil {
+	var placement struct {
+		Scope, Cardinality string
+	}
+	if err := decodeStrict(unit.PlacementJSON(), &placement); err != nil || placement.Scope != "node-local" || placement.Cardinality != "one-per-node" {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".placement", "requires exact node-local placement")
+	}
+	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != renderer.outputRef {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".outputs", "requires exact owner-specific output")
+	}
+	var plan modernIdentityPlanInputs
+	if err := decodeStrict(unit.PlanInputsJSON(), &plan); err != nil || plan.Kit.Slug != "modern-homelab" || stringsTrim(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".planInputs", "requires exact governed Modern Home Lab identity")
+	}
+	if err := requireContractID(plan.StackID, path+".planInputs.stackId"); err != nil {
 		return ModernIdentityTrustEnforcementPolicy{}, err
 	}
-	if len(governedSites) != len(homeSites)+len(cloudSites) {
-		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "modernIdentityTrustPolicy.planInputs.sites", "governed Site closure changed after validation")
+	var values map[string]json.RawMessage
+	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil || len(values) != 1 {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".values", "requires exactly one owner-specific projection")
 	}
-	issuers := make(map[string]identityTrustCredentialIssuer, len(inputs.IdentityTrust.CredentialIssuers))
-	for _, issuer := range inputs.IdentityTrust.CredentialIssuers {
-		issuers[issuer.ID] = issuer
+	raw, exists := values[renderer.inputRef]
+	if !exists {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".values", "owner-specific projection is absent")
 	}
-	policy := ModernIdentityTrustEnforcementPolicy{
-		StackID: inputs.StackID, HomeSiteRefs: append([]string(nil), homeSites...), CloudSiteRefs: append([]string(nil), cloudSites...),
-		MaxStaleSeconds: inputs.FailurePolicy.MaxStaleVerificationSeconds,
-	}
-	for _, verifier := range inputs.IdentityTrust.VerifierPlacements {
-		siteKind := "home"
-		if allSiteRefsHaveKind(verifier.Placement.SiteRefs, mapSiteKinds(inputs.Sites), "cloud") {
-			siteKind = "cloud"
+	var (
+		policy ModernIdentityTrustEnforcementPolicy
+		err    error
+	)
+	if renderer.role == "home" {
+		var input modernHomeIdentityInput
+		if err := decodeStrict(raw, &input); err != nil {
+			return policy, wrap(ErrInvalidPlan, path+".values."+renderer.inputRef, "decode Modern Home projection", err)
 		}
-		policy.Verifiers = append(policy.Verifiers, ModernIdentityTrustVerifier{
-			ID: verifier.ID, Principal: verifier.Principal, CredentialIssuerRef: verifier.CredentialIssuerRef, Issuer: verifier.Issuer,
-			Audiences: append([]string(nil), verifier.Audiences...), VerificationKeySetRef: verifier.VerificationKeySetRef,
-			SiteRefs: append([]string(nil), verifier.Placement.SiteRefs...), SiteKind: siteKind,
-			ProofOfPossessionRequired: verifier.ProofOfPossessionRequired, RevocationMaxStalenessSeconds: verifier.RevocationMaxStalenessSeconds,
-		})
+		policy, err = validateModernHomeIdentityInput(input, plan.StackID, path+".values."+renderer.inputRef)
+	} else {
+		var input modernCloudIdentityInput
+		if err := decodeStrict(raw, &input); err != nil {
+			return policy, wrap(ErrInvalidPlan, path+".values."+renderer.inputRef, "decode Modern Cloud projection", err)
+		}
+		policy, err = validateModernCloudIdentityInput(input, plan.StackID, path+".values."+renderer.inputRef)
 	}
-	for _, item := range inputs.IdentityTrust.VerifierDistributions {
-		policy.Distributions = append(policy.Distributions, ModernIdentityTrustDistribution{
-			ID: item.ID, Principal: issuers[item.CredentialIssuerRef].Principal, CredentialIssuerRef: item.CredentialIssuerRef, Issuer: item.Issuer,
-			FromSiteRefs: append([]string(nil), item.From.SiteRefs...), ToSiteRefs: append([]string(nil), item.To.SiteRefs...),
-			Materials: append([]string(nil), item.Materials...), MaxStalenessSeconds: item.MaxStalenessSeconds,
-		})
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
 	}
-	sort.Slice(policy.Verifiers, func(left, right int) bool { return policy.Verifiers[left].ID < policy.Verifiers[right].ID })
-	sort.Slice(policy.Distributions, func(left, right int) bool { return policy.Distributions[left].ID < policy.Distributions[right].ID })
+	policy.StackID, policy.KitSlug = plan.StackID, plan.Kit.Slug
+	allowedSites := policy.HomeSiteRefs
+	if renderer.role == "cloud" {
+		allowedSites = policy.CloudSiteRefs
+	}
+	if !containsExact(allowedSites, siteRef) || !exactStringList(unit.LogicalSiteRefs(), []string{siteRef}) || !containsExact(unit.LogicalNodeRefs(), nodeRef) {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".instances", "runtime instance crossed the owner-specific Site projection")
+	}
 	return policy, nil
 }
 
-func mapSiteKinds(sites []localAutonomySite) map[string]string {
-	kinds := make(map[string]string, len(sites))
-	for _, site := range sites {
-		kinds[site.ID] = site.Kind
+func validateModernIdentityProjectionBinding(raw []byte, renderer modernIdentityProjectionRenderer, path string) error {
+	var bindings []rawModuleRenderInputBinding
+	if err := decodeStrict(raw, &bindings); err != nil {
+		return wrap(ErrInvalidPlan, path, "decode Modern identity input binding", err)
 	}
-	return kinds
+	expected := []rawModuleRenderInputBinding{{TargetRef: renderer.inputRef, SourceRef: renderer.sourceRef, ValueType: renderer.valueType, Cardinality: "single", Required: true}}
+	if !reflect.DeepEqual(bindings, expected) {
+		return fail(ErrInvalidPlan, path, "must exactly match the owner-specific Modern identity binding")
+	}
+	return nil
 }
 
-//nolint:gocyclo // Home signing, Cloud verification, one-way distribution, and partition staleness are one hybrid trust boundary.
-func validateModernIdentityTrustPlanInputs(raw []byte, path string) ([]string, error) {
-	var inputs modernIdentityTrustPlanInputs
-	if err := decodeStrict(raw, &inputs); err != nil {
-		return nil, wrap(ErrInvalidPlan, path, "decode exact Modern identity-trust plan inputs", err)
+func validateModernHomeIdentityInput(input modernHomeIdentityInput, stackID, path string) (ModernIdentityTrustEnforcementPolicy, error) {
+	if input.Partition.OnCloudLoss != "local-continues" || input.Partition.OnLinkLoss != "local-continues" || !input.Partition.LocalIdentityAuthorityAvailable ||
+		!input.Partition.DenyNewCrossSiteSessions || input.Partition.CloudEdge != "" {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".partition", "Home partition must retain local authority without Cloud policy")
 	}
-	baseInputs := identityTrustPlanInputs{
-		StackID: inputs.StackID, Kit: inputs.Kit, Sites: inputs.Sites, IdentityTrust: inputs.IdentityTrust,
+	if err := validateModernSiteEnvelope(input.HomeSiteRef, input.CloudSiteRefs, input.Partition.MaxStaleVerificationSeconds, path); err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
 	}
-	baseRaw, err := json.Marshal(baseInputs)
-	if err != nil {
-		return nil, wrap(ErrInvalidPlan, path, "canonicalize Modern identity-trust projection", err)
+	if err := validateModernIssuers(input.Issuers, stackID, input.Partition.MaxStaleVerificationSeconds, path+".issuers"); err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
 	}
-	validated, err := validateIdentityTrustEnvelope(baseInputs, baseRaw, path)
-	if err != nil {
-		return nil, err
+	if err := validateModernVerifiers(input.Verifiers, stackID, 0, path+".verifiers"); err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
 	}
-	if inputs.Kit.Slug != "modern-homelab" || len(validated.homeSiteRefs) == 0 || len(validated.cloudSiteRefs) == 0 {
-		return nil, fail(ErrInvalidPlan, path+".sites", "Modern identity federation requires explicit Home and Cloud Sites")
+	if err := validateModernDistributions(input.Distributions, stackID, input.Partition.MaxStaleVerificationSeconds, path+".distributions"); err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
 	}
-	if inputs.FailurePolicy.MaxStaleVerificationSeconds < 0 || !inputs.FailurePolicy.LocalIdentityAuthorityAvailable || !inputs.FailurePolicy.DenyNewCrossSiteSessions ||
-		inputs.FailurePolicy.OnCloudLoss != "local-continues" || inputs.FailurePolicy.OnLinkLoss != "local-continues" || inputs.FailurePolicy.CloudEdge != "fail-closed" {
-		return nil, fail(ErrInvalidPlan, path+".failurePolicy", "Modern identity federation requires local authority continuity and fail-closed Cloud verification")
-	}
-	deviceAuthority, err := validateHomeAuthorityAndIssuance(inputs.IdentityTrust, validated.siteKinds, path)
-	if err != nil {
-		return nil, err
-	}
-	if !deviceAuthority || !hasPrincipalIssuer(validated, "device") {
-		return nil, fail(ErrInvalidPlan, path+".identityTrust", "Modern requires an exact Home device authority and credential issuer")
-	}
-	for index, issuer := range inputs.IdentityTrust.CredentialIssuers {
-		issuerPath := fmt.Sprintf("%s.identityTrust.credentialIssuers[%d]", path, index)
-		if !issuer.IssuanceWithinStackKit || !issuer.RevocationSupported || issuer.RevocationMaxStalenessSeconds != inputs.FailurePolicy.MaxStaleVerificationSeconds {
-			return nil, fail(ErrInvalidPlan, issuerPath, "Modern Home issuers must be in-stack, possession-bound, revocable, and match partition staleness")
-		}
-	}
-	verifierCoverage := make(map[string]map[string]struct{}, 3)
-	for index, verifier := range inputs.IdentityTrust.VerifierPlacements {
-		verifierPath := fmt.Sprintf("%s.identityTrust.verifierPlacements[%d]", path, index)
-		if verifier.Placement.Kind != "sites" {
-			return nil, fail(ErrInvalidPlan, verifierPath, "Modern verifiers must remain on governed Home or Cloud Sites")
-		}
-		atHome := allSiteRefsHaveKind(verifier.Placement.SiteRefs, validated.siteKinds, "home")
-		atCloud := allSiteRefsHaveKind(verifier.Placement.SiteRefs, validated.siteKinds, "cloud")
-		if !atHome && !atCloud || atHome && verifier.RevocationMaxStalenessSeconds != 0 || atCloud && verifier.RevocationMaxStalenessSeconds != inputs.FailurePolicy.MaxStaleVerificationSeconds {
-			return nil, fail(ErrInvalidPlan, verifierPath, "Home verifiers require zero-stale local state; Cloud verifiers must match partition staleness")
-		}
-		if err := requireCatalogOwner(verifier.Owner, modernIdentityTrustProviderRef, modernIdentityTrustPolicyModuleID, verifierPath+".owner"); err != nil {
-			return nil, err
-		}
-		if verifierCoverage[verifier.Principal] == nil {
-			verifierCoverage[verifier.Principal] = make(map[string]struct{})
-		}
-		for _, siteRef := range verifier.Placement.SiteRefs {
-			verifierCoverage[verifier.Principal][siteRef] = struct{}{}
-		}
-	}
-	governedSiteRefs := append(append([]string(nil), validated.homeSiteRefs...), validated.cloudSiteRefs...)
-	sort.Strings(governedSiteRefs)
-	for _, principal := range []string{"device", "human", "workload"} {
-		covered := sortedMapKeys(verifierCoverage[principal])
-		if !exactStringList(covered, governedSiteRefs) {
-			return nil, fail(ErrInvalidPlan, path+".identityTrust.verifierPlacements", "Modern %s verifiers must exactly cover every Home and Cloud Site", principal)
-		}
-	}
-	distributionCoverage := make(map[string]map[string]struct{}, 3)
-	for index, distribution := range inputs.IdentityTrust.VerifierDistributions {
-		distributionPath := fmt.Sprintf("%s.identityTrust.verifierDistributions[%d]", path, index)
-		if err := requireCatalogOwner(distribution.Owner, modernIdentityTrustProviderRef, modernIdentityTrustPolicyModuleID, distributionPath+".owner"); err != nil {
-			return nil, err
-		}
-		if !allSiteRefsHaveKind(distribution.From.SiteRefs, validated.siteKinds, "home") || !allSiteRefsHaveKind(distribution.To.SiteRefs, validated.siteKinds, "cloud") ||
-			distribution.MaxStalenessSeconds != inputs.FailurePolicy.MaxStaleVerificationSeconds {
-			return nil, fail(ErrInvalidPlan, distributionPath, "Modern distribution must be one-way Home-to-Cloud and match partition staleness")
-		}
-		principal := validated.issuers[distribution.CredentialIssuerRef].Principal
-		if distributionCoverage[principal] == nil {
-			distributionCoverage[principal] = make(map[string]struct{})
-		}
-		for _, siteRef := range distribution.To.SiteRefs {
-			distributionCoverage[principal][siteRef] = struct{}{}
-		}
-	}
-	for _, principal := range []string{"device", "human", "workload"} {
-		if !exactStringList(sortedMapKeys(distributionCoverage[principal]), validated.cloudSiteRefs) {
-			return nil, fail(ErrInvalidPlan, path+".identityTrust.verifierDistributions", "one-way %s distribution must exactly cover every Cloud Site", principal)
-		}
-	}
-	if err := rejectIdentityTrustProjectionLeaks(raw, path); err != nil {
-		return nil, err
-	}
-	governedSites := append(append([]string(nil), validated.homeSiteRefs...), validated.cloudSiteRefs...)
-	sort.Strings(governedSites)
-	return governedSites, nil
+	verifiers, distributions := deriveModernIdentityPlacement(input.Verifiers, input.Distributions, "home", input.HomeSiteRef, input.CloudSiteRefs)
+	return ModernIdentityTrustEnforcementPolicy{
+		HomeSiteRefs: []string{input.HomeSiteRef}, CloudSiteRefs: append([]string(nil), input.CloudSiteRefs...),
+		MaxStaleSeconds: input.Partition.MaxStaleVerificationSeconds, Issuers: input.Issuers, Verifiers: verifiers, Distributions: distributions,
+	}, nil
 }
 
-func sortedMapKeys(values map[string]struct{}) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
+func validateModernCloudIdentityInput(input modernCloudIdentityInput, stackID, path string) (ModernIdentityTrustEnforcementPolicy, error) {
+	if input.Partition.CloudEdge != "fail-closed" || !input.Partition.DenyNewCrossSiteSessions ||
+		input.Partition.OnCloudLoss != "" || input.Partition.OnLinkLoss != "" || input.Partition.LocalIdentityAuthorityAvailable {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".partition", "Cloud partition must be verifier-only and fail closed")
 	}
-	sort.Strings(keys)
-	return keys
+	if err := validateModernSiteEnvelope(input.HomeSiteRef, input.CloudSiteRefs, input.Partition.MaxStaleVerificationSeconds, path); err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	if err := validateModernVerifiers(input.Verifiers, stackID, input.Partition.MaxStaleVerificationSeconds, path+".verifiers"); err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	if err := validateModernDistributions(input.Distributions, stackID, input.Partition.MaxStaleVerificationSeconds, path+".distributions"); err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	verifiers, distributions := deriveModernIdentityPlacement(input.Verifiers, input.Distributions, "cloud", input.HomeSiteRef, input.CloudSiteRefs)
+	return ModernIdentityTrustEnforcementPolicy{
+		HomeSiteRefs: []string{input.HomeSiteRef}, CloudSiteRefs: append([]string(nil), input.CloudSiteRefs...),
+		MaxStaleSeconds: input.Partition.MaxStaleVerificationSeconds, Verifiers: verifiers, Distributions: distributions,
+	}, nil
 }
+
+func deriveModernIdentityPlacement(verifiers []ModernIdentityTrustVerifier, distributions []ModernIdentityTrustDistribution, role, homeSiteRef string, cloudSiteRefs []string) ([]ModernIdentityTrustVerifier, []ModernIdentityTrustDistribution) {
+	derivedVerifiers := append([]ModernIdentityTrustVerifier(nil), verifiers...)
+	for index := range derivedVerifiers {
+		derivedVerifiers[index].SiteKind = role
+		derivedVerifiers[index].SiteRefs = []string{homeSiteRef}
+		if role == "cloud" {
+			derivedVerifiers[index].SiteRefs = append([]string(nil), cloudSiteRefs...)
+		}
+	}
+	derivedDistributions := append([]ModernIdentityTrustDistribution(nil), distributions...)
+	for index := range derivedDistributions {
+		derivedDistributions[index].FromSiteRefs = []string{homeSiteRef}
+		derivedDistributions[index].ToSiteRefs = append([]string(nil), cloudSiteRefs...)
+	}
+	return derivedVerifiers, derivedDistributions
+}
+
+func validateModernSiteEnvelope(home string, clouds []string, maxStale int, path string) error {
+	if err := requireContractID(home, path+".homeSiteRef"); err != nil {
+		return err
+	}
+	if !sortedUniqueNonEmpty(clouds) || containsExact(clouds, home) || maxStale < 0 || maxStale > 86400 {
+		return fail(ErrInvalidPlan, path, "Modern Site partition or staleness is invalid")
+	}
+	for index, cloud := range clouds {
+		if err := requireContractID(cloud, path+".cloudSiteRefs["+strconv.Itoa(index)+"]"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateModernIssuers(values []ModernIdentityTrustIssuer, stackID string, maxStale int, path string) error {
+	if len(values) != 3 {
+		return fail(ErrInvalidPlan, path, "requires exactly one issuer per principal")
+	}
+	counts, ids := map[string]int{}, map[string]struct{}{}
+	for index := range values {
+		value := &values[index]
+		itemPath := path + "[" + strconv.Itoa(index) + "]"
+		if err := requireContractID(value.ID, itemPath+".id"); err != nil {
+			return err
+		}
+		if err := requireContractID(value.AuthorityRef, itemPath+".authorityRef"); err != nil {
+			return err
+		}
+		if _, duplicate := ids[value.ID]; duplicate {
+			return fail(ErrInvalidPlan, itemPath+".id", "issuer ID is duplicated")
+		}
+		ids[value.ID], counts[value.Principal] = struct{}{}, counts[value.Principal]+1
+		if !modernIdentityPrincipal(value.Principal) || value.RevocationMaxStalenessSeconds != maxStale ||
+			value.CredentialTTLSeconds < 300 || value.CredentialTTLSeconds > 86400 || value.SessionTTLSeconds < 60 || value.SessionTTLSeconds > 86400 ||
+			value.RevocationMaxStalenessSeconds > value.CredentialTTLSeconds {
+			return fail(ErrInvalidPlan, itemPath, "issuer principal, lifetime, or partition staleness changed")
+		}
+		mode, exposure := "none", "none"
+		if value.Principal == "device" {
+			mode, exposure = "local-only", "lan"
+		}
+		if value.EnrollmentMode != mode || value.EnrollmentExposure != exposure {
+			return fail(ErrInvalidPlan, itemPath, "issuer enrollment crossed the Home-only authority")
+		}
+		if err := validateModernIdentityURNs(value.Issuer, value.VerificationKeySetRef, value.Audiences, stackID, itemPath); err != nil {
+			return err
+		}
+	}
+	if !exactModernPrincipalSet(counts) {
+		return fail(ErrInvalidPlan, path, "requires exactly device, human, and workload issuers")
+	}
+	sort.Slice(values, func(i, j int) bool { return values[i].ID < values[j].ID })
+	return nil
+}
+
+func validateModernVerifiers(values []ModernIdentityTrustVerifier, stackID string, stale int, path string) error {
+	if len(values) != 3 {
+		return fail(ErrInvalidPlan, path, "requires exactly one verifier per principal")
+	}
+	counts, ids := map[string]int{}, map[string]struct{}{}
+	for index := range values {
+		value := &values[index]
+		itemPath := path + "[" + strconv.Itoa(index) + "]"
+		if err := requireContractID(value.ID, itemPath+".id"); err != nil {
+			return err
+		}
+		if err := requireContractID(value.CredentialIssuerRef, itemPath+".issuerRef"); err != nil {
+			return err
+		}
+		if _, duplicate := ids[value.ID]; duplicate {
+			return fail(ErrInvalidPlan, itemPath+".id", "verifier ID is duplicated")
+		}
+		ids[value.ID], counts[value.Principal] = struct{}{}, counts[value.Principal]+1
+		if !modernIdentityPrincipal(value.Principal) || value.RevocationMaxStalenessSeconds != stale || value.SiteKind != "" || len(value.SiteRefs) != 0 {
+			return fail(ErrInvalidPlan, itemPath, "verifier principal or partition staleness changed")
+		}
+		if err := validateModernIdentityURNs(value.Issuer, value.VerificationKeySetRef, value.Audiences, stackID, itemPath); err != nil {
+			return err
+		}
+	}
+	if !exactModernPrincipalSet(counts) {
+		return fail(ErrInvalidPlan, path, "requires exactly device, human, and workload verifiers")
+	}
+	sort.Slice(values, func(i, j int) bool { return values[i].ID < values[j].ID })
+	return nil
+}
+
+func validateModernDistributions(values []ModernIdentityTrustDistribution, stackID string, stale int, path string) error {
+	if len(values) != 3 {
+		return fail(ErrInvalidPlan, path, "requires exactly one distribution per principal")
+	}
+	counts, ids := map[string]int{}, map[string]struct{}{}
+	for index := range values {
+		value := &values[index]
+		itemPath := path + "[" + strconv.Itoa(index) + "]"
+		if err := requireContractID(value.ID, itemPath+".id"); err != nil {
+			return err
+		}
+		if err := requireContractID(value.CredentialIssuerRef, itemPath+".issuerRef"); err != nil {
+			return err
+		}
+		if _, duplicate := ids[value.ID]; duplicate {
+			return fail(ErrInvalidPlan, itemPath+".id", "distribution ID is duplicated")
+		}
+		ids[value.ID], counts[value.Principal] = struct{}{}, counts[value.Principal]+1
+		if !modernIdentityPrincipal(value.Principal) || value.MaxStalenessSeconds != stale || len(value.FromSiteRefs) != 0 || len(value.ToSiteRefs) != 0 ||
+			!reflect.DeepEqual(value.Materials, []string{"revocation-state", "verification-key-reference"}) {
+			return fail(ErrInvalidPlan, itemPath, "distribution widened direction, material, or staleness")
+		}
+		if err := requireStackInstanceURN(value.Issuer, stackID, "issuer", itemPath+".issuer"); err != nil {
+			return err
+		}
+	}
+	if !exactModernPrincipalSet(counts) {
+		return fail(ErrInvalidPlan, path, "requires exactly device, human, and workload distributions")
+	}
+	sort.Slice(values, func(i, j int) bool { return values[i].ID < values[j].ID })
+	return nil
+}
+
+func validateModernIdentityURNs(issuer, keyset string, audiences []string, stackID, path string) error {
+	if err := requireStackInstanceURN(issuer, stackID, "issuer", path+".issuer"); err != nil {
+		return err
+	}
+	if err := requireStackInstanceURN(keyset, stackID, "keyset", path+".verificationKeySetRef"); err != nil {
+		return err
+	}
+	return requireSortedStackInstanceURNs(audiences, stackID, "audience", path+".audiences")
+}
+
+func modernIdentityPrincipal(value string) bool {
+	return value == "device" || value == "human" || value == "workload"
+}
+
+func exactModernPrincipalSet(counts map[string]int) bool {
+	return len(counts) == 3 && counts["device"] == 1 && counts["human"] == 1 && counts["workload"] == 1
+}
+
+type modernIdentityPolicyArtifact struct {
+	APIVersion string                               `json:"apiVersion"`
+	Kind       string                               `json:"kind"`
+	Contract   map[string]string                    `json:"contract"`
+	Policy     ModernIdentityTrustEnforcementPolicy `json:"policy"`
+}
+
+func ValidateModernHomeIdentityTrustPolicyArtifact(raw []byte) (ModernIdentityTrustEnforcementPolicy, error) {
+	document, err := validateModernIdentityArtifactEnvelope(raw, "home")
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	normalizedPolicy, err := normalizeModernDerivedArtifactPlacement(document.Policy, "home")
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	verifiers, distributions := stripModernIdentityPlacement(normalizedPolicy.Verifiers, normalizedPolicy.Distributions)
+	input := modernHomeIdentityInput{
+		HomeSiteRef: normalizedPolicy.HomeSiteRefs[0], CloudSiteRefs: normalizedPolicy.CloudSiteRefs,
+		Partition: modernIdentityPartition{
+			OnCloudLoss: "local-continues", OnLinkLoss: "local-continues", LocalIdentityAuthorityAvailable: true,
+			MaxStaleVerificationSeconds: normalizedPolicy.MaxStaleSeconds, DenyNewCrossSiteSessions: true,
+		},
+		Issuers: normalizedPolicy.Issuers, Verifiers: verifiers, Distributions: distributions,
+	}
+	validated, err := validateModernHomeIdentityInput(input, normalizedPolicy.StackID, "modernIdentityTrustPolicy.policy")
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	validated.StackID, validated.KitSlug = normalizedPolicy.StackID, normalizedPolicy.KitSlug
+	return validated, nil
+}
+
+func ValidateModernCloudIdentityVerifierPolicyArtifact(raw []byte) (ModernIdentityTrustEnforcementPolicy, error) {
+	document, err := validateModernIdentityArtifactEnvelope(raw, "cloud")
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	normalizedPolicy, err := normalizeModernDerivedArtifactPlacement(document.Policy, "cloud")
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	verifiers, distributions := stripModernIdentityPlacement(normalizedPolicy.Verifiers, normalizedPolicy.Distributions)
+	input := modernCloudIdentityInput{
+		HomeSiteRef: normalizedPolicy.HomeSiteRefs[0], CloudSiteRefs: normalizedPolicy.CloudSiteRefs,
+		Partition: modernIdentityPartition{CloudEdge: "fail-closed", MaxStaleVerificationSeconds: normalizedPolicy.MaxStaleSeconds, DenyNewCrossSiteSessions: true},
+		Verifiers: verifiers, Distributions: distributions,
+	}
+	validated, err := validateModernCloudIdentityInput(input, normalizedPolicy.StackID, "modernVerifierDistributionPolicy.policy")
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	validated.StackID, validated.KitSlug = normalizedPolicy.StackID, normalizedPolicy.KitSlug
+	return validated, nil
+}
+
+func normalizeModernDerivedArtifactPlacement(policy ModernIdentityTrustEnforcementPolicy, role string) (ModernIdentityTrustEnforcementPolicy, error) {
+	placementPresent := false
+	for _, verifier := range policy.Verifiers {
+		placementPresent = placementPresent || verifier.SiteKind != "" || len(verifier.SiteRefs) != 0
+	}
+	for _, distribution := range policy.Distributions {
+		placementPresent = placementPresent || len(distribution.FromSiteRefs) != 0 || len(distribution.ToSiteRefs) != 0
+	}
+	if !placementPresent {
+		policy.Verifiers, policy.Distributions = deriveModernIdentityPlacement(
+			policy.Verifiers,
+			policy.Distributions,
+			role,
+			policy.HomeSiteRefs[0],
+			policy.CloudSiteRefs,
+		)
+		return policy, nil
+	}
+	for index, verifier := range policy.Verifiers {
+		wantRefs := policy.HomeSiteRefs
+		if role == "cloud" {
+			wantRefs = policy.CloudSiteRefs
+		}
+		if verifier.SiteKind != role || !reflect.DeepEqual(verifier.SiteRefs, wantRefs) {
+			return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "modernIdentityPolicy.policy.verifiers["+strconv.Itoa(index)+"]", "derived verifier placement crossed its owner-specific Site partition")
+		}
+	}
+	for index, distribution := range policy.Distributions {
+		if !reflect.DeepEqual(distribution.FromSiteRefs, policy.HomeSiteRefs) || !reflect.DeepEqual(distribution.ToSiteRefs, policy.CloudSiteRefs) {
+			return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "modernIdentityPolicy.policy.distributions["+strconv.Itoa(index)+"]", "derived distribution placement is not exact Home-to-Cloud")
+		}
+	}
+	return policy, nil
+}
+
+func stripModernIdentityPlacement(verifiers []ModernIdentityTrustVerifier, distributions []ModernIdentityTrustDistribution) ([]ModernIdentityTrustVerifier, []ModernIdentityTrustDistribution) {
+	strippedVerifiers := append([]ModernIdentityTrustVerifier(nil), verifiers...)
+	for index := range strippedVerifiers {
+		strippedVerifiers[index].SiteKind = ""
+		strippedVerifiers[index].SiteRefs = nil
+	}
+	strippedDistributions := append([]ModernIdentityTrustDistribution(nil), distributions...)
+	for index := range strippedDistributions {
+		strippedDistributions[index].FromSiteRefs = nil
+		strippedDistributions[index].ToSiteRefs = nil
+	}
+	return strippedVerifiers, strippedDistributions
+}
+
+func validateModernIdentityArtifactEnvelope(raw []byte, role string) (modernIdentityPolicyArtifact, error) {
+	var document modernIdentityPolicyArtifact
+	if err := decodeStrict(raw, &document); err != nil {
+		return document, wrap(ErrInvalidPlan, "modernIdentityPolicy", "decode exact Modern identity artifact", err)
+	}
+	expectedTemplate := modernIdentityTrustPolicyTemplate
+	expectedAPI, expectedKind := "stackkit.modern-identity-trust-policy/v1", "ModernIdentityTrustPolicy"
+	if role == "cloud" {
+		expectedTemplate = modernVerifierDistributionPolicyTemplate
+		expectedAPI, expectedKind = "stackkit.modern-verifier-distribution-policy/v1", "ModernVerifierDistributionPolicy"
+	}
+	var templateDocument modernIdentityPolicyArtifact
+	skeleton := bytes.Replace([]byte(expectedTemplate), []byte(modernIdentityPolicyToken), []byte(`{"stackId":"x"}`), 1)
+	if err := json.Unmarshal(skeleton, &templateDocument); err != nil {
+		return document, wrap(ErrRendererFailure, "modernIdentityPolicy.contract", "decode embedded contract", err)
+	}
+	if document.APIVersion != expectedAPI || document.Kind != expectedKind || !reflect.DeepEqual(document.Contract, templateDocument.Contract) ||
+		document.Policy.KitSlug != "modern-homelab" || len(document.Policy.HomeSiteRefs) != 1 {
+		return document, fail(ErrInvalidPlan, "modernIdentityPolicy.contract", "artifact widened or crossed the owner-specific generation-only contract")
+	}
+	return document, nil
+}
+
+func ValidateModernIdentityTrustPolicyArtifacts(homeRaw, cloudRaw []byte) (ModernIdentityTrustEnforcementPolicy, error) {
+	home, err := ValidateModernHomeIdentityTrustPolicyArtifact(homeRaw)
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	cloud, err := ValidateModernCloudIdentityVerifierPolicyArtifact(cloudRaw)
+	if err != nil {
+		return ModernIdentityTrustEnforcementPolicy{}, err
+	}
+	if home.StackID != cloud.StackID || !reflect.DeepEqual(home.HomeSiteRefs, cloud.HomeSiteRefs) || !reflect.DeepEqual(home.CloudSiteRefs, cloud.CloudSiteRefs) ||
+		home.MaxStaleSeconds != cloud.MaxStaleSeconds || !reflect.DeepEqual(home.Distributions, cloud.Distributions) {
+		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, "modernIdentityPolicy", "Home and Cloud projections do not share the exact one-way handoff")
+	}
+	return home, nil
+}
+
+var _ UnitRenderer = modernIdentityProjectionRenderer{}

@@ -2867,7 +2867,7 @@ test('render-release-evidence uses current architecture defaults without v0.4 le
   ]);
   assert.deepEqual(evidence.knownLimitations, [
     'Architecture v2 is a governed contract checkpoint; product v2 generation and apply remain fail-closed until concrete typed renderers and kit-specific owner/module realizations are complete.',
-    'Modern Homelab remains Preview and is excluded from the supported public runtime until its concrete federation bridge, edge/verifier, TLS, health, and multi-site evidence exist.',
+    'Modern Homelab is included as a public Preview definition but remains excluded from the supported live runtime until its concrete federation bridge, edge/verifier, TLS, health, and multi-site evidence exist.',
     'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
     'Live browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and default L3 app content before those support claims are marked verified.',
   ]);

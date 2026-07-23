@@ -153,7 +153,10 @@ type VerificationCheck struct {
 	Status string `json:"status"`
 }
 
-// RecoveryEvidence reports only the governed recovery class and result.
+// RecoveryEvidence reports only the governed recovery disposition. A named
+// primitive with status "required" must be submitted as a separate approved
+// rilaction.Request and returns its own top-level Evidence; this record cannot
+// claim that separately authorized recovery succeeded or failed.
 type RecoveryEvidence struct {
 	Kind         string `json:"kind"`
 	Status       string `json:"status"`

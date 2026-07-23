@@ -1,6 +1,7 @@
 package architecturev2
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"strings"
@@ -24,9 +25,10 @@ type applyAuthorizationPolicy struct {
 // evidence into a one-shot execution capability. It deliberately does not own
 // or invoke an executor.
 type applyAuthorizer struct {
-	service          *Service
-	executor         generationartifact.ApplyExecutorIdentity
-	trustedProducers map[string]generationartifact.ApplyEvidenceProducerTrust
+	service           *Service
+	executor          generationartifact.ApplyExecutorIdentity
+	trustedProducers  map[string]generationartifact.ApplyEvidenceProducerTrust
+	evidenceCollector ProductApplyEvidenceCollector
 }
 
 // newApplyAuthorizer is intentionally unavailable to command/request callers.
@@ -40,6 +42,7 @@ func (s *Service) newApplyAuthorizer(policy applyAuthorizationPolicy) (*applyAut
 	}
 	return &applyAuthorizer{
 		service: s, executor: policy.Executor, trustedProducers: cloneApplyProducerTrust(policy.TrustedProducers),
+		evidenceCollector: s.productApplyEvidenceCollector,
 	}, nil
 }
 
@@ -47,6 +50,7 @@ func (s *Service) newApplyAuthorizer(policy applyAuthorizationPolicy) (*applyAut
 // filesystem capabilities. The plan, executor identity, output root, and trust
 // policy remain authorizer-owned and cannot be substituted here.
 type applyAuthorizationInput struct {
+	Context        context.Context
 	Current        CurrentResolution
 	Workspace      *confinedfs.Transaction
 	OutputLock     *confinedfs.OutputLock
@@ -145,10 +149,22 @@ func (a *applyAuthorizer) authorize(input applyAuthorizationInput) (VerifiedAppl
 	if err := generationartifact.VerifyReceipt(current.plan, manifest, receipt); err != nil {
 		return VerifiedApplyAuthorization{}, resolveError(ErrApplyAuthorization, "verify held generation receipt", err)
 	}
-	evidence, err := generationartifact.VerifyApplyEvidenceBundle(generationartifact.ApplyEvidenceVerificationInput{
+	evaluatedAt := time.Now().UTC()
+	var collectionRequest ProductApplyEvidenceCollectionRequest
+	if !nilProductApplyEvidenceCollector(a.evidenceCollector) {
+		collectionRequest, err = newProductApplyEvidenceCollectionRequest(current.plan, manifest, a.executor, evaluatedAt)
+		if err != nil {
+			return VerifiedApplyAuthorization{}, resolveError(ErrApplyAuthorization, "build exact product Apply evidence request", err)
+		}
+	}
+	evidenceBytes, err := productApplyEvidenceBytes(input.Context, a.evidenceCollector, input.EvidenceBundle, collectionRequest)
+	if err != nil {
+		return VerifiedApplyAuthorization{}, resolveError(ErrApplyAuthorization, "collect exact product Apply evidence", err)
+	}
+	evidence, err := generationartifact.VerifyApplyEvidenceBundleAt(generationartifact.ApplyEvidenceVerificationInput{
 		Plan: current.plan, Manifest: manifest, GenerationReceipt: receipt, Executor: a.executor,
-		Bundle: append([]byte(nil), input.EvidenceBundle...), TrustedProducers: a.trustedProducers,
-	})
+		Bundle: evidenceBytes, TrustedProducers: a.trustedProducers,
+	}, evaluatedAt)
 	if err != nil {
 		return VerifiedApplyAuthorization{}, resolveError(ErrApplyAuthorization, "verify exact external Apply evidence", err)
 	}
@@ -207,6 +223,7 @@ type applyExecutionGrant struct {
 	bundleHash       string
 	executor         generationartifact.ApplyExecutorIdentity
 	evaluatedAt      time.Time
+	expiresAt        time.Time
 	release          func()
 }
 
@@ -214,27 +231,27 @@ type applyExecutionGrant struct {
 // stable held-file read after closed-tree verification. A later executor never
 // receives the workspace capability and therefore cannot reopen changed bytes.
 type applyArtifactSnapshot struct {
-	ID                   string
-	Path                 string
-	Kind                 string
-	Format               string
-	Mode                 string
-	ExecutionClass       string
-	OwnerKind            string
-	OwnerRef             string
-	OwnerContractHash    string
-	ProviderRef          string
-	ProviderContractHash string
-	ModuleRef            string
-	ModuleContractHash   string
-	UnitRef              string
-	UnitContractHash     string
-	InstanceRef          string
-	OutputRef            string
-	SiteRefs             []string
-	NodeRefs             []string
-	SHA256               string
-	Content              []byte
+	ID                   string   `json:"id"`
+	Path                 string   `json:"path"`
+	Kind                 string   `json:"kind"`
+	Format               string   `json:"format"`
+	Mode                 string   `json:"mode"`
+	ExecutionClass       string   `json:"execution_class"`
+	OwnerKind            string   `json:"owner_kind"`
+	OwnerRef             string   `json:"owner_ref"`
+	OwnerContractHash    string   `json:"owner_contract_hash"`
+	ProviderRef          string   `json:"provider_ref"`
+	ProviderContractHash string   `json:"provider_contract_hash"`
+	ModuleRef            string   `json:"module_ref"`
+	ModuleContractHash   string   `json:"module_contract_hash"`
+	UnitRef              string   `json:"unit_ref"`
+	UnitContractHash     string   `json:"unit_contract_hash"`
+	InstanceRef          string   `json:"instance_ref"`
+	OutputRef            string   `json:"output_ref"`
+	SiteRefs             []string `json:"site_refs"`
+	NodeRefs             []string `json:"node_refs"`
+	SHA256               string   `json:"sha256"`
+	Content              []byte   `json:"content"`
 }
 
 func (a VerifiedApplyAuthorization) consume() (applyExecutionGrant, error) {
@@ -331,7 +348,7 @@ func (a VerifiedApplyAuthorization) consumeWithClock(now func() time.Time) (appl
 	return applyExecutionGrant{
 		plan: a.plan, artifacts: artifacts, manifestHash: a.manifestHash, receiptHash: a.receiptHash,
 		requirementsHash: a.requirementsHash, bundleHash: a.bundleHash, executor: a.executor, release: release,
-		evaluatedAt: at,
+		evaluatedAt: at, expiresAt: a.expiresAt,
 	}, nil
 }
 

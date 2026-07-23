@@ -939,14 +939,18 @@ func moduleApplyBlockers(module readinessModule, evidenceRefs map[string]struct{
 		if err != nil {
 			return nil, err
 		}
-		blockers = append(blockers, policyBlocker)
+		if policyBlocker != nil {
+			blockers = append(blockers, *policyBlocker)
+		}
 	}
 	if module.runtimeOwnerRequirement != nil {
 		runtimeBlocker, err := unboundOwnerBlocker(module, module.runtimeOwnerRequirement, "runtimeOwnerRequirement", "runtime-owner-unbound", "runtime-owner:")
 		if err != nil {
 			return nil, err
 		}
-		blockers = append(blockers, runtimeBlocker)
+		if runtimeBlocker != nil {
+			blockers = append(blockers, *runtimeBlocker)
+		}
 	}
 	homeAccessBlockers, err := missingHomeAccessBindingBlockers(module)
 	if err != nil {
@@ -1149,28 +1153,31 @@ func missingHomeAccessBindingBlockers(module readinessModule) ([]executionReadin
 	return blockers, nil
 }
 
-func unboundOwnerBlocker(module readinessModule, requirement map[string]any, field, code, ownerPrefix string) (executionReadinessBlocker, error) {
+func unboundOwnerBlocker(module readinessModule, requirement map[string]any, field, code, ownerPrefix string) (*executionReadinessBlocker, error) {
 	path := "modules." + module.id + "." + field
 	status, err := stringField(requirement, path, "status")
 	if err != nil {
-		return executionReadinessBlocker{}, err
+		return nil, err
 	}
 	ownerRef, err := stringField(requirement, path, "ownerRef")
 	if err != nil {
-		return executionReadinessBlocker{}, err
+		return nil, err
 	}
 	healthRef, err := stringField(requirement, path, "requiredHealthRef")
 	if err != nil {
-		return executionReadinessBlocker{}, err
+		return nil, err
 	}
 	evidenceRef, err := stringField(requirement, path, "requiredEvidenceRef")
 	if err != nil {
-		return executionReadinessBlocker{}, err
+		return nil, err
+	}
+	if status == "bound" && field == "enforcementRequirement" {
+		return nil, nil
 	}
 	if status != "unbound" {
-		return executionReadinessBlocker{}, fail(ErrContractConflict, path+".status", "unsupported owner requirement status %q", status)
+		return nil, fail(ErrContractConflict, path+".status", "unsupported owner requirement status %q", status)
 	}
-	return executionReadinessBlocker{
+	return &executionReadinessBlocker{
 		code: code,
 		refs: []string{
 			module.ref,

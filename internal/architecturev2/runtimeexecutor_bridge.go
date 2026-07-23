@@ -30,6 +30,22 @@ func (b *sharedRuntimeExecutorBridge) Identity() generationartifact.ApplyExecuto
 	return generationartifact.ApplyExecutorIdentity{ID: identity.ID, Version: identity.Version, Digest: identity.Digest}
 }
 
+func (b *sharedRuntimeExecutorBridge) PrepareProductApplyRecovery(ctx context.Context, request applyRuntimeExecutionRequest, outputRoot string, validUntil time.Time) error {
+	custodian, ok := b.executor.(productApplyRecoveryCustodian)
+	if !ok {
+		return nil
+	}
+	shared, err := sharedExecutionRequest(request)
+	if err != nil {
+		return err
+	}
+	canonical, err := newProductApplyRecoveryCapsule(request, shared, outputRoot, validUntil)
+	if err != nil {
+		return err
+	}
+	return custodian.storeProductApplyRecovery(ctx, shared.RequestDigest, canonical)
+}
+
 func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request applyRuntimeExecutionRequest) (applyRuntimeExecutionResult, error) {
 	sharedRequest, err := sharedExecutionRequest(request)
 	if err != nil {
@@ -65,8 +81,6 @@ func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecut
 		PlanHash: request.Binding.PlanHash, ManifestHash: request.ManifestHash,
 		GenerationReceiptHash: request.GenerationReceiptHash, RequirementsHash: request.RequirementsHash,
 		EvidenceBundleHash: request.EvidenceBundleHash,
-		RuntimeTargets:     make([]runtimeexecutor.RuntimeTarget, len(request.Requirements.RuntimeInstances)),
-		HealthTargets:      make([]runtimeexecutor.HealthTarget, len(request.Requirements.HealthRequirements)),
 		AccessBindings:     make([]runtimeexecutor.AccessBinding, len(request.Requirements.AccessBindings)),
 		Artifacts:          make([]runtimeexecutor.Artifact, 0, len(request.Artifacts)),
 	}
@@ -76,46 +90,12 @@ func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecut
 		}
 		shared.AuthorizationTime = request.ExecutionAt.Format(time.RFC3339Nano)
 	}
-	for index, target := range request.Requirements.RuntimeInstances {
-		// HealthGateRefs and EvidenceGateRefs are authorization-policy graph
-		// edges, not adapter inputs. StackKits has already closed and authorized
-		// them; the shared executor receives the resulting exact HealthTargets
-		// and the authenticated EvidenceBundleHash instead.
-		daemons := make([]runtimeexecutor.DaemonTarget, len(target.DaemonBindings))
-		for daemonIndex, daemon := range target.DaemonBindings {
-			daemons[daemonIndex] = runtimeexecutor.DaemonTarget{
-				Ref: daemon.DaemonRef, InstanceRef: daemon.InstanceRef, Engine: daemon.Engine, SocketPath: daemon.SocketPath,
-			}
-		}
-		executionChannelRef, err := runtimeTargetExecutionChannel(target, request.Requirements.Hosts)
-		if err != nil {
-			return runtimeexecutor.ExecutionRequest{}, err
-		}
-		accessCapabilities := runtimeTargetAccessCapabilities(target.ID, request.Requirements.AccessBindings)
-		shared.RuntimeTargets[index] = runtimeexecutor.RuntimeTarget{
-			RequirementID: target.ID, OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef,
-			OwnerVersion: target.OwnerVersion, OwnerContractHash: target.OwnerContractHash, ProviderRef: target.ProviderRef,
-			ProviderContractHash: target.ProviderContractHash, ModuleRef: target.ModuleRef,
-			ModuleContractHash: target.ModuleContractHash, UnitRef: target.UnitRef,
-			UnitContractHash: target.UnitContractHash, RuntimeKind: target.RuntimeKind,
-			RuntimeDelivery: target.RuntimeDelivery, RuntimeEngine: target.RuntimeEngine,
-			InstanceRef: target.InstanceRef, ExecutionChannelRef: executionChannelRef,
-			SiteRefs: append([]string(nil), target.SiteRefs...),
-			NodeRefs: append([]string(nil), target.NodeRefs...), WorkloadRef: target.WorkloadRef,
-			ImageRef: target.ImageRef, ImageDigest: target.ImageDigest, DaemonBindings: daemons,
-			ArtifactRefs:       append([]string(nil), target.ArtifactRefs...),
-			AccessCapabilities: accessCapabilities,
-			AccessBindingRefs:  append([]string(nil), target.AccessBindingRefs...),
-		}
+	runtimeTargets, err := sharedRuntimeTargets(request.Requirements)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
 	}
-	for index, target := range request.Requirements.HealthRequirements {
-		shared.HealthTargets[index] = runtimeexecutor.HealthTarget{
-			RequirementID: target.ID, SourceRef: target.SourceRef, ContractHash: target.ContractHash, Phase: target.Phase,
-			Kind: target.Kind, TargetKind: target.TargetKind, TargetRef: target.TargetRef,
-			RouteRef: target.RouteRef, BackendPoolRef: target.BackendPoolRef,
-			SiteRefs: append([]string(nil), target.SiteRefs...), NodeRefs: append([]string(nil), target.NodeRefs...),
-		}
-	}
+	shared.RuntimeTargets = runtimeTargets
+	shared.HealthTargets = sharedHealthTargets(request.Requirements.HealthRequirements)
 	for index, binding := range request.Requirements.AccessBindings {
 		shared.AccessBindings[index] = runtimeexecutor.AccessBinding{
 			ID: binding.ID, Kind: "home-access", RuntimeRequirementID: binding.RuntimeRequirementID,
@@ -127,13 +107,17 @@ func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecut
 			IssuedAt: binding.IssuedAt, ValidUntil: binding.ValidUntil,
 		}
 	}
+	adapterArtifactRefs := sharedRuntimeAdapterArtifactRefs(request.Requirements.RuntimeInstances)
 	for _, artifact := range request.Artifacts {
 		if artifact.ExecutionClass == generationartifact.ApplyExecutionClassContractHandoff {
-			continue
+			if _, selected := adapterArtifactRefs[artifact.ID]; !selected {
+				continue
+			}
 		}
 		shared.Artifacts = append(shared.Artifacts, runtimeexecutor.Artifact{
 			ID: artifact.ID, Kind: artifact.Kind, Format: artifact.Format, Mode: artifact.Mode,
-			OwnerKind: artifact.OwnerKind, OwnerRef: artifact.OwnerRef, OwnerContractHash: artifact.OwnerContractHash,
+			ExecutionClass: artifact.ExecutionClass,
+			OwnerKind:      artifact.OwnerKind, OwnerRef: artifact.OwnerRef, OwnerContractHash: artifact.OwnerContractHash,
 			ProviderRef: artifact.ProviderRef, ProviderContractHash: artifact.ProviderContractHash,
 			ModuleRef: artifact.ModuleRef, ModuleContractHash: artifact.ModuleContractHash,
 			UnitRef: artifact.UnitRef, UnitContractHash: artifact.UnitContractHash,
@@ -143,6 +127,107 @@ func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecut
 		})
 	}
 	return runtimeexecutor.SealRequest(shared)
+}
+
+func sharedRuntimeTargets(requirements generationartifact.ApplyRequirements) ([]runtimeexecutor.RuntimeTarget, error) {
+	result := make([]runtimeexecutor.RuntimeTarget, len(requirements.RuntimeInstances))
+	for index, target := range requirements.RuntimeInstances {
+		// HealthGateRefs and EvidenceGateRefs are authorization-policy graph
+		// edges, not adapter inputs. StackKits has already closed and authorized
+		// them; the shared executor receives the resulting exact HealthTargets
+		// and the authenticated EvidenceBundleHash instead.
+		daemons := make([]runtimeexecutor.DaemonTarget, len(target.DaemonBindings))
+		for daemonIndex, daemon := range target.DaemonBindings {
+			daemons[daemonIndex] = runtimeexecutor.DaemonTarget{
+				Ref: daemon.DaemonRef, InstanceRef: daemon.InstanceRef, Engine: daemon.Engine, SocketPath: daemon.SocketPath,
+			}
+		}
+		executionChannelRef, err := runtimeTargetExecutionChannel(target, requirements.Hosts)
+		if err != nil {
+			return nil, err
+		}
+		accessCapabilities := runtimeTargetAccessCapabilities(target.ID, requirements.AccessBindings)
+		result[index] = runtimeexecutor.RuntimeTarget{
+			RequirementID: target.ID, OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef,
+			OwnerVersion: target.OwnerVersion, OwnerContractHash: target.OwnerContractHash, ProviderRef: target.ProviderRef,
+			ProviderContractHash: target.ProviderContractHash, ModuleRef: target.ModuleRef,
+			ModuleContractHash: target.ModuleContractHash, UnitRef: target.UnitRef,
+			UnitContractHash: target.UnitContractHash, RuntimeKind: target.RuntimeKind,
+			RuntimeDelivery: target.RuntimeDelivery, RuntimeEngine: target.RuntimeEngine,
+			InstanceRef: target.InstanceRef, ExecutionChannelRef: executionChannelRef,
+			SiteRefs: append([]string(nil), target.SiteRefs...),
+			NodeRefs: append([]string(nil), target.NodeRefs...), WorkloadRef: target.WorkloadRef,
+			ImageRef: target.ImageRef, ImageDigest: target.ImageDigest, DaemonBindings: daemons,
+			ArtifactRefs:       append([]string(nil), target.ArtifactRefs...),
+			RuntimeAdapter:     sharedRuntimeAdapterRequirement(target.RuntimeAdapter),
+			AccessCapabilities: accessCapabilities,
+			AccessBindingRefs:  append([]string(nil), target.AccessBindingRefs...),
+		}
+	}
+	return result, nil
+}
+
+func sharedHealthTargets(requirements []generationartifact.ApplyHealthRequirement) []runtimeexecutor.HealthTarget {
+	result := make([]runtimeexecutor.HealthTarget, len(requirements))
+	for index, target := range requirements {
+		result[index] = runtimeexecutor.HealthTarget{
+			RequirementID: target.ID, RuntimeRequirementID: target.RuntimeRequirementID,
+			SourceRef: target.SourceRef, ContractHash: target.ContractHash, Phase: target.Phase,
+			Kind: target.Kind, TargetKind: target.TargetKind, TargetRef: target.TargetRef,
+			RouteRef: target.RouteRef, BackendPoolRef: target.BackendPoolRef,
+			Probe:    sharedHealthProbe(target.Probe),
+			SiteRefs: append([]string(nil), target.SiteRefs...), NodeRefs: append([]string(nil), target.NodeRefs...),
+		}
+	}
+	return result
+}
+
+func sharedHealthProbe(input *generationartifact.ApplyHealthProbe) *runtimeexecutor.HealthProbe {
+	if input == nil {
+		return nil
+	}
+	return &runtimeexecutor.HealthProbe{
+		Protocol: input.Protocol, Port: input.Port, TimeoutSeconds: input.TimeoutSeconds,
+		Method: input.Method, FollowRedirects: input.FollowRedirects, Path: input.Path,
+		ExpectedStatuses: append([]int(nil), input.ExpectedStatuses...),
+	}
+}
+
+func sharedRuntimeAdapterArtifactRefs(targets []generationartifact.ApplyRuntimeRequirement) map[string]struct{} {
+	result := map[string]struct{}{}
+	for _, target := range targets {
+		if target.RuntimeAdapter == nil {
+			continue
+		}
+		for _, ref := range target.RuntimeAdapter.ArtifactRefs {
+			result[ref] = struct{}{}
+		}
+		for _, agent := range target.RuntimeAdapter.Agents {
+			for _, ref := range agent.ArtifactRefs {
+				result[ref] = struct{}{}
+			}
+		}
+	}
+	return result
+}
+
+func sharedRuntimeAdapterRequirement(input *generationartifact.ApplyRuntimeAdapterRequirement) *runtimeexecutor.RuntimeAdapterBinding {
+	if input == nil {
+		return nil
+	}
+	result := &runtimeexecutor.RuntimeAdapterBinding{
+		ID: input.ID, ProviderRef: input.ProviderRef, ProviderVersion: input.ProviderVersion,
+		ProviderContractHash: input.ProviderContractHash, ModuleRef: input.ModuleRef, ModuleVersion: input.ModuleVersion,
+		ModuleContractHash: input.ModuleContractHash, ArtifactRefs: append([]string(nil), input.ArtifactRefs...),
+		Agents: make([]runtimeexecutor.RuntimeAdapterAgentBinding, len(input.Agents)),
+	}
+	for index, agent := range input.Agents {
+		result.Agents[index] = runtimeexecutor.RuntimeAdapterAgentBinding{
+			ID: agent.ID, ModuleRef: agent.ModuleRef, ModuleVersion: agent.ModuleVersion,
+			ModuleContractHash: agent.ModuleContractHash, ArtifactRefs: append([]string(nil), agent.ArtifactRefs...),
+		}
+	}
+	return result
 }
 
 func runtimeTargetAccessCapabilities(runtimeRequirementID string, bindings []generationartifact.ApplyAccessBindingRequirement) []runtimeexecutor.AccessCapability {

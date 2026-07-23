@@ -223,7 +223,7 @@ func printArchitectureV2InitSummary(specPath string) {
 	fmt.Println()
 	printInfo("Next steps:")
 	fmt.Printf("  1. Review desired intent:  %s\n", cyan("cat "+specPath))
-	fmt.Printf("  2. Validate StackSpec:    %s\n", cyan("stackkit validate --spec "+specPath))
-	fmt.Printf("  3. Add Inventory facts, then resolve the governed plan.\n")
+	fmt.Printf("  2. Add admitted Inventory facts for the selected nodes.\n")
+	fmt.Printf("  3. Validate and resolve:  %s\n", cyan("stackkit validate --spec "+specPath))
 	printInfo("Init makes no generation or apply-readiness claim; readiness is decided by the resolved plan.")
 }

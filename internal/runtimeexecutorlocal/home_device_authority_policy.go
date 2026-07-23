@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
@@ -18,7 +19,6 @@ const (
 	homeDeviceAuthorityProviderRef      = "stackkits-home-device-authority"
 	homeDeviceAuthorityModuleRef        = "stackkits-home-device-authority-policy-manifest"
 	homeDeviceAuthorityUnitRef          = "policy-bundle"
-	homeDeviceAuthorityInstanceRef      = "policy-bundle-logical"
 	homeDeviceAuthorityArtifactRef      = "home-device-authority-policy"
 	homeDeviceAuthorityOutputRef        = "local/identity/device-authority-policy.json"
 	homeDeviceAuthorityHealthSourceRef  = "home-device-authority-enforcement"
@@ -26,8 +26,9 @@ const (
 )
 
 type HomeDeviceAuthorityPolicyBinding struct {
-	SiteRefs []string
-	NodeRefs []string
+	SiteRefs            []string
+	NodeRefs            []string
+	ExecutionChannelRef string
 }
 
 type HomeDeviceAuthorityPolicyAuthority struct {
@@ -85,8 +86,10 @@ type HomeDeviceAuthorityPolicyExecutor struct {
 
 func NewHomeDeviceAuthorityPolicyExecutor(identity runtimeexecutor.ExecutorIdentity, binding HomeDeviceAuthorityPolicyBinding, authority HomeDeviceAuthorityPolicyAuthority, operations HomeDeviceAuthorityPolicyOperations) *HomeDeviceAuthorityPolicyExecutor {
 	return &HomeDeviceAuthorityPolicyExecutor{
-		identity:  identity,
-		binding:   HomeDeviceAuthorityPolicyBinding{SiteRefs: append([]string(nil), binding.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...)},
+		identity: identity,
+		binding: HomeDeviceAuthorityPolicyBinding{
+			SiteRefs: append([]string(nil), binding.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...), ExecutionChannelRef: binding.ExecutionChannelRef,
+		},
 		authority: authority, operations: operations, clock: func() time.Time { return time.Now().UTC() },
 	}
 }
@@ -99,7 +102,8 @@ func (e *HomeDeviceAuthorityPolicyExecutor) Execute(ctx context.Context, request
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Home device-authority executor requires a context")
 	}
-	if e == nil || e.operations == nil || e.clock == nil || !validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) ||
+	if e == nil || e.operations == nil || e.clock == nil || len(e.binding.SiteRefs) != 1 || len(e.binding.NodeRefs) != 1 ||
+		!validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) || !validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || !validCoreHostBootstrapDigest(e.authority.HealthContractHash) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Home device-authority executor requires exact catalog authority, Home placement, and authenticated operations")
 	}
@@ -132,7 +136,7 @@ func (e *HomeDeviceAuthorityPolicyExecutor) Execute(ctx context.Context, request
 		observations = append(observations, observation)
 	}
 	expectation := HomeDeviceAuthorityVerifyExpectation{
-		PolicyDigest: policy.PolicyDigest, StackID: policy.Policy.StackID, SiteRefs: append([]string(nil), policy.Policy.SiteRefs...),
+		PolicyDigest: policy.PolicyDigest, StackID: policy.Policy.StackID, SiteRefs: []string{policy.Policy.Authority.SiteRef},
 		NodeRefs: append([]string(nil), policy.NodeRefs...), IssuerID: policy.Policy.Issuer.ID, NotBefore: startedAt,
 	}
 	verified, err := e.operations.VerifyHomeDeviceAuthorityPolicy(ctx, cloneHomeDeviceAuthorityVerifyExpectation(expectation))
@@ -165,11 +169,13 @@ func validateHomeDeviceAuthorityPolicyRequest(request runtimeexecutor.ExecutionR
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.HomeDeviceAuthorityPolicyRendererContract()
+	expectedInstanceRef := homeDeviceAuthorityUnitRef + "-node-" + binding.NodeRefs[0]
+	expectedArtifactRef := homeDeviceAuthorityArtifactRef + "-instance-" + expectedInstanceRef
 	if target.OwnerKind != "module" || target.OwnerRef != homeDeviceAuthorityModuleRef || target.OwnerVersion != "" || target.ProviderRef != homeDeviceAuthorityProviderRef || target.ProviderContractHash != authority.ProviderContractHash ||
 		target.ModuleRef != homeDeviceAuthorityModuleRef || target.ModuleContractHash != authority.ModuleContractHash || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.UnitRef != homeDeviceAuthorityUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != homeDeviceAuthorityInstanceRef || target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" ||
-		target.RuntimeEngine != "" || target.ExecutionChannelRef != "" || target.WorkloadRef != "" || target.ImageRef != "" || len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
-		!slices.Equal(target.SiteRefs, binding.SiteRefs) || !slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{homeDeviceAuthorityArtifactRef}) {
+		target.UnitRef != homeDeviceAuthorityUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != expectedInstanceRef || target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" ||
+		target.RuntimeEngine != "" || target.ExecutionChannelRef != binding.ExecutionChannelRef || target.WorkloadRef != "" || target.ImageRef != "" || len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
+		!slices.Equal(target.SiteRefs, binding.SiteRefs) || !slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{expectedArtifactRef}) {
 		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, errors.New("runtime target is not the exact bound Home device-authority contract")
 	}
 	health := request.HealthTargets[0]
@@ -178,10 +184,10 @@ func validateHomeDeviceAuthorityPolicyRequest(request runtimeexecutor.ExecutionR
 		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, errors.New("health target is not the exact Home device-authority enforcement postcondition")
 	}
 	artifact := request.Artifacts[0]
-	if artifact.ID != homeDeviceAuthorityArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
-		artifact.OwnerRef != homeDeviceAuthorityInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != homeDeviceAuthorityProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
+	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
+		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != homeDeviceAuthorityProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != homeDeviceAuthorityModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != homeDeviceAuthorityUnitRef || artifact.UnitContractHash != contract.ContractHash ||
-		artifact.InstanceRef != homeDeviceAuthorityInstanceRef || artifact.OutputRef != homeDeviceAuthorityOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
+		artifact.InstanceRef != expectedInstanceRef || artifact.OutputRef != homeDeviceAuthorityOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
 		len(artifact.Content) == 0 || len(artifact.Content) > homeDeviceAuthorityMaxArtifactBytes {
 		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, errors.New("artifact is not the exact CUE-owned Home device-authority policy")
 	}
@@ -193,17 +199,19 @@ func validateHomeDeviceAuthorityPolicyRequest(request runtimeexecutor.ExecutionR
 	if err != nil {
 		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, fmt.Errorf("validate governed Home device-authority policy: %w", err)
 	}
-	if !slices.Equal(projection.SiteRefs, binding.SiteRefs) || !slices.Equal(projection.Issuer.SiteRefs, binding.SiteRefs) || projection.Issuer.EnrollmentMode != "local-only" || projection.Issuer.EnrollmentExposure != "lan" || !projection.Issuer.ProofOfPossessionRequired {
+	if !slices.Equal([]string{projection.Authority.SiteRef}, binding.SiteRefs) || projection.Issuer.AuthorityRef != projection.Authority.ID ||
+		projection.Issuer.Enrollment.Mode != "local-only" || projection.Issuer.Enrollment.Exposure != "lan" || !projection.Issuer.ProofOfPossessionRequired {
 		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, errors.New("Home device-authority policy does not bind exact LAN-local possession-bound enrollment")
 	}
 	policyDigestInput, err := json.Marshal(struct {
-		ArtifactDigest string   `json:"artifactDigest"`
-		ProviderHash   string   `json:"providerHash"`
-		ModuleHash     string   `json:"moduleHash"`
-		HealthHash     string   `json:"healthHash"`
-		SiteRefs       []string `json:"siteRefs"`
-		NodeRefs       []string `json:"nodeRefs"`
-	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs})
+		ArtifactDigest      string   `json:"artifactDigest"`
+		ProviderHash        string   `json:"providerHash"`
+		ModuleHash          string   `json:"moduleHash"`
+		HealthHash          string   `json:"healthHash"`
+		SiteRefs            []string `json:"siteRefs"`
+		NodeRefs            []string `json:"nodeRefs"`
+		ExecutionChannelRef string   `json:"executionChannelRef"`
+	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs, binding.ExecutionChannelRef})
 	if err != nil {
 		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, fmt.Errorf("bind Home device-authority authority: %w", err)
 	}
@@ -231,9 +239,7 @@ func cloneHomeDeviceAuthorityRuntimePolicy(policy HomeDeviceAuthorityRuntimePoli
 }
 
 func cloneHomeDeviceAuthorityPolicy(policy architecturev2renderer.HomeDeviceAuthorityEnforcementPolicy) architecturev2renderer.HomeDeviceAuthorityEnforcementPolicy {
-	policy.SiteRefs = append([]string(nil), policy.SiteRefs...)
 	policy.Issuer.Audiences = append([]string(nil), policy.Issuer.Audiences...)
-	policy.Issuer.SiteRefs = append([]string(nil), policy.Issuer.SiteRefs...)
 	return policy
 }
 

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
@@ -18,7 +19,6 @@ const (
 	cloudIdentityTrustProviderRef      = "stackkits-cloud-identity-trust-policy"
 	cloudIdentityTrustModuleRef        = "stackkits-cloud-identity-trust-policy-manifest"
 	cloudIdentityTrustUnitRef          = "policy-bundle"
-	cloudIdentityTrustInstanceRef      = "policy-bundle-logical"
 	cloudIdentityTrustArtifactRef      = "cloud-identity-trust-policy"
 	cloudIdentityTrustOutputRef        = "cloud/identity/trust-policy.json"
 	cloudIdentityTrustHealthSourceRef  = "cloud-identity-trust-enforcement"
@@ -26,8 +26,9 @@ const (
 )
 
 type CloudIdentityTrustPolicyBinding struct {
-	SiteRefs []string
-	NodeRefs []string
+	SiteRefs            []string
+	NodeRefs            []string
+	ExecutionChannelRef string
 }
 
 type CloudIdentityTrustPolicyAuthority struct {
@@ -97,7 +98,7 @@ func NewCloudIdentityTrustPolicyExecutor(identity runtimeexecutor.ExecutorIdenti
 	return &CloudIdentityTrustPolicyExecutor{
 		identity: identity,
 		binding: CloudIdentityTrustPolicyBinding{
-			SiteRefs: append([]string(nil), binding.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...),
+			SiteRefs: append([]string(nil), binding.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...), ExecutionChannelRef: binding.ExecutionChannelRef,
 		},
 		authority: authority, operations: operations, clock: func() time.Time { return time.Now().UTC() },
 	}
@@ -111,7 +112,8 @@ func (e *CloudIdentityTrustPolicyExecutor) Execute(ctx context.Context, request 
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Cloud identity-trust executor requires a context")
 	}
-	if e == nil || e.operations == nil || e.clock == nil || !validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) ||
+	if e == nil || e.operations == nil || e.clock == nil || len(e.binding.SiteRefs) != 1 || len(e.binding.NodeRefs) != 1 ||
+		!validExactRefSet(e.binding.SiteRefs) || !validExactRefSet(e.binding.NodeRefs) || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) || !validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || !validCoreHostBootstrapDigest(e.authority.HealthContractHash) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Cloud identity-trust executor requires exact catalog authority, Cloud placement, and authenticated operations")
 	}
@@ -185,11 +187,13 @@ func validateCloudIdentityTrustPolicyRequest(request runtimeexecutor.ExecutionRe
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.CloudIdentityTrustPolicyRendererContract()
+	expectedInstanceRef := cloudIdentityTrustUnitRef + "-node-" + binding.NodeRefs[0]
+	expectedArtifactRef := cloudIdentityTrustArtifactRef + "-instance-" + expectedInstanceRef
 	if target.OwnerKind != "module" || target.OwnerRef != cloudIdentityTrustModuleRef || target.OwnerVersion != "" || target.ProviderRef != cloudIdentityTrustProviderRef || target.ProviderContractHash != authority.ProviderContractHash ||
 		target.ModuleRef != cloudIdentityTrustModuleRef || target.ModuleContractHash != authority.ModuleContractHash || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.UnitRef != cloudIdentityTrustUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != cloudIdentityTrustInstanceRef || target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" ||
-		target.RuntimeEngine != "" || target.ExecutionChannelRef != "" || target.WorkloadRef != "" || target.ImageRef != "" || len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
-		!slices.Equal(target.SiteRefs, binding.SiteRefs) || !slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{cloudIdentityTrustArtifactRef}) {
+		target.UnitRef != cloudIdentityTrustUnitRef || target.UnitContractHash != contract.ContractHash || target.InstanceRef != expectedInstanceRef || target.RuntimeKind != "native" || target.RuntimeDelivery != "stackkit" ||
+		target.RuntimeEngine != "" || target.ExecutionChannelRef != binding.ExecutionChannelRef || target.WorkloadRef != "" || target.ImageRef != "" || len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
+		!slices.Equal(target.SiteRefs, binding.SiteRefs) || !slices.Equal(target.NodeRefs, binding.NodeRefs) || !slices.Equal(target.ArtifactRefs, []string{expectedArtifactRef}) {
 		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, errors.New("runtime target is not the exact bound Cloud identity-trust contract")
 	}
 	health := request.HealthTargets[0]
@@ -198,10 +202,10 @@ func validateCloudIdentityTrustPolicyRequest(request runtimeexecutor.ExecutionRe
 		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, errors.New("health target is not the exact Cloud identity-trust enforcement postcondition")
 	}
 	artifact := request.Artifacts[0]
-	if artifact.ID != cloudIdentityTrustArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
-		artifact.OwnerRef != cloudIdentityTrustInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != cloudIdentityTrustProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
+	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
+		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != cloudIdentityTrustProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != cloudIdentityTrustModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != cloudIdentityTrustUnitRef || artifact.UnitContractHash != contract.ContractHash ||
-		artifact.InstanceRef != cloudIdentityTrustInstanceRef || artifact.OutputRef != cloudIdentityTrustOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
+		artifact.InstanceRef != expectedInstanceRef || artifact.OutputRef != cloudIdentityTrustOutputRef || !slices.Equal(artifact.SiteRefs, binding.SiteRefs) || !slices.Equal(artifact.NodeRefs, binding.NodeRefs) ||
 		len(artifact.Content) == 0 || len(artifact.Content) > cloudIdentityTrustMaxArtifactBytes {
 		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, errors.New("artifact is not the exact CUE-owned Cloud identity-trust policy")
 	}
@@ -213,7 +217,7 @@ func validateCloudIdentityTrustPolicyRequest(request runtimeexecutor.ExecutionRe
 	if err != nil {
 		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, fmt.Errorf("validate governed Cloud identity-trust policy: %w", err)
 	}
-	if !slices.Equal(projection.SiteRefs, binding.SiteRefs) || !cloudIdentityTrustPolicyWithinBinding(projection, binding.SiteRefs) {
+	if projection.SiteRef != binding.SiteRefs[0] {
 		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, errors.New("Cloud identity-trust policy does not bind the exact authorized Cloud placement")
 	}
 	policyDigestInput, err := json.Marshal(struct {
@@ -223,30 +227,17 @@ func validateCloudIdentityTrustPolicyRequest(request runtimeexecutor.ExecutionRe
 		HealthContractHash   string   `json:"healthContractHash"`
 		SiteRefs             []string `json:"siteRefs"`
 		NodeRefs             []string `json:"nodeRefs"`
-	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs})
+		ExecutionChannelRef  string   `json:"executionChannelRef"`
+	}{artifact.Digest, authority.ProviderContractHash, authority.ModuleContractHash, authority.HealthContractHash, binding.SiteRefs, binding.NodeRefs, binding.ExecutionChannelRef})
 	if err != nil {
 		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, fmt.Errorf("bind Cloud identity-trust authority: %w", err)
 	}
 	policyDigestBytes := sha256.Sum256(policyDigestInput)
 	return target, health, CloudIdentityTrustRuntimePolicy{
 		PolicyDigest: "sha256:" + hex.EncodeToString(policyDigestBytes[:]), StackID: projection.StackID,
-		SiteRefs: append([]string(nil), projection.SiteRefs...), NodeRefs: append([]string(nil), binding.NodeRefs...),
+		SiteRefs: []string{projection.SiteRef}, NodeRefs: append([]string(nil), binding.NodeRefs...),
 		Issuers: cloneCloudIdentityTrustIssuers(projection.Issuers), Verifiers: cloneCloudIdentityTrustVerifiers(projection.Verifiers),
 	}, nil
-}
-
-func cloudIdentityTrustPolicyWithinBinding(policy architecturev2renderer.CloudIdentityTrustEnforcementPolicy, siteRefs []string) bool {
-	for _, issuer := range policy.Issuers {
-		if issuer.Principal == "device" || !slices.Equal(issuer.SiteRefs, siteRefs) {
-			return false
-		}
-	}
-	for _, verifier := range policy.Verifiers {
-		if !slices.Equal(verifier.SiteRefs, siteRefs) {
-			return false
-		}
-	}
-	return true
 }
 
 func validateCloudIdentityTrustVerifyObservation(observation CloudIdentityTrustVerifyObservation, expectation CloudIdentityTrustVerifyExpectation, completedAt time.Time) error {
@@ -273,7 +264,6 @@ func cloneCloudIdentityTrustIssuers(issuers []architecturev2renderer.CloudIdenti
 	cloned := append([]architecturev2renderer.CloudIdentityTrustIssuer(nil), issuers...)
 	for index := range cloned {
 		cloned[index].Audiences = append([]string(nil), cloned[index].Audiences...)
-		cloned[index].SiteRefs = append([]string(nil), cloned[index].SiteRefs...)
 	}
 	return cloned
 }
@@ -282,7 +272,6 @@ func cloneCloudIdentityTrustVerifiers(verifiers []architecturev2renderer.CloudId
 	cloned := append([]architecturev2renderer.CloudIdentityTrustVerifier(nil), verifiers...)
 	for index := range cloned {
 		cloned[index].Audiences = append([]string(nil), cloned[index].Audiences...)
-		cloned[index].SiteRefs = append([]string(nil), cloned[index].SiteRefs...)
 	}
 	return cloned
 }

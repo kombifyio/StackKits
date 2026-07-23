@@ -102,6 +102,10 @@ type PlanArtifactContract map[string]any
 // field remains contract-only until an authenticated runtime owner is bound.
 type RILActionPrimitiveContract map[string]any
 
+// RILActionExecutorContract is the CUE-governed, provider-free identity and
+// operation-class boundary for one authenticated in-process action owner.
+type RILActionExecutorContract map[string]any
+
 // ResolvedPlan is a JSON-decoded base.#ResolvedPlan document. It must only be
 // constructed through Compiler.Compile so its source and plan hashes agree.
 type ResolvedPlan map[string]any
@@ -123,6 +127,7 @@ type Catalog struct {
 	Modules                      []ModuleContract
 	Workloads                    []WorkloadContract
 	PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval
+	RILActionExecutors           []RILActionExecutorContract
 	RILActionPrimitives          []RILActionPrimitiveContract
 	PlanArtifacts                []PlanArtifactContract
 }

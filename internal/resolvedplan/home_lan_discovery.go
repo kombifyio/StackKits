@@ -113,7 +113,7 @@ func projectHomeLANAdvertisement(routeRef string, route map[string]any, homeSite
 	if exposure != "local" {
 		return nil, fail(ErrProfileMismatch, path+".exposure", "LAN discovery requires local exposure, got %q", exposure)
 	}
-	originSiteRef, err := stringField(route, path, "originSiteRef")
+	originSiteRef, err := singleRouteOriginSite(route, path)
 	if err != nil {
 		return nil, err
 	}

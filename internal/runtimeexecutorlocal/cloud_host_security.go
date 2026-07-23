@@ -86,8 +86,8 @@ type CloudHostSecurityAuthority struct {
 }
 
 // CloudHostSecurityExecutor applies the closed Cloud policy to one previously
-// authorized node. It remains unregistered until a real authenticated host
-// operations implementation is available.
+// authorized node. Product registration requires a real authenticated host
+// operations implementation and never discovers one from request data.
 type CloudHostSecurityExecutor struct {
 	identity   runtimeexecutor.ExecutorIdentity
 	binding    LocalTargetBinding

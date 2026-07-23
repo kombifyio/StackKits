@@ -10,6 +10,8 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/rilactionv2"
+	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
@@ -65,12 +67,15 @@ func ContractFixtureV1Contract(buildVersion string) CompilerContract {
 // Service owns one immutable CUE authority snapshot and one deterministic
 // compiler. It is safe for concurrent CLI/API resolution.
 type Service struct {
-	authority         *cueAuthority
-	compiler          *resolvedplan.Compiler
-	validator         *resolvedplan.CUEContractValidator
-	generation        *generationCoordinator
-	rilActionLedger   rilaction.ExecutionLedger
-	productApplyTrust []productApplyTrustAnchor
+	authority                     *cueAuthority
+	compiler                      *resolvedplan.Compiler
+	validator                     *resolvedplan.CUEContractValidator
+	generation                    *generationCoordinator
+	rilActionLedger               rilaction.ExecutionLedger
+	rilActionExecutors            *rilActionExecutorRegistry
+	productApplyTrust             []productApplyTrustAnchor
+	productApplyEvidenceCollector ProductApplyEvidenceCollector
+	productRuntimeOwners          *ProductRuntimeOwnerRegistry
 }
 
 // NewProductEmbeddedService creates the product authority used by native CLI
@@ -86,6 +91,80 @@ func NewProductEmbeddedService(contract CompilerContract) (*Service, error) {
 		return nil, err
 	}
 	service.productApplyTrust = trust
+	return service, nil
+}
+
+// NewProductEmbeddedServiceWithApplyEvidenceCollector creates a product
+// authority whose provider-free collector is fixed at service construction.
+// Apply callers cannot supply or replace the collector, its private signing
+// material, or the public trust roots used to authenticate its result.
+func NewProductEmbeddedServiceWithApplyEvidenceCollector(contract CompilerContract, collector ProductApplyEvidenceCollector) (*Service, error) {
+	if nilProductApplyEvidenceCollector(collector) {
+		return nil, resolveError(ErrAuthorityLoad, "a product Apply evidence collector is required", nil)
+	}
+	service, err := NewProductEmbeddedService(contract)
+	if err != nil {
+		return nil, err
+	}
+	service.productApplyEvidenceCollector = collector
+	return service, nil
+}
+
+// NewProductEmbeddedServiceWithRuntimeOwners creates a product service whose
+// complete provider-free runtime-owner set, execution-channel authority, root
+// executor identity, durable Journal, and exact recovery custody are fixed
+// together at construction. Apply callers cannot supply or replace any of
+// them.
+func NewProductEmbeddedServiceWithRuntimeOwners(
+	contract CompilerContract,
+	identity runtimeexecutor.ExecutorIdentity,
+	registrations []ProductRuntimeOwnerRegistration,
+	channels ProductExecutionChannelFactory,
+	journal runtimeapply.Journal,
+	recovery ProductApplyRecoveryStore,
+) (*Service, error) {
+	return newProductEmbeddedServiceWithRuntimeOwners(contract, identity, registrations, channels, journal, recovery, nil)
+}
+
+// NewProductEmbeddedServiceWithRuntimeOwnersAndApplyEvidenceCollector fixes
+// the complete runtime-owner graph and the pre-Apply evidence producer at the
+// same construction boundary. The collector owns inspection and signing
+// privately; Apply callers cannot supply evidence, factories, channels,
+// Journal, recovery custody, or trust roots.
+func NewProductEmbeddedServiceWithRuntimeOwnersAndApplyEvidenceCollector(
+	contract CompilerContract,
+	identity runtimeexecutor.ExecutorIdentity,
+	registrations []ProductRuntimeOwnerRegistration,
+	channels ProductExecutionChannelFactory,
+	journal runtimeapply.Journal,
+	recovery ProductApplyRecoveryStore,
+	collector ProductApplyEvidenceCollector,
+) (*Service, error) {
+	if nilProductApplyEvidenceCollector(collector) {
+		return nil, resolveError(ErrAuthorityLoad, "a product Apply evidence collector is required", nil)
+	}
+	return newProductEmbeddedServiceWithRuntimeOwners(contract, identity, registrations, channels, journal, recovery, collector)
+}
+
+func newProductEmbeddedServiceWithRuntimeOwners(
+	contract CompilerContract,
+	identity runtimeexecutor.ExecutorIdentity,
+	registrations []ProductRuntimeOwnerRegistration,
+	channels ProductExecutionChannelFactory,
+	journal runtimeapply.Journal,
+	recovery ProductApplyRecoveryStore,
+	collector ProductApplyEvidenceCollector,
+) (*Service, error) {
+	registry, err := NewProductRuntimeOwnerRegistryWithRecovery(identity, registrations, channels, journal, recovery)
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "construct product runtime-owner registry", err)
+	}
+	service, err := NewProductEmbeddedService(contract)
+	if err != nil {
+		return nil, err
+	}
+	service.productRuntimeOwners = registry
+	service.productApplyEvidenceCollector = collector
 	return service, nil
 }
 
@@ -259,10 +338,19 @@ func newServiceWithValidatedAuthority(authority *cueAuthority, contract Compiler
 	if err != nil {
 		return nil, resolveError(ErrAuthorityLoad, "construct Architecture v2 generation coordinator: "+err.Error(), err)
 	}
-	return &Service{
+	service := &Service{
 		authority: authority, compiler: compiler, validator: validator,
 		generation: generation, rilActionLedger: newMemoryRILActionLedger(),
-	}, nil
+	}
+	executorCatalog, err := decodeRILActionExecutorCatalog(authority.catalog.RILActionExecutors)
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "decode Architecture v2 RIL action executor catalog: "+err.Error(), err)
+	}
+	service.rilActionExecutors, err = newRILActionExecutorRegistry(executorCatalog)
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "construct RIL action executor registry: "+err.Error(), err)
+	}
+	return service, nil
 }
 
 func authorityDefinitionSet(definitions map[stackspecmigration.KitProfile]resolvedplan.KitDefinition) []resolvedplan.KitDefinition {

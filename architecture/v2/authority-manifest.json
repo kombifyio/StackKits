@@ -21,6 +21,14 @@
       "package": "cloud-kit",
       "visibility": "public",
       "contractSources": null
+    },
+    {
+      "slug": "modern-homelab",
+      "package": "modern-homelab",
+      "visibility": "public",
+      "contractSources": [
+        "base/architecture_v2_federation.cue"
+      ]
     }
   ]
 }

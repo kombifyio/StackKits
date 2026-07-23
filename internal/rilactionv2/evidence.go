@@ -99,6 +99,9 @@ func ValidateEvidenceForRequest(request Request, evidence Evidence) error {
 	if err := validateRecoveryEvidence(evidence.Recovery); err != nil {
 		return err
 	}
+	if evidence.Status == "succeeded" && evidence.Recovery.Kind != "none" {
+		return invalid("evidence.recovery", "must be not-required when the action succeeded")
+	}
 	if len(evidence.SummaryCodes) == 0 || len(evidence.SummaryCodes) > MaxSummaryCodes {
 		return invalid("evidence.summary_codes", "must contain a bounded non-empty set")
 	}
@@ -170,8 +173,8 @@ func validateRecoveryEvidence(evidence RecoveryEvidence) error {
 			return invalid("evidence.recovery", "none requires not-required status and no primitive")
 		}
 	case "primitive":
-		if evidence.Status != "succeeded" && evidence.Status != "failed" {
-			return invalid("evidence.recovery.status", "is unsupported for primitive recovery")
+		if evidence.Status != "required" {
+			return invalid("evidence.recovery.status", "must require a separately approved recovery action")
 		}
 		if err := validateContractID("evidence.recovery.primitive_ref", evidence.PrimitiveRef); err != nil {
 			return err

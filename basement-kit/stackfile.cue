@@ -99,10 +99,9 @@ Definition: base.#ProductKitDefinition & {
 			evidenceAcceptance: requiredRefs: ["ha-basement-quorum-failure-domain-proof"]
 		}
 	}
-		capabilities: {
-			required: list.Concat([base.#CommonCapabilityIDs, [
-				"basement-compose-runtime",
-				"site-local",
+	capabilities: {
+		required: list.Concat([base.#CommonCapabilityIDs, [
+			"site-local",
 			"local-ingress",
 			"lan-access-policy",
 			"device-enrollment-home",
@@ -111,13 +110,14 @@ Definition: base.#ProductKitDefinition & {
 			"local-backup-target",
 		]])
 		defaults: []
-			optional: [
-				"lan-discovery",
+		optional: [
+			"lan-discovery",
 			"lan-dns",
 			"internal-pki",
 			"private-remote-access",
 			"public-publish-egress",
 			"encrypted-offsite-backup",
+			"basement-compose-runtime",
 			"availability-ha",
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
@@ -156,11 +156,6 @@ Definition: base.#ProductKitDefinition & {
 	dataDefaults: {
 		authority:               "home"
 		cloudCopyRequiresPolicy: true
-	}
-	failureDefaults: {
-		offlineOperation:              true
-		localServicesSurviveCloudLoss: true
-		cloudEdgeFailsClosed:          true
 	}
 	deviceEnrollment: {
 		required: true

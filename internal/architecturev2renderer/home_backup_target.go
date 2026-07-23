@@ -22,8 +22,10 @@ const homeBackupTargetTemplate = `{"apiVersion":"stackkit.home-backup-target-pol
 `
 
 var homeBackupTargetPlanInputRefs = []string{
-	"kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy",
+	"kit", "moduleCapabilities", "moduleTargets", "sites", "stackId",
 }
+
+var homeBackupTargetPublicInputRefs = []string{"backup-root"}
 
 // HomeBackupTargetRendererContract returns the exact implementation identity
 // for the node-local Home backup-target observation policy.
@@ -68,12 +70,20 @@ func (r homeBackupTargetRenderer) RenderUnit(ctx context.Context, unit RenderUni
 }
 
 type homeBackupTargetPlanInputs struct {
-	StackID            string                      `json:"stackId"`
-	Kit                executorBundleKit           `json:"kit"`
-	Sites              []executorBundleSite        `json:"sites"`
-	ModuleTargets      []executorBundleTarget      `json:"moduleTargets"`
-	ModuleCapabilities []executorBundleCapability  `json:"moduleCapabilities"`
-	StoragePolicy      executorBundleStoragePolicy `json:"storagePolicy"`
+	StackID            string                     `json:"stackId"`
+	Kit                executorBundleKit          `json:"kit"`
+	Sites              []executorBundleSite       `json:"sites"`
+	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
+}
+
+type homeBackupRootInput struct {
+	Path         string `json:"path"`
+	VolumeDriver string `json:"volumeDriver"`
+}
+
+type homeBackupTargetValues struct {
+	BackupRoot homeBackupRootInput `json:"backup-root"`
 }
 
 type homeBackupTargetPolicy struct {
@@ -114,11 +124,14 @@ func validateHomeBackupTargetUnit(unit RenderUnit, contract RendererContract) (h
 	if _, present := unit.DaemonRef(); present {
 		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".instances", "Home backup observation must not receive daemon authority")
 	}
-	if len(unit.PublicInputRefs()) != 0 || len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.ValuesJSON()) || !emptyJSONObject(unit.SecretRefsJSON()) {
-		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".inputs", "Home backup target accepts only its closed compiler-owned projection")
+	if !exactStringList(unit.PublicInputRefs(), homeBackupTargetPublicInputRefs) || len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.SecretRefsJSON()) {
+		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".inputs", "Home backup target accepts only its exact typed compiler-owned input")
 	}
 	if !exactStringList(unit.PlanInputRefs(), homeBackupTargetPlanInputRefs) {
 		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".planInputRefs", "must exactly match the registered Home backup-target projection")
+	}
+	if err := validateHomeBackupTargetBinding(unit.InputBindingsJSON(), path+".inputBindings"); err != nil {
+		return homeBackupTargetPolicy{}, err
 	}
 	if !emptyJSONArray(unit.ServiceEndpointsJSON()) || !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) || !emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) || !emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) {
 		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".interfaces", "Home backup target has no service, network, socket, or privileged-interface authority")
@@ -147,26 +160,60 @@ func validateHomeBackupTargetUnit(unit RenderUnit, contract RendererContract) (h
 	if len(inputs.ModuleCapabilities) != 1 || inputs.ModuleCapabilities[0].ID != "local-backup-target" || !validSHA256(inputs.ModuleCapabilities[0].ContractHash) {
 		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".planInputs.moduleCapabilities", "module must own only the exact local-backup-target capability")
 	}
-	if err := validateStoragePolicy(inputs.StoragePolicy, path+".planInputs.storagePolicy"); err != nil {
-		return homeBackupTargetPolicy{}, err
+	var values homeBackupTargetValues
+	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
+		return homeBackupTargetPolicy{}, wrap(ErrInvalidPlan, path+".values", "decode exact Home backup-target bound input", err)
 	}
-	if inputs.StoragePolicy.VolumeDriver != "local" || inputs.StoragePolicy.External != nil || inputs.StoragePolicy.NFS != nil || !safeCoreHostBootstrapStoragePath(inputs.StoragePolicy.BackupRoot) {
-		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".planInputs.storagePolicy", "v1 observes only the safe host-local backup root prepared by Core")
+	backupRoot, err := validateHomeBackupRoot(values.BackupRoot, path+".values.backup-root")
+	if err != nil {
+		return homeBackupTargetPolicy{}, err
 	}
 	if err := validateCoreHostBootstrapTarget(inputs.Sites, inputs.ModuleTargets, siteRef, nodeRef, path+".planInputs"); err != nil {
 		return homeBackupTargetPolicy{}, err
 	}
-	return newHomeBackupTargetPolicy(inputs, siteRef, nodeRef), nil
+	return newHomeBackupTargetPolicy(inputs, backupRoot, siteRef, nodeRef), nil
 }
 
-func newHomeBackupTargetPolicy(inputs homeBackupTargetPlanInputs, siteRef, nodeRef string) homeBackupTargetPolicy {
+func validateHomeBackupTargetBinding(raw []byte, path string) error {
+	var bindings []rawModuleRenderInputBinding
+	if err := decodeStrict(raw, &bindings); err != nil {
+		return wrap(ErrInvalidPlan, path, "decode Home backup-target input binding", err)
+	}
+	if len(bindings) != 1 {
+		return fail(ErrInvalidPlan, path, "requires exactly one governed backup-root binding")
+	}
+	binding := bindings[0]
+	if binding.TargetRef != "backup-root" || binding.SourceRef != "storage.backupRoot" ||
+		binding.ValueType != "local-backup-root-v1" || binding.Cardinality != "single" ||
+		!binding.Required || len(binding.DefaultValue) != 0 {
+		return fail(ErrInvalidPlan, path, "does not match the governed backup-root binding")
+	}
+	return nil
+}
+
+func decodeHomeBackupRoot(raw json.RawMessage, path string) (homeBackupRootInput, error) {
+	var value homeBackupRootInput
+	if err := decodeStrict(raw, &value); err != nil {
+		return value, wrap(ErrInvalidPlan, path, "decode local backup root", err)
+	}
+	return validateHomeBackupRoot(value, path)
+}
+
+func validateHomeBackupRoot(value homeBackupRootInput, path string) (homeBackupRootInput, error) {
+	if value.VolumeDriver != "local" || !safeCoreHostBootstrapStoragePath(value.Path) {
+		return value, fail(ErrInvalidPlan, path, "requires one safe host-local backup root prepared by Core")
+	}
+	return value, nil
+}
+
+func newHomeBackupTargetPolicy(inputs homeBackupTargetPlanInputs, backupRoot homeBackupRootInput, siteRef, nodeRef string) homeBackupTargetPolicy {
 	policy := homeBackupTargetPolicy{StackID: inputs.StackID}
 	policy.Kit.Slug = inputs.Kit.Slug
 	policy.Kit.Version = inputs.Kit.Version
 	policy.Kit.DefinitionHash = inputs.Kit.DefinitionHash
 	policy.Target.SiteRef = siteRef
 	policy.Target.NodeRef = nodeRef
-	policy.Directory.Path = inputs.StoragePolicy.BackupRoot
+	policy.Directory.Path = backupRoot.Path
 	policy.Directory.Mode = "0750"
 	policy.Directory.Purpose = "backup"
 	return policy

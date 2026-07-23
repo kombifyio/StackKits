@@ -43,7 +43,7 @@ func buildLocalReachability(network map[string]any, sites []any) (map[string]any
 		if err != nil {
 			return nil, err
 		}
-		originSiteRef, err := stringField(route, path, "originSiteRef")
+		originSiteRef, err := singleRouteOriginSite(route, path)
 		if err != nil {
 			return nil, err
 		}
@@ -73,6 +73,7 @@ func projectLocalReachabilityRoute(route map[string]any, path, originSiteRef str
 			projected[field] = value
 		}
 	}
+	projected["originSiteRef"] = originSiteRef
 	access, err := objectField(route, path, "access")
 	if err != nil {
 		return nil, err
@@ -135,4 +136,23 @@ func projectLocalReachabilityRoute(route map[string]any, path, originSiteRef str
 		return nil, err
 	}
 	return normalized.(map[string]any), nil
+}
+
+func singleRouteOriginSite(route map[string]any, path string) (string, error) {
+	if raw, exists := route["originSiteRefs"]; exists {
+		sites, err := stringListField(map[string]any{"originSiteRefs": raw}, path, "originSiteRefs", true)
+		if err != nil {
+			return "", err
+		}
+		if len(sites) != 1 {
+			return "", fail(ErrProfileMismatch, path+".originSiteRefs", "Home-local projection requires exactly one origin Site, got %v", sites)
+		}
+		if legacy, present, err := optionalStringField(route, path, "originSiteRef"); err != nil {
+			return "", err
+		} else if present && legacy != sites[0] {
+			return "", fail(ErrContractConflict, path+".originSiteRef", "legacy origin Site differs from the exact origin Site set")
+		}
+		return sites[0], nil
+	}
+	return stringField(route, path, "originSiteRef")
 }

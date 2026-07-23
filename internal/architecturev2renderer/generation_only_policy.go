@@ -8,14 +8,16 @@ import (
 )
 
 type generationOnlyPolicyUnitSpec struct {
-	moduleID          string
-	unitID            string
-	outputRef         string
-	outputRefs        []string
-	policyName        string
-	contract          RendererContract
-	planInputRefs     []string
-	validatePlanInput func([]byte, string) ([]string, error)
+	moduleID             string
+	unitID               string
+	outputRef            string
+	outputRefs           []string
+	policyName           string
+	placementScope       string
+	placementCardinality string
+	contract             RendererContract
+	planInputRefs        []string
+	validatePlanInput    func([]byte, string) ([]string, error)
 }
 
 // validateGenerationOnlyPolicyUnit centralizes the authority-free boundary
@@ -32,17 +34,12 @@ func validateGenerationOnlyPolicyUnit(unit RenderUnit, spec generationOnlyPolicy
 	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef || unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version || unit.ContractHash() != contract.ContractHash {
 		return nil, fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered %s contract", spec.policyName)
 	}
-	if unit.RuntimeKind() != "native" || unit.RuntimeDelivery() != "stackkit" || unit.InstanceScope() != "module" {
-		return nil, fail(ErrInvalidPlan, path, "%s requires exact native/stackkit module-single ownership", spec.policyName)
+	placementScope, placementCardinality := spec.placementScope, spec.placementCardinality
+	if placementScope == "" {
+		placementScope, placementCardinality = "module", "single"
 	}
-	if unit.InstanceID() != spec.unitID+"-logical" {
-		return nil, fail(ErrInvalidPlan, path+".instances", "module policy requires exact logical instance %q", spec.unitID+"-logical")
-	}
-	if _, present := unit.SiteRef(); present {
-		return nil, fail(ErrInvalidPlan, path+".instances", "module policy instance must not receive a site binding")
-	}
-	if _, present := unit.NodeRef(); present {
-		return nil, fail(ErrInvalidPlan, path+".instances", "module policy instance must not receive a node binding")
+	if unit.RuntimeKind() != "native" || unit.RuntimeDelivery() != "stackkit" || unit.InstanceScope() != placementScope {
+		return nil, fail(ErrInvalidPlan, path, "%s requires exact native/stackkit %s/%s ownership", spec.policyName, placementScope, placementCardinality)
 	}
 	if _, present := unit.DaemonRef(); present {
 		return nil, fail(ErrInvalidPlan, path+".instances", "module policy instance must not receive a daemon binding")
@@ -78,8 +75,8 @@ func validateGenerationOnlyPolicyUnit(unit RenderUnit, spec generationOnlyPolicy
 		Scope       string `json:"scope"`
 		Cardinality string `json:"cardinality"`
 	}
-	if err := decodeStrict(unit.PlacementJSON(), &placement); err != nil || placement.Scope != "module" || placement.Cardinality != "single" {
-		return nil, fail(ErrInvalidPlan, path+".placement", "%s requires exact module/single placement", spec.policyName)
+	if err := decodeStrict(unit.PlacementJSON(), &placement); err != nil || placement.Scope != placementScope || placement.Cardinality != placementCardinality {
+		return nil, fail(ErrInvalidPlan, path+".placement", "%s requires exact %s/%s placement", spec.policyName, placementScope, placementCardinality)
 	}
 	expectedOutputs := spec.outputRefs
 	if len(expectedOutputs) == 0 {
@@ -96,7 +93,33 @@ func validateGenerationOnlyPolicyUnit(unit RenderUnit, spec generationOnlyPolicy
 	if !exactStringList(unit.LogicalSiteRefs(), siteRefs) || len(unit.LogicalNodeRefs()) == 0 {
 		return nil, fail(ErrInvalidPlan, path+".placement", "logical placement must exactly cover governed policy sites and retain eligible nodes")
 	}
+	if placementScope == "module" {
+		if unit.InstanceID() != spec.unitID+"-logical" {
+			return nil, fail(ErrInvalidPlan, path+".instances", "module policy requires exact logical instance %q", spec.unitID+"-logical")
+		}
+		if _, present := unit.SiteRef(); present {
+			return nil, fail(ErrInvalidPlan, path+".instances", "module policy instance must not receive a site binding")
+		}
+		if _, present := unit.NodeRef(); present {
+			return nil, fail(ErrInvalidPlan, path+".instances", "module policy instance must not receive a node binding")
+		}
+	} else {
+		siteRef, hasSite := unit.SiteRef()
+		nodeRef, hasNode := unit.NodeRef()
+		if !hasSite || !hasNode || unit.InstanceID() != spec.unitID+"-node-"+nodeRef || !containsExact(siteRefs, siteRef) || !containsExact(unit.LogicalNodeRefs(), nodeRef) {
+			return nil, fail(ErrInvalidPlan, path+".instances", "%s requires one exact governed Site/node instance", spec.policyName)
+		}
+	}
 	return planInputs, nil
+}
+
+func containsExact(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func rejectGenerationOnlyPolicyProjectionLeaks(raw []byte, path, policyName string) error {

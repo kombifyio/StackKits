@@ -90,7 +90,6 @@ const (
 )
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
-const cloudHostSecurityExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"not-included","firewallPolicy":"default-deny-declared-services-only","generation":"supported","hardeningProfile":"internet-host-baseline-v1","operations":["apply-cloud-host-firewall","apply-cloud-host-hardening","verify-cloud-host-security"],"providerLifecycle":"not-owned","runtimeEnforcement":"adapter-verified","scope":"cloud-host-node","serverProviderAuthority":"not-owned"}`
 const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
 
 var executorContractBundleSpecs = []executorContractBundleSpec{
@@ -149,8 +148,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: cloudHostSecurityModuleID, moduleVersion: cloudHostSecurityModuleVersion,
 		templateRef: cloudHostSecurityTemplateRef, outputRef: cloudHostSecurityOutputRef,
-		contractJSON:  cloudHostSecurityExecutorContract,
-		planInputRefs: []string{"cloudNetworkPolicy", "controlPlane", "data", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities:  []string{"host-local-internet-firewall", "internet-host-hardening"},
 		requiredCapabilities: []string{"host-local-internet-firewall", "internet-host-hardening"},
@@ -291,89 +289,7 @@ func ModernHomeRuntimeExecutorBundleRendererContract() RendererContract {
 // CloudHostSecurityExecutorBundleRendererContract returns the exact typed,
 // provider-free Cloud host-security handoff identity.
 func CloudHostSecurityExecutorBundleRendererContract() RendererContract {
-	return newExecutorContractBundleRenderer(executorContractBundleSpecs[5]).contract
-}
-
-// CloudHostSecurityPolicy is the closed, provider-free host policy carried by
-// one validated Cloud host-security executor artifact. It deliberately has no
-// endpoint, credential, provider-resource, lifecycle, or generic-command
-// authority.
-type CloudHostSecurityPolicy struct {
-	StackID         string
-	KitSlug         string
-	SiteRef         string
-	NodeRef         string
-	Roles           []string
-	NetworkMode     string
-	TransportSubnet string
-	IPv6            bool
-	TLSMinVersion   string
-}
-
-type cloudHostSecurityExecutorDocument struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Module     struct {
-		ID      string `json:"id"`
-		Version string `json:"version"`
-	} `json:"module"`
-	Contract struct {
-		Apply                   string   `json:"apply"`
-		Credentials             string   `json:"credentials"`
-		FirewallPolicy          string   `json:"firewallPolicy"`
-		Generation              string   `json:"generation"`
-		HardeningProfile        string   `json:"hardeningProfile"`
-		Operations              []string `json:"operations"`
-		ProviderLifecycle       string   `json:"providerLifecycle"`
-		RuntimeEnforcement      string   `json:"runtimeEnforcement"`
-		Scope                   string   `json:"scope"`
-		ServerProviderAuthority string   `json:"serverProviderAuthority"`
-	} `json:"contract"`
-	PlanInputs json.RawMessage `json:"planInputs"`
-}
-
-// ValidateCloudHostSecurityExecutorArtifact verifies the complete generated
-// contract and returns only the policy for the explicitly selected Cloud
-// Site/node. Selection is caller-owned; this function never discovers or
-// chooses a host.
-func ValidateCloudHostSecurityExecutorArtifact(raw []byte, siteRef, nodeRef string) (CloudHostSecurityPolicy, error) {
-	var document cloudHostSecurityExecutorDocument
-	if err := decodeStrict(raw, &document); err != nil {
-		return CloudHostSecurityPolicy{}, wrap(ErrInvalidPlan, "cloudHostSecurityArtifact", "decode exact Cloud host-security artifact", err)
-	}
-	spec := executorContractBundleSpecs[5]
-	if document.APIVersion != "stackkit.executor-contract-bundle/v1" || document.Kind != "ExecutorContractBundle" ||
-		document.Module.ID != spec.moduleID || document.Module.Version != spec.moduleVersion ||
-		document.Contract.Apply != "typed-local-operations" || document.Contract.Credentials != "not-included" ||
-		document.Contract.FirewallPolicy != "default-deny-declared-services-only" || document.Contract.Generation != "supported" ||
-		document.Contract.HardeningProfile != "internet-host-baseline-v1" ||
-		!exactStringList(document.Contract.Operations, []string{"apply-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security"}) ||
-		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.RuntimeEnforcement != "adapter-verified" ||
-		document.Contract.Scope != "cloud-host-node" || document.Contract.ServerProviderAuthority != "not-owned" {
-		return CloudHostSecurityPolicy{}, fail(ErrInvalidPlan, "cloudHostSecurityArtifact.contract", "artifact widens or contradicts the typed Cloud host-security authority")
-	}
-	decoded, err := decodeCloudRuntimeExecutorPlan(document.PlanInputs, "cloudHostSecurityArtifact.planInputs", spec)
-	if err != nil {
-		return CloudHostSecurityPolicy{}, err
-	}
-	plan := decoded.(cloudRuntimeExecutorPlan)
-	var selected executorBundleTarget
-	found := 0
-	for _, target := range plan.ModuleTargets {
-		if target.SiteRef == siteRef && target.ID == nodeRef {
-			selected = target
-			found++
-		}
-	}
-	if found != 1 {
-		return CloudHostSecurityPolicy{}, fail(ErrInvalidPlan, "cloudHostSecurityArtifact.planInputs.moduleTargets", "must contain exactly one explicitly bound Cloud Site/node target")
-	}
-	return CloudHostSecurityPolicy{
-		StackID: plan.StackID, KitSlug: plan.Kit.Slug, SiteRef: selected.SiteRef, NodeRef: selected.ID,
-		Roles: append([]string(nil), selected.Roles...), NetworkMode: plan.CloudNetworkPolicy.Mode,
-		TransportSubnet: plan.CloudNetworkPolicy.Transport.Subnet, IPv6: plan.CloudNetworkPolicy.Transport.IPv6,
-		TLSMinVersion: plan.CloudNetworkPolicy.TLS.MinVersion,
-	}, nil
+	return newCloudHostSecurityRenderer().contract
 }
 
 // CloudPublicEdgeExecutorBundleRendererContract returns the exact
@@ -500,13 +416,17 @@ func registerExecutorContractBundleRenderers(registry *Registry) error {
 		// The shared Core runtime umbrella is no longer a catalog authority.
 		// Keep its decoder temporarily for isolated migration diagnostics, but
 		// never expose it through the product renderer registry.
-		if spec.moduleID == coreRuntimeModuleID || spec.moduleID == localRuntimeModuleID || spec.moduleID == modernHomeRuntimeModuleID {
+		if spec.moduleID == coreRuntimeModuleID || spec.moduleID == localRuntimeModuleID || spec.moduleID == modernHomeRuntimeModuleID || spec.moduleID == cloudHostSecurityModuleID {
 			continue
 		}
 		renderer := newExecutorContractBundleRenderer(spec)
 		if err := registry.Register(renderer.contract, renderer); err != nil {
 			return err
 		}
+	}
+	cloudHostSecurity := newCloudHostSecurityRenderer()
+	if err := registry.Register(cloudHostSecurity.contract, cloudHostSecurity); err != nil {
+		return err
 	}
 	return nil
 }

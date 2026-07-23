@@ -47,9 +47,11 @@ var applyCmd = &cobra.Command{
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Long: `Apply the planned changes to the infrastructure.
 
-On the v0.7 line this command executes only the canonical Architecture-v2
-ResolvedPlan through the product runtime-executor registry. Exact v0.6 builds
-retain the bounded OpenTofu compatibility implementation.
+On the v0.7 line Product Apply requires an authenticated service/device
+integration that constructs the provider-free Product Runtime with its own
+evidence Collector and execution-channel custody. The standalone binary does
+not accept caller evidence, create a signing key, or infer a local channel.
+Exact v0.6 builds retain the bounded OpenTofu compatibility implementation.
 
 Examples:
   stackkit apply                   Apply changes (with confirmation)
@@ -72,7 +74,6 @@ func init() {
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)")
-	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.evidencePath, "apply-evidence", "", "Architecture v2 authenticated Apply evidence (must resolve to <outputRoot>/.stackkit/apply-evidence.json)")
 }
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {

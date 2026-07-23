@@ -87,9 +87,9 @@ type BasementComposeAuthority struct {
 	HealthContractHash   string
 }
 
-// BasementComposeExecutor is an isolated adapter for the first concrete
-// Basement Compose unit. It is intentionally not registered in the product
-// registry until an authenticated local operations implementation exists.
+// BasementComposeExecutor is an isolated adapter for the optional concrete
+// Basement socket-proxy Compose unit. Its Product factory requires an
+// authenticated local Operations implementation and never discovers Docker.
 type BasementComposeExecutor struct {
 	identity  runtimeexecutor.ExecutorIdentity
 	binding   LocalTargetBinding

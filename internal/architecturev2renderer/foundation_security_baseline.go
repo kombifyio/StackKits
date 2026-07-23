@@ -78,14 +78,17 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(homeLANDiscovery.contract, homeLANDiscovery); err != nil {
 		return nil, err
 	}
-	for _, renderer := range []identityTrustPolicyRenderer{
-		newHomeDeviceAuthorityPolicyRenderer(),
-		newBasementIdentityTrustPolicyRenderer(),
-		newCloudIdentityTrustPolicyRenderer(),
-	} {
-		if err := registry.Register(renderer.contract, renderer); err != nil {
-			return nil, err
-		}
+	homeDeviceAuthority := newHomeDeviceAuthorityPolicyRenderer()
+	if err := registry.Register(homeDeviceAuthority.contract, homeDeviceAuthority); err != nil {
+		return nil, err
+	}
+	basementIdentityVerification := newBasementIdentityTrustPolicyRenderer()
+	if err := registry.Register(basementIdentityVerification.contract, basementIdentityVerification); err != nil {
+		return nil, err
+	}
+	cloudIdentityAuthority := newCloudIdentityTrustPolicyRenderer()
+	if err := registry.Register(cloudIdentityAuthority.contract, cloudIdentityAuthority); err != nil {
+		return nil, err
 	}
 	if err := registerExecutorContractBundleRenderers(registry); err != nil {
 		return nil, err
@@ -96,6 +99,18 @@ func NewProductRegistry() (*Registry, error) {
 	}
 	immichWorkload := newImmichWorkloadBundleRenderer()
 	if err := registry.Register(immichWorkload.contract, immichWorkload); err != nil {
+		return nil, err
+	}
+	coolifyAdapter := newCoolifyRuntimeAdapterRenderer()
+	if err := registry.Register(coolifyAdapter.contract, coolifyAdapter); err != nil {
+		return nil, err
+	}
+	komodoCore := newKomodoCoreRenderer()
+	if err := registry.Register(komodoCore.contract, komodoCore); err != nil {
+		return nil, err
+	}
+	komodoPeriphery := newKomodoPeripheryRenderer()
+	if err := registry.Register(komodoPeriphery.contract, komodoPeriphery); err != nil {
 		return nil, err
 	}
 	for _, extension := range productRegistryExtensions {

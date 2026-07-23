@@ -1,0 +1,205 @@
+# Modern Homelab Architecture v2 preview input
+#
+# STATUS: CONTRACT-ONLY. This file documents the minimum hybrid intent and the
+# security boundary expected by the Modern KitDefinition. Modern renderers and
+# executors are not implemented, so this is not an install recipe and must not
+# be presented as a working `stackkit generate`, `plan`, or `apply` path.
+#
+# The canonical contract fixture used by tests lives at:
+#   architecture/v2/fixtures/modern-single-authority.yaml
+#
+# Replace example addresses only when working on the Architecture v2 contract.
+# Never use this preview file to provision production infrastructure.
+
+apiVersion: stackkit/v2alpha1
+kind: StackSpec
+metadata:
+  name: modern-homelab-preview
+source:
+  kind: native-v2
+kit:
+  slug: modern-homelab
+
+install:
+  mode: bootstrapped
+  runtime: docker
+  platform:
+    management: selected-provider
+    fallbackAllowed: false
+    setupPolicy: {}
+
+generation:
+  strategy: kit-template
+  target: opentofu
+  outputRoot: deploy
+
+system:
+  timezone: UTC
+  locale: en_US.UTF-8
+  swap: auto
+  unattendedUpgrades: security
+
+storage:
+  dataRoot: /opt/data
+  backupRoot: /opt/backups
+  stacksRoot: /opt/stacks
+  volumeDriver: local
+
+container:
+  engine: docker
+  rootless: false
+  liveRestore: true
+  dataRoot: /var/lib/docker
+  logDriver: json-file
+  registryMirrors: []
+
+network:
+  mode: hybrid
+  domain:
+    base: example.net
+  transport:
+    subnet: 172.20.0.0/16
+    mtu: 1500
+    ipv6: false
+  dns:
+    servers: [1.1.1.1, 8.8.8.8]
+    searchDomains: []
+  tls:
+    defaultMode: public
+    minVersion: TLS1.3
+
+# Modern always contains at least one Home Site and one Cloud Site.
+sites:
+  - id: home
+    kind: home
+    failureDomain: house-a
+  - id: edge
+    kind: cloud
+    failureDomain: eu-central-1a
+
+nodes:
+  - id: home-main
+    siteRef: home
+    roles: [controller, worker, storage]
+    hardware:
+      arch: amd64
+      profile: standard
+    failureDomain: home-host-a
+    enabled: true
+  - id: cloud-edge
+    siteRef: edge
+    roles: [edge, worker]
+    hardware:
+      arch: amd64
+      profile: standard
+    failureDomain: cloud-zone-a
+    enabled: true
+
+# Control, identity signing, device enrollment, and data authority remain Home.
+controlPlane:
+  mode: single
+  authoritySiteRef: home
+  members: [home-main]
+
+capabilities:
+  enable: []
+  disable: []
+workloads:
+  photos:
+    alternative: immich
+    placement:
+      siteRefs: [home]
+      nodeRefs: [home-main]
+
+availability:
+  enabled: false
+  mode: single
+  fencing: none
+
+deviceEnrollment:
+  mode: local-only
+  authoritySiteRef: home
+  endpointExposure: lan
+  remoteEnrollment: false
+  requireOwnerStepUp: true
+  requireLocalPairingProof: true
+  requireDeviceGeneratedKey: true
+  requirePossessionProof: true
+  hardwareBackedKey: required
+  revocationSupported: true
+  credentialTTLSeconds: 3600
+
+access:
+  owner-device:
+    exposure: public
+    privilege: user
+    authentication: human+device
+    enrolledDeviceRequired: true
+    ownerStepUpRequired: false
+    lanStepDown: false
+    allowedMethods: [GET, HEAD]
+
+# The bridge is mandatory. Intent selects catalog contracts and scoped action
+# IDs; transport, ownership, TTL, and security invariants remain catalog-owned.
+bridge:
+  overlay:
+    contractRef: outbound-private-mesh
+    trafficMode: policy-scoped
+    peerSiteRefs: [home, edge]
+  publications:
+    - serviceRef: photos
+      sourceSiteRef: home
+      edgeSiteRef: edge
+      host: photos.example.net
+      protocol: https
+      port: 443
+      path: /
+      defaultClosed: true
+      tls:
+        required: true
+        mode: terminate-at-edge
+        minVersion: TLS1.3
+      auth:
+        required: true
+        policyRef: owner-device
+      origin:
+        identityRef: photos-origin
+        mtlsRequired: true
+      rateLimit:
+        enabled: true
+        requests: 120
+        windowSeconds: 60
+  policy:
+    defaultDeny: true
+    allowedFlows:
+      - fromSiteRef: edge
+        toSiteRef: home
+        serviceRef: photos
+        protocol: http
+        ports: [2283]
+        methods: [GET, HEAD]
+        dataClasses: [personal]
+        serviceIdentityRequired: true
+    allowRFC1918Transit: false
+    cloudMayEnrollDevices: false
+    cloudMayIssueDeviceCredentials: false
+  controlAgent:
+    enabled: true
+    actionAllowlist: [plan, apply, verify]
+
+partitionPolicy:
+  onCloudLoss: local-continues
+  onLinkLoss: local-continues
+  cloudEdge: fail-closed
+  localIdentityAuthorityAvailable: true
+  maxStaleVerificationSeconds: 300
+  denyNewCrossSiteSessions: true
+
+data:
+  defaultAuthority: home
+  bindings:
+    photos:
+      classes: [personal]
+      primarySiteRef: home
+      replicaSiteRefs: []
+      cloudCopyAllowed: false

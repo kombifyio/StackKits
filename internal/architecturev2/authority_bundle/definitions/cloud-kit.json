@@ -273,11 +273,6 @@
     "SK-S2",
     "SK-S3"
   ],
-  "failureDefaults": {
-    "cloudEdgeFailsClosed": true,
-    "localServicesSurviveCloudLoss": false,
-    "offlineOperation": false
-  },
   "generation": {
     "allowedStrategies": [
       "kit-template",

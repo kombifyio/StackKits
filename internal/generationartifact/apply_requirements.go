@@ -1,9 +1,11 @@
 package generationartifact
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
@@ -14,9 +16,11 @@ const (
 	ApplyExecutionClassPlan            = "plan"
 )
 
-// ApplyRequirements is the immutable, plan-owned input set that a future
-// evidence collector must satisfy before an Architecture v2 executor can be
-// constructed. It contains opaque secret references, never secret material.
+// ApplyRequirements is the immutable, plan-owned input and postcondition set
+// for Architecture v2 execution. ApplyEvidenceRequest projects only its
+// pre-mutation Host, Secret, and explicit apply-phase evidence facts; runtime,
+// workload, provider-owner, and Health requirements are verified from the exact
+// executor result. It contains opaque secret references, never secret material.
 // Runtime targets are derived from resolved render instances, never from
 // generated files or ambient host discovery.
 type ApplyRequirements struct {
@@ -71,31 +75,56 @@ type ApplyDaemonRequirement struct {
 }
 
 type ApplyRuntimeRequirement struct {
-	ID                   string                   `json:"id"`
-	OwnerKind            string                   `json:"ownerKind"`
-	OwnerRef             string                   `json:"ownerRef"`
-	OwnerVersion         string                   `json:"ownerVersion,omitempty"`
-	OwnerContractHash    string                   `json:"ownerContractHash"`
-	ProviderRef          string                   `json:"providerRef"`
-	ProviderContractHash string                   `json:"providerContractHash"`
-	ModuleRef            string                   `json:"moduleRef,omitempty"`
-	ModuleContractHash   string                   `json:"moduleContractHash,omitempty"`
-	UnitRef              string                   `json:"unitRef,omitempty"`
-	UnitContractHash     string                   `json:"unitContractHash,omitempty"`
-	InstanceRef          string                   `json:"instanceRef"`
-	WorkloadRef          string                   `json:"workloadRef,omitempty"`
-	RuntimeKind          string                   `json:"runtimeKind"`
-	RuntimeDelivery      string                   `json:"runtimeDelivery"`
-	RuntimeEngine        string                   `json:"runtimeEngine,omitempty"`
-	ImageRef             string                   `json:"imageRef,omitempty"`
-	ImageDigest          string                   `json:"imageDigest,omitempty"`
-	SiteRefs             []string                 `json:"siteRefs"`
-	NodeRefs             []string                 `json:"nodeRefs"`
-	HealthGateRefs       []string                 `json:"healthGateRefs,omitempty"`
-	EvidenceGateRefs     []string                 `json:"evidenceGateRefs,omitempty"`
-	DaemonBindings       []ApplyDaemonRequirement `json:"daemonBindings"`
-	ArtifactRefs         []string                 `json:"artifactRefs"`
-	AccessBindingRefs    []string                 `json:"accessBindingRefs,omitempty"`
+	ID                   string                          `json:"id"`
+	OwnerKind            string                          `json:"ownerKind"`
+	OwnerRef             string                          `json:"ownerRef"`
+	OwnerVersion         string                          `json:"ownerVersion,omitempty"`
+	OwnerContractHash    string                          `json:"ownerContractHash"`
+	ProviderRef          string                          `json:"providerRef"`
+	ProviderContractHash string                          `json:"providerContractHash"`
+	ModuleRef            string                          `json:"moduleRef,omitempty"`
+	ModuleContractHash   string                          `json:"moduleContractHash,omitempty"`
+	UnitRef              string                          `json:"unitRef,omitempty"`
+	UnitContractHash     string                          `json:"unitContractHash,omitempty"`
+	InstanceRef          string                          `json:"instanceRef"`
+	WorkloadRef          string                          `json:"workloadRef,omitempty"`
+	RuntimeKind          string                          `json:"runtimeKind"`
+	RuntimeDelivery      string                          `json:"runtimeDelivery"`
+	RuntimeEngine        string                          `json:"runtimeEngine,omitempty"`
+	ImageRef             string                          `json:"imageRef,omitempty"`
+	ImageDigest          string                          `json:"imageDigest,omitempty"`
+	SiteRefs             []string                        `json:"siteRefs"`
+	NodeRefs             []string                        `json:"nodeRefs"`
+	HealthGateRefs       []string                        `json:"healthGateRefs,omitempty"`
+	EvidenceGateRefs     []string                        `json:"evidenceGateRefs,omitempty"`
+	DaemonBindings       []ApplyDaemonRequirement        `json:"daemonBindings"`
+	ArtifactRefs         []string                        `json:"artifactRefs"`
+	RuntimeAdapter       *ApplyRuntimeAdapterRequirement `json:"runtimeAdapter,omitempty"`
+	AccessBindingRefs    []string                        `json:"accessBindingRefs,omitempty"`
+}
+
+type ApplyRuntimeAdapterAgentRequirement struct {
+	ID                 string   `json:"id"`
+	ModuleRef          string   `json:"moduleRef"`
+	ModuleVersion      string   `json:"moduleVersion"`
+	ModuleContractHash string   `json:"moduleContractHash"`
+	ArtifactRefs       []string `json:"artifactRefs"`
+}
+
+// ApplyRuntimeAdapterRequirement binds the exact workload-scoped adapter
+// selected by the ResolvedPlan. It carries only catalog authority and
+// contract-handoff artifact identities; concrete endpoints, credentials,
+// transport configuration, leases, and provider lifecycle remain external.
+type ApplyRuntimeAdapterRequirement struct {
+	ID                   string                                `json:"id"`
+	ProviderRef          string                                `json:"providerRef"`
+	ProviderVersion      string                                `json:"providerVersion"`
+	ProviderContractHash string                                `json:"providerContractHash"`
+	ModuleRef            string                                `json:"moduleRef"`
+	ModuleVersion        string                                `json:"moduleVersion"`
+	ModuleContractHash   string                                `json:"moduleContractHash"`
+	ArtifactRefs         []string                              `json:"artifactRefs"`
+	Agents               []ApplyRuntimeAdapterAgentRequirement `json:"agents,omitempty"`
 }
 
 // ApplyAccessBindingRequirement is the exact provider-free projection of one
@@ -184,17 +213,29 @@ type ApplyEvidenceRequirement struct {
 }
 
 type ApplyHealthRequirement struct {
-	ID             string   `json:"id"`
-	SourceRef      string   `json:"sourceRef"`
-	ContractHash   string   `json:"contractHash"`
-	Phase          string   `json:"phase"`
-	Kind           string   `json:"kind"`
-	TargetKind     string   `json:"targetKind"`
-	TargetRef      string   `json:"targetRef"`
-	RouteRef       string   `json:"routeRef,omitempty"`
-	BackendPoolRef string   `json:"backendPoolRef,omitempty"`
-	SiteRefs       []string `json:"siteRefs"`
-	NodeRefs       []string `json:"nodeRefs"`
+	ID                   string            `json:"id"`
+	RuntimeRequirementID string            `json:"runtimeRequirementId,omitempty"`
+	SourceRef            string            `json:"sourceRef"`
+	ContractHash         string            `json:"contractHash"`
+	Phase                string            `json:"phase"`
+	Kind                 string            `json:"kind"`
+	TargetKind           string            `json:"targetKind"`
+	TargetRef            string            `json:"targetRef"`
+	RouteRef             string            `json:"routeRef,omitempty"`
+	BackendPoolRef       string            `json:"backendPoolRef,omitempty"`
+	Probe                *ApplyHealthProbe `json:"probe,omitempty"`
+	SiteRefs             []string          `json:"siteRefs"`
+	NodeRefs             []string          `json:"nodeRefs"`
+}
+
+type ApplyHealthProbe struct {
+	Protocol         string `json:"protocol"`
+	Port             int    `json:"port"`
+	TimeoutSeconds   int    `json:"timeoutSeconds"`
+	Method           string `json:"method,omitempty"`
+	FollowRedirects  bool   `json:"followRedirects,omitempty"`
+	Path             string `json:"path,omitempty"`
+	ExpectedStatuses []int  `json:"expectedStatuses,omitempty"`
 }
 
 // ApplyRequirements returns a defensive copy. A caller may inspect it to
@@ -217,12 +258,12 @@ func applyRequirementsFromPlan(plan resolvedplan.ResolvedPlan, binding PlanBindi
 	if err != nil {
 		return ApplyRequirements{}, err
 	}
-	workloadByModule, err := parseApplyWorkloads(plan, modules, &result)
+	workloadByModule, runtimeAdapterByWorkloadModule, err := parseApplyWorkloads(plan, modules, &result)
 	if err != nil {
 		return ApplyRequirements{}, err
 	}
 	targetNodes := map[string]struct{}{}
-	if err := appendApplyModuleRequirements(modules, workloadByModule, targetNodes, &result); err != nil {
+	if err := appendApplyModuleRequirements(modules, workloadByModule, runtimeAdapterByWorkloadModule, targetNodes, &result); err != nil {
 		return ApplyRequirements{}, err
 	}
 	if err := appendApplyAccessBindingRequirements(plan, modules, &result); err != nil {
@@ -272,10 +313,17 @@ func applyRequirementsFromPlan(plan resolvedplan.ResolvedPlan, binding PlanBindi
 }
 
 type applyModule struct {
-	id, contractHash, providerRef, providerContractHash, executionClass, runtimeKind, runtimeDelivery, runtimeEngine, imageRef, imageDigest string
-	evidenceRefs, provides                                                                                                                  []string
-	siteRefs, nodeRefs                                                                                                                      []string
-	units                                                                                                                                   []applyUnit
+	id, version, contractHash, providerRef, providerVersion, providerContractHash, executionClass, runtimeKind, runtimeDelivery, runtimeEngine, imageRef, imageDigest string
+	runtimeAdapterID, runtimeAdapterAgentID, runtimeAdapterAgentRef                                                                                                   string
+	runtimeAdapterAgentRefs                                                                                                                                           []string
+	evidenceRefs, provides                                                                                                                                            []string
+	siteRefs, nodeRefs                                                                                                                                                []string
+	units                                                                                                                                                             []applyUnit
+}
+
+type applyProviderContract struct {
+	version      string
+	contractHash string
 }
 
 type applyUnit struct {
@@ -301,12 +349,12 @@ type applyInstanceOutput struct {
 	artifactRef, outputRef string
 }
 
-func parseApplyProviderContracts(plan resolvedplan.ResolvedPlan) (map[string]string, error) {
+func parseApplyProviderContracts(plan resolvedplan.ResolvedPlan) (map[string]applyProviderContract, error) {
 	rawProviders, ok := plan["providers"].([]any)
 	if !ok {
 		return nil, fail(ErrInvalidPlan, "resolvedPlan.providers", "must be an array")
 	}
-	result := make(map[string]string, len(rawProviders))
+	result := make(map[string]applyProviderContract, len(rawProviders))
 	for index, raw := range rawProviders {
 		path := fmt.Sprintf("resolvedPlan.providers[%d]", index)
 		provider, ok := raw.(map[string]any)
@@ -321,15 +369,19 @@ func parseApplyProviderContracts(plan resolvedplan.ResolvedPlan) (map[string]str
 		if err != nil {
 			return nil, err
 		}
+		version, err := requiredString(provider, "version", path+".version")
+		if err != nil {
+			return nil, err
+		}
 		if _, duplicate := result[id]; duplicate {
 			return nil, fail(ErrInvalidPlan, path+".id", "duplicate provider %q", id)
 		}
-		result[id] = contractHash
+		result[id] = applyProviderContract{version: version, contractHash: contractHash}
 	}
 	return result, nil
 }
 
-func parseApplyModules(plan resolvedplan.ResolvedPlan, providerContracts map[string]string) (map[string]applyModule, error) {
+func parseApplyModules(plan resolvedplan.ResolvedPlan, providerContracts map[string]applyProviderContract) (map[string]applyModule, error) {
 	rawModules, ok := plan["modules"].([]any)
 	if !ok {
 		return nil, fail(ErrInvalidPlan, "resolvedPlan.modules", "must be an array")
@@ -353,15 +405,22 @@ func parseApplyModules(plan resolvedplan.ResolvedPlan, providerContracts map[str
 		if err != nil {
 			return nil, err
 		}
+		version, err := requiredString(module, "version", path+".version")
+		if err != nil {
+			return nil, err
+		}
 		runtimeContract, err := requiredObject(module, "runtime", path+".runtime")
 		if err != nil {
 			return nil, err
 		}
-		providerContractHash, exists := providerContracts[providerRef]
+		providerContract, exists := providerContracts[providerRef]
 		if !exists {
 			return nil, fail(ErrInvalidPlan, path+".providerRef", "provider %q is absent", providerRef)
 		}
-		parsed := applyModule{id: id, contractHash: contractHash, providerRef: providerRef, providerContractHash: providerContractHash}
+		parsed := applyModule{
+			id: id, version: version, contractHash: contractHash, providerRef: providerRef,
+			providerVersion: providerContract.version, providerContractHash: providerContract.contractHash,
+		}
 		parsed.executionClass = ApplyExecutionClassExecutable
 		if rawExecution, exists := runtimeContract["execution"]; exists {
 			execution, ok := rawExecution.(string)
@@ -377,6 +436,22 @@ func parseApplyModules(plan resolvedplan.ResolvedPlan, providerContracts map[str
 			return nil, err
 		}
 		parsed.runtimeEngine, _ = runtimeContract["engine"].(string)
+		if runtimeAdapter, ok := module["runtimeAdapter"].(map[string]any); ok {
+			if parsed.runtimeAdapterID, err = requiredString(runtimeAdapter, "id", path+".runtimeAdapter.id"); err != nil {
+				return nil, err
+			}
+			if parsed.runtimeAdapterAgentRefs, err = applyStringList(runtimeAdapter, "agentRefs", path+".runtimeAdapter.agentRefs"); err != nil {
+				return nil, err
+			}
+		}
+		if runtimeAdapterAgent, ok := module["runtimeAdapterAgent"].(map[string]any); ok {
+			if parsed.runtimeAdapterAgentID, err = requiredString(runtimeAdapterAgent, "id", path+".runtimeAdapterAgent.id"); err != nil {
+				return nil, err
+			}
+			if parsed.runtimeAdapterAgentRef, err = requiredString(runtimeAdapterAgent, "adapterRef", path+".runtimeAdapterAgent.adapterRef"); err != nil {
+				return nil, err
+			}
+		}
 		if image, ok := runtimeContract["image"].(map[string]any); ok {
 			parsed.imageRef, _ = image["ref"].(string)
 			parsed.imageDigest, _ = image["digest"].(string)
@@ -567,67 +642,78 @@ func parseApplyDaemonBindings(unit map[string]any, unitPath string) (map[string]
 	return result, nil
 }
 
-func parseApplyWorkloads(plan resolvedplan.ResolvedPlan, modules map[string]applyModule, result *ApplyRequirements) (map[string]string, error) {
+func parseApplyWorkloads(plan resolvedplan.ResolvedPlan, modules map[string]applyModule, result *ApplyRequirements) (map[string]string, map[string]*ApplyRuntimeAdapterRequirement, error) {
 	rawWorkloads, ok := plan["workloads"].([]any)
 	if !ok {
-		return nil, fail(ErrInvalidPlan, "resolvedPlan.workloads", "must be an array")
+		return nil, nil, fail(ErrInvalidPlan, "resolvedPlan.workloads", "must be an array")
 	}
 	workloadByModule := make(map[string]string, len(rawWorkloads))
+	runtimeAdapterByModule := make(map[string]*ApplyRuntimeAdapterRequirement, len(rawWorkloads))
 	for index, raw := range rawWorkloads {
 		path := fmt.Sprintf("resolvedPlan.workloads[%d]", index)
 		workload, ok := raw.(map[string]any)
 		if !ok {
-			return nil, fail(ErrInvalidPlan, path, "must be an object")
+			return nil, nil, fail(ErrInvalidPlan, path, "must be an object")
 		}
 		id, err := requiredString(workload, "id", path+".id")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		contractHash, err := requiredString(workload, "contractHash", path+".contractHash")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		alternative, err := requiredObject(workload, "alternative", path+".alternative")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		moduleRef, err := requiredString(alternative, "moduleRef", path+".alternative.moduleRef")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		module, exists := modules[moduleRef]
 		if !exists {
-			return nil, fail(ErrInvalidPlan, path+".alternative.moduleRef", "module %q is absent", moduleRef)
+			return nil, nil, fail(ErrInvalidPlan, path+".alternative.moduleRef", "module %q is absent", moduleRef)
 		}
 		runtimeContract, err := requiredObject(alternative, "runtime", path+".alternative.runtime")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		route, err := requiredObject(alternative, "route", path+".alternative.route")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		requirement := ApplyWorkloadRequirement{ID: id, ContractHash: contractHash, ModuleRef: moduleRef, EvidenceRefs: append([]string(nil), module.evidenceRefs...)}
 		if requirement.ProviderRef, err = requiredString(alternative, "providerRef", path+".alternative.providerRef"); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if requirement.RuntimeKind, err = requiredString(runtimeContract, "kind", path+".alternative.runtime.kind"); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if requirement.RuntimeDelivery, err = requiredString(runtimeContract, "delivery", path+".alternative.runtime.delivery"); err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		adapter, err := parseApplyRuntimeAdapter(runtimeContract, path+".alternative.runtime", modules)
+		if err != nil {
+			return nil, nil, err
+		}
+		if requirement.RuntimeDelivery == "selected-paas" && adapter == nil {
+			return nil, nil, fail(ErrInvalidPlan, path+".alternative.runtime.adapter", "selected-paas workload requires one exact runtime adapter")
+		}
+		if requirement.RuntimeDelivery != "selected-paas" && adapter != nil {
+			return nil, nil, fail(ErrInvalidPlan, path+".alternative.runtime.adapter", "runtime adapter is valid only for selected-paas delivery")
 		}
 		if requirement.ServiceRef, err = requiredString(route, "serviceRef", path+".alternative.route.serviceRef"); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if requirement.HealthRef, err = requiredString(route, "healthRef", path+".alternative.route.healthRef"); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if requirement.SiteRefs, err = applyStringList(workload, "siteRefs", path+".siteRefs"); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if requirement.NodeRefs, err = applyStringList(workload, "nodeRefs", path+".nodeRefs"); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, unit := range module.units {
 			for _, instance := range unit.instances {
@@ -635,9 +721,10 @@ func parseApplyWorkloads(plan resolvedplan.ResolvedPlan, modules map[string]appl
 			}
 		}
 		if _, duplicate := workloadByModule[moduleRef]; duplicate {
-			return nil, fail(ErrInvalidPlan, path+".alternative.moduleRef", "workload module %q is selected more than once", moduleRef)
+			return nil, nil, fail(ErrInvalidPlan, path+".alternative.moduleRef", "workload module %q is selected more than once", moduleRef)
 		}
 		workloadByModule[moduleRef] = id
+		runtimeAdapterByModule[moduleRef] = adapter
 		result.Workloads = append(result.Workloads, requirement)
 		for _, evidenceRef := range requirement.EvidenceRefs {
 			result.EvidenceRequirements = append(result.EvidenceRequirements, ApplyEvidenceRequirement{
@@ -645,10 +732,89 @@ func parseApplyWorkloads(plan resolvedplan.ResolvedPlan, modules map[string]appl
 			})
 		}
 	}
-	return workloadByModule, nil
+	return workloadByModule, runtimeAdapterByModule, nil
 }
 
-func appendApplyModuleRequirements(modules map[string]applyModule, workloadByModule map[string]string, targetNodes map[string]struct{}, result *ApplyRequirements) error {
+func parseApplyRuntimeAdapter(runtime map[string]any, path string, modules map[string]applyModule) (*ApplyRuntimeAdapterRequirement, error) {
+	raw, exists := runtime["adapter"]
+	if !exists {
+		return nil, nil
+	}
+	adapter, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fail(ErrInvalidPlan, path+".adapter", "must be an object")
+	}
+	result := &ApplyRuntimeAdapterRequirement{}
+	var err error
+	if result.ID, err = requiredString(adapter, "id", path+".adapter.id"); err != nil {
+		return nil, err
+	}
+	if result.ProviderRef, err = requiredString(adapter, "providerRef", path+".adapter.providerRef"); err != nil {
+		return nil, err
+	}
+	if result.ProviderVersion, err = requiredString(adapter, "providerVersion", path+".adapter.providerVersion"); err != nil {
+		return nil, err
+	}
+	if result.ProviderContractHash, err = requiredString(adapter, "providerContractHash", path+".adapter.providerContractHash"); err != nil {
+		return nil, err
+	}
+	if result.ModuleRef, err = requiredString(adapter, "moduleRef", path+".adapter.moduleRef"); err != nil {
+		return nil, err
+	}
+	if result.ModuleVersion, err = requiredString(adapter, "moduleVersion", path+".adapter.moduleVersion"); err != nil {
+		return nil, err
+	}
+	if result.ModuleContractHash, err = requiredString(adapter, "moduleContractHash", path+".adapter.moduleContractHash"); err != nil {
+		return nil, err
+	}
+	core, exists := modules[result.ModuleRef]
+	if !exists || core.runtimeAdapterID != result.ID || core.providerRef != result.ProviderRef || core.providerVersion != result.ProviderVersion || core.version != result.ModuleVersion ||
+		core.providerContractHash != result.ProviderContractHash || core.contractHash != result.ModuleContractHash || core.executionClass != ApplyExecutionClassContractHandoff {
+		return nil, fail(ErrInvalidPlan, path+".adapter", "does not match one exact contract-handoff adapter module")
+	}
+	result.ArtifactRefs = applyModuleArtifactRefs(core)
+	if len(result.ArtifactRefs) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".adapter.moduleRef", "adapter module has no contract-handoff artifact")
+	}
+	for _, agentID := range core.runtimeAdapterAgentRefs {
+		var matched *applyModule
+		for _, moduleID := range sortedApplyMapKeys(modules) {
+			candidate := modules[moduleID]
+			if candidate.runtimeAdapterAgentID != agentID || candidate.runtimeAdapterAgentRef != result.ID || candidate.providerRef != result.ProviderRef {
+				continue
+			}
+			if matched != nil {
+				return nil, fail(ErrInvalidPlan, path+".adapter", "agent %q resolves to multiple modules", agentID)
+			}
+			copy := candidate
+			matched = &copy
+		}
+		if matched == nil || matched.executionClass != ApplyExecutionClassContractHandoff || matched.providerContractHash != result.ProviderContractHash {
+			return nil, fail(ErrInvalidPlan, path+".adapter", "agent %q has no exact contract-handoff module", agentID)
+		}
+		artifactRefs := applyModuleArtifactRefs(*matched)
+		if len(artifactRefs) == 0 {
+			return nil, fail(ErrInvalidPlan, path+".adapter", "agent %q has no contract-handoff artifact", agentID)
+		}
+		result.Agents = append(result.Agents, ApplyRuntimeAdapterAgentRequirement{
+			ID: agentID, ModuleRef: matched.id, ModuleVersion: matched.version, ModuleContractHash: matched.contractHash, ArtifactRefs: artifactRefs,
+		})
+	}
+	return result, nil
+}
+
+func applyModuleArtifactRefs(module applyModule) []string {
+	refs := []string{}
+	for _, unit := range module.units {
+		for _, instance := range unit.instances {
+			refs = append(refs, applyInstanceArtifactRefs(instance.outputs)...)
+		}
+	}
+	sort.Strings(refs)
+	return refs
+}
+
+func appendApplyModuleRequirements(modules map[string]applyModule, workloadByModule map[string]string, runtimeAdapterByWorkloadModule map[string]*ApplyRuntimeAdapterRequirement, targetNodes map[string]struct{}, result *ApplyRequirements) error {
 	for _, moduleID := range sortedApplyMapKeys(modules) {
 		module := modules[moduleID]
 		for _, nodeRef := range module.nodeRefs {
@@ -680,7 +846,8 @@ func appendApplyModuleRequirements(modules map[string]applyModule, workloadByMod
 						UnitRef: unit.id, UnitContractHash: unit.contractHash, InstanceRef: instance.id, WorkloadRef: workloadByModule[moduleID], RuntimeKind: module.runtimeKind,
 						RuntimeDelivery: module.runtimeDelivery, RuntimeEngine: module.runtimeEngine, ImageRef: module.imageRef, ImageDigest: module.imageDigest,
 						SiteRefs: siteRefs, NodeRefs: nodeRefs, DaemonBindings: append([]ApplyDaemonRequirement(nil), unit.daemonBindings[instance.nodeRef]...),
-						ArtifactRefs: applyInstanceArtifactRefs(instance.outputs),
+						ArtifactRefs:   applyInstanceArtifactRefs(instance.outputs),
+						RuntimeAdapter: cloneApplyRuntimeAdapterRequirement(runtimeAdapterByWorkloadModule[moduleID]),
 					}
 					result.RuntimeInstances = append(result.RuntimeInstances, runtimeRequirement)
 				}
@@ -1217,9 +1384,167 @@ func appendApplyHealthRequirements(plan resolvedplan.ResolvedPlan, modules map[s
 				return err
 			}
 		}
+		if requirement.TargetKind == "route" {
+			execution, err := requiredString(gate, "execution", path+".execution")
+			if err != nil {
+				return err
+			}
+			if execution == "probe" {
+				probe, err := applyRouteHealthProbe(gate, path)
+				if err != nil {
+					return err
+				}
+				owners, err := applyRouteHealthRuntimeOwners(plan, requirement, result.RuntimeInstances, path)
+				if err != nil {
+					return err
+				}
+				for _, owner := range owners {
+					owned := requirement
+					owned.ID = requirement.ID + "/runtime/" + owner.ID
+					owned.RuntimeRequirementID = owner.ID
+					owned.Probe = cloneApplyHealthProbe(probe)
+					owned.SiteRefs = append([]string(nil), owner.SiteRefs...)
+					owned.NodeRefs = append([]string(nil), owner.NodeRefs...)
+					result.HealthRequirements = append(result.HealthRequirements, owned)
+				}
+				continue
+			}
+		}
 		result.HealthRequirements = append(result.HealthRequirements, requirement)
 	}
 	return nil
+}
+
+func applyRouteHealthProbe(gate map[string]any, path string) (*ApplyHealthProbe, error) {
+	protocol, err := requiredString(gate, "protocol", path+".protocol")
+	if err != nil {
+		return nil, err
+	}
+	port, err := applyInt(gate, "port", path+".port")
+	if err != nil {
+		return nil, err
+	}
+	timeout, err := applyInt(gate, "timeoutSeconds", path+".timeoutSeconds")
+	if err != nil {
+		return nil, err
+	}
+	probe := &ApplyHealthProbe{Protocol: protocol, Port: port, TimeoutSeconds: timeout}
+	kind, _ := gate["kind"].(string)
+	if kind == "http" {
+		if probe.Method, err = requiredString(gate, "method", path+".method"); err != nil {
+			return nil, err
+		}
+		if probe.Path, err = requiredString(gate, "path", path+".path"); err != nil {
+			return nil, err
+		}
+		follow, ok := gate["followRedirects"].(bool)
+		if !ok {
+			return nil, fail(ErrInvalidPlan, path+".followRedirects", "must be a boolean")
+		}
+		probe.FollowRedirects = follow
+		rawStatuses, ok := gate["expectedStatuses"].([]any)
+		if !ok || len(rawStatuses) == 0 {
+			return nil, fail(ErrInvalidPlan, path+".expectedStatuses", "must be a non-empty array")
+		}
+		for index, raw := range rawStatuses {
+			statusPath := fmt.Sprintf("%s.expectedStatuses[%d]", path, index)
+			status, err := applyIntegerValue(raw, statusPath)
+			if err != nil {
+				return nil, err
+			}
+			probe.ExpectedStatuses = append(probe.ExpectedStatuses, status)
+		}
+	}
+	return probe, nil
+}
+
+func applyRouteHealthRuntimeOwners(plan resolvedplan.ResolvedPlan, health ApplyHealthRequirement, runtimes []ApplyRuntimeRequirement, path string) ([]ApplyRuntimeRequirement, error) {
+	network, err := requiredObject(plan, "network", "resolvedPlan.network")
+	if err != nil {
+		return nil, err
+	}
+	rawPools, ok := network["backendPools"].([]any)
+	if !ok {
+		return nil, fail(ErrInvalidPlan, "resolvedPlan.network.backendPools", "must be an array")
+	}
+	var pool map[string]any
+	for _, raw := range rawPools {
+		candidate, ok := raw.(map[string]any)
+		if ok && candidate["id"] == health.BackendPoolRef {
+			if pool != nil {
+				return nil, fail(ErrInvalidPlan, path+".backendPoolRef", "matches more than one backend pool")
+			}
+			pool = candidate
+		}
+	}
+	if pool == nil {
+		return nil, fail(ErrInvalidPlan, path+".backendPoolRef", "does not resolve one backend pool")
+	}
+	rawMembers, ok := pool["members"].([]any)
+	if !ok || len(rawMembers) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".backendPoolRef", "backend pool has no exact members")
+	}
+	owners := make([]ApplyRuntimeRequirement, 0, len(rawMembers))
+	for index, raw := range rawMembers {
+		member, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fail(ErrInvalidPlan, fmt.Sprintf("%s.members[%d]", path, index), "must be an object")
+		}
+		instanceRef, err := requiredString(member, "instanceRef", fmt.Sprintf("%s.members[%d].instanceRef", path, index))
+		if err != nil {
+			return nil, err
+		}
+		siteRef, err := requiredString(member, "siteRef", fmt.Sprintf("%s.members[%d].siteRef", path, index))
+		if err != nil {
+			return nil, err
+		}
+		nodeRef, err := requiredString(member, "nodeRef", fmt.Sprintf("%s.members[%d].nodeRef", path, index))
+		if err != nil {
+			return nil, err
+		}
+		matches := make([]ApplyRuntimeRequirement, 0, 1)
+		for _, runtime := range runtimes {
+			if runtime.InstanceRef == instanceRef && len(runtime.SiteRefs) == 1 && runtime.SiteRefs[0] == siteRef && len(runtime.NodeRefs) == 1 && runtime.NodeRefs[0] == nodeRef {
+				matches = append(matches, runtime)
+			}
+		}
+		if len(matches) != 1 {
+			return nil, fail(ErrInvalidPlan, fmt.Sprintf("%s.members[%d]", path, index), "must bind exactly one Apply runtime owner; got %d", len(matches))
+		}
+		owners = append(owners, matches[0])
+	}
+	sort.Slice(owners, func(i, j int) bool { return owners[i].ID < owners[j].ID })
+	return owners, nil
+}
+
+func applyInt(object map[string]any, field, path string) (int, error) {
+	value, ok := object[field]
+	if !ok {
+		return 0, fail(ErrInvalidPlan, path, "must be an integer")
+	}
+	return applyIntegerValue(value, path)
+}
+
+func applyIntegerValue(value any, path string) (int, error) {
+	switch number := value.(type) {
+	case int:
+		return number, nil
+	case json.Number:
+		parsed, err := strconv.Atoi(number.String())
+		if err == nil {
+			return parsed, nil
+		}
+	}
+	return 0, fail(ErrInvalidPlan, path, "must be an integer")
+}
+
+func cloneApplyHealthProbe(source *ApplyHealthProbe) *ApplyHealthProbe {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.ExpectedStatuses = append([]int(nil), source.ExpectedStatuses...)
+	return &result
 }
 
 func bindApplyWorkloadHealthRequirements(result *ApplyRequirements) error {
@@ -1465,7 +1790,8 @@ func validateApplyArtifactRuntimeClosure(requirements ApplyRequirements) error {
 		}
 		artifacts[artifact.ID] = artifact
 	}
-	referenced := make(map[string]int, len(artifacts))
+	runtimeReferenced := make(map[string]int, len(artifacts))
+	adapterReferenced := make(map[string]int, len(artifacts))
 	for _, runtime := range requirements.RuntimeInstances {
 		seen := make(map[string]struct{}, len(runtime.ArtifactRefs))
 		for _, artifactRef := range runtime.ArtifactRefs {
@@ -1483,7 +1809,30 @@ func validateApplyArtifactRuntimeClosure(requirements ApplyRequirements) error {
 				artifact.InstanceRef != runtime.InstanceRef || !slices.Equal(artifact.SiteRefs, runtime.SiteRefs) || !slices.Equal(artifact.NodeRefs, runtime.NodeRefs) {
 				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".artifactRefs", "artifact %q is not owned by the exact runtime instance", artifactRef)
 			}
-			referenced[artifactRef]++
+			runtimeReferenced[artifactRef]++
+		}
+		if runtime.RuntimeDelivery == "selected-paas" && runtime.RuntimeAdapter == nil {
+			return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".runtimeAdapter", "selected-paas runtime requires one exact adapter")
+		}
+		if runtime.RuntimeAdapter != nil {
+			if runtime.RuntimeDelivery != "selected-paas" || runtime.WorkloadRef == "" {
+				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".runtimeAdapter", "is valid only for a selected-paas workload")
+			}
+			adapter := runtime.RuntimeAdapter
+			if err := validateApplyRuntimeAdapterArtifacts(runtime.ID, "runtimeAdapter", adapter.ProviderRef, adapter.ProviderContractHash, adapter.ModuleRef, adapter.ModuleContractHash, adapter.ArtifactRefs, artifacts, adapterReferenced); err != nil {
+				return err
+			}
+			seenAgents := map[string]struct{}{}
+			for index, agent := range adapter.Agents {
+				if _, duplicate := seenAgents[agent.ID]; duplicate {
+					return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".runtimeAdapter.agents", "duplicate agent %q", agent.ID)
+				}
+				seenAgents[agent.ID] = struct{}{}
+				field := fmt.Sprintf("runtimeAdapter.agents[%d]", index)
+				if err := validateApplyRuntimeAdapterArtifacts(runtime.ID, field, adapter.ProviderRef, adapter.ProviderContractHash, agent.ModuleRef, agent.ModuleContractHash, agent.ArtifactRefs, artifacts, adapterReferenced); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	for _, artifact := range requirements.Artifacts {
@@ -1492,18 +1841,18 @@ func validateApplyArtifactRuntimeClosure(requirements ApplyRequirements) error {
 			if artifact.ExecutionClass != ApplyExecutionClassPlan {
 				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID+".executionClass", "plan-owned metadata must use the plan execution class")
 			}
-			if referenced[artifact.ID] != 0 {
+			if runtimeReferenced[artifact.ID] != 0 || adapterReferenced[artifact.ID] != 0 {
 				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID, "plan-owned metadata must not be assigned to a runtime instance")
 			}
 		case "render-instance":
 			switch artifact.ExecutionClass {
 			case ApplyExecutionClassExecutable:
-				if referenced[artifact.ID] != 1 {
-					return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID, "executable render-instance artifact must be owned by exactly one runtime; got %d", referenced[artifact.ID])
+				if runtimeReferenced[artifact.ID] != 1 || adapterReferenced[artifact.ID] != 0 {
+					return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID, "executable render-instance artifact must be owned by exactly one runtime and no adapter; got runtime=%d adapter=%d", runtimeReferenced[artifact.ID], adapterReferenced[artifact.ID])
 				}
 			case ApplyExecutionClassContractHandoff:
-				if referenced[artifact.ID] != 0 {
-					return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID, "contract-handoff artifact must not be assigned to a runtime instance")
+				if runtimeReferenced[artifact.ID] != 0 {
+					return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID, "contract-handoff artifact must not be assigned to an executable runtime")
 				}
 			default:
 				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID+".executionClass", "render-instance artifact requires an executable or contract-handoff execution class")
@@ -1511,6 +1860,25 @@ func validateApplyArtifactRuntimeClosure(requirements ApplyRequirements) error {
 		default:
 			return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID+".ownerKind", "unsupported owner kind %q", artifact.OwnerKind)
 		}
+	}
+	return nil
+}
+
+func validateApplyRuntimeAdapterArtifacts(runtimeID, field, providerRef, providerHash, moduleRef, moduleHash string, refs []string, artifacts map[string]ApplyArtifactRequirement, referenced map[string]int) error {
+	if providerRef == "" || moduleRef == "" || !validSHA256(providerHash) || !validSHA256(moduleHash) || len(refs) == 0 {
+		return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtimeID+"."+field, "adapter authority and artifact refs must be complete")
+	}
+	seen := map[string]struct{}{}
+	for _, ref := range refs {
+		if _, duplicate := seen[ref]; duplicate {
+			return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtimeID+"."+field+".artifactRefs", "duplicate artifact %q", ref)
+		}
+		seen[ref] = struct{}{}
+		artifact, exists := artifacts[ref]
+		if !exists || artifact.ExecutionClass != ApplyExecutionClassContractHandoff || artifact.ProviderRef != providerRef || artifact.ProviderContractHash != providerHash || artifact.ModuleRef != moduleRef || artifact.ModuleContractHash != moduleHash {
+			return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtimeID+"."+field+".artifactRefs", "artifact %q does not match the exact contract-handoff module", ref)
+		}
+		referenced[ref]++
 	}
 	return nil
 }
@@ -1539,6 +1907,15 @@ func sortApplyRequirements(result *ApplyRequirements) {
 			return result.RuntimeInstances[index].DaemonBindings[i].InstanceRef < result.RuntimeInstances[index].DaemonBindings[j].InstanceRef
 		})
 		sort.Strings(result.RuntimeInstances[index].ArtifactRefs)
+		if result.RuntimeInstances[index].RuntimeAdapter != nil {
+			sort.Strings(result.RuntimeInstances[index].RuntimeAdapter.ArtifactRefs)
+			for agentIndex := range result.RuntimeInstances[index].RuntimeAdapter.Agents {
+				sort.Strings(result.RuntimeInstances[index].RuntimeAdapter.Agents[agentIndex].ArtifactRefs)
+			}
+			sort.Slice(result.RuntimeInstances[index].RuntimeAdapter.Agents, func(left, right int) bool {
+				return result.RuntimeInstances[index].RuntimeAdapter.Agents[left].ID < result.RuntimeInstances[index].RuntimeAdapter.Agents[right].ID
+			})
+		}
 		sort.Strings(result.RuntimeInstances[index].AccessBindingRefs)
 	}
 	for index := range result.Artifacts {
@@ -1566,6 +1943,9 @@ func sortApplyRequirements(result *ApplyRequirements) {
 	for index := range result.HealthRequirements {
 		sort.Strings(result.HealthRequirements[index].SiteRefs)
 		sort.Strings(result.HealthRequirements[index].NodeRefs)
+		if result.HealthRequirements[index].Probe != nil {
+			sort.Ints(result.HealthRequirements[index].Probe.ExpectedStatuses)
+		}
 	}
 	sort.Slice(result.Workloads, func(i, j int) bool { return result.Workloads[i].ID < result.Workloads[j].ID })
 	sort.Slice(result.Secrets, func(i, j int) bool { return result.Secrets[i].ID < result.Secrets[j].ID })
@@ -1609,6 +1989,7 @@ func cloneApplyRequirements(source ApplyRequirements) ApplyRequirements {
 		result.RuntimeInstances[index].EvidenceGateRefs = append([]string(nil), source.RuntimeInstances[index].EvidenceGateRefs...)
 		result.RuntimeInstances[index].DaemonBindings = append([]ApplyDaemonRequirement(nil), source.RuntimeInstances[index].DaemonBindings...)
 		result.RuntimeInstances[index].ArtifactRefs = append([]string(nil), source.RuntimeInstances[index].ArtifactRefs...)
+		result.RuntimeInstances[index].RuntimeAdapter = cloneApplyRuntimeAdapterRequirement(source.RuntimeInstances[index].RuntimeAdapter)
 		result.RuntimeInstances[index].AccessBindingRefs = append([]string(nil), source.RuntimeInstances[index].AccessBindingRefs...)
 	}
 	result.Artifacts = append([]ApplyArtifactRequirement(nil), source.Artifacts...)
@@ -1638,6 +2019,20 @@ func cloneApplyRequirements(source ApplyRequirements) ApplyRequirements {
 	for index := range result.HealthRequirements {
 		result.HealthRequirements[index].SiteRefs = append([]string(nil), source.HealthRequirements[index].SiteRefs...)
 		result.HealthRequirements[index].NodeRefs = append([]string(nil), source.HealthRequirements[index].NodeRefs...)
+		result.HealthRequirements[index].Probe = cloneApplyHealthProbe(source.HealthRequirements[index].Probe)
 	}
 	return result
+}
+
+func cloneApplyRuntimeAdapterRequirement(source *ApplyRuntimeAdapterRequirement) *ApplyRuntimeAdapterRequirement {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.ArtifactRefs = append([]string(nil), source.ArtifactRefs...)
+	result.Agents = append([]ApplyRuntimeAdapterAgentRequirement(nil), source.Agents...)
+	for index := range result.Agents {
+		result.Agents[index].ArtifactRefs = append([]string(nil), source.Agents[index].ArtifactRefs...)
+	}
+	return &result
 }

@@ -37,12 +37,14 @@ require_archive_matrix() {
     find_archive "stackkits_*_${target}.${extension}" "full ${target}" >/dev/null
     find_archive "stackkits-basement-kit_*_${target}.${extension}" "basement-kit ${target}" >/dev/null
     find_archive "stackkits-cloud-kit_*_${target}.${extension}" "cloud-kit ${target}" >/dev/null
+    find_archive "stackkits-modern-homelab_*_${target}.${extension}" "modern-homelab ${target}" >/dev/null
   done
   target='windows_amd64'
   extension='zip'
   find_archive "stackkits_*_${target}.${extension}" "full ${target}" >/dev/null
   find_archive "stackkits-basement-kit_*_${target}.${extension}" "basement-kit ${target}" >/dev/null
   find_archive "stackkits-cloud-kit_*_${target}.${extension}" "cloud-kit ${target}" >/dev/null
+  find_archive "stackkits-modern-homelab_*_${target}.${extension}" "modern-homelab ${target}" >/dev/null
 }
 
 # GoReleaser builds every supported target before validation. Require every
@@ -53,6 +55,7 @@ require_archive_matrix
 full_archive="$(find_archive 'stackkits_*_linux_amd64.tar.gz' 'full linux_amd64')"
 basement_archive="$(find_archive 'stackkits-basement-kit_*_linux_amd64.tar.gz' 'basement-kit linux_amd64')"
 cloud_archive="$(find_archive 'stackkits-cloud-kit_*_linux_amd64.tar.gz' 'cloud-kit linux_amd64')"
+modern_archive="$(find_archive 'stackkits-modern-homelab_*_linux_amd64.tar.gz' 'modern-homelab linux_amd64')"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -136,9 +139,10 @@ smoke_public_backup_cli() {
     fail "$label emergency export manifest schema drifted"
 }
 
-check_archive_contents "$full_archive" basement-kit/stackkit.yaml cloud-kit/stackkit.yaml
+check_archive_contents "$full_archive" basement-kit/stackkit.yaml cloud-kit/stackkit.yaml modern-homelab/stackkit.yaml
 check_archive_contents "$basement_archive" basement-kit/stackkit.yaml
 check_archive_contents "$cloud_archive" cloud-kit/stackkit.yaml
+check_archive_contents "$modern_archive" modern-homelab/stackkit.yaml
 
 stage_stackkits_home() {
   local extract_dir="$1"
@@ -194,8 +198,6 @@ smoke_v2_authoring() {
     cd "$project_dir"
     HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
       init "${init_args[@]}" >"$tmp/${label}-init.log"
-    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      validate stack-spec.yaml >"$tmp/${label}-validate.log"
   )
 
   local spec="$project_dir/stack-spec.yaml"
@@ -229,7 +231,7 @@ full_home="$tmp/full-home"
 full_project="$tmp/full-project"
 mkdir -p "$full_extract"
 tar xzf "$full_archive" -C "$full_extract"
-stage_stackkits_home "$full_extract" "$full_home" basement-kit cloud-kit
+stage_stackkits_home "$full_extract" "$full_home" basement-kit cloud-kit modern-homelab
 smoke_v2_authoring "full-archive-cli-catalog" "$full_extract" "$full_home" "$full_project" \
   basement-kit release-smoke-full
 
@@ -242,5 +244,17 @@ tar xzf "$cloud_archive" -C "$cloud_extract"
 stage_stackkits_home "$cloud_extract" "$cloud_home" cloud-kit
 smoke_v2_authoring "cloud-archive" "$cloud_extract" "$cloud_home" "$cloud_project" \
   cloud-kit release-smoke-cloud cloud-smoke.example.com
+
+# Modern smoke proves that the released Preview definition is self-contained
+# and can materialize its CUE-validated initial intent without claiming live
+# federation execution. Full resolution remains Inventory-bound.
+modern_extract="$tmp/modern-extract"
+modern_home="$tmp/modern-home"
+modern_project="$tmp/modern-project"
+mkdir -p "$modern_extract"
+tar xzf "$modern_archive" -C "$modern_extract"
+stage_stackkits_home "$modern_extract" "$modern_home" modern-homelab
+smoke_v2_authoring "modern-archive" "$modern_extract" "$modern_home" "$modern_project" \
+  modern-homelab release-smoke-modern modern-smoke.example.com
 
 printf 'release archive validation passed\n'

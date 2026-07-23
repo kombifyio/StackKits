@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/kombifyio/stackkits/internal/referenceidv2"
 )
 
 const (
@@ -224,13 +226,15 @@ func validateTarget(target TargetBinding) error {
 	for field, value := range map[string]string{
 		"target.site_ref": target.SiteRef, "target.node_ref": target.NodeRef,
 		"target.module_instance_ref": target.ModuleInstanceRef, "target.runtime_instance_ref": target.RuntimeInstanceRef,
-		"target.execution_channel_ref": target.ExecutionChannelRef,
 	} {
 		if value != "" {
 			if err := validateStableID(field, value); err != nil {
 				return err
 			}
 		}
+	}
+	if target.ExecutionChannelRef != "" && !referenceid.ValidExecutionChannel(target.ExecutionChannelRef) {
+		return invalid("target.execution_channel_ref", "must be a canonical non-secret execution-channel identity")
 	}
 	switch target.Scope {
 	case TargetScopeStack:

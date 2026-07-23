@@ -12,17 +12,25 @@ Basement Kit — local / homelab (stable):
 curl -sSL https://base.stackkit.cc | sh
 ```
 
-Cloud Kit — cloud VM / BYO-VPS (ships as scaffolding, graduating in v0.5.1):
+Cloud Kit — cloud VM / BYO-VPS:
 
 ```sh
 curl -sSL https://cloud.stackkit.cc | sh
 ```
 
-For the CLI plus the public kit catalog:
+Modern Homelab — combined Home + Cloud topology (Preview):
 
 ```sh
 curl -sSL https://install.stackkit.cc | sh
+stackkit init modern-homelab --non-interactive --name my-modern-homelab
 ```
+
+The Modern archive and catalog entry prove self-contained native-v2 authoring
+and validation. They do not claim that every federation runtime owner is
+graduated.
+
+For the CLI plus the complete public three-kit catalog, use the same
+`install.stackkit.cc` installer and select the desired kit with `stackkit init`.
 
 ## Documentation
 

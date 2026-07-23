@@ -150,11 +150,6 @@ Definition: base.#ProductKitDefinition & {
 		authority:               "cloud"
 		cloudCopyRequiresPolicy: true
 	}
-	failureDefaults: {
-		offlineOperation:              false
-		localServicesSurviveCloudLoss: false
-		cloudEdgeFailsClosed:          true
-	}
 	deviceEnrollment: {
 		required: false
 		mode:     "disabled"

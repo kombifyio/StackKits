@@ -57,6 +57,7 @@ type modulePlanInputSource struct {
 	system                           map[string]any
 	storage                          map[string]any
 	network                          map[string]any
+	gates                            map[string]any
 }
 
 // bindResolvedModulePlanInputs is the only compiler seam that populates a
@@ -165,14 +166,14 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 	case "cloudNetworkPolicy":
 		return safeModuleNetworkPolicy(source.network, "cloudNetworkPolicy")
 	case "publicEdge":
-		return safeModulePublicEdge(moduleID, module, source.capabilities, source.network)
+		return safeModulePublicEdge(moduleID, module, source.capabilities, source.network, source.gates)
 	case "publicTLS":
 		return safeModulePublicTLS(moduleID, module, source.capabilities, source.providers, source.network)
 	}
 	return normalizeJSON(value, false, ref)
 }
 
-func safeModulePublicEdge(moduleID string, module map[string]any, capabilities []any, network map[string]any) (map[string]any, error) {
+func safeModulePublicEdge(moduleID string, module map[string]any, capabilities []any, network, gates map[string]any) (map[string]any, error) {
 	const capabilityID = "public-edge"
 	provided, err := stringListField(module, "modules."+moduleID, "provides", true)
 	if err != nil {
@@ -196,29 +197,23 @@ func safeModulePublicEdge(moduleID string, module map[string]any, capabilities [
 	if capabilityProviderRef != providerRef {
 		return nil, fmt.Errorf("module %q provider %q does not own resolved capability %q", moduleID, providerRef, capabilityID)
 	}
-	routes, err := objectListField(network, "network", "routes")
+	rawRoutes, err := objectListField(network, "network", "routes")
 	if err != nil {
 		return nil, err
 	}
-	projectedByID := map[string]map[string]any{}
-	for index, route := range routes {
+	selectedRoutes := make([]any, 0, len(rawRoutes))
+	selectedPoolRefs := map[string]struct{}{}
+	selectedHealthRefs := map[string]struct{}{}
+	selectedRouteIDs := map[string]struct{}{}
+	for index, route := range rawRoutes {
 		path := fmt.Sprintf("network.routes[%d]", index)
-		authorities, err := objectListField(route, path, "capabilityAuthorities")
+		requirements, err := routeCapabilityRequirementsFromProjection(route, path)
 		if err != nil {
 			return nil, err
 		}
 		owned := false
-		for authorityIndex, authority := range authorities {
-			authorityPath := fmt.Sprintf("%s.capabilityAuthorities[%d]", path, authorityIndex)
-			capabilityRef, fieldErr := stringField(authority, authorityPath, "capabilityRef")
-			if fieldErr != nil {
-				return nil, fieldErr
-			}
-			role, fieldErr := stringField(authority, authorityPath, "role")
-			if fieldErr != nil {
-				return nil, fieldErr
-			}
-			if capabilityRef == capabilityID && role == "edge" {
+		for _, requirement := range requirements {
+			if requirement.capabilityRef == capabilityID && requirement.role == "edge" {
 				owned = true
 			}
 		}
@@ -233,24 +228,69 @@ func safeModulePublicEdge(moduleID string, module map[string]any, capabilities [
 		if err != nil {
 			return nil, err
 		}
-		projection, err := selectObjectFields(route, path, []string{
-			"id", "serviceRef", "moduleRef", "originSiteRef", "originNodeRefs", "backendPoolRef", "backendPool",
-			"exposure", "protocol", "upstreamProtocol", "port", "targetPort", "host", "path", "access", "tls",
-			"healthGateRef", "healthProbe", "capabilityAuthorities",
-		})
+		if _, duplicate := selectedRouteIDs[id]; duplicate {
+			return nil, fmt.Errorf("publicEdge projection contains duplicate route %q", id)
+		}
+		selectedRouteIDs[id] = struct{}{}
+		poolRef, err := stringField(route, path, "backendPoolRef")
 		if err != nil {
 			return nil, err
 		}
-		if _, duplicate := projectedByID[id]; duplicate {
-			return nil, fmt.Errorf("publicEdge projection contains duplicate route %q", id)
+		healthRef, err := stringField(route, path, "healthGateRef")
+		if err != nil {
+			return nil, err
 		}
-		projectedByID[id] = projection
+		selectedPoolRefs[poolRef] = struct{}{}
+		selectedHealthRefs[healthRef] = struct{}{}
+		selectedRoutes = append(selectedRoutes, route)
 	}
-	projectedRoutes := make([]any, 0, len(projectedByID))
-	for _, id := range sortedStringMapKeys(projectedByID) {
-		projectedRoutes = append(projectedRoutes, projectedByID[id])
+	selectedPools, err := selectReferencedObjects(network, "network", "backendPools", selectedPoolRefs)
+	if err != nil {
+		return nil, err
+	}
+	selectedHealth, err := selectReferencedObjects(gates, "gates", "health", selectedHealthRefs)
+	if err != nil {
+		return nil, err
+	}
+	projectedRoutes, err := projectPublicRouteListFromNetwork(
+		map[string]any{"routes": selectedRoutes, "backendPools": selectedPools},
+		map[string]any{"health": selectedHealth},
+		"publicEdge",
+		true,
+		true,
+	)
+	if err != nil {
+		return nil, err
 	}
 	return normalizedObject(map[string]any{"capabilityRef": capabilityID, "routes": projectedRoutes}, "publicEdge")
+}
+
+func selectReferencedObjects(source map[string]any, path, field string, refs map[string]struct{}) ([]any, error) {
+	objects, err := objectListField(source, path, field)
+	if err != nil {
+		return nil, err
+	}
+	selected := make([]any, 0, len(refs))
+	found := make(map[string]struct{}, len(refs))
+	for index, object := range objects {
+		objectPath := fmt.Sprintf("%s.%s[%d]", path, field, index)
+		id, err := stringField(object, objectPath, "id")
+		if err != nil {
+			return nil, err
+		}
+		if _, required := refs[id]; !required {
+			continue
+		}
+		if _, duplicate := found[id]; duplicate {
+			return nil, fail(ErrContractConflict, objectPath+".id", "referenced object %q is duplicated", id)
+		}
+		found[id] = struct{}{}
+		selected = append(selected, object)
+	}
+	if len(found) != len(refs) {
+		return nil, fail(ErrContractConflict, path+"."+field, "not every referenced object exists exactly once")
+	}
+	return selected, nil
 }
 
 func safeModuleTargets(moduleID string, module map[string]any, nodes []any) ([]any, error) {
@@ -699,6 +739,10 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	if err != nil {
 		return modulePlanInputSource{}, err
 	}
+	gates, err := objectField(top, "resolvedPlan", "gates")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
 	localReachability, err := buildLocalReachability(network, objectMapsAsAny(sites))
 	if err != nil {
 		return modulePlanInputSource{}, err
@@ -772,6 +816,6 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
 		nodes: objectMapsAsAny(nodes), capabilities: objectMapsAsAny(capabilities), providers: objectMapsAsAny(providers),
-		install: install, system: system, storage: storage, network: network,
+		install: install, system: system, storage: storage, network: network, gates: gates,
 	}, nil
 }

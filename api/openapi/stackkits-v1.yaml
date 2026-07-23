@@ -3117,10 +3117,10 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         sourceRef:
           type: string
-          enum: [identity.deviceEnrollment, network.routes]
+          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, network.routes, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot]
         valueType:
           type: string
-          enum: [device-enrollment-public-v1, authority-bound-service-route-list-v4]
+          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, authority-bound-service-route-list-v4, cloud-host-security-network-v1, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1]
         cardinality:
           type: string
           enum: [single, list]
@@ -3129,9 +3129,18 @@ components:
         defaultValue:
           anyOf:
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicDeviceEnrollment"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicHomeDeviceAuthority"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicBasementVerification"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudIdentityAuthority"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicModernHomeIdentityAuthority"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicModernCloudIdentityVerification"
             - type: array
               items:
                 $ref: "#/components/schemas/ArchitectureV2ModulePublicResolvedRouteV4"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudHostSecurityNetwork"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostBootstrapRuntime"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostStorageRoots"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalBackupRoot"
       allOf:
         - if:
             properties: {sourceRef: {const: identity.deviceEnrollment}}
@@ -3142,6 +3151,51 @@ components:
               cardinality: {const: single}
               defaultValue:
                 $ref: "#/components/schemas/ArchitectureV2ModulePublicDeviceEnrollment"
+        - if:
+            properties: {sourceRef: {const: identityTrust.homeDeviceAuthority}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: home-device-authority-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicHomeDeviceAuthority"
+        - if:
+            properties: {sourceRef: {const: identityTrust.basementVerification}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: basement-identity-verification-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicBasementVerification"
+        - if:
+            properties: {sourceRef: {const: identityTrust.cloudAuthority}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: cloud-identity-authority-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudIdentityAuthority"
+        - if:
+            properties: {sourceRef: {const: identityTrust.modernHomeAuthority}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: modern-home-identity-authority-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicModernHomeIdentityAuthority"
+        - if:
+            properties: {sourceRef: {const: identityTrust.modernCloudVerification}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: modern-cloud-identity-verification-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicModernCloudIdentityVerification"
         - if:
             properties: {sourceRef: {const: network.routes}}
             required: [sourceRef]
@@ -3158,6 +3212,42 @@ components:
                 type: array
                 items:
                   $ref: "#/components/schemas/ArchitectureV2ModulePublicResolvedRouteV4"
+        - if:
+            properties: {sourceRef: {const: network.cloudHostSecurity}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: cloud-host-security-network-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudHostSecurityNetwork"
+        - if:
+            properties: {sourceRef: {const: host.bootstrapRuntime}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: host-bootstrap-runtime-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicHostBootstrapRuntime"
+        - if:
+            properties: {sourceRef: {const: storage.hostRoots}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: host-storage-roots-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicHostStorageRoots"
+        - if:
+            properties: {sourceRef: {const: storage.backupRoot}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: local-backup-root-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalBackupRoot"
         - if:
             properties: {required: {const: true}}
             required: [required]
@@ -3181,6 +3271,290 @@ components:
         hardwareBackedKey: {type: string, enum: [preferred, required]}
         revocationSupported: {type: boolean, const: true}
         lifetimeSeconds: {type: integer, minimum: 300, maximum: 86400}
+    ArchitectureV2ModulePublicHomeDeviceAuthority:
+      type: object
+      additionalProperties: false
+      required: [authority, issuer]
+      properties:
+        authority:
+          type: object
+          additionalProperties: false
+          required: [id, trustDomainRef, siteRef]
+          properties:
+            id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            trustDomainRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuer:
+          type: object
+          additionalProperties: false
+          required: [id, authorityRef, issuer, audiences, verificationKeySetRef, lifetimeSeconds, sessionTTLSeconds, proofOfPossessionRequired, revocationSupported, revocationMaxStalenessSeconds, enrollment]
+          properties:
+            id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            authorityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            issuer: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"}
+            audiences:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:audience:[a-z][a-z0-9-]*$"}
+            verificationKeySetRef: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:keyset:[a-z][a-z0-9-]*$"}
+            lifetimeSeconds: {type: integer, minimum: 300, maximum: 86400}
+            sessionTTLSeconds: {type: integer, minimum: 60, maximum: 86400}
+            proofOfPossessionRequired: {type: boolean, const: true}
+            revocationSupported: {type: boolean, const: true}
+            revocationMaxStalenessSeconds: {type: integer, minimum: 0, maximum: 86400}
+            enrollment:
+              type: object
+              additionalProperties: false
+              required: [mode, exposure]
+              properties:
+                mode: {type: string, const: local-only}
+                exposure: {type: string, const: lan}
+    ArchitectureV2ModulePublicBasementVerification:
+      type: object
+      additionalProperties: false
+      required: [siteRef, verifiers]
+      properties:
+        siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        verifiers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePublicBasementVerifier"
+    ArchitectureV2ModulePublicBasementVerifier:
+      type: object
+      additionalProperties: false
+      required: [id, principal, issuerRef, issuer, audiences, verificationKeySetRef, proofOfPossessionRequired, revocationMaxStalenessSeconds, lifetimeSeconds, sessionTTLSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {type: string, enum: [device, human, workload]}
+        issuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuer: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"}
+        audiences:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:audience:[a-z][a-z0-9-]*$"}
+        verificationKeySetRef: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:keyset:[a-z][a-z0-9-]*$"}
+        proofOfPossessionRequired: {type: boolean}
+        revocationMaxStalenessSeconds: {type: integer, minimum: 0, maximum: 86400}
+        lifetimeSeconds: {type: integer, minimum: 300, maximum: 86400}
+        sessionTTLSeconds: {type: integer, minimum: 60, maximum: 86400}
+    ArchitectureV2ModulePublicCloudIdentityAuthority:
+      type: object
+      additionalProperties: false
+      required: [siteRef, issuers, verifiers]
+      properties:
+        siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuers:
+          type: array
+          minItems: 2
+          maxItems: 2
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicCloudIdentityIssuer"}
+        verifiers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicCloudIdentityVerifier"}
+    ArchitectureV2ModulePublicCloudIdentityIssuer:
+      type: object
+      additionalProperties: false
+      required: [id, authorityRef, principal, issuer, audiences, verificationKeySetRef, proofOfPossessionRequired, revocationMaxStalenessSeconds, lifetimeSeconds, sessionTTLSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        authorityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {type: string, enum: [human, workload]}
+        issuer: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"}
+        audiences:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:audience:[a-z][a-z0-9-]*$"}
+        verificationKeySetRef: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:keyset:[a-z][a-z0-9-]*$"}
+        proofOfPossessionRequired: {type: boolean}
+        revocationMaxStalenessSeconds: {type: integer, minimum: 0, maximum: 86400}
+        lifetimeSeconds: {type: integer, minimum: 300, maximum: 86400}
+        sessionTTLSeconds: {type: integer, minimum: 60, maximum: 86400}
+    ArchitectureV2ModulePublicCloudIdentityVerifier:
+      type: object
+      additionalProperties: false
+      required: [id, principal, issuerRef, issuer, audiences, verificationKeySetRef, proofOfPossessionRequired, revocationMaxStalenessSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {type: string, enum: [device, human, workload]}
+        issuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuer: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"}
+        audiences:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:audience:[a-z][a-z0-9-]*$"}
+        verificationKeySetRef: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:keyset:[a-z][a-z0-9-]*$"}
+        proofOfPossessionRequired: {type: boolean}
+        revocationMaxStalenessSeconds: {type: integer, minimum: 0, maximum: 86400}
+    ArchitectureV2ModulePublicModernHomeIdentityAuthority:
+      type: object
+      additionalProperties: false
+      required: [homeSiteRef, cloudSiteRefs, partition, issuers, verifiers, distributions]
+      properties:
+        homeSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        cloudSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        partition:
+          type: object
+          additionalProperties: false
+          required: [onCloudLoss, onLinkLoss, localIdentityAuthorityAvailable, maxStaleVerificationSeconds, denyNewCrossSiteSessions]
+          properties:
+            onCloudLoss: {const: local-continues}
+            onLinkLoss: {const: local-continues}
+            localIdentityAuthorityAvailable: {const: true}
+            maxStaleVerificationSeconds: {type: integer, minimum: 0, maximum: 86400}
+            denyNewCrossSiteSessions: {const: true}
+        issuers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicModernIdentityIssuer"}
+        verifiers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicModernIdentityVerifier"}
+        distributions:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicModernVerifierDistribution"}
+    ArchitectureV2ModulePublicModernCloudIdentityVerification:
+      type: object
+      additionalProperties: false
+      required: [homeSiteRef, cloudSiteRefs, partition, verifiers, distributions]
+      properties:
+        homeSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        cloudSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        partition:
+          type: object
+          additionalProperties: false
+          required: [cloudEdge, maxStaleVerificationSeconds, denyNewCrossSiteSessions]
+          properties:
+            cloudEdge: {const: fail-closed}
+            maxStaleVerificationSeconds: {type: integer, minimum: 0, maximum: 86400}
+            denyNewCrossSiteSessions: {const: true}
+        verifiers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicModernIdentityVerifier"}
+        distributions:
+          type: array
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicModernVerifierDistribution"}
+    ArchitectureV2ModulePublicModernIdentityIssuer:
+      type: object
+      additionalProperties: false
+      required: [id, authorityRef, principal, issuer, audiences, verificationKeySetRef, proofOfPossessionRequired, revocationMaxStalenessSeconds, lifetimeSeconds, sessionTTLSeconds, enrollmentMode, enrollmentExposure]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        authorityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {type: string, enum: [device, human, workload]}
+        issuer: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"}
+        audiences:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:audience:[a-z][a-z0-9-]*$"}
+        verificationKeySetRef: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:keyset:[a-z][a-z0-9-]*$"}
+        proofOfPossessionRequired: {type: boolean}
+        revocationMaxStalenessSeconds: {type: integer, minimum: 0, maximum: 86400}
+        lifetimeSeconds: {type: integer, minimum: 300, maximum: 86400}
+        sessionTTLSeconds: {type: integer, minimum: 60, maximum: 86400}
+        enrollmentMode: {type: string, enum: [local-only, none]}
+        enrollmentExposure: {type: string, enum: [lan, none]}
+    ArchitectureV2ModulePublicModernIdentityVerifier:
+      type: object
+      additionalProperties: false
+      required: [id, principal, issuerRef, issuer, audiences, verificationKeySetRef, proofOfPossessionRequired, revocationMaxStalenessSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {type: string, enum: [device, human, workload]}
+        issuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuer: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"}
+        audiences:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:audience:[a-z][a-z0-9-]*$"}
+        verificationKeySetRef: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:keyset:[a-z][a-z0-9-]*$"}
+        proofOfPossessionRequired: {type: boolean}
+        revocationMaxStalenessSeconds: {type: integer, minimum: 0, maximum: 86400}
+    ArchitectureV2ModulePublicModernVerifierDistribution:
+      type: object
+      additionalProperties: false
+      required: [id, principal, issuerRef, issuer, materials, maxStalenessSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        principal: {type: string, enum: [device, human, workload]}
+        issuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        issuer: {type: string, pattern: "^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"}
+        materials:
+          type: array
+          minItems: 2
+          maxItems: 2
+          uniqueItems: true
+          items: {type: string, enum: [revocation-state, verification-key-reference]}
+        maxStalenessSeconds: {type: integer, minimum: 0, maximum: 86400}
+    ArchitectureV2ModulePublicHostBootstrapRuntime:
+      type: object
+      additionalProperties: false
+      required: [installMode, runtime, engine, dataRoot]
+      properties:
+        installMode: {type: string, const: bootstrapped}
+        runtime: {type: string, const: docker}
+        engine: {type: string, const: docker}
+        dataRoot: {type: string, pattern: ^/}
+    ArchitectureV2ModulePublicHostStorageRoots:
+      type: object
+      additionalProperties: false
+      required: [dataRoot, backupRoot, stacksRoot, volumeDriver]
+      properties:
+        dataRoot: {type: string, pattern: ^/}
+        backupRoot: {type: string, pattern: ^/}
+        stacksRoot: {type: string, pattern: ^/}
+        mediaRoot: {type: string, pattern: ^/}
+        volumeDriver: {type: string, const: local}
+    ArchitectureV2ModulePublicLocalBackupRoot:
+      type: object
+      additionalProperties: false
+      required: [path, volumeDriver]
+      properties:
+        path: {type: string, pattern: ^/}
+        volumeDriver: {type: string, const: local}
+    ArchitectureV2ModulePublicCloudHostSecurityNetwork:
+      type: object
+      additionalProperties: false
+      required: [networkMode, transportSubnet, ipv6, tlsMinVersion]
+      properties:
+        networkMode: {type: string, enum: [public-capable, hybrid]}
+        transportSubnet: {type: string, format: cidr}
+        ipv6: {type: boolean}
+        tlsMinVersion: {type: string, enum: [TLS1.2, TLS1.3]}
     ArchitectureV2ModulePublicResolvedRoute:
       type: object
       additionalProperties: false
@@ -3263,20 +3637,60 @@ components:
             minVersion: {type: string, enum: [TLS1.2, TLS1.3]}
         healthGateRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         healthProbe: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteHealthProbeV3"}
+    ArchitectureV2ModulePublicRouteOriginSelectionV4:
+      type: object
+      additionalProperties: false
+      required: [siteKinds, minSites, siteFailureDomainSpread, nodeFailureDomainSpread, requiredRoles, siteFailureDomains, nodeFailureDomains]
+      properties:
+        siteKinds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [home, cloud]}
+        minSites: {type: integer, minimum: 1}
+        siteFailureDomainSpread: {type: integer, minimum: 1}
+        nodeFailureDomainSpread: {type: integer, minimum: 1}
+        requiredRoles:
+          type: array
+          uniqueItems: true
+          items: {type: string, enum: [controller, worker, storage, edge]}
+        siteFailureDomains:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, minLength: 1}
+        nodeFailureDomains:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [siteRef, failureDomain]
+            properties:
+              siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              failureDomain: {type: string, minLength: 1}
     ArchitectureV2ModulePublicResolvedRouteV4:
       type: object
       additionalProperties: false
-      required: [id, serviceRef, moduleRef, originSiteRef, originNodeRefs, backendPoolRef, backendPool, exposure, protocol, upstreamProtocol, port, targetPort, access, tls, healthGateRef, healthProbe, capabilityAuthorities]
+      required: [id, serviceRef, moduleRef, originSiteRefs, originNodeRefs, originSelector, backendPoolRef, backendPool, exposure, protocol, upstreamProtocol, port, targetPort, access, tls, healthGateRef, healthProbe, capabilityAuthorities]
       properties:
         id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         originSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originSiteRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         originNodeRefs:
           type: array
           minItems: 1
           uniqueItems: true
           items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        originSelector: {type: string, enum: [single-site, control-authority-site, multi-zone, edge-pool]}
+        originSelection: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteOriginSelectionV4"}
         backendPoolRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         backendPool: {$ref: "#/components/schemas/ArchitectureV2ModulePublicRouteBackendPool"}
         exposure: {type: string, enum: [local, remote-private, public]}
@@ -3310,6 +3724,41 @@ components:
             properties:
               capabilityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
               role: {type: string, enum: [access, transport, edge, egress]}
+      allOf:
+        - if:
+            properties: {originSelector: {enum: [single-site, control-authority-site]}}
+            required: [originSelector]
+          then:
+            required: [originSiteRef]
+            properties:
+              originSiteRefs: {maxItems: 1}
+            not: {required: [originSelection]}
+        - if:
+            properties: {originSelector: {enum: [multi-zone, edge-pool]}}
+            required: [originSelector]
+          then:
+            required: [originSelection]
+            not: {required: [originSiteRef]}
+        - if:
+            properties: {originSelector: {const: multi-zone}}
+            required: [originSelector]
+          then:
+            properties:
+              originSelection:
+                properties:
+                  nodeFailureDomainSpread: {minimum: 2}
+                  requiredRoles: {maxItems: 0}
+        - if:
+            properties: {originSelector: {const: edge-pool}}
+            required: [originSelector]
+          then:
+            properties:
+              originSelection:
+                properties:
+                  requiredRoles:
+                    minItems: 1
+                    maxItems: 1
+                    prefixItems: [{const: edge}]
     ArchitectureV2ModulePublicRouteHealthProbeV3:
       oneOf:
         - type: object
@@ -4205,11 +4654,61 @@ components:
             enum: [local, remote-private, public]
         originSelector:
           type: string
-          enum: [single-site, control-authority-site]
+          enum: [single-site, control-authority-site, multi-zone, edge-pool]
+        originSelection:
+          $ref: "#/components/schemas/ArchitectureV2ServiceEndpointOriginSelection"
         healthRef:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         data:
           $ref: "#/components/schemas/ArchitectureV2ModuleServiceEndpointData"
+      allOf:
+        - if:
+            properties: {originSelector: {enum: [single-site, control-authority-site]}}
+            required: [originSelector]
+          then:
+            not: {required: [originSelection]}
+        - if:
+            properties: {originSelector: {enum: [multi-zone, edge-pool]}}
+            required: [originSelector]
+          then:
+            required: [originSelection]
+        - if:
+            properties: {originSelector: {const: multi-zone}}
+            required: [originSelector]
+          then:
+            properties:
+              originSelection:
+                properties:
+                  nodeFailureDomainSpread: {minimum: 2}
+                  requiredRoles: {maxItems: 0}
+        - if:
+            properties: {originSelector: {const: edge-pool}}
+            required: [originSelector]
+          then:
+            properties:
+              originSelection:
+                properties:
+                  requiredRoles:
+                    minItems: 1
+                    maxItems: 1
+                    prefixItems: [{const: edge}]
+    ArchitectureV2ServiceEndpointOriginSelection:
+      type: object
+      additionalProperties: false
+      required: [siteKinds, minSites, siteFailureDomainSpread, nodeFailureDomainSpread, requiredRoles]
+      properties:
+        siteKinds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [home, cloud]}
+        minSites: {type: integer, minimum: 1}
+        siteFailureDomainSpread: {type: integer, minimum: 1}
+        nodeFailureDomainSpread: {type: integer, minimum: 1}
+        requiredRoles:
+          type: array
+          uniqueItems: true
+          items: {type: string, enum: [controller, worker, storage, edge]}
     ArchitectureV2ModuleServiceEndpointData:
       type: object
       additionalProperties: false
@@ -4912,7 +5411,7 @@ components:
             type: string
     ArchitectureV2KitProfile:
       type: string
-      enum: [basement-kit, cloud-kit]
+      enum: [basement-kit, cloud-kit, modern-homelab]
     ArchitectureV2ExecutionReadiness:
       type: object
       additionalProperties: false

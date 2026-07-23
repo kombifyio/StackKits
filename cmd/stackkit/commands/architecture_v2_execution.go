@@ -45,19 +45,21 @@ const (
 )
 
 type architectureV2ExecutionCLIOptions struct {
-	inventoryPath  string
-	planPath       string
-	manifestPath   string
-	receiptPath    string
-	evidencePath   string
-	outputRoot     string
-	fragments      bool
-	force          bool
-	context        context.Context
-	planOut        string
-	planDestroy    bool
-	inspectionSink func(generationartifact.PlanInspection) error
-	legacyPlanFile string
+	inventoryPath   string
+	planPath        string
+	manifestPath    string
+	receiptPath     string
+	localSiteRef    string
+	localNodeRef    string
+	localChannelRef string
+	outputRoot      string
+	fragments       bool
+	force           bool
+	context         context.Context
+	planOut         string
+	planDestroy     bool
+	inspectionSink  func(generationartifact.PlanInspection) error
+	legacyPlanFile  string
 }
 
 type architectureV2ExecutionAuthority interface {
@@ -73,7 +75,7 @@ type architectureV2ProductApplyAuthority interface {
 
 type architectureV2ExecutionGate struct {
 	newAuthority      func() (architectureV2ExecutionAuthority, error)
-	newApplyAuthority func() (architectureV2ExecutionAuthority, error)
+	newApplyAuthority func(string, architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error)
 	newRegistry       func() (*architecturev2renderer.Registry, error)
 	versions          generationartifact.ComponentVersions
 	rejectV1          bool
@@ -86,10 +88,8 @@ func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
 		newAuthority: func() (architectureV2ExecutionAuthority, error) {
 			return architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
 		},
-		newApplyAuthority: func() (architectureV2ExecutionAuthority, error) {
-			return architecturev2.NewProductEmbeddedService(architecturev2.StackKitsV2Contract(version))
-		},
-		newRegistry: architecturev2renderer.NewProductRegistry,
+		newApplyAuthority: newArchitectureV2ProductRuntimeAuthority,
+		newRegistry:       architecturev2renderer.NewProductRegistry,
 		versions: generationartifact.ComponentVersions{
 			CLI:       componentVersion,
 			Generator: componentVersion,
@@ -373,14 +373,17 @@ func loadLegacyOperationalStackSpec(wd, requestedSpecPath string, mode architect
 	}
 }
 
-func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions) error {
+func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions) (returnErr error) {
 	inventory, err := readArchitectureV2Inventory(wd, options.inventoryPath)
 	if err != nil {
 		return err
 	}
-	authority, err := g.openV2Authority(mode)
+	authority, err := g.openV2Authority(wd, mode, options)
 	if err != nil {
 		return err
+	}
+	if closer, ok := authority.(interface{ Close() error }); ok {
+		defer func() { returnErr = errors.Join(returnErr, closer.Close()) }()
 	}
 	currentResolution, err := authority.ResolveCurrent(architecturev2.ResolveInput{StackSpec: rawSpec, Inventory: inventory})
 	if err != nil {
@@ -459,10 +462,10 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	})
 }
 
-func (g architectureV2ExecutionGate) openV2Authority(mode architectureV2ExecutionMode) (architectureV2ExecutionAuthority, error) {
+func (g architectureV2ExecutionGate) openV2Authority(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error) {
 	newAuthority := g.newAuthority
 	if mode == architectureV2Apply && g.newApplyAuthority != nil {
-		newAuthority = g.newApplyAuthority
+		return g.newApplyAuthority(wd, options)
 	}
 	if newAuthority == nil {
 		return nil, fmt.Errorf("architecture v2 execution authority is not configured")
@@ -664,21 +667,12 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if !ok {
 		return generationartifact.ExecutorNotImplemented(persisted.Binding().Renderer)
 	}
-	defaultEvidencePath := filepath.Join(wd, filepath.FromSlash(persisted.OutputRoot()), ".stackkit", "apply-evidence.json")
-	evidencePath, err := architectureV2CanonicalMetadataPath(wd, options.evidencePath, defaultEvidencePath, "Apply evidence")
-	if err != nil {
-		return err
-	}
-	evidence, err := readArchitectureV2HeldFile(wd, transaction, evidencePath, 4<<20, "Apply evidence")
-	if err != nil {
-		return err
-	}
 	executionContext := options.context
 	if executionContext == nil {
 		executionContext = context.Background()
 	}
 	result, err := applyAuthority.ExecuteProductApply(executionContext, architecturev2.ProductApplyInput{
-		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions, EvidenceBundle: evidence,
+		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions,
 	})
 	if err != nil {
 		return err
@@ -692,24 +686,6 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	})
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
 	return nil
-}
-
-func readArchitectureV2HeldFile(wd string, transaction *confinedfs.Transaction, path string, maxBytes int64, label string) ([]byte, error) {
-	if transaction == nil {
-		return nil, fmt.Errorf("read %s: held workspace transaction is required", label)
-	}
-	relative, err := filepath.Rel(wd, path)
-	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return nil, fmt.Errorf("read %s: path must remain inside the held workspace", label)
-	}
-	data, info, err := transaction.ReadStable(relative)
-	if err != nil {
-		return nil, fmt.Errorf("read canonical %s: %w", label, err)
-	}
-	if !info.Mode().IsRegular() || int64(len(data)) > maxBytes {
-		return nil, fmt.Errorf("read canonical %s: file must be regular and at most %d bytes", label, maxBytes)
-	}
-	return data, nil
 }
 
 func persistArchitectureV2ApplyResult(transaction *confinedfs.Transaction, outputRoot string, result architecturev2.VerifiedApplyResult) (string, error) {

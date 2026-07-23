@@ -197,9 +197,14 @@ type ApplyEvidenceRequest struct {
 	Expectations     []ApplyEvidenceExpectation `json:"expectations"`
 }
 
-// ApplyEvidenceRequest returns the single canonical producer-facing request.
-// It contains opaque secret references only through their requirement hashes;
-// no external producer has to reimplement StackKits requirement hashing.
+// ApplyEvidenceRequest returns the single canonical producer-facing request
+// for facts that must be true before the selected executor is invoked. Runtime,
+// workload, provider-owner, and health requirements are deliberately absent:
+// they are execution/postcondition authority and are verified from the exact
+// executor result instead of being circular prerequisites for that execution.
+//
+// The request contains opaque secret references only through their requirement
+// hashes; no external producer has to reimplement StackKits requirement hashing.
 func (p VerifiedPlan) ApplyEvidenceRequest() (ApplyEvidenceRequest, error) {
 	requirementsHash, err := ComputeApplyRequirementsHash(p.applyRequirements)
 	if err != nil {
@@ -223,6 +228,14 @@ func (p VerifiedPlan) ApplyEvidenceRequest() (ApplyEvidenceRequest, error) {
 
 func VerifyApplyEvidenceBundle(input ApplyEvidenceVerificationInput) (VerifiedApplyEvidenceBundle, error) {
 	return verifyApplyEvidenceBundleAt(input, time.Now().UTC())
+}
+
+// VerifyApplyEvidenceBundleAt verifies a bundle at one orchestration-owned
+// trusted UTC instant. Product orchestration uses the same instant for
+// collection and verification; the derived earliest expiry is rechecked at
+// later one-shot consumption.
+func VerifyApplyEvidenceBundleAt(input ApplyEvidenceVerificationInput, at time.Time) (VerifiedApplyEvidenceBundle, error) {
+	return verifyApplyEvidenceBundleAt(input, at)
 }
 
 func verifyApplyEvidenceBundleAt(input ApplyEvidenceVerificationInput, at time.Time) (VerifiedApplyEvidenceBundle, error) {
@@ -537,6 +550,10 @@ func (bundle ApplyEvidenceBundle) MarshalCanonical() ([]byte, error) {
 	return resolvedplan.CanonicalJSON(bundle)
 }
 
+// applyEvidenceExpectations projects only pre-execution facts. The complete
+// ApplyRequirements hash still binds the request to every planned mutation and
+// postcondition; this subset controls which facts an external producer may
+// attest before mutation begins.
 func applyEvidenceExpectations(requirements ApplyRequirements) (map[string]ApplyEvidenceExpectation, error) {
 	result := map[string]ApplyEvidenceExpectation{}
 	add := func(kind, id string, value any, subject ApplyEvidenceSubject) error {
@@ -555,18 +572,8 @@ func applyEvidenceExpectations(requirements ApplyRequirements) (map[string]Apply
 		result[key] = ApplyEvidenceExpectation{ReceiptID: key, RequirementKind: kind, RequirementID: id, RequirementHash: hash, Subject: subject}
 		return nil
 	}
-	for _, value := range requirements.Workloads {
-		if err := add("workload", value.ID, value, ApplyEvidenceSubject{OwnerKind: "workload", OwnerRef: value.ID, ProviderRef: value.ProviderRef, ModuleRef: value.ModuleRef, ContractHash: value.ContractHash}); err != nil {
-			return nil, err
-		}
-	}
 	for _, value := range requirements.Secrets {
 		if err := add("secret", value.ID, value, ApplyEvidenceSubject{OwnerKind: value.OwnerKind, OwnerRef: value.OwnerRef, ModuleRef: value.ModuleRef, UnitRef: value.UnitRef, InstanceRef: value.InstanceRef}); err != nil {
-			return nil, err
-		}
-	}
-	for _, value := range requirements.RuntimeInstances {
-		if err := add("runtime", value.ID, value, ApplyEvidenceSubject{OwnerKind: value.OwnerKind, OwnerRef: value.OwnerRef, ProviderRef: value.ProviderRef, ModuleRef: value.ModuleRef, UnitRef: value.UnitRef, InstanceRef: value.InstanceRef, ContractHash: value.OwnerContractHash}); err != nil {
 			return nil, err
 		}
 	}
@@ -575,18 +582,15 @@ func applyEvidenceExpectations(requirements ApplyRequirements) (map[string]Apply
 			return nil, err
 		}
 	}
-	for _, value := range requirements.ProviderOwners {
-		if err := add("provider-owner", value.ID, value, ApplyEvidenceSubject{OwnerKind: "provider-owner", OwnerRef: value.Ref, ProviderRef: value.ID, ContractHash: value.ContractHash}); err != nil {
-			return nil, err
-		}
-	}
 	for _, value := range requirements.EvidenceRequirements {
-		if err := add("evidence", value.ID, value, ApplyEvidenceSubject{OwnerKind: value.OwnerKind, OwnerRef: value.OwnerRef, GateRef: value.GateRef}); err != nil {
-			return nil, err
+		// An explicit apply-phase gate is the only generic evidence contract
+		// whose truth is required before execution. Validate/generate evidence
+		// is already verified by the plan/generation receipts; verify/release
+		// evidence is necessarily produced after execution.
+		if value.Phase != "apply" {
+			continue
 		}
-	}
-	for _, value := range requirements.HealthRequirements {
-		if err := add("health", value.ID, value, ApplyEvidenceSubject{OwnerKind: value.TargetKind, OwnerRef: value.TargetRef, GateRef: value.ID, ContractHash: value.ContractHash}); err != nil {
+		if err := add("evidence", value.ID, value, ApplyEvidenceSubject{OwnerKind: value.OwnerKind, OwnerRef: value.OwnerRef, GateRef: value.GateRef}); err != nil {
 			return nil, err
 		}
 	}

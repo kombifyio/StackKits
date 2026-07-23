@@ -10,6 +10,15 @@ func CloneExecutionRequest(input ExecutionRequest) ExecutionRequest {
 		result.RuntimeTargets[i].NodeRefs = append([]string(nil), input.RuntimeTargets[i].NodeRefs...)
 		result.RuntimeTargets[i].DaemonBindings = append([]DaemonTarget(nil), input.RuntimeTargets[i].DaemonBindings...)
 		result.RuntimeTargets[i].ArtifactRefs = append([]string(nil), input.RuntimeTargets[i].ArtifactRefs...)
+		if input.RuntimeTargets[i].RuntimeAdapter != nil {
+			adapter := *input.RuntimeTargets[i].RuntimeAdapter
+			adapter.ArtifactRefs = append([]string(nil), input.RuntimeTargets[i].RuntimeAdapter.ArtifactRefs...)
+			adapter.Agents = append([]RuntimeAdapterAgentBinding(nil), input.RuntimeTargets[i].RuntimeAdapter.Agents...)
+			for agentIndex := range adapter.Agents {
+				adapter.Agents[agentIndex].ArtifactRefs = append([]string(nil), input.RuntimeTargets[i].RuntimeAdapter.Agents[agentIndex].ArtifactRefs...)
+			}
+			result.RuntimeTargets[i].RuntimeAdapter = &adapter
+		}
 		result.RuntimeTargets[i].AccessCapabilities = append([]AccessCapability(nil), input.RuntimeTargets[i].AccessCapabilities...)
 		result.RuntimeTargets[i].AccessBindingRefs = append([]string(nil), input.RuntimeTargets[i].AccessBindingRefs...)
 	}
@@ -17,6 +26,11 @@ func CloneExecutionRequest(input ExecutionRequest) ExecutionRequest {
 	for i := range result.HealthTargets {
 		result.HealthTargets[i].SiteRefs = append([]string(nil), input.HealthTargets[i].SiteRefs...)
 		result.HealthTargets[i].NodeRefs = append([]string(nil), input.HealthTargets[i].NodeRefs...)
+		if input.HealthTargets[i].Probe != nil {
+			probe := *input.HealthTargets[i].Probe
+			probe.ExpectedStatuses = append([]int(nil), input.HealthTargets[i].Probe.ExpectedStatuses...)
+			result.HealthTargets[i].Probe = &probe
+		}
 	}
 	result.AccessBindings = append([]AccessBinding(nil), input.AccessBindings...)
 	for i := range result.AccessBindings {

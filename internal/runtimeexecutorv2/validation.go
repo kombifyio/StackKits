@@ -12,6 +12,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/kombifyio/stackkits/internal/referenceidv2"
 )
 
 // ErrorCode is a stable machine-readable runtimeexecutor failure class.
@@ -124,6 +126,9 @@ func (request ExecutionRequest) Validate() error {
 		return err
 	}
 	if err := validateHealthTargets(request.HealthTargets); err != nil {
+		return err
+	}
+	if err := validateHealthTargetClosure(request.RuntimeTargets, request.HealthTargets); err != nil {
 		return err
 	}
 	if err := validateAccessBindings(request.AccessBindings); err != nil {
@@ -257,8 +262,8 @@ func validateRuntimeTargets(targets []RuntimeTarget) error {
 			}
 		}
 		if target.ExecutionChannelRef != "" {
-			if err := validateToken(prefix+".execution_channel_ref", target.ExecutionChannelRef); err != nil {
-				return err
+			if !referenceid.ValidExecutionChannel(target.ExecutionChannelRef) {
+				return invalidRequest(prefix+".execution_channel_ref", "must be a canonical non-secret execution-channel identity")
 			}
 		}
 		if target.WorkloadRef != "" {
@@ -301,6 +306,17 @@ func validateRuntimeTargets(targets []RuntimeTarget) error {
 		if err := validateRefList(prefix+".artifact_refs", target.ArtifactRefs, minimumArtifacts, MaxArtifacts); err != nil {
 			return err
 		}
+		if target.RuntimeDelivery == "selected-paas" && target.RuntimeAdapter == nil {
+			return invalidRequest(prefix+".runtime_adapter", "selected-paas runtime requires one exact adapter binding")
+		}
+		if target.RuntimeAdapter != nil {
+			if target.RuntimeDelivery != "selected-paas" || target.WorkloadRef == "" {
+				return invalidRequest(prefix+".runtime_adapter", "is valid only for a workload-scoped selected-paas runtime")
+			}
+			if err := validateRuntimeAdapterBinding(prefix+".runtime_adapter", *target.RuntimeAdapter); err != nil {
+				return err
+			}
+		}
 		if err := validateRefList(prefix+".access_binding_refs", target.AccessBindingRefs, 0, MaxAccessBindings); err != nil {
 			return err
 		}
@@ -315,6 +331,70 @@ func validateRuntimeTargets(targets []RuntimeTarget) error {
 			return invalidRequest(prefix, "duplicate governed runtime target")
 		}
 		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+func validateRuntimeAdapterBinding(field string, binding RuntimeAdapterBinding) error {
+	for _, value := range []struct{ name, value string }{
+		{"id", binding.ID}, {"provider_ref", binding.ProviderRef}, {"module_ref", binding.ModuleRef},
+	} {
+		if err := validateToken(field+"."+value.name, value.value); err != nil {
+			return err
+		}
+	}
+	for _, value := range []struct{ name, value string }{
+		{"provider_version", binding.ProviderVersion}, {"module_version", binding.ModuleVersion},
+	} {
+		if !semanticVersionPattern.MatchString(value.value) {
+			return invalidRequest(field+"."+value.name, "must be a semantic version")
+		}
+	}
+	for _, value := range []struct{ name, value string }{
+		{"provider_contract_hash", binding.ProviderContractHash}, {"module_contract_hash", binding.ModuleContractHash},
+	} {
+		if !validDigest(value.value) {
+			return invalidRequest(field+"."+value.name, "must be a canonical SHA-256 digest")
+		}
+	}
+	if err := validateRefList(field+".artifact_refs", binding.ArtifactRefs, 1, MaxArtifacts); err != nil {
+		return err
+	}
+	if len(binding.Agents) > MaxAdapterAgents {
+		return invalidRequest(field+".agents", "must contain at most %d agent bindings", MaxAdapterAgents)
+	}
+	referenced := make(map[string]struct{}, len(binding.ArtifactRefs))
+	for _, ref := range binding.ArtifactRefs {
+		referenced[ref] = struct{}{}
+	}
+	for index, agent := range binding.Agents {
+		prefix := fmt.Sprintf("%s.agents[%d]", field, index)
+		for _, value := range []struct{ name, value string }{{"id", agent.ID}, {"module_ref", agent.ModuleRef}} {
+			if err := validateToken(prefix+"."+value.name, value.value); err != nil {
+				return err
+			}
+		}
+		if !semanticVersionPattern.MatchString(agent.ModuleVersion) {
+			return invalidRequest(prefix+".module_version", "must be a semantic version")
+		}
+		if !validDigest(agent.ModuleContractHash) {
+			return invalidRequest(prefix+".module_contract_hash", "must be a canonical SHA-256 digest")
+		}
+		if agent.ModuleRef == binding.ModuleRef {
+			return invalidRequest(prefix+".module_ref", "agent authority must be separate from the core adapter module")
+		}
+		if err := validateRefList(prefix+".artifact_refs", agent.ArtifactRefs, 1, MaxArtifacts); err != nil {
+			return err
+		}
+		if index > 0 && binding.Agents[index-1].ID >= agent.ID {
+			return invalidRequest(field+".agents", "must be sorted and unique by id")
+		}
+		for _, ref := range agent.ArtifactRefs {
+			if _, duplicate := referenced[ref]; duplicate {
+				return invalidRequest(prefix+".artifact_refs", "artifact %q is referenced by more than one adapter authority", ref)
+			}
+			referenced[ref] = struct{}{}
+		}
 	}
 	return nil
 }
@@ -576,6 +656,11 @@ func validateHealthTargets(targets []HealthTarget) error {
 		if !validDigest(target.ContractHash) {
 			return invalidRequest(prefix+".contract_hash", "must be a canonical SHA-256 digest")
 		}
+		if target.RuntimeRequirementID != "" {
+			if err := validateToken(prefix+".runtime_requirement_id", target.RuntimeRequirementID); err != nil {
+				return err
+			}
+		}
 		if target.RouteRef != "" {
 			if err := validateToken(prefix+".route_ref", target.RouteRef); err != nil {
 				return err
@@ -592,10 +677,66 @@ func validateHealthTargets(targets []HealthTarget) error {
 		if err := validateRefList(prefix+".node_refs", target.NodeRefs, 0, MaxNodeRefsPerTarget); err != nil {
 			return err
 		}
+		if target.TargetKind == "route" {
+			if target.RuntimeRequirementID == "" || target.RouteRef != target.TargetRef || target.BackendPoolRef == "" || target.Probe == nil {
+				return invalidRequest(prefix, "route health requires exact runtime, route, backend-pool, and probe bindings")
+			}
+			if err := validateHealthProbe(prefix+".probe", target.Kind, *target.Probe); err != nil {
+				return err
+			}
+		} else if target.Probe != nil {
+			return invalidRequest(prefix+".probe", "is valid only for route health")
+		}
 		if _, exists := seen[target.RequirementID]; exists {
 			return invalidRequest(prefix, "duplicate health target")
 		}
 		seen[target.RequirementID] = struct{}{}
+	}
+	return nil
+}
+
+func validateHealthProbe(prefix, kind string, probe HealthProbe) error {
+	if probe.Port < 1 || probe.Port > 65535 || probe.TimeoutSeconds < 1 || probe.TimeoutSeconds > 300 {
+		return invalidRequest(prefix, "port or timeout is outside the closed probe bounds")
+	}
+	switch kind {
+	case "http":
+		if probe.Protocol != "http" || probe.Method != "GET" || probe.FollowRedirects || !strings.HasPrefix(probe.Path, "/") || len(probe.ExpectedStatuses) == 0 {
+			return invalidRequest(prefix, "HTTP route probe must be address-free HTTP GET with redirects disabled, an absolute path, and expected statuses")
+		}
+		seen := map[int]struct{}{}
+		for _, status := range probe.ExpectedStatuses {
+			if status < 100 || status > 599 {
+				return invalidRequest(prefix+".expected_statuses", "contains an invalid HTTP status")
+			}
+			if _, duplicate := seen[status]; duplicate {
+				return invalidRequest(prefix+".expected_statuses", "must be unique")
+			}
+			seen[status] = struct{}{}
+		}
+	case "tcp":
+		if probe.Protocol != "tcp" || probe.Method != "" || probe.FollowRedirects || probe.Path != "" || len(probe.ExpectedStatuses) != 0 {
+			return invalidRequest(prefix, "TCP route probe must not carry HTTP fields")
+		}
+	default:
+		return invalidRequest(prefix, "route probe kind must be http or tcp")
+	}
+	return nil
+}
+
+func validateHealthTargetClosure(runtimeTargets []RuntimeTarget, healthTargets []HealthTarget) error {
+	byRequirement := make(map[string]RuntimeTarget, len(runtimeTargets))
+	for _, target := range runtimeTargets {
+		byRequirement[target.RequirementID] = target
+	}
+	for index, health := range healthTargets {
+		if health.RuntimeRequirementID == "" {
+			continue
+		}
+		target, exists := byRequirement[health.RuntimeRequirementID]
+		if !exists || !equalStrings(health.SiteRefs, target.SiteRefs) || !equalStrings(health.NodeRefs, target.NodeRefs) {
+			return invalidRequest(fmt.Sprintf("health_targets[%d].runtime_requirement_id", index), "does not bind the exact runtime placement")
+		}
 	}
 	return nil
 }
@@ -615,6 +756,18 @@ func validateArtifacts(artifacts []Artifact) error {
 		}
 		if artifact.OwnerKind != "plan" && artifact.OwnerKind != "render-instance" {
 			return invalidRequest(prefix+".owner_kind", "must be plan or render-instance")
+		}
+		switch artifact.ExecutionClass {
+		case ArtifactExecutionClassPlan:
+			if artifact.OwnerKind != "plan" {
+				return invalidRequest(prefix+".execution_class", "plan execution class requires plan ownership")
+			}
+		case ArtifactExecutionClassExecutable, ArtifactExecutionClassContractHandoff:
+			if artifact.OwnerKind != "render-instance" {
+				return invalidRequest(prefix+".execution_class", "runtime execution class requires render-instance ownership")
+			}
+		default:
+			return invalidRequest(prefix+".execution_class", "must be executable, contract-handoff, or plan")
 		}
 		if artifact.OwnerKind == "plan" {
 			if !validDigest(artifact.OwnerRef) {
@@ -706,7 +859,8 @@ func validateArtifacts(artifacts []Artifact) error {
 
 func validateArtifactClosure(targets []RuntimeTarget, artifacts []Artifact, planHash string) error {
 	available := make(map[string]Artifact, len(artifacts))
-	referenceCount := make(map[string]int, len(artifacts))
+	runtimeReferenceCount := make(map[string]int, len(artifacts))
+	adapterReferenceCount := make(map[string]int, len(artifacts))
 	for _, artifact := range artifacts {
 		available[artifact.ID] = artifact
 		if artifact.OwnerKind == "plan" && (artifact.OwnerRef != planHash || artifact.OwnerContractHash != planHash) {
@@ -719,22 +873,60 @@ func validateArtifactClosure(targets []RuntimeTarget, artifacts []Artifact, plan
 			if !exists {
 				return invalidRequest(fmt.Sprintf("runtime_targets[%d].artifact_refs[%d]", targetIndex, refIndex), "references absent artifact %q", ref)
 			}
-			if artifact.OwnerKind == "plan" {
-				return invalidRequest(fmt.Sprintf("runtime_targets[%d].artifact_refs[%d]", targetIndex, refIndex), "plan-owned artifact %q must not be runtime-referenced", ref)
+			if artifact.ExecutionClass != ArtifactExecutionClassExecutable {
+				return invalidRequest(fmt.Sprintf("runtime_targets[%d].artifact_refs[%d]", targetIndex, refIndex), "artifact %q must be executable runtime material", ref)
 			}
 			if !artifactMatchesRuntimeTarget(artifact, target) {
 				return invalidRequest(fmt.Sprintf("runtime_targets[%d].artifact_refs[%d]", targetIndex, refIndex), "render-instance artifact %q identity does not exactly match runtime target", ref)
 			}
-			referenceCount[ref]++
+			runtimeReferenceCount[ref]++
+		}
+		if target.RuntimeAdapter != nil {
+			adapter := *target.RuntimeAdapter
+			if err := validateAdapterArtifactRefs(targetIndex, "runtime_adapter", adapter.ProviderRef, adapter.ProviderContractHash, adapter.ModuleRef, adapter.ModuleContractHash, adapter.ArtifactRefs, available, adapterReferenceCount); err != nil {
+				return err
+			}
+			for agentIndex, agent := range adapter.Agents {
+				field := fmt.Sprintf("runtime_adapter.agents[%d]", agentIndex)
+				if err := validateAdapterArtifactRefs(targetIndex, field, adapter.ProviderRef, adapter.ProviderContractHash, agent.ModuleRef, agent.ModuleContractHash, agent.ArtifactRefs, available, adapterReferenceCount); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	for _, artifact := range artifacts {
-		if artifact.OwnerKind == "render-instance" && referenceCount[artifact.ID] != 1 {
-			return invalidRequest("artifacts."+artifact.ID, "render-instance artifact must be referenced exactly once; got %d", referenceCount[artifact.ID])
+		switch artifact.ExecutionClass {
+		case ArtifactExecutionClassExecutable:
+			if runtimeReferenceCount[artifact.ID] != 1 || adapterReferenceCount[artifact.ID] != 0 {
+				return invalidRequest("artifacts."+artifact.ID, "executable artifact must be referenced by exactly one runtime target and no adapter; got runtime=%d adapter=%d", runtimeReferenceCount[artifact.ID], adapterReferenceCount[artifact.ID])
+			}
+		case ArtifactExecutionClassContractHandoff:
+			if runtimeReferenceCount[artifact.ID] != 0 || adapterReferenceCount[artifact.ID] == 0 {
+				return invalidRequest("artifacts."+artifact.ID, "contract-handoff artifact must be referenced by at least one adapter binding and no runtime target")
+			}
+		case ArtifactExecutionClassPlan:
+			if runtimeReferenceCount[artifact.ID] != 0 || adapterReferenceCount[artifact.ID] != 0 {
+				return invalidRequest("artifacts."+artifact.ID, "plan-owned artifact must not be runtime- or adapter-referenced")
+			}
 		}
-		if artifact.OwnerKind == "plan" && referenceCount[artifact.ID] != 0 {
-			return invalidRequest("artifacts."+artifact.ID, "plan-owned artifact must not be runtime-referenced")
+	}
+	return nil
+}
+
+func validateAdapterArtifactRefs(targetIndex int, field, providerRef, providerHash, moduleRef, moduleHash string, refs []string, available map[string]Artifact, referenceCount map[string]int) error {
+	for refIndex, ref := range refs {
+		prefix := fmt.Sprintf("runtime_targets[%d].%s.artifact_refs[%d]", targetIndex, field, refIndex)
+		artifact, exists := available[ref]
+		if !exists {
+			return invalidRequest(prefix, "references absent adapter artifact %q", ref)
 		}
+		if artifact.ExecutionClass != ArtifactExecutionClassContractHandoff {
+			return invalidRequest(prefix, "artifact %q must be contract-handoff material", ref)
+		}
+		if artifact.ProviderRef != providerRef || artifact.ProviderContractHash != providerHash || artifact.ModuleRef != moduleRef || artifact.ModuleContractHash != moduleHash {
+			return invalidRequest(prefix, "artifact %q identity does not match the exact adapter module authority", ref)
+		}
+		referenceCount[ref]++
 	}
 	return nil
 }
@@ -917,6 +1109,15 @@ func canonicalizeRequest(request *ExecutionRequest) {
 		sort.Strings(request.RuntimeTargets[i].SiteRefs)
 		sort.Strings(request.RuntimeTargets[i].NodeRefs)
 		sort.Strings(request.RuntimeTargets[i].ArtifactRefs)
+		if request.RuntimeTargets[i].RuntimeAdapter != nil {
+			sort.Strings(request.RuntimeTargets[i].RuntimeAdapter.ArtifactRefs)
+			for agentIndex := range request.RuntimeTargets[i].RuntimeAdapter.Agents {
+				sort.Strings(request.RuntimeTargets[i].RuntimeAdapter.Agents[agentIndex].ArtifactRefs)
+			}
+			sort.Slice(request.RuntimeTargets[i].RuntimeAdapter.Agents, func(left, right int) bool {
+				return request.RuntimeTargets[i].RuntimeAdapter.Agents[left].ID < request.RuntimeTargets[i].RuntimeAdapter.Agents[right].ID
+			})
+		}
 		sort.Strings(request.RuntimeTargets[i].AccessBindingRefs)
 		sort.Slice(request.RuntimeTargets[i].AccessCapabilities, func(left, right int) bool {
 			return request.RuntimeTargets[i].AccessCapabilities[left].Ref < request.RuntimeTargets[i].AccessCapabilities[right].Ref
@@ -931,8 +1132,18 @@ func canonicalizeRequest(request *ExecutionRequest) {
 	for i := range request.HealthTargets {
 		sort.Strings(request.HealthTargets[i].SiteRefs)
 		sort.Strings(request.HealthTargets[i].NodeRefs)
+		if request.HealthTargets[i].Probe != nil {
+			sort.Ints(request.HealthTargets[i].Probe.ExpectedStatuses)
+		}
 	}
 	for i := range request.Artifacts {
+		if request.Artifacts[i].ExecutionClass == "" {
+			if request.Artifacts[i].OwnerKind == "plan" {
+				request.Artifacts[i].ExecutionClass = ArtifactExecutionClassPlan
+			} else {
+				request.Artifacts[i].ExecutionClass = ArtifactExecutionClassExecutable
+			}
+		}
 		sort.Strings(request.Artifacts[i].SiteRefs)
 		sort.Strings(request.Artifacts[i].NodeRefs)
 	}

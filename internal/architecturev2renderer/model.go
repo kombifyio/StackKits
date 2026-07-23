@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -213,6 +214,7 @@ type rawModuleServiceEndpoint struct {
 	AllowedIngressProtocols []string        `json:"allowedIngressProtocols"`
 	AllowedExposures        []string        `json:"allowedExposures"`
 	OriginSelector          string          `json:"originSelector"`
+	OriginSelection         json.RawMessage `json:"originSelection,omitempty"`
 	HealthRef               string          `json:"healthRef"`
 	Data                    json.RawMessage `json:"data,omitempty"`
 }
@@ -268,8 +270,41 @@ type rawPublicServiceRouteV3 struct {
 	HealthProbe rawPublicRouteHealthProbeV3 `json:"healthProbe"`
 }
 
+type rawServiceEndpointOriginSelectionV2 struct {
+	SiteKinds               []string `json:"siteKinds"`
+	MinSites                int      `json:"minSites"`
+	SiteFailureDomainSpread int      `json:"siteFailureDomainSpread"`
+	NodeFailureDomainSpread int      `json:"nodeFailureDomainSpread"`
+	RequiredRoles           []string `json:"requiredRoles"`
+	SiteFailureDomains      []string `json:"siteFailureDomains,omitempty"`
+	NodeFailureDomains      []struct {
+		SiteRef       string `json:"siteRef"`
+		FailureDomain string `json:"failureDomain"`
+	} `json:"nodeFailureDomains,omitempty"`
+}
+
 type rawPublicServiceRouteV4 struct {
-	rawPublicServiceRouteV3
+	ID                    string                                `json:"id"`
+	ServiceRef            string                                `json:"serviceRef"`
+	ModuleRef             string                                `json:"moduleRef"`
+	OriginSiteRef         string                                `json:"originSiteRef,omitempty"`
+	OriginSiteRefs        []string                              `json:"originSiteRefs"`
+	OriginNodeRefs        []string                              `json:"originNodeRefs"`
+	OriginSelector        string                                `json:"originSelector"`
+	OriginSelection       *rawServiceEndpointOriginSelectionV2  `json:"originSelection,omitempty"`
+	BackendPoolRef        string                                `json:"backendPoolRef"`
+	BackendPool           rawPublicRouteBackendPoolV2           `json:"backendPool"`
+	Exposure              string                                `json:"exposure"`
+	Protocol              string                                `json:"protocol"`
+	UpstreamProtocol      string                                `json:"upstreamProtocol"`
+	Port                  int                                   `json:"port"`
+	TargetPort            int                                   `json:"targetPort"`
+	Host                  string                                `json:"host,omitempty"`
+	Path                  string                                `json:"path,omitempty"`
+	Access                rawPublicRouteAccessV2                `json:"access"`
+	TLS                   rawPublicRouteTLSV2                   `json:"tls"`
+	HealthGateRef         string                                `json:"healthGateRef"`
+	HealthProbe           rawPublicRouteHealthProbeV3           `json:"healthProbe"`
 	CapabilityAuthorities []rawPublicRouteCapabilityAuthorityV4 `json:"capabilityAuthorities"`
 }
 
@@ -1661,6 +1696,17 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 			if binding.ValueType != "device-enrollment-public-v1" || binding.Cardinality != "single" {
 				return nil, fail(ErrInvalidPlan, path, "identity.deviceEnrollment has an invalid type or cardinality")
 			}
+		case "identityTrust.homeDeviceAuthority":
+			if binding.ValueType != "home-device-authority-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "identityTrust.homeDeviceAuthority has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound Home device-authority value is missing")
+			}
+			if _, err := decodeHomeDeviceAuthorityInput(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
+			}
 		case "network.routes":
 			if binding.ValueType != "authority-bound-service-route-list-v4" || binding.Cardinality != "list" {
 				return nil, fail(ErrInvalidPlan, path, "network.routes has an invalid type or cardinality")
@@ -1670,6 +1716,50 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound network.routes value is missing")
 			}
 			if err := validatePublicServiceRouteListV4(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
+			}
+		case "network.cloudHostSecurity":
+			if binding.ValueType != "cloud-host-security-network-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "network.cloudHostSecurity has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound network.cloudHostSecurity value is missing")
+			}
+			if _, err := decodeCloudHostSecurityNetworkInput(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
+			}
+		case "host.bootstrapRuntime":
+			if binding.ValueType != "host-bootstrap-runtime-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "host.bootstrapRuntime has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound host.bootstrapRuntime value is missing")
+			}
+			if _, err := decodeCoreHostBootstrapRuntime(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
+			}
+		case "storage.hostRoots":
+			if binding.ValueType != "host-storage-roots-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "storage.hostRoots has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound storage.hostRoots value is missing")
+			}
+			if _, err := decodeCoreHostStorageRoots(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
+			}
+		case "storage.backupRoot":
+			if binding.ValueType != "local-backup-root-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "storage.backupRoot has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound storage.backupRoot value is missing")
+			}
+			if _, err := decodeHomeBackupRoot(value, unitPath+".values."+binding.TargetRef); err != nil {
 				return nil, err
 			}
 		default:
@@ -1683,64 +1773,6 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 		return nil, wrap(ErrInvalidPlan, unitPath+".inputBindings", "canonicalize input bindings", err)
 	}
 	return canonical, nil
-}
-
-func validatePublicServiceRouteListV4(raw json.RawMessage, valuePath string) error {
-	var values []json.RawMessage
-	if err := decodeJSON(raw, &values, false); err != nil || values == nil {
-		return fail(ErrInvalidPlan, valuePath, "expected authority-bound service route v4 list")
-	}
-	seenRoutes := make(map[string]struct{}, len(values))
-	for index, value := range values {
-		path := fmt.Sprintf("%s[%d]", valuePath, index)
-		var route rawPublicServiceRouteV4
-		if err := decodeStrict(value, &route); err != nil {
-			return wrap(ErrInvalidPlan, path, "decode authority-bound service route v4", err)
-		}
-		if _, duplicate := seenRoutes[route.ID]; duplicate {
-			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)
-		}
-		seenRoutes[route.ID] = struct{}{}
-		base, err := json.Marshal([]rawPublicServiceRouteV3{route.rawPublicServiceRouteV3})
-		if err != nil {
-			return wrap(ErrInvalidPlan, path, "encode authority-bound service route v4 base", err)
-		}
-		if err := validatePublicServiceRouteListV3(base, valuePath); err != nil {
-			return err
-		}
-		if route.CapabilityAuthorities == nil {
-			return fail(ErrInvalidPlan, path+".capabilityAuthorities", "authority list is mandatory")
-		}
-		capabilities := map[string]struct{}{}
-		roles := map[string]string{}
-		for authorityIndex, authority := range route.CapabilityAuthorities {
-			authorityPath := fmt.Sprintf("%s.capabilityAuthorities[%d]", path, authorityIndex)
-			if err := requireContractID(authority.CapabilityRef, authorityPath+".capabilityRef"); err != nil {
-				return err
-			}
-			if !oneOf(authority.Role, "access", "transport", "edge", "egress") {
-				return fail(ErrInvalidPlan, authorityPath+".role", "unsupported route capability role %q", authority.Role)
-			}
-			if _, duplicate := capabilities[authority.CapabilityRef]; duplicate {
-				return fail(ErrDuplicate, authorityPath+".capabilityRef", "duplicate route capability authority")
-			}
-			capabilities[authority.CapabilityRef] = struct{}{}
-			if existing, duplicate := roles[authority.Role]; duplicate {
-				return fail(ErrDuplicate, authorityPath+".role", "route role %q is already owned by %q", authority.Role, existing)
-			}
-			roles[authority.Role] = authority.CapabilityRef
-		}
-		if route.Exposure == "local" && len(route.CapabilityAuthorities) != 0 {
-			return fail(ErrInvalidPlan, path+".capabilityAuthorities", "local route cannot carry remote reachability authority")
-		}
-		if route.Exposure != "local" && len(route.CapabilityAuthorities) == 0 {
-			return fail(ErrInvalidPlan, path+".capabilityAuthorities", "non-local route requires exact reachability authority")
-		}
-		if err := validatePublicRouteTLSAuthorityV4(route, roles, path); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func validatePublicRouteTLSAuthorityV4(route rawPublicServiceRouteV4, roles map[string]string, path string) error {
@@ -1771,6 +1803,38 @@ func validatePublicRouteTLSAuthorityV4(route rawPublicServiceRouteV4, roles map[
 		return fail(ErrInvalidPlan, path+".tls.mode", "unsupported required TLS mode %q", tls.Mode)
 	}
 	return nil
+}
+
+func validatePublicRouteCapabilityAuthoritiesV4(route rawPublicServiceRouteV4, path string) error {
+	if route.CapabilityAuthorities == nil {
+		return fail(ErrInvalidPlan, path+".capabilityAuthorities", "authority list is mandatory")
+	}
+	capabilities := map[string]struct{}{}
+	roles := map[string]string{}
+	for authorityIndex, authority := range route.CapabilityAuthorities {
+		authorityPath := fmt.Sprintf("%s.capabilityAuthorities[%d]", path, authorityIndex)
+		if err := requireContractID(authority.CapabilityRef, authorityPath+".capabilityRef"); err != nil {
+			return err
+		}
+		if !oneOf(authority.Role, "access", "transport", "edge", "egress") {
+			return fail(ErrInvalidPlan, authorityPath+".role", "unsupported route capability role %q", authority.Role)
+		}
+		if _, duplicate := capabilities[authority.CapabilityRef]; duplicate {
+			return fail(ErrDuplicate, authorityPath+".capabilityRef", "duplicate route capability authority")
+		}
+		capabilities[authority.CapabilityRef] = struct{}{}
+		if existing, duplicate := roles[authority.Role]; duplicate {
+			return fail(ErrDuplicate, authorityPath+".role", "route role %q is already owned by %q", authority.Role, existing)
+		}
+		roles[authority.Role] = authority.CapabilityRef
+	}
+	if route.Exposure == "local" && len(route.CapabilityAuthorities) != 0 {
+		return fail(ErrInvalidPlan, path+".capabilityAuthorities", "local route cannot carry remote reachability authority")
+	}
+	if route.Exposure != "local" && len(route.CapabilityAuthorities) == 0 {
+		return fail(ErrInvalidPlan, path+".capabilityAuthorities", "non-local route requires exact reachability authority")
+	}
+	return validatePublicRouteTLSAuthorityV4(route, roles, path)
 }
 
 func validatePublicServiceRouteListV3(raw json.RawMessage, valuePath string) error {
@@ -1821,6 +1885,109 @@ func validatePublicServiceRouteListV3(raw json.RawMessage, valuePath string) err
 			}
 		default:
 			return fail(ErrInvalidPlan, path+".healthProbe.kind", "unsupported probe kind %q", probe.Kind)
+		}
+	}
+	return nil
+}
+
+func validatePublicServiceRouteListV4(raw json.RawMessage, valuePath string) error {
+	var values []json.RawMessage
+	if err := decodeJSON(raw, &values, false); err != nil || values == nil {
+		return fail(ErrInvalidPlan, valuePath, "expected public service route v4 list")
+	}
+	seenRoutes := make(map[string]struct{}, len(values))
+	for index, value := range values {
+		path := fmt.Sprintf("%s[%d]", valuePath, index)
+		var route rawPublicServiceRouteV4
+		if err := decodeStrict(value, &route); err != nil {
+			return wrap(ErrInvalidPlan, path, "decode public service route v4", err)
+		}
+		for _, field := range []struct{ name, value string }{
+			{"id", route.ID}, {"serviceRef", route.ServiceRef}, {"moduleRef", route.ModuleRef},
+			{"backendPoolRef", route.BackendPoolRef}, {"healthGateRef", route.HealthGateRef},
+		} {
+			if err := requireContractID(field.value, path+"."+field.name); err != nil {
+				return err
+			}
+		}
+		if _, duplicate := seenRoutes[route.ID]; duplicate {
+			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)
+		}
+		seenRoutes[route.ID] = struct{}{}
+		sites, err := uniqueContractIDSet(route.OriginSiteRefs, path+".originSiteRefs")
+		if err != nil || len(sites) == 0 {
+			return fail(ErrInvalidPlan, path+".originSiteRefs", "at least one unique origin Site is required")
+		}
+		nodes, err := uniqueContractIDSet(route.OriginNodeRefs, path+".originNodeRefs")
+		if err != nil || len(nodes) == 0 {
+			return fail(ErrInvalidPlan, path+".originNodeRefs", "at least one unique origin node is required")
+		}
+		switch route.OriginSelector {
+		case "single-site", "control-authority-site":
+			if len(route.OriginSiteRefs) != 1 || route.OriginSiteRef != route.OriginSiteRefs[0] || route.OriginSelection != nil {
+				return fail(ErrInvalidPlan, path, "single-Site selector requires one matching originSiteRef and forbids originSelection")
+			}
+		case "multi-zone", "edge-pool":
+			if route.OriginSiteRef != "" || route.OriginSelection == nil {
+				return fail(ErrInvalidPlan, path, "multi-Site selector forbids originSiteRef and requires originSelection")
+			}
+			if err := validateEndpointOriginSelection(*route.OriginSelection, route.OriginSelector, path+".originSelection", true); err != nil {
+				return err
+			}
+			if len(route.OriginSiteRefs) < route.OriginSelection.MinSites {
+				return fail(ErrInvalidPlan, path+".originSiteRefs", "origin Site count is below minSites")
+			}
+			for domainIndex, domain := range route.OriginSelection.NodeFailureDomains {
+				if _, exists := sites[domain.SiteRef]; !exists {
+					return fail(ErrInvalidPlan, fmt.Sprintf("%s.originSelection.nodeFailureDomains[%d].siteRef", path, domainIndex), "node failure domain is outside the origin Site set")
+				}
+			}
+		default:
+			return fail(ErrInvalidPlan, path+".originSelector", "unsupported selector %q", route.OriginSelector)
+		}
+		if route.BackendPool.UpstreamProtocol != route.UpstreamProtocol || route.BackendPool.TargetPort != route.TargetPort || len(route.BackendPool.Members) == 0 {
+			return fail(ErrInvalidPlan, path+".backendPool", "backend pool must exactly match the route upstream and contain members")
+		}
+		seenInstances, memberSites, memberNodes := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
+		for memberIndex, member := range route.BackendPool.Members {
+			memberPath := fmt.Sprintf("%s.backendPool.members[%d]", path, memberIndex)
+			for _, field := range []struct{ name, value string }{{"siteRef", member.SiteRef}, {"nodeRef", member.NodeRef}, {"instanceRef", member.InstanceRef}} {
+				if err := requireContractID(field.value, memberPath+"."+field.name); err != nil {
+					return err
+				}
+			}
+			if _, exists := sites[member.SiteRef]; !exists {
+				return fail(ErrInvalidPlan, memberPath+".siteRef", "backend member is outside the origin Site set")
+			}
+			if _, exists := nodes[member.NodeRef]; !exists {
+				return fail(ErrInvalidPlan, memberPath+".nodeRef", "backend member is outside the origin node set")
+			}
+			if _, duplicate := seenInstances[member.InstanceRef]; duplicate {
+				return fail(ErrDuplicate, memberPath+".instanceRef", "duplicate backend instance")
+			}
+			seenInstances[member.InstanceRef], memberSites[member.SiteRef], memberNodes[member.NodeRef] = struct{}{}, struct{}{}, struct{}{}
+		}
+		if !reflect.DeepEqual(sites, memberSites) || !reflect.DeepEqual(nodes, memberNodes) {
+			return fail(ErrInvalidPlan, path+".backendPool.members", "backend member Site and node sets must exactly equal the route origin sets")
+		}
+		probe := route.HealthProbe
+		if probe.Port != route.TargetPort || probe.Protocol != route.UpstreamProtocol || probe.TimeoutSeconds < 1 || probe.TimeoutSeconds > 300 {
+			return fail(ErrInvalidPlan, path+".healthProbe", "probe protocol, port, and timeout must match the route contract")
+		}
+		switch probe.Kind {
+		case "http":
+			if !oneOf(probe.Protocol, "http", "https") || probe.Method != "GET" || probe.FollowRedirects == nil || *probe.FollowRedirects || !strings.HasPrefix(probe.Path, "/") || len(probe.ExpectedStatuses) == 0 {
+				return fail(ErrInvalidPlan, path+".healthProbe", "invalid closed HTTP probe")
+			}
+		case "tcp":
+			if probe.Protocol != "tcp" || probe.Method != "" || probe.FollowRedirects != nil || probe.Path != "" || probe.ExpectedStatuses != nil {
+				return fail(ErrInvalidPlan, path+".healthProbe", "TCP probes forbid HTTP-only fields")
+			}
+		default:
+			return fail(ErrInvalidPlan, path+".healthProbe.kind", "unsupported probe kind %q", probe.Kind)
+		}
+		if err := validatePublicRouteCapabilityAuthoritiesV4(route, path); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1959,8 +2126,25 @@ func parseServiceEndpoints(values []json.RawMessage, placement rawRenderUnitPlac
 		if err := validateUniqueEnumList(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}, endpointPath+".allowedExposures"); err != nil {
 			return nil, nil, err
 		}
-		if !oneOf(endpoint.OriginSelector, "single-site", "control-authority-site") {
+		if !oneOf(endpoint.OriginSelector, "single-site", "control-authority-site", "multi-zone", "edge-pool") {
 			return nil, nil, fail(ErrInvalidPlan, endpointPath+".originSelector", "unsupported origin selector %q", endpoint.OriginSelector)
+		}
+		hasOriginSelection := len(endpoint.OriginSelection) != 0 && string(endpoint.OriginSelection) != "null"
+		if endpoint.OriginSelector == "single-site" || endpoint.OriginSelector == "control-authority-site" {
+			if hasOriginSelection {
+				return nil, nil, fail(ErrInvalidPlan, endpointPath+".originSelection", "single-Site selectors forbid an origin selection policy")
+			}
+		} else {
+			if !hasOriginSelection {
+				return nil, nil, fail(ErrInvalidPlan, endpointPath+".originSelection", "selector %q requires an explicit origin selection policy", endpoint.OriginSelector)
+			}
+			var selection rawServiceEndpointOriginSelectionV2
+			if err := decodeStrict(endpoint.OriginSelection, &selection); err != nil {
+				return nil, nil, wrap(ErrInvalidPlan, endpointPath+".originSelection", "decode origin selection policy", err)
+			}
+			if err := validateEndpointOriginSelection(selection, endpoint.OriginSelector, endpointPath+".originSelection", false); err != nil {
+				return nil, nil, err
+			}
 		}
 		if endpoint.Data != nil {
 			if bytes.Equal(bytes.TrimSpace(endpoint.Data), []byte("null")) {
@@ -1987,6 +2171,58 @@ func parseServiceEndpoints(values []json.RawMessage, placement rawRenderUnitPlac
 		return nil, nil, wrap(ErrInvalidPlan, valuePath, "canonicalize service endpoints", err)
 	}
 	return result, canonical, nil
+}
+
+func validateEndpointOriginSelection(selection rawServiceEndpointOriginSelectionV2, selector, path string, resolved bool) error {
+	if err := validateUniqueEnumList(selection.SiteKinds, []string{"home", "cloud"}, path+".siteKinds"); err != nil {
+		return err
+	}
+	if selection.MinSites < 1 || selection.SiteFailureDomainSpread < 1 || selection.NodeFailureDomainSpread < 1 {
+		return fail(ErrInvalidPlan, path, "selection thresholds must be positive")
+	}
+	if err := validateUniqueEnumList(selection.RequiredRoles, []string{"controller", "worker", "storage", "edge"}, path+".requiredRoles"); err != nil && len(selection.RequiredRoles) > 0 {
+		return err
+	}
+	if selector == "multi-zone" && (selection.NodeFailureDomainSpread < 2 || len(selection.RequiredRoles) != 0) {
+		return fail(ErrInvalidPlan, path, "multi-zone requires node failure-domain spread >= 2 and no role filter")
+	}
+	if selector == "edge-pool" && (len(selection.RequiredRoles) != 1 || selection.RequiredRoles[0] != "edge") {
+		return fail(ErrInvalidPlan, path+".requiredRoles", "edge-pool requires exactly the edge role")
+	}
+	if !resolved {
+		if selection.SiteFailureDomains != nil || selection.NodeFailureDomains != nil {
+			return fail(ErrInvalidPlan, path, "catalog selection policies cannot contain compiler-resolved failure domains")
+		}
+		return nil
+	}
+	if len(selection.SiteFailureDomains) < selection.SiteFailureDomainSpread || len(selection.NodeFailureDomains) < selection.NodeFailureDomainSpread {
+		return fail(ErrInvalidPlan, path, "resolved failure-domain evidence is below the declared spread")
+	}
+	seenSiteDomains := map[string]struct{}{}
+	for index, domain := range selection.SiteFailureDomains {
+		if domain == "" {
+			return fail(ErrInvalidPlan, fmt.Sprintf("%s.siteFailureDomains[%d]", path, index), "failure domain is empty")
+		}
+		if _, duplicate := seenSiteDomains[domain]; duplicate {
+			return fail(ErrDuplicate, path+".siteFailureDomains", "duplicate Site failure domain")
+		}
+		seenSiteDomains[domain] = struct{}{}
+	}
+	seenNodeDomains := map[string]struct{}{}
+	for index, domain := range selection.NodeFailureDomains {
+		if err := requireContractID(domain.SiteRef, fmt.Sprintf("%s.nodeFailureDomains[%d].siteRef", path, index)); err != nil {
+			return err
+		}
+		if domain.FailureDomain == "" {
+			return fail(ErrInvalidPlan, fmt.Sprintf("%s.nodeFailureDomains[%d].failureDomain", path, index), "failure domain is empty")
+		}
+		key := domain.SiteRef + "\x00" + domain.FailureDomain
+		if _, duplicate := seenNodeDomains[key]; duplicate {
+			return fail(ErrDuplicate, path+".nodeFailureDomains", "duplicate site-scoped node failure domain")
+		}
+		seenNodeDomains[key] = struct{}{}
+	}
+	return nil
 }
 
 func validateUniqueEnumList(values, allowed []string, valuePath string) error {

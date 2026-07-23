@@ -67,8 +67,8 @@ type CloudPublicEdgeAuthority struct {
 	HealthContractHash   string
 }
 
-// CloudPublicEdgeExecutor remains isolated and unregistered until a real
-// authenticated host operations implementation is available.
+// CloudPublicEdgeExecutor remains isolated behind an explicit Product factory
+// that requires a real authenticated host operations implementation.
 type CloudPublicEdgeExecutor struct {
 	identity   runtimeexecutor.ExecutorIdentity
 	binding    LocalTargetBinding

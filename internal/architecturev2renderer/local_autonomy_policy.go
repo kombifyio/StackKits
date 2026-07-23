@@ -284,6 +284,7 @@ func validateLocalAutonomyPolicyUnit(unit RenderUnit, contract RendererContract)
 	return validateGenerationOnlyPolicyUnit(unit, generationOnlyPolicyUnitSpec{
 		moduleID: localAutonomyPolicyModuleID, unitID: localAutonomyPolicyUnitID,
 		outputRef: localAutonomyPolicyOutputRef, policyName: "local-autonomy policy",
+		placementScope: "node-local", placementCardinality: "one-per-node",
 		contract: contract, planInputRefs: localAutonomyPolicyPlanInputRefs,
 		validatePlanInput: validateLocalAutonomyPlanInputs,
 	})

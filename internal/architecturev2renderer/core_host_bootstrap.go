@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"path"
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -25,8 +26,10 @@ const coreHostBootstrapTemplate = `{"apiVersion":"stackkit.core-host-bootstrap-p
 `
 
 var coreHostBootstrapPlanInputRefs = []string{
-	"hostRuntimePolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy",
+	"kit", "moduleCapabilities", "moduleTargets", "sites", "stackId",
 }
+
+var coreHostBootstrapPublicInputRefs = []string{"host-runtime", "storage-roots"}
 
 // CoreHostBootstrapRendererContract returns the exact implementation identity
 // for the provider-free, node-local Core host preparation policy.
@@ -76,13 +79,31 @@ func coreHostBootstrapTemplateHash(template []byte) string {
 }
 
 type coreHostBootstrapPlanInputs struct {
-	StackID            string                          `json:"stackId"`
-	Kit                executorBundleKit               `json:"kit"`
-	Sites              []executorBundleSite            `json:"sites"`
-	ModuleTargets      []executorBundleTarget          `json:"moduleTargets"`
-	ModuleCapabilities []executorBundleCapability      `json:"moduleCapabilities"`
-	HostRuntimePolicy  executorBundleHostRuntimePolicy `json:"hostRuntimePolicy"`
-	StoragePolicy      executorBundleStoragePolicy     `json:"storagePolicy"`
+	StackID            string                     `json:"stackId"`
+	Kit                executorBundleKit          `json:"kit"`
+	Sites              []executorBundleSite       `json:"sites"`
+	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
+}
+
+type coreHostBootstrapRuntimeInput struct {
+	InstallMode string `json:"installMode"`
+	Runtime     string `json:"runtime"`
+	Engine      string `json:"engine"`
+	DataRoot    string `json:"dataRoot"`
+}
+
+type coreHostStorageRootsInput struct {
+	DataRoot     string `json:"dataRoot"`
+	BackupRoot   string `json:"backupRoot"`
+	StacksRoot   string `json:"stacksRoot"`
+	MediaRoot    string `json:"mediaRoot,omitempty"`
+	VolumeDriver string `json:"volumeDriver"`
+}
+
+type coreHostBootstrapValues struct {
+	Runtime coreHostBootstrapRuntimeInput `json:"host-runtime"`
+	Storage coreHostStorageRootsInput     `json:"storage-roots"`
 }
 
 type coreHostBootstrapPolicy struct {
@@ -131,11 +152,14 @@ func validateCoreHostBootstrapUnit(unit RenderUnit, contract RendererContract) (
 	if _, present := unit.DaemonRef(); present {
 		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".instances", "Core host bootstrap must not receive daemon authority")
 	}
-	if len(unit.PublicInputRefs()) != 0 || len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.ValuesJSON()) || !emptyJSONObject(unit.SecretRefsJSON()) {
-		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".inputs", "Core host bootstrap accepts only its closed compiler-owned projection")
+	if !exactStringList(unit.PublicInputRefs(), coreHostBootstrapPublicInputRefs) || len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.SecretRefsJSON()) {
+		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".inputs", "Core host bootstrap accepts only its exact typed compiler-owned inputs")
 	}
 	if !exactStringList(unit.PlanInputRefs(), coreHostBootstrapPlanInputRefs) {
 		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputRefs", "must exactly match the registered Core host-bootstrap projection")
+	}
+	if err := validateCoreHostBootstrapBindings(unit.InputBindingsJSON(), path+".inputBindings"); err != nil {
+		return coreHostBootstrapPolicy{}, err
 	}
 	if !emptyJSONArray(unit.ServiceEndpointsJSON()) || !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) || !emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) || !emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) {
 		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".interfaces", "Core host bootstrap has no service, network, socket, or privileged-interface authority")
@@ -167,30 +191,87 @@ func validateCoreHostBootstrapUnit(unit RenderUnit, contract RendererContract) (
 	if len(inputs.ModuleCapabilities) != 1 || inputs.ModuleCapabilities[0].ID != "host-bootstrap" || !validSHA256(inputs.ModuleCapabilities[0].ContractHash) {
 		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputs.moduleCapabilities", "module must own only the exact host-bootstrap capability")
 	}
-	if err := validateHostRuntimePolicy(inputs.HostRuntimePolicy, path+".planInputs.hostRuntimePolicy"); err != nil {
+	var values coreHostBootstrapValues
+	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
+		return coreHostBootstrapPolicy{}, wrap(ErrInvalidPlan, path+".values", "decode exact Core host-bootstrap bound inputs", err)
+	}
+	runtime, err := decodeCoreHostBootstrapRuntimeJSON(values.Runtime, path+".values.host-runtime")
+	if err != nil {
 		return coreHostBootstrapPolicy{}, err
 	}
-	if inputs.HostRuntimePolicy.Install.Mode != "bootstrapped" || inputs.HostRuntimePolicy.Install.Runtime != "docker" || inputs.HostRuntimePolicy.Container == nil || inputs.HostRuntimePolicy.Container.Engine != "docker" {
-		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputs.hostRuntimePolicy", "v1 applies only to an already bootstrapped Docker host")
-	}
-	if err := validateStoragePolicy(inputs.StoragePolicy, path+".planInputs.storagePolicy"); err != nil {
+	storage, err := decodeCoreHostStorageRootsJSON(values.Storage, path+".values.storage-roots")
+	if err != nil {
 		return coreHostBootstrapPolicy{}, err
-	}
-	if inputs.StoragePolicy.VolumeDriver != "local" || inputs.StoragePolicy.External != nil || inputs.StoragePolicy.NFS != nil {
-		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputs.storagePolicy", "v1 prepares only host-local StackKit storage roots")
 	}
 	for field, storagePath := range map[string]string{
-		"dataRoot": inputs.StoragePolicy.DataRoot, "backupRoot": inputs.StoragePolicy.BackupRoot,
-		"stacksRoot": inputs.StoragePolicy.StacksRoot, "mediaRoot": inputs.StoragePolicy.MediaRoot,
+		"dataRoot": storage.DataRoot, "backupRoot": storage.BackupRoot,
+		"stacksRoot": storage.StacksRoot, "mediaRoot": storage.MediaRoot,
 	} {
 		if storagePath != "" && !safeCoreHostBootstrapStoragePath(storagePath) {
-			return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputs.storagePolicy."+field, "v1 permits only a child path beneath /opt, /srv, /mnt, /media, or /var/lib/stackkits")
+			return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".values.storage-roots."+field, "v1 permits only a child path beneath /opt, /srv, /mnt, /media, or /var/lib/stackkits")
 		}
 	}
 	if err := validateCoreHostBootstrapTarget(inputs.Sites, inputs.ModuleTargets, siteRef, nodeRef, path+".planInputs"); err != nil {
 		return coreHostBootstrapPolicy{}, err
 	}
-	return newCoreHostBootstrapPolicy(inputs, siteRef, nodeRef), nil
+	return newCoreHostBootstrapPolicy(inputs, runtime, storage, siteRef, nodeRef), nil
+}
+
+func validateCoreHostBootstrapBindings(raw []byte, path string) error {
+	var bindings []rawModuleRenderInputBinding
+	if err := decodeStrict(raw, &bindings); err != nil {
+		return wrap(ErrInvalidPlan, path, "decode Core host-bootstrap input bindings", err)
+	}
+	expected := []rawModuleRenderInputBinding{
+		{TargetRef: "host-runtime", SourceRef: "host.bootstrapRuntime", ValueType: "host-bootstrap-runtime-v1", Cardinality: "single", Required: true},
+		{TargetRef: "storage-roots", SourceRef: "storage.hostRoots", ValueType: "host-storage-roots-v1", Cardinality: "single", Required: true},
+	}
+	if !reflect.DeepEqual(bindings, expected) {
+		return fail(ErrInvalidPlan, path, "must exactly match the two governed Core host-bootstrap bindings")
+	}
+	return nil
+}
+
+func decodeCoreHostBootstrapRuntime(raw json.RawMessage, path string) (coreHostBootstrapRuntimeInput, error) {
+	var value coreHostBootstrapRuntimeInput
+	if err := decodeStrict(raw, &value); err != nil {
+		return value, wrap(ErrInvalidPlan, path, "decode host bootstrap runtime", err)
+	}
+	return decodeCoreHostBootstrapRuntimeJSON(value, path)
+}
+
+func decodeCoreHostBootstrapRuntimeJSON(value coreHostBootstrapRuntimeInput, path string) (coreHostBootstrapRuntimeInput, error) {
+	if value.InstallMode != "bootstrapped" || value.Runtime != "docker" || value.Engine != "docker" || !cleanAbsolutePath(value.DataRoot) {
+		return value, fail(ErrInvalidPlan, path, "requires exact bootstrapped Docker runtime and an absolute data root")
+	}
+	return value, nil
+}
+
+func decodeCoreHostStorageRoots(raw json.RawMessage, path string) (coreHostStorageRootsInput, error) {
+	var value coreHostStorageRootsInput
+	if err := decodeStrict(raw, &value); err != nil {
+		return value, wrap(ErrInvalidPlan, path, "decode host storage roots", err)
+	}
+	return decodeCoreHostStorageRootsJSON(value, path)
+}
+
+func decodeCoreHostStorageRootsJSON(value coreHostStorageRootsInput, path string) (coreHostStorageRootsInput, error) {
+	if value.VolumeDriver != "local" || value.DataRoot == "" || value.BackupRoot == "" || value.StacksRoot == "" {
+		return value, fail(ErrInvalidPlan, path, "requires local storage and all mandatory host roots")
+	}
+	for field, storagePath := range map[string]string{
+		"dataRoot": value.DataRoot, "backupRoot": value.BackupRoot,
+		"stacksRoot": value.StacksRoot, "mediaRoot": value.MediaRoot,
+	} {
+		if storagePath != "" && !safeCoreHostBootstrapStoragePath(storagePath) {
+			return value, fail(ErrInvalidPlan, path+"."+field, "requires a clean child path beneath a governed StackKit storage root")
+		}
+	}
+	return value, nil
+}
+
+func cleanAbsolutePath(value string) bool {
+	return path.IsAbs(value) && path.Clean(value) == value
 }
 
 func safeCoreHostBootstrapStoragePath(value string) bool {
@@ -224,24 +305,24 @@ func validateCoreHostBootstrapTarget(sites []executorBundleSite, targets []execu
 	return nil
 }
 
-func newCoreHostBootstrapPolicy(inputs coreHostBootstrapPlanInputs, siteRef, nodeRef string) coreHostBootstrapPolicy {
+func newCoreHostBootstrapPolicy(inputs coreHostBootstrapPlanInputs, runtime coreHostBootstrapRuntimeInput, storage coreHostStorageRootsInput, siteRef, nodeRef string) coreHostBootstrapPolicy {
 	policy := coreHostBootstrapPolicy{StackID: inputs.StackID}
 	policy.Kit.Slug = inputs.Kit.Slug
 	policy.Kit.Version = inputs.Kit.Version
 	policy.Kit.DefinitionHash = inputs.Kit.DefinitionHash
 	policy.Target.SiteRef = siteRef
 	policy.Target.NodeRef = nodeRef
-	policy.Runtime.InstallMode = inputs.HostRuntimePolicy.Install.Mode
-	policy.Runtime.Runtime = inputs.HostRuntimePolicy.Install.Runtime
-	policy.Runtime.Engine = inputs.HostRuntimePolicy.Container.Engine
-	policy.Runtime.DataRoot = inputs.HostRuntimePolicy.Container.DataRoot
+	policy.Runtime.InstallMode = runtime.InstallMode
+	policy.Runtime.Runtime = runtime.Runtime
+	policy.Runtime.Engine = runtime.Engine
+	policy.Runtime.DataRoot = runtime.DataRoot
 	paths := map[string]string{
-		inputs.StoragePolicy.DataRoot:   "data",
-		inputs.StoragePolicy.BackupRoot: "backup",
-		inputs.StoragePolicy.StacksRoot: "stacks",
+		storage.DataRoot:   "data",
+		storage.BackupRoot: "backup",
+		storage.StacksRoot: "stacks",
 	}
-	if inputs.StoragePolicy.MediaRoot != "" {
-		paths[inputs.StoragePolicy.MediaRoot] = "media"
+	if storage.MediaRoot != "" {
+		paths[storage.MediaRoot] = "media"
 	}
 	ordered := make([]string, 0, len(paths))
 	for path := range paths {

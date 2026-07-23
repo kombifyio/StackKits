@@ -41,7 +41,6 @@ ContractFixtureDefinition: base.#KitDefinition & {
 	accessDefaults:   basement.Definition.accessDefaults
 	reachability:     basement.Definition.reachability
 	dataDefaults:     basement.Definition.dataDefaults
-	failureDefaults:  basement.Definition.failureDefaults
 	deviceEnrollment: basement.Definition.deviceEnrollment
 	identityTrust: {
 		authorities: [for authority in basement.Definition.identityTrust.authorities {
@@ -303,10 +302,6 @@ ArchitectureV2ContractFixtureCatalog: base.#ArchitectureV2CatalogContract & {
 			evidence: ["resolved-plan-contract"]
 			if contract.requires != _|_ {requires: contract.requires}
 			if contract.conflicts != _|_ {conflicts: contract.conflicts}
-			if contract.privileges != _|_ {privileges: contract.privileges}
-			if contract.networkFlows != _|_ {networkFlows: contract.networkFlows}
-			if contract.secretInputs != _|_ {secretInputs: contract.secretInputs}
-			if contract.dataClasses != _|_ {dataClasses: contract.dataClasses}
 			if contract.health != _|_ {health: contract.health}
 			if contract.tlsProfile != _|_ {tlsProfile: contract.tlsProfile}
 		}},

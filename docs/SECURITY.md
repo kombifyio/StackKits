@@ -12,11 +12,13 @@ StackKits is designed around safe defaults and release evidence:
 
 ## Supported Security Scope
 
-The public OSS scope is the Basement Kit (`basement-kit`, local, stable) and the
-Cloud Kit (`cloud-kit`, cloud, shipped as scaffolding and graduating in v0.5.1),
-both built on the shared `base/` foundation. Unreleased kit definitions, optional
-extension catalogs, internal runbooks, and operator-only controller paths are
-intentionally excluded from the public repository and release archives.
+The public OSS scope contains Basement Kit (`basement-kit`, local, stable),
+Cloud Kit (`cloud-kit`, cloud), and Modern Homelab (`modern-homelab`, Home plus
+Cloud, Preview), all built on the shared `base/` foundation. Modern archive
+availability does not graduate incomplete federation runtime owners.
+Unreleased extensions, internal runbooks, provider credentials, and
+operator-only controller paths remain excluded from the public repository and
+release archives.
 
 ## Release Evidence
 

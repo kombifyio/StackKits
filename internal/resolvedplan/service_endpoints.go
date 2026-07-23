@@ -3,6 +3,8 @@ package resolvedplan
 import (
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
 )
 
 // resolvedServiceEndpoint is catalog-owned service identity plus the exact
@@ -19,6 +21,8 @@ type resolvedServiceEndpoint struct {
 	allowedIngressProtocols []string
 	allowedExposures        []string
 	originSelector          string
+	originSelection         map[string]any
+	resolvedOriginSelection map[string]any
 	healthRef               string
 	healthContract          map[string]any
 	data                    *serviceEndpointDataRequirement
@@ -146,6 +150,16 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 				if err != nil {
 					return nil, err
 				}
+				originSelection, hasOriginSelection, err := optionalObjectField(endpoint, endpointPath, "originSelection")
+				if err != nil {
+					return nil, err
+				}
+				if hasOriginSelection {
+					originSelection, err = cloneObject(originSelection, true)
+					if err != nil {
+						return nil, err
+					}
+				}
 				healthRef, err := stringField(endpoint, endpointPath, "healthRef")
 				if err != nil {
 					return nil, err
@@ -158,7 +172,7 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 					moduleRef: moduleID, unitRef: unitID, serviceRef: serviceRef,
 					upstreamProtocol: upstreamProtocol, targetPort: targetPort, requiredPrivilege: requiredPrivilege,
 					allowedIngressProtocols: sortStringsUnique(allowedIngressProtocols), allowedExposures: sortStringsUnique(allowedExposures),
-					originSelector: originSelector, healthRef: healthRef, data: dataRequirement,
+					originSelector: originSelector, originSelection: originSelection, healthRef: healthRef, data: dataRequirement,
 					siteRefs: sortStringsUnique(siteRefs), nodeRefs: sortStringsUnique(nodeRefs), instanceRefs: sortStringsUnique(instanceRefs), instanceSites: instanceSites, instanceNodes: instanceNodes,
 				}
 			}
@@ -227,7 +241,7 @@ func buildRouteHealthGate(routeID string, backendPool map[string]any, endpoint r
 		"scope": "each-backend-member", "required": true,
 	}
 	switch endpoint.upstreamProtocol {
-	case "http", "https":
+	case "http":
 		if kind == "http" {
 			contractPort, err := intField(endpoint.healthContract, healthPath, "port")
 			if err != nil {
@@ -247,6 +261,20 @@ func buildRouteHealthGate(routeID string, backendPool map[string]any, endpoint r
 			gate["kind"], gate["execution"] = "http", "probe"
 			gate["method"], gate["followRedirects"] = "GET", false
 			gate["path"], gate["expectedStatuses"] = path, expectedStatuses
+		}
+	case "https":
+		// HTTPS is not executable from the public route descriptor alone. A
+		// future executor-private target binding must first bind SNI, peer
+		// identity, and trust roots. Keep the source contract's port exact, but
+		// do not claim a probe until that TLS authority exists.
+		if kind == "http" {
+			contractPort, err := intField(endpoint.healthContract, healthPath, "port")
+			if err != nil {
+				return nil, err
+			}
+			if contractPort != endpoint.targetPort {
+				return nil, fail(ErrContractConflict, healthPath+".port", "health port %d does not match service target port %d", contractPort, endpoint.targetPort)
+			}
 		}
 	case "tcp":
 		if kind == "tcp" {
@@ -284,6 +312,13 @@ func buildRouteBackendPool(routeID string, endpoint resolvedServiceEndpoint) (ma
 		"originSelector": endpoint.originSelector, "upstreamProtocol": endpoint.upstreamProtocol, "targetPort": endpoint.targetPort,
 		"members": members,
 	}
+	if endpoint.resolvedOriginSelection != nil {
+		selection, err := cloneObject(endpoint.resolvedOriginSelection, true)
+		if err != nil {
+			return nil, err
+		}
+		pool["originSelection"] = selection
+	}
 	hash, err := canonicalHash(pool, false)
 	if err != nil {
 		return nil, fmt.Errorf("hash route backend pool %s: %w", routeID, err)
@@ -315,7 +350,14 @@ func parseServiceEndpointDataRequirement(endpoint map[string]any, endpointPath s
 	return &serviceEndpointDataRequirement{bindingRef: bindingRef, requiredClasses: sortStringsUnique(requiredClasses), locality: locality}, nil
 }
 
-func resolveRouteServiceEndpoint(index resolvedServiceEndpointIndex, moduleRef, serviceRef, authoritySiteRef string, nodeSites map[string]string, routePath string) (resolvedServiceEndpoint, error) {
+type routeBackendCandidate struct {
+	siteRef, nodeRef, instanceRef string
+	siteKind, siteFailureDomain   string
+	nodeFailureDomain             string
+	roles                         []string
+}
+
+func resolveRouteServiceEndpoint(index resolvedServiceEndpointIndex, moduleRef, serviceRef, authoritySiteRef string, nodeSites map[string]string, routePath string, topology ...*specView) (resolvedServiceEndpoint, error) {
 	moduleEndpoints, exists := index[moduleRef]
 	if !exists {
 		return resolvedServiceEndpoint{}, fail(ErrUnrealizedModule, routePath+".moduleRef", "module %q is not resolved", moduleRef)
@@ -324,40 +366,166 @@ func resolveRouteServiceEndpoint(index resolvedServiceEndpointIndex, moduleRef, 
 	if !exists {
 		return resolvedServiceEndpoint{}, fail(ErrUnrealizedModule, routePath+".serviceRef", "service %q is not exported by resolved module %q", serviceRef, moduleRef)
 	}
-	selectedSiteRef := ""
+	candidates := make([]routeBackendCandidate, 0, len(endpoint.instanceRefs))
+	for _, instanceRef := range endpoint.instanceRefs {
+		siteRef := endpoint.instanceSites[instanceRef]
+		nodeRef := endpoint.instanceNodes[instanceRef]
+		if nodeSites[nodeRef] != siteRef || !contains(endpoint.siteRefs, siteRef) || !contains(endpoint.nodeRefs, nodeRef) {
+			return resolvedServiceEndpoint{}, fail(ErrUnresolvedPlacement, routePath, "service %q instance %q is not bound to an enabled resolved Site and node", serviceRef, instanceRef)
+		}
+		candidate := routeBackendCandidate{siteRef: siteRef, nodeRef: nodeRef, instanceRef: instanceRef}
+		if endpoint.originSelector == "multi-zone" || endpoint.originSelector == "edge-pool" {
+			if len(topology) != 1 || topology[0] == nil {
+				return resolvedServiceEndpoint{}, fail(ErrContractConflict, routePath+".serviceRef", "selector %q requires the exact resolved topology", endpoint.originSelector)
+			}
+			spec := topology[0]
+			site, siteExists := spec.siteByID[siteRef]
+			node, nodeExists := spec.nodeByID[nodeRef]
+			if !siteExists || !nodeExists || !node.enabled || node.siteRef != siteRef {
+				return resolvedServiceEndpoint{}, fail(ErrUnresolvedPlacement, routePath, "service %q instance %q is not bound to an enabled resolved Site and node", serviceRef, instanceRef)
+			}
+			candidate.siteKind = site.kind
+			candidate.roles = node.roles
+			var err error
+			candidate.siteFailureDomain, err = stringField(site.object, "spec.sites."+siteRef, "failureDomain")
+			if err != nil {
+				return resolvedServiceEndpoint{}, err
+			}
+			candidate.nodeFailureDomain, err = stringField(node.object, "spec.nodes."+nodeRef, "failureDomain")
+			if err != nil {
+				return resolvedServiceEndpoint{}, err
+			}
+		}
+		candidates = append(candidates, candidate)
+	}
+	selected := make([]routeBackendCandidate, 0, len(candidates))
 	switch endpoint.originSelector {
 	case "single-site":
 		if len(endpoint.siteRefs) != 1 {
 			return resolvedServiceEndpoint{}, fail(ErrUnresolvedPlacement, routePath, "single-site service %q is ambiguous across endpoint sites %v", serviceRef, endpoint.siteRefs)
 		}
-		selectedSiteRef = endpoint.siteRefs[0]
+		for _, candidate := range candidates {
+			if candidate.siteRef == endpoint.siteRefs[0] {
+				selected = append(selected, candidate)
+			}
+		}
 	case "control-authority-site":
 		if !contains(endpoint.siteRefs, authoritySiteRef) {
 			return resolvedServiceEndpoint{}, fail(ErrUnresolvedPlacement, routePath, "service %q is not placed on control authority site %q", serviceRef, authoritySiteRef)
 		}
-		selectedSiteRef = authoritySiteRef
+		for _, candidate := range candidates {
+			if candidate.siteRef == authoritySiteRef {
+				selected = append(selected, candidate)
+			}
+		}
+	case "multi-zone", "edge-pool":
+		if endpoint.originSelection == nil {
+			return resolvedServiceEndpoint{}, fail(ErrContractConflict, routePath+".serviceRef", "service %q selector %q has no explicit origin selection policy", serviceRef, endpoint.originSelector)
+		}
+		siteKinds, err := stringListField(endpoint.originSelection, routePath+".originSelection", "siteKinds", true)
+		if err != nil {
+			return resolvedServiceEndpoint{}, err
+		}
+		requiredRoles, err := stringListField(endpoint.originSelection, routePath+".originSelection", "requiredRoles", false)
+		if err != nil {
+			return resolvedServiceEndpoint{}, err
+		}
+		for _, candidate := range candidates {
+			if !contains(siteKinds, candidate.siteKind) || !containsAllStrings(candidate.roles, requiredRoles) {
+				continue
+			}
+			selected = append(selected, candidate)
+		}
+		resolvedSelection, err := resolveRouteOriginSelection(endpoint, selected, routePath)
+		if err != nil {
+			return resolvedServiceEndpoint{}, err
+		}
+		endpoint.resolvedOriginSelection = resolvedSelection
 	default:
 		return resolvedServiceEndpoint{}, fail(ErrContractConflict, routePath+".serviceRef", "service %q uses unsupported origin selector %q", serviceRef, endpoint.originSelector)
 	}
-	selectedNodes := make([]string, 0, len(endpoint.nodeRefs))
-	for _, nodeRef := range endpoint.nodeRefs {
-		if nodeSites[nodeRef] == selectedSiteRef {
-			selectedNodes = append(selectedNodes, nodeRef)
-		}
-	}
-	selectedInstances := make([]string, 0, len(endpoint.instanceRefs))
-	for _, instanceRef := range endpoint.instanceRefs {
-		if endpoint.instanceSites[instanceRef] == selectedSiteRef {
-			selectedInstances = append(selectedInstances, instanceRef)
-		}
-	}
-	if len(selectedNodes) == 0 || len(selectedInstances) == 0 {
+	if len(selected) == 0 {
 		return resolvedServiceEndpoint{}, fail(ErrUnresolvedPlacement, routePath, "service %q has no exact resolved endpoint instances", serviceRef)
 	}
-	endpoint.siteRefs = []string{selectedSiteRef}
-	endpoint.nodeRefs = sortStringsUnique(selectedNodes)
-	endpoint.instanceRefs = sortStringsUnique(selectedInstances)
+	sort.Slice(selected, func(i, j int) bool {
+		left, right := selected[i], selected[j]
+		if left.siteRef != right.siteRef {
+			return left.siteRef < right.siteRef
+		}
+		if left.nodeFailureDomain != right.nodeFailureDomain {
+			return left.nodeFailureDomain < right.nodeFailureDomain
+		}
+		if left.nodeRef != right.nodeRef {
+			return left.nodeRef < right.nodeRef
+		}
+		return left.instanceRef < right.instanceRef
+	})
+	endpoint.siteRefs, endpoint.nodeRefs, endpoint.instanceRefs = nil, nil, nil
+	for _, candidate := range selected {
+		if !contains(endpoint.siteRefs, candidate.siteRef) {
+			endpoint.siteRefs = append(endpoint.siteRefs, candidate.siteRef)
+		}
+		if !contains(endpoint.nodeRefs, candidate.nodeRef) {
+			endpoint.nodeRefs = append(endpoint.nodeRefs, candidate.nodeRef)
+		}
+		endpoint.instanceRefs = append(endpoint.instanceRefs, candidate.instanceRef)
+	}
 	return endpoint, nil
+}
+
+func containsAllStrings(have, required []string) bool {
+	for _, value := range required {
+		if !contains(have, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func resolveRouteOriginSelection(endpoint resolvedServiceEndpoint, selected []routeBackendCandidate, routePath string) (map[string]any, error) {
+	policyPath := routePath + ".originSelection"
+	minSites, err := intField(endpoint.originSelection, policyPath, "minSites")
+	if err != nil {
+		return nil, err
+	}
+	siteSpread, err := intField(endpoint.originSelection, policyPath, "siteFailureDomainSpread")
+	if err != nil {
+		return nil, err
+	}
+	nodeSpread, err := intField(endpoint.originSelection, policyPath, "nodeFailureDomainSpread")
+	if err != nil {
+		return nil, err
+	}
+	sites, siteFailureDomains, nodeFailureDomains := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
+	for _, candidate := range selected {
+		sites[candidate.siteRef] = struct{}{}
+		siteFailureDomains[candidate.siteFailureDomain] = struct{}{}
+		nodeFailureDomains[candidate.siteRef+"\x00"+candidate.nodeFailureDomain] = struct{}{}
+	}
+	if len(sites) < minSites || len(siteFailureDomains) < siteSpread || len(nodeFailureDomains) < nodeSpread {
+		return nil, fail(ErrUnresolvedPlacement, policyPath, "selector %q resolved %d Sites, %d Site failure domains, and %d site-scoped node failure domains; requires at least %d/%d/%d", endpoint.originSelector, len(sites), len(siteFailureDomains), len(nodeFailureDomains), minSites, siteSpread, nodeSpread)
+	}
+	resolved, err := cloneObject(endpoint.originSelection, true)
+	if err != nil {
+		return nil, err
+	}
+	resolved["siteFailureDomains"] = stringSliceAny(sortedStringSetKeys(siteFailureDomains))
+	nodeDomains := make([]any, 0, len(nodeFailureDomains))
+	for _, scoped := range sortedStringSetKeys(nodeFailureDomains) {
+		parts := strings.SplitN(scoped, "\x00", 2)
+		nodeDomains = append(nodeDomains, map[string]any{"siteRef": parts[0], "failureDomain": parts[1]})
+	}
+	resolved["nodeFailureDomains"] = nodeDomains
+	return resolved, nil
+}
+
+func sortedStringSetKeys(values map[string]struct{}) []string {
+	result := make([]string, 0, len(values))
+	for value := range values {
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func validateRouteEndpointContract(endpoint resolvedServiceEndpoint, spec *specView, routePath, exposure, protocol string, targetPort int) error {
@@ -421,12 +589,43 @@ func validateResolvedRouteEndpoint(route map[string]any, routePath string, endpo
 	if err != nil {
 		return err
 	}
-	originSiteRef, err := stringField(route, routePath, "originSiteRef")
+	originSelector, err := stringField(route, routePath, "originSelector")
 	if err != nil {
 		return err
 	}
-	if len(endpoint.siteRefs) != 1 || originSiteRef != endpoint.siteRefs[0] {
-		return fmt.Errorf("%s.originSiteRef is not the exact service endpoint origin", routePath)
+	if originSelector != endpoint.originSelector {
+		return fmt.Errorf("%s.originSelector is not the catalog-owned service endpoint selector", routePath)
+	}
+	originSiteRefs, err := stringListField(route, routePath, "originSiteRefs", true)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(originSiteRefs, endpoint.siteRefs) {
+		return fmt.Errorf("%s.originSiteRefs is not the exact service endpoint origin set", routePath)
+	}
+	originSiteRef, hasOriginSiteRef, err := optionalStringField(route, routePath, "originSiteRef")
+	if err != nil {
+		return err
+	}
+	if endpoint.originSelector == "single-site" || endpoint.originSelector == "control-authority-site" {
+		if !hasOriginSiteRef || len(endpoint.siteRefs) != 1 || originSiteRef != endpoint.siteRefs[0] {
+			return fmt.Errorf("%s.originSiteRef is not the exact single-Site service endpoint origin", routePath)
+		}
+	} else {
+		if hasOriginSiteRef {
+			return fmt.Errorf("%s.originSiteRef invents a primary Site for selector %q", routePath, endpoint.originSelector)
+		}
+		selection, exists, err := optionalObjectField(route, routePath, "originSelection")
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("%s.originSelection is missing", routePath)
+		}
+		equal, err := canonicalEqual(selection, endpoint.resolvedOriginSelection)
+		if err != nil || !equal {
+			return fmt.Errorf("%s.originSelection is not the exact catalog-owned selection policy", routePath)
+		}
 	}
 	originNodeRefs, err := stringListField(route, routePath, "originNodeRefs", true)
 	if err != nil {
@@ -494,10 +693,9 @@ func validateServiceEndpointData(endpoint resolvedServiceEndpoint, data map[stri
 	if err != nil {
 		return err
 	}
-	originSiteRef := endpoint.siteRefs[0]
 	switch endpoint.data.locality {
 	case "primary-site":
-		if originSiteRef != primarySiteRef {
+		if len(endpoint.siteRefs) != 1 || endpoint.siteRefs[0] != primarySiteRef {
 			return fail(ErrContractConflict, routePath+".serviceRef", "service endpoint %q must be co-located with data primary site %q", endpoint.serviceRef, primarySiteRef)
 		}
 	case "primary-or-replica":
@@ -505,8 +703,10 @@ func validateServiceEndpointData(endpoint resolvedServiceEndpoint, data map[stri
 		if err != nil {
 			return err
 		}
-		if originSiteRef != primarySiteRef && !contains(replicaSiteRefs, originSiteRef) {
-			return fail(ErrContractConflict, routePath+".serviceRef", "service endpoint %q must be co-located with a data primary or replica site", endpoint.serviceRef)
+		for _, originSiteRef := range endpoint.siteRefs {
+			if originSiteRef != primarySiteRef && !contains(replicaSiteRefs, originSiteRef) {
+				return fail(ErrContractConflict, routePath+".serviceRef", "service endpoint %q origin Site %q is not a governed data primary or replica", endpoint.serviceRef, originSiteRef)
+			}
 		}
 	default:
 		return fail(ErrContractConflict, routePath+".serviceRef", "service endpoint %q uses unsupported data locality %q", endpoint.serviceRef, endpoint.data.locality)

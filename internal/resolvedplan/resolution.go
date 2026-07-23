@@ -27,10 +27,13 @@ func resolveContracts(profile *profileView, spec *specView, catalog *indexedCata
 	if err != nil {
 		return nil, err
 	}
-	workloadProviderSet := make(map[string]struct{}, len(workloads))
+	workloadProviderSet := make(map[string]struct{}, len(workloads)*2)
 	workloadByModule := make(map[string]string, len(workloads))
 	for id, workload := range workloads {
 		workloadProviderSet[workload.providerID] = struct{}{}
+		if workload.runtimeAdapterProviderID != "" {
+			workloadProviderSet[workload.runtimeAdapterProviderID] = struct{}{}
+		}
 		workloadByModule[workload.moduleID] = id
 	}
 	if _, err := closeRequirements("providers", sortedSet(workloadProviderSet), catalog.providers, enabled, allowed, forbidden, catalog); err != nil {

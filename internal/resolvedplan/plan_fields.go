@@ -184,7 +184,7 @@ func buildRoute(profile *profileView, spec *specView, resolved *resolution, modu
 	for nodeID, node := range spec.nodeByID {
 		nodeSites[nodeID] = node.siteRef
 	}
-	endpoint, err := resolveRouteServiceEndpoint(serviceEndpoints, moduleRef, serviceRef, spec.authoritySiteRef, nodeSites, routePath)
+	endpoint, err := resolveRouteServiceEndpoint(serviceEndpoints, moduleRef, serviceRef, spec.authoritySiteRef, nodeSites, routePath, spec)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -192,8 +192,10 @@ func buildRoute(profile *profileView, spec *specView, resolved *resolution, modu
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if err := validateRouteReachability(profile, spec, resolved, routeID, exposure, endpoint.siteRefs[0]); err != nil {
-		return nil, nil, nil, err
+	for _, originSiteRef := range endpoint.siteRefs {
+		if err := validateRouteReachability(profile, spec, resolved, routeID, exposure, originSiteRef); err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	realizations, err := buildRouteCapabilityRealizations(profile.reachability.routes[exposure].requiredRealizations, resolved, modules, providerSites, nodeSites, catalog, routePath+".capabilityRealizations")
 	if err != nil {
@@ -255,12 +257,22 @@ func buildRoute(profile *profileView, spec *specView, resolved *resolution, modu
 	}
 	route := map[string]any{
 		"id": routeID, "serviceRef": serviceRef, "moduleRef": moduleRef,
-		"originSiteRef": endpoint.siteRefs[0], "originNodeRefs": stringSliceAny(endpoint.nodeRefs),
-		"exposure": exposure, "protocol": protocol, "upstreamProtocol": endpoint.upstreamProtocol, "port": port, "targetPort": targetPort,
+		"originSiteRefs": stringSliceAny(endpoint.siteRefs), "originNodeRefs": stringSliceAny(endpoint.nodeRefs),
+		"originSelector": endpoint.originSelector,
+		"exposure":       exposure, "protocol": protocol, "upstreamProtocol": endpoint.upstreamProtocol, "port": port, "targetPort": targetPort,
 		"access": resolvedAccess, "tls": resolvedTLS,
 		"capabilityRealizations": realizations,
 		"healthGateRef":          healthGate["id"],
 		"backendPoolRef":         backendPool["id"],
+	}
+	if endpoint.originSelector == "single-site" || endpoint.originSelector == "control-authority-site" {
+		route["originSiteRef"] = endpoint.siteRefs[0]
+	} else {
+		selection, err := cloneObject(endpoint.resolvedOriginSelection, true)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		route["originSelection"] = selection
 	}
 	for _, optional := range []string{"host", "path"} {
 		if value, present := intent[optional]; present {
