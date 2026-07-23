@@ -5493,13 +5493,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability",
-            "homeBackupTargetRequirements",
-            "externalHomeBackupTargetBindings"
+            "homeOffsiteBackup"
           ]
         },
         "scope": "concrete"
@@ -5528,13 +5522,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "localNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "localReachability",
-            "homeBackupTargetRequirements",
-            "externalHomeBackupTargetBindings"
+            "homeOffsiteBackup"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -6630,11 +6618,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "publicEdge",
-            "data",
-            "failurePolicy"
+            "publicEdge"
           ]
         },
         "scope": "concrete"
@@ -6663,11 +6647,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "publicEdge",
-            "data",
-            "failurePolicy"
+            "publicEdge"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -6780,12 +6760,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "backupTargetRequirements",
-            "externalBackupTargetBindings"
+            "cloudOffsiteBackup"
           ]
         },
         "scope": "concrete"
@@ -6814,12 +6789,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy",
-            "backupTargetRequirements",
-            "externalBackupTargetBindings"
+            "cloudOffsiteBackup"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -6929,10 +6899,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy"
+            "cloudAdminMesh"
           ]
         },
         "scope": "concrete"
@@ -6961,10 +6928,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "storagePolicy",
-            "cloudNetworkPolicy",
-            "data",
-            "failurePolicy"
+            "cloudAdminMesh"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],

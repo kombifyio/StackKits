@@ -121,7 +121,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: cloudPrivateAdminMeshModuleID, moduleVersion: cloudPrivateAdminMeshModuleVersion,
 		templateRef: cloudPrivateAdminMeshTemplateRef, outputRef: cloudPrivateAdminMeshOutputRef,
-		planInputRefs: []string{"backupTargetRequirements", "cloudNetworkPolicy", "controlPlane", "data", "externalBackupTargetBindings", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"cloudAdminMesh", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities:  []string{"private-admin-mesh"},
 		requiredCapabilities: []string{"private-admin-mesh"},
@@ -158,7 +158,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: cloudPublicEdgeModuleID, moduleVersion: cloudPublicEdgeModuleVersion,
 		templateRef: cloudPublicEdgeTemplateRef, outputRef: cloudPublicEdgeOutputRef,
 		contractJSON:  cloudPublicEdgeExecutorContract,
-		planInputRefs: []string{"cloudNetworkPolicy", "controlPlane", "data", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "publicEdge", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"controlPlane", "kit", "moduleCapabilities", "moduleTargets", "publicEdge", "sites", "stackId"},
 		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities:  []string{"public-edge"},
 		requiredCapabilities: []string{"public-edge"},
@@ -167,7 +167,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: cloudOffsiteBackupModuleID, moduleVersion: cloudOffsiteBackupModuleVersion,
 		templateRef: cloudOffsiteBackupTemplateRef, outputRef: cloudOffsiteBackupOutputRef,
-		planInputRefs: []string{"cloudNetworkPolicy", "controlPlane", "data", "failurePolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"cloudOffsiteBackup", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities:  []string{"offsite-object-backup"},
 		requiredCapabilities: []string{"offsite-object-backup"},
@@ -224,7 +224,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: homeEncryptedOffsiteBackupModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
 		templateRef: homeEncryptedOffsiteBackupTemplateRef, outputRef: homeEncryptedOffsiteBackupOutputRef,
-		planInputRefs: []string{"controlPlane", "data", "externalHomeBackupTargetBindings", "failurePolicy", "homeBackupTargetRequirements", "kit", "localNetworkPolicy", "localReachability", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
+		planInputRefs: []string{"controlPlane", "homeOffsiteBackup", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"basement-kit"}, siteKind: "home",
 		allowedCapabilities: []string{"encrypted-offsite-backup"}, requiredCapabilities: []string{"encrypted-offsite-backup"},
 		decodePlan: decodeLocalRuntimeExecutorPlan,
@@ -359,7 +359,7 @@ func ValidateCloudPublicEdgeExecutorArtifact(raw []byte, siteRef, nodeRef string
 	if err != nil {
 		return CloudPublicEdgePolicy{}, err
 	}
-	plan := decoded.(cloudRuntimeExecutorPlan)
+	plan := decoded.(cloudPublicEdgeExecutorPlan)
 	found := 0
 	for _, target := range plan.ModuleTargets {
 		if target.SiteRef == siteRef && target.ID == nodeRef {
@@ -372,8 +372,8 @@ func ValidateCloudPublicEdgeExecutorArtifact(raw []byte, siteRef, nodeRef string
 	routes := append([]CloudPublicEdgeRoute(nil), plan.PublicEdge.Routes...)
 	return CloudPublicEdgePolicy{
 		StackID: plan.StackID, KitSlug: plan.Kit.Slug, SiteRef: siteRef, NodeRef: nodeRef,
-		NetworkMode: plan.CloudNetworkPolicy.Mode, TransportSubnet: plan.CloudNetworkPolicy.Transport.Subnet,
-		IPv6: plan.CloudNetworkPolicy.Transport.IPv6, TLSMinVersion: plan.CloudNetworkPolicy.TLS.MinVersion, Routes: routes,
+		NetworkMode: plan.PublicEdge.Network.Mode, TransportSubnet: plan.PublicEdge.Network.Transport.Subnet,
+		IPv6: plan.PublicEdge.Network.Transport.IPv6, TLSMinVersion: plan.PublicEdge.Network.TLSMinVersion, Routes: routes,
 	}, nil
 }
 
@@ -815,6 +815,23 @@ type localRuntimeExecutorPlan struct {
 
 func (localRuntimeExecutorPlan) executorContractPlanMarker() {}
 
+type homeOffsiteBackupProjection struct {
+	Requirements json.RawMessage `json:"requirements"`
+	Bindings     json.RawMessage `json:"bindings"`
+}
+
+type homeOffsiteBackupExecutorPlan struct {
+	StackID            string                      `json:"stackId"`
+	Kit                executorBundleKit           `json:"kit"`
+	Sites              []executorBundleSite        `json:"sites"`
+	ModuleTargets      []executorBundleTarget      `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability  `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane  `json:"controlPlane"`
+	HomeOffsiteBackup  homeOffsiteBackupProjection `json:"homeOffsiteBackup"`
+}
+
+func (homeOffsiteBackupExecutorPlan) executorContractPlanMarker() {}
+
 type cloudRuntimeExecutorPlan struct {
 	StackID                      string                      `json:"stackId"`
 	Kit                          executorBundleKit           `json:"kit"`
@@ -829,19 +846,65 @@ type cloudRuntimeExecutorPlan struct {
 	ExternalBackupTargetBindings json.RawMessage             `json:"externalBackupTargetBindings,omitempty"`
 	Data                         executorBundleData          `json:"data"`
 	FailurePolicy                executorBundleFailurePolicy `json:"failurePolicy"`
+	CloudAdminMesh               *CloudAdminMeshProjection   `json:"cloudAdminMesh,omitempty"`
 }
+
+type CloudAdminMeshProjection struct {
+	CapabilityRef string                 `json:"capabilityRef"`
+	SiteRefs      []string               `json:"siteRefs"`
+	NodeRefs      []string               `json:"nodeRefs"`
+	Network       CloudNetworkPosture    `json:"network"`
+	Routes        []CloudPublicEdgeRoute `json:"routes"`
+}
+
+type CloudNetworkPosture struct {
+	Mode      string `json:"mode"`
+	Transport struct {
+		Subnet string `json:"subnet"`
+		IPv6   bool   `json:"ipv6"`
+	} `json:"transport"`
+	TLSMinVersion string `json:"tlsMinVersion"`
+}
+
+type cloudAdminMeshExecutorPlan struct {
+	StackID            string                     `json:"stackId"`
+	Kit                executorBundleKit          `json:"kit"`
+	Sites              []executorBundleSite       `json:"sites"`
+	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane `json:"controlPlane"`
+	CloudAdminMesh     CloudAdminMeshProjection   `json:"cloudAdminMesh"`
+}
+
+func (cloudAdminMeshExecutorPlan) executorContractPlanMarker() {}
 
 type CloudPublicEdgeProjection struct {
 	CapabilityRef string                 `json:"capabilityRef"`
+	Network       CloudNetworkPosture    `json:"network"`
 	Routes        []CloudPublicEdgeRoute `json:"routes"`
 }
+
+type cloudPublicEdgeExecutorPlan struct {
+	StackID            string                     `json:"stackId"`
+	Kit                executorBundleKit          `json:"kit"`
+	Sites              []executorBundleSite       `json:"sites"`
+	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane `json:"controlPlane"`
+	PublicEdge         CloudPublicEdgeProjection  `json:"publicEdge"`
+}
+
+func (cloudPublicEdgeExecutorPlan) executorContractPlanMarker() {}
 
 type CloudPublicEdgeRoute struct {
 	ID                    string                               `json:"id"`
 	ServiceRef            string                               `json:"serviceRef"`
 	ModuleRef             string                               `json:"moduleRef"`
 	OriginSiteRef         string                               `json:"originSiteRef"`
+	OriginSiteRefs        []string                             `json:"originSiteRefs"`
 	OriginNodeRefs        []string                             `json:"originNodeRefs"`
+	OriginSelector        string                               `json:"originSelector"`
+	OriginSelection       *rawServiceEndpointOriginSelectionV2 `json:"originSelection,omitempty"`
 	BackendPoolRef        string                               `json:"backendPoolRef"`
 	BackendPool           CloudPublicEdgeBackendPool           `json:"backendPool"`
 	Exposure              string                               `json:"exposure"`
@@ -911,6 +974,23 @@ type CloudPublicEdgeCapabilityAuthority struct {
 
 func (cloudRuntimeExecutorPlan) executorContractPlanMarker() {}
 
+type cloudOffsiteBackupProjection struct {
+	Requirements json.RawMessage `json:"requirements"`
+	Bindings     json.RawMessage `json:"bindings"`
+}
+
+type cloudOffsiteBackupExecutorPlan struct {
+	StackID            string                       `json:"stackId"`
+	Kit                executorBundleKit            `json:"kit"`
+	Sites              []executorBundleSite         `json:"sites"`
+	ModuleTargets      []executorBundleTarget       `json:"moduleTargets"`
+	ModuleCapabilities []executorBundleCapability   `json:"moduleCapabilities"`
+	ControlPlane       executorBundleControlPlane   `json:"controlPlane"`
+	CloudOffsiteBackup cloudOffsiteBackupProjection `json:"cloudOffsiteBackup"`
+}
+
+func (cloudOffsiteBackupExecutorPlan) executorContractPlanMarker() {}
+
 type federationRuntimeExecutorPlan struct {
 	StackID                        string                        `json:"stackId"`
 	Kit                            executorBundleKit             `json:"kit"`
@@ -955,6 +1035,26 @@ func decodeCoreRuntimeExecutorPlan(raw []byte, path string, spec executorContrac
 }
 
 func decodeLocalRuntimeExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
+	if spec.moduleID == homeEncryptedOffsiteBackupModuleID {
+		var exact homeOffsiteBackupExecutorPlan
+		if err := decodeStrict(raw, &exact); err != nil {
+			return nil, wrap(ErrInvalidPlan, path, "decode exact Home offsite-backup executor contract", err)
+		}
+		if err := validateExecutorContractPlanCommon(exact.StackID, exact.Kit, exact.Sites, exact.ModuleTargets, exact.ModuleCapabilities, exact.ControlPlane, spec, path); err != nil {
+			return nil, err
+		}
+		validationPlan := localRuntimeExecutorPlan{
+			StackID: exact.StackID, Kit: exact.Kit, Sites: exact.Sites,
+			ModuleTargets: exact.ModuleTargets, ModuleCapabilities: exact.ModuleCapabilities,
+			ControlPlane:                     exact.ControlPlane,
+			HomeBackupTargetRequirements:     exact.HomeOffsiteBackup.Requirements,
+			ExternalHomeBackupTargetBindings: exact.HomeOffsiteBackup.Bindings,
+		}
+		if err := validateHomeBackupTargetExecutorProjection(validationPlan, spec, path+".homeOffsiteBackup"); err != nil {
+			return nil, err
+		}
+		return exact, nil
+	}
 	var plan localRuntimeExecutorPlan
 	if err := decodeStrict(raw, &plan); err != nil {
 		return nil, wrap(ErrInvalidPlan, path, "decode exact Local executor contract", err)
@@ -1289,6 +1389,62 @@ func validOpaqueSHA256Ref(value, scheme string) bool {
 }
 
 func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
+	if spec.moduleID == cloudPrivateAdminMeshModuleID {
+		var exact cloudAdminMeshExecutorPlan
+		if err := decodeStrict(raw, &exact); err != nil {
+			return nil, wrap(ErrInvalidPlan, path, "decode exact Cloud admin-mesh executor contract", err)
+		}
+		if err := validateExecutorContractPlanCommon(exact.StackID, exact.Kit, exact.Sites, exact.ModuleTargets, exact.ModuleCapabilities, exact.ControlPlane, spec, path); err != nil {
+			return nil, err
+		}
+		validationPlan := cloudRuntimeExecutorPlan{
+			StackID: exact.StackID, Kit: exact.Kit, Sites: exact.Sites,
+			ModuleTargets: exact.ModuleTargets, ModuleCapabilities: exact.ModuleCapabilities,
+			ControlPlane: exact.ControlPlane, CloudAdminMesh: &exact.CloudAdminMesh,
+		}
+		if err := validateCloudAdminMeshProjection(exact.CloudAdminMesh, validationPlan, path+".cloudAdminMesh"); err != nil {
+			return nil, err
+		}
+		return exact, nil
+	}
+	if spec.moduleID == cloudPublicEdgeModuleID {
+		var exact cloudPublicEdgeExecutorPlan
+		if err := decodeStrict(raw, &exact); err != nil {
+			return nil, wrap(ErrInvalidPlan, path, "decode exact Cloud public-edge executor contract", err)
+		}
+		if err := validateExecutorContractPlanCommon(exact.StackID, exact.Kit, exact.Sites, exact.ModuleTargets, exact.ModuleCapabilities, exact.ControlPlane, spec, path); err != nil {
+			return nil, err
+		}
+		validationPlan := cloudRuntimeExecutorPlan{
+			StackID: exact.StackID, Kit: exact.Kit, Sites: exact.Sites,
+			ModuleTargets: exact.ModuleTargets, ModuleCapabilities: exact.ModuleCapabilities,
+			ControlPlane: exact.ControlPlane, PublicEdge: &exact.PublicEdge,
+		}
+		if err := validateCloudPublicEdgeProjection(exact.PublicEdge, validationPlan, path+".publicEdge"); err != nil {
+			return nil, err
+		}
+		return exact, nil
+	}
+	if spec.moduleID == cloudOffsiteBackupModuleID {
+		var exact cloudOffsiteBackupExecutorPlan
+		if err := decodeStrict(raw, &exact); err != nil {
+			return nil, wrap(ErrInvalidPlan, path, "decode exact Cloud offsite-backup executor contract", err)
+		}
+		if err := validateExecutorContractPlanCommon(exact.StackID, exact.Kit, exact.Sites, exact.ModuleTargets, exact.ModuleCapabilities, exact.ControlPlane, spec, path); err != nil {
+			return nil, err
+		}
+		validationPlan := cloudRuntimeExecutorPlan{
+			StackID: exact.StackID, Kit: exact.Kit, Sites: exact.Sites,
+			ModuleTargets: exact.ModuleTargets, ModuleCapabilities: exact.ModuleCapabilities,
+			ControlPlane:                 exact.ControlPlane,
+			BackupTargetRequirements:     exact.CloudOffsiteBackup.Requirements,
+			ExternalBackupTargetBindings: exact.CloudOffsiteBackup.Bindings,
+		}
+		if err := validateCloudBackupTargetProjection(validationPlan, path+".cloudOffsiteBackup"); err != nil {
+			return nil, err
+		}
+		return exact, nil
+	}
 	var plan cloudRuntimeExecutorPlan
 	if err := decodeStrict(raw, &plan); err != nil {
 		return nil, wrap(ErrInvalidPlan, path, "decode exact Cloud executor contract", err)
@@ -1296,21 +1452,17 @@ func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 	if err := validateExecutorContractPlanCommon(plan.StackID, plan.Kit, plan.Sites, plan.ModuleTargets, plan.ModuleCapabilities, plan.ControlPlane, spec, path); err != nil {
 		return nil, err
 	}
+	if plan.CloudAdminMesh != nil {
+		return nil, fail(ErrInvalidPlan, path+".cloudAdminMesh", "Cloud admin-mesh authority is forbidden for this module")
+	}
+	if plan.PublicEdge != nil {
+		return nil, fail(ErrInvalidPlan, path+".publicEdge", "public-edge route authority is forbidden for this Cloud module")
+	}
 	if err := validateStoragePolicy(plan.StoragePolicy, path+".storagePolicy"); err != nil {
 		return nil, err
 	}
 	if err := validateExecutorBundleNetworkPolicy(plan.CloudNetworkPolicy, plan.Kit.Slug, true, path+".cloudNetworkPolicy"); err != nil {
 		return nil, err
-	}
-	if spec.moduleID == cloudPublicEdgeModuleID {
-		if plan.PublicEdge == nil {
-			return nil, fail(ErrInvalidPlan, path+".publicEdge", "Cloud public-edge module requires the exact resolved route projection")
-		}
-		if err := validateCloudPublicEdgeProjection(*plan.PublicEdge, plan, path+".publicEdge"); err != nil {
-			return nil, err
-		}
-	} else if plan.PublicEdge != nil {
-		return nil, fail(ErrInvalidPlan, path+".publicEdge", "public-edge route authority is forbidden for this Cloud module")
 	}
 	if spec.moduleID == cloudOffsiteBackupModuleID {
 		if len(plan.BackupTargetRequirements) == 0 || len(plan.ExternalBackupTargetBindings) == 0 {
@@ -1329,6 +1481,69 @@ func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 		return nil, err
 	}
 	return plan, nil
+}
+
+func validateCloudAdminMeshProjection(projection CloudAdminMeshProjection, plan cloudRuntimeExecutorPlan, path string) error {
+	if projection.CapabilityRef != "private-admin-mesh" || len(projection.SiteRefs) == 0 || len(projection.NodeRefs) == 0 || len(projection.Routes) == 0 {
+		return fail(ErrInvalidPlan, path, "projection requires exact capability, Site, node, and route authority")
+	}
+	if !exactStringList(projection.SiteRefs, sortedExecutorBundleSites(plan.Sites, "cloud")) {
+		return fail(ErrInvalidPlan, path+".siteRefs", "must exactly equal the module Cloud Site projection")
+	}
+	wantNodes := make([]string, 0, len(plan.ModuleTargets))
+	nodeSites := make(map[string]string, len(plan.ModuleTargets))
+	for _, target := range plan.ModuleTargets {
+		wantNodes = append(wantNodes, target.ID)
+		nodeSites[target.ID] = target.SiteRef
+	}
+	sort.Strings(wantNodes)
+	if !exactStringList(projection.NodeRefs, wantNodes) {
+		return fail(ErrInvalidPlan, path+".nodeRefs", "must exactly equal the module target nodes")
+	}
+	if err := validateCloudNetworkPosture(projection.Network, path+".network"); err != nil {
+		return err
+	}
+	previousRouteID := ""
+	for index, route := range projection.Routes {
+		routePath := fmt.Sprintf("%s.routes[%d]", path, index)
+		if previousRouteID != "" && route.ID <= previousRouteID {
+			return fail(ErrInvalidPlan, routePath+".id", "routes must be unique and sorted")
+		}
+		previousRouteID = route.ID
+		if route.Exposure != "private" || route.Access.PolicyExposure != "private" ||
+			route.Access.Authentication != "human+device" || !route.Access.EnrolledDeviceRequired ||
+			route.Access.LANStepDown || !route.Access.DefaultClosed {
+			return fail(ErrInvalidPlan, routePath, "admin route must remain private, device-bound, and default-closed")
+		}
+		authorityCount := 0
+		for _, authority := range route.CapabilityAuthorities {
+			if authority.CapabilityRef == projection.CapabilityRef && authority.Role == "access" {
+				authorityCount++
+			}
+		}
+		if authorityCount != 1 {
+			return fail(ErrInvalidPlan, routePath+".capabilityAuthorities", "requires exactly one private-admin-mesh access authority")
+		}
+		if !containsExecutorBundleString(projection.SiteRefs, route.OriginSiteRef) {
+			return fail(ErrInvalidPlan, routePath+".originSiteRef", "route origin is outside the exact Cloud Sites")
+		}
+		for allowedIndex, siteRef := range route.Access.AllowedSiteRefs {
+			if !containsExecutorBundleString(projection.SiteRefs, siteRef) {
+				return fail(ErrInvalidPlan, fmt.Sprintf("%s.access.allowedSiteRefs[%d]", routePath, allowedIndex), "allowed Site is outside the exact Cloud Sites")
+			}
+		}
+		for nodeIndex, nodeRef := range route.OriginNodeRefs {
+			if nodeSites[nodeRef] != route.OriginSiteRef {
+				return fail(ErrInvalidPlan, fmt.Sprintf("%s.originNodeRefs[%d]", routePath, nodeIndex), "origin node is outside the exact module target Site")
+			}
+		}
+		for memberIndex, member := range route.BackendPool.Members {
+			if nodeSites[member.NodeRef] != member.SiteRef || !containsExecutorBundleString(projection.SiteRefs, member.SiteRef) {
+				return fail(ErrInvalidPlan, fmt.Sprintf("%s.backendPool.members[%d]", routePath, memberIndex), "backend member is outside the exact module targets")
+			}
+		}
+	}
+	return nil
 }
 
 type cloudBackupTargetRequirement struct {
@@ -1470,6 +1685,9 @@ func validateCloudPublicEdgeProjection(projection CloudPublicEdgeProjection, pla
 	if err := validatePublicServiceRouteListV4(rawRoutes, path+".routes"); err != nil {
 		return err
 	}
+	if err := validateCloudNetworkPosture(projection.Network, path+".network"); err != nil {
+		return err
+	}
 	siteKinds := executorBundleSiteKinds(plan.Sites)
 	targetSites := make(map[string]string, len(plan.ModuleTargets))
 	for _, target := range plan.ModuleTargets {
@@ -1494,11 +1712,16 @@ func validateCloudPublicEdgeProjection(projection CloudPublicEdgeProjection, pla
 		if edgeAuthorityCount != 1 {
 			return fail(ErrInvalidPlan, routePath+".capabilityAuthorities", "route must bind exactly one public-edge edge authority")
 		}
-		if siteKinds[route.OriginSiteRef] != "cloud" {
+		if route.OriginSiteRef != "" && siteKinds[route.OriginSiteRef] != "cloud" {
 			return fail(ErrInvalidPlan, routePath+".originSiteRef", "public-edge origin must be an exact projected Cloud Site")
 		}
+		for siteIndex, siteRef := range route.OriginSiteRefs {
+			if siteKinds[siteRef] != "cloud" {
+				return fail(ErrInvalidPlan, fmt.Sprintf("%s.originSiteRefs[%d]", routePath, siteIndex), "public-edge origin must be an exact projected Cloud Site")
+			}
+		}
 		for nodeIndex, nodeRef := range route.OriginNodeRefs {
-			if targetSites[nodeRef] != route.OriginSiteRef {
+			if !containsExecutorBundleString(route.OriginSiteRefs, targetSites[nodeRef]) {
 				return fail(ErrInvalidPlan, fmt.Sprintf("%s.originNodeRefs[%d]", routePath, nodeIndex), "origin node is outside the exact Cloud module targets")
 			}
 		}
@@ -1507,6 +1730,17 @@ func validateCloudPublicEdgeProjection(projection CloudPublicEdgeProjection, pla
 				return fail(ErrInvalidPlan, fmt.Sprintf("%s.backendPool.members[%d]", routePath, memberIndex), "backend member is outside the exact Cloud module targets")
 			}
 		}
+	}
+	return nil
+}
+
+func validateCloudNetworkPosture(posture CloudNetworkPosture, path string) error {
+	transportPrefix, err := netip.ParsePrefix(posture.Transport.Subnet)
+	if !containsExecutorBundleString([]string{"public-capable", "private", "hybrid"}, posture.Mode) ||
+		err != nil || transportPrefix.String() != posture.Transport.Subnet ||
+		transportPrefix.Addr().Is6() != posture.Transport.IPv6 ||
+		!containsExecutorBundleString([]string{"TLS1.2", "TLS1.3"}, posture.TLSMinVersion) {
+		return fail(ErrInvalidPlan, path, "contains an unsupported bounded network posture")
 	}
 	return nil
 }

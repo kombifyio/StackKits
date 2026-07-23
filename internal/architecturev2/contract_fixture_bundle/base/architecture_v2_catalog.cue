@@ -895,9 +895,10 @@ _architectureV2HomeExtensionRuntimeSupports: {
 			planInputs: {
 				contractComplete: true
 				requiredRefs: list.Concat([
-					["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"],
+					["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"],
+					[for ref in ["storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability"] if !artifact.requiresBackupBinding {ref}],
 					[for ref in ["homeAccessRequirements", "externalHomeAccessBindings"] if artifact.requiresAccessBinding {ref}],
-					[for ref in ["homeBackupTargetRequirements", "externalHomeBackupTargetBindings"] if artifact.requiresBackupBinding {ref}],
+					[for ref in ["homeOffsiteBackup"] if artifact.requiresBackupBinding {ref}],
 				])
 			}
 			artifacts: {
@@ -968,7 +969,7 @@ _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "publicEdge", "data", "failurePolicy"]
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "publicEdge"]
 	}
 	artifacts: {
 		requiredRefs: ["cloud-public-edge-executor-contract"]
@@ -990,7 +991,7 @@ _architectureV2CloudOffsiteBackupSupport: #ModuleRealizationSupportV2 & {
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy", "backupTargetRequirements", "externalBackupTargetBindings"]
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudOffsiteBackup"]
 	}
 	artifacts: {
 		requiredRefs: ["cloud-offsite-backup-executor-contract"]
@@ -1012,7 +1013,7 @@ _architectureV2CloudPrivateAdminMeshSupport: #ModuleRealizationSupportV2 & {
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudAdminMesh"]
 	}
 	artifacts: {
 		requiredRefs: ["cloud-private-admin-mesh-executor-contract"]
@@ -1601,7 +1602,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://home/backup/offsite-executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:c6ba1e9050b63a30fc9436a5325f86801b2adf08e3857708aac91c6a93cab05b"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "localNetworkPolicy", "data", "failurePolicy", "localReachability", "homeBackupTargetRequirements", "externalHomeBackupTargetBindings"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "homeOffsiteBackup"]
 			inputBindings: [], outputs: ["home/backup/offsite-executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1891,7 +1892,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://cloud/public-edge/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:a80935bb0beb77bd3d226317be6f4756612eaac96037554783efdd6200a7f439"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "publicEdge", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "publicEdge"]
 			outputs: ["cloud/public-edge/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1923,7 +1924,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://cloud/backup/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:9fde3c773f0dc0c6d6e353caa82f52bb3d1b699f30e66ba87f2bf7aae3040a47"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy", "backupTargetRequirements", "externalBackupTargetBindings"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudOffsiteBackup"]
 			outputs: ["cloud/backup/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}]
@@ -1956,7 +1957,7 @@ _architectureV2Modules: list.Concat([[
 			templateRef:  "builtin://cloud/admin-mesh/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:009e99ba8c84136dccaad45e99a1166cbdda3be9bf08b615d769538d5b290f1a"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "storagePolicy", "cloudNetworkPolicy", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudAdminMesh"]
 			inputBindings: []
 			outputs: ["cloud/admin-mesh/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}

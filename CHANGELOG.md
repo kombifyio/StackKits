@@ -4,6 +4,66 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.3] - 2026-07-23
+
+> **Stable v0.x architecture patch** that closes the Cloud network and
+> offsite-backup renderer boundaries without adding provider authority.
+
+### Changed
+
+- Cloud and Modern public-edge artifacts now contain only their exact
+  compiler-owned routes, origin/backend nodes, access/TLS/Health authority,
+  and minimal network posture.
+- Optional Cloud private-admin-mesh artifacts now contain only the selected
+  private, device-bound, default-closed routes, exact Cloud Site/node scope,
+  and minimal network posture.
+- Home and Cloud offsite-backup artifacts now contain only their hash-bound
+  target requirements and optional external custody bindings.
+
+### Security
+
+- Generic storage, data, failure, DNS, domain, gateway, MTU, local
+  reachability, endpoint, credential, lease, provider lifecycle, and
+  server-provider fields cannot cross these migrated renderer boundaries.
+- Added fields, provider substitution, route/Health/Site/node widening,
+  LAN step-down, malformed network posture, and backup requirement/binding
+  substitution fail closed.
+
+### Known limitations
+
+- These contracts remain provider-neutral. Provider selection, provisioning,
+  transport, credentials, leases, and target lifecycle stay in TechStack or
+  another external authority.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
+## [0.7.2] - 2026-07-23
+
+> **Stable v0.x patch** that publishes Modern Homelab as the third public
+> StackKit family while preserving its honest Preview status.
+
+### Added
+
+- Dedicated Modern Homelab archives for Linux amd64/arm64, macOS amd64/arm64,
+  and Windows amd64, alongside the full, Basement Kit, and Cloud Kit bundles.
+- The public native-v2 Modern authority, two-Site initial-intent path, required
+  federation contract, and archive-level semantic contract proof.
+
+### Fixed
+
+- Persisted canonical plans now decode integer health ports, timeouts, and
+  expected HTTP status lists without weakening fractional-value rejection.
+- Public affected CUE planning selects only roots present in the exported
+  checkout while private source continues to cover every available kit root.
+
+### Known limitations
+
+- Modern Homelab remains Preview. Archive availability proves self-contained
+  authoring and semantic contract validation, not completed live federation,
+  runtime-owner graduation, provider compatibility, or production support.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.1] - 2026-07-22
 
 > **Stable v0.x patch** for the provider-free RIL action handoff. This release

@@ -2964,7 +2964,7 @@ _servicePublicationShape: {
 // resolved-plan views that a render unit may consume. These are not user
 // settings and they never expose the full plan, node inventory, secretRefs,
 // management endpoints, or daemon/socket bindings.
-#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS"
+#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "homeOffsiteBackup" | "cloudOffsiteBackup" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS" | "cloudAdminMesh"
 
 // #ModuleRenderInputBindingV2 is the closed field-level seam from resolved
 // architecture authority into public renderer inputs. Sources are finite and
@@ -3605,8 +3605,18 @@ _servicePublicationShape: {
 // Definitions are closed in CUE, so planInputs rejects every field outside
 // the catalog-governed projection union. Presence is bound 1:1 to
 // planInputRefs by #ResolvedModuleRenderUnitV2 below.
+#ModuleCloudNetworkPostureV1: {
+	mode: "public-capable" | "private" | "hybrid"
+	transport: {
+		subnet: #NetworkCIDRV2
+		ipv6:   bool
+	}
+	tlsMinVersion: "TLS1.2" | "TLS1.3"
+}
+
 #ModulePublicEdgeV1: {
 	capabilityRef: "public-edge"
+	network:       #ModuleCloudNetworkPostureV1
 	routes: [...#ModulePublicResolvedRouteV4] | *[]
 	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
 	_exactEdgeRoutes: [for route in routes {
@@ -3618,6 +3628,39 @@ _servicePublicationShape: {
 		access: defaultClosed: route.access.defaultClosed & true
 		edgeAuthority: [for authority in route.capabilityAuthorities if authority.capabilityRef == capabilityRef && authority.role == "edge" {authority.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
 	}]
+}
+
+#ModuleCloudAdminMeshV1: {
+	capabilityRef: "private-admin-mesh"
+	siteRefs: [...#SiteID] & list.MinItems(1)
+	nodeRefs: [...#NodeID] & list.MinItems(1)
+	network:  #ModuleCloudNetworkPostureV1
+	routes: [...#ModulePublicResolvedRouteV4] & list.MinItems(1)
+
+	_siteRefsUnique: list.UniqueItems(siteRefs) & true
+	_nodeRefsUnique: list.UniqueItems(nodeRefs) & true
+	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
+	_exactPrivateRoutes: [for route in routes {
+		exposure: "private"
+		access: {
+			policyExposure:         "private"
+			authentication:         "human+device"
+			enrolledDeviceRequired: true
+			lanStepDown:            false
+			defaultClosed:          true
+		}
+		meshAuthority: [for authority in route.capabilityAuthorities if authority.capabilityRef == capabilityRef && authority.role == "access" {authority.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+}
+
+#ModuleHomeOffsiteBackupV1: {
+	requirements: [#SiteID]: [#CapabilityID]: #HomeBackupTargetRequirementV1
+	bindings:     [#SiteID]: [#CapabilityID]: #ExternalHomeBackupTargetBindingV1
+}
+
+#ModuleCloudOffsiteBackupV1: {
+	requirements: [#SiteID]: [#CapabilityID]: #BackupTargetRequirementV1
+	bindings:     [#SiteID]: [#CapabilityID]: #ExternalBackupTargetBindingV1
 }
 
 #ModulePlanInputsV2: {
@@ -3652,6 +3695,9 @@ _servicePublicationShape: {
 	cloudNetworkPolicy?: #ModuleCloudNetworkPolicyV2
 	publicEdge?:         #ModulePublicEdgeV1
 	publicTLS?:          #ModulePublicTLSV2
+	cloudAdminMesh?:     #ModuleCloudAdminMeshV1
+	homeOffsiteBackup?:  #ModuleHomeOffsiteBackupV1
+	cloudOffsiteBackup?: #ModuleCloudOffsiteBackupV1
 }
 
 // #ModuleRenderUnitContractV2 is one independently renderable, hash-bound
