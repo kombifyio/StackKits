@@ -11,4 +11,12 @@ Agent-facing StackKits references:
 - `docs/agent/monitoring.md`: status, logs, verification, and evidence surfaces.
 - `api/openapi.v1.yaml`: OpenAPI mirror embedded by the StackKits MCP runtime.
 
-Basement Kit and Cloud Kit are the stable one-click paths; `v0.6.0` is the unpinned public latest and stable architecture baseline. Architecture v2 runtime surfaces and Modern Homelab that have not graduated remain explicit fail-closed Preview contracts. Product-bundled L3 applications are PaaS-intended by default; release evidence focuses on owner/passkey activation, selected-PaaS setup, protected app health, retryable L3 setup actions, and seeded content only when demo data is explicitly enabled. User-installed apps outside that path are state-unmanaged.
+Basement Kit and Cloud Kit are the stable one-click paths; `v0.7.5` is the
+current unpinned public latest on the native Architecture-v2 line. Modern
+Homelab is included in the public release as Preview and graduates only the
+Runtime owners whose exact boundaries are bound; remaining publication,
+Cloud-verifier, backend-Health, and live-evidence surfaces stay fail-closed.
+Product-bundled L3 applications are PaaS-intended by default; release evidence
+focuses on owner/passkey activation, selected-PaaS setup, protected app health,
+retryable L3 setup actions, and seeded content only when demo data is
+explicitly enabled. User-installed apps outside that path are state-unmanaged.

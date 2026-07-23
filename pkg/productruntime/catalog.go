@@ -32,6 +32,7 @@ const (
 	OwnerLocalAutonomy         = architecturev2.ProductRuntimeOwnerLocalAutonomy
 	OwnerModernHomeIdentity    = architecturev2.ProductRuntimeOwnerModernHomeIdentity
 	OwnerModernCloudIdentity   = architecturev2.ProductRuntimeOwnerModernCloudIdentity
+	OwnerBridgeOriginMTLS      = architecturev2.ProductRuntimeOwnerBridgeOriginMTLS
 )
 
 // OwnerSelector is the exact provider-free CUE/catalog selector used to match

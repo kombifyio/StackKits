@@ -2040,6 +2040,10 @@ _servicePublicationShape: {
 	unitRef:   #ContractID
 	originNodeRefs: [...#NodeID] & list.MinItems(1)
 	originInstanceRefs: [...#ContractID] & list.MinItems(1)
+	originTargets: [...{
+		nodeRef:     #NodeID
+		instanceRef: #ContractID
+	}] & list.MinItems(1)
 	upstreamProtocol: #NetworkProtocol
 	targetPort:       int & >=1 & <=65535
 	healthGateRef:    #ContractID
@@ -2051,6 +2055,7 @@ _servicePublicationShape: {
 
 	_originNodeRefsUnique:     list.UniqueItems(originNodeRefs) & true
 	_originInstanceRefsUnique: list.UniqueItems(originInstanceRefs) & true
+	_originTargetsUnique:      list.UniqueItems(originTargets) & true
 }
 
 #ResolvedBridgeContractV2: {
@@ -3745,6 +3750,10 @@ _servicePublicationShape: {
 		unitRef:       #ContractID
 		originNodeRefs: [...#NodeID] & list.MinItems(1)
 		originInstanceRefs: [...#ContractID] & list.MinItems(1)
+		originTargets: [...{
+			nodeRef:     #NodeID
+			instanceRef: #ContractID
+		}] & list.MinItems(1)
 		upstreamProtocol: #NetworkProtocol
 		targetPort:       int & >=1 & <=65535
 		transport: {
@@ -3755,11 +3764,13 @@ _servicePublicationShape: {
 			generalLANAccess:  false
 		}
 		workloadIdentity: {
-			credentialIssuerRef:       #ContractID
-			issuer:                    string & =~"^urn:stackkit:"
-			audience:                  string & =~"^urn:stackkit:"
-			verificationKeySetRef:     string & =~"^urn:stackkit:"
-			proofOfPossessionRequired: true
+			credentialIssuerRef:           #ContractID
+			issuer:                        string & =~"^urn:stackkit:"
+			audience:                      string & =~"^urn:stackkit:"
+			verificationKeySetRef:         string & =~"^urn:stackkit:"
+			proofOfPossessionRequired:     true
+			credentialTTLSeconds:          int & >=300 & <=86400
+			revocationMaxStalenessSeconds: int & >=0 & <=credentialTTLSeconds
 		}
 		edgeVerifier: {
 			verifierRef:                #ContractID
@@ -3918,7 +3929,6 @@ _servicePublicationShape: {
 	homeAccessHandoff?:  #ModuleHomeAccessHandoffV1
 	homeOffsiteBackup?:  #ModuleHomeOffsiteBackupV1
 	cloudOffsiteBackup?: #ModuleCloudOffsiteBackupV1
-
 }
 
 // #ModuleRenderUnitContractV2 is one independently renderable, hash-bound
@@ -6996,6 +7006,28 @@ _servicePublicationShape: {
 							if instance.siteRef == publication.sourceSiteRef {
 								instanceRef: instance.id
 								matches: [for originInstanceRef in publication.originInstanceRefs if originInstanceRef == instance.id {originInstanceRef}] & list.MinItems(1) & list.MaxItems(1)
+							},
+						]
+						originTargets: [for originTarget in publication.originTargets {
+							target: originTarget
+							matches: [
+								for instance in unit.instances
+								if instance.scope == "node-local"
+								if instance.id == originTarget.instanceRef && instance.nodeRef == originTarget.nodeRef && instance.siteRef == publication.sourceSiteRef {
+									nodeRef: instance.nodeRef
+									instanceRef: instance.id
+								},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}]
+						originTargetsComplete: [
+							for instance in unit.instances
+							if instance.scope == "node-local"
+							if instance.siteRef == publication.sourceSiteRef {
+								target: {nodeRef: instance.nodeRef, instanceRef: instance.id}
+								matches: [
+									for originTarget in publication.originTargets
+									if originTarget.nodeRef == instance.nodeRef && originTarget.instanceRef == instance.id {originTarget},
+								] & list.MinItems(1) & list.MaxItems(1)
 							},
 						]
 						if endpoint.originSelector == "single-site" {

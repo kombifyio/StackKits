@@ -174,7 +174,7 @@ _architectureV2BridgePublicationSupport: #ModuleRealizationSupportV2 & {
 _architectureV2BridgeOriginMTLSSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {contractComplete: true, requiredRefs: ["bridgeOriginMTLS", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"]}
@@ -187,7 +187,7 @@ _architectureV2BridgeOriginMTLSSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "executor-contract", outputRef: "modern/federation/origin-mtls/executor-contract.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["bridge-origin-mtls-evidence"]
 }
 
 _architectureV2FederationRuntimeArtifacts: {
@@ -370,28 +370,29 @@ _architectureV2ProfileExtensionProviders: [
 
 _architectureV2ProfileExtensionModules: [
 	{
-		metadata: {id: "stackkits-bridge-origin-mtls-runtime", version: "1.0.0", description: "Exact outbound-only Modern origin-mTLS handoff; Home signing material, endpoints, transport, provider lifecycle, and general LAN access remain external."}
+		metadata: {id: "stackkits-bridge-origin-mtls-runtime", version: "1.1.0", description: "Exact node-local outbound-only Modern origin-mTLS runtime; Home signing material, endpoints, transport implementation, provider lifecycle, and general LAN access remain external."}
 		role: "platform", providerRef: "stackkits-service-publication-contract", provides: ["service-publication"]
 		requires: ["stackkits-bridge-publication-runtime", "stackkits-modern-home-identity-trust-policy-manifest", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
 		supportedSiteKinds: ["home"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status: "unbound", ownerRef: "stackkits-bridge-origin-mtls-executor", capabilityRefs: ["service-publication"]
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-bridge-origin-mtls-executor"
+			policyArtifactRefs: ["bridge-origin-mtls-executor-contract"]
 			targetScope: "home-sites", operations: ["bind-origin-mtls-proxy", "remove-origin-mtls-proxy", "verify-origin-mtls"]
-			requiredHealthRef: "bridge-origin-mtls-contract", requiredEvidenceRef: "bridge-origin-mtls-contract"
+			requiredHealthRef: "bridge-origin-mtls-health", requiredEvidenceRef: "bridge-origin-mtls-evidence"
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                                    "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://modern/federation/origin-mtls/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:cc265255207ae991e3ff02b71a70031fa93d36674c7c2bc23778c25ac76ad8de"
+			contractHash: "sha256:fc4f1d8a260a02797eef3cf6761eaba7bb0bf80124187c973fed67b145778763"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgeOriginMTLS"]
 			outputs: ["modern/federation/origin-mtls/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2BridgeOriginMTLSSupport
-		health: [{id: "bridge-origin-mtls-contract", kind: "contract"}]
-		evidence: ["bridge-origin-mtls-contract"]
+		health: [{id: "bridge-origin-mtls-health", kind: "contract", scope: "each-node"}]
+		evidence: ["bridge-origin-mtls-evidence"]
 	},
 	{
 		metadata: {id: "stackkits-bridge-publication-runtime", version: "1.0.0", description: "Exact Modern Home-to-Cloud service-publication handoff; edge transport, DNS, certificates, credentials, provider lifecycle, and general LAN access remain external."}

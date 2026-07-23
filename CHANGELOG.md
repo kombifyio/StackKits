@@ -4,6 +4,47 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.6] - 2026-07-24
+
+> **Stable v0.x Modern Homelab execution-boundary patch** that keeps all three
+> StackKit families in the public release while graduating one exact Home-side
+> bridge runtime.
+
+### Added
+
+- A provider-free, authenticated Modern origin-mTLS Runtime owner with one
+  hash-bound artifact and one local execution target per Home origin node.
+- Explicit compiler-owned `{nodeRef, instanceRef}` pairs, preventing
+  independently sorted node and backend-instance sets from changing custody.
+- Fresh local proxy, certificate, configuration, and revocation readback
+  evidence bound to the exact service, backend, transport, and identity policy.
+
+### Changed
+
+- Modern origin-mTLS is `apply-ready`; its former
+  `runtime-owner-unbound` blocker is retired.
+- Policy evaluation and operation observation use separate trusted timestamps,
+  allowing credentials issued during binding while rejecting stale, future, or
+  overlong claims.
+- The public release continues to ship the dedicated
+  `stackkits-modern-homelab` archives and the Modern definition in the full
+  StackKits archive.
+
+### Security
+
+- StackKits owns no certificate/private-key bytes, signing authority, proxy
+  implementation, Cloud-verifier readiness, endpoints, provider lifecycle,
+  leases, reverse tunnel, or general LAN access.
+- Bridge publication and backend Health remain independent fail-closed
+  authorities and are not implicitly graduated by this release.
+
+### Known limitations
+
+- Modern Homelab remains Preview until the separate publication, Cloud
+  verification, backend Health, and live evidence owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.5] - 2026-07-23
 
 > **Stable v0.x Home-PKI architecture patch** that makes the v2 trust boundary

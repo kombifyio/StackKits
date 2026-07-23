@@ -134,6 +134,15 @@ func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []
 		projection["unitRef"] = endpoint.unitRef
 		projection["originNodeRefs"] = stringSliceAny(endpoint.nodeRefs)
 		projection["originInstanceRefs"] = stringSliceAny(endpoint.instanceRefs)
+		originTargets := make([]any, 0, len(endpoint.instanceRefs))
+		for _, instanceRef := range endpoint.instanceRefs {
+			nodeRef := endpoint.instanceNodes[instanceRef]
+			if nodeRef == "" {
+				return nil, fail(ErrUnresolvedPlacement, path+".serviceRef", "service endpoint instance %q has no exact node custody", instanceRef)
+			}
+			originTargets = append(originTargets, map[string]any{"nodeRef": nodeRef, "instanceRef": instanceRef})
+		}
+		projection["originTargets"] = originTargets
 		projection["upstreamProtocol"] = endpoint.upstreamProtocol
 		projection["targetPort"] = endpoint.targetPort
 		projection["healthGateRef"] = contractID("module-" + endpoint.moduleRef + "-" + endpoint.healthRef)

@@ -8692,21 +8692,37 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "bind-origin-mtls-proxy",
+          "remove-origin-mtls-proxy",
+          "verify-origin-mtls"
+        ],
+        "ownerRef": "stackkits-bridge-origin-mtls-executor",
+        "policyArtifactRefs": [
+          "bridge-origin-mtls-executor-contract"
+        ],
+        "requiredEvidenceRef": "bridge-origin-mtls-evidence",
+        "requiredHealthRef": "bridge-origin-mtls-health",
+        "status": "bound",
+        "targetScope": "home-sites"
+      },
       "evidence": [
-        "bridge-origin-mtls-contract"
+        "bridge-origin-mtls-evidence"
       ],
       "health": [
         {
-          "id": "bridge-origin-mtls-contract",
+          "id": "bridge-origin-mtls-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Exact outbound-only Modern origin-mTLS handoff; Home signing material, endpoints, transport, provider lifecycle, and general LAN access remain external.",
+        "description": "Exact node-local outbound-only Modern origin-mTLS runtime; Home signing material, endpoints, transport implementation, provider lifecycle, and general LAN access remain external.",
         "id": "stackkits-bridge-origin-mtls-runtime",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "providerRef": "stackkits-service-publication-contract",
       "provides": [
@@ -8745,13 +8761,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "bridge-origin-mtls-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -8772,7 +8790,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:cc265255207ae991e3ff02b71a70031fa93d36674c7c2bc23778c25ac76ad8de",
+          "contractHash": "sha256:fc4f1d8a260a02797eef3cf6761eaba7bb0bf80124187c973fed67b145778763",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -8780,8 +8798,8 @@
             "modern/federation/origin-mtls/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -8813,23 +8831,8 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "service-publication"
-        ],
-        "operations": [
-          "bind-origin-mtls-proxy",
-          "remove-origin-mtls-proxy",
-          "verify-origin-mtls"
-        ],
-        "ownerRef": "stackkits-bridge-origin-mtls-executor",
-        "requiredEvidenceRef": "bridge-origin-mtls-contract",
-        "requiredHealthRef": "bridge-origin-mtls-contract",
-        "status": "unbound",
-        "targetScope": "home-sites"
       },
       "supportedSiteKinds": [
         "home"

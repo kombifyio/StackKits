@@ -265,6 +265,14 @@ func safeModuleBridgeOriginMTLS(moduleID string, bridge, identityTrust map[strin
 		if err != nil {
 			return nil, err
 		}
+		credentialTTLSeconds, err := intField(issuer, "identityTrust.credentialIssuers."+issuerRef, "credentialTTLSeconds")
+		if err != nil {
+			return nil, err
+		}
+		revocationMaxStalenessSeconds, err := intField(issuer, "identityTrust.credentialIssuers."+issuerRef, "revocationMaxStalenessSeconds")
+		if err != nil {
+			return nil, err
+		}
 		proofRequired, err := boolFieldDefault(issuer, "identityTrust.credentialIssuers."+issuerRef, "proofOfPossessionRequired", false)
 		if err != nil || !proofRequired {
 			return nil, fmt.Errorf("%s workload issuer must require proof of possession", path)
@@ -297,6 +305,23 @@ func safeModuleBridgeOriginMTLS(moduleID string, bridge, identityTrust map[strin
 		if err != nil {
 			return nil, err
 		}
+		targetObjects, err := objectListField(publication, path, "originTargets")
+		if err != nil {
+			return nil, err
+		}
+		originTargets := make([]any, 0, len(targetObjects))
+		for targetIndex, target := range targetObjects {
+			targetPath := fmt.Sprintf("%s.originTargets[%d]", path, targetIndex)
+			nodeRef, err := stringField(target, targetPath, "nodeRef")
+			if err != nil {
+				return nil, err
+			}
+			instanceRef, err := stringField(target, targetPath, "instanceRef")
+			if err != nil {
+				return nil, err
+			}
+			originTargets = append(originTargets, map[string]any{"nodeRef": nodeRef, "instanceRef": instanceRef})
+		}
 		upstreamProtocol, err := stringField(publication, path, "upstreamProtocol")
 		if err != nil {
 			return nil, err
@@ -308,6 +333,7 @@ func safeModuleBridgeOriginMTLS(moduleID string, bridge, identityTrust map[strin
 		projected = append(projected, map[string]any{
 			"serviceRef": serviceRef, "identityRef": identityRef, "sourceSiteRef": sourceSiteRef, "edgeSiteRef": edgeSiteRef,
 			"moduleRef": moduleRef, "unitRef": unitRef, "originNodeRefs": stringSliceAny(nodeRefs), "originInstanceRefs": stringSliceAny(instanceRefs),
+			"originTargets":    originTargets,
 			"upstreamProtocol": upstreamProtocol, "targetPort": targetPort,
 			"transport": map[string]any{
 				"mode": "mtls-origin-proxy", "minimumTLSVersion": "TLS1.3",
@@ -316,6 +342,7 @@ func safeModuleBridgeOriginMTLS(moduleID string, bridge, identityTrust map[strin
 			"workloadIdentity": map[string]any{
 				"credentialIssuerRef": issuerRef, "issuer": issuerURI, "audience": audiences[0],
 				"verificationKeySetRef": keySetRef, "proofOfPossessionRequired": true,
+				"credentialTTLSeconds": credentialTTLSeconds, "revocationMaxStalenessSeconds": revocationMaxStalenessSeconds,
 			},
 			"edgeVerifier": map[string]any{
 				"verifierRef": verifierRef, "distributionRef": distributionRef, "verificationKeySetRef": keySetRef,

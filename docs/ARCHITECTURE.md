@@ -779,17 +779,26 @@ fails closed until a distinct CA-authority selection/HA realization is defined,
 and Apply remains blocked until authenticated root, leaf, rotation, and
 postcondition owners are bound.
 
-Modern origin mTLS is now an exact, provider-free generation handoff rather
-than an untyped graduation promise. For every publication, a dedicated
-Home-side proxy contract binds the selected local backend, TLS 1.3 SNI,
-possession-bound Home workload issuer, and the matching one-way Cloud verifier
-distribution. The handoff is outbound-only and cannot carry private/signing
-material, reverse authority, endpoints, credentials, or general LAN access.
-Its authenticated runtime owner remains explicitly unbound, so Apply stays
-fail-closed through `runtime-owner-unbound`. Public edge TLS materialization is
-now separately executable and hash-bound; publication backend Health remains
-the independent `health-gate-not-executable` gate. A generic module contract
-blocker cannot hide or replace either boundary.
+Modern origin mTLS has an exact provider-free, authenticated node-local Runtime
+owner. For every publication, the compiler binds explicit
+`{nodeRef, instanceRef}` pairs rather than independently sorted node and
+instance sets. One artifact per Home origin node carries only that node's
+selected local backend, TLS 1.3 SNI, possession-bound Home workload issuer, and
+the configured one-way Cloud-verifier references. The executor binds the
+sealed request and artifact digests, Site, node, and execution channel before
+calling the closed bind/remove/verify operations. Fresh local readback must
+match the exact module, unit, backend instance, protocol/port, SNI, issuer,
+audience, verification key set, certificate/public-key/serial identity,
+credential lifetime, and local configuration/revocation state.
+
+This owner proves only the Home-side proxy and credential postcondition. It
+does not prove Cloud-verifier readiness and cannot carry private/signing
+material, reverse authority, endpoints, credentials, provider lifecycle,
+leases, proxy implementation, or general LAN access. Its former
+`runtime-owner-unbound` blocker is retired, while the Cloud-side publication
+owner and executable backend Health remain independent fail-closed gates.
+Public edge TLS materialization is likewise a separate hash-bound authority; a
+generic module contract cannot hide or replace any of these boundaries.
 
 ### Executable render instances
 

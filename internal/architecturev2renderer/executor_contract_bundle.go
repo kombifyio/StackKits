@@ -91,12 +91,14 @@ const (
 	bridgePublicationTemplateRef       = "builtin://modern/federation/publication/executor-contract/v1.json"
 	bridgePublicationOutputRef         = "modern/federation/publication/executor-contract.json"
 	bridgeOriginMTLSModuleID           = "stackkits-bridge-origin-mtls-runtime"
+	bridgeOriginMTLSModuleVersion      = "1.1.0"
 	bridgeOriginMTLSTemplateRef        = "builtin://modern/federation/origin-mtls/executor-contract/v1.json"
 	bridgeOriginMTLSOutputRef          = "modern/federation/origin-mtls/executor-contract.json"
 )
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
 const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
+const bridgeOriginMTLSExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","generation":"supported","operations":["bind-origin-mtls-proxy","remove-origin-mtls-proxy","verify-origin-mtls"],"providerLifecycle":"not-owned","reverseTrust":"forbidden","runtimeEnforcement":"adapter-verified","scope":"home-origin-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 
 var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
@@ -244,8 +246,9 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		decodePlan: decodeBridgePublicationExecutorPlan,
 	},
 	{
-		moduleID: bridgeOriginMTLSModuleID, moduleVersion: federationRuntimeModuleVersion,
+		moduleID: bridgeOriginMTLSModuleID, moduleVersion: bridgeOriginMTLSModuleVersion,
 		templateRef: bridgeOriginMTLSTemplateRef, outputRef: bridgeOriginMTLSOutputRef,
+		contractJSON:  bridgeOriginMTLSExecutorContract,
 		planInputRefs: []string{"bridgeOriginMTLS", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"modern-homelab"}, siteKind: "home",
 		allowedCapabilities: []string{"service-publication"}, requiredCapabilities: []string{"service-publication"},
@@ -493,6 +496,12 @@ func (r executorContractBundleRenderer) RenderUnit(ctx context.Context, unit Ren
 	if err != nil {
 		return nil, err
 	}
+	if r.spec.moduleID == bridgeOriginMTLSModuleID {
+		plan, err = projectBridgeOriginMTLSForInstance(plan, unit, path)
+		if err != nil {
+			return nil, err
+		}
+	}
 	canonical, err := json.Marshal(plan)
 	if err != nil {
 		return nil, wrap(ErrRendererFailure, path+".planInputs", "marshal typed executor contract", err)
@@ -567,10 +576,14 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef || unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version || unit.ContractHash() != contract.ContractHash {
 		return fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered executor contract")
 	}
-	if unit.RuntimeKind() != "host" || unit.RuntimeDelivery() != "stackkit" {
-		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact host/stackkit ownership")
+	wantRuntimeKind := "host"
+	if renderer.spec.moduleID == bridgeOriginMTLSModuleID {
+		wantRuntimeKind = "native"
 	}
-	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID
+	if unit.RuntimeKind() != wantRuntimeKind || unit.RuntimeDelivery() != "stackkit" {
+		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact %s/stackkit ownership", wantRuntimeKind)
+	}
+	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
 	if nodeLocal {
 		siteRef, hasSite := unit.SiteRef()
 		nodeRef, hasNode := unit.NodeRef()
@@ -1101,11 +1114,17 @@ type bridgeOriginMTLSPublication struct {
 	UnitRef            string                           `json:"unitRef"`
 	OriginNodeRefs     []string                         `json:"originNodeRefs"`
 	OriginInstanceRefs []string                         `json:"originInstanceRefs"`
+	OriginTargets      []bridgeOriginMTLSTarget         `json:"originTargets"`
 	UpstreamProtocol   string                           `json:"upstreamProtocol"`
 	TargetPort         int                              `json:"targetPort"`
 	Transport          bridgeOriginMTLSTransport        `json:"transport"`
 	WorkloadIdentity   bridgeOriginMTLSWorkloadIdentity `json:"workloadIdentity"`
 	EdgeVerifier       bridgeOriginMTLSEdgeVerifier     `json:"edgeVerifier"`
+}
+
+type bridgeOriginMTLSTarget struct {
+	NodeRef     string `json:"nodeRef"`
+	InstanceRef string `json:"instanceRef"`
 }
 
 type bridgeOriginMTLSTransport struct {
@@ -1117,11 +1136,13 @@ type bridgeOriginMTLSTransport struct {
 }
 
 type bridgeOriginMTLSWorkloadIdentity struct {
-	CredentialIssuerRef       string `json:"credentialIssuerRef"`
-	Issuer                    string `json:"issuer"`
-	Audience                  string `json:"audience"`
-	VerificationKeySetRef     string `json:"verificationKeySetRef"`
-	ProofOfPossessionRequired bool   `json:"proofOfPossessionRequired"`
+	CredentialIssuerRef           string `json:"credentialIssuerRef"`
+	Issuer                        string `json:"issuer"`
+	Audience                      string `json:"audience"`
+	VerificationKeySetRef         string `json:"verificationKeySetRef"`
+	ProofOfPossessionRequired     bool   `json:"proofOfPossessionRequired"`
+	CredentialTTLSeconds          int    `json:"credentialTTLSeconds"`
+	RevocationMaxStalenessSeconds int    `json:"revocationMaxStalenessSeconds"`
 }
 
 type bridgeOriginMTLSEdgeVerifier struct {
@@ -1213,9 +1234,36 @@ func decodeBridgeOriginMTLSExecutorPlan(raw []byte, path string, spec executorCo
 		previousService = publication.ServiceRef
 		if publication.IdentityRef != publication.ServiceRef+"-origin" || publication.SourceSiteRef == publication.EdgeSiteRef ||
 			publication.ModuleRef == "" || publication.UnitRef == "" || !sortedUniqueNonEmpty(publication.OriginNodeRefs) ||
-			!sortedUniqueNonEmpty(publication.OriginInstanceRefs) || publication.TargetPort < 1 || publication.TargetPort > 65535 ||
+			!sortedUniqueNonEmpty(publication.OriginInstanceRefs) ||
+			len(publication.OriginNodeRefs) != len(publication.OriginInstanceRefs) ||
+			len(publication.OriginTargets) != len(publication.OriginNodeRefs) ||
+			publication.TargetPort < 1 || publication.TargetPort > 65535 ||
 			!containsExecutorBundleString([]string{"http", "https", "tcp"}, publication.UpstreamProtocol) {
 			return nil, fail(ErrInvalidPlan, itemPath, "publication origin closure is incomplete or widened")
+		}
+		targetNodes := make([]string, 0, len(publication.OriginTargets))
+		targetInstances := make([]string, 0, len(publication.OriginTargets))
+		seenTargetPairs := make(map[string]struct{}, len(publication.OriginTargets))
+		for targetIndex, target := range publication.OriginTargets {
+			targetPath := fmt.Sprintf("%s.originTargets[%d]", itemPath, targetIndex)
+			if err := requireContractID(target.NodeRef, targetPath+".nodeRef"); err != nil {
+				return nil, err
+			}
+			if err := requireContractID(target.InstanceRef, targetPath+".instanceRef"); err != nil {
+				return nil, err
+			}
+			pair := target.NodeRef + "\x00" + target.InstanceRef
+			if _, duplicate := seenTargetPairs[pair]; duplicate {
+				return nil, fail(ErrDuplicate, targetPath, "origin target pair is duplicated")
+			}
+			seenTargetPairs[pair] = struct{}{}
+			targetNodes = append(targetNodes, target.NodeRef)
+			targetInstances = append(targetInstances, target.InstanceRef)
+		}
+		sort.Strings(targetNodes)
+		sort.Strings(targetInstances)
+		if !exactStringList(targetNodes, publication.OriginNodeRefs) || !exactStringList(targetInstances, publication.OriginInstanceRefs) {
+			return nil, fail(ErrInvalidPlan, itemPath+".originTargets", "origin target pairs must exactly bind the governed node and instance sets")
 		}
 		for _, nodeRef := range publication.OriginNodeRefs {
 			originRefs[nodeRef] = struct{}{}
@@ -1231,7 +1279,9 @@ func decodeBridgeOriginMTLSExecutorPlan(raw []byte, path string, spec executorCo
 			!strings.HasPrefix(identity.Issuer, "urn:stackkit:") ||
 			!strings.HasSuffix(identity.Audience, ":audience:stackkit-workload") ||
 			!strings.HasSuffix(identity.VerificationKeySetRef, ":keyset:home-workload-verification-keys") ||
-			!identity.ProofOfPossessionRequired {
+			!identity.ProofOfPossessionRequired || identity.CredentialTTLSeconds < 300 ||
+			identity.CredentialTTLSeconds > 86400 || identity.RevocationMaxStalenessSeconds < 0 ||
+			identity.RevocationMaxStalenessSeconds > identity.CredentialTTLSeconds {
 			return nil, fail(ErrInvalidPlan, itemPath+".workloadIdentity", "origin must bind the exact possession-bound Home workload identity")
 		}
 		verifier := publication.EdgeVerifier
@@ -1248,10 +1298,184 @@ func decodeBridgeOriginMTLSExecutorPlan(raw []byte, path string, spec executorCo
 		originNodeRefs = append(originNodeRefs, nodeRef)
 	}
 	sort.Strings(originNodeRefs)
-	if !exactStringList(originNodeRefs, targetRefs) {
-		return nil, fail(ErrInvalidPlan, path+".bridgeOriginMTLS.publications", "origin nodes must exactly equal module targets")
+	for _, nodeRef := range originNodeRefs {
+		if !containsExecutorBundleString(targetRefs, nodeRef) {
+			return nil, fail(ErrInvalidPlan, path+".bridgeOriginMTLS.publications", "origin node is outside module targets")
+		}
 	}
 	return plan, nil
+}
+
+func projectBridgeOriginMTLSForInstance(decoded executorContractPlan, unit RenderUnit, path string) (executorContractPlan, error) {
+	plan, ok := decoded.(bridgeOriginMTLSExecutorPlan)
+	if !ok {
+		return nil, fail(ErrInvalidPlan, path+".planInputs", "origin mTLS decoder returned an unexpected plan type")
+	}
+	siteRef, hasSite := unit.SiteRef()
+	nodeRef, hasNode := unit.NodeRef()
+	if !hasSite || !hasNode {
+		return nil, fail(ErrInvalidPlan, path+".instances", "origin mTLS requires one exact Site/node instance")
+	}
+	originNodeSet := make(map[string]struct{}, len(plan.ModuleTargets))
+	for _, publication := range plan.BridgeOriginMTLS.Publications {
+		for _, target := range publication.OriginTargets {
+			originNodeSet[target.NodeRef] = struct{}{}
+		}
+	}
+	originNodes := make([]string, 0, len(originNodeSet))
+	for nodeRef := range originNodeSet {
+		originNodes = append(originNodes, nodeRef)
+	}
+	sort.Strings(originNodes)
+	moduleTargetRefs := make([]string, len(plan.ModuleTargets))
+	for index, target := range plan.ModuleTargets {
+		moduleTargetRefs[index] = target.ID
+	}
+	if !exactStringList(originNodes, moduleTargetRefs) {
+		return nil, fail(ErrInvalidPlan, path+".bridgeOriginMTLS.publications", "unprojected origin targets must exactly cover module targets")
+	}
+	targets := make([]executorBundleTarget, 0, 1)
+	for _, target := range plan.ModuleTargets {
+		if target.ID == nodeRef && target.SiteRef == siteRef {
+			targets = append(targets, target)
+		}
+	}
+	if len(targets) != 1 {
+		return nil, fail(ErrInvalidPlan, path+".moduleTargets", "origin mTLS instance must match exactly one compiler-owned target")
+	}
+	publications := make([]bridgeOriginMTLSPublication, 0, len(plan.BridgeOriginMTLS.Publications))
+	for index, publication := range plan.BridgeOriginMTLS.Publications {
+		for _, target := range publication.OriginTargets {
+			if target.NodeRef != nodeRef {
+				continue
+			}
+			if publication.SourceSiteRef != siteRef {
+				return nil, fail(ErrInvalidPlan, fmt.Sprintf("%s.bridgeOriginMTLS.publications[%d].sourceSiteRef", path, index), "origin publication Site does not match its exact instance")
+			}
+			projected := publication
+			projected.OriginNodeRefs = []string{nodeRef}
+			projected.OriginInstanceRefs = []string{target.InstanceRef}
+			projected.OriginTargets = []bridgeOriginMTLSTarget{target}
+			publications = append(publications, projected)
+		}
+	}
+	if len(publications) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".bridgeOriginMTLS.publications", "origin mTLS instance has no compiler-owned publication")
+	}
+	plan.BridgeOriginMTLS.Publications = publications
+	return plan, nil
+}
+
+type bridgeOriginMTLSExecutorDocument struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Module     struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	} `json:"module"`
+	Contract struct {
+		Apply                   string   `json:"apply"`
+		Credentials             string   `json:"credentials"`
+		Generation              string   `json:"generation"`
+		Operations              []string `json:"operations"`
+		ProviderLifecycle       string   `json:"providerLifecycle"`
+		ReverseTrust            string   `json:"reverseTrust"`
+		RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+		Scope                   string   `json:"scope"`
+		ServerProviderAuthority string   `json:"serverProviderAuthority"`
+		TransportImplementation string   `json:"transportImplementation"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// BridgeOriginMTLSPolicy is the exact material-free policy for one Home origin
+// node. Credential and transport implementations remain outside StackKits.
+type BridgeOriginMTLSPolicy struct {
+	StackID      string
+	SiteRef      string
+	NodeRef      string
+	Publications []BridgeOriginMTLSPublicationPolicy
+}
+
+type BridgeOriginMTLSPublicationPolicy struct {
+	ServiceRef                    string
+	IdentityRef                   string
+	EdgeSiteRef                   string
+	ModuleRef                     string
+	UnitRef                       string
+	OriginInstanceRef             string
+	UpstreamProtocol              string
+	TargetPort                    int
+	ServerName                    string
+	MinimumTLSVersion             string
+	CredentialIssuerRef           string
+	Issuer                        string
+	Audience                      string
+	VerificationKeySetRef         string
+	CredentialTTLSeconds          int
+	RevocationMaxStalenessSeconds int
+	EdgeVerifierRef               string
+	VerifierDistributionRef       string
+	VerifierMaxStalenessSeconds   int
+}
+
+// ValidateBridgeOriginMTLSExecutorArtifact verifies the exact executable
+// contract and selects only the caller-bound Home node projection.
+func ValidateBridgeOriginMTLSExecutorArtifact(raw []byte, siteRef, nodeRef string) (BridgeOriginMTLSPolicy, error) {
+	var document bridgeOriginMTLSExecutorDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return BridgeOriginMTLSPolicy{}, wrap(ErrInvalidPlan, "bridgeOriginMTLSArtifact", "decode exact origin mTLS artifact", err)
+	}
+	spec := executorContractBundleSpecs[16]
+	if document.APIVersion != "stackkit.executor-contract-bundle/v1" || document.Kind != "ExecutorContractBundle" ||
+		document.Module.ID != spec.moduleID || document.Module.Version != spec.moduleVersion ||
+		document.Contract.Apply != "typed-local-operations" || document.Contract.Credentials != "external-owner" ||
+		document.Contract.Generation != "supported" ||
+		!exactStringList(document.Contract.Operations, []string{"bind-origin-mtls-proxy", "remove-origin-mtls-proxy", "verify-origin-mtls"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.ReverseTrust != "forbidden" ||
+		document.Contract.RuntimeEnforcement != "adapter-verified" || document.Contract.Scope != "home-origin-node" ||
+		document.Contract.ServerProviderAuthority != "not-owned" || document.Contract.TransportImplementation != "external-owner" {
+		return BridgeOriginMTLSPolicy{}, fail(ErrInvalidPlan, "bridgeOriginMTLSArtifact.contract", "artifact widens or contradicts the typed origin mTLS authority")
+	}
+	decoded, err := decodeBridgeOriginMTLSExecutorPlan(document.PlanInputs, "bridgeOriginMTLSArtifact.planInputs", spec)
+	if err != nil {
+		return BridgeOriginMTLSPolicy{}, err
+	}
+	plan := decoded.(bridgeOriginMTLSExecutorPlan)
+	matchingTargets := 0
+	for _, target := range plan.ModuleTargets {
+		if target.ID == nodeRef && target.SiteRef == siteRef {
+			matchingTargets++
+		}
+	}
+	if matchingTargets != 1 {
+		return BridgeOriginMTLSPolicy{}, fail(ErrInvalidPlan, "bridgeOriginMTLSArtifact.planInputs.moduleTargets", "artifact topology must contain the caller-bound Home Site/node exactly once")
+	}
+	publications := make([]BridgeOriginMTLSPublicationPolicy, len(plan.BridgeOriginMTLS.Publications))
+	for index, publication := range plan.BridgeOriginMTLS.Publications {
+		if publication.SourceSiteRef != siteRef || len(publication.OriginNodeRefs) != 1 ||
+			publication.OriginNodeRefs[0] != nodeRef || len(publication.OriginInstanceRefs) != 1 ||
+			len(publication.OriginTargets) != 1 || publication.OriginTargets[0].NodeRef != nodeRef ||
+			publication.OriginTargets[0].InstanceRef != publication.OriginInstanceRefs[0] {
+			return BridgeOriginMTLSPolicy{}, fail(ErrInvalidPlan, fmt.Sprintf("bridgeOriginMTLSArtifact.planInputs.bridgeOriginMTLS.publications[%d]", index), "publication is not exact for the caller-bound Home node")
+		}
+		publications[index] = BridgeOriginMTLSPublicationPolicy{
+			ServiceRef: publication.ServiceRef, IdentityRef: publication.IdentityRef,
+			EdgeSiteRef: publication.EdgeSiteRef, ModuleRef: publication.ModuleRef, UnitRef: publication.UnitRef,
+			OriginInstanceRef: publication.OriginInstanceRefs[0], UpstreamProtocol: publication.UpstreamProtocol,
+			TargetPort: publication.TargetPort, ServerName: publication.Transport.ServerName,
+			MinimumTLSVersion:   publication.Transport.MinimumTLSVersion,
+			CredentialIssuerRef: publication.WorkloadIdentity.CredentialIssuerRef,
+			Issuer:              publication.WorkloadIdentity.Issuer, Audience: publication.WorkloadIdentity.Audience,
+			VerificationKeySetRef:         publication.WorkloadIdentity.VerificationKeySetRef,
+			CredentialTTLSeconds:          publication.WorkloadIdentity.CredentialTTLSeconds,
+			RevocationMaxStalenessSeconds: publication.WorkloadIdentity.RevocationMaxStalenessSeconds,
+			EdgeVerifierRef:               publication.EdgeVerifier.VerifierRef,
+			VerifierDistributionRef:       publication.EdgeVerifier.DistributionRef,
+			VerifierMaxStalenessSeconds:   publication.EdgeVerifier.MaxStalenessSeconds,
+		}
+	}
+	return BridgeOriginMTLSPolicy{StackID: plan.StackID, SiteRef: siteRef, NodeRef: nodeRef, Publications: publications}, nil
 }
 
 func decodeLocalRuntimeExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
@@ -2047,7 +2271,34 @@ func decodeFederationRuntimeExecutorPlan(raw []byte, path string, spec executorC
 	if _, err := validateModernFederationPlanInputs(canonical, path); err != nil {
 		return nil, err
 	}
+	plan.Bridge, err = projectFederationBridgeWithoutProviderAuthority(plan.Bridge)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, path+".bridge", "project provider-free Federation executor inputs", err)
+	}
 	return plan, nil
+}
+
+func projectFederationBridgeWithoutProviderAuthority(raw json.RawMessage) (json.RawMessage, error) {
+	var bridge any
+	if err := json.Unmarshal(raw, &bridge); err != nil {
+		return nil, err
+	}
+	var strip func(any)
+	strip = func(value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			delete(typed, "providerRef")
+			for _, nested := range typed {
+				strip(nested)
+			}
+		case []any:
+			for _, nested := range typed {
+				strip(nested)
+			}
+		}
+	}
+	strip(bridge)
+	return json.Marshal(bridge)
 }
 
 func validateFederationLinkExecutorProjection(plan federationRuntimeExecutorPlan, path string) error {

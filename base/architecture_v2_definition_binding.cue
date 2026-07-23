@@ -498,6 +498,28 @@ import "list"
 								matches: [for originInstanceRef in publication.originInstanceRefs if originInstanceRef == instance.id {originInstanceRef}] & list.MinItems(1) & list.MaxItems(1)
 							},
 						]
+						originTargets: [for originTarget in publication.originTargets {
+							target: originTarget
+							matches: [
+								for instance in unit.instances
+								if instance.scope == "node-local"
+								if instance.id == originTarget.instanceRef && instance.nodeRef == originTarget.nodeRef && instance.siteRef == publication.sourceSiteRef {
+									nodeRef: instance.nodeRef
+									instanceRef: instance.id
+								},
+							] & list.MinItems(1) & list.MaxItems(1)
+						}]
+						originTargetsComplete: [
+							for instance in unit.instances
+							if instance.scope == "node-local"
+							if instance.siteRef == publication.sourceSiteRef {
+								target: {nodeRef: instance.nodeRef, instanceRef: instance.id}
+								matches: [
+									for originTarget in publication.originTargets
+									if originTarget.nodeRef == instance.nodeRef && originTarget.instanceRef == instance.id {originTarget},
+								] & list.MinItems(1) & list.MaxItems(1)
+							},
+						]
 						if endpoint.originSelector == "single-site" {
 							unitSiteCount: len(unit.siteRefs) & 1
 							originSite:    unit.siteRefs[0] & publication.sourceSiteRef
