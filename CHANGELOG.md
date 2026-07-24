@@ -4,6 +4,29 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.12] - 2026-07-24
+
+> **Stable v0.x Modern Homelab installer patch** that makes the third public
+> StackKit installable through the same public release path as Basement and
+> Cloud.
+
+### Fixed
+
+- `install.sh modern-homelab` now selects the dedicated
+  `stackkits-modern-homelab` archive instead of rejecting the Kit.
+- The default public-catalog and explicit `all` install paths now stage
+  `modern-homelab` alongside `basement-kit` and `cloud-kit` under
+  `~/.stackkits`.
+- The generated `install.stackkit.cc` script and installer regression contract
+  carry the same three-Kit selection.
+
+### Known limitations
+
+- Modern Homelab remains Preview until its remaining control, policy,
+  partition, backup, observability, and live-evidence owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.11] - 2026-07-24
 
 > **Stable v0.x Modern Homelab backend-Health patch** that verifies the exact

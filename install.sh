@@ -6,6 +6,7 @@
 #   curl -sSL https://install.stackkit.cc | sh                        # CLI + public kit catalog
 #   curl -sSL https://install.stackkit.cc | sh -s -- basement-kit     # CLI + basement-kit
 #   curl -sSL https://install.stackkit.cc | sh -s -- cloud-kit        # CLI + cloud-kit
+#   curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab   # CLI + Modern Homelab Preview
 #
 # Called by the short website entrypoints (`base.stackkit.cc`,
 # `cloud.stackkit.cc`) to provide the shared install + kit-download step
@@ -18,6 +19,7 @@ set -eu
 # ""             → CLI + the public kit catalog
 # "basement-kit" → CLI + basement-kit definitions ("base-kit" aliases here)
 # "cloud-kit"    → CLI + cloud-kit definitions
+# "modern-homelab" → CLI + Modern Homelab Preview definitions
 KIT_NAME="${1:-}"
 
 # Allow callers (e.g. base-install.sh) to suppress the banner.
@@ -139,6 +141,10 @@ case "$KIT_NAME" in
     ARCHIVE="stackkits-cloud-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
     INSTALL_KITS="cloud-kit"
     ;;
+  modern-homelab)
+    ARCHIVE="stackkits-modern-homelab_${LATEST}_${OS}_${ARCH}.tar.gz"
+    INSTALL_KITS="modern-homelab"
+    ;;
   base-kit)
     echo "Note: 'base-kit' is retired; installing 'basement-kit' (the local product)." >&2
     ARCHIVE="stackkits-basement-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
@@ -146,14 +152,14 @@ case "$KIT_NAME" in
     ;;
   all)
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="basement-kit cloud-kit"
+    INSTALL_KITS="basement-kit cloud-kit modern-homelab"
     ;;
   "")
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="basement-kit cloud-kit"
+    INSTALL_KITS="basement-kit cloud-kit modern-homelab"
     ;;
   *)
-    echo "Error: unknown kit '${KIT_NAME}'. Available: basement-kit, cloud-kit, all" >&2
+    echo "Error: unknown kit '${KIT_NAME}'. Available: basement-kit, cloud-kit, modern-homelab, all" >&2
     exit 1
     ;;
 esac
@@ -324,16 +330,23 @@ if [ -n "$INSTALL_KITS" ]; then
   echo ""
   echo "  Get started manually:"
   echo "    mkdir my-homelab && cd my-homelab"
-  if [ "$KIT_NAME" = "base-kit" ]; then
-    echo "    stackkit init $KIT_NAME     # continue with this StackKit"
-  else
-    echo "    stackkit init               # interactive kit selection"
-  fi
+  case "$KIT_NAME" in
+    base-kit)
+      echo "    stackkit init basement-kit  # continue with this StackKit"
+      ;;
+    basement-kit|cloud-kit|modern-homelab)
+      echo "    stackkit init $KIT_NAME     # continue with this StackKit"
+      ;;
+    *)
+      echo "    stackkit init               # interactive kit selection"
+      ;;
+  esac
   echo "    stackkit apply              # deploy with confirmation"
   echo ""
   echo "  Shortcut install entrypoints:"
   echo "    curl -sSL https://install.stackkit.cc | sh"
   echo "    curl -sSL https://base.stackkit.cc | sh"
+  echo "    curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab"
 else
   echo ""
   echo "  Get started:"

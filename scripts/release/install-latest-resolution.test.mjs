@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,14 @@ import assert from 'node:assert/strict';
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const installPath = path.join(repoRoot, 'install.sh');
+
+test('installer exposes Modern Homelab as the third public kit', async () => {
+  const installer = await readFile(installPath, 'utf8');
+
+  assert.match(installer, /modern-homelab\)\s+ARCHIVE="stackkits-modern-homelab_\$\{LATEST\}_\$\{OS\}_\$\{ARCH\}\.tar\.gz"\s+INSTALL_KITS="modern-homelab"/u);
+  assert.match(installer, /INSTALL_KITS="basement-kit cloud-kit modern-homelab"/u);
+  assert.match(installer, /Available: basement-kit, cloud-kit, modern-homelab, all/u);
+});
 
 test('installer falls back from an unusable authenticated latest API response to the public API', async (t) => {
   const result = await runInstallerResolutionSmoke(t, 'unauth-api');
@@ -39,7 +47,30 @@ test('installer only uses prerelease versions when explicitly pinned', async (t)
   assert.doesNotMatch(result.stdout, /v9\.8\.7 \(linux\/amd64\)/);
 });
 
-async function runInstallerResolutionSmoke(t, mode, extraEnv = {}) {
+test('installer installs Modern Homelab through the dedicated release archive', async (t) => {
+  const result = await runInstallerResolutionSmoke(t, 'pinned-prerelease', {
+    STACKKIT_RELEASE_VERSION: 'v0.4.0-beta.1',
+  }, ['modern-homelab']);
+  if (!result) return;
+
+  assert.match(result.stdout, /Installed modern-homelab to /);
+  assert.match(result.stdout, /Installed kit definitions: modern-homelab/);
+  assert.match(result.stdout, /stackkit init modern-homelab/);
+});
+
+test('default installer stages all three public kit definitions', async (t) => {
+  const result = await runInstallerResolutionSmoke(t, 'pinned-prerelease', {
+    STACKKIT_RELEASE_VERSION: 'v0.4.0-beta.1',
+  });
+  if (!result) return;
+
+  assert.match(result.stdout, /Installed basement-kit to /);
+  assert.match(result.stdout, /Installed cloud-kit to /);
+  assert.match(result.stdout, /Installed modern-homelab to /);
+  assert.match(result.stdout, /Installed kit definitions: basement-kit cloud-kit modern-homelab/);
+});
+
+async function runInstallerResolutionSmoke(t, mode, extraEnv = {}, installerArgs = []) {
   try {
     await execFileAsync('sh', ['-c', 'true']);
   } catch {
@@ -77,7 +108,7 @@ while [ "$#" -gt 0 ]; do
   fi
   shift
 done
-mkdir -p "$dest/base" "$dest/cue.mod" "$dest/modules" "$dest/basement-kit"
+mkdir -p "$dest/base" "$dest/cue.mod" "$dest/modules" "$dest/basement-kit" "$dest/cloud-kit" "$dest/modern-homelab"
 printf '#!/bin/sh\\necho stackkit test\\n' > "$dest/stackkit"
 printf '#!/bin/sh\\necho tofu test\\n' > "$dest/tofu"
 printf '#!/bin/sh\\necho terramate test\\n' > "$dest/terramate"
@@ -90,7 +121,7 @@ exit 0
 echo stackkit test
 `);
 
-  return execFileAsync('sh', [installPath], {
+  return execFileAsync('sh', [installPath, ...installerArgs], {
     env: {
       ...process.env,
       HOME: home,

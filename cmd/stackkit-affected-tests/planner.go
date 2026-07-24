@@ -407,6 +407,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 	commands := []testCommand{}
 	if len(focusedPatterns) > 0 {
 		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", exactTestRegex(focusedTests)}
+		args = appendRequiredBuildTags(args, focusedPatterns)
 		args = append(args, focusedPatterns...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-test-functions", Argv: args,
@@ -414,13 +415,15 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 		})
 	}
 	if len(fullPatterns) > 0 {
+		args := appendRequiredBuildTags([]string{"go", "test", "-count=1", "-timeout=90s"}, fullPatterns)
 		commands = append(commands, testCommand{
-			Kind: "go", Scope: "changed-packages", Argv: append([]string{"go", "test", "-count=1", "-timeout=90s"}, fullPatterns...),
+			Kind: "go", Scope: "changed-packages", Argv: append(args, fullPatterns...),
 			Reason: "run changed packages that have no changed test-function boundary",
 		})
 	}
 	if len(selection.CompileOnly) > 0 {
 		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
+		args = appendRequiredBuildTags(args, selection.CompileOnly)
 		args = append(args, selection.CompileOnly...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-generated-compile", Argv: args,
@@ -429,6 +432,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 	}
 	if len(selection.Reverse) > 0 {
 		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
+		args = appendRequiredBuildTags(args, selection.Reverse)
 		args = append(args, selection.Reverse...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "reverse-dependent-compile", Argv: args,
@@ -436,6 +440,15 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 		})
 	}
 	return commands
+}
+
+func appendRequiredBuildTags(args, patterns []string) []string {
+	for _, pattern := range patterns {
+		if pattern == "./tests/production" {
+			return append(args, "-tags", "production")
+		}
+	}
+	return args
 }
 
 func exactTestRegex(names []string) string {
