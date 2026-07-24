@@ -25,6 +25,7 @@ const (
 	ProductRuntimeOwnerLocalAutonomy         ProductRuntimeOwnerID = "stackkits-local-autonomy-policy-manifest"
 	ProductRuntimeOwnerModernHomeIdentity    ProductRuntimeOwnerID = "stackkits-modern-home-identity-trust-policy-manifest"
 	ProductRuntimeOwnerModernCloudIdentity   ProductRuntimeOwnerID = "stackkits-modern-cloud-identity-verifier-policy-manifest"
+	ProductRuntimeOwnerFederationLink        ProductRuntimeOwnerID = "stackkits-federation-link-runtime"
 	ProductRuntimeOwnerBridgePublication     ProductRuntimeOwnerID = "stackkits-bridge-publication-runtime"
 	ProductRuntimeOwnerBridgeOriginMTLS      ProductRuntimeOwnerID = "stackkits-bridge-origin-mtls-runtime"
 )
@@ -57,6 +58,7 @@ func ProductStaticRuntimeOwnerCatalog() []ProductRuntimeOwnerDescriptor {
 		{ID: ProductRuntimeOwnerLocalAutonomy, Selector: productLocalAutonomySelector()},
 		{ID: ProductRuntimeOwnerModernHomeIdentity, Selector: productModernHomeIdentitySelector()},
 		{ID: ProductRuntimeOwnerModernCloudIdentity, Selector: productModernCloudIdentitySelector()},
+		{ID: ProductRuntimeOwnerFederationLink, Selector: productFederationLinkSelector()},
 		{ID: ProductRuntimeOwnerBridgePublication, Selector: productBridgePublicationSelector()},
 		{ID: ProductRuntimeOwnerBridgeOriginMTLS, Selector: productBridgeOriginMTLSSelector()},
 	}

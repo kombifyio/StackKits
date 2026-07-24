@@ -8979,21 +8979,37 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "establish-inter-site-link",
+          "remove-inter-site-link",
+          "verify-inter-site-link"
+        ],
+        "ownerRef": "stackkits-federation-link-executor",
+        "policyArtifactRefs": [
+          "federation-link-executor-contract"
+        ],
+        "requiredEvidenceRef": "federation-link-evidence",
+        "requiredHealthRef": "federation-link-health",
+        "status": "bound",
+        "targetScope": "federated-sites"
+      },
       "evidence": [
-        "federation-link-contract"
+        "federation-link-evidence"
       ],
       "health": [
         {
-          "id": "federation-link-contract",
+          "id": "federation-link-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Typed inter-Site link boundary; transport, endpoint discovery, credentials, provider lifecycle, and general LAN reachability remain external.",
+        "description": "Authenticated node-local inter-Site link runtime; transport, endpoint discovery, credentials, provider lifecycle, and general LAN reachability remain external.",
         "id": "stackkits-federation-link-runtime",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "providerRef": "stackkits-federation-link",
       "provides": [
@@ -9032,13 +9048,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "federation-link-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -9061,7 +9079,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:7884542488c9e95c6dd47431f4b3bd194c4705aa3c164aa3a0d925e9432dc316",
+          "contractHash": "sha256:9912aefeb3bcf171f96ee8298c2e4da62a2e4cda507cad0b3972c44832884e65",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -9069,8 +9087,8 @@
             "modern/federation/link/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -9102,23 +9120,8 @@
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "inter-site-link"
-        ],
-        "operations": [
-          "establish-inter-site-link",
-          "remove-inter-site-link",
-          "verify-inter-site-link"
-        ],
-        "ownerRef": "stackkits-federation-link-executor",
-        "requiredEvidenceRef": "federation-link-evidence",
-        "requiredHealthRef": "federation-link-health",
-        "status": "unbound",
-        "targetScope": "federated-sites"
       },
       "supportedSiteKinds": [
         "home",

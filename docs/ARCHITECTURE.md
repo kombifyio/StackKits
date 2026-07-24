@@ -364,14 +364,15 @@ publication decision, placement policy, data policy, and naming intent; they
 create no transport, process, DNS mutation, runtime target, Health gate, or
 evidence claim. Identity and federation-policy manifests depend on their
 direct Home policy authorities rather than a Federation runtime. The former
-residual runtime is replaced by four concrete, separately unbound modules for
+residual runtime is replaced by four concrete, separately owned modules for
 the inter-Site link, outbound control agent, cross-Site backup, and bridge
 observability. Each names its own capability, closed operation set, Health ref,
-evidence ref, and hash-bound generation-only executor contract. The common
-renderer accepts only Modern's closed bridge, identity, data, failure, Site,
-target, and capability projection; credentials, endpoints, provider lifecycle,
-and runtime enforcement remain excluded. No executable adapter is claimed, so
-Apply remains blocked without a generic umbrella.
+evidence ref, and hash-bound executor contract. The link owner is executable
+and node-local; the other three remain explicit generation-ready handoffs.
+Their renderers accept only their closed policy projections; credentials,
+endpoints, provider lifecycle, lease state, and general LAN authority remain
+excluded. Apply therefore advances one owner at a time without reviving a
+generic Federation umbrella.
 
 Overlay and remote-control security are catalog authority, not StackSpec
 authority. Modern intent supplies only `overlay.contractRef`, `trafficMode`,
@@ -393,8 +394,17 @@ external fabric authority may return only a maximum-24-hour
 references. It cannot return transport, address, endpoint, route, credential,
 relay, provider-resource, account, region, lease, or lifecycle information.
 Generation remains available without that receipt; Apply exposes
-`external-federation-link-binding-missing`. StackKits does not register a link
-executor or mutate TechStack/provider control planes through this contract.
+`external-federation-link-binding-missing`. Once the receipt exists, the
+Product-owned `stackkits-federation-link-executor` receives one exact artifact
+per compiler-selected Home or Cloud node. It verifies the sealed request,
+artifact digest, Site, node, execution channel, requirement/binding hashes and
+`issuedAt <= now < validUntil` immediately before calling the injected local
+operations. Success requires `establish -> remove obsolete -> verify` readback
+that proves authenticated peers, declared flows only, default deny, no default
+route, no broad/private-subnet advertisement, no general LAN access, and no
+Cloud-to-Home inbound authority. StackKits still does not own the fabric,
+transport implementation, endpoints, credentials, provider control plane,
+lease, or lifecycle behind the opaque binding.
 
 ### Home backup-target ownership
 

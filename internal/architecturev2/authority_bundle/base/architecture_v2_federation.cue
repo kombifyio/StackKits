@@ -202,7 +202,12 @@ _architectureV2FederationRuntimeSupports: {
 		"\(runtimeName)": #ModuleRealizationSupportV2 & {
 			contractVersion: "1.0.0"
 			scope:           "concrete"
-			level:           "generation-ready"
+			if runtimeName == "link" {
+				level: "apply-ready"
+			}
+			if runtimeName != "link" {
+				level: "generation-ready"
+			}
 			compatibleRendererRefs: ["stackkit"]
 			inputs: {contractComplete: true, requiredRefs: []}
 			planInputs: {
@@ -229,7 +234,12 @@ _architectureV2FederationRuntimeSupports: {
 					unitRef: "executor-contract", outputRef: artifact.outputRef
 				}]
 			}
-			evidence: requiredRefs: []
+			if runtimeName == "link" {
+				evidence: requiredRefs: ["federation-link-evidence"]
+			}
+			if runtimeName != "link" {
+				evidence: requiredRefs: []
+			}
 		}
 	}
 }
@@ -426,26 +436,27 @@ _architectureV2ProfileExtensionModules: [
 		evidence: ["bridge-publication-evidence"]
 	},
 	{
-		metadata: {id: "stackkits-federation-link-runtime", version: "1.0.0", description: "Typed inter-Site link boundary; transport, endpoint discovery, credentials, provider lifecycle, and general LAN reachability remain external."}
+		metadata: {id: "stackkits-federation-link-runtime", version: "1.1.0", description: "Authenticated node-local inter-Site link runtime; transport, endpoint discovery, credentials, provider lifecycle, and general LAN reachability remain external."}
 		role: "foundation", providerRef: "stackkits-federation-link", provides: ["inter-site-link"]
 		requires: ["stackkits-modern-federation-policy-manifest"]
 		supportedSiteKinds: ["home", "cloud"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status: "unbound", ownerRef: "stackkits-federation-link-executor", capabilityRefs: ["inter-site-link"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-federation-link-executor"
+			policyArtifactRefs: ["federation-link-executor-contract"]
 			targetScope: "federated-sites", operations: ["establish-inter-site-link", "remove-inter-site-link", "verify-inter-site-link"]
 			requiredHealthRef: "federation-link-health", requiredEvidenceRef: "federation-link-evidence"
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                             "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://modern/federation/link/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:7884542488c9e95c6dd47431f4b3bd194c4705aa3c164aa3a0d925e9432dc316"
+			contractHash: "sha256:9912aefeb3bcf171f96ee8298c2e4da62a2e4cda507cad0b3972c44832884e65"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationLinkPolicy", "federationLinkRequirements", "externalFederationLinkBindings"]
 			outputs: ["modern/federation/link/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.link
-		health: [{id: "federation-link-contract", kind: "contract"}], evidence: ["federation-link-contract"]
+		health: [{id: "federation-link-health", kind: "contract", scope: "each-node"}], evidence: ["federation-link-evidence"]
 	},
 	{
 		metadata: {id: "stackkits-federation-control-agent-runtime", version: "1.0.0", description: "Typed outbound-only Federation control-agent boundary; inbound tunnels, credentials, identity issuance, provider lifecycle, and general LAN reachability remain external."}

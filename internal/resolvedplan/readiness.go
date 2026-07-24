@@ -50,11 +50,11 @@ func buildExecutionReadiness(providers, modules, artifacts []any, evidence []str
 		return nil, fail(ErrInvalidInput, "bridge", "execution readiness accepts at most one resolved bridge")
 	}
 	if len(bridges) == 1 && bridges[0] != nil {
-		bridgeBlockers, err := bridgeExecutionReadinessBlockers(bridges[0])
+		bridgeBlockers, err := bridgeExecutionReadinessBlockers(bridges[0], modules)
 		if err != nil {
 			return nil, err
 		}
-		generationBlockers = append(generationBlockers, bridgeBlockers...)
+		applyOnlyBlockers = append(applyOnlyBlockers, bridgeBlockers...)
 	}
 	routeHealthBlockers, err := routeHealthExecutionReadinessBlockers(routeHealth)
 	if err != nil {
@@ -103,20 +103,42 @@ func routeHealthExecutionReadinessBlockers(routeHealth []any) ([]executionReadin
 	return blockers, nil
 }
 
-func bridgeExecutionReadinessBlockers(bridge map[string]any) ([]executionReadinessBlocker, error) {
+func bridgeExecutionReadinessBlockers(bridge map[string]any, modules []any) ([]executionReadinessBlocker, error) {
 	publications, err := objectListOptional(bridge, "publications")
 	if err != nil {
 		return nil, err
 	}
-	// These seams exist for every bridge, including a management-only or empty
-	// bridge. Publication-specific blockers below are additive and must never be
-	// the only reason a federated plan remains fail-closed.
+	// Runtime-only seams never make a fully materializable plan generation-
+	// blocked. They remain Apply blockers until the exact selected module owns
+	// executable, bound enforcement.
 	blockers := []executionReadinessBlocker{
-		{code: "bridge-overlay-unverified", refs: []string{"bridge:overlay"}},
-		{code: "bridge-control-agent-unverified", refs: []string{"bridge:control-agent"}},
 		{code: "policy-enforcement-unverified", refs: []string{"bridge:policy"}},
 		{code: "partition-policy-enforcement-unverified", refs: []string{"bridge:partition-policy"}},
-		{code: "device-verifier-unbound", refs: []string{"identity:edge-device-verifier"}},
+	}
+	linkBound, err := exactBoundModuleEnforcement(modules, "stackkits-federation-link-runtime", "stackkits-federation-link-executor")
+	if err != nil {
+		return nil, err
+	}
+	if !linkBound {
+		blockers = append(blockers, executionReadinessBlocker{code: "bridge-overlay-unverified", refs: []string{"bridge:overlay"}})
+	}
+	controlBound, err := exactBoundModuleEnforcement(modules, "stackkits-federation-control-agent-runtime", "stackkits-federation-control-agent-executor")
+	if err != nil {
+		return nil, err
+	}
+	if !controlBound {
+		blockers = append(blockers, executionReadinessBlocker{code: "bridge-control-agent-unverified", refs: []string{"bridge:control-agent"}})
+	}
+	homeIdentityBound, err := exactBoundModuleEnforcement(modules, "stackkits-modern-home-identity-trust-policy-manifest", "stackkits-modern-home-identity-trust-enforcer")
+	if err != nil {
+		return nil, err
+	}
+	cloudIdentityBound, err := exactBoundModuleEnforcement(modules, "stackkits-modern-cloud-identity-verifier-policy-manifest", "stackkits-modern-cloud-identity-verifier-enforcer")
+	if err != nil {
+		return nil, err
+	}
+	if !homeIdentityBound || !cloudIdentityBound {
+		blockers = append(blockers, executionReadinessBlocker{code: "device-verifier-unbound", refs: []string{"identity:edge-device-verifier"}})
 	}
 	for index, publication := range publications {
 		publicationPath := fmt.Sprintf("bridge.publications[%d]", index)
@@ -134,6 +156,32 @@ func bridgeExecutionReadinessBlockers(bridge map[string]any) ([]executionReadine
 		)
 	}
 	return blockers, nil
+}
+
+func exactBoundModuleEnforcement(modules []any, moduleID, ownerRef string) (bool, error) {
+	matches := 0
+	bound := false
+	for index, raw := range modules {
+		module, err := asObject(raw, fmt.Sprintf("modules[%d]", index))
+		if err != nil {
+			return false, err
+		}
+		id, _ := module["id"].(string)
+		if id != moduleID {
+			continue
+		}
+		matches++
+		runtime, runtimeOK := module["runtime"].(map[string]any)
+		requirement, requirementOK := module["enforcementRequirement"].(map[string]any)
+		bound = runtimeOK && requirementOK &&
+			runtime["execution"] == "executable" &&
+			requirement["status"] == "bound" &&
+			requirement["ownerRef"] == ownerRef
+	}
+	if matches > 1 {
+		return false, fail(ErrContractConflict, "modules."+moduleID, "selected module appears more than once")
+	}
+	return matches == 1 && bound, nil
 }
 
 type readinessProvider struct {

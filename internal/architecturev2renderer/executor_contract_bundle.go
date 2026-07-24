@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
@@ -74,6 +75,7 @@ const (
 	cloudBackupTargetCapability     = "offsite-object-backup"
 
 	federationLinkModuleID             = "stackkits-federation-link-runtime"
+	federationLinkModuleVersion        = "1.1.0"
 	federationControlAgentModuleID     = "stackkits-federation-control-agent-runtime"
 	federationBackupModuleID           = "stackkits-federation-backup-runtime"
 	federationObservabilityModuleID    = "stackkits-federation-observability-runtime"
@@ -98,6 +100,7 @@ const (
 )
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
+const federationLinkExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","endpointDiscovery":"external-owner","fabricLifecycle":"not-owned","generation":"supported","operations":["establish-inter-site-link","remove-inter-site-link","verify-inter-site-link"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-declared-flows-only","runtimeEnforcement":"adapter-verified","scope":"federated-site-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
 const bridgePublicationExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-service-publication","remove-service-publication","verify-service-publication"],"providerLifecycle":"not-owned","publicationAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 const bridgeOriginMTLSExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","generation":"supported","operations":["bind-origin-mtls-proxy","remove-origin-mtls-proxy","verify-origin-mtls"],"providerLifecycle":"not-owned","reverseTrust":"forbidden","runtimeEnforcement":"adapter-verified","scope":"home-origin-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
@@ -184,8 +187,9 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		decodePlan:           decodeCloudRuntimeExecutorPlan,
 	},
 	{
-		moduleID: federationLinkModuleID, moduleVersion: federationRuntimeModuleVersion,
+		moduleID: federationLinkModuleID, moduleVersion: federationLinkModuleVersion,
 		templateRef: federationLinkTemplateRef, outputRef: federationLinkOutputRef,
+		contractJSON:        federationLinkExecutorContract,
 		planInputRefs:       []string{"controlPlane", "externalFederationLinkBindings", "federationLinkPolicy", "federationLinkRequirements", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
 		allowedCapabilities: []string{"inter-site-link"}, requiredCapabilities: []string{"inter-site-link"},
@@ -511,6 +515,12 @@ func (r executorContractBundleRenderer) RenderUnit(ctx context.Context, unit Ren
 			return nil, err
 		}
 	}
+	if r.spec.moduleID == federationLinkModuleID {
+		plan, err = projectFederationLinkForInstance(plan, unit, path)
+		if err != nil {
+			return nil, err
+		}
+	}
 	canonical, err := json.Marshal(plan)
 	if err != nil {
 		return nil, wrap(ErrRendererFailure, path+".planInputs", "marshal typed executor contract", err)
@@ -592,7 +602,7 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 	if unit.RuntimeKind() != wantRuntimeKind || unit.RuntimeDelivery() != "stackkit" {
 		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact %s/stackkit ownership", wantRuntimeKind)
 	}
-	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
+	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == federationLinkModuleID || renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
 	if nodeLocal {
 		siteRef, hasSite := unit.SiteRef()
 		nodeRef, hasNode := unit.NodeRef()
@@ -1531,6 +1541,187 @@ func projectBridgeOriginMTLSForInstance(decoded executorContractPlan, unit Rende
 	}
 	plan.BridgeOriginMTLS.Publications = publications
 	return plan, nil
+}
+
+type federationLinkExecutorDocument struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Module     struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	} `json:"module"`
+	Contract struct {
+		Apply                   string   `json:"apply"`
+		Credentials             string   `json:"credentials"`
+		EndpointDiscovery       string   `json:"endpointDiscovery"`
+		FabricLifecycle         string   `json:"fabricLifecycle"`
+		Generation              string   `json:"generation"`
+		Operations              []string `json:"operations"`
+		ProviderLifecycle       string   `json:"providerLifecycle"`
+		RouteAuthority          string   `json:"routeAuthority"`
+		RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+		Scope                   string   `json:"scope"`
+		ServerProviderAuthority string   `json:"serverProviderAuthority"`
+		TransportImplementation string   `json:"transportImplementation"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// FederationLinkPolicy is the material-free, caller-bound projection for one
+// authenticated Home or Cloud node. The opaque binding proves external fabric
+// custody without exposing endpoints, credentials, keys, provider resources,
+// transport implementation, or general LAN routes.
+type FederationLinkPolicy struct {
+	StackID       string
+	SiteRef       string
+	NodeRef       string
+	SiteKind      string
+	HomeSiteRefs  []string
+	CloudSiteRefs []string
+	Overlay       FederationLinkOverlayPolicy
+	Partition     FederationLinkPartitionPolicy
+	Binding       FederationLinkBindingPolicy
+}
+
+type FederationLinkOverlayPolicy struct {
+	ContractRef             string
+	Implementation          string
+	Initiation              string
+	OutboundEstablished     bool
+	TrafficMode             string
+	AdvertisePrivateSubnets bool
+	AdvertiseDefaultRoute   bool
+	AllowBroadRoutes        bool
+	PeerSiteRefs            []string
+}
+
+type FederationLinkPartitionPolicy struct {
+	OnCloudLoss                     string
+	OnLinkLoss                      string
+	CloudEdge                       string
+	LocalIdentityAuthorityAvailable bool
+	MaxStaleVerificationSeconds     int
+	DenyNewCrossSiteSessions        bool
+}
+
+type FederationLinkBindingPolicy struct {
+	BindingRef            string
+	FabricRef             string
+	CustodyAttestationRef string
+	RequirementsHash      string
+	BindingHash           string
+	BridgeContractHash    string
+	IssuedAt              string
+	ValidUntil            string
+}
+
+// ValidateFederationLinkExecutorArtifact verifies the executable contract,
+// exact compiler/custody hashes, caller-bound Site/node and binding freshness
+// at one trusted UTC instant immediately before runtime mutation.
+func ValidateFederationLinkExecutorArtifact(raw []byte, siteRef, nodeRef string, evaluatedAt time.Time) (FederationLinkPolicy, error) {
+	var document federationLinkExecutorDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return FederationLinkPolicy{}, wrap(ErrInvalidPlan, "federationLinkArtifact", "decode exact federation-link artifact", err)
+	}
+	spec := executorContractBundleSpecs[8]
+	if document.APIVersion != "stackkit.executor-contract-bundle/v1" || document.Kind != "ExecutorContractBundle" ||
+		document.Module.ID != spec.moduleID || document.Module.Version != spec.moduleVersion ||
+		document.Contract.Apply != "typed-local-operations" || document.Contract.Credentials != "external-owner" ||
+		document.Contract.EndpointDiscovery != "external-owner" || document.Contract.FabricLifecycle != "not-owned" ||
+		document.Contract.Generation != "supported" ||
+		!exactStringList(document.Contract.Operations, []string{"establish-inter-site-link", "remove-inter-site-link", "verify-inter-site-link"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.RouteAuthority != "compiler-owned-declared-flows-only" ||
+		document.Contract.RuntimeEnforcement != "adapter-verified" || document.Contract.Scope != "federated-site-node" ||
+		document.Contract.ServerProviderAuthority != "not-owned" || document.Contract.TransportImplementation != "external-owner" {
+		return FederationLinkPolicy{}, fail(ErrInvalidPlan, "federationLinkArtifact.contract", "artifact widens or contradicts the typed federation-link authority")
+	}
+	decoded, err := decodeFederationRuntimeExecutorPlan(document.PlanInputs, "federationLinkArtifact.planInputs", spec)
+	if err != nil {
+		return FederationLinkPolicy{}, err
+	}
+	plan := decoded.(federationRuntimeExecutorPlan)
+	if len(plan.ModuleTargets) != 1 || plan.ModuleTargets[0].ID != nodeRef || plan.ModuleTargets[0].SiteRef != siteRef {
+		return FederationLinkPolicy{}, fail(ErrInvalidPlan, "federationLinkArtifact.planInputs.moduleTargets", "artifact must contain exactly the caller-bound federation Site/node")
+	}
+	siteKind := ""
+	for _, site := range plan.Sites {
+		if site.ID == siteRef {
+			if siteKind != "" {
+				return FederationLinkPolicy{}, fail(ErrDuplicate, "federationLinkArtifact.planInputs.sites", "caller-bound federation Site is duplicated")
+			}
+			siteKind = site.Kind
+		}
+	}
+	if siteKind != "home" && siteKind != "cloud" {
+		return FederationLinkPolicy{}, fail(ErrInvalidPlan, "federationLinkArtifact.planInputs.sites", "caller-bound federation Site is absent or unsupported")
+	}
+	var projection federationLinkPolicyProjection
+	if err := decodeStrict(plan.FederationLinkPolicy, &projection); err != nil {
+		return FederationLinkPolicy{}, wrap(ErrInvalidPlan, "federationLinkArtifact.planInputs.federationLinkPolicy", "decode exact link policy", err)
+	}
+	var requirements map[string]map[string]any
+	if err := json.Unmarshal(plan.FederationLinkRequirements, &requirements); err != nil {
+		return FederationLinkPolicy{}, wrap(ErrInvalidPlan, "federationLinkArtifact.planInputs.federationLinkRequirements", "decode exact requirement", err)
+	}
+	requirement := requirements[federationLinkCapability]
+	var bindings map[string]map[string]any
+	if err := json.Unmarshal(plan.ExternalFederationLinkBindings, &bindings); err != nil {
+		return FederationLinkPolicy{}, wrap(ErrInvalidPlan, "federationLinkArtifact.planInputs.externalFederationLinkBindings", "decode exact binding", err)
+	}
+	binding, present := bindings[federationLinkCapability]
+	if !present {
+		return FederationLinkPolicy{}, fail(ErrInvalidPlan, "federationLinkArtifact.planInputs.externalFederationLinkBindings", "runtime requires one exact external federation-link binding")
+	}
+	bindingTimes := struct {
+		IssuedAt   string `json:"issuedAt"`
+		ValidUntil string `json:"validUntil"`
+	}{}
+	bindingRaw, err := json.Marshal(binding)
+	if err != nil || json.Unmarshal(bindingRaw, &bindingTimes) != nil {
+		return FederationLinkPolicy{}, fail(ErrInvalidPlan, "federationLinkArtifact.planInputs.externalFederationLinkBindings.inter-site-link", "binding timestamps are unreadable")
+	}
+	issuedAt, issuedErr := time.Parse(time.RFC3339Nano, bindingTimes.IssuedAt)
+	validUntil, validErr := time.Parse(time.RFC3339Nano, bindingTimes.ValidUntil)
+	evaluatedAt = evaluatedAt.UTC()
+	if evaluatedAt.IsZero() || issuedErr != nil || validErr != nil || evaluatedAt.Before(issuedAt.UTC()) || !evaluatedAt.Before(validUntil.UTC()) {
+		return FederationLinkPolicy{}, fail(ErrInvalidPlan, "federationLinkArtifact.planInputs.externalFederationLinkBindings.inter-site-link.validUntil", "binding is outside its runtime validity window")
+	}
+	get := func(body map[string]any, field string) string {
+		value, _ := body[field].(string)
+		return value
+	}
+	stringSlice := func(value any) []string {
+		rawValues, _ := value.([]any)
+		values := make([]string, len(rawValues))
+		for index, rawValue := range rawValues {
+			values[index], _ = rawValue.(string)
+		}
+		return values
+	}
+	return FederationLinkPolicy{
+		StackID: plan.StackID, SiteRef: siteRef, NodeRef: nodeRef, SiteKind: siteKind,
+		HomeSiteRefs:  append([]string(nil), stringSlice(requirement["homeSiteRefs"])...),
+		CloudSiteRefs: append([]string(nil), stringSlice(requirement["cloudSiteRefs"])...),
+		Overlay: FederationLinkOverlayPolicy{
+			ContractRef: projection.Overlay.ContractRef, Implementation: projection.Overlay.Implementation,
+			Initiation: projection.Overlay.Initiation, OutboundEstablished: projection.Overlay.OutboundEstablished,
+			TrafficMode: projection.Overlay.TrafficMode, AdvertisePrivateSubnets: projection.Overlay.AdvertisePrivateSubnets,
+			AdvertiseDefaultRoute: projection.Overlay.AdvertiseDefaultRoute, AllowBroadRoutes: projection.Overlay.AllowBroadRoutes,
+			PeerSiteRefs: append([]string(nil), projection.Overlay.PeerSiteRefs...),
+		},
+		Partition: FederationLinkPartitionPolicy{
+			OnCloudLoss: projection.Partition.OnCloudLoss, OnLinkLoss: projection.Partition.OnLinkLoss,
+			CloudEdge: projection.Partition.CloudEdge, LocalIdentityAuthorityAvailable: projection.Partition.LocalIdentityAuthorityAvailable,
+			MaxStaleVerificationSeconds: projection.Partition.MaxStaleVerificationSeconds,
+			DenyNewCrossSiteSessions:    projection.Partition.DenyNewCrossSiteSessions,
+		},
+		Binding: FederationLinkBindingPolicy{
+			BindingRef: get(binding, "bindingRef"), FabricRef: get(binding, "fabricRef"),
+			CustodyAttestationRef: get(binding, "custodyAttestationRef"), RequirementsHash: get(binding, "requirementsHash"),
+			BindingHash: get(binding, "bindingHash"), BridgeContractHash: get(binding, "bridgeContractHash"),
+			IssuedAt: bindingTimes.IssuedAt, ValidUntil: bindingTimes.ValidUntil,
+		},
+	}, nil
 }
 
 type bridgePublicationExecutorDocument struct {
@@ -2569,6 +2760,33 @@ func decodeFederationRuntimeExecutorPlan(raw []byte, path string, spec executorC
 	return plan, nil
 }
 
+func projectFederationLinkForInstance(decoded executorContractPlan, unit RenderUnit, path string) (executorContractPlan, error) {
+	plan, ok := decoded.(federationRuntimeExecutorPlan)
+	if !ok {
+		return nil, fail(ErrInvalidPlan, path+".planInputs", "federation-link decoder returned an unexpected plan type")
+	}
+	siteRef, hasSite := unit.SiteRef()
+	nodeRef, hasNode := unit.NodeRef()
+	if !hasSite || !hasNode {
+		return nil, fail(ErrInvalidPlan, path+".instances", "federation-link runtime requires one exact Site/node instance")
+	}
+	var target *executorBundleTarget
+	for index := range plan.ModuleTargets {
+		if plan.ModuleTargets[index].ID == nodeRef && plan.ModuleTargets[index].SiteRef == siteRef {
+			if target != nil {
+				return nil, fail(ErrDuplicate, path+".moduleTargets", "federation-link instance target is duplicated")
+			}
+			copy := plan.ModuleTargets[index]
+			target = &copy
+		}
+	}
+	if target == nil {
+		return nil, fail(ErrInvalidPlan, path+".moduleTargets", "federation-link instance is outside compiler-owned targets")
+	}
+	plan.ModuleTargets = []executorBundleTarget{*target}
+	return plan, nil
+}
+
 func validateFederationLinkExecutorProjection(plan federationRuntimeExecutorPlan, path string) error {
 	if len(plan.FederationLinkRequirements) == 0 || len(plan.ExternalFederationLinkBindings) == 0 {
 		return fail(ErrInvalidPlan, path, "Federation link executor requires both requirement and external binding projections")
@@ -2596,6 +2814,16 @@ func validateFederationLinkExecutorProjection(plan federationRuntimeExecutorPlan
 	if requirement["apiVersion"] != "stackkit.federation-link-requirement/v1" || requirement["kind"] != "FederationLinkRequirement" || requirement["stackId"] != plan.StackID || requirement["capabilityRef"] != federationLinkCapability {
 		return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link", "identity does not match the exact executor contract")
 	}
+	capabilityContractHash := ""
+	for _, capability := range plan.ModuleCapabilities {
+		if capability.ID == federationLinkCapability {
+			capabilityContractHash = capability.ContractHash
+			break
+		}
+	}
+	if requirement["contractOwnerRef"] != "stackkits-federation-link" || requirement["capabilityContractHash"] != capabilityContractHash {
+		return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link.contractOwnerRef", "requirement is outside the selected federation-link authority")
+	}
 	wantHash, err := resolvedplan.ComputeFederationLinkRequirementHash(resolvedplan.FederationLinkRequirement(requirement))
 	if err != nil || requirement["requirementsHash"] != wantHash {
 		return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link.requirementsHash", "does not match the canonical requirement body")
@@ -2613,11 +2841,66 @@ func validateFederationLinkExecutorProjection(plan federationRuntimeExecutorPlan
 	for _, target := range plan.ModuleTargets {
 		wantTargets = append(wantTargets, map[string]any{"siteRef": target.SiteRef, "nodeRef": target.ID})
 	}
-	for field, want := range map[string]any{"homeSiteRefs": wantHome, "cloudSiteRefs": wantCloud, "targetNodes": wantTargets} {
+	for field, want := range map[string]any{"homeSiteRefs": wantHome, "cloudSiteRefs": wantCloud} {
 		haveJSON, _ := json.Marshal(requirement[field])
 		wantJSON, _ := json.Marshal(want)
 		if !bytes.Equal(haveJSON, wantJSON) {
 			return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link."+field, "widens or mismatches the exact module target scope")
+		}
+	}
+	var linkPolicy federationLinkPolicyProjection
+	if err := decodeStrict(plan.FederationLinkPolicy, &linkPolicy); err != nil {
+		return wrap(ErrInvalidPlan, path+".federationLinkPolicy", "decode exact federation link policy", err)
+	}
+	wantPolicy := map[string]any{
+		"defaultDeny": true, "initiation": "home-outbound", "trafficMode": linkPolicy.Overlay.TrafficMode,
+		"routeScope": "declared-flows-only", "allowDefaultRoute": false, "allowBroadLAN": false,
+		"credentialCustody": "external", "fabricLifecycle": "external",
+	}
+	havePolicyJSON, _ := json.Marshal(requirement["policy"])
+	wantPolicyJSON, _ := json.Marshal(wantPolicy)
+	if !bytes.Equal(havePolicyJSON, wantPolicyJSON) {
+		return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link.policy", "widens or contradicts the exact federation link policy")
+	}
+	requirementTargets, ok := requirement["targetNodes"].([]any)
+	if !ok || len(requirementTargets) == 0 {
+		return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link.targetNodes", "must carry the compiler-owned Site/node target pairs")
+	}
+	requirementTargetIDs := make(map[string]struct{}, len(requirementTargets))
+	for index, rawTarget := range requirementTargets {
+		target, ok := rawTarget.(map[string]any)
+		nodeRef, nodeOK := target["nodeRef"].(string)
+		siteRef, siteOK := target["siteRef"].(string)
+		if !ok || !nodeOK || !siteOK || siteRef == "" || nodeRef == "" {
+			return fail(ErrInvalidPlan, fmt.Sprintf("%s.federationLinkRequirements.inter-site-link.targetNodes[%d]", path, index), "must be an exact Site/node pair")
+		}
+		if _, duplicate := requirementTargetIDs[nodeRef]; duplicate {
+			return fail(ErrDuplicate, fmt.Sprintf("%s.federationLinkRequirements.inter-site-link.targetNodes[%d].nodeRef", path, index), "federation target node is duplicated")
+		}
+		requirementTargetIDs[nodeRef] = struct{}{}
+	}
+	for index, member := range plan.ControlPlane.Members {
+		if _, exists := requirementTargetIDs[member]; !exists {
+			return fail(ErrInvalidPlan, fmt.Sprintf("%s.controlPlane.members[%d]", path, index), "control member is outside the exact federation target closure")
+		}
+	}
+	if len(plan.ModuleTargets) > 1 {
+		haveJSON, _ := json.Marshal(requirementTargets)
+		wantJSON, _ := json.Marshal(wantTargets)
+		if !bytes.Equal(haveJSON, wantJSON) {
+			return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link.targetNodes", "widens or mismatches the exact module target scope")
+		}
+	} else {
+		localJSON, _ := json.Marshal(wantTargets[0])
+		localMatches := 0
+		for _, rawTarget := range requirementTargets {
+			targetJSON, _ := json.Marshal(rawTarget)
+			if bytes.Equal(targetJSON, localJSON) {
+				localMatches++
+			}
+		}
+		if localMatches != 1 {
+			return fail(ErrInvalidPlan, path+".federationLinkRequirements.inter-site-link.targetNodes", "does not contain the exact node-local instance target")
 		}
 	}
 	var bindings map[string]map[string]any
@@ -2654,6 +2937,12 @@ func validateFederationLinkExecutorProjection(plan federationRuntimeExecutorPlan
 	wantBindingHash, err := resolvedplan.ComputeExternalFederationLinkBindingHash(resolvedplan.ExternalFederationLinkBinding(binding))
 	if err != nil || binding["bindingHash"] != wantBindingHash {
 		return fail(ErrInvalidPlan, path+".externalFederationLinkBindings.inter-site-link.bindingHash", "does not match the canonical binding body")
+	}
+	if err := resolvedplan.ValidateExternalFederationLinkBinding(
+		resolvedplan.ExternalFederationLinkBinding(binding),
+		resolvedplan.FederationLinkRequirement(requirement),
+	); err != nil {
+		return wrap(ErrInvalidPlan, path+".externalFederationLinkBindings.inter-site-link", "binding violates the closed external custody contract", err)
 	}
 	return nil
 }
@@ -2720,7 +3009,7 @@ func validateExecutorContractPlanCommon(stackID string, kit executorBundleKit, s
 	}
 	seenMembers := map[string]struct{}{}
 	for index, member := range control.Members {
-		if spec.moduleID != bridgePublicationModuleID && !containsExecutorBundleString(targetIDs, member) {
+		if spec.moduleID != bridgePublicationModuleID && spec.moduleID != federationLinkModuleID && !containsExecutorBundleString(targetIDs, member) {
 			return fail(ErrInvalidPlan, fmt.Sprintf("%s.controlPlane.members[%d]", path, index), "control member is outside module targets")
 		}
 		if _, duplicate := seenMembers[member]; duplicate {

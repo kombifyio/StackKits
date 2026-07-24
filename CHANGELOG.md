@@ -4,6 +4,54 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.10] - 2026-07-24
+
+> **Stable v0.x Modern Homelab federation-link runtime patch** that makes the
+> provider-free Home/Cloud link boundary executable while retaining all three
+> StackKit release families.
+
+### Added
+
+- One authenticated Product Runtime owner for each exact compiler-selected
+  Modern Home and Cloud node.
+- Closed establish, obsolete-removal, and verify operations with fresh
+  node-local Runtime and Health evidence.
+- Strict validation of the compiler-owned link requirement and the external
+  fabric receipt, including opaque custody references and a maximum 24-hour
+  validity window.
+
+### Changed
+
+- `stackkits-federation-link-runtime` is now v1.1.0, `apply-ready`, and emits
+  one immutable artifact per selected Home or Cloud node.
+- Runtime-only bridge gaps no longer block deterministic generation. Modern
+  generation is ready; Apply remains fail-closed on the missing external
+  binding and the independent control-agent, policy, partition, backend-Health,
+  backup, observability, and other unbound owners.
+- The obsolete overlay and device-verifier readiness blockers are retired
+  only where their exact Product owners are already executable and bound.
+- Modern Homelab continues to ship as dedicated Linux amd64/arm64, macOS
+  amd64/arm64, and Windows amd64 archives plus the full StackKits bundle.
+
+### Security
+
+- The executor revalidates the sealed request, immutable artifact, Site, node,
+  execution channel, requirement/binding hashes, and
+  `issuedAt <= now < validUntil` immediately before mutation.
+- Readback must prove authenticated peers, declared flows only, default deny,
+  local autonomy, no default route, no broad or private-subnet advertisement,
+  no general LAN reachability, and no inbound Cloud-to-Home authority.
+- Fabric implementation, endpoints, credentials, provider resources, leases,
+  server-provider lifecycle, and discovery remain outside StackKits.
+
+### Known limitations
+
+- Modern Homelab remains Preview until its remaining control-agent,
+  backend-Health, policy/partition, backup, observability, and live-evidence
+  owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.9] - 2026-07-24
 
 > **Stable v0.x Modern Homelab publication-runtime patch** that turns the

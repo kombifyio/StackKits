@@ -1,9 +1,10 @@
 # Modern Homelab Architecture v2 preview input
 #
-# STATUS: CONTRACT-ONLY. This file documents the minimum hybrid intent and the
-# security boundary expected by the Modern KitDefinition. Modern renderers and
-# executors are not implemented, so this is not an install recipe and must not
-# be presented as a working `stackkit generate`, `plan`, or `apply` path.
+# STATUS: PREVIEW. This file documents the minimum hybrid intent and the
+# security boundary expected by the Modern KitDefinition. Native-v2 resolution
+# and generation are implemented, and selected runtime owners are executable;
+# complete-Kit Apply remains fail-closed while the remaining explicitly
+# unbound owners and external custody receipts are absent.
 #
 # The canonical contract fixture used by tests lives at:
 #   architecture/v2/fixtures/modern-single-authority.yaml

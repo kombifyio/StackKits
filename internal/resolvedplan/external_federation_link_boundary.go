@@ -39,6 +39,18 @@ func ComputeExternalFederationLinkBindingHash(binding ExternalFederationLinkBind
 	return canonicalHash(clone, false)
 }
 
+// ValidateExternalFederationLinkBinding verifies the complete closed external
+// custody receipt against its exact compiler-owned requirement, including
+// opaque reference shapes, semantic version, canonical hashes, UTC timestamps,
+// and the normative maximum validity window.
+func ValidateExternalFederationLinkBinding(binding ExternalFederationLinkBinding, requirement FederationLinkRequirement) error {
+	return validateExternalFederationLinkBinding(
+		map[string]any(binding),
+		map[string]any(requirement),
+		"externalFederationLinkBinding",
+	)
+}
+
 func buildFederationLinkProjection(spec *specView, specHash string, sites, nodes, capabilities, modules []any, bridge map[string]any) (map[string]any, map[string]any, error) {
 	requirements, err := buildFederationLinkRequirements(spec.stackID, specHash, sites, nodes, capabilities, modules, bridge)
 	if err != nil {

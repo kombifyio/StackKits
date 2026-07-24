@@ -8400,67 +8400,75 @@ _servicePublicationShape: {
 		},
 	]
 	if bridge != _|_ {
-		// A bridge remains non-executable even when it currently publishes no
-		// service. Overlay establishment, the outbound control agent, default-deny
-		// policy enforcement and device verification are independent runtime seams.
+		// Runtime-only bridge seams never block deterministic generation. Apply
+		// remains fail-closed until each exact selected runtime owner is executable
+		// and bound. This keeps shadow planning useful without weakening mutation.
+		_boundFederationLinks: [for module in modules
+			if module.id == "stackkits-federation-link-runtime"
+			if module.runtime.execution == "executable"
+			if module.enforcementRequirement != _|_
+			if module.enforcementRequirement.status == "bound"
+			if module.enforcementRequirement.ownerRef == "stackkits-federation-link-executor" {
+				module.id
+			}]
+		_boundFederationControlAgents: [for module in modules
+			if module.id == "stackkits-federation-control-agent-runtime"
+			if module.runtime.execution == "executable"
+			if module.enforcementRequirement != _|_
+			if module.enforcementRequirement.status == "bound"
+			if module.enforcementRequirement.ownerRef == "stackkits-federation-control-agent-executor" {
+				module.id
+			}]
+		_boundHomeIdentityVerifiers: [for module in modules
+			if module.id == "stackkits-modern-home-identity-trust-policy-manifest"
+			if module.runtime.execution == "executable"
+			if module.enforcementRequirement != _|_
+			if module.enforcementRequirement.status == "bound"
+			if module.enforcementRequirement.ownerRef == "stackkits-modern-home-identity-trust-enforcer" {
+				module.id
+			}]
+		_boundCloudIdentityVerifiers: [for module in modules
+			if module.id == "stackkits-modern-cloud-identity-verifier-policy-manifest"
+			if module.runtime.execution == "executable"
+			if module.enforcementRequirement != _|_
+			if module.enforcementRequirement.status == "bound"
+			if module.enforcementRequirement.ownerRef == "stackkits-modern-cloud-identity-verifier-enforcer" {
+				module.id
+			}]
 		_bridgeContractReadiness: {
-			overlayGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "bridge-overlay-unverified"
-				refs: ["bridge:overlay"]
+			if len(_boundFederationLinks) == 0 {
+				overlayApply: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "bridge-overlay-unverified"
+					refs: ["bridge:overlay"]
+				}
 			}
-			overlayApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "bridge-overlay-unverified"
-				refs: ["bridge:overlay"]
-			}
-			controlAgentGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "bridge-control-agent-unverified"
-				refs: ["bridge:control-agent"]
-			}
-			controlAgentApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "bridge-control-agent-unverified"
-				refs: ["bridge:control-agent"]
-			}
-			policyGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "policy-enforcement-unverified"
-				refs: ["bridge:policy"]
+			if len(_boundFederationControlAgents) == 0 {
+				controlAgentApply: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "bridge-control-agent-unverified"
+					refs: ["bridge:control-agent"]
+				}
 			}
 			policyApply: #ExecutionReadinessRequirementV1 & {
 				phase: executionReadiness.apply
 				code:  "policy-enforcement-unverified"
 				refs: ["bridge:policy"]
 			}
-			partitionPolicyGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "partition-policy-enforcement-unverified"
-				refs: ["bridge:partition-policy"]
-			}
 			partitionPolicyApply: #ExecutionReadinessRequirementV1 & {
 				phase: executionReadiness.apply
 				code:  "partition-policy-enforcement-unverified"
 				refs: ["bridge:partition-policy"]
 			}
-			deviceVerifierGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "device-verifier-unbound"
-				refs: ["identity:edge-device-verifier"]
-			}
-			deviceVerifierApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "device-verifier-unbound"
-				refs: ["identity:edge-device-verifier"]
+			if len(_boundHomeIdentityVerifiers) == 0 || len(_boundCloudIdentityVerifiers) == 0 {
+				deviceVerifierApply: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "device-verifier-unbound"
+					refs: ["identity:edge-device-verifier"]
+				}
 			}
 		}
 		_bridgePublicationReadiness: [for publication in bridge.publications {
-			healthGeneration: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "health-gate-not-executable"
-				refs: ["publication:\(publication.serviceRef)", "health:\(publication.healthGateRef)"]
-			}
 			healthApply: #ExecutionReadinessRequirementV1 & {
 				phase: executionReadiness.apply
 				code:  "health-gate-not-executable"
