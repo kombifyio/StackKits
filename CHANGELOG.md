@@ -4,6 +4,41 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.16] - 2026-07-24
+
+> **Stable v0.x Modern outbound-control Runtime patch**, shipped with Basement
+> Kit, Cloud Kit, and Modern Homelab as the three public release families.
+
+### Added
+
+- A provider-free, node-local Modern outbound-control-agent Runtime that binds
+  the exact CUE action contract, performs bind/reconcile/verify, and records
+  fresh, digest-bound evidence for every selected Home and Cloud node.
+
+### Changed
+
+- `stackkits-federation-control-agent-runtime` is now v1.1.0, executable and
+  `apply-ready` for its exact generated Runtime and Health target.
+- Modern Homelab remains included as its own Preview family in every public
+  archive set; this change does not introduce a fourth HA Kit.
+
+### Security
+
+- Sealed requests, immutable artifacts, Site/node/channel bindings, action
+  TTLs, signatures, nonces, resolved-plan hashes, idempotency and approval
+  requirements are revalidated before Operations run.
+- Readback rejects inbound Cloud-to-Home authority, general LAN reachability,
+  stale or substituted observations, and loss of local autonomy or
+  fail-closed cross-Site session behavior. Transport, endpoints, credentials,
+  providers, leases and discovery remain external custody.
+
+### Known limitations
+
+- Modern Homelab remains Preview: backup, observability, policy and partition
+  Runtime owners are separate outstanding slices.
+- Candidate, device, provider, browser and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.15] - 2026-07-24
 
 > **Stable v0.x Cloud offsite-backup Runtime patch**, shipped with Basement

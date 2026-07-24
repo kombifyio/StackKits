@@ -202,10 +202,10 @@ _architectureV2FederationRuntimeSupports: {
 		"\(runtimeName)": #ModuleRealizationSupportV2 & {
 			contractVersion: "1.0.0"
 			scope:           "concrete"
-			if runtimeName == "link" {
+			if runtimeName == "link" || runtimeName == "controlAgent" {
 				level: "apply-ready"
 			}
-			if runtimeName != "link" {
+			if runtimeName != "link" && runtimeName != "controlAgent" {
 				level: "generation-ready"
 			}
 			compatibleRendererRefs: ["stackkit"]
@@ -237,7 +237,10 @@ _architectureV2FederationRuntimeSupports: {
 			if runtimeName == "link" {
 				evidence: requiredRefs: ["federation-link-evidence"]
 			}
-			if runtimeName != "link" {
+			if runtimeName == "controlAgent" {
+				evidence: requiredRefs: ["federation-control-agent-evidence"]
+			}
+			if runtimeName != "link" && runtimeName != "controlAgent" {
 				evidence: requiredRefs: []
 			}
 		}
@@ -459,13 +462,14 @@ _architectureV2ProfileExtensionModules: [
 		health: [{id: "federation-link-health", kind: "contract", scope: "each-node"}], evidence: ["federation-link-evidence"]
 	},
 	{
-		metadata: {id: "stackkits-federation-control-agent-runtime", version: "1.0.0", description: "Typed outbound-only Federation control-agent boundary; inbound tunnels, credentials, identity issuance, provider lifecycle, and general LAN reachability remain external."}
+		metadata: {id: "stackkits-federation-control-agent-runtime", version: "1.1.0", description: "Typed outbound-only Federation control-agent boundary; inbound tunnels, credentials, identity issuance, provider lifecycle, and general LAN reachability remain external."}
 		role: "platform", providerRef: "stackkits-federation-control-agent", provides: ["outbound-control-agent"]
 		requires: ["stackkits-modern-federation-policy-manifest", "stackkits-modern-home-identity-trust-policy-manifest", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
 		supportedSiteKinds: ["home", "cloud"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status: "unbound", ownerRef: "stackkits-federation-control-agent-executor", capabilityRefs: ["outbound-control-agent"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-federation-control-agent-executor"
+			policyArtifactRefs: ["federation-control-agent-executor-contract"]
 			targetScope: "federated-sites", operations: ["bind-outbound-control-agent", "remove-outbound-control-agent", "verify-outbound-control-agent"]
 			requiredHealthRef: "federation-control-agent-health", requiredEvidenceRef: "federation-control-agent-evidence"
 		}
@@ -476,9 +480,9 @@ _architectureV2ProfileExtensionModules: [
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationControlActions"]
 			outputs: ["modern/federation/control-agent/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.controlAgent
-		health: [{id: "federation-control-agent-contract", kind: "contract"}], evidence: ["federation-control-agent-contract"]
+		health: [{id: "federation-control-agent-health", kind: "contract", scope: "each-node"}], evidence: ["federation-control-agent-evidence"]
 	},
 	{
 		metadata: {id: "stackkits-federation-backup-runtime", version: "1.0.0", description: "Typed cross-Site backup boundary; repository provider lifecycle, endpoints, credentials, retention execution, and restore authority remain external."}

@@ -101,6 +101,7 @@ const (
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
 const federationLinkExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","endpointDiscovery":"external-owner","fabricLifecycle":"not-owned","generation":"supported","operations":["establish-inter-site-link","remove-inter-site-link","verify-inter-site-link"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-declared-flows-only","runtimeEnforcement":"adapter-verified","scope":"federated-site-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
+const federationControlAgentExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","generation":"supported","inboundAuthority":"forbidden","operations":["bind-outbound-control-agent","remove-outbound-control-agent","verify-outbound-control-agent"],"providerLifecycle":"not-owned","runtimeEnforcement":"adapter-verified","scope":"federated-site-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge","commit-cloud-public-edge-evidence"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
 const cloudOffsiteBackupExecutorContract = `"contract":{"apply":"typed-local-operations","backupTargetAuthority":"external-binding-exact","credentials":"external-owner","generation":"supported","operations":["bind-offsite-backup-target","remove-obsolete-offsite-backup-binding","verify-offsite-backup-target","commit-cloud-offsite-backup-evidence"],"providerLifecycle":"not-owned","providerSelection":"external-owner","restoreVerification":"required","runtimeEnforcement":"adapter-verified","scope":"cloud-backup-node","serverProviderAuthority":"not-owned","targetLifecycle":"not-owned","transportImplementation":"external-owner"}`
 const bridgePublicationExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-service-publication","remove-service-publication","verify-service-publication"],"providerLifecycle":"not-owned","publicationAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
@@ -198,8 +199,9 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		decodePlan: decodeFederationRuntimeExecutorPlan,
 	},
 	{
-		moduleID: federationControlAgentModuleID, moduleVersion: federationRuntimeModuleVersion,
+		moduleID: federationControlAgentModuleID, moduleVersion: federationLinkModuleVersion,
 		templateRef: federationControlTemplateRef, outputRef: federationControlOutputRef,
+		contractJSON:        federationControlAgentExecutorContract,
 		planInputRefs:       []string{"controlPlane", "federationControlActions", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
 		allowedCapabilities: []string{"outbound-control-agent"}, requiredCapabilities: []string{"outbound-control-agent"},
@@ -1868,6 +1870,95 @@ func ValidateFederationLinkExecutorArtifact(raw []byte, siteRef, nodeRef string,
 			BindingHash: get(binding, "bindingHash"), BridgeContractHash: get(binding, "bridgeContractHash"),
 			IssuedAt: bindingTimes.IssuedAt, ValidUntil: bindingTimes.ValidUntil,
 		},
+	}, nil
+}
+
+type federationControlAgentExecutorDocument struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Module     struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	} `json:"module"`
+	Contract struct {
+		Apply                   string   `json:"apply"`
+		Credentials             string   `json:"credentials"`
+		Generation              string   `json:"generation"`
+		InboundAuthority        string   `json:"inboundAuthority"`
+		Operations              []string `json:"operations"`
+		ProviderLifecycle       string   `json:"providerLifecycle"`
+		RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+		Scope                   string   `json:"scope"`
+		ServerProviderAuthority string   `json:"serverProviderAuthority"`
+		TransportImplementation string   `json:"transportImplementation"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// FederationControlAgentPolicy contains the exact, material-free policy for
+// one Modern Site/node. Transport endpoints, credentials, tunnel mechanics
+// and custody are intentionally absent.
+type FederationControlAgentPolicy struct {
+	StackID      string
+	SiteRef      string
+	NodeRef      string
+	SiteKind     string
+	ContractHash string
+	Actions      []FederationControlAgentAction
+	Partition    FederationControlAgentPartition
+}
+
+// ValidateFederationControlAgentExecutorArtifact verifies a complete
+// node-local control-agent artifact. It does not discover a peer or transport:
+// the caller is bound to exactly one compiler-selected Site/node.
+func ValidateFederationControlAgentExecutorArtifact(raw []byte, siteRef, nodeRef string) (FederationControlAgentPolicy, error) {
+	var document federationControlAgentExecutorDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return FederationControlAgentPolicy{}, wrap(ErrInvalidPlan, "federationControlAgentArtifact", "decode exact control-agent artifact", err)
+	}
+	spec := executorContractBundleSpecs[9]
+	if document.APIVersion != "stackkit.executor-contract-bundle/v1" || document.Kind != "ExecutorContractBundle" ||
+		document.Module.ID != spec.moduleID || document.Module.Version != spec.moduleVersion ||
+		document.Contract.Apply != "typed-local-operations" || document.Contract.Credentials != "external-owner" ||
+		document.Contract.Generation != "supported" || document.Contract.InboundAuthority != "forbidden" ||
+		!exactStringList(document.Contract.Operations, []string{"bind-outbound-control-agent", "remove-outbound-control-agent", "verify-outbound-control-agent"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.RuntimeEnforcement != "adapter-verified" ||
+		document.Contract.Scope != "federated-site-node" || document.Contract.ServerProviderAuthority != "not-owned" ||
+		document.Contract.TransportImplementation != "external-owner" {
+		return FederationControlAgentPolicy{}, fail(ErrInvalidPlan, "federationControlAgentArtifact.contract", "artifact widens or contradicts the typed outbound control-agent authority")
+	}
+	decoded, err := decodeFederationRuntimeExecutorPlan(document.PlanInputs, "federationControlAgentArtifact.planInputs", spec)
+	if err != nil {
+		return FederationControlAgentPolicy{}, err
+	}
+	plan := decoded.(federationRuntimeExecutorPlan)
+	if len(plan.ModuleTargets) != 1 || plan.ModuleTargets[0].ID != nodeRef || plan.ModuleTargets[0].SiteRef != siteRef {
+		return FederationControlAgentPolicy{}, fail(ErrInvalidPlan, "federationControlAgentArtifact.planInputs.moduleTargets", "artifact must contain exactly the caller-bound federation Site/node")
+	}
+	siteKind := ""
+	for _, site := range plan.Sites {
+		if site.ID == siteRef {
+			if siteKind != "" {
+				return FederationControlAgentPolicy{}, fail(ErrDuplicate, "federationControlAgentArtifact.planInputs.sites", "caller-bound federation Site is duplicated")
+			}
+			siteKind = site.Kind
+		}
+	}
+	if siteKind != "home" && siteKind != "cloud" {
+		return FederationControlAgentPolicy{}, fail(ErrInvalidPlan, "federationControlAgentArtifact.planInputs.sites", "caller-bound federation Site is absent or unsupported")
+	}
+	var projection federationControlActionsProjection
+	if err := decodeStrict(plan.FederationControlActions, &projection); err != nil {
+		return FederationControlAgentPolicy{}, wrap(ErrInvalidPlan, "federationControlAgentArtifact.planInputs.federationControlActions", "decode exact control-action projection", err)
+	}
+	if err := validateFederationControlActions(projection, "federationControlAgentArtifact.planInputs.federationControlActions"); err != nil {
+		return FederationControlAgentPolicy{}, err
+	}
+	return FederationControlAgentPolicy{
+		StackID: plan.StackID, SiteRef: siteRef, NodeRef: nodeRef, SiteKind: siteKind,
+		ContractHash: projection.ContractHash,
+		Actions:      append([]FederationControlAgentAction(nil), projection.Actions...),
+		Partition:    FederationControlAgentPartition(projection.Partition),
 	}, nil
 }
 

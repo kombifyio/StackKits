@@ -69,6 +69,14 @@ type federationControlAction struct {
 	RequiresApprovalForDestructive bool   `json:"requiresApprovalForDestructive"`
 }
 
+// FederationControlAgentAction is the deliberately closed, credential-free
+// remote-action projection governed by the Modern CUE contract.
+type FederationControlAgentAction = federationControlAction
+
+// FederationControlAgentPartition is the exact failure policy carried by an
+// outbound-control-agent artifact.
+type FederationControlAgentPartition = modernFederationPartition
+
 type federationBackupPolicyProjection struct {
 	DataAuthority modernFederationData      `json:"dataAuthority"`
 	Partition     modernFederationPartition `json:"partition"`

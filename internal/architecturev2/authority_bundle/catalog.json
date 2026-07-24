@@ -9141,21 +9141,37 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "bind-outbound-control-agent",
+          "remove-outbound-control-agent",
+          "verify-outbound-control-agent"
+        ],
+        "ownerRef": "stackkits-federation-control-agent-executor",
+        "policyArtifactRefs": [
+          "federation-control-agent-executor-contract"
+        ],
+        "requiredEvidenceRef": "federation-control-agent-evidence",
+        "requiredHealthRef": "federation-control-agent-health",
+        "status": "bound",
+        "targetScope": "federated-sites"
+      },
       "evidence": [
-        "federation-control-agent-contract"
+        "federation-control-agent-evidence"
       ],
       "health": [
         {
-          "id": "federation-control-agent-contract",
+          "id": "federation-control-agent-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
         "description": "Typed outbound-only Federation control-agent boundary; inbound tunnels, credentials, identity issuance, provider lifecycle, and general LAN reachability remain external.",
         "id": "stackkits-federation-control-agent-runtime",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "providerRef": "stackkits-federation-control-agent",
       "provides": [
@@ -9194,13 +9210,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "federation-control-agent-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -9229,8 +9247,8 @@
             "modern/federation/control-agent/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -9262,23 +9280,8 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "outbound-control-agent"
-        ],
-        "operations": [
-          "bind-outbound-control-agent",
-          "remove-outbound-control-agent",
-          "verify-outbound-control-agent"
-        ],
-        "ownerRef": "stackkits-federation-control-agent-executor",
-        "requiredEvidenceRef": "federation-control-agent-evidence",
-        "requiredHealthRef": "federation-control-agent-health",
-        "status": "unbound",
-        "targetScope": "federated-sites"
       },
       "supportedSiteKinds": [
         "home",

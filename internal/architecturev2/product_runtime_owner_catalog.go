@@ -11,24 +11,25 @@ import (
 type ProductRuntimeOwnerID string
 
 const (
-	ProductRuntimeOwnerSecurityBaseline      ProductRuntimeOwnerID = "security-baseline"
-	ProductRuntimeOwnerCoreHostBootstrap     ProductRuntimeOwnerID = "stackkits-core-host-bootstrap"
-	ProductRuntimeOwnerHomeBackupTarget      ProductRuntimeOwnerID = "stackkits-home-backup-target"
-	ProductRuntimeOwnerBasementCompose       ProductRuntimeOwnerID = "socket-proxy"
-	ProductRuntimeOwnerBasementIdentityTrust ProductRuntimeOwnerID = "stackkits-basement-identity-trust-policy-manifest"
-	ProductRuntimeOwnerCloudIdentityTrust    ProductRuntimeOwnerID = "stackkits-cloud-identity-trust-policy-manifest"
-	ProductRuntimeOwnerCloudHostSecurity     ProductRuntimeOwnerID = "stackkits-cloud-host-security-runtime"
-	ProductRuntimeOwnerCloudPublicEdge       ProductRuntimeOwnerID = "stackkits-cloud-public-edge-runtime"
-	ProductRuntimeOwnerCloudOffsiteBackup    ProductRuntimeOwnerID = "stackkits-cloud-offsite-backup-runtime"
-	ProductRuntimeOwnerPublicTLS             ProductRuntimeOwnerID = "stackkits-public-tls-contract"
-	ProductRuntimeOwnerHomeDeviceAuthority   ProductRuntimeOwnerID = "stackkits-home-device-authority-policy-manifest"
-	ProductRuntimeOwnerHomeAccess            ProductRuntimeOwnerID = "stackkits-home-access-policy-manifest"
-	ProductRuntimeOwnerLocalAutonomy         ProductRuntimeOwnerID = "stackkits-local-autonomy-policy-manifest"
-	ProductRuntimeOwnerModernHomeIdentity    ProductRuntimeOwnerID = "stackkits-modern-home-identity-trust-policy-manifest"
-	ProductRuntimeOwnerModernCloudIdentity   ProductRuntimeOwnerID = "stackkits-modern-cloud-identity-verifier-policy-manifest"
-	ProductRuntimeOwnerFederationLink        ProductRuntimeOwnerID = "stackkits-federation-link-runtime"
-	ProductRuntimeOwnerBridgePublication     ProductRuntimeOwnerID = "stackkits-bridge-publication-runtime"
-	ProductRuntimeOwnerBridgeOriginMTLS      ProductRuntimeOwnerID = "stackkits-bridge-origin-mtls-runtime"
+	ProductRuntimeOwnerSecurityBaseline       ProductRuntimeOwnerID = "security-baseline"
+	ProductRuntimeOwnerCoreHostBootstrap      ProductRuntimeOwnerID = "stackkits-core-host-bootstrap"
+	ProductRuntimeOwnerHomeBackupTarget       ProductRuntimeOwnerID = "stackkits-home-backup-target"
+	ProductRuntimeOwnerBasementCompose        ProductRuntimeOwnerID = "socket-proxy"
+	ProductRuntimeOwnerBasementIdentityTrust  ProductRuntimeOwnerID = "stackkits-basement-identity-trust-policy-manifest"
+	ProductRuntimeOwnerCloudIdentityTrust     ProductRuntimeOwnerID = "stackkits-cloud-identity-trust-policy-manifest"
+	ProductRuntimeOwnerCloudHostSecurity      ProductRuntimeOwnerID = "stackkits-cloud-host-security-runtime"
+	ProductRuntimeOwnerCloudPublicEdge        ProductRuntimeOwnerID = "stackkits-cloud-public-edge-runtime"
+	ProductRuntimeOwnerCloudOffsiteBackup     ProductRuntimeOwnerID = "stackkits-cloud-offsite-backup-runtime"
+	ProductRuntimeOwnerPublicTLS              ProductRuntimeOwnerID = "stackkits-public-tls-contract"
+	ProductRuntimeOwnerHomeDeviceAuthority    ProductRuntimeOwnerID = "stackkits-home-device-authority-policy-manifest"
+	ProductRuntimeOwnerHomeAccess             ProductRuntimeOwnerID = "stackkits-home-access-policy-manifest"
+	ProductRuntimeOwnerLocalAutonomy          ProductRuntimeOwnerID = "stackkits-local-autonomy-policy-manifest"
+	ProductRuntimeOwnerModernHomeIdentity     ProductRuntimeOwnerID = "stackkits-modern-home-identity-trust-policy-manifest"
+	ProductRuntimeOwnerModernCloudIdentity    ProductRuntimeOwnerID = "stackkits-modern-cloud-identity-verifier-policy-manifest"
+	ProductRuntimeOwnerFederationLink         ProductRuntimeOwnerID = "stackkits-federation-link-runtime"
+	ProductRuntimeOwnerFederationControlAgent ProductRuntimeOwnerID = "stackkits-federation-control-agent-runtime"
+	ProductRuntimeOwnerBridgePublication      ProductRuntimeOwnerID = "stackkits-bridge-publication-runtime"
+	ProductRuntimeOwnerBridgeOriginMTLS       ProductRuntimeOwnerID = "stackkits-bridge-origin-mtls-runtime"
 )
 
 // ProductRuntimeOwnerDescriptor exposes one immutable value projection of a
@@ -61,6 +62,7 @@ func ProductStaticRuntimeOwnerCatalog() []ProductRuntimeOwnerDescriptor {
 		{ID: ProductRuntimeOwnerModernHomeIdentity, Selector: productModernHomeIdentitySelector()},
 		{ID: ProductRuntimeOwnerModernCloudIdentity, Selector: productModernCloudIdentitySelector()},
 		{ID: ProductRuntimeOwnerFederationLink, Selector: productFederationLinkSelector()},
+		{ID: ProductRuntimeOwnerFederationControlAgent, Selector: productFederationControlAgentSelector()},
 		{ID: ProductRuntimeOwnerBridgePublication, Selector: productBridgePublicationSelector()},
 		{ID: ProductRuntimeOwnerBridgeOriginMTLS, Selector: productBridgeOriginMTLSSelector()},
 	}
