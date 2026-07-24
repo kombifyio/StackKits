@@ -794,11 +794,26 @@ credential lifetime, and local configuration/revocation state.
 This owner proves only the Home-side proxy and credential postcondition. It
 does not prove Cloud-verifier readiness and cannot carry private/signing
 material, reverse authority, endpoints, credentials, provider lifecycle,
-leases, proxy implementation, or general LAN access. Its former
-`runtime-owner-unbound` blocker is retired, while the Cloud-side publication
-owner and executable backend Health remain independent fail-closed gates.
-Public edge TLS materialization is likewise a separate hash-bound authority; a
-generic module contract cannot hide or replace any of these boundaries.
+leases, proxy implementation, or general LAN access.
+
+The matching Cloud-side service-publication owner is separately executable on
+the exact compiler-selected Cloud edge nodes. Its one-per-node artifact carries
+only the closed public host/path/method, access, TLS, rate-limit, backend
+module/unit/node/instance, origin-identity, data-binding, and Health-gate
+references. The Product Runtime binds the sealed request and artifact digests,
+Site, node, and execution channel to a captured UTC evaluation time, then
+admits only apply, obsolete-removal, and verification operations. Fresh
+readback must prove that the exact publication is configured default-closed
+with origin mTLS, origin identity, TLS, authentication, and rate limiting
+bound. It deliberately does not claim backend service Health.
+
+Both former publication `runtime-owner-unbound` blockers are therefore
+retired. DNS mutation, certificate issuance, credentials, provider lifecycle,
+leases, endpoints, transport implementation, general LAN access, Cloud
+verifier readiness, and executable backend Health remain separate
+fail-closed authorities. Public edge TLS materialization is likewise a
+separate hash-bound authority; a generic module contract cannot hide or
+replace any of these boundaries.
 
 ### Executable render instances
 

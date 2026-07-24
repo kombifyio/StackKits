@@ -4,6 +4,49 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.9] - 2026-07-24
+
+> **Stable v0.x Modern Homelab publication-runtime patch** that turns the
+> exact Cloud-side publication handoff into an authenticated node-local owner
+> while retaining all three StackKit release families.
+
+### Added
+
+- One provider-free Product Runtime registration for each exact
+  compiler-selected Modern Cloud edge node.
+- Closed apply, obsolete-removal, and verify operations for the generated
+  publication set, with fresh postcondition evidence.
+- Exact readback for the public host/path/methods, access and rate-limit
+  policy, TLS posture, origin identity, backend module/unit/node/instance,
+  data binding, and independent Health-gate reference.
+
+### Changed
+
+- `stackkits-bridge-publication-runtime` is now v1.1.0, `apply-ready`, and
+  materialized as one immutable artifact per Cloud edge node.
+- The former Cloud-side publication `runtime-owner-unbound` blocker is
+  retired. Executable backend service Health remains an independent gate.
+- Modern Homelab continues to ship as dedicated Linux amd64/arm64, macOS
+  amd64/arm64, and Windows amd64 archives plus the full StackKits bundle.
+
+### Security
+
+- The executor validates the sealed request and immutable artifact, then binds
+  request/artifact digests, Site, node, execution channel, and one trusted UTC
+  evaluation time before any operation runs.
+- DNS mutation, certificate issuance, credentials, endpoints, provider
+  lifecycle, leases, transport implementation, server-provider authority, and
+  general LAN access remain outside StackKits.
+- Node, Site, publication, origin-target pair, access, TLS, identity, and
+  readback substitution fail closed.
+
+### Known limitations
+
+- Modern Homelab remains Preview until its remaining Cloud-verifier,
+  backend-Health, partition-enforcement, and live-evidence owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.8] - 2026-07-24
 
 > **Stable v0.x Modern Homelab federation-boundary patch** that partitions

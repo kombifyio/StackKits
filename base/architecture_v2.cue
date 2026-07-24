@@ -2051,6 +2051,7 @@ _servicePublicationShape: {
 	access: #ResolvedAccessDecisionV2 & {
 		exposure:  "public"
 		policyRef: publicationPolicyRef
+		allowedMethods: [...#HTTPMethod] & list.MinItems(1)
 	}
 
 	_originNodeRefsUnique:     list.UniqueItems(originNodeRefs) & true

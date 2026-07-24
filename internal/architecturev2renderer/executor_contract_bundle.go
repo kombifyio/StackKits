@@ -88,6 +88,7 @@ const (
 	federationBackupOutputRef          = "modern/federation/backup/executor-contract.json"
 	federationObservabilityOutputRef   = "modern/federation/observability/executor-contract.json"
 	bridgePublicationModuleID          = "stackkits-bridge-publication-runtime"
+	bridgePublicationModuleVersion     = "1.1.0"
 	bridgePublicationTemplateRef       = "builtin://modern/federation/publication/executor-contract/v1.json"
 	bridgePublicationOutputRef         = "modern/federation/publication/executor-contract.json"
 	bridgeOriginMTLSModuleID           = "stackkits-bridge-origin-mtls-runtime"
@@ -98,6 +99,7 @@ const (
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
 const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
+const bridgePublicationExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-service-publication","remove-service-publication","verify-service-publication"],"providerLifecycle":"not-owned","publicationAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 const bridgeOriginMTLSExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","generation":"supported","operations":["bind-origin-mtls-proxy","remove-origin-mtls-proxy","verify-origin-mtls"],"providerLifecycle":"not-owned","reverseTrust":"forbidden","runtimeEnforcement":"adapter-verified","scope":"home-origin-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 
 var executorContractBundleSpecs = []executorContractBundleSpec{
@@ -238,8 +240,9 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		decodePlan: decodeLocalRuntimeExecutorPlan,
 	},
 	{
-		moduleID: bridgePublicationModuleID, moduleVersion: federationRuntimeModuleVersion,
+		moduleID: bridgePublicationModuleID, moduleVersion: bridgePublicationModuleVersion,
 		templateRef: bridgePublicationTemplateRef, outputRef: bridgePublicationOutputRef,
+		contractJSON:  bridgePublicationExecutorContract,
 		planInputRefs: []string{"bridgePublications", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities: []string{"service-publication"}, requiredCapabilities: []string{"service-publication"},
@@ -496,6 +499,12 @@ func (r executorContractBundleRenderer) RenderUnit(ctx context.Context, unit Ren
 	if err != nil {
 		return nil, err
 	}
+	if r.spec.moduleID == bridgePublicationModuleID {
+		plan, err = projectBridgePublicationForInstance(plan, unit, path)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if r.spec.moduleID == bridgeOriginMTLSModuleID {
 		plan, err = projectBridgeOriginMTLSForInstance(plan, unit, path)
 		if err != nil {
@@ -577,13 +586,13 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 		return fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered executor contract")
 	}
 	wantRuntimeKind := "host"
-	if renderer.spec.moduleID == bridgeOriginMTLSModuleID {
+	if renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID {
 		wantRuntimeKind = "native"
 	}
 	if unit.RuntimeKind() != wantRuntimeKind || unit.RuntimeDelivery() != "stackkit" {
 		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact %s/stackkit ownership", wantRuntimeKind)
 	}
-	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
+	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
 	if nodeLocal {
 		siteRef, hasSite := unit.SiteRef()
 		nodeRef, hasNode := unit.NodeRef()
@@ -1086,10 +1095,70 @@ type bridgePublicationExecutorPlan struct {
 	ModuleTargets      []executorBundleTarget     `json:"moduleTargets"`
 	ModuleCapabilities []executorBundleCapability `json:"moduleCapabilities"`
 	ControlPlane       executorBundleControlPlane `json:"controlPlane"`
-	BridgePublications []json.RawMessage          `json:"bridgePublications"`
+	BridgePublications []bridgePublication        `json:"bridgePublications"`
 }
 
 func (bridgePublicationExecutorPlan) executorContractPlanMarker() {}
+
+type bridgePublication struct {
+	ServiceRef         string                     `json:"serviceRef"`
+	SourceSiteRef      string                     `json:"sourceSiteRef"`
+	EdgeSiteRef        string                     `json:"edgeSiteRef"`
+	Host               string                     `json:"host"`
+	Protocol           string                     `json:"protocol"`
+	Port               int                        `json:"port"`
+	Path               string                     `json:"path"`
+	DefaultClosed      bool                       `json:"defaultClosed"`
+	TLS                bridgePublicationTLS       `json:"tls"`
+	Auth               bridgePublicationAuth      `json:"auth"`
+	Origin             bridgePublicationOrigin    `json:"origin"`
+	RateLimit          bridgePublicationRateLimit `json:"rateLimit"`
+	ModuleRef          string                     `json:"moduleRef"`
+	UnitRef            string                     `json:"unitRef"`
+	OriginNodeRefs     []string                   `json:"originNodeRefs"`
+	OriginInstanceRefs []string                   `json:"originInstanceRefs"`
+	OriginTargets      []bridgeOriginMTLSTarget   `json:"originTargets"`
+	UpstreamProtocol   string                     `json:"upstreamProtocol"`
+	TargetPort         int                        `json:"targetPort"`
+	HealthGateRef      string                     `json:"healthGateRef"`
+	DataBindingRef     string                     `json:"dataBindingRef,omitempty"`
+	Access             bridgePublicationAccess    `json:"access"`
+}
+
+type bridgePublicationTLS struct {
+	Required   bool   `json:"required"`
+	Mode       string `json:"mode"`
+	MinVersion string `json:"minVersion"`
+}
+
+type bridgePublicationAuth struct {
+	Required  bool   `json:"required"`
+	PolicyRef string `json:"policyRef"`
+}
+
+type bridgePublicationOrigin struct {
+	IdentityRef  string `json:"identityRef"`
+	MTLSRequired bool   `json:"mtlsRequired"`
+}
+
+type bridgePublicationRateLimit struct {
+	Enabled       bool `json:"enabled"`
+	Requests      int  `json:"requests"`
+	WindowSeconds int  `json:"windowSeconds"`
+}
+
+type bridgePublicationAccess struct {
+	Exposure               string   `json:"exposure"`
+	PolicyExposure         string   `json:"policyExposure"`
+	Authentication         string   `json:"authentication"`
+	Privilege              string   `json:"privilege"`
+	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
+	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
+	LANStepDown            bool     `json:"lanStepDown"`
+	AllowedMethods         []string `json:"allowedMethods,omitempty"`
+	DefaultClosed          bool     `json:"defaultClosed"`
+	PolicyRef              string   `json:"policyRef"`
+}
 
 type bridgeOriginMTLSExecutorPlan struct {
 	StackID            string                     `json:"stackId"`
@@ -1194,15 +1263,113 @@ func decodeBridgePublicationExecutorPlan(raw []byte, path string, spec executorC
 	if len(plan.BridgePublications) == 0 {
 		return nil, fail(ErrInvalidPlan, path+".bridgePublications", "requires at least one compiler-owned service publication")
 	}
+	previousService := ""
 	for index, publication := range plan.BridgePublications {
-		var object map[string]any
-		if err := decodeStrict(publication, &object); err != nil {
-			return nil, wrap(ErrInvalidPlan, fmt.Sprintf("%s.bridgePublications[%d]", path, index), "decode publication", err)
+		itemPath := fmt.Sprintf("%s.bridgePublications[%d]", path, index)
+		if err := validateBridgePublication(publication, itemPath); err != nil {
+			return nil, err
 		}
-		if len(object) == 0 {
-			return nil, fail(ErrInvalidPlan, fmt.Sprintf("%s.bridgePublications[%d]", path, index), "publication must be a non-empty exact object")
+		if previousService != "" && publication.ServiceRef <= previousService {
+			return nil, fail(ErrDuplicate, itemPath+".serviceRef", "publications must be unique and sorted")
+		}
+		previousService = publication.ServiceRef
+	}
+	return plan, nil
+}
+
+func validateBridgePublication(publication bridgePublication, path string) error {
+	if err := requireContractID(publication.ServiceRef, path+".serviceRef"); err != nil {
+		return err
+	}
+	if publication.SourceSiteRef == publication.EdgeSiteRef || publication.Host == "" ||
+		publication.Protocol != "https" || publication.Port != 443 || !strings.HasPrefix(publication.Path, "/") ||
+		!publication.DefaultClosed || !publication.TLS.Required || publication.TLS.Mode != "terminate-at-edge" ||
+		!containsExecutorBundleString([]string{"TLS1.2", "TLS1.3"}, publication.TLS.MinVersion) ||
+		!publication.Auth.Required || publication.Auth.PolicyRef == "" ||
+		publication.Origin.IdentityRef != publication.ServiceRef+"-origin" || !publication.Origin.MTLSRequired ||
+		!publication.RateLimit.Enabled || publication.RateLimit.Requests < 1 || publication.RateLimit.WindowSeconds < 1 ||
+		publication.ModuleRef == "" || publication.UnitRef == "" ||
+		!sortedUniqueNonEmpty(publication.OriginNodeRefs) || !sortedUniqueNonEmpty(publication.OriginInstanceRefs) ||
+		len(publication.OriginNodeRefs) != len(publication.OriginInstanceRefs) ||
+		len(publication.OriginTargets) != len(publication.OriginNodeRefs) ||
+		!containsExecutorBundleString([]string{"http", "https", "tcp"}, publication.UpstreamProtocol) ||
+		publication.TargetPort < 1 || publication.TargetPort > 65535 || publication.HealthGateRef == "" {
+		return fail(ErrInvalidPlan, path, "service publication closure is incomplete or widened")
+	}
+	targetNodes := make([]string, 0, len(publication.OriginTargets))
+	targetInstances := make([]string, 0, len(publication.OriginTargets))
+	seenTargetPairs := make(map[string]struct{}, len(publication.OriginTargets))
+	for index, target := range publication.OriginTargets {
+		targetPath := fmt.Sprintf("%s.originTargets[%d]", path, index)
+		if err := requireContractID(target.NodeRef, targetPath+".nodeRef"); err != nil {
+			return err
+		}
+		if err := requireContractID(target.InstanceRef, targetPath+".instanceRef"); err != nil {
+			return err
+		}
+		pair := target.NodeRef + "\x00" + target.InstanceRef
+		if _, duplicate := seenTargetPairs[pair]; duplicate {
+			return fail(ErrDuplicate, targetPath, "origin target pair is duplicated")
+		}
+		seenTargetPairs[pair] = struct{}{}
+		targetNodes = append(targetNodes, target.NodeRef)
+		targetInstances = append(targetInstances, target.InstanceRef)
+	}
+	sort.Strings(targetNodes)
+	sort.Strings(targetInstances)
+	if !exactStringList(targetNodes, publication.OriginNodeRefs) || !exactStringList(targetInstances, publication.OriginInstanceRefs) {
+		return fail(ErrInvalidPlan, path+".originTargets", "origin target pairs must exactly bind the governed node and instance sets")
+	}
+	access := publication.Access
+	if access.Exposure != "public" || access.PolicyExposure != "public" ||
+		!containsExecutorBundleString([]string{"human", "device", "human+device", "workload"}, access.Authentication) ||
+		!containsExecutorBundleString([]string{"user", "admin", "identity", "secrets", "vault", "recovery"}, access.Privilege) ||
+		access.LANStepDown || !access.DefaultClosed || access.PolicyRef != publication.Auth.PolicyRef ||
+		!sortedUniqueNonEmpty(access.AllowedMethods) {
+		return fail(ErrInvalidPlan, path+".access", "public access policy is incomplete or widened")
+	}
+	for _, method := range access.AllowedMethods {
+		if !containsExecutorBundleString([]string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}, method) {
+			return fail(ErrInvalidPlan, path+".access.allowedMethods", "unsupported HTTP method")
 		}
 	}
+	return nil
+}
+
+func projectBridgePublicationForInstance(decoded executorContractPlan, unit RenderUnit, path string) (executorContractPlan, error) {
+	plan, ok := decoded.(bridgePublicationExecutorPlan)
+	if !ok {
+		return nil, fail(ErrInvalidPlan, path+".planInputs", "publication decoder returned an unexpected plan type")
+	}
+	siteRef, hasSite := unit.SiteRef()
+	nodeRef, hasNode := unit.NodeRef()
+	if !hasSite || !hasNode {
+		return nil, fail(ErrInvalidPlan, path+".instances", "publication runtime requires one exact Cloud Site/node instance")
+	}
+	var target *executorBundleTarget
+	for index := range plan.ModuleTargets {
+		if plan.ModuleTargets[index].ID == nodeRef && plan.ModuleTargets[index].SiteRef == siteRef {
+			if target != nil {
+				return nil, fail(ErrDuplicate, path+".moduleTargets", "publication instance target is duplicated")
+			}
+			copy := plan.ModuleTargets[index]
+			target = &copy
+		}
+	}
+	if target == nil {
+		return nil, fail(ErrInvalidPlan, path+".moduleTargets", "publication instance is outside compiler-owned targets")
+	}
+	publications := make([]bridgePublication, 0, len(plan.BridgePublications))
+	for _, publication := range plan.BridgePublications {
+		if publication.EdgeSiteRef == siteRef {
+			publications = append(publications, publication)
+		}
+	}
+	if len(publications) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".bridgePublications", "Cloud edge instance has no compiler-owned publication")
+	}
+	plan.ModuleTargets = []executorBundleTarget{*target}
+	plan.BridgePublications = publications
 	return plan, nil
 }
 
@@ -1364,6 +1531,131 @@ func projectBridgeOriginMTLSForInstance(decoded executorContractPlan, unit Rende
 	}
 	plan.BridgeOriginMTLS.Publications = publications
 	return plan, nil
+}
+
+type bridgePublicationExecutorDocument struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Module     struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	} `json:"module"`
+	Contract struct {
+		Apply                   string   `json:"apply"`
+		CertificateIssuance     string   `json:"certificateIssuance"`
+		Credentials             string   `json:"credentials"`
+		DNSMutation             string   `json:"dnsMutation"`
+		Generation              string   `json:"generation"`
+		Operations              []string `json:"operations"`
+		ProviderLifecycle       string   `json:"providerLifecycle"`
+		PublicationAuthority    string   `json:"publicationAuthority"`
+		RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+		Scope                   string   `json:"scope"`
+		ServerProviderAuthority string   `json:"serverProviderAuthority"`
+		TransportImplementation string   `json:"transportImplementation"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// BridgePublicationPolicy is the exact material-free policy for one Cloud
+// edge node. DNS, certificates, credentials and transport remain external.
+type BridgePublicationPolicy struct {
+	StackID      string
+	SiteRef      string
+	NodeRef      string
+	Publications []BridgePublicationRule
+}
+
+type BridgePublicationRule struct {
+	ServiceRef             string
+	SourceSiteRef          string
+	EdgeSiteRef            string
+	Host                   string
+	Protocol               string
+	Port                   int
+	Path                   string
+	TLSMinVersion          string
+	AuthPolicyRef          string
+	OriginIdentityRef      string
+	RateLimitRequests      int
+	RateLimitWindowSeconds int
+	ModuleRef              string
+	UnitRef                string
+	OriginNodeRefs         []string
+	OriginInstanceRefs     []string
+	OriginTargets          []BridgePublicationOriginTarget
+	UpstreamProtocol       string
+	TargetPort             int
+	HealthGateRef          string
+	DataBindingRef         string
+	Authentication         string
+	Privilege              string
+	EnrolledDeviceRequired bool
+	OwnerStepUpRequired    bool
+	AllowedMethods         []string
+}
+
+type BridgePublicationOriginTarget struct {
+	NodeRef     string
+	InstanceRef string
+}
+
+// ValidateBridgePublicationExecutorArtifact verifies the executable contract
+// and returns only the caller-bound Cloud edge projection.
+func ValidateBridgePublicationExecutorArtifact(raw []byte, siteRef, nodeRef string) (BridgePublicationPolicy, error) {
+	var document bridgePublicationExecutorDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return BridgePublicationPolicy{}, wrap(ErrInvalidPlan, "bridgePublicationArtifact", "decode exact publication artifact", err)
+	}
+	spec := executorContractBundleSpecs[15]
+	if document.APIVersion != "stackkit.executor-contract-bundle/v1" || document.Kind != "ExecutorContractBundle" ||
+		document.Module.ID != spec.moduleID || document.Module.Version != spec.moduleVersion ||
+		document.Contract.Apply != "typed-local-operations" || document.Contract.CertificateIssuance != "not-owned" ||
+		document.Contract.Credentials != "not-included" || document.Contract.DNSMutation != "not-owned" ||
+		document.Contract.Generation != "supported" ||
+		!exactStringList(document.Contract.Operations, []string{"apply-service-publication", "remove-service-publication", "verify-service-publication"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.PublicationAuthority != "compiler-owned-exact" ||
+		document.Contract.RuntimeEnforcement != "adapter-verified" || document.Contract.Scope != "cloud-edge-node" ||
+		document.Contract.ServerProviderAuthority != "not-owned" || document.Contract.TransportImplementation != "external-owner" {
+		return BridgePublicationPolicy{}, fail(ErrInvalidPlan, "bridgePublicationArtifact.contract", "artifact widens or contradicts the typed publication authority")
+	}
+	decoded, err := decodeBridgePublicationExecutorPlan(document.PlanInputs, "bridgePublicationArtifact.planInputs", spec)
+	if err != nil {
+		return BridgePublicationPolicy{}, err
+	}
+	plan := decoded.(bridgePublicationExecutorPlan)
+	if len(plan.ModuleTargets) != 1 || plan.ModuleTargets[0].ID != nodeRef || plan.ModuleTargets[0].SiteRef != siteRef {
+		return BridgePublicationPolicy{}, fail(ErrInvalidPlan, "bridgePublicationArtifact.planInputs.moduleTargets", "artifact must contain exactly the caller-bound Cloud Site/node")
+	}
+	rules := make([]BridgePublicationRule, len(plan.BridgePublications))
+	for index, publication := range plan.BridgePublications {
+		if publication.EdgeSiteRef != siteRef {
+			return BridgePublicationPolicy{}, fail(ErrInvalidPlan, fmt.Sprintf("bridgePublicationArtifact.planInputs.bridgePublications[%d].edgeSiteRef", index), "publication is outside caller-bound Cloud Site")
+		}
+		rules[index] = BridgePublicationRule{
+			ServiceRef: publication.ServiceRef, SourceSiteRef: publication.SourceSiteRef, EdgeSiteRef: publication.EdgeSiteRef,
+			Host: publication.Host, Protocol: publication.Protocol, Port: publication.Port, Path: publication.Path,
+			TLSMinVersion: publication.TLS.MinVersion, AuthPolicyRef: publication.Auth.PolicyRef,
+			OriginIdentityRef: publication.Origin.IdentityRef, RateLimitRequests: publication.RateLimit.Requests,
+			RateLimitWindowSeconds: publication.RateLimit.WindowSeconds, ModuleRef: publication.ModuleRef,
+			UnitRef: publication.UnitRef, OriginNodeRefs: append([]string(nil), publication.OriginNodeRefs...),
+			OriginInstanceRefs: append([]string(nil), publication.OriginInstanceRefs...),
+			OriginTargets: func() []BridgePublicationOriginTarget {
+				targets := make([]BridgePublicationOriginTarget, len(publication.OriginTargets))
+				for targetIndex, target := range publication.OriginTargets {
+					targets[targetIndex] = BridgePublicationOriginTarget{NodeRef: target.NodeRef, InstanceRef: target.InstanceRef}
+				}
+				return targets
+			}(),
+			UpstreamProtocol: publication.UpstreamProtocol,
+			TargetPort:       publication.TargetPort, HealthGateRef: publication.HealthGateRef, DataBindingRef: publication.DataBindingRef,
+			Authentication: publication.Access.Authentication, Privilege: publication.Access.Privilege,
+			EnrolledDeviceRequired: publication.Access.EnrolledDeviceRequired,
+			OwnerStepUpRequired:    publication.Access.OwnerStepUpRequired,
+			AllowedMethods:         append([]string(nil), publication.Access.AllowedMethods...),
+		}
+	}
+	return BridgePublicationPolicy{StackID: plan.StackID, SiteRef: siteRef, NodeRef: nodeRef, Publications: rules}, nil
 }
 
 type bridgeOriginMTLSExecutorDocument struct {
@@ -2393,19 +2685,28 @@ func validateExecutorContractPlanCommon(stackID string, kit executorBundleKit, s
 		previousSite = site.ID
 		siteKinds[site.ID] = site.Kind
 	}
-	if spec.siteKind != "" {
+	if spec.siteKind != "" && spec.moduleID != bridgePublicationModuleID {
 		for _, site := range sites {
 			if site.Kind != spec.siteKind {
 				return fail(ErrInvalidPlan, path+".sites", "%s executor contract accepts only %s Sites", spec.moduleID, spec.siteKind)
 			}
 		}
 	}
-	modernSitesInvalid := kit.Slug == "modern-homelab" && (spec.siteKind == "" && (!containsExecutorBundleSiteKind(siteKinds, "home") || !containsExecutorBundleSiteKind(siteKinds, "cloud")) || spec.siteKind != "" && !exactExecutorBundleSiteKinds(siteKinds, spec.siteKind))
+	modernSitesInvalid := kit.Slug == "modern-homelab" &&
+		(spec.moduleID == bridgePublicationModuleID && (!containsExecutorBundleSiteKind(siteKinds, "home") || !containsExecutorBundleSiteKind(siteKinds, "cloud")) ||
+			spec.moduleID != bridgePublicationModuleID && (spec.siteKind == "" && (!containsExecutorBundleSiteKind(siteKinds, "home") || !containsExecutorBundleSiteKind(siteKinds, "cloud")) || spec.siteKind != "" && !exactExecutorBundleSiteKinds(siteKinds, spec.siteKind)))
 	if kit.Slug == "basement-kit" && !exactExecutorBundleSiteKinds(siteKinds, "home") || kit.Slug == "cloud-kit" && !exactExecutorBundleSiteKinds(siteKinds, "cloud") || modernSitesInvalid {
 		return fail(ErrInvalidPlan, path+".sites", "site kinds contradict the selected kit")
 	}
 	if err := validateExecutorBundleTargets(targets, siteKinds, path+".moduleTargets"); err != nil {
 		return err
+	}
+	if spec.moduleID == bridgePublicationModuleID {
+		for _, target := range targets {
+			if siteKinds[target.SiteRef] != "cloud" {
+				return fail(ErrInvalidPlan, path+".moduleTargets", "publication runtime targets must be Cloud edge nodes")
+			}
+		}
 	}
 	if err := validateExecutorBundleCapabilities(capabilities, spec, path+".moduleCapabilities"); err != nil {
 		return err
@@ -2419,7 +2720,7 @@ func validateExecutorContractPlanCommon(stackID string, kit executorBundleKit, s
 	}
 	seenMembers := map[string]struct{}{}
 	for index, member := range control.Members {
-		if !containsExecutorBundleString(targetIDs, member) {
+		if spec.moduleID != bridgePublicationModuleID && !containsExecutorBundleString(targetIDs, member) {
 			return fail(ErrInvalidPlan, fmt.Sprintf("%s.controlPlane.members[%d]", path, index), "control member is outside module targets")
 		}
 		if _, duplicate := seenMembers[member]; duplicate {

@@ -155,7 +155,7 @@ _architectureV2ModernCloudIdentityVerifierSupport: #ModuleRealizationSupportV2 &
 _architectureV2BridgePublicationSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {contractComplete: true, requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgePublications"]}
@@ -168,7 +168,7 @@ _architectureV2BridgePublicationSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "executor-contract", outputRef: "modern/federation/publication/executor-contract.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["bridge-publication-evidence"]
 }
 
 _architectureV2BridgeOriginMTLSSupport: #ModuleRealizationSupportV2 & {
@@ -401,28 +401,29 @@ _architectureV2ProfileExtensionModules: [
 		evidence: ["bridge-origin-mtls-evidence"]
 	},
 	{
-		metadata: {id: "stackkits-bridge-publication-runtime", version: "1.0.0", description: "Exact Modern Home-to-Cloud service-publication handoff; edge transport, DNS, certificates, credentials, provider lifecycle, and general LAN access remain external."}
+		metadata: {id: "stackkits-bridge-publication-runtime", version: "1.1.0", description: "Exact node-local Modern Home-to-Cloud service-publication runtime; DNS, certificates, credentials, provider lifecycle, transport implementation, and general LAN access remain external."}
 		role: "platform", providerRef: "stackkits-service-publication-contract", provides: ["service-publication"]
 		requires: ["stackkits-cloud-public-edge-runtime", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
 		supportedSiteKinds: ["cloud"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status: "unbound", ownerRef: "stackkits-bridge-publication-executor", capabilityRefs: ["service-publication"]
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-bridge-publication-executor"
+			policyArtifactRefs: ["bridge-publication-executor-contract"]
 			targetScope: "cloud-sites", operations: ["apply-service-publication", "remove-service-publication", "verify-service-publication"]
 			requiredHealthRef: "bridge-publication-health", requiredEvidenceRef: "bridge-publication-evidence"
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                                    "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://modern/federation/publication/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:83df2382c3d2e8b9ca768d0946dff19da68f9f3a707923a5c2a756374e317d35"
+			contractHash: "sha256:8046b230172cbe5fde2a0704a0eeafa919c7c7b1f1ba6a18788ed48defa2ae70"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgePublications"]
 			outputs: ["modern/federation/publication/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2BridgePublicationSupport
-		health: [{id: "bridge-publication-contract", kind: "contract"}]
-		evidence: ["bridge-publication-contract"]
+		health: [{id: "bridge-publication-health", kind: "contract", scope: "each-node"}]
+		evidence: ["bridge-publication-evidence"]
 	},
 	{
 		metadata: {id: "stackkits-federation-link-runtime", version: "1.0.0", description: "Typed inter-Site link boundary; transport, endpoint discovery, credentials, provider lifecycle, and general LAN reachability remain external."}

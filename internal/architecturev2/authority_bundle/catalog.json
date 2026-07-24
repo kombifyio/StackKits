@@ -8833,21 +8833,37 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "apply-service-publication",
+          "remove-service-publication",
+          "verify-service-publication"
+        ],
+        "ownerRef": "stackkits-bridge-publication-executor",
+        "policyArtifactRefs": [
+          "bridge-publication-executor-contract"
+        ],
+        "requiredEvidenceRef": "bridge-publication-evidence",
+        "requiredHealthRef": "bridge-publication-health",
+        "status": "bound",
+        "targetScope": "cloud-sites"
+      },
       "evidence": [
-        "bridge-publication-contract"
+        "bridge-publication-evidence"
       ],
       "health": [
         {
-          "id": "bridge-publication-contract",
+          "id": "bridge-publication-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Exact Modern Home-to-Cloud service-publication handoff; edge transport, DNS, certificates, credentials, provider lifecycle, and general LAN access remain external.",
+        "description": "Exact node-local Modern Home-to-Cloud service-publication runtime; DNS, certificates, credentials, provider lifecycle, transport implementation, and general LAN access remain external.",
         "id": "stackkits-bridge-publication-runtime",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "providerRef": "stackkits-service-publication-contract",
       "provides": [
@@ -8886,13 +8902,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "bridge-publication-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -8913,7 +8931,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:83df2382c3d2e8b9ca768d0946dff19da68f9f3a707923a5c2a756374e317d35",
+          "contractHash": "sha256:8046b230172cbe5fde2a0704a0eeafa919c7c7b1f1ba6a18788ed48defa2ae70",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -8921,8 +8939,8 @@
             "modern/federation/publication/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -8953,23 +8971,8 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "service-publication"
-        ],
-        "operations": [
-          "apply-service-publication",
-          "remove-service-publication",
-          "verify-service-publication"
-        ],
-        "ownerRef": "stackkits-bridge-publication-executor",
-        "requiredEvidenceRef": "bridge-publication-evidence",
-        "requiredHealthRef": "bridge-publication-health",
-        "status": "unbound",
-        "targetScope": "cloud-sites"
       },
       "supportedSiteKinds": [
         "cloud"
