@@ -32,7 +32,7 @@ const (
 	moduleInputTypeHomeAccess         = "home-access-enforcement-v1"
 	moduleInputTypeLocalAutonomy      = "local-autonomy-policy-v1"
 	moduleInputTypeNetworkRoutesV4    = "authority-bound-service-route-list-v4"
-	moduleInputTypeCloudHostNetwork   = "cloud-host-security-network-v1"
+	moduleInputTypeCloudHostNetwork   = "cloud-host-security-policy-v2"
 	moduleInputTypeHostBootstrap      = "host-bootstrap-runtime-v1"
 	moduleInputTypeStorageHostRoots   = "host-storage-roots-v1"
 	moduleInputTypeStorageBackup      = "local-backup-root-v1"
@@ -803,8 +803,8 @@ func projectPublicCloudHostSecurityNetwork(value any, kit map[string]any, path s
 			return nil, err
 		}
 	}
-	if alreadyPublic && len(input) != 4 {
-		return nil, fail(ErrContractConflict, path, "Cloud host-security network must contain exactly four public fields")
+	if alreadyPublic && len(input) != 6 {
+		return nil, fail(ErrContractConflict, path, "Cloud host-security policy must contain exactly six public fields")
 	}
 	modeField, subnetField, tlsField := "mode", "transport", "tls"
 	if alreadyPublic {
@@ -884,8 +884,34 @@ func projectPublicCloudHostSecurityNetwork(value any, kit map[string]any, path s
 	if minVersion != "TLS1.2" && minVersion != "TLS1.3" {
 		return nil, fail(ErrContractConflict, path+"."+tlsField, "requires TLS1.2 or TLS1.3")
 	}
+	firewall := map[string]any{
+		"baseRuleset":                "stackkits-cloud-host-security",
+		"publicEdgeDelegationChain":  "stackkits-cloud-public-edge",
+		"defaultIngress":             "deny",
+		"declaredServiceIngressOnly": true,
+	}
+	hardening := map[string]any{
+		"profile":                  "internet-host-baseline-v1",
+		"sshKeyOnly":               true,
+		"sshRootLogin":             "disabled",
+		"bruteForceProtection":     "enabled",
+		"automaticSecurityUpdates": "enabled",
+	}
+	if alreadyPublic {
+		if exact, err := canonicalEqual(input["firewall"], firewall); err != nil {
+			return nil, err
+		} else if !exact {
+			return nil, fail(ErrContractConflict, path+".firewall", "must match the closed Cloud host-security firewall policy")
+		}
+		if exact, err := canonicalEqual(input["hardening"], hardening); err != nil {
+			return nil, err
+		} else if !exact {
+			return nil, fail(ErrContractConflict, path+".hardening", "must match the closed Cloud host-security hardening policy")
+		}
+	}
 	return map[string]any{
 		"networkMode": mode, "transportSubnet": subnet, "ipv6": ipv6, "tlsMinVersion": minVersion,
+		"firewall": firewall, "hardening": hardening,
 	}, nil
 }
 

@@ -6469,21 +6469,39 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "apply-cloud-host-firewall",
+          "reconcile-cloud-host-firewall",
+          "apply-cloud-host-hardening",
+          "verify-cloud-host-security",
+          "commit-cloud-host-security-evidence"
+        ],
+        "ownerRef": "stackkits-cloud-host-security-executor",
+        "policyArtifactRefs": [
+          "cloud-host-security-executor-contract"
+        ],
+        "requiredEvidenceRef": "cloud-host-security-evidence",
+        "requiredHealthRef": "cloud-host-security-health",
+        "status": "bound",
+        "targetScope": "cloud-sites"
+      },
       "evidence": [
-        "cloud-host-security-contract"
+        "cloud-host-security-evidence"
       ],
       "health": [
         {
-          "id": "cloud-host-security-contract",
+          "id": "cloud-host-security-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
         "description": "Cloud-only node-local firewall and Internet-host hardening boundary; it owns no public edge, DNS, backup, mesh, or server-provider lifecycle.",
         "id": "stackkits-cloud-host-security-runtime",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "providerRef": "stackkits-cloud-host-security",
       "provides": [
@@ -6523,7 +6541,9 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "cloud-host-security-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
@@ -6531,7 +6551,7 @@
             "host-security-network"
           ]
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -6551,7 +6571,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:f62133491c0a87f42a87ee56639b8ab69e404abb188fbfbfe8461c96a530291c",
+          "contractHash": "sha256:577d15449a15753e08b2c39af519ebba03e4159b7f772a19ae47b9974195f2a8",
           "id": "executor-contract",
           "inputBindings": [
             {
@@ -6559,7 +6579,7 @@
               "required": true,
               "sourceRef": "network.cloudHostSecurity",
               "targetRef": "host-security-network",
-              "valueType": "cloud-host-security-network-v1"
+              "valueType": "cloud-host-security-policy-v2"
             }
           ],
           "kind": "native-config",
@@ -6587,8 +6607,8 @@
           "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
-          "templateRef": "builtin://cloud/host-security/executor-contract/v1.json",
-          "version": "1.0.0"
+          "templateRef": "builtin://cloud/host-security/executor-contract/v2.json",
+          "version": "1.1.0"
         }
       ],
       "renderVariants": [
@@ -6649,24 +6669,8 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "host-local-internet-firewall",
-          "internet-host-hardening"
-        ],
-        "operations": [
-          "apply-cloud-host-firewall",
-          "apply-cloud-host-hardening",
-          "verify-cloud-host-security"
-        ],
-        "ownerRef": "stackkits-cloud-host-security-executor",
-        "requiredEvidenceRef": "cloud-host-security-evidence",
-        "requiredHealthRef": "cloud-host-security-health",
-        "status": "unbound",
-        "targetScope": "cloud-sites"
       },
       "supportedSiteKinds": [
         "cloud"
@@ -11676,7 +11680,7 @@
       ],
       "metadata": {
         "id": "stackkits-cloud-host-security",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "overlayContracts": [],
       "provides": [

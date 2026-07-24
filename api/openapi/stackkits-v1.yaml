@@ -3120,7 +3120,7 @@ components:
           enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, network.routes, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot]
         valueType:
           type: string
-          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, authority-bound-service-route-list-v4, cloud-host-security-network-v1, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1]
+          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, authority-bound-service-route-list-v4, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1]
         cardinality:
           type: string
           enum: [single, list]
@@ -3137,7 +3137,7 @@ components:
             - type: array
               items:
                 $ref: "#/components/schemas/ArchitectureV2ModulePublicResolvedRouteV4"
-            - $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudHostSecurityNetwork"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudHostSecurityPolicy"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostBootstrapRuntime"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostStorageRoots"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalBackupRoot"
@@ -3217,10 +3217,10 @@ components:
             required: [sourceRef]
           then:
             properties:
-              valueType: {const: cloud-host-security-network-v1}
+              valueType: {const: cloud-host-security-policy-v2}
               cardinality: {const: single}
               defaultValue:
-                $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudHostSecurityNetwork"
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicCloudHostSecurityPolicy"
         - if:
             properties: {sourceRef: {const: host.bootstrapRuntime}}
             required: [sourceRef]
@@ -3546,15 +3546,34 @@ components:
       properties:
         path: {type: string, pattern: ^/}
         volumeDriver: {type: string, const: local}
-    ArchitectureV2ModulePublicCloudHostSecurityNetwork:
+    ArchitectureV2ModulePublicCloudHostSecurityPolicy:
       type: object
       additionalProperties: false
-      required: [networkMode, transportSubnet, ipv6, tlsMinVersion]
+      required: [networkMode, transportSubnet, ipv6, tlsMinVersion, firewall, hardening]
       properties:
         networkMode: {type: string, enum: [public-capable, hybrid]}
         transportSubnet: {type: string, format: cidr}
         ipv6: {type: boolean}
         tlsMinVersion: {type: string, enum: [TLS1.2, TLS1.3]}
+        firewall:
+          type: object
+          additionalProperties: false
+          required: [baseRuleset, publicEdgeDelegationChain, defaultIngress, declaredServiceIngressOnly]
+          properties:
+            baseRuleset: {type: string, const: stackkits-cloud-host-security}
+            publicEdgeDelegationChain: {type: string, const: stackkits-cloud-public-edge}
+            defaultIngress: {type: string, const: deny}
+            declaredServiceIngressOnly: {type: boolean, const: true}
+        hardening:
+          type: object
+          additionalProperties: false
+          required: [profile, sshKeyOnly, sshRootLogin, bruteForceProtection, automaticSecurityUpdates]
+          properties:
+            profile: {type: string, const: internet-host-baseline-v1}
+            sshKeyOnly: {type: boolean, const: true}
+            sshRootLogin: {type: string, const: disabled}
+            bruteForceProtection: {type: string, const: enabled}
+            automaticSecurityUpdates: {type: string, const: enabled}
     ArchitectureV2ModulePublicResolvedRoute:
       type: object
       additionalProperties: false

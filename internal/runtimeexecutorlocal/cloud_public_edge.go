@@ -34,6 +34,8 @@ type CloudPublicEdgeApplyPolicy struct {
 	TransportSubnet     string                                        `json:"transportSubnet"`
 	IPv6                bool                                          `json:"ipv6"`
 	TLSMinVersion       string                                        `json:"tlsMinVersion"`
+	ParentRulesetRef    string                                        `json:"parentRulesetRef"`
+	DelegatedChainRef   string                                        `json:"delegatedChainRef"`
 	Routes              []architecturev2renderer.CloudPublicEdgeRoute `json:"routes"`
 }
 
@@ -43,13 +45,17 @@ type CloudPublicEdgeExpectation struct {
 	SiteRef             string   `json:"siteRef"`
 	NodeRef             string   `json:"nodeRef"`
 	ExecutionChannelRef string   `json:"executionChannelRef"`
+	ParentRulesetRef    string   `json:"parentRulesetRef"`
+	DelegatedChainRef   string   `json:"delegatedChainRef"`
 	RouteRefs           []string `json:"routeRefs"`
 }
 
 type CloudPublicEdgeObservation struct {
-	PolicyDigest string   `json:"policyDigest"`
-	Status       string   `json:"status"`
-	RouteRefs    []string `json:"routeRefs"`
+	PolicyDigest      string   `json:"policyDigest"`
+	ParentRulesetRef  string   `json:"parentRulesetRef"`
+	DelegatedChainRef string   `json:"delegatedChainRef"`
+	Status            string   `json:"status"`
+	RouteRefs         []string `json:"routeRefs"`
 }
 
 // CloudPublicEdgeOperations is owned by an authenticated Cloud host channel.
@@ -191,8 +197,17 @@ func validateCloudPublicEdgeRequest(request runtimeexecutor.ExecutionRequest, bi
 	for index := range governed.Routes {
 		routeRefs[index] = governed.Routes[index].ID
 	}
-	policy := CloudPublicEdgeApplyPolicy{PolicyDigest: policyDigest, StackID: governed.StackID, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef, ExecutionChannelRef: binding.ExecutionChannelRef, NetworkMode: governed.NetworkMode, TransportSubnet: governed.TransportSubnet, IPv6: governed.IPv6, TLSMinVersion: governed.TLSMinVersion, Routes: governed.Routes}
-	expectation := CloudPublicEdgeExpectation{PolicyDigest: policyDigest, StackID: governed.StackID, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef, ExecutionChannelRef: binding.ExecutionChannelRef, RouteRefs: routeRefs}
+	parentRulesetRef := cloudHostFirewallRulesetRef(binding.SiteRef, binding.NodeRef)
+	delegatedChainRef := cloudPublicEdgeChainRef(binding.SiteRef, binding.NodeRef)
+	policy := CloudPublicEdgeApplyPolicy{
+		PolicyDigest: policyDigest, StackID: governed.StackID, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef, ExecutionChannelRef: binding.ExecutionChannelRef,
+		NetworkMode: governed.NetworkMode, TransportSubnet: governed.TransportSubnet, IPv6: governed.IPv6, TLSMinVersion: governed.TLSMinVersion,
+		ParentRulesetRef: parentRulesetRef, DelegatedChainRef: delegatedChainRef, Routes: governed.Routes,
+	}
+	expectation := CloudPublicEdgeExpectation{
+		PolicyDigest: policyDigest, StackID: governed.StackID, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef,
+		ExecutionChannelRef: binding.ExecutionChannelRef, ParentRulesetRef: parentRulesetRef, DelegatedChainRef: delegatedChainRef, RouteRefs: routeRefs,
+	}
 	return target, health, policy, expectation, nil
 }
 
@@ -214,7 +229,10 @@ func defensiveCloudPublicEdgeExpectation(expectation CloudPublicEdgeExpectation)
 }
 
 func validCloudPublicEdgeObservation(observation CloudPublicEdgeObservation, expectation CloudPublicEdgeExpectation, status string) bool {
-	return observation.PolicyDigest == expectation.PolicyDigest && observation.Status == status && slices.Equal(observation.RouteRefs, expectation.RouteRefs)
+	return observation.PolicyDigest == expectation.PolicyDigest &&
+		observation.ParentRulesetRef == expectation.ParentRulesetRef &&
+		observation.DelegatedChainRef == expectation.DelegatedChainRef &&
+		observation.Status == status && slices.Equal(observation.RouteRefs, expectation.RouteRefs)
 }
 
 var _ runtimeexecutor.Executor = (*CloudPublicEdgeExecutor)(nil)

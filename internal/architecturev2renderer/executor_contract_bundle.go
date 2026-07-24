@@ -59,8 +59,8 @@ const (
 	modernHomeRuntimeOutputRef     = "modern/home-runtime/executor-contract.json"
 
 	cloudHostSecurityModuleID      = "stackkits-cloud-host-security-runtime"
-	cloudHostSecurityModuleVersion = "1.0.0"
-	cloudHostSecurityTemplateRef   = "builtin://cloud/host-security/executor-contract/v1.json"
+	cloudHostSecurityModuleVersion = "1.1.0"
+	cloudHostSecurityTemplateRef   = "builtin://cloud/host-security/executor-contract/v2.json"
 	cloudHostSecurityOutputRef     = "cloud/host-security/executor-contract.json"
 
 	cloudPublicEdgeModuleID      = "stackkits-cloud-public-edge-runtime"

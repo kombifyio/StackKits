@@ -616,7 +616,7 @@ _architectureV2Providers: list.Concat([[
 		selection: defaultForSiteKinds: ["cloud"]
 	},
 	{
-		metadata: {id: "stackkits-cloud-host-security", version: "1.0.0"}
+		metadata: {id: "stackkits-cloud-host-security", version: "1.1.0"}
 		provides: _architectureV2CloudHostSecurityCapabilities
 		requires: [{id: "site-cloud"}, {id: "host-bootstrap"}, {id: "security-baseline"}]
 		supportedSiteKinds: ["cloud"]
@@ -960,7 +960,7 @@ _architectureV2BasementComposeExecutorContractSupport: #ModuleRealizationSupport
 _architectureV2CloudHostSecuritySupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: ["host-security-network"]}
 	planInputs: {
@@ -976,7 +976,7 @@ _architectureV2CloudHostSecuritySupport: #ModuleRealizationSupportV2 & {
 			unitRef: "executor-contract", outputRef: "cloud/host-security/executor-contract.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["cloud-host-security-evidence"]
 }
 
 _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
@@ -1854,7 +1854,7 @@ _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
 			id:          "stackkits-cloud-host-security-runtime"
-			version:     "1.0.0"
+			version:     "1.1.0"
 			description: "Cloud-only node-local firewall and Internet-host hardening boundary; it owns no public edge, DNS, backup, mesh, or server-provider lifecycle."
 		}
 		role:        "platform"
@@ -1862,24 +1862,24 @@ _architectureV2Modules: list.Concat([[
 		provides:    _architectureV2CloudHostSecurityCapabilities
 		requires: ["stackkits-core-host-bootstrap", "security-baseline"]
 		supportedSiteKinds: ["cloud"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status:         "unbound", ownerRef: "stackkits-cloud-host-security-executor"
-			capabilityRefs: _architectureV2CloudHostSecurityCapabilities
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:         "bound", ownerRef: "stackkits-cloud-host-security-executor"
 			targetScope:    "cloud-sites"
-			operations: ["apply-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security"]
+			operations: ["apply-cloud-host-firewall", "reconcile-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security", "commit-cloud-host-security-evidence"]
+			policyArtifactRefs: ["cloud-host-security-executor-contract"]
 			requiredHealthRef:   "cloud-host-security-health"
 			requiredEvidenceRef: "cloud-host-security-evidence"
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                          "native-config", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/host-security/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:f62133491c0a87f42a87ee56639b8ab69e404abb188fbfbfe8461c96a530291c"
+			templateRef:  "builtin://cloud/host-security/executor-contract/v2.json", version: "1.1.0"
+			contractHash: "sha256:577d15449a15753e08b2c39af519ebba03e4159b7f772a19ae47b9974195f2a8"
 			publicInputRefs: ["host-security-network"], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 			inputBindings: [{
 				targetRef: "host-security-network", sourceRef:            "network.cloudHostSecurity"
-				valueType: "cloud-host-security-network-v1", cardinality: "single", required: true
+				valueType: "cloud-host-security-policy-v2", cardinality: "single", required: true
 			}]
 			outputs: ["cloud/host-security/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -1903,8 +1903,8 @@ _architectureV2Modules: list.Concat([[
 			},
 		]
 		realizationSupport: _architectureV2CloudHostSecuritySupport
-		health: [{id: "cloud-host-security-contract", kind: "contract"}]
-		evidence: ["cloud-host-security-contract"]
+		health: [{id: "cloud-host-security-health", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-host-security-evidence"]
 	},
 	{
 		metadata: {

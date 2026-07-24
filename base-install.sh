@@ -1,14 +1,14 @@
 #!/bin/sh
 # =============================================================================
-# StackKits Basement Installer — full basement-kit deployment in one command.
+# StackKits Basement Installer — native v2 host preparation and intent setup.
 # =============================================================================
 # Usage: curl -sSL https://base.stackkit.cc | sh
 #
 # Steps:
 #   1. Install stackkit CLI + basement-kit definitions  (via install.stackkit.cc)
 #   2. Prepare system: Docker + packaged OpenTofu
-#   3. Initialize basement-kit (non-interactive, reads env vars)
-#   4. Generate + deploy the full homelab stack
+#   3. Initialize the canonical basement-kit StackSpec
+#   4. Hand off to Inventory admission, resolution, and runtime execution
 #
 # Environment variables:
 #   STACKKIT_ADMIN_EMAIL   Admin/login email (prompted if not set)
@@ -329,62 +329,6 @@ EOF
   ok "  StackKit API image: $STACKKIT_SERVER_IMAGE"
 }
 
-STACKKIT_MODE_VALUE="${STACKKIT_MODE:-${INSTALL_MODE:-}}"
-if [ -n "$STACKKIT_MODE_VALUE" ]; then
-  STACKKIT_MODE_VALUE=$(printf '%s' "$STACKKIT_MODE_VALUE" | tr '[:upper:]' '[:lower:]')
-  case "$STACKKIT_MODE_VALUE" in
-    bare|bootstrapped|advanced)
-      ;;
-    simple)
-      warn "Legacy STACKKIT_MODE=simple selected; using bootstrapped."
-      STACKKIT_MODE_VALUE="bootstrapped"
-      ;;
-    terramate|advanced-terramate)
-      warn "Legacy advanced install mode '$STACKKIT_MODE_VALUE' selected; using advanced."
-      STACKKIT_MODE_VALUE="advanced"
-      ;;
-    *)
-      die "Unsupported STACKKIT_MODE '$STACKKIT_MODE_VALUE'. Expected bare, bootstrapped, or advanced."
-      ;;
-  esac
-fi
-
-# --- Admin email --------------------------------------------------------------
-
-ADMIN_EMAIL="${STACKKIT_ADMIN_EMAIL:-${KOMBIFY_USER_EMAIL:-}}"
-if [ -z "$ADMIN_EMAIL" ] && can_prompt; then
-  echo ""
-  printf '  Admin email (for login accounts): '
-  read -r ADMIN_EMAIL </dev/tty
-  echo ""
-fi
-if [ -z "$ADMIN_EMAIL" ]; then
-  warn "No admin email provided — StackKits will generate a deployment-scoped admin email."
-fi
-
-BOOTSTRAP_OWNER="${STACKKIT_BOOTSTRAP_OWNER:-}"
-if [ -z "$BOOTSTRAP_OWNER" ] && [ -n "$ADMIN_EMAIL" ] && [ "$ADMIN_EMAIL" != "admin" ] && can_prompt; then
-  echo ""
-  printf '  Create a preconfigured StackKits owner account for %s? [Y/n]: ' "$ADMIN_EMAIL"
-  read -r _owner_answer </dev/tty
-  echo ""
-  case "$_owner_answer" in
-    n|N|no|NO|No) BOOTSTRAP_OWNER="false" ;;
-    *) BOOTSTRAP_OWNER="true" ;;
-  esac
-fi
-if [ -z "$BOOTSTRAP_OWNER" ]; then
-  BOOTSTRAP_OWNER="false"
-fi
-
-OWNER_USERNAME="${STACKKIT_OWNER_USERNAME:-}"
-if [ "$BOOTSTRAP_OWNER" = "true" ] && [ -z "$OWNER_USERNAME" ]; then
-  OWNER_USERNAME=$(printf '%s' "$ADMIN_EMAIL" | sed 's/@.*//' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')
-  if [ -z "$OWNER_USERNAME" ]; then
-    OWNER_USERNAME="admin"
-  fi
-fi
-
 # --- Step 1: Install CLI + basement-kit definitions -------------------------------
 # Delegates entirely to install.sh so all binary download, kit extraction, and
 # ~/.stackkits layout logic lives in exactly one place.
@@ -418,31 +362,21 @@ info "Step 3/4 -- Initializing basement-kit"
 mkdir -p "$HOMELAB_DIR"
 cd "$HOMELAB_DIR"
 
-set -- init basement-kit --force
-if [ -n "$STACKKIT_MODE_VALUE" ]; then
-  set -- "$@" --mode "$STACKKIT_MODE_VALUE"
-fi
-if [ -n "$ADMIN_EMAIL" ]; then
-  set -- "$@" --admin-email "$ADMIN_EMAIL"
-fi
-if [ "$BOOTSTRAP_OWNER" = "true" ]; then
-  set -- "$@" --owner-source local --owner-email "$ADMIN_EMAIL" --owner-username "$OWNER_USERNAME"
-else
-  set -- "$@" --non-interactive
-fi
-if [ -n "${STACKKIT_SERVICE_PROFILE:-}" ]; then
-  set -- "$@" --service-profile "$STACKKIT_SERVICE_PROFILE"
-fi
-if [ -n "${DOMAIN:-}" ]; then
-  set -- "$@" --domain "$DOMAIN"
-fi
-if [ "$BOOTSTRAP_OWNER" = "true" ] && can_prompt; then
-  stackkit $STACKKIT_CONTEXT_ARG "$@" </dev/tty
-else
-  stackkit $STACKKIT_CONTEXT_ARG "$@"
-fi
+stackkit init basement-kit --non-interactive
 
 ok "  basement-kit initialized in $HOMELAB_DIR"
+
+echo ""
+ok "Native Architecture v2 intent is ready."
+echo ""
+echo "  Project directory: $HOMELAB_DIR"
+echo "  Next steps:"
+echo "    1. Review stack-spec.yaml"
+echo "    2. Admit observed host Inventory for the selected nodes"
+echo "    3. Run: stackkit validate --spec stack-spec.yaml"
+echo "    4. Resolve and apply only after the runtime adapters report readiness"
+echo ""
+exit 0
 
 configure_dns_tls_provider
 apply_platform_selection

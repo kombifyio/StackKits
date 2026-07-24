@@ -2978,7 +2978,7 @@ _servicePublicationShape: {
 // typed; arbitrary paths, raw StackSpec access, module outputs, and secrets are
 // intentionally unrepresentable.
 #ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot"
-#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "cloud-host-security-network-v1" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1"
+#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1"
 #ModuleRenderInputCardinalityV2: "single" | "list"
 
 // This projection renames credentialTTLSeconds to lifetimeSeconds so the
@@ -3290,11 +3290,24 @@ _servicePublicationShape: {
 	volumeDriver: "local"
 }
 
-#ModulePublicCloudHostSecurityNetworkV1: {
+#ModulePublicCloudHostSecurityPolicyV2: {
 	networkMode:     "public-capable" | "hybrid"
 	transportSubnet: #NetworkCIDRV2
 	ipv6:            bool
 	tlsMinVersion:   "TLS1.2" | "TLS1.3"
+	firewall: {
+		baseRuleset:                "stackkits-cloud-host-security"
+		publicEdgeDelegationChain:  "stackkits-cloud-public-edge"
+		defaultIngress:             "deny"
+		declaredServiceIngressOnly: true
+	}
+	hardening: {
+		profile:                    "internet-host-baseline-v1"
+		sshKeyOnly:                  true
+		sshRootLogin:                "disabled"
+		bruteForceProtection:       "enabled"
+		automaticSecurityUpdates:   "enabled"
+	}
 }
 
 // #ModulePublicResolvedRouteV2 excludes TLS credentialRefs and providerRef.
@@ -3508,9 +3521,9 @@ _servicePublicationShape: {
 		if required == false && valueType == "authority-bound-service-route-list-v4" {defaultValue: [...#ModulePublicResolvedRouteV4]}
 	}
 	if sourceRef == "network.cloudHostSecurity" {
-		valueType:   "cloud-host-security-network-v1"
+		valueType:   "cloud-host-security-policy-v2"
 		cardinality: "single"
-		if required == false {defaultValue: #ModulePublicCloudHostSecurityNetworkV1}
+		if required == false {defaultValue: #ModulePublicCloudHostSecurityPolicyV2}
 	}
 	if sourceRef == "host.bootstrapRuntime" {
 		valueType:   "host-bootstrap-runtime-v1"
@@ -3532,7 +3545,7 @@ _servicePublicationShape: {
 	defaultValue?: _|_
 } | {
 	required: false
-	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityNetworkV1 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1
+	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityPolicyV2 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1
 })
 
 // #ModuleSecretInputBindingV2 is the closed compiler-owned seam from a

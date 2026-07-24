@@ -1719,7 +1719,7 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 				return nil, err
 			}
 		case "network.cloudHostSecurity":
-			if binding.ValueType != "cloud-host-security-network-v1" || binding.Cardinality != "single" {
+			if binding.ValueType != "cloud-host-security-policy-v2" || binding.Cardinality != "single" {
 				return nil, fail(ErrInvalidPlan, path, "network.cloudHostSecurity has an invalid type or cardinality")
 			}
 			value, exists := unit.Values[binding.TargetRef]

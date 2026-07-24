@@ -4,6 +4,42 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.13] - 2026-07-24
+
+> **Stable v0.x Cloud host-security Runtime patch** for both Cloud Kit and the
+> Cloud Site of Modern Homelab.
+
+### Added
+
+- A provider-free node-local Runtime that applies and reconciles the Cloud host
+  firewall, applies the internet-host hardening baseline, verifies exact fresh
+  readback, and durably commits digest-bound evidence.
+- A closed CUE-owned firewall and hardening policy shared by Cloud Kit and the
+  Cloud node of Modern Homelab.
+
+### Changed
+
+- `stackkits-cloud-host-security-runtime` is now v1.1.0, executable, and
+  `apply-ready` for the exact generated Site/node Runtime and Health targets.
+- Host firewall ownership is separated from Public Edge: the default-deny
+  parent ruleset delegates only the declared public-service child chain.
+- Modern Homelab remains included as dedicated Linux amd64/arm64, macOS
+  amd64/arm64, and Windows amd64 archives plus the full StackKits bundle.
+
+### Security
+
+- Missing, stale, future, substituted, or digest-mismatched operation and
+  evidence observations fail closed.
+- Provider resources, leases, credentials, endpoints, transport, and server
+  lifecycle remain outside StackKits authority.
+
+### Known limitations
+
+- Modern Homelab remains Preview until its remaining control, policy,
+  partition, backup, observability, and live-evidence owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.12] - 2026-07-24
 
 > **Stable v0.x Modern Homelab installer patch** that makes the third public

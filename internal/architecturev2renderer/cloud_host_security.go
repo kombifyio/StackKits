@@ -13,7 +13,7 @@ import (
 
 const cloudHostSecurityToken = "@@POLICY@@"
 
-const cloudHostSecurityTemplate = `{"apiVersion":"stackkit.cloud-host-security-policy/v1","kind":"CloudHostSecurityPolicy","contract":{"apply":"typed-local-operations","credentials":"not-included","firewallPolicy":"default-deny-declared-services-only","generation":"supported","hardeningProfile":"internet-host-baseline-v1","operations":["apply-cloud-host-firewall","apply-cloud-host-hardening","verify-cloud-host-security"],"providerLifecycle":"not-owned","runtimeEnforcement":"adapter-verified","scope":"cloud-host-node","serverProviderAuthority":"not-owned"},"policy":@@POLICY@@}
+const cloudHostSecurityTemplate = `{"apiVersion":"stackkit.cloud-host-security-policy/v2","kind":"CloudHostSecurityPolicy","contract":{"apply":"typed-local-operations","credentials":"not-included","firewallPolicy":"default-deny-declared-services-only","generation":"supported","hardeningProfile":"internet-host-baseline-v1","operations":["apply-cloud-host-firewall","reconcile-cloud-host-firewall","apply-cloud-host-hardening","verify-cloud-host-security","commit-cloud-host-security-evidence"],"providerLifecycle":"not-owned","runtimeEnforcement":"adapter-verified","scope":"cloud-host-node","serverProviderAuthority":"not-owned"},"policy":@@POLICY@@}
 `
 
 var cloudHostSecurityPlanInputRefs = []string{
@@ -70,29 +70,48 @@ type cloudHostSecurityPlanInputs struct {
 }
 
 type cloudHostSecurityNetworkInput struct {
-	NetworkMode     string `json:"networkMode"`
-	TransportSubnet string `json:"transportSubnet"`
-	IPv6            bool   `json:"ipv6"`
-	TLSMinVersion   string `json:"tlsMinVersion"`
+	NetworkMode     string                             `json:"networkMode"`
+	TransportSubnet string                             `json:"transportSubnet"`
+	IPv6            bool                               `json:"ipv6"`
+	TLSMinVersion   string                             `json:"tlsMinVersion"`
+	Firewall        CloudHostSecurityFirewallBaseline  `json:"firewall"`
+	Hardening       CloudHostSecurityHardeningBaseline `json:"hardening"`
 }
 
 type cloudHostSecurityValues struct {
 	Network cloudHostSecurityNetworkInput `json:"host-security-network"`
 }
 
+type CloudHostSecurityFirewallBaseline struct {
+	BaseRuleset                string `json:"baseRuleset"`
+	PublicEdgeDelegationChain  string `json:"publicEdgeDelegationChain"`
+	DefaultIngress             string `json:"defaultIngress"`
+	DeclaredServiceIngressOnly bool   `json:"declaredServiceIngressOnly"`
+}
+
+type CloudHostSecurityHardeningBaseline struct {
+	Profile                  string `json:"profile"`
+	SSHKeyOnly               bool   `json:"sshKeyOnly"`
+	SSHRootLogin             string `json:"sshRootLogin"`
+	BruteForceProtection     string `json:"bruteForceProtection"`
+	AutomaticSecurityUpdates string `json:"automaticSecurityUpdates"`
+}
+
 // CloudHostSecurityPolicy is the complete operation-shaped runtime custody
 // document. It deliberately excludes plan topology, hardware, DNS, storage,
 // data, failure, endpoint, credential and provider lifecycle authority.
 type CloudHostSecurityPolicy struct {
-	StackID         string   `json:"stackId"`
-	KitSlug         string   `json:"kitSlug"`
-	SiteRef         string   `json:"siteRef"`
-	NodeRef         string   `json:"nodeRef"`
-	Roles           []string `json:"roles"`
-	NetworkMode     string   `json:"networkMode"`
-	TransportSubnet string   `json:"transportSubnet"`
-	IPv6            bool     `json:"ipv6"`
-	TLSMinVersion   string   `json:"tlsMinVersion"`
+	StackID         string                             `json:"stackId"`
+	KitSlug         string                             `json:"kitSlug"`
+	SiteRef         string                             `json:"siteRef"`
+	NodeRef         string                             `json:"nodeRef"`
+	Roles           []string                           `json:"roles"`
+	NetworkMode     string                             `json:"networkMode"`
+	TransportSubnet string                             `json:"transportSubnet"`
+	IPv6            bool                               `json:"ipv6"`
+	TLSMinVersion   string                             `json:"tlsMinVersion"`
+	Firewall        CloudHostSecurityFirewallBaseline  `json:"firewall"`
+	Hardening       CloudHostSecurityHardeningBaseline `json:"hardening"`
 }
 
 //nolint:gocyclo // Every allowed authority class is checked at the boundary.
@@ -172,6 +191,7 @@ func validateCloudHostSecurityUnit(unit RenderUnit, contract RendererContract) (
 	return CloudHostSecurityPolicy{
 		StackID: inputs.StackID, KitSlug: inputs.Kit.Slug, SiteRef: siteRef, NodeRef: nodeRef, Roles: roles,
 		NetworkMode: network.NetworkMode, TransportSubnet: network.TransportSubnet, IPv6: network.IPv6, TLSMinVersion: network.TLSMinVersion,
+		Firewall: network.Firewall, Hardening: network.Hardening,
 	}, nil
 }
 
@@ -182,7 +202,7 @@ func validateCloudHostSecurityBinding(raw []byte, path string) error {
 	}
 	expected := []rawModuleRenderInputBinding{{
 		TargetRef: "host-security-network", SourceRef: "network.cloudHostSecurity",
-		ValueType: "cloud-host-security-network-v1", Cardinality: "single", Required: true,
+		ValueType: "cloud-host-security-policy-v2", Cardinality: "single", Required: true,
 	}}
 	if !reflect.DeepEqual(bindings, expected) {
 		return fail(ErrInvalidPlan, path, "must exactly match the governed Cloud host-security network binding")
@@ -220,6 +240,18 @@ func validateCloudHostSecurityNetworkInput(value cloudHostSecurityNetworkInput, 
 	if value.TLSMinVersion != "TLS1.2" && value.TLSMinVersion != "TLS1.3" {
 		return value, fail(ErrInvalidPlan, path+".tlsMinVersion", "requires TLS1.2 or TLS1.3")
 	}
+	if value.Firewall.BaseRuleset != "stackkits-cloud-host-security" ||
+		value.Firewall.PublicEdgeDelegationChain != "stackkits-cloud-public-edge" ||
+		value.Firewall.DefaultIngress != "deny" || !value.Firewall.DeclaredServiceIngressOnly {
+		return value, fail(ErrInvalidPlan, path+".firewall", "must match the closed CUE-owned host firewall policy")
+	}
+	if value.Hardening.Profile != "internet-host-baseline-v1" ||
+		!value.Hardening.SSHKeyOnly ||
+		value.Hardening.SSHRootLogin != "disabled" ||
+		value.Hardening.BruteForceProtection != "enabled" ||
+		value.Hardening.AutomaticSecurityUpdates != "enabled" {
+		return value, fail(ErrInvalidPlan, path+".hardening", "must match the closed CUE-owned host hardening policy")
+	}
 	return value, nil
 }
 
@@ -249,11 +281,11 @@ func ValidateCloudHostSecurityExecutorArtifact(raw []byte, siteRef, nodeRef stri
 	if err := decodeStrict(raw, &document); err != nil {
 		return CloudHostSecurityPolicy{}, wrap(ErrInvalidPlan, "cloudHostSecurityArtifact", "decode exact Cloud host-security artifact", err)
 	}
-	if document.APIVersion != "stackkit.cloud-host-security-policy/v1" || document.Kind != "CloudHostSecurityPolicy" ||
+	if document.APIVersion != "stackkit.cloud-host-security-policy/v2" || document.Kind != "CloudHostSecurityPolicy" ||
 		document.Contract.Apply != "typed-local-operations" || document.Contract.Credentials != "not-included" ||
 		document.Contract.FirewallPolicy != "default-deny-declared-services-only" || document.Contract.Generation != "supported" ||
 		document.Contract.HardeningProfile != "internet-host-baseline-v1" ||
-		!exactStringList(document.Contract.Operations, []string{"apply-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security"}) ||
+		!exactStringList(document.Contract.Operations, []string{"apply-cloud-host-firewall", "reconcile-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security", "commit-cloud-host-security-evidence"}) ||
 		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.RuntimeEnforcement != "adapter-verified" ||
 		document.Contract.Scope != "cloud-host-node" || document.Contract.ServerProviderAuthority != "not-owned" {
 		return CloudHostSecurityPolicy{}, fail(ErrInvalidPlan, "cloudHostSecurityArtifact.contract", "artifact widens or contradicts the typed Cloud host-security authority")
@@ -267,6 +299,7 @@ func ValidateCloudHostSecurityExecutorArtifact(raw []byte, siteRef, nodeRef stri
 	if _, err := validateCloudHostSecurityNetworkInput(cloudHostSecurityNetworkInput{
 		NetworkMode: document.Policy.NetworkMode, TransportSubnet: document.Policy.TransportSubnet,
 		IPv6: document.Policy.IPv6, TLSMinVersion: document.Policy.TLSMinVersion,
+		Firewall: document.Policy.Firewall, Hardening: document.Policy.Hardening,
 	}, document.Policy.KitSlug, "cloudHostSecurityArtifact.policy"); err != nil {
 		return CloudHostSecurityPolicy{}, err
 	}
