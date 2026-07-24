@@ -2969,7 +2969,7 @@ _servicePublicationShape: {
 // resolved-plan views that a render unit may consume. These are not user
 // settings and they never expose the full plan, node inventory, secretRefs,
 // management endpoints, or daemon/socket bindings.
-#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "bridgePublications" | "bridgeOriginMTLS" | "identity" | "identityTrust" | "data" | "failurePolicy" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "homeAccessHandoff" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "homeOffsiteBackup" | "cloudOffsiteBackup" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS" | "internalPKI" | "cloudAdminMesh"
+#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "bridgePublications" | "bridgeOriginMTLS" | "identity" | "identityTrust" | "data" | "failurePolicy" | "federationPolicy" | "federationLinkPolicy" | "federationControlActions" | "federationBackupPolicy" | "federationObservability" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "homeAccessHandoff" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "homeOffsiteBackup" | "cloudOffsiteBackup" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS" | "internalPKI" | "cloudAdminMesh"
 
 // #ModuleRenderInputBindingV2 is the closed field-level seam from resolved
 // architecture authority into public renderer inputs. Sources are finite and
@@ -3726,7 +3726,7 @@ _servicePublicationShape: {
 			nodeRef:    #NodeID
 			subjectRef: #ContractID
 			dnsSANs: [...string] & list.MinItems(1)
-			ipSANs:  [...string] | *[]
+			ipSANs: [...string] | *[]
 
 			_dnsSANsUnique: list.UniqueItems(dnsSANs) & true
 			_ipSANsUnique:  list.UniqueItems(ipSANs) & true
@@ -3905,6 +3905,117 @@ _servicePublicationShape: {
 	bindings: [#SiteID]: [#CapabilityID]:     #ExternalBackupTargetBindingV1
 }
 
+#ModuleFederationOverlayPolicyV1: {
+	contractRef:             #ContractID
+	implementation:          "wireguard" | "headscale" | "tailscale" | "netbird" | "pangolin"
+	initiation:              "local-outbound"
+	outboundEstablished:     true
+	trafficMode:             "management-only" | "policy-scoped"
+	advertisePrivateSubnets: false
+	advertiseDefaultRoute:   false
+	allowBroadRoutes:        false
+	peerSiteRefs: [...#SiteID] & list.MinItems(2)
+	_peerSiteRefsUnique: list.UniqueItems(peerSiteRefs) & true
+}
+
+#ModuleFederationDataAuthorityV1: {
+	defaultAuthority: #SiteKind | "per-workload"
+	bindings: [string]: #DataBindingV2
+}
+
+#ModuleFederationPolicyPublicationV1: _servicePublicationShape & {
+	moduleRef: #ContractID
+	unitRef:   #ContractID
+	originNodeRefs: [...#NodeID] & list.MinItems(1)
+	originInstanceRefs: [...#ContractID] & list.MinItems(1)
+	upstreamProtocol: #NetworkProtocol
+	targetPort:       int & >=1 & <=65535
+	healthGateRef:    #ContractID
+	dataBindingRef:   #ContractID
+	access: #ResolvedAccessDecisionV2 & {
+		exposure:  "public"
+		policyRef: #ContractID
+	}
+	_originNodeRefsUnique:     list.UniqueItems(originNodeRefs) & true
+	_originInstanceRefsUnique: list.UniqueItems(originInstanceRefs) & true
+}
+
+#ModuleFederationPolicyV1: {
+	overlay: #ModuleFederationOverlayPolicyV1
+	publications: [...#ModuleFederationPolicyPublicationV1] | *[]
+	policy:        #BridgePolicy
+	dataAuthority: #ModuleFederationDataAuthorityV1
+	partition:     #PartitionPolicy
+}
+
+#ModuleFederationLinkPolicyV1: {
+	overlay:   #ModuleFederationOverlayPolicyV1
+	partition: #PartitionPolicy
+}
+
+#ModuleFederationControlActionV1: {
+	id:                             #ContractID
+	contractRef:                    #ContractID
+	capabilityRef:                  "outbound-control-agent"
+	moduleRef:                      #ContractID
+	transport:                      "managed-agent" | "mtls-agent"
+	issuerRef:                      #ContractID
+	audience:                       #ContractID
+	maxTTLSeconds:                  int & >=1 & <=300
+	destructive:                    bool
+	approvalClass:                  "none" | "owner-step-up" | "break-glass"
+	approvalReceiptRequired:        bool
+	capabilityScopedActions:        true
+	requiresSignedActions:          true
+	requiresNonce:                  true
+	requiresIdempotencyKey:         true
+	requiresResolvedPlanHash:       true
+	replayProtection:               true
+	requiresApprovalForDestructive: true
+	if destructive {
+		approvalClass:           "owner-step-up" | "break-glass"
+		approvalReceiptRequired: true
+	}
+	if approvalClass != "none" {
+		approvalReceiptRequired: true
+	}
+}
+
+#ModuleFederationControlActionsV1: {
+	enabled:      true
+	moduleRef:    #ContractID
+	contractHash: #ContentHash
+	actionAllowlist: [...#ContractID] & list.MinItems(1)
+	actions: [...#ModuleFederationControlActionV1] & list.MinItems(1)
+	partition:              #PartitionPolicy
+	_actionAllowlistUnique: list.UniqueItems(actionAllowlist) & true
+	_actionIDsUnique: list.UniqueItems([for action in actions {action.id}]) & true
+	_actionClosure: [for actionRef in actionAllowlist {
+		matches: [for action in actions if action.id == actionRef && action.contractRef == actionRef {action.id}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+}
+
+#ModuleFederationBackupPolicyV1: {
+	dataAuthority: #ModuleFederationDataAuthorityV1
+	partition:     #PartitionPolicy
+}
+
+#ModuleFederationPublicationObservationV1: {
+	serviceRef:     #ContractID
+	sourceSiteRef:  #SiteID
+	edgeSiteRef:    #SiteID
+	healthGateRef:  #ContractID
+	defaultClosed:  true
+	_distinctSites: (sourceSiteRef != edgeSiteRef) & true
+}
+
+#ModuleFederationObservabilityV1: {
+	evidenceOnly: true
+	publications: [...#ModuleFederationPublicationObservationV1] | *[]
+	flows: [...#BridgeFlow] | *[]
+	partition: #PartitionPolicy
+}
+
 #ModulePlanInputsV2: {
 	stackId?: #ContractID
 	kit?: {
@@ -3916,12 +4027,17 @@ _servicePublicationShape: {
 	controlPlane?: #ControlPlaneIntent
 	bridge?:       #ResolvedBridgeContractV2
 	bridgePublications?: [...#ResolvedServicePublicationV2] & list.MinItems(1)
-	identity?:          #ResolvedIdentityPlan
-	identityTrust?:     #ResolvedIdentityTrustV2
-	data?:              #DataPlacementIntent
-	failurePolicy?:     #PartitionPolicy
-	localReachability?: #ModuleLocalReachabilityV2
-	homeLANDiscovery?:  #HomeLANDiscoveryProjectionV2
+	identity?:                 #ResolvedIdentityPlan
+	identityTrust?:            #ResolvedIdentityTrustV2
+	data?:                     #DataPlacementIntent
+	failurePolicy?:            #PartitionPolicy
+	federationPolicy?:         #ModuleFederationPolicyV1
+	federationLinkPolicy?:     #ModuleFederationLinkPolicyV1
+	federationControlActions?: #ModuleFederationControlActionsV1
+	federationBackupPolicy?:   #ModuleFederationBackupPolicyV1
+	federationObservability?:  #ModuleFederationObservabilityV1
+	localReachability?:        #ModuleLocalReachabilityV2
+	homeLANDiscovery?:         #HomeLANDiscoveryProjectionV2
 	homeAccessRequirements?: [#SiteID]: [#CapabilityID]:           #HomeAccessRequirementV1
 	externalHomeAccessBindings?: [#SiteID]: [#CapabilityID]:       #ExternalHomeAccessBindingV1
 	backupTargetRequirements?: [#SiteID]: [#CapabilityID]:         #BackupTargetRequirementV1
@@ -7029,7 +7145,7 @@ _servicePublicationShape: {
 								for instance in unit.instances
 								if instance.scope == "node-local"
 								if instance.id == originTarget.instanceRef && instance.nodeRef == originTarget.nodeRef && instance.siteRef == publication.sourceSiteRef {
-									nodeRef: instance.nodeRef
+									nodeRef:     instance.nodeRef
 									instanceRef: instance.id
 								},
 							] & list.MinItems(1) & list.MaxItems(1)

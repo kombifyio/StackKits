@@ -184,7 +184,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: federationLinkModuleID, moduleVersion: federationRuntimeModuleVersion,
 		templateRef: federationLinkTemplateRef, outputRef: federationLinkOutputRef,
-		planInputRefs:       []string{"bridge", "controlPlane", "data", "externalFederationLinkBindings", "failurePolicy", "federationLinkRequirements", "identity", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
+		planInputRefs:       []string{"controlPlane", "externalFederationLinkBindings", "federationLinkPolicy", "federationLinkRequirements", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
 		allowedCapabilities: []string{"inter-site-link"}, requiredCapabilities: []string{"inter-site-link"},
 		decodePlan: decodeFederationRuntimeExecutorPlan,
@@ -192,7 +192,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: federationControlAgentModuleID, moduleVersion: federationRuntimeModuleVersion,
 		templateRef: federationControlTemplateRef, outputRef: federationControlOutputRef,
-		planInputRefs:       []string{"bridge", "controlPlane", "data", "failurePolicy", "identity", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
+		planInputRefs:       []string{"controlPlane", "federationControlActions", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
 		allowedCapabilities: []string{"outbound-control-agent"}, requiredCapabilities: []string{"outbound-control-agent"},
 		decodePlan: decodeFederationRuntimeExecutorPlan,
@@ -200,7 +200,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: federationBackupModuleID, moduleVersion: federationRuntimeModuleVersion,
 		templateRef: federationBackupTemplateRef, outputRef: federationBackupOutputRef,
-		planInputRefs:       []string{"bridge", "controlPlane", "data", "failurePolicy", "identity", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
+		planInputRefs:       []string{"controlPlane", "federationBackupPolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
 		allowedCapabilities: []string{"cross-site-backup"}, requiredCapabilities: []string{"cross-site-backup"},
 		decodePlan: decodeFederationRuntimeExecutorPlan,
@@ -208,7 +208,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: federationObservabilityModuleID, moduleVersion: federationRuntimeModuleVersion,
 		templateRef: federationObservabilityTemplateRef, outputRef: federationObservabilityOutputRef,
-		planInputRefs:       []string{"bridge", "controlPlane", "data", "failurePolicy", "identity", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
+		planInputRefs:       []string{"controlPlane", "federationObservability", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
 		allowedCapabilities: []string{"bridge-observability"}, requiredCapabilities: []string{"bridge-observability"},
 		decodePlan: decodeFederationRuntimeExecutorPlan,
@@ -1063,18 +1063,18 @@ type cloudOffsiteBackupExecutorPlan struct {
 func (cloudOffsiteBackupExecutorPlan) executorContractPlanMarker() {}
 
 type federationRuntimeExecutorPlan struct {
-	StackID                        string                        `json:"stackId"`
-	Kit                            executorBundleKit             `json:"kit"`
-	Sites                          []executorBundleSite          `json:"sites"`
-	ModuleTargets                  []executorBundleTarget        `json:"moduleTargets"`
-	ModuleCapabilities             []executorBundleCapability    `json:"moduleCapabilities"`
-	ControlPlane                   executorBundleControlPlane    `json:"controlPlane"`
-	Bridge                         json.RawMessage               `json:"bridge"`
-	Identity                       modernFederationIdentity      `json:"identity"`
-	Data                           json.RawMessage               `json:"data"`
-	FailurePolicy                  modernFederationFailurePolicy `json:"failurePolicy"`
-	FederationLinkRequirements     json.RawMessage               `json:"federationLinkRequirements,omitempty"`
-	ExternalFederationLinkBindings json.RawMessage               `json:"externalFederationLinkBindings,omitempty"`
+	StackID                        string                     `json:"stackId"`
+	Kit                            executorBundleKit          `json:"kit"`
+	Sites                          []executorBundleSite       `json:"sites"`
+	ModuleTargets                  []executorBundleTarget     `json:"moduleTargets"`
+	ModuleCapabilities             []executorBundleCapability `json:"moduleCapabilities"`
+	ControlPlane                   executorBundleControlPlane `json:"controlPlane"`
+	FederationLinkPolicy           json.RawMessage            `json:"federationLinkPolicy,omitempty"`
+	FederationControlActions       json.RawMessage            `json:"federationControlActions,omitempty"`
+	FederationBackupPolicy         json.RawMessage            `json:"federationBackupPolicy,omitempty"`
+	FederationObservability        json.RawMessage            `json:"federationObservability,omitempty"`
+	FederationLinkRequirements     json.RawMessage            `json:"federationLinkRequirements,omitempty"`
+	ExternalFederationLinkBindings json.RawMessage            `json:"externalFederationLinkBindings,omitempty"`
 }
 
 func (federationRuntimeExecutorPlan) executorContractPlanMarker() {}
@@ -2247,6 +2247,26 @@ func decodeFederationRuntimeExecutorPlan(raw []byte, path string, spec executorC
 	if err := validateExecutorContractPlanCommon(plan.StackID, plan.Kit, plan.Sites, plan.ModuleTargets, plan.ModuleCapabilities, plan.ControlPlane, spec, path); err != nil {
 		return nil, err
 	}
+	projections := map[string]json.RawMessage{
+		federationLinkModuleID:          plan.FederationLinkPolicy,
+		federationControlAgentModuleID:  plan.FederationControlActions,
+		federationBackupModuleID:        plan.FederationBackupPolicy,
+		federationObservabilityModuleID: plan.FederationObservability,
+	}
+	for moduleID, projection := range projections {
+		if moduleID == spec.moduleID {
+			if len(projection) == 0 {
+				return nil, fail(ErrInvalidPlan, path, "Federation module %q lacks its exact typed projection", moduleID)
+			}
+			if err := validateTypedFederationProjection(moduleID, projection, plan.Sites, plan.ControlPlane, path); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if len(projection) != 0 {
+			return nil, fail(ErrInvalidPlan, path, "Federation module %q received authority owned by %q", spec.moduleID, moduleID)
+		}
+	}
 	if spec.moduleID == federationLinkModuleID {
 		if err := validateFederationLinkExecutorProjection(plan, path); err != nil {
 			return nil, err
@@ -2254,51 +2274,7 @@ func decodeFederationRuntimeExecutorPlan(raw []byte, path string, spec executorC
 	} else if len(plan.FederationLinkRequirements) != 0 || len(plan.ExternalFederationLinkBindings) != 0 {
 		return nil, fail(ErrInvalidPlan, path, "non-link Federation module received the external link projection")
 	}
-	policyInputs := modernFederationPlanInputs{
-		StackID:      plan.StackID,
-		Kit:          modernFederationKit{Slug: plan.Kit.Slug, Version: plan.Kit.Version, DefinitionHash: plan.Kit.DefinitionHash},
-		ControlPlane: modernFederationControlPlane{Mode: plan.ControlPlane.Mode, AuthoritySiteRef: plan.ControlPlane.AuthoritySiteRef, Members: append([]string(nil), plan.ControlPlane.Members...)},
-		Bridge:       append(json.RawMessage(nil), plan.Bridge...), Identity: plan.Identity,
-		Data: append(json.RawMessage(nil), plan.Data...), FailurePolicy: plan.FailurePolicy,
-	}
-	for _, site := range plan.Sites {
-		policyInputs.Sites = append(policyInputs.Sites, modernFederationSite{ID: site.ID, Kind: site.Kind, FailureDomain: site.FailureDomain})
-	}
-	canonical, err := json.Marshal(policyInputs)
-	if err != nil {
-		return nil, wrap(ErrRendererFailure, path, "marshal Federation policy validation projection", err)
-	}
-	if _, err := validateModernFederationPlanInputs(canonical, path); err != nil {
-		return nil, err
-	}
-	plan.Bridge, err = projectFederationBridgeWithoutProviderAuthority(plan.Bridge)
-	if err != nil {
-		return nil, wrap(ErrInvalidPlan, path+".bridge", "project provider-free Federation executor inputs", err)
-	}
 	return plan, nil
-}
-
-func projectFederationBridgeWithoutProviderAuthority(raw json.RawMessage) (json.RawMessage, error) {
-	var bridge any
-	if err := json.Unmarshal(raw, &bridge); err != nil {
-		return nil, err
-	}
-	var strip func(any)
-	strip = func(value any) {
-		switch typed := value.(type) {
-		case map[string]any:
-			delete(typed, "providerRef")
-			for _, nested := range typed {
-				strip(nested)
-			}
-		case []any:
-			for _, nested := range typed {
-				strip(nested)
-			}
-		}
-	}
-	strip(bridge)
-	return json.Marshal(bridge)
 }
 
 func validateFederationLinkExecutorProjection(plan federationRuntimeExecutorPlan, path string) error {

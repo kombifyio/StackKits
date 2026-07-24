@@ -4,6 +4,40 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.8] - 2026-07-24
+
+> **Stable v0.x Modern Homelab federation-boundary patch** that partitions
+> every generated federation handoff by runtime owner while keeping Modern in
+> the public three-Kit release.
+
+### Changed
+
+- Modern federation Policy, Link, Control, Backup, and Observability now
+  receive five distinct compiler-owned projections instead of shared
+  `bridge`, `identity`, `data`, and `failurePolicy` graphs.
+- Link authority is outbound-only, Control is allowlisted and
+  replay-protected, Backup is limited to governed data placement and
+  partition behavior, and Observability is explicitly evidence-only.
+- The public release continues to ship dedicated
+  `stackkits-modern-homelab` archives for Linux amd64/arm64, macOS
+  amd64/arm64, and Windows amd64, plus Modern in the full StackKits bundle.
+
+### Security
+
+- Provider identities, credentials, endpoints, transport implementation,
+  leases, server lifecycle, reverse tunnels, default routes, and general LAN
+  authority cannot enter any of the five owner projections.
+- Strict renderer decoding rejects extra fields and cross-owner authority;
+  persisted-plan rebound rejects rehashed projection substitution.
+
+### Known limitations
+
+- Modern Homelab remains Preview until its remaining publication, Cloud
+  verification, backend Health, partition-enforcement, and live-evidence
+  owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.7] - 2026-07-24
 
 > **Stable v0.x Home internal-PKI runtime patch** that graduates the optional

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -26,7 +25,7 @@ const modernFederationPolicyTemplate = `{"apiVersion":"stackkit.federation-polic
 `
 
 var modernFederationPolicyPlanInputRefs = []string{
-	"bridge", "controlPlane", "data", "failurePolicy", "identity", "kit", "sites", "stackId",
+	"controlPlane", "federationPolicy", "kit", "sites", "stackId",
 }
 
 var modernFederationArchitectureV2IDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
@@ -115,14 +114,11 @@ func modernFederationTemplateHash(template []byte) string {
 }
 
 type modernFederationPlanInputs struct {
-	StackID       string                        `json:"stackId"`
-	Kit           modernFederationKit           `json:"kit"`
-	Sites         []modernFederationSite        `json:"sites"`
-	ControlPlane  modernFederationControlPlane  `json:"controlPlane"`
-	Bridge        json.RawMessage               `json:"bridge"`
-	Identity      modernFederationIdentity      `json:"identity"`
-	Data          json.RawMessage               `json:"data"`
-	FailurePolicy modernFederationFailurePolicy `json:"failurePolicy"`
+	StackID          string                           `json:"stackId"`
+	Kit              modernFederationKit              `json:"kit"`
+	Sites            []modernFederationSite           `json:"sites"`
+	ControlPlane     modernFederationControlPlane     `json:"controlPlane"`
+	FederationPolicy modernFederationPolicyProjection `json:"federationPolicy"`
 }
 
 type modernFederationKit struct {
@@ -352,45 +348,8 @@ func validateModernFederationPlanInputs(raw []byte, path string) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
-	data, err := validateModernFederationData(inputs.Data, siteKinds, path+".data")
-	if err != nil {
+	if err := validateFederationPolicyProjection(inputs.FederationPolicy, siteKinds, path+".federationPolicy"); err != nil {
 		return nil, err
-	}
-	if err := validateModernFederationBridge(inputs.Bridge, siteKinds, data, path+".bridge"); err != nil {
-		return nil, err
-	}
-	if inputs.Identity.HumanAuthoritySiteRef != inputs.ControlPlane.AuthoritySiteRef || inputs.Identity.DeviceAuthoritySiteRef != inputs.ControlPlane.AuthoritySiteRef ||
-		!inputs.Identity.PossessionBoundSessions || inputs.Identity.LANLocationIsIdentity || inputs.Identity.DeviceEnrollment.Mode != "local-only" ||
-		inputs.Identity.DeviceEnrollment.AuthoritySiteRef != inputs.ControlPlane.AuthoritySiteRef || inputs.Identity.DeviceEnrollment.EndpointExposure != "lan" ||
-		inputs.Identity.DeviceEnrollment.RemoteEnrollment || !inputs.Identity.DeviceEnrollment.RequireOwnerStepUp || !inputs.Identity.DeviceEnrollment.RequireLocalPairingProof ||
-		!inputs.Identity.DeviceEnrollment.RequireDeviceGeneratedKey || !inputs.Identity.DeviceEnrollment.RequirePossessionProof || !inputs.Identity.DeviceEnrollment.RevocationSupported {
-		return nil, fail(ErrInvalidPlan, path+".identity", "Modern identity must remain home-authoritative, device-bound, locally enrolled, and possession-proven")
-	}
-	if len(inputs.Identity.EdgeVerifierSiteRefs) == 0 {
-		return nil, fail(ErrInvalidPlan, path+".identity.edgeVerifierSiteRefs", "at least one cloud edge verifier is required")
-	}
-	if _, err := uniqueModernFederationIDSet(inputs.Identity.EdgeVerifierSiteRefs, path+".identity.edgeVerifierSiteRefs"); err != nil {
-		return nil, err
-	}
-	if inputs.Identity.DeviceEnrollment.HardwareBackedKey != "preferred" && inputs.Identity.DeviceEnrollment.HardwareBackedKey != "required" ||
-		inputs.Identity.DeviceEnrollment.CredentialTTLSeconds < 300 || inputs.Identity.DeviceEnrollment.CredentialTTLSeconds > 86400 {
-		return nil, fail(ErrInvalidPlan, path+".identity.deviceEnrollment", "device credentials require bounded lifetime and preferred-or-required hardware-backed keys")
-	}
-	cloudSiteRefs := make([]string, 0, len(siteKinds))
-	for siteRef, kind := range siteKinds {
-		if kind == "cloud" {
-			cloudSiteRefs = append(cloudSiteRefs, siteRef)
-		}
-	}
-	edgeVerifierRefs := append([]string(nil), inputs.Identity.EdgeVerifierSiteRefs...)
-	sort.Strings(cloudSiteRefs)
-	sort.Strings(edgeVerifierRefs)
-	if !exactStringList(edgeVerifierRefs, cloudSiteRefs) {
-		return nil, fail(ErrInvalidPlan, path+".identity.edgeVerifierSiteRefs", "edge verifiers must exactly cover every projected cloud site and exclude the home authority")
-	}
-	if inputs.FailurePolicy.OnCloudLoss != "local-continues" || inputs.FailurePolicy.OnLinkLoss != "local-continues" || inputs.FailurePolicy.CloudEdge != "fail-closed" ||
-		!inputs.FailurePolicy.LocalIdentityAuthorityAvailable || !inputs.FailurePolicy.DenyNewCrossSiteSessions || inputs.FailurePolicy.MaxStaleVerificationSeconds < 0 {
-		return nil, fail(ErrInvalidPlan, path+".failurePolicy", "partition policy must preserve local authority and fail the cloud edge closed")
 	}
 	if err := rejectModernFederationProjectionLeaks(raw, path); err != nil {
 		return nil, err

@@ -9045,10 +9045,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy",
+            "federationLinkPolicy",
             "federationLinkRequirements",
             "externalFederationLinkBindings"
           ]
@@ -9079,10 +9076,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy",
+            "federationLinkPolicy",
             "federationLinkRequirements",
             "externalFederationLinkBindings"
           ],
@@ -9198,10 +9192,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationControlActions"
           ]
         },
         "scope": "concrete"
@@ -9230,10 +9221,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationControlActions"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -9349,10 +9337,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationBackupPolicy"
           ]
         },
         "scope": "concrete"
@@ -9381,10 +9366,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationBackupPolicy"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -9498,10 +9480,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationObservability"
           ]
         },
         "scope": "concrete"
@@ -9530,10 +9509,7 @@
             "moduleCapabilities",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationObservability"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],
@@ -9949,10 +9925,7 @@
             "kit",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationPolicy"
           ]
         },
         "scope": "concrete"
@@ -9979,10 +9952,7 @@
             "kit",
             "sites",
             "controlPlane",
-            "bridge",
-            "identity",
-            "data",
-            "failurePolicy"
+            "federationPolicy"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [],

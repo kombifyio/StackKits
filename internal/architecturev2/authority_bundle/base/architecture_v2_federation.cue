@@ -88,7 +88,7 @@ _architectureV2ModernFederationPolicySupport: #ModuleRealizationSupportV2 & {
 	}
 	planInputs: {
 		contractComplete: true
-		requiredRefs: ["stackId", "kit", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy"]
+		requiredRefs: ["stackId", "kit", "sites", "controlPlane", "federationPolicy"]
 	}
 	artifacts: {
 		requiredRefs: ["modern-federation-policy-manifest"]
@@ -208,10 +208,16 @@ _architectureV2FederationRuntimeSupports: {
 			planInputs: {
 				contractComplete: true
 				if runtimeName == "link" {
-					requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy", "federationLinkRequirements", "externalFederationLinkBindings"]
+					requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationLinkPolicy", "federationLinkRequirements", "externalFederationLinkBindings"]
 				}
-				if runtimeName != "link" {
-					requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy"]
+				if runtimeName == "controlAgent" {
+					requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationControlActions"]
+				}
+				if runtimeName == "backup" {
+					requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationBackupPolicy"]
+				}
+				if runtimeName == "observability" {
+					requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationObservability"]
 				}
 			}
 			artifacts: {
@@ -434,7 +440,7 @@ _architectureV2ProfileExtensionModules: [
 			templateRef:  "builtin://modern/federation/link/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:7884542488c9e95c6dd47431f4b3bd194c4705aa3c164aa3a0d925e9432dc316"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy", "federationLinkRequirements", "externalFederationLinkBindings"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationLinkPolicy", "federationLinkRequirements", "externalFederationLinkBindings"]
 			outputs: ["modern/federation/link/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.link
@@ -456,7 +462,7 @@ _architectureV2ProfileExtensionModules: [
 			templateRef:  "builtin://modern/federation/control-agent/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:9c3de036682330f48113f5cfbf56ca925df6e345c8a10bbccbfc81d04ca85ebf"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationControlActions"]
 			outputs: ["modern/federation/control-agent/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.controlAgent
@@ -478,7 +484,7 @@ _architectureV2ProfileExtensionModules: [
 			templateRef:  "builtin://modern/federation/backup/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:a6bc9cd6a895b4059a4576dccae77ef5e08696a6c0a4ea480485bbde259c17c5"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationBackupPolicy"]
 			outputs: ["modern/federation/backup/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.backup
@@ -500,7 +506,7 @@ _architectureV2ProfileExtensionModules: [
 			templateRef:  "builtin://modern/federation/observability/executor-contract/v1.json", version: "1.0.0"
 			contractHash: "sha256:a39448203af27efa2e7b638074e3da78b26cd1fd8906cec32620a335d4b40f5d"
 			publicInputRefs: [], secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationObservability"]
 			outputs: ["modern/federation/observability/executor-contract.json"]
 			placement: {scope: "module", cardinality: "single"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.observability
@@ -603,7 +609,7 @@ _architectureV2ProfileExtensionModules: [
 			contractHash: "sha256:c01184d17e95defe6550aa7b1292a0205c1de747895af8e2a61bcb350d423c50"
 			publicInputRefs: []
 			secretInputRefs: []
-			planInputRefs: ["stackId", "kit", "sites", "controlPlane", "bridge", "identity", "data", "failurePolicy"]
+			planInputRefs: ["stackId", "kit", "sites", "controlPlane", "federationPolicy"]
 			outputs: ["modern/federation/policy.json"]
 			placement: {
 				scope:       "module"
