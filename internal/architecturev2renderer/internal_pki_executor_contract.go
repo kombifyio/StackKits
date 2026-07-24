@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -19,7 +18,7 @@ const (
 	internalPKIToken       = "@@PLAN_INPUTS@@"
 )
 
-const internalPKITemplate = `{"apiVersion":"stackkit.internal-pki-executor-contract/v1","kind":"InternalPKIExecutorContract","module":{"id":"stackkits-internal-pki-contract","version":"1.0.0"},"contract":{"caAuthority":"single-explicit-home-node","certificateMaterial":"owner-held","credentials":"not-included","execution":"unverified","generation":"supported","leafIssuance":"unbound","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"home-pki-contract","serverProviderAuthority":"not-owned","trustDistribution":"public-root-only"},"planInputs":@@PLAN_INPUTS@@}
+const internalPKITemplate = `{"apiVersion":"stackkit.internal-pki-executor-contract/v1","kind":"InternalPKIExecutorContract","module":{"id":"stackkits-internal-pki-contract","version":"1.0.0"},"contract":{"caAuthority":"single-explicit-home-node","certificateMaterial":"owner-held","credentials":"not-included","execution":"typed-local-operations","generation":"supported","leafIssuance":"compiler-bound","operations":["ensure-root-authority","issue-compiler-bound-leaves","distribute-public-trust-root","verify-internal-pki"],"providerLifecycle":"not-owned","runtimeEnforcement":"adapter-verified","scope":"home-pki-authority-node","serverProviderAuthority":"not-owned","trustDistribution":"public-root-only"},"planInputs":@@PLAN_INPUTS@@}
 `
 
 var internalPKIPlanInputRefs = []string{"internalPKI", "kit", "stackId"}
@@ -82,14 +81,51 @@ type internalPKITrustTarget struct {
 }
 
 type internalPKILeafIssuance struct {
-	Status                    string   `json:"status"`
-	SubjectAuthority          string   `json:"subjectAuthority"`
-	SANAuthority              string   `json:"sanAuthority"`
-	CA                        bool     `json:"ca"`
-	KeyAlgorithm              string   `json:"keyAlgorithm"`
-	KeyUsage                  []string `json:"keyUsage"`
-	ExtendedKeyUsage          []string `json:"extendedKeyUsage"`
-	RequiredObservationFields []string `json:"requiredObservationFields"`
+	Status                    string                           `json:"status"`
+	SubjectAuthority          string                           `json:"subjectAuthority"`
+	SANAuthority              string                           `json:"sanAuthority"`
+	CA                        bool                             `json:"ca"`
+	KeyAlgorithm              string                           `json:"keyAlgorithm"`
+	KeyUsage                  []string                         `json:"keyUsage"`
+	ExtendedKeyUsage          []string                         `json:"extendedKeyUsage"`
+	RequiredObservationFields []string                         `json:"requiredObservationFields"`
+	Identities                []InternalPKIRuntimeLeafIdentity `json:"identities"`
+}
+
+type InternalPKIRuntimeLeafIdentity struct {
+	ID         string   `json:"id"`
+	RouteRef   string   `json:"routeRef"`
+	ServiceRef string   `json:"serviceRef"`
+	ModuleRef  string   `json:"moduleRef"`
+	SiteRef    string   `json:"siteRef"`
+	NodeRef    string   `json:"nodeRef"`
+	SubjectRef string   `json:"subjectRef"`
+	DNSSANs    []string `json:"dnsSANs"`
+	IPSANs     []string `json:"ipSANs"`
+}
+
+type InternalPKIRuntimeAuthority struct {
+	ID             string   `json:"id"`
+	SiteRef        string   `json:"siteRef"`
+	NodeRef        string   `json:"nodeRef"`
+	TrustDomainRef string   `json:"trustDomainRef"`
+	SubjectRef     string   `json:"subjectRef"`
+	KeyAlgorithm   string   `json:"keyAlgorithm"`
+	KeyUsage       []string `json:"keyUsage"`
+}
+
+type InternalPKIRuntimeTrustTarget struct {
+	SiteRef string `json:"siteRef"`
+	NodeRef string `json:"nodeRef"`
+}
+
+type InternalPKIExecutorArtifact struct {
+	StackID            string
+	Authority          InternalPKIRuntimeAuthority
+	TrustTargets       []InternalPKIRuntimeTrustTarget
+	LeafIdentities     []InternalPKIRuntimeLeafIdentity
+	ValiditySeconds    int
+	RenewBeforeSeconds int
 }
 
 func (r internalPKIRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]UnitOutput, error) {
@@ -99,6 +135,7 @@ func (r internalPKIRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([
 	raw, err := validateGenerationOnlyPolicyUnit(unit, generationOnlyPolicyUnitSpec{
 		moduleID: internalPKIModuleID, unitID: internalPKIUnitID, outputRef: internalPKIOutputRef,
 		policyName: "internal PKI executor contract", contract: r.contract,
+		placementScope: "node-local", placementCardinality: "one-per-node",
 		planInputRefs: internalPKIPlanInputRefs, validatePlanInput: validateInternalPKIPlanInputs,
 	})
 	if err != nil {
@@ -108,12 +145,9 @@ func (r internalPKIRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([
 	if err := decodeStrict(raw, &plan); err != nil {
 		return nil, wrap(ErrInvalidPlan, "renderer.internal-pki.planInputs", "decode exact internal PKI inputs", err)
 	}
-	nodeRefs := make([]string, len(plan.InternalPKI.TrustDistribution.Targets))
-	for index := range plan.InternalPKI.TrustDistribution.Targets {
-		nodeRefs[index] = plan.InternalPKI.TrustDistribution.Targets[index].NodeRef
-	}
-	if !exactStringList(unit.LogicalNodeRefs(), nodeRefs) {
-		return nil, fail(ErrInvalidPlan, "renderer.internal-pki.placement", "logical nodes must exactly equal internal PKI targets")
+	if !exactStringList(unit.LogicalNodeRefs(), []string{plan.InternalPKI.Authority.NodeRef}) ||
+		!exactStringList(unit.LogicalSiteRefs(), []string{plan.InternalPKI.Authority.SiteRef}) {
+		return nil, fail(ErrInvalidPlan, "renderer.internal-pki.placement", "execution must bind only the single internal PKI authority node")
 	}
 	canonical, err := json.Marshal(plan)
 	if err != nil {
@@ -161,7 +195,6 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.trustDistribution.targets", "trust distribution requires exact Home targets")
 	}
 	nodeRefs := make([]string, len(targets))
-	siteSet := make(map[string]struct{}, len(targets))
 	authorityTargets := 0
 	previousNodeRef := ""
 	for index, target := range targets {
@@ -180,7 +213,6 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 		}
 		previousNodeRef = target.NodeRef
 		nodeRefs[index] = target.NodeRef
-		siteSet[target.SiteRef] = struct{}{}
 	}
 	if authorityTargets != 1 {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.authority", "root CA authority must be exactly one trust target")
@@ -191,7 +223,7 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.trustDistribution.materialSlot", "trust distribution may expose only the public trust root")
 	}
 	leaf := pki.LeafIssuance
-	if leaf.Status != "unbound" || leaf.SubjectAuthority != "compiler-derived-service" ||
+	if leaf.Status != "bound" || leaf.SubjectAuthority != "compiler-derived-service" ||
 		leaf.SANAuthority != "compiler-derived-route" || leaf.CA ||
 		leaf.KeyAlgorithm != "ecdsa-p256" ||
 		!exactStringList(leaf.KeyUsage, []string{"digital-signature", "key-agreement"}) ||
@@ -200,7 +232,32 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 			"certificate-fingerprint", "public-key-fingerprint", "trust-root-fingerprint",
 			"serial", "not-before", "not-after", "observed-at",
 		}) {
-		return nil, fail(ErrInvalidPlan, path+".internalPKI.leafIssuance", "leaf issuance must remain compiler-derived and explicitly unbound")
+		return nil, fail(ErrInvalidPlan, path+".internalPKI.leafIssuance", "leaf issuance must be compiler-derived and runtime-bound")
+	}
+	previousIdentity := ""
+	for index, identity := range leaf.Identities {
+		identityPath := fmt.Sprintf("%s.internalPKI.leafIssuance.identities[%d]", path, index)
+		for field, value := range map[string]string{
+			"id": identity.ID, "routeRef": identity.RouteRef, "serviceRef": identity.ServiceRef,
+			"moduleRef": identity.ModuleRef, "siteRef": identity.SiteRef, "nodeRef": identity.NodeRef,
+			"subjectRef": identity.SubjectRef,
+		} {
+			if err := requireContractID(value, identityPath+"."+field); err != nil {
+				return nil, err
+			}
+		}
+		if previousIdentity != "" && identity.ID <= previousIdentity {
+			return nil, fail(ErrDuplicate, identityPath+".id", "leaf identities must be unique and sorted")
+		}
+		if len(identity.DNSSANs) == 0 || !sortedUniqueNonEmpty(identity.DNSSANs) || len(identity.IPSANs) != 0 {
+			return nil, fail(ErrInvalidPlan, identityPath, "leaf identity requires exact DNS SANs and no inferred IP SANs")
+		}
+		for _, dnsSAN := range identity.DNSSANs {
+			if !validExecutorBundleHost(dnsSAN) {
+				return nil, fail(ErrInvalidPlan, identityPath+".dnsSANs", "leaf DNS SAN is invalid")
+			}
+		}
+		previousIdentity = identity.ID
 	}
 	if pki.Profile.ID != "stackkits-internal-pki-profile" || pki.Profile.CapabilityRef != "internal-pki" ||
 		pki.Profile.Mode != "internal" || pki.Profile.TrustDomain != "private" ||
@@ -235,10 +292,80 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	if err := rejectPublicTLSExecutorContractLeaks(raw, path); err != nil {
 		return nil, err
 	}
-	siteRefs := make([]string, 0, len(siteSet))
-	for siteRef := range siteSet {
-		siteRefs = append(siteRefs, siteRef)
+	return []string{authority.SiteRef}, nil
+}
+
+// ValidateInternalPKIExecutorArtifact validates the immutable generated policy
+// and binds it to the one authenticated authority target. It returns logical
+// material requirements only; certificate and private-key bytes are excluded.
+func ValidateInternalPKIExecutorArtifact(raw []byte, siteRef, nodeRef string) (InternalPKIExecutorArtifact, error) {
+	const path = "internalPKIExecutorArtifact"
+	var document struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+		Module     struct {
+			ID      string `json:"id"`
+			Version string `json:"version"`
+		} `json:"module"`
+		Contract struct {
+			CAAuthority             string   `json:"caAuthority"`
+			CertificateMaterial     string   `json:"certificateMaterial"`
+			Credentials             string   `json:"credentials"`
+			Execution               string   `json:"execution"`
+			Generation              string   `json:"generation"`
+			LeafIssuance            string   `json:"leafIssuance"`
+			Operations              []string `json:"operations"`
+			ProviderLifecycle       string   `json:"providerLifecycle"`
+			RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+			Scope                   string   `json:"scope"`
+			ServerProviderAuthority string   `json:"serverProviderAuthority"`
+			TrustDistribution       string   `json:"trustDistribution"`
+		} `json:"contract"`
+		PlanInputs internalPKIPlan `json:"planInputs"`
 	}
-	sort.Strings(siteRefs)
-	return siteRefs, nil
+	if err := decodeStrict(raw, &document); err != nil {
+		return InternalPKIExecutorArtifact{}, wrap(ErrInvalidPlan, path, "decode exact internal PKI executor artifact", err)
+	}
+	if document.APIVersion != "stackkit.internal-pki-executor-contract/v1" ||
+		document.Kind != "InternalPKIExecutorContract" ||
+		document.Module.ID != internalPKIModuleID || document.Module.Version != "1.0.0" ||
+		document.Contract.CAAuthority != "single-explicit-home-node" ||
+		document.Contract.CertificateMaterial != "owner-held" ||
+		document.Contract.Credentials != "not-included" ||
+		document.Contract.Execution != "typed-local-operations" ||
+		document.Contract.Generation != "supported" ||
+		document.Contract.LeafIssuance != "compiler-bound" ||
+		!exactStringList(document.Contract.Operations, []string{"ensure-root-authority", "issue-compiler-bound-leaves", "distribute-public-trust-root", "verify-internal-pki"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" ||
+		document.Contract.RuntimeEnforcement != "adapter-verified" ||
+		document.Contract.Scope != "home-pki-authority-node" ||
+		document.Contract.ServerProviderAuthority != "not-owned" ||
+		document.Contract.TrustDistribution != "public-root-only" {
+		return InternalPKIExecutorArtifact{}, fail(ErrInvalidPlan, path+".contract", "artifact shell widens the authenticated internal PKI owner")
+	}
+	planRaw, err := json.Marshal(document.PlanInputs)
+	if err != nil {
+		return InternalPKIExecutorArtifact{}, wrap(ErrInvalidPlan, path+".planInputs", "marshal internal PKI projection", err)
+	}
+	if _, err := validateInternalPKIPlanInputs(planRaw, path+".planInputs"); err != nil {
+		return InternalPKIExecutorArtifact{}, err
+	}
+	pki := document.PlanInputs.InternalPKI
+	if pki.Authority.SiteRef != siteRef || pki.Authority.NodeRef != nodeRef {
+		return InternalPKIExecutorArtifact{}, fail(ErrInvalidPlan, path+".authority", "artifact does not bind the authenticated authority target")
+	}
+	targets := make([]InternalPKIRuntimeTrustTarget, len(pki.TrustDistribution.Targets))
+	for index, target := range pki.TrustDistribution.Targets {
+		targets[index] = InternalPKIRuntimeTrustTarget{SiteRef: target.SiteRef, NodeRef: target.NodeRef}
+	}
+	return InternalPKIExecutorArtifact{
+		StackID: document.PlanInputs.StackID,
+		Authority: InternalPKIRuntimeAuthority{
+			ID: pki.Authority.ID, SiteRef: pki.Authority.SiteRef, NodeRef: pki.Authority.NodeRef,
+			TrustDomainRef: pki.Authority.TrustDomainRef, SubjectRef: pki.Authority.SubjectRef,
+			KeyAlgorithm: pki.Authority.KeyAlgorithm, KeyUsage: append([]string(nil), pki.Authority.KeyUsage...),
+		},
+		TrustTargets: targets, LeafIdentities: append([]InternalPKIRuntimeLeafIdentity(nil), pki.LeafIssuance.Identities...),
+		ValiditySeconds: pki.Issuer.ValiditySeconds, RenewBeforeSeconds: pki.Issuer.Renewal.RenewBeforeSeconds,
+	}, nil
 }

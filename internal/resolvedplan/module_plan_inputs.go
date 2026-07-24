@@ -564,10 +564,6 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 	if err != nil || siteKind != "home" {
 		return nil, fmt.Errorf("internal PKI authority Site %q must be Home", authoritySiteRef)
 	}
-	nodeRefs, err := stringListField(module, "modules."+moduleID, "nodeRefs", true)
-	if err != nil {
-		return nil, err
-	}
 	nodeByID := make(map[string]map[string]any, len(source.nodes))
 	for index, rawNode := range source.nodes {
 		node, fieldErr := asObject(rawNode, fmt.Sprintf("nodes[%d]", index))
@@ -580,9 +576,9 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 		}
 		nodeByID[id] = node
 	}
-	targets := make([]any, 0, len(nodeRefs))
+	targets := make([]any, 0, len(source.nodes))
 	authorityFound := false
-	for _, nodeRef := range sortStringsUnique(nodeRefs) {
+	for _, nodeRef := range sortedStringMapKeys(nodeByID) {
 		node, exists := nodeByID[nodeRef]
 		if !exists {
 			return nil, fmt.Errorf("internal PKI target node %q is absent from resolved topology", nodeRef)
@@ -596,8 +592,11 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 			return nil, fieldErr
 		}
 		targetKind, fieldErr := stringField(targetSite, "sites."+targetSiteRef, "kind")
-		if fieldErr != nil || targetKind != "home" {
-			return nil, fmt.Errorf("internal PKI trust target %q must belong to a Home Site", nodeRef)
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		if targetKind != "home" {
+			continue
 		}
 		if nodeRef == authorityNodeRef && targetSiteRef == authoritySiteRef {
 			authorityFound = true
@@ -606,6 +605,85 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 	}
 	if !authorityFound {
 		return nil, fmt.Errorf("internal PKI CA authority %q is not an exact module target", authorityNodeRef)
+	}
+	routes := []map[string]any{}
+	if source.network != nil {
+		if _, exists := source.network["routes"]; exists {
+			routes, err = objectListField(source.network, "network", "routes")
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	identities := make([]any, 0)
+	for index, route := range routes {
+		routePath := fmt.Sprintf("network.routes[%d]", index)
+		tls, fieldErr := objectField(route, routePath, "tls")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		mode, fieldErr := stringField(tls, routePath+".tls", "mode")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		if mode != "internal" {
+			continue
+		}
+		profileRef, fieldErr := stringField(tls, routePath+".tls", "profileRef")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		issuerRef, fieldErr := stringField(tls, routePath+".tls", "issuerRef")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		profileID, fieldErr := stringField(profileProjection, "internalPKI.profile", "id")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		issuerID, fieldErr := stringField(issuerProjection, "internalPKI.issuer", "id")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		if profileRef != profileID || issuerRef != issuerID {
+			return nil, fmt.Errorf("%s internal TLS authority does not match the selected internal PKI contract", routePath)
+		}
+		routeID, fieldErr := stringField(route, routePath, "id")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		serviceRef, fieldErr := stringField(route, routePath, "serviceRef")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		moduleRef, fieldErr := stringField(route, routePath, "moduleRef")
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		host, fieldErr := stringField(route, routePath, "host")
+		if fieldErr != nil {
+			return nil, fmt.Errorf("%s internal TLS route requires one compiler-owned DNS SAN: %w", routePath, fieldErr)
+		}
+		originNodeRefs, fieldErr := stringListField(route, routePath, "originNodeRefs", true)
+		if fieldErr != nil {
+			return nil, fieldErr
+		}
+		for _, nodeRef := range sortStringsUnique(originNodeRefs) {
+			node, exists := nodeByID[nodeRef]
+			if !exists {
+				return nil, fmt.Errorf("%s origin node %q is absent from resolved topology", routePath, nodeRef)
+			}
+			siteRef, fieldErr := stringField(node, "nodes."+nodeRef, "siteRef")
+			if fieldErr != nil {
+				return nil, fieldErr
+			}
+			identities = append(identities, map[string]any{
+				"id": routeID + "-" + nodeRef, "routeRef": routeID, "serviceRef": serviceRef,
+				"moduleRef": moduleRef, "siteRef": siteRef, "nodeRef": nodeRef,
+				"subjectRef": moduleRef + "-" + serviceRef + "-" + nodeRef,
+				"dnsSANs":    []any{host}, "ipSANs": []any{},
+			})
+		}
 	}
 	return normalizedObject(map[string]any{
 		"capabilityRef": capabilityID,
@@ -625,7 +703,7 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 			},
 		},
 		"leafIssuance": map[string]any{
-			"status": "unbound", "subjectAuthority": "compiler-derived-service",
+			"status": "bound", "subjectAuthority": "compiler-derived-service",
 			"sanAuthority": "compiler-derived-route", "ca": false, "keyAlgorithm": "ecdsa-p256",
 			"keyUsage":         []any{"digital-signature", "key-agreement"},
 			"extendedKeyUsage": []any{"server-auth", "client-auth"},
@@ -633,6 +711,7 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 				"certificate-fingerprint", "public-key-fingerprint", "trust-root-fingerprint",
 				"serial", "not-before", "not-after", "observed-at",
 			},
+			"identities": identities,
 		},
 		"profile": profileProjection,
 		"issuer":  issuerProjection,

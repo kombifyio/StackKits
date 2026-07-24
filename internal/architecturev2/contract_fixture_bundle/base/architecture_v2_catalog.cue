@@ -799,7 +799,7 @@ _architectureV2TLSContractSupport: #ModuleRealizationSupportV2 & {
 _architectureV2InternalPKIGenerationSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {contractComplete: true, requiredRefs: ["internalPKI", "kit", "stackId"]}
@@ -812,7 +812,7 @@ _architectureV2InternalPKIGenerationSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "executor-contract", outputRef: "home/tls/internal-pki-executor-contract.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["internal-pki-contract"]
 }
 
 _architectureV2PublicTLSGenerationSupport: #ModuleRealizationSupportV2 & {
@@ -1632,27 +1632,27 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-internal-pki-contract"
 			version:     "1.0.0"
-			description: "Provider-free, single-authority Home root-CA and trust-distribution contract. Leaf issuance, secret material, execution, and fresh evidence remain unbound."
+			description: "Provider-free authenticated Home PKI owner on one explicit authority node. Root/leaf custody remains owner-held while exact public trust targets and compiler-derived leaf identities are closed in the generated policy."
 		}
 		role:        "platform"
 		providerRef: "stackkits-internal-pki"
 		provides:    _architectureV2InternalPKICapabilities
 		requires: ["stackkits-core-host-bootstrap"]
 		supportedSiteKinds: ["home"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status:      "unbound", ownerRef: "stackkits-internal-pki-executor", capabilityRefs: _architectureV2InternalPKICapabilities
-			targetScope: "home-sites", operations: ["materialize-internal-certificate", "renew-internal-certificate", "verify-internal-pki"]
-			requiredHealthRef: "internal-pki-renewal-contract", requiredEvidenceRef: "internal-pki-contract"
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller"]
 		}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                            "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://home/tls/internal-pki-executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:3632f16dba073a4576996a75982c69a5196605fed510736767e9fec05e58ca55"
+			contractHash: "sha256:af28e0a1d23129fcfa1a2e91e8510c0ce5e57ff3d032a29dd03a3a345531a056"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "internalPKI"]
 			outputs: ["home/tls/internal-pki-executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2InternalPKIGenerationSupport
 		health: [{id: "internal-pki-renewal-contract", kind: "contract"}]

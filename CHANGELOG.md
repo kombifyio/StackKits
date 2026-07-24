@@ -4,6 +4,46 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.7] - 2026-07-24
+
+> **Stable v0.x Home internal-PKI runtime patch** that graduates the optional
+> private TLS contract from generation-only to one authenticated authority-node
+> owner without widening StackKits into certificate or infrastructure custody.
+
+### Added
+
+- One provider-free Product Runtime registration for the exact Home PKI
+  authority node, bound to the generated artifact, Site, node, execution
+  channel, request digest, and post-apply Health contract.
+- Compiler-derived CA=false leaf identities carrying exact service, module,
+  route, Site, node, subject, and DNS SAN authority.
+- Separate root, leaf, public trust-distribution, and verification operations
+  with fingerprint, public-key fingerprint, serial, validity, freshness, and
+  trust-rotation continuity evidence.
+
+### Changed
+
+- Optional Home internal PKI is now `apply-ready`; its former unbound runtime
+  owner is retired.
+- Public trust-root distribution remains an exact compiler-owned Home
+  Site/node target list while signing execution is restricted to the single
+  explicit control-authority node.
+
+### Security
+
+- Root and leaf material, credentials, authenticated transport, endpoints,
+  server providers, leases, and provider lifecycle remain construction-owned
+  outside StackKits and cannot enter the generated policy or execution request.
+- Ambiguous multi-controller CA authority continues to fail closed until a
+  separate replicated/HA CA realization is defined.
+
+### Known limitations
+
+- Internal PKI remains optional and Home-only; it is not an implicit LAN
+  discovery, public exposure, remote-access, or Cloud federation feature.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.6] - 2026-07-24
 
 > **Stable v0.x Modern Homelab execution-boundary patch** that keeps all three

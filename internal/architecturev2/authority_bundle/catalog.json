@@ -5637,9 +5637,16 @@
         }
       ],
       "metadata": {
-        "description": "Provider-free, single-authority Home root-CA and trust-distribution contract. Leaf issuance, secret material, execution, and fresh evidence remain unbound.",
+        "description": "Provider-free authenticated Home PKI owner on one explicit authority node. Root/leaf custody remains owner-held while exact public trust targets and compiler-derived leaf identities are closed in the generated policy.",
         "id": "stackkits-internal-pki-contract",
         "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller"
+        ]
       },
       "providerRef": "stackkits-internal-pki",
       "provides": [
@@ -5678,13 +5685,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "internal-pki-contract"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -5701,7 +5710,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:3632f16dba073a4576996a75982c69a5196605fed510736767e9fec05e58ca55",
+          "contractHash": "sha256:af28e0a1d23129fcfa1a2e91e8510c0ce5e57ff3d032a29dd03a3a345531a056",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -5709,8 +5718,8 @@
             "home/tls/internal-pki-executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -5736,23 +5745,8 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "internal-pki"
-        ],
-        "operations": [
-          "materialize-internal-certificate",
-          "renew-internal-certificate",
-          "verify-internal-pki"
-        ],
-        "ownerRef": "stackkits-internal-pki-executor",
-        "requiredEvidenceRef": "internal-pki-contract",
-        "requiredHealthRef": "internal-pki-renewal-contract",
-        "status": "unbound",
-        "targetScope": "home-sites"
       },
       "supportedSiteKinds": [
         "home"

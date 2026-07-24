@@ -3701,7 +3701,7 @@ _servicePublicationShape: {
 		_targetPairsUnique: list.UniqueItems([for target in targets {"\(target.siteRef)/\(target.nodeRef)"}]) & true
 	}
 	leafIssuance: {
-		status:           "unbound"
+		status:           "bound"
 		subjectAuthority: "compiler-derived-service"
 		sanAuthority:     "compiler-derived-route"
 		ca:               false
@@ -3717,6 +3717,21 @@ _servicePublicationShape: {
 			"not-after",
 			"observed-at",
 		]
+		identities: [...{
+			id:         #ContractID
+			routeRef:   #ContractID
+			serviceRef: #ContractID
+			moduleRef:  #ContractID
+			siteRef:    #SiteID
+			nodeRef:    #NodeID
+			subjectRef: #ContractID
+			dnsSANs: [...string] & list.MinItems(1)
+			ipSANs:  [...string] | *[]
+
+			_dnsSANsUnique: list.UniqueItems(dnsSANs) & true
+			_ipSANsUnique:  list.UniqueItems(ipSANs) & true
+		}]
+		_identityIDsUnique: list.UniqueItems([for identity in identities {identity.id}]) & true
 	}
 	profile: #TLSProfileV2 & {
 		capabilityRef: "internal-pki"
