@@ -64,8 +64,8 @@ const (
 	cloudHostSecurityOutputRef     = "cloud/host-security/executor-contract.json"
 
 	cloudPublicEdgeModuleID      = "stackkits-cloud-public-edge-runtime"
-	cloudPublicEdgeModuleVersion = "1.0.0"
-	cloudPublicEdgeTemplateRef   = "builtin://cloud/public-edge/executor-contract/v1.json"
+	cloudPublicEdgeModuleVersion = "1.1.0"
+	cloudPublicEdgeTemplateRef   = "builtin://cloud/public-edge/executor-contract/v2.json"
 	cloudPublicEdgeOutputRef     = "cloud/public-edge/executor-contract.json"
 
 	cloudOffsiteBackupModuleID      = "stackkits-cloud-offsite-backup-runtime"
@@ -101,7 +101,7 @@ const (
 
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
 const federationLinkExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","endpointDiscovery":"external-owner","fabricLifecycle":"not-owned","generation":"supported","operations":["establish-inter-site-link","remove-inter-site-link","verify-inter-site-link"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-declared-flows-only","runtimeEnforcement":"adapter-verified","scope":"federated-site-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
-const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
+const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge","commit-cloud-public-edge-evidence"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
 const bridgePublicationExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-service-publication","remove-service-publication","verify-service-publication"],"providerLifecycle":"not-owned","publicationAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 const bridgeOriginMTLSExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","generation":"supported","operations":["bind-origin-mtls-proxy","remove-origin-mtls-proxy","verify-origin-mtls"],"providerLifecycle":"not-owned","reverseTrust":"forbidden","runtimeEnforcement":"adapter-verified","scope":"home-origin-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 
@@ -325,7 +325,7 @@ func CloudHostSecurityExecutorBundleRendererContract() RendererContract {
 }
 
 // CloudPublicEdgeExecutorBundleRendererContract returns the exact
-// generation-only Cloud public-edge handoff identity.
+// executable Cloud public-edge handoff identity.
 func CloudPublicEdgeExecutorBundleRendererContract() RendererContract {
 	return newExecutorContractBundleRenderer(executorContractBundleSpecs[6]).contract
 }
@@ -381,7 +381,7 @@ func ValidateCloudPublicEdgeExecutorArtifact(raw []byte, siteRef, nodeRef string
 		document.Contract.Apply != "typed-local-operations" || document.Contract.CertificateIssuance != "not-owned" ||
 		document.Contract.Credentials != "not-included" || document.Contract.DNSMutation != "not-owned" ||
 		document.Contract.Generation != "supported" ||
-		!exactStringList(document.Contract.Operations, []string{"apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge"}) ||
+		!exactStringList(document.Contract.Operations, []string{"apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge", "commit-cloud-public-edge-evidence"}) ||
 		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.RouteAuthority != "compiler-owned-exact" ||
 		document.Contract.RuntimeEnforcement != "adapter-verified" || document.Contract.Scope != "cloud-edge-node" ||
 		document.Contract.ServerProviderAuthority != "not-owned" {

@@ -6677,21 +6677,38 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "apply-public-edge",
+          "remove-obsolete-public-edge",
+          "verify-public-edge",
+          "commit-cloud-public-edge-evidence"
+        ],
+        "ownerRef": "stackkits-cloud-public-edge-executor",
+        "policyArtifactRefs": [
+          "cloud-public-edge-executor-contract"
+        ],
+        "requiredEvidenceRef": "cloud-public-edge-evidence",
+        "requiredHealthRef": "cloud-public-edge-health",
+        "status": "bound",
+        "targetScope": "cloud-sites"
+      },
       "evidence": [
-        "cloud-public-edge-contract"
+        "cloud-public-edge-evidence"
       ],
       "health": [
         {
-          "id": "cloud-public-edge-contract",
+          "id": "cloud-public-edge-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
         "description": "Cloud-only public edge boundary; DNS provider mutation, TLS issuance, host hardening, backup, mesh, and server lifecycle remain separate.",
         "id": "stackkits-cloud-public-edge-runtime",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "providerRef": "stackkits-cloud-public-edge",
       "provides": [
@@ -6730,13 +6747,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "cloud-public-edge-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -6757,7 +6776,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:a80935bb0beb77bd3d226317be6f4756612eaac96037554783efdd6200a7f439",
+          "contractHash": "sha256:a452f3a9f9651f4bb96ff5abdb32328eab08be7e896397e2de72fae5029a8b0d",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -6765,8 +6784,8 @@
             "cloud/public-edge/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -6784,8 +6803,8 @@
           "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
-          "templateRef": "builtin://cloud/public-edge/executor-contract/v1.json",
-          "version": "1.0.0"
+          "templateRef": "builtin://cloud/public-edge/executor-contract/v2.json",
+          "version": "1.1.0"
         }
       ],
       "renderVariants": [],
@@ -6796,23 +6815,8 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "public-edge"
-        ],
-        "operations": [
-          "apply-public-edge",
-          "remove-obsolete-public-edge",
-          "verify-public-edge"
-        ],
-        "ownerRef": "stackkits-cloud-public-edge-executor",
-        "requiredEvidenceRef": "cloud-public-edge-evidence",
-        "requiredHealthRef": "cloud-public-edge-health",
-        "status": "unbound",
-        "targetScope": "cloud-sites"
       },
       "supportedSiteKinds": [
         "cloud"

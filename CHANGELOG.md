@@ -4,6 +4,47 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.14] - 2026-07-24
+
+> **Stable v0.x Cloud Public-Edge Runtime patch** for both Cloud Kit and the
+> Cloud Site of Modern Homelab.
+
+### Added
+
+- A provider-free node-local Public-Edge Runtime that applies the exact
+  compiler-owned route set, removes obsolete routes, verifies the complete
+  backend and Health-gate closure, and durably commits digest-bound evidence.
+- Fresh monotonic Apply, reconcile, verify, and evidence-custody observations
+  bound to the sealed request, immutable artifact, Site, node, execution
+  channel, and provider/module/Health authority.
+
+### Changed
+
+- `stackkits-cloud-public-edge-runtime` is now v1.1.0, executable, and
+  `apply-ready` for the exact generated Runtime and Health targets.
+- Cloud Kit and Modern Homelab no longer retain the Public-Edge module or
+  Runtime-owner blockers; their independent remaining blockers are unchanged.
+- Public Edge remains confined to the child chain delegated by Cloud host
+  security's default-deny parent firewall.
+- Basement Kit, Cloud Kit, and Modern Homelab remain included as dedicated
+  Linux amd64/arm64, macOS amd64/arm64, and Windows amd64 archives plus the
+  full StackKits bundle.
+
+### Security
+
+- Partial, stale, future, non-monotonic, unauthorized, target-substituted,
+  state-digest-mismatched, and custody-digest-mismatched evidence fails closed.
+- DNS mutation, certificate issuance, credentials, endpoints, provider
+  resources, leases, and server lifecycle remain outside StackKits authority.
+
+### Known limitations
+
+- Cloud Kit remains Apply-blocked by its independent offsite-backup Runtime.
+- Modern Homelab remains Preview until its remaining control, policy,
+  partition, backup, observability, and live-evidence owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.13] - 2026-07-24
 
 > **Stable v0.x Cloud host-security Runtime patch** for both Cloud Kit and the

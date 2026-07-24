@@ -982,7 +982,7 @@ _architectureV2CloudHostSecuritySupport: #ModuleRealizationSupportV2 & {
 _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
@@ -998,7 +998,7 @@ _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["cloud-public-edge-evidence"]
 }
 
 _architectureV2CloudOffsiteBackupSupport: #ModuleRealizationSupportV2 & {
@@ -1909,7 +1909,7 @@ _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
 			id:          "stackkits-cloud-public-edge-runtime"
-			version:     "1.0.0"
+			version:     "1.1.0"
 			description: "Cloud-only public edge boundary; DNS provider mutation, TLS issuance, host hardening, backup, mesh, and server lifecycle remain separate."
 		}
 		role:        "platform"
@@ -1917,27 +1917,27 @@ _architectureV2Modules: list.Concat([[
 		provides:    _architectureV2CloudPublicEdgeCapabilities
 		requires: ["stackkits-cloud-host-security-runtime"]
 		supportedSiteKinds: ["cloud"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status:         "unbound", ownerRef: "stackkits-cloud-public-edge-executor"
-			capabilityRefs: _architectureV2CloudPublicEdgeCapabilities
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:         "bound", ownerRef: "stackkits-cloud-public-edge-executor"
 			targetScope:    "cloud-sites"
-			operations: ["apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge"]
+			operations: ["apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge", "commit-cloud-public-edge-evidence"]
+			policyArtifactRefs: ["cloud-public-edge-executor-contract"]
 			requiredHealthRef:   "cloud-public-edge-health"
 			requiredEvidenceRef: "cloud-public-edge-evidence"
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                        "native-config", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/public-edge/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:a80935bb0beb77bd3d226317be6f4756612eaac96037554783efdd6200a7f439"
+			templateRef:  "builtin://cloud/public-edge/executor-contract/v2.json", version: "1.1.0"
+			contractHash: "sha256:a452f3a9f9651f4bb96ff5abdb32328eab08be7e896397e2de72fae5029a8b0d"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "publicEdge"]
 			outputs: ["cloud/public-edge/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2CloudPublicEdgeSupport
-		health: [{id: "cloud-public-edge-contract", kind: "contract"}]
-		evidence: ["cloud-public-edge-contract"]
+		health: [{id: "cloud-public-edge-health", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-public-edge-evidence"]
 	},
 	{
 		metadata: {
