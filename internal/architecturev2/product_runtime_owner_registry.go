@@ -253,8 +253,8 @@ func (r *ProductRuntimeOwnerRegistry) reconcileProductApply(ctx context.Context,
 	if err != nil || !at.Before(validUntil) {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply recovery authority is expired")
 	}
-	if len(capsule.Shared.AccessBindings) != 0 {
-		return runtimeexecutor.ExecutionResult{}, errors.New("access-bound Product Apply recovery requires a versioned fresh-instant continuation contract")
+	if len(capsule.Shared.AccessBindings) != 0 || len(capsule.Shared.BackupTargetBindings) != 0 {
+		return runtimeexecutor.ExecutionResult{}, errors.New("external-binding Product Apply recovery requires a versioned fresh-instant continuation contract")
 	}
 	if capsule.Shared.Executor != r.identity {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply recovery request does not bind the service-owned registry identity")
@@ -283,7 +283,7 @@ func (r *ProductRuntimeOwnerRegistry) Execute(ctx context.Context, request runti
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	var result runtimeexecutor.ExecutionResult
-	if len(request.AccessBindings) == 0 {
+	if len(request.AccessBindings) == 0 && len(request.BackupTargetBindings) == 0 {
 		result, err = runtimeexecutor.Invoke(ctx, dispatcher, request)
 	} else {
 		authorizationTime, parseErr := time.Parse(time.RFC3339Nano, request.AuthorizationTime)

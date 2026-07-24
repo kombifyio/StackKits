@@ -6823,21 +6823,38 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "bind-offsite-backup-target",
+          "remove-obsolete-offsite-backup-binding",
+          "verify-offsite-backup-target",
+          "commit-cloud-offsite-backup-evidence"
+        ],
+        "ownerRef": "stackkits-cloud-offsite-backup-executor",
+        "policyArtifactRefs": [
+          "cloud-offsite-backup-executor-contract"
+        ],
+        "requiredEvidenceRef": "cloud-offsite-backup-evidence",
+        "requiredHealthRef": "cloud-offsite-backup-health",
+        "status": "bound",
+        "targetScope": "cloud-sites"
+      },
       "evidence": [
-        "cloud-offsite-backup-contract"
+        "cloud-offsite-backup-evidence"
       ],
       "health": [
         {
-          "id": "cloud-offsite-backup-contract",
+          "id": "cloud-offsite-backup-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
       "metadata": {
-        "description": "Provider-neutral Cloud offsite-backup target binding; object-storage provider lifecycle, buckets, endpoints, credentials, retention execution, and backup jobs remain external.",
+        "description": "Provider-neutral node-local Cloud offsite-backup binding and verification; object-storage provider lifecycle, buckets, endpoints, credentials, and target custody remain external.",
         "id": "stackkits-cloud-offsite-backup-runtime",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "providerRef": "stackkits-cloud-offsite-backup",
       "provides": [
@@ -6876,13 +6893,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "cloud-offsite-backup-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -6903,7 +6922,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:9fde3c773f0dc0c6d6e353caa82f52bb3d1b699f30e66ba87f2bf7aae3040a47",
+          "contractHash": "sha256:f6a804316a73cbb9f424f1fdd68de1e8555bde39298a46a6c65de2eccf9b17b9",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -6911,8 +6930,8 @@
             "cloud/backup/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -6930,8 +6949,8 @@
           "secretInputBindings": {},
           "secretInputRefs": [],
           "serviceEndpoints": [],
-          "templateRef": "builtin://cloud/backup/executor-contract/v1.json",
-          "version": "1.0.0"
+          "templateRef": "builtin://cloud/backup/executor-contract/v2.json",
+          "version": "1.1.0"
         }
       ],
       "renderVariants": [],
@@ -6939,23 +6958,8 @@
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "offsite-object-backup"
-        ],
-        "operations": [
-          "bind-offsite-backup-target",
-          "remove-offsite-backup-binding",
-          "verify-offsite-backup-target"
-        ],
-        "ownerRef": "stackkits-cloud-offsite-backup-executor",
-        "requiredEvidenceRef": "cloud-offsite-backup-evidence",
-        "requiredHealthRef": "cloud-offsite-backup-health",
-        "status": "unbound",
-        "targetScope": "cloud-sites"
       },
       "supportedSiteKinds": [
         "cloud"

@@ -38,7 +38,7 @@ func InvokeAt(ctx context.Context, executor Executor, request ExecutionRequest, 
 	if identity != request.Executor {
 		return ExecutionResult{}, wrapError(ErrorIdentityMismatch, "executor", "identity differs from sealed request", nil)
 	}
-	if err := validateAccessBindingFreshness(request.AccessBindings, request.AuthorizationTime, at); err != nil {
+	if err := validateExternalBindingFreshness(request.AccessBindings, request.BackupTargetBindings, request.AuthorizationTime, at); err != nil {
 		return ExecutionResult{}, err
 	}
 	outcome, err := safeExecute(ctx, executor, CloneExecutionRequest(request))

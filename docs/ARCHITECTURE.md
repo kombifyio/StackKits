@@ -323,14 +323,14 @@ runtime target, Health gate, or evidence claim. Provider-specific DNS
 materialization belongs to the external TechStack/provider-management layer.
 
 Cloud public edge is separately owned by
-`stackkits-cloud-public-edge-runtime`. Its exact generation-only contract is
-restricted to Cloud targets and the `public-edge` capability, depends on the
-Cloud host-security boundary, and names the
-`stackkits-cloud-public-edge-executor`. Its Product factory binds one exact
-Cloud Site/node/channel and Health contract and still requires an authenticated
-edge Operations owner at construction. It does not own DNS, certificate
-issuance, credentials, host hardening, backup, mesh, or server lifecycle. The
-residual Cloud runtime no longer participates in a default Cloud Kit.
+`stackkits-cloud-public-edge-runtime`. Its exact node-local executable contract
+is restricted to Cloud targets and the `public-edge` capability, depends on the
+Cloud host-security boundary, and binds the
+`stackkits-cloud-public-edge-executor`. Its Product factory admits one exact
+Cloud Site/node/channel and Health contract and requires an authenticated edge
+Operations owner at construction. It does not own DNS, certificate issuance,
+credentials, host hardening, backup, mesh, or server lifecycle. The residual
+Cloud runtime no longer participates in a default Cloud Kit.
 
 Cloud offsite backup is independently owned by
 `stackkits-cloud-offsite-backup-runtime`. The generated contract expresses
@@ -340,10 +340,16 @@ That binding contains opaque target and custody-attestation refs plus exact
 StackInstance, capability/contract, requirement, Candidate, version, spec, and
 validity hashes. Provider accounts, regions, buckets, endpoints, credentials,
 resource IDs, leases, and lifecycle handles are structurally excluded. Missing
-bindings preserve generation and add `external-backup-target-binding-missing`
-to Apply readiness. The module still names the unbound
-`stackkits-cloud-offsite-backup-executor`; no Apply-ready claim exists until an
-authenticated adapter supplies fresh backup and restore/readback evidence.
+bindings preserve generation; execution still requires a fresh binding at the
+actual invocation instant. The node-local Product executor accepts exactly one
+binding projection per Runtime target, performs bind and obsolete-binding
+reconciliation through a construction-owned authenticated Operations owner,
+then verifies both a fresh backup observation and a restore/readback
+observation before committing durable evidence. Missing, expired, substituted,
+partial, future, clock-regressed, or digest-mismatched authority and evidence
+fails closed. The module is therefore `apply-ready` as a StackKits runtime
+contract without moving provider choice, object-target lifecycle, transport,
+or credential custody into StackKits.
 
 Optional Cloud private administration is independently owned by
 `stackkits-cloud-private-admin-mesh-runtime`. The capability is selected only

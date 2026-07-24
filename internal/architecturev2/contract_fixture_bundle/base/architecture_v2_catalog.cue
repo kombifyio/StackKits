@@ -1004,7 +1004,7 @@ _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
 _architectureV2CloudOffsiteBackupSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {
@@ -1020,7 +1020,7 @@ _architectureV2CloudOffsiteBackupSupport: #ModuleRealizationSupportV2 & {
 			unitRef: "executor-contract", outputRef: "cloud/backup/executor-contract.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["cloud-offsite-backup-evidence"]
 }
 
 _architectureV2CloudPrivateAdminMeshSupport: #ModuleRealizationSupportV2 & {
@@ -1942,34 +1942,34 @@ _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
 			id:          "stackkits-cloud-offsite-backup-runtime"
-			version:     "1.0.0"
-			description: "Provider-neutral Cloud offsite-backup target binding; object-storage provider lifecycle, buckets, endpoints, credentials, retention execution, and backup jobs remain external."
+			version:     "1.1.0"
+			description: "Provider-neutral node-local Cloud offsite-backup binding and verification; object-storage provider lifecycle, buckets, endpoints, credentials, and target custody remain external."
 		}
 		role:        "foundation"
 		providerRef: "stackkits-cloud-offsite-backup"
 		provides:    _architectureV2CloudOffsiteBackupCapabilities
 		supportedSiteKinds: ["cloud"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status:         "unbound", ownerRef: "stackkits-cloud-offsite-backup-executor"
-			capabilityRefs: _architectureV2CloudOffsiteBackupCapabilities
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:         "bound", ownerRef: "stackkits-cloud-offsite-backup-executor"
 			targetScope:    "cloud-sites"
-			operations: ["bind-offsite-backup-target", "remove-offsite-backup-binding", "verify-offsite-backup-target"]
+			operations: ["bind-offsite-backup-target", "remove-obsolete-offsite-backup-binding", "verify-offsite-backup-target", "commit-cloud-offsite-backup-evidence"]
+			policyArtifactRefs: ["cloud-offsite-backup-executor-contract"]
 			requiredHealthRef:   "cloud-offsite-backup-health"
 			requiredEvidenceRef: "cloud-offsite-backup-evidence"
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                   "native-config", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/backup/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:9fde3c773f0dc0c6d6e353caa82f52bb3d1b699f30e66ba87f2bf7aae3040a47"
+			templateRef:  "builtin://cloud/backup/executor-contract/v2.json", version: "1.1.0"
+			contractHash: "sha256:f6a804316a73cbb9f424f1fdd68de1e8555bde39298a46a6c65de2eccf9b17b9"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudOffsiteBackup"]
 			outputs: ["cloud/backup/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2CloudOffsiteBackupSupport
-		health: [{id: "cloud-offsite-backup-contract", kind: "contract"}]
-		evidence: ["cloud-offsite-backup-contract"]
+		health: [{id: "cloud-offsite-backup-health", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-offsite-backup-evidence"]
 	},
 	{
 		metadata: {

@@ -21,6 +21,8 @@ func CloneExecutionRequest(input ExecutionRequest) ExecutionRequest {
 		}
 		result.RuntimeTargets[i].AccessCapabilities = append([]AccessCapability(nil), input.RuntimeTargets[i].AccessCapabilities...)
 		result.RuntimeTargets[i].AccessBindingRefs = append([]string(nil), input.RuntimeTargets[i].AccessBindingRefs...)
+		result.RuntimeTargets[i].BackupTargetCapabilities = append([]AccessCapability(nil), input.RuntimeTargets[i].BackupTargetCapabilities...)
+		result.RuntimeTargets[i].BackupTargetBindingRefs = append([]string(nil), input.RuntimeTargets[i].BackupTargetBindingRefs...)
 	}
 	result.HealthTargets = append([]HealthTarget(nil), input.HealthTargets...)
 	for i := range result.HealthTargets {
@@ -35,6 +37,10 @@ func CloneExecutionRequest(input ExecutionRequest) ExecutionRequest {
 	result.AccessBindings = append([]AccessBinding(nil), input.AccessBindings...)
 	for i := range result.AccessBindings {
 		result.AccessBindings[i].TargetNodeRefs = append([]string(nil), input.AccessBindings[i].TargetNodeRefs...)
+	}
+	result.BackupTargetBindings = append([]BackupTargetBinding(nil), input.BackupTargetBindings...)
+	for i := range result.BackupTargetBindings {
+		result.BackupTargetBindings[i].TargetNodeRefs = append([]string(nil), input.BackupTargetBindings[i].TargetNodeRefs...)
 	}
 	result.Artifacts = cloneArtifacts(input.Artifacts)
 	return result

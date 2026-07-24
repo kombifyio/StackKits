@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	productCloudHostSecurityAdapterID = "stackkits-cloud-host-security-local"
-	productCloudPublicEdgeAdapterID   = "stackkits-cloud-public-edge-local"
-	productPublicTLSAdapterID         = "stackkits-public-tls-local"
+	productCloudHostSecurityAdapterID  = "stackkits-cloud-host-security-local"
+	productCloudPublicEdgeAdapterID    = "stackkits-cloud-public-edge-local"
+	productCloudOffsiteBackupAdapterID = "stackkits-cloud-offsite-backup-local"
+	productPublicTLSAdapterID          = "stackkits-public-tls-local"
 )
 
 type productCloudHostSecurityFactory struct {
@@ -22,6 +23,11 @@ type productCloudHostSecurityFactory struct {
 type productCloudPublicEdgeFactory struct {
 	runtimeVersion string
 	operations     runtimeexecutorlocal.CloudPublicEdgeOperations
+}
+
+type productCloudOffsiteBackupFactory struct {
+	runtimeVersion string
+	operations     runtimeexecutorlocal.CloudOffsiteBackupOperations
 }
 
 type productPublicTLSFactory struct {
@@ -103,6 +109,44 @@ func (f *productCloudPublicEdgeFactory) PrepareRuntimeOwner(request ProductRunti
 	}, f.operations), nil
 }
 
+// NewProductCloudOffsiteBackupRegistration binds the exact node-local backup
+// target verifier. Provider selection, target lifecycle, connection material,
+// and credentials remain inside the authenticated Operations implementation.
+func NewProductCloudOffsiteBackupRegistration(runtimeVersion string, operations runtimeexecutorlocal.CloudOffsiteBackupOperations) (ProductRuntimeOwnerRegistration, error) {
+	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
+		return ProductRuntimeOwnerRegistration{}, errors.New("Cloud offsite-backup product registration requires a runtime version and operations owner")
+	}
+	return ProductRuntimeOwnerRegistration{
+		Selector: productCloudOffsiteBackupSelector(),
+		Factory:  &productCloudOffsiteBackupFactory{runtimeVersion: runtimeVersion, operations: operations},
+	}, nil
+}
+
+func (f *productCloudOffsiteBackupFactory) PrepareRuntimeOwner(request ProductRuntimeOwnerRequest) (runtimeexecutor.Executor, error) {
+	if f == nil || strings.TrimSpace(f.runtimeVersion) == "" || nilProductRuntimeOwnerValue(f.operations) {
+		return nil, errors.New("Cloud offsite-backup product factory is not initialized")
+	}
+	target := cloneProductRuntimeTarget(request.Target)
+	health := cloneProductHealthTargets(request.HealthTargets)
+	if productRuntimeOwnerSelectorForTarget(target) != productCloudOffsiteBackupSelector() ||
+		len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || strings.TrimSpace(target.ExecutionChannelRef) == "" ||
+		len(target.BackupTargetBindingRefs) != 1 || len(target.BackupTargetCapabilities) != 1 ||
+		len(health) != 1 || !productHealthTargetsRuntime(health[0], target) {
+		return nil, errors.New("Cloud offsite-backup product factory requires one exact channel-bound target, backup binding, and health contract")
+	}
+	identity, err := productRuntimeOwnerAdapterIdentity(productCloudOffsiteBackupAdapterID, f.runtimeVersion, target, health)
+	if err != nil {
+		return nil, err
+	}
+	return runtimeexecutorlocal.NewCloudOffsiteBackupExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
+	}, runtimeexecutorlocal.CloudOffsiteBackupAuthority{
+		ProviderContractHash: target.ProviderContractHash,
+		ModuleContractHash:   target.ModuleContractHash,
+		HealthContractHash:   health[0].ContractHash,
+	}, f.operations), nil
+}
+
 // NewProductPublicTLSRegistration binds the node-local public TLS policy to an
 // authenticated Cloud operations implementation. ACME credentials and
 // certificate material remain construction-owned by that implementation.
@@ -156,6 +200,14 @@ func productCloudPublicEdgeSelector() ProductRuntimeOwnerSelector {
 	}
 }
 
+func productCloudOffsiteBackupSelector() ProductRuntimeOwnerSelector {
+	return ProductRuntimeOwnerSelector{
+		OwnerKind: "module", OwnerRef: "stackkits-cloud-offsite-backup-runtime",
+		ProviderRef: "stackkits-cloud-offsite-backup", ModuleRef: "stackkits-cloud-offsite-backup-runtime", UnitRef: "executor-contract",
+		RuntimeKind: "host", RuntimeDelivery: "stackkit",
+	}
+}
+
 func productPublicTLSSelector() ProductRuntimeOwnerSelector {
 	return ProductRuntimeOwnerSelector{
 		OwnerKind: "module", OwnerRef: "stackkits-public-tls-contract",
@@ -167,5 +219,6 @@ func productPublicTLSSelector() ProductRuntimeOwnerSelector {
 var (
 	_ ProductRuntimeOwnerFactory = (*productCloudHostSecurityFactory)(nil)
 	_ ProductRuntimeOwnerFactory = (*productCloudPublicEdgeFactory)(nil)
+	_ ProductRuntimeOwnerFactory = (*productCloudOffsiteBackupFactory)(nil)
 	_ ProductRuntimeOwnerFactory = (*productPublicTLSFactory)(nil)
 )

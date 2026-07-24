@@ -55,6 +55,9 @@ var opaqueRefPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,511}
 var semanticVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$`)
 var homeAccessBindingRefPattern = regexp.MustCompile(`^home-access-binding://sha256/[a-f0-9]{64}$`)
 var homeAccessFabricRefPattern = regexp.MustCompile(`^home-access-fabric://sha256/[a-f0-9]{64}$`)
+var backupTargetBindingRefPattern = regexp.MustCompile(`^backup-target-binding://sha256/[a-f0-9]{64}$`)
+var backupTargetRefPattern = regexp.MustCompile(`^backup-target://sha256/[a-f0-9]{64}$`)
+var backupCustodyAttestationRefPattern = regexp.MustCompile(`^backup-custody-attestation://sha256/[a-f0-9]{64}$`)
 
 // SealRequest returns a canonical defensive copy with derived artifact-set and
 // request digests. The input is never mutated.
@@ -71,6 +74,14 @@ func SealRequest(input ExecutionRequest) (ExecutionRequest, error) {
 			return ExecutionRequest{}, err
 		}
 		request.AccessBindings[index].ProjectionHash = projectionHash
+	}
+	for index := range request.BackupTargetBindings {
+		request.BackupTargetBindings[index].ProjectionHash = ""
+		projectionHash, err := ComputeBackupTargetBindingProjectionHash(request.BackupTargetBindings[index])
+		if err != nil {
+			return ExecutionRequest{}, err
+		}
+		request.BackupTargetBindings[index].ProjectionHash = projectionHash
 	}
 	request.ArtifactSetHash = ""
 	request.RequestDigest = ""
@@ -112,12 +123,12 @@ func (request ExecutionRequest) Validate() error {
 	if len(request.RuntimeTargets) == 0 || len(request.RuntimeTargets) > MaxRuntimeTargets {
 		return invalidRequest("runtime_targets", "must contain 1..%d targets", MaxRuntimeTargets)
 	}
-	if len(request.AccessBindings) == 0 {
+	if len(request.AccessBindings) == 0 && len(request.BackupTargetBindings) == 0 {
 		if request.AuthorizationTime != "" {
-			return invalidRequest("authorization_time", "must be absent without access bindings")
+			return invalidRequest("authorization_time", "must be absent without expiring external bindings")
 		}
 	} else if _, err := canonicalUTCTimestamp(request.AuthorizationTime); err != nil {
-		return invalidRequest("authorization_time", "must be a canonical RFC3339 UTC timestamp with access bindings")
+		return invalidRequest("authorization_time", "must be a canonical RFC3339 UTC timestamp with expiring external bindings")
 	}
 	if len(request.HealthTargets) > MaxHealthTargets || len(request.Artifacts) > MaxArtifacts {
 		return invalidRequest("request", "health target or artifact bound exceeded")
@@ -134,6 +145,9 @@ func (request ExecutionRequest) Validate() error {
 	if err := validateAccessBindings(request.AccessBindings); err != nil {
 		return err
 	}
+	if err := validateBackupTargetBindings(request.BackupTargetBindings); err != nil {
+		return err
+	}
 	if err := validateArtifacts(request.Artifacts); err != nil {
 		return err
 	}
@@ -141,6 +155,9 @@ func (request ExecutionRequest) Validate() error {
 		return err
 	}
 	if err := validateAccessBindingClosure(request.RuntimeTargets, request.AccessBindings); err != nil {
+		return err
+	}
+	if err := validateBackupTargetBindingClosure(request.RuntimeTargets, request.BackupTargetBindings); err != nil {
 		return err
 	}
 	canonical := CloneExecutionRequest(request)
@@ -326,6 +343,15 @@ func validateRuntimeTargets(targets []RuntimeTarget) error {
 		if (len(target.AccessBindingRefs) == 0) != (len(target.AccessCapabilities) == 0) {
 			return invalidRequest(prefix, "access bindings and capability authority must appear together")
 		}
+		if err := validateRefList(prefix+".backup_target_binding_refs", target.BackupTargetBindingRefs, 0, MaxBackupTargetBindings); err != nil {
+			return err
+		}
+		if err := validateBackupTargetCapabilities(prefix+".backup_target_capabilities", target.BackupTargetCapabilities); err != nil {
+			return err
+		}
+		if (len(target.BackupTargetBindingRefs) == 0) != (len(target.BackupTargetCapabilities) == 0) {
+			return invalidRequest(prefix, "backup-target bindings and capability authority must appear together")
+		}
 		key := target.RequirementID + "\x00" + target.InstanceRef
 		if _, exists := seen[key]; exists {
 			return invalidRequest(prefix, "duplicate governed runtime target")
@@ -407,6 +433,25 @@ func validateAccessCapabilities(field string, capabilities []AccessCapability) e
 		prefix := fmt.Sprintf("%s[%d]", field, index)
 		if capability.Ref != "private-remote-access" && capability.Ref != "public-publish-egress" {
 			return invalidRequest(prefix+".ref", "must be a closed Home access capability")
+		}
+		if !validDigest(capability.ContractHash) {
+			return invalidRequest(prefix+".contract_hash", "must be a canonical SHA-256 digest")
+		}
+		if index > 0 && capabilities[index-1].Ref >= capability.Ref {
+			return invalidRequest(field, "must be sorted and unique")
+		}
+	}
+	return nil
+}
+
+func validateBackupTargetCapabilities(field string, capabilities []AccessCapability) error {
+	if len(capabilities) > MaxBackupTargetBindings {
+		return invalidRequest(field, "must contain at most %d capabilities", MaxBackupTargetBindings)
+	}
+	for index, capability := range capabilities {
+		prefix := fmt.Sprintf("%s[%d]", field, index)
+		if capability.Ref != "offsite-object-backup" {
+			return invalidRequest(prefix+".ref", "must be the closed Cloud backup-target capability")
 		}
 		if !validDigest(capability.ContractHash) {
 			return invalidRequest(prefix+".contract_hash", "must be a canonical SHA-256 digest")
@@ -589,6 +634,152 @@ func ComputeAccessBindingProjectionHash(input AccessBinding) (string, error) {
 	return hashBytes(data), nil
 }
 
+func validateBackupTargetBindings(bindings []BackupTargetBinding) error {
+	if len(bindings) > MaxBackupTargetBindings {
+		return invalidRequest("backup_target_bindings", "must contain at most %d bindings", MaxBackupTargetBindings)
+	}
+	seenIDs := make(map[string]struct{}, len(bindings))
+	seenScopes := make(map[string]struct{}, len(bindings))
+	for index, binding := range bindings {
+		prefix := fmt.Sprintf("backup_target_bindings[%d]", index)
+		for _, field := range []struct{ name, value string }{
+			{"id", binding.ID}, {"runtime_requirement_id", binding.RuntimeRequirementID},
+			{"stack_id", binding.StackID}, {"site_ref", binding.SiteRef},
+			{"contract_owner_ref", binding.ContractOwnerRef},
+		} {
+			if err := validateToken(prefix+"."+field.name, field.value); err != nil {
+				return err
+			}
+		}
+		if binding.Kind != "backup-target" {
+			return invalidRequest(prefix+".kind", "must be backup-target")
+		}
+		if binding.CapabilityRef != "offsite-object-backup" {
+			return invalidRequest(prefix+".capability_ref", "must be the closed Cloud backup-target capability")
+		}
+		for _, field := range []struct{ name, value string }{
+			{"capability_contract_hash", binding.CapabilityContractHash}, {"requirements_hash", binding.RequirementsHash},
+			{"binding_hash", binding.BindingHash}, {"candidate_digest", binding.CandidateDigest}, {"spec_hash", binding.SpecHash},
+			{"projection_hash", binding.ProjectionHash},
+		} {
+			if !validDigest(field.value) {
+				return invalidRequest(prefix+"."+field.name, "must be a canonical SHA-256 digest")
+			}
+		}
+		if !backupTargetBindingRefPattern.MatchString(binding.BindingRef) {
+			return invalidRequest(prefix+".binding_ref", "must be an opaque backup-target binding ref")
+		}
+		if !backupTargetRefPattern.MatchString(binding.BackupTargetRef) {
+			return invalidRequest(prefix+".backup_target_ref", "must be an opaque backup-target ref")
+		}
+		if !backupCustodyAttestationRefPattern.MatchString(binding.CustodyAttestationRef) {
+			return invalidRequest(prefix+".custody_attestation_ref", "must be an opaque backup custody-attestation ref")
+		}
+		if !semanticVersionPattern.MatchString(binding.StackKitsVersion) {
+			return invalidRequest(prefix+".stackkits_version", "must be a semantic version")
+		}
+		if err := validateRefList(prefix+".target_node_refs", binding.TargetNodeRefs, 1, MaxNodeRefsPerTarget); err != nil {
+			return err
+		}
+		issuedAt, err := canonicalUTCTimestamp(binding.IssuedAt)
+		if err != nil {
+			return invalidRequest(prefix+".issued_at", "must be a canonical RFC3339 UTC timestamp")
+		}
+		validUntil, err := canonicalUTCTimestamp(binding.ValidUntil)
+		if err != nil {
+			return invalidRequest(prefix+".valid_until", "must be a canonical RFC3339 UTC timestamp")
+		}
+		if !issuedAt.Before(validUntil) || validUntil.Sub(issuedAt) > MaxBackupTargetBindingValidity {
+			return invalidRequest(prefix+".valid_until", "must be after issued_at with validity no greater than %s", MaxBackupTargetBindingValidity)
+		}
+		wantProjectionHash, err := ComputeBackupTargetBindingProjectionHash(binding)
+		if err != nil {
+			return invalidRequest(prefix+".projection_hash", "cannot derive canonical backup-target projection")
+		}
+		if binding.ProjectionHash != wantProjectionHash {
+			return invalidRequest(prefix+".projection_hash", "does not match the complete canonical backup-target projection")
+		}
+		if _, duplicate := seenIDs[binding.ID]; duplicate {
+			return invalidRequest(prefix+".id", "duplicate backup-target binding id")
+		}
+		seenIDs[binding.ID] = struct{}{}
+		scope := binding.SiteRef + "\x00" + binding.CapabilityRef + "\x00" + strings.Join(binding.TargetNodeRefs, "\x00")
+		if _, duplicate := seenScopes[scope]; duplicate {
+			return invalidRequest(prefix, "duplicate Cloud Site/capability/node backup-target authority")
+		}
+		seenScopes[scope] = struct{}{}
+	}
+	return nil
+}
+
+func validateBackupTargetBindingClosure(targets []RuntimeTarget, bindings []BackupTargetBinding) error {
+	available := make(map[string]BackupTargetBinding, len(bindings))
+	referenceCount := make(map[string]int, len(bindings))
+	for _, binding := range bindings {
+		available[binding.ID] = binding
+	}
+	for targetIndex, target := range targets {
+		if len(target.BackupTargetBindingRefs) == 0 {
+			continue
+		}
+		if len(target.SiteRefs) != 1 {
+			return invalidRequest(fmt.Sprintf("runtime_targets[%d].site_refs", targetIndex), "backup-target-bound runtime target must belong to exactly one Site")
+		}
+		coveredSites := map[string]struct{}{}
+		coveredNodes := map[string]struct{}{}
+		coveredCapabilities := map[string]struct{}{}
+		for refIndex, ref := range target.BackupTargetBindingRefs {
+			binding, exists := available[ref]
+			if !exists {
+				return invalidRequest(fmt.Sprintf("runtime_targets[%d].backup_target_binding_refs[%d]", targetIndex, refIndex), "references absent backup-target binding %q", ref)
+			}
+			if binding.RuntimeRequirementID != target.RequirementID ||
+				binding.ContractOwnerRef != target.ProviderRef ||
+				!containsAccessCapability(target.BackupTargetCapabilities, binding.CapabilityRef, binding.CapabilityContractHash) {
+				return invalidRequest(fmt.Sprintf("runtime_targets[%d].backup_target_binding_refs[%d]", targetIndex, refIndex), "binding capability, requirement, or contract owner differs from the runtime target authority")
+			}
+			if !containsSorted(target.SiteRefs, binding.SiteRef) {
+				return invalidRequest(fmt.Sprintf("runtime_targets[%d].backup_target_binding_refs[%d]", targetIndex, refIndex), "binding Site is outside the exact runtime target")
+			}
+			for _, nodeRef := range binding.TargetNodeRefs {
+				if !containsSorted(target.NodeRefs, nodeRef) {
+					return invalidRequest(fmt.Sprintf("runtime_targets[%d].backup_target_binding_refs[%d]", targetIndex, refIndex), "binding node is outside the exact runtime target")
+				}
+				coveredNodes[nodeRef] = struct{}{}
+			}
+			coveredSites[binding.SiteRef] = struct{}{}
+			coveredCapabilities[binding.CapabilityRef] = struct{}{}
+			referenceCount[ref]++
+		}
+		if !exactCoveredRefs(target.SiteRefs, coveredSites) ||
+			!exactCoveredRefs(target.NodeRefs, coveredNodes) ||
+			!exactCoveredCapabilities(target.BackupTargetCapabilities, coveredCapabilities) {
+			return invalidRequest(fmt.Sprintf("runtime_targets[%d].backup_target_binding_refs", targetIndex), "bindings must exactly cover the target Site, node, and capability sets")
+		}
+	}
+	for _, binding := range bindings {
+		if referenceCount[binding.ID] != 1 {
+			return invalidRequest("backup_target_bindings."+binding.ID, "must be referenced by exactly one runtime target; got %d", referenceCount[binding.ID])
+		}
+	}
+	return nil
+}
+
+// ComputeBackupTargetBindingProjectionHash returns the canonical content
+// address of the complete shared projection. BindingHash remains the upstream
+// StackKits authority hash.
+func ComputeBackupTargetBindingProjectionHash(input BackupTargetBinding) (string, error) {
+	projection := input
+	projection.ProjectionHash = ""
+	projection.TargetNodeRefs = append([]string(nil), input.TargetNodeRefs...)
+	sort.Strings(projection.TargetNodeRefs)
+	data, err := canonicalJSON(projection)
+	if err != nil {
+		return "", wrapError(ErrorInvalidRequest, "backup_target_binding", "canonicalize backup-target binding projection", err)
+	}
+	return hashBytes(data), nil
+}
+
 func validateAccessBindingFreshness(bindings []AccessBinding, authorizationTime string, at time.Time) error {
 	if at.IsZero() || at.Location() != time.UTC {
 		return invalidRequest("access_bindings", "execution time must be a non-zero UTC instant")
@@ -614,6 +805,36 @@ func validateAccessBindingFreshness(bindings []AccessBinding, authorizationTime 
 		}
 		if at.Before(issuedAt) || !at.Before(validUntil) {
 			return invalidRequest(fmt.Sprintf("access_bindings[%d].valid_until", index), "binding is not fresh at executor invocation")
+		}
+	}
+	return nil
+}
+
+func validateExternalBindingFreshness(accessBindings []AccessBinding, backupBindings []BackupTargetBinding, authorizationTime string, at time.Time) error {
+	if len(accessBindings) == 0 && len(backupBindings) == 0 {
+		return validateAccessBindingFreshness(nil, authorizationTime, at)
+	}
+	if err := validateAccessBindingFreshness(accessBindings, authorizationTime, at); err != nil && len(accessBindings) != 0 {
+		return err
+	}
+	if at.IsZero() || at.Location() != time.UTC {
+		return invalidRequest("backup_target_bindings", "execution time must be a non-zero UTC instant")
+	}
+	boundAt, err := canonicalUTCTimestamp(authorizationTime)
+	if err != nil || !boundAt.Equal(at) {
+		return invalidRequest("authorization_time", "must equal the exact invocation instant")
+	}
+	for index, binding := range backupBindings {
+		issuedAt, err := canonicalUTCTimestamp(binding.IssuedAt)
+		if err != nil {
+			return invalidRequest(fmt.Sprintf("backup_target_bindings[%d].issued_at", index), "must be a canonical RFC3339 UTC timestamp")
+		}
+		validUntil, err := canonicalUTCTimestamp(binding.ValidUntil)
+		if err != nil {
+			return invalidRequest(fmt.Sprintf("backup_target_bindings[%d].valid_until", index), "must be a canonical RFC3339 UTC timestamp")
+		}
+		if at.Before(issuedAt) || !at.Before(validUntil) {
+			return invalidRequest(fmt.Sprintf("backup_target_bindings[%d].valid_until", index), "binding is not fresh at executor invocation")
 		}
 	}
 	return nil
@@ -1122,6 +1343,10 @@ func canonicalizeRequest(request *ExecutionRequest) {
 		sort.Slice(request.RuntimeTargets[i].AccessCapabilities, func(left, right int) bool {
 			return request.RuntimeTargets[i].AccessCapabilities[left].Ref < request.RuntimeTargets[i].AccessCapabilities[right].Ref
 		})
+		sort.Strings(request.RuntimeTargets[i].BackupTargetBindingRefs)
+		sort.Slice(request.RuntimeTargets[i].BackupTargetCapabilities, func(left, right int) bool {
+			return request.RuntimeTargets[i].BackupTargetCapabilities[left].Ref < request.RuntimeTargets[i].BackupTargetCapabilities[right].Ref
+		})
 		sort.Slice(request.RuntimeTargets[i].DaemonBindings, func(left, right int) bool {
 			if request.RuntimeTargets[i].DaemonBindings[left].Ref == request.RuntimeTargets[i].DaemonBindings[right].Ref {
 				return request.RuntimeTargets[i].DaemonBindings[left].InstanceRef < request.RuntimeTargets[i].DaemonBindings[right].InstanceRef
@@ -1150,6 +1375,9 @@ func canonicalizeRequest(request *ExecutionRequest) {
 	for i := range request.AccessBindings {
 		sort.Strings(request.AccessBindings[i].TargetNodeRefs)
 	}
+	for i := range request.BackupTargetBindings {
+		sort.Strings(request.BackupTargetBindings[i].TargetNodeRefs)
+	}
 	sort.Slice(request.RuntimeTargets, func(i, j int) bool {
 		if request.RuntimeTargets[i].RequirementID == request.RuntimeTargets[j].RequirementID {
 			return request.RuntimeTargets[i].InstanceRef < request.RuntimeTargets[j].InstanceRef
@@ -1160,6 +1388,7 @@ func canonicalizeRequest(request *ExecutionRequest) {
 		return request.HealthTargets[i].RequirementID < request.HealthTargets[j].RequirementID
 	})
 	sort.Slice(request.AccessBindings, func(i, j int) bool { return request.AccessBindings[i].ID < request.AccessBindings[j].ID })
+	sort.Slice(request.BackupTargetBindings, func(i, j int) bool { return request.BackupTargetBindings[i].ID < request.BackupTargetBindings[j].ID })
 	sort.Slice(request.Artifacts, func(i, j int) bool { return request.Artifacts[i].ID < request.Artifacts[j].ID })
 }
 

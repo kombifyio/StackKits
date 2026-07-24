@@ -17,21 +17,27 @@ const APIVersion = "runtimeexecutor/v1beta1"
 
 // Bounded envelope limits keep validation and hashing predictable.
 const (
-	MaxRuntimeTargets     = 256
-	MaxHealthTargets      = 256
-	MaxAccessBindings     = 256
-	MaxArtifacts          = 512
-	MaxArtifactBytes      = 4 << 20
-	MaxTotalArtifactBytes = 32 << 20
-	MaxNodeRefsPerTarget  = 128
-	MaxSiteRefsPerTarget  = 128
-	MaxAdapterAgents      = 128
+	MaxRuntimeTargets       = 256
+	MaxHealthTargets        = 256
+	MaxAccessBindings       = 256
+	MaxBackupTargetBindings = 256
+	MaxArtifacts            = 512
+	MaxArtifactBytes        = 4 << 20
+	MaxTotalArtifactBytes   = 32 << 20
+	MaxNodeRefsPerTarget    = 128
+	MaxSiteRefsPerTarget    = 128
+	MaxAdapterAgents        = 128
 )
 
 // MaxAccessBindingValidity bounds one externally issued admission receipt.
 // It does not bound the lifetime of the externally managed access fabric; a
 // fresh binding must be issued when a later Apply is authorized.
 const MaxAccessBindingValidity = 24 * time.Hour
+
+// MaxBackupTargetBindingValidity bounds one externally issued backup-target
+// custody receipt. The backing target may outlive this receipt, but every
+// execution must carry a fresh authorization envelope.
+const MaxBackupTargetBindingValidity = 24 * time.Hour
 
 // ExecutorIdentity is the immutable identity selected by the owning control
 // plane. Digest is a canonical SHA-256 digest of the executable or adapter
@@ -97,32 +103,34 @@ type RuntimeAdapterBinding struct {
 // never an endpoint, address, provider reference, credential, or permission to
 // discover a target.
 type RuntimeTarget struct {
-	RequirementID        string                 `json:"requirement_id"`
-	OwnerKind            string                 `json:"owner_kind"`
-	OwnerRef             string                 `json:"owner_ref"`
-	OwnerVersion         string                 `json:"owner_version,omitempty"`
-	OwnerContractHash    string                 `json:"owner_contract_hash"`
-	ProviderRef          string                 `json:"provider_ref"`
-	ProviderContractHash string                 `json:"provider_contract_hash"`
-	ModuleRef            string                 `json:"module_ref,omitempty"`
-	ModuleContractHash   string                 `json:"module_contract_hash,omitempty"`
-	UnitRef              string                 `json:"unit_ref,omitempty"`
-	UnitContractHash     string                 `json:"unit_contract_hash,omitempty"`
-	RuntimeKind          string                 `json:"runtime_kind"`
-	RuntimeDelivery      string                 `json:"runtime_delivery"`
-	RuntimeEngine        string                 `json:"runtime_engine,omitempty"`
-	InstanceRef          string                 `json:"instance_ref"`
-	ExecutionChannelRef  string                 `json:"execution_channel_ref,omitempty"`
-	SiteRefs             []string               `json:"site_refs"`
-	NodeRefs             []string               `json:"node_refs"`
-	WorkloadRef          string                 `json:"workload_ref,omitempty"`
-	ImageRef             string                 `json:"image_ref,omitempty"`
-	ImageDigest          string                 `json:"image_digest,omitempty"`
-	DaemonBindings       []DaemonTarget         `json:"daemon_bindings"`
-	ArtifactRefs         []string               `json:"artifact_refs"`
-	RuntimeAdapter       *RuntimeAdapterBinding `json:"runtime_adapter,omitempty"`
-	AccessCapabilities   []AccessCapability     `json:"access_capabilities,omitempty"`
-	AccessBindingRefs    []string               `json:"access_binding_refs,omitempty"`
+	RequirementID            string                 `json:"requirement_id"`
+	OwnerKind                string                 `json:"owner_kind"`
+	OwnerRef                 string                 `json:"owner_ref"`
+	OwnerVersion             string                 `json:"owner_version,omitempty"`
+	OwnerContractHash        string                 `json:"owner_contract_hash"`
+	ProviderRef              string                 `json:"provider_ref"`
+	ProviderContractHash     string                 `json:"provider_contract_hash"`
+	ModuleRef                string                 `json:"module_ref,omitempty"`
+	ModuleContractHash       string                 `json:"module_contract_hash,omitempty"`
+	UnitRef                  string                 `json:"unit_ref,omitempty"`
+	UnitContractHash         string                 `json:"unit_contract_hash,omitempty"`
+	RuntimeKind              string                 `json:"runtime_kind"`
+	RuntimeDelivery          string                 `json:"runtime_delivery"`
+	RuntimeEngine            string                 `json:"runtime_engine,omitempty"`
+	InstanceRef              string                 `json:"instance_ref"`
+	ExecutionChannelRef      string                 `json:"execution_channel_ref,omitempty"`
+	SiteRefs                 []string               `json:"site_refs"`
+	NodeRefs                 []string               `json:"node_refs"`
+	WorkloadRef              string                 `json:"workload_ref,omitempty"`
+	ImageRef                 string                 `json:"image_ref,omitempty"`
+	ImageDigest              string                 `json:"image_digest,omitempty"`
+	DaemonBindings           []DaemonTarget         `json:"daemon_bindings"`
+	ArtifactRefs             []string               `json:"artifact_refs"`
+	RuntimeAdapter           *RuntimeAdapterBinding `json:"runtime_adapter,omitempty"`
+	AccessCapabilities       []AccessCapability     `json:"access_capabilities,omitempty"`
+	AccessBindingRefs        []string               `json:"access_binding_refs,omitempty"`
+	BackupTargetCapabilities []AccessCapability     `json:"backup_target_capabilities,omitempty"`
+	BackupTargetBindingRefs  []string               `json:"backup_target_binding_refs,omitempty"`
 }
 
 // AccessBinding is one exact, already-authorized Home access dependency for a
@@ -146,6 +154,34 @@ type AccessBinding struct {
 	BindingRef             string   `json:"binding_ref"`
 	BindingHash            string   `json:"binding_hash"`
 	AccessFabricRef        string   `json:"access_fabric_ref"`
+	StackKitsVersion       string   `json:"stackkits_version"`
+	CandidateDigest        string   `json:"candidate_digest"`
+	SpecHash               string   `json:"spec_hash"`
+	IssuedAt               string   `json:"issued_at"`
+	ValidUntil             string   `json:"valid_until"`
+	ProjectionHash         string   `json:"projection_hash"`
+}
+
+// BackupTargetBinding is one exact, already-authorized Cloud backup-target
+// dependency for a governed runtime target. It carries only StackKits-owned
+// requirement identity plus opaque target and custody-attestation references.
+// Provider, bucket, endpoint, credential, region, resource, lease, transport,
+// generation, and lifecycle details are deliberately absent.
+type BackupTargetBinding struct {
+	ID                     string   `json:"id"`
+	Kind                   string   `json:"kind"`
+	RuntimeRequirementID   string   `json:"runtime_requirement_id"`
+	StackID                string   `json:"stack_id"`
+	SiteRef                string   `json:"site_ref"`
+	CapabilityRef          string   `json:"capability_ref"`
+	ContractOwnerRef       string   `json:"contract_owner_ref"`
+	CapabilityContractHash string   `json:"capability_contract_hash"`
+	TargetNodeRefs         []string `json:"target_node_refs"`
+	RequirementsHash       string   `json:"requirements_hash"`
+	BindingRef             string   `json:"binding_ref"`
+	BindingHash            string   `json:"binding_hash"`
+	BackupTargetRef        string   `json:"backup_target_ref"`
+	CustodyAttestationRef  string   `json:"custody_attestation_ref"`
 	StackKitsVersion       string   `json:"stackkits_version"`
 	CandidateDigest        string   `json:"candidate_digest"`
 	SpecHash               string   `json:"spec_hash"`
@@ -213,20 +249,21 @@ type Artifact struct {
 // bind the upstream plan, generated output, generation receipt, complete Apply
 // requirements, authenticated evidence, and exact artifact set.
 type ExecutionRequest struct {
-	APIVersion            string           `json:"api_version"`
-	Executor              ExecutorIdentity `json:"executor"`
-	PlanHash              string           `json:"plan_hash"`
-	ManifestHash          string           `json:"manifest_hash"`
-	GenerationReceiptHash string           `json:"generation_receipt_hash"`
-	RequirementsHash      string           `json:"requirements_hash"`
-	EvidenceBundleHash    string           `json:"evidence_bundle_hash"`
-	AuthorizationTime     string           `json:"authorization_time,omitempty"`
-	ArtifactSetHash       string           `json:"artifact_set_hash"`
-	RuntimeTargets        []RuntimeTarget  `json:"runtime_targets"`
-	HealthTargets         []HealthTarget   `json:"health_targets"`
-	AccessBindings        []AccessBinding  `json:"access_bindings,omitempty"`
-	Artifacts             []Artifact       `json:"artifacts"`
-	RequestDigest         string           `json:"request_digest"`
+	APIVersion            string                `json:"api_version"`
+	Executor              ExecutorIdentity      `json:"executor"`
+	PlanHash              string                `json:"plan_hash"`
+	ManifestHash          string                `json:"manifest_hash"`
+	GenerationReceiptHash string                `json:"generation_receipt_hash"`
+	RequirementsHash      string                `json:"requirements_hash"`
+	EvidenceBundleHash    string                `json:"evidence_bundle_hash"`
+	AuthorizationTime     string                `json:"authorization_time,omitempty"`
+	ArtifactSetHash       string                `json:"artifact_set_hash"`
+	RuntimeTargets        []RuntimeTarget       `json:"runtime_targets"`
+	HealthTargets         []HealthTarget        `json:"health_targets"`
+	AccessBindings        []AccessBinding       `json:"access_bindings,omitempty"`
+	BackupTargetBindings  []BackupTargetBinding `json:"backup_target_bindings,omitempty"`
+	Artifacts             []Artifact            `json:"artifacts"`
+	RequestDigest         string                `json:"request_digest"`
 }
 
 // RuntimeStatus is the closed successful runtime outcome vocabulary.

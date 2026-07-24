@@ -1707,6 +1707,34 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 			if _, err := decodeHomeDeviceAuthorityInput(value, unitPath+".values."+binding.TargetRef); err != nil {
 				return nil, err
 			}
+		case "identityTrust.basementVerification":
+			if binding.ValueType != "basement-identity-verification-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "identityTrust.basementVerification has an invalid type or cardinality")
+			}
+			if _, exists := unit.Values[binding.TargetRef]; !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound Basement identity-verification value is missing")
+			}
+		case "identityTrust.cloudAuthority":
+			if binding.ValueType != "cloud-identity-authority-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "identityTrust.cloudAuthority has an invalid type or cardinality")
+			}
+			if _, exists := unit.Values[binding.TargetRef]; !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound Cloud identity-authority value is missing")
+			}
+		case "access.homeEnforcement":
+			if binding.ValueType != "home-access-enforcement-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "access.homeEnforcement has an invalid type or cardinality")
+			}
+			if _, exists := unit.Values[binding.TargetRef]; !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound Home access-enforcement value is missing")
+			}
+		case "localAutonomy.policy":
+			if binding.ValueType != "local-autonomy-policy-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "localAutonomy.policy has an invalid type or cardinality")
+			}
+			if _, exists := unit.Values[binding.TargetRef]; !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound local-autonomy policy value is missing")
+			}
 		case "network.routes":
 			if binding.ValueType != "authority-bound-service-route-list-v4" || binding.Cardinality != "list" {
 				return nil, fail(ErrInvalidPlan, path, "network.routes has an invalid type or cardinality")
@@ -2949,6 +2977,7 @@ var allowedRendererPlanInputRefs = map[string]struct{}{
 	"localReachability": {}, "identityTrust": {}, "homeLANDiscovery": {},
 	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
 	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicEdge": {}, "publicTLS": {},
+	"cloudOffsiteBackup": {},
 }
 
 func requireCompleteSecretRefs(refs map[string]json.RawMessage, declared map[string]struct{}, valuePath string) error {

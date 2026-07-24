@@ -52,7 +52,7 @@ func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request apply
 		return applyRuntimeExecutionResult{}, err
 	}
 	var result runtimeexecutor.ExecutionResult
-	if len(sharedRequest.AccessBindings) == 0 {
+	if len(sharedRequest.AccessBindings) == 0 && len(sharedRequest.BackupTargetBindings) == 0 {
 		result, err = runtimeexecutor.Invoke(ctx, b.executor, sharedRequest)
 	} else {
 		result, err = runtimeexecutor.InvokeAt(ctx, b.executor, sharedRequest, request.ExecutionAt)
@@ -80,13 +80,14 @@ func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecut
 		},
 		PlanHash: request.Binding.PlanHash, ManifestHash: request.ManifestHash,
 		GenerationReceiptHash: request.GenerationReceiptHash, RequirementsHash: request.RequirementsHash,
-		EvidenceBundleHash: request.EvidenceBundleHash,
-		AccessBindings:     make([]runtimeexecutor.AccessBinding, len(request.Requirements.AccessBindings)),
-		Artifacts:          make([]runtimeexecutor.Artifact, 0, len(request.Artifacts)),
+		EvidenceBundleHash:   request.EvidenceBundleHash,
+		AccessBindings:       make([]runtimeexecutor.AccessBinding, len(request.Requirements.AccessBindings)),
+		BackupTargetBindings: make([]runtimeexecutor.BackupTargetBinding, len(request.Requirements.BackupTargetBindings)),
+		Artifacts:            make([]runtimeexecutor.Artifact, 0, len(request.Artifacts)),
 	}
-	if len(request.Requirements.AccessBindings) != 0 {
+	if len(request.Requirements.AccessBindings) != 0 || len(request.Requirements.BackupTargetBindings) != 0 {
 		if request.ExecutionAt.IsZero() || request.ExecutionAt.Location() != time.UTC {
-			return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("Home access execution requires one exact UTC authorization instant")
+			return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("external binding execution requires one exact UTC authorization instant")
 		}
 		shared.AuthorizationTime = request.ExecutionAt.Format(time.RFC3339Nano)
 	}
@@ -104,6 +105,18 @@ func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecut
 			TargetNodeRefs: append([]string(nil), binding.TargetNodeRefs...), RequirementsHash: binding.RequirementsHash,
 			BindingRef: binding.BindingRef, BindingHash: binding.BindingHash, AccessFabricRef: binding.AccessFabricRef,
 			StackKitsVersion: binding.StackKitsVersion, CandidateDigest: binding.CandidateDigest, SpecHash: binding.SpecHash,
+			IssuedAt: binding.IssuedAt, ValidUntil: binding.ValidUntil,
+		}
+	}
+	for index, binding := range request.Requirements.BackupTargetBindings {
+		shared.BackupTargetBindings[index] = runtimeexecutor.BackupTargetBinding{
+			ID: binding.ID, Kind: "backup-target", RuntimeRequirementID: binding.RuntimeRequirementID,
+			StackID: binding.StackID, SiteRef: binding.SiteRef, CapabilityRef: binding.CapabilityRef,
+			ContractOwnerRef: binding.ContractOwnerRef, CapabilityContractHash: binding.CapabilityContractHash,
+			TargetNodeRefs: append([]string(nil), binding.TargetNodeRefs...), RequirementsHash: binding.RequirementsHash,
+			BindingRef: binding.BindingRef, BindingHash: binding.BindingHash, BackupTargetRef: binding.BackupTargetRef,
+			CustodyAttestationRef: binding.CustodyAttestationRef, StackKitsVersion: binding.StackKitsVersion,
+			CandidateDigest: binding.CandidateDigest, SpecHash: binding.SpecHash,
 			IssuedAt: binding.IssuedAt, ValidUntil: binding.ValidUntil,
 		}
 	}
@@ -147,6 +160,7 @@ func sharedRuntimeTargets(requirements generationartifact.ApplyRequirements) ([]
 			return nil, err
 		}
 		accessCapabilities := runtimeTargetAccessCapabilities(target.ID, requirements.AccessBindings)
+		backupTargetCapabilities := runtimeTargetBackupCapabilities(target.ID, requirements.BackupTargetBindings)
 		result[index] = runtimeexecutor.RuntimeTarget{
 			RequirementID: target.ID, OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef,
 			OwnerVersion: target.OwnerVersion, OwnerContractHash: target.OwnerContractHash, ProviderRef: target.ProviderRef,
@@ -158,10 +172,12 @@ func sharedRuntimeTargets(requirements generationartifact.ApplyRequirements) ([]
 			SiteRefs: append([]string(nil), target.SiteRefs...),
 			NodeRefs: append([]string(nil), target.NodeRefs...), WorkloadRef: target.WorkloadRef,
 			ImageRef: target.ImageRef, ImageDigest: target.ImageDigest, DaemonBindings: daemons,
-			ArtifactRefs:       append([]string(nil), target.ArtifactRefs...),
-			RuntimeAdapter:     sharedRuntimeAdapterRequirement(target.RuntimeAdapter),
-			AccessCapabilities: accessCapabilities,
-			AccessBindingRefs:  append([]string(nil), target.AccessBindingRefs...),
+			ArtifactRefs:             append([]string(nil), target.ArtifactRefs...),
+			RuntimeAdapter:           sharedRuntimeAdapterRequirement(target.RuntimeAdapter),
+			AccessCapabilities:       accessCapabilities,
+			AccessBindingRefs:        append([]string(nil), target.AccessBindingRefs...),
+			BackupTargetCapabilities: backupTargetCapabilities,
+			BackupTargetBindingRefs:  append([]string(nil), target.BackupTargetBindingRefs...),
 		}
 	}
 	return result, nil
@@ -231,6 +247,25 @@ func sharedRuntimeAdapterRequirement(input *generationartifact.ApplyRuntimeAdapt
 }
 
 func runtimeTargetAccessCapabilities(runtimeRequirementID string, bindings []generationartifact.ApplyAccessBindingRequirement) []runtimeexecutor.AccessCapability {
+	byRef := map[string]string{}
+	for _, binding := range bindings {
+		if binding.RuntimeRequirementID == runtimeRequirementID {
+			byRef[binding.CapabilityRef] = binding.CapabilityContractHash
+		}
+	}
+	refs := make([]string, 0, len(byRef))
+	for ref := range byRef {
+		refs = append(refs, ref)
+	}
+	sort.Strings(refs)
+	result := make([]runtimeexecutor.AccessCapability, 0, len(refs))
+	for _, ref := range refs {
+		result = append(result, runtimeexecutor.AccessCapability{Ref: ref, ContractHash: byRef[ref]})
+	}
+	return result
+}
+
+func runtimeTargetBackupCapabilities(runtimeRequirementID string, bindings []generationartifact.ApplyBackupTargetBindingRequirement) []runtimeexecutor.AccessCapability {
 	byRef := map[string]string{}
 	for _, binding := range bindings {
 		if binding.RuntimeRequirementID == runtimeRequirementID {

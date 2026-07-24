@@ -113,6 +113,25 @@ func newProductRuntimeOwnerApplyExecutorRegistry(
 			accessCapabilities = append(accessCapabilities, capability)
 		}
 	}
+	backupTargetCapabilities := make([]applyAccessCapability, 0, len(requirements.BackupTargetBindings))
+	backupTargetCapabilitySet := make(map[applyAccessCapability]struct{}, len(requirements.BackupTargetBindings))
+	for _, binding := range requirements.BackupTargetBindings {
+		target, exists := runtimeByID[binding.RuntimeRequirementID]
+		if !exists || binding.ContractOwnerRef != target.ProviderRef {
+			return nil, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.executor.backupTargetCapabilities", "Cloud backup-target binding has no exact runtime owner", nil)
+		}
+		capability := applyAccessCapability{
+			OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef, OwnerContractHash: target.OwnerContractHash,
+			ProviderRef: target.ProviderRef, ProviderContractHash: target.ProviderContractHash,
+			ModuleRef: target.ModuleRef, ModuleContractHash: target.ModuleContractHash,
+			UnitRef: target.UnitRef, UnitContractHash: target.UnitContractHash,
+			CapabilityRef: binding.CapabilityRef, CapabilityContractHash: binding.CapabilityContractHash,
+		}
+		if _, exists := backupTargetCapabilitySet[capability]; !exists {
+			backupTargetCapabilitySet[capability] = struct{}{}
+			backupTargetCapabilities = append(backupTargetCapabilities, capability)
+		}
+	}
 	artifacts := make([]applyArtifactCapability, 0, len(requirements.Artifacts))
 	artifactSet := make(map[applyArtifactCapability]struct{}, len(requirements.Artifacts))
 	for _, artifact := range requirements.Artifacts {
@@ -137,7 +156,8 @@ func newProductRuntimeOwnerApplyExecutorRegistry(
 	}
 	return newApplyExecutorRegistry(applyExecutorRegistration{
 		Adapter: owners, Capabilities: capabilities, AccessCapabilities: accessCapabilities,
-		ArtifactContracts: artifacts, TrustedProducers: trustedProducers,
+		BackupTargetCapabilities: backupTargetCapabilities,
+		ArtifactContracts:        artifacts, TrustedProducers: trustedProducers,
 	})
 }
 

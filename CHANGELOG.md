@@ -4,6 +4,46 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.15] - 2026-07-24
+
+> **Stable v0.x Cloud offsite-backup Runtime patch**, shipped with Basement
+> Kit, Cloud Kit, and Modern Homelab as the three public release families.
+
+### Added
+
+- A provider-free, node-local Cloud offsite-backup Runtime that binds an exact
+  opaque backup target and custody attestation, removes obsolete bindings,
+  verifies a fresh backup plus restore/readback, and durably commits evidence.
+- Shared request contracts that recompute requirement, binding, and projection
+  hashes and recheck the maximum-24-hour binding at the actual invocation
+  instant.
+
+### Changed
+
+- `stackkits-cloud-offsite-backup-runtime` is now v1.1.0, executable, and
+  `apply-ready` for its exact generated Runtime and Health target.
+- Current v2 node-local Cloud renderer contracts use exact registered versions,
+  placements, and compiler input projections.
+- Basement Kit, Cloud Kit, and Modern Homelab remain included as dedicated
+  Linux amd64/arm64, macOS amd64/arm64, and Windows amd64 archives plus the
+  full StackKits bundle. Modern Homelab remains explicitly Preview.
+
+### Security
+
+- Missing, expired, widened, substituted, partial, stale, future,
+  non-monotonic, state-digest-mismatched, or custody-digest-mismatched
+  authority and evidence fails closed.
+- Provider selection, accounts, regions, buckets, endpoints, credentials,
+  leases, resource IDs, target lifecycle, and transport remain outside
+  StackKits authority.
+
+### Known limitations
+
+- Modern Homelab remains Preview until its remaining control, policy,
+  partition, backup, observability, and live-evidence owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.14] - 2026-07-24
 
 > **Stable v0.x Cloud Public-Edge Runtime patch** for both Cloud Kit and the

@@ -73,11 +73,12 @@ type applyAccessCapability struct {
 }
 
 type applyExecutorRegistration struct {
-	Adapter            runtimeexecutor.Executor
-	Capabilities       []applyRuntimeCapability
-	AccessCapabilities []applyAccessCapability
-	ArtifactContracts  []applyArtifactCapability
-	TrustedProducers   map[string]generationartifact.ApplyEvidenceProducerTrust
+	Adapter                  runtimeexecutor.Executor
+	Capabilities             []applyRuntimeCapability
+	AccessCapabilities       []applyAccessCapability
+	BackupTargetCapabilities []applyAccessCapability
+	ArtifactContracts        []applyArtifactCapability
+	TrustedProducers         map[string]generationartifact.ApplyEvidenceProducerTrust
 }
 
 type applyRuntimeExecutor interface {
@@ -86,12 +87,13 @@ type applyRuntimeExecutor interface {
 }
 
 type applyExecutorEntry struct {
-	identity           generationartifact.ApplyExecutorIdentity
-	adapter            applyRuntimeExecutor
-	capabilities       map[applyRuntimeCapability]struct{}
-	accessCapabilities map[applyAccessCapability]struct{}
-	artifactContracts  map[applyArtifactCapability]struct{}
-	trustedProducers   map[string]generationartifact.ApplyEvidenceProducerTrust
+	identity                 generationartifact.ApplyExecutorIdentity
+	adapter                  applyRuntimeExecutor
+	capabilities             map[applyRuntimeCapability]struct{}
+	accessCapabilities       map[applyAccessCapability]struct{}
+	backupTargetCapabilities map[applyAccessCapability]struct{}
+	artifactContracts        map[applyArtifactCapability]struct{}
+	trustedProducers         map[string]generationartifact.ApplyEvidenceProducerTrust
 }
 
 // applyExecutorRegistry is package-private until a product registry can bind
@@ -188,8 +190,37 @@ func newApplyExecutorRegistry(registration applyExecutorRegistration) (*applyExe
 		}
 		accessCapabilities[capability] = struct{}{}
 	}
+	backupTargetCapabilities := make(map[applyAccessCapability]struct{}, len(registration.BackupTargetCapabilities))
+	for index, capability := range registration.BackupTargetCapabilities {
+		if capability.OwnerKind != strings.TrimSpace(capability.OwnerKind) || capability.OwnerRef != strings.TrimSpace(capability.OwnerRef) ||
+			capability.ProviderRef != strings.TrimSpace(capability.ProviderRef) || capability.ModuleRef != strings.TrimSpace(capability.ModuleRef) ||
+			capability.UnitRef != strings.TrimSpace(capability.UnitRef) || capability.CapabilityRef != "offsite-object-backup" ||
+			capability.OwnerKind == "" || capability.OwnerRef == "" || capability.ProviderRef == "" ||
+			!validApplySHA256(capability.OwnerContractHash) || !validApplySHA256(capability.ProviderContractHash) ||
+			!validApplySHA256(capability.ModuleContractHash) || !validApplySHA256(capability.UnitContractHash) || !validApplySHA256(capability.CapabilityContractHash) {
+			return nil, applyExecutorError(generationartifact.ErrInvalidContract, fmt.Sprintf("apply.executor.backupTargetCapabilities[%d]", index), "exact runtime authority and Cloud backup-target capability contracts must be canonical", nil)
+		}
+		matchesRuntimeAuthority := false
+		for runtimeCapability := range capabilities {
+			if runtimeCapability.OwnerKind == capability.OwnerKind && runtimeCapability.OwnerRef == capability.OwnerRef && runtimeCapability.OwnerContractHash == capability.OwnerContractHash &&
+				runtimeCapability.ProviderRef == capability.ProviderRef && runtimeCapability.ProviderContractHash == capability.ProviderContractHash &&
+				runtimeCapability.ModuleRef == capability.ModuleRef && runtimeCapability.ModuleContractHash == capability.ModuleContractHash &&
+				runtimeCapability.UnitRef == capability.UnitRef && runtimeCapability.UnitContractHash == capability.UnitContractHash {
+				matchesRuntimeAuthority = true
+				break
+			}
+		}
+		if !matchesRuntimeAuthority {
+			return nil, applyExecutorError(generationartifact.ErrInvalidContract, fmt.Sprintf("apply.executor.backupTargetCapabilities[%d]", index), "backup-target capability has no exact registered runtime authority", nil)
+		}
+		if _, duplicate := backupTargetCapabilities[capability]; duplicate {
+			return nil, applyExecutorError(generationartifact.ErrInvalidContract, fmt.Sprintf("apply.executor.backupTargetCapabilities[%d]", index), "duplicate Cloud backup-target capability", nil)
+		}
+		backupTargetCapabilities[capability] = struct{}{}
+	}
 	return &applyExecutorRegistry{entry: applyExecutorEntry{
-		identity: identity, adapter: adapter, capabilities: capabilities, accessCapabilities: accessCapabilities, artifactContracts: artifactContracts,
+		identity: identity, adapter: adapter, capabilities: capabilities, accessCapabilities: accessCapabilities,
+		backupTargetCapabilities: backupTargetCapabilities, artifactContracts: artifactContracts,
 		trustedProducers: cloneApplyProducerTrust(registration.TrustedProducers),
 	}}, nil
 }
@@ -390,6 +421,22 @@ func validateApplyExecutionSupport(entry applyExecutorEntry, requirements genera
 		}
 		if _, supported := entry.accessCapabilities[capability]; !supported {
 			return applyExecutorError(generationartifact.ErrExecutorMissing, "apply.executor.accessCapabilities", "selected adapter does not consume exact Home access capability %q", nil, binding.CapabilityRef)
+		}
+	}
+	for _, binding := range requirements.BackupTargetBindings {
+		runtime, exists := runtimeByID[binding.RuntimeRequirementID]
+		if !exists || !containsApplyString(runtime.BackupTargetBindingRefs, binding.ID) || binding.ContractOwnerRef != runtime.ProviderRef {
+			return applyExecutorError(generationartifact.ErrBindingMismatch, "apply.executor.backupTargetCapabilities", "Cloud backup-target binding %q has no exact governed runtime authority", nil, binding.ID)
+		}
+		capability := applyAccessCapability{
+			OwnerKind: runtime.OwnerKind, OwnerRef: runtime.OwnerRef, OwnerContractHash: runtime.OwnerContractHash,
+			ProviderRef: runtime.ProviderRef, ProviderContractHash: runtime.ProviderContractHash,
+			ModuleRef: runtime.ModuleRef, ModuleContractHash: runtime.ModuleContractHash,
+			UnitRef: runtime.UnitRef, UnitContractHash: runtime.UnitContractHash,
+			CapabilityRef: binding.CapabilityRef, CapabilityContractHash: binding.CapabilityContractHash,
+		}
+		if _, supported := entry.backupTargetCapabilities[capability]; !supported {
+			return applyExecutorError(generationartifact.ErrExecutorMissing, "apply.executor.backupTargetCapabilities", "selected adapter does not consume exact Cloud backup-target capability %q", nil, binding.CapabilityRef)
 		}
 	}
 	for _, artifact := range artifacts {

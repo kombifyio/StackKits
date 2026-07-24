@@ -24,16 +24,17 @@ const (
 // Runtime targets are derived from resolved render instances, never from
 // generated files or ambient host discovery.
 type ApplyRequirements struct {
-	Binding              PlanBinding                     `json:"binding"`
-	Workloads            []ApplyWorkloadRequirement      `json:"workloads"`
-	Secrets              []ApplySecretRequirement        `json:"secrets"`
-	RuntimeInstances     []ApplyRuntimeRequirement       `json:"runtimeInstances"`
-	Artifacts            []ApplyArtifactRequirement      `json:"artifacts"`
-	Hosts                []ApplyHostRequirement          `json:"hosts"`
-	ProviderOwners       []ApplyProviderOwnerRequirement `json:"providerOwners"`
-	AccessBindings       []ApplyAccessBindingRequirement `json:"accessBindings,omitempty"`
-	EvidenceRequirements []ApplyEvidenceRequirement      `json:"evidenceRequirements"`
-	HealthRequirements   []ApplyHealthRequirement        `json:"healthRequirements"`
+	Binding              PlanBinding                           `json:"binding"`
+	Workloads            []ApplyWorkloadRequirement            `json:"workloads"`
+	Secrets              []ApplySecretRequirement              `json:"secrets"`
+	RuntimeInstances     []ApplyRuntimeRequirement             `json:"runtimeInstances"`
+	Artifacts            []ApplyArtifactRequirement            `json:"artifacts"`
+	Hosts                []ApplyHostRequirement                `json:"hosts"`
+	ProviderOwners       []ApplyProviderOwnerRequirement       `json:"providerOwners"`
+	AccessBindings       []ApplyAccessBindingRequirement       `json:"accessBindings,omitempty"`
+	BackupTargetBindings []ApplyBackupTargetBindingRequirement `json:"backupTargetBindings,omitempty"`
+	EvidenceRequirements []ApplyEvidenceRequirement            `json:"evidenceRequirements"`
+	HealthRequirements   []ApplyHealthRequirement              `json:"healthRequirements"`
 }
 
 type ApplyWorkloadRequirement struct {
@@ -75,32 +76,33 @@ type ApplyDaemonRequirement struct {
 }
 
 type ApplyRuntimeRequirement struct {
-	ID                   string                          `json:"id"`
-	OwnerKind            string                          `json:"ownerKind"`
-	OwnerRef             string                          `json:"ownerRef"`
-	OwnerVersion         string                          `json:"ownerVersion,omitempty"`
-	OwnerContractHash    string                          `json:"ownerContractHash"`
-	ProviderRef          string                          `json:"providerRef"`
-	ProviderContractHash string                          `json:"providerContractHash"`
-	ModuleRef            string                          `json:"moduleRef,omitempty"`
-	ModuleContractHash   string                          `json:"moduleContractHash,omitempty"`
-	UnitRef              string                          `json:"unitRef,omitempty"`
-	UnitContractHash     string                          `json:"unitContractHash,omitempty"`
-	InstanceRef          string                          `json:"instanceRef"`
-	WorkloadRef          string                          `json:"workloadRef,omitempty"`
-	RuntimeKind          string                          `json:"runtimeKind"`
-	RuntimeDelivery      string                          `json:"runtimeDelivery"`
-	RuntimeEngine        string                          `json:"runtimeEngine,omitempty"`
-	ImageRef             string                          `json:"imageRef,omitempty"`
-	ImageDigest          string                          `json:"imageDigest,omitempty"`
-	SiteRefs             []string                        `json:"siteRefs"`
-	NodeRefs             []string                        `json:"nodeRefs"`
-	HealthGateRefs       []string                        `json:"healthGateRefs,omitempty"`
-	EvidenceGateRefs     []string                        `json:"evidenceGateRefs,omitempty"`
-	DaemonBindings       []ApplyDaemonRequirement        `json:"daemonBindings"`
-	ArtifactRefs         []string                        `json:"artifactRefs"`
-	RuntimeAdapter       *ApplyRuntimeAdapterRequirement `json:"runtimeAdapter,omitempty"`
-	AccessBindingRefs    []string                        `json:"accessBindingRefs,omitempty"`
+	ID                      string                          `json:"id"`
+	OwnerKind               string                          `json:"ownerKind"`
+	OwnerRef                string                          `json:"ownerRef"`
+	OwnerVersion            string                          `json:"ownerVersion,omitempty"`
+	OwnerContractHash       string                          `json:"ownerContractHash"`
+	ProviderRef             string                          `json:"providerRef"`
+	ProviderContractHash    string                          `json:"providerContractHash"`
+	ModuleRef               string                          `json:"moduleRef,omitempty"`
+	ModuleContractHash      string                          `json:"moduleContractHash,omitempty"`
+	UnitRef                 string                          `json:"unitRef,omitempty"`
+	UnitContractHash        string                          `json:"unitContractHash,omitempty"`
+	InstanceRef             string                          `json:"instanceRef"`
+	WorkloadRef             string                          `json:"workloadRef,omitempty"`
+	RuntimeKind             string                          `json:"runtimeKind"`
+	RuntimeDelivery         string                          `json:"runtimeDelivery"`
+	RuntimeEngine           string                          `json:"runtimeEngine,omitempty"`
+	ImageRef                string                          `json:"imageRef,omitempty"`
+	ImageDigest             string                          `json:"imageDigest,omitempty"`
+	SiteRefs                []string                        `json:"siteRefs"`
+	NodeRefs                []string                        `json:"nodeRefs"`
+	HealthGateRefs          []string                        `json:"healthGateRefs,omitempty"`
+	EvidenceGateRefs        []string                        `json:"evidenceGateRefs,omitempty"`
+	DaemonBindings          []ApplyDaemonRequirement        `json:"daemonBindings"`
+	ArtifactRefs            []string                        `json:"artifactRefs"`
+	RuntimeAdapter          *ApplyRuntimeAdapterRequirement `json:"runtimeAdapter,omitempty"`
+	AccessBindingRefs       []string                        `json:"accessBindingRefs,omitempty"`
+	BackupTargetBindingRefs []string                        `json:"backupTargetBindingRefs,omitempty"`
 }
 
 type ApplyRuntimeAdapterAgentRequirement struct {
@@ -144,6 +146,30 @@ type ApplyAccessBindingRequirement struct {
 	BindingRef             string   `json:"bindingRef"`
 	BindingHash            string   `json:"bindingHash"`
 	AccessFabricRef        string   `json:"accessFabricRef"`
+	StackKitsVersion       string   `json:"stackkitsVersion"`
+	CandidateDigest        string   `json:"candidateDigest"`
+	SpecHash               string   `json:"specHash"`
+	IssuedAt               string   `json:"issuedAt"`
+	ValidUntil             string   `json:"validUntil"`
+}
+
+// ApplyBackupTargetBindingRequirement is the exact provider-free projection of
+// one externally realized Cloud backup-target requirement. It carries opaque
+// target and custody refs, never provider or object-storage connection data.
+type ApplyBackupTargetBindingRequirement struct {
+	ID                     string   `json:"id"`
+	RuntimeRequirementID   string   `json:"runtimeRequirementId"`
+	StackID                string   `json:"stackId"`
+	SiteRef                string   `json:"siteRef"`
+	CapabilityRef          string   `json:"capabilityRef"`
+	ContractOwnerRef       string   `json:"contractOwnerRef"`
+	CapabilityContractHash string   `json:"capabilityContractHash"`
+	TargetNodeRefs         []string `json:"targetNodeRefs"`
+	RequirementsHash       string   `json:"requirementsHash"`
+	BindingRef             string   `json:"bindingRef"`
+	BindingHash            string   `json:"bindingHash"`
+	BackupTargetRef        string   `json:"backupTargetRef"`
+	CustodyAttestationRef  string   `json:"custodyAttestationRef"`
 	StackKitsVersion       string   `json:"stackkitsVersion"`
 	CandidateDigest        string   `json:"candidateDigest"`
 	SpecHash               string   `json:"specHash"`
@@ -248,7 +274,8 @@ func applyRequirementsFromPlan(plan resolvedplan.ResolvedPlan, binding PlanBindi
 	result := ApplyRequirements{
 		Binding: binding, Workloads: []ApplyWorkloadRequirement{}, Secrets: []ApplySecretRequirement{},
 		RuntimeInstances: []ApplyRuntimeRequirement{}, Artifacts: []ApplyArtifactRequirement{}, Hosts: []ApplyHostRequirement{}, ProviderOwners: []ApplyProviderOwnerRequirement{},
-		AccessBindings: []ApplyAccessBindingRequirement{}, EvidenceRequirements: []ApplyEvidenceRequirement{}, HealthRequirements: []ApplyHealthRequirement{},
+		AccessBindings: []ApplyAccessBindingRequirement{}, BackupTargetBindings: []ApplyBackupTargetBindingRequirement{},
+		EvidenceRequirements: []ApplyEvidenceRequirement{}, HealthRequirements: []ApplyHealthRequirement{},
 	}
 	providerContracts, err := parseApplyProviderContracts(plan)
 	if err != nil {
@@ -267,6 +294,9 @@ func applyRequirementsFromPlan(plan resolvedplan.ResolvedPlan, binding PlanBindi
 		return ApplyRequirements{}, err
 	}
 	if err := appendApplyAccessBindingRequirements(plan, modules, &result); err != nil {
+		return ApplyRequirements{}, err
+	}
+	if err := appendApplyBackupTargetBindingRequirements(plan, modules, &result); err != nil {
 		return ApplyRequirements{}, err
 	}
 	if err := appendApplyModuleSecretSources(modules, workloadByModule, &result); err != nil {
@@ -304,6 +334,9 @@ func applyRequirementsFromPlan(plan resolvedplan.ResolvedPlan, binding PlanBindi
 		return ApplyRequirements{}, err
 	}
 	if err := validateApplyAccessBindingClosure(result); err != nil {
+		return ApplyRequirements{}, err
+	}
+	if err := validateApplyBackupTargetBindingClosure(result); err != nil {
 		return ApplyRequirements{}, err
 	}
 	if err := validateApplyRequirementIDs(result); err != nil {
@@ -1691,6 +1724,7 @@ func validateApplyRequirementIDs(requirements ApplyRequirements) error {
 		{path: "hosts", ids: applyRequirementIDs(requirements.Hosts, func(value ApplyHostRequirement) string { return value.NodeRef })},
 		{path: "providerOwners", ids: applyRequirementIDs(requirements.ProviderOwners, func(value ApplyProviderOwnerRequirement) string { return value.ID })},
 		{path: "accessBindings", ids: applyRequirementIDs(requirements.AccessBindings, func(value ApplyAccessBindingRequirement) string { return value.ID })},
+		{path: "backupTargetBindings", ids: applyRequirementIDs(requirements.BackupTargetBindings, func(value ApplyBackupTargetBindingRequirement) string { return value.ID })},
 		{path: "evidence", ids: applyRequirementIDs(requirements.EvidenceRequirements, func(value ApplyEvidenceRequirement) string { return value.ID })},
 		{path: "health", ids: applyRequirementIDs(requirements.HealthRequirements, func(value ApplyHealthRequirement) string { return value.ID })},
 	}
@@ -1917,6 +1951,7 @@ func sortApplyRequirements(result *ApplyRequirements) {
 			})
 		}
 		sort.Strings(result.RuntimeInstances[index].AccessBindingRefs)
+		sort.Strings(result.RuntimeInstances[index].BackupTargetBindingRefs)
 	}
 	for index := range result.Artifacts {
 		sort.Strings(result.Artifacts[index].SiteRefs)
@@ -1936,6 +1971,9 @@ func sortApplyRequirements(result *ApplyRequirements) {
 	for index := range result.AccessBindings {
 		sort.Strings(result.AccessBindings[index].TargetNodeRefs)
 	}
+	for index := range result.BackupTargetBindings {
+		sort.Strings(result.BackupTargetBindings[index].TargetNodeRefs)
+	}
 	for index := range result.EvidenceRequirements {
 		sort.Strings(result.EvidenceRequirements[index].HealthGateRefs)
 		sort.Strings(result.EvidenceRequirements[index].ArtifactRefs)
@@ -1954,6 +1992,7 @@ func sortApplyRequirements(result *ApplyRequirements) {
 	sort.Slice(result.Hosts, func(i, j int) bool { return result.Hosts[i].NodeRef < result.Hosts[j].NodeRef })
 	sort.Slice(result.ProviderOwners, func(i, j int) bool { return result.ProviderOwners[i].ID < result.ProviderOwners[j].ID })
 	sort.Slice(result.AccessBindings, func(i, j int) bool { return result.AccessBindings[i].ID < result.AccessBindings[j].ID })
+	sort.Slice(result.BackupTargetBindings, func(i, j int) bool { return result.BackupTargetBindings[i].ID < result.BackupTargetBindings[j].ID })
 	sort.Slice(result.EvidenceRequirements, func(i, j int) bool { return result.EvidenceRequirements[i].ID < result.EvidenceRequirements[j].ID })
 	sort.Slice(result.HealthRequirements, func(i, j int) bool { return result.HealthRequirements[i].ID < result.HealthRequirements[j].ID })
 }
@@ -1991,6 +2030,7 @@ func cloneApplyRequirements(source ApplyRequirements) ApplyRequirements {
 		result.RuntimeInstances[index].ArtifactRefs = append([]string(nil), source.RuntimeInstances[index].ArtifactRefs...)
 		result.RuntimeInstances[index].RuntimeAdapter = cloneApplyRuntimeAdapterRequirement(source.RuntimeInstances[index].RuntimeAdapter)
 		result.RuntimeInstances[index].AccessBindingRefs = append([]string(nil), source.RuntimeInstances[index].AccessBindingRefs...)
+		result.RuntimeInstances[index].BackupTargetBindingRefs = append([]string(nil), source.RuntimeInstances[index].BackupTargetBindingRefs...)
 	}
 	result.Artifacts = append([]ApplyArtifactRequirement(nil), source.Artifacts...)
 	for index := range result.Artifacts {
@@ -2009,6 +2049,10 @@ func cloneApplyRequirements(source ApplyRequirements) ApplyRequirements {
 	result.AccessBindings = append([]ApplyAccessBindingRequirement(nil), source.AccessBindings...)
 	for index := range result.AccessBindings {
 		result.AccessBindings[index].TargetNodeRefs = append([]string(nil), source.AccessBindings[index].TargetNodeRefs...)
+	}
+	result.BackupTargetBindings = append([]ApplyBackupTargetBindingRequirement(nil), source.BackupTargetBindings...)
+	for index := range result.BackupTargetBindings {
+		result.BackupTargetBindings[index].TargetNodeRefs = append([]string(nil), source.BackupTargetBindings[index].TargetNodeRefs...)
 	}
 	result.EvidenceRequirements = append([]ApplyEvidenceRequirement(nil), source.EvidenceRequirements...)
 	for index := range result.EvidenceRequirements {

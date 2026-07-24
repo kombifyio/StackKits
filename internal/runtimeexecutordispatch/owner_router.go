@@ -194,6 +194,10 @@ func partitionOwnerRequest(request runtimeexecutor.ExecutionRequest, channelRef,
 	for _, binding := range request.AccessBindings {
 		bindings[binding.ID] = binding
 	}
+	backupBindings := make(map[string]runtimeexecutor.BackupTargetBinding, len(request.BackupTargetBindings))
+	for _, binding := range request.BackupTargetBindings {
+		backupBindings[binding.ID] = binding
+	}
 	for targetHash, group := range groups {
 		if len(group.runtime) != 1 || len(group.health) == 0 {
 			return nil, nil, fmt.Errorf("runtime owner %q has an incomplete runtime/health set", group.runtime[0].RequirementID)
@@ -206,7 +210,15 @@ func partitionOwnerRequest(request runtimeexecutor.ExecutionRequest, channelRef,
 			}
 			group.accessBindings = append(group.accessBindings, binding)
 		}
+		for _, bindingRef := range target.BackupTargetBindingRefs {
+			binding, exists := backupBindings[bindingRef]
+			if !exists || binding.RuntimeRequirementID != target.RequirementID {
+				return nil, nil, fmt.Errorf("runtime target %q has an absent or foreign backup-target binding", target.RequirementID)
+			}
+			group.backupTargetBindings = append(group.backupTargetBindings, binding)
+		}
 		sort.Slice(group.accessBindings, func(i, j int) bool { return group.accessBindings[i].ID < group.accessBindings[j].ID })
+		sort.Slice(group.backupTargetBindings, func(i, j int) bool { return group.backupTargetBindings[i].ID < group.backupTargetBindings[j].ID })
 		groups[targetHash] = group
 	}
 	sort.Slice(selected, func(i, j int) bool {

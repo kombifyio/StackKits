@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -16,10 +17,9 @@ import (
 )
 
 const (
-	executorContractBundleUnitID          = "executor-contract"
-	executorContractBundleRendererRef     = "stackkit"
-	executorContractBundleRendererVersion = "1.0.0"
-	executorContractBundleToken           = "@@PLAN_INPUTS@@"
+	executorContractBundleUnitID      = "executor-contract"
+	executorContractBundleRendererRef = "stackkit"
+	executorContractBundleToken       = "@@PLAN_INPUTS@@"
 
 	coreRuntimeModuleID      = "stackkits-core-runtime"
 	coreRuntimeModuleVersion = "2.0.0"
@@ -69,8 +69,8 @@ const (
 	cloudPublicEdgeOutputRef     = "cloud/public-edge/executor-contract.json"
 
 	cloudOffsiteBackupModuleID      = "stackkits-cloud-offsite-backup-runtime"
-	cloudOffsiteBackupModuleVersion = "1.0.0"
-	cloudOffsiteBackupTemplateRef   = "builtin://cloud/backup/executor-contract/v1.json"
+	cloudOffsiteBackupModuleVersion = "1.1.0"
+	cloudOffsiteBackupTemplateRef   = "builtin://cloud/backup/executor-contract/v2.json"
 	cloudOffsiteBackupOutputRef     = "cloud/backup/executor-contract.json"
 	cloudBackupTargetCapability     = "offsite-object-backup"
 
@@ -102,6 +102,7 @@ const (
 const executorContractBundleContract = `"contract":{"apply":"not-implemented","credentials":"not-included","generation":"supported","providerLifecycle":"not-owned","runtimeEnforcement":"unverified","scope":"generation-only","serverProviderAuthority":"not-owned"}`
 const federationLinkExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","endpointDiscovery":"external-owner","fabricLifecycle":"not-owned","generation":"supported","operations":["establish-inter-site-link","remove-inter-site-link","verify-inter-site-link"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-declared-flows-only","runtimeEnforcement":"adapter-verified","scope":"federated-site-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 const cloudPublicEdgeExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-public-edge","remove-obsolete-public-edge","verify-public-edge","commit-cloud-public-edge-evidence"],"providerLifecycle":"not-owned","routeAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned"}`
+const cloudOffsiteBackupExecutorContract = `"contract":{"apply":"typed-local-operations","backupTargetAuthority":"external-binding-exact","credentials":"external-owner","generation":"supported","operations":["bind-offsite-backup-target","remove-obsolete-offsite-backup-binding","verify-offsite-backup-target","commit-cloud-offsite-backup-evidence"],"providerLifecycle":"not-owned","providerSelection":"external-owner","restoreVerification":"required","runtimeEnforcement":"adapter-verified","scope":"cloud-backup-node","serverProviderAuthority":"not-owned","targetLifecycle":"not-owned","transportImplementation":"external-owner"}`
 const bridgePublicationExecutorContract = `"contract":{"apply":"typed-local-operations","certificateIssuance":"not-owned","credentials":"not-included","dnsMutation":"not-owned","generation":"supported","operations":["apply-service-publication","remove-service-publication","verify-service-publication"],"providerLifecycle":"not-owned","publicationAuthority":"compiler-owned-exact","runtimeEnforcement":"adapter-verified","scope":"cloud-edge-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 const bridgeOriginMTLSExecutorContract = `"contract":{"apply":"typed-local-operations","credentials":"external-owner","generation":"supported","operations":["bind-origin-mtls-proxy","remove-origin-mtls-proxy","verify-origin-mtls"],"providerLifecycle":"not-owned","reverseTrust":"forbidden","runtimeEnforcement":"adapter-verified","scope":"home-origin-node","serverProviderAuthority":"not-owned","transportImplementation":"external-owner"}`
 
@@ -180,6 +181,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	{
 		moduleID: cloudOffsiteBackupModuleID, moduleVersion: cloudOffsiteBackupModuleVersion,
 		templateRef: cloudOffsiteBackupTemplateRef, outputRef: cloudOffsiteBackupOutputRef,
+		contractJSON:  cloudOffsiteBackupExecutorContract,
 		planInputRefs: []string{"cloudOffsiteBackup", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
 		allowedCapabilities:  []string{"offsite-object-backup"},
@@ -410,9 +412,117 @@ func ValidateCloudPublicEdgeExecutorArtifact(raw []byte, siteRef, nodeRef string
 }
 
 // CloudOffsiteBackupExecutorBundleRendererContract returns the exact
-// generation-only Cloud offsite-backup target handoff identity.
+// executable Cloud offsite-backup target binding identity.
 func CloudOffsiteBackupExecutorBundleRendererContract() RendererContract {
 	return newExecutorContractBundleRenderer(executorContractBundleSpecs[7]).contract
+}
+
+// CloudOffsiteBackupPolicy is the exact provider-free target/custody policy
+// selected for one caller-bound Cloud node.
+type CloudOffsiteBackupPolicy struct {
+	StackID                string
+	KitSlug                string
+	SiteRef                string
+	NodeRef                string
+	CapabilityRef          string
+	ContractOwnerRef       string
+	CapabilityContractHash string
+	RequirementsHash       string
+	BindingRef             string
+	BindingHash            string
+	BackupTargetRef        string
+	CustodyAttestationRef  string
+	StackKitsVersion       string
+	CandidateDigest        string
+	SpecHash               string
+	IssuedAt               string
+	ValidUntil             string
+}
+
+type cloudOffsiteBackupExecutorDocument struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Module     struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	} `json:"module"`
+	Contract struct {
+		Apply                   string   `json:"apply"`
+		BackupTargetAuthority   string   `json:"backupTargetAuthority"`
+		Credentials             string   `json:"credentials"`
+		Generation              string   `json:"generation"`
+		Operations              []string `json:"operations"`
+		ProviderLifecycle       string   `json:"providerLifecycle"`
+		ProviderSelection       string   `json:"providerSelection"`
+		RestoreVerification     string   `json:"restoreVerification"`
+		RuntimeEnforcement      string   `json:"runtimeEnforcement"`
+		Scope                   string   `json:"scope"`
+		ServerProviderAuthority string   `json:"serverProviderAuthority"`
+		TargetLifecycle         string   `json:"targetLifecycle"`
+		TransportImplementation string   `json:"transportImplementation"`
+	} `json:"contract"`
+	PlanInputs json.RawMessage `json:"planInputs"`
+}
+
+// ValidateCloudOffsiteBackupExecutorArtifact verifies the complete artifact
+// and selects one explicit Cloud node without resolving provider or target
+// connection data.
+func ValidateCloudOffsiteBackupExecutorArtifact(raw []byte, siteRef, nodeRef string) (CloudOffsiteBackupPolicy, error) {
+	var document cloudOffsiteBackupExecutorDocument
+	if err := decodeStrict(raw, &document); err != nil {
+		return CloudOffsiteBackupPolicy{}, wrap(ErrInvalidPlan, "cloudOffsiteBackupArtifact", "decode exact Cloud offsite-backup artifact", err)
+	}
+	spec := executorContractBundleSpecs[7]
+	if document.APIVersion != "stackkit.executor-contract-bundle/v1" || document.Kind != "ExecutorContractBundle" ||
+		document.Module.ID != spec.moduleID || document.Module.Version != spec.moduleVersion ||
+		document.Contract.Apply != "typed-local-operations" || document.Contract.BackupTargetAuthority != "external-binding-exact" ||
+		document.Contract.Credentials != "external-owner" || document.Contract.Generation != "supported" ||
+		!exactStringList(document.Contract.Operations, []string{"bind-offsite-backup-target", "remove-obsolete-offsite-backup-binding", "verify-offsite-backup-target", "commit-cloud-offsite-backup-evidence"}) ||
+		document.Contract.ProviderLifecycle != "not-owned" || document.Contract.ProviderSelection != "external-owner" ||
+		document.Contract.RestoreVerification != "required" || document.Contract.RuntimeEnforcement != "adapter-verified" ||
+		document.Contract.Scope != "cloud-backup-node" || document.Contract.ServerProviderAuthority != "not-owned" ||
+		document.Contract.TargetLifecycle != "not-owned" || document.Contract.TransportImplementation != "external-owner" {
+		return CloudOffsiteBackupPolicy{}, fail(ErrInvalidPlan, "cloudOffsiteBackupArtifact.contract", "artifact widens or contradicts the typed Cloud offsite-backup authority")
+	}
+	decoded, err := decodeCloudRuntimeExecutorPlan(document.PlanInputs, "cloudOffsiteBackupArtifact.planInputs", spec)
+	if err != nil {
+		return CloudOffsiteBackupPolicy{}, err
+	}
+	plan := decoded.(cloudOffsiteBackupExecutorPlan)
+	found := 0
+	for _, target := range plan.ModuleTargets {
+		if target.SiteRef == siteRef && target.ID == nodeRef {
+			found++
+		}
+	}
+	if found != 1 {
+		return CloudOffsiteBackupPolicy{}, fail(ErrInvalidPlan, "cloudOffsiteBackupArtifact.planInputs.moduleTargets", "must contain exactly one explicitly bound Cloud Site/node target")
+	}
+	var requirements map[string]map[string]cloudBackupTargetRequirement
+	if err := decodeStrict(plan.CloudOffsiteBackup.Requirements, &requirements); err != nil {
+		return CloudOffsiteBackupPolicy{}, wrap(ErrInvalidPlan, "cloudOffsiteBackupArtifact.planInputs.cloudOffsiteBackup.requirements", "decode requirements", err)
+	}
+	var bindings map[string]map[string]cloudExternalBackupTargetBinding
+	if err := decodeStrict(plan.CloudOffsiteBackup.Bindings, &bindings); err != nil {
+		return CloudOffsiteBackupPolicy{}, wrap(ErrInvalidPlan, "cloudOffsiteBackupArtifact.planInputs.cloudOffsiteBackup.bindings", "decode bindings", err)
+	}
+	requirement, ok := requirements[siteRef][cloudBackupTargetCapability]
+	if !ok || !slices.Contains(requirement.TargetNodeRefs, nodeRef) {
+		return CloudOffsiteBackupPolicy{}, fail(ErrInvalidPlan, "cloudOffsiteBackupArtifact.planInputs.cloudOffsiteBackup.requirements", "does not bind the selected node")
+	}
+	binding, ok := bindings[siteRef][cloudBackupTargetCapability]
+	if !ok {
+		return CloudOffsiteBackupPolicy{}, fail(ErrInvalidPlan, "cloudOffsiteBackupArtifact.planInputs.cloudOffsiteBackup.bindings", "requires the exact external target binding")
+	}
+	return CloudOffsiteBackupPolicy{
+		StackID: requirement.StackID, KitSlug: plan.Kit.Slug, SiteRef: siteRef, NodeRef: nodeRef,
+		CapabilityRef: requirement.CapabilityRef, ContractOwnerRef: requirement.ContractOwnerRef,
+		CapabilityContractHash: requirement.CapabilityContractHash, RequirementsHash: requirement.RequirementsHash,
+		BindingRef: binding.BindingRef, BindingHash: binding.BindingHash, BackupTargetRef: binding.BackupTargetRef,
+		CustodyAttestationRef: binding.CustodyAttestationRef, StackKitsVersion: binding.StackKitsVersion,
+		CandidateDigest: binding.CandidateDigest, SpecHash: binding.SpecHash,
+		IssuedAt: binding.IssuedAt, ValidUntil: binding.ValidUntil,
+	}, nil
 }
 
 func FederationLinkExecutorBundleRendererContract() RendererContract {
@@ -485,7 +595,7 @@ func newExecutorContractBundleRenderer(spec executorContractBundleSpec) executor
 		spec: spec, template: template,
 		contract: RendererContract{
 			Kind: "native-config", RendererRef: executorContractBundleRendererRef,
-			TemplateRef: spec.templateRef, Version: executorContractBundleRendererVersion,
+			TemplateRef: spec.templateRef, Version: spec.moduleVersion,
 			ContractHash: "sha256:" + hex.EncodeToString(sum[:]),
 		},
 	}
@@ -602,7 +712,8 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 	if unit.RuntimeKind() != wantRuntimeKind || unit.RuntimeDelivery() != "stackkit" {
 		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact %s/stackkit ownership", wantRuntimeKind)
 	}
-	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == federationLinkModuleID || renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
+	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == cloudPublicEdgeModuleID || renderer.spec.moduleID == cloudOffsiteBackupModuleID || renderer.spec.moduleID == federationLinkModuleID ||
+		renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
 	if nodeLocal {
 		siteRef, hasSite := unit.SiteRef()
 		nodeRef, hasNode := unit.NodeRef()

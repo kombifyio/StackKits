@@ -117,9 +117,10 @@ func (d *Dispatcher) Execute(ctx context.Context, request runtimeexecutor.Execut
 }
 
 type requestGroup struct {
-	runtime        []runtimeexecutor.RuntimeTarget
-	health         []runtimeexecutor.HealthTarget
-	accessBindings []runtimeexecutor.AccessBinding
+	runtime              []runtimeexecutor.RuntimeTarget
+	health               []runtimeexecutor.HealthTarget
+	accessBindings       []runtimeexecutor.AccessBinding
+	backupTargetBindings []runtimeexecutor.BackupTargetBinding
 }
 
 func partitionRequest(request runtimeexecutor.ExecutionRequest, routes map[string]routedExecutor) (map[string]*requestGroup, error) {
@@ -164,6 +165,10 @@ func partitionRequest(request runtimeexecutor.ExecutionRequest, routes map[strin
 	for _, binding := range request.AccessBindings {
 		bindings[binding.ID] = binding
 	}
+	backupBindings := make(map[string]runtimeexecutor.BackupTargetBinding, len(request.BackupTargetBindings))
+	for _, binding := range request.BackupTargetBindings {
+		backupBindings[binding.ID] = binding
+	}
 	for channelRef, group := range groups {
 		if len(group.runtime) == 0 || len(group.health) == 0 {
 			return nil, fmt.Errorf("execution channel %q has an incomplete runtime/health set", channelRef)
@@ -181,8 +186,20 @@ func partitionRequest(request runtimeexecutor.ExecutionRequest, routes map[strin
 				referenced[bindingRef] = struct{}{}
 				group.accessBindings = append(group.accessBindings, binding)
 			}
+			for _, bindingRef := range target.BackupTargetBindingRefs {
+				binding, exists := backupBindings[bindingRef]
+				if !exists || binding.RuntimeRequirementID != target.RequirementID {
+					return nil, fmt.Errorf("runtime target %q has an absent or foreign backup-target binding", target.RequirementID)
+				}
+				if _, duplicate := referenced[bindingRef]; duplicate {
+					return nil, fmt.Errorf("execution channel %q references backup-target binding %q more than once", channelRef, bindingRef)
+				}
+				referenced[bindingRef] = struct{}{}
+				group.backupTargetBindings = append(group.backupTargetBindings, binding)
+			}
 		}
 		sort.Slice(group.accessBindings, func(i, j int) bool { return group.accessBindings[i].ID < group.accessBindings[j].ID })
+		sort.Slice(group.backupTargetBindings, func(i, j int) bool { return group.backupTargetBindings[i].ID < group.backupTargetBindings[j].ID })
 	}
 	return groups, nil
 }
@@ -229,13 +246,14 @@ func sealChildRequest(parent runtimeexecutor.ExecutionRequest, identity runtimee
 		APIVersion: runtimeexecutor.APIVersion, Executor: identity,
 		PlanHash: parent.PlanHash, ManifestHash: parent.ManifestHash,
 		GenerationReceiptHash: parent.GenerationReceiptHash, RequirementsHash: parent.RequirementsHash,
-		EvidenceBundleHash: parent.EvidenceBundleHash,
-		RuntimeTargets:     append([]runtimeexecutor.RuntimeTarget(nil), group.runtime...),
-		HealthTargets:      append([]runtimeexecutor.HealthTarget(nil), group.health...),
-		AccessBindings:     append([]runtimeexecutor.AccessBinding(nil), group.accessBindings...),
-		Artifacts:          artifacts,
+		EvidenceBundleHash:   parent.EvidenceBundleHash,
+		RuntimeTargets:       append([]runtimeexecutor.RuntimeTarget(nil), group.runtime...),
+		HealthTargets:        append([]runtimeexecutor.HealthTarget(nil), group.health...),
+		AccessBindings:       append([]runtimeexecutor.AccessBinding(nil), group.accessBindings...),
+		BackupTargetBindings: append([]runtimeexecutor.BackupTargetBinding(nil), group.backupTargetBindings...),
+		Artifacts:            artifacts,
 	}
-	if len(child.AccessBindings) != 0 {
+	if len(child.AccessBindings) != 0 || len(child.BackupTargetBindings) != 0 {
 		child.AuthorizationTime = parent.AuthorizationTime
 	}
 	return runtimeexecutor.SealRequest(child)
