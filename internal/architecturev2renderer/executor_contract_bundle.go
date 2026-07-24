@@ -90,7 +90,7 @@ const (
 	federationBackupOutputRef          = "modern/federation/backup/executor-contract.json"
 	federationObservabilityOutputRef   = "modern/federation/observability/executor-contract.json"
 	bridgePublicationModuleID          = "stackkits-bridge-publication-runtime"
-	bridgePublicationModuleVersion     = "1.1.0"
+	bridgePublicationModuleVersion     = "1.2.0"
 	bridgePublicationTemplateRef       = "builtin://modern/federation/publication/executor-contract/v1.json"
 	bridgePublicationOutputRef         = "modern/federation/publication/executor-contract.json"
 	bridgeOriginMTLSModuleID           = "stackkits-bridge-origin-mtls-runtime"
@@ -1111,28 +1111,29 @@ type bridgePublicationExecutorPlan struct {
 func (bridgePublicationExecutorPlan) executorContractPlanMarker() {}
 
 type bridgePublication struct {
-	ServiceRef         string                     `json:"serviceRef"`
-	SourceSiteRef      string                     `json:"sourceSiteRef"`
-	EdgeSiteRef        string                     `json:"edgeSiteRef"`
-	Host               string                     `json:"host"`
-	Protocol           string                     `json:"protocol"`
-	Port               int                        `json:"port"`
-	Path               string                     `json:"path"`
-	DefaultClosed      bool                       `json:"defaultClosed"`
-	TLS                bridgePublicationTLS       `json:"tls"`
-	Auth               bridgePublicationAuth      `json:"auth"`
-	Origin             bridgePublicationOrigin    `json:"origin"`
-	RateLimit          bridgePublicationRateLimit `json:"rateLimit"`
-	ModuleRef          string                     `json:"moduleRef"`
-	UnitRef            string                     `json:"unitRef"`
-	OriginNodeRefs     []string                   `json:"originNodeRefs"`
-	OriginInstanceRefs []string                   `json:"originInstanceRefs"`
-	OriginTargets      []bridgeOriginMTLSTarget   `json:"originTargets"`
-	UpstreamProtocol   string                     `json:"upstreamProtocol"`
-	TargetPort         int                        `json:"targetPort"`
-	HealthGateRef      string                     `json:"healthGateRef"`
-	DataBindingRef     string                     `json:"dataBindingRef,omitempty"`
-	Access             bridgePublicationAccess    `json:"access"`
+	ServiceRef         string                       `json:"serviceRef"`
+	SourceSiteRef      string                       `json:"sourceSiteRef"`
+	EdgeSiteRef        string                       `json:"edgeSiteRef"`
+	Host               string                       `json:"host"`
+	Protocol           string                       `json:"protocol"`
+	Port               int                          `json:"port"`
+	Path               string                       `json:"path"`
+	DefaultClosed      bool                         `json:"defaultClosed"`
+	TLS                bridgePublicationTLS         `json:"tls"`
+	Auth               bridgePublicationAuth        `json:"auth"`
+	Origin             bridgePublicationOrigin      `json:"origin"`
+	RateLimit          bridgePublicationRateLimit   `json:"rateLimit"`
+	ModuleRef          string                       `json:"moduleRef"`
+	UnitRef            string                       `json:"unitRef"`
+	OriginNodeRefs     []string                     `json:"originNodeRefs"`
+	OriginInstanceRefs []string                     `json:"originInstanceRefs"`
+	OriginTargets      []bridgeOriginMTLSTarget     `json:"originTargets"`
+	UpstreamProtocol   string                       `json:"upstreamProtocol"`
+	TargetPort         int                          `json:"targetPort"`
+	HealthGateRef      string                       `json:"healthGateRef"`
+	HealthProbe        *rawPublicRouteHealthProbeV3 `json:"healthProbe,omitempty"`
+	DataBindingRef     string                       `json:"dataBindingRef,omitempty"`
+	Access             bridgePublicationAccess      `json:"access"`
 }
 
 type bridgePublicationTLS struct {
@@ -1306,6 +1307,11 @@ func validateBridgePublication(publication bridgePublication, path string) error
 		publication.TargetPort < 1 || publication.TargetPort > 65535 || publication.HealthGateRef == "" {
 		return fail(ErrInvalidPlan, path, "service publication closure is incomplete or widened")
 	}
+	if publication.HealthProbe != nil {
+		if err := validateBridgePublicationHealthProbe(*publication.HealthProbe, publication.UpstreamProtocol, publication.TargetPort, path+".healthProbe"); err != nil {
+			return err
+		}
+	}
 	targetNodes := make([]string, 0, len(publication.OriginTargets))
 	targetInstances := make([]string, 0, len(publication.OriginTargets))
 	seenTargetPairs := make(map[string]struct{}, len(publication.OriginTargets))
@@ -1342,6 +1348,36 @@ func validateBridgePublication(publication bridgePublication, path string) error
 		if !containsExecutorBundleString([]string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}, method) {
 			return fail(ErrInvalidPlan, path+".access.allowedMethods", "unsupported HTTP method")
 		}
+	}
+	return nil
+}
+
+func validateBridgePublicationHealthProbe(probe rawPublicRouteHealthProbeV3, upstreamProtocol string, targetPort int, path string) error {
+	if probe.Protocol != upstreamProtocol || probe.Port != targetPort || probe.TimeoutSeconds < 1 || probe.TimeoutSeconds > 300 {
+		return fail(ErrInvalidPlan, path, "backend Health probe does not match the exact publication upstream")
+	}
+	switch probe.Kind {
+	case "http":
+		if probe.Protocol != "http" || probe.Method != "GET" || probe.FollowRedirects == nil || *probe.FollowRedirects ||
+			!strings.HasPrefix(probe.Path, "/") || len(probe.ExpectedStatuses) == 0 {
+			return fail(ErrInvalidPlan, path, "HTTP backend Health must be an address-free GET with redirects disabled")
+		}
+		seen := make(map[int]struct{}, len(probe.ExpectedStatuses))
+		for index, status := range probe.ExpectedStatuses {
+			if status < 100 || status > 599 {
+				return fail(ErrInvalidPlan, fmt.Sprintf("%s.expectedStatuses[%d]", path, index), "status is outside 100..599")
+			}
+			if _, duplicate := seen[status]; duplicate {
+				return fail(ErrDuplicate, path+".expectedStatuses", "status is duplicated")
+			}
+			seen[status] = struct{}{}
+		}
+	case "tcp":
+		if probe.Protocol != "tcp" || probe.Method != "" || probe.FollowRedirects != nil || probe.Path != "" || len(probe.ExpectedStatuses) != 0 {
+			return fail(ErrInvalidPlan, path, "TCP backend Health cannot carry HTTP authority")
+		}
+	default:
+		return fail(ErrInvalidPlan, path+".kind", "unsupported publication backend Health kind")
 	}
 	return nil
 }
@@ -1778,6 +1814,7 @@ type BridgePublicationRule struct {
 	UpstreamProtocol       string
 	TargetPort             int
 	HealthGateRef          string
+	HealthProbe            *BridgePublicationHealthProbe
 	DataBindingRef         string
 	Authentication         string
 	Privilege              string
@@ -1789,6 +1826,17 @@ type BridgePublicationRule struct {
 type BridgePublicationOriginTarget struct {
 	NodeRef     string
 	InstanceRef string
+}
+
+type BridgePublicationHealthProbe struct {
+	Kind             string
+	Protocol         string
+	Port             int
+	TimeoutSeconds   int
+	Method           string
+	FollowRedirects  bool
+	Path             string
+	ExpectedStatuses []int
 }
 
 // ValidateBridgePublicationExecutorArtifact verifies the executable contract
@@ -1840,6 +1888,17 @@ func ValidateBridgePublicationExecutorArtifact(raw []byte, siteRef, nodeRef stri
 			}(),
 			UpstreamProtocol: publication.UpstreamProtocol,
 			TargetPort:       publication.TargetPort, HealthGateRef: publication.HealthGateRef, DataBindingRef: publication.DataBindingRef,
+			HealthProbe: func() *BridgePublicationHealthProbe {
+				if publication.HealthProbe == nil {
+					return nil
+				}
+				return &BridgePublicationHealthProbe{
+					Kind: publication.HealthProbe.Kind, Protocol: publication.HealthProbe.Protocol,
+					Port: publication.HealthProbe.Port, TimeoutSeconds: publication.HealthProbe.TimeoutSeconds,
+					Method: publication.HealthProbe.Method, FollowRedirects: publication.HealthProbe.FollowRedirects != nil && *publication.HealthProbe.FollowRedirects,
+					Path: publication.HealthProbe.Path, ExpectedStatuses: append([]int(nil), publication.HealthProbe.ExpectedStatuses...),
+				}
+			}(),
 			Authentication: publication.Access.Authentication, Privilege: publication.Access.Privilege,
 			EnrolledDeviceRequired: publication.Access.EnrolledDeviceRequired,
 			OwnerStepUpRequired:    publication.Access.OwnerStepUpRequired,

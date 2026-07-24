@@ -327,7 +327,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
-	resolvedBridge, err := buildResolvedBridgePlan(spec, contracts.modules, contracts.providers, topology)
+	resolvedBridge, err := buildResolvedBridgePlan(spec, contracts.modules, contracts.providers, topology, c.catalog.modules)
 	if err != nil {
 		return nil, err
 	}
@@ -483,7 +483,7 @@ func (c *Compiler) finalizePlan(plan ResolvedPlan, spec *specView, resolved *res
 	return plan, nil
 }
 
-func buildResolvedBridgePlan(spec *specView, modules, providers []any, topology planTopology) (map[string]any, error) {
+func buildResolvedBridgePlan(spec *specView, modules, providers []any, topology planTopology, catalogModules ...map[string]map[string]any) (map[string]any, error) {
 	if spec.bridge == nil {
 		return nil, nil
 	}
@@ -500,6 +500,7 @@ func buildResolvedBridgePlan(spec *specView, modules, providers []any, topology 
 		topology.data,
 		spec.access,
 		providers,
+		catalogModules...,
 	)
 }
 

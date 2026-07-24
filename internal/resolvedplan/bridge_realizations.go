@@ -10,7 +10,7 @@ import (
 // reconstructed from the selected module service endpoint.
 //
 //nolint:gocyclo // Bridge realization atomically validates and derives every publication boundary before returning a plan.
-func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []string, authoritySiteRef string, nodeSites map[string]string, data, access map[string]any, providers []any) (map[string]any, error) {
+func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []string, authoritySiteRef string, nodeSites map[string]string, data, access map[string]any, providers []any, catalogModules ...map[string]map[string]any) (map[string]any, error) {
 	resolved, err := cloneObject(bridge, false)
 	if err != nil {
 		return nil, err
@@ -44,6 +44,14 @@ func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []
 	endpointIndex, err := indexResolvedServiceEndpoints(modules)
 	if err != nil {
 		return nil, err
+	}
+	if len(catalogModules) > 1 {
+		return nil, fail(ErrInvalidInput, "catalog.modules", "bridge resolution accepts at most one catalog module authority")
+	}
+	if len(catalogModules) == 1 {
+		if err := bindServiceEndpointHealthContracts(endpointIndex, catalogModules[0]); err != nil {
+			return nil, err
+		}
 	}
 	if err := validateBridgePolicyFlows(flows, selectedSiteRefs, peerSiteRefs, endpointIndex, authoritySiteRef, nodeSites, data); err != nil {
 		return nil, err
@@ -146,6 +154,15 @@ func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []
 		projection["upstreamProtocol"] = endpoint.upstreamProtocol
 		projection["targetPort"] = endpoint.targetPort
 		projection["healthGateRef"] = contractID("module-" + endpoint.moduleRef + "-" + endpoint.healthRef)
+		if endpoint.healthContract != nil {
+			healthProbe, err := buildPublicationHealthProbe(endpoint, path+".healthProbe")
+			if err != nil {
+				return nil, err
+			}
+			if healthProbe != nil {
+				projection["healthProbe"] = healthProbe
+			}
+		}
 		projection["dataBindingRef"] = endpoint.data.bindingRef
 		projection["access"] = accessDecision
 		resolvedPublications = append(resolvedPublications, projection)
@@ -155,6 +172,59 @@ func resolveBridgePlan(bridge map[string]any, modules []any, selectedSiteRefs []
 	}
 	resolved["publications"] = resolvedPublications
 	return resolved, nil
+}
+
+func buildPublicationHealthProbe(endpoint resolvedServiceEndpoint, path string) (map[string]any, error) {
+	healthPath := "modules." + endpoint.moduleRef + ".health." + endpoint.healthRef
+	kind, err := stringField(endpoint.healthContract, healthPath, "kind")
+	if err != nil {
+		return nil, err
+	}
+	timeoutSeconds, err := intField(endpoint.healthContract, healthPath, "timeoutSeconds")
+	if err != nil {
+		return nil, err
+	}
+	contractPort, err := intField(endpoint.healthContract, healthPath, "port")
+	if err != nil {
+		return nil, err
+	}
+	if contractPort != endpoint.targetPort {
+		return nil, fail(ErrContractConflict, healthPath+".port", "health port %d does not match publication target port %d", contractPort, endpoint.targetPort)
+	}
+	switch endpoint.upstreamProtocol {
+	case "http":
+		if kind != "http" {
+			return nil, nil
+		}
+		probePath, err := stringField(endpoint.healthContract, healthPath, "path")
+		if err != nil {
+			return nil, err
+		}
+		expectedStatuses, exists := endpoint.healthContract["expectedStatuses"]
+		if !exists {
+			return nil, fail(ErrContractConflict, healthPath+".expectedStatuses", "HTTP publication health contract has no expected statuses")
+		}
+		return map[string]any{
+			"kind": "http", "protocol": "http", "port": endpoint.targetPort,
+			"timeoutSeconds": timeoutSeconds, "method": "GET", "followRedirects": false,
+			"path": probePath, "expectedStatuses": expectedStatuses,
+		}, nil
+	case "tcp":
+		if kind != "tcp" {
+			return nil, nil
+		}
+		return map[string]any{
+			"kind": "tcp", "protocol": "tcp", "port": endpoint.targetPort,
+			"timeoutSeconds": timeoutSeconds,
+		}, nil
+	case "https":
+		// A public publication descriptor cannot authorize SNI, peer identity,
+		// or trust roots. Keep HTTPS contract-only until an executor-private
+		// target binding closes those inputs.
+		return nil, nil
+	default:
+		return nil, fail(ErrContractConflict, path+".protocol", "unsupported publication backend protocol %q", endpoint.upstreamProtocol)
+	}
 }
 
 func resolveBridgeCatalogAuthority(bridge map[string]any, providers []any) (map[string]any, map[string]any, error) {
@@ -829,7 +899,7 @@ func resolvedNodeSiteIndex(nodes []nodeView) map[string]string {
 	return result
 }
 
-func validateBridgePublicationProjection(plan ResolvedPlan) error {
+func validateBridgePublicationProjection(plan ResolvedPlan, catalogModules ...map[string]map[string]any) error {
 	bridge, exists, err := optionalObjectField(map[string]any(plan), "resolvedPlan", "bridge")
 	if err != nil || !exists {
 		return err
@@ -866,7 +936,7 @@ func validateBridgePublicationProjection(plan ResolvedPlan) error {
 	if err != nil {
 		return err
 	}
-	want, err := resolveBridgePlan(bridge, objectMapsAsAny(modules), selectedSiteRefs, authoritySiteRef, nodeSites, data, access, objectMapsAsAny(providers))
+	want, err := resolveBridgePlan(bridge, objectMapsAsAny(modules), selectedSiteRefs, authoritySiteRef, nodeSites, data, access, objectMapsAsAny(providers), catalogModules...)
 	if err != nil {
 		return fmt.Errorf("recompute resolvedPlan.bridge publications: %w", err)
 	}

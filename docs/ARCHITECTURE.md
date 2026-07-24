@@ -810,20 +810,27 @@ The matching Cloud-side service-publication owner is separately executable on
 the exact compiler-selected Cloud edge nodes. Its one-per-node artifact carries
 only the closed public host/path/method, access, TLS, rate-limit, backend
 module/unit/node/instance, origin-identity, data-binding, and Health-gate
-references. The Product Runtime binds the sealed request and artifact digests,
-Site, node, and execution channel to a captured UTC evaluation time, then
-admits only apply, obsolete-removal, and verification operations. Fresh
-readback must prove that the exact publication is configured default-closed
-with origin mTLS, origin identity, TLS, authentication, and rate limiting
-bound. It deliberately does not claim backend service Health.
+references. When the selected endpoint exposes a matching executable HTTP or
+TCP health contract, the compiler also adds an address- and credential-free
+probe derived from that exact contract. The Product Runtime binds the sealed
+request and artifact digests, Site, node, and execution channel to a captured
+UTC evaluation time, then admits only apply, obsolete-removal, and verification
+operations. Fresh readback must prove that the exact publication is configured
+default-closed with origin mTLS, origin identity, TLS, authentication, and rate
+limiting bound. Verification additionally requires exactly one fresh healthy
+edge-to-origin readback for every declared `{nodeRef, instanceRef}` pair.
+Missing, additional, foreign, stale, or unhealthy backends fail closed; Apply
+or obsolete-removal observations cannot satisfy the Health gate. HTTPS
+backends remain contract-only until an executor-private binding supplies SNI,
+peer identity, and trust roots.
 
 Both former publication `runtime-owner-unbound` blockers are therefore
 retired. DNS mutation, certificate issuance, credentials, provider lifecycle,
 leases, endpoints, transport implementation, general LAN access, Cloud
-verifier readiness, and executable backend Health remain separate
-fail-closed authorities. Public edge TLS materialization is likewise a
-separate hash-bound authority; a generic module contract cannot hide or
-replace any of these boundaries.
+verifier readiness, and unsupported backend Health remain separate fail-closed
+authorities. Public edge TLS materialization is likewise a separate hash-bound
+authority; a generic module contract cannot hide or replace any of these
+boundaries.
 
 ### Executable render instances
 

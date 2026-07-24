@@ -4,6 +4,46 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.11] - 2026-07-24
+
+> **Stable v0.x Modern Homelab backend-Health patch** that verifies the exact
+> Cloud-edge-to-Home workload path while retaining all three StackKit release
+> families.
+
+### Added
+
+- Compiler-derived, address- and credential-free HTTP/TCP Health probes for
+  executable Modern bridge publications.
+- Exact fresh backend readback for every declared `{nodeRef, instanceRef}`
+  Home origin.
+
+### Changed
+
+- `stackkits-bridge-publication-runtime` is now v1.2.0 and owns the
+  publication's edge-to-origin Health verification.
+- The canonical Immich publication no longer carries
+  `health-gate-not-executable`.
+- Modern Homelab continues to ship as dedicated Linux amd64/arm64, macOS
+  amd64/arm64, and Windows amd64 archives plus the full StackKits bundle.
+
+### Security
+
+- Missing, additional, foreign, stale, unhealthy, or target-substituted
+  backend evidence fails closed.
+- Apply and obsolete-removal observations cannot satisfy the Health gate.
+- Endpoints, DNS, certificates, credentials, transport implementation,
+  provider lifecycle, leases, discovery, and general LAN access remain outside
+  StackKits.
+
+### Known limitations
+
+- HTTPS backend Health remains contract-only until an executor-private binding
+  supplies SNI, peer identity, and trust roots.
+- Modern Homelab remains Preview until its remaining control, policy,
+  partition, backup, observability, and live-evidence owners graduate.
+- Candidate, device, provider, browser, and compatibility evidence remains
+  `pending/unverified` for this v0.x release.
+
 ## [0.7.10] - 2026-07-24
 
 > **Stable v0.x Modern Homelab federation-link runtime patch** that makes the

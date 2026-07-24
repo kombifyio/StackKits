@@ -73,7 +73,7 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err := validateRouteCapabilityRealizationBodies(plan, catalog, capabilityProviders); err != nil {
 		return err
 	}
-	if err := validateBridgePublicationProjection(plan); err != nil {
+	if err := validateBridgePublicationProjection(plan, catalog.modules); err != nil {
 		return err
 	}
 	if err := validateExternalHostPlanProjection(plan); err != nil {

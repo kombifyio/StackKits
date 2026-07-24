@@ -2047,6 +2047,7 @@ _servicePublicationShape: {
 	upstreamProtocol: #NetworkProtocol
 	targetPort:       int & >=1 & <=65535
 	healthGateRef:    #ContractID
+	healthProbe?:     #ModulePublicRouteHealthProbeV3
 	dataBindingRef?:  #ContractID
 	access: #ResolvedAccessDecisionV2 & {
 		exposure:  "public"
@@ -8435,6 +8436,14 @@ _servicePublicationShape: {
 			if module.enforcementRequirement.ownerRef == "stackkits-modern-cloud-identity-verifier-enforcer" {
 				module.id
 			}]
+		_boundBridgePublicationExecutors: [for module in modules
+			if module.id == "stackkits-bridge-publication-runtime"
+			if module.runtime.execution == "executable"
+			if module.enforcementRequirement != _|_
+			if module.enforcementRequirement.status == "bound"
+			if module.enforcementRequirement.ownerRef == "stackkits-bridge-publication-executor" {
+				module.id
+			}]
 		_bridgeContractReadiness: {
 			if len(_boundFederationLinks) == 0 {
 				overlayApply: #ExecutionReadinessRequirementV1 & {
@@ -8468,7 +8477,8 @@ _servicePublicationShape: {
 				}
 			}
 		}
-		_bridgePublicationReadiness: [for publication in bridge.publications {
+		_bridgePublicationReadiness: [for publication in bridge.publications
+			if len(_boundBridgePublicationExecutors) == 0 || publication.healthProbe == _|_ {
 			healthApply: #ExecutionReadinessRequirementV1 & {
 				phase: executionReadiness.apply
 				code:  "health-gate-not-executable"

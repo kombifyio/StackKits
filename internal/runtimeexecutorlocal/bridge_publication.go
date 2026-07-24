@@ -77,6 +77,16 @@ type BridgePublicationRuleObservation struct {
 	ConfigurationObservedAt  string                                                 `json:"configurationObservedAt"`
 	VerifierPolicyObservedAt string                                                 `json:"verifierPolicyObservedAt"`
 	TLSPolicyObservedAt      string                                                 `json:"tlsPolicyObservedAt"`
+	BackendReadback          []BridgePublicationBackendObservation                  `json:"backendReadback,omitempty"`
+}
+
+type BridgePublicationBackendObservation struct {
+	NodeRef       string `json:"nodeRef"`
+	InstanceRef   string `json:"instanceRef"`
+	HealthGateRef string `json:"healthGateRef"`
+	Status        string `json:"status"`
+	HTTPStatus    int    `json:"httpStatus,omitempty"`
+	ObservedAt    string `json:"observedAt"`
 }
 
 type BridgePublicationObservation struct {
@@ -246,6 +256,11 @@ func validateBridgePublicationRequest(request runtimeexecutor.ExecutionRequest, 
 	if err != nil {
 		return emptyTarget, emptyHealth, BridgePublicationApplyPolicy{}, fmt.Errorf("validate governed publication policy: %w", err)
 	}
+	for index, publication := range governed.Publications {
+		if publication.HealthProbe == nil {
+			return emptyTarget, emptyHealth, BridgePublicationApplyPolicy{}, fmt.Errorf("publication %d has no executable compiler-owned backend Health probe", index)
+		}
+	}
 	bindingBytes, err := json.Marshal(struct {
 		ArtifactDigest      string `json:"artifactDigest"`
 		RequestDigest       string `json:"requestDigest"`
@@ -277,6 +292,11 @@ func cloneBridgePublicationRules(rules []architecturev2renderer.BridgePublicatio
 		cloned[index].OriginInstanceRefs = append([]string(nil), cloned[index].OriginInstanceRefs...)
 		cloned[index].OriginTargets = append([]architecturev2renderer.BridgePublicationOriginTarget(nil), cloned[index].OriginTargets...)
 		cloned[index].AllowedMethods = append([]string(nil), cloned[index].AllowedMethods...)
+		if cloned[index].HealthProbe != nil {
+			probe := *cloned[index].HealthProbe
+			probe.ExpectedStatuses = append([]int(nil), cloned[index].HealthProbe.ExpectedStatuses...)
+			cloned[index].HealthProbe = &probe
+		}
 	}
 	return cloned
 }
@@ -327,6 +347,40 @@ func validBridgePublicationObservation(observation BridgePublicationObservation,
 		for _, raw := range []string{actual.ConfigurationObservedAt, actual.VerifierPolicyObservedAt, actual.TLSPolicyObservedAt} {
 			timestamp, parseErr := time.Parse(time.RFC3339Nano, raw)
 			if parseErr != nil || timestamp.Format(time.RFC3339Nano) != raw ||
+				timestamp.Before(evaluatedAt) || timestamp.After(observedAt) ||
+				checkedAt.Sub(timestamp) > bridgePublicationMaxStaleness {
+				return false
+			}
+		}
+		if status != "ready" {
+			if len(actual.BackendReadback) != 0 {
+				return false
+			}
+			continue
+		}
+		if want.HealthProbe == nil || len(actual.BackendReadback) != len(want.OriginTargets) {
+			return false
+		}
+		for targetIndex, target := range want.OriginTargets {
+			readback := actual.BackendReadback[targetIndex]
+			if readback.NodeRef != target.NodeRef || readback.InstanceRef != target.InstanceRef ||
+				readback.HealthGateRef != want.HealthGateRef || readback.Status != "healthy" {
+				return false
+			}
+			switch want.HealthProbe.Kind {
+			case "http":
+				if !slices.Contains(want.HealthProbe.ExpectedStatuses, readback.HTTPStatus) {
+					return false
+				}
+			case "tcp":
+				if readback.HTTPStatus != 0 {
+					return false
+				}
+			default:
+				return false
+			}
+			timestamp, parseErr := time.Parse(time.RFC3339Nano, readback.ObservedAt)
+			if parseErr != nil || timestamp.Format(time.RFC3339Nano) != readback.ObservedAt ||
 				timestamp.Before(evaluatedAt) || timestamp.After(observedAt) ||
 				checkedAt.Sub(timestamp) > bridgePublicationMaxStaleness {
 				return false

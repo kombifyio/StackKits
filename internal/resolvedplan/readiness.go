@@ -140,6 +140,10 @@ func bridgeExecutionReadinessBlockers(bridge map[string]any, modules []any) ([]e
 	if !homeIdentityBound || !cloudIdentityBound {
 		blockers = append(blockers, executionReadinessBlocker{code: "device-verifier-unbound", refs: []string{"identity:edge-device-verifier"}})
 	}
+	publicationBound, err := exactBoundModuleEnforcement(modules, "stackkits-bridge-publication-runtime", "stackkits-bridge-publication-executor")
+	if err != nil {
+		return nil, err
+	}
 	for index, publication := range publications {
 		publicationPath := fmt.Sprintf("bridge.publications[%d]", index)
 		serviceRef, err := stringField(publication, publicationPath, "serviceRef")
@@ -151,9 +155,15 @@ func bridgeExecutionReadinessBlockers(bridge map[string]any, modules []any) ([]e
 			return nil, err
 		}
 		publicationRef := "publication:" + serviceRef
-		blockers = append(blockers,
-			executionReadinessBlocker{code: "health-gate-not-executable", refs: []string{publicationRef, "health:" + healthGateRef}},
-		)
+		_, hasProbe, err := optionalObjectField(publication, publicationPath, "healthProbe")
+		if err != nil {
+			return nil, err
+		}
+		if !publicationBound || !hasProbe {
+			blockers = append(blockers,
+				executionReadinessBlocker{code: "health-gate-not-executable", refs: []string{publicationRef, "health:" + healthGateRef}},
+			)
+		}
 	}
 	return blockers, nil
 }

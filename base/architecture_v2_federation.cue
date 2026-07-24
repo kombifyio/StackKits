@@ -411,7 +411,7 @@ _architectureV2ProfileExtensionModules: [
 		evidence: ["bridge-origin-mtls-evidence"]
 	},
 	{
-		metadata: {id: "stackkits-bridge-publication-runtime", version: "1.1.0", description: "Exact node-local Modern Home-to-Cloud service-publication runtime; DNS, certificates, credentials, provider lifecycle, transport implementation, and general LAN access remain external."}
+		metadata: {id: "stackkits-bridge-publication-runtime", version: "1.2.0", description: "Exact node-local Modern Home-to-Cloud service-publication runtime with compiler-bound edge-to-origin backend Health readback; DNS, certificates, credentials, provider lifecycle, transport implementation, and general LAN access remain external."}
 		role: "platform", providerRef: "stackkits-service-publication-contract", provides: ["service-publication"]
 		requires: ["stackkits-cloud-public-edge-runtime", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
 		supportedSiteKinds: ["cloud"]
@@ -424,8 +424,8 @@ _architectureV2ProfileExtensionModules: [
 		}
 		renderUnits: [{
 			id:           "executor-contract", kind:                                                    "native-config", rendererRef: "stackkit"
-			templateRef:  "builtin://modern/federation/publication/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:8046b230172cbe5fde2a0704a0eeafa919c7c7b1f1ba6a18788ed48defa2ae70"
+			templateRef:  "builtin://modern/federation/publication/executor-contract/v1.json", version: "1.1.0"
+			contractHash: "sha256:8a3917280c1612a23ecf1c818a006baf29c9349db587857356f27e44c2e0da86"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgePublications"]
 			outputs: ["modern/federation/publication/executor-contract.json"]

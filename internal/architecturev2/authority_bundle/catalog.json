@@ -8861,9 +8861,9 @@
         }
       ],
       "metadata": {
-        "description": "Exact node-local Modern Home-to-Cloud service-publication runtime; DNS, certificates, credentials, provider lifecycle, transport implementation, and general LAN access remain external.",
+        "description": "Exact node-local Modern Home-to-Cloud service-publication runtime with compiler-bound edge-to-origin backend Health readback; DNS, certificates, credentials, provider lifecycle, transport implementation, and general LAN access remain external.",
         "id": "stackkits-bridge-publication-runtime",
-        "version": "1.1.0"
+        "version": "1.2.0"
       },
       "providerRef": "stackkits-service-publication-contract",
       "provides": [
@@ -8931,7 +8931,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:8046b230172cbe5fde2a0704a0eeafa919c7c7b1f1ba6a18788ed48defa2ae70",
+          "contractHash": "sha256:8a3917280c1612a23ecf1c818a006baf29c9349db587857356f27e44c2e0da86",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -8959,7 +8959,7 @@
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://modern/federation/publication/executor-contract/v1.json",
-          "version": "1.0.0"
+          "version": "1.1.0"
         }
       ],
       "renderVariants": [],
