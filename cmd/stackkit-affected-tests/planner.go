@@ -81,15 +81,16 @@ type plannerInput struct {
 }
 
 type classification struct {
-	GoPackages []string `json:"goPackages,omitempty"`
-	GoShared   bool     `json:"goShared,omitempty"`
-	CUEModules []string `json:"cueModules,omitempty"`
-	CUEKits    []string `json:"cueKits,omitempty"`
-	CUEShared  bool     `json:"cueShared,omitempty"`
-	Website    bool     `json:"website,omitempty"`
-	Release    bool     `json:"release,omitempty"`
-	Docs       bool     `json:"docs,omitempty"`
-	Unknown    []string `json:"unknown,omitempty"`
+	GoPackages     []string `json:"goPackages,omitempty"`
+	GoShared       bool     `json:"goShared,omitempty"`
+	CUEModules     []string `json:"cueModules,omitempty"`
+	CUEKits        []string `json:"cueKits,omitempty"`
+	CUEShared      bool     `json:"cueShared,omitempty"`
+	Website        bool     `json:"website,omitempty"`
+	ReleaseE2E     bool     `json:"releaseE2E,omitempty"`
+	ReleaseGeneral bool     `json:"releaseGeneral,omitempty"`
+	Docs           bool     `json:"docs,omitempty"`
+	Unknown        []string `json:"unknown,omitempty"`
 }
 
 type testCommand struct {
@@ -193,14 +194,24 @@ func buildPlan(input plannerInput) testPlan {
 			},
 		)
 	}
-	if classes.Release {
+	if classes.ReleaseE2E {
+		commands = append(commands, testCommand{
+			Kind:  "release",
+			Scope: "release-e2e-contracts",
+			Argv: []string{
+				"node", "--test",
+				"scripts/e2e/validate-standalone-oss-e2e.test.mjs",
+				"scripts/e2e/validate-standalone-runtime-e2e.test.mjs",
+			},
+			Reason: "run only the standalone OSS and runtime E2E evidence contracts",
+		})
+	}
+	if classes.ReleaseGeneral {
 		commands = append(commands, testCommand{
 			Kind:  "release",
 			Scope: "release-contract-smoke",
 			Argv: []string{
 				"node", "--test",
-				"scripts/e2e/validate-standalone-oss-e2e.test.mjs",
-				"scripts/e2e/validate-standalone-runtime-e2e.test.mjs",
 				"scripts/release/release-evidence.test.mjs",
 				"scripts/release/render-release-index.test.mjs",
 				"scripts/release/release-trust-workflow.test.mjs",
@@ -299,8 +310,12 @@ func classifyFiles(files []string) classification {
 			result.Docs = true
 			known = true
 		}
-		if isReleasePath(file) {
-			result.Release = true
+		if isReleaseE2EPath(file) {
+			result.ReleaseE2E = true
+			known = true
+		}
+		if isGeneralReleasePath(file) {
+			result.ReleaseGeneral = true
 			known = true
 		}
 
@@ -315,12 +330,15 @@ func classifyFiles(files []string) classification {
 	return result
 }
 
-func isReleasePath(file string) bool {
+func isReleaseE2EPath(file string) bool {
+	return strings.HasPrefix(file, "scripts/e2e/")
+}
+
+func isGeneralReleasePath(file string) bool {
 	if file == ".goreleaser.yaml" || file == "install.sh" || file == "Dockerfile" || file == "mise.toml" || file == "scripts/sync-public.sh" {
 		return true
 	}
 	return strings.HasPrefix(file, "scripts/release/") ||
-		strings.HasPrefix(file, "scripts/e2e/") ||
 		strings.HasPrefix(file, "scripts/public/") ||
 		strings.HasPrefix(file, ".github/workflows/") ||
 		strings.HasPrefix(file, ".depot/workflows/")

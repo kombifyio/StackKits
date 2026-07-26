@@ -77,8 +77,11 @@ export function validateStandaloneRuntimeE2E(evidencePath, trafficPath) {
     requireDigest(evidence.archive[field], `archive.${field}`)
   }
 
-  exactKeys(evidence.network, ['recorder', 'eventsSha256', 'eventCount'], 'network')
-  if (evidence.network.recorder !== 'stackkit.hermetic-network-log/v1') fail('unsupported network recorder')
+  exactKeys(evidence.network, ['recorder', 'captureMode', 'eventsSha256', 'eventCount'], 'network')
+  if (evidence.network.recorder !== 'stackkit.hermetic-network-log/v2') fail('unsupported network recorder')
+  if (evidence.network.captureMode !== 'bidirectional-dns+outbound-initial-syn/v1') {
+    fail('unsupported network capture mode')
+  }
   requireDigest(evidence.network.eventsSha256, 'network.eventsSha256')
   const trafficRaw = readFileSync(trafficPath)
   if (trafficRaw.length === 0 || trafficRaw[trafficRaw.length - 1] !== 0x0a) fail('traffic log must be newline-terminated')

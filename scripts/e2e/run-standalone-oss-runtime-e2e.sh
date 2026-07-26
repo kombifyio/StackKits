@@ -140,8 +140,25 @@ fixture_url="$(head -n1 "$output_dir/fixture-url.txt")"
   exit 1
 }
 
-tcpdump -tttt -i any -nn -l '(udp port 53 or tcp)' >"$raw_traffic" 2>"$output_dir/tcpdump.stderr.log" &
+# DNS stays bidirectional so answers can bind addresses to GitHub names. TCP is
+# narrowed to initial SYN packets here and independently enforced as Outbound by
+# the parser; a global `-Q out` would discard the required DNS answers.
+capture_filter='(udp port 53 or (tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn))'
+tcpdump -ddd "$capture_filter" >/dev/null
+tcpdump -tttt -i any -nn -l "$capture_filter" >"$raw_traffic" 2>"$output_dir/tcpdump.stderr.log" &
 capture_pid=$!
+for _ in $(seq 1 50); do
+  grep -q 'listening on' "$output_dir/tcpdump.stderr.log" && break
+  kill -0 "$capture_pid" 2>/dev/null || {
+    printf 'traffic capture exited before readiness\n' >&2
+    exit 1
+  }
+  sleep 0.1
+done
+grep -q 'listening on' "$output_dir/tcpdump.stderr.log" || {
+  printf 'traffic capture did not become ready\n' >&2
+  exit 1
+}
 export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
 timeout 600 stackkit upgrade --to "$version" --json >"$output_dir/release-install.json"
 
@@ -191,7 +208,8 @@ jq -n \
       attestationSha256: $attestationSha256, releaseIndexSha256: $releaseIndexSha256
     },
     network: {
-      recorder: "stackkit.hermetic-network-log/v1",
+      recorder: "stackkit.hermetic-network-log/v2",
+      captureMode: "bidirectional-dns+outbound-initial-syn/v1",
       eventsSha256: $trafficSha256,
       eventCount: $eventCount
     },

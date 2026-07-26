@@ -65,3 +65,31 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
   )
   assert.match(publicRelease, /Stable publication requires the S4 upgrade, rollback, backup, and drift receipt/u)
 })
+
+test('public runtime failure diagnostics are explicit, sanitized, and short-lived', () => {
+  const start = publicRelease.indexOf('- name: Retain sanitized standalone failure diagnostics')
+  const end = publicRelease.indexOf('- name: Attest standalone runtime evidence', start)
+  assert.notEqual(start, -1)
+  assert.ok(end > start)
+  const block = publicRelease.slice(start, end)
+
+  assert.match(block, /if: \$\{\{ failure\(\) \}\}/u)
+  assert.match(block, /actions\/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a/u)
+  for (const name of [
+    'tcpdump.log',
+    'network-events.jsonl',
+    'tcpdump.stderr.log',
+    'init.log',
+    'validate.log',
+    'generate.log',
+    'release-install.json',
+    'apply.log',
+    'verify.json',
+    'runtime-evidence.json'
+  ]) {
+    assert.match(block, new RegExp(`artifacts/standalone-runtime/${name.replaceAll('.', '\\.')}`, 'u'))
+  }
+  assert.match(block, /if-no-files-found: warn/u)
+  assert.match(block, /retention-days: 1/u)
+  assert.doesNotMatch(block, /\.stackkit|custody|work_root|project_dir|home_dir/u)
+})

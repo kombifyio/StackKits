@@ -84,7 +84,8 @@ function fixture(t) {
       releaseIndexSha256: sha256(Buffer.from('index'))
     },
     network: {
-      recorder: 'stackkit.hermetic-network-log/v1',
+      recorder: 'stackkit.hermetic-network-log/v2',
+      captureMode: 'bidirectional-dns+outbound-initial-syn/v1',
       eventsSha256: sha256(Buffer.from(traffic)),
       eventCount: events.length
     },

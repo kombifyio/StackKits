@@ -287,6 +287,26 @@ jobs:
             "$source_digest" \
             artifacts/standalone-runtime
 
+      - name: Retain sanitized standalone failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: standalone-runtime-failure-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            artifacts/standalone-runtime/tcpdump.log
+            artifacts/standalone-runtime/network-events.jsonl
+            artifacts/standalone-runtime/tcpdump.stderr.log
+            artifacts/standalone-runtime/init.log
+            artifacts/standalone-runtime/validate.log
+            artifacts/standalone-runtime/generate.log
+            artifacts/standalone-runtime/release-install.json
+            artifacts/standalone-runtime/apply.log
+            artifacts/standalone-runtime/verify.json
+            artifacts/standalone-runtime/runtime-evidence.json
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 1
+
       - name: Attest standalone runtime evidence
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:

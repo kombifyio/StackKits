@@ -46,8 +46,9 @@ const dnsQuestionPattern = /\b([A-Z][A-Z0-9-]*)\? ([a-zA-Z0-9._-]+)\.?(?:\s|$)/i
 const dnsIPv4AnswerPattern = /\bA ([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?:[, ]|$)/gu
 const dnsIPv6AnswerPattern = /\bAAAA ([0-9a-fA-F:]+)(?:[, ]|$)/gu
 const packetTimestampPattern = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{1,6})\s+/u
-const packetHeaderPattern = /\b(IP6?)\s+(\S+)\s+>\s+(\S+):\s*(.*)$/u
+const packetHeaderPattern = /\b(In|Out)\s+(IP6?)\s+(\S+)\s+>\s+(\S+):\s*(.*)$/u
 const dnsTransactionPattern = /^(\d+)[+*]?(?:\s|$)/u
+const tcpFlagsPattern = /\bFlags \[([^\]]*)\]/u
 
 function parseEndpoint(value) {
   const match = /^(.+)\.([0-9]+)$/u.exec(value)
@@ -78,18 +79,19 @@ function parsePacket(line, index) {
   if (!Number.isFinite(observedAtMs)) {
     throw new Error(`invalid captured packet timestamp at line ${index + 1}: ${line}`)
   }
-  const source = parseEndpoint(header[2])
-  const destination = parseEndpoint(header[3])
+  const source = parseEndpoint(header[3])
+  const destination = parseEndpoint(header[4])
   if (!source || !destination) {
     throw new Error(`unparsed captured IP endpoint at line ${index + 1}: ${line}`)
   }
   return {
-    family: header[1],
+    direction: header[1],
+    family: header[2],
     source,
-    sourceRaw: header[2].toLowerCase(),
+    sourceRaw: header[3].toLowerCase(),
     destination,
-    destinationRaw: header[3].toLowerCase(),
-    payload: header[4],
+    destinationRaw: header[4].toLowerCase(),
+    payload: header[5],
     observedAt: new Date(observedAtMs).toISOString(),
     observedAtMs,
     index
@@ -175,25 +177,31 @@ for (const [index, line] of lines.entries()) {
     continue
   }
 
-  if (packet.payload.includes('Flags [')) {
-    const host = packet.destination.host
-    const resolvedHosts = activeResolvedHosts(host, packet.observedAtMs)
-    const githubResolution = (
-      resolvedHosts.length > 0 &&
-      resolvedHosts.every((resolvedHost) => scopeFor(resolvedHost) === 'github')
-    )
-    const event = {
-      schemaVersion: 'stackkit.network-event/v1',
-      observedAt: packet.observedAt,
-      kind: 'tcp',
-      host,
-      port: packet.destination.port,
-      scope: githubResolution ? 'github' : scopeFor(host)
-    }
-    if (githubResolution) event.resolvedHost = resolvedHosts[0]
-    events.push(event)
-    continue
+  const tcpFlags = tcpFlagsPattern.exec(packet.payload)?.[1]
+  if (tcpFlags === undefined) {
+    throw new Error(`unparsed captured non-DNS packet at line ${index + 1}: ${line}`)
   }
+  const initialSYN = tcpFlags.includes('S') && !tcpFlags.includes('.')
+  if (!initialSYN) {
+    throw new Error(`captured TCP packet violates outbound initial SYN contract at line ${index + 1}`)
+  }
+  if (packet.direction !== 'Out') continue
+  const host = packet.destination.host
+  const resolvedHosts = activeResolvedHosts(host, packet.observedAtMs)
+  const githubResolution = (
+    resolvedHosts.length > 0 &&
+    resolvedHosts.every((resolvedHost) => scopeFor(resolvedHost) === 'github')
+  )
+  const event = {
+    schemaVersion: 'stackkit.network-event/v1',
+    observedAt: packet.observedAt,
+    kind: 'tcp',
+    host,
+    port: packet.destination.port,
+    scope: githubResolution ? 'github' : scopeFor(host)
+  }
+  if (githubResolution) event.resolvedHost = resolvedHosts[0]
+  events.push(event)
 }
 if (events.length === 0) throw new Error('traffic capture did not contain a parseable network event')
 writeFileSync(outputPath, `${events.map((event) => JSON.stringify(event)).join('\n')}\n`)

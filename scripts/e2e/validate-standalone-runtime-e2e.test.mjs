@@ -9,6 +9,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { validateStandaloneTraffic } from './validate-standalone-oss-e2e.mjs'
 import { validateStandaloneRuntimeE2E } from './validate-standalone-runtime-e2e.mjs'
 
 const digest = (value) => createHash('sha256').update(value).digest('hex')
@@ -36,7 +37,8 @@ function fixture() {
       releaseIndexSha256: 'f'.repeat(64)
     },
     network: {
-      recorder: 'stackkit.hermetic-network-log/v1',
+      recorder: 'stackkit.hermetic-network-log/v2',
+      captureMode: 'bidirectional-dns+outbound-initial-syn/v1',
       eventsSha256: digest(traffic),
       eventCount: 1
     },
@@ -110,6 +112,51 @@ test('traffic parser binds GitHub TCP IPs to observed DNS and never treats unkno
   assert.equal(events.find((event) => event.host === '8.8.8.8').scope, 'external')
   assert.equal(events.find((event) => event.host === 'fd00::3').scope, 'local')
   assert.equal(events.find((event) => event.host === '2001:4860:4860::8888').scope, 'external')
+})
+
+test('traffic parser records only outbound initial SYN attempts without deduplication', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'stackkit-runtime-traffic-syn-'))
+  const input = path.join(root, 'tcpdump.log')
+  const output = path.join(root, 'network-events.jsonl')
+  writeFileSync(input, [
+    '2026-07-26 12:00:00.000000 eth0 Out IP 172.18.0.2.40000 > 127.0.0.53.53: 610+ A? api.github.com. (32)',
+    '2026-07-26 12:00:00.010000 eth0 In IP 127.0.0.53.53 > 172.18.0.2.40000: 610 1/0/0 A 140.82.113.21 (48)',
+    // Both retransmitted SYNs remain independent evidence events.
+    '2026-07-26 12:00:00.050000 eth0 Out IP 172.18.0.2.48000 > 140.82.113.21.443: Flags [S], seq 10',
+    '2026-07-26 12:00:01.050000 eth0 Out IP 172.18.0.2.48000 > 140.82.113.21.443: Flags [S], seq 10',
+    '2026-07-26 12:00:01.500000 eth0 In IP 20.85.130.105.443 > 172.18.0.2.47000: Flags [S], seq 1',
+    // An unknown new connection attempt must remain visible for fail-closed validation.
+    '2026-07-26 12:00:02.000000 eth0 Out IP 172.18.0.2.49000 > 8.8.4.4.443: Flags [S], seq 20',
+    ''
+  ].join('\n'))
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL('./parse-standalone-traffic.mjs', import.meta.url)), input, output],
+    {encoding: 'utf8'}
+  )
+  assert.equal(result.status, 0, result.stderr)
+  const events = readFileSync(output, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+  assert.equal(events.some((event) => event.host === '172.18.0.2' && event.port === 47000), false)
+  assert.equal(events.filter((event) => event.host === '140.82.113.21').length, 2)
+  assert.equal(events.find((event) => event.host === '8.8.4.4').scope, 'external')
+  assert.throws(() => validateStandaloneTraffic(events), /non-allowlisted host 8\.8\.4\.4/u)
+})
+
+test('traffic parser fails closed when established ACK traffic breaches the capture filter', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'stackkit-runtime-traffic-ack-'))
+  const input = path.join(root, 'tcpdump.log')
+  const output = path.join(root, 'network-events.jsonl')
+  writeFileSync(
+    input,
+    '2026-07-26 12:00:00.020000 eth0 Out IP 172.18.0.2.47000 > 20.85.130.105.443: Flags [.], ack 1, win 501\n'
+  )
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL('./parse-standalone-traffic.mjs', import.meta.url)), input, output],
+    {encoding: 'utf8'}
+  )
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /violates outbound initial SYN contract/u)
 })
 
 test('traffic parser rejects future, cross-flow, and ambiguous DNS bindings', () => {
@@ -216,7 +263,11 @@ test('harness uses the extracted public binary and bounded public workflow', () 
     'stackkit verify --json',
     'STACKKIT_RELEASE_FIXTURE_URL',
     'release fixture must resolve to exactly one unique digest',
-    "tcpdump -tttt -i any -nn -l '(udp port 53 or tcp)'"
+    "capture_filter='(udp port 53 or (tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn))'",
+    'tcpdump -ddd "$capture_filter"',
+    'tcpdump -tttt -i any -nn -l "$capture_filter"',
+    "grep -q 'listening on' \"$output_dir/tcpdump.stderr.log\"",
+    'captureMode: "bidirectional-dns+outbound-initial-syn/v1"'
   ]) {
     assert.match(harness, new RegExp(fragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
   }

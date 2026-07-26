@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url'
 
 const receiptSchema = 'stackkit.oss-e2e-receipt/v1'
 const eventSchema = 'stackkit.network-event/v1'
-const recorderSchema = 'stackkit.hermetic-network-log/v1'
+const recorderSchema = 'stackkit.hermetic-network-log/v2'
+const captureMode = 'bidirectional-dns+outbound-initial-syn/v1'
 const sha256Pattern = /^[0-9a-f]{64}$/u
 const sourceDigestPattern = /^sha256:[0-9a-f]{64}$/u
 const commitPattern = /^[0-9a-f]{40}$/u
@@ -243,8 +244,9 @@ export function validateStandaloneOSSE2E(input, trafficPath) {
   for (const field of ['sha256', 'sbomSha256', 'attestationSha256', 'releaseIndexSha256']) {
     requireSHA256(receipt.archive[field], `archive.${field}`)
   }
-  exactKeys(receipt.network, ['recorder', 'eventsSha256', 'eventCount'], 'network')
+  exactKeys(receipt.network, ['recorder', 'captureMode', 'eventsSha256', 'eventCount'], 'network')
   if (receipt.network.recorder !== recorderSchema) fail('network.recorder is unsupported')
+  if (receipt.network.captureMode !== captureMode) fail('network.captureMode is unsupported')
   requireSHA256(receipt.network.eventsSha256, 'network.eventsSha256')
   if (!Number.isInteger(receipt.network.eventCount) || receipt.network.eventCount < 1) {
     fail('network.eventCount must be positive')

@@ -43,9 +43,10 @@
     "network": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["recorder", "eventsSha256", "eventCount"],
+      "required": ["recorder", "captureMode", "eventsSha256", "eventCount"],
       "properties": {
-        "recorder": { "const": "stackkit.hermetic-network-log/v1" },
+        "recorder": { "const": "stackkit.hermetic-network-log/v2" },
+        "captureMode": { "const": "bidirectional-dns+outbound-initial-syn/v1" },
         "eventsSha256": { "$ref": "#/$defs/sha256" },
         "eventCount": { "type": "integer", "minimum": 1 }
       }

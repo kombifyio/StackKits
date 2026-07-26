@@ -53,6 +53,7 @@ jobs:
           cat affected-plan.json
           echo "need_cue=$(jq -r 'any(.commands[]; .kind == "cue")' affected-plan.json)" >> "$GITHUB_OUTPUT"
           echo "need_node=$(jq -r 'any(.commands[]; .kind == "website" or .kind == "release")' affected-plan.json)" >> "$GITHUB_OUTPUT"
+          echo "need_release_general=$(jq -r '.classification.releaseGeneral // false' affected-plan.json)" >> "$GITHUB_OUTPUT"
 
       - name: Setup CUE only when affected
         if: steps.plan.outputs.need_cue == 'true'
@@ -70,7 +71,7 @@ jobs:
         run: node scripts/release/validate-architecture-contract-fixture.mjs --repo-root .
 
       - name: Run affected public release-contract tests
-        if: steps.plan.outputs.need_node == 'true'
+        if: steps.plan.outputs.need_release_general == 'true'
         run: |
           node --test \
             scripts/e2e/validate-standalone-oss-e2e.test.mjs \
