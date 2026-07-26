@@ -2467,6 +2467,13 @@ _architectureV2Modules: list.Concat([[
 						digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
 					}
 					dependsOn: ["coolify-postgres", "coolify-redis", "coolify-realtime"], networkRefs: ["basement-core"]
+					environment: {
+						AUTOUPDATE:         "false"
+						CDN_URL:            "http://hub/.stackkit/offline/coolify/cdn"
+						VERSIONS_URL:       "http://hub/.stackkit/offline/coolify/versions.json"
+						UPGRADE_SCRIPT_URL: "http://hub/.stackkit/offline/coolify/upgrade.sh"
+						RELEASES_URL:       "http://hub/.stackkit/offline/coolify/releases.json"
+					}
 					volumes: [
 						{id: "coolify-data", target: "/var/www/html/storage", class: "persistent", backup: true},
 						{id: "coolify-ssh", target: "/var/www/html/storage/app/ssh", class: "persistent", backup: true},
@@ -2521,7 +2528,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id: "compose", kind: "compose", rendererRef: "stackkit"
 				templateRef: "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:1112e8b2781a57221083e5ccaada03fc79819e30a46cc4a01d3efc28e666a8af"
+				contractHash: "sha256:f569db01fb19dd1a7b13cfc1c966fd342ca40fbc8458ab73f6a32938483dee36"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -2536,7 +2543,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id: "opentofu", kind: "opentofu", rendererRef: "stackkit"
 				templateRef: "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:9b3f15fa18101ce43b4cbdaf69c803a4a498ae53dce855a02986252d4d498916"
+				contractHash: "sha256:f48b3e246d3d25b4fa0c6f1d2c940e11e6b4c321c74cbc505312d5d6afd49e36"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}

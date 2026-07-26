@@ -63,6 +63,22 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
     publicRelease,
     /identity="https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\/\.github\/workflows\/release\.yml@refs\/tags\/\$\{TAG\}"[\s\S]*?--base-url "https:\/\/github\.com\/kombifyio\/stackKits\/releases\/download\/\$\{TAG\}"/u
   )
+  const attachStart = publicRelease.indexOf('- name: Attach runtime evidence and publish the prerelease')
+  const attachEnd = publicRelease.indexOf('--clobber', attachStart)
+  assert.notEqual(attachStart, -1)
+  assert.ok(attachEnd > attachStart)
+  assert.deepEqual(
+    [...publicRelease.slice(attachStart, attachEnd).matchAll(
+      /artifacts\/standalone-runtime\/([a-z0-9.-]+)/gu
+    )].map((match) => match[1]),
+    [
+      'runtime-evidence.json',
+      'network-events.jsonl',
+      'compose-origin-scope.json',
+      'apply.log',
+      'verify.json'
+    ]
+  )
   assert.match(publicRelease, /Stable publication requires the S4 upgrade, rollback, backup, and drift receipt/u)
 })
 
@@ -78,6 +94,7 @@ test('public runtime failure diagnostics are explicit, sanitized, and short-live
   for (const name of [
     'tcpdump.log',
     'network-events.jsonl',
+    'compose-origin-scope.json',
     'tcpdump.stderr.log',
     'init.log',
     'validate.log',

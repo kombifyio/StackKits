@@ -7,7 +7,7 @@
   "required": ["schemaVersion", "source", "archive", "network", "phases"],
   "properties": {
     "schemaVersion": {
-      "const": "stackkit.oss-e2e-receipt/v1"
+      "const": "stackkit.oss-e2e-receipt/v2"
     },
     "source": {
       "type": "object",
@@ -43,11 +43,18 @@
     "network": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["recorder", "captureMode", "eventsSha256", "eventCount"],
+      "required": [
+        "recorder",
+        "captureMode",
+        "eventsSha256",
+        "originScopeSha256",
+        "eventCount"
+      ],
       "properties": {
         "recorder": { "const": "stackkit.hermetic-network-log/v2" },
-        "captureMode": { "const": "bidirectional-dns+outbound-initial-syn/v1" },
+        "captureMode": { "const": "host-forbidden-dns+compose-origin-initial-syn/v1" },
         "eventsSha256": { "$ref": "#/$defs/sha256" },
+        "originScopeSha256": { "$ref": "#/$defs/sha256" },
         "eventCount": { "type": "integer", "minimum": 1 }
       }
     },

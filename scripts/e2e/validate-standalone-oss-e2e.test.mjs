@@ -9,6 +9,7 @@ import {
   validateStandaloneOSSE2E,
   validateStandaloneTraffic
 } from './validate-standalone-oss-e2e.mjs'
+import { canonicalScope } from './compose-origin-scope.mjs'
 
 const phaseCommands = {
   authoring: ['stackkit init --owner-source=local', 'stackkit validate', 'stackkit generate'],
@@ -32,17 +33,18 @@ function fixture(t) {
     {
       schemaVersion: 'stackkit.network-event/v1',
       observedAt: '2026-07-26T10:00:01Z',
-      kind: 'dns',
-      host: 'api.github.com',
-      scope: 'github'
+      kind: 'tcp',
+      host: '172.18.0.2',
+      port: 6379,
+      scope: 'local'
     },
     {
       schemaVersion: 'stackkit.network-event/v1',
       observedAt: '2026-07-26T10:00:02Z',
-      kind: 'http',
-      host: 'github-release-fixture.localhost',
-      port: 443,
-      scope: 'fixture'
+      kind: 'tcp',
+      host: '172.18.0.4',
+      port: 5432,
+      scope: 'local'
     },
     {
       schemaVersion: 'stackkit.network-event/v1',
@@ -56,6 +58,18 @@ function fixture(t) {
   const traffic = `${events.map((event) => JSON.stringify(event)).join('\n')}\n`
   const trafficPath = path.join(root, 'network-events.jsonl')
   writeFileSync(trafficPath, traffic)
+  const scope = canonicalScope({
+    schemaVersion: 'stackkit.compose-origin-scope/v1',
+    project: 'stackkit-basement-core',
+    networks: [{id: '1'.repeat(64), name: 'stackkit-basement-core_default', subnets: ['172.18.0.0/16']}],
+    containers: [{
+      id: '2'.repeat(64),
+      service: 'coolify',
+      networks: [{id: '1'.repeat(64), ips: ['172.18.0.11']}]
+    }]
+  })
+  const scopePath = path.join(root, 'compose-origin-scope.json')
+  writeFileSync(scopePath, scope)
   const startedAt = Date.parse('2026-07-26T10:00:00Z')
   const phases = Object.entries(phaseCommands).map(([id, commands], index) => ({
     id,
@@ -70,7 +84,7 @@ function fixture(t) {
     }]
   }))
   const receipt = {
-    schemaVersion: 'stackkit.oss-e2e-receipt/v1',
+    schemaVersion: 'stackkit.oss-e2e-receipt/v2',
     source: {
       repository: 'kombifyio/stackKits',
       commit: 'a'.repeat(40),
@@ -85,21 +99,22 @@ function fixture(t) {
     },
     network: {
       recorder: 'stackkit.hermetic-network-log/v2',
-      captureMode: 'bidirectional-dns+outbound-initial-syn/v1',
+      captureMode: 'host-forbidden-dns+compose-origin-initial-syn/v1',
       eventsSha256: sha256(Buffer.from(traffic)),
+      originScopeSha256: sha256(Buffer.from(scope)),
       eventCount: events.length
     },
     phases
   }
   const receiptPath = path.join(root, 'receipt.json')
   writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`)
-  return { events, receipt, receiptPath, trafficPath }
+  return { events, receipt, receiptPath, trafficPath, scopePath }
 }
 
-test('accepts the exact bounded three-phase OSS receipt and GitHub/local traffic', (t) => {
+test('accepts the exact bounded v2 OSS receipt and Compose-local traffic', (t) => {
   const candidate = fixture(t)
   assert.equal(validateStandaloneTraffic(candidate.events).length, 3)
-  const verified = validateStandaloneOSSE2E(candidate.receiptPath, candidate.trafficPath)
+  const verified = validateStandaloneOSSE2E(candidate.receiptPath, candidate.trafficPath, candidate.scopePath)
   assert.equal(verified.phases.length, 3)
   assert.equal(verified.network.eventCount, 3)
 })
@@ -108,27 +123,28 @@ test('rejects over-budget, reordered, or incomplete phases', (t) => {
   const candidate = fixture(t)
   candidate.receipt.phases[0].durationSeconds = 601
   assert.throws(
-    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath),
+    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath, candidate.scopePath),
     /durationSeconds/
   )
   candidate.receipt.phases[0].durationSeconds = 90
   candidate.receipt.phases.reverse()
   assert.throws(
-    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath),
+    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath, candidate.scopePath),
     /phase order/
   )
 })
 
-test('rejects Kombify-controlled and unknown public hosts including DNS lookups', (t) => {
+test('rejects non-TCP and external events', (t) => {
   const candidate = fixture(t)
   for (const host of ['api.kombify.io', 'stackkit.cc', 'example.com']) {
     assert.throws(
       () => validateStandaloneTraffic([{
         schemaVersion: 'stackkit.network-event/v1',
         observedAt: '2026-07-26T10:00:01Z',
-        kind: 'dns',
+        kind: 'tcp',
         host,
-        scope: 'github'
+        port: 443,
+        scope: 'external'
       }]),
       /network event/
     )
@@ -147,7 +163,7 @@ test('rejects Kombify-controlled and unknown public hosts including DNS lookups'
   assert.equal(validateStandaloneTraffic(candidate.events).length, 3)
 })
 
-test('accepts only DNS-bound GitHub TCP IP events', () => {
+test('rejects DNS-bound GitHub IP exceptions', () => {
   const githubIP = {
     schemaVersion: 'stackkit.network-event/v1',
     observedAt: '2026-07-26T10:00:01Z',
@@ -157,15 +173,7 @@ test('accepts only DNS-bound GitHub TCP IP events', () => {
     scope: 'github',
     resolvedHost: 'api.github.com'
   }
-  assert.equal(validateStandaloneTraffic([githubIP]).length, 1)
-  for (const event of [
-    {...githubIP, resolvedHost: undefined},
-    {...githubIP, resolvedHost: 'example.com'},
-    {...githubIP, resolvedHost: 'api.kombify.io'}
-  ]) {
-    if (event.resolvedHost === undefined) delete event.resolvedHost
-    assert.throws(() => validateStandaloneTraffic([event]), /network event|Kombify-controlled/u)
-  }
+  assert.throws(() => validateStandaloneTraffic([githubIP]), /network event/u)
 })
 
 test('rejects traffic-log tamper and secret-bearing receipt fields', (t) => {
@@ -177,13 +185,13 @@ test('rejects traffic-log tamper and secret-bearing receipt fields', (t) => {
     `${tamperedEvents.map((event) => JSON.stringify(event)).join('\n')}\n`
   )
   assert.throws(
-    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath),
+    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath, candidate.scopePath),
     /traffic log digest/
   )
   candidate.receipt.network.eventsSha256 = sha256(Buffer.from('different'))
   candidate.receipt.operatorToken = 'must-never-enter-evidence'
   assert.throws(
-    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath),
+    () => validateStandaloneOSSE2E(candidate.receipt, candidate.trafficPath, candidate.scopePath),
     /forbidden evidence field/
   )
 })
@@ -193,6 +201,12 @@ test('JSON Schema phase base admits the exact id and commands refined by each ph
     new URL('../../schemas/standalone-oss-e2e-receipt.schema.json', import.meta.url),
     'utf8'
   ))
+  assert.equal(schema.properties.schemaVersion.const, 'stackkit.oss-e2e-receipt/v2')
+  assert.equal(
+    schema.properties.network.properties.captureMode.const,
+    'host-forbidden-dns+compose-origin-initial-syn/v1'
+  )
+  assert.ok(schema.properties.network.required.includes('originScopeSha256'))
   assert.deepEqual(schema.$defs.phaseBase.properties.id, { type: 'string' })
   assert.deepEqual(schema.$defs.phaseBase.properties.commands, {
     type: 'array',

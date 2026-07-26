@@ -8255,7 +8255,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:1112e8b2781a57221083e5ccaada03fc79819e30a46cc4a01d3efc28e666a8af",
+          "contractHash": "sha256:f569db01fb19dd1a7b13cfc1c966fd342ca40fbc8458ab73f6a32938483dee36",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -8298,7 +8298,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:9b3f15fa18101ce43b4cbdaf69c803a4a498ae53dce855a02986252d4d498916",
+          "contractHash": "sha256:f48b3e246d3d25b4fa0c6f1d2c940e11e6b4c321c74cbc505312d5d6afd49e36",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -8498,6 +8498,13 @@
               "coolify-redis",
               "coolify-realtime"
             ],
+            "environment": {
+              "AUTOUPDATE": "false",
+              "CDN_URL": "http://hub/.stackkit/offline/coolify/cdn",
+              "RELEASES_URL": "http://hub/.stackkit/offline/coolify/releases.json",
+              "UPGRADE_SCRIPT_URL": "http://hub/.stackkit/offline/coolify/upgrade.sh",
+              "VERSIONS_URL": "http://hub/.stackkit/offline/coolify/versions.json"
+            },
             "health": {
               "kind": "http",
               "path": "/api/health",

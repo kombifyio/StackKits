@@ -6,10 +6,12 @@ import { isIP } from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const receiptSchema = 'stackkit.oss-e2e-receipt/v1'
+import { readComposeOriginScope } from './compose-origin-scope.mjs'
+
+const receiptSchema = 'stackkit.oss-e2e-receipt/v2'
 const eventSchema = 'stackkit.network-event/v1'
 const recorderSchema = 'stackkit.hermetic-network-log/v2'
-const captureMode = 'bidirectional-dns+outbound-initial-syn/v1'
+const captureMode = 'host-forbidden-dns+compose-origin-initial-syn/v1'
 const sha256Pattern = /^[0-9a-f]{64}$/u
 const sourceDigestPattern = /^sha256:[0-9a-f]{64}$/u
 const commitPattern = /^[0-9a-f]{40}$/u
@@ -18,11 +20,6 @@ const forbiddenHostSuffixes = [
   'kombify.io',
   'kombify.me',
   'stackkit.cc'
-]
-const githubHostSuffixes = [
-  'github.com',
-  'githubassets.com',
-  'githubusercontent.com'
 ]
 const phaseContract = [
   {
@@ -103,13 +100,10 @@ function isLocalHost(host) {
 
 function validateNetworkEvent(event, index) {
   const label = `network event ${index}`
-  const allowedKeys = ['schemaVersion', 'observedAt', 'kind', 'host', 'scope']
-  if (Object.hasOwn(event, 'port')) allowedKeys.push('port')
-  if (Object.hasOwn(event, 'resolvedHost')) allowedKeys.push('resolvedHost')
-  exactKeys(event, allowedKeys, label)
+  exactKeys(event, ['schemaVersion', 'observedAt', 'kind', 'host', 'port', 'scope'], label)
   if (event.schemaVersion !== eventSchema) fail(`${label} has unsupported schemaVersion`)
   parseInstant(event.observedAt, `${label}.observedAt`)
-  if (!['dns', 'http', 'tcp'].includes(event.kind)) fail(`${label}.kind is unsupported`)
+  if (event.kind !== 'tcp') fail(`${label}.kind must be tcp`)
   if (typeof event.host !== 'string' || event.host !== event.host.trim().toLowerCase() ||
       event.host.endsWith('.') || event.host.length === 0) {
     fail(`${label}.host is not canonical`)
@@ -118,39 +112,13 @@ function validateNetworkEvent(event, index) {
       (!Number.isInteger(event.port) || event.port < 1 || event.port > 65535)) {
     fail(`${label}.port is invalid`)
   }
-  if (event.resolvedHost !== undefined &&
-      (event.kind !== 'tcp' || isIP(event.host) === 0 ||
-       typeof event.resolvedHost !== 'string' ||
-       event.resolvedHost !== event.resolvedHost.trim().toLowerCase() ||
-       event.resolvedHost.endsWith('.') || event.resolvedHost.length === 0 ||
-       isIP(event.resolvedHost) !== 0)) {
-    fail(`${label}.resolvedHost is not a canonical TCP DNS binding`)
-  }
-  const observedHosts = [event.host]
-  if (event.resolvedHost !== undefined) observedHosts.push(event.resolvedHost)
-  const forbiddenHost = observedHosts.find((host) =>
+  const forbiddenHost = [event.host].find((host) =>
     forbiddenHostSuffixes.some((suffix) => isSuffix(host, suffix))
   )
   if (forbiddenHost !== undefined) {
     fail(`${label} reaches Kombify-controlled host ${forbiddenHost}`)
   }
-  const directGitHubHost = githubHostSuffixes.some((suffix) => isSuffix(event.host, suffix))
-  const dnsBoundGitHubIP = (
-    event.kind === 'tcp' &&
-    isIP(event.host) !== 0 &&
-    event.resolvedHost !== undefined &&
-    githubHostSuffixes.some((suffix) => isSuffix(event.resolvedHost, suffix))
-  )
-  const allowed = (
-    event.scope === 'github' &&
-      (directGitHubHost || dnsBoundGitHubIP)
-  ) || (
-    event.scope === 'fixture' &&
-      event.host === 'github-release-fixture.localhost'
-  ) || (
-    event.scope === 'local' &&
-      isLocalHost(event.host)
-  )
+  const allowed = event.scope === 'local' && isLocalHost(event.host)
   if (!allowed) fail(`${label} reaches non-allowlisted host ${event.host}`)
   return event
 }
@@ -220,7 +188,7 @@ function parseReceipt(input) {
   }
 }
 
-export function validateStandaloneOSSE2E(input, trafficPath) {
+export function validateStandaloneOSSE2E(input, trafficPath, scopePath) {
   const receipt = parseReceipt(input)
   rejectSecretFields(receipt)
   exactKeys(receipt, ['schemaVersion', 'source', 'archive', 'network', 'phases'], 'receipt')
@@ -244,10 +212,11 @@ export function validateStandaloneOSSE2E(input, trafficPath) {
   for (const field of ['sha256', 'sbomSha256', 'attestationSha256', 'releaseIndexSha256']) {
     requireSHA256(receipt.archive[field], `archive.${field}`)
   }
-  exactKeys(receipt.network, ['recorder', 'captureMode', 'eventsSha256', 'eventCount'], 'network')
+  exactKeys(receipt.network, ['recorder', 'captureMode', 'eventsSha256', 'originScopeSha256', 'eventCount'], 'network')
   if (receipt.network.recorder !== recorderSchema) fail('network.recorder is unsupported')
   if (receipt.network.captureMode !== captureMode) fail('network.captureMode is unsupported')
   requireSHA256(receipt.network.eventsSha256, 'network.eventsSha256')
+  requireSHA256(receipt.network.originScopeSha256, 'network.originScopeSha256')
   if (!Number.isInteger(receipt.network.eventCount) || receipt.network.eventCount < 1) {
     fail('network.eventCount must be positive')
   }
@@ -255,6 +224,10 @@ export function validateStandaloneOSSE2E(input, trafficPath) {
   const trafficDigest = createHash('sha256').update(traffic.raw).digest('hex')
   if (trafficDigest !== receipt.network.eventsSha256) fail('traffic log digest does not match receipt')
   if (traffic.events.length !== receipt.network.eventCount) fail('traffic log event count does not match receipt')
+  const scope = readComposeOriginScope(scopePath)
+  if (createHash('sha256').update(scope.raw).digest('hex') !== receipt.network.originScopeSha256) {
+    fail('network scope digest does not match receipt')
+  }
   if (!Array.isArray(receipt.phases) || receipt.phases.length !== phaseContract.length) {
     fail('receipt must contain exactly three phases')
   }
@@ -263,12 +236,12 @@ export function validateStandaloneOSSE2E(input, trafficPath) {
 }
 
 function main(argv) {
-  if (argv.length !== 2) {
-    console.error('usage: validate-standalone-oss-e2e.mjs <receipt.json> <network-events.jsonl>')
+  if (argv.length !== 3) {
+    console.error('usage: validate-standalone-oss-e2e.mjs <receipt.json> <network-events.jsonl> <compose-origin-scope.json>')
     process.exitCode = 2
     return
   }
-  validateStandaloneOSSE2E(argv[0], argv[1])
+  validateStandaloneOSSE2E(argv[0], argv[1], argv[2])
   console.log('standalone OSS E2E receipt passed')
 }
 

@@ -5,9 +5,10 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { readComposeOriginScope } from './compose-origin-scope.mjs'
 import { validateStandaloneTraffic } from './validate-standalone-oss-e2e.mjs'
 
-const schema = 'stackkit.oss-runtime-e2e-evidence/v1'
+const schema = 'stackkit.oss-runtime-e2e-evidence/v2'
 const sha256Pattern = /^[0-9a-f]{64}$/u
 const sourceDigestPattern = /^sha256:[0-9a-f]{64}$/u
 const commitPattern = /^[0-9a-f]{40}$/u
@@ -53,7 +54,7 @@ function parseTime(value, label) {
   return parsed
 }
 
-export function validateStandaloneRuntimeE2E(evidencePath, trafficPath) {
+export function validateStandaloneRuntimeE2E(evidencePath, trafficPath, originScopePath) {
   const evidenceRaw = readFileSync(evidencePath)
   const evidence = JSON.parse(evidenceRaw)
   rejectSecrets(evidence)
@@ -77,12 +78,20 @@ export function validateStandaloneRuntimeE2E(evidencePath, trafficPath) {
     requireDigest(evidence.archive[field], `archive.${field}`)
   }
 
-  exactKeys(evidence.network, ['recorder', 'captureMode', 'eventsSha256', 'eventCount'], 'network')
+  exactKeys(
+    evidence.network,
+    ['recorder', 'captureMode', 'eventsSha256', 'originScopeSha256', 'eventCount'],
+    'network'
+  )
   if (evidence.network.recorder !== 'stackkit.hermetic-network-log/v2') fail('unsupported network recorder')
-  if (evidence.network.captureMode !== 'bidirectional-dns+outbound-initial-syn/v1') {
+  if (evidence.network.captureMode !== 'host-forbidden-dns+compose-origin-initial-syn/v1') {
     fail('unsupported network capture mode')
   }
   requireDigest(evidence.network.eventsSha256, 'network.eventsSha256')
+  requireDigest(evidence.network.originScopeSha256, 'network.originScopeSha256')
+  if (!Number.isInteger(evidence.network.eventCount) || evidence.network.eventCount < 1) {
+    fail('network.eventCount must be positive')
+  }
   const trafficRaw = readFileSync(trafficPath)
   if (trafficRaw.length === 0 || trafficRaw[trafficRaw.length - 1] !== 0x0a) fail('traffic log must be newline-terminated')
   const traffic = trafficRaw.toString('utf8').trimEnd().split(/\r?\n/u).map((line) => JSON.parse(line))
@@ -90,6 +99,10 @@ export function validateStandaloneRuntimeE2E(evidencePath, trafficPath) {
   if (digest(trafficRaw) !== evidence.network.eventsSha256 ||
       traffic.length !== evidence.network.eventCount) {
     fail('network evidence digest or event count differs from the capture')
+  }
+  const originScope = readComposeOriginScope(originScopePath)
+  if (digest(originScope.raw) !== evidence.network.originScopeSha256) {
+    fail('Compose origin scope digest differs from the evidence')
   }
 
   const phase = evidence.phase
@@ -123,11 +136,11 @@ export function validateStandaloneRuntimeE2E(evidencePath, trafficPath) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  if (process.argv.length !== 4) {
-    console.error('usage: validate-standalone-runtime-e2e.mjs <runtime-evidence.json> <network-events.jsonl>')
+  if (process.argv.length !== 5) {
+    console.error('usage: validate-standalone-runtime-e2e.mjs <runtime-evidence.json> <network-events.jsonl> <compose-origin-scope.json>')
     process.exitCode = 2
   } else {
-    validateStandaloneRuntimeE2E(process.argv[2], process.argv[3])
+    validateStandaloneRuntimeE2E(process.argv[2], process.argv[3], process.argv[4])
     console.log('standalone OSS runtime E2E evidence passed')
   }
 }

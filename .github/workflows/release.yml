@@ -295,6 +295,7 @@ jobs:
           path: |
             artifacts/standalone-runtime/tcpdump.log
             artifacts/standalone-runtime/network-events.jsonl
+            artifacts/standalone-runtime/compose-origin-scope.json
             artifacts/standalone-runtime/tcpdump.stderr.log
             artifacts/standalone-runtime/init.log
             artifacts/standalone-runtime/validate.log
@@ -337,6 +338,7 @@ jobs:
           gh release upload "$TAG" \
             artifacts/standalone-runtime/runtime-evidence.json \
             artifacts/standalone-runtime/network-events.jsonl \
+            artifacts/standalone-runtime/compose-origin-scope.json \
             artifacts/standalone-runtime/apply.log \
             artifacts/standalone-runtime/verify.json \
             --clobber

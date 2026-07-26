@@ -382,6 +382,11 @@ func basementRuntimeEnvironments(owner OwnerCustody) (map[string][]byte, error) 
 			"SOKETI_DEFAULT_APP_SECRET="+secrets["PUSHER_APP_SECRET"],
 			"SOKETI_HOST=0.0.0.0",
 			"REGISTRY_URL=ghcr.io",
+			"AUTOUPDATE=false",
+			"CDN_URL=http://hub/.stackkit/offline/coolify/cdn",
+			"VERSIONS_URL=http://hub/.stackkit/offline/coolify/versions.json",
+			"UPGRADE_SCRIPT_URL=http://hub/.stackkit/offline/coolify/upgrade.sh",
+			"RELEASES_URL=http://hub/.stackkit/offline/coolify/releases.json",
 		),
 	}, nil
 }

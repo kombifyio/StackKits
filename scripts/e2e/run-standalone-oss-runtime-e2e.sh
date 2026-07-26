@@ -42,6 +42,7 @@ home_dir="$work_root/home"
 fixture_dir="$work_root/release-fixture"
 raw_traffic="$output_dir/tcpdump.log"
 traffic_events="$output_dir/network-events.jsonl"
+network_scope="$output_dir/compose-origin-scope.json"
 
 cleanup() {
   if [ -n "${capture_pid:-}" ]; then
@@ -140,9 +141,9 @@ fixture_url="$(head -n1 "$output_dir/fixture-url.txt")"
   exit 1
 }
 
-# DNS stays bidirectional so answers can bind addresses to GitHub names. TCP is
-# narrowed to initial SYN packets here and independently enforced as Outbound by
-# the parser; a global `-Q out` would discard the required DNS answers.
+# Host-visible DNS stays bidirectional solely as a negative Kombify-domain gate.
+# TCP is narrowed to initial SYN packets; the parser admits only Compose-origin
+# `P` packets whose source is an exact inspected container address.
 capture_filter='(udp port 53 or (tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn))'
 tcpdump -ddd "$capture_filter" >/dev/null
 tcpdump -tttt -i any -nn -l "$capture_filter" >"$raw_traffic" 2>"$output_dir/tcpdump.stderr.log" &
@@ -164,10 +165,104 @@ timeout 600 stackkit upgrade --to "$version" --json >"$output_dir/release-instal
 
 runtime_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 runtime_started_epoch="$(date +%s)"
-timeout 600 sh -ec '
-  stackkit apply >"$1"
-  stackkit verify --json >"$2"
-' sh "$output_dir/apply.log" "$output_dir/verify.json"
+timeout 600 stackkit apply >"$output_dir/apply.log"
+
+runtime_compose="$project_dir/.stackkit/runtime/basement-core/compose.yaml"
+[ -s "$runtime_compose" ] || {
+  printf 'standalone Apply did not persist the Basement runtime Compose artifact\n' >&2
+  exit 1
+}
+container_lines="$work_root/origin-scope-containers.jsonl"
+network_lines="$work_root/origin-scope-networks.jsonl"
+mapfile -t container_ids < <(
+  STACKKIT_CUSTODY_DIR="$project_dir/.stackkit/custody" \
+    docker compose --project-name stackkit-basement-core -f "$runtime_compose" ps --all --quiet --no-trunc \
+    | sort -u
+)
+[ "${#container_ids[@]}" -gt 0 ] || {
+  printf 'Compose project stackkit-basement-core has no containers after Apply\n' >&2
+  exit 1
+}
+mapfile -t labelled_project_container_ids < <(
+  docker ps --all --quiet --no-trunc --filter label=com.docker.compose.project=stackkit-basement-core \
+    | sort -u
+)
+diff -u \
+  <(printf '%s\n' "${container_ids[@]}") \
+  <(printf '%s\n' "${labelled_project_container_ids[@]}") || {
+    printf 'Compose ps and exact project-labelled container sets differ\n' >&2
+    exit 1
+  }
+for container_id in "${container_ids[@]}"; do
+  docker inspect "$container_id" | jq -ec --arg project stackkit-basement-core '
+    .[0]
+    | if .Config.Labels["com.docker.compose.project"] != $project
+      then error("container is outside the exact Compose project")
+      else .
+      end
+    | if (.HostConfig.NetworkMode == "host"
+          or .HostConfig.NetworkMode == "none"
+          or (.HostConfig.NetworkMode | startswith("container:")))
+      then error("host, none, and container network modes are forbidden")
+      else .
+      end
+    | {
+        id: .Id,
+        service: .Config.Labels["com.docker.compose.service"],
+        networks: (
+          [.NetworkSettings.Networks // {} | to_entries[] | {
+            id: .value.NetworkID,
+            ips: ([.value.IPAddress, .value.GlobalIPv6Address] | map(select(length > 0)) | sort | unique)
+          }]
+          | sort_by(.id)
+        )
+      }
+  ' >>"$container_lines"
+done
+mapfile -t expected_services < <(
+  STACKKIT_CUSTODY_DIR="$project_dir/.stackkit/custody" \
+    docker compose --project-name stackkit-basement-core -f "$runtime_compose" config --services \
+    | sort -u
+)
+mapfile -t observed_services < <(jq -rs '[.[].service] | unique[]' "$container_lines")
+[ "$(wc -l <"$container_lines" | tr -d ' ')" -eq "${#observed_services[@]}" ] || {
+  printf 'Compose project must have exactly one container for every service\n' >&2
+  exit 1
+}
+[ "${#expected_services[@]}" -eq "${#observed_services[@]}" ] &&
+  diff -u <(printf '%s\n' "${expected_services[@]}") <(printf '%s\n' "${observed_services[@]}") || {
+    printf 'Compose project service set differs from the inspected container service set\n' >&2
+    exit 1
+  }
+mapfile -t network_ids < <(jq -rs '[.[].networks[].id] | unique[]' "$container_lines")
+[ "${#network_ids[@]}" -gt 0 ] || {
+  printf 'Compose project stackkit-basement-core has no inspectable bridge network\n' >&2
+  exit 1
+}
+for network_id in "${network_ids[@]}"; do
+  docker network inspect "$network_id" | jq -ec --arg id "$network_id" '
+    .[0]
+    | if .Id != $id then error("network ID changed during inspection") else . end
+    | {
+        id: .Id,
+        name: .Name,
+        subnets: ([.IPAM.Config[]?.Subnet | select(type == "string" and length > 0)] | sort | unique)
+      }
+  ' >>"$network_lines"
+done
+jq -n \
+  --arg schemaVersion "stackkit.compose-origin-scope/v1" \
+  --arg project "stackkit-basement-core" \
+  --slurpfile containers <(jq -s 'sort_by(.id)' "$container_lines") \
+  --slurpfile networks <(jq -s 'sort_by(.id)' "$network_lines") \
+  '{
+    schemaVersion: $schemaVersion,
+    project: $project,
+    networks: $networks[0],
+    containers: $containers[0]
+  }' >"$network_scope"
+
+timeout 600 stackkit verify --json >"$output_dir/verify.json"
 runtime_finished_epoch="$(date +%s)"
 runtime_finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 runtime_duration=$((runtime_finished_epoch - runtime_started_epoch))
@@ -179,7 +274,7 @@ runtime_duration=$((runtime_finished_epoch - runtime_started_epoch))
 kill -INT "$capture_pid"
 wait "$capture_pid" || true
 capture_pid=
-node "$script_dir/parse-standalone-traffic.mjs" "$raw_traffic" "$traffic_events"
+node "$script_dir/parse-standalone-traffic.mjs" "$raw_traffic" "$network_scope" "$traffic_events"
 
 evidence_digest() {
   sha256sum "$1" | cut -d' ' -f1
@@ -197,11 +292,12 @@ jq -n \
   --arg finishedAt "$runtime_finished" \
   --argjson durationSeconds "$runtime_duration" \
   --arg trafficSha256 "$(evidence_digest "$traffic_events")" \
+  --arg originScopeSha256 "$(evidence_digest "$network_scope")" \
   --argjson eventCount "$event_count" \
   --arg applySha256 "$(evidence_digest "$output_dir/apply.log")" \
   --arg verifySha256 "$(evidence_digest "$output_dir/verify.json")" \
   '{
-    schemaVersion: "stackkit.oss-runtime-e2e-evidence/v1",
+    schemaVersion: "stackkit.oss-runtime-e2e-evidence/v2",
     source: {repository: "kombifyio/stackKits", commit: $sourceCommit, digest: $sourceDigest},
     archive: {
       name: $archiveName, sha256: $archiveSha256, sbomSha256: $sbomSha256,
@@ -209,8 +305,9 @@ jq -n \
     },
     network: {
       recorder: "stackkit.hermetic-network-log/v2",
-      captureMode: "bidirectional-dns+outbound-initial-syn/v1",
+      captureMode: "host-forbidden-dns+compose-origin-initial-syn/v1",
       eventsSha256: $trafficSha256,
+      originScopeSha256: $originScopeSha256,
       eventCount: $eventCount
     },
     phase: {
@@ -225,5 +322,5 @@ jq -n \
   }' >"$output_dir/runtime-evidence.json"
 
 node "$script_dir/validate-standalone-runtime-e2e.mjs" \
-  "$output_dir/runtime-evidence.json" "$traffic_events"
+  "$output_dir/runtime-evidence.json" "$traffic_events" "$network_scope"
 printf 'standalone OSS runtime E2E passed: %s\n' "$output_dir/runtime-evidence.json"
