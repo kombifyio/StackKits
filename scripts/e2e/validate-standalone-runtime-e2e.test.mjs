@@ -197,6 +197,7 @@ test('harness binds evidence to exact Compose project scope and the new capture 
     'stackkit.compose-origin-scope/v1',
     'originScopeSha256',
     'host-forbidden-dns+compose-origin-initial-syn/v1',
+    'stackkit apply >"$output_dir/apply.log" 2>&1',
     'parse-standalone-traffic.mjs" "$raw_traffic" "$network_scope" "$traffic_events"'
   ]) {
     assert.match(harness, new RegExp(fragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))

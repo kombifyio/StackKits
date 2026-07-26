@@ -165,7 +165,7 @@ timeout 600 stackkit upgrade --to "$version" --json >"$output_dir/release-instal
 
 runtime_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 runtime_started_epoch="$(date +%s)"
-timeout 600 stackkit apply >"$output_dir/apply.log"
+timeout 600 stackkit apply >"$output_dir/apply.log" 2>&1
 
 runtime_compose="$project_dir/.stackkit/runtime/basement-core/compose.yaml"
 [ -s "$runtime_compose" ] || {

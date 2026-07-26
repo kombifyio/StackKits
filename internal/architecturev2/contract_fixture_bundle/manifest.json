@@ -10,7 +10,7 @@
   "sourceHashes": {
     "architecture/v2/contractfixture/catalog.cue": "sha256:81909d223d0573ac1acd3b0762f4ca7e5daf1297f30c89151601c9faa6fd63ec",
     "base/architecture_v2.cue": "sha256:a7e1f26a7a613395dfca17730c85b1d5ea9adbbbaa7f5c5d1b07ead5cce1eb9b",
-    "base/architecture_v2_catalog.cue": "sha256:f5ed7babc38bfce9241072b0e1341223edfe141589a5b042f4907ad2942ce65d",
+    "base/architecture_v2_catalog.cue": "sha256:5f9cb3acdc225468471a9edb820df2e003d303ea5a99d71cae4dfacdd7799a37",
     "base/architecture_v2_definition_binding.cue": "sha256:692c5ec5ed511c8ee23e5a0a11c4911c8a865efda9464dbceb6c28d92aa9a5bd",
     "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",
     "basement-kit/stackfile.cue": "sha256:ae888309c0d18026c333ee50c844e09d5b695ffeb8ea4316e645aa0c42a8b0bb",

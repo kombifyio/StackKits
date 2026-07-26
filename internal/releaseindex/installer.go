@@ -25,6 +25,77 @@ type Installer struct {
 	Now          func() time.Time
 }
 
+// VerifiedArchive is a short-lived, fully verified release payload. Paths are
+// valid only for the duration of InspectVerifiedArchive's callback.
+type VerifiedArchive struct {
+	ArchivePath     string
+	SBOMPath        string
+	AttestationPath string
+	TrustedRootPath string
+}
+
+// InspectVerifiedArchive downloads and verifies one resolved release in a
+// process-owned temporary directory without installing or caching anything in
+// the Stack workspace. The callback cannot retain the paths after it returns.
+func (installer Installer) InspectVerifiedArchive(ctx context.Context, resolution Resolution, inspect func(VerifiedArchive) error) error {
+	if installer.Source == nil || installer.Attestations == nil {
+		return fmt.Errorf("release source and attestation verifier are required")
+	}
+	if inspect == nil {
+		return fmt.Errorf("verified archive inspection callback is required")
+	}
+	if err := resolution.Index.Validate(); err != nil {
+		return fmt.Errorf("validate resolved release index: %w", err)
+	}
+	if len(resolution.RawIndex) == 0 || len(resolution.RawIndexAttestation) == 0 || len(resolution.RawTrustedRoot) == 0 {
+		return fmt.Errorf("resolved release index, index attestation, and trusted root are required")
+	}
+	if err := installer.Attestations.VerifyIndex(ctx, IndexAttestationInput{
+		Version: resolution.Release.TagName, Index: resolution.RawIndex,
+		Bundle: resolution.RawIndexAttestation, TrustedRoot: resolution.RawTrustedRoot,
+	}); err != nil {
+		return fmt.Errorf("verify resolved release index attestation: %w", err)
+	}
+	if digestBytes(resolution.RawTrustedRoot) != resolution.Index.Release.TrustedRoot.SHA256 {
+		return fmt.Errorf("%w for %s", ErrDigestMismatch, TrustedRootAssetName)
+	}
+	limit := installer.MaxBlobBytes
+	if limit <= 0 {
+		limit = DefaultMaxBlobBytes
+	}
+	stage, err := os.MkdirTemp("", "stackkit-release-inspection-")
+	if err != nil {
+		return fmt.Errorf("create bounded release inspection directory: %w", err)
+	}
+	defer os.RemoveAll(stage)
+	trustedRootPath := filepath.Join(stage, TrustedRootAssetName)
+	if err := os.WriteFile(trustedRootPath, resolution.RawTrustedRoot, 0o600); err != nil {
+		return fmt.Errorf("stage trusted root: %w", err)
+	}
+	archivePath, err := installer.fetchVerified(ctx, resolution.Asset.Archive, stage, limit)
+	if err != nil {
+		return err
+	}
+	sbomPath, err := installer.fetchVerified(ctx, resolution.Asset.SBOM, stage, limit)
+	if err != nil {
+		return err
+	}
+	attestationPath, err := installer.fetchVerified(ctx, resolution.Asset.Attestation.Blob, stage, limit)
+	if err != nil {
+		return err
+	}
+	if err := installer.Attestations.Verify(ctx, AttestationInput{
+		Index: resolution.Index, Asset: resolution.Asset, ArchivePath: archivePath, SBOMPath: sbomPath,
+		BundlePath: attestationPath, TrustedRootPath: trustedRootPath,
+	}); err != nil {
+		return fmt.Errorf("verify GitHub OIDC attestation: %w", err)
+	}
+	return inspect(VerifiedArchive{
+		ArchivePath: archivePath, SBOMPath: sbomPath,
+		AttestationPath: attestationPath, TrustedRootPath: trustedRootPath,
+	})
+}
+
 func (installer Installer) Install(ctx context.Context, resolution Resolution, workspaceRoot string) (Receipt, error) {
 	if installer.Source == nil || installer.Attestations == nil {
 		return Receipt{}, fmt.Errorf("release source and attestation verifier are required")

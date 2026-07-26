@@ -2418,7 +2418,7 @@ _architectureV2Modules: list.Concat([[
 						ref:    "ghcr.io/traefik/traefik:v3"
 						digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"
 					}
-					dependsOn: ["socket-proxy"], networkRefs: ["basement-core"]
+					dependsOn: ["socket-proxy"], networkRefs: ["basement-core", "basement-control"]
 					health: {kind: "http", path: "/ping", port: 8080}
 				},
 				{
@@ -2427,7 +2427,7 @@ _architectureV2Modules: list.Concat([[
 						ref:    "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
 						digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
 					}
-					dependsOn: [], networkRefs: ["basement-core"]
+					dependsOn: [], networkRefs: ["basement-control"]
 					health: {kind: "image"}
 				},
 				{
@@ -2466,7 +2466,7 @@ _architectureV2Modules: list.Concat([[
 						ref:    "ghcr.io/coollabsio/coolify:4.1.2"
 						digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
 					}
-					dependsOn: ["coolify-postgres", "coolify-redis", "coolify-realtime"], networkRefs: ["basement-core"]
+					dependsOn: ["coolify-postgres", "coolify-redis", "coolify-realtime"], networkRefs: ["basement-core", "basement-control"]
 					environment: {
 						AUTOUPDATE:         "false"
 						CDN_URL:            "http://hub/.stackkit/offline/coolify/cdn"
@@ -2490,7 +2490,7 @@ _architectureV2Modules: list.Concat([[
 						ref:    "docker.io/library/postgres:15-alpine"
 						digest: "sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"
 					}
-					dependsOn: [], networkRefs: ["basement-core"]
+					dependsOn: [], networkRefs: ["basement-control"]
 					volumes: [{id: "coolify-postgres-data", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["pg_isready", "-U", "coolify"]}
 				},
@@ -2500,7 +2500,7 @@ _architectureV2Modules: list.Concat([[
 						ref:    "docker.io/library/redis:7-alpine"
 						digest: "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"
 					}
-					dependsOn: [], networkRefs: ["basement-core"]
+					dependsOn: [], networkRefs: ["basement-control"]
 					volumes: [{id: "coolify-redis-data", target: "/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["redis-cli", "ping"]}
 				},
@@ -2510,7 +2510,7 @@ _architectureV2Modules: list.Concat([[
 						ref:    "ghcr.io/coollabsio/coolify-realtime:1.0.16"
 						digest: "sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629"
 					}
-					dependsOn: ["coolify-redis"], networkRefs: ["basement-core"]
+					dependsOn: ["coolify-redis"], networkRefs: ["basement-control"]
 					health: {kind: "http", path: "/ready", port: 6001}
 				},
 				{
@@ -2528,7 +2528,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id: "compose", kind: "compose", rendererRef: "stackkit"
 				templateRef: "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:f569db01fb19dd1a7b13cfc1c966fd342ca40fbc8458ab73f6a32938483dee36"
+				contractHash: "sha256:dcda349bd46c6e008c17ffa8f678726eac6116a768cbbe1be95b5b75699c34e3"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -2543,7 +2543,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id: "opentofu", kind: "opentofu", rendererRef: "stackkit"
 				templateRef: "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:f48b3e246d3d25b4fa0c6f1d2c940e11e6b4c321c74cbc505312d5d6afd49e36"
+				contractHash: "sha256:159c9242c58d84ef81f9d0d1b3acf91e6ae96e465f20ddb41c0fb36c9309e757"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}

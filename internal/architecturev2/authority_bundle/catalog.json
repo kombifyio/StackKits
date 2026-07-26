@@ -8255,7 +8255,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:f569db01fb19dd1a7b13cfc1c966fd342ca40fbc8458ab73f6a32938483dee36",
+          "contractHash": "sha256:dcda349bd46c6e008c17ffa8f678726eac6116a768cbbe1be95b5b75699c34e3",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -8298,7 +8298,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:f48b3e246d3d25b4fa0c6f1d2c940e11e6b4c321c74cbc505312d5d6afd49e36",
+          "contractHash": "sha256:159c9242c58d84ef81f9d0d1b3acf91e6ae96e465f20ddb41c0fb36c9309e757",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -8390,7 +8390,8 @@
             },
             "lifecycle": "daemon",
             "networkRefs": [
-              "basement-core"
+              "basement-core",
+              "basement-control"
             ],
             "role": "application"
           },
@@ -8406,7 +8407,7 @@
             },
             "lifecycle": "daemon",
             "networkRefs": [
-              "basement-core"
+              "basement-control"
             ],
             "role": "application"
           },
@@ -8517,7 +8518,8 @@
             },
             "lifecycle": "daemon",
             "networkRefs": [
-              "basement-core"
+              "basement-core",
+              "basement-control"
             ],
             "role": "application",
             "volumes": [
@@ -8576,7 +8578,7 @@
             },
             "lifecycle": "daemon",
             "networkRefs": [
-              "basement-core"
+              "basement-control"
             ],
             "role": "database",
             "volumes": [
@@ -8604,7 +8606,7 @@
             },
             "lifecycle": "daemon",
             "networkRefs": [
-              "basement-core"
+              "basement-control"
             ],
             "role": "cache",
             "volumes": [
@@ -8632,7 +8634,7 @@
             },
             "lifecycle": "daemon",
             "networkRefs": [
-              "basement-core"
+              "basement-control"
             ],
             "role": "application"
           },
