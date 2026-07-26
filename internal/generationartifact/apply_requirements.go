@@ -1407,6 +1407,15 @@ func appendApplyHealthRequirements(plan resolvedplan.ResolvedPlan, modules map[s
 				continue
 			}
 		}
+		if requirement.TargetKind == "provider" && providerHealthDuplicatesSingleModulePostcondition(requirement.TargetRef, rawHealth, result.RuntimeInstances) {
+			// The provider contract remains a required plan/evidence gate, but
+			// its concrete postcondition is owned by the provider's selected
+			// module runtimes. Sending both gates to the same runtime owner
+			// would duplicate one health authority and make exact outcome
+			// accounting impossible. Provider-owner runtimes retain their own
+			// provider health gate.
+			continue
+		}
 		requirement.RouteRef, _ = gate["routeRef"].(string)
 		requirement.BackendPoolRef, _ = gate["backendPoolRef"].(string)
 		if requirement.SiteRefs, err = applyStringList(gate, "siteRefs", path+".siteRefs"); err != nil {
@@ -1446,6 +1455,30 @@ func appendApplyHealthRequirements(plan resolvedplan.ResolvedPlan, modules map[s
 		result.HealthRequirements = append(result.HealthRequirements, requirement)
 	}
 	return nil
+}
+
+func providerHealthDuplicatesSingleModulePostcondition(providerRef string, rawHealth []any, runtimes []ApplyRuntimeRequirement) bool {
+	moduleRefs := make(map[string]struct{})
+	for _, runtime := range runtimes {
+		if runtime.ProviderRef == providerRef && runtime.OwnerKind != "provider-owner" {
+			moduleRefs[runtime.ModuleRef] = struct{}{}
+		}
+	}
+	if len(moduleRefs) == 0 {
+		return false
+	}
+	modulePostconditions := 0
+	for _, raw := range rawHealth {
+		gate, ok := raw.(map[string]any)
+		if !ok || gate["targetKind"] != "module" {
+			continue
+		}
+		targetRef, _ := gate["targetRef"].(string)
+		if _, owned := moduleRefs[targetRef]; owned {
+			modulePostconditions++
+		}
+	}
+	return modulePostconditions == 1
 }
 
 func applyRouteHealthProbe(gate map[string]any, path string) (*ApplyHealthProbe, error) {

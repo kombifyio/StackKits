@@ -73,15 +73,20 @@ jobs:
         if: steps.plan.outputs.need_node == 'true'
         run: |
           node --test \
+            scripts/e2e/validate-standalone-oss-e2e.test.mjs \
+            scripts/e2e/validate-standalone-runtime-e2e.test.mjs \
             scripts/release/changelog.test.mjs \
             scripts/release/install-latest-resolution.test.mjs \
             scripts/release/release-evidence.test.mjs \
+            scripts/release/render-release-index.test.mjs \
+            scripts/release/release-trust-workflow.test.mjs \
             scripts/release/verify-release-attestations.test.mjs \
             scripts/release/validate-release-evidence.test.mjs \
             scripts/release/validate-scenario-artifact.test.mjs \
             scripts/release/check-l3-paas-contract.test.mjs \
             scripts/release/check-node24-actions.test.mjs \
             scripts/release/check-timeout-budget.test.mjs \
+            scripts/release/validate-release-archives.test.mjs \
             scripts/evidence/capture-basekit-browser-evidence.test.mjs \
             scripts/evidence/update-homelab-setup-actions.test.mjs
 

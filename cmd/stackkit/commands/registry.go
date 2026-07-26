@@ -1,28 +1,20 @@
 package commands
 
-// registry.go implements `stackkit registry` subcommands that manage the
-// embedded OSS-safe registry snapshot under internal/registry/data/.
-//
-//   - `snapshot`       fetches the live registry from the Admin API
-//                      (kombify-internal) and writes it to disk. Used
-//                      by release pipelines to bake fresh data into the
-//                      private CLI build before syncing to OSS.
+// registry.go implements public `stackkit registry` subcommands that inspect
+// and reproduce the embedded OSS-safe snapshot under internal/registry/data/.
 //
 //   - `bake-from-cue`  produces a snapshot purely from the local CUE
 //                      module tree. Used as the OSS bootstrap path and
-//                      for dev machines that have no Admin API access.
+//                      for offline development.
 //
 //   - `info`           prints a human-readable summary of the currently
 //                      embedded snapshot so operators can see what the
 //                      CLI would serve in offline mode.
 //
 // The OSS contract: a pure checkout of the public kombifyio/stackKits
-// repo must build and run the CLI with no Admin API access. `bake-from-
-// cue` is the escape hatch that keeps that promise -- it never touches
-// Postgres or any kombify-internal endpoint.
+// repo must build and run the CLI without an account or private service.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -39,10 +31,6 @@ import (
 )
 
 var (
-	registrySnapshotEndpoint string
-	registrySnapshotToken    string
-	registrySnapshotOutput   string
-
 	registryBakeModulesDir string
 	registryBakeOutput     string
 
@@ -54,23 +42,8 @@ var registryCmd = &cobra.Command{
 	Short: "Manage the embedded StackKits registry snapshot",
 	Long: `Manage the OSS-safe registry snapshot baked into the CLI binary.
 
-The snapshot lives at internal/registry/data/registry_snapshot.json and is
-used at runtime when STACKKIT_ADMIN_ENDPOINT is not set. Refresh it from
-the Admin API for internal builds (snapshot) or from the local CUE tree
-for pure-OSS builds (bake-from-cue).`,
-}
-
-var registrySnapshotCmd = &cobra.Command{
-	Use:   "snapshot",
-	Short: "Fetch the registry from the Admin API and write it to disk",
-	Long: `Fetch a complete registry snapshot from the kombify-internal Admin API
-and write it to internal/registry/data/registry_snapshot.json (or --output).
-
-Requires --endpoint and a Bearer token via --token or $STACKKIT_ADMIN_TOKEN.
-This command is intended for the release pipeline -- the snapshot is then
-baked into the goreleaser build and synced to the public OSS repo as frozen
-data.`,
-	RunE: runRegistrySnapshot,
+The snapshot lives at internal/registry/data/registry_snapshot.json. Inspect
+the embedded data or reproduce it deterministically from the local CUE tree.`,
 }
 
 var registryBakeCmd = &cobra.Command{
@@ -80,8 +53,8 @@ var registryBakeCmd = &cobra.Command{
 write the resulting Snapshot to internal/registry/data/registry_snapshot.json
 (or --output).
 
-This command never talks to the Admin API -- it is the OSS bootstrap path
-and works on a pure checkout of the public kombifyio/stackKits repo.`,
+This command is the offline OSS bootstrap path and works on a pure checkout
+of the public kombifyio/stackKits repo.`,
 	RunE: runRegistryBakeFromCUE,
 }
 
@@ -94,16 +67,11 @@ var registryInfoCmd = &cobra.Command{
 func init() {
 	defaultOut := defaultSnapshotPath()
 
-	registrySnapshotCmd.Flags().StringVar(&registrySnapshotEndpoint, "endpoint", "", "Admin API base URL (required)")
-	registrySnapshotCmd.Flags().StringVar(&registrySnapshotToken, "token", "", "Bearer token. Defaults to $STACKKIT_ADMIN_TOKEN.")
-	registrySnapshotCmd.Flags().StringVar(&registrySnapshotOutput, "output", defaultOut, "Output path for the snapshot JSON")
-
 	registryBakeCmd.Flags().StringVar(&registryBakeModulesDir, "modules-dir", "modules", "Directory containing module/<slug>/module.cue")
 	registryBakeCmd.Flags().StringVar(&registryBakeOutput, "output", defaultOut, "Output path for the snapshot JSON")
 
 	registryInfoCmd.Flags().BoolVar(&registryInfoJSON, "json", false, "Print the full embedded snapshot as JSON")
 
-	registryCmd.AddCommand(registrySnapshotCmd)
 	registryCmd.AddCommand(registryBakeCmd)
 	registryCmd.AddCommand(registryInfoCmd)
 	rootCmd.AddCommand(registryCmd)
@@ -115,48 +83,6 @@ func init() {
 // commands; the EmbeddedClient always uses the compiled-in bytes.
 func defaultSnapshotPath() string {
 	return filepath.Join("internal", "registry", "data", "registry_snapshot.json")
-}
-
-func runRegistrySnapshot(cmd *cobra.Command, _ []string) error {
-	if registrySnapshotEndpoint == "" {
-		return fmt.Errorf("--endpoint is required")
-	}
-	token := registrySnapshotToken
-	if token == "" {
-		token = os.Getenv(registry.EnvToken)
-	}
-
-	client := registry.NewRemoteClient(registrySnapshotEndpoint, token)
-	ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
-	defer cancel()
-
-	snap, err := client.Snapshot(ctx)
-	if err != nil {
-		return fmt.Errorf("fetch snapshot: %w", err)
-	}
-
-	// Normalise metadata so the file is reproducible even if the server
-	// omits some envelope fields.
-	snap.SchemaVersion = registry.SnapshotVersion
-	snap.Source = registry.SourceAdminAPI
-	if snap.GeneratedAt.IsZero() {
-		snap.GeneratedAt = time.Now().UTC()
-	}
-	snap.AdminEndpoint = registrySnapshotEndpoint
-	sortSnapshot(&snap)
-
-	if err := writeSnapshot(registrySnapshotOutput, snap); err != nil {
-		return err
-	}
-
-	printSuccess("Wrote registry snapshot to %s", registrySnapshotOutput)
-	printInfo("source=admin-api tools=%d services=%d modules=%d stackkits=%d service_groups=%d tool_default_configs=%d",
-		len(snap.Tools), len(snap.Services), len(snap.Modules), len(snap.StackKits),
-		len(snap.ServiceGroups), len(snap.ToolDefaultConfigs))
-	if snap.ContentHash != "" {
-		printInfo("content_hash=%s", snap.ContentHash)
-	}
-	return nil
 }
 
 func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {

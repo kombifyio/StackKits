@@ -59,6 +59,8 @@ type architectureV2ExecutionCLIOptions struct {
 	planOut         string
 	planDestroy     bool
 	inspectionSink  func(generationartifact.PlanInspection) error
+	verifySink      func(architectureV2VerifyReport) error
+	verifyOffline   bool
 	legacyPlanFile  string
 }
 
@@ -67,19 +69,25 @@ type architectureV2ExecutionAuthority interface {
 	AuthorizeGeneration(architecturev2.GenerationAuthorizationInput) (architecturev2.GenerationAuthorization, error)
 	VerifyCanonicalPlan([]byte) (generationartifact.VerifiedPlan, error)
 	ReadCanonicalPlan(string) (generationartifact.VerifiedPlan, error)
+	PersistCanonicalPlan(string, []byte) (generationartifact.VerifiedPlan, error)
 }
 
 type architectureV2ProductApplyAuthority interface {
 	ExecuteProductApply(context.Context, architecturev2.ProductApplyInput) (architecturev2.VerifiedApplyResult, error)
 }
 
+type architectureV2ProductVerifyAuthority interface {
+	VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput) (architecturev2.VerifiedApplyResult, error)
+}
+
 type architectureV2ExecutionGate struct {
-	newAuthority      func() (architectureV2ExecutionAuthority, error)
-	newApplyAuthority func(string, architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error)
-	newRegistry       func() (*architecturev2renderer.Registry, error)
-	versions          generationartifact.ComponentVersions
-	rejectV1          bool
-	now               func() time.Time
+	newAuthority       func() (architectureV2ExecutionAuthority, error)
+	newApplyAuthority  func(string, architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error)
+	newVerifyAuthority func(string, architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error)
+	newRegistry        func() (*architecturev2renderer.Registry, error)
+	versions           generationartifact.ComponentVersions
+	rejectV1           bool
+	now                func() time.Time
 }
 
 func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
@@ -88,8 +96,9 @@ func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
 		newAuthority: func() (architectureV2ExecutionAuthority, error) {
 			return architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
 		},
-		newApplyAuthority: newArchitectureV2ProductRuntimeAuthority,
-		newRegistry:       architecturev2renderer.NewProductRegistry,
+		newApplyAuthority:  newArchitectureV2ProductRuntimeAuthority,
+		newVerifyAuthority: newArchitectureV2ProductVerifyAuthority,
+		newRegistry:        architecturev2renderer.NewProductRegistry,
 		versions: generationartifact.ComponentVersions{
 			CLI:       componentVersion,
 			Generator: componentVersion,
@@ -144,6 +153,9 @@ func architectureV2RejectsV1Execution(buildVersion string) bool {
 // by the command after logging starts.
 func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 	if cmd == nil || !architectureV2RejectsV1Execution(version) || commandDisablesDeployObservability(cmd) {
+		return nil
+	}
+	if cmd == verifyCmd && verifyOffline {
 		return nil
 	}
 	for current := cmd; current != nil; current = current.Parent() {
@@ -215,34 +227,13 @@ func requireNativeV2StackSpec(wd, requestedSpecPath string, mode architectureV2E
 }
 
 // admitApplyBeforeDeployObservability classifies local intent before the root
-// command creates deploy logs, rollout receipts, telemetry, or tenant events.
-// A managed deployment may begin without a local file because its separately
-// verified fetch flow supplies the intent; an already-present local file still
-// has to cross the same native-v2 admission boundary.
+// command creates deploy logs, rollout receipts, or telemetry.
 func admitApplyBeforeDeployObservability(wd, requestedSpecPath string) error {
 	if !architectureV2RejectsV1Execution(version) {
 		return nil
 	}
-	if strings.TrimSpace(applyTenantDeployment) == "" {
-		if err := requireNativeV2StackSpec(wd, requestedSpecPath, architectureV2Apply); err != nil {
-			return err
-		}
-	} else {
-		loader := config.NewLoader(wd)
-		resolvedPath, displayPath, _, err := loader.ResolveStackSpecPathForRead(requestedSpecPath)
-		if err != nil {
-			return fmt.Errorf("apply: resolve local managed StackSpec before observability: %w", err)
-		}
-		info, err := os.Stat(resolvedPath)
-		if os.IsNotExist(err) {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("apply: inspect local managed StackSpec %s before observability: %w", displayPath, err)
-		}
-		if info.IsDir() {
-			return fmt.Errorf("apply: local managed StackSpec %s is a directory", displayPath)
-		}
+	if err := requireNativeV2StackSpec(wd, requestedSpecPath, architectureV2Apply); err != nil {
+		return err
 	}
 
 	rawSpec, sourceVersion, handled, err := classifyArchitectureV2ExecutionSpec(wd, requestedSpecPath)
@@ -259,36 +250,6 @@ func admitApplyBeforeDeployObservability(wd, requestedSpecPath string) error {
 		return fmt.Errorf("apply: required local StackSpec has unsupported version %q", sourceVersion)
 	}
 	return nil
-}
-
-// prefetchManagedNativeV2IntentBeforeDeployObservability performs only the
-// read-only Admin fetch needed to classify a native managed job with no local
-// intent. It returns admitted v2 bytes in memory; publication happens only
-// after deploy observability starts. A fetched v1 document fails here.
-func prefetchManagedNativeV2IntentBeforeDeployObservability(ctx context.Context, wd, requestedSpecPath string) (*tenantSpecFetchCandidate, error) {
-	if !architectureV2RejectsV1Execution(version) || strings.TrimSpace(applyTenantDeployment) == "" {
-		return nil, nil
-	}
-	loader := config.NewLoader(wd)
-	resolvedPath, displayPath, _, err := loader.ResolveStackSpecPathForRead(requestedSpecPath)
-	if err != nil {
-		return nil, fmt.Errorf("apply: resolve managed StackSpec before admission fetch: %w", err)
-	}
-	info, err := os.Stat(resolvedPath)
-	if err == nil {
-		if info.IsDir() {
-			return nil, fmt.Errorf("apply: managed StackSpec %s is a directory", displayPath)
-		}
-		return nil, nil
-	}
-	if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("apply: inspect managed StackSpec %s before admission fetch: %w", displayPath, err)
-	}
-	candidate, err := fetchTenantSpecCandidate(ctx, applyTenantDeployment)
-	if err != nil {
-		return nil, fmt.Errorf("tenant-deployment spec admission fetch: %w", err)
-	}
-	return &candidate, nil
 }
 
 func classifyArchitectureV2ExecutionSpec(wd, requestedSpecPath string) ([]byte, stackspecmigration.SourceVersion, bool, error) {
@@ -404,6 +365,12 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		if err != nil {
 			return err
 		}
+		if err := validateArchitectureV2GenerateOptions(wd, options, current.OutputRoot()); err != nil {
+			return err
+		}
+		if _, err := authority.PersistCanonicalPlan(planPath, resolved.CanonicalPlan); err != nil {
+			return fmt.Errorf("persist current canonical ResolvedPlan for generation: %w", err)
+		}
 	}
 	execute := func(transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
 		persisted, err := authority.ReadCanonicalPlan(planPath)
@@ -415,11 +382,6 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		}
 		if err := persisted.VerifyCompatibility(g.versions); err != nil {
 			return err
-		}
-		if mode == architectureV2Generate {
-			if err := validateArchitectureV2GenerateOptions(wd, options, persisted.OutputRoot()); err != nil {
-				return err
-			}
 		}
 		if mode == architectureV2Plan {
 			if err := validateArchitectureV2PlanOptions(options); err != nil {
@@ -451,7 +413,7 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	if mode == architectureV2Generate {
 		return execute(nil, nil)
 	}
-	if mode == architectureV2Plan {
+	if mode == architectureV2Plan || mode == architectureV2Verify {
 		return withArchitectureV2ReadOnlyOutput(wd, current.OutputRoot(), func() error { return execute(nil, nil) })
 	}
 	return withArchitectureV2OutputLock(wd, current.OutputRoot(), func(transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
@@ -655,7 +617,45 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		return err
 	}
 	if mode == architectureV2Verify {
-		return generationartifact.VerifierNotImplemented(persisted.Binding().Renderer)
+		if g.newVerifyAuthority == nil {
+			return generationartifact.VerifierNotImplemented(persisted.Binding().Renderer)
+		}
+		rawVerifyAuthority, err := g.newVerifyAuthority(wd, options)
+		if err != nil {
+			return err
+		}
+		if closer, ok := rawVerifyAuthority.(interface{ Close() error }); ok {
+			defer func() { _ = closer.Close() }()
+		}
+		verifyAuthority, ok := rawVerifyAuthority.(architectureV2ProductVerifyAuthority)
+		if !ok {
+			return generationartifact.VerifierNotImplemented(persisted.Binding().Renderer)
+		}
+		result, err := readCurrentArchitectureV2ApplyResult(wd, persisted.Binding(), func(data []byte) (architecturev2.VerifiedApplyResult, error) {
+			return verifyAuthority.VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput{
+				Plan: persisted, Manifest: manifest, Receipt: receipt, Versions: g.versions, Result: data,
+			})
+		})
+		if err != nil {
+			return err
+		}
+		verifyContext := options.context
+		if verifyContext == nil {
+			verifyContext = context.Background()
+		}
+		owner, runtime, err := verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline)
+		if err != nil {
+			return err
+		}
+		report := architectureV2VerifyReport{
+			SchemaVersion: "stackkit.verify-result/v1", Offline: options.verifyOffline,
+			PlanHash: persisted.Binding().PlanHash, Apply: result.Summary(),
+			Owner: owner, Runtime: runtime,
+		}
+		if options.verifySink != nil {
+			return options.verifySink(report)
+		}
+		return nil
 	}
 	if mode != architectureV2Apply {
 		return generationartifact.ExecutorNotImplemented(persisted.Binding().Renderer)
@@ -677,7 +677,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if err != nil {
 		return err
 	}
-	resultPath, err := persistArchitectureV2ApplyResult(transaction, persisted.OutputRoot(), result)
+	resultPath, err := persistArchitectureV2ApplyResult(transaction, result)
 	if err != nil {
 		return err
 	}
@@ -688,7 +688,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	return nil
 }
 
-func persistArchitectureV2ApplyResult(transaction *confinedfs.Transaction, outputRoot string, result architecturev2.VerifiedApplyResult) (string, error) {
+func persistArchitectureV2ApplyResult(transaction *confinedfs.Transaction, result architecturev2.VerifiedApplyResult) (string, error) {
 	canonical, err := result.Canonical()
 	if err != nil {
 		return "", err
@@ -697,17 +697,31 @@ func persistArchitectureV2ApplyResult(transaction *confinedfs.Transaction, outpu
 	if len(hash) != 64 {
 		return "", fmt.Errorf("persist Architecture v2 Apply result: invalid result hash")
 	}
-	directory := filepath.Join(filepath.FromSlash(outputRoot), ".stackkit", "apply-results")
+	directory := filepath.Join(".stackkit", "evidence", "apply", "results")
 	if err := transaction.MkdirAll(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create Architecture v2 Apply result directory: %w", err)
 	}
 	path := filepath.Join(directory, hash+".json")
 	if err := transaction.WriteFileExclusive(path, canonical, 0o600); err != nil {
 		existing, info, readErr := transaction.ReadStable(path)
-		if readErr == nil && info.Mode().IsRegular() && bytes.Equal(existing, canonical) {
-			return filepath.ToSlash(path), nil
+		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonical) {
+			return "", fmt.Errorf("persist content-addressed Architecture v2 Apply result: %w", err)
 		}
-		return "", fmt.Errorf("persist content-addressed Architecture v2 Apply result: %w", err)
+	}
+	_, canonicalReceipt, err := newOwnerApplyResultReceipt(transaction.Name(), result)
+	if err != nil {
+		return "", err
+	}
+	receiptDirectory := filepath.Join(".stackkit", "evidence", "apply", "receipts")
+	if err := transaction.MkdirAll(receiptDirectory, 0o700); err != nil {
+		return "", fmt.Errorf("create owner-signed Architecture v2 Apply result receipt directory: %w", err)
+	}
+	receiptPath := filepath.Join(receiptDirectory, hash+".json")
+	if err := transaction.WriteFileExclusive(receiptPath, canonicalReceipt, 0o600); err != nil {
+		existing, info, readErr := transaction.ReadStable(receiptPath)
+		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonicalReceipt) {
+			return "", fmt.Errorf("persist owner-signed Architecture v2 Apply result receipt: %w", err)
+		}
 	}
 	return filepath.ToSlash(path), nil
 }

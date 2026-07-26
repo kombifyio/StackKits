@@ -51,10 +51,8 @@ var agentPromptBodies = map[string]string{
 	"basekit-autonomous-rollout": `You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only.
 
 Run:
-stackkit init basement-kit --non-interactive
-stackkit prepare --dry-run
+stackkit init basement-kit --owner-source=local --non-interactive
 stackkit validate
-stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json
 stackkit generate
 stackkit plan
 stackkit apply
@@ -85,10 +83,8 @@ Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or
 Require an observed Inventory plus any ExternalHostBinding/HostConformanceReceipt from the host or TechStack owner. Never put provider credentials, lifecycle, or management addresses into StackSpec.
 
 Run:
-stackkit init basement-kit --non-interactive
-stackkit prepare --dry-run
+stackkit init basement-kit --owner-source=local --non-interactive
 stackkit validate
-stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json
 stackkit generate
 stackkit plan
 stackkit apply
@@ -258,7 +254,9 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 		return legacyAgentInstallPlan(kit, target, workspace)
 	}
 	initCommand := "stackkit init " + kit + " --non-interactive"
-	if kit == "cloud-kit" || kit == "modern-homelab" {
+	if kit == "basement-kit" {
+		initCommand += " --owner-source=local"
+	} else if kit == "cloud-kit" || kit == "modern-homelab" {
 		initCommand += " --domain <domain-base>"
 	}
 	return agentInstallPlan{
@@ -267,13 +265,11 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 		Target:    target,
 		Workspace: workspace,
 		Commands: []agentCommandStep{
-			{Command: "stackkit version", Purpose: "require the exact native v0.7 candidate bundle; never fall back to public v0.6", Mutation: false},
+			{Command: "stackkit version", Purpose: "require the exact native v0.8 candidate bundle; never fall back to a compatibility release", Mutation: false},
 			{Command: "mkdir -p " + workspace + " && cd " + workspace, Purpose: "create a clean workspace", Mutation: true},
 			{Command: initCommand, Purpose: "materialize canonical StackSpec v2 from the embedded CUE authoring contract", Mutation: true},
-			{Command: "stackkit prepare --dry-run", Purpose: "check host prerequisites without changing the host", Mutation: false},
 			{Command: "stackkit validate", Purpose: "validate desired StackSpec v2 intent against the embedded CUE authority", Mutation: false},
-			{Command: "stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json", Purpose: "bind desired intent to externally observed host Inventory", Mutation: true},
-			{Command: "stackkit generate", Purpose: "render the exact authorized ResolvedPlan", Mutation: true},
+			{Command: "stackkit generate", Purpose: "resolve, persist, and render the exact authorized ResolvedPlan", Mutation: true},
 			{Command: "stackkit plan", Purpose: "preview the exact persisted Architecture v2 plan", Mutation: false},
 			{Command: "stackkit apply", Purpose: "apply only when the ResolvedPlan reports apply readiness", Mutation: true},
 			{Command: "stackkit verify --json", Purpose: "verify the exact spec, plan, manifest, receipt, and outputs", Mutation: false},
@@ -285,7 +281,7 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 			"manifest matching stackkit-agent-run-manifest.schema.json",
 			"functional result matching stackkit-agent-functional-result.schema.json",
 		},
-		ReadinessNote: "StackSpec validity is not generation or apply readiness; the Inventory-bound ResolvedPlan is authoritative.",
+		ReadinessNote: "StackSpec validity is not generation or apply readiness; the ResolvedPlan written atomically by generate is authoritative.",
 	}
 }
 

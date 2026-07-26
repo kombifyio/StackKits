@@ -82,9 +82,13 @@ import (
 // path as both a file and a directory.
 #ArtifactPathSetClosureV2: {
 	paths: [...#ArtifactPath]
-	_portableIdentityUnique: list.UniqueItems([for artifactPath in paths {
-		strings.ToLower(artifactPath)
-	}]) & true
+	_portableIdentityDuplicates: [
+		for leftIndex, leftPath in paths
+		for rightIndex, rightPath in paths
+		if leftIndex < rightIndex && strings.ToLower(leftPath) == strings.ToLower(rightPath) {
+			left: leftPath, right: rightPath
+		},
+	] & list.MaxItems(0)
 	_fileAncestorConflicts: [
 		for filePath in paths
 		for descendantPath in paths
@@ -755,6 +759,127 @@ import (
 	}
 }
 
+#BackupDataClassV1: "config" | "secret-material" | "platform-state" | "database" | "user-content" | "documents" | "photos" | "large-media" | "telemetry-timeseries" | "serverless-config"
+
+// #BackupScheduleV1 is deliberately structured instead of accepting an
+// arbitrary cron expression. Runtime owners may lower this UTC cadence into
+// their scheduler, but cannot import commands, environment, or host timezone
+// ambiguity into ResolvedPlan.
+#BackupScheduleV1: {
+	cadence:       *"daily" | "hourly" | "weekly"
+	minuteUTC:     int & >=0 & <=59 | *0
+	jitterSeconds: int & >=0 & <=1800 | *300
+
+	if cadence == "hourly" {
+		hourUTC?:    _|_
+		weekdayUTC?: _|_
+	}
+	if cadence == "daily" {
+		hourUTC:     int & >=0 & <=23 | *2
+		weekdayUTC?: _|_
+	}
+	if cadence == "weekly" {
+		hourUTC:    int & >=0 & <=23 | *2
+		weekdayUTC: *"sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday"
+	}
+}
+
+#BackupRetentionV1: {
+	keepDaily:   int & >=1 & <=365 | *7
+	keepWeekly:  int & >=0 & <=104 | *4
+	keepMonthly: int & >=0 & <=60 | *6
+	keepYearly:  int & >=0 & <=10 | *0
+}
+
+#BackupRestoreVerificationV1: {
+	required:           true
+	cadence:            *"monthly" | "weekly"
+	maxEvidenceAgeDays: int & >=1 & <=92 | *35
+	evidenceRef:        "backup-restore-verification"
+}
+
+// #BackupPolicyV1 is intent and immutable plan data only. Existing backup
+// target requirement/binding contracts separately own target custody. This
+// policy cannot name providers, repositories, endpoints, credentials, paths,
+// commands, lifecycle handles, or secret material.
+#BackupPolicyV1: {
+	apiVersion: "stackkit.backup-policy/v1"
+	kind:       "BackupPolicy"
+	schedule:   #BackupScheduleV1
+	dataClasses: [...#BackupDataClassV1] & list.MinItems(1) | *[
+		"config",
+		"secret-material",
+		"platform-state",
+		"database",
+		"user-content",
+	]
+	retention:           #BackupRetentionV1
+	restoreVerification: #BackupRestoreVerificationV1
+
+	_dataClassesUnique: list.UniqueItems(dataClasses) & true
+}
+
+#DriftSubjectV1: "resolved-plan" | "generated-artifacts" | "runtime-configuration"
+
+// #DriftScheduleV1 is an observation cadence, never a command scheduler.
+// Runtime owners may lower this UTC structure only after they are separately
+// admitted; arbitrary cron and host-local timezone semantics are excluded.
+#DriftScheduleV1: {
+	cadence:       *"daily" | "hourly" | "weekly"
+	minuteUTC:     int & >=0 & <=59 | *15
+	jitterSeconds: int & >=0 & <=900 | *120
+
+	if cadence == "hourly" {
+		hourUTC?:    _|_
+		weekdayUTC?: _|_
+	}
+	if cadence == "daily" {
+		hourUTC:     int & >=0 & <=23 | *3
+		weekdayUTC?: _|_
+	}
+	if cadence == "weekly" {
+		hourUTC:    int & >=0 & <=23 | *3
+		weekdayUTC: *"sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday"
+	}
+}
+
+#DriftEvidencePolicyV1: {
+	required:              bool
+	evidenceRef:           "drift-observation"
+	maxEvidenceAgeMinutes: int & >=15 & <=10080 | *1500
+	onMissing:             "unknown"
+}
+
+#DriftResponsePolicyV1: {
+	differenceAction:  "report-only"
+	reconcileApproval: "required"
+}
+
+// #DriftPolicyV1 is provider-free desired intent. It requests bounded
+// observation and evidence only; it grants no read channel, executor,
+// reconciliation, provider, endpoint, credential, command, or host authority.
+#DriftPolicyV1: {
+	apiVersion: "stackkit.drift-policy/v1"
+	kind:       "DriftPolicy"
+	enabled:    bool | *false
+	schedule:   #DriftScheduleV1
+	subjects: [...#DriftSubjectV1] & list.MinItems(1) | *[
+		"resolved-plan",
+		"generated-artifacts",
+		"runtime-configuration",
+	]
+	evidence: #DriftEvidencePolicyV1
+	response: #DriftResponsePolicyV1
+
+	_subjectsUnique: list.UniqueItems(subjects) & true
+	if enabled {
+		evidence: required: true
+	}
+	if !enabled {
+		evidence: required: false
+	}
+}
+
 #ContainerRuntimeIntentV2: {
 	engine:         *"docker" | "podman"
 	rootless:       bool | *false
@@ -855,6 +980,9 @@ import (
 	availability: #AvailabilityIntent & {mode: controlPlane.mode}
 	deviceEnrollment?: #DeviceEnrollmentPolicy
 	partitionPolicy:   #PartitionPolicy
+	backupPolicy: #BackupPolicyV1 | *{}
+	driftPolicy: #DriftPolicyV1 | *{}
+	observability?: #ModuleOTLPBaselineV1
 	workloads?: [#WorkloadID]: #WorkloadSelectionV2
 	modules?: [string]:        #ModuleIntentV2
 	routes?: [string]:         #ServiceRouteIntentV2
@@ -1072,13 +1200,31 @@ import (
 // concerns are supplied later through their governed operational contracts.
 #KitAuthoringOverrideV2: "metadata.name" | "network.domain.base"
 
+#StandaloneOwnerAuthoringV2: {
+	source:               "local"
+	siteRef:              #SiteID
+	nodeRef:              #NodeID
+	executionChannelRef:  #ContractID
+	identityProvider:     "pocketid"
+	certificateAuthority: "step-ca"
+	humanAuthorityRef:    #ContractID
+	humanIssuerRef:       #ContractID
+	trustDomainRef:       #ContractID
+}
+
 #KitAuthoringContractV2: {
 	contractVersion:   #SemanticVersion
 	initialSpecStatus: "supported" | "preview"
 	requiredOverrides: [...#KitAuthoringOverrideV2] | *[]
 	initialSpec: #StackSpecV2
+	standaloneOwner?: #StandaloneOwnerAuthoringV2
 
 	_requiredOverridesUnique: list.UniqueItems(requiredOverrides) & true
+
+	if standaloneOwner != _|_ {
+		_standaloneSite: [for site in initialSpec.sites if site.id == standaloneOwner.siteRef {site.id}] & list.MinItems(1) & list.MaxItems(1)
+		_standaloneNode: [for node in initialSpec.nodes if node.id == standaloneOwner.nodeRef && node.siteRef == standaloneOwner.siteRef {node.id}] & list.MinItems(1) & list.MaxItems(1)
+	}
 }
 
 // #ProductKitDefinition makes authoring intent mandatory only for the three
@@ -2655,7 +2801,7 @@ _servicePublicationShape: {
 	status:   "unbound" | "bound"
 	ownerRef: #ContractID
 	policyArtifactRefs: [...#ContractID] & list.MinItems(1)
-	targetScope: "home-sites" | "home-control-authority" | "cloud-sites" | "federated-sites"
+	targetScope: "home-sites" | "home-control-authority" | "cloud-sites" | "federated-sites" | "selected-nodes"
 	operations: [...#ContractID] & list.MinItems(1)
 	requiredHealthRef:   #ContractID
 	requiredEvidenceRef: #ContractID
@@ -2971,7 +3117,7 @@ _servicePublicationShape: {
 // resolved-plan views that a render unit may consume. These are not user
 // settings and they never expose the full plan, node inventory, secretRefs,
 // management endpoints, or daemon/socket bindings.
-#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "bridgePublications" | "bridgeOriginMTLS" | "identity" | "identityTrust" | "data" | "failurePolicy" | "federationPolicy" | "federationLinkPolicy" | "federationControlActions" | "federationBackupPolicy" | "federationObservability" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "homeAccessHandoff" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "homeOffsiteBackup" | "cloudOffsiteBackup" | "federationLinkRequirements" | "externalFederationLinkBindings" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS" | "internalPKI" | "cloudAdminMesh"
+#ModulePlanInputRefV2: "stackId" | "kit" | "sites" | "controlPlane" | "bridge" | "bridgePublications" | "bridgeOriginMTLS" | "identity" | "identityTrust" | "data" | "failurePolicy" | "federationPolicy" | "federationLinkPolicy" | "federationControlActions" | "federationBackupPolicy" | "federationObservability" | "backupPolicy" | "driftPolicy" | "observability" | "localReachability" | "homeLANDiscovery" | "homeAccessRequirements" | "externalHomeAccessBindings" | "homeAccessHandoff" | "backupTargetRequirements" | "externalBackupTargetBindings" | "homeBackupTargetRequirements" | "externalHomeBackupTargetBindings" | "homeOffsiteBackup" | "cloudOffsiteBackup" | "federationLinkRequirements" | "externalFederationLinkBindings" | "availability" | "moduleTargets" | "moduleCapabilities" | "hostRuntimePolicy" | "storagePolicy" | "localNetworkPolicy" | "cloudNetworkPolicy" | "publicEdge" | "publicTLS" | "internalPKI" | "cloudAdminMesh"
 
 // #ModuleRenderInputBindingV2 is the closed field-level seam from resolved
 // architecture authority into public renderer inputs. Sources are finite and
@@ -3302,11 +3448,11 @@ _servicePublicationShape: {
 		declaredServiceIngressOnly: true
 	}
 	hardening: {
-		profile:                    "internet-host-baseline-v1"
-		sshKeyOnly:                  true
-		sshRootLogin:                "disabled"
-		bruteForceProtection:       "enabled"
-		automaticSecurityUpdates:   "enabled"
+		profile:                  "internet-host-baseline-v1"
+		sshKeyOnly:               true
+		sshRootLogin:             "disabled"
+		bruteForceProtection:     "enabled"
+		automaticSecurityUpdates: "enabled"
 	}
 }
 
@@ -4031,6 +4177,141 @@ _servicePublicationShape: {
 	partition: #PartitionPolicy
 }
 
+// #ModuleOTLPProfileV1 is the capacity class that a product renderer may use
+// for a collector. It is deliberately independent of backend selection.
+#ModuleOTLPProfileV1: "pi" | "single-node" | "multi-node"
+
+// #ModuleOTLPAgentBudgetV1 is the exact per-node collector allocation that
+// can cross the ResolvedPlan boundary. It contains no endpoint, backend,
+// credential, or provider authority.
+#ModuleOTLPAgentBudgetV1: close({
+	cpuMilli:     int & >=50 & <=4000
+	memoryMiB:    int & >=64 & <=8192
+	ephemeralMiB: int & >=64 & <=16384
+})
+
+#ModuleOTLPAgentBudgetByProfileV1: close({
+	pi: {cpuMilli: 100, memoryMiB: 128, ephemeralMiB: 256}
+	"single-node": {cpuMilli: 200, memoryMiB: 256, ephemeralMiB: 512}
+	"multi-node": {cpuMilli: 250, memoryMiB: 384, ephemeralMiB: 1024}
+})
+
+#ModuleOTLPOptionalSignalBudgetV1: close({
+	enabled:          true
+	cpuMilli:         int & >=50 & <=4000
+	memoryMiB:        int & >=64 & <=8192
+	ephemeralMiB:     int & >=64 & <=16384
+	persistentMiB:    0
+	maxRetentionDays: int & >=0 & <=365
+})
+
+#ModuleOTLPLogBudgetByProfileV1: close({
+	pi: {enabled: true, cpuMilli: 50, memoryMiB: 64, ephemeralMiB: 128, persistentMiB: 0, maxRetentionDays: 7}
+	"single-node": {enabled: true, cpuMilli: 100, memoryMiB: 128, ephemeralMiB: 256, persistentMiB: 0, maxRetentionDays: 14}
+	"multi-node": {enabled: true, cpuMilli: 200, memoryMiB: 256, ephemeralMiB: 512, persistentMiB: 0, maxRetentionDays: 30}
+})
+
+#ModuleOTLPTraceBudgetByProfileV1: close({
+	pi: {enabled: true, cpuMilli: 50, memoryMiB: 64, ephemeralMiB: 128, persistentMiB: 0, maxRetentionDays: 0}
+	"single-node": {enabled: true, cpuMilli: 100, memoryMiB: 128, ephemeralMiB: 256, persistentMiB: 0, maxRetentionDays: 0}
+	"multi-node": {enabled: true, cpuMilli: 200, memoryMiB: 256, ephemeralMiB: 512, persistentMiB: 0, maxRetentionDays: 0}
+})
+
+#ModuleOTLPLogLaneV1: close({
+	enabled:       true
+	protocol:      "otlp"
+	direction:     "loki"
+	lifecycle:     "external"
+	retentionDays: int & >=1 & <=budget.maxRetentionDays
+	budget:        #ModuleOTLPOptionalSignalBudgetV1
+})
+
+#ModuleOTLPTraceLaneV1: close({
+	enabled:   true
+	protocol:  "otlp"
+	direction: "tempo"
+	lifecycle: "external"
+	sampling: close({
+		mode:  "parentbased-ratio"
+		ratio: 0.1
+	})
+	budget: #ModuleOTLPOptionalSignalBudgetV1 & {maxRetentionDays: 0}
+})
+
+// #ModuleOTLPBaselineV1 is the only observability projection a product
+// renderer may receive before an explicit backend owner is selected. It is
+// intentionally limited to per-node collection intent and transport posture:
+// gateway, storage, dashboard, credentials, headers, CA material, and backend
+// lifecycle remain outside this value. Optional signal lanes carry only their
+// exact profile budget plus provider-free retention or sampling intent.
+#ModuleOTLPBaselineV1: close({
+	profile:     #ModuleOTLPProfileV1 | *"single-node"
+	agentBudget: #ModuleOTLPAgentBudgetByProfileV1[profile]
+	signals: close({
+		metrics: bool
+		logs:    bool
+		traces:  bool
+	})
+	collector: close({
+		enabled:  bool
+		endpoint: string & =~"^[^[:space:]]+$"
+		protocol: "grpc" | "http/protobuf"
+		tls: close({
+			insecure: bool
+		})
+	})
+	let logsEnabled = signals.logs
+	let tracesEnabled = signals.traces
+	optionalSignals?: close({
+		logs?: #ModuleOTLPLogLaneV1 & {
+			budget:       #ModuleOTLPLogBudgetByProfileV1[profile]
+			_signalGuard: logsEnabled & true
+		}
+		traces?: #ModuleOTLPTraceLaneV1 & {
+			budget:       #ModuleOTLPTraceBudgetByProfileV1[profile]
+			_signalGuard: tracesEnabled & true
+		}
+	})
+})
+
+// #ModuleDashboardIntentV1 is the provider-free hand-off for dashboards.
+// StackKits can generate the declared dashboard artifact references and bind
+// them to the PromQL owner, but it never owns a Grafana account, endpoint,
+// provider API, or provisioning credential. Those lifecycle concerns belong to
+// the external dashboard operator.
+#ModuleDashboardIntentV1: close({
+	kind:      "grafana"
+	lifecycle: "external"
+	datasource: close({
+		protocol: "promql"
+		owner: close({
+			module:  "monitoring-core"
+			service: "victoriametrics"
+		})
+	})
+	artifacts: close({
+		format: "grafana-dashboard-json"
+		refs: [...#ContractID] & list.MinItems(1)
+		_refsUnique: list.UniqueItems(refs) & true
+	})
+})
+
+#ModuleAvailabilityProjectionV1: {
+	policy: {
+		mode:                "warm-standby" | "quorum"
+		policyRef:           #ContractID
+		realizationRef:      #ContractID
+		moduleRef:           #ContractID
+		selector:            "control-plane-members"
+		rpoSeconds:          int & >=0
+		rtoSeconds:          int & >0
+		failureDomainSpread: int & >=2
+		fencing:             "manual" | "automatic"
+	}
+	failureModel: #AvailabilityFailureModelV2
+	members: [...#ResolvedAvailabilityMemberV2] & list.MinItems(2)
+}
+
 #ModulePlanInputsV2: {
 	stackId?: #ContractID
 	kit?: {
@@ -4051,6 +4332,11 @@ _servicePublicationShape: {
 	federationControlActions?: #ModuleFederationControlActionsV1
 	federationBackupPolicy?:   #ModuleFederationBackupPolicyV1
 	federationObservability?:  #ModuleFederationObservabilityV1
+	backupPolicy?:             #BackupPolicyV1
+	driftPolicy?:              #DriftPolicyV1
+	observability?:            #ModuleOTLPBaselineV1
+	dashboard?:                #ModuleDashboardIntentV1
+	availability?:             #ModuleAvailabilityProjectionV1
 	localReachability?:        #ModuleLocalReachabilityV2
 	homeLANDiscovery?:         #HomeLANDiscoveryProjectionV2
 	homeAccessRequirements?: [#SiteID]: [#CapabilityID]:           #HomeAccessRequirementV1
@@ -4411,7 +4697,15 @@ _servicePublicationShape: {
 		}]
 	}
 	_renderUnitOutputsUnique: list.UniqueItems([for unit in renderUnits for outputRef in unit.outputs {outputRef}]) & true
-	_moduleServiceRefsUnique: list.UniqueItems([for unit in renderUnits for endpoint in unit.serviceEndpoints {endpoint.serviceRef}]) & true
+	if len(renderVariants) == 0 {
+		_moduleServiceRefsUnique: list.UniqueItems([for unit in renderUnits for endpoint in unit.serviceEndpoints {endpoint.serviceRef}]) & true
+	}
+	if len(renderVariants) > 0 {
+		_variantServiceRefsUnique: [for variant in renderVariants {
+			refs: [for unitRef in variant.unitRefs for unit in renderUnits if unit.id == unitRef for endpoint in unit.serviceEndpoints {endpoint.serviceRef}]
+			unique: list.UniqueItems(refs) & true
+		}]
+	}
 	_serviceHealthRefs: [for unit in renderUnits for endpoint in unit.serviceEndpoints {
 		service: endpoint.serviceRef
 		matches: [for healthContract in health if healthContract.id == endpoint.healthRef {healthContract.id}] & list.MinItems(1) & list.MaxItems(1)
@@ -4821,7 +5115,10 @@ _servicePublicationShape: {
 							matches: [for dataClass in workload.dataClasses if dataClass == requiredClass {dataClass}] & list.MinItems(1) & list.MaxItems(1)
 						}]
 					}
-				}] & list.MinItems(1) & list.MaxItems(1)
+				}]
+				if module.realizationSupport.level != "contract-only" {
+					serviceMatches: list.MinItems(1)
+				}
 				settingsRefs: [for inputRef in alternative.inputs.settings.allowedRefs {
 					ref: inputRef
 					matches: [for unit in module.renderUnits for publicInputRef in unit.publicInputRefs if publicInputRef == inputRef {unit.id}] & list.MinItems(1) & list.MaxItems(1)
@@ -6326,9 +6623,20 @@ _servicePublicationShape: {
 	}
 	artifacts: [...#GeneratedArtifactContractV2] & list.MinItems(1)
 	rawSpecFallback: false
-	_artifactIDsUnique: list.UniqueItems([for artifact in artifacts {artifact.id}]) & true
-	_artifactPathsUnique: list.UniqueItems([for artifact in artifacts {artifact.path}]) & true
-	_artifactPortablePathsUnique: list.UniqueItems([for artifact in artifacts {strings.ToLower(artifact.path)}]) & true
+	_artifactIDDuplicates: [
+		for leftIndex, leftArtifact in artifacts
+		for rightIndex, rightArtifact in artifacts
+		if leftIndex < rightIndex && leftArtifact.id == rightArtifact.id {
+			left: leftArtifact.id, right: rightArtifact.id
+		},
+	] & list.MaxItems(0)
+	_artifactPathDuplicates: [
+		for leftIndex, leftArtifact in artifacts
+		for rightIndex, rightArtifact in artifacts
+		if leftIndex < rightIndex && leftArtifact.path == rightArtifact.path {
+			left: leftArtifact.path, right: rightArtifact.path
+		},
+	] & list.MaxItems(0)
 	_artifactPathClosure: #ArtifactPathSetClosureV2 & {
 		paths: [for artifact in artifacts {artifact.path}]
 	}
@@ -6753,7 +7061,10 @@ _servicePublicationShape: {
 			moduleID: module.id
 			siteRefs: module.siteRefs & workload.siteRefs
 			nodeRefs: module.nodeRefs & workload.nodeRefs
-			serviceMatches: [for unit in module.renderUnits for endpoint in unit.serviceEndpoints if endpoint.serviceRef == workload.alternative.route.serviceRef && endpoint.healthRef == workload.alternative.route.healthRef {unit.id}] & list.MinItems(1) & list.MaxItems(1)
+			serviceMatches: [for unit in module.renderUnits for endpoint in unit.serviceEndpoints if endpoint.serviceRef == workload.alternative.route.serviceRef && endpoint.healthRef == workload.alternative.route.healthRef {unit.id}] & list.MaxItems(1)
+			if module.realizationSupport.level != "contract-only" {
+				serviceMatches: list.MinItems(1)
+			}
 		}] & list.MinItems(1) & list.MaxItems(1)
 		placementMatches: [for item in placement if item.workloadRef == workload.id && item.siteRefs == workload.siteRefs && item.nodeRefs == workload.nodeRefs {item.workloadRef}] & list.MinItems(1) & list.MaxItems(1)
 		if workload.alternative.runtime.adapter != _|_ {
@@ -6860,6 +7171,9 @@ _servicePublicationShape: {
 	identityTrust:      #ResolvedIdentityTrustV2
 	data:               #DataPlacementIntent
 	failurePolicy:      #PartitionPolicy
+	backupPolicy:       #BackupPolicyV1
+	driftPolicy:        #DriftPolicyV1
+	observability?:     #ModuleOTLPBaselineV1
 	system:             #ResolvedSystemPlanV2
 	storage:            #StorageIntentV2
 	network:            #ResolvedNetworkPlanV2
@@ -7549,17 +7863,32 @@ _servicePublicationShape: {
 		] & list.MinItems(1) & list.MaxItems(1)
 		_haRequiredHealthGates: [for requiredRef in availability.healthAcceptance.requiredGateRefs {
 			gateRef: requiredRef
-			matches: [
-				for gate in gates.health
-				if gate.id == requiredRef && (gate.targetRef == availability.providerRef || gate.targetRef == availability.moduleRef) {
-					id:        gate.id
-					nodeCount: len(gate.nodeRefs) & len(controlPlane.members)
-					members: [for member in controlPlane.members {
-						nodeRef: member
-						matches: [for nodeRef in gate.nodeRefs if nodeRef == member {nodeRef}] & list.MinItems(1) & list.MaxItems(1)
-					}]
-				},
+			_authority: [
+				if strings.HasPrefix(requiredRef, "provider-\(availability.providerRef)-") {"provider"},
+				if strings.HasPrefix(requiredRef, "module-\(availability.moduleRef)-") {"module"},
 			] & list.MinItems(1) & list.MaxItems(1)
+			if _authority[0] == "provider" {
+				matches: [
+					for gate in gates.health
+					if gate.id == requiredRef && gate.targetRef == availability.providerRef {
+						id:        gate.id
+						nodeCount: len(gate.nodeRefs) & len(controlPlane.members)
+						members: [for member in controlPlane.members {
+							nodeRef: member
+							matches: [for nodeRef in gate.nodeRefs if nodeRef == member {nodeRef}] & list.MinItems(1) & list.MaxItems(1)
+						}]
+					},
+				] & list.MinItems(1) & list.MaxItems(1)
+			}
+			if _authority[0] == "module" {
+				memberMatches: [for member in controlPlane.members {
+					nodeRef: member
+					matches: [
+						for gate in gates.health
+						if gate.id == "\(requiredRef)-node-\(member)" && gate.targetRef == availability.moduleRef && gate.nodeRefs == [member] {gate.id},
+					] & list.MinItems(1) & list.MaxItems(1)
+				}]
+			}
 		}]
 		_haRequiredEvidence: [for requiredRef in availability.evidenceAcceptance.requiredRefs {
 			evidenceRef: requiredRef
@@ -8492,12 +8821,12 @@ _servicePublicationShape: {
 		}
 		_bridgePublicationReadiness: [for publication in bridge.publications
 			if len(_boundBridgePublicationExecutors) == 0 || publication.healthProbe == _|_ {
-			healthApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "health-gate-not-executable"
-				refs: ["publication:\(publication.serviceRef)", "health:\(publication.healthGateRef)"]
-			}
-		}]
+				healthApply: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "health-gate-not-executable"
+					refs: ["publication:\(publication.serviceRef)", "health:\(publication.healthGateRef)"]
+				}
+			}]
 	}
 	_routeModuleRefs: [for route in network.routes {
 		route:  route.id

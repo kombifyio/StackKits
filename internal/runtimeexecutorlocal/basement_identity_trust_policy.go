@@ -78,8 +78,8 @@ type BasementIdentityTrustPolicyOperations interface {
 	VerifyBasementIdentityTrustPolicy(context.Context, BasementIdentityTrustVerifyExpectation) (BasementIdentityTrustVerifyObservation, error)
 }
 
-// BasementIdentityTrustPolicyExecutor is an isolated adapter proof. It is not
-// product-registered while the CUE enforcement requirement remains unbound.
+// BasementIdentityTrustPolicyExecutor admits only the exact CUE policy and
+// delegates enforcement/readback to the owner-bound local policy store.
 type BasementIdentityTrustPolicyExecutor struct {
 	identity   runtimeexecutor.ExecutorIdentity
 	binding    BasementIdentityTrustPolicyBinding
@@ -176,8 +176,8 @@ func (e *BasementIdentityTrustPolicyExecutor) Execute(ctx context.Context, reque
 
 func validateBasementIdentityTrustPolicyRequest(request runtimeexecutor.ExecutionRequest, binding BasementIdentityTrustPolicyBinding, authority BasementIdentityTrustPolicyAuthority) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, BasementIdentityTrustRuntimePolicy, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.Artifacts) != 1 || len(request.AccessBindings) != 0 {
-		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, errors.New("Basement identity-trust executor requires exactly one runtime, one health target, one artifact, and no external access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, errors.New("Basement identity-trust executor requires exactly one runtime, one health target, and no external access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.BasementIdentityTrustPolicyRendererContract()
@@ -197,7 +197,10 @@ func validateBasementIdentityTrustPolicyRequest(request runtimeexecutor.Executio
 		health.TargetRef != basementIdentityTrustModuleRef || health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, errors.New("health target is not the exact Basement identity-trust enforcement postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, expectedArtifactRef)
+	if err != nil {
+		return emptyTarget, emptyHealth, BasementIdentityTrustRuntimePolicy{}, fmt.Errorf("select Basement identity-trust artifact: %w", err)
+	}
 	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
 		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != basementIdentityTrustProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != basementIdentityTrustModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != basementIdentityTrustUnitRef || artifact.UnitContractHash != contract.ContractHash ||

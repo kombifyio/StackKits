@@ -82,9 +82,8 @@ type LocalAutonomyPolicyOperations interface {
 	VerifyLocalAutonomyPolicy(context.Context, LocalAutonomyVerifyExpectation) (LocalAutonomyVerifyObservation, error)
 }
 
-// LocalAutonomyPolicyExecutor is an isolated adapter proof. Product Apply stays
-// blocked until an authenticated implementation of LocalAutonomyPolicyOperations
-// is registered together with the corresponding CUE owner transition.
+// LocalAutonomyPolicyExecutor admits the exact CUE autonomy policy through the
+// owner-bound local enforcement and readback backend.
 type LocalAutonomyPolicyExecutor struct {
 	identity   runtimeexecutor.ExecutorIdentity
 	binding    LocalAutonomyPolicyBinding
@@ -180,8 +179,8 @@ func (e *LocalAutonomyPolicyExecutor) Execute(ctx context.Context, request runti
 
 func validateLocalAutonomyPolicyRequest(request runtimeexecutor.ExecutionRequest, binding LocalAutonomyPolicyBinding, authority LocalAutonomyPolicyAuthority) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, LocalAutonomyRuntimePolicy, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.Artifacts) != 1 || len(request.AccessBindings) != 0 {
-		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("local-autonomy executor requires exactly one runtime, one health target, one artifact, and no external access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("local-autonomy executor requires exactly one runtime, one health target, and no external access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.LocalAutonomyPolicyRendererContract()
@@ -200,7 +199,10 @@ func validateLocalAutonomyPolicyRequest(request runtimeexecutor.ExecutionRequest
 		health.TargetRef != localAutonomyModuleRef || health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, errors.New("health target is not the exact local-autonomy enforcement postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, expectedArtifactRef)
+	if err != nil {
+		return emptyTarget, emptyHealth, LocalAutonomyRuntimePolicy{}, fmt.Errorf("select local-autonomy artifact: %w", err)
+	}
 	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
 		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != localAutonomyProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != localAutonomyModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != localAutonomyUnitRef || artifact.UnitContractHash != contract.ContractHash ||

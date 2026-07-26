@@ -263,35 +263,6 @@ func (cfg platformConfigFile) endpoint() string {
 }
 
 func loadPlatformConfigFile(platform, deployDir string) (platformConfigFile, error) {
-	wd := filepath.Dir(deployDir)
-	bundleExists, err := tenantFetchManifestExists(wd)
-	if err != nil {
-		return platformConfigFile{}, fmt.Errorf("inspect tenant platform bundle: %w", err)
-	}
-	if applyTenantDeployment != "" && !bundleExists {
-		return platformConfigFile{}, fmt.Errorf("managed platform configuration requires a verified tenant-fetch bundle for deployment %s", applyTenantDeployment)
-	}
-	if bundleExists {
-		if applyTenantDeployment == "" {
-			return platformConfigFile{}, fmt.Errorf("tenant platform bundle exists without --tenant-deployment binding")
-		}
-		data, declared, readErr := readVerifiedTenantSidecar(wd, specFile, applyTenantDeployment, "platform.json")
-		if readErr != nil {
-			return platformConfigFile{}, fmt.Errorf("verify tenant platform config: %w", readErr)
-		}
-		if !declared {
-			return platformConfigFile{}, nil
-		}
-		var cfg platformConfigFile
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			return platformConfigFile{}, fmt.Errorf("decode tenant platform config: %w", err)
-		}
-		if cfg.Platform != "" && !strings.EqualFold(cfg.Platform, platform) {
-			return platformConfigFile{}, fmt.Errorf("tenant platform config %q does not match requested platform %q", cfg.Platform, platform)
-		}
-		cfg.found = true
-		return cfg, nil
-	}
 	for _, path := range platformConfigCandidates(deployDir) {
 		data, err := os.ReadFile(path)
 		if err != nil {

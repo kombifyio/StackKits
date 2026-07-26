@@ -1605,7 +1605,7 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		}
 	}
 
-	_, nodeKinds, enabledNodes, err := resolvedTopologyIndex(plan)
+	nodeSites, nodeKinds, enabledNodes, err := resolvedTopologyIndex(plan)
 	if err != nil {
 		return err
 	}
@@ -1637,7 +1637,7 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if err := requireCatalogObjectField(module, contract, path, "runtime"); err != nil {
 			return err
 		}
-		if err := requireCatalogObjectField(module, contract, path, "realizationSupport"); err != nil {
+		if err := validateResolvedModuleSupportProjection(module, contract, path); err != nil {
 			return err
 		}
 		for _, field := range []string{"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement", "runtimeAdapter", "runtimeAdapterAgent"} {
@@ -1680,6 +1680,18 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if placement, isWorkloadModule := workloadPlacements[id]; isWorkloadModule {
 			wantSites, wantNodes = placement.siteRefs, placement.nodeRefs
 		}
+		if id == "stackkits-bridge-origin-mtls-runtime" {
+			wantSites, wantNodes, err = resolvedBridgeOriginMTLSTargets(plan, nodeSites)
+			if err != nil {
+				return fmt.Errorf("%s placement cannot be reconstructed from its resolved publication origins: %w", path, err)
+			}
+		}
+		if _, isRuntimeAdapterModule := runtimeAdapterModules[id]; isRuntimeAdapterModule {
+			wantSites, wantNodes, err = resolvedRuntimeAdapterModuleTargets(plan, id, nodeSites)
+			if err != nil {
+				return fmt.Errorf("%s placement cannot be reconstructed from its resolved workload adapter bindings: %w", path, err)
+			}
+		}
 		haveNodes, err := stringListField(module, path, "nodeRefs", true)
 		if err != nil {
 			return err
@@ -1705,6 +1717,171 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		}
 	}
 	return nil
+}
+
+func validateResolvedModuleSupportProjection(module, contract map[string]any, path string) error {
+	moduleID, err := stringField(module, path, "id")
+	if err != nil {
+		return err
+	}
+	target, err := stringField(module, path, "renderTarget")
+	if err != nil {
+		return err
+	}
+	rawUnits, err := objectListField(module, path, "renderUnits")
+	if err != nil {
+		return err
+	}
+	units := make([]map[string]any, len(rawUnits))
+	selectedUnitIDs := make(map[string]struct{}, len(rawUnits))
+	for index, rawUnit := range rawUnits {
+		unit, err := asObject(rawUnit, fmt.Sprintf("%s.renderUnits[%d]", path, index))
+		if err != nil {
+			return err
+		}
+		units[index] = unit
+		unitID, err := stringField(unit, fmt.Sprintf("%s.renderUnits[%d]", path, index), "id")
+		if err != nil {
+			return err
+		}
+		selectedUnitIDs[unitID] = struct{}{}
+	}
+	_, declared, err := indexModuleRenderUnits(moduleID, units)
+	if err != nil {
+		return err
+	}
+	resolvedVariant, hasResolvedVariant, err := optionalObjectField(module, path, "renderVariant")
+	if err != nil {
+		return err
+	}
+	contractUnits, err := objectListField(contract, "catalog.modules."+moduleID, "renderUnits")
+	if err != nil {
+		return err
+	}
+	_, _, wantVariant, err := selectExplicitModuleRenderVariant(moduleID, contract, contractUnits, target)
+	if err != nil {
+		return err
+	}
+	if (wantVariant != nil) != hasResolvedVariant {
+		return fmt.Errorf("%s.renderVariant presence does not match the target-selected bound catalog body", path)
+	}
+	if wantVariant != nil {
+		equal, err := canonicalEqual(resolvedVariant, wantVariant)
+		if err != nil {
+			return err
+		}
+		if !equal {
+			return fmt.Errorf("%s.renderVariant does not match the target-selected bound catalog body", path)
+		}
+	}
+	contractSupport, err := objectField(contract, "catalog.modules."+moduleID, "realizationSupport")
+	if err != nil {
+		return err
+	}
+	wantSupport, err := cloneObject(contractSupport, true)
+	if err != nil {
+		return err
+	}
+	if err := selectModuleRealizationSupport(moduleID, wantSupport, selectedUnitIDs, declared, wantVariant, target); err != nil {
+		return err
+	}
+	haveSupport, err := objectField(module, path, "realizationSupport")
+	if err != nil {
+		return err
+	}
+	equal, err := canonicalEqual(haveSupport, wantSupport)
+	if err != nil {
+		return err
+	}
+	if !equal {
+		return fmt.Errorf("%s.realizationSupport does not match the target-selected bound catalog body", path)
+	}
+	return nil
+}
+
+func resolvedBridgeOriginMTLSTargets(plan ResolvedPlan, nodeSites map[string]string) ([]string, []string, error) {
+	bridge, err := objectField(map[string]any(plan), "resolvedPlan", "bridge")
+	if err != nil {
+		return nil, nil, err
+	}
+	publications, err := objectListField(bridge, "resolvedPlan.bridge", "publications")
+	if err != nil {
+		return nil, nil, err
+	}
+	nodeSet := map[string]struct{}{}
+	siteSet := map[string]struct{}{}
+	for index, publication := range publications {
+		path := fmt.Sprintf("resolvedPlan.bridge.publications[%d]", index)
+		nodeRefs, err := stringListField(publication, path, "originNodeRefs", true)
+		if err != nil {
+			return nil, nil, err
+		}
+		sourceSiteRef, err := stringField(publication, path, "sourceSiteRef")
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, nodeRef := range nodeRefs {
+			if nodeSites[nodeRef] != sourceSiteRef {
+				return nil, nil, fmt.Errorf("%s.originNodeRefs contains node %q outside source Site %q", path, nodeRef, sourceSiteRef)
+			}
+			nodeSet[nodeRef] = struct{}{}
+			siteSet[sourceSiteRef] = struct{}{}
+		}
+	}
+	if len(nodeSet) == 0 {
+		return nil, nil, fmt.Errorf("resolvedPlan.bridge.publications has no origin nodes")
+	}
+	return sortedSet(siteSet), sortedSet(nodeSet), nil
+}
+
+func resolvedRuntimeAdapterModuleTargets(plan ResolvedPlan, moduleID string, nodeSites map[string]string) ([]string, []string, error) {
+	workloads, err := objectListField(map[string]any(plan), "resolvedPlan", "workloads")
+	if err != nil {
+		return nil, nil, err
+	}
+	nodeSet := map[string]struct{}{}
+	siteSet := map[string]struct{}{}
+	for index, workload := range workloads {
+		path := fmt.Sprintf("resolvedPlan.workloads[%d]", index)
+		alternative, err := objectField(workload, path, "alternative")
+		if err != nil {
+			return nil, nil, err
+		}
+		runtime, err := objectField(alternative, path+".alternative", "runtime")
+		if err != nil {
+			return nil, nil, err
+		}
+		adapter, exists, err := optionalObjectField(runtime, path+".alternative.runtime", "adapter")
+		if err != nil {
+			return nil, nil, err
+		}
+		if !exists {
+			continue
+		}
+		adapterModuleID, err := stringField(adapter, path+".alternative.runtime.adapter", "moduleRef")
+		if err != nil {
+			return nil, nil, err
+		}
+		if adapterModuleID != moduleID {
+			continue
+		}
+		nodeRefs, err := stringListField(workload, path, "nodeRefs", true)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, nodeRef := range nodeRefs {
+			siteRef, exists := nodeSites[nodeRef]
+			if !exists {
+				return nil, nil, fmt.Errorf("%s.nodeRefs contains unknown node %q", path, nodeRef)
+			}
+			nodeSet[nodeRef] = struct{}{}
+			siteSet[siteRef] = struct{}{}
+		}
+	}
+	if len(nodeSet) == 0 {
+		return nil, nil, fmt.Errorf("runtime adapter module %q has no workload targets", moduleID)
+	}
+	return sortedSet(siteSet), sortedSet(nodeSet), nil
 }
 
 func validateResolvedModuleCoverage(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders map[string]string) error {
@@ -1871,7 +2048,19 @@ func validateResolvedRenderUnitBodies(module, contract map[string]any, path stri
 	if err != nil {
 		return err
 	}
-	wantUnits, err := objectListField(contract, "catalog.modules", "renderUnits")
+	allWantUnits, err := objectListField(contract, "catalog.modules", "renderUnits")
+	if err != nil {
+		return err
+	}
+	moduleID, err := stringField(module, path, "id")
+	if err != nil {
+		return err
+	}
+	target, err := stringField(module, path, "renderTarget")
+	if err != nil {
+		return err
+	}
+	wantUnits, _, _, err := selectExplicitModuleRenderVariant(moduleID, contract, allWantUnits, target)
 	if err != nil {
 		return err
 	}

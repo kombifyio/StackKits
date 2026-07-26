@@ -16,6 +16,7 @@
         "fencing": "none",
         "mode": "single"
       },
+      "backupPolicy": {},
       "capabilities": {
         "disable": [],
         "enable": []
@@ -51,10 +52,11 @@
         "requirePossessionProof": true,
         "revocationSupported": true
       },
+      "driftPolicy": {},
       "generation": {
         "outputRoot": "deploy",
         "strategy": "kit-template",
-        "target": "opentofu"
+        "target": "compose"
       },
       "install": {
         "mode": "bootstrapped",
@@ -87,7 +89,7 @@
           ]
         },
         "domain": {
-          "base": "home.localhost"
+          "base": "home.test"
         },
         "mode": "private",
         "tls": {
@@ -134,11 +136,27 @@
       "source": {
         "kind": "native-v2"
       },
-      "storage": {},
+      "storage": {
+        "backupRoot": "/opt/backups",
+        "dataRoot": "/opt/data",
+        "stacksRoot": "/opt/stacks",
+        "volumeDriver": "local"
+      },
       "system": {}
     },
     "initialSpecStatus": "supported",
-    "requiredOverrides": []
+    "requiredOverrides": [],
+    "standaloneOwner": {
+      "certificateAuthority": "step-ca",
+      "executionChannelRef": "local-home-main",
+      "humanAuthorityRef": "home-human-authority",
+      "humanIssuerRef": "home-human-credential-issuer",
+      "identityProvider": "pocketid",
+      "nodeRef": "main",
+      "siteRef": "home",
+      "source": "local",
+      "trustDomainRef": "home-stackkit-trust"
+    }
   },
   "availability": {
     "policies": {
@@ -244,6 +262,7 @@
       "private-remote-access",
       "public-publish-egress",
       "encrypted-offsite-backup",
+      "telemetry-collection",
       "basement-compose-runtime",
       "availability-ha"
     ],
@@ -297,7 +316,7 @@
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
-    "defaultTarget": "opentofu"
+    "defaultTarget": "compose"
   },
   "identityTrust": {
     "authorities": [
@@ -588,7 +607,7 @@
     "version": "5.0.0"
   },
   "network": {
-    "defaultDomain": "home.localhost",
+    "defaultDomain": "home.test",
     "defaultTLSMode": "internal",
     "domainRequired": false,
     "mode": "private"
@@ -673,6 +692,8 @@
     "optional": [
       "photos"
     ],
-    "required": []
+    "required": [
+      "basement-core"
+    ]
   }
 }

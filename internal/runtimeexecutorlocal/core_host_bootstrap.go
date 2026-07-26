@@ -207,16 +207,12 @@ func validateCoreHostBootstrapRequest(request runtimeexecutor.ExecutionRequest, 
 		!slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}, coreHostBootstrapDocument{}, errors.New("health target is not the exact Core host-bootstrap postcondition")
 	}
-	var artifact runtimeexecutor.Artifact
-	found := 0
-	for _, candidate := range request.Artifacts {
-		if candidate.ID == target.ArtifactRefs[0] {
-			artifact = candidate
-			found++
-		}
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, target.ArtifactRefs[0])
+	if err != nil {
+		return runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}, coreHostBootstrapDocument{}, fmt.Errorf("select Core host-bootstrap artifact: %w", err)
 	}
 	contract := architecturev2renderer.CoreHostBootstrapRendererContract()
-	if found != 1 || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0600" ||
+	if artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0600" ||
 		artifact.OwnerKind != "render-instance" || artifact.ModuleRef != coreHostBootstrapModuleRef || artifact.UnitRef != coreHostBootstrapUnitRef ||
 		artifact.OutputRef != coreHostBootstrapOutputRef || target.UnitContractHash != contract.ContractHash || artifact.UnitContractHash != contract.ContractHash ||
 		len(artifact.Content) == 0 || len(artifact.Content) > coreHostBootstrapMaxBytes {

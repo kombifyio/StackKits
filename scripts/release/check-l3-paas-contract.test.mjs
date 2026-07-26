@@ -79,12 +79,12 @@ resource "local_file" "coolify_dynamic_stackkit" {
 }
 resource "null_resource" "coolify_platform_bootstrap" {
   provisioner "local-exec" {
-    command = "stackkit_docker() { DOCKER_HOST=\"\${var.docker_host}\" docker \"$@\"; } stackkit_sync_coolify_dynamic_config() { cat > /data/coolify/proxy/dynamic/stackkit.yml; } stackkit_coolify_diagnostics() { echo Coolify readiness diagnostics (redacted):; } expected_endpoint=\"$(stackkit_coolify_proxy_docker_endpoint)\" current_endpoint=\"$(stackkit_docker inspect coolify-proxy)\" [ \"$current_endpoint\" != \"$expected_endpoint\" ] curl -fsS \${local.coolify_bootstrap_api_endpoint}/api/health curl -fsS \${local.coolify_bootstrap_api_endpoint}/health traefik.docker.network=\${local.routing_network} STACKKIT_COOLIFY_API_ENDPOINT=\"\${local.coolify_api_endpoint}\" STACKKIT_COOLIFY_PLATFORM_JSON=... STACKKIT_COOLIFY_SERVER_PUBLIC_KEY= authorized_keys server_settings set is_reachable = true, is_usable = true host.docker.internal --providers.docker.endpoint= --certificatesresolvers.letsencrypt.acme.httpchallenge=true --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http stackkit_docker compose -f \"$PROXY_COMPOSE\" up -d 'id' => 0 Hash::make($bootstrapPassword) show_boarding' => false is_api_enabled' => true is_registration_enabled' => false createToken($tokenName, ['root']) StartProxy::run($server, async: false, force: true) proxyContainer' => 'coolify-proxy' .stackkit/platform.json 'capability' => 'backups' 'status' => 'configured' stackkit.backup=required restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill"
+    command = "stackkit_docker() { DOCKER_HOST=\"\${var.docker_host}\" docker \"$@\"; } stackkit_sync_coolify_dynamic_config() { cat > /data/coolify/proxy/dynamic/stackkit.yml; } stackkit_coolify_diagnostics() { echo Coolify readiness diagnostics (redacted):; } expected_endpoint=\"$(stackkit_coolify_proxy_docker_endpoint)\" current_endpoint=\"$(stackkit_docker inspect coolify-proxy)\" [ \"$current_endpoint\" != \"$expected_endpoint\" ] curl -fsS \${local.coolify_bootstrap_api_endpoint}/api/health curl -fsS \${local.coolify_bootstrap_api_endpoint}/health traefik.docker.network=\${local.routing_network} STACKKIT_COOLIFY_API_ENDPOINT=\"\${local.coolify_api_endpoint}\" STACKKIT_COOLIFY_PLATFORM_JSON=... STACKKIT_COOLIFY_SERVER_PUBLIC_KEY= authorized_keys server_settings set is_reachable = true, is_usable = true host.docker.internal --providers.docker.endpoint= --certificatesresolvers.letsencrypt.acme.httpchallenge=true --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http stackkit_docker compose -f \"$PROXY_COMPOSE\" up -d 'id' => 0 Hash::make($bootstrapPassword) show_boarding' => false is_api_enabled' => true is_registration_enabled' => false createToken($tokenName, ['root']) StartProxy::run($server, async: false, force: true) proxyContainer' => 'coolify-proxy' .stackkit/platform.json 'capability' => 'backups' 'status' => 'configured' stackkit.backup=required restore-drill endpoint=/api/v1/internal/stack-actions/restore-drill"
   }
 }
 resource "null_resource" "coolify_install" {
   provisioner "local-exec" {
-    command = "stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine" && stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine" && echo image already present locally for StackKit Coolify bootstrap && docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify runtime actions && docker context use stackkit-host"
+    command = "stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine" && stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine" && echo image already present locally for StackKit Coolify bootstrap && docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify StackActions && docker context use stackkit-host"
   }
 }
 resource "local_file" "platform_l3_manifest" {
@@ -255,7 +255,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
 }
 resource "null_resource" "coolify_install" {
   provisioner "local-exec" {
-    command = "docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify runtime actions && docker context use stackkit-host"
+    command = "docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify StackActions && docker context use stackkit-host"
   }
 }
 resource "local_file" "platform_l3_manifest" {
@@ -326,7 +326,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
 }
 resource "null_resource" "coolify_install" {
   provisioner "local-exec" {
-    command = "docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify runtime actions && docker context use stackkit-host"
+    command = "docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify StackActions && docker context use stackkit-host"
   }
 }
 resource "local_file" "platform_l3_manifest" {
@@ -387,7 +387,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
 }
 resource "null_resource" "coolify_install" {
   provisioner "local-exec" {
-    command = "docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify runtime actions && docker context use stackkit-host"
+    command = "docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify StackActions && docker context use stackkit-host"
   }
 }
 resource "local_file" "platform_l3_manifest" {
@@ -507,7 +507,7 @@ resource "null_resource" "coolify_platform_bootstrap" {
 }
 resource "null_resource" "coolify_install" {
   provisioner "local-exec" {
-    command = "stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine" && stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine" && echo image already present locally for StackKit Coolify bootstrap && docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify runtime actions && docker context use stackkit-host"
+    command = "stackkit_preseed_coolify_image "postgres:15-alpine" "public.ecr.aws/docker/library/postgres:15-alpine" && stackkit_preseed_coolify_image "redis:7-alpine" "public.ecr.aws/docker/library/redis:7-alpine" && echo image already present locally for StackKit Coolify bootstrap && docker context create stackkit-host --docker "host=\${var.docker_host}" && docker context use default >/dev/null 2>&1 || true && echo Setting Docker CLI default context for Coolify StackActions && docker context use stackkit-host"
   }
 }
 resource "local_file" "platform_l3_manifest" {

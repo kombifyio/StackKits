@@ -110,6 +110,9 @@ archives:
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
+      - schemas/standalone-oss-e2e-receipt.schema.json
+      - scripts/e2e/validate-standalone-oss-e2e.mjs
+      - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
       - architecture/v2/contractfixture/catalog.cue
       - architecture/v2/fixtures/contract-two-node.yaml
@@ -157,6 +160,9 @@ archives:
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
+      - schemas/standalone-oss-e2e-receipt.schema.json
+      - scripts/e2e/validate-standalone-oss-e2e.mjs
+      - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
       - architecture/v2/contractfixture/catalog.cue
       - architecture/v2/fixtures/contract-two-node.yaml
@@ -201,6 +207,9 @@ archives:
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
+      - schemas/standalone-oss-e2e-receipt.schema.json
+      - scripts/e2e/validate-standalone-oss-e2e.mjs
+      - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
       - architecture/v2/contractfixture/catalog.cue
       - architecture/v2/fixtures/contract-two-node.yaml
@@ -245,6 +254,9 @@ archives:
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
+      - schemas/standalone-oss-e2e-receipt.schema.json
+      - scripts/e2e/validate-standalone-oss-e2e.mjs
+      - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
       - architecture/v2/contractfixture/catalog.cue
       - architecture/v2/fixtures/contract-two-node.yaml
@@ -289,7 +301,10 @@ checksum:
   disable: true
 
 snapshot:
-  version_template: "{{ incpatch .Version }}-next"
+  # Snapshot archives participate in the same native-v2 compatibility gate as
+  # tagged releases. Keep their embedded CLI/runtime version above the latest
+  # tag instead of GoReleaser's otherwise pre-release form of that exact tag.
+  version_template: "{{ incpatch .Version }}-devel"
 
 changelog:
   # Release notes are rendered deterministically from CHANGELOG.md by

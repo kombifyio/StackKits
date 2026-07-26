@@ -18,21 +18,31 @@ import (
 type OwnerID = architecturev2.ProductRuntimeOwnerID
 
 const (
-	OwnerSecurityBaseline      = architecturev2.ProductRuntimeOwnerSecurityBaseline
-	OwnerCoreHostBootstrap     = architecturev2.ProductRuntimeOwnerCoreHostBootstrap
-	OwnerHomeBackupTarget      = architecturev2.ProductRuntimeOwnerHomeBackupTarget
-	OwnerBasementCompose       = architecturev2.ProductRuntimeOwnerBasementCompose
-	OwnerBasementIdentityTrust = architecturev2.ProductRuntimeOwnerBasementIdentityTrust
-	OwnerCloudIdentityTrust    = architecturev2.ProductRuntimeOwnerCloudIdentityTrust
-	OwnerCloudHostSecurity     = architecturev2.ProductRuntimeOwnerCloudHostSecurity
-	OwnerCloudPublicEdge       = architecturev2.ProductRuntimeOwnerCloudPublicEdge
-	OwnerPublicTLS             = architecturev2.ProductRuntimeOwnerPublicTLS
-	OwnerHomeDeviceAuthority   = architecturev2.ProductRuntimeOwnerHomeDeviceAuthority
-	OwnerHomeAccess            = architecturev2.ProductRuntimeOwnerHomeAccess
-	OwnerLocalAutonomy         = architecturev2.ProductRuntimeOwnerLocalAutonomy
-	OwnerModernHomeIdentity    = architecturev2.ProductRuntimeOwnerModernHomeIdentity
-	OwnerModernCloudIdentity   = architecturev2.ProductRuntimeOwnerModernCloudIdentity
-	OwnerBridgeOriginMTLS      = architecturev2.ProductRuntimeOwnerBridgeOriginMTLS
+	OwnerSecurityBaseline       = architecturev2.ProductRuntimeOwnerSecurityBaseline
+	OwnerCoreHostBootstrap      = architecturev2.ProductRuntimeOwnerCoreHostBootstrap
+	OwnerHomeBackupTarget       = architecturev2.ProductRuntimeOwnerHomeBackupTarget
+	OwnerBasementCompose        = architecturev2.ProductRuntimeOwnerBasementCompose
+	OwnerBasementIdentityTrust  = architecturev2.ProductRuntimeOwnerBasementIdentityTrust
+	OwnerCloudIdentityTrust     = architecturev2.ProductRuntimeOwnerCloudIdentityTrust
+	OwnerCloudHostSecurity      = architecturev2.ProductRuntimeOwnerCloudHostSecurity
+	OwnerCloudPublicEdge        = architecturev2.ProductRuntimeOwnerCloudPublicEdge
+	OwnerCloudOffsiteBackup     = architecturev2.ProductRuntimeOwnerCloudOffsiteBackup
+	OwnerPublicTLS              = architecturev2.ProductRuntimeOwnerPublicTLS
+	OwnerHomeDeviceAuthority    = architecturev2.ProductRuntimeOwnerHomeDeviceAuthority
+	OwnerHomeAccess             = architecturev2.ProductRuntimeOwnerHomeAccess
+	OwnerLocalAutonomy          = architecturev2.ProductRuntimeOwnerLocalAutonomy
+	OwnerModernHomeIdentity     = architecturev2.ProductRuntimeOwnerModernHomeIdentity
+	OwnerModernCloudIdentity    = architecturev2.ProductRuntimeOwnerModernCloudIdentity
+	OwnerFederationLink         = architecturev2.ProductRuntimeOwnerFederationLink
+	OwnerFederationControlAgent = architecturev2.ProductRuntimeOwnerFederationControlAgent
+	OwnerBridgePublication      = architecturev2.ProductRuntimeOwnerBridgePublication
+	OwnerBridgeOriginMTLS       = architecturev2.ProductRuntimeOwnerBridgeOriginMTLS
+	OwnerHABasementWarm         = architecturev2.ProductRuntimeOwnerHABasementWarm
+	OwnerHABasementQuorum       = architecturev2.ProductRuntimeOwnerHABasementQuorum
+	OwnerHACloudWarm            = architecturev2.ProductRuntimeOwnerHACloudWarm
+	OwnerHACloudQuorum          = architecturev2.ProductRuntimeOwnerHACloudQuorum
+	OwnerHAModernWarm           = architecturev2.ProductRuntimeOwnerHAModernWarm
+	OwnerHAModernQuorum         = architecturev2.ProductRuntimeOwnerHAModernQuorum
 )
 
 // OwnerSelector is the exact provider-free CUE/catalog selector used to match

@@ -164,7 +164,7 @@ tls:
   - `STACKKIT_DNS_TOKEN` — API key/token for the DNS provider
   - `STACKKIT_DNS_EMAIL` — Email for Cloudflare Global API Key auth (optional for scoped tokens)
 
-### Mode 2: kombify.me
+### Mode 2: kombify.me (orchestrator-owned legacy lane)
 
 ```yaml
 context: cloud
@@ -181,9 +181,12 @@ owner:
 - **Default PAAS:** `coolify` when `paas` is omitted
 - **TLS:** Managed by kombify (Cloudflare wildcard)
 - **DNS:** Automatic via kombify.me subdomain registry
-- **Requires:** `KOMBIFY_API_KEY` environment variable
-- **Direct Connect:** After deploy, `stackkit apply` registers the instance with kombify. `stackkit-server` sends heartbeats so the Cloudflare Edge path can proxy traffic.
-- **Owner identity:** In the TechStack SaaS lane, the Owner is prepared from the authenticated kombify Cloud profile. The stack spec carries `bootstrapMode: auto` plus recovery material reference/hash, not a fake `owner.email` or `owner.username`.
+- **Public v0.8 boundary:** The public CLI neither registers kombify.me nor sends
+  registry heartbeats. An external orchestrator must provision this domain and
+  pass a complete local StackSpec before invoking the account-free lifecycle.
+- **Owner identity:** Public v0.8 Apply accepts local custody only. Legacy
+  orchestrator identity envelopes are available solely to the non-public
+  Publisher/migration build.
 
 ### Mode 3: Local Default (Browser-Native)
 
@@ -273,7 +276,21 @@ See [ADR-0006](ADR/ADR-0006-service-url-matrix.md) for the full 9-scenario Servi
 
 ## Owner Bootstrap Modes
 
-Owner bootstrap is optional and lane-specific. Stack specs must never contain a plaintext recovery passphrase.
+Native v2 Owner bootstrap is mandatory for the public Basement lifecycle and
+lives outside StackSpec:
+
+```text
+stackkit init --owner-source=local
+```
+
+This establishes the local `ownerRef`, Ed25519/step-ca custody, PocketID Owner
+projection, and deterministic execution binding. The first Apply realizes the
+PocketID Owner and exact TinyAuth OIDC client; Verify checks their signed
+binding. Techstack and kombify Cloud can optionally supply a user-approved
+identity projection, but cannot supply or replace the local custody key.
+
+The table below is retained solely for v1 compatibility/migration. Stack specs
+must never contain a plaintext recovery passphrase.
 
 | Mode | Lane | Required fields | Behavior |
 | --- | --- | --- | --- |
@@ -283,7 +300,10 @@ Owner bootstrap is optional and lane-specific. Stack specs must never contain a 
 
 `adminEmail` remains accepted for compatibility, but the Owner is the normal admin identity. When `owner.email` is present, generated `admin_email` values for Coolify, Kuma, StackKit Server, and bootstrap-only credentials resolve to that Owner email.
 
-Managed `stackkit apply --tenant-deployment` fails if `owner.bootstrapMode=auto` is present without Admin's private identity-bootstrap envelope. The envelope is not part of public/default StackSpec exports.
+The public `stackkit apply` command rejects external auto-owner bootstrap and
+requires local owner custody. Legacy managed identity-bootstrap envelopes are
+not part of public/default StackSpec exports and compile only into the
+Publisher/migration build.
 
 ### SaaS auto-owner
 
@@ -305,12 +325,15 @@ owner:
   recoveryPassphraseHash: "$argon2id$v=19$m=65536,t=3,p=4$..."
 ```
 
-### OSS/BYOS no Owner bootstrap
+### Legacy OSS/BYOS no Owner bootstrap
 
 ```yaml
 owner:
   bootstrapMode: none
 ```
+
+This legacy mode cannot enter the native v2 public Apply path. Migrate it by
+running native `init --owner-source=local`.
 
 ## Examples
 
@@ -425,7 +448,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `tls.provider` auto-selects `challenge: dns` if set
 - `domain: home.localhost` is the local default and must generate portless links that open without hosts-file edits, DNS setup, or trust-store setup
 - `domain: stack.home` is explicit LAN-DNS mode and may enable Kombify Point only when StackKit owns or verifies the resolver path
-- `domain: kombify.me` requires `subdomainPrefix` and `KOMBIFY_API_KEY`
+- `domain: kombify.me` requires `subdomainPrefix` plus domain provisioning by an external orchestrator; the public CLI has no Kombify credential or registration path
 - `owner.bootstrapMode: auto` requires `source: cloud` and recovery material by reference or hash, but not `owner.email` or `owner.username`
 - `owner.bootstrapMode: custom` requires `source: local`, `owner.email`, `owner.username`, and an argon2id `recoveryPassphraseHash`
 - `owner.bootstrapMode: none` must not include owner identity or recovery material fields

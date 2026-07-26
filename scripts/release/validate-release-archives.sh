@@ -79,6 +79,9 @@ check_archive_contents() {
     cue.mod/module.cue \
     docs/ENTERPRISE_READINESS.md \
     schemas/release-evidence.schema.json \
+    schemas/standalone-oss-e2e-receipt.schema.json \
+    scripts/e2e/validate-standalone-oss-e2e.mjs \
+    scripts/e2e/validate-standalone-runtime-e2e.mjs \
     scripts/release/validate-architecture-contract-fixture.mjs \
     architecture/v2/fixtures/contract-two-node.yaml \
     architecture/v2/fixtures/contract-two-node.inventory.yaml \
@@ -167,10 +170,8 @@ stage_stackkits_home() {
   done
 }
 
-# Native v2 archive smoke. Init proves that the released binary can materialize
-# the selected embedded KitDefinition without relying on the source checkout.
-# Generation is deliberately not attempted here: it requires an admitted
-# Inventory and exact ResolvedPlan, which init neither invents nor owns.
+# Native v2 archive smoke. Basement additionally proves the complete read-only
+# authoring and canonical generation phase from the extracted archive alone.
 smoke_v2_authoring() {
   local label="$1"
   local extract_dir="$2"
@@ -191,6 +192,12 @@ smoke_v2_authoring() {
   smoke_public_backup_cli "$label" "$extract_dir"
 
   local init_args=("$kit" --non-interactive --name "$name")
+  # v0.8 makes Basement the mandatory standalone lifecycle product. Cloud and
+  # Modern remain self-contained preview definitions, but they do not publish
+  # Basement's CUE-owned PocketID/TinyAuth local-owner custody contract.
+  if [ "$kit" = "basement-kit" ]; then
+    init_args+=(--owner-source=local)
+  fi
   if [ -n "$domain" ]; then
     init_args+=(--domain "$domain")
   fi
@@ -214,6 +221,53 @@ smoke_v2_authoring() {
   fi
   [ ! -e "$project_dir/deploy" ] ||
     fail "$label native v2 init invented plan-owned generation output"
+
+  if [ "$kit" != "basement-kit" ]; then
+    return
+  fi
+
+  local before_validate="$tmp/${label}-before-validate.sha256"
+  local after_validate="$tmp/${label}-after-validate.sha256"
+  (
+    cd "$project_dir"
+    find . -type f -print0 | sort -z | xargs -0 sha256sum >"$before_validate"
+    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
+      validate >"$tmp/${label}-validate.log"
+    find . -type f -print0 | sort -z | xargs -0 sha256sum >"$after_validate"
+  )
+  cmp "$before_validate" "$after_validate" ||
+    fail "$label validate mutated the standalone workspace"
+
+  (
+    cd "$project_dir"
+    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
+      generate >"$tmp/${label}-generate.log"
+  )
+
+  local metadata="$project_dir/deploy/.stackkit"
+  local compose="$project_dir/deploy/instances/stackkits-basement-core-runtime/compose-node-main/platform/basement-core/compose.yaml"
+  for generated in \
+    "$metadata/resolved-plan.json" \
+    "$metadata/generation-manifest.json" \
+    "$metadata/generation-receipt.json" \
+    "$compose"; do
+    [ -s "$generated" ] || fail "$label generate did not materialize ${generated#"$project_dir/"}"
+  done
+  grep -q '"status":"ready"' "$metadata/resolved-plan.json" ||
+    fail "$label generated ResolvedPlan is not honestly ready"
+  grep -q 'stackkit-basement-core' "$compose" ||
+    fail "$label generated Compose project identity drifted"
+  local service
+  for service in socket-proxy router pocketid tinyauth step-ca coolify hub; do
+    grep -q "^  ${service}:" "$compose" ||
+      fail "$label generated Compose is missing core service ${service}"
+  done
+
+  local private_file
+  while IFS= read -r -d '' private_file; do
+    [ "$(stat -c '%a' "$private_file")" = "600" ] ||
+      fail "$label custody file is not owner-only: ${private_file#"$project_dir/"}"
+  done < <(find "$project_dir/.stackkit/custody" -type f -print0)
 }
 
 # Basement smokes: from the dedicated basement archive and from the full catalog archive.

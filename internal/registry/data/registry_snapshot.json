@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-07-24T09:52:56Z",
+  "generated_at": "2026-07-26T17:36:04Z",
   "tools": [],
   "services": [
     {
@@ -625,7 +625,7 @@
       "version": "2.0.0",
       "layer": "L2-platform-ingress",
       "description": "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to TechStack or monitoring-core",
-      "contract_hash": "f62cacf7538febaf7c7168ce49f07980fc882b77ed6ba28031344bcd7bb14413",
+      "contract_hash": "513e301afaf20fd1486cc470d7e41e9c3f39e93f91e2c5566a7713800ef3420a",
       "supported_contexts": [
         "local",
         "cloud",
@@ -639,7 +639,7 @@
       "version": "2.0.0",
       "layer": "L2-platform-ingress",
       "description": "Optional VictoriaMetrics backend with OTel gateway — extends standard monitoring-agent with long-term storage and a PromQL API",
-      "contract_hash": "3768869ab7905b092e678e1d5397866a601c39c7798880e477d0857031d85e8c",
+      "contract_hash": "50f3210d6a6d6c5e25f29dca320755c808945eb44e536d9ed8f21d50b23134b9",
       "supported_contexts": [
         "local",
         "cloud",

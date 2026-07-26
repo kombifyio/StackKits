@@ -164,8 +164,8 @@ func (e *HomeDeviceAuthorityPolicyExecutor) Execute(ctx context.Context, request
 
 func validateHomeDeviceAuthorityPolicyRequest(request runtimeexecutor.ExecutionRequest, binding HomeDeviceAuthorityPolicyBinding, authority HomeDeviceAuthorityPolicyAuthority) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, HomeDeviceAuthorityRuntimePolicy, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.Artifacts) != 1 || len(request.AccessBindings) != 0 {
-		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, errors.New("Home device-authority executor requires exactly one runtime, one health target, one artifact, and no external access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, errors.New("Home device-authority executor requires exactly one runtime, one health target, and no external access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.HomeDeviceAuthorityPolicyRendererContract()
@@ -183,7 +183,10 @@ func validateHomeDeviceAuthorityPolicyRequest(request runtimeexecutor.ExecutionR
 		health.TargetRef != homeDeviceAuthorityModuleRef || health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, errors.New("health target is not the exact Home device-authority enforcement postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, expectedArtifactRef)
+	if err != nil {
+		return emptyTarget, emptyHealth, HomeDeviceAuthorityRuntimePolicy{}, fmt.Errorf("select Home device-authority artifact: %w", err)
+	}
 	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
 		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != homeDeviceAuthorityProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != homeDeviceAuthorityModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != homeDeviceAuthorityUnitRef || artifact.UnitContractHash != contract.ContractHash ||

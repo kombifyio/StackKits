@@ -52,15 +52,15 @@ The canonical schema and examples are documented in [stack-spec-reference.md](st
 
 | Command | Important flags/env | Purpose |
 | --- | --- | --- |
-| `stackkit init` (native v2: development and v0.7+) | `--name`, `--domain`, `--expected-spec-hash`, `--non-interactive` | Materialize the selected product's embedded CUE authoring seed as canonical StackSpec v2. Create is atomic no-replace; an existing CUE-valid v2 spec changes only when its exact normalized hash is supplied. `--force` is rejected. Cloud Kit and Modern Home Lab require `--domain`. No empty deployment directory is created and no readiness claim is made. |
+| `stackkit init` (native v2: v0.8+) | `--name`, `--domain`, `--owner-source=local`, `--expected-spec-hash`, `--non-interactive` | Materialize the selected product's embedded CUE authoring seed as canonical StackSpec v2. Basement includes concrete absolute local storage roots; `--owner-source=local` establishes standalone owner custody. Create is atomic no-replace; an existing CUE-valid v2 spec changes only when its exact normalized hash is supplied. `--force` is rejected. Cloud Kit and Modern Home Lab require `--domain`. No empty deployment directory is created and no readiness claim is made. |
 | `stackkit init` (v0.6 compatibility) | `--compute-tier`, `--domain`, `--local-dns`, `--local-name`, `--mode`, `--output`, `--force`, `--non-interactive`, `--admin-email`, `--service-profile` | Create the legacy v1 initial spec and deployment directory. Local kit paths are supported only on this line. |
-| `stackkit init` owner bootstrap (v0.6 compatibility) | `--cluster-mode`, `--owner-bootstrap-mode`, `--owner-source`, `--owner-email`, `--owner-username`, `--owner-display-name`, `--recovery-passphrase-hash`, `--recovery-material-ref` | Configure legacy owner/recovery bootstrap. Native v2 keeps identity outside desired StackSpec intent. |
+| `stackkit init` owner bootstrap | `--owner-source=local`, optional exact `--local-site`, `--local-node`, `--local-execution-channel`; legacy v1 flags remain migration-only | Native v2 creates local ownerRef/Ed25519/step-ca custody and desired PocketID projection outside StackSpec. |
 | `stackkit init` cloud owner handoff (v0.6 compatibility) | `--cloud-oidc-issuer`, `--cloud-oidc-client-id`, `--cloud-oidc-client-secret-ref`, `--cloud-oidc-foreign-subject` | Optional legacy metadata for orchestrator-managed auto owner bootstrap. |
 | `stackkit addon list` | none | On v0.7, list the embedded CUE add-on catalog and, when a canonical v2 spec exists, its validated kit-filtered selection state. This is discovery only. `addon add/remove` remains v0.6 compatibility-only. |
 | `stackkit app add` (v0.6 compatibility) | `<name>`, `--image`, `--kind`, `--port`, `--host`, `--auth`, `--health-path`, repeated `--env`, repeated `--secret` | Add legacy PaaS handoff metadata. Native v2 fails closed: catalog apps remain StackKit-owned, and no TechStack customer-workload desired-state contract exists yet. |
-| `stackkit generate` | `--output`, `--force`, `--fragments`, `--inventory`, `--resolved-plan`, `KOMBIFY_API_KEY`, `STACKKIT_DNS_TOKEN`, `STACKKIT_DNS_EMAIL` | Generate rollout artifacts. StackSpec v1 retains the compatibility OpenTofu flags. Architecture v2 takes strategy/output from the exact ResolvedPlan, accepts `--output` only when it matches that governed root, and rejects `--force`/`--fragments`. |
-| `stackkit apply` | `--auto-approve`, `--tenant-deployment`, `--admin-endpoint`, `--admin-token`, `--verify`, `--verify-http`, `--verify-strict` | Apply generated infrastructure and optionally report or verify results. |
-| `stackkit apply` env | `STACKKIT_ADMIN_ENDPOINT`, `STACKKIT_ADMIN_URL`, `STACKKIT_ADMIN_TOKEN`, `STACKKIT_BOOTSTRAP_TOKEN`, `KOMBIFY_API_KEY` | Admin reporting, tenant bootstrap fetch, and kombify.me registration. |
+| `stackkit generate` | `--output`, `--force`, `--fragments`, `--inventory`, `--resolved-plan`, `STACKKIT_DNS_TOKEN`, `STACKKIT_DNS_EMAIL` | Generate rollout artifacts. StackSpec v1 retains the compatibility OpenTofu flags. Architecture v2 resolves and atomically persists the current canonical ResolvedPlan itself, takes strategy/output from that plan, accepts `--output` only when it matches the governed root, and rejects `--force`/`--fragments`. |
+| `stackkit apply` | `--auto-approve`, `--verify`, `--verify-http`, `--verify-strict` | Apply only local generated infrastructure and optionally verify results. The public command has no Admin or tenant-deployment path. |
+| `stackkit apply` env | local execution, renderer, and optional observability variables only | Public Apply does not consume Admin endpoints/tokens, Kombify credentials, or a managed bootstrap envelope. |
 | `stackkit verify` | `--json`, `--http`, `--strict`, `--host`, `--user`, `--key`, `--port`, `--remote-dir`, `--inventory`, `--resolved-plan`, `--artifact-manifest`, `--generation-receipt` | Verify deployment state. Architecture v2 verifies the governed artifact closure before its typed verifier boundary; raw SSH remains an explicit v1-only compatibility transport. |
 
 On the v0.6 compatibility line, `stackkit app add --host` accepts a DNS hostname only. Do not include `http://`, `https://`, paths, or ports; TLS and routing are derived from the legacy StackKit domain/platform contract.
@@ -117,12 +117,16 @@ The fast Admin-generated-CUE freshness gate lives in `cmd/stackkit/commands/gene
 
 `demoData.enabled` defaults to `false`. Setup packs seed first-login sample content only when this is explicitly enabled.
 
-## Owner Bootstrap Contract (v0.6 Compatibility)
+## Owner Bootstrap Contract
 
-The fields below describe the bounded v1 compatibility contract. Native v2
-authoring deliberately carries no Owner identity, recovery material, OIDC
-handoff, or secrets; those enter later through separately bound operational
-sidecars and TechStack handoffs.
+Native v2 uses local Owner custody. `stackkit init --owner-source=local`
+creates the stable `ownerRef`, Ed25519 evidence key, step-ca certificate, and
+desired PocketID projection outside StackSpec. The first Apply realizes the
+PocketID Owner plus TinyAuth OIDC client and signs their binding. Public Apply
+accepts only this local custody; Techstack or kombify Cloud may propose a
+user-approved profile projection but cannot replace it.
+
+The fields below describe only the bounded v1 compatibility/migration contract:
 
 `owner.bootstrapMode` is the lane selector for first-user setup:
 
@@ -132,7 +136,10 @@ sidecars and TechStack handoffs.
 
 The Owner is the normal daily admin for PocketID, Coolify, StackKit Server, Kuma, and later tool setup. `adminEmail` is a compatibility alias only: when `owner.email` is available, the generated `admin_email` for Coolify/Kuma/bootstrap credentials resolves to the Owner email.
 
-Managed `stackkit apply --tenant-deployment` must receive `.stackkit/identity-bootstrap.json` from Admin when `owner.bootstrapMode=auto`. Without that runtime handoff the CLI fails before deployment instead of silently skipping Owner/PocketID bootstrap. The handoff may contain one-time material for the VM; plaintext recovery passphrases are never valid public StackSpec fields.
+Legacy managed identity-bootstrap envelopes are Publisher-only and are never
+part of public StackSpec exports. Plaintext recovery passphrases are never
+valid public StackSpec fields. Cloud passwords, passkeys, sessions, and private
+keys are never user-sync fields.
 
 `breakGlass` is the separate emergency path. It is enabled by default with `scope: full-emergency-admin` and covers a PocketID admin, TinyAuth static fallback, and server recovery material in the encrypted recovery bundle. Synthetic local defaults use reserved/local domains such as `admin@example.com` and `.invalid`; tests must not invent real `@kombify.io` accounts.
 
@@ -187,18 +194,15 @@ On the v0.6 compatibility line, `base-install.sh` can add one dev-only PaaS hand
 
 If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackkit/state.yaml` and generated manifest files. The external PaaS remains responsible for registering, deploying, and operating the user app.
 
-## Registry and Admin API
+## Public release and Publisher configuration
 
 | Command | Required configuration |
 | --- | --- |
-| `stackkit registry snapshot` | `--endpoint`; `--token` or `STACKKIT_ADMIN_TOKEN`; optional `--output`. |
-| `stackkit registry bake-from-cue` | `--modules-dir`; optional `--output`. |
-| `stackkit registry info` | Optional `--json`. |
-| `stackkit module release` / `stackkit module verify-db` | `--endpoint` or `STACKKIT_ADMIN_ENDPOINT`; preferred `SERVICE_AUTH_SECRET`; legacy `--token`, `STACKKIT_ADMIN_TOKEN`, or `KOMBIFY_ADMIN_API_KEY`. |
-| `stackkit kit list` | `--endpoint` or `STACKKIT_ADMIN_ENDPOINT` or `ADMIN_PUBLIC_API_URL`; `--token` or `STACKKIT_ADMIN_TOKEN` or `KOMBIFY_ADMIN_API_KEY`. |
-| `stackkit kit export` | `--slug`, `--from-api` or `STACKKIT_ADMIN_ENDPOINT`, `--token` or `STACKKIT_ADMIN_TOKEN`, `--output`, `--format`; `--from-yaml` for offline tests. |
-| `stackkit kit verify` | `--kit-dir`, optional Admin API endpoint/token, optional `--strict`. |
-| `stackkit wizard report` | Exact-v0.6 compatibility only: `--endpoint` or `STACKKIT_ADMIN_ENDPOINT`; `--token` or `STACKKIT_ADMIN_TOKEN`; `--answers` or repeated `--intent`. Native v0.7 has no v1 wizard telemetry surface. |
+| `stackkit kit list` | Optional `--channel stable\|beta\|edge` and `--json`; reads the public GitHub release index. |
+| `stackkit verify` | Optional `--offline` and `--json`; verifies cached release trust material plus local lifecycle state. |
+| `stackkit upgrade` | Optional `--to latest\|vX.Y.Z\|channel:<name>` and `--dry-run`; reads the public GitHub release index. |
+| `stackkit registry info` | Optional `--json`; reads only the embedded CUE-derived registry snapshot. |
+| `stackkit-publisher ...` | Private Publisher/Admin configuration. These commands and their credential variables do not compile into the public `stackkit` executable. |
 
 ## Server Configuration
 
@@ -215,22 +219,10 @@ If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackk
 | `--trusted-proxies` | `STACKKITS_TRUSTED_PROXIES` | empty | Trusted proxy IPs/CIDRs for `X-Forwarded-For`. |
 | `--log-dir` | `STACKKITS_LOG_DIR` | `<base-dir>/.stackkit/logs` | Deploy log directory. |
 | `--log-level` | n/a | `info` | `debug`, `info`, `warn`, or `error`. |
-| `--instance-id` | `STACKKITS_INSTANCE_ID` | empty | Registry heartbeat instance ID. |
-| n/a | `SERVICE_AUTH_SECRET` | empty | Shared HS256 secret required for TechStack internal runtime-action calls. |
+| n/a | `SERVICE_AUTH_SECRET` | empty | Shared HS256 secret required for TechStack internal StackAction calls. |
 | n/a | `SERVICE_AUTH_SECRET_NEXT` | empty | Optional rotated service-auth secret accepted alongside the current secret. |
-| n/a | `STACKKITS_RUNTIME_ACTION_MODE` | `dry-run` | `dry-run` validates the handoff; `apply` executes local OpenTofu rollout/verification commands. |
-| n/a | `STACKKITS_RESTORE_DRILL_COMMAND` | empty | Optional restore verifier command for `restore_drill` in `apply` mode; receives `STACKKIT_RUNTIME_ACTION`, `STACKKIT_STACK_ID`, `STACKKIT_STACK_NAME`, `STACKKIT_STACKKIT`, `STACKKIT_TOFU_DIR`, and `STACKKIT_UNIFIED_PATH`. |
-
-Registry heartbeat additionally requires `KOMBIFY_API_KEY`.
-
-## kombify.me and Direct Connect
-
-| Variable | Purpose |
-| --- | --- |
-| `KOMBIFY_API_KEY` | kombify.me registration and server heartbeat. |
-| `KOMBIFY_DEVICE_FINGERPRINT` | Optional explicit device fingerprint override. |
-| `STACKKIT_KOMBIFY_ME_API_KEY` | Test fallback for kombify.me registry verification. |
-| `KOMBIFY_ME_API_KEY` | Production tests for kombify.me domain behavior. |
+| n/a | `STACKKITS_STACK_ACTION_MODE` | `dry-run` | `dry-run` validates the handoff; `apply` executes local OpenTofu rollout/verification commands. |
+| n/a | `STACKKITS_RESTORE_DRILL_COMMAND` | empty | Optional restore verifier command for `restore_drill` in `apply` mode; receives `STACKKIT_STACK_ACTION`, `STACKKIT_STACK_ID`, `STACKKIT_STACK_NAME`, `STACKKIT_STACKKIT`, `STACKKIT_TOFU_DIR`, and `STACKKIT_UNIFIED_PATH`. |
 
 ## Local Domain Defaults
 

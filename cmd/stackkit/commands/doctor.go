@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
-	"time"
 
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
@@ -34,7 +35,7 @@ non-root key user, and the Photos + Vault reference slice is selected.`,
 func init() {
 	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "Emit machine-readable doctor report")
 	doctorCmd.Flags().BoolVar(&doctorCheckUpdates, "check-updates", false,
-		"Also query the Admin API for newer kit-versions in the current channel (kit-update-phase-1, ADR-0018)")
+		"Also resolve the latest verified public release in the current channel")
 }
 
 type doctorReport struct {
@@ -84,11 +85,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// appendUpdateChecks adds the kit-update doctorCheck rows. It is
-// best-effort: any upstream failure (admin unreachable, no state, no
-// version metadata) becomes a 'warn' line rather than a hard failure
-// — operators want to see an "updates check" diagnostic, not a doctor
-// outage when their network is fiddly.
+// appendUpdateChecks resolves the public GitHub release index. It is
+// best-effort: unavailable release metadata is diagnostic, not a readiness
+// failure.
 func appendUpdateChecks(ctx context.Context, report *doctorReport, state *models.DeploymentState, stateErr error) {
 	add := func(name, status, message string) {
 		report.Checks = append(report.Checks, doctorCheck{Name: name, Status: status, Message: message})
@@ -103,67 +102,35 @@ func appendUpdateChecks(ctx context.Context, report *doctorReport, state *models
 		add("updates", "warn", "no .stackkit/state.yaml — run 'stackkit apply' first to enable update checks")
 		return
 	}
-	if state.KitVersionID == "" || state.KitChannel == "" {
-		add("updates", "warn", "deployment state has no KitVersionID/KitChannel — re-apply with current CLI to enable update checks")
+	if strings.TrimSpace(state.StackKit) == "" {
+		add("updates", "warn", "deployment state has no StackKit identity — re-apply with the current CLI")
 		return
 	}
-
-	endpoint := os.Getenv("STACKKIT_ADMIN_ENDPOINT")
-	if endpoint == "" {
-		endpoint = os.Getenv("ADMIN_PUBLIC_API_URL")
+	channel := releaseindex.Channel(strings.ToLower(strings.TrimSpace(state.KitChannel)))
+	if channel == "" {
+		channel = releaseindex.ChannelStable
 	}
-	endpoint = strings.TrimSuffix(strings.TrimRight(endpoint, "/"), "/api/v1")
-	if endpoint == "" {
-		add("updates", "warn", "STACKKIT_ADMIN_ENDPOINT not set — cannot query for updates")
+	if channel != releaseindex.ChannelStable && channel != releaseindex.ChannelBeta && channel != releaseindex.ChannelEdge {
+		add("updates", "warn", fmt.Sprintf("deployment state has invalid release channel %q", state.KitChannel))
 		return
 	}
-	token := os.Getenv("STACKKIT_ADMIN_TOKEN")
-	if token == "" {
-		token = os.Getenv("KOMBIFY_ADMIN_API_KEY")
-	}
-
-	upgrades, err := listAvailableUpgrades(ctx, endpoint, token, state.StackKit, state.KitChannel, state.KitVersionID, state.KitSemver)
+	resolution, err := (releaseindex.Resolver{
+		Source: newPublicReleaseSource(), Attestations: newPublicAttestationVerifier(),
+	}).Resolve(ctx, releaseindex.ResolveRequest{
+		Kit: state.StackKit, Target: "channel:" + string(channel), OS: runtime.GOOS, Arch: runtime.GOARCH,
+	})
 	if err != nil {
-		add("updates", "warn", fmt.Sprintf("admin query failed: %v", err))
+		add("updates", "warn", fmt.Sprintf("public release-index query failed: %v", err))
 		return
 	}
-	if len(upgrades) == 0 {
-		add("updates", "pass", fmt.Sprintf("kit %s is at latest %s in channel %s", state.StackKit, state.KitSemver, state.KitChannel))
+	current := strings.TrimPrefix(strings.TrimSpace(state.KitSemver), "v")
+	latest := strings.TrimPrefix(resolution.Asset.Version, "v")
+	if current != "" && current == latest {
+		add("updates", "pass", fmt.Sprintf("kit %s is at latest %s in channel %s", state.StackKit, resolution.Asset.Version, channel))
 		return
 	}
-	for _, v := range upgrades {
-		msg := fmt.Sprintf("%s available in channel %s (released %s)", v.Semver, v.Channel, formatDate(v.ReleasedAt))
-		add("updates", "warn", msg)
-	}
-	add("updates-cta", "warn", fmt.Sprintf("run 'stackkit kit upgrade --to=channel:%s --dry-run' to plan", state.KitChannel))
-}
-
-// listAvailableUpgrades queries the same versions endpoint kit_upgrade
-// uses and returns rows newer than currentVersionID. We compare on
-// `released_at` to avoid pulling in a semver lib for one place.
-func listAvailableUpgrades(ctx context.Context, endpoint, token, kitSlug, channel, currentVersionID, currentSemver string) ([]kitVersionMeta, error) {
-	// Latest first — resolveTargetVersion already does the network call;
-	// here we want the full list to filter "newer than current".
-	v, err := fetchVersions(ctx, endpoint, token, kitSlug, channel)
-	if err != nil {
-		return nil, err
-	}
-	var out []kitVersionMeta
-	for _, ver := range v {
-		// Skip the current row itself; everything released after it counts.
-		if ver.ID == currentVersionID || ver.Semver == currentSemver {
-			continue
-		}
-		out = append(out, ver)
-	}
-	return out, nil
-}
-
-func formatDate(t time.Time) string {
-	if t.IsZero() {
-		return "unknown"
-	}
-	return t.Format("2006-01-02")
+	add("updates", "warn", fmt.Sprintf("%s available in channel %s", resolution.Asset.Version, channel))
+	add("updates-cta", "warn", fmt.Sprintf("run 'stackkit upgrade --to=channel:%s --dry-run' to plan", channel))
 }
 
 func buildDoctorReport(spec *models.StackSpec) doctorReport {

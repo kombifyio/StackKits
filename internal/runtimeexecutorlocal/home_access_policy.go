@@ -85,9 +85,8 @@ type HomeAccessPolicyOperations interface {
 	VerifyHomeAccessPolicy(context.Context, HomeAccessVerifyExpectation) (HomeAccessVerifyObservation, error)
 }
 
-// HomeAccessPolicyExecutor consumes one exact CUE-generated Home access policy.
-// It remains outside product registration until an authenticated operations
-// backend can enforce and read back all three responsibilities.
+// HomeAccessPolicyExecutor consumes one exact CUE-generated Home access policy
+// through the owner-bound local enforcement and readback backend.
 type HomeAccessPolicyExecutor struct {
 	identity   runtimeexecutor.ExecutorIdentity
 	binding    HomeAccessPolicyBinding
@@ -182,8 +181,8 @@ func (e *HomeAccessPolicyExecutor) Execute(ctx context.Context, request runtimee
 
 func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, binding HomeAccessPolicyBinding, authority HomeAccessPolicyAuthority) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, HomeAccessRuntimePolicy, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.Artifacts) != 1 || len(request.AccessBindings) != 0 {
-		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("Home access policy executor requires exactly one runtime, one health target, one artifact, and no external access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("Home access policy executor requires exactly one runtime, one health target, and no external access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.HomeAccessPolicyRendererContract()
@@ -203,7 +202,10 @@ func validateHomeAccessPolicyRequest(request runtimeexecutor.ExecutionRequest, b
 		health.TargetRef != homeAccessModuleRef || health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, errors.New("health target is not the exact Home access enforcement postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, expectedArtifactRef)
+	if err != nil {
+		return emptyTarget, emptyHealth, HomeAccessRuntimePolicy{}, fmt.Errorf("select Home access policy artifact: %w", err)
+	}
 	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" ||
 		artifact.OwnerKind != "render-instance" || artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash ||
 		artifact.ProviderRef != homeAccessProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||

@@ -399,6 +399,16 @@ func (r GenerationReceipt) MarshalCanonical() ([]byte, error) {
 	return resolvedplan.CanonicalJSON(r)
 }
 
+// Hash returns the content identity used by persisted Apply results.
+func (r GenerationReceipt) Hash() (string, error) {
+	canonical, err := r.MarshalCanonical()
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(canonical)
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
+}
+
 func validateReceiptContract(receipt GenerationReceipt) error {
 	if receipt.APIVersion != GenerationReceiptAPIVersion || receipt.Kind != GenerationReceiptKind {
 		return fail(ErrInvalidContract, "receipt", "must be %s %s", GenerationReceiptAPIVersion, GenerationReceiptKind)

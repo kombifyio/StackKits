@@ -104,7 +104,8 @@ These checks validate the definition and fail-closed scaffold; they do not
 deploy a Modern Homelab or constitute runtime evidence:
 
 ```bash
-cue vet ./base/... ./modern-homelab/...
+cue vet -c=false ./base/...
+cue vet ./modern-homelab/...
 ```
 
 Do not run raw `tofu` from `templates/simple`: that directory intentionally has

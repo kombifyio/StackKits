@@ -61,6 +61,7 @@ type immichServiceEndpoint struct {
 	ServiceRef              string   `json:"serviceRef"`
 	UpstreamProtocol        string   `json:"upstreamProtocol"`
 	TargetPort              int      `json:"targetPort"`
+	RequiredPrivilege       string   `json:"requiredPrivilege"`
 	AllowedIngressProtocols []string `json:"allowedIngressProtocols"`
 	AllowedExposures        []string `json:"allowedExposures"`
 	OriginSelector          string   `json:"originSelector"`
@@ -281,7 +282,7 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (imm
 }
 
 func validateImmichServiceEndpoint(endpoint immichServiceEndpoint, path string) error {
-	if endpoint.ServiceRef != "photos" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 2283 || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "immich-http" || endpoint.Data.BindingRef != "photos" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
+	if endpoint.ServiceRef != "photos" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 2283 || endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "immich-http" || endpoint.Data.BindingRef != "photos" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
 		return fail(ErrInvalidPlan, path, "photos route authority differs from the governed Immich endpoint")
 	}
 	return nil

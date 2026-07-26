@@ -111,6 +111,7 @@
       "private-remote-access",
       "public-publish-egress",
       "encrypted-offsite-backup",
+      "telemetry-collection",
       "basement-compose-runtime",
       "availability-ha"
     ],
@@ -164,7 +165,7 @@
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
-    "defaultTarget": "opentofu"
+    "defaultTarget": "compose"
   },
   "identityTrust": {
     "authorities": [
@@ -455,7 +456,7 @@
     "version": "5.0.0-contract.fixture"
   },
   "network": {
-    "defaultDomain": "home.localhost",
+    "defaultDomain": "home.test",
     "defaultTLSMode": "off",
     "domainRequired": false,
     "mode": "private"

@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	stackkitdocs "github.com/kombifyio/stackkits/docs"
+	stackkitdocs "github.com/kombifyio/stackkits/docs/data/os-compat"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
@@ -116,7 +116,7 @@ func printCurrentOSEvidence() {
 	identity := detectCompatOS()
 	fmt.Printf("  Detected OS:          %s\n", identity.ID)
 
-	raw, err := stackkitdocs.FS.ReadFile("data/os-compat/latest.json")
+	raw, err := stackkitdocs.FS.ReadFile("latest.json")
 	if err != nil {
 		fmt.Printf("  Published evidence:   %s (matrix unavailable)\n", yellow("unverified"))
 		return

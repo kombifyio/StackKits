@@ -161,7 +161,7 @@ linters:
       - path: "internal/placement/.*\\.go"
         linters:
           - goconst
-      - path: "internal/api/runtime_actions\\.go"
+      - path: "internal/api/stack_actions\\.go"
         linters:
           - goconst
       - path: "internal/api/.*\\.go"

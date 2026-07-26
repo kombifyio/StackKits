@@ -69,12 +69,12 @@ func PrivateIP() string {
 }
 
 // isKombifyCloud checks if the server was provisioned by kombify Cloud.
-// It checks for the KOMBIFY_CONTEXT env var or the /etc/kombify/context file.
+// It checks for the STACKKIT_NODE_CONTEXT env var or the local context file.
 // Both "cloud" and "vps" are treated as cloud context — VPS-type Sim nodes
 // are injected with "cloud" by the Sim engine, but "vps" is accepted as a
 // defense-in-depth fallback.
 func isKombifyCloud() bool {
-	if ctx := os.Getenv("KOMBIFY_CONTEXT"); ctx == "cloud" || ctx == "vps" {
+	if ctx := os.Getenv("STACKKIT_NODE_CONTEXT"); ctx == "cloud" || ctx == "vps" {
 		return true
 	}
 	data, err := os.ReadFile("/etc/kombify/context")
@@ -89,16 +89,16 @@ func isKombifyCloud() bool {
 
 // GetCloudUserEmail returns the authenticated user's email when running in
 // kombify Cloud context. The email is injected by the Cloud platform via the
-// KOMBIFY_USER_EMAIL environment variable or /etc/kombify/user_email file.
+// STACKKIT_USER_EMAIL environment variable or the local user-email file.
 //
 // Returns an empty string when:
 //   - Not running in kombify Cloud context
-//   - Neither KOMBIFY_USER_EMAIL nor /etc/kombify/user_email is set
+//   - Neither STACKKIT_USER_EMAIL nor the local user-email file is set
 func GetCloudUserEmail() string {
 	if !isKombifyCloud() {
 		return ""
 	}
-	if email := strings.TrimSpace(os.Getenv("KOMBIFY_USER_EMAIL")); email != "" {
+	if email := strings.TrimSpace(os.Getenv("STACKKIT_USER_EMAIL")); email != "" {
 		return email
 	}
 	// Fallback: read from file (injected by Sim engine for Docker-based nodes)

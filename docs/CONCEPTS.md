@@ -19,9 +19,12 @@ Nobody installs a StackKit for infrastructure. They install it because they want
 - A smart home (Home Assistant)
 - ...and more
 
-**A StackKit delivers a complete, pre-configured homelab.** Install it, and everything works
-immediately with the admin user account. The infrastructure (Traefik, Auth, PAAS) is just the
-platform that enables the use cases.
+**A StackKit delivers a complete, pre-configured Homelab platform.** In v0.8
+the standalone CLI installs the single-node Basement core: host/Docker
+baseline, router, PocketID, TinyAuth, step-ca, Coolify, Hub, and verification
+endpoints. Photos, Vault, Files, and the broader application catalog remain
+explicit opt-ins and graduate after the v0.8 core. The platform is owned by the
+local PocketID/TinyAuth Owner bound to StackKits `ownerRef`/step-ca custody.
 
 ---
 
@@ -55,7 +58,7 @@ the HA add-on may replicate its members.
 
 | StackKit | Pattern | Maturity | Default Scope |
 |----------|---------|----------|---------------|
-| **Basement Kit** | Exactly one home Site with one or more nodes; local Control Authority | stable runtime; v2 profile migration active | Local host installation, LAN access/enrollment, hardware gates, offline autonomy |
+| **Basement Kit** | Exactly one home Site; v0.8 supports one node and local Control Authority | v0.8 standalone core | Complete local CLI lifecycle, LAN access/enrollment, hardware gates, and offline autonomy |
 | **Cloud Kit** | Exactly one cloud Site with one or more nodes; cloud Control Authority | stable runtime; v2 profile migration active | Admission of an externally supplied host, default-closed public edge, public DNS/TLS, internet hardening |
 | **Modern Homelab** | At least one home and one cloud Site; home authority + five bridge contracts | preview/early-access | Protected Site federation, explicit publication/placement/residency/partition policy |
 | **HA** *(add-on, never a kit)* | Replicates one logical ControlPlane against explicit RPO/RTO | `addons/ha` | Kit-specific active-passive/quorum realization with real nodes, failure domains, and fencing |
@@ -98,9 +101,12 @@ The tier gates feasibility. It doesn't drive selection — the StackKit defaults
 StackKits separate the deployment engine from the resource profile:
 
 **Deployment Engine:**
-- `bootstrapped` = current Basement Kit default with packaged OpenTofu, Base Hub, owner bootstrap, and setup-run automation
+- `bootstrapped` = current Basement Kit default with packaged Compose/OpenTofu, Hub, local PocketID/TinyAuth Owner binding, and setup automation
 - `bare` = infrastructure and selected tools without Base Hub or setup automation
-- `advanced` = bootstrapped surface plus Terramate Plus lifecycle orchestration, Runtime Intelligence Layer, Frontend Intelligence handoff, drift/change/rollback/restore-drill surfaces, and managed TechStack lifecycle handoff
+- `advanced` = bootstrapped surface plus Terramate lifecycle orchestration,
+  Runtime Intelligence Layer, and coordinated drift/change/rollback/restore
+  drills. Techstack can present these through its optional Orchestrator UI only
+  with a short-lived offline-verifiable capability.
 
 **Resource Profile** (user-specifiable intent, NOT just hardware detection):
 
@@ -131,7 +137,8 @@ User enables optionals: `stackkit generate --enable smart-home`
 **Use Case** (role: default / alternative / optional):
 - WHY someone installs a StackKit
 - A real-world scenario with a default tool + curated alternatives
-- Ships pre-configured, immediately usable with admin account
+- Ships only when its role and current milestone permit it; optional use cases
+  are not part of the v0.8 default readiness claim
 
 Optional modules stay off by default and must have documented enablement,
 resource limits, and generated-output behavior before they are exposed through
@@ -139,7 +146,7 @@ the public OSS surface.
 
 ---
 
-## The 10 Use Cases
+## Curated Use-Case Catalog
 
 | # | Use Case | Default Tool | Category |
 |---|----------|-------------|----------|
@@ -154,8 +161,9 @@ the public OSS surface.
 | 9 | Game Server | Various | game |
 | 10 | Remote Desktop | Guacamole | remote |
 
-Each use case may have curated alternatives (e.g., Ente instead of Immich for photos).
-The admin-center tool evaluation decides which alternatives we offer.
+Each use case may have curated alternatives. This table is a catalog, not the
+v0.8 default install set. Photos, Vault, and Files are opt-in; other
+application graduations require their own lifecycle and verification evidence.
 
 ---
 

@@ -1108,6 +1108,218 @@ paths:
           $ref: "#/components/responses/NotFound"
         "501":
           $ref: "#/components/responses/OperationalUnavailable"
+  # BEGIN GENERATED: stackaction paths
+  /api/v1/internal/stack-actions/stackkit-rollout:
+    post:
+      operationId: stackActionStackKitRollout
+      summary: "Run or dry-run StackKits rollout for TechStack"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "stackkit_rollout"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/stackkit-verify:
+    post:
+      operationId: stackActionStackKitVerify
+      summary: "Verify StackKits rollout state for TechStack"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "verify_rollout"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/restore-drill:
+    post:
+      operationId: stackActionRestoreDrill
+      summary: "Run or dry-run StackKits restore drill for TechStack"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "restore_drill"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/backup-run:
+    post:
+      operationId: stackActionBackupRun
+      summary: "Start a StackKits backup run"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_run"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/backup-status:
+    post:
+      operationId: stackActionBackupStatus
+      summary: "Inspect StackKits backup status"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_status"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/backup-restore:
+    post:
+      operationId: stackActionBackupRestore
+      summary: "Restore a StackKits backup snapshot"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_restore"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/backup-wipe:
+    post:
+      operationId: stackActionBackupWipe
+      summary: "Wipe the configured StackKits backup repository"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_wipe"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+          # END GENERATED: stackaction paths
 components:
   securitySchemes:
     StackKitsAPIKey:
@@ -1569,6 +1781,12 @@ components:
           type: object
         partitionPolicy:
           type: object
+        backupPolicy:
+          $ref: "#/components/schemas/ArchitectureV2BackupPolicy"
+        driftPolicy:
+          $ref: "#/components/schemas/ArchitectureV2DriftPolicy"
+        observability:
+          $ref: "#/components/schemas/ArchitectureV2ModuleOTLPBaseline"
         workloads:
           type: object
           additionalProperties:
@@ -1583,6 +1801,176 @@ components:
             type: object
         data:
           type: object
+    ArchitectureV2BackupPolicy:
+      type: object
+      description: >-
+        Closed provider-free backup intent. Runtime target custody and job, repository, retention, and restore execution remain separate governed authorities.
+      additionalProperties: false
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.backup-policy/v1
+        kind:
+          type: string
+          const: BackupPolicy
+        schedule:
+          $ref: "#/components/schemas/ArchitectureV2BackupSchedule"
+        dataClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - config
+              - secret-material
+              - platform-state
+              - database
+              - user-content
+              - documents
+              - photos
+              - large-media
+              - telemetry-timeseries
+              - serverless-config
+        retention:
+          $ref: "#/components/schemas/ArchitectureV2BackupRetention"
+        restoreVerification:
+          $ref: "#/components/schemas/ArchitectureV2BackupRestoreVerification"
+    ArchitectureV2BackupSchedule:
+      type: object
+      additionalProperties: false
+      properties:
+        cadence:
+          type: string
+          enum: [daily, hourly, weekly]
+        minuteUTC:
+          type: integer
+          minimum: 0
+          maximum: 59
+        jitterSeconds:
+          type: integer
+          minimum: 0
+          maximum: 1800
+        hourUTC:
+          type: integer
+          minimum: 0
+          maximum: 23
+        weekdayUTC:
+          type: string
+          enum: [sunday, monday, tuesday, wednesday, thursday, friday, saturday]
+    ArchitectureV2BackupRetention:
+      type: object
+      additionalProperties: false
+      properties:
+        keepDaily:
+          type: integer
+          minimum: 1
+          maximum: 365
+        keepWeekly:
+          type: integer
+          minimum: 0
+          maximum: 104
+        keepMonthly:
+          type: integer
+          minimum: 0
+          maximum: 60
+        keepYearly:
+          type: integer
+          minimum: 0
+          maximum: 10
+    ArchitectureV2BackupRestoreVerification:
+      type: object
+      additionalProperties: false
+      properties:
+        required:
+          type: boolean
+          const: true
+        cadence:
+          type: string
+          enum: [monthly, weekly]
+        maxEvidenceAgeDays:
+          type: integer
+          minimum: 1
+          maximum: 92
+        evidenceRef:
+          type: string
+          const: backup-restore-verification
+    ArchitectureV2DriftPolicy:
+      type: object
+      description: >-
+        Closed provider-free drift observation intent. It grants no read channel, executor, reconciliation, provider, endpoint, credential, command, or host authority.
+      additionalProperties: false
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.drift-policy/v1
+        kind:
+          type: string
+          const: DriftPolicy
+        enabled:
+          type: boolean
+        schedule:
+          $ref: "#/components/schemas/ArchitectureV2DriftSchedule"
+        subjects:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [resolved-plan, generated-artifacts, runtime-configuration]
+        evidence:
+          $ref: "#/components/schemas/ArchitectureV2DriftEvidencePolicy"
+        response:
+          $ref: "#/components/schemas/ArchitectureV2DriftResponsePolicy"
+    ArchitectureV2DriftSchedule:
+      type: object
+      additionalProperties: false
+      properties:
+        cadence:
+          type: string
+          enum: [daily, hourly, weekly]
+        minuteUTC:
+          type: integer
+          minimum: 0
+          maximum: 59
+        jitterSeconds:
+          type: integer
+          minimum: 0
+          maximum: 900
+        hourUTC:
+          type: integer
+          minimum: 0
+          maximum: 23
+        weekdayUTC:
+          type: string
+          enum: [sunday, monday, tuesday, wednesday, thursday, friday, saturday]
+    ArchitectureV2DriftEvidencePolicy:
+      type: object
+      description: Evidence is required exactly when drift observation is enabled.
+      additionalProperties: false
+      properties:
+        required:
+          type: boolean
+        evidenceRef:
+          type: string
+          const: drift-observation
+        maxEvidenceAgeMinutes:
+          type: integer
+          minimum: 15
+          maximum: 10080
+        onMissing:
+          type: string
+          const: unknown
+    ArchitectureV2DriftResponsePolicy:
+      type: object
+      additionalProperties: false
+      properties:
+        differenceAction:
+          type: string
+          const: report-only
+        reconcileApproval:
+          type: string
+          const: required
     ArchitectureV2LANDiscoveryIntent:
       type: object
       description: >-
@@ -2458,6 +2846,7 @@ components:
         - controlPlane
         - capabilities
         - providers
+        - workloads
         - modules
         - runtimeNetworks
         - privilegedInterfaceApprovals
@@ -2467,6 +2856,8 @@ components:
         - identityTrust
         - data
         - failurePolicy
+        - backupPolicy
+        - driftPolicy
         - system
         - storage
         - network
@@ -2643,6 +3034,12 @@ components:
           type: object
         failurePolicy:
           type: object
+        backupPolicy:
+          $ref: "#/components/schemas/ArchitectureV2BackupPolicy"
+        driftPolicy:
+          $ref: "#/components/schemas/ArchitectureV2DriftPolicy"
+        observability:
+          $ref: "#/components/schemas/ArchitectureV2ModuleOTLPBaseline"
         system:
           type: object
         storage:
@@ -2660,6 +3057,11 @@ components:
           minItems: 1
           items:
             type: string
+        workloads:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedWorkload"
         warnings:
           type: array
           items:
@@ -2824,15 +3226,84 @@ components:
         outputRef:
           type: string
           pattern: '^[A-Za-z0-9.][A-Za-z0-9._/-]*$'
+    ArchitectureV2ResolvedWorkload:
+      type: object
+      additionalProperties: false
+      required: [id, version, contractHash, kind, functionalCapabilities, dataClasses, alternative, siteRefs, nodeRefs, settings, secretRefs]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        version: {type: string}
+        contractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        kind: {type: string, enum: [application, service]}
+        functionalCapabilities: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}}
+        dataClasses: {type: array, uniqueItems: true, items: {type: string, enum: [public, internal, personal, sensitive, secret]}}
+        alternative:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedWorkloadAlternative"
+        siteRefs: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}}
+        nodeRefs: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}}
+        settings: {$ref: "#/components/schemas/ArchitectureV2PublicSettings"}
+        secretRefs: {$ref: "#/components/schemas/ArchitectureV2SecretRefs"}
+    ArchitectureV2ResolvedWorkloadAlternative:
+      type: object
+      additionalProperties: false
+      required: [id, contractHash, providerRef, moduleRef, route, runtime, setup]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        contractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        providerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        route:
+          type: object
+          additionalProperties: false
+          required: [serviceRef, healthRef]
+          properties:
+            serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            healthRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        runtime:
+          type: object
+          additionalProperties: false
+          required: [kind, delivery]
+          properties:
+            kind: {type: string, enum: [container, native, host, external, control-plane]}
+            delivery: {type: string, enum: [stackkit, selected-paas, external-control-plane]}
+            adapter:
+              type: object
+              additionalProperties: false
+              required: [id, providerRef, providerVersion, providerContractHash, moduleRef, moduleVersion, moduleContractHash]
+              properties:
+                id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                providerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                providerVersion: {type: string}
+                providerContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+                moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                moduleVersion: {type: string, pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$'}
+                moduleContractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        setup:
+          type: object
+          additionalProperties: false
+          required: [mode, owner, actionRefs]
+          properties:
+            mode: {type: string, enum: [automatic, on-demand, manual]}
+            owner: {type: string, enum: [module, operator]}
+            actionRefs:
+              type: array
+              uniqueItems: true
+              items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
     ArchitectureV2ResolvedModule:
       type: object
       additionalProperties: false
       allOf:
         - if:
-            required: [provides]
+            required: [provides, role]
             properties:
               provides:
                 maxItems: 0
+              role:
+                not: {const: workload}
+            not:
+              anyOf:
+                - required: [runtimeAdapter]
+                - required: [runtimeAdapterAgent]
           then:
             properties:
               realizationSupport:
@@ -2856,11 +3327,13 @@ components:
         - id
         - version
         - contractHash
+        - role
         - providerRef
         - provides
         - siteRefs
         - nodeRefs
         - runtime
+        - renderTarget
         - renderUnits
         - realizationSupport
       properties:
@@ -2871,6 +3344,9 @@ components:
           pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$'
         contractHash:
           $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        role:
+          type: string
+          enum: [foundation, platform, workload, operations]
         providerRef:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         provides:
@@ -2897,10 +3373,21 @@ components:
             $ref: "#/components/schemas/ArchitectureV2ContractID"
         runtime:
           type: object
+        renderTarget:
+          type: string
+          enum: [opentofu, compose]
+        renderVariant:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedModuleRenderVariant"
         nodeSelection:
           $ref: "#/components/schemas/ArchitectureV2ModuleNodeSelection"
         runtimeRequirements:
           $ref: "#/components/schemas/ArchitectureV2ModuleRuntimeRequirements"
+        runtimeAdapter:
+          $ref: "#/components/schemas/ArchitectureV2RuntimeAdapter"
+        enforcementRequirement:
+          $ref: "#/components/schemas/ArchitectureV2PolicyEnforcementRequirement"
+        runtimeOwnerRequirement:
+          $ref: "#/components/schemas/ArchitectureV2RuntimeOwnerRequirement"
         renderUnits:
           type: array
           items:
@@ -2917,6 +3404,54 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2RuntimeOwnerRequirement:
+      type: object
+      additionalProperties: false
+      required: [status, ownerRef, capabilityRefs, targetScope, operations, requiredHealthRef, requiredEvidenceRef]
+      properties:
+        status: {type: string, const: unbound}
+        ownerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        capabilityRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        targetScope: {type: string, enum: [home-sites, cloud-sites, federated-sites]}
+        operations:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        requiredHealthRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        requiredEvidenceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2RuntimeAdapter:
+      type: object
+      additionalProperties: false
+      required: [id, supportedKinds, supportedDeliveries, operations, agentRefs, credentialCustody, providerLifecycle, evidenceRequired]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        supportedKinds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [container, native, host, external, control-plane]}
+        supportedDeliveries:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [stackkit, selected-paas, external-control-plane]}
+        operations:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [apply, observe, rollback, backup, restore]}
+        agentRefs:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        credentialCustody: {type: string, const: external-owner}
+        providerLifecycle: {type: string, const: not-owned}
+        evidenceRequired: {type: boolean, const: true}
     ArchitectureV2ModuleNodeSelection:
       type: object
       additionalProperties: false
@@ -2982,6 +3517,7 @@ components:
         - id
         - kind
         - rendererRef
+        - compatibleTargets
         - templateRef
         - version
         - contractHash
@@ -2989,6 +3525,7 @@ components:
         - secretInputRefs
         - planInputRefs
         - inputBindings
+        - secretInputBindings
         - values
         - secretRefs
         - planInputs
@@ -3009,6 +3546,13 @@ components:
           enum: [compose, cue-fragment, host, job, opentofu, native-config]
         rendererRef:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
+        compatibleTargets:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [opentofu, compose]
         templateRef:
           type: string
           pattern: '^\S+$'
@@ -3037,6 +3581,10 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ModuleRenderInputBinding"
+        secretInputBindings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ModuleSecretInputBinding"
         values:
           type: object
         secretRefs:
@@ -3117,10 +3665,10 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         sourceRef:
           type: string
-          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, network.routes, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot]
+          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, access.homeEnforcement, localAutonomy.policy, network.routes, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot]
         valueType:
           type: string
-          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, authority-bound-service-route-list-v4, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1]
+          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, home-access-enforcement-v1, local-autonomy-policy-v1, authority-bound-service-route-list-v4, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1]
         cardinality:
           type: string
           enum: [single, list]
@@ -3836,9 +4384,21 @@ components:
           items: {type: string, enum: [GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS]}
         defaultClosed: {type: boolean, const: true}
         policyRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2ModuleSecretInputBinding:
+      type: object
+      additionalProperties: false
+      required: [source, capabilityRef, key]
+      properties:
+        source:
+          type: string
+          const: capability-secret
+        capabilityRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        key:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
     ArchitectureV2ModulePlanInputRef:
       type: string
-      enum: [stackId, kit, sites, controlPlane, bridge, identity, identityTrust, data, failurePolicy, localReachability, homeLANDiscovery]
+      enum: [stackId, kit, sites, controlPlane, bridge, bridgePublications, bridgeOriginMTLS, identity, identityTrust, data, failurePolicy, federationPolicy, federationLinkPolicy, federationControlActions, federationBackupPolicy, federationObservability, backupPolicy, driftPolicy, observability, availability, localReachability, homeLANDiscovery, homeAccessRequirements, externalHomeAccessBindings, homeAccessHandoff, backupTargetRequirements, externalBackupTargetBindings, homeBackupTargetRequirements, externalHomeBackupTargetBindings, homeOffsiteBackup, cloudOffsiteBackup, federationLinkRequirements, externalFederationLinkBindings, moduleTargets, moduleCapabilities, hostRuntimePolicy, storagePolicy, localNetworkPolicy, cloudNetworkPolicy, publicEdge, publicTLS, internalPKI, cloudAdminMesh]
     ArchitectureV2ModulePlanInputs:
       type: object
       additionalProperties: false
@@ -3859,6 +4419,14 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ModulePlanControlPlane"
         bridge:
           $ref: "#/components/schemas/ArchitectureV2ModulePlanBridge"
+        bridgePublications:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanPublication"
+        bridgeOriginMTLS:
+          $ref: "#/components/schemas/ArchitectureV2ModuleBridgeOriginMTLS"
         identity:
           $ref: "#/components/schemas/ArchitectureV2ModulePlanIdentity"
         identityTrust:
@@ -3867,10 +4435,469 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ModulePlanData"
         failurePolicy:
           $ref: "#/components/schemas/ArchitectureV2ModulePlanFailurePolicy"
+        federationObservability:
+          $ref: "#/components/schemas/ArchitectureV2ModuleFederationObservability"
+        backupPolicy:
+          $ref: "#/components/schemas/ArchitectureV2BackupPolicy"
+        driftPolicy:
+          $ref: "#/components/schemas/ArchitectureV2DriftPolicy"
+        observability:
+          $ref: "#/components/schemas/ArchitectureV2ModuleOTLPBaseline"
+        federationPolicy:
+          $ref: "#/components/schemas/ArchitectureV2ModuleFederationPolicy"
+        federationBackupPolicy:
+          $ref: "#/components/schemas/ArchitectureV2ModuleFederationBackupPolicy"
+        federationLinkPolicy:
+          $ref: "#/components/schemas/ArchitectureV2ModuleFederationLinkPolicy"
+        federationControlActions:
+          $ref: "#/components/schemas/ArchitectureV2ModuleFederationControlActions"
+        federationLinkRequirements:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2FederationLinkRequirement"
+        externalFederationLinkBindings:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ExternalFederationLinkBinding"
+        homeAccessHandoff:
+          $ref: "#/components/schemas/ArchitectureV2ModuleHomeAccessHandoff"
         localReachability:
           $ref: "#/components/schemas/ArchitectureV2ModulePlanLocalReachability"
         homeLANDiscovery:
           $ref: "#/components/schemas/ArchitectureV2HomeLANDiscovery"
+        moduleTargets:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanTarget"
+        moduleCapabilities:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModulePlanCapability"
+        publicEdge:
+          $ref: "#/components/schemas/ArchitectureV2ModulePublicEdge"
+        cloudOffsiteBackup:
+          $ref: "#/components/schemas/ArchitectureV2ModuleCloudOffsiteBackup"
+        publicTLS:
+          $ref: "#/components/schemas/ArchitectureV2ModulePublicTLS"
+    ArchitectureV2ModulePlanTarget:
+      type: object
+      additionalProperties: false
+      required: [id, siteRef, roles, failureDomain, declaredHardware]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        siteRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [controller, worker, storage, edge]
+        failureDomain:
+          type: string
+          minLength: 1
+        declaredHardware:
+          type: object
+          additionalProperties: false
+          required: [arch, profile]
+          properties:
+            arch: {type: string, enum: [amd64, arm64]}
+            virtualization: {type: string, enum: [bare-metal, vm, container]}
+            profile: {type: string, enum: [standard, pi, gpu, storage]}
+            cpuCores: {type: integer, minimum: 1}
+            ramGB: {type: integer, minimum: 1}
+            storageGB: {type: integer, minimum: 1}
+    ArchitectureV2ModuleFederationObservability:
+      type: object
+      additionalProperties: false
+      required: [evidenceOnly, publications, flows, partition]
+      properties:
+        evidenceOnly: {type: boolean, const: true}
+        publications:
+          type: array
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [serviceRef, sourceSiteRef, edgeSiteRef, healthGateRef, defaultClosed]
+            properties:
+              serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              sourceSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              edgeSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              healthGateRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              defaultClosed: {type: boolean, const: true}
+        flows:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePlanBridgeFlow"}
+        partition:
+          $ref: "#/components/schemas/ArchitectureV2ModulePlanFailurePolicy"
+    ArchitectureV2ModuleOTLPBaseline:
+      type: object
+      additionalProperties: false
+      required: [signals, collector]
+      description: >-
+        Per-node OTLP collection intent only. Backend selection, retention, dashboards, credentials, headers, and CA material are deliberately excluded.
+      properties:
+        signals:
+          type: object
+          additionalProperties: false
+          required: [metrics, logs, traces]
+          properties:
+            metrics: {type: boolean}
+            logs: {type: boolean}
+            traces: {type: boolean}
+        collector:
+          type: object
+          additionalProperties: false
+          required: [enabled, endpoint, protocol, tls]
+          properties:
+            enabled: {type: boolean}
+            endpoint: {type: string, minLength: 1, pattern: '^\\S+$'}
+            protocol: {type: string, enum: [grpc, http/protobuf]}
+            tls:
+              type: object
+              additionalProperties: false
+              required: [insecure]
+              properties:
+                insecure: {type: boolean}
+    ArchitectureV2ModuleFederationPolicy:
+      type: object
+      additionalProperties: false
+      required: [overlay, publications, policy, dataAuthority, partition]
+      properties:
+        overlay: {$ref: "#/components/schemas/ArchitectureV2ModuleFederationOverlay"}
+        publications:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePlanPublication"}
+        policy: {$ref: "#/components/schemas/ArchitectureV2ModulePlanBridgePolicy"}
+        dataAuthority: {$ref: "#/components/schemas/ArchitectureV2ModulePlanData"}
+        partition: {$ref: "#/components/schemas/ArchitectureV2ModulePlanFailurePolicy"}
+    ArchitectureV2ModuleFederationBackupPolicy:
+      type: object
+      additionalProperties: false
+      required: [dataAuthority, partition]
+      properties:
+        dataAuthority: {$ref: "#/components/schemas/ArchitectureV2ModulePlanData"}
+        partition: {$ref: "#/components/schemas/ArchitectureV2ModulePlanFailurePolicy"}
+    ArchitectureV2ModuleFederationLinkPolicy:
+      type: object
+      additionalProperties: false
+      required: [overlay, partition]
+      properties:
+        overlay: {$ref: "#/components/schemas/ArchitectureV2ModuleFederationOverlay"}
+        partition: {$ref: "#/components/schemas/ArchitectureV2ModulePlanFailurePolicy"}
+    ArchitectureV2ModuleFederationControlActions:
+      type: object
+      additionalProperties: false
+      required: [enabled, moduleRef, contractHash, actionAllowlist, actions, partition]
+      properties:
+        enabled: {type: boolean, const: true}
+        moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        contractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        actionAllowlist: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}}
+        actions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, contractRef, capabilityRef, moduleRef, transport, issuerRef, audience, maxTTLSeconds, destructive, approvalClass, approvalReceiptRequired, requiresSignedActions, requiresNonce, requiresResolvedPlanHash, requiresIdempotencyKey, capabilityScopedActions, replayProtection, requiresApprovalForDestructive]
+            properties:
+              id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              contractRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              capabilityRef: {type: string, const: outbound-control-agent}
+              moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              transport: {type: string, enum: [managed-agent, mtls-agent]}
+              issuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              audience: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              maxTTLSeconds: {type: integer, minimum: 1, maximum: 300}
+              destructive: {type: boolean}
+              approvalClass: {type: string, enum: [none, owner-step-up, break-glass]}
+              approvalReceiptRequired: {type: boolean}
+              requiresSignedActions: {type: boolean, const: true}
+              requiresNonce: {type: boolean, const: true}
+              requiresResolvedPlanHash: {type: boolean, const: true}
+              requiresIdempotencyKey: {type: boolean, const: true}
+              capabilityScopedActions: {type: boolean, const: true}
+              replayProtection: {type: boolean, const: true}
+              requiresApprovalForDestructive: {type: boolean, const: true}
+        partition: {$ref: "#/components/schemas/ArchitectureV2ModulePlanFailurePolicy"}
+    ArchitectureV2ModuleFederationOverlay:
+      type: object
+      additionalProperties: false
+      required: [contractRef, implementation, initiation, outboundEstablished, trafficMode, advertisePrivateSubnets, advertiseDefaultRoute, allowBroadRoutes, peerSiteRefs]
+      properties:
+        contractRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        implementation: {type: string, enum: [wireguard, headscale, tailscale, netbird, pangolin]}
+        initiation: {type: string, const: local-outbound}
+        outboundEstablished: {type: boolean, const: true}
+        trafficMode: {type: string, enum: [management-only, policy-scoped]}
+        advertisePrivateSubnets: {type: boolean, const: false}
+        advertiseDefaultRoute: {type: boolean, const: false}
+        allowBroadRoutes: {type: boolean, const: false}
+        peerSiteRefs:
+          type: array
+          minItems: 2
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2ModuleHomeAccessHandoff:
+      type: object
+      additionalProperties: false
+      required: [requirements, bindings]
+      properties:
+        requirements:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2HomeAccessRequirement"
+        bindings:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalHomeAccessBinding"
+    ArchitectureV2ModuleBridgeOriginMTLS:
+      type: object
+      additionalProperties: false
+      required: [publications]
+      properties:
+        publications:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [serviceRef, identityRef, sourceSiteRef, edgeSiteRef, moduleRef, unitRef, originNodeRefs, originInstanceRefs, originTargets, upstreamProtocol, targetPort, transport, workloadIdentity, edgeVerifier]
+            properties:
+              serviceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              identityRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              sourceSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              edgeSiteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              unitRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              originNodeRefs: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}}
+              originInstanceRefs: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}}
+              originTargets:
+                type: array
+                minItems: 1
+                uniqueItems: true
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [nodeRef, instanceRef]
+                  properties:
+                    nodeRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                    instanceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              upstreamProtocol: {type: string, enum: [tcp, udp, http, https]}
+              targetPort: {type: integer, minimum: 1, maximum: 65535}
+              transport:
+                type: object
+                additionalProperties: false
+                required: [mode, minimumTLSVersion, serverName, outboundOnly, generalLANAccess]
+                properties:
+                  mode: {type: string, const: mtls-origin-proxy}
+                  minimumTLSVersion: {type: string, const: TLS1.3}
+                  serverName: {type: string, minLength: 1}
+                  outboundOnly: {type: boolean, const: true}
+                  generalLANAccess: {type: boolean, const: false}
+              workloadIdentity:
+                type: object
+                additionalProperties: false
+                required: [credentialIssuerRef, issuer, audience, verificationKeySetRef, proofOfPossessionRequired, credentialTTLSeconds, revocationMaxStalenessSeconds]
+                properties:
+                  credentialIssuerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                  issuer: {type: string, pattern: '^urn:stackkit:'}
+                  audience: {type: string, pattern: '^urn:stackkit:'}
+                  verificationKeySetRef: {type: string, pattern: '^urn:stackkit:'}
+                  proofOfPossessionRequired: {type: boolean, const: true}
+                  credentialTTLSeconds: {type: integer, minimum: 300, maximum: 86400}
+                  revocationMaxStalenessSeconds: {type: integer, minimum: 0}
+              edgeVerifier:
+                type: object
+                additionalProperties: false
+                required: [verifierRef, distributionRef, verificationKeySetRef, maxStalenessSeconds, includesPrivateKeyMaterial, includesSigningAuthority, reverseAllowed]
+                properties:
+                  verifierRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                  distributionRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                  verificationKeySetRef: {type: string, pattern: '^urn:stackkit:'}
+                  maxStalenessSeconds: {type: integer, minimum: 1, maximum: 300}
+                  includesPrivateKeyMaterial: {type: boolean, const: false}
+                  includesSigningAuthority: {type: boolean, const: false}
+                  reverseAllowed: {type: boolean, const: false}
+    ArchitectureV2ModulePlanCapability:
+      type: object
+      additionalProperties: false
+      required: [id, contractHash]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        contractHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+    ArchitectureV2ResolvedModuleRenderVariant:
+      type: object
+      additionalProperties: false
+      required: [id, target, rendererRef, contractHash, unitRefs, artifactRefs, publicInputRefs, secretInputRefs, planInputRefs]
+      properties:
+        id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        target: {type: string, enum: [opentofu, compose]}
+        rendererRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        contractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        unitRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        artifactRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        publicInputRefs:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        secretInputRefs:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        planInputRefs:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePlanInputRef"}
+    ArchitectureV2ModulePublicEdge:
+      type: object
+      additionalProperties: false
+      required: [capabilityRef, network, routes]
+      properties:
+        capabilityRef: {type: string, const: public-edge}
+        network:
+          type: object
+          additionalProperties: false
+          required: [mode, transport, tlsMinVersion]
+          properties:
+            mode: {type: string, enum: [public-capable, private, hybrid]}
+            transport:
+              type: object
+              additionalProperties: false
+              required: [subnet, ipv6]
+              properties:
+                subnet: {type: string, minLength: 1}
+                ipv6: {type: boolean}
+            tlsMinVersion: {type: string, enum: [TLS1.2, TLS1.3]}
+        routes:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicResolvedRouteV4"}
+    ArchitectureV2ModuleCloudOffsiteBackup:
+      type: object
+      additionalProperties: false
+      required: [requirements, bindings]
+      properties:
+        requirements:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2BackupTargetRequirement"
+        bindings:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: "#/components/schemas/ArchitectureV2ExternalBackupTargetBinding"
+    ArchitectureV2ModulePublicTLS:
+      type: object
+      additionalProperties: false
+      required: [capabilityRef, providerRef, profile, issuer, routes]
+      properties:
+        capabilityRef: {type: string, const: public-tls}
+        providerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        profile:
+          type: object
+          additionalProperties: false
+          required: [id, capabilityRef, mode, trustDomain, minimumVersion, allowedIssuerKinds]
+          properties:
+            id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            capabilityRef: {type: string, const: public-tls}
+            mode: {type: string, const: terminate-at-edge}
+            trustDomain: {type: string, const: web-pki}
+            minimumVersion: {type: string, enum: [TLS1.2, TLS1.3]}
+            allowedIssuerKinds:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items: {type: string, enum: [acme, internal-ca]}
+        issuer:
+          type: object
+          additionalProperties: false
+          required: [id, capabilityRef, kind, challenge, supportedSiteKinds, validitySeconds, requiredInputSlotIDs, materialSlots, renewal]
+          properties:
+            id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            capabilityRef: {type: string, const: public-tls}
+            kind: {type: string, enum: [acme, internal-ca]}
+            challenge: {type: string, enum: [tls-alpn-01, http-01, dns-01, none]}
+            supportedSiteKinds:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items: {type: string, enum: [home, cloud]}
+            validitySeconds: {type: integer, minimum: 1}
+            requiredInputSlotIDs: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}}
+            materialSlots:
+              type: array
+              minItems: 1
+              uniqueItems: true
+              items:
+                type: object
+                additionalProperties: false
+                required: [id, purpose, sensitivity]
+                properties:
+                  id: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                  purpose: {type: string, enum: [certificate-chain, private-key, issuer-account-key, trust-root]}
+                  sensitivity: {type: string, enum: [public, secret]}
+            renewal:
+              type: object
+              additionalProperties: false
+              required: [required, healthGateRef, renewBeforeSeconds]
+              properties:
+                required: {type: boolean, const: true}
+                healthGateRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                renewBeforeSeconds: {type: integer, minimum: 1}
+        routes:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ModulePublicResolvedRouteV4"}
+    ArchitectureV2PolicyEnforcementRequirement:
+      type: object
+      additionalProperties: false
+      required: [status, ownerRef, policyArtifactRefs, targetScope, operations, requiredHealthRef, requiredEvidenceRef]
+      properties:
+        status: {type: string, enum: [unbound, bound]}
+        ownerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        policyArtifactRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        targetScope: {type: string, enum: [home-sites, home-control-authority, cloud-sites, federated-sites]}
+        operations:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        requiredHealthRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        requiredEvidenceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
     ArchitectureV2ModulePlanLocalReachability:
       type: object
       additionalProperties: false
@@ -4150,6 +5177,17 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ContractID"
+        originTargets:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [nodeRef, instanceRef]
+            properties:
+              nodeRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+              instanceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         upstreamProtocol:
           type: string
           enum: [tcp, udp, http, https]
@@ -4159,6 +5197,8 @@ components:
           maximum: 65535
         healthGateRef:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
+        healthProbe:
+          $ref: "#/components/schemas/ArchitectureV2ModulePublicRouteHealthProbeV3"
         dataBindingRef:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         access:
@@ -5504,6 +6544,9 @@ components:
             - policy-enforcement-owner-unbound
             - runtime-owner-unbound
             - external-home-access-binding-missing
+            - external-backup-target-binding-missing
+            - external-home-backup-target-binding-missing
+            - external-federation-link-binding-missing
             - required-evidence-missing
             - bridge-overlay-unverified
             - bridge-control-agent-unverified
@@ -5518,7 +6561,7 @@ components:
           uniqueItems: true
           items:
             type: string
-            pattern: '^(module|unit|provider|renderer|input|artifact|evidence|enforcement|runtime-owner|bridge|publication|identity|tls|health|route|backend-pool|site|capability|home-access-requirement):\S+$'
+            pattern: '^(module|unit|provider|renderer|input|artifact|evidence|enforcement|runtime-owner|bridge|publication|identity|tls|health|route|backend-pool|site|capability|home-access-requirement|backup-target-requirement|home-backup-target-requirement|federation-link-requirement):\S+$'
     ArchitectureV2ContractID:
       type: string
       pattern: "^[a-z][a-z0-9-]*$"
@@ -5545,6 +6588,22 @@ components:
       additionalProperties:
         type: string
         pattern: "^(secret|vault|doppler|techstack)://[^\\s]+$"
+    ArchitectureV2PlanValue:
+      anyOf:
+        - type: "null"
+        - type: boolean
+        - type: number
+        - type: string
+        - type: array
+          items: {$ref: "#/components/schemas/ArchitectureV2PlanValue"}
+        - $ref: "#/components/schemas/ArchitectureV2PublicSettings"
+    ArchitectureV2PublicSettings:
+      type: object
+      propertyNames:
+        not:
+          pattern: "(?i).*(password|passwd|secret|token|private[-_]?key|credential).*"
+      additionalProperties:
+        $ref: "#/components/schemas/ArchitectureV2PlanValue"
     StackKitSummary:
       type: object
       properties:
@@ -6879,6 +7938,735 @@ components:
           type: string
         version:
           type: string
+    # BEGIN GENERATED: stackaction schemas
+    StackActionScopedReference:
+      type: object
+      description: "Opaque versioned reference whose scope and expiry are revalidated by internal custody."
+      additionalProperties: false
+      required:
+        - ref
+        - version
+        - scopes
+        - expires_at
+      properties:
+        ref:
+          type: string
+        version:
+          type: string
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    StackActionTechStackEnrollment:
+      type: object
+      description: "Generation-bound managed runtime enrollment and callback channels."
+      additionalProperties: false
+      required:
+        - lease_id
+        - server_url
+        - server_id
+        - runtime_agent_id
+        - enrollment_access_ref
+      anyOf:
+        - required:
+            - heartbeat_url
+        - required:
+            - inventory_url
+      properties:
+        tenant_id:
+          type: string
+        owner_id:
+          type: string
+        stack_id:
+          type: string
+        lease_id:
+          type: string
+        server_url:
+          type: string
+          format: uri
+        server_id:
+          type: string
+        runtime_agent_id:
+          type: string
+        enrollment_access_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        heartbeat_url:
+          type: string
+          format: uri
+        inventory_url:
+          type: string
+          format: uri
+        control_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+    StackActionTarget:
+      type: object
+      description: "Primary runtime host with an opaque access-profile reference."
+      additionalProperties: false
+      required:
+        - access_profile_ref
+      properties:
+        host:
+          type: string
+        public_ip:
+          type: string
+        private_ip:
+          type: string
+        user:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        docker_host:
+          type: string
+          format: uri
+          pattern: "^ssh://[^/?#]+$"
+        access_profile_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+    StackActionNodePlatformTarget:
+      type: object
+      description: "Observed platform placement identity; values are never synthesized."
+      additionalProperties: false
+      anyOf:
+        - required:
+            - server_id
+        - required:
+            - destination_uuid
+        - required:
+            - environment_id
+        - required:
+            - project_uuid
+        - required:
+            - environment_uuid
+      properties:
+        server_id:
+          type: string
+        destination_uuid:
+          type: string
+        environment_id:
+          type: string
+        project_uuid:
+          type: string
+        environment_uuid:
+          type: string
+    StackActionSSHBootstrap:
+      type: object
+      description: "Supplemental-node SSH endpoint with an opaque access-profile reference."
+      additionalProperties: false
+      required:
+        - host
+        - access_profile_ref
+      properties:
+        host:
+          type: string
+        user:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        access_profile_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        proxy_jump:
+          type: string
+    StackActionNodeBootstrap:
+      type: object
+      description: "Platform-specific supplemental-node bootstrap."
+      additionalProperties: false
+      required:
+        - komodo_core_address
+        - onboarding_ref
+        - ssh
+      properties:
+        komodo_core_address:
+          type: string
+          format: uri
+        onboarding_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        ssh:
+          $ref: "#/components/schemas/StackActionSSHBootstrap"
+    StackActionPlatformNode:
+      type: object
+      description: "Supplemental worker or storage node."
+      additionalProperties: false
+      required:
+        - name
+      anyOf:
+        - required:
+            - platform
+        - required:
+            - bootstrap
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum:
+            - "worker"
+            - "storage"
+        ip:
+          type: string
+        host:
+          type: string
+        services:
+          type: array
+          items:
+            type: string
+        platform:
+          $ref: "#/components/schemas/StackActionNodePlatformTarget"
+        bootstrap:
+          $ref: "#/components/schemas/StackActionNodeBootstrap"
+    StackActionBackupRepoTarget:
+      type: object
+      description: "Backup repository target with an opaque credential reference."
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+        endpoint:
+          type: string
+          format: uri
+        bucket:
+          type: string
+        region:
+          type: string
+        prefix:
+          type: string
+        credential_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+    StackActionBackupRequest:
+      type: object
+      description: "Backup action parameters containing no credential material."
+      additionalProperties: false
+      properties:
+        classes:
+          type: array
+          items:
+            type: string
+        snapshot_id:
+          type: string
+        repo:
+          $ref: "#/components/schemas/StackActionBackupRepoTarget"
+        confirm:
+          type: string
+    StackActionBackupSnapshot:
+      type: object
+      description: "One observed backup snapshot."
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        classes:
+          type: array
+          items:
+            type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        total_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+    StackActionBackupResult:
+      type: object
+      description: "Backup engine state and snapshots."
+      additionalProperties: false
+      properties:
+        engine:
+          type: string
+        phase:
+          type: string
+        classes:
+          type: array
+          items:
+            type: string
+        snapshots:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionBackupSnapshot"
+        repo_size_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+        wiped:
+          type: boolean
+    StackActionCheck:
+      type: object
+      description: "One named action check."
+      additionalProperties: false
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - "ok"
+            - "warning"
+            - "missing"
+            - "reference"
+            - "skipped"
+            - "failed"
+        detail:
+          type: string
+    StackActionObservationHost:
+      type: object
+      description: "Measured host and Docker reachability."
+      additionalProperties: false
+      required:
+        - reachable
+        - docker_reachable
+      properties:
+        host:
+          type: string
+        reachable:
+          type: boolean
+        docker_reachable:
+          type: boolean
+        failure_class:
+          type: string
+    StackActionObservationPlatform:
+      type: object
+      description: "Observed selected-PaaS identity."
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        endpoint:
+          type: string
+          format: uri
+        server_id:
+          type: string
+        project_uuid:
+          type: string
+        environment_uuid:
+          type: string
+        destination_uuid:
+          type: string
+    StackActionContainerObservation:
+      type: object
+      description: "Measured Docker container state."
+      additionalProperties: false
+      required:
+        - running
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+        running:
+          type: boolean
+        health:
+          type: string
+          enum:
+            - "healthy"
+            - "unhealthy"
+            - "starting"
+            - "none"
+            - "unknown"
+    StackActionHTTPProbeObservation:
+      type: object
+      description: "Measured HTTP health probe."
+      additionalProperties: false
+      required:
+        - url
+        - reached
+      properties:
+        url:
+          type: string
+          format: uri
+        reached:
+          type: boolean
+        status_code:
+          type: integer
+          minimum: 100
+          maximum: 599
+        failure_class:
+          type: string
+    StackActionServiceObservation:
+      type: object
+      description: "Measured service health and evidence."
+      additionalProperties: false
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - "starting"
+            - "healthy"
+            - "unhealthy"
+            - "unknown"
+        platform_app_id:
+          type: string
+        platform_status:
+          type: string
+        containers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionContainerObservation"
+        health_path:
+          type: string
+        probe:
+          $ref: "#/components/schemas/StackActionHTTPProbeObservation"
+        failure_class:
+          type: string
+    StackActionLiveObservation:
+      type: object
+      description: "Versioned persistable live-runtime evidence."
+      additionalProperties: false
+      required:
+        - version
+        - observed_at
+        - host
+      properties:
+        version:
+          type: string
+        observed_at:
+          type: string
+          format: date-time
+        host:
+          $ref: "#/components/schemas/StackActionObservationHost"
+        platform:
+          $ref: "#/components/schemas/StackActionObservationPlatform"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionServiceObservation"
+        failure_class:
+          type: string
+    StackActionOwnerIdentity:
+      type: object
+      description: "Configured owner identity."
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        subject:
+          type: string
+        provider:
+          type: string
+    StackActionRecoveryOutput:
+      type: object
+      description: "Opaque recovery references; no secret material."
+      additionalProperties: false
+      properties:
+        bundle_ref:
+          type: string
+        secret_ref:
+          type: string
+        machine_secret_ref:
+          type: string
+        passphrase_hash_present:
+          type: boolean
+    StackActionIdentityOutputs:
+      type: object
+      description: "Owner and recovery output projection."
+      additionalProperties: false
+      properties:
+        owner:
+          $ref: "#/components/schemas/StackActionOwnerIdentity"
+        recovery:
+          $ref: "#/components/schemas/StackActionRecoveryOutput"
+    StackActionLoginGatewayOutput:
+      type: object
+      description: "Login gateway endpoints."
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+        label:
+          type: string
+        admin_url:
+          type: string
+          format: uri
+    StackActionServiceOutput:
+      type: object
+      description: "One exposed StackKit service."
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        admin_url:
+          type: string
+          format: uri
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    StackActionStackKitOutputs:
+      type: object
+      description: "Structured StackKit rollout outputs."
+      additionalProperties: false
+      properties:
+        identity:
+          $ref: "#/components/schemas/StackActionIdentityOutputs"
+        login_gateway:
+          $ref: "#/components/schemas/StackActionLoginGatewayOutput"
+        recovery:
+          $ref: "#/components/schemas/StackActionRecoveryOutput"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionServiceOutput"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    StackActionRuntimeMetrics:
+      type: object
+      description: "Measured host utilization."
+      additionalProperties: false
+      required:
+        - cpu_percent
+        - memory_percent
+        - disk_percent
+        - uptime_seconds
+      properties:
+        cpu_percent:
+          type: number
+        memory_percent:
+          type: number
+        disk_percent:
+          type: number
+        uptime_seconds:
+          type: number
+        updated_at:
+          type: string
+          format: date-time
+    StackActionDeploymentRef:
+      type: object
+      description: "Selected-PaaS deployment reference."
+      additionalProperties: false
+      required:
+        - platform
+        - appName
+        - externalId
+      properties:
+        platform:
+          type: string
+        appName:
+          type: string
+        externalId:
+          type: string
+        deploymentId:
+          type: string
+        observedStatus:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        lastDeployed:
+          type: string
+          format: date-time
+    StackActionSetupDrop:
+      type: object
+      description: "Secret-free first-run setup evidence."
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        runner:
+          type: string
+        description:
+          type: string
+        rollbackNotes:
+          type: array
+          items:
+            type: string
+    StackActionPlatformAppState:
+      type: object
+      description: "Artifact-ready selected-PaaS application state."
+      additionalProperties: false
+      required:
+        - name
+        - platform
+        - externalId
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        platform:
+          type: string
+        management:
+          type: string
+          enum:
+            - "managed"
+            - "handoff"
+            - "unmanaged"
+            - "fallback"
+        externalId:
+          type: string
+        deploymentId:
+          type: string
+        observedStatus:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        composePath:
+          type: string
+        setupPolicy:
+          type: string
+          enum:
+            - "manual"
+            - "on_demand"
+            - "automatic"
+        setupDrops:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionSetupDrop"
+        lastDeployed:
+          type: string
+          format: date-time
+    StackActionRequest:
+      type: object
+      description: "StackKits-owned action request."
+      additionalProperties: false
+      required:
+        - action
+        - stack_id
+      properties:
+        action:
+          type: string
+          enum:
+            - "stackkit_rollout"
+            - "verify_rollout"
+            - "restore_drill"
+            - "backup_run"
+            - "backup_status"
+            - "backup_restore"
+            - "backup_wipe"
+        stack_id:
+          type: string
+        stack_name:
+          type: string
+        stackkit:
+          type: string
+        mode:
+          type: string
+        tenant_id:
+          type: string
+        owner_id:
+          type: string
+        tofu_dir:
+          type: string
+        unified_path:
+          type: string
+        owner_spec_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        runtime_target:
+          $ref: "#/components/schemas/StackActionTarget"
+        platform_nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionPlatformNode"
+        techstack_enrollment:
+          $ref: "#/components/schemas/StackActionTechStackEnrollment"
+        backup:
+          $ref: "#/components/schemas/StackActionBackupRequest"
+    StackActionResponse:
+      type: object
+      description: "StackKits-owned action response and evidence."
+      additionalProperties: false
+      required:
+        - status
+        - action
+        - stack_id
+        - mode
+      properties:
+        status:
+          type: string
+          enum:
+            - "accepted"
+            - "ready"
+            - "applied"
+            - "verified"
+            - "skipped"
+            - "failed"
+        action:
+          type: string
+          enum:
+            - "stackkit_rollout"
+            - "verify_rollout"
+            - "restore_drill"
+            - "backup_run"
+            - "backup_status"
+            - "backup_restore"
+            - "backup_wipe"
+        stack_id:
+          type: string
+        stack_name:
+          type: string
+        stackkit:
+          type: string
+        tofu_dir:
+          type: string
+        unified_path:
+          type: string
+        mode:
+          type: string
+          enum:
+            - "dry-run"
+            - "apply"
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionCheck"
+        stackkit_outputs:
+          $ref: "#/components/schemas/StackActionStackKitOutputs"
+        observation:
+          $ref: "#/components/schemas/StackActionLiveObservation"
+        runtime_metrics:
+          $ref: "#/components/schemas/StackActionRuntimeMetrics"
+        platform_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionDeploymentRef"
+        platform_system_apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionPlatformAppState"
+        platform_apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionPlatformAppState"
+        backup:
+          $ref: "#/components/schemas/StackActionBackupResult"
+          # END GENERATED: stackaction schemas
   responses:
     HealthResponse:
       description: Service is healthy

@@ -541,7 +541,7 @@ func requireLegacyBackupCLI(operation string) error {
 // =============================================================================
 
 // backupExec runs a command inside the local Kopia agent container via the
-// shared backupexec docker adapter — CLI and runtime-action endpoints must
+// shared backupexec docker adapter — CLI and StackAction endpoints must
 // speak identical argv against the same container. The container name is
 // resolved at call time so the --container flag keeps working.
 func dockerBackupExec(ctx context.Context, command []string) (string, error) {
@@ -665,7 +665,7 @@ func parseBackupRepository(raw string) (backupRepository, error) {
 }
 
 // Classification lives in internal/backupexec so the CLI and the node-local
-// runtime-action endpoints share one implementation; these wrappers keep the
+// StackAction endpoints share one implementation; these wrappers keep the
 // historical names used across this package and its tests.
 func backupStatusConfigured(out string) bool {
 	return backupexec.StatusConfigured(out)

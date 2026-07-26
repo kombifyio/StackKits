@@ -10,7 +10,6 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
-	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -150,11 +149,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		printError("Deployment has errors")
 	}
 
-	// kombify.me subdomain status (when domain is kombify.me)
-	if strings.EqualFold(spec.Domain, models.DomainKombifyMe) {
-		showSubdomainStatus(spec)
-	}
-
 	if access != nil && access.HubURL != "" {
 		fmt.Println()
 		printSuccess("Hub: %s", access.HubURL)
@@ -238,75 +232,4 @@ func determineOverallStatus(services []models.ServiceState) models.DeploymentSta
 		return models.StatusDegraded
 	}
 	return models.StatusRunning
-}
-
-// showSubdomainStatus queries the kombify.me API and displays subdomain status.
-func showSubdomainStatus(spec *models.StackSpec) {
-	apiKey, err := kombifyme.LoadAPIKey()
-	if err != nil {
-		printWarning("kombify.me: no API key configured")
-		return
-	}
-
-	client := kombifyme.NewClient(apiKey)
-
-	if spec.SubdomainPrefix == "" {
-		printWarning("kombify.me: no subdomain prefix set")
-		return
-	}
-
-	// Use the base subdomain ID if stored, otherwise try listing services by the prefix
-	services, err := client.ListServicesByPrefix(spec.SubdomainPrefix)
-	if err != nil {
-		printWarning("kombify.me: could not fetch subdomain status: %v", err)
-		return
-	}
-
-	if len(services) == 0 {
-		printInfo("kombify.me: no subdomains registered")
-		return
-	}
-
-	fmt.Println()
-	fmt.Printf("  %s\n", bold("kombify.me Subdomains"))
-	fmt.Println()
-
-	subTable := tablewriter.NewWriter(os.Stdout)
-	subTable.SetHeader([]string{"Subdomain", "FQDN", "Status", "Exposed"})
-	subTable.SetBorder(false)
-	subTable.SetHeaderColor(
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-	)
-
-	for _, s := range services {
-		statusStr := s.Status
-		if s.Status == "active" {
-			statusStr = green("active")
-		} else if s.Status == "dormant" {
-			statusStr = yellow("dormant")
-		}
-		exposedStr := "-"
-		if s.Exposed {
-			exposedStr = green("yes")
-		}
-		subTable.Append([]string{s.Name, s.FQDN, statusStr, exposedStr})
-	}
-
-	subTable.Render()
-
-	// Check if any subdomains are dormant (pending verification)
-	hasDormant := false
-	for _, s := range services {
-		if s.Status == "dormant" {
-			hasDormant = true
-			break
-		}
-	}
-	if hasDormant {
-		fmt.Println()
-		printWarning("Some subdomains are dormant — verify your email to activate them")
-	}
 }

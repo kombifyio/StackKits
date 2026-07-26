@@ -258,6 +258,27 @@
     },
     {
       "evidence": [
+        "monitoring-agent-intent-contract"
+      ],
+      "metadata": {
+        "description": "Optional per-node OTLP collector-intent generation; runtime lifecycle, credentials, and telemetry backend ownership remain external.",
+        "id": "telemetry-collection",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "requires": [
+        {
+          "id": "observability-evidence",
+          "optional": false
+        }
+      ],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
         "SK-S1"
       ],
       "metadata": {
@@ -883,6 +904,13 @@
     ],
     "capabilityRequirements": [
       {
+        "capability": "telemetry-collection",
+        "matches": [
+          "observability-evidence"
+        ],
+        "requires": "observability-evidence"
+      },
+      {
         "capability": "basement-compose-runtime",
         "matches": [
           "site-local"
@@ -1098,6 +1126,20 @@
         "capability": "lifecycle-update",
         "matches": [
           "stackkits-lifecycle-update-contract"
+        ],
+        "siteKind": "cloud"
+      },
+      {
+        "capability": "telemetry-collection",
+        "matches": [
+          "stackkits-monitoring-agent"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "telemetry-collection",
+        "matches": [
+          "stackkits-monitoring-agent"
         ],
         "siteKind": "cloud"
       },
@@ -1550,6 +1592,13 @@
     ],
     "moduleCapabilities": [
       {
+        "capability": "telemetry-collection",
+        "matches": [
+          "telemetry-collection"
+        ],
+        "module": "stackkits-monitoring-agent-runtime"
+      },
+      {
         "capability": "security-baseline",
         "matches": [
           "security-baseline"
@@ -1854,6 +1903,16 @@
     "moduleGovernance": [
       {
         "governanceMatches": [
+          "stackkits-monitoring-agent-runtime"
+        ],
+        "matches": [
+          "stackkits-monitoring-agent"
+        ],
+        "module": "stackkits-monitoring-agent-runtime",
+        "provider": "stackkits-monitoring-agent"
+      },
+      {
+        "governanceMatches": [
           "security-baseline"
         ],
         "matches": [
@@ -2051,6 +2110,16 @@
         ],
         "module": "socket-proxy",
         "provider": "stackkits-basement-compose"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-basement-core-runtime"
+        ],
+        "matches": [
+          "stackkits-basement-core"
+        ],
+        "module": "stackkits-basement-core-runtime",
+        "provider": "stackkits-basement-core"
       },
       {
         "governanceMatches": [
@@ -2521,6 +2590,12 @@
         },
         {
           "contracts": [
+            "telemetry-collection"
+          ],
+          "providerID": "stackkits-monitoring-agent"
+        },
+        {
+          "contracts": [
             "lifecycle-update"
           ],
           "providerID": "stackkits-lifecycle-update-contract"
@@ -2682,6 +2757,12 @@
             "basement-compose-runtime"
           ],
           "providerID": "stackkits-basement-compose"
+        },
+        {
+          "contracts": [
+            "basement-core"
+          ],
+          "providerID": "stackkits-basement-core"
         },
         {
           "contracts": [
@@ -2864,6 +2945,13 @@
           "observability-evidence"
         ],
         "provider": "stackkits-observability-evidence-contract"
+      },
+      {
+        "capability": "telemetry-collection",
+        "matches": [
+          "telemetry-collection"
+        ],
+        "provider": "stackkits-monitoring-agent"
       },
       {
         "capability": "lifecycle-update",
@@ -3247,6 +3335,13 @@
     "providerModuleOwnership": [
       {
         "matches": [
+          "stackkits-monitoring-agent-runtime"
+        ],
+        "module": "stackkits-monitoring-agent-runtime",
+        "provider": "stackkits-monitoring-agent"
+      },
+      {
+        "matches": [
           "security-baseline"
         ],
         "module": "security-baseline",
@@ -3384,6 +3479,13 @@
         ],
         "module": "socket-proxy",
         "provider": "stackkits-basement-compose"
+      },
+      {
+        "matches": [
+          "stackkits-basement-core-runtime"
+        ],
+        "module": "stackkits-basement-core-runtime",
+        "provider": "stackkits-basement-core"
       },
       {
         "matches": [
@@ -3540,6 +3642,13 @@
           "topology-core"
         ],
         "provider": "stackkits-observability-evidence-contract"
+      },
+      {
+        "capability": "observability-evidence",
+        "matches": [
+          "observability-evidence"
+        ],
+        "provider": "stackkits-monitoring-agent"
       },
       {
         "capability": "topology-core",
@@ -3932,6 +4041,27 @@
           "site-local"
         ],
         "provider": "stackkits-basement-compose"
+      },
+      {
+        "capability": "host-bootstrap",
+        "matches": [
+          "host-bootstrap"
+        ],
+        "provider": "stackkits-basement-core"
+      },
+      {
+        "capability": "local-ingress",
+        "matches": [
+          "local-ingress"
+        ],
+        "provider": "stackkits-basement-core"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-basement-core"
       },
       {
         "capability": "runtime-paas",
@@ -4353,6 +4483,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-monitoring-agent"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-lifecycle-update-contract"
         },
         {
@@ -4551,6 +4687,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-basement-core"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-immich"
         },
         {
@@ -4691,6 +4833,61 @@
     "workloads": {
       "alternativeBindings": [
         {
+          "alternativeID": "standalone",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-basement-core-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "stackkit"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "unitID": "compose"
+                },
+                {
+                  "unitID": "opentofu"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-basement-core",
+              "workloadOwnership": [
+                "basement-core"
+              ]
+            }
+          ],
+          "workloadID": "basement-core"
+        },
+        {
           "alternativeID": "immich",
           "moduleMatches": [
             {
@@ -4789,6 +4986,144 @@
   },
   "modules": [
     {
+      "enforcementRequirement": {
+        "operations": [
+          "apply-monitoring-agent-intent",
+          "reconcile-monitoring-agent-intent",
+          "verify-monitoring-agent-runtime",
+          "commit-monitoring-agent-evidence"
+        ],
+        "ownerRef": "stackkits-monitoring-agent-executor",
+        "policyArtifactRefs": [
+          "monitoring-agent-collector-intent"
+        ],
+        "requiredEvidenceRef": "monitoring-agent-runtime-evidence",
+        "requiredHealthRef": "monitoring-agent-runtime-health",
+        "status": "bound",
+        "targetScope": "selected-nodes"
+      },
+      "evidence": [
+        "monitoring-agent-runtime-evidence"
+      ],
+      "health": [
+        {
+          "id": "monitoring-agent-runtime-health",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Node-local OTLP collector intent consumed only by the separately authenticated monitoring-agent runtime owner.",
+        "id": "stackkits-monitoring-agent-runtime",
+        "version": "1.1.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any"
+      },
+      "providerRef": "stackkits-monitoring-agent",
+      "provides": [
+        "telemetry-collection"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "monitoring-agent-collector-intent",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "observability/monitoring-agent/collector-intent.json",
+              "required": true,
+              "unitRef": "collector-intent"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "monitoring-agent-collector-intent",
+              "outputRef": "observability/monitoring-agent/collector-intent.json",
+              "unitRef": "collector-intent"
+            }
+          ],
+          "requiredRefs": [
+            "monitoring-agent-collector-intent"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "monitoring-agent-runtime-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "observability",
+            "sites"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c5f0045e9115ca6e39475c6ee001ce6e498cf4a8b375d72b6a90ddc2056d998b",
+          "id": "collector-intent",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "observability/monitoring-agent/collector-intent.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "observability",
+            "sites"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://observability/monitoring-agent/collector-intent/v1.json",
+          "version": "1.1.0"
+        }
+      ],
+      "renderVariants": [],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "executable",
+        "kind": "native"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
       "evidence": [
         "resolved-plan-contract",
         "security-baseline-executor-contract"
@@ -4869,7 +5204,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:0ac2e74a7bc0ed9cff5a1f00d9a6e0b913d75500a00f824562e34438dbe54eab",
+          "contractHash": "sha256:1685e923f68ab3acb760fc98677fbd7ea1f409b5fdea7de7be98071d79bae2bd",
           "id": "host-policy",
           "inputBindings": [],
           "kind": "host",
@@ -7766,6 +8101,571 @@
     },
     {
       "evidence": [
+        "basement-core-runtime-evidence"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "basement-router-http",
+          "kind": "http",
+          "path": "/ping",
+          "phase": "post-apply",
+          "port": 8080,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "pocketid-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 1411,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "tinyauth-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 4000,
+          "timeoutSeconds": 30
+        },
+        {
+          "id": "step-ca-tcp",
+          "kind": "tcp",
+          "phase": "post-apply",
+          "port": 9000,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "coolify-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 8000,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "basement-hub-http",
+          "kind": "http",
+          "path": "/healthz",
+          "phase": "post-apply",
+          "port": 80,
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Required standalone Basement core runtime with exact Compose and OpenTofu realizations for routing, identity, internal PKI, Coolify, and the operator hub.",
+        "id": "stackkits-basement-core-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller",
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-basement-core",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose"
+              ],
+              "format": "yaml",
+              "id": "basement-core-compose",
+              "kind": "compose",
+              "mode": "0640",
+              "outputRef": "platform/basement-core/compose.yaml",
+              "required": true,
+              "unitRef": "compose"
+            },
+            {
+              "compatibleTargets": [
+                "opentofu"
+              ],
+              "format": "hcl",
+              "id": "basement-core-opentofu",
+              "kind": "opentofu",
+              "mode": "0640",
+              "outputRef": "platform/basement-core/main.tf",
+              "required": true,
+              "unitRef": "opentofu"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "basement-core-compose",
+              "outputRef": "platform/basement-core/compose.yaml",
+              "unitRef": "compose"
+            },
+            {
+              "artifactRef": "basement-core-opentofu",
+              "outputRef": "platform/basement-core/main.tf",
+              "unitRef": "opentofu"
+            }
+          ],
+          "requiredRefs": [
+            "basement-core-compose",
+            "basement-core-opentofu"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "basement-core-runtime-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose"
+          ],
+          "contractHash": "sha256:1112e8b2781a57221083e5ccaada03fc79819e30a46cc4a01d3efc28e666a8af",
+          "id": "compose",
+          "inputBindings": [],
+          "kind": "compose",
+          "outputs": [
+            "platform/basement-core/compose.yaml"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "basement-hub-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "basement-hub",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://basement/core/compose/v1.yaml",
+          "version": "1.0.0"
+        },
+        {
+          "compatibleTargets": [
+            "opentofu"
+          ],
+          "contractHash": "sha256:9b3f15fa18101ce43b4cbdaf69c803a4a498ae53dce855a02986252d4d498916",
+          "id": "opentofu",
+          "inputBindings": [],
+          "kind": "opentofu",
+          "outputs": [
+            "platform/basement-core/main.tf"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "basement-hub-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "basement-hub",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://basement/core/opentofu/v1.tf",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "basement-core-compose"
+          ],
+          "contractHash": "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "compose"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "basement-core-opentofu"
+          ],
+          "contractHash": "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "opentofu"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "socket-proxy"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/ping",
+              "port": 8080
+            },
+            "id": "router",
+            "image": {
+              "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+              "ref": "ghcr.io/traefik/traefik:v3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "socket-proxy",
+            "image": {
+              "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
+              "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 1411
+            },
+            "id": "pocketid",
+            "image": {
+              "digest": "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e",
+              "ref": "ghcr.io/pocket-id/pocket-id:v2.7.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "pocketid-data",
+                "target": "/app/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "pocketid"
+            ],
+            "health": {
+              "command": [
+                "tinyauth",
+                "healthcheck"
+              ],
+              "kind": "command"
+            },
+            "id": "tinyauth",
+            "image": {
+              "digest": "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6",
+              "ref": "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "tinyauth-data",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 9000
+            },
+            "id": "step-ca",
+            "image": {
+              "digest": "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270",
+              "ref": "smallstep/step-ca:0.30.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "step-ca-db",
+                "target": "/home/step/db"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "coolify-postgres",
+              "coolify-redis",
+              "coolify-realtime"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/api/health",
+              "port": 8080
+            },
+            "id": "coolify",
+            "image": {
+              "digest": "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f",
+              "ref": "ghcr.io/coollabsio/coolify:4.1.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-data",
+                "target": "/var/www/html/storage"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-ssh",
+                "target": "/var/www/html/storage/app/ssh"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-applications",
+                "target": "/var/www/html/storage/app/applications"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-databases",
+                "target": "/var/www/html/storage/app/databases"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-services",
+                "target": "/var/www/html/storage/app/services"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-backups",
+                "target": "/var/www/html/storage/app/backups"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "coolify"
+              ],
+              "kind": "command"
+            },
+            "id": "coolify-postgres",
+            "image": {
+              "digest": "sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f",
+              "ref": "docker.io/library/postgres:15-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "database",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-postgres-data",
+                "target": "/var/lib/postgresql/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "redis-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "coolify-redis",
+            "image": {
+              "digest": "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99",
+              "ref": "docker.io/library/redis:7-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "cache",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-redis-data",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "coolify-redis"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/ready",
+              "port": 6001
+            },
+            "id": "coolify-realtime",
+            "image": {
+              "digest": "sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629",
+              "ref": "ghcr.io/coollabsio/coolify-realtime:1.0.16"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application"
+          },
+          {
+            "dependsOn": [
+              "tinyauth"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/healthz",
+              "port": 80
+            },
+            "id": "hub",
+            "image": {
+              "digest": "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
+              "ref": "docker.io/library/nginx:alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "role": "application"
+          }
+        ],
+        "delivery": "stackkit",
+        "engine": "docker",
+        "entryComponentRef": "coolify",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f",
+          "ref": "ghcr.io/coollabsio/coolify:4.1.2"
+        },
+        "kind": "container"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
         "SK-S1",
         "SK-S2",
         "SK-S4"
@@ -9239,7 +10139,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:9c3de036682330f48113f5cfbf56ca925df6e345c8a10bbccbfc81d04ca85ebf",
+          "contractHash": "sha256:859469834a58c9b62cb4edbb642262993d6f47d77212fd6be0206723bea3cf2c",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -10011,6 +10911,7 @@
           "id": "ha-basement-warm-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10029,27 +10930,97 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "stackkits-ha-basement-warm-runtime-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "availability/ha/stackkits-ha-basement-warm-runtime/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-ha-basement-warm-runtime-executor-contract",
+              "outputRef": "availability/ha/stackkits-ha-basement-warm-runtime/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-ha-basement-warm-runtime-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "ha-availability-runtime-contract"
+          ]
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "availability/ha/stackkits-ha-basement-warm-runtime/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://availability/ha/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
       "renderVariants": [],
       "rilActionPrimitives": [],
       "role": "operations",
@@ -10071,6 +11042,7 @@
           "id": "ha-basement-quorum-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10089,27 +11061,97 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "stackkits-ha-basement-quorum-runtime-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "availability/ha/stackkits-ha-basement-quorum-runtime/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-ha-basement-quorum-runtime-executor-contract",
+              "outputRef": "availability/ha/stackkits-ha-basement-quorum-runtime/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-ha-basement-quorum-runtime-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "ha-availability-runtime-contract"
+          ]
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "availability/ha/stackkits-ha-basement-quorum-runtime/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://availability/ha/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
       "renderVariants": [],
       "rilActionPrimitives": [],
       "role": "operations",
@@ -10131,6 +11173,7 @@
           "id": "ha-cloud-warm-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10149,27 +11192,97 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "stackkits-ha-cloud-warm-runtime-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "availability/ha/stackkits-ha-cloud-warm-runtime/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-ha-cloud-warm-runtime-executor-contract",
+              "outputRef": "availability/ha/stackkits-ha-cloud-warm-runtime/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-ha-cloud-warm-runtime-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "ha-availability-runtime-contract"
+          ]
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "availability/ha/stackkits-ha-cloud-warm-runtime/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://availability/ha/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
       "renderVariants": [],
       "rilActionPrimitives": [],
       "role": "operations",
@@ -10191,6 +11304,7 @@
           "id": "ha-cloud-quorum-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10209,27 +11323,97 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "stackkits-ha-cloud-quorum-runtime-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "availability/ha/stackkits-ha-cloud-quorum-runtime/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-ha-cloud-quorum-runtime-executor-contract",
+              "outputRef": "availability/ha/stackkits-ha-cloud-quorum-runtime/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-ha-cloud-quorum-runtime-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "ha-availability-runtime-contract"
+          ]
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "availability/ha/stackkits-ha-cloud-quorum-runtime/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://availability/ha/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
       "renderVariants": [],
       "rilActionPrimitives": [],
       "role": "operations",
@@ -10251,6 +11435,7 @@
           "id": "ha-modern-warm-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10269,27 +11454,97 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "stackkits-ha-modern-warm-runtime-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "availability/ha/stackkits-ha-modern-warm-runtime/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-ha-modern-warm-runtime-executor-contract",
+              "outputRef": "availability/ha/stackkits-ha-modern-warm-runtime/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-ha-modern-warm-runtime-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "ha-availability-runtime-contract"
+          ]
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "availability/ha/stackkits-ha-modern-warm-runtime/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://availability/ha/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
       "renderVariants": [],
       "rilActionPrimitives": [],
       "role": "operations",
@@ -10312,6 +11567,7 @@
           "id": "ha-modern-quorum-contract",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10330,27 +11586,97 @@
       ],
       "realizationSupport": {
         "artifacts": {
-          "contracts": [],
-          "outputBindings": [],
-          "requiredRefs": []
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "opentofu",
+                "compose"
+              ],
+              "format": "json",
+              "id": "stackkits-ha-modern-quorum-runtime-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "availability/ha/stackkits-ha-modern-quorum-runtime/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-ha-modern-quorum-runtime-executor-contract",
+              "outputRef": "availability/ha/stackkits-ha-modern-quorum-runtime/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-ha-modern-quorum-runtime-executor-contract"
+          ]
         },
-        "compatibleRendererRefs": [],
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "ha-availability-runtime-contract"
+          ]
         },
         "inputs": {
-          "contractComplete": false,
-          "requiredRefs": []
-        },
-        "level": "contract-only",
-        "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "scope": "umbrella"
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ]
+        },
+        "scope": "concrete"
       },
-      "renderUnits": [],
+      "renderUnits": [
+        {
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "availability/ha/stackkits-ha-modern-quorum-runtime/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "controlPlane",
+            "moduleTargets",
+            "moduleCapabilities",
+            "availability"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://availability/ha/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
       "renderVariants": [],
       "rilActionPrimitives": [],
       "role": "operations",
@@ -10649,6 +11975,56 @@
       "requires": [
         {
           "id": "topology-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home",
+          "cloud"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "monitoring-agent-intent-contract"
+      ],
+      "health": [
+        {
+          "id": "monitoring-agent-intent-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-monitoring-agent",
+        "version": "1.1.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "telemetry-collection"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-monitoring-agent-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "observability-evidence",
           "optional": false
         }
       ],
@@ -12074,6 +13450,57 @@
         "home"
       ],
       "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "basement-core-runtime-evidence"
+      ],
+      "health": [
+        {
+          "id": "basement-core-provider-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-basement-core",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-basement-core-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "host-bootstrap",
+          "optional": false
+        },
+        {
+          "id": "local-ingress",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": [
+        "basement-core"
+      ]
     },
     {
       "certificateIssuers": [],
@@ -13798,6 +15225,62 @@
     }
   ],
   "workloads": [
+    {
+      "alternatives": [
+        {
+          "id": "standalone",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-basement-core-runtime",
+          "providerRef": "stackkits-basement-core",
+          "route": {
+            "healthRef": "basement-hub-http",
+            "serviceRef": "basement-hub"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "stackkit"
+            ],
+            "allowedKinds": [
+              "container"
+            ]
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [],
+      "defaultAlternative": "standalone",
+      "functionalCapabilities": [
+        "local-routing",
+        "owner-identity",
+        "forward-auth",
+        "internal-ca",
+        "container-platform",
+        "operator-hub"
+      ],
+      "kind": "service",
+      "metadata": {
+        "description": "Required standalone Basement control plane with local routing, owner identity, internal PKI, container management, and operator hub.",
+        "id": "basement-core",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
     {
       "alternatives": [
         {

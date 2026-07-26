@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/api"
-	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 )
 
@@ -52,7 +51,6 @@ func main() {
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated trusted proxy IPs/CIDRs for X-Forwarded-For rate limiting (or set STACKKITS_TRUSTED_PROXIES)")
 	logDir := flag.String("log-dir", "", "Directory containing deploy logs (or set STACKKITS_LOG_DIR)")
 	logLevel := flag.String("log-level", "info", "Log level: debug, info, warn, error")
-	instanceID := flag.String("instance-id", "", "Instance ID for kombify registry heartbeat (or set STACKKITS_INSTANCE_ID)")
 	mcpToken := flag.String("mcp-token", "", "Bearer token for POST /mcp (or set STACKKIT_MCP_TOKEN)")
 	mcpAllowWrite := flag.Bool("mcp-allow-write", false, "Enable mutating MCP tools (or set STACKKIT_MCP_ALLOW_WRITE=true)")
 	flag.Parse()
@@ -77,11 +75,6 @@ func main() {
 	srv := api.NewServer(cfg)
 
 	httpServer := newHTTPServer(cfg, srv.Handler())
-
-	// Start heartbeat if instance is registered with kombify
-	heartbeatCtx, heartbeatCancel := context.WithCancel(context.Background())
-	defer heartbeatCancel()
-	startHeartbeat(heartbeatCtx, *instanceID)
 
 	runServer(httpServer)
 }
@@ -164,29 +157,31 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 	}
 
 	return api.ServerConfig{
-		Port:                          port,
-		BaseDir:                       dir,
-		Version:                       Version,
-		GitCommit:                     GitCommit,
-		APIKey:                        key,
-		CORSOrigins:                   origins,
-		RateLimit:                     rl,
-		LogDir:                        ld,
-		TrustedProxies:                proxies,
-		ServiceAuthSecret:             strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET")),
-		ServiceAuthSecretNext:         strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET_NEXT")),
-		RuntimeActionMode:             resolveRuntimeActionMode(),
-		RuntimeRestoreVerifierCommand: strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
-		SetupActionMode:               resolveSetupActionMode(),
-		SetupAdminEmail:               strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_EMAIL")),
-		SetupAdminPassword:            strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_PASSWORD")),
-		SetupImmichURL:                strings.TrimSpace(os.Getenv("STACKKIT_SETUP_IMMICH_URL")),
-		SetupPocketIDURL:              strings.TrimSpace(os.Getenv("STACKKIT_SETUP_POCKETID_URL")),
-		SetupVaultwardenURL:           strings.TrimSpace(os.Getenv("STACKKIT_SETUP_VAULTWARDEN_URL")),
-		SetupCloudreveURL:             strings.TrimSpace(os.Getenv("STACKKIT_SETUP_CLOUDREVE_URL")),
-		FilesSessionBridgeToken:       strings.TrimSpace(os.Getenv("STACKKIT_FILES_SESSION_BRIDGE_TOKEN")),
-		MCPToken:                      mcpTok,
-		MCPAllowWrite:                 mcpWrite,
+		Port:                              port,
+		BaseDir:                           dir,
+		Version:                           Version,
+		GitCommit:                         GitCommit,
+		APIKey:                            key,
+		CORSOrigins:                       origins,
+		RateLimit:                         rl,
+		LogDir:                            ld,
+		TrustedProxies:                    proxies,
+		ServiceAuthSecret:                 strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET")),
+		ServiceAuthSecretNext:             strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET_NEXT")),
+		RuntimeActionMode:                 resolveRuntimeActionMode(),
+		RuntimeRestoreVerifierCommand:     strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
+		StackActionMode:                   resolveStackActionMode(),
+		StackActionRestoreVerifierCommand: strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
+		SetupActionMode:                   resolveSetupActionMode(),
+		SetupAdminEmail:                   strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_EMAIL")),
+		SetupAdminPassword:                strings.TrimSpace(os.Getenv("STACKKIT_ADMIN_PASSWORD")),
+		SetupImmichURL:                    strings.TrimSpace(os.Getenv("STACKKIT_SETUP_IMMICH_URL")),
+		SetupPocketIDURL:                  strings.TrimSpace(os.Getenv("STACKKIT_SETUP_POCKETID_URL")),
+		SetupVaultwardenURL:               strings.TrimSpace(os.Getenv("STACKKIT_SETUP_VAULTWARDEN_URL")),
+		SetupCloudreveURL:                 strings.TrimSpace(os.Getenv("STACKKIT_SETUP_CLOUDREVE_URL")),
+		FilesSessionBridgeToken:           strings.TrimSpace(os.Getenv("STACKKIT_FILES_SESSION_BRIDGE_TOKEN")),
+		MCPToken:                          mcpTok,
+		MCPAllowWrite:                     mcpWrite,
 	}, nil
 }
 
@@ -220,6 +215,20 @@ func resolveRuntimeActionMode() string {
 		return "dry-run"
 	default:
 		slog.Warn("unknown STACKKITS_RUNTIME_ACTION_MODE; falling back to dry-run", "mode", mode)
+		return "dry-run"
+	}
+}
+
+func resolveStackActionMode() string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("STACKKITS_STACK_ACTION_MODE")))
+	switch mode {
+	case "apply":
+		slog.Warn("StackKits StackActions will execute OpenTofu apply/state commands")
+		return "apply"
+	case "", "dry-run":
+		return "dry-run"
+	default:
+		slog.Warn("unknown STACKKITS_STACK_ACTION_MODE; falling back to dry-run", "mode", mode)
 		return "dry-run"
 	}
 }
@@ -382,54 +391,6 @@ func resolveRateLimit(flagVal int) int {
 		slog.Info("rate limiting enabled", "max_per_minute", rl)
 	}
 	return rl
-}
-
-// startHeartbeat sends periodic heartbeats to kombify so Cloudflare Edge knows this instance is alive.
-// Requires KOMBIFY_API_KEY env var and a valid instance ID.
-func startHeartbeat(ctx context.Context, flagInstanceID string) {
-	iid := flagInstanceID
-	if iid == "" {
-		iid = os.Getenv("STACKKITS_INSTANCE_ID")
-	}
-	if iid == "" {
-		return
-	}
-
-	apiKey := os.Getenv("KOMBIFY_API_KEY")
-	if apiKey == "" {
-		slog.Warn("heartbeat skipped — no KOMBIFY_API_KEY set")
-		return
-	}
-
-	client := kombifyme.NewClient(apiKey)
-	slog.Info("heartbeat enabled", "instance_id", iid, "interval", "60s")
-
-	go func() {
-		ticker := time.NewTicker(60 * time.Second)
-		defer ticker.Stop()
-
-		// Send initial heartbeat immediately
-		if err := client.Heartbeat(iid, "running"); err != nil {
-			slog.Warn("heartbeat failed", "error", err)
-		}
-
-		for {
-			select {
-			case <-ctx.Done():
-				// Deregister on shutdown
-				if err := client.DeregisterInstance(iid); err != nil {
-					slog.Warn("deregister failed", "error", err)
-				} else {
-					slog.Info("deregistered from kombify", "instance_id", iid)
-				}
-				return
-			case <-ticker.C:
-				if err := client.Heartbeat(iid, "running"); err != nil {
-					slog.Warn("heartbeat failed", "error", err)
-				}
-			}
-		}
-	}()
 }
 
 func runServer(httpServer *http.Server) {

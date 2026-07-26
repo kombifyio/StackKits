@@ -40,7 +40,7 @@ install surface until their rollout matrices graduate.
 - CUE remains the source of truth for deployment contracts, defaults, constraints, routes, access policy, and module requirements.
 - Public/non-local routes must be protected by default unless the StackSpec or module access policy explicitly configures public or unauthenticated exposure.
 - `stackkit-server` must require an API key for non-public endpoints outside local development. Production profiles must reject unauthenticated mode and wildcard CORS.
-- Internal runtime-action routes require `X-Kombify-Service-Auth` with the TechStack caller and StackKits audience.
+- Internal StackAction routes require `X-Kombify-Service-Auth` with the TechStack caller and StackKits audience.
 - Generated secrets, rollout evidence, logs, and bootstrap material must be redacted before they are published or mirrored.
 - Static default credentials are forbidden.
 

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -42,10 +43,84 @@ type applyRuntimeRecoveryPreparer interface {
 }
 
 func newProductApplyRecoveryCapsule(request applyRuntimeExecutionRequest, shared runtimeexecutor.ExecutionRequest, outputRoot string, validUntil time.Time) ([]byte, error) {
+	_, boundShared, err := bindProductApplyRecoveryRequestChannels(request, shared)
+	if err != nil {
+		return nil, err
+	}
 	return canonicalProductApplyRecoveryCapsule(productApplyRecoveryCapsule{
 		APIVersion: productApplyRecoveryAPIVersion, OutputRoot: outputRoot,
-		ValidUntil: validUntil.Format(time.RFC3339Nano), Request: request, Shared: shared,
+		ValidUntil: validUntil.Format(time.RFC3339Nano), Request: request, Shared: boundShared,
 	})
+}
+
+func bindProductApplyRecoveryRequestChannels(
+	request applyRuntimeExecutionRequest,
+	shared runtimeexecutor.ExecutionRequest,
+) (applyRuntimeExecutionRequest, runtimeexecutor.ExecutionRequest, error) {
+	bound := request
+	bound.Requirements.Hosts = append([]generationartifact.ApplyHostRequirement(nil), request.Requirements.Hosts...)
+	boundShared := runtimeexecutor.CloneExecutionRequest(shared)
+	hostIndexes := make(map[string]int, len(bound.Requirements.Hosts))
+	for index, host := range bound.Requirements.Hosts {
+		if _, duplicate := hostIndexes[host.NodeRef]; duplicate {
+			return applyRuntimeExecutionRequest{}, runtimeexecutor.ExecutionRequest{}, fmt.Errorf(
+				"Product Apply recovery node %q has multiple governed hosts", host.NodeRef,
+			)
+		}
+		hostIndexes[host.NodeRef] = index
+	}
+	sharedChanged := false
+	for index := range boundShared.RuntimeTargets {
+		target := &boundShared.RuntimeTargets[index]
+		if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 {
+			return applyRuntimeExecutionRequest{}, runtimeexecutor.ExecutionRequest{}, fmt.Errorf(
+				"Product Apply recovery shared target %q has no exact Site/node route", target.RequirementID,
+			)
+		}
+		hostIndex, ok := hostIndexes[target.NodeRefs[0]]
+		if !ok {
+			return applyRuntimeExecutionRequest{}, runtimeexecutor.ExecutionRequest{}, fmt.Errorf(
+				"Product Apply recovery shared target %q has no governed host", target.RequirementID,
+			)
+		}
+		host := &bound.Requirements.Hosts[hostIndex]
+		if host.SiteRef != target.SiteRefs[0] {
+			return applyRuntimeExecutionRequest{}, runtimeexecutor.ExecutionRequest{}, fmt.Errorf(
+				"Product Apply recovery host %q conflicts with the sealed Site route", host.NodeRef,
+			)
+		}
+		hostChannel := strings.TrimSpace(host.ExecutionChannelRef)
+		targetChannel := strings.TrimSpace(target.ExecutionChannelRef)
+		if hostChannel == "" && targetChannel == "" {
+			return applyRuntimeExecutionRequest{}, runtimeexecutor.ExecutionRequest{}, fmt.Errorf(
+				"Product Apply recovery shared target %q has no exact execution route", target.RequirementID,
+			)
+		}
+		if hostChannel != "" && targetChannel != "" && hostChannel != targetChannel {
+			return applyRuntimeExecutionRequest{}, runtimeexecutor.ExecutionRequest{}, fmt.Errorf(
+				"Product Apply recovery host %q conflicts with the sealed execution route", host.NodeRef,
+			)
+		}
+		if targetChannel == "" {
+			target.ExecutionChannelRef = hostChannel
+			targetChannel = hostChannel
+			sharedChanged = true
+		}
+		if hostChannel == "" {
+			host.ExecutionChannelRef = targetChannel
+		}
+	}
+	if sharedChanged {
+		boundShared.RequestDigest = ""
+		var err error
+		boundShared, err = runtimeexecutor.SealRequest(boundShared)
+		if err != nil {
+			return applyRuntimeExecutionRequest{}, runtimeexecutor.ExecutionRequest{}, fmt.Errorf(
+				"seal Product Apply recovery shared route: %w", err,
+			)
+		}
+	}
+	return bound, boundShared, nil
 }
 
 func canonicalProductApplyRecoveryCapsule(capsule productApplyRecoveryCapsule) ([]byte, error) {
@@ -107,11 +182,16 @@ func validateProductApplyRecoveryCapsule(capsule productApplyRecoveryCapsule) er
 	if err := capsule.Shared.Validate(); err != nil {
 		return fmt.Errorf("validate Product Apply recovery shared request: %w", err)
 	}
-	reconstructed, err := sharedExecutionRequest(capsule.Request)
+	boundRequest, boundShared, err := bindProductApplyRecoveryRequestChannels(capsule.Request, capsule.Shared)
+	if err != nil {
+		return fmt.Errorf("bind Product Apply recovery shared route: %w", err)
+	}
+	reconstructed, err := sharedExecutionRequest(boundRequest)
 	if err != nil {
 		return fmt.Errorf("reconstruct Product Apply recovery shared request: %w", err)
 	}
-	if !reflect.DeepEqual(reconstructed, capsule.Shared) || capsule.Shared.Executor.ID != capsule.Request.Executor.ID ||
+	if !reflect.DeepEqual(boundShared, capsule.Shared) || !reflect.DeepEqual(reconstructed, capsule.Shared) ||
+		capsule.Shared.Executor.ID != capsule.Request.Executor.ID ||
 		capsule.Shared.Executor.Version != capsule.Request.Executor.Version || capsule.Shared.Executor.Digest != capsule.Request.Executor.Digest {
 		return errors.New("Product Apply recovery capsule does not bind the exact internal and Shared request")
 	}

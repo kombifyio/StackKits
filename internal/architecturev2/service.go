@@ -2,11 +2,13 @@ package architecturev2
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/rilactionv2"
@@ -76,6 +78,8 @@ type Service struct {
 	productApplyTrust             []productApplyTrustAnchor
 	productApplyEvidenceCollector ProductApplyEvidenceCollector
 	productRuntimeOwners          *ProductRuntimeOwnerRegistry
+	productApplyVerifyExecutor    generationartifact.ApplyExecutorIdentity
+	rendererRegistry              *architecturev2renderer.Registry
 }
 
 // NewProductEmbeddedService creates the product authority used by native CLI
@@ -144,6 +148,68 @@ func NewProductEmbeddedServiceWithRuntimeOwnersAndApplyEvidenceCollector(
 		return nil, resolveError(ErrAuthorityLoad, "a product Apply evidence collector is required", nil)
 	}
 	return newProductEmbeddedServiceWithRuntimeOwners(contract, identity, registrations, channels, journal, recovery, collector)
+}
+
+// NewProductEmbeddedServiceWithRuntimeOwnersAndLocalApplyEvidence fixes a
+// local collector and its public verification anchor at the same composition
+// boundary. This is the standalone counterpart to the OS-level producer trust
+// store: the private key never leaves local custody and request callers never
+// receive a trust-root parameter.
+func NewProductEmbeddedServiceWithRuntimeOwnersAndLocalApplyEvidence(
+	contract CompilerContract,
+	identity runtimeexecutor.ExecutorIdentity,
+	registrations []ProductRuntimeOwnerRegistration,
+	channels ProductExecutionChannelFactory,
+	journal runtimeapply.Journal,
+	recovery ProductApplyRecoveryStore,
+	collector ProductApplyEvidenceCollector,
+	anchors []ProductApplyTrustAnchor,
+) (*Service, error) {
+	if nilProductApplyEvidenceCollector(collector) {
+		return nil, resolveError(ErrAuthorityLoad, "a product Apply evidence collector is required", nil)
+	}
+	if len(anchors) == 0 {
+		return nil, resolveError(ErrAuthorityLoad, "at least one construction-owned Apply producer trust anchor is required", nil)
+	}
+	service, err := newProductEmbeddedServiceWithRuntimeOwners(contract, identity, registrations, channels, journal, recovery, collector)
+	if err != nil {
+		return nil, err
+	}
+	service.productApplyTrust, err = appendProductApplyTrustAnchors(service.productApplyTrust, anchors)
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "bind construction-owned Apply producer trust", err)
+	}
+	return service, nil
+}
+
+// NewProductEmbeddedServiceWithLocalApplyVerification constructs the
+// read-only standalone verifier. It owns the exact runtime identity and local
+// producer trust but no collector, journal, recovery store, execution channel,
+// or runtime mutation capability.
+func NewProductEmbeddedServiceWithLocalApplyVerification(
+	contract CompilerContract,
+	identity runtimeexecutor.ExecutorIdentity,
+	anchors []ProductApplyTrustAnchor,
+) (*Service, error) {
+	if len(anchors) == 0 {
+		return nil, resolveError(ErrAuthorityLoad, "at least one construction-owned Apply producer trust anchor is required", nil)
+	}
+	executor := generationartifact.ApplyExecutorIdentity{
+		ID: identity.ID, Version: identity.Version, Digest: identity.Digest,
+	}
+	if err := generationartifact.ValidateApplyExecutorIdentity(executor); err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "read-only Apply verifier identity is invalid", err)
+	}
+	service, err := NewProductEmbeddedService(contract)
+	if err != nil {
+		return nil, err
+	}
+	service.productApplyTrust, err = appendProductApplyTrustAnchors(service.productApplyTrust, anchors)
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "bind read-only construction-owned Apply producer trust", err)
+	}
+	service.productApplyVerifyExecutor = executor
+	return service, nil
 }
 
 func newProductEmbeddedServiceWithRuntimeOwners(
@@ -291,7 +357,15 @@ func newServiceWithAuthority(authority *cueAuthority, contract CompilerContract)
 		strings.TrimPrefix(contract.CompilerVersion, "stackkits-resolver/") != contract.RendererVersion {
 		return nil, resolveError(ErrAuthorityLoad, "product compiler and renderer must use the governed product namespace", nil)
 	}
-	return newServiceWithValidatedAuthority(authority, contract)
+	service, err := newServiceWithValidatedAuthority(authority, contract)
+	if err != nil {
+		return nil, err
+	}
+	service.rendererRegistry, err = architecturev2renderer.NewProductRegistry()
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "construct exact product renderer registry: "+err.Error(), err)
+	}
+	return service, nil
 }
 
 func newDevelopmentServiceWithAuthority(authority *cueAuthority, contract CompilerContract) (*Service, error) {
@@ -306,7 +380,15 @@ func newDevelopmentServiceWithAuthority(authority *cueAuthority, contract Compil
 		strings.TrimPrefix(contract.CompilerVersion, "stackkits-resolver/") != contract.RendererVersion {
 		return nil, resolveError(ErrAuthorityLoad, "development compiler and renderer must use the governed StackKits namespace", nil)
 	}
-	return newServiceWithValidatedAuthority(authority, contract)
+	service, err := newServiceWithValidatedAuthority(authority, contract)
+	if err != nil {
+		return nil, err
+	}
+	service.rendererRegistry, err = architecturev2renderer.NewProductRegistry()
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "construct exact development renderer registry: "+err.Error(), err)
+	}
+	return service, nil
 }
 
 func newServiceWithValidatedAuthority(authority *cueAuthority, contract CompilerContract) (*Service, error) {
@@ -528,9 +610,67 @@ func (s *Service) Resolve(input ResolveInput) (Result, error) {
 	if err != nil {
 		return Result{}, resolveError(ErrResolveFailed, "marshal canonical ResolvedPlan: "+err.Error(), err)
 	}
+	if s.rendererRegistry != nil {
+		if err := validateCompiledPlanRendererContracts(plan, s.rendererRegistry); err != nil {
+			return Result{}, resolveError(ErrResolveFailed, "reject generation readiness without exact renderer: "+err.Error(), err)
+		}
+	}
 	planHash, ok := plan["planHash"].(string)
 	if !ok || !strings.HasPrefix(planHash, "sha256:") {
 		return Result{}, resolveError(ErrResolveFailed, "compiler returned no canonical planHash", nil)
 	}
 	return Result{Plan: plan, CanonicalPlan: canonical, PlanHash: planHash}, nil
+}
+
+func validateCompiledPlanRendererContracts(plan resolvedplan.ResolvedPlan, registry *architecturev2renderer.Registry) error {
+	rawModules, ok := plan["modules"].([]any)
+	if !ok {
+		return errors.New("compiled plan has no module list")
+	}
+	for moduleIndex, rawModule := range rawModules {
+		module, ok := rawModule.(map[string]any)
+		if !ok {
+			return fmt.Errorf("compiled plan module %d is malformed", moduleIndex)
+		}
+		moduleID, ok := module["id"].(string)
+		if !ok || moduleID == "" {
+			return fmt.Errorf("compiled plan module %d has no identity", moduleIndex)
+		}
+		rawUnits, ok := module["renderUnits"].([]any)
+		if !ok {
+			return fmt.Errorf("compiled plan module %q has no render-unit list", moduleID)
+		}
+		for unitIndex, rawUnit := range rawUnits {
+			unit, ok := rawUnit.(map[string]any)
+			if !ok {
+				return fmt.Errorf("compiled plan module %q render unit %d is malformed", moduleID, unitIndex)
+			}
+			contract := architecturev2renderer.RendererContract{}
+			fields := []struct {
+				name        string
+				destination *string
+			}{
+				{name: "kind", destination: &contract.Kind},
+				{name: "rendererRef", destination: &contract.RendererRef},
+				{name: "templateRef", destination: &contract.TemplateRef},
+				{name: "version", destination: &contract.Version},
+				{name: "contractHash", destination: &contract.ContractHash},
+			}
+			for _, field := range fields {
+				value, ok := unit[field.name].(string)
+				if !ok || value == "" {
+					return fmt.Errorf("compiled plan module %q render unit %d has no %s", moduleID, unitIndex, field.name)
+				}
+				*field.destination = value
+			}
+			if !registry.HasExact(contract) {
+				unitID, _ := unit["id"].(string)
+				return fmt.Errorf(
+					"module %q unit %q renderer contract %s/%s@%s (%s) is not registered exactly",
+					moduleID, unitID, contract.RendererRef, contract.TemplateRef, contract.Version, contract.ContractHash,
+				)
+			}
+		}
+	}
+	return nil
 }

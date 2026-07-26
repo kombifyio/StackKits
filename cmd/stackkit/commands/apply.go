@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -18,10 +17,8 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/iac"
-	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/rollout"
-	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/terramate"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	stackverify "github.com/kombifyio/stackkits/internal/verify"
@@ -31,9 +28,6 @@ import (
 
 var (
 	applyAutoApprove        bool
-	applyTenantDeployment   string
-	applyReportingEndpoint  string
-	applyReportingToken     string
 	applyVerify             bool
 	applyVerifyHTTP         bool
 	applyVerifyStrict       bool
@@ -63,9 +57,6 @@ Examples:
 
 func init() {
 	applyCmd.Flags().BoolVar(&applyAutoApprove, "auto-approve", false, "Skip interactive approval")
-	applyCmd.Flags().StringVar(&applyTenantDeployment, "tenant-deployment", "", "sk_tenant_deployment UUID: report success/failure back to Admin after apply")
-	applyCmd.Flags().StringVar(&applyReportingEndpoint, "admin-endpoint", "", "Admin API base URL for tenant-deployment spec fetch and reporting (env: STACKKIT_ADMIN_ENDPOINT, STACKKIT_ADMIN_URL)")
-	applyCmd.Flags().StringVar(&applyReportingToken, "admin-token", "", "Admin/bootstrap API token (env: STACKKIT_BOOTSTRAP_TOKEN, STACKKIT_ADMIN_TOKEN)")
 	applyCmd.Flags().BoolVar(&applyVerify, "verify", false, "Run stackkit verify after a successful apply")
 	applyCmd.Flags().BoolVar(&applyVerifyHTTP, "verify-http", false, "Include HTTP route checks in post-apply verification")
 	applyCmd.Flags().BoolVar(&applyVerifyStrict, "verify-strict", false, "Treat post-apply verification warnings as failures")
@@ -74,6 +65,12 @@ func init() {
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)")
+	// Local execution binding. Apply never infers that a planned target is this
+	// machine: the owner names the exact Site, node, and channel this process
+	// owns, and anything else stays unadmitted.
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.localSiteRef, "local-site", "", "Architecture v2 Site explicitly owned by this local execution process")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.localNodeRef, "local-node", "", "Architecture v2 node explicitly owned by this local execution process")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.localChannelRef, "local-execution-channel", "", "Architecture v2 execution channel explicitly owned by this local process")
 }
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
@@ -84,10 +81,6 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	}
 	wd := getWorkDir()
 	if err := admitApplyBeforeDeployObservability(wd, specFile); err != nil {
-		return err
-	}
-	managedCandidate, err := prefetchManagedNativeV2IntentBeforeDeployObservability(ctx, wd, specFile)
-	if err != nil {
 		return err
 	}
 	if !noLog {
@@ -106,57 +99,16 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		rolloutEvent("apply", "succeeded", "apply succeeded", nil)
 		closeRolloutRecorder(rollout.Summary{Status: "success"})
 	}()
-	// When linked to a tenant deployment, report 'failed' on any error exit.
-	if applyTenantDeployment != "" {
-		recordTenantDeploymentEvent(applyTenantDeployment, "apply", "started", "stackkit apply started", "")
-		defer func() {
-			if retErr != nil {
-				failureClass := rollout.ClassifyFailure(retErr.Error())
-				recordTenantDeploymentEvent(applyTenantDeployment, "apply", "failed", retErr.Error(), failureClass)
-				recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "started", "reporting failed lifecycle state", failureClass)
-				if reportErr := reportTenantDeploymentState(applyTenantDeployment, "failed", retErr.Error(),
-					"stackkit apply failed"); reportErr != nil {
-					recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "failed", reportErr.Error(), rollout.ClassifyFailure(reportErr.Error()))
-					printWarning("Could not report failed state: %v", reportErr)
-				} else {
-					recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "succeeded", "failed lifecycle state reported", failureClass)
-				}
-			}
-		}()
-	}
-	if managedCandidate != nil {
-		rolloutEvent("tenant_spec_fetch", "started", "publishing admitted tenant deployment spec", map[string]string{
-			"tenant_deployment_id": applyTenantDeployment,
-		})
-		recordTenantDeploymentEvent(applyTenantDeployment, "tenant_spec_fetch", "started", "publishing admitted tenant deployment spec", "")
-		if _, err := persistTenantSpecCandidate(wd, applyTenantDeployment, *managedCandidate); err != nil {
-			return fmt.Errorf("publish admitted tenant-deployment spec: %w", err)
-		}
-	}
-	managedBundle, handled, managedErr := preflightManagedTenantBundle(wd)
-	if managedErr != nil {
-		return managedErr
-	}
-	if managedBundle {
-		if handled {
-			return nil
-		}
-	} else if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
 		return err
 	}
-	if applyTenantDeployment == "" {
-		if err := requireNativeV2StackSpec(wd, specFile, architectureV2Apply); err != nil {
-			return err
-		}
+	if err := requireNativeV2StackSpec(wd, specFile, architectureV2Apply); err != nil {
+		return err
 	}
 
-	// Load spec — three-tier resolution:
-	//   1. Local stack-spec.yaml (operator/dev workflow).
-	//   2. If --tenant-deployment is set AND no local spec exists,
-	//      fetch the composed spec from Admin over the bootstrap
-	//      token. This is the "VM boots from a clean image" path.
-	//   3. Fall back to createDefaultSpec (kits/modules tree found
-	//      next to the binary).
+	// Load the local StackSpec. Local files and lifecycle state are the
+	// standalone product authority; provider or tenant control planes do not
+	// inject specs into the public CLI.
 	loader := config.NewLoader(wd)
 	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{
 		"spec_file": specFile,
@@ -165,35 +117,10 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	if err != nil {
 		specPath := filepath.Join(wd, specFile)
 		if _, statErr := os.Stat(specPath); os.IsNotExist(statErr) {
-			if applyTenantDeployment != "" {
-				rolloutEvent("spec.load", "failed", "local stack spec missing; fetching tenant spec", map[string]string{
-					"tenant_deployment_id": applyTenantDeployment,
-				})
-				printInfo("No local %s — fetching composed spec from Admin for deployment %s",
-					specFile, applyTenantDeployment)
-				fetched, fetchErr := fetchTenantSpec(ctx, applyTenantDeployment, wd)
-				if fetchErr != nil {
-					rolloutFailure("tenant_spec_fetch", fetchErr)
-					return fmt.Errorf("tenant-deployment spec fetch: %w", fetchErr)
-				}
-				var handled bool
-				var routeErr error
-				spec, handled, routeErr = loadFetchedTenantSpecForApply(wd, applyTenantDeployment, fetched, func() (bool, error) {
-					return newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions)
-				})
-				if handled {
-					return routeErr
-				}
-				err = routeErr
-				if err != nil {
-					return fmt.Errorf("load admitted tenant StackSpec v1: %w", err)
-				}
-			} else {
-				rolloutEvent("spec.load", "failed", "local stack spec missing; creating default spec", nil)
-				spec, err = createDefaultSpec(loader, wd)
-				if err != nil {
-					return fmt.Errorf("no spec file and auto-init failed: %w", err)
-				}
+			rolloutEvent("spec.load", "failed", "local stack spec missing; creating default spec", nil)
+			spec, err = createDefaultSpec(loader, wd)
+			if err != nil {
+				return fmt.Errorf("no spec file and auto-init failed: %w", err)
 			}
 		} else {
 			rolloutFailure("spec.load", err)
@@ -210,13 +137,7 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	if err := requireRuntimeProductStackKit(spec); err != nil {
 		return fmt.Errorf("apply product guard: %w", err)
 	}
-	// A tenant bootstrap may have materialized the spec after the first
-	// preflight. Reclassify before any prerequisite, generator, or executor is
-	// entered; v1 remains a no-op here.
 	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
-		return err
-	}
-	if err := requireManagedIdentityBootstrapHandoff(wd, spec); err != nil {
 		return err
 	}
 
@@ -295,21 +216,18 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		rolloutEvent("tofu.init", "started", "initializing OpenTofu", map[string]string{
 			"mode": string(executor.Mode()),
 		})
-		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.init", "started", "initializing OpenTofu", "")
 		if initErr := executor.Init(ctx); initErr != nil {
 			deployLog.Error("tofu.init",
 				slog.String("status", "failed"),
 				slog.String("error", initErr.Error()),
 			)
 			rolloutFailure("tofu.init", initErr)
-			recordTenantDeploymentEvent(applyTenantDeployment, "tofu.init", "failed", initErr.Error(), rollout.ClassifyFailure(initErr.Error()))
 			return fmt.Errorf("init error: %w", initErr)
 		}
 		deployLog.Event("tofu.init",
 			slog.String("status", "success"),
 		)
 		rolloutEvent("tofu.init", "succeeded", "OpenTofu initialized", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.init", "succeeded", "OpenTofu initialized", "")
 		printSuccess("Initialized successfully")
 	}
 
@@ -318,12 +236,10 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	startTime := time.Now()
 	deployLog.Event("apply.attempt_start")
 	rolloutEvent("tofu.apply", "started", "OpenTofu apply started", nil)
-	recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "started", "OpenTofu apply started", "")
 
 	result, err := troubleshootAndApply(ctx, executor, applyAutoApprove, planFile, deployDir)
 	if err != nil {
 		rolloutFailure("tofu.apply", err)
-		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
 		return fmt.Errorf("apply error: %w", err)
 	}
 
@@ -344,7 +260,6 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		rolloutEvent("tofu.apply", "failed", userMsg, map[string]string{
 			"failure_class": rollout.ClassifyFailure(userMsg),
 		})
-		recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "failed", userMsg, rollout.ClassifyFailure(userMsg))
 		printError("%s", userMsg)
 		fmt.Println()
 		printInfo("Troubleshooting tips:")
@@ -359,7 +274,6 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	rolloutEvent("tofu.apply", "succeeded", "OpenTofu apply succeeded", map[string]string{
 		"duration": duration.Round(time.Second).String(),
 	})
-	recordTenantDeploymentEvent(applyTenantDeployment, "tofu.apply", "succeeded", "OpenTofu apply succeeded", "")
 
 	// Update deployment state
 	stateFile := filepath.Join(wd, ".stackkit", "state.yaml")
@@ -397,32 +311,24 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		printInfo("Skipping platform app lifecycle and automatic app setup actions")
 		rolloutEvent("platform_apps", "skipped", "platform app handoff skipped", nil)
 		rolloutEvent("setup_actions", "skipped", "automatic setup actions skipped", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "skipped", "platform app handoff skipped", "")
-		recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "skipped", "automatic setup actions skipped", "")
 	} else {
 		rolloutEvent("platform_apps", "started", "platform app handoff processing started", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "started", "platform app handoff processing started", "")
 		if err := runPlatformAppDeployments(ctx, deployDir, state); err != nil {
 			rolloutFailure("platform_apps", err)
-			recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
 			return fmt.Errorf("platform app handoff processing: %w", err)
 		}
 		rolloutEvent("platform_apps", "succeeded", "platform app handoff processing succeeded", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "platform_apps", "succeeded", "platform app handoff processing succeeded", "")
 
 		rolloutEvent("setup_actions", "started", "automatic setup action processing started", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "started", "automatic setup action processing started", "")
 		updatedState, setupActionErr := runAutomaticNodeSetupActions(ctx, access, state, loader, stateFile)
 		if setupActionErr != nil {
 			rolloutFailure("setup_actions", setupActionErr)
-			recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "failed", setupActionErr.Error(), rollout.ClassifyFailure(setupActionErr.Error()))
 			return fmt.Errorf("automatic setup actions: %w", setupActionErr)
 		}
 		if updatedState != nil {
 			state = updatedState
 		}
 		rolloutEvent("setup_actions", "succeeded", "automatic setup action processing succeeded", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "setup_actions", "succeeded", "automatic setup action processing succeeded", "")
 	}
 
 	if access != nil {
@@ -453,9 +359,6 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			slog.String("status", "success"),
 		)
 	}
-
-	// Register with kombify for Direct Connect (only for kombify.me domains)
-	registerWithKombify(spec, state)
 
 	// Clean up dangling images and build cache left from deployment
 	dockerClient := docker.NewClient()
@@ -498,86 +401,18 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		fmt.Println()
 		printInfo("Running post-deployment verification...")
 		rolloutEvent("verify", "started", "post-deployment verification started", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "verify", "started", "post-deployment verification started", "")
 		report := buildLocalVerifyReport(ctx, wd, spec, state, stackverify.Options{
 			HTTP:   applyVerifyHTTP,
 			Strict: applyVerifyStrict,
 		})
 		if err := emitVerifyReport(cmd.OutOrStdout(), report, false); err != nil {
 			rolloutFailure("verify", err)
-			recordTenantDeploymentEvent(applyTenantDeployment, "verify", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
 			return fmt.Errorf("post-deployment verify: %w", err)
 		}
 		rolloutEvent("verify", "succeeded", "post-deployment verification succeeded", nil)
-		recordTenantDeploymentEvent(applyTenantDeployment, "verify", "succeeded", "post-deployment verification succeeded", "")
-	}
-
-	// Post-deploy: report tenant deployment state (if linked to a managed StackKit)
-	if applyTenantDeployment != "" {
-		recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "started", "reporting healthy lifecycle state", "")
-		if err := reportTenantDeploymentState(applyTenantDeployment, "healthy", "",
-			fmt.Sprintf("apply succeeded for stackkit=%s in %s", spec.StackKit, duration.Round(time.Second))); err != nil {
-			recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "failed", err.Error(), rollout.ClassifyFailure(err.Error()))
-			printWarning("Could not report deployment state to Admin: %v", err)
-		} else {
-			recordTenantDeploymentEvent(applyTenantDeployment, "lifecycle_patch", "succeeded", "healthy lifecycle state reported", "")
-		}
 	}
 
 	return nil
-}
-
-func loadFetchedTenantSpecForApply(wd, deploymentID string, fetched tenantSpecFetchResult, preflight func() (bool, error)) (*models.StackSpec, bool, error) {
-	if preflight == nil {
-		return nil, false, fmt.Errorf("tenant StackSpec governed preflight is required")
-	}
-	handled, err := withVerifiedTenantFetchBundle(wd, specFile, deploymentID, fetched, preflight)
-	if handled || err != nil {
-		return nil, handled, err
-	}
-	if fetched.Version != stackspecmigration.SourceVersionV1 {
-		return nil, false, fmt.Errorf("tenant StackSpec %s escaped governed Architecture-v2 preflight", fetched.Version)
-	}
-	spec, err := config.NewLoader(wd).LoadLegacyStackSpec(specFile)
-	return spec, false, err
-}
-
-func preflightManagedTenantBundle(wd string) (bool, bool, error) {
-	exists, err := tenantFetchManifestExists(wd)
-	if err != nil || !exists {
-		return exists, false, err
-	}
-	if applyTenantDeployment == "" {
-		return true, false, fmt.Errorf("managed tenant bundle exists but --tenant-deployment is missing")
-	}
-	loaded, err := config.NewLoader(wd).ReadStackSpecDocument(specFile)
-	if err != nil {
-		if os.IsNotExist(err) || errors.Is(err, os.ErrNotExist) {
-			// A bundle published immediately before a process crash is resumed
-			// by the normal fetch branch, which revalidates the exact envelope.
-			return false, false, nil
-		}
-		return true, false, err
-	}
-	result := tenantSpecFetchResult{Version: loaded.Document.Version}
-	switch loaded.Document.Version {
-	case stackspecmigration.SourceVersionV1:
-		if loaded.Document.Legacy == nil {
-			return true, false, fmt.Errorf("managed tenant StackSpec v1 has no legacy identity")
-		}
-		result.KitProfile = stackspecmigration.KitProfile(loaded.Document.Legacy.StackKit)
-	case stackspecmigration.SourceVersionV2Alpha1:
-		if loaded.Document.V2 == nil {
-			return true, false, fmt.Errorf("managed tenant StackSpec v2 has no kit identity")
-		}
-		result.KitProfile = loaded.Document.V2.KitProfile
-	default:
-		return true, false, fmt.Errorf("managed tenant StackSpec has unsupported version %q", loaded.Document.Version)
-	}
-	handled, err := withVerifiedTenantFetchBundle(wd, specFile, applyTenantDeployment, result, func() (bool, error) {
-		return newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions)
-	})
-	return true, handled, err
 }
 
 func preserveExistingSetupRuns(loader *config.Loader, stateFile string, state *models.DeploymentState) error {
@@ -606,66 +441,6 @@ func shouldSkipPlatformApps() bool {
 		}
 	}
 	return false
-}
-
-// reportTenantDeploymentState PATCHes sk_tenant_deployment with a lifecycle
-// transition. Used by `apply --tenant-deployment=<uuid>` to bridge the
-// filesystem-apply flow back into the managed-tenant lifecycle.
-func reportTenantDeploymentState(deploymentID, state, lastError, message string) error {
-	endpoint := strings.TrimRight(applyReportingEndpoint, "/")
-	if endpoint == "" {
-		// Prefer the harmonized STACKKIT_ADMIN_ENDPOINT (also used by
-		// internal/registry.AutoClient); fall back to the legacy
-		// STACKKIT_ADMIN_URL for compatibility with older admin-jobs
-		// deployments that have not yet been updated.
-		endpoint = strings.TrimRight(os.Getenv("STACKKIT_ADMIN_ENDPOINT"), "/")
-	}
-	if endpoint == "" {
-		endpoint = strings.TrimRight(os.Getenv("STACKKIT_ADMIN_URL"), "/")
-	}
-	if endpoint == "" {
-		return fmt.Errorf("no --admin-endpoint, STACKKIT_ADMIN_ENDPOINT, or STACKKIT_ADMIN_URL configured")
-	}
-	token := resolveTenantDeploymentToken()
-	if token == "" {
-		return fmt.Errorf("no STACKKIT_BOOTSTRAP_TOKEN, --admin-token, or STACKKIT_ADMIN_TOKEN configured")
-	}
-
-	payload := map[string]interface{}{
-		"lifecycleState": state,
-		"message":        message,
-		"actor":          "stackkit-cli",
-	}
-	if lastError != "" {
-		payload["lastError"] = lastError
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal payload: %w", err)
-	}
-
-	url := fmt.Sprintf("%s/api/v1/sk/tenants/deployments/%s", endpoint, deploymentID)
-	req, err := http.NewRequest(http.MethodPatch, url, strings.NewReader(string(body))) // #nosec G107 G704 -- endpoint is an operator-supplied CLI flag.
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req) // #nosec G107 G704 -- request URL is operator-supplied CLI endpoint.
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("admin returned %d", resp.StatusCode)
-	}
-	printSuccess("Reported deployment %s -> %s", deploymentID, state)
-	return nil
 }
 
 // createDefaultSpec finds a StackKit and copies its default-spec.yaml
@@ -1065,59 +840,6 @@ func formatApplyError(stderr string) string {
 	}
 
 	return "Deployment failed. Run 'stackkit prepare' then retry with 'stackkit apply'."
-}
-
-// registerWithKombify registers the stackkit-server instance with kombify for Direct Connect.
-// Only runs when the deployment uses a kombify.me domain.
-func registerWithKombify(spec *models.StackSpec, state *models.DeploymentState) {
-	if spec == nil || spec.Domain != models.DomainKombifyMe {
-		return
-	}
-
-	apiKey := os.Getenv("KOMBIFY_API_KEY")
-	if apiKey == "" {
-		deployLog.Warn("registry.skip", slog.String("reason", "no KOMBIFY_API_KEY"))
-		return
-	}
-
-	fingerprint := kombifyme.DeviceFingerprint()
-	instanceID := fmt.Sprintf("%s-%s-%s", spec.SubdomainPrefix, spec.StackKit, fingerprint)
-
-	// Build service list from deployment state
-	var services []models.ServiceInfo
-	for _, svc := range state.Services {
-		services = append(services, models.ServiceInfo{
-			Name:   svc.Name,
-			URL:    svc.URL,
-			Status: string(svc.Status),
-		})
-	}
-
-	reg := &models.InstanceRegistration{
-		InstanceID:  instanceID,
-		EndpointURL: fmt.Sprintf("https://%s-api.kombify.me", spec.SubdomainPrefix),
-		StackKit:    spec.StackKit,
-		Services:    services,
-		Status:      string(state.Status),
-		APIPort:     8082,
-	}
-
-	client := kombifyme.NewClient(apiKey)
-	resp, err := client.RegisterInstance(reg)
-	if err != nil {
-		deployLog.Warn("registry.register",
-			slog.String("status", "failed"),
-			slog.String("error", err.Error()),
-		)
-		printWarning("Failed to register with kombify: %v", err)
-		return
-	}
-
-	deployLog.Event("registry.register",
-		slog.String("status", "success"),
-		slog.String("instance_id", resp.InstanceID),
-	)
-	printSuccess("Registered with kombify (instance: %s)", resp.InstanceID)
 }
 
 // patchTfvarsNetworkMode updates terraform.tfvars.json to change network_mode.

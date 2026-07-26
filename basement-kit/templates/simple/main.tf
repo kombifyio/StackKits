@@ -5269,7 +5269,7 @@ config = {
       {"capability": "team-management", "status": "configured", "evidence": ["registration disabled", "non-admin resource creation disabled"]},
       {"capability": "proxy-routing", "status": "configured", "evidence": ["StackKit Traefik owns Komodo route", "Core API loopback endpoint configured"]},
       {"capability": "secrets", "status": "configured", "evidence": ["JWT/webhook/database secrets generated", "platformConfig.mode=0600"]},
-      {"capability": "backups", "status": "configured", "evidence": ["komodo_backups volume mounted at /backups", "platform volumes labelled stackkit.backup=required", "restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill"]},
+      {"capability": "backups", "status": "configured", "evidence": ["komodo_backups volume mounted at /backups", "platform volumes labelled stackkit.backup=required", "restore-drill endpoint=/api/v1/internal/stack-actions/restore-drill"]},
       {"capability": "healthchecks", "status": "configured", "evidence": ["Komodo Core healthcheck configured", "Periphery server registration expected"]},
       {"capability": "service-handoff", "status": "configured", "evidence": ["serverId=stackkit-local", "Stack API configured for managed compose stacks"]},
     ],
@@ -5573,7 +5573,7 @@ EOS
         echo "Coolify already installed"
       fi
       if [ -n "${var.docker_host}" ] && [ "${var.docker_host}" != "unix:///var/run/docker.sock" ]; then
-        echo "Setting Docker CLI default context for Coolify runtime actions..."
+        echo "Setting Docker CLI default context for Coolify StackActions..."
         (
           unset DOCKER_HOST
           docker context use stackkit-host >/dev/null
@@ -5775,7 +5775,7 @@ $config = [
             [
                 'capability' => 'backups',
                 'status' => 'configured',
-                'evidence' => ['Coolify data and database volumes are persisted', 'platform volumes labelled stackkit.backup=required', 'restore-drill endpoint=/api/v1/internal/runtime-actions/restore-drill'],
+                'evidence' => ['Coolify data and database volumes are persisted', 'platform volumes labelled stackkit.backup=required', 'restore-drill endpoint=/api/v1/internal/stack-actions/restore-drill'],
             ],
             [
                 'capability' => 'healthchecks',

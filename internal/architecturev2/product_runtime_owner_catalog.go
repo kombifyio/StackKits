@@ -24,12 +24,19 @@ const (
 	ProductRuntimeOwnerHomeDeviceAuthority    ProductRuntimeOwnerID = "stackkits-home-device-authority-policy-manifest"
 	ProductRuntimeOwnerHomeAccess             ProductRuntimeOwnerID = "stackkits-home-access-policy-manifest"
 	ProductRuntimeOwnerLocalAutonomy          ProductRuntimeOwnerID = "stackkits-local-autonomy-policy-manifest"
+	ProductRuntimeOwnerMonitoringAgent        ProductRuntimeOwnerID = "stackkits-monitoring-agent-runtime"
 	ProductRuntimeOwnerModernHomeIdentity     ProductRuntimeOwnerID = "stackkits-modern-home-identity-trust-policy-manifest"
 	ProductRuntimeOwnerModernCloudIdentity    ProductRuntimeOwnerID = "stackkits-modern-cloud-identity-verifier-policy-manifest"
 	ProductRuntimeOwnerFederationLink         ProductRuntimeOwnerID = "stackkits-federation-link-runtime"
 	ProductRuntimeOwnerFederationControlAgent ProductRuntimeOwnerID = "stackkits-federation-control-agent-runtime"
 	ProductRuntimeOwnerBridgePublication      ProductRuntimeOwnerID = "stackkits-bridge-publication-runtime"
 	ProductRuntimeOwnerBridgeOriginMTLS       ProductRuntimeOwnerID = "stackkits-bridge-origin-mtls-runtime"
+	ProductRuntimeOwnerHABasementWarm         ProductRuntimeOwnerID = "stackkits-ha-basement-warm-runtime"
+	ProductRuntimeOwnerHABasementQuorum       ProductRuntimeOwnerID = "stackkits-ha-basement-quorum-runtime"
+	ProductRuntimeOwnerHACloudWarm            ProductRuntimeOwnerID = "stackkits-ha-cloud-warm-runtime"
+	ProductRuntimeOwnerHACloudQuorum          ProductRuntimeOwnerID = "stackkits-ha-cloud-quorum-runtime"
+	ProductRuntimeOwnerHAModernWarm           ProductRuntimeOwnerID = "stackkits-ha-modern-warm-runtime"
+	ProductRuntimeOwnerHAModernQuorum         ProductRuntimeOwnerID = "stackkits-ha-modern-quorum-runtime"
 )
 
 // ProductRuntimeOwnerDescriptor exposes one immutable value projection of a
@@ -59,12 +66,19 @@ func ProductStaticRuntimeOwnerCatalog() []ProductRuntimeOwnerDescriptor {
 		{ID: ProductRuntimeOwnerHomeDeviceAuthority, Selector: productHomeDeviceAuthoritySelector()},
 		{ID: ProductRuntimeOwnerHomeAccess, Selector: productHomeAccessSelector()},
 		{ID: ProductRuntimeOwnerLocalAutonomy, Selector: productLocalAutonomySelector()},
+		{ID: ProductRuntimeOwnerMonitoringAgent, Selector: productMonitoringAgentSelector()},
 		{ID: ProductRuntimeOwnerModernHomeIdentity, Selector: productModernHomeIdentitySelector()},
 		{ID: ProductRuntimeOwnerModernCloudIdentity, Selector: productModernCloudIdentitySelector()},
 		{ID: ProductRuntimeOwnerFederationLink, Selector: productFederationLinkSelector()},
 		{ID: ProductRuntimeOwnerFederationControlAgent, Selector: productFederationControlAgentSelector()},
 		{ID: ProductRuntimeOwnerBridgePublication, Selector: productBridgePublicationSelector()},
 		{ID: ProductRuntimeOwnerBridgeOriginMTLS, Selector: productBridgeOriginMTLSSelector()},
+		{ID: ProductRuntimeOwnerHABasementWarm, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHABasementWarm))},
+		{ID: ProductRuntimeOwnerHABasementQuorum, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHABasementQuorum))},
+		{ID: ProductRuntimeOwnerHACloudWarm, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHACloudWarm))},
+		{ID: ProductRuntimeOwnerHACloudQuorum, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHACloudQuorum))},
+		{ID: ProductRuntimeOwnerHAModernWarm, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHAModernWarm))},
+		{ID: ProductRuntimeOwnerHAModernQuorum, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHAModernQuorum))},
 	}
 }
 

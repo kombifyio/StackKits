@@ -1,11 +1,15 @@
 package commands
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/hostconformance"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 )
 
@@ -24,14 +28,97 @@ func (a *architectureV2ProductRuntimeAuthority) Close() error {
 }
 
 // newArchitectureV2ProductRuntimeAuthority is the production CLI composition
-// admission. The standalone binary deliberately owns no inspection/signing
-// key and therefore cannot manufacture a Product Apply collector. Integrations
-// must construct the public productruntime.Composition or inject a real
-// construction-owned collector through the internal adapter below.
+// admission. The standalone binary constructs its own evidence collector from
+// the local homelab owner's signing custody, so Apply stays available with no
+// Kombify account, endpoint, or TechStack present.
+//
+// This is construction-owned evidence in the strict sense the contract
+// requires: the collector is built by the composition root, never accepted
+// from a caller or an Apply request. ADR-0029 places that construction at
+// home — "Enrollment and signing happen there" — and requires conformance
+// gates to reject remote enrollment/signing, so the local owner is the correct
+// construction owner rather than an exception to it.
+//
+// An authenticated service integration still supplies its own collector
+// through newArchitectureV2ProductRuntimeAuthorityWithCollector; both paths
+// share one custody model.
 func newArchitectureV2ProductRuntimeAuthority(workspaceRoot string, options architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error) {
-	return nil, fmt.Errorf(
-		"Architecture v2 Product Apply requires a construction-owned evidence collector; standalone stackkit apply cannot accept caller evidence or create signing custody (use pkg/productruntime.Composition from the authenticated service integration)",
+	collector, anchor, binding, err := newLocalOwnerApplyEvidenceCollector(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	options, err = bindArchitectureV2LocalExecutionOptions(options, binding)
+	if err != nil {
+		return nil, err
+	}
+	return newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(workspaceRoot, options, collector, []architecturev2.ProductApplyTrustAnchor{anchor})
+}
+
+// newArchitectureV2ProductVerifyAuthority derives public verification trust
+// from the established local key custody and owns the immutable product
+// runtime identity. It constructs no journal, recovery store, collector
+// invocation, execution channel, or mutating runtime owner.
+func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error) {
+	_, anchor, _, err := newLocalOwnerApplyEvidenceCollector(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	runtimeVersion := architectureV2ComponentVersion(version)
+	identity, err := architecturev2.NewProductRuntimeRootIdentity(runtimeVersion)
+	if err != nil {
+		return nil, fmt.Errorf("construct read-only Architecture v2 product runtime identity: %w", err)
+	}
+	return architecturev2.NewProductEmbeddedServiceWithLocalApplyVerification(
+		architecturev2.StackKitsV2Contract(version), identity,
+		[]architecturev2.ProductApplyTrustAnchor{anchor},
 	)
+}
+
+// newLocalOwnerApplyEvidenceCollector binds Apply evidence to the owner
+// identity this workspace already established. Custody is loaded, never
+// silently minted at Apply time: a key appearing during Apply would mean the
+// workspace had no owner to anchor evidence to.
+func newLocalOwnerApplyEvidenceCollector(workspaceRoot string) (architecturev2.ProductApplyEvidenceCollector, architecturev2.ProductApplyTrustAnchor, localevidence.LocalBinding, error) {
+	custody, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	if errors.Is(err, localevidence.ErrOwnerCustodyMissing) {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
+			"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
+		)
+	}
+	if err != nil {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("load local owner custody: %w", err)
+	}
+	key, err := localevidence.LoadOwnerKey(workspaceRoot)
+	if errors.Is(err, localevidence.ErrOwnerKeyMissing) {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
+			"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
+		)
+	}
+	if err != nil {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("load local Apply evidence custody: %w", err)
+	}
+	hostObserver, err := localevidence.NewHostObserver(hostconformance.LocalProbe{})
+	if err != nil {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local host observer: %w", err)
+	}
+	collector, err := localevidence.NewOwnerCollector(localevidence.CollectorConfig{
+		Key:       key,
+		Version:   architectureV2ComponentVersion(version),
+		Observers: map[string]localevidence.Observer{"host": hostObserver},
+	})
+	if err != nil {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local Apply evidence collector: %w", err)
+	}
+	producer, publicKey, err := collector.ProducerTrust()
+	if err != nil {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, err
+	}
+	return collector, architecturev2.ProductApplyTrustAnchor{
+		Producer: generationartifact.ApplyEvidenceProducer{
+			ID: producer.ID, Version: producer.Version, KeyID: producer.KeyID,
+		},
+		PublicKey: ed25519.PublicKey(publicKey), RequirementKinds: []string{"host"},
+	}, custody.Binding, nil
 }
 
 // newArchitectureV2ProductRuntimeAuthorityWithCollector owns the provider-free
@@ -44,12 +131,21 @@ func newArchitectureV2ProductRuntimeAuthorityWithCollector(
 	options architectureV2ExecutionCLIOptions,
 	collector architecturev2.ProductApplyEvidenceCollector,
 ) (architectureV2ExecutionAuthority, error) {
+	return newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(workspaceRoot, options, collector, nil)
+}
+
+func newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(
+	workspaceRoot string,
+	options architectureV2ExecutionCLIOptions,
+	collector architecturev2.ProductApplyEvidenceCollector,
+	trust []architecturev2.ProductApplyTrustAnchor,
+) (architectureV2ExecutionAuthority, error) {
 	runtimeVersion := architectureV2ComponentVersion(version)
 	identity, err := architecturev2.NewProductRuntimeRootIdentity(runtimeVersion)
 	if err != nil {
 		return nil, fmt.Errorf("construct Architecture v2 product runtime identity: %w", err)
 	}
-	registrations, err := architectureV2LocalRuntimeOwnerRegistrations(runtimeVersion)
+	registrations, err := architectureV2LocalRuntimeOwnerRegistrations(workspaceRoot, runtimeVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -61,18 +157,54 @@ func newArchitectureV2ProductRuntimeAuthorityWithCollector(
 	if err != nil {
 		return nil, fmt.Errorf("open Architecture v2 Product Apply custody: %w", err)
 	}
-	service, err := architecturev2.NewProductEmbeddedServiceWithRuntimeOwnersAndApplyEvidenceCollector(
-		architecturev2.StackKitsV2Contract(version), identity,
-		registrations, channels, journal, journal, collector,
-	)
+	var service *architecturev2.Service
+	if len(trust) == 0 {
+		service, err = architecturev2.NewProductEmbeddedServiceWithRuntimeOwnersAndApplyEvidenceCollector(
+			architecturev2.StackKitsV2Contract(version), identity,
+			registrations, channels, journal, journal, collector,
+		)
+	} else {
+		service, err = architecturev2.NewProductEmbeddedServiceWithRuntimeOwnersAndLocalApplyEvidence(
+			architecturev2.StackKitsV2Contract(version), identity,
+			registrations, channels, journal, journal, collector, trust,
+		)
+	}
 	if err != nil {
 		return nil, errors.Join(err, journal.Close())
 	}
 	return &architectureV2ProductRuntimeAuthority{Service: service, journal: journal}, nil
 }
 
-func architectureV2LocalRuntimeOwnerRegistrations(runtimeVersion string) ([]architecturev2.ProductRuntimeOwnerRegistration, error) {
+func bindArchitectureV2LocalExecutionOptions(options architectureV2ExecutionCLIOptions, binding localevidence.LocalBinding) (architectureV2ExecutionCLIOptions, error) {
+	configured := []string{strings.TrimSpace(options.localSiteRef), strings.TrimSpace(options.localNodeRef), strings.TrimSpace(options.localChannelRef)}
+	count := 0
+	for _, value := range configured {
+		if value != "" {
+			count++
+		}
+	}
+	if count == 0 {
+		options.localSiteRef, options.localNodeRef, options.localChannelRef = binding.SiteRef, binding.NodeRef, binding.ChannelRef
+		return options, nil
+	}
+	if count != len(configured) || configured[0] != binding.SiteRef || configured[1] != binding.NodeRef || configured[2] != binding.ChannelRef {
+		return architectureV2ExecutionCLIOptions{}, fmt.Errorf(
+			"explicit local Site/node/execution-channel flags must exactly match the CUE-owned persisted owner binding %s/%s/%s",
+			binding.SiteRef, binding.NodeRef, binding.ChannelRef,
+		)
+	}
+	return options, nil
+}
+
+func architectureV2LocalRuntimeOwnerRegistrations(workspaceRoot, runtimeVersion string) ([]architecturev2.ProductRuntimeOwnerRegistration, error) {
+	policies, err := runtimeexecutorlocal.NewOSBasementPolicyOperations(workspaceRoot)
+	if err != nil {
+		return nil, fmt.Errorf("configure owner-bound local policy operations: %w", err)
+	}
 	constructors := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductHostAdmissionRegistration(runtimeVersion)
+		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductSecurityBaselineRegistration(runtimeVersion)
 		},
@@ -81,6 +213,25 @@ func architectureV2LocalRuntimeOwnerRegistrations(runtimeVersion string) ([]arch
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductHomeBackupTargetRegistration(runtimeVersion, runtimeexecutorlocal.NewOSHomeBackupTargetOperations())
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			operations, err := runtimeexecutorlocal.NewOSBasementCoreOperations(workspaceRoot)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.NewProductBasementCoreRegistration(runtimeVersion, operations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductBasementIdentityTrustRegistration(runtimeVersion, policies)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductHomeDeviceAuthorityRegistration(runtimeVersion, policies)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductHomeAccessRegistration(runtimeVersion, policies)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductLocalAutonomyRegistration(runtimeVersion, policies)
 		},
 	}
 	registrations := make([]architecturev2.ProductRuntimeOwnerRegistration, 0, len(constructors))
@@ -133,5 +284,6 @@ func (architectureV2UnavailableExecutionChannels) AdmitExecutionChannel(request 
 var (
 	_ architectureV2ExecutionAuthority              = (*architectureV2ProductRuntimeAuthority)(nil)
 	_ architectureV2ProductApplyAuthority           = (*architectureV2ProductRuntimeAuthority)(nil)
+	_ architectureV2ProductVerifyAuthority          = (*architectureV2ProductRuntimeAuthority)(nil)
 	_ architecturev2.ProductExecutionChannelFactory = architectureV2UnavailableExecutionChannels{}
 )

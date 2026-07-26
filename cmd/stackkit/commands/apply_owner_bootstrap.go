@@ -1,11 +1,9 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/apply"
@@ -150,19 +148,6 @@ type ownerBootstrapForApply struct {
 	Managed                 bool
 }
 
-func requireManagedIdentityBootstrapHandoff(wd string, spec *models.StackSpec) error {
-	if spec == nil || applyTenantDeployment == "" {
-		return nil
-	}
-	if spec.Owner.EffectiveBootstrapMode() != models.OwnerBootstrapModeAuto {
-		return nil
-	}
-	if _, _, err := readIdentityBootstrapEnvelope(wd); err != nil {
-		return err
-	}
-	return nil
-}
-
 func resolveOwnerBootstrapForApply(wd string, spec *models.StackSpec) (ownerBootstrapForApply, bool, error) {
 	if spec == nil {
 		return ownerBootstrapForApply{}, false, nil
@@ -177,82 +162,10 @@ func resolveOwnerBootstrapForApply(wd string, spec *models.StackSpec) (ownerBoot
 			RecoveryPassphraseHash: spec.Owner.RecoveryPassphraseHash,
 		}, true, nil
 	case models.OwnerBootstrapModeAuto:
-		if applyTenantDeployment == "" {
-			printInfo("Skipping local owner bootstrap (owner bootstrap is orchestrator-managed)")
-			return ownerBootstrapForApply{}, false, nil
-		}
-		env, ok, err := readIdentityBootstrapEnvelope(wd)
-		if err != nil {
-			return ownerBootstrapForApply{}, false, err
-		}
-		if !ok {
-			return ownerBootstrapForApply{}, false, fmt.Errorf("managed owner bootstrap requires %s for owner.bootstrapMode=auto", identityBootstrapEnvelopePath(wd))
-		}
-		owner := env.Owner
-		if strings.TrimSpace(owner.Source) == "" ||
-			owner.Source == models.OwnerSourceCloud ||
-			owner.Source == models.OwnerSourceFirstRun {
-			// The managed handoff identifies the kombify Cloud owner, but the
-			// VM still provisions a local PocketID account for passkey enrollment.
-			owner.Source = models.OwnerSourceLocal
-		}
-		if owner.BootstrapMode == "" {
-			owner.BootstrapMode = models.OwnerBootstrapModeCustom
-		}
-		return ownerBootstrapForApply{
-			Owner:                   owner,
-			RecoveryPassphraseHash:  firstNonEmpty(env.RecoveryPassphraseHash, owner.RecoveryPassphraseHash),
-			RecoveryPassphrasePlain: env.RecoveryPassphrasePlain,
-			Managed:                 true,
-		}, true, nil
+		return resolveAutoOwnerBootstrapForApply(wd)
 	default:
 		return ownerBootstrapForApply{}, false, fmt.Errorf("invalid owner bootstrapMode %q", mode)
 	}
-}
-
-func readIdentityBootstrapEnvelope(wd string) (*models.OwnerAdminBootstrapEnvelope, bool, error) {
-	path := legacyIdentityBootstrapEnvelopePath(wd)
-	bundleExists, err := tenantFetchManifestExists(wd)
-	if err != nil {
-		return nil, false, fmt.Errorf("inspect tenant identity bundle: %w", err)
-	}
-	var data []byte
-	if applyTenantDeployment != "" && !bundleExists {
-		return nil, false, fmt.Errorf("managed owner bootstrap requires a verified tenant-fetch bundle; move the existing spec aside and re-fetch deployment %s", applyTenantDeployment)
-	}
-	if bundleExists {
-		path = identityBootstrapEnvelopePath(wd)
-		var declared bool
-		var readErr error
-		data, declared, readErr = readVerifiedTenantSidecar(wd, specFile, applyTenantDeployment, "identity-bootstrap.json")
-		if readErr != nil {
-			return nil, false, fmt.Errorf("verify identity bootstrap handoff %s: %w", path, readErr)
-		}
-		if !declared {
-			return nil, false, fmt.Errorf("managed owner bootstrap requires identity bootstrap handoff declared by %s", filepath.Join(wd, filepath.FromSlash(tenantFetchBundleRelative), "manifest.json"))
-		}
-	} else {
-		data, err = os.ReadFile(path)
-	}
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, false, fmt.Errorf("managed owner bootstrap requires identity bootstrap handoff: %s is missing", path)
-		}
-		return nil, false, fmt.Errorf("read identity bootstrap handoff %s: %w", path, err)
-	}
-	var env models.OwnerAdminBootstrapEnvelope
-	if err := json.Unmarshal(data, &env); err != nil {
-		return nil, false, fmt.Errorf("decode identity bootstrap handoff %s: %w", path, err)
-	}
-	return &env, true, nil
-}
-
-func identityBootstrapEnvelopePath(wd string) string {
-	return filepath.Join(wd, filepath.FromSlash(tenantFetchBundleRelative), "identity-bootstrap.json")
-}
-
-func legacyIdentityBootstrapEnvelopePath(wd string) string {
-	return filepath.Join(wd, ".stackkit", "identity-bootstrap.json")
 }
 
 // pocketIDURLForSpec returns the public origin of the homelab's PocketID

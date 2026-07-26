@@ -116,7 +116,7 @@ Definition: base.#ProductKitDefinition & {
 			"bridge-observability",
 		]])
 		defaults: []
-		optional: ["lan-discovery", "lan-dns", "internal-pki", "private-admin-mesh", "failure-domain-placement", "availability-ha"]
+		optional: ["lan-discovery", "lan-dns", "internal-pki", "private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["cloud-enrollment-authority", "broad-lan-route-advertisement"]
 	}
 	workloads: {required: [], defaults: [], optional: ["photos"], forbidden: []}

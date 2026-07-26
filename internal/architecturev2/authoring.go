@@ -30,6 +30,21 @@ type InitialStackSpecAuthoring struct {
 	ContractVersion   string
 	Status            string
 	RequiredOverrides []string
+	StandaloneOwner   *StandaloneOwnerAuthoring
+}
+
+// StandaloneOwnerAuthoring is the CUE-owned local owner/bootstrap projection
+// for a kit that supports account-free standalone initialization.
+type StandaloneOwnerAuthoring struct {
+	Source               string
+	SiteRef              string
+	NodeRef              string
+	ExecutionChannelRef  string
+	IdentityProvider     string
+	CertificateAuthority string
+	HumanAuthorityRef    string
+	HumanIssuerRef       string
+	TrustDomainRef       string
 }
 
 type stackSpecValidationFunc func([]byte) (StackSpecValidation, error)
@@ -86,7 +101,53 @@ func (s *Service) InitialStackSpecAuthoringContract(profile stackspecmigration.K
 	if err != nil {
 		return InitialStackSpecAuthoring{}, err
 	}
-	return InitialStackSpecAuthoring{ContractVersion: contractVersion, Status: status, RequiredOverrides: append([]string(nil), required...)}, nil
+	standaloneOwner, err := decodeStandaloneOwnerAuthoring(authoring, profile)
+	if err != nil {
+		return InitialStackSpecAuthoring{}, err
+	}
+	return InitialStackSpecAuthoring{
+		ContractVersion: contractVersion, Status: status,
+		RequiredOverrides: append([]string(nil), required...),
+		StandaloneOwner:   standaloneOwner,
+	}, nil
+}
+
+func decodeStandaloneOwnerAuthoring(authoring map[string]any, profile stackspecmigration.KitProfile) (*StandaloneOwnerAuthoring, error) {
+	raw, exists := authoring["standaloneOwner"]
+	if !exists {
+		return nil, nil
+	}
+	document, ok := raw.(map[string]any)
+	if !ok || document == nil {
+		return nil, resolveError(ErrAuthorityLoad, fmt.Sprintf("%s Definition authoring.standaloneOwner is not an object", profile), nil)
+	}
+	field := func(name string) (string, error) {
+		value, ok := document[name].(string)
+		if !ok || strings.TrimSpace(value) == "" {
+			return "", resolveError(ErrAuthorityLoad, fmt.Sprintf("%s Definition authoring.standaloneOwner.%s is not a non-empty string", profile, name), nil)
+		}
+		return value, nil
+	}
+	values := make([]string, 9)
+	names := []string{
+		"source", "siteRef", "nodeRef", "executionChannelRef", "identityProvider",
+		"certificateAuthority", "humanAuthorityRef", "humanIssuerRef", "trustDomainRef",
+	}
+	for index, name := range names {
+		value, err := field(name)
+		if err != nil {
+			return nil, err
+		}
+		values[index] = value
+	}
+	if values[0] != "local" || values[4] != "pocketid" || values[5] != "step-ca" {
+		return nil, resolveError(ErrAuthorityLoad, fmt.Sprintf("%s Definition has an unsupported standalone owner implementation", profile), nil)
+	}
+	return &StandaloneOwnerAuthoring{
+		Source: values[0], SiteRef: values[1], NodeRef: values[2], ExecutionChannelRef: values[3],
+		IdentityProvider: values[4], CertificateAuthority: values[5],
+		HumanAuthorityRef: values[6], HumanIssuerRef: values[7], TrustDomainRef: values[8],
+	}, nil
 }
 
 func materializeInitialStackSpec(

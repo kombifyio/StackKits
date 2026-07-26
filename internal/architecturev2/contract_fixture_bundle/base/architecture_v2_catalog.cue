@@ -60,6 +60,7 @@ _architectureV2IdentityCapabilities: [
 _architectureV2SecretsRecoveryCapabilities: ["secrets-recovery"]
 _architectureV2BackupCoreCapabilities: ["backup-core"]
 _architectureV2ObservabilityEvidenceCapabilities: ["observability-evidence"]
+_architectureV2TelemetryCollectionCapabilities: ["telemetry-collection"]
 _architectureV2LifecycleUpdateCapabilities: ["lifecycle-update"]
 _architectureV2SecurityBaselineCapabilities: ["security-baseline"]
 _architectureV2CoreHostBootstrapCapabilities: ["host-bootstrap"]
@@ -149,42 +150,83 @@ _architectureV2PublicTLSCapabilities: ["public-tls"]
 // It must never re-enter the architecture capability closure.
 _architectureV2ApplicationCapabilityContracts: []
 
-_architectureV2WorkloadContracts: [#WorkloadContractV2 & {
-	metadata: {
-		id:          "photos"
-		version:     "1.0.0"
-		description: "Self-hosted photo management selected independently from kit architecture capabilities."
-	}
-	kind: "application"
-	functionalCapabilities: ["photo-library", "mobile-photo-backup"]
-	supportedSiteKinds: ["home", "cloud"]
-	dataClasses: ["personal"]
-	defaultAlternative: "immich"
-	alternatives: [{
-		id:          "immich"
-		providerRef: "stackkits-immich"
-		moduleRef:   "stackkits-immich-runtime"
-		route: {serviceRef: "photos", healthRef: "immich-http"}
-		runtime: {
-			allowedKinds: ["container"]
-			allowedDeliveries: ["selected-paas"]
-			allowedAdapterRefs: ["coolify", "komodo"]
-			defaultAdapterRef: "coolify"
+_architectureV2WorkloadContracts: [
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "basement-core"
+			version:     "1.0.0"
+			description: "Required standalone Basement control plane with local routing, owner identity, internal PKI, container management, and operator hub."
 		}
-		setup: {
-			mode:  "manual"
-			owner: "operator"
-			actionRefs: []
-		}
-		inputs: {
-			settings: {allowedRefs: [], requiredRefs: []}
-			secretInputs: {
-				allowedRefs: ["database-password"]
-				requiredRefs: ["database-password"]
+		kind: "service"
+		functionalCapabilities: [
+			"local-routing",
+			"owner-identity",
+			"forward-auth",
+			"internal-ca",
+			"container-platform",
+			"operator-hub",
+		]
+		supportedSiteKinds: ["home"]
+		dataClasses: []
+		defaultAlternative: "standalone"
+		alternatives: [{
+			id:          "standalone"
+			providerRef: "stackkits-basement-core"
+			moduleRef:   "stackkits-basement-core-runtime"
+			route: {serviceRef: "basement-hub", healthRef: "basement-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
 			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "photos"
+			version:     "1.0.0"
+			description: "Self-hosted photo management selected independently from kit architecture capabilities."
 		}
-	}]
-}]
+		kind: "application"
+		functionalCapabilities: ["photo-library", "mobile-photo-backup"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "immich"
+		alternatives: [{
+			id:          "immich"
+			providerRef: "stackkits-immich"
+			moduleRef:   "stackkits-immich-runtime"
+			route: {serviceRef: "photos", healthRef: "immich-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["selected-paas"]
+				allowedAdapterRefs: ["coolify", "komodo"]
+				defaultAdapterRef: "coolify"
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password"]
+					requiredRefs: ["database-password"]
+				}
+			}
+		}]
+	},
+]
 
 _architectureV2TLSCapabilityContracts: [
 	{
@@ -303,6 +345,17 @@ _architectureV2Capabilities: list.Concat([
 		supportedSiteKinds: ["home", "cloud"]
 		evidence: ["resolved-plan-contract"]
 	}],
+	[for capabilityID in _architectureV2TelemetryCollectionCapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "Optional per-node OTLP collector-intent generation; runtime lifecycle, credentials, and telemetry backend ownership remain external."
+			layer:       "platform"
+		}
+		requires: [{id: "observability-evidence"}]
+		supportedSiteKinds: ["home", "cloud"]
+		evidence: ["monitoring-agent-intent-contract"]
+	}],
 	[for capabilityID in _architectureV2LocalCapabilities {
 		metadata: {
 			id:          capabilityID
@@ -417,6 +470,16 @@ _architectureV2Providers: list.Concat([[
 		supportedSiteKinds: ["home", "cloud"]
 		realization: {kind: "contract"}
 		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-monitoring-agent", version: "1.1.0"}
+		provides: _architectureV2TelemetryCollectionCapabilities
+		requires: [{id: "observability-evidence"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-monitoring-agent-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "monitoring-agent-intent-contract", kind: "contract"}]
+		evidence: ["monitoring-agent-intent-contract"]
 	},
 	{
 		metadata: {id: "stackkits-lifecycle-update-contract", version: "1.0.0"}
@@ -700,6 +763,26 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["basement-compose-contract-governance"]
 	},
 	{
+		metadata: {id: "stackkits-basement-core", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["basement-core"]
+		requires: [
+			{id: "host-bootstrap"},
+			{id: "local-ingress"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-basement-core-runtime"]
+			}
+		}
+		health: [{id: "basement-core-provider-contract", kind: "contract"}]
+		evidence: ["basement-core-runtime-evidence"]
+	},
+	{
 		metadata: {id: "stackkits-immich", version: "1.0.0"}
 		provides: []
 		workloadRefs: ["photos"]
@@ -783,6 +866,17 @@ _architectureV2UmbrellaSupport: #ModuleRealizationSupportV2 & {
 	}
 	artifacts: requiredRefs: []
 	evidence: requiredRefs: []
+}
+
+_architectureV2HAAvailabilityRuntimeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["stackId", "kit", "sites", "controlPlane", "moduleTargets", "moduleCapabilities", "availability"]}
+	artifacts: {}
+	evidence: requiredRefs: ["ha-availability-runtime-contract"]
 }
 
 _architectureV2TLSContractSupport: #ModuleRealizationSupportV2 & {
@@ -1043,6 +1137,37 @@ _architectureV2CloudPrivateAdminMeshSupport: #ModuleRealizationSupportV2 & {
 		}]
 	}
 	evidence: requiredRefs: []
+}
+
+_architectureV2MonitoringAgentSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["observability", "sites"]
+	}
+	artifacts: {
+		requiredRefs: ["monitoring-agent-collector-intent"]
+		outputBindings: [{
+			artifactRef: "monitoring-agent-collector-intent"
+			unitRef:     "collector-intent"
+			outputRef:   "observability/monitoring-agent/collector-intent.json"
+		}]
+		contracts: [{
+			id:       "monitoring-agent-collector-intent"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "collector-intent"
+			outputRef: "observability/monitoring-agent/collector-intent.json"
+		}]
+	}
+	evidence: requiredRefs: ["monitoring-agent-runtime-evidence"]
 }
 
 // Host admission and conformance are pre-generation runtime gates, not
@@ -1423,6 +1548,55 @@ _architectureV2KomodoPeripheryAgentSupport: #ModuleRealizationSupportV2 & {
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
+			id:          "stackkits-monitoring-agent-runtime"
+			version:     "1.1.0"
+			description: "Node-local OTLP collector intent consumed only by the separately authenticated monitoring-agent runtime owner."
+		}
+		role:        "platform"
+		providerRef: "stackkits-monitoring-agent"
+		provides:    _architectureV2TelemetryCollectionCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+		}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:   "bound"
+			ownerRef: "stackkits-monitoring-agent-executor"
+			policyArtifactRefs: ["monitoring-agent-collector-intent"]
+			targetScope: "selected-nodes"
+			operations: [
+				"apply-monitoring-agent-intent",
+				"reconcile-monitoring-agent-intent",
+				"verify-monitoring-agent-runtime",
+				"commit-monitoring-agent-evidence",
+			]
+			requiredHealthRef:   "monitoring-agent-runtime-health"
+			requiredEvidenceRef: "monitoring-agent-runtime-evidence"
+		}
+		renderUnits: [{
+			id:           "collector-intent"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://observability/monitoring-agent/collector-intent/v1.json"
+			version:      "1.1.0"
+			contractHash: "sha256:c5f0045e9115ca6e39475c6ee001ce6e498cf4a8b375d72b6a90ddc2056d998b"
+			publicInputRefs: []
+			secretInputRefs: []
+			planInputRefs: ["observability", "sites"]
+			outputs: ["observability/monitoring-agent/collector-intent.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+		}]
+		realizationSupport: _architectureV2MonitoringAgentSupport
+		health: [{id: "monitoring-agent-runtime-health", kind: "contract", scope: "each-node"}]
+		evidence: ["monitoring-agent-runtime-evidence"]
+	},
+	{
+		metadata: {
 			id:          "security-baseline"
 			version:     "1.0.0"
 			description: "Deterministic target-neutral OS-hardening policy generated once for every managed StackKit node; access and network controls remain delegated."
@@ -1442,7 +1616,7 @@ _architectureV2Modules: list.Concat([[
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://foundation/security-baseline/apply.sh"
 			version:      "1.0.0"
-			contractHash: "sha256:0ac2e74a7bc0ed9cff5a1f00d9a6e0b913d75500a00f824562e34438dbe54eab"
+			contractHash: "sha256:1685e923f68ab3acb760fc98677fbd7ea1f409b5fdea7de7be98071d79bae2bd"
 			publicInputRefs: []
 			secretInputRefs: []
 			outputs: ["foundation/security-baseline/apply.sh"]
@@ -1864,8 +2038,8 @@ _architectureV2Modules: list.Concat([[
 		supportedSiteKinds: ["cloud"]
 		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
 		enforcementRequirement: {
-			status:         "bound", ownerRef: "stackkits-cloud-host-security-executor"
-			targetScope:    "cloud-sites"
+			status:      "bound", ownerRef: "stackkits-cloud-host-security-executor"
+			targetScope: "cloud-sites"
 			operations: ["apply-cloud-host-firewall", "reconcile-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security", "commit-cloud-host-security-evidence"]
 			policyArtifactRefs: ["cloud-host-security-executor-contract"]
 			requiredHealthRef:   "cloud-host-security-health"
@@ -1878,7 +2052,7 @@ _architectureV2Modules: list.Concat([[
 			publicInputRefs: ["host-security-network"], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
 			inputBindings: [{
-				targetRef: "host-security-network", sourceRef:            "network.cloudHostSecurity"
+				targetRef: "host-security-network", sourceRef:           "network.cloudHostSecurity"
 				valueType: "cloud-host-security-policy-v2", cardinality: "single", required: true
 			}]
 			outputs: ["cloud/host-security/executor-contract.json"]
@@ -1919,8 +2093,8 @@ _architectureV2Modules: list.Concat([[
 		supportedSiteKinds: ["cloud"]
 		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
 		enforcementRequirement: {
-			status:         "bound", ownerRef: "stackkits-cloud-public-edge-executor"
-			targetScope:    "cloud-sites"
+			status:      "bound", ownerRef: "stackkits-cloud-public-edge-executor"
+			targetScope: "cloud-sites"
 			operations: ["apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge", "commit-cloud-public-edge-evidence"]
 			policyArtifactRefs: ["cloud-public-edge-executor-contract"]
 			requiredHealthRef:   "cloud-public-edge-health"
@@ -1951,8 +2125,8 @@ _architectureV2Modules: list.Concat([[
 		supportedSiteKinds: ["cloud"]
 		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
 		enforcementRequirement: {
-			status:         "bound", ownerRef: "stackkits-cloud-offsite-backup-executor"
-			targetScope:    "cloud-sites"
+			status:      "bound", ownerRef: "stackkits-cloud-offsite-backup-executor"
+			targetScope: "cloud-sites"
 			operations: ["bind-offsite-backup-target", "remove-obsolete-offsite-backup-binding", "verify-offsite-backup-target", "commit-cloud-offsite-backup-evidence"]
 			policyArtifactRefs: ["cloud-offsite-backup-executor-contract"]
 			requiredHealthRef:   "cloud-offsite-backup-health"
@@ -2212,6 +2386,226 @@ _architectureV2Modules: list.Concat([[
 		realizationSupport: _architectureV2SocketProxySupport
 		health: [{id: "socket-proxy-contract", kind: "contract"}]
 		evidence: ["socket-proxy-provider-backing-governance"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-basement-core-runtime"
+			version:     "1.0.0"
+			description: "Required standalone Basement core runtime with exact Compose and OpenTofu realizations for routing, identity, internal PKI, Coolify, and the operator hub."
+		}
+		role:        "workload"
+		providerRef: "stackkits-basement-core"
+		provides: []
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller", "worker"]
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "ghcr.io/coollabsio/coolify:4.1.2"
+				digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
+			}
+			entryComponentRef: "coolify"
+			components: [
+				{
+					id: "router", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/traefik/traefik:v3"
+						digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"
+					}
+					dependsOn: ["socket-proxy"], networkRefs: ["basement-core"]
+					health: {kind: "http", path: "/ping", port: 8080}
+				},
+				{
+					id: "socket-proxy", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+						digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					health: {kind: "image"}
+				},
+				{
+					id: "pocketid", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/pocket-id/pocket-id:v2.7.0"
+						digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 1411}
+				},
+				{
+					id: "tinyauth", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+						digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"
+					}
+					dependsOn: ["pocketid"], networkRefs: ["basement-core"]
+					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["tinyauth", "healthcheck"]}
+				},
+				{
+					id: "step-ca", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "smallstep/step-ca:0.30.2"
+						digest: "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "step-ca-db", target: "/home/step/db", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 9000}
+				},
+				{
+					id: "coolify", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/coollabsio/coolify:4.1.2"
+						digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
+					}
+					dependsOn: ["coolify-postgres", "coolify-redis", "coolify-realtime"], networkRefs: ["basement-core"]
+					volumes: [
+						{id: "coolify-data", target: "/var/www/html/storage", class: "persistent", backup: true},
+						{id: "coolify-ssh", target: "/var/www/html/storage/app/ssh", class: "persistent", backup: true},
+						{id: "coolify-applications", target: "/var/www/html/storage/app/applications", class: "persistent", backup: true},
+						{id: "coolify-databases", target: "/var/www/html/storage/app/databases", class: "persistent", backup: true},
+						{id: "coolify-services", target: "/var/www/html/storage/app/services", class: "persistent", backup: true},
+						{id: "coolify-backups", target: "/var/www/html/storage/app/backups", class: "persistent", backup: true},
+					]
+					health: {kind: "http", path: "/api/health", port: 8080}
+				},
+				{
+					id: "coolify-postgres", role: "database", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/postgres:15-alpine"
+						digest: "sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "coolify-postgres-data", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["pg_isready", "-U", "coolify"]}
+				},
+				{
+					id: "coolify-redis", role: "cache", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/redis:7-alpine"
+						digest: "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "coolify-redis-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["redis-cli", "ping"]}
+				},
+				{
+					id: "coolify-realtime", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/coollabsio/coolify-realtime:1.0.16"
+						digest: "sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629"
+					}
+					dependsOn: ["coolify-redis"], networkRefs: ["basement-core"]
+					health: {kind: "http", path: "/ready", port: 6001}
+				},
+				{
+					id: "hub", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/nginx:alpine"
+						digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+					}
+					dependsOn: ["tinyauth"], networkRefs: ["basement-core"]
+					health: {kind: "http", path: "/healthz", port: 80}
+				},
+			]
+		}
+		renderUnits: [
+			{
+				id: "compose", kind: "compose", rendererRef: "stackkit"
+				templateRef: "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
+				contractHash: "sha256:1112e8b2781a57221083e5ccaada03fc79819e30a46cc4a01d3efc28e666a8af"
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				outputs: ["platform/basement-core/compose.yaml"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: [{
+					serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
+					allowedIngressProtocols: ["http", "https"]
+					allowedExposures: ["local", "remote-private"]
+					originSelector: "control-authority-site"
+					healthRef:      "basement-hub-http"
+				}]
+			},
+			{
+				id: "opentofu", kind: "opentofu", rendererRef: "stackkit"
+				templateRef: "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
+				contractHash: "sha256:9b3f15fa18101ce43b4cbdaf69c803a4a498ae53dce855a02986252d4d498916"
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				outputs: ["platform/basement-core/main.tf"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: [{
+					serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
+					allowedIngressProtocols: ["http", "https"]
+					allowedExposures: ["local", "remote-private"]
+					originSelector: "control-authority-site"
+					healthRef:      "basement-hub-http"
+				}]
+			},
+		]
+		renderVariants: [
+			{
+				id: "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53"
+				unitRefs: ["compose"], artifactRefs: ["basement-core-compose"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id: "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c"
+				unitRefs: ["opentofu"], artifactRefs: ["basement-core-opentofu"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: {
+			contractVersion: "1.0.0"
+			scope:           "concrete"
+			level:           "apply-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: []}
+			planInputs: {contractComplete: true, requiredRefs: []}
+			artifacts: {
+				requiredRefs: ["basement-core-compose", "basement-core-opentofu"]
+				outputBindings: [
+					{
+						artifactRef: "basement-core-compose", unitRef: "compose"
+						outputRef: "platform/basement-core/compose.yaml"
+					},
+					{
+						artifactRef: "basement-core-opentofu", unitRef: "opentofu"
+						outputRef: "platform/basement-core/main.tf"
+					},
+				]
+				contracts: [
+					{
+						id: "basement-core-compose", kind: "compose", format: "yaml", mode: "0640", required: true
+						compatibleTargets: ["compose"], unitRef: "compose"
+						outputRef: "platform/basement-core/compose.yaml"
+					},
+					{
+						id: "basement-core-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["opentofu"], unitRef: "opentofu"
+						outputRef: "platform/basement-core/main.tf"
+					},
+				]
+			}
+			evidence: requiredRefs: ["basement-core-runtime-evidence"]
+		}
+		health: [
+			{id: "basement-router-http", kind: "http", path: "/ping", port: 8080, expectedStatuses: [200]},
+			{id: "pocketid-http", kind: "http", path: "/", port: 1411, expectedStatuses: [200, 302]},
+			{id: "tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
+			{id: "step-ca-tcp", kind: "tcp", port: 9000},
+			{id: "coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
+			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
+		]
+		evidence: ["basement-core-runtime-evidence"]
 	},
 	{
 		metadata: {
@@ -2558,10 +2952,28 @@ _architectureV2Modules: list.Concat([[
 			authority:           haRealization.authoritySelection
 			controlPlaneMembers: "only"
 		}
-		runtime: {kind: "host", delivery: "stackkit"}
-		renderUnits: []
-		realizationSupport: _architectureV2UmbrellaSupport
-		health: [{id: haRealization.healthID, kind: "contract"}]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                      "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://availability/ha/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "controlPlane", "moduleTargets", "moduleCapabilities", "availability"]
+			outputs: ["availability/ha/\(haRealization.moduleID)/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HAAvailabilityRuntimeSupport & {
+			artifacts: {
+				requiredRefs: ["\(haRealization.moduleID)-executor-contract"]
+				outputBindings: [{artifactRef: "\(haRealization.moduleID)-executor-contract", unitRef: "executor-contract", outputRef: "availability/ha/\(haRealization.moduleID)/executor-contract.json"}]
+				contracts: [{
+					id: "\(haRealization.moduleID)-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+					compatibleTargets: ["opentofu", "compose"]
+					unitRef: "executor-contract", outputRef: "availability/ha/\(haRealization.moduleID)/executor-contract.json"
+				}]
+			}
+		}
+		health: [{id: haRealization.healthID, kind: "contract", scope: "each-node"}]
 		evidence: [haRealization.evidenceRef]
 	}],
 ])

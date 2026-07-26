@@ -23,6 +23,7 @@ import (
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
+	"github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -123,6 +124,14 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "runtime.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-rollout"},
 			{"name": "runtime.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-verify"},
 			{"name": "runtime.restore_drill", "description": "Run or dry-run a StackKits restore drill for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/restore-drill"},
+			// CUE-governed StackActions
+			{"name": "stackaction.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": stackaction.PathStackKitRollout},
+			{"name": "stackaction.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": stackaction.PathStackKitVerify},
+			{"name": "stackaction.restore_drill", "description": "Run or dry-run a StackKits restore drill for a TechStack-managed stack", "method": "POST", "path": stackaction.PathRestoreDrill},
+			{"name": "stackaction.backup_run", "description": "Start a node-local StackKits backup run", "method": "POST", "path": stackaction.PathBackupRun},
+			{"name": "stackaction.backup_status", "description": "Inspect node-local StackKits backup state", "method": "POST", "path": stackaction.PathBackupStatus},
+			{"name": "stackaction.backup_restore", "description": "Restore a StackKits backup snapshot", "method": "POST", "path": stackaction.PathBackupRestore},
+			{"name": "stackaction.backup_wipe", "description": "Wipe the configured StackKits backup repository", "method": "POST", "path": stackaction.PathBackupWipe},
 			// Registry
 			{"name": "registry.register", "description": "Register stackkit-server instance for Direct Connect", "method": "POST", "path": "/api/v1/registry/instances"},
 			{"name": "registry.heartbeat", "description": "Send instance heartbeat", "method": "PUT", "path": "/api/v1/registry/instances/{instanceId}/heartbeat"},

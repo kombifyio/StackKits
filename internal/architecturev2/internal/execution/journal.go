@@ -19,13 +19,15 @@ import (
 )
 
 const (
-	transactionJournalVersion = "stackkit.architecture-v2-output-transaction.v1"
-	transactionControlRoot    = ".stackkits-control"
-	transactionJournalRoot    = transactionControlRoot + "/output-journals"
-	transactionStagePrefix    = ".stackkit-v2-stage-"
-	transactionBackupPrefix   = ".previous-managed-output-"
-	transactionFailedPrefix   = ".failed-managed-output-"
-	transactionIDHexLength    = sha256.Size
+	transactionJournalVersion     = "stackkit.architecture-v2-output-transaction.v1"
+	transactionControlRoot        = ".stackkits-control"
+	transactionJournalRoot        = transactionControlRoot + "/output-journals"
+	retiredTransactionStageRoot   = transactionControlRoot + "/retired-output-stages"
+	retiredTransactionJournalRoot = transactionControlRoot + "/retired-output-journals"
+	transactionStagePrefix        = ".stackkit-v2-stage-"
+	transactionBackupPrefix       = ".previous-managed-output-"
+	transactionFailedPrefix       = ".failed-managed-output-"
+	transactionIDHexLength        = sha256.Size
 )
 
 // transactionPhase is deliberately ordered. Its numeric rank is used only in
@@ -393,14 +395,25 @@ func validTransactionPhaseTransition(current, next transactionPhase, hadPrevious
 }
 
 func transactionJournalDirectory(transactionID string) (string, error) {
+	return transactionJournalDirectoryAt(transactionJournalRoot, transactionID)
+}
+
+func transactionJournalDirectoryAt(root, transactionID string) (string, error) {
+	if root == "" {
+		return "", journalInvalid("journalRoot", root, "non-empty portable control path", nil)
+	}
 	if !validTransactionID(transactionID) {
 		return "", journalInvalid("transactionId", transactionID, "32 lowercase hexadecimal characters", nil)
 	}
-	return path.Join(transactionJournalRoot, transactionID), nil
+	return path.Join(root, transactionID), nil
 }
 
 func transactionJournalRecordPath(transactionID string, phase transactionPhase) (string, error) {
-	directory, err := transactionJournalDirectory(transactionID)
+	return transactionJournalRecordPathAt(transactionJournalRoot, transactionID, phase)
+}
+
+func transactionJournalRecordPathAt(root, transactionID string, phase transactionPhase) (string, error) {
+	directory, err := transactionJournalDirectoryAt(root, transactionID)
 	if err != nil {
 		return "", err
 	}
@@ -495,10 +508,14 @@ func writeTransactionJournal(workspace *confinedfs.Transaction, previous *transa
 }
 
 func readLatestTransactionJournal(workspace *confinedfs.Transaction, expected transactionJournalBinding) (transactionJournal, error) {
+	return readLatestTransactionJournalAt(workspace, transactionJournalRoot, expected)
+}
+
+func readLatestTransactionJournalAt(workspace *confinedfs.Transaction, journalRoot string, expected transactionJournalBinding) (transactionJournal, error) {
 	if workspace == nil {
-		return transactionJournal{}, &transactionJournalError{Code: transactionJournalIO, Path: transactionJournalRoot, Err: errors.New("held workspace transaction is required")}
+		return transactionJournal{}, &transactionJournalError{Code: transactionJournalIO, Path: journalRoot, Err: errors.New("held workspace transaction is required")}
 	}
-	directory, err := transactionJournalDirectory(expected.TransactionID)
+	directory, err := transactionJournalDirectoryAt(journalRoot, expected.TransactionID)
 	if err != nil {
 		return transactionJournal{}, err
 	}
@@ -528,7 +545,7 @@ func readLatestTransactionJournal(workspace *confinedfs.Transaction, expected tr
 		if parseErr != nil {
 			return transactionJournal{}, parseErr
 		}
-		wantPath, pathErr := transactionJournalRecordPath(journal.TransactionID, journal.Phase)
+		wantPath, pathErr := transactionJournalRecordPathAt(journalRoot, journal.TransactionID, journal.Phase)
 		if pathErr != nil || wantPath != entry.Path {
 			return transactionJournal{}, &transactionRecoveryAmbiguityError{TransactionID: expected.TransactionID, Phase: journal.Phase, Reason: "journal phase record name does not match canonical content"}
 		}

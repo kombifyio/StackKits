@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/standalone-oss-e2e-receipt.schema.json",
+  "title": "StackKits standalone OSS E2E receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "source", "archive", "network", "phases"],
+  "properties": {
+    "schemaVersion": {
+      "const": "stackkit.oss-e2e-receipt/v1"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "digest"],
+      "properties": {
+        "repository": { "const": "kombifyio/stackKits" },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256",
+        "sbomSha256",
+        "attestationSha256",
+        "releaseIndexSha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^stackkits-basement-kit_.+_linux_(amd64|arm64)\\.tar\\.gz$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "sbomSha256": { "$ref": "#/$defs/sha256" },
+        "attestationSha256": { "$ref": "#/$defs/sha256" },
+        "releaseIndexSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recorder", "eventsSha256", "eventCount"],
+      "properties": {
+        "recorder": { "const": "stackkit.hermetic-network-log/v1" },
+        "eventsSha256": { "$ref": "#/$defs/sha256" },
+        "eventCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        { "$ref": "#/$defs/authoringPhase" },
+        { "$ref": "#/$defs/runtimePhase" },
+        { "$ref": "#/$defs/day2Phase" }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[^/\\\\]+$" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "phaseBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "startedAt",
+        "finishedAt",
+        "durationSeconds",
+        "commands",
+        "evidence"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "const": "pass" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" },
+        "durationSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600
+        },
+        "commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "authoringPhase": {
+      "allOf": [
+        { "$ref": "#/$defs/phaseBase" },
+        {
+          "properties": {
+            "id": { "const": "authoring" },
+            "commands": {
+              "const": [
+                "stackkit init --owner-source=local",
+                "stackkit validate",
+                "stackkit generate"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "runtimePhase": {
+      "allOf": [
+        { "$ref": "#/$defs/phaseBase" },
+        {
+          "properties": {
+            "id": { "const": "runtime" },
+            "commands": {
+              "const": ["stackkit apply", "stackkit verify --json"]
+            }
+          }
+        }
+      ]
+    },
+    "day2Phase": {
+      "allOf": [
+        { "$ref": "#/$defs/phaseBase" },
+        {
+          "properties": {
+            "id": { "const": "day2" },
+            "commands": {
+              "const": [
+                "stackkit upgrade --to latest",
+                "stackkit drift detect --json",
+                "stackkit rollback",
+                "stackkit verify --json"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

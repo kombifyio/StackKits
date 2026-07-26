@@ -20,8 +20,9 @@ import (
 var validateAll bool
 
 var validateCmd = &cobra.Command{
-	Use:   "validate [file]",
-	Short: "Validate configuration files",
+	Use:         "validate [file]",
+	Short:       "Validate configuration files",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Long: `Validate spec files and CUE schemas.
 
 This command validates:

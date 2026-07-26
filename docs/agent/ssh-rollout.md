@@ -12,10 +12,8 @@ Collect or confirm outside StackSpec:
 Then run the provider-free StackKits stages in the workspace:
 
 ```bash
-stackkit init basement-kit --non-interactive
-stackkit prepare --dry-run
+stackkit init basement-kit --owner-source=local --non-interactive
 stackkit validate
-stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json
 stackkit generate
 stackkit plan
 stackkit apply

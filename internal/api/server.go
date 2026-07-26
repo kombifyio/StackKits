@@ -16,7 +16,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	"github.com/kombifyio/stackkits/internal/runtimeaction"
 	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
+	"github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -24,31 +26,34 @@ import (
 
 // ServerConfig holds configuration for the API server.
 type ServerConfig struct {
-	Port                          int
-	BaseDir                       string
-	Version                       string
-	GitCommit                     string
-	APIKey                        string   // If set, all non-health endpoints require X-API-Key header
-	CORSOrigins                   []string // Allowed CORS origins; empty disables browser CORS, "*" allows wildcard
-	RateLimit                     int      // Max requests per IP per minute; 0 = no limit
-	LogDir                        string   // Directory containing deploy log files (.stackkit/logs/)
-	ServiceAuthSecret             string
-	ServiceAuthSecretNext         string
-	RuntimeActionMode             string
-	RuntimeRestoreVerifierCommand string
-	SetupActionMode               string
-	SetupAdminEmail               string
-	SetupAdminPassword            string
-	SetupImmichURL                string
-	SetupPocketIDURL              string
-	SetupVaultwardenURL           string
-	SetupCloudreveURL             string
-	FilesSessionBridgeToken       string
-	MCPToken                      string
-	MCPAllowWrite                 bool
+	Port                              int
+	BaseDir                           string
+	Version                           string
+	GitCommit                         string
+	APIKey                            string   // If set, all non-health endpoints require X-API-Key header
+	CORSOrigins                       []string // Allowed CORS origins; empty disables browser CORS, "*" allows wildcard
+	RateLimit                         int      // Max requests per IP per minute; 0 = no limit
+	LogDir                            string   // Directory containing deploy log files (.stackkit/logs/)
+	ServiceAuthSecret                 string
+	ServiceAuthSecretNext             string
+	RuntimeActionMode                 string
+	RuntimeRestoreVerifierCommand     string
+	StackActionMode                   string
+	StackActionRestoreVerifierCommand string
+	SetupActionMode                   string
+	SetupAdminEmail                   string
+	SetupAdminPassword                string
+	SetupImmichURL                    string
+	SetupPocketIDURL                  string
+	SetupVaultwardenURL               string
+	SetupCloudreveURL                 string
+	FilesSessionBridgeToken           string
+	MCPToken                          string
+	MCPAllowWrite                     bool
 	// ArchitectureV2ResolveConcurrency limits concurrent governed CUE
 	// resolutions per server. Values <= 0 use the fail-safe default.
 	ArchitectureV2ResolveConcurrency int
+	StackActionReferenceResolver     StackActionReferenceResolver
 	// TrustedProxies may provide X-Forwarded-For for rate-limit identity.
 	// Empty means X-Forwarded-For is ignored.
 	TrustedProxies []string
@@ -66,23 +71,26 @@ type Server struct {
 	architectureV2    architectureV2ServiceState
 
 	// backupMu guards backupState; a node runs at most one backup at a time.
-	backupMu    sync.Mutex
-	backupState *backupRunState
+	backupMu               sync.Mutex
+	backupState            *backupRunState
+	stackActionBackupState *backupRunStateStackAction
 	// backupExec and hookExec override the docker-exec adapters in tests.
-	backupExec backupexec.Executor
-	hookExec   backupexec.ContainerExecutor
+	backupExec                   backupexec.Executor
+	hookExec                     backupexec.ContainerExecutor
+	stackActionReferenceResolver StackActionReferenceResolver
 }
 
 // NewServer creates a new API server.
 func NewServer(cfg ServerConfig) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		config:            cfg,
-		mux:               http.NewServeMux(),
-		ctx:               ctx,
-		cancel:            cancel,
-		registryInstances: make(map[string]models.InstanceRegistration),
-		architectureV2:    newArchitectureV2ServiceState(cfg.ArchitectureV2ResolveConcurrency),
+		config:                       cfg,
+		mux:                          http.NewServeMux(),
+		ctx:                          ctx,
+		cancel:                       cancel,
+		registryInstances:            make(map[string]models.InstanceRegistration),
+		architectureV2:               newArchitectureV2ServiceState(cfg.ArchitectureV2ResolveConcurrency),
+		stackActionReferenceResolver: cfg.StackActionReferenceResolver,
 	}
 	s.routes()
 	return s
@@ -116,7 +124,8 @@ func (s *Server) Handler() http.Handler {
 func architectureV2NoStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/resolve" || strings.HasPrefix(r.URL.Path, sharedruntimeaction.ArchitectureV2PathPrefix) ||
-			strings.HasPrefix(r.URL.Path, rilActionPathPrefix) {
+			strings.HasPrefix(r.URL.Path, rilActionPathPrefix) ||
+			strings.HasPrefix(r.URL.Path, stackaction.PathPrefix) {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		next.ServeHTTP(w, r)
@@ -133,6 +142,7 @@ func (s *Server) routes() {
 	s.registerMCPRoutes()
 
 	s.registerRuntimeActionRoutes()
+	s.registerStackActionRoutes()
 
 	// Node-local management
 	s.mux.HandleFunc("GET /api/v1/status", s.handleManagementStatus)
@@ -542,18 +552,12 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 // apiKeyMiddleware validates the X-API-Key header against the configured key.
-// Health and OpenAPI spec endpoints are exempt from authentication.
+// Public discovery and service-authenticated internal actions are explicitly
+// classified below; a path prefix alone can never bypass the API-key boundary.
 func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Allow health and OpenAPI spec without auth
-			if r.URL.Path == "/health" ||
-				r.URL.Path == "/api/v1/health" ||
-				r.URL.Path == "/api/v1/openapi.yaml" ||
-				r.URL.Path == "/openmcp.json" ||
-				r.URL.Path == "/mcp" ||
-				strings.HasPrefix(r.URL.Path, "/api/v1/internal/") ||
-				strings.HasPrefix(r.URL.Path, "/api/v2/internal/") {
+			if isPublicAPIKeyExemptRoute(r) || isServiceAuthenticatedRoute(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -582,6 +586,49 @@ func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 			}
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+func isPublicAPIKeyExemptRoute(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/health", "/api/v1/health", "/api/v1/openapi.yaml", "/openmcp.json":
+		return true
+	default:
+		return false
+	}
+}
+
+// isServiceAuthenticatedRoute enumerates the only routes whose distinct
+// TechStack service-token middleware replaces the node API-key boundary.
+func isServiceAuthenticatedRoute(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	switch r.URL.Path {
+	case rilActionResolvePath,
+		rilActionExecutePath,
+		sharedruntimeaction.ArchitectureV2PathStackKitRollout,
+		sharedruntimeaction.ArchitectureV2PathStackKitVerify,
+		"/api/v1/internal/runtime-actions/stackkit-rollout",
+		"/api/v1/internal/runtime-actions/stackkit-verify",
+		"/api/v1/internal/runtime-actions/restore-drill",
+		runtimeaction.PathBackupRun,
+		runtimeaction.PathBackupStatus,
+		runtimeaction.PathBackupRestore,
+		runtimeaction.PathBackupWipe,
+		stackaction.PathStackKitRollout,
+		stackaction.PathStackKitVerify,
+		stackaction.PathRestoreDrill,
+		stackaction.PathBackupRun,
+		stackaction.PathBackupStatus,
+		stackaction.PathBackupRestore,
+		stackaction.PathBackupWipe:
+		return true
+	default:
+		return false
 	}
 }
 

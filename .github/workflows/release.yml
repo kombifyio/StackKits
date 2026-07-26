@@ -1,4 +1,4 @@
-name: Public Tag Fast Follow-up
+name: Public Release Trust and Runtime Gate
 
 on:
   push:
@@ -6,11 +6,11 @@ on:
       - "v*"
 
 concurrency:
-  group: public-tag-${{ github.ref }}
-  cancel-in-progress: true
+  group: public-release-trust-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
   attestations: write
@@ -19,13 +19,16 @@ env:
   GO_VERSION: "1.26.5"
 
 jobs:
-  artifact-smoke:
-    name: Public source/artifact smoke
+  release-trust:
+    name: Attest exact release and prove standalone runtime
+    if: github.repository == 'kombifyio/StackKits'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout published tag
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -33,17 +36,281 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Build only the three shipped binaries
-        run: go build ./cmd/stackkit ./cmd/stackkit-server ./cmd/stackkit-mcp
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
 
-      - name: Confirm publisher-created release assets exist
+      - name: Wait for the publisher-owned immutable draft
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release view "${GITHUB_REF_NAME}" --json tagName,assets --jq 'select(.tagName == env.GITHUB_REF_NAME and (.assets | length) > 0)'
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ready=false
+          for attempt in $(seq 1 60); do
+            release="$(gh release view "$TAG" --json isDraft,assets 2>/dev/null || true)"
+            if [ -n "$release" ] && [ "$(jq -r '.isDraft' <<<"$release")" = "true" ]; then
+              names="$(jq -r '.assets[].name' <<<"$release")"
+              if grep -qx 'checksums.txt' <<<"$names" \
+                && grep -qx 'release-evidence.json' <<<"$names" \
+                && grep -Eq '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz$' <<<"$names" \
+                && grep -Eq '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz\.spdx\.json$' <<<"$names"; then
+                gh release download "$TAG" --dir dist --pattern 'checksums.txt' --clobber
+                gh release download "$TAG" --dir dist --pattern 'release-evidence.json' --clobber
+                if [ "$(jq -r '.checks.attestationVerification.status' dist/release-evidence.json)" = "pass" ]; then
+                  ready=true
+                  break
+                fi
+              fi
+            fi
+            sleep 5
+          done
+          if [ "$ready" != "true" ]; then
+            echo "::error title=Draft release not ready::Publisher did not produce an immutable draft with finalized evidence within 300 seconds."
+            exit 1
+          fi
+
+      - name: Download exact per-kit archives and SBOMs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --dir dist --pattern 'stackkits_*.tar.gz' --clobber
+          gh release download "$TAG" --dir dist --pattern 'stackkits_*.zip' --clobber
+          gh release download "$TAG" --dir dist --pattern 'stackkits_*.spdx.json' --clobber
+          gh release download "$TAG" --dir dist --pattern 'stackkits-*.tar.gz' --clobber
+          gh release download "$TAG" --dir dist --pattern 'stackkits-*.zip' --clobber
+          gh release download "$TAG" --dir dist --pattern 'stackkits-*.spdx.json' --clobber
+          (
+            cd dist
+            sha256sum --ignore-missing --check --strict checksums.txt
+          )
+          bash scripts/release/validate-release-archives.sh dist
+          for archive in dist/stackkits-{basement-kit,cloud-kit,modern-homelab}_*.tar.gz \
+            dist/stackkits-{basement-kit,cloud-kit,modern-homelab}_*.zip; do
+            test -s "$archive"
+            test -s "${archive}.spdx.json"
+          done
+
+      - name: Attest exact per-kit release archives
+        id: archive-attestation
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: |
+            dist/stackkits-basement-kit_*.tar.gz
+            dist/stackkits-basement-kit_*.zip
+            dist/stackkits-cloud-kit_*.tar.gz
+            dist/stackkits-cloud-kit_*.zip
+            dist/stackkits-modern-homelab_*.tar.gz
+            dist/stackkits-modern-homelab_*.zip
+          create-storage-record: false
+          show-summary: false
+
+      - name: Materialize offline bundles, trusted roots, and release index
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          bundle_root="${RUNNER_TEMP}/archive-bundles"
+          mkdir -p "$bundle_root"
+          for archive in dist/stackkits-{basement-kit,cloud-kit,modern-homelab}_*.tar.gz \
+            dist/stackkits-{basement-kit,cloud-kit,modern-homelab}_*.zip; do
+            subject_dir="${bundle_root}/$(basename "$archive")"
+            mkdir -p "$subject_dir"
+            (
+              cd "$subject_dir"
+              gh attestation download "$GITHUB_WORKSPACE/$archive" -R "$GITHUB_REPOSITORY"
+            )
+          done
+          find "$bundle_root" -type f -name 'sha256:*.jsonl' -print0 \
+            | sort -z \
+            | xargs -0 cat \
+            | sort -u \
+            > dist/stackkits-release-assets.intoto.jsonl
+          test -s dist/stackkits-release-assets.intoto.jsonl
+          gh attestation trusted-root > dist/sigstore-trusted-root.jsonl
+          test -s dist/sigstore-trusted-root.jsonl
+
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${TAG}"
+          node scripts/release/render-release-index.mjs \
+            --dist dist \
+            --tag "$TAG" \
+            --published-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}" \
+            --trusted-root dist/sigstore-trusted-root.jsonl \
+            --attestation dist/stackkits-release-assets.intoto.jsonl \
+            --certificate-identity "$identity" \
+            --output dist/stackkits-release-index-v1.json
+
+          for archive in dist/stackkits-{basement-kit,cloud-kit,modern-homelab}_*.tar.gz \
+            dist/stackkits-{basement-kit,cloud-kit,modern-homelab}_*.zip; do
+            gh attestation verify "$archive" \
+              -R "$GITHUB_REPOSITORY" \
+              --bundle dist/stackkits-release-assets.intoto.jsonl \
+              --custom-trusted-root dist/sigstore-trusted-root.jsonl
+          done
+          go test ./internal/releaseindex
+
+      - name: Upload archive trust material to the draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" \
+            dist/stackkits-release-assets.intoto.jsonl \
+            dist/sigstore-trusted-root.jsonl \
+            dist/stackkits-release-index-v1.json \
+            --clobber
+
+      - name: Attest the release index
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: dist/stackkits-release-index-v1.json
+          create-storage-record: false
+          show-summary: false
+
+      - name: Publish and verify the release-index attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          index_bundle_dir="${RUNNER_TEMP}/index-bundle"
+          mkdir -p "$index_bundle_dir"
+          (
+            cd "$index_bundle_dir"
+            gh attestation download \
+              "$GITHUB_WORKSPACE/dist/stackkits-release-index-v1.json" \
+              -R "$GITHUB_REPOSITORY"
+          )
+          mapfile -t bundles < <(find "$index_bundle_dir" -type f -name 'sha256:*.jsonl')
+          if [ "${#bundles[@]}" -ne 1 ]; then
+            echo "::error title=Ambiguous index attestation::Expected one exact index bundle, found ${#bundles[@]}."
+            exit 1
+          fi
+          cp "${bundles[0]}" dist/stackkits-release-index-v1.json.intoto.jsonl
+          gh attestation verify dist/stackkits-release-index-v1.json \
+            -R "$GITHUB_REPOSITORY" \
+            --bundle dist/stackkits-release-index-v1.json.intoto.jsonl \
+            --custom-trusted-root dist/sigstore-trusted-root.jsonl
+          gh release upload "$TAG" \
+            dist/stackkits-release-index-v1.json.intoto.jsonl \
+            --clobber
+
+  runtime-e2e:
+    name: Prove exact standalone Basement archive
+    needs: release-trust
+    if: github.repository == 'kombifyio/StackKits'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout published tag
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Download exact Basement trust set
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$TAG" --dir dist --pattern 'stackkits-basement-kit_*_linux_amd64.tar.gz' --clobber
+          gh release download "$TAG" --dir dist --pattern 'stackkits-basement-kit_*_linux_amd64.tar.gz.spdx.json' --clobber
+          for name in \
+            stackkits-release-assets.intoto.jsonl \
+            sigstore-trusted-root.jsonl \
+            stackkits-release-index-v1.json \
+            stackkits-release-index-v1.json.intoto.jsonl; do
+            gh release download "$TAG" --dir dist --pattern "$name" --clobber
+            test -s "dist/$name"
+          done
+
+      - name: Admit packet capture without a privileged runtime
+        shell: bash
+        run: sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
+
+      - name: Run bounded standalone Basement archive Apply and Verify
+        shell: bash
+        env:
+          STACKKIT_E2E_PRELOAD_IMAGES: "1"
+        run: |
+          set -euo pipefail
+          archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
+          test -n "$archive"
+          tree="$(git rev-parse HEAD^{tree})"
+          source_digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
+          mkdir -p artifacts/standalone-runtime
+          bash scripts/e2e/run-standalone-oss-runtime-e2e.sh \
+            "$archive" \
+            "${archive}.spdx.json" \
+            dist/stackkits-release-assets.intoto.jsonl \
+            dist/sigstore-trusted-root.jsonl \
+            dist/stackkits-release-index-v1.json \
+            dist/stackkits-release-index-v1.json.intoto.jsonl \
+            "$GITHUB_SHA" \
+            "$source_digest" \
+            artifacts/standalone-runtime
+
+      - name: Attest standalone runtime evidence
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: artifacts/standalone-runtime/runtime-evidence.json
+          create-storage-record: false
+          show-summary: false
+
+      - name: Retain exact runtime evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: standalone-runtime-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/standalone-runtime
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Attach runtime evidence and publish the prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$TAG" != *-beta.* && "$TAG" != *-edge.* ]]; then
+            echo "::error title=Stable release gate incomplete::Stable publication requires the S4 upgrade, rollback, backup, and drift receipt."
+            exit 1
+          fi
+          gh release upload "$TAG" \
+            artifacts/standalone-runtime/runtime-evidence.json \
+            artifacts/standalone-runtime/network-events.jsonl \
+            artifacts/standalone-runtime/apply.log \
+            artifacts/standalone-runtime/verify.json \
+            --clobber
+          gh release edit "$TAG" \
+            --draft=false \
+            --prerelease \
+            --latest=false
 
   publish-image:
     name: Publish StackKit Server image
-    needs: artifact-smoke
+    needs: runtime-e2e
+    if: github.repository == 'kombifyio/StackKits'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

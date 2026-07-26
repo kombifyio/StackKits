@@ -342,6 +342,18 @@ func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, m
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if moduleID == "stackkits-bridge-origin-mtls-runtime" {
+		siteRefs, nodeRefs, err = resolveBridgeOriginMTLSTargets(spec, resolved, nodeRefs)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	if runtimeAdapterTargetsModule(resolved, moduleID) {
+		siteRefs, nodeRefs, err = resolveRuntimeAdapterModuleTargets(spec, resolved, moduleID, nodeRefs)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
 	rawIntent := spec.modules[moduleID]
 	if workloadID, isWorkload := resolved.workloadByModule[moduleID]; isWorkload {
 		workload := resolved.workloads[workloadID]
@@ -375,6 +387,99 @@ func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, m
 	}
 	module, err := c.resolveModuleContract(moduleID, providerID, provides, siteRefs, nodeRefs, contract, rawIntent, capabilitySecretRefs, spec.nodes, generationTarget)
 	return module, siteRefs, nodeRefs, err
+}
+
+// resolveBridgeOriginMTLSTargets closes the node-local origin proxy placement
+// over the selected workload origins. HA control members that do not host a
+// published workload must not receive an empty proxy contract or health gate.
+func resolveBridgeOriginMTLSTargets(spec *specView, resolved *resolution, eligibleNodeRefs []string) ([]string, []string, error) {
+	if spec.bridge == nil {
+		return nil, nil, fail(ErrUnresolvedPlacement, "spec.bridge", "origin mTLS runtime requires an explicit publication")
+	}
+	publications, err := objectListOptional(spec.bridge, "publications")
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(publications) == 0 {
+		return nil, nil, fail(ErrUnresolvedPlacement, "spec.bridge.publications", "origin mTLS runtime requires at least one publication")
+	}
+	eligible := stringSet(eligibleNodeRefs)
+	selectedNodes := map[string]struct{}{}
+	for index, publication := range publications {
+		path := fmt.Sprintf("spec.bridge.publications[%d]", index)
+		serviceRef, err := stringField(publication, path, "serviceRef")
+		if err != nil {
+			return nil, nil, err
+		}
+		matches := 0
+		for _, workload := range resolved.workloads {
+			route, err := objectField(workload.alternative, "catalog.workloads."+workload.id+".alternative", "route")
+			if err != nil {
+				return nil, nil, err
+			}
+			workloadServiceRef, err := stringField(route, "catalog.workloads."+workload.id+".alternative.route", "serviceRef")
+			if err != nil {
+				return nil, nil, err
+			}
+			if workloadServiceRef != serviceRef {
+				continue
+			}
+			matches++
+			for _, nodeRef := range workload.nodeRefs {
+				if _, ok := eligible[nodeRef]; !ok {
+					return nil, nil, fail(ErrUnresolvedPlacement, path+".serviceRef", "published workload origin node %q is outside the origin mTLS runtime envelope", nodeRef)
+				}
+				selectedNodes[nodeRef] = struct{}{}
+			}
+		}
+		if matches != 1 {
+			return nil, nil, fail(ErrUnresolvedPlacement, path+".serviceRef", "publication service %q must bind exactly one selected workload origin, got %d", serviceRef, matches)
+		}
+	}
+	nodeRefs := sortedSet(selectedNodes)
+	siteRefs := make([]string, 0, len(nodeRefs))
+	for _, nodeRef := range nodeRefs {
+		node, exists := spec.nodeByID[nodeRef]
+		if !exists {
+			return nil, nil, fail(ErrUnresolvedPlacement, "spec.nodes", "published workload origin node %q is absent", nodeRef)
+		}
+		siteRefs = append(siteRefs, node.siteRef)
+	}
+	return sortStringsUnique(siteRefs), nodeRefs, nil
+}
+
+func runtimeAdapterTargetsModule(resolved *resolution, moduleID string) bool {
+	for _, workload := range resolved.workloads {
+		if workload.runtimeAdapterModuleID == moduleID {
+			return true
+		}
+	}
+	return false
+}
+
+func resolveRuntimeAdapterModuleTargets(spec *specView, resolved *resolution, moduleID string, eligibleNodeRefs []string) ([]string, []string, error) {
+	eligible := stringSet(eligibleNodeRefs)
+	selectedNodes := map[string]struct{}{}
+	for _, workload := range resolved.workloads {
+		if workload.runtimeAdapterModuleID != moduleID {
+			continue
+		}
+		for _, nodeRef := range workload.nodeRefs {
+			if _, ok := eligible[nodeRef]; !ok {
+				return nil, nil, fail(ErrUnresolvedPlacement, "spec.workloads."+workload.id+".placement", "runtime adapter module %q cannot target workload node %q", moduleID, nodeRef)
+			}
+			selectedNodes[nodeRef] = struct{}{}
+		}
+	}
+	if len(selectedNodes) == 0 {
+		return nil, nil, fail(ErrUnresolvedPlacement, "catalog.modules."+moduleID, "runtime adapter module has no selected workload targets")
+	}
+	nodeRefs := sortedSet(selectedNodes)
+	siteRefs := make([]string, 0, len(nodeRefs))
+	for _, nodeRef := range nodeRefs {
+		siteRefs = append(siteRefs, spec.nodeByID[nodeRef].siteRef)
+	}
+	return sortStringsUnique(siteRefs), nodeRefs, nil
 }
 
 func resolveModuleProvider(moduleID, selectedProvider string, contract map[string]any) (string, error) {

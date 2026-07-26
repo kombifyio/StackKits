@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	cueval "github.com/kombifyio/stackkits/internal/cue"
 	"github.com/kombifyio/stackkits/internal/identity"
-	"github.com/kombifyio/stackkits/internal/kombifyme"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
@@ -138,9 +136,6 @@ func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
 		spec.Context = string(resolvedCtx)
 	}
 
-	if err := ensureKombifyMeRegistration(loader, spec, resolvedCtx); err != nil {
-		return err
-	}
 	generationSpec := specForGeneration(spec)
 
 	cueValidator := cueval.NewValidator(wd)
@@ -584,13 +579,13 @@ func shouldUseCloudOwnerEmailForGeneration(spec *models.StackSpec) bool {
 
 func cloudOwnerEmailForGeneration(spec *models.StackSpec) string {
 	if spec != nil && spec.Environment != nil {
-		for _, key := range []string{"STACKKIT_ADMIN_EMAIL", "KOMBIFY_USER_EMAIL"} {
+		for _, key := range []string{"STACKKIT_ADMIN_EMAIL"} {
 			if email := strings.TrimSpace(spec.Environment[key]); email != "" && strings.Contains(email, "@") {
 				return email
 			}
 		}
 	}
-	for _, key := range []string{"STACKKIT_ADMIN_EMAIL", "KOMBIFY_USER_EMAIL"} {
+	for _, key := range []string{"STACKKIT_ADMIN_EMAIL"} {
 		if email := strings.TrimSpace(os.Getenv(key)); email != "" && strings.Contains(email, "@") {
 			return email
 		}
@@ -717,156 +712,4 @@ func dockerMemoryLimitsEnabled(caps *models.DockerCapabilities) bool {
 		return false
 	}
 	return true
-}
-
-// isKombifyMeDomain returns true if the domain is kombify.me (the subdomain service).
-func isKombifyMeDomain(domain string) bool {
-	return strings.EqualFold(domain, models.DomainKombifyMe)
-}
-
-func ensureKombifyMeRegistration(loader *config.Loader, spec *models.StackSpec, resolvedCtx models.NodeContext) error {
-	domain := spec.Domain
-	if suggested, _ := netenv.SuggestDomainForContext(resolvedCtx, domain); suggested != "" {
-		domain = suggested
-	}
-	if !isKombifyMeDomain(domain) {
-		return nil
-	}
-	spec.Domain = models.DomainKombifyMe
-
-	// Existing prefixed specs are portable/offline; refresh registration when
-	// a key is available, but do not block local regeneration solely because the
-	// key is absent.
-	if spec.SubdomainPrefix != "" {
-		if apiKey, _ := kombifyme.LoadAPIKey(); apiKey == "" {
-			return nil
-		}
-	}
-
-	if err := registerKombifyMeSubdomains(spec); err != nil {
-		deployLog.Warn("kombifyme.registration",
-			slog.String("error", err.Error()),
-		)
-		if spec.SubdomainPrefix == "" {
-			return fmt.Errorf("kombify.me registration failed and no subdomainPrefix is configured: %w", err)
-		}
-		printWarning("kombify.me registration: %v", err)
-		printInfo("Continuing with existing subdomainPrefix: %s", spec.SubdomainPrefix)
-		return nil
-	}
-
-	if models.NeedsSyntheticAdminEmail(spec.AdminEmail) && spec.Email == "" && !shouldUseCloudOwnerEmailForGeneration(spec) {
-		spec.AdminEmail = models.SyntheticAdminEmail(spec.Domain, spec.SubdomainPrefix)
-	}
-
-	if saveErr := persistLegacyV06StackSpec(loader, spec, specFile, "generate kombify.me registration"); saveErr != nil {
-		deployLog.Warn("kombifyme.persist_prefix",
-			slog.String("error", saveErr.Error()),
-		)
-		return fmt.Errorf("persist assigned kombify.me registration binding: %w", saveErr)
-	}
-	deployLog.Event("kombifyme.registration",
-		slog.String("prefix", spec.SubdomainPrefix),
-	)
-	return nil
-}
-
-// registerKombifyMeSubdomains registers base + service subdomains on the kombify.me API
-// and sets spec.SubdomainPrefix if not already set.
-func registerKombifyMeSubdomains(spec *models.StackSpec) error {
-	// Try loading API key from env or keystore
-	apiKey, loadErr := kombifyme.LoadAPIKey()
-
-	if apiKey == "" {
-		// No key found — attempt self-registration
-		email := spec.AdminEmail
-		if models.NeedsSyntheticAdminEmail(email) {
-			email = spec.Email
-		}
-		if models.NeedsSyntheticAdminEmail(email) && shouldUseCloudOwnerEmailForGeneration(spec) {
-			email = cloudOwnerEmailForGeneration(spec)
-		}
-		if models.NeedsSyntheticAdminEmail(email) {
-			return fmt.Errorf("no KOMBIFY_API_KEY found and no adminEmail/email in spec for auto-registration")
-		}
-
-		fingerprint := kombifyme.DeviceFingerprint()
-
-		printInfo("No kombify.me API key found. Registering with %s...", email)
-		regResp, err := kombifyme.Register(email, fingerprint)
-		if err != nil {
-			return fmt.Errorf("auto-registration failed (%v): %w\nSet KOMBIFY_API_KEY manually or see https://kombify.me/docs", loadErr, err)
-		}
-
-		apiKey = regResp.APIKey
-		savedPath, saveErr := kombifyme.SaveAPIKey(apiKey)
-		if saveErr != nil {
-			printWarning("Could not save API key: %v", saveErr)
-			printInfo("Set KOMBIFY_API_KEY=%s to persist manually", apiKey)
-		} else {
-			printSuccess("API key saved to %s", savedPath)
-		}
-
-		if regResp.Status == "pending_verification" {
-			printWarning("Please verify your email at %s to activate subdomains", email)
-			printInfo("Subdomains will be created now but remain inactive until verified")
-		}
-	}
-
-	homelabName := spec.Name
-	if homelabName == "" {
-		return fmt.Errorf("spec name is required for kombify.me registration")
-	}
-
-	// Device fingerprint: use existing prefix suffix or generate one
-	fingerprint := ""
-	if spec.SubdomainPrefix != "" {
-		// Extract fingerprint from existing prefix: "sh-name-FINGERPRINT"
-		if strings.HasPrefix(spec.SubdomainPrefix, "sh-") {
-			if idx := strings.LastIndex(spec.SubdomainPrefix, "-"); idx > len("sh-") {
-				fingerprint = spec.SubdomainPrefix[idx+1:]
-			}
-		}
-	}
-	if fingerprint == "" {
-		fingerprint = kombifyme.DeviceFingerprint()
-	}
-
-	printInfo("Registering subdomains on kombify.me...")
-
-	result, err := kombifyme.RegisterAllForSpec(apiKey, homelabName, fingerprint, spec, kombifyMeAppServiceRegistrations(spec))
-	if err != nil {
-		return err
-	}
-
-	// Update spec with the registered prefix
-	spec.SubdomainPrefix = result.Prefix
-
-	printSuccess("Registered base subdomain: %s.kombify.me", result.Prefix)
-	for _, svc := range result.Services {
-		printSuccess("  Service: %s.kombify.me (exposed)", svc.Name)
-	}
-
-	return nil
-}
-
-func kombifyMeAppServiceRegistrations(spec *models.StackSpec) []kombifyme.ServiceDef {
-	if spec == nil || !models.IsKombifyMeDomain(spec.Domain) || len(spec.Apps) == 0 {
-		return nil
-	}
-	names := make([]string, 0, len(spec.Apps))
-	for name := range spec.Apps {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	services := make([]kombifyme.ServiceDef, 0, len(names))
-	for _, name := range names {
-		services = append(services, kombifyme.ServiceDef{
-			Name:        name,
-			Description: "StackKit app: " + name,
-			Primary:     true,
-		})
-	}
-	return services
 }

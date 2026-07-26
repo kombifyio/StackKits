@@ -62,6 +62,7 @@ func (s *Service) ExecuteRILAction(ctx context.Context, input RILActionAdmission
 	if err != nil {
 		return RILActionEvidence{}, resolveError(ErrRILActionAdmission, "approved action envelope changed after admission", err)
 	}
+	request = normalizeRILActionRequest(request)
 	primitive, err := s.rilActionPrimitive(request.Primitive.ID)
 	if err != nil {
 		return RILActionEvidence{}, err

@@ -303,7 +303,7 @@ async function validateGeneratedFiles(generatedFiles, failures) {
     if (!/STACKKIT_COOLIFY_SERVER_PUBLIC_KEY=/.test(text) || !/authorized_keys/.test(text) || !/server_settings set is_reachable = true, is_usable = true/.test(text)) {
       failures.push(`${file}: Coolify bootstrap must authorize and mark the default server usable before strict app deployment can pass`);
     }
-    if (!/docker context use default >\/dev\/null 2>&1 \|\| true/.test(text) || !/Setting Docker CLI default context for Coolify runtime actions/.test(text)) {
+    if (!/docker context use default >\/dev\/null 2>&1 \|\| true/.test(text) || !/Setting Docker CLI default context for Coolify StackActions/.test(text)) {
       failures.push(`${file}: Coolify install must keep Docker's default context during the installer helper run and switch to stackkit-host only after install`);
     }
     if (
@@ -325,7 +325,7 @@ async function validateGeneratedFiles(generatedFiles, failures) {
     if (
       !/["']capability["']\s*(=>|:)\s*["']backups["'][\s\S]{0,500}?["']status["']\s*(=>|:)\s*["']configured["']/.test(text) ||
       !/stackkit\.backup=required/.test(text) ||
-      !/restore-drill endpoint=\/api\/v1\/internal\/runtime-actions\/restore-drill/.test(text)
+      !/restore-drill endpoint=\/api\/v1\/internal\/stack-actions\/restore-drill/.test(text)
     ) {
       failures.push(`${file}: platform bootstrap evidence must configure backup volume labels and restore-drill handoff`);
     }

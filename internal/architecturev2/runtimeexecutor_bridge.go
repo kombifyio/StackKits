@@ -18,6 +18,14 @@ type sharedRuntimeExecutorBridge struct {
 	executor runtimeexecutor.Executor
 }
 
+type sharedRuntimeExecutionChannelBinder interface {
+	bindRuntimeExecutionChannels(runtimeexecutor.ExecutionRequest) (runtimeexecutor.ExecutionRequest, error)
+}
+
+type applyRuntimeSharedRequestProvider interface {
+	sharedRuntimeRequest(applyRuntimeExecutionRequest) (runtimeexecutor.ExecutionRequest, error)
+}
+
 func newSharedRuntimeExecutorBridge(executor runtimeexecutor.Executor) (applyRuntimeExecutor, error) {
 	if executor == nil {
 		return nil, applyExecutorError(generationartifact.ErrExecutorMissing, "apply.executor", "shared runtime executor is required", nil)
@@ -35,7 +43,7 @@ func (b *sharedRuntimeExecutorBridge) PrepareProductApplyRecovery(ctx context.Co
 	if !ok {
 		return nil
 	}
-	shared, err := sharedExecutionRequest(request)
+	shared, err := b.sharedExecutionRequest(request)
 	if err != nil {
 		return err
 	}
@@ -47,7 +55,7 @@ func (b *sharedRuntimeExecutorBridge) PrepareProductApplyRecovery(ctx context.Co
 }
 
 func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request applyRuntimeExecutionRequest) (applyRuntimeExecutionResult, error) {
-	sharedRequest, err := sharedExecutionRequest(request)
+	sharedRequest, err := b.sharedExecutionRequest(request)
 	if err != nil {
 		return applyRuntimeExecutionResult{}, err
 	}
@@ -66,6 +74,32 @@ func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request apply
 	return stackKitsExecutionResult(result), nil
 }
 
+func (b *sharedRuntimeExecutorBridge) sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecutor.ExecutionRequest, error) {
+	shared, err := unsealedSharedExecutionRequest(request)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	if binder, ok := b.executor.(sharedRuntimeExecutionChannelBinder); ok {
+		shared, err = binder.bindRuntimeExecutionChannels(shared)
+		if err != nil {
+			return runtimeexecutor.ExecutionRequest{}, err
+		}
+	}
+	return runtimeexecutor.SealRequest(shared)
+}
+
+func (b *sharedRuntimeExecutorBridge) runtimeRequestDigest(request applyRuntimeExecutionRequest) (string, error) {
+	shared, err := b.sharedRuntimeRequest(request)
+	if err != nil {
+		return "", err
+	}
+	return shared.RequestDigest, nil
+}
+
+func (b *sharedRuntimeExecutorBridge) sharedRuntimeRequest(request applyRuntimeExecutionRequest) (runtimeexecutor.ExecutionRequest, error) {
+	return b.sharedExecutionRequest(request)
+}
+
 // sharedExecutionRequest is lossless for executable targets and immutable
 // artifact bytes. Workload, secret, provider-owner, and evidence policy graphs
 // remain behind the already-verified StackKits authorization boundary. From
@@ -73,6 +107,14 @@ func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request apply
 // single-node target; addresses, credentials, provider data, and discovery
 // inputs remain unreachable.
 func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecutor.ExecutionRequest, error) {
+	shared, err := unsealedSharedExecutionRequest(request)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	return runtimeexecutor.SealRequest(shared)
+}
+
+func unsealedSharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecutor.ExecutionRequest, error) {
 	shared := runtimeexecutor.ExecutionRequest{
 		APIVersion: runtimeexecutor.APIVersion,
 		Executor: runtimeexecutor.ExecutorIdentity{
@@ -139,7 +181,7 @@ func sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecut
 			Digest: artifact.SHA256, Content: append([]byte(nil), artifact.Content...),
 		})
 	}
-	return runtimeexecutor.SealRequest(shared)
+	return shared, nil
 }
 
 func sharedRuntimeTargets(requirements generationartifact.ApplyRequirements) ([]runtimeexecutor.RuntimeTarget, error) {
@@ -329,11 +371,23 @@ func stackKitsExecutionResult(result runtimeexecutor.ExecutionResult) applyRunti
 	return converted
 }
 
-func verifySharedRuntimeExecutionBinding(request applyRuntimeExecutionRequest, result applyRuntimeExecutionResult) error {
+func verifySharedRuntimeExecutionBinding(
+	request applyRuntimeExecutionRequest,
+	result applyRuntimeExecutionResult,
+	providers ...applyRuntimeSharedRequestProvider,
+) error {
 	if !validApplySHA256(result.SharedArtifactSetHash) || !validApplySHA256(result.SharedRequestDigest) || !validApplySHA256(result.SharedResultDigest) {
 		return applyExecutorError(generationartifact.ErrBindingMismatch, "apply.result.shared", "shared execution proof requires three canonical digests", nil)
 	}
-	sealed, err := sharedExecutionRequest(request)
+	var (
+		sealed runtimeexecutor.ExecutionRequest
+		err    error
+	)
+	if len(providers) > 0 && providers[0] != nil {
+		sealed, err = providers[0].sharedRuntimeRequest(request)
+	} else {
+		sealed, err = sharedExecutionRequest(request)
+	}
 	if err != nil {
 		return applyExecutorError(generationartifact.ErrBindingMismatch, "apply.result.shared", "reconstruct sealed shared execution request", err)
 	}

@@ -63,20 +63,20 @@ var initCmd = &cobra.Command{
 This command creates a new stack-spec.yaml file and sets up the deployment
 directory structure based on the selected StackKit.
 
-Native Architecture v2 init is CUE-owned and accepts only product selection,
-deployment name, and domain authoring intent. Topology comes from the selected
-KitDefinition; host facts come from Inventory; identity is a separate handoff.
+Native Architecture v2 init is CUE-owned. Without a Kit argument it selects
+basement-kit. --owner-source=local establishes local owner custody plus the
+CUE-owned PocketID/step-ca and Site/node/execution-channel projection.
 
-The compute, mode, local-path, local-DNS, service, owner, cluster, and output
-switches remain available only to an explicitly versioned v0.6 compatibility
-binary and are rejected by development and v0.7+ builds.
+The compute, mode, local-path, local-DNS, service, cluster, cloud-owner, and
+output switches remain available only to an explicitly versioned v0.6
+compatibility binary and are rejected by development and v0.7+ builds.
 
 Examples:
-  stackkit init                         Interactive mode
+  stackkit init --owner-source=local    Initialize standalone basement-kit
   stackkit init basement-kit            Initialize with basement-kit
   stackkit init cloud-kit --domain cloud.example.com
   stackkit init ./basement-kit          v0.6 compatibility only: local definition path
-  stackkit init --non-interactive       Fail if arguments are missing`,
+  stackkit init --non-interactive       Initialize basement-kit with CUE defaults`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
 }
@@ -99,10 +99,10 @@ func init() {
 	// SaaS owner prep, explicit self-hosted owner bootstrap, and OSS/BYOS noop.
 	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "v0.6 compatibility only: cluster mode (first|join)")
 	initCmd.Flags().StringVar(&initOwnerBootstrapMode, "owner-bootstrap-mode", "", "v0.6 compatibility only: owner bootstrap mode (auto|custom|none)")
-	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "v0.6 compatibility only: owner source (local|cloud)")
-	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Owner email (required only when --owner-bootstrap-mode=custom)")
-	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Owner username (required only when --owner-bootstrap-mode=custom)")
-	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Owner display name (defaults to username)")
+	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner custody source (native standalone: local; v0.6 compatibility: local|cloud)")
+	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Desired PocketID owner email for --owner-source=local")
+	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Desired PocketID owner username for --owner-source=local")
+	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Desired PocketID owner display name for --owner-source=local")
 	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "Cloud OIDC issuer URL for auto/cloud owner handoff")
 	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "Cloud OIDC client ID")
 	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (e.g. doppler:// or secret://)")
@@ -217,9 +217,8 @@ func selectComputeTier(p *prompter, stackkit *models.StackKit, defaults initDefa
 	return initComputeTier, nil
 }
 
-// promptOptionalConfig asks for domain, email, and admin email when running interactively.
-// When running in kombify Cloud context with KOMBIFY_USER_EMAIL set, emails are
-// auto-filled and the user is not prompted for them.
+// promptOptionalConfig asks for domain, email, and admin email when running
+// interactively. Standalone init reads only explicit local input.
 func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, adminEmail string) {
 	if initDomain != "" {
 		domain = initDomain
@@ -230,15 +229,7 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 		adminEmail = initAdminEmail
 	}
 
-	// Priority 2: kombify Cloud injects KOMBIFY_USER_EMAIL
-	if adminEmail == "" {
-		if cloudEmail := netenv.GetCloudUserEmail(); cloudEmail != "" {
-			adminEmail = cloudEmail
-			printInfo("Using kombify Cloud account email: %s", adminEmail)
-		}
-	}
-
-	// Non-interactive or no TTY: return what we have (flag/env), no prompts
+	// Non-interactive or no TTY: return what we have, no prompts.
 	if p == nil || initNonInteractive {
 		if domain == "" {
 			domain = defaults.Domain
@@ -250,7 +241,7 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 	printInfo("Optional configuration (press Enter to skip):")
 	fmt.Println()
 
-	// Only prompt for admin email if not already set via flag or Cloud env
+	// Only prompt for admin email if it was not supplied explicitly.
 	if adminEmail == "" {
 		a, err := p.inputString("Admin email (for login accounts)", "")
 		if err == nil {
@@ -267,16 +258,11 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 		domain = d
 	}
 
-	// Let's Encrypt email defaults to admin email; skip prompt if already set via Cloud
-	if adminEmail != "" && netenv.GetCloudUserEmail() != "" {
-		// Cloud context: LE email = kombify Cloud account email, no prompt needed
-		email = adminEmail
-	} else {
-		defaultEmail := adminEmail
-		e, err := p.inputString("Email (for Let's Encrypt certificates)", defaultEmail)
-		if err == nil {
-			email = e
-		}
+	// Let's Encrypt email defaults to the explicitly supplied owner email.
+	defaultEmail := adminEmail
+	e, err := p.inputString("Email (for Let's Encrypt certificates)", defaultEmail)
+	if err == nil {
+		email = e
 	}
 
 	return domain, email, adminEmail

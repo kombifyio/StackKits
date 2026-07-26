@@ -211,6 +211,7 @@ type rawModuleServiceEndpoint struct {
 	ServiceRef              string          `json:"serviceRef"`
 	UpstreamProtocol        string          `json:"upstreamProtocol"`
 	TargetPort              int             `json:"targetPort"`
+	RequiredPrivilege       string          `json:"requiredPrivilege"`
 	AllowedIngressProtocols []string        `json:"allowedIngressProtocols"`
 	AllowedExposures        []string        `json:"allowedExposures"`
 	OriginSelector          string          `json:"originSelector"`
@@ -1721,6 +1722,20 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 			if _, exists := unit.Values[binding.TargetRef]; !exists {
 				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound Cloud identity-authority value is missing")
 			}
+		case "identityTrust.modernHomeAuthority":
+			if binding.ValueType != "modern-home-identity-authority-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "identityTrust.modernHomeAuthority has an invalid type or cardinality")
+			}
+			if _, exists := unit.Values[binding.TargetRef]; !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound Modern Home identity-authority value is missing")
+			}
+		case "identityTrust.modernCloudVerification":
+			if binding.ValueType != "modern-cloud-identity-verification-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "identityTrust.modernCloudVerification has an invalid type or cardinality")
+			}
+			if _, exists := unit.Values[binding.TargetRef]; !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound Modern Cloud identity-verification value is missing")
+			}
 		case "access.homeEnforcement":
 			if binding.ValueType != "home-access-enforcement-v1" || binding.Cardinality != "single" {
 				return nil, fail(ErrInvalidPlan, path, "access.homeEnforcement has an invalid type or cardinality")
@@ -2147,6 +2162,9 @@ func parseServiceEndpoints(values []json.RawMessage, placement rawRenderUnitPlac
 		}
 		if endpoint.TargetPort < 1 || endpoint.TargetPort > 65535 {
 			return nil, nil, fail(ErrInvalidPlan, endpointPath+".targetPort", "must be between 1 and 65535")
+		}
+		if !oneOf(endpoint.RequiredPrivilege, "user", "admin", "identity", "secrets", "vault", "recovery") {
+			return nil, nil, fail(ErrInvalidPlan, endpointPath+".requiredPrivilege", "unsupported service privilege %q", endpoint.RequiredPrivilege)
 		}
 		if err := validateUniqueEnumList(endpoint.AllowedIngressProtocols, []string{"tcp", "udp", "http", "https"}, endpointPath+".allowedIngressProtocols"); err != nil {
 			return nil, nil, err
@@ -2973,11 +2991,18 @@ func validateRenderUnitPlanInputs(unit rawRenderUnit, unitPath string) ([]string
 
 var allowedRendererPlanInputRefs = map[string]struct{}{
 	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
-	"bridge": {}, "identity": {}, "data": {}, "failurePolicy": {},
-	"localReachability": {}, "identityTrust": {}, "homeLANDiscovery": {},
+	"bridge": {}, "bridgePublications": {}, "bridgeOriginMTLS": {}, "identity": {}, "data": {}, "failurePolicy": {},
+	"federationPolicy": {}, "federationLinkPolicy": {}, "federationControlActions": {}, "federationBackupPolicy": {}, "federationObservability": {},
+	"identityTrust": {}, "localReachability": {}, "homeLANDiscovery": {},
+	"homeAccessRequirements": {}, "externalHomeAccessBindings": {},
+	"backupTargetRequirements": {}, "externalBackupTargetBindings": {},
+	"homeBackupTargetRequirements": {}, "externalHomeBackupTargetBindings": {},
+	"homeAccessHandoff": {}, "homeOffsiteBackup": {}, "cloudOffsiteBackup": {},
+	"federationLinkRequirements": {}, "externalFederationLinkBindings": {},
+	"availability":  {},
 	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
 	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicEdge": {}, "publicTLS": {},
-	"cloudOffsiteBackup": {},
+	"internalPKI": {}, "cloudAdminMesh": {},
 }
 
 func requireCompleteSecretRefs(refs map[string]json.RawMessage, declared map[string]struct{}, valuePath string) error {

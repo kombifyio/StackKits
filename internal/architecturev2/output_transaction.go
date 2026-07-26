@@ -11,3 +11,23 @@ import (
 func RequireNoPendingOutputTransaction(workspace *confinedfs.Transaction, outputRoot string) error {
 	return execution.RequireNoPendingOutputTransaction(workspace, outputRoot)
 }
+
+// RetiredOutputGCInspection is the explicit, one-action cleanup report for a
+// completed output-transaction tombstone.
+type RetiredOutputGCInspection = execution.RetiredOutputGCInspection
+
+// RetiredOutputGCAction names the only bounded retired-tombstone mutation.
+type RetiredOutputGCAction = execution.RetiredOutputGCAction
+
+const (
+	RetiredOutputGCRemoveStage   = execution.RetiredOutputGCRemoveStage
+	RetiredOutputGCRemoveJournal = execution.RetiredOutputGCRemoveJournal
+)
+
+func InspectRetiredOutputGC(workspace *confinedfs.Transaction, transactionID string) (RetiredOutputGCInspection, error) {
+	return execution.InspectRetiredOutputGC(workspace, transactionID)
+}
+
+func ApplyRetiredOutputGC(workspace *confinedfs.Transaction, expected RetiredOutputGCInspection) error {
+	return execution.ApplyRetiredOutputGC(workspace, expected)
+}

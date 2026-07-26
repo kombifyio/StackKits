@@ -1,10 +1,19 @@
 # StackKits API
 
-> Last verified: 2026-07-20
+> Last verified: 2026-07-24
 
-This document summarizes the StackKits HTTP API for operators, TechStack integrations, and AI agents. The contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml); the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server) and [internal/api](../internal/api).
+This document summarizes the StackKits HTTP API for operators, TechStack integrations, and AI agents. The general contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml); the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server) and [internal/api](../internal/api). The node-operational StackAction v1 subset is generated from the sole CUE authority [base/stack_action.cue](../base/stack_action.cue) into `internal/stackaction` and marked OpenAPI regions.
 
-Implementation note: `internal/api/server.go` registers health, capabilities, catalog, validation, generation, node-local management, log, node-local setup, internal runtime-action, and Direct Connect registry routes.
+The HTTP server is not the v0.8 standalone lifecycle authority or the public
+Techstack integration boundary. The supported standalone surface is the
+published `stackkit` binary, release index, `stackkit.command-result/v1` JSON,
+and versioned JSONL events. Techstack uses those artifacts as its optional
+Orchestrator UI for configuration unification and Advanced Day-2/RIL dispatch.
+The internal service-auth routes below are compatibility surfaces and cannot
+mint local Owner evidence, reinterpret the ResolvedPlan, or become a
+prerequisite for Standard Mode.
+
+Implementation note: `internal/api/server.go` registers health, capabilities, catalog, validation, generation, node-local management, log, node-local setup, Architecture-v2 RuntimeAction, StackAction, and Direct Connect registry routes.
 
 ## Surfaces
 
@@ -35,7 +44,9 @@ Internal runtime-action endpoints are not browser/API-key endpoints. They requir
 
 The three deployment routes below `/api/v1/internal/runtime-actions/` are exact-v0.6 compatibility only. Native v0.7 returns `410 legacy_runtime_action_retired` before decoding or execution. This StackSpec/deployment retirement does not silently re-version the independently shared backup-operation protocol (`backup-run`, `backup-status`, `backup-restore`, `backup-wipe`); those actions are a separate go-common contract and are not evidence that StackSpec v1 remains operational.
 
-For `ril-ops` public beta, the only StackKit execution lane is the paired
+The replacement node-operational endpoints live below `/api/v1/internal/stack-actions/`. They require the same service-auth caller/audience, default to `STACKKITS_STACK_ACTION_MODE=dry-run`, reject unknown or trailing JSON, and accept only the generated CUE vocabulary. Raw SSH keys, onboarding secrets, owner-spec tokens, and backup credentials have no public representation; scoped references are resolved and revalidated only behind the internal `StackActionReferenceResolver` seam. This is separate from the provider-free Architecture-v2 RuntimeAction admission above.
+
+The legacy `ril-ops` service beta uses the paired
 `/api/v2/internal/ril-actions/resolve` and
 `/api/v2/internal/ril-actions/execute` service surface. Both require a valid
 TechStack service token and exact `X-Kombify-Tenant-ID`. Resolve accepts
@@ -44,7 +55,9 @@ accepts only the shared provider-free `rilaction.Request` and returns the exact
 shared evidence document. Only `verify-stackkit-state` currently has an
 executor; every other catalog primitive remains contract-only. Agents and
 Workbench never receive raw SSH, Docker socket, OpenTofu apply, provider input,
-or caller-selected command authority. See
+or caller-selected command authority. Native v0.8 Advanced operations instead
+use the published CLI and an offline-verified capability before rendering or
+side effects. See
 [RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md).
 
 ## Response Model
@@ -93,6 +106,13 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-rollout` | Exact-v0.6 legacy rollout; native v0.7 returns 410. | Servicecall |
 | `POST` | `/api/v1/internal/runtime-actions/stackkit-verify` | Exact-v0.6 legacy verification; native v0.7 returns 410. | Servicecall |
 | `POST` | `/api/v1/internal/runtime-actions/restore-drill` | Exact-v0.6 legacy restore drill; native v0.7 returns 410. | Servicecall |
+| `POST` | `/api/v1/internal/stack-actions/stackkit-rollout` | CUE-governed node-operational rollout or dry-run. | Servicecall |
+| `POST` | `/api/v1/internal/stack-actions/stackkit-verify` | CUE-governed node-operational verification. | Servicecall |
+| `POST` | `/api/v1/internal/stack-actions/restore-drill` | CUE-governed restore-drill handoff. | Servicecall |
+| `POST` | `/api/v1/internal/stack-actions/backup-run` | Start a node-side backup run. | Servicecall |
+| `POST` | `/api/v1/internal/stack-actions/backup-status` | Inspect node-side backup state. | Servicecall |
+| `POST` | `/api/v1/internal/stack-actions/backup-restore` | Restore a backup snapshot. | Servicecall |
+| `POST` | `/api/v1/internal/stack-actions/backup-wipe` | Wipe a backup repository after confirmation. | Servicecall |
 | `POST` | `/api/v1/registry/instances` | Exact-v0.6 in-memory compatibility registry; native v0.7 returns 501. | Yes |
 | `DELETE` | `/api/v1/registry/instances/{instanceId}` | Exact-v0.6 in-memory deregistration; native v0.7 returns 501. | Yes |
 | `PUT` | `/api/v1/registry/instances/{instanceId}/heartbeat` | Exact-v0.6 in-memory heartbeat; native v0.7 returns 501. | Yes |

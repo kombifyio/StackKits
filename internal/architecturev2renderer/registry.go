@@ -111,6 +111,17 @@ func (r *Registry) exact(contract renderUnitContract) (UnitRenderer, bool) {
 	return renderer, exists
 }
 
+// HasExact reports whether the complete immutable renderer identity is
+// registered. It exposes no implementation and performs no fallback lookup.
+func (r *Registry) HasExact(contract RendererContract) bool {
+	_, exists := r.exact(renderUnitContract{
+		kind: contract.Kind, rendererRef: contract.RendererRef,
+		templateRef: contract.TemplateRef, version: contract.Version,
+		contractHash: contract.ContractHash,
+	})
+	return exists
+}
+
 // RenderUnit is the immutable logical-unit plus exact-instance projection
 // handed to a renderer. JSON and list accessors return defensive copies.
 type RenderUnit struct {

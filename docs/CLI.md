@@ -210,11 +210,14 @@ Prepare emits these stable phases for orchestrators:
 ### `stackkit generate`
 
 StackSpec v1 generates the compatibility OpenTofu/tfvars output. Architecture
-v2 re-resolves the current Spec and Inventory, requires the exact canonical
-plan at `<outputRoot>/.stackkit/resolved-plan.json`, authorizes only a
-generation-ready plan, and atomically installs its complete heterogeneous
-artifact set plus manifest and receipt beneath the plan-owned `outputRoot`.
-It never falls through to the v1 generator.
+v2 resolves the current Spec and optional Inventory, atomically writes the
+exact canonical plan to `<outputRoot>/.stackkit/resolved-plan.json`, authorizes
+only that generation-ready plan, and atomically installs its complete
+heterogeneous artifact set plus manifest and receipt beneath the plan-owned
+`outputRoot`. A separate `stackkit resolve --output ...` step is not required
+for the normal workflow. `resolve` remains a read-only inspection command
+unless an explicit output is requested. Generation never falls through to the
+v1 generator.
 
 The following shape flags belong to the v1 compatibility generator:
 
@@ -254,35 +257,21 @@ Applies generated infrastructure. If the deploy directory is missing or empty, g
 Common flags:
 
 - `--auto-approve`
-- `--tenant-deployment`
-- `--admin-endpoint`
-- `--admin-token`
 - `--verify`
 - `--verify-http`
 - `--verify-strict`
 
-Managed tenant mode uses `--tenant-deployment <uuid>` on a VM or job created
-from the Admin SaaS flow. If no local `stack-spec.yaml` exists, the CLI fetches
-`GET /api/v1/sk/tenants/deployments/{id}/spec`, validates that the returned
-deployment envelope matches the requested id, writes `stack-spec.yaml` plus
-`.stackkit/tenant-bindings.json`, and then runs the normal apply pipeline. Use
-`STACKKIT_ADMIN_ENDPOINT` and the deployment-scoped `STACKKIT_BOOTSTRAP_TOKEN`;
-`STACKKIT_ADMIN_URL`, `--admin-token`, and `STACKKIT_ADMIN_TOKEN` remain
-fallbacks for older operator jobs. The same token path is used to report
-`healthy` or `failed` back to the Admin deployment record.
+The public command applies only local StackSpec, ResolvedPlan, owner-custody,
+and generated artifacts. It has no tenant-deployment, Admin endpoint, Admin
+token, or kombify.me registration path. Publisher and migration operations
+that still consume private control-plane contracts compile only into the
+non-public `stackkit-publisher` executable.
 
 Unless `--no-log` is set, rollout evidence is written under
-`.stackkit/runs/<runId>/` next to the structured log. Managed tenant applies
-also post phase progress to Admin when
-`POST /api/v1/sk/tenants/deployments/{id}/events` is available; unsupported
-event endpoints degrade safely and the final lifecycle `PATCH` remains.
-On the native v0.7 line, apply intent is classified before deploy logging,
-rollout recording, telemetry, or tenant-event reporting starts. A managed job
-without local intent performs only its required read-only Admin fetch first;
-a fetched v1 document is rejected before local spec/bundle persistence and no
-lifecycle event is posted. A missing unmanaged intent or any admitted local v1
-document likewise leaves no `.stackkit` artifacts. Exact v0.6 retains its
-compatibility flow.
+`.stackkit/runs/<runId>/` next to the structured log. On the native v0.8 line,
+apply intent is classified before deploy logging or rollout recording starts.
+A missing local intent or an admitted local v1 document leaves no `.stackkit`
+run artifacts.
 
 Rollout telemetry is local-first by default. Remote traces are disabled unless
 `OTEL_EXPORTER_OTLP_ENDPOINT` is supplied, and Sentry is disabled unless
@@ -290,8 +279,7 @@ Rollout telemetry is local-first by default. Remote traces are disabled unless
 spans and, on failed rollouts, a sanitized Sentry error event plus a local
 `.stackkit/runs/<runId>/sentry-event.json` marker with event id/delivery status.
 `SENTRY_AUTH_TOKEN` and `SENTRY_API_AUTH_TOKEN` are not accepted on target nodes.
-Managed tenant spec envelopes may carry ingestion-only telemetry configuration,
-but `stack-spec.yaml` never persists DSNs, OTLP endpoints, OTLP header values, or
+`stack-spec.yaml` never persists DSNs, OTLP endpoints, OTLP header values, or
 Sentry API credentials.
 
 ### `stackkit verify`
@@ -487,21 +475,18 @@ The write-capable MCP tools execute local CLI-equivalent StackKits operations. `
 
 Subcommands:
 
-- `kit import`
-- `kit export`
 - `kit list`
-- `kit history`
-- `kit roundtrip`
-- `kit unlock`
-- `kit upgrade` (also available top-level as `stackkit upgrade` — the kit namespace is the default for the everyday upgrade verb)
-- `kit upgrade rollback` (also `stackkit upgrade rollback`)
-- `kit verify`
+- `kit upgrade` (deprecated alias for top-level `stackkit upgrade`)
+- `kit verify` (deprecated alias for top-level `stackkit verify`)
 
-These commands are for registry, release, lifecycle, and parity workflows. Admin API calls require the relevant endpoint/token configuration documented in [CONFIGURATION.md](CONFIGURATION.md).
+The public commands resolve and verify signed GitHub release indexes without an
+account. Import, export, history, roundtrip, unlock, and Admin resolver
+operations are Publisher-only.
 
-`stackkit upgrade` is a top-level alias for `stackkit kit upgrade`: the kit is the default upgrade target, so you do not type `kit`. Upgrading a single tool/module (not the whole kit) stays under the explicit `module` namespace (e.g. a future `stackkit service upgrade`).
+`stackkit upgrade` is the canonical public command. Upgrading a single
+tool/module (not the whole Kit) stays outside the public v0.8 lifecycle.
 
-### `stackkit module`
+### `stackkit module` (Publisher-only)
 
 Subcommands:
 
@@ -509,7 +494,8 @@ Subcommands:
 - `module verify-db`
 - `module verify-version-bumps`
 
-Use these for module contract hash release, DB parity checks, and the offline
+These commands exist only in `stackkit-publisher`. Use them for module contract
+hash release, DB parity checks, and the offline
 merge-base guard that requires a strictly higher SemVer whenever a canonical
 module contract changes. `verify-version-bumps` accepts exactly one of
 `--baseline-ref` or `--baseline-tree`; new modules are allowed, but every
@@ -522,11 +508,10 @@ preferred `X-Kombify-Service-Auth` token, with `STACKKIT_ADMIN_TOKEN` or
 
 Subcommands:
 
-- `registry snapshot`
-- `registry bake-from-cue`
 - `registry info`
 
-`snapshot` fetches from the internal Admin API. `bake-from-cue` creates the OSS-safe fallback snapshot from local CUE modules.
+The public command reads the embedded CUE-derived snapshot. `snapshot` and
+`bake-from-cue` exist only in `stackkit-publisher`.
 
 ### `stackkit logs`
 
@@ -537,7 +522,7 @@ Subcommands:
 
 Structured deploy logs live under `.stackkit/logs` unless configured otherwise.
 
-### `stackkit wizard`
+### `stackkit wizard` (Publisher-only)
 
 Subcommands:
 

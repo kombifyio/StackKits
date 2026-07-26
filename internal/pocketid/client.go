@@ -38,6 +38,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -57,6 +60,9 @@ var ErrAlreadyBootstrapped = errors.New("pocketid: instance already bootstrapped
 // when the resource is already present at the API. Callers can use errors.Is
 // to detect this and treat it as success (idempotent semantics).
 var ErrAlreadyExists = errors.New("pocketid: resource already exists")
+
+// ErrNotFound identifies an exact PocketID resource lookup miss.
+var ErrNotFound = errors.New("pocketid: resource not found")
 
 // Client is a thin HTTP client for the PocketID admin API.
 type Client struct {
@@ -80,25 +86,90 @@ func NewClient(baseURL, adminToken string) *Client {
 // when set must be a valid address. FirstName is recommended (PocketID
 // stores it as a non-nullable column). IsAdmin grants admin scope.
 type CreateUserRequest struct {
-	Username      string `json:"username"`
-	Email         string `json:"email,omitempty"`
-	FirstName     string `json:"firstName,omitempty"`
-	LastName      string `json:"lastName,omitempty"`
-	DisplayName   string `json:"displayName,omitempty"`
-	IsAdmin       bool   `json:"isAdmin"`
-	EmailVerified bool   `json:"emailVerified,omitempty"`
-	Disabled      bool   `json:"disabled,omitempty"`
+	Username      string   `json:"username"`
+	Email         string   `json:"email,omitempty"`
+	FirstName     string   `json:"firstName,omitempty"`
+	LastName      string   `json:"lastName,omitempty"`
+	DisplayName   string   `json:"displayName,omitempty"`
+	IsAdmin       bool     `json:"isAdmin"`
+	EmailVerified bool     `json:"emailVerified,omitempty"`
+	Disabled      bool     `json:"disabled,omitempty"`
+	UserGroupIDs  []string `json:"userGroupIds,omitempty"`
 }
 
 // User is the subset of the PocketID user DTO we care about.
 type User struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	Email       string `json:"email,omitempty"`
-	FirstName   string `json:"firstName,omitempty"`
-	LastName    string `json:"lastName,omitempty"`
-	DisplayName string `json:"displayName,omitempty"`
-	IsAdmin     bool   `json:"isAdmin"`
+	ID          string      `json:"id"`
+	Username    string      `json:"username"`
+	Email       string      `json:"email,omitempty"`
+	FirstName   string      `json:"firstName,omitempty"`
+	LastName    string      `json:"lastName,omitempty"`
+	DisplayName string      `json:"displayName,omitempty"`
+	IsAdmin     bool        `json:"isAdmin"`
+	Disabled    bool        `json:"disabled,omitempty"`
+	UserGroups  []UserGroup `json:"userGroups,omitempty"`
+}
+
+// FindUsersByUsername searches PocketID and returns only exact username
+// matches. PocketID's server-side search is deliberately fuzzy, so the local
+// owner binder must never accept a near-match as identity evidence.
+func (c *Client) FindUsersByUsername(ctx context.Context, username string) ([]User, error) {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return nil, errors.New("find users: username is required")
+	}
+	var response struct {
+		Data []User `json:"data"`
+	}
+	path := "/api/users?search=" + url.QueryEscape(username) + "&pagination%5Blimit%5D=100"
+	if err := c.do(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return nil, fmt.Errorf("find user %q: %w", username, err)
+	}
+	result := make([]User, 0, 1)
+	for _, user := range response.Data {
+		if user.Username == username {
+			result = append(result, user)
+		}
+	}
+	return result, nil
+}
+
+// GetUser reads the exact PocketID subject including its current groups.
+func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || strings.ContainsAny(userID, "/?#") {
+		return nil, errors.New("get user: subject is invalid")
+	}
+	var user User
+	if err := c.do(ctx, http.MethodGet, "/api/users/"+userID, nil, &user); err != nil {
+		return nil, fmt.Errorf("get user %q: %w", userID, err)
+	}
+	return &user, nil
+}
+
+// UpdateUserGroups replaces PocketID's group-ID set in one request and
+// returns the server readback. Callers must pass the complete desired set.
+func (c *Client) UpdateUserGroups(ctx context.Context, userID string, groupIDs []string) (*User, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || strings.ContainsAny(userID, "/?#") || len(groupIDs) == 0 {
+		return nil, errors.New("update user groups: subject and group IDs are required")
+	}
+	normalized := append([]string(nil), groupIDs...)
+	slices.Sort(normalized)
+	normalized = slices.Compact(normalized)
+	for _, groupID := range normalized {
+		if strings.TrimSpace(groupID) == "" {
+			return nil, errors.New("update user groups: group ID is invalid")
+		}
+	}
+	body := struct {
+		UserGroupIDs []string `json:"userGroupIds"`
+	}{UserGroupIDs: normalized}
+	var user User
+	if err := c.do(ctx, http.MethodPut, "/api/users/"+userID+"/user-groups", body, &user); err != nil {
+		return nil, fmt.Errorf("update user %q groups: %w", userID, err)
+	}
+	return &user, nil
 }
 
 // userCreateResp tolerates email being either string, null, or absent.
@@ -216,9 +287,9 @@ func (c *Client) GetGroupIDByName(ctx context.Context, name string) (string, err
 // WebAuthn credential. PocketID v2 is passkey-only, so this is the only way
 // to bootstrap a freshly-provisioned owner account into a usable state.
 //
-// The TTL is sent to PocketID as an absolute `expiresAt` ISO-8601 timestamp
-// computed against the local clock. The returned string is the raw token
-// (not a full URL); callers compose the setup URL themselves.
+// PocketID v2.7 accepts the TTL as a Go-duration string in the `ttl` field.
+// The returned string is the raw token (not a full URL); callers compose the
+// setup URL themselves.
 //
 // Endpoint: `POST /api/users/:id/one-time-access-token`.
 func (c *Client) CreateOneTimeAccessToken(ctx context.Context, userID string, ttl time.Duration) (string, error) {
@@ -229,9 +300,9 @@ func (c *Client) CreateOneTimeAccessToken(ctx context.Context, userID string, tt
 		return "", fmt.Errorf("create one-time-access-token: ttl must be positive, got %s", ttl)
 	}
 	body := struct {
-		ExpiresAt string `json:"expiresAt"`
+		TTL string `json:"ttl"`
 	}{
-		ExpiresAt: time.Now().UTC().Add(ttl).Format(time.RFC3339),
+		TTL: ttl.String(),
 	}
 	var resp struct {
 		Token string `json:"token"`
@@ -248,20 +319,81 @@ func (c *Client) CreateOneTimeAccessToken(ctx context.Context, userID string, tt
 
 // RegisterClientRequest is the payload for RegisterOIDCClient.
 type RegisterClientRequest struct {
-	Name         string   `json:"name"`
-	CallbackURLs []string `json:"callbackURLs"`
-	IsPublic     bool     `json:"isPublic"`
-	PkceEnabled  bool     `json:"pkceEnabled,omitempty"`
+	ID                string   `json:"id,omitempty"`
+	Name              string   `json:"name"`
+	CallbackURLs      []string `json:"callbackURLs"`
+	IsPublic          bool     `json:"isPublic"`
+	PkceEnabled       bool     `json:"pkceEnabled,omitempty"`
+	IsGroupRestricted bool     `json:"isGroupRestricted"`
 }
 
 // OIDCClient describes a registered OIDC client. Secret is only populated
 // after CreateClientSecret returns.
 type OIDCClient struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	CallbackURLs []string `json:"callbackURLs"`
-	IsPublic     bool     `json:"isPublic"`
-	Secret       string   `json:"-"`
+	ID                string      `json:"id"`
+	Name              string      `json:"name"`
+	CallbackURLs      []string    `json:"callbackURLs"`
+	IsPublic          bool        `json:"isPublic"`
+	IsGroupRestricted bool        `json:"isGroupRestricted"`
+	AllowedUserGroups []UserGroup `json:"allowedUserGroups,omitempty"`
+	Secret            string      `json:"-"`
+}
+
+// GetOIDCClient reads the exact client including its allowed group projection.
+func (c *Client) GetOIDCClient(ctx context.Context, clientID string) (*OIDCClient, error) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" || strings.ContainsAny(clientID, "/?#") {
+		return nil, errors.New("get oidc client: id is invalid")
+	}
+	var client OIDCClient
+	if err := c.do(ctx, http.MethodGet, "/api/oidc/clients/"+clientID, nil, &client); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get oidc client %q: %w", clientID, err)
+	}
+	return &client, nil
+}
+
+// CreateOIDCClientSecret rotates the confidential client's secret. The raw
+// value is returned once and must remain in local private custody.
+func (c *Client) CreateOIDCClientSecret(ctx context.Context, clientID string) (string, error) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" || strings.ContainsAny(clientID, "/?#") {
+		return "", errors.New("create oidc client secret: id is invalid")
+	}
+	var response struct {
+		Secret string `json:"secret"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/oidc/clients/"+clientID+"/secret", nil, &response); err != nil {
+		return "", fmt.Errorf("create secret for oidc client %s: %w", clientID, err)
+	}
+	if strings.TrimSpace(response.Secret) == "" {
+		return "", errors.New("create oidc client secret: PocketID returned an empty secret")
+	}
+	return response.Secret, nil
+}
+
+// UpdateOIDCClientAllowedUserGroups binds the client to the complete desired
+// PocketID group-ID set.
+func (c *Client) UpdateOIDCClientAllowedUserGroups(
+	ctx context.Context,
+	clientID string,
+	groupIDs []string,
+) (*OIDCClient, error) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" || strings.ContainsAny(clientID, "/?#") || len(groupIDs) == 0 {
+		return nil, errors.New("update oidc client groups: input is invalid")
+	}
+	body := struct {
+		UserGroupIDs []string `json:"userGroupIds"`
+	}{UserGroupIDs: append([]string(nil), groupIDs...)}
+	var client OIDCClient
+	if err := c.do(ctx, http.MethodPut, "/api/oidc/clients/"+clientID+"/allowed-user-groups", body, &client); err != nil {
+		return nil, fmt.Errorf("update oidc client %s groups: %w", clientID, err)
+	}
+	return &client, nil
 }
 
 // RegisterOIDCClient creates an OIDC client (e.g. TinyAuth) and immediately
@@ -272,14 +404,11 @@ func (c *Client) RegisterOIDCClient(ctx context.Context, req RegisterClientReque
 	if err := c.do(ctx, http.MethodPost, "/api/oidc/clients", req, &client); err != nil {
 		return nil, fmt.Errorf("register oidc client %q: %w", req.Name, err)
 	}
-	var secretResp struct {
-		Secret string `json:"secret"`
+	secret, err := c.CreateOIDCClientSecret(ctx, client.ID)
+	if err != nil {
+		return nil, err
 	}
-	secretPath := "/api/oidc/clients/" + client.ID + "/secret"
-	if err := c.do(ctx, http.MethodPost, secretPath, nil, &secretResp); err != nil {
-		return nil, fmt.Errorf("create secret for oidc client %s: %w", client.ID, err)
-	}
-	client.Secret = secretResp.Secret
+	client.Secret = secret
 	return &client, nil
 }
 

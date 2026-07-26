@@ -191,7 +191,8 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	},
 	{
 		moduleID: federationLinkModuleID, moduleVersion: federationLinkModuleVersion,
-		templateRef: federationLinkTemplateRef, outputRef: federationLinkOutputRef,
+		rendererVersion: "1.0.0",
+		templateRef:     federationLinkTemplateRef, outputRef: federationLinkOutputRef,
 		contractJSON:        federationLinkExecutorContract,
 		planInputRefs:       []string{"controlPlane", "externalFederationLinkBindings", "federationLinkPolicy", "federationLinkRequirements", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
@@ -200,7 +201,8 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	},
 	{
 		moduleID: federationControlAgentModuleID, moduleVersion: federationLinkModuleVersion,
-		templateRef: federationControlTemplateRef, outputRef: federationControlOutputRef,
+		rendererVersion: "1.0.0",
+		templateRef:     federationControlTemplateRef, outputRef: federationControlOutputRef,
 		contractJSON:        federationControlAgentExecutorContract,
 		planInputRefs:       []string{"controlPlane", "federationControlActions", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:         []string{"modern-homelab"},
@@ -249,7 +251,8 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	},
 	{
 		moduleID: bridgePublicationModuleID, moduleVersion: bridgePublicationModuleVersion,
-		templateRef: bridgePublicationTemplateRef, outputRef: bridgePublicationOutputRef,
+		rendererVersion: "1.1.0",
+		templateRef:     bridgePublicationTemplateRef, outputRef: bridgePublicationOutputRef,
 		contractJSON:  bridgePublicationExecutorContract,
 		planInputRefs: []string{"bridgePublications", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"modern-homelab"}, siteKind: "cloud",
@@ -258,7 +261,8 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 	},
 	{
 		moduleID: bridgeOriginMTLSModuleID, moduleVersion: bridgeOriginMTLSModuleVersion,
-		templateRef: bridgeOriginMTLSTemplateRef, outputRef: bridgeOriginMTLSOutputRef,
+		rendererVersion: "1.0.0",
+		templateRef:     bridgeOriginMTLSTemplateRef, outputRef: bridgeOriginMTLSOutputRef,
 		contractJSON:  bridgeOriginMTLSExecutorContract,
 		planInputRefs: []string{"bridgeOriginMTLS", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
 		allowedKits:   []string{"modern-homelab"}, siteKind: "home",
@@ -270,6 +274,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 type executorContractBundleSpec struct {
 	moduleID             string
 	moduleVersion        string
+	rendererVersion      string
 	templateRef          string
 	outputRef            string
 	contractJSON         string
@@ -593,11 +598,15 @@ func newExecutorContractBundleRenderer(spec executorContractBundleSpec) executor
 		spec.moduleID, spec.moduleVersion, contractJSON, executorContractBundleToken,
 	))
 	sum := sha256.Sum256(template)
+	rendererVersion := spec.rendererVersion
+	if rendererVersion == "" {
+		rendererVersion = spec.moduleVersion
+	}
 	return executorContractBundleRenderer{
 		spec: spec, template: template,
 		contract: RendererContract{
 			Kind: "native-config", RendererRef: executorContractBundleRendererRef,
-			TemplateRef: spec.templateRef, Version: spec.moduleVersion,
+			TemplateRef: spec.templateRef, Version: rendererVersion,
 			ContractHash: "sha256:" + hex.EncodeToString(sum[:]),
 		},
 	}
@@ -628,6 +637,12 @@ func (r executorContractBundleRenderer) RenderUnit(ctx context.Context, unit Ren
 		}
 	}
 	if r.spec.moduleID == federationLinkModuleID {
+		plan, err = projectFederationLinkForInstance(plan, unit, path)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if r.spec.moduleID == federationControlAgentModuleID {
 		plan, err = projectFederationLinkForInstance(plan, unit, path)
 		if err != nil {
 			return nil, err
@@ -715,7 +730,7 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact %s/stackkit ownership", wantRuntimeKind)
 	}
 	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == cloudPublicEdgeModuleID || renderer.spec.moduleID == cloudOffsiteBackupModuleID || renderer.spec.moduleID == federationLinkModuleID ||
-		renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
+		renderer.spec.moduleID == federationControlAgentModuleID || renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
 	if nodeLocal {
 		siteRef, hasSite := unit.SiteRef()
 		nodeRef, hasNode := unit.NodeRef()
@@ -2393,10 +2408,17 @@ func validateHomeBackupTargetExecutorProjection(plan localRuntimeExecutorPlan, s
 	if err := decodeStrict(plan.ExternalHomeBackupTargetBindings, &bindings); err != nil {
 		return wrap(ErrInvalidPlan, path+".externalHomeBackupTargetBindings", "decode closed external Home backup bindings", err)
 	}
-	if len(requirements) != len(plan.Sites) {
+	targetSites := make(map[string]struct{}, len(plan.ModuleTargets))
+	for _, target := range plan.ModuleTargets {
+		targetSites[target.SiteRef] = struct{}{}
+	}
+	if len(requirements) != len(targetSites) {
 		return fail(ErrInvalidPlan, path+".homeBackupTargetRequirements", "must contain exactly one requirement per module Home Site")
 	}
 	for _, site := range plan.Sites {
+		if _, selected := targetSites[site.ID]; !selected {
+			continue
+		}
 		targetNodeRefs := make([]string, 0, len(plan.ModuleTargets))
 		for _, target := range plan.ModuleTargets {
 			if target.SiteRef == site.ID {
@@ -2541,10 +2563,17 @@ func validateHomeAccessExecutorProjection(plan localRuntimeExecutorPlan, spec ex
 	if err := decodeStrict(plan.ExternalHomeAccessBindings, &bindings); err != nil {
 		return wrap(ErrInvalidPlan, path+".externalHomeAccessBindings", "decode closed external Home access bindings", err)
 	}
-	if len(requirements) != len(plan.Sites) {
+	targetSites := make(map[string]struct{}, len(plan.ModuleTargets))
+	for _, target := range plan.ModuleTargets {
+		targetSites[target.SiteRef] = struct{}{}
+	}
+	if len(requirements) != len(targetSites) {
 		return fail(ErrInvalidPlan, path+".homeAccessRequirements", "must contain exactly one requirement per module Home Site")
 	}
 	for _, site := range plan.Sites {
+		if _, selected := targetSites[site.ID]; !selected {
+			continue
+		}
 		targetNodeRefs := make([]string, 0, len(plan.ModuleTargets))
 		for _, target := range plan.ModuleTargets {
 			if target.SiteRef == site.ID {
@@ -3235,26 +3264,18 @@ func validateExecutorContractPlanCommon(stackID string, kit executorBundleKit, s
 		previousSite = site.ID
 		siteKinds[site.ID] = site.Kind
 	}
-	if spec.siteKind != "" && spec.moduleID != bridgePublicationModuleID {
-		for _, site := range sites {
-			if site.Kind != spec.siteKind {
-				return fail(ErrInvalidPlan, path+".sites", "%s executor contract accepts only %s Sites", spec.moduleID, spec.siteKind)
-			}
-		}
-	}
 	modernSitesInvalid := kit.Slug == "modern-homelab" &&
-		(spec.moduleID == bridgePublicationModuleID && (!containsExecutorBundleSiteKind(siteKinds, "home") || !containsExecutorBundleSiteKind(siteKinds, "cloud")) ||
-			spec.moduleID != bridgePublicationModuleID && (spec.siteKind == "" && (!containsExecutorBundleSiteKind(siteKinds, "home") || !containsExecutorBundleSiteKind(siteKinds, "cloud")) || spec.siteKind != "" && !exactExecutorBundleSiteKinds(siteKinds, spec.siteKind)))
+		(!containsExecutorBundleSiteKind(siteKinds, "home") || !containsExecutorBundleSiteKind(siteKinds, "cloud"))
 	if kit.Slug == "basement-kit" && !exactExecutorBundleSiteKinds(siteKinds, "home") || kit.Slug == "cloud-kit" && !exactExecutorBundleSiteKinds(siteKinds, "cloud") || modernSitesInvalid {
 		return fail(ErrInvalidPlan, path+".sites", "site kinds contradict the selected kit")
 	}
 	if err := validateExecutorBundleTargets(targets, siteKinds, path+".moduleTargets"); err != nil {
 		return err
 	}
-	if spec.moduleID == bridgePublicationModuleID {
+	if spec.siteKind != "" {
 		for _, target := range targets {
-			if siteKinds[target.SiteRef] != "cloud" {
-				return fail(ErrInvalidPlan, path+".moduleTargets", "publication runtime targets must be Cloud edge nodes")
+			if siteKinds[target.SiteRef] != spec.siteKind {
+				return fail(ErrInvalidPlan, path+".moduleTargets", "%s executor contract targets must remain on %s Sites", spec.moduleID, spec.siteKind)
 			}
 		}
 	}
@@ -3264,15 +3285,8 @@ func validateExecutorContractPlanCommon(stackID string, kit executorBundleKit, s
 	if siteKinds[control.AuthoritySiteRef] == "" || len(control.Members) == 0 || !containsExecutorBundleString([]string{"single", "warm-standby", "quorum"}, control.Mode) {
 		return fail(ErrInvalidPlan, path+".controlPlane", "control plane must bind an existing authority Site and explicit members")
 	}
-	targetIDs := make([]string, len(targets))
-	for index := range targets {
-		targetIDs[index] = targets[index].ID
-	}
 	seenMembers := map[string]struct{}{}
 	for index, member := range control.Members {
-		if spec.moduleID != bridgePublicationModuleID && spec.moduleID != federationLinkModuleID && !containsExecutorBundleString(targetIDs, member) {
-			return fail(ErrInvalidPlan, fmt.Sprintf("%s.controlPlane.members[%d]", path, index), "control member is outside module targets")
-		}
 		if _, duplicate := seenMembers[member]; duplicate {
 			return fail(ErrDuplicate, fmt.Sprintf("%s.controlPlane.members[%d]", path, index), "control member is duplicated")
 		}

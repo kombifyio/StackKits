@@ -5,13 +5,14 @@ import "fmt"
 var allowedModulePlanInputRefs = map[string]struct{}{
 	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
 	"bridge": {}, "bridgePublications": {}, "bridgeOriginMTLS": {}, "identity": {}, "data": {}, "failurePolicy": {},
-	"federationPolicy": {}, "federationLinkPolicy": {}, "federationControlActions": {}, "federationBackupPolicy": {}, "federationObservability": {},
+	"federationPolicy": {}, "federationLinkPolicy": {}, "federationControlActions": {}, "federationBackupPolicy": {}, "federationObservability": {}, "backupPolicy": {}, "driftPolicy": {}, "observability": {},
 	"identityTrust": {}, "localReachability": {}, "homeLANDiscovery": {},
 	"homeAccessRequirements": {}, "externalHomeAccessBindings": {},
 	"backupTargetRequirements": {}, "externalBackupTargetBindings": {},
 	"homeBackupTargetRequirements": {}, "externalHomeBackupTargetBindings": {},
 	"homeAccessHandoff": {}, "homeOffsiteBackup": {}, "cloudOffsiteBackup": {},
 	"federationLinkRequirements": {}, "externalFederationLinkBindings": {},
+	"availability":  {},
 	"moduleTargets": {}, "moduleCapabilities": {}, "hostRuntimePolicy": {},
 	"storagePolicy": {}, "localNetworkPolicy": {}, "cloudNetworkPolicy": {}, "publicEdge": {}, "publicTLS": {}, "internalPKI": {}, "cloudAdminMesh": {},
 }
@@ -42,6 +43,9 @@ type modulePlanInputSource struct {
 	identityTrust                    map[string]any
 	data                             map[string]any
 	failurePolicy                    map[string]any
+	backupPolicy                     map[string]any
+	driftPolicy                      map[string]any
+	observability                    map[string]any
 	localReachability                map[string]any
 	homeLANDiscovery                 map[string]any
 	homeAccessRequirements           map[string]any
@@ -52,6 +56,7 @@ type modulePlanInputSource struct {
 	externalHomeBackupTargetBindings map[string]any
 	federationLinkRequirements       map[string]any
 	externalFederationLinkBindings   map[string]any
+	availability                     map[string]any
 	nodes                            []any
 	capabilities                     []any
 	providers                        []any
@@ -139,6 +144,12 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 		value = source.data
 	case "failurePolicy":
 		value = source.failurePolicy
+	case "backupPolicy":
+		return safeModuleBackupPolicy(source.backupPolicy)
+	case "driftPolicy":
+		return safeModuleDriftPolicy(source.driftPolicy)
+	case "observability":
+		return safeModuleOTLPBaseline(moduleID, source.observability)
 	case "federationPolicy":
 		return safeModuleFederationPolicy(moduleID, source)
 	case "federationLinkPolicy":
@@ -175,6 +186,8 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 		return safeModuleFederationLinkProjection(moduleID, module, source.federationLinkRequirements, true)
 	case "externalFederationLinkBindings":
 		return safeModuleFederationLinkProjection(moduleID, module, source.externalFederationLinkBindings, false)
+	case "availability":
+		return safeModuleAvailability(moduleID, source.availability)
 	case "moduleTargets":
 		return safeModuleTargets(moduleID, module, source.nodes)
 	case "moduleCapabilities":
@@ -197,6 +210,159 @@ func (source modulePlanInputSource) resolve(ref, moduleID string, module map[str
 		return safeModuleCloudAdminMesh(moduleID, module, source.capabilities, source.nodes, source.network, source.gates)
 	}
 	return normalizeJSON(value, false, ref)
+}
+
+func safeModuleBackupPolicy(policy map[string]any) (map[string]any, error) {
+	if policy == nil {
+		return nil, fmt.Errorf("backup policy projection is unavailable")
+	}
+	projection, err := selectObjectFields(policy, "backupPolicy", []string{
+		"apiVersion", "kind", "schedule", "dataClasses", "retention", "restoreVerification",
+	})
+	if err != nil {
+		return nil, err
+	}
+	schedule, err := asObject(projection["schedule"], "backupPolicy.schedule")
+	if err != nil {
+		return nil, err
+	}
+	safeSchedule, err := selectObjectFields(schedule, "backupPolicy.schedule", []string{"cadence", "minuteUTC", "jitterSeconds"})
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range []string{"hourUTC", "weekdayUTC"} {
+		if value, exists := schedule[field]; exists {
+			safeSchedule[field] = value
+		}
+	}
+	retention, err := asObject(projection["retention"], "backupPolicy.retention")
+	if err != nil {
+		return nil, err
+	}
+	safeRetention, err := selectObjectFields(retention, "backupPolicy.retention", []string{
+		"keepDaily", "keepWeekly", "keepMonthly", "keepYearly",
+	})
+	if err != nil {
+		return nil, err
+	}
+	restoreVerification, err := asObject(projection["restoreVerification"], "backupPolicy.restoreVerification")
+	if err != nil {
+		return nil, err
+	}
+	safeRestoreVerification, err := selectObjectFields(restoreVerification, "backupPolicy.restoreVerification", []string{
+		"required", "cadence", "maxEvidenceAgeDays", "evidenceRef",
+	})
+	if err != nil {
+		return nil, err
+	}
+	projection["schedule"] = safeSchedule
+	projection["retention"] = safeRetention
+	projection["restoreVerification"] = safeRestoreVerification
+	return normalizedObject(projection, "backupPolicy")
+}
+
+func safeModuleDriftPolicy(policy map[string]any) (map[string]any, error) {
+	if policy == nil {
+		return nil, fmt.Errorf("drift policy projection is unavailable")
+	}
+	projection, err := selectObjectFields(policy, "driftPolicy", []string{
+		"apiVersion", "kind", "enabled", "schedule", "subjects", "evidence", "response",
+	})
+	if err != nil {
+		return nil, err
+	}
+	schedule, err := asObject(projection["schedule"], "driftPolicy.schedule")
+	if err != nil {
+		return nil, err
+	}
+	safeSchedule, err := selectObjectFields(schedule, "driftPolicy.schedule", []string{"cadence", "minuteUTC", "jitterSeconds"})
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range []string{"hourUTC", "weekdayUTC"} {
+		if value, exists := schedule[field]; exists {
+			safeSchedule[field] = value
+		}
+	}
+	evidence, err := asObject(projection["evidence"], "driftPolicy.evidence")
+	if err != nil {
+		return nil, err
+	}
+	safeEvidence, err := selectObjectFields(evidence, "driftPolicy.evidence", []string{
+		"required", "evidenceRef", "maxEvidenceAgeMinutes", "onMissing",
+	})
+	if err != nil {
+		return nil, err
+	}
+	response, err := asObject(projection["response"], "driftPolicy.response")
+	if err != nil {
+		return nil, err
+	}
+	safeResponse, err := selectObjectFields(response, "driftPolicy.response", []string{
+		"differenceAction", "reconcileApproval",
+	})
+	if err != nil {
+		return nil, err
+	}
+	projection["schedule"] = safeSchedule
+	projection["evidence"] = safeEvidence
+	projection["response"] = safeResponse
+	return normalizedObject(projection, "driftPolicy")
+}
+
+// safeModuleAvailability returns the closed HA policy that is already
+// selected by the resolved Kit definition. It deliberately excludes provider
+// lifecycle, endpoints, credentials, host inventory, and arbitrary policy
+// extensions. Only the exact HA realization module may consume it.
+func safeModuleAvailability(moduleID string, availability map[string]any) (map[string]any, error) {
+	if availability == nil {
+		return nil, fmt.Errorf("availability projection is unavailable")
+	}
+	enabled, err := boolFieldDefault(availability, "availability", "enabled", false)
+	if err != nil || !enabled {
+		return nil, fmt.Errorf("availability projection requires an enabled HA add-on")
+	}
+	moduleRef, err := stringField(availability, "availability", "moduleRef")
+	if err != nil {
+		return nil, err
+	}
+	if moduleID != moduleRef || !contains([]string{
+		"stackkits-ha-basement-warm-runtime", "stackkits-ha-basement-quorum-runtime",
+		"stackkits-ha-cloud-warm-runtime", "stackkits-ha-cloud-quorum-runtime",
+		"stackkits-ha-modern-warm-runtime", "stackkits-ha-modern-quorum-runtime",
+	}, moduleID) {
+		return nil, fmt.Errorf("module %q cannot consume the selected HA availability projection", moduleID)
+	}
+	policy, err := selectObjectFields(availability, "availability", []string{
+		"mode", "policyRef", "realizationRef", "moduleRef", "selector",
+		"rpoSeconds", "rtoSeconds", "failureDomainSpread", "fencing",
+	})
+	if err != nil {
+		return nil, err
+	}
+	rawFailureModel, err := objectField(availability, "availability", "failureModel")
+	if err != nil {
+		return nil, err
+	}
+	failureModel, err := selectObjectFields(rawFailureModel, "availability.failureModel", []string{
+		"basis", "memberSiteScope", "partitionBehavior",
+	})
+	if err != nil {
+		return nil, err
+	}
+	members, err := objectListField(availability, "availability", "selectedMembers")
+	if err != nil {
+		return nil, err
+	}
+	projectedMembers := make([]any, 0, len(members))
+	for index, member := range members {
+		projected, err := selectObjectFields(member, fmt.Sprintf("availability.selectedMembers[%d]", index), []string{"nodeRef", "siteRef", "failureDomain"})
+		if err != nil {
+			return nil, err
+		}
+		projectedMembers = append(projectedMembers, projected)
+	}
+	return normalizedObject(map[string]any{"policy": policy, "failureModel": failureModel, "members": projectedMembers}, "availability")
 }
 
 func safeModuleFederationPolicy(moduleID string, source modulePlanInputSource) (map[string]any, error) {
@@ -399,6 +565,116 @@ func safeModuleFederationObservability(moduleID string, source modulePlanInputSo
 	return normalizedObject(map[string]any{
 		"evidenceOnly": true, "publications": publicationEvidence, "flows": flowEvidence, "partition": partition,
 	}, "federationObservability")
+}
+
+// safeModuleOTLPBaseline is the sole seam that makes the secret-free OTLP
+// baseline and optional signal lanes visible to the future monitoring-agent
+// module. It deliberately rebuilds the projection instead of forwarding its
+// source so backend, header, credential, and CA authority remain unreachable.
+func safeModuleOTLPBaseline(moduleID string, observability map[string]any) (map[string]any, error) {
+	if moduleID != "stackkits-monitoring-agent-runtime" {
+		return nil, fmt.Errorf("module %q cannot consume OTLP baseline authority", moduleID)
+	}
+	if observability == nil {
+		return nil, fmt.Errorf("OTLP baseline projection is unavailable")
+	}
+	signals, err := objectField(observability, "observability", "signals")
+	if err != nil {
+		return nil, err
+	}
+	collector, err := objectField(observability, "observability", "collector")
+	if err != nil {
+		return nil, err
+	}
+	tls, err := objectField(collector, "observability.collector", "tls")
+	if err != nil {
+		return nil, err
+	}
+	safeProfile, err := selectObjectFields(observability, "observability", []string{"profile", "agentBudget"})
+	if err != nil {
+		return nil, err
+	}
+	safeSignals, err := selectObjectFields(signals, "observability.signals", []string{"metrics", "logs", "traces"})
+	if err != nil {
+		return nil, err
+	}
+	safeCollector, err := selectObjectFields(collector, "observability.collector", []string{"enabled", "endpoint", "protocol"})
+	if err != nil {
+		return nil, err
+	}
+	safeTLS, err := selectObjectFields(tls, "observability.collector.tls", []string{"insecure"})
+	if err != nil {
+		return nil, err
+	}
+	safeCollector["tls"] = safeTLS
+	projected := map[string]any{
+		"profile": safeProfile["profile"], "agentBudget": safeProfile["agentBudget"],
+		"signals": safeSignals, "collector": safeCollector,
+	}
+	optionalSignals, exists, err := optionalObjectField(observability, "observability", "optionalSignals")
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		safeOptionalSignals, err := safeModuleOTLPOptionalSignals(optionalSignals, safeSignals)
+		if err != nil {
+			return nil, err
+		}
+		projected["optionalSignals"] = safeOptionalSignals
+	}
+	return normalizedObject(projected, "observability")
+}
+
+func safeModuleOTLPOptionalSignals(optionalSignals, signals map[string]any) (map[string]any, error) {
+	projected := map[string]any{}
+	for _, laneName := range []string{"logs", "traces"} {
+		lane, exists, err := optionalObjectField(optionalSignals, "observability.optionalSignals", laneName)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			continue
+		}
+		enabled, ok := signals[laneName].(bool)
+		if !ok || !enabled {
+			return nil, fmt.Errorf("observability.optionalSignals.%s requires observability.signals.%s=true", laneName, laneName)
+		}
+		fields := []string{"enabled", "protocol", "direction", "lifecycle"}
+		if laneName == "logs" {
+			fields = append(fields, "retentionDays")
+		}
+		safeLane, err := selectObjectFields(lane, "observability.optionalSignals."+laneName, fields)
+		if err != nil {
+			return nil, err
+		}
+		budget, err := objectField(lane, "observability.optionalSignals."+laneName, "budget")
+		if err != nil {
+			return nil, err
+		}
+		safeBudget, err := selectObjectFields(budget, "observability.optionalSignals."+laneName+".budget", []string{
+			"enabled", "cpuMilli", "memoryMiB", "ephemeralMiB", "persistentMiB", "maxRetentionDays",
+		})
+		if err != nil {
+			return nil, err
+		}
+		safeLane["budget"] = safeBudget
+		if laneName == "traces" {
+			sampling, err := objectField(lane, "observability.optionalSignals.traces", "sampling")
+			if err != nil {
+				return nil, err
+			}
+			safeSampling, err := selectObjectFields(sampling, "observability.optionalSignals.traces.sampling", []string{"mode", "ratio"})
+			if err != nil {
+				return nil, err
+			}
+			safeLane["sampling"] = safeSampling
+		}
+		projected[laneName] = safeLane
+	}
+	if len(projected) == 0 {
+		return nil, fmt.Errorf("observability.optionalSignals has no represented lanes")
+	}
+	return projected, nil
 }
 
 func requireFederationSource(source modulePlanInputSource) (map[string]any, error) {
@@ -1120,8 +1396,8 @@ func safeModuleCloudAdminMesh(moduleID string, module map[string]any, capabiliti
 			continue
 		}
 		exposure, err := stringField(route, path, "exposure")
-		if err != nil || exposure != "private" {
-			return nil, fmt.Errorf("%s owned by private-admin-mesh is not private", path)
+		if err != nil || exposure != "remote-private" {
+			return nil, fmt.Errorf("%s owned by private-admin-mesh is not remote-private", path)
 		}
 		access, err := objectField(route, path, "access")
 		if err != nil {
@@ -1791,6 +2067,18 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	if err != nil {
 		return modulePlanInputSource{}, err
 	}
+	backupPolicy, _, err := optionalObjectField(top, "resolvedPlan", "backupPolicy")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	driftPolicy, _, err := optionalObjectField(top, "resolvedPlan", "driftPolicy")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
+	observability, _, err := optionalObjectField(top, "resolvedPlan", "observability")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
 	network, err := objectField(top, "resolvedPlan", "network")
 	if err != nil {
 		return modulePlanInputSource{}, err
@@ -1835,6 +2123,10 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	if err != nil {
 		return modulePlanInputSource{}, err
 	}
+	availability, err := objectField(top, "resolvedPlan", "availability")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
 	externalFederationLinkBindings, err := objectField(top, "resolvedPlan", "externalFederationLinkBindings")
 	if err != nil {
 		return modulePlanInputSource{}, err
@@ -1866,12 +2158,13 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	return modulePlanInputSource{
 		stackID: stackID, kit: kit, sites: objectMapsAsAny(sites),
 		controlPlane: controlPlane, bridge: bridge, identity: identity, identityTrust: identityTrust,
-		data: data, failurePolicy: failurePolicy, localReachability: localReachability,
+		data: data, failurePolicy: failurePolicy, backupPolicy: backupPolicy, driftPolicy: driftPolicy, observability: observability, localReachability: localReachability,
 		homeLANDiscovery: homeLANDiscovery, homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
 		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
-		nodes: objectMapsAsAny(nodes), capabilities: objectMapsAsAny(capabilities), providers: objectMapsAsAny(providers),
+		availability: availability,
+		nodes:        objectMapsAsAny(nodes), capabilities: objectMapsAsAny(capabilities), providers: objectMapsAsAny(providers),
 		install: install, system: system, storage: storage, network: network, gates: gates,
 	}, nil
 }

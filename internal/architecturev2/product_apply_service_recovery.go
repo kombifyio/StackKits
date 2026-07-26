@@ -122,7 +122,11 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 	if err := ctx.Err(); err != nil {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.context", "execution context was cancelled during Product Apply recovery", err)
 	}
-	return verifyApplyRuntimeExecutionResult(capsule.Request, stackKitsExecutionResult(sharedResult))
+	return verifyApplyRuntimeExecutionResult(
+		capsule.Request,
+		stackKitsExecutionResult(sharedResult),
+		&sharedRuntimeExecutorBridge{executor: s.productRuntimeOwners},
+	)
 }
 
 func (s *Service) loadProductApplyRecoveryCapsule(ctx context.Context, requestDigest string) (productApplyRecoveryCapsule, error) {

@@ -419,8 +419,16 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ] && [ "$(ca
 fi
 mkdir -p .stackkit
 $SUDO mkdir -p /etc/apt/apt.conf.d /etc/sysctl.d /var/log/stackkit
-$SUDO apt-get update -y
-$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unattended-upgrades procps
+PACKAGES_READY=1
+for package in unattended-upgrades procps; do
+  if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'ok installed'; then
+    PACKAGES_READY=0
+  fi
+done
+if [ "$PACKAGES_READY" != "1" ]; then
+  $SUDO apt-get update -y
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unattended-upgrades procps
+fi
 
 $SUDO tee /etc/apt/apt.conf.d/20auto-upgrades >/dev/null <<'STACKKIT_UPGRADES'
 APT::Periodic::Update-Package-Lists "1";

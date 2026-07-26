@@ -29,7 +29,7 @@ func loadCanonicalServiceCatalog(wd string, spec *models.StackSpec) []servicecat
 func loadSnapshotDefaults(kitSlug string) *snapshotDefaults {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	snap, err := registry.AutoClient().Snapshot(ctx)
+	snap, err := registry.NewEmbeddedClient().Snapshot(ctx)
 	if err != nil {
 		return nil
 	}
@@ -63,7 +63,7 @@ func countKitToolConfigs(d *snapshotDefaults) int {
 func loadRegistryServiceCatalog() []servicecatalog.Service {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	snap, err := registry.AutoClient().Snapshot(ctx)
+	snap, err := registry.NewEmbeddedClient().Snapshot(ctx)
 	if err != nil {
 		deployLog.Warn("service_catalog.registry",
 			slog.String("status", "fallback"),

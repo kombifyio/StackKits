@@ -16,6 +16,7 @@
         "fencing": "none",
         "mode": "single"
       },
+      "backupPolicy": {},
       "bridge": {
         "controlAgent": {
           "actionAllowlist": [
@@ -77,6 +78,7 @@
         "requirePossessionProof": true,
         "revocationSupported": true
       },
+      "driftPolicy": {},
       "generation": {
         "outputRoot": "deploy",
         "strategy": "kit-template",
@@ -292,6 +294,7 @@
       "internal-pki",
       "private-admin-mesh",
       "failure-domain-placement",
+      "telemetry-collection",
       "availability-ha"
     ],
     "required": [

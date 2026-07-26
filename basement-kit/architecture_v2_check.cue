@@ -26,10 +26,10 @@ _validBasementV2: #BasementKitStackV2 & {
 		metadata: name: "family-home"
 		kit: slug:      "basement-kit"
 		install: {platform: {setupPolicy: {}}}
-		generation: {strategy: "kit-template", target: "opentofu"}
+		generation: {strategy: "kit-template", target: "compose"}
 		network: {
 			mode: "private"
-			domain: {base: "home.localhost"}
+			domain: {base: "home.test"}
 			transport: {}
 			dns: {}
 			tls: {defaultMode: "internal"}

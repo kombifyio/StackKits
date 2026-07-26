@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -240,11 +241,16 @@ type applyRuntimeExecutionRequest struct {
 	GenerationReceiptHash string                                   `json:"generation_receipt_hash"`
 	RequirementsHash      string                                   `json:"requirements_hash"`
 	EvidenceBundleHash    string                                   `json:"evidence_bundle_hash"`
+	EvidenceBundle        []byte                                   `json:"evidence_bundle"`
 	ArtifactSetHash       string                                   `json:"artifact_set_hash"`
 	Executor              generationartifact.ApplyExecutorIdentity `json:"executor"`
 	Requirements          generationartifact.ApplyRequirements     `json:"requirements"`
 	Artifacts             []applyArtifactSnapshot                  `json:"artifacts"`
 	ExecutionAt           time.Time                                `json:"execution_at"`
+}
+
+type applyRuntimeRequestDigester interface {
+	runtimeRequestDigest(applyRuntimeExecutionRequest) (string, error)
 }
 
 type applyRuntimeObservation struct {
@@ -279,11 +285,13 @@ type verifiedApplyResultEnvelope struct {
 	GenerationReceiptHash string                                   `json:"generationReceiptHash"`
 	RequirementsHash      string                                   `json:"requirementsHash"`
 	EvidenceBundleHash    string                                   `json:"evidenceBundleHash"`
+	ApplyEvidence         json.RawMessage                          `json:"applyEvidence"`
 	ArtifactSetHash       string                                   `json:"artifactSetHash"`
 	SharedArtifactSetHash string                                   `json:"sharedArtifactSetHash,omitempty"`
 	SharedRequestDigest   string                                   `json:"sharedRequestDigest,omitempty"`
 	SharedResultDigest    string                                   `json:"sharedResultDigest,omitempty"`
 	Executor              generationartifact.ApplyExecutorIdentity `json:"executor"`
+	AppliedAt             string                                   `json:"appliedAt"`
 	Runtime               []applyRuntimeObservation                `json:"runtime"`
 	Health                []applyHealthObservation                 `json:"health"`
 }
@@ -359,7 +367,8 @@ func (r *applyExecutorRegistry) executeWithClock(ctx context.Context, authorizat
 	}
 	request := applyRuntimeExecutionRequest{
 		Binding: grant.plan.Binding(), ManifestHash: grant.manifestHash, GenerationReceiptHash: grant.receiptHash, RequirementsHash: grant.requirementsHash,
-		EvidenceBundleHash: grant.bundleHash, ArtifactSetHash: artifactSetHash, Executor: grant.executor,
+		EvidenceBundleHash: grant.bundleHash, EvidenceBundle: append([]byte(nil), grant.evidenceBundle...),
+		ArtifactSetHash: artifactSetHash, Executor: grant.executor,
 		Requirements: requirements, Artifacts: cloneApplyArtifactSnapshots(grant.artifacts), ExecutionAt: grant.evaluatedAt,
 	}
 	if preparer, ok := r.entry.adapter.(applyRuntimeRecoveryPreparer); ok {
@@ -380,7 +389,9 @@ func (r *applyExecutorRegistry) executeWithClock(ctx context.Context, authorizat
 	if err != nil {
 		cause := applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor", "runtime executor failed", err)
 		requestDigest := ""
-		if shared, sealErr := sharedExecutionRequest(request); sealErr == nil {
+		if digester, ok := r.entry.adapter.(applyRuntimeRequestDigester); ok {
+			requestDigest, _ = digester.runtimeRequestDigest(request)
+		} else if shared, sealErr := sharedExecutionRequest(request); sealErr == nil {
 			requestDigest = shared.RequestDigest
 		}
 		if reconcile := newProductApplyReconcileRequiredError(cause, requestDigest); reconcile != nil {
@@ -391,7 +402,8 @@ func (r *applyExecutorRegistry) executeWithClock(ctx context.Context, authorizat
 	if err := ctx.Err(); err != nil {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.context", "execution context was cancelled during the adapter call", err)
 	}
-	return verifyApplyRuntimeExecutionResult(request, result)
+	provider, _ := r.entry.adapter.(applyRuntimeSharedRequestProvider)
+	return verifyApplyRuntimeExecutionResult(request, result, provider)
 }
 
 func validateApplyExecutionSupport(entry applyExecutorEntry, requirements generationartifact.ApplyRequirements, artifacts []applyArtifactSnapshot) error {
@@ -469,8 +481,12 @@ func containsApplyString(values []string, candidate string) bool {
 	return false
 }
 
-func verifyApplyRuntimeExecutionResult(request applyRuntimeExecutionRequest, result applyRuntimeExecutionResult) (VerifiedApplyResult, error) {
-	if err := verifySharedRuntimeExecutionBinding(request, result); err != nil {
+func verifyApplyRuntimeExecutionResult(
+	request applyRuntimeExecutionRequest,
+	result applyRuntimeExecutionResult,
+	providers ...applyRuntimeSharedRequestProvider,
+) (VerifiedApplyResult, error) {
+	if err := verifySharedRuntimeExecutionBinding(request, result, providers...); err != nil {
 		return VerifiedApplyResult{}, err
 	}
 	if err := verifyApplyRuntimeObservations(request.Requirements.RuntimeInstances, result.Runtime); err != nil {
@@ -482,11 +498,14 @@ func verifyApplyRuntimeExecutionResult(request applyRuntimeExecutionRequest, res
 	envelope := verifiedApplyResultEnvelope{
 		APIVersion: verifiedApplyResultAPIVersion, Kind: verifiedApplyResultKind, Binding: request.Binding,
 		ManifestHash: request.ManifestHash, GenerationReceiptHash: request.GenerationReceiptHash, RequirementsHash: request.RequirementsHash,
-		EvidenceBundleHash: request.EvidenceBundleHash, ArtifactSetHash: request.ArtifactSetHash,
+		EvidenceBundleHash:    request.EvidenceBundleHash,
+		ApplyEvidence:         append(json.RawMessage(nil), request.EvidenceBundle...),
+		ArtifactSetHash:       request.ArtifactSetHash,
 		SharedArtifactSetHash: result.SharedArtifactSetHash, SharedRequestDigest: result.SharedRequestDigest,
 		SharedResultDigest: result.SharedResultDigest,
-		Executor:           request.Executor, Runtime: append([]applyRuntimeObservation(nil), result.Runtime...),
-		Health: append([]applyHealthObservation(nil), result.Health...),
+		Executor:           request.Executor, AppliedAt: request.ExecutionAt.Format(time.RFC3339Nano),
+		Runtime: append([]applyRuntimeObservation(nil), result.Runtime...),
+		Health:  append([]applyHealthObservation(nil), result.Health...),
 	}
 	canonical, err := resolvedplan.CanonicalJSON(envelope)
 	if err != nil {
@@ -540,7 +559,8 @@ func verifyApplyHealthObservations(requirements []generationartifact.ApplyHealth
 	for index, requirement := range requirements {
 		observation := observations[index]
 		if observation.RequirementID != requirement.ID || observation.TargetRef != requirement.TargetRef {
-			return applyExecutorError(generationartifact.ErrBindingMismatch, fmt.Sprintf("apply.result.health[%d]", index), "health observation does not match exact requirement and target", nil)
+			return applyExecutorError(generationartifact.ErrBindingMismatch, fmt.Sprintf("apply.result.health[%d]", index), "health observation %q/%q does not match exact requirement and target %q/%q", nil,
+				observation.RequirementID, observation.TargetRef, requirement.ID, requirement.TargetRef)
 		}
 		if observation.Status != "healthy" {
 			return applyExecutorError(generationartifact.ErrExecutorFailed, fmt.Sprintf("apply.result.health[%d].status", index), "health requirement is not healthy", nil)

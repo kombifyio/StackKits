@@ -23,6 +23,7 @@ var (
 	verifyJSON               bool
 	verifyHTTP               bool
 	verifyStrict             bool
+	verifyOffline            bool
 	verifyHost               string
 	verifyUser               string
 	verifyKey                string
@@ -84,6 +85,7 @@ func init() {
 	verifyCmd.Flags().BoolVar(&verifyJSON, "json", false, "Emit machine-readable JSON")
 	verifyCmd.Flags().BoolVar(&verifyHTTP, "http", false, "Verify generated service URLs with HTTP requests")
 	verifyCmd.Flags().BoolVar(&verifyStrict, "strict", false, "Treat warnings as verification failure")
+	verifyCmd.Flags().BoolVar(&verifyOffline, "offline", false, "Verify cached release receipts and attestations without network access")
 	verifyCmd.Flags().StringVar(&verifyHost, "host", "", "Remote host to verify over SSH")
 	verifyCmd.Flags().StringVar(&verifyUser, "user", "", "SSH username for remote verification")
 	verifyCmd.Flags().StringVar(&verifyKey, "key", "", "SSH private key path for remote verification")
@@ -144,8 +146,29 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		})
 		return emitVerifyReport(cmd.OutOrStdout(), report, verifyJSON)
 	}
-	if handled, err := v2Gate.preflight(wd, specFile, architectureV2Verify, verifyV2ExecutionOptions); handled {
-		return err
+	v2Options := verifyV2ExecutionOptions
+	v2Options.context = cmd.Context()
+	v2Options.verifyOffline = verifyOffline
+	var v2Report architectureV2VerifyReport
+	v2Options.verifySink = func(report architectureV2VerifyReport) error {
+		v2Report = report
+		return nil
+	}
+	if handled, err := v2Gate.preflight(wd, specFile, architectureV2Verify, v2Options); handled {
+		if err != nil {
+			return err
+		}
+		v2Report.Releases, err = verifyWorkspaceReleaseReceipts(cmd, wd)
+		if err != nil {
+			return err
+		}
+		if verifyJSON {
+			return writeCommandResult(cmd, cmd.CommandPath(), v2Report)
+		}
+		return printArchitectureV2VerifyReport(cmd.OutOrStdout(), v2Report)
+	}
+	if verifyOffline {
+		return runOfflineReleaseVerification(cmd, wd, verifyJSON)
 	}
 
 	loader := config.NewLoader(wd)

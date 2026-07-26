@@ -476,7 +476,7 @@ _architectureV2ProfileExtensionModules: [
 		renderUnits: [{
 			id:           "executor-contract", kind:                                                      "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://modern/federation/control-agent/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:9c3de036682330f48113f5cfbf56ca925df6e345c8a10bbccbfc81d04ca85ebf"
+			contractHash: "sha256:859469834a58c9b62cb4edbb642262993d6f47d77212fd6be0206723bea3cf2c"
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationControlActions"]
 			outputs: ["modern/federation/control-agent/executor-contract.json"]

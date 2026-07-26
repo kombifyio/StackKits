@@ -37,6 +37,44 @@ type productApplyTrustAnchor struct {
 	publicKey        ed25519.PublicKey
 }
 
+// ProductApplyTrustAnchor is a construction-time producer trust root. It is
+// accepted only by product service constructors; Apply requests cannot supply
+// or replace it.
+type ProductApplyTrustAnchor struct {
+	Producer         generationartifact.ApplyEvidenceProducer
+	PublicKey        ed25519.PublicKey
+	RequirementKinds []string
+}
+
+func appendProductApplyTrustAnchors(existing []productApplyTrustAnchor, additions []ProductApplyTrustAnchor) ([]productApplyTrustAnchor, error) {
+	result := append([]productApplyTrustAnchor(nil), existing...)
+	seen := make(map[string]struct{}, len(result)+len(additions))
+	for _, anchor := range result {
+		seen[anchor.Producer.KeyID] = struct{}{}
+	}
+	for _, addition := range additions {
+		if _, duplicate := seen[addition.Producer.KeyID]; duplicate {
+			return nil, fmt.Errorf("product Apply trust producer key %q is duplicated", addition.Producer.KeyID)
+		}
+		publicKey := append(ed25519.PublicKey(nil), addition.PublicKey...)
+		if err := generationartifact.ValidateApplyEvidenceProducerAnchor(addition.Producer, publicKey); err != nil {
+			return nil, fmt.Errorf("validate construction-owned product Apply trust producer %q: %w", addition.Producer.ID, err)
+		}
+		kinds := append([]string(nil), addition.RequirementKinds...)
+		sort.Strings(kinds)
+		if err := validateProductApplyRequirementKinds(kinds); err != nil {
+			return nil, fmt.Errorf("validate construction-owned product Apply trust producer %q: %w", addition.Producer.ID, err)
+		}
+		result = append(result, productApplyTrustAnchor{
+			Producer: addition.Producer, PublicKey: base64.RawStdEncoding.EncodeToString(publicKey),
+			RequirementKinds: kinds, publicKey: publicKey,
+		})
+		seen[addition.Producer.KeyID] = struct{}{}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Producer.KeyID < result[j].Producer.KeyID })
+	return result, nil
+}
+
 func productApplyTrustStorePath() (string, error) {
 	root, err := os.UserConfigDir()
 	if err != nil {

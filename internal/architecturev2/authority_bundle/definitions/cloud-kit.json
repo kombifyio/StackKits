@@ -16,6 +16,7 @@
         "fencing": "none",
         "mode": "single"
       },
+      "backupPolicy": {},
       "capabilities": {
         "disable": [],
         "enable": []
@@ -38,6 +39,7 @@
       "data": {
         "defaultAuthority": "cloud"
       },
+      "driftPolicy": {},
       "generation": {
         "outputRoot": "deploy",
         "strategy": "kit-template",
@@ -231,6 +233,7 @@
     "optional": [
       "private-admin-mesh",
       "failure-domain-placement",
+      "telemetry-collection",
       "availability-ha"
     ],
     "required": [

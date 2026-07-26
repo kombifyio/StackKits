@@ -98,6 +98,9 @@ type specView struct {
 	availability        map[string]any
 	deviceEnrollment    map[string]any
 	partitionPolicy     map[string]any
+	backupPolicy        map[string]any
+	driftPolicy         map[string]any
+	observability       map[string]any
 	workloads           map[string]any
 	modules             map[string]any
 	routes              map[string]any
@@ -746,6 +749,15 @@ func populateSpecPolicyContracts(profile *profileView, spec map[string]any, view
 		return fail(ErrProfileMismatch, "spec.deviceEnrollment", "device enrollment presence does not match %s", profile.slug)
 	}
 	if view.partitionPolicy, err = objectField(spec, "spec", "partitionPolicy"); err != nil {
+		return err
+	}
+	if view.backupPolicy, err = objectField(spec, "spec", "backupPolicy"); err != nil {
+		return err
+	}
+	if view.driftPolicy, err = objectField(spec, "spec", "driftPolicy"); err != nil {
+		return err
+	}
+	if view.observability, _, err = optionalObjectField(spec, "spec", "observability"); err != nil {
 		return err
 	}
 	equal, err := jsonEqual(view.partitionPolicy, profile.partitionPolicy)

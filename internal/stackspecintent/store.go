@@ -63,6 +63,7 @@ type Request struct {
 	Candidate        []byte
 	ExpectedSpecHash string
 	BuildVersion     string
+	Authority        *architecturev2.Service
 }
 
 type Result struct {
@@ -77,11 +78,15 @@ type Result struct {
 // embedded CUE authority, then performs a non-blocking exact-hash CAS beneath
 // one held workspace root. It never accepts v1 as current or candidate intent.
 func Persist(request Request) (result Result, returnErr error) {
-	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(request.BuildVersion))
-	if err != nil {
-		return result, fmt.Errorf("load embedded StackSpec v2 authority: %w", err)
+	authority := request.Authority
+	if authority == nil {
+		service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(request.BuildVersion))
+		if err != nil {
+			return result, fmt.Errorf("load embedded StackSpec v2 authority: %w", err)
+		}
+		authority = service
 	}
-	candidate, err := service.ValidateStackSpec(request.Candidate)
+	candidate, err := authority.ValidateStackSpec(request.Candidate)
 	if err != nil {
 		return result, &Error{Code: ErrInvalidCandidate, Cause: fmt.Errorf("validate candidate StackSpec v2: %w", err)}
 	}
@@ -184,7 +189,7 @@ func Persist(request Request) (result Result, returnErr error) {
 		if err != nil {
 			return result, fmt.Errorf("read stable current StackSpec intent: %w", err)
 		}
-		current, err := service.ValidateStackSpec(currentRaw)
+		current, err := authority.ValidateStackSpec(currentRaw)
 		if err != nil {
 			return result, &Error{
 				Code: ErrInvalidCurrent, CandidateSpecHash: result.SpecHash,

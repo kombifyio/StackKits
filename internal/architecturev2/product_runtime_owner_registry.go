@@ -271,6 +271,36 @@ func (r *ProductRuntimeOwnerRegistry) Identity() runtimeexecutor.ExecutorIdentit
 	return r.identity
 }
 
+// bindRuntimeExecutionChannels projects service-owned local routing authority
+// into the provider-neutral request before it is sealed. The CUE plan names
+// Site/node placement, while the local factory owns the opaque channel ref;
+// neither side can declare itself local without the other.
+func (r *ProductRuntimeOwnerRegistry) bindRuntimeExecutionChannels(request runtimeexecutor.ExecutionRequest) (runtimeexecutor.ExecutionRequest, error) {
+	if r == nil || nilProductRuntimeOwnerValue(r.channels) {
+		return runtimeexecutor.ExecutionRequest{}, errors.New("product runtime-owner registry has no execution-channel authority")
+	}
+	binder, ok := r.channels.(productExecutionChannelTargetBinder)
+	if !ok {
+		return runtimeexecutor.CloneExecutionRequest(request), nil
+	}
+	bound := runtimeexecutor.CloneExecutionRequest(request)
+	for index := range bound.RuntimeTargets {
+		target := &bound.RuntimeTargets[index]
+		if strings.TrimSpace(target.ExecutionChannelRef) != "" {
+			continue
+		}
+		if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 {
+			return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("runtime target %q cannot be bound to one local Site/node", target.RequirementID)
+		}
+		channelRef, err := binder.executionChannelFor(target.SiteRefs[0], target.NodeRefs[0])
+		if err != nil {
+			return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("bind runtime target %q to local execution channel: %w", target.RequirementID, err)
+		}
+		target.ExecutionChannelRef = channelRef
+	}
+	return bound, nil
+}
+
 // Execute realizes the already-sealed request only through the immutable
 // service-owned registry. Complete factory/routing preflight finishes before
 // the nested dispatcher can invoke a child.

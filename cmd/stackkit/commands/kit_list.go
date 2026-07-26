@@ -2,128 +2,111 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
-	"os"
+	"runtime"
 	"text/tabwriter"
 
-	"github.com/kombifyio/stackkits/internal/auth"
+	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/spf13/cobra"
 )
 
 var (
-	kitListEndpoint string
-	kitListToken    string
-	kitListJSON     bool
+	kitListChannel string
+	kitListJSON    bool
 )
 
 var kitListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all kits in the Admin DB with lock + source-of-truth state",
-	Long: `Calls GET /api/v1/sk/registry/stackkits and renders the result as a
-table (default) or JSON (--json). Useful for "what's currently in the DB?"
-checks before unlock / re-import.
+	Short: "List published StackKits releases from GitHub",
+	Long: `Resolve the newest published release for every public StackKit on the
+current operating system and architecture. The release index is fetched from
+the public kombifyio/stackKits GitHub Releases repository.
 
-Auth resolves the same way as kit import / export:
-  SERVICE_AUTH_SECRET → HS256 service-auth (preferred)
-  STACKKIT_ADMIN_TOKEN / KOMBIFY_ADMIN_API_KEY → legacy Bearer
-  none → unauthenticated (admin will 401)`,
-	RunE: runKitList,
+Channels:
+  stable  newest release that is not a prerelease
+  beta    newest -beta.* prerelease
+  edge    newest -edge.* prerelease`,
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	RunE:        runKitList,
 }
 
 func init() {
-	kitListCmd.Flags().StringVar(&kitListEndpoint, "endpoint", "", "Admin API base URL. Defaults to STACKKIT_ADMIN_ENDPOINT or ADMIN_PUBLIC_API_URL.")
-	kitListCmd.Flags().StringVar(&kitListToken, "token", "", "Bearer token. Defaults to STACKKIT_ADMIN_TOKEN.")
-	kitListCmd.Flags().BoolVar(&kitListJSON, "json", false, "Emit JSON instead of human-readable table.")
+	kitListCmd.Flags().StringVar(&kitListChannel, "channel", "stable", "Release channel: stable, beta, or edge.")
+	kitListCmd.Flags().BoolVar(&kitListJSON, "json", false, "Emit stackkit.command-result/v1 JSON.")
 	kitCmd.AddCommand(kitListCmd)
 }
 
-type stackkitRow struct {
-	Slug             string `json:"slug"`
-	Name             string `json:"name"`
-	Version          string `json:"version"`
-	Lifecycle        string `json:"lifecycle"`
-	IsLocked         bool   `json:"isLocked"`
-	SourceOfTruth    string `json:"sourceOfTruth"`
-	CueSourcePath    string `json:"cueSourcePath"`
-	LastImportedAt   string `json:"lastImportedAt"`
-	LastImportedBy   string `json:"lastImportedBy"`
-	LastImportedHash string `json:"lastImportedHash"`
+type publishedKitRelease struct {
+	Kit           string                `json:"kit"`
+	Version       string                `json:"version"`
+	Channel       releaseindex.Channel  `json:"channel"`
+	Platform      releaseindex.Platform `json:"platform"`
+	Asset         string                `json:"asset"`
+	ArchiveSHA256 string                `json:"archiveSha256"`
+}
+
+type releaseListingSnapshot struct {
+	releaseindex.Source
+	releases []releaseindex.Release
+}
+
+func (snapshot releaseListingSnapshot) ListReleases(context.Context) ([]releaseindex.Release, error) {
+	return append([]releaseindex.Release(nil), snapshot.releases...), nil
 }
 
 func runKitList(cmd *cobra.Command, args []string) error {
-	client, endpoint, err := loadAdminClient(kitListEndpoint, kitListToken)
-	if err != nil {
-		return fmt.Errorf("admin client: %w", err)
-	}
-	url := fmt.Sprintf("%s/api/v1/sk/registry/stackkits?pageSize=100", endpoint)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	target, err := normalizePublicChannel(kitListChannel)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Accept", "application/json")
-	if err := attachClientAuth(req, client); err != nil {
-		return err
-	}
-
-	resp, err := client.HTTP.Do(req)
+	source := newPublicReleaseSource()
+	releases, err := source.ListReleases(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("GET %s: %w", url, err)
+		return fmt.Errorf("list GitHub releases: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("GET %s: status=%d", url, resp.StatusCode)
+	resolver := releaseindex.Resolver{
+		Source:       releaseListingSnapshot{Source: source, releases: releases},
+		Attestations: newPublicAttestationVerifier(),
 	}
-
-	var page struct {
-		Data []stackkitRow `json:"data"`
+	rows := make([]publishedKitRelease, 0, len(productkits.Slugs()))
+	for _, kit := range productkits.Slugs() {
+		resolution, resolveErr := resolver.Resolve(cmd.Context(), releaseindex.ResolveRequest{
+			Kit: kit, Target: target, OS: runtime.GOOS, Arch: runtime.GOARCH,
+		})
+		if errors.Is(resolveErr, releaseindex.ErrNoRelease) {
+			continue
+		}
+		if resolveErr != nil {
+			return fmt.Errorf("resolve %s release: %w", kit, resolveErr)
+		}
+		rows = append(rows, publishedKitRelease{
+			Kit: kit, Version: resolution.Asset.Version, Channel: resolution.Asset.Channel,
+			Platform: resolution.Asset.Platform, Asset: resolution.Asset.Archive.Name,
+			ArchiveSHA256: resolution.Asset.Archive.SHA256,
+		})
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+	if len(rows) == 0 {
+		return fmt.Errorf("%w for channel=%s platform=%s/%s", releaseindex.ErrNoRelease, target, runtime.GOOS, runtime.GOARCH)
 	}
-
 	if kitListJSON {
-		out, _ := json.MarshalIndent(page.Data, "", "  ")
-		fmt.Println(string(out))
-		return nil
+		return writeCommandResult(cmd, cmd.CommandPath(), rows)
 	}
-
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "SLUG\tVERSION\tLIFECYCLE\tLOCK\tSOURCE\tCUE PATH\tIMPORTED BY\tHASH")
-	for _, r := range page.Data {
-		lock := " "
-		if r.IsLocked {
-			lock = "🔒"
-		}
-		hashShort := r.LastImportedHash
-		if len(hashShort) > 8 {
-			hashShort = hashShort[:8]
-		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			r.Slug, r.Version, r.Lifecycle, lock, r.SourceOfTruth, r.CueSourcePath, r.LastImportedBy, hashShort)
+	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "KIT\tVERSION\tCHANNEL\tPLATFORM\tASSET\tSHA-256")
+	for _, row := range rows {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s/%s\t%s\t%s\n",
+			row.Kit, row.Version, row.Channel, row.Platform.OS, row.Platform.Arch, row.Asset, shortDigest(row.ArchiveSHA256))
 	}
 	return tw.Flush()
 }
 
-// attachClientAuth is shared by kit list/unlock/history — they each build a
-// raw http.Request because the admin endpoints aren't all wrapped in
-// AdminClient methods. Mirrors AdminClient.attachAuth.
-func attachClientAuth(req *http.Request, _ interface{}) error {
-	if secret := os.Getenv("SERVICE_AUTH_SECRET"); secret != "" {
-		token, err := auth.SignServiceToken("stackkits", "administration", secret, auth.DefaultTokenTTL)
-		if err != nil {
-			return err
-		}
-		req.Header.Set(auth.HeaderServiceAuth, token)
-		return nil
+func normalizePublicChannel(value string) (string, error) {
+	switch releaseindex.Channel(value) {
+	case releaseindex.ChannelStable, releaseindex.ChannelBeta, releaseindex.ChannelEdge:
+		return value, nil
+	default:
+		return "", fmt.Errorf("--channel must be stable, beta, or edge")
 	}
-	if t := os.Getenv("STACKKIT_ADMIN_TOKEN"); t != "" {
-		req.Header.Set("Authorization", "Bearer "+t)
-		return nil
-	}
-	if t := os.Getenv("KOMBIFY_ADMIN_API_KEY"); t != "" {
-		req.Header.Set("Authorization", "Bearer "+t)
-	}
-	return nil
 }

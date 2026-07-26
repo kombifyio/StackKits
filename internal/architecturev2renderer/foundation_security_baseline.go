@@ -62,6 +62,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(homeBackupTarget.contract, homeBackupTarget); err != nil {
 		return nil, err
 	}
+	monitoringAgent := newMonitoringAgentIntentRenderer()
+	if err := registry.Register(monitoringAgent.contract, monitoringAgent); err != nil {
+		return nil, err
+	}
 	socketProxy := newSocketProxyComposeRenderer()
 	if err := registry.Register(socketProxy.contract, socketProxy); err != nil {
 		return nil, err
@@ -101,8 +105,20 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(internalPKI.contract, internalPKI); err != nil {
 		return nil, err
 	}
+	haAvailability := newHAAvailabilityRenderer()
+	if err := registry.Register(haAvailability.contract, haAvailability); err != nil {
+		return nil, err
+	}
 	immichWorkload := newImmichWorkloadBundleRenderer()
 	if err := registry.Register(immichWorkload.contract, immichWorkload); err != nil {
+		return nil, err
+	}
+	basementCoreCompose := newBasementCoreComposeRenderer()
+	if err := registry.Register(basementCoreCompose.contract, basementCoreCompose); err != nil {
+		return nil, err
+	}
+	basementCoreOpenTofu := newBasementCoreOpenTofuRenderer()
+	if err := registry.Register(basementCoreOpenTofu.contract, basementCoreOpenTofu); err != nil {
 		return nil, err
 	}
 	coolifyAdapter := newCoolifyRuntimeAdapterRenderer()

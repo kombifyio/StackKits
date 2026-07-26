@@ -87,6 +87,7 @@ type VerifiedApplyAuthorization struct {
 	receiptHash      string
 	requirementsHash string
 	bundleHash       string
+	evidenceBundle   []byte
 	executor         generationartifact.ApplyExecutorIdentity
 	expiresAt        time.Time
 	authorized       bool
@@ -168,7 +169,7 @@ func (a *applyAuthorizer) authorize(input applyAuthorizationInput) (VerifiedAppl
 	if err != nil {
 		return VerifiedApplyAuthorization{}, resolveError(ErrApplyAuthorization, "verify exact external Apply evidence", err)
 	}
-	authorization, err := newVerifiedApplyAuthorization(current, input.Workspace, lease, manifest, receipt, evidence, a.executor)
+	authorization, err := newVerifiedApplyAuthorization(current, input.Workspace, lease, manifest, receipt, evidence, evidenceBytes, a.executor)
 	if err != nil {
 		return VerifiedApplyAuthorization{}, resolveError(ErrApplyAuthorization, "mint one-shot Apply authorization", err)
 	}
@@ -181,7 +182,7 @@ func (a *applyAuthorizer) authorize(input applyAuthorizationInput) (VerifiedAppl
 	return authorization, nil
 }
 
-func newVerifiedApplyAuthorization(current CurrentResolution, workspace *confinedfs.Transaction, lease *confinedfs.OutputLockLease, manifest generationartifact.ArtifactManifest, receipt generationartifact.GenerationReceipt, evidence generationartifact.VerifiedApplyEvidenceBundle, executor generationartifact.ApplyExecutorIdentity) (VerifiedApplyAuthorization, error) {
+func newVerifiedApplyAuthorization(current CurrentResolution, workspace *confinedfs.Transaction, lease *confinedfs.OutputLockLease, manifest generationartifact.ArtifactManifest, receipt generationartifact.GenerationReceipt, evidence generationartifact.VerifiedApplyEvidenceBundle, evidenceBundle []byte, executor generationartifact.ApplyExecutorIdentity) (VerifiedApplyAuthorization, error) {
 	manifestHash, err := manifest.Hash()
 	if err != nil {
 		return VerifiedApplyAuthorization{}, err
@@ -196,7 +197,7 @@ func newVerifiedApplyAuthorization(current CurrentResolution, workspace *confine
 	}
 	if !current.valid || current.owner == nil || strings.TrimSpace(current.key) == "" || current.epoch == 0 || workspace == nil || lease == nil ||
 		evidence.BundleHash() == "" || evidence.RequirementsHash() != request.RequirementsHash || evidence.ExpiresAt().IsZero() ||
-		!evidence.ExpiresAt().After(evidence.EvaluatedAt()) {
+		!evidence.ExpiresAt().After(evidence.EvaluatedAt()) || len(evidenceBundle) == 0 {
 		return VerifiedApplyAuthorization{}, applyAuthorizationArtifactError(generationartifact.ErrInvalidContract, "apply.authorization", "complete verified plan, evidence, coordinator, workspace, and lock bindings are required", nil)
 	}
 	if err := lease.Verify(workspace, current.plan.OutputRoot()); err != nil {
@@ -206,7 +207,8 @@ func newVerifiedApplyAuthorization(current CurrentResolution, workspace *confine
 		plan: current.plan, owner: current.owner,
 		state: &applyAuthorizationState{stage: applyAuthorizationIssued, workspace: workspace, lockLease: lease},
 		key:   current.key, epoch: current.epoch, manifestHash: manifestHash, receiptHash: receiptHash,
-		requirementsHash: request.RequirementsHash, bundleHash: evidence.BundleHash(), executor: executor,
+		requirementsHash: request.RequirementsHash, bundleHash: evidence.BundleHash(),
+		evidenceBundle: append([]byte(nil), evidenceBundle...), executor: executor,
 		expiresAt: evidence.ExpiresAt(), authorized: true,
 	}, nil
 }
@@ -221,6 +223,7 @@ type applyExecutionGrant struct {
 	receiptHash      string
 	requirementsHash string
 	bundleHash       string
+	evidenceBundle   []byte
 	executor         generationartifact.ApplyExecutorIdentity
 	evaluatedAt      time.Time
 	expiresAt        time.Time
@@ -347,7 +350,8 @@ func (a VerifiedApplyAuthorization) consumeWithClock(now func() time.Time) (appl
 	}
 	return applyExecutionGrant{
 		plan: a.plan, artifacts: artifacts, manifestHash: a.manifestHash, receiptHash: a.receiptHash,
-		requirementsHash: a.requirementsHash, bundleHash: a.bundleHash, executor: a.executor, release: release,
+		requirementsHash: a.requirementsHash, bundleHash: a.bundleHash,
+		evidenceBundle: append([]byte(nil), a.evidenceBundle...), executor: a.executor, release: release,
 		evaluatedAt: at, expiresAt: a.expiresAt,
 	}, nil
 }

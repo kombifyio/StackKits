@@ -26,7 +26,7 @@ const (
 
 // DockerExecutor returns an Executor that runs commands inside the named
 // kopia-agent container via the local docker daemon. The CLI and the
-// runtime-action endpoints share this adapter so both speak identical argv
+// StackAction endpoints share this adapter so both speak identical argv
 // against the same container. Per-call client timeouts derive from the
 // context deadline, capped at LongOperationTimeout.
 func DockerExecutor(container string) Executor {

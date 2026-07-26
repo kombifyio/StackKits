@@ -136,20 +136,16 @@ func validateSecurityBaselineRequest(request runtimeexecutor.ExecutionRequest) (
 		!slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}, runtimeexecutor.Artifact{}, errors.New("health target is not the exact security-baseline postcondition")
 	}
-	var artifact runtimeexecutor.Artifact
-	found := 0
-	for _, candidate := range request.Artifacts {
-		if candidate.ID == target.ArtifactRefs[0] {
-			artifact = candidate
-			found++
-		}
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, target.ArtifactRefs[0])
+	if err != nil {
+		return runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}, runtimeexecutor.Artifact{}, fmt.Errorf("select security-baseline artifact: %w", err)
 	}
 	policy, err := securitybaseline.RenderV2HostPolicy()
 	if err != nil {
 		return runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}, runtimeexecutor.Artifact{}, fmt.Errorf("render canonical security-baseline policy: %w", err)
 	}
 	contractHash := securitybaseline.ContractHash(policy)
-	if found != 1 || artifact.Kind != "script" || artifact.Format != "shell" || artifact.Mode != "0700" ||
+	if artifact.Kind != "script" || artifact.Format != "shell" || artifact.Mode != "0700" ||
 		artifact.OwnerKind != "render-instance" || artifact.ModuleRef != securityBaselineModuleRef || artifact.UnitRef != securityBaselineUnitRef ||
 		artifact.OutputRef != securityBaselineOutputRef || target.UnitContractHash != contractHash || artifact.UnitContractHash != contractHash ||
 		!bytes.Equal(artifact.Content, policy) {

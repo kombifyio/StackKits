@@ -61,6 +61,7 @@ func (s *Service) ValidateRILActionHandoffAt(input RILActionAdmissionInput) (RIL
 	if err != nil {
 		return RILActionValidation{}, resolveError(ErrRILActionAdmission, "approved action envelope is invalid", err)
 	}
+	request = normalizeRILActionRequest(request)
 	if request.TenantID != input.TrustedTenantID {
 		return RILActionValidation{}, resolveError(ErrRILActionAdmission, "approved action tenant does not match authenticated context", nil)
 	}
@@ -97,6 +98,18 @@ func (s *Service) ValidateRILActionHandoffAt(input RILActionAdmissionInput) (RIL
 		RequestDigest: digest, EvaluatedAt: input.EvaluatedAt, Support: primitive.Support,
 		Executable: primitive.Support == "executor-bound" && s.rilActionExecutors.owns(primitive.executorIdentity()),
 	}, nil
+}
+
+// normalizeRILActionRequest gives optional repeated fields one canonical
+// in-process representation before digesting or constructing an immutable
+// executor invocation. The shared executor defensively clones Inputs as an
+// empty slice, so preserving a decoded nil here would make a valid request
+// change its digest during that clone.
+func normalizeRILActionRequest(request rilaction.Request) rilaction.Request {
+	if request.Inputs == nil {
+		request.Inputs = []rilaction.Input{}
+	}
+	return request
 }
 
 // AdmitRILActionAt is the execution-facing admission seam. It reuses the exact

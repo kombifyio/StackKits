@@ -9,12 +9,17 @@ import (
 
 const planSchema = "kombify.stackkits/affected-test-plan/v1"
 
+// focusedTestBatchSize bounds CUE-heavy changed-test execution without
+// widening the existing 90-second process deadline. Each batch is also
+// package-local so one package cannot retain compiler state while another
+// package's focused tests run.
+const focusedTestBatchSize = 8
+
 var coreCUERoots = []string{
 	"./base/...",
 	"./basement-kit/...",
 	"./cloud-kit/...",
 	"./modern-homelab/...",
-	"./ha-kit/...",
 	"./addons/...",
 }
 
@@ -41,9 +46,17 @@ var fileFocusedTests = map[string][]string{
 	"internal/architecturev2/generation_execution_test.go": {
 		"TestMaterializeInitialStackSpecUsesEmbeddedDefinitionAuthority",
 	},
+	"internal/architecturev2/output_transaction.go": {
+		"TestRetiredOutputGCContractIsExplicitAndTwoPhase",
+	},
 	"internal/runtimeexecutorlocal/modern_identity_site_policy_test.go": {
 		"TestModernIdentitySiteExecutorsKeepHomeAndCloudAuthoritySeparate",
 		"TestModernIdentitySiteExecutorsRejectCrossSiteAndChannelSubstitution",
+	},
+	"cmd/stackkit/commands/release_commands_test.go": {
+		"TestPublicUpgradeDryRunResolvesWithoutInstalling",
+		"TestPublicUpgradeInstallAndOfflineVerifyUseSameReceipt",
+		"TestKitListUsesPublishedReleaseIndex",
 	},
 }
 
@@ -136,8 +149,8 @@ func buildPlan(input plannerInput) testPlan {
 		commands = append(commands, testCommand{
 			Kind:   "cue",
 			Scope:  "shared-contract-and-core-consumers",
-			Argv:   append([]string{"cue", "vet"}, coreRoots...),
-			Reason: "shared CUE changes can affect each core kit but do not require every catalog module",
+			Argv:   append([]string{"cue", "vet", "-c=false"}, coreRoots...),
+			Reason: "shared CUE schemas can affect each core kit but intentionally remain incomplete until bound to concrete plans",
 		})
 	} else if len(classes.CUEKits) > 0 {
 		args := []string{"cue", "vet"}
@@ -186,7 +199,12 @@ func buildPlan(input plannerInput) testPlan {
 			Scope: "release-contract-smoke",
 			Argv: []string{
 				"node", "--test",
+				"scripts/e2e/validate-standalone-oss-e2e.test.mjs",
+				"scripts/e2e/validate-standalone-runtime-e2e.test.mjs",
 				"scripts/release/release-evidence.test.mjs",
+				"scripts/release/render-release-index.test.mjs",
+				"scripts/release/release-trust-workflow.test.mjs",
+				"scripts/release/validate-release-archives.test.mjs",
 				"scripts/release/check-fast-feedback-budget.test.mjs",
 				"scripts/public/export-public-verification.test.mjs",
 			},
@@ -262,7 +280,7 @@ func classifyFiles(files []string) classification {
 			case "base", "cue.mod", "schemas", "architecture", "addons", "platforms":
 				result.CUEShared = true
 				known = true
-			case "basement-kit", "cloud-kit", "modern-homelab", "ha-kit":
+			case "basement-kit", "cloud-kit", "modern-homelab":
 				kits[top] = struct{}{}
 				known = true
 			case "modules":
@@ -302,6 +320,7 @@ func isReleasePath(file string) bool {
 		return true
 	}
 	return strings.HasPrefix(file, "scripts/release/") ||
+		strings.HasPrefix(file, "scripts/e2e/") ||
 		strings.HasPrefix(file, "scripts/public/") ||
 		strings.HasPrefix(file, ".github/workflows/") ||
 		strings.HasPrefix(file, ".depot/workflows/")
@@ -387,8 +406,11 @@ func affectedGoPatterns(files []string, packages []goPackage, maxReverse int) []
 }
 
 func affectedGoCommands(selection affectedGoSelection, changedTests map[string][]string) []testCommand {
-	focusedPatterns := []string{}
-	focusedTests := []string{}
+	type focusedSelection struct {
+		pattern string
+		tests   []string
+	}
+	focusedSelections := []focusedSelection{}
 	fullPatterns := []string{}
 	for _, pattern := range selection.Changed {
 		dir := strings.TrimPrefix(pattern, "./")
@@ -400,19 +422,22 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 			fullPatterns = append(fullPatterns, pattern)
 			continue
 		}
-		focusedPatterns = append(focusedPatterns, pattern)
-		focusedTests = append(focusedTests, tests...)
+		focusedSelections = append(focusedSelections, focusedSelection{pattern: pattern, tests: tests})
 	}
 
 	commands := []testCommand{}
-	if len(focusedPatterns) > 0 {
-		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", exactTestRegex(focusedTests)}
-		args = appendRequiredBuildTags(args, focusedPatterns)
-		args = append(args, focusedPatterns...)
-		commands = append(commands, testCommand{
-			Kind: "go", Scope: "changed-test-functions", Argv: args,
-			Reason: "compile changed packages and run only test functions changed in this slice",
-		})
+	for _, focused := range focusedSelections {
+		for start := 0; start < len(focused.tests); start += focusedTestBatchSize {
+			end := min(start+focusedTestBatchSize, len(focused.tests))
+			batch := focused.tests[start:end]
+			args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", exactTestRegex(batch)}
+			args = appendRequiredBuildTags(args, []string{focused.pattern})
+			args = append(args, focused.pattern)
+			commands = append(commands, testCommand{
+				Kind: "go", Scope: "changed-test-functions", Argv: args,
+				Reason: "compile one changed package and run a bounded batch of only test functions changed in this slice",
+			})
+		}
 	}
 	if len(fullPatterns) > 0 {
 		args := appendRequiredBuildTags([]string{"go", "test", "-count=1", "-timeout=90s"}, fullPatterns)

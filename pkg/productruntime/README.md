@@ -24,6 +24,12 @@ or own provider lifecycle, leases, generation, discovery, transport, retries,
 or persistence. Consumers implement those concerns behind the shared
 interfaces and must not import `internal/architecturev2`.
 
+The static owner catalog includes all six CUE-owned HA owner IDs for Basement,
+Cloud, and Modern warm-standby/quorum. Authenticated services select those
+stable IDs as remote owners; they cannot reconstruct or substitute the
+provider/module selector. Member-local implementations receive only the
+sealed, provider-free HA policy through the internal Operations boundary.
+
 Focused contract checks stay separate and bounded:
 
 ```bash

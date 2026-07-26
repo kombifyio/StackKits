@@ -63,6 +63,12 @@ Contract: base.#ModuleContract & {
 
 	settings: {
 		flexible: {
+			// The selected CUE profile is passed intact to runtime lowering.
+			// Default service resources below are the exact single-node values.
+			selectedProfile: *"single-node" | base.#MonitoringProfile
+			runtimeProfile: base.#MonitoringModuleRuntimeProfile & {
+				profile: selectedProfile
+			}
 			backend: base.#VictoriaMetricsConfig & {
 				enabled: true
 			}
@@ -132,8 +138,8 @@ Contract: base.#ModuleContract & {
 		}
 
 		resources: {
-			memory:    "256m"
-			memoryMax: "512m"
+			memory:    "512m"
+			memoryMax: "1g"
 			cpus:      0.5
 		}
 
@@ -208,10 +214,12 @@ Contract: base.#ModuleContract & {
 		}
 
 		resources: {
-			// Tuned for Pi 4B (4 GB): VM caps itself to 40% of host RAM via flag
-			memory:    "512m"
-			memoryMax: "1g"
-			cpus:      1.0
+			// Single-node default from #MonitoringProfileBudgets. Pi is
+			// collector-only and multi-node resources come from runtimeProfile.
+			memory:    "1g"
+			memoryMax: "2g"
+			cpus:      0.5
+			storage:   "10g"
 		}
 
 		security: {

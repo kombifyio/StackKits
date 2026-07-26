@@ -112,7 +112,7 @@ Definition: base.#ProductKitDefinition & {
 			"cloud-control-authority",
 		]])
 		defaults: []
-		optional: ["private-admin-mesh", "failure-domain-placement", "availability-ha"]
+		optional: ["private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
 	workloads: {required: [], defaults: [], optional: ["photos"], forbidden: []}

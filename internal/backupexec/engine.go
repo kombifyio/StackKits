@@ -1,5 +1,5 @@
 // Package backupexec holds the Kopia backup engine primitives shared by the
-// `stackkit backup` CLI and the node-local runtime-action endpoints. The CLI
+// `stackkit backup` CLI and the node-local StackAction endpoints. The CLI
 // and the server must call the same argv definitions — "CLI == Web UI ==
 // server" honesty depends on there being exactly one implementation.
 package backupexec

@@ -46,6 +46,13 @@ Contract: base.#ModuleContract & {
 
 	settings: {
 		flexible: {
+			// The chosen capacity profile is a renderer input. The default
+			// service resources below are the exact single-node projection;
+			// Pi and multi-node require a renderer to consume runtimeProfile.
+			selectedProfile: *"single-node" | base.#MonitoringProfile
+			runtimeProfile: base.#MonitoringModuleRuntimeProfile & {
+				profile: selectedProfile
+			}
 			// Canonical monitoring-agent contract.
 			// Consumers should use this collector object rather than bespoke flat fields.
 			collector: base.#OtelCollectorConfig
@@ -135,10 +142,10 @@ Contract: base.#ModuleContract & {
 		}
 
 		resources: {
-			// Pi 4B headroom: 256 MB soft, 512 MB hard max (spike absorption)
+			// Single-node default from #MonitoringProfileBudgets.
 			memory:    "256m"
 			memoryMax: "512m"
-			cpus:      0.25
+			cpus:      0.2
 		}
 
 		security: {

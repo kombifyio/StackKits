@@ -8,6 +8,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -34,6 +35,9 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	authoring, err := service.InitialStackSpecAuthoringContract(profile)
 	if err != nil {
 		return fmt.Errorf("load %s authoring contract: %w", stackkitName, err)
+	}
+	if strings.TrimSpace(initOwnerSource) == "local" && authoring.StandaloneOwner == nil {
+		return fmt.Errorf("%s does not publish a CUE-owned standalone local owner contract", stackkitName)
 	}
 
 	domain := strings.TrimSpace(initDomain)
@@ -77,6 +81,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		Candidate:        validation.CanonicalStackSpec,
 		ExpectedSpecHash: initExpectedSpecHash,
 		BuildVersion:     version,
+		Authority:        service,
 	})
 	if err != nil {
 		return fmt.Errorf("persist canonical Architecture v2 StackSpec: %w", err)
@@ -89,6 +94,32 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		printSuccess("Replaced canonical Architecture v2 spec by expected hash: %s", displayPath)
 	case stackspecintent.OutcomeAlreadyApplied:
 		printSuccess("Canonical Architecture v2 spec is already current: %s", displayPath)
+	}
+	if strings.TrimSpace(initOwnerSource) == "local" {
+		custody, err := localevidence.EstablishOwnerCustody(wd, localevidence.OwnerCustodyRequest{
+			Binding: localevidence.LocalBinding{
+				SiteRef: authoring.StandaloneOwner.SiteRef, NodeRef: authoring.StandaloneOwner.NodeRef,
+				ChannelRef: authoring.StandaloneOwner.ExecutionChannelRef,
+			},
+			Trust: localevidence.TrustProfile{
+				IdentityProvider:     authoring.StandaloneOwner.IdentityProvider,
+				CertificateAuthority: authoring.StandaloneOwner.CertificateAuthority,
+				HumanAuthorityRef:    authoring.StandaloneOwner.HumanAuthorityRef,
+				HumanIssuerRef:       authoring.StandaloneOwner.HumanIssuerRef,
+				TrustDomainRef:       authoring.StandaloneOwner.TrustDomainRef,
+			},
+			Email: initOwnerEmail, Username: initOwnerUsername, DisplayName: initOwnerDisplayName,
+		})
+		if err != nil {
+			return fmt.Errorf("establish local owner custody: %w", err)
+		}
+		runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd)
+		if err != nil {
+			return fmt.Errorf("establish Basement runtime custody: %w", err)
+		}
+		printSuccess("Established local owner custody: %s", custody.OwnerRef)
+		printSuccess("Established owner-bound Basement runtime custody: %s", runtimeCustody.KeyID)
+		printInfo("Local execution binding: %s / %s / %s", custody.Binding.SiteRef, custody.Binding.NodeRef, custody.Binding.ChannelRef)
 	}
 	printInfo("StackKit: %s", stackkitName)
 	printInfo("Spec hash: %s", result.SpecHash)
@@ -115,10 +146,6 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	add("local-name", strings.TrimSpace(initLocalName) != "")
 	add("cluster-mode", initClusterMode != "" && (initClusterMode != "first" || commandFlagChanged(cmd, "cluster-mode")))
 	add("owner-bootstrap-mode", strings.TrimSpace(initOwnerBootstrapMode) != "")
-	add("owner-source", strings.TrimSpace(initOwnerSource) != "")
-	add("owner-email", strings.TrimSpace(initOwnerEmail) != "")
-	add("owner-username", strings.TrimSpace(initOwnerUsername) != "")
-	add("owner-display-name", strings.TrimSpace(initOwnerDisplayName) != "")
 	add("cloud-oidc-issuer", strings.TrimSpace(initCloudOIDCIssuer) != "")
 	add("cloud-oidc-client-id", strings.TrimSpace(initCloudOIDCClientID) != "")
 	add("cloud-oidc-client-secret-ref", strings.TrimSpace(initCloudOIDCSecretRef) != "")
@@ -128,6 +155,13 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	add("output", initOutputDir != "" && (initOutputDir != "deploy" || commandFlagChanged(cmd, "output")))
 	add("force", initForce)
 	if len(unsupported) == 0 {
+		source := strings.TrimSpace(initOwnerSource)
+		if source != "" && source != "local" {
+			return fmt.Errorf("native Architecture v2 standalone init accepts only --owner-source=local")
+		}
+		if source == "" && (strings.TrimSpace(initOwnerEmail) != "" || strings.TrimSpace(initOwnerUsername) != "" || strings.TrimSpace(initOwnerDisplayName) != "") {
+			return fmt.Errorf("--owner-email, --owner-username, and --owner-display-name require --owner-source=local")
+		}
 		return nil
 	}
 	sort.Strings(unsupported)
@@ -154,21 +188,8 @@ func selectArchitectureV2InitKit(args []string) (string, *prompter, error) {
 		return "", nil, fmt.Errorf("native Architecture v2 init accepts a canonical product slug, not a local StackKit path")
 	}
 
-	var prompt *prompter
 	if stackkitName == "" {
-		if initNonInteractive {
-			return "", nil, fmt.Errorf("stackkit name required in non-interactive mode\n\nAvailable StackKits: %v", productkits.Slugs())
-		}
-		prompt = newPrompter()
-		choices := make([]choice, 0, len(productkits.Slugs()))
-		for index, slug := range productkits.Slugs() {
-			choices = append(choices, choice{Key: slug, Display: slug, IsDefault: index == 0})
-		}
-		selected, err := prompt.selectOne("Select a StackKit:", choices)
-		if err != nil {
-			return "", nil, fmt.Errorf("stackkit selection: %w", err)
-		}
-		stackkitName = selected
+		stackkitName = string(stackspecmigration.KitProfileBasement)
 	}
 	if models.IsLegacyStackKitName(stackkitName) {
 		printWarning("StackKit %q is a retired alias; using %q.", stackkitName, models.NormalizeStackKitName(stackkitName))
@@ -177,7 +198,7 @@ func selectArchitectureV2InitKit(args []string) (string, *prompter, error) {
 	if err := productkits.Validate(stackkitName); err != nil {
 		return "", nil, err
 	}
-	return stackkitName, prompt, nil
+	return stackkitName, nil, nil
 }
 
 func architectureV2InitName(wd string) (string, bool) {
@@ -223,7 +244,7 @@ func printArchitectureV2InitSummary(specPath string) {
 	fmt.Println()
 	printInfo("Next steps:")
 	fmt.Printf("  1. Review desired intent:  %s\n", cyan("cat "+specPath))
-	fmt.Printf("  2. Add admitted Inventory facts for the selected nodes.\n")
-	fmt.Printf("  3. Validate and resolve:  %s\n", cyan("stackkit validate --spec "+specPath))
+	fmt.Printf("  2. Validate desired intent: %s\n", cyan("stackkit validate --spec "+specPath))
+	fmt.Printf("  3. Resolve and generate:  %s\n", cyan("stackkit generate --spec "+specPath))
 	printInfo("Init makes no generation or apply-readiness claim; readiness is decided by the resolved plan.")
 }

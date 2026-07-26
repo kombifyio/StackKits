@@ -26,6 +26,10 @@ type productLocalExecutionChannelFactory struct {
 
 type productLocalExecutionChannelAdmission struct{}
 
+type productExecutionChannelTargetBinder interface {
+	executionChannelFor(siteRef, nodeRef string) (string, error)
+}
+
 // NewProductLocalExecutionChannelFactory admits only the exact binding. The
 // caller must source it from device-/orchestrator-owned configuration; a
 // RuntimeTarget can never declare itself local merely by naming a channel.
@@ -50,6 +54,19 @@ func (f *productLocalExecutionChannelFactory) AdmitExecutionChannel(request Prod
 		return nil, fmt.Errorf("execution channel %q is not the configured local Site/node binding", request.ChannelRef)
 	}
 	return productLocalExecutionChannelAdmission{}, nil
+}
+
+func (f *productLocalExecutionChannelFactory) executionChannelFor(siteRef, nodeRef string) (string, error) {
+	if f == nil {
+		return "", errors.New("local execution-channel factory is not initialized")
+	}
+	if err := validateProductLocalExecutionChannelBinding(f.binding); err != nil {
+		return "", err
+	}
+	if siteRef != f.binding.SiteRef || nodeRef != f.binding.NodeRef {
+		return "", fmt.Errorf("Site/node %q/%q is not the configured local execution-channel binding", siteRef, nodeRef)
+	}
+	return f.binding.ChannelRef, nil
 }
 
 func (productLocalExecutionChannelAdmission) PrepareExecutionChannel(local ProductExecutionChannelLocalExecutor) (runtimeexecutor.Executor, error) {
@@ -102,6 +119,7 @@ func validateProductLocalExecutionChannelBinding(binding ProductLocalExecutionCh
 }
 
 var (
-	_ ProductExecutionChannelFactory   = (*productLocalExecutionChannelFactory)(nil)
-	_ ProductExecutionChannelAdmission = productLocalExecutionChannelAdmission{}
+	_ ProductExecutionChannelFactory      = (*productLocalExecutionChannelFactory)(nil)
+	_ ProductExecutionChannelAdmission    = productLocalExecutionChannelAdmission{}
+	_ productExecutionChannelTargetBinder = (*productLocalExecutionChannelFactory)(nil)
 )

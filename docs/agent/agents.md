@@ -14,10 +14,8 @@ Default native-v0.7 flow:
 stackkit version
 mkdir my-homelab
 cd my-homelab
-stackkit init basement-kit --non-interactive
-stackkit prepare --dry-run
+stackkit init basement-kit --owner-source=local --non-interactive
 stackkit validate
-stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json
 stackkit generate
 stackkit plan
 stackkit apply

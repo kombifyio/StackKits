@@ -336,6 +336,14 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
+	backupPolicy, err := cloneObject(spec.backupPolicy, true)
+	if err != nil {
+		return nil, err
+	}
+	driftPolicy, err := cloneObject(spec.driftPolicy, true)
+	if err != nil {
+		return nil, err
+	}
 	localReachability, homeLANDiscovery, err := buildHomeNetworkProjections(spec, deployment.network, topology.sites)
 	if err != nil {
 		return nil, err
@@ -372,12 +380,14 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		stackID: spec.stackID, kit: resolvedKit, sites: topology.sites,
 		controlPlane: topology.controlPlane, bridge: resolvedBridge,
 		identity: deployment.identity, identityTrust: identityTrust, data: topology.data, failurePolicy: topology.failurePolicy,
+		backupPolicy: backupPolicy, driftPolicy: driftPolicy, observability: spec.observability,
 		localReachability: localReachability, homeLANDiscovery: homeLANDiscovery,
 		homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
 		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
-		nodes: topology.nodes, capabilities: contracts.capabilities, providers: contracts.providers,
+		availability: topology.availability,
+		nodes:        topology.nodes, capabilities: contracts.capabilities, providers: contracts.providers,
 		install: deployment.install, system: deployment.system, storage: deployment.storage, network: deployment.network, gates: deployment.gates,
 	}); err != nil {
 		return nil, err
@@ -442,6 +452,8 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"identityTrust":                    identityTrust,
 		"data":                             topology.data,
 		"failurePolicy":                    topology.failurePolicy,
+		"backupPolicy":                     backupPolicy,
+		"driftPolicy":                      driftPolicy,
 		"system":                           deployment.system,
 		"storage":                          deployment.storage,
 		"network":                          deployment.network,
@@ -449,6 +461,9 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"gates":                            deployment.gates,
 		"executionReadiness":               executionReadiness,
 		"evidence":                         planEvidence,
+	}
+	if spec.observability != nil {
+		plan["observability"] = spec.observability
 	}
 	return c.finalizePlan(plan, spec, resolved, resolvedBridge)
 }
@@ -1288,6 +1303,13 @@ func (c *Compiler) buildData(profile *profileView, spec *specView, resolved *res
 }
 
 func (c *Compiler) workloadDataBindingRef(workload *resolvedWorkloadSelection) (string, error) {
+	dataClasses, err := stringListField(workload.contract, "catalog.workloads."+workload.id, "dataClasses", true)
+	if err != nil {
+		return "", err
+	}
+	if len(dataClasses) == 0 {
+		return "", nil
+	}
 	route, err := objectField(workload.alternative, "catalog.workloads."+workload.id+".alternative", "route")
 	if err != nil {
 		return "", err

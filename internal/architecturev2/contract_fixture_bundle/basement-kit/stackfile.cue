@@ -117,12 +117,13 @@ Definition: base.#ProductKitDefinition & {
 			"private-remote-access",
 			"public-publish-egress",
 			"encrypted-offsite-backup",
+			"telemetry-collection",
 			"basement-compose-runtime",
 			"availability-ha",
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
-	workloads: {required: [], defaults: [], optional: ["photos"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: ["photos"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -191,20 +192,31 @@ Definition: base.#ProductKitDefinition & {
 	generation: {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
-		defaultTarget: "opentofu"
+		defaultTarget: "compose"
 		allowedTargets: ["opentofu", "compose"]
 		contractVersion: "1.0.0"
 	}
 	network: {
 		mode:           "private"
 		domainRequired: false
-		defaultDomain:  "home.localhost"
+		defaultDomain:  "home.test"
 		defaultTLSMode: "internal"
 	}
 	authoring: {
 		contractVersion:   "1.0.0"
 		initialSpecStatus: "supported"
 		requiredOverrides: []
+		standaloneOwner: {
+			source:               "local"
+			siteRef:              "home"
+			nodeRef:              "main"
+			executionChannelRef:  "local-home-main"
+			identityProvider:     "pocketid"
+			certificateAuthority: "step-ca"
+			humanAuthorityRef:    "home-human-authority"
+			humanIssuerRef:       "home-human-credential-issuer"
+			trustDomainRef:       "home-stackkit-trust"
+		}
 		initialSpec: {
 			apiVersion: "stackkit/v2alpha1"
 			kind:       "StackSpec"
@@ -222,14 +234,19 @@ Definition: base.#ProductKitDefinition & {
 			}
 			generation: {
 				strategy: "kit-template"
-				target:   "opentofu"
+				target:   "compose"
 			}
 			system: {}
-			storage: {}
+			storage: {
+				dataRoot:     "/opt/data"
+				backupRoot:   "/opt/backups"
+				stacksRoot:   "/opt/stacks"
+				volumeDriver: "local"
+			}
 			container: {}
 			network: {
 				mode: "private"
-				domain: base: "home.localhost"
+				domain: base: "home.test"
 				transport: {}
 				dns: {}
 				tls: defaultMode: "internal"

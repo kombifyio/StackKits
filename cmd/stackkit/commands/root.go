@@ -35,6 +35,14 @@ func SetVersionInfo(v, gc, bd string) {
 	buildDate = bd
 }
 
+// SetProgramName lets the explicitly tagged publisher entry point present a
+// distinct executable identity while sharing command implementations.
+func SetProgramName(name string) {
+	if strings.TrimSpace(name) != "" {
+		rootCmd.Use = strings.TrimSpace(name)
+	}
+}
+
 // Color helpers
 var (
 	green  = color.New(color.FgGreen).SprintFunc()
@@ -100,6 +108,9 @@ Examples:
 			return err
 		}
 		if commandDisablesDeployObservability(cmd) {
+			return nil
+		}
+		if cmd == verifyCmd && verifyOffline {
 			return nil
 		}
 
@@ -171,6 +182,7 @@ func init() {
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(agentCmd)
 	rootCmd.AddCommand(hostCmd)
+	rootCmd.AddCommand(outputTransactionCmd)
 }
 
 func commandDisablesDeployObservability(cmd *cobra.Command) bool {
@@ -241,11 +253,8 @@ func initRolloutRecorder(wd string) {
 		runID = deployLog.RunID()
 	}
 	rec, err := rollout.NewRecorder(filepath.Join(wd, ".stackkit"), rollout.Metadata{
-		RunID:              runID,
-		TenantDeploymentID: firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID"),
-		TenantID:           firstEnv("STACKKIT_TENANT_ID"),
-		Environment:        firstEnv("STACKKIT_ENVIRONMENT", "KOMBIFY_ENVIRONMENT", "GO_ENV"),
-		Provider:           firstEnv("STACKKIT_PROVIDER", "STACKKIT_E2E_CLOUD_NODE_ENGINE"),
+		RunID:       runID,
+		Environment: firstEnv("STACKKIT_ENVIRONMENT", "GO_ENV"),
 	})
 	if err != nil {
 		printVerbose("rollout evidence disabled: %v", err)
@@ -261,14 +270,12 @@ func initRolloutTelemetry(runID string) {
 	rolloutOTelShutdown = nil
 	rolloutPhaseSpans = nil
 	runtime, shutdown, err := telemetry.SetupOTel(context.Background(), telemetry.OTelConfig{
-		ServiceName:        "stackkit-cli",
-		ServiceVersion:     version,
-		RunID:              runID,
-		TenantDeploymentID: firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID"),
-		StackKit:           firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
-		Environment:        firstEnv("STACKKIT_ENVIRONMENT", "KOMBIFY_ENVIRONMENT", "GO_ENV"),
-		Provider:           firstEnv("STACKKIT_PROVIDER", "STACKKIT_E2E_CLOUD_NODE_ENGINE"),
-		NodeID:             firstEnv("STACKKIT_NODE_ID", "STACKKIT_TARGET_NODE_ID"),
+		ServiceName:    "stackkit-cli",
+		ServiceVersion: version,
+		RunID:          runID,
+		StackKit:       firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
+		Environment:    firstEnv("STACKKIT_ENVIRONMENT", "GO_ENV"),
+		NodeID:         firstEnv("STACKKIT_NODE_ID", "STACKKIT_TARGET_NODE_ID"),
 	})
 	if err != nil {
 		printVerbose("otel telemetry disabled: %v", err)
@@ -478,14 +485,12 @@ func captureSentryFailureEvidence(summary rollout.Summary) string {
 		failureClass = rollout.ClassifyFailure(summary.Message)
 	}
 	path, runtime, err := telemetry.CaptureSentryFailure(rolloutRecorder.Root(), telemetry.SentryConfig{
-		RunID:              rolloutRecorder.RunID(),
-		TenantDeploymentID: firstNonEmpty(applyTenantDeployment, firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID")),
-		StackKit:           firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
-		Environment:        firstEnv("STACKKIT_ENVIRONMENT", "KOMBIFY_ENVIRONMENT", "GO_ENV"),
-		Provider:           firstEnv("STACKKIT_PROVIDER", "STACKKIT_E2E_CLOUD_NODE_ENGINE"),
-		Phase:              phase,
-		FailureClass:       failureClass,
-		RolloutMode:        rolloutModeForTelemetry(),
+		RunID:        rolloutRecorder.RunID(),
+		StackKit:     firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
+		Environment:  firstEnv("STACKKIT_ENVIRONMENT", "GO_ENV"),
+		Phase:        phase,
+		FailureClass: failureClass,
+		RolloutMode:  "cli",
 	}, summary.Message, nil)
 	if err != nil {
 		printVerbose("sentry failure evidence unavailable: %v", err)
@@ -495,13 +500,6 @@ func captureSentryFailureEvidence(summary rollout.Summary) string {
 		printVerbose("sentry failure evidence disabled: Sentry auth/API token is not allowed on target nodes")
 	}
 	return path
-}
-
-func rolloutModeForTelemetry() string {
-	if strings.TrimSpace(applyTenantDeployment) != "" || strings.TrimSpace(firstEnv("STACKKIT_TENANT_DEPLOYMENT_ID")) != "" {
-		return "techstack"
-	}
-	return "cli"
 }
 
 // getLogDir returns the log directory path for the current working directory.

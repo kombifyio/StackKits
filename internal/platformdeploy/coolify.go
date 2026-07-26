@@ -196,7 +196,35 @@ func (a *CoolifyAdapter) ObserveDeployments(ctx context.Context, refs []Deployme
 		}
 	}
 
-	return observed, coolifyStartEvidenceError(observed, state.lastStatuses, state.lastErrors, timeout)
+	return observed, a.decorateStartTimeout(ctx, coolifyStartEvidenceError(observed, state.lastStatuses, state.lastErrors, timeout), observed, &state)
+}
+
+// decorateStartTimeout enriches a terse Coolify start-timeout error with an
+// on-host diagnostic bundle (host disk, docker disk, the failing project's
+// containers + logs) so the failure names its cause — e.g. "No space left on
+// device" during an image pull — instead of only "docker:missing containers".
+func (a *CoolifyAdapter) decorateStartTimeout(ctx context.Context, baseErr error, observed []DeploymentRef, state *coolifyObserveLoopState) error {
+	if baseErr == nil || state == nil {
+		return baseErr
+	}
+	culprit, found := DeploymentRef{}, false
+	for i, ref := range observed {
+		if st, ok := state.lastStatuses[i]; ok && st.running() {
+			continue
+		}
+		culprit, found = ref, true
+		break
+	}
+	if !found {
+		return baseErr
+	}
+	diagCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+	bundle := gatherDeployFailureDiagnostics(diagCtx, culprit, dockerDiagRunner(a.cfg.DockerEnv))
+	if strings.TrimSpace(bundle) == "" {
+		return baseErr
+	}
+	return fmt.Errorf("%w\n\n=== deploy diagnostics (%s) ===\n%s", baseErr, culprit.AppName, bundle)
 }
 
 func (a *CoolifyAdapter) observeCoolifyDeploymentTick(ctx context.Context, observed []DeploymentRef, index int, state *coolifyObserveLoopState, startReconcileInterval time.Duration, ref DeploymentRef) bool {

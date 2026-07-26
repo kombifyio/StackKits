@@ -4,6 +4,66 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0-beta.1] - 2026-07-26
+
+> **First standalone OSS lifecycle beta** for a provider-free, single-node
+> Basement homelab managed by the public `stackkit` CLI.
+
+### Added
+
+- The canonical free workflow:
+  `stackkit init --owner-source=local -> validate -> generate -> apply -> verify`.
+- Local Ed25519 Owner custody, local step-ca trust material, and a signed Owner
+  binding that links the stable `ownerRef` to the PocketID subject and
+  certificate without exporting private keys.
+- Deterministic native-v2 Basement generation and local Compose Apply/Verify
+  for the host and Docker baseline, ingress, PocketID, TinyAuth, step-ca,
+  Coolify, Hub, health, and verification endpoints.
+- Account-free GitHub Release resolution for explicit SemVer and the `stable`,
+  `beta`, and `edge` channels, with atomic installation under
+  `.stackkit/releases/`.
+- A deterministic `stackkits-release-index/v1`, exact SPDX SBOMs, GitHub-OIDC
+  archive attestations, and a separately attested release index. The CLI
+  verifies the index before parsing it and caches the index, bundle, trusted
+  root, archive, SBOM, and receipt for offline re-verification.
+
+### Changed
+
+- Local CUE intent, the canonical ResolvedPlan, local Owner custody, and local
+  lifecycle evidence are authoritative. GitHub Releases are the public
+  distribution authority.
+- Techstack is an optional Orchestrator UI, RIL/Advanced Day-2 dispatcher, and
+  configuration unifier. It consumes pinned public StackKits binaries and
+  versioned JSON/JSONL contracts; it is not required for standard lifecycle
+  operations.
+- Kombify Cloud is an optional convenience lane for account-backed user/group
+  projection into PocketID/TinyAuth. Cloud sync cannot replace or mutate the
+  locally asserted Owner authority, and StackKits stores no Cloud credential.
+- Publisher/Admin operations are excluded from the public `stackkit` binary
+  and public export.
+
+### Security
+
+- Release archives, SBOMs, the release index, trusted-root material, Owner
+  evidence, and PocketID/step-ca bindings fail closed on digest, identity,
+  subject, predicate, or signature substitution before installation or Apply.
+- The public release workflow keeps every release as a draft until it has
+  attested the exact archive set and retained a bounded standalone Basement
+  runtime receipt. Recorded runtime traffic permits only GitHub (or the
+  hermetic GitHub fixture) and local services; Kombify-controlled hosts are
+  forbidden.
+
+### Known limitations
+
+- `v0.8.0-beta.1` is the mandatory single-node Basement path. Photos, Vault,
+  Files, Modern Homelab/HA, and multi-node rolling upgrades remain targeted at
+  v0.9 or later.
+- The stable `v0.8.0` release remains blocked until the standard Day-2
+  upgrade/snapshot/rollback/drift lifecycle and capability-gated Terramate
+  Advanced Mode are complete.
+- Provider creation, credentials, and server lifecycle remain outside
+  StackKits and belong to Techstack or another external host owner.
+
 ## [0.7.16] - 2026-07-24
 
 > **Stable v0.x Modern outbound-control Runtime patch**, shipped with Basement
