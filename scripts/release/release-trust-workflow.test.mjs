@@ -40,6 +40,8 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
     'gh attestation trusted-root',
     'render-release-index.mjs',
     'stackkits-release-index-v1.json.intoto.jsonl',
+    'Hand exact release trust set to the runtime proof',
+    'Download exact release trust set from the producing job',
     'run-standalone-oss-runtime-e2e.sh',
     'STACKKIT_E2E_PRELOAD_IMAGES',
     '--draft=false'
@@ -49,7 +51,14 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
   assert.doesNotMatch(publicRelease, /gh release create/u)
   before(publicRelease, 'Attest exact per-kit release archives', 'render-release-index.mjs')
   before(publicRelease, 'render-release-index.mjs', 'Attest the release index')
+  before(publicRelease, 'Publish and verify the release-index attestation', 'Hand exact release trust set to the runtime proof')
+  before(publicRelease, 'Hand exact release trust set to the runtime proof', 'Download exact release trust set from the producing job')
+  before(publicRelease, 'Download exact release trust set from the producing job', 'run-standalone-oss-runtime-e2e.sh')
   before(publicRelease, 'run-standalone-oss-runtime-e2e.sh', '--draft=false')
+  assert.doesNotMatch(
+    publicRelease,
+    /gh release download "\$TAG" --dir dist --pattern "\$name" --clobber/u
+  )
   assert.match(
     publicRelease,
     /identity="https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\/\.github\/workflows\/release\.yml@refs\/tags\/\$\{TAG\}"[\s\S]*?--base-url "https:\/\/github\.com\/kombifyio\/stackKits\/releases\/download\/\$\{TAG\}"/u

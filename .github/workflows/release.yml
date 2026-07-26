@@ -207,6 +207,19 @@ jobs:
             dist/stackkits-release-index-v1.json.intoto.jsonl \
             --clobber
 
+      - name: Hand exact release trust set to the runtime proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-trust-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            dist/stackkits-release-assets.intoto.jsonl
+            dist/sigstore-trusted-root.jsonl
+            dist/stackkits-release-index-v1.json
+            dist/stackkits-release-index-v1.json.intoto.jsonl
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
   runtime-e2e:
     name: Prove exact standalone Basement archive
     needs: release-trust
@@ -224,7 +237,13 @@ jobs:
         with:
           node-version: 24
 
-      - name: Download exact Basement trust set
+      - name: Download exact release trust set from the producing job
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-trust-${{ github.ref_name }}-${{ github.sha }}
+          path: dist
+
+      - name: Download exact Basement archive and SBOM
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -239,7 +258,6 @@ jobs:
             sigstore-trusted-root.jsonl \
             stackkits-release-index-v1.json \
             stackkits-release-index-v1.json.intoto.jsonl; do
-            gh release download "$TAG" --dir dist --pattern "$name" --clobber
             test -s "dist/$name"
           done
 
