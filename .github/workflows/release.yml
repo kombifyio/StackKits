@@ -143,7 +143,7 @@ jobs:
             --dist dist \
             --tag "$TAG" \
             --published-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}" \
+            --base-url "https://github.com/kombifyio/stackKits/releases/download/${TAG}" \
             --trusted-root dist/sigstore-trusted-root.jsonl \
             --attestation dist/stackkits-release-assets.intoto.jsonl \
             --certificate-identity "$identity" \

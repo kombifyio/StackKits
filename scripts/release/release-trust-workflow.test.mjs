@@ -50,5 +50,9 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
   before(publicRelease, 'Attest exact per-kit release archives', 'render-release-index.mjs')
   before(publicRelease, 'render-release-index.mjs', 'Attest the release index')
   before(publicRelease, 'run-standalone-oss-runtime-e2e.sh', '--draft=false')
+  assert.match(
+    publicRelease,
+    /identity="https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\/\.github\/workflows\/release\.yml@refs\/tags\/\$\{TAG\}"[\s\S]*?--base-url "https:\/\/github\.com\/kombifyio\/stackKits\/releases\/download\/\$\{TAG\}"/u
+  )
   assert.match(publicRelease, /Stable publication requires the S4 upgrade, rollback, backup, and drift receipt/u)
 })
