@@ -78,8 +78,14 @@ archive_name="$(basename "$archive")"
 version="$(jq -er --arg name "$archive_name" '.assets[] | select(.kit == "basement-kit" and .platform.os == "linux" and .archive.name == $name) | .version' "$release_index")"
 for input in "$archive" "$sbom" "$attestation" "$trusted_root"; do
   expected="$(jq -er --arg name "$(basename "$input")" '
-    [.release.trustedRoot, .assets[].archive, .assets[].sbom, .assets[].attestation]
-    | flatten | .[] | select(.name == $name) | .sha256
+    [
+      [.release.trustedRoot, .assets[].archive, .assets[].sbom, .assets[].attestation]
+      | flatten | .[] | select(.name == $name) | .sha256
+    ]
+    | unique
+    | if length == 1 then .[0]
+      else error("release fixture must resolve to exactly one unique digest")
+      end
   ' "$release_index")"
   actual="$(sha256sum "$input" | cut -d' ' -f1)"
   [ "$actual" = "$expected" ] || {

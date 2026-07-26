@@ -104,7 +104,8 @@ test('harness uses the extracted public binary and bounded public workflow', () 
     'docker pull "$image"',
     'stackkit apply',
     'stackkit verify --json',
-    'STACKKIT_RELEASE_FIXTURE_URL'
+    'STACKKIT_RELEASE_FIXTURE_URL',
+    'release fixture must resolve to exactly one unique digest'
   ]) {
     assert.match(harness, new RegExp(fragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
   }
