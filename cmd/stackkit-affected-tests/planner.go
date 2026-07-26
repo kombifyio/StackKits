@@ -81,7 +81,11 @@ var releaseTestBindings = map[string][]string{
 		"scripts/release/install-latest-resolution.test.mjs",
 	},
 	"mise.toml": {
+		"scripts/dev/architecture-v2-generation.test.mjs",
 		"scripts/release/check-fast-feedback-budget.test.mjs",
+	},
+	"scripts/dev/architecture-v2-generation.mjs": {
+		"scripts/dev/architecture-v2-generation.test.mjs",
 	},
 	".github/workflows/ci.yml": {
 		"scripts/public/public-surface-policy.test.mjs",
@@ -491,7 +495,8 @@ func isReleaseE2EPath(file string) bool {
 }
 
 func isGeneralReleasePath(file string) bool {
-	if file == ".goreleaser.yaml" || file == "install.sh" || file == "Dockerfile" || file == "mise.toml" || file == "scripts/sync-public.sh" {
+	if file == ".goreleaser.yaml" || file == "install.sh" || file == "Dockerfile" || file == "mise.toml" || file == "scripts/sync-public.sh" ||
+		file == "scripts/dev/architecture-v2-generation.mjs" || file == "scripts/dev/architecture-v2-generation.test.mjs" {
 		return true
 	}
 	return strings.HasPrefix(file, "scripts/release/") ||

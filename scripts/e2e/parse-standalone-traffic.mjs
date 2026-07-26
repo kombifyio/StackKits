@@ -11,9 +11,12 @@ if (!inputPath || !scopePath || !outputPath) {
   process.exit(2)
 }
 
-function scopeFor(host) {
+function scopeFor(source, host) {
   if (isIP(host) !== 0 &&
       networkScope.subnets.some((subnet) => addressInSubnet(host, subnet))) {
+    return 'local'
+  }
+  if (networkScope.localHostGatewayPairs.has(JSON.stringify([source, host]))) {
     return 'local'
   }
   return 'external'
@@ -119,7 +122,7 @@ for (const [index, line] of lines.entries()) {
     kind: 'tcp',
     host,
     port: packet.destination.port,
-    scope: scopeFor(host)
+    scope: scopeFor(packet.source.host, host)
   }
   events.push(event)
 }

@@ -59,9 +59,14 @@ function fixture(t) {
   const trafficPath = path.join(root, 'network-events.jsonl')
   writeFileSync(trafficPath, traffic)
   const scope = canonicalScope({
-    schemaVersion: 'stackkit.compose-origin-scope/v1',
+    schemaVersion: 'stackkit.compose-origin-scope/v2',
     project: 'stackkit-basement-core',
     networks: [{id: '1'.repeat(64), name: 'stackkit-basement-core_default', subnets: ['172.18.0.0/16']}],
+    localHostGateways: [{
+      host: '172.17.0.1',
+      sourceContainerId: '2'.repeat(64),
+      sourceService: 'coolify'
+    }],
     containers: [{
       id: '2'.repeat(64),
       service: 'coolify',

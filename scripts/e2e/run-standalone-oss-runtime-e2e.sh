@@ -174,6 +174,18 @@ runtime_compose="$project_dir/.stackkit/runtime/basement-core/compose.yaml"
 }
 container_lines="$work_root/origin-scope-containers.jsonl"
 network_lines="$work_root/origin-scope-networks.jsonl"
+runtime_compose_config="$work_root/runtime-compose-config.json"
+STACKKIT_CUSTODY_DIR="$project_dir/.stackkit/custody" \
+  docker compose --project-name stackkit-basement-core -f "$runtime_compose" \
+  config --format json >"$runtime_compose_config"
+jq -e '
+  (.services.coolify.extra_hosts // []) as $extraHosts
+  | ($extraHosts | type) == "array"
+    and ($extraHosts | index("host.docker.internal=host-gateway")) != null
+' "$runtime_compose_config" >/dev/null || {
+  printf 'Coolify Compose config must declare host.docker.internal=host-gateway\n' >&2
+  exit 1
+}
 mapfile -t container_ids < <(
   STACKKIT_CUSTODY_DIR="$project_dir/.stackkit/custody" \
     docker compose --project-name stackkit-basement-core -f "$runtime_compose" ps --all --quiet --no-trunc \
@@ -234,6 +246,33 @@ mapfile -t observed_services < <(jq -rs '[.[].service] | unique[]' "$container_l
     printf 'Compose project service set differs from the inspected container service set\n' >&2
     exit 1
   }
+coolify_container_id="$(jq -ers '
+  [.[] | select(.service == "coolify")]
+  | if length == 1 then .[0].id
+    else error("Compose project must contain exactly one Coolify container")
+    end
+' "$container_lines")"
+mapfile -t resolved_host_gateways < <(
+  docker exec "$coolify_container_id" cat /etc/hosts \
+    | awk '{
+        for (field = 2; field <= NF; field++) {
+          if ($field == "host.docker.internal") print $1
+        }
+      }' \
+    | sort -u
+)
+[ "${#resolved_host_gateways[@]}" -eq 1 ] || {
+  printf 'running Coolify container must resolve exactly one host.docker.internal address\n' >&2
+  exit 1
+}
+resolved_host_gateway="${resolved_host_gateways[0]}"
+node -e '
+  const {isIP} = require("node:net")
+  process.exit(isIP(process.argv[1]) === 0 || process.argv[1] !== process.argv[1].toLowerCase())
+' "$resolved_host_gateway" || {
+  printf 'running Coolify host.docker.internal resolution is not a canonical IP address\n' >&2
+  exit 1
+}
 mapfile -t network_ids < <(jq -rs '[.[].networks[].id] | unique[]' "$container_lines")
 [ "${#network_ids[@]}" -gt 0 ] || {
   printf 'Compose project stackkit-basement-core has no inspectable bridge network\n' >&2
@@ -251,16 +290,27 @@ for network_id in "${network_ids[@]}"; do
   ' >>"$network_lines"
 done
 jq -n \
-  --arg schemaVersion "stackkit.compose-origin-scope/v1" \
+  --arg schemaVersion "stackkit.compose-origin-scope/v2" \
   --arg project "stackkit-basement-core" \
+  --arg resolvedHostGateway "$resolved_host_gateway" \
+  --arg coolifyContainerId "$coolify_container_id" \
   --slurpfile containers <(jq -s 'sort_by(.id)' "$container_lines") \
   --slurpfile networks <(jq -s 'sort_by(.id)' "$network_lines") \
   '{
     schemaVersion: $schemaVersion,
     project: $project,
     networks: $networks[0],
-    containers: $containers[0]
+    containers: $containers[0],
+    localHostGateways: [{
+      host: $resolvedHostGateway,
+      sourceContainerId: $coolifyContainerId,
+      sourceService: "coolify"
+    }]
   }' >"$network_scope"
+node -e '
+  const {readComposeOriginScope} = await import(process.argv[1])
+  readComposeOriginScope(process.argv[2])
+' "$script_dir/compose-origin-scope.mjs" "$network_scope"
 
 timeout 600 stackkit verify --json >"$output_dir/verify.json"
 runtime_finished_epoch="$(date +%s)"

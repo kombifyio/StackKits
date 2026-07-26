@@ -19,12 +19,17 @@ const containerID = '2'.repeat(64)
 
 function originScope() {
   return {
-    schemaVersion: 'stackkit.compose-origin-scope/v1',
+    schemaVersion: 'stackkit.compose-origin-scope/v2',
     project: 'stackkit-basement-core',
     networks: [{
       id: networkID,
       name: 'stackkit-basement-core_default',
       subnets: ['172.18.0.0/16', 'fd18::/64']
+    }],
+    localHostGateways: [{
+      host: '172.17.0.1',
+      sourceContainerId: containerID,
+      sourceService: 'coolify'
     }],
     containers: [{
       id: containerID,
@@ -165,6 +170,85 @@ test('external Compose TCP remains visible and fails closed without DNS binding'
   assert.throws(() => validateStandaloneTraffic(parsed.events), /non-allowlisted host/u)
 })
 
+test('parser admits only the exact Coolify source and resolved host gateway pair as local', () => {
+  const accepted = parseTraffic([
+    '2026-07-26 12:00:00.000000 vethstack P IP 172.18.0.11.49000 > 172.17.0.1.8080: Flags [S]'
+  ], (scope) => {
+    scope.localHostGateways = [{
+      host: '172.17.0.1',
+      sourceContainerId: containerID,
+      sourceService: 'coolify'
+    }]
+  })
+  assert.equal(accepted.result.status, 0, accepted.result.stderr)
+  assert.equal(accepted.events[0].scope, 'local')
+  assert.doesNotThrow(() => validateStandaloneTraffic(accepted.events))
+
+  const wrongSource = parseTraffic([
+    '2026-07-26 12:00:00.000000 vethstack P IP 172.18.0.12.49000 > 172.17.0.1.8080: Flags [S]'
+  ], (scope) => {
+    scope.containers.push({
+      id: '3'.repeat(64),
+      service: 'pocket-id',
+      networks: [{id: networkID, ips: ['172.18.0.12']}]
+    })
+    scope.localHostGateways = [{
+      host: '172.17.0.1',
+      sourceContainerId: containerID,
+      sourceService: 'coolify'
+    }]
+  })
+  assert.equal(wrongSource.result.status, 0, wrongSource.result.stderr)
+  assert.equal(wrongSource.events[0].scope, 'external')
+  assert.throws(() => validateStandaloneTraffic(wrongSource.events), /non-allowlisted host/u)
+
+  for (const host of ['172.17.0.2', '192.168.50.10', '185.199.110.133']) {
+    const wrongHost = parseTraffic([
+      `2026-07-26 12:00:00.000000 vethstack P IP 172.18.0.11.49000 > ${host}.8080: Flags [S]`
+    ], (scope) => {
+      scope.localHostGateways = [{
+        host: '172.17.0.1',
+        sourceContainerId: containerID,
+        sourceService: 'coolify'
+      }]
+    })
+    assert.equal(wrongHost.result.status, 0, wrongHost.result.stderr)
+    assert.equal(wrongHost.events[0].scope, 'external')
+    assert.throws(() => validateStandaloneTraffic(wrongHost.events), /non-allowlisted host/u)
+  }
+})
+
+test('parser rejects non-exact or tampered host gateway ownership before reading traffic', () => {
+  const packet = [
+    '2026-07-26 12:00:00.000000 vethstack P IP 172.18.0.11.49000 > 172.17.0.1.8080: Flags [S]'
+  ]
+  for (const localHostGateways of [
+    [],
+    [
+      {host: '172.17.0.1', sourceContainerId: containerID, sourceService: 'coolify'},
+      {host: '192.168.50.10', sourceContainerId: containerID, sourceService: 'coolify'}
+    ]
+  ]) {
+    const nonExact = parseTraffic(packet, (scope) => {
+      scope.localHostGateways = localHostGateways
+    })
+    assert.notEqual(nonExact.result.status, 0)
+    assert.match(nonExact.result.stderr, /must contain exactly one entry/u)
+  }
+
+  const tampered = parseTraffic([
+    ...packet
+  ], (scope) => {
+    scope.localHostGateways = [{
+      host: '172.17.0.1',
+      sourceContainerId: containerID,
+      sourceService: 'pocket-id'
+    }]
+  })
+  assert.notEqual(tampered.result.status, 0)
+  assert.match(tampered.result.stderr, /source service does not match its container/u)
+})
+
 test('host DNS is a negative gate and malformed or TCP DNS fails closed', () => {
   for (const [line, pattern] of [
     [
@@ -190,11 +274,13 @@ test('harness binds evidence to exact Compose project scope and the new capture 
   const harness = readFileSync(new URL('./run-standalone-oss-runtime-e2e.sh', import.meta.url), 'utf8')
   for (const fragment of [
     'docker compose --project-name stackkit-basement-core',
+    'host.docker.internal=host-gateway',
+    'localHostGateways',
     'docker ps --all --quiet --no-trunc --filter label=com.docker.compose.project=stackkit-basement-core',
     'host, none, and container network modes are forbidden',
     'config --services',
     'compose-origin-scope.json',
-    'stackkit.compose-origin-scope/v1',
+    'stackkit.compose-origin-scope/v2',
     'originScopeSha256',
     'host-forbidden-dns+compose-origin-initial-syn/v1',
     'stackkit apply >"$output_dir/apply.log" 2>&1',

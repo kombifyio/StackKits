@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { isIP } from 'node:net'
 
-const scopeSchema = 'stackkit.compose-origin-scope/v1'
+const scopeSchema = 'stackkit.compose-origin-scope/v2'
 const projectName = 'stackkit-basement-core'
 const objectIDPattern = /^[0-9a-f]{64}$/u
 const namePattern = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u
@@ -79,7 +79,7 @@ export function canonicalScope(scope) {
 }
 
 export function validateComposeOriginScope(scope, raw) {
-  exactKeys(scope, ['schemaVersion', 'project', 'networks', 'containers'], 'scope')
+  exactKeys(scope, ['schemaVersion', 'project', 'networks', 'containers', 'localHostGateways'], 'scope')
   if (scope.schemaVersion !== scopeSchema) fail('unsupported schemaVersion')
   if (scope.project !== projectName) fail(`project must be ${projectName}`)
   if (!Array.isArray(scope.networks) || scope.networks.length < 1 || scope.networks.length > 32) {
@@ -104,6 +104,7 @@ export function validateComposeOriginScope(scope, raw) {
   })
 
   const containerIPs = new Set()
+  const containers = new Map()
   let previousContainerID = ''
   scope.containers.forEach((container, containerIndex) => {
     exactKeys(container, ['id', 'service', 'networks'], `containers[${containerIndex}]`)
@@ -133,11 +134,58 @@ export function validateComposeOriginScope(scope, raw) {
       })
       if (binding.ips.length > 2) fail(`containers[${containerIndex}].networks[${bindingIndex}].ips exceeds 2 entries`)
     })
+    containers.set(container.id, container)
+  })
+
+  if (!Array.isArray(scope.localHostGateways) || scope.localHostGateways.length !== 1) {
+    fail('localHostGateways must contain exactly one entry')
+  }
+  const localHostGatewayPairs = new Set()
+  let previousGatewayKey = ''
+  scope.localHostGateways.forEach((gateway, gatewayIndex) => {
+    exactKeys(
+      gateway,
+      ['host', 'sourceContainerId', 'sourceService'],
+      `localHostGateways[${gatewayIndex}]`
+    )
+    if (typeof gateway.host !== 'string' ||
+        isIP(gateway.host) === 0 ||
+        gateway.host !== gateway.host.toLowerCase()) {
+      fail(`localHostGateways[${gatewayIndex}].host is not a canonical IP address`)
+    }
+    if (scope.networks.some((network) =>
+      network.subnets.some((subnet) => addressInSubnet(gateway.host, subnet)))) {
+      fail(`localHostGateways[${gatewayIndex}].host must be outside project subnets`)
+    }
+    if (!objectIDPattern.test(gateway.sourceContainerId)) {
+      fail(`localHostGateways[${gatewayIndex}].sourceContainerId is invalid`)
+    }
+    const sourceContainer = containers.get(gateway.sourceContainerId)
+    if (!sourceContainer) {
+      fail(`localHostGateways[${gatewayIndex}] references an unknown source container`)
+    }
+    if (sourceContainer.service !== gateway.sourceService) {
+      fail(`localHostGateways[${gatewayIndex}] source service does not match its container`)
+    }
+    if (gateway.sourceService !== 'coolify') {
+      fail(`localHostGateways[${gatewayIndex}].sourceService must be coolify`)
+    }
+    const gatewayKey = `${gateway.sourceContainerId}\u0000${gateway.host}`
+    if (gatewayKey <= previousGatewayKey) {
+      fail('localHostGateways must have sorted unique source and host pairs')
+    }
+    previousGatewayKey = gatewayKey
+    for (const binding of sourceContainer.networks) {
+      for (const sourceIP of binding.ips) {
+        localHostGatewayPairs.add(JSON.stringify([sourceIP, gateway.host]))
+      }
+    }
   })
   if (raw !== undefined && raw !== canonicalScope(scope)) fail('scope manifest is not canonical newline-terminated JSON')
   return {
     scope,
     containerIPs,
+    localHostGatewayPairs,
     subnets: scope.networks.flatMap((network) => network.subnets)
   }
 }
