@@ -146,6 +146,27 @@ test('rejects Kombify-controlled and unknown public hosts including DNS lookups'
   assert.equal(validateStandaloneTraffic(candidate.events).length, 3)
 })
 
+test('accepts only DNS-bound GitHub TCP IP events', () => {
+  const githubIP = {
+    schemaVersion: 'stackkit.network-event/v1',
+    observedAt: '2026-07-26T10:00:01Z',
+    kind: 'tcp',
+    host: '140.82.113.21',
+    port: 443,
+    scope: 'github',
+    resolvedHost: 'api.github.com'
+  }
+  assert.equal(validateStandaloneTraffic([githubIP]).length, 1)
+  for (const event of [
+    {...githubIP, resolvedHost: undefined},
+    {...githubIP, resolvedHost: 'example.com'},
+    {...githubIP, resolvedHost: 'api.kombify.io'}
+  ]) {
+    if (event.resolvedHost === undefined) delete event.resolvedHost
+    assert.throws(() => validateStandaloneTraffic([event]), /network event|Kombify-controlled/u)
+  }
+})
+
 test('rejects traffic-log tamper and secret-bearing receipt fields', (t) => {
   const candidate = fixture(t)
   const tamperedEvents = structuredClone(candidate.events)

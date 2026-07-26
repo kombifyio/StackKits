@@ -104,6 +104,7 @@ function validateNetworkEvent(event, index) {
   const label = `network event ${index}`
   const allowedKeys = ['schemaVersion', 'observedAt', 'kind', 'host', 'scope']
   if (Object.hasOwn(event, 'port')) allowedKeys.push('port')
+  if (Object.hasOwn(event, 'resolvedHost')) allowedKeys.push('resolvedHost')
   exactKeys(event, allowedKeys, label)
   if (event.schemaVersion !== eventSchema) fail(`${label} has unsupported schemaVersion`)
   parseInstant(event.observedAt, `${label}.observedAt`)
@@ -116,12 +117,32 @@ function validateNetworkEvent(event, index) {
       (!Number.isInteger(event.port) || event.port < 1 || event.port > 65535)) {
     fail(`${label}.port is invalid`)
   }
-  if (forbiddenHostSuffixes.some((suffix) => isSuffix(event.host, suffix))) {
-    fail(`${label} reaches Kombify-controlled host ${event.host}`)
+  if (event.resolvedHost !== undefined &&
+      (event.kind !== 'tcp' || isIP(event.host) === 0 ||
+       typeof event.resolvedHost !== 'string' ||
+       event.resolvedHost !== event.resolvedHost.trim().toLowerCase() ||
+       event.resolvedHost.endsWith('.') || event.resolvedHost.length === 0 ||
+       isIP(event.resolvedHost) !== 0)) {
+    fail(`${label}.resolvedHost is not a canonical TCP DNS binding`)
   }
+  const observedHosts = [event.host]
+  if (event.resolvedHost !== undefined) observedHosts.push(event.resolvedHost)
+  const forbiddenHost = observedHosts.find((host) =>
+    forbiddenHostSuffixes.some((suffix) => isSuffix(host, suffix))
+  )
+  if (forbiddenHost !== undefined) {
+    fail(`${label} reaches Kombify-controlled host ${forbiddenHost}`)
+  }
+  const directGitHubHost = githubHostSuffixes.some((suffix) => isSuffix(event.host, suffix))
+  const dnsBoundGitHubIP = (
+    event.kind === 'tcp' &&
+    isIP(event.host) !== 0 &&
+    event.resolvedHost !== undefined &&
+    githubHostSuffixes.some((suffix) => isSuffix(event.resolvedHost, suffix))
+  )
   const allowed = (
     event.scope === 'github' &&
-      githubHostSuffixes.some((suffix) => isSuffix(event.host, suffix))
+      (directGitHubHost || dnsBoundGitHubIP)
   ) || (
     event.scope === 'fixture' &&
       event.host === 'github-release-fixture.localhost'

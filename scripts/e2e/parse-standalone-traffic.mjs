@@ -11,7 +11,7 @@ if (!inputPath || !outputPath) {
 
 function scopeFor(host) {
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.home.test') ||
-      !host.includes('.') || isLocalIP(host)) {
+      (isIP(host) === 0 && !host.includes('.')) || isLocalIP(host)) {
     return 'local'
   }
   if (host === 'github.com' || host.endsWith('.github.com') ||
@@ -32,40 +32,168 @@ function isLocalIP(host) {
   return private172 !== null && Number(private172[1]) >= 16 && Number(private172[1]) <= 31
 }
 
-const events = new Map()
-for (const line of readFileSync(inputPath, 'utf8').split(/\r?\n/u)) {
-  if (!line.includes(' IP ')) continue
-  const dns = /\b(?:A|AAAA)\? ([a-zA-Z0-9._-]+)\.?(?:\s|$)/u.exec(line)
-  if (dns) {
-    const host = dns[1].toLowerCase().replace(/\.$/u, '')
+function addToSet(map, key, value) {
+  const values = map.get(key) ?? new Set()
+  values.add(value)
+  map.set(key, values)
+}
+
+const lines = readFileSync(inputPath, 'utf8').split(/\r?\n/u)
+const dnsBindingWindowMs = 60_000
+const dnsQuestions = new Map()
+const dnsAnswers = new Map()
+const dnsQuestionPattern = /\b([A-Z][A-Z0-9-]*)\? ([a-zA-Z0-9._-]+)\.?(?:\s|$)/iu
+const dnsIPv4AnswerPattern = /\bA ([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?:[, ]|$)/gu
+const dnsIPv6AnswerPattern = /\bAAAA ([0-9a-fA-F:]+)(?:[, ]|$)/gu
+const packetTimestampPattern = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{1,6})\s+/u
+const packetHeaderPattern = /\b(IP6?)\s+(\S+)\s+>\s+(\S+):\s*(.*)$/u
+const dnsTransactionPattern = /^(\d+)[+*]?(?:\s|$)/u
+
+function parseEndpoint(value) {
+  const match = /^(.+)\.([0-9]+)$/u.exec(value)
+  if (!match) return null
+  const port = Number(match[2])
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return null
+  const host = match[1].toLowerCase()
+  if (isIP(host) === 0) return null
+  return {host, port}
+}
+
+function parsePacket(line, index) {
+  const timestamp = packetTimestampPattern.exec(line)
+  const header = packetHeaderPattern.exec(line)
+  if (!timestamp || !header) {
+    throw new Error(`unparsed captured IP packet at line ${index + 1}: ${line}`)
+  }
+  const fractionMs = Number(timestamp[7].padEnd(3, '0').slice(0, 3))
+  const observedAtMs = Date.UTC(
+    Number(timestamp[1]),
+    Number(timestamp[2]) - 1,
+    Number(timestamp[3]),
+    Number(timestamp[4]),
+    Number(timestamp[5]),
+    Number(timestamp[6]),
+    fractionMs
+  )
+  if (!Number.isFinite(observedAtMs)) {
+    throw new Error(`invalid captured packet timestamp at line ${index + 1}: ${line}`)
+  }
+  const source = parseEndpoint(header[2])
+  const destination = parseEndpoint(header[3])
+  if (!source || !destination) {
+    throw new Error(`unparsed captured IP endpoint at line ${index + 1}: ${line}`)
+  }
+  return {
+    family: header[1],
+    source,
+    sourceRaw: header[2].toLowerCase(),
+    destination,
+    destinationRaw: header[3].toLowerCase(),
+    payload: header[4],
+    observedAt: new Date(observedAtMs).toISOString(),
+    observedAtMs,
+    index
+  }
+}
+
+function dnsFlowKey(packet, transactionID, response = false) {
+  const transport = packet.payload.includes('Flags [') ? 'tcp' : 'udp'
+  const client = response ? packet.destinationRaw : packet.sourceRaw
+  const resolver = response ? packet.sourceRaw : packet.destinationRaw
+  return `${packet.family}:${transport}:${client}>${resolver}:${transactionID}`
+}
+
+function activeResolvedHosts(host, observedAtMs) {
+  const bindings = (dnsAnswers.get(host) ?? []).filter((binding) =>
+    binding.observedAtMs <= observedAtMs &&
+    observedAtMs - binding.observedAtMs <= dnsBindingWindowMs
+  )
+  return [...new Set(bindings.map((binding) => binding.host))].sort()
+}
+
+const events = []
+for (const [index, line] of lines.entries()) {
+  if (!line.includes(' IP ') && !line.includes(' IP6 ')) continue
+  const packet = parsePacket(line, index)
+  const transaction = dnsTransactionPattern.exec(packet.payload)
+  const question = dnsQuestionPattern.exec(packet.payload)
+  const dnsOverTCP = (
+    packet.payload.includes('Flags [') &&
+    (packet.source.port === 53 || packet.destination.port === 53)
+  )
+  if (dnsOverTCP) {
+    throw new Error(`DNS-over-TCP is not admitted at captured line ${index + 1}`)
+  }
+  if (transaction && question && packet.destination.port === 53) {
+    const questionType = question[1].toUpperCase()
+    const host = question[2].toLowerCase().replace(/\.$/u, '')
+    const key = dnsFlowKey(packet, transaction[1])
+    const existing = dnsQuestions.get(key)
+    dnsQuestions.set(key, {
+      host,
+      questionType,
+      observedAtMs: packet.observedAtMs,
+      ambiguous: existing !== undefined
+    })
     const event = {
       schemaVersion: 'stackkit.network-event/v1',
-      observedAt: new Date().toISOString(),
+      observedAt: packet.observedAt,
       kind: 'dns',
       host,
       scope: scopeFor(host)
     }
-    events.set(`dns:${host}`, event)
+    events.push(event)
     continue
   }
-  const tcp = /> ([0-9]{1,3}(?:\.[0-9]{1,3}){3})\.([0-9]+): Flags/u.exec(line)
-  if (tcp) {
-    const host = tcp[1]
-    const port = Number(tcp[2])
+  if (packet.destination.port === 53) {
+    throw new Error(`unparsed captured DNS query at line ${index + 1}: ${line}`)
+  }
+
+  if (packet.source.port === 53) {
+    if (!transaction) {
+      throw new Error(`unparsed captured DNS response at line ${index + 1}: ${line}`)
+    }
+    const key = dnsFlowKey(packet, transaction[1], true)
+    const matchingQuestion = dnsQuestions.get(key)
+    dnsQuestions.delete(key)
+    if (matchingQuestion &&
+        !matchingQuestion.ambiguous &&
+        packet.observedAtMs >= matchingQuestion.observedAtMs &&
+        packet.observedAtMs - matchingQuestion.observedAtMs <= dnsBindingWindowMs) {
+      const answers = matchingQuestion.questionType === 'A'
+        ? [...packet.payload.matchAll(dnsIPv4AnswerPattern)]
+        : matchingQuestion.questionType === 'AAAA'
+          ? [...packet.payload.matchAll(dnsIPv6AnswerPattern)]
+          : []
+      for (const answer of answers) {
+        const address = answer[1].toLowerCase()
+        const bindings = dnsAnswers.get(address) ?? []
+        bindings.push({host: matchingQuestion.host, observedAtMs: packet.observedAtMs})
+        dnsAnswers.set(address, bindings)
+      }
+    }
+    continue
+  }
+
+  if (packet.payload.includes('Flags [')) {
+    const host = packet.destination.host
+    const resolvedHosts = activeResolvedHosts(host, packet.observedAtMs)
+    const githubResolution = (
+      resolvedHosts.length > 0 &&
+      resolvedHosts.every((resolvedHost) => scopeFor(resolvedHost) === 'github')
+    )
     const event = {
       schemaVersion: 'stackkit.network-event/v1',
-      observedAt: new Date().toISOString(),
+      observedAt: packet.observedAt,
       kind: 'tcp',
       host,
-      port,
-      scope: scopeFor(host)
+      port: packet.destination.port,
+      scope: githubResolution ? 'github' : scopeFor(host)
     }
-    events.set(`tcp:${host}:${port}`, event)
+    if (githubResolution) event.resolvedHost = resolvedHosts[0]
+    events.push(event)
     continue
   }
-  if (line.includes('Flags [')) {
-    throw new Error(`unparsed captured TCP packet: ${line}`)
-  }
 }
-if (events.size === 0) throw new Error('traffic capture did not contain a parseable network event')
-writeFileSync(outputPath, `${[...events.values()].map((event) => JSON.stringify(event)).join('\n')}\n`)
+if (events.length === 0) throw new Error('traffic capture did not contain a parseable network event')
+writeFileSync(outputPath, `${events.map((event) => JSON.stringify(event)).join('\n')}\n`)

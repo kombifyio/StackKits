@@ -140,7 +140,7 @@ fixture_url="$(head -n1 "$output_dir/fixture-url.txt")"
   exit 1
 }
 
-tcpdump -i any -nn -l '(udp port 53 or (tcp and ip))' >"$raw_traffic" 2>"$output_dir/tcpdump.stderr.log" &
+tcpdump -tttt -i any -nn -l '(udp port 53 or tcp)' >"$raw_traffic" 2>"$output_dir/tcpdump.stderr.log" &
 capture_pid=$!
 export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
 timeout 600 stackkit upgrade --to "$version" --json >"$output_dir/release-install.json"
