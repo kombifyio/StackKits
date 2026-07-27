@@ -12,6 +12,10 @@ const publicReleasePath = existsSync(publicTemplatePath)
   : path.join(root, '.github/workflows/release.yml')
 const privatePublish = existsSync(privatePublishPath) ? readFileSync(privatePublishPath, 'utf8') : null
 const publicRelease = readFileSync(publicReleasePath, 'utf8')
+const releaseEvidenceSchema = JSON.parse(readFileSync(
+  path.join(root, 'schemas/release-evidence.schema.json'),
+  'utf8',
+))
 
 function before(text, left, right) {
   const leftIndex = text.indexOf(left)
@@ -32,11 +36,13 @@ test('private publisher creates an immutable draft and cannot publish it directl
 })
 
 test('public tag workflow binds exact draft bytes before publishing a prerelease', () => {
+  assert.ok(releaseEvidenceSchema.properties.release.required.includes('commit'))
+  assert.equal(releaseEvidenceSchema.properties.source, undefined)
   for (const fragment of [
     'contents: write',
     'jq -r \'.isDraft\'',
     '.checks.attestationVerification.status',
-    '.source.commit == $expectedSourceCommit',
+    '.release.commit == $expectedSourceCommit',
     'EXPECTED_SOURCE_COMMIT: ${{ github.sha }}',
     'actions/attest-build-provenance',
     'GH_CLI_LINUX_AMD64_SHA256',

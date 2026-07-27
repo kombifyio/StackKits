@@ -33,7 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   receipt SemVer without the tag-only `v` prefix.
 - Intentional republish deletes a guarded stale draft before moving the public
   tag, and the public trust workflow accepts draft evidence only for its exact
-  tag commit.
+  tag commit recorded by the canonical `release.commit` field.
 
 ### Removed
 

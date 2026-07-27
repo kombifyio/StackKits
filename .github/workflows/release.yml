@@ -76,7 +76,7 @@ jobs:
                 gh release download "$TAG" --dir dist --pattern 'checksums.txt' --clobber
                 gh release download "$TAG" --dir dist --pattern 'release-evidence.json' --clobber
                 if jq -e --arg expectedSourceCommit "$EXPECTED_SOURCE_COMMIT" \
-                  '.source.commit == $expectedSourceCommit and .checks.attestationVerification.status == "pass"' \
+                  '.release.commit == $expectedSourceCommit and .checks.attestationVerification.status == "pass"' \
                   dist/release-evidence.json >/dev/null; then
                   ready=true
                   break
