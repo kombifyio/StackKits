@@ -30,6 +30,33 @@ type Executor func(ctx context.Context, command []string) (string, error)
 // stdin and redact it from every observable result.
 type SecretExecutor func(ctx context.Context, command []string, sensitiveInput []byte) (string, error)
 
+// safeDiagnosticError marks an executor failure whose observable text has
+// already crossed the native-v2 password-redaction boundary. The concrete
+// type stays private so callers cannot bless arbitrary engine errors as safe.
+type safeDiagnosticError struct {
+	message string
+}
+
+func (e *safeDiagnosticError) Error() string {
+	return e.message
+}
+
+// SafeDiagnostic returns an operator-safe diagnostic only when the error
+// originated behind the native-v2 redaction boundary. Wrapping context added
+// by this package is retained; arbitrary executor or test-double errors are
+// deliberately rejected.
+func SafeDiagnostic(err error) (string, bool) {
+	if err == nil {
+		return "", false
+	}
+	var safe *safeDiagnosticError
+	if !errors.As(err, &safe) {
+		return "", false
+	}
+	diagnostic := strings.TrimSpace(err.Error())
+	return diagnostic, diagnostic != ""
+}
+
 // DefaultVolumeSource is the canonical snapshot source covering the Docker
 // volumes mount inside the kopia-agent container.
 const (
@@ -159,7 +186,7 @@ func (e V2Engine) createFilesystemRepository(ctx context.Context, repositoryPath
 	if repositoryPath != DefaultRepositoryPath {
 		return "", fmt.Errorf("repository path must be %q", DefaultRepositoryPath)
 	}
-	input, err := repositoryPasswordInput(password, 2)
+	input, err := repositoryPasswordInput(password, 1)
 	if err != nil {
 		return "", err
 	}
@@ -664,7 +691,9 @@ func (e V2Engine) invoke(ctx context.Context, command []string, sensitiveInput [
 	if err == nil {
 		return redactSensitiveValue(out, sensitiveInput), nil
 	}
-	return redactSensitiveValue(out, sensitiveInput), errors.New(redactSensitiveValue(err.Error(), sensitiveInput))
+	return redactSensitiveValue(out, sensitiveInput), &safeDiagnosticError{
+		message: redactSensitiveValue(err.Error(), sensitiveInput),
+	}
 }
 
 // EnsureFilesystemRepository connects to (or first creates) a local

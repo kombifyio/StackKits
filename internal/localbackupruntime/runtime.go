@@ -97,6 +97,12 @@ func (r *Runtime) Configure(ctx context.Context, configuration backuplifecycle.R
 	status, engineErr := r.newEngine().EnsureFilesystemRepository(ctx, backupexec.DefaultRepositoryPath, secret)
 	backupcustody.Clear(secret)
 	if engineErr != nil {
+		if diagnostic, safe := backupexec.SafeDiagnostic(engineErr); safe {
+			return backuplifecycle.RepositoryReceipt{}, fmt.Errorf(
+				"localbackupruntime: configure filesystem repository failed: %s",
+				diagnostic,
+			)
+		}
 		return backuplifecycle.RepositoryReceipt{}, errors.New("localbackupruntime: configure filesystem repository failed")
 	}
 	if !repositoryReady(status) {
