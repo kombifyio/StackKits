@@ -33,6 +33,7 @@ test('private publisher creates an immutable draft and cannot publish it directl
     privatePublish,
     /gh release create "\$TAG"[\s\S]*?--draft[\s\S]*?"\$\{prerelease_args\[@\]\}"/u
   )
+  assert.match(privatePublish, /--title "StackKits \$TAG"/u)
   assert.doesNotMatch(privatePublish, /gh release edit "\$TAG"[\s\S]*?--draft=false/u)
   assert.match(privatePublish, /public repository tag workflow owns archive attestation/u)
 })

@@ -241,7 +241,10 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 		v2ComposeProject+"_kopia-cache:"+source.CachePath+":rw",
 		v2ComposeProject+"_kopia-restore-staging:"+localbackuppolicy.RestoreStagingPath+":rw",
 	)
-	if !slices.Equal(config.Binds, wantBinds) ||
+	actualBinds := slices.Clone(config.Binds)
+	slices.Sort(actualBinds)
+	slices.Sort(wantBinds)
+	if !slices.Equal(actualBinds, wantBinds) ||
 		config.ContainerIDFile != "" ||
 		len(config.PortBindings) != 0 ||
 		config.AutoRemove ||
