@@ -92,6 +92,7 @@ the v0.8 Basement default executes Compose directly.
 | `plan` | Run an OpenTofu plan for the generated deployment. |
 | `apply [plan-file]` | Apply generated infrastructure and optionally run verification. |
 | `verify` | Run read-only post-deployment checks locally or over SSH. |
+| `drift` | Detect native-v2 local drift read-only; reconciliation remains fail-closed until its required authority exists. |
 | `remove` | Destroy a StackKit deployment. |
 | `status` | Show deployment state and service health. |
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
@@ -282,6 +283,24 @@ Common flags:
 - `--remote-dir`
 
 HTTP verification treats `2xx`, `3xx`, `401`, and `403` as reachable because authenticated services are expected.
+
+### `stackkit drift`
+
+`stackkit drift detect [--json]` reuses the read-only Architecture-v2
+verification boundary. It verifies the canonical Plan, generated artifacts,
+owner-signed Apply evidence, local Owner binding, exact Basement Compose
+runtime, services, and probes without `tofu refresh`, output locks, lifecycle
+logs, or persisted state. JSON is returned as `stackkit.drift-report/v1`
+inside `stackkit.command-result/v1`. Verified runtime Compose, service-set, and
+health deviations return `hasDrift: true`; Plan, artifact, Apply-evidence,
+Owner-custody, and signature/integrity failures remain hard fail-closed rather
+than being downgraded to ordinary drift.
+
+`stackkit drift reconcile --mode standard|advanced` currently denies before
+rendering or side effects. Standard reconciliation remains unavailable until
+the Owner-approved snapshot/Apply/Verify/rollback transaction exists; Advanced
+remains unavailable until `stackkit.advanced-capability/v1` can be verified
+offline.
 
 ### `stackkit remove`
 

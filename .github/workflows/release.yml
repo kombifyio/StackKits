@@ -60,6 +60,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          EXPECTED_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -74,7 +75,9 @@ jobs:
                 && grep -Eq '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz\.spdx\.json$' <<<"$names"; then
                 gh release download "$TAG" --dir dist --pattern 'checksums.txt' --clobber
                 gh release download "$TAG" --dir dist --pattern 'release-evidence.json' --clobber
-                if [ "$(jq -r '.checks.attestationVerification.status' dist/release-evidence.json)" = "pass" ]; then
+                if jq -e --arg expectedSourceCommit "$EXPECTED_SOURCE_COMMIT" \
+                  '.source.commit == $expectedSourceCommit and .checks.attestationVerification.status == "pass"' \
+                  dist/release-evidence.json >/dev/null; then
                   ready=true
                   break
                 fi

@@ -58,7 +58,7 @@ function fixture() {
         sbomSha256: 'd'.repeat(64),
         attestationSha256: 'e'.repeat(64),
         attestationIssuer: 'https://token.actions.githubusercontent.com',
-        attestationSubject: 'stackkits-basement-kit_v0.8.0-beta.1_linux_amd64.tar.gz',
+        attestationSubject: 'stackkits-basement-kit_0.8.0-beta.1_linux_amd64.tar.gz',
         trustedRootSha256: '1'.repeat(64),
         indexSha256: 'f'.repeat(64),
         indexAttestationSha256: '2'.repeat(64),
@@ -82,7 +82,7 @@ function fixture() {
       digest: `sha256:${'b'.repeat(64)}`
     },
     archive: {
-      name: 'stackkits-basement-kit_v0.8.0-beta.1_linux_amd64.tar.gz',
+      name: 'stackkits-basement-kit_0.8.0-beta.1_linux_amd64.tar.gz',
       sha256: 'c'.repeat(64),
       sbomSha256: 'd'.repeat(64),
       attestationSha256: 'e'.repeat(64),

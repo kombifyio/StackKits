@@ -44,23 +44,24 @@ const (
 )
 
 type architectureV2ExecutionCLIOptions struct {
-	inventoryPath   string
-	planPath        string
-	manifestPath    string
-	receiptPath     string
-	localSiteRef    string
-	localNodeRef    string
-	localChannelRef string
-	outputRoot      string
-	fragments       bool
-	force           bool
-	context         context.Context
-	planOut         string
-	planDestroy     bool
-	inspectionSink  func(generationartifact.PlanInspection) error
-	verifySink      func(architectureV2VerifyReport) error
-	verifyOffline   bool
-	legacyPlanFile  string
+	inventoryPath    string
+	planPath         string
+	manifestPath     string
+	receiptPath      string
+	localSiteRef     string
+	localNodeRef     string
+	localChannelRef  string
+	outputRoot       string
+	fragments        bool
+	force            bool
+	context          context.Context
+	planOut          string
+	planDestroy      bool
+	inspectionSink   func(generationartifact.PlanInspection) error
+	verifySink       func(architectureV2VerifyReport) error
+	verifyOffline    bool
+	driftObservation bool
+	legacyPlanFile   string
 }
 
 type architectureV2ExecutionAuthority interface {
@@ -650,13 +651,23 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			verifyContext = context.Background()
 		}
 		owner, runtime, err := verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline)
-		if err != nil {
-			return err
-		}
 		report := architectureV2VerifyReport{
 			SchemaVersion: "stackkit.verify-result/v1", Offline: options.verifyOffline,
 			PlanHash: persisted.Binding().PlanHash, Apply: result.Summary(),
 			Owner: owner, Runtime: runtime,
+		}
+		if err != nil {
+			var drift architectureV2DriftCarrier
+			if options.driftObservation && errors.As(err, &drift) {
+				return &architectureV2DriftDetectedError{
+					Verification: report,
+					Differences: []architectureV2DriftDifference{{
+						Subject: drift.DriftSubject(), Code: drift.DriftCode(),
+						ProjectRef: drift.DriftProjectRef(),
+					}},
+				}
+			}
+			return err
 		}
 		if options.verifySink != nil {
 			return options.verifySink(report)

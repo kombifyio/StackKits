@@ -36,6 +36,8 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
     'contents: write',
     'jq -r \'.isDraft\'',
     '.checks.attestationVerification.status',
+    '.source.commit == $expectedSourceCommit',
+    'EXPECTED_SOURCE_COMMIT: ${{ github.sha }}',
     'actions/attest-build-provenance',
     'GH_CLI_LINUX_AMD64_SHA256',
     'Install pinned GitHub CLI',

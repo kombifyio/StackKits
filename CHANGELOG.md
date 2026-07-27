@@ -29,6 +29,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   public CLI contracts. Native lifecycle execution runs once after the release
   index and attestations exist, against the exact published Basement archive,
   avoiding an impossible dependency on an unpublished release.
+- Runtime evidence now derives the GoReleaser archive filename from the
+  receipt SemVer without the tag-only `v` prefix.
+- Intentional republish deletes a guarded stale draft before moving the public
+  tag, and the public trust workflow accepts draft evidence only for its exact
+  tag commit.
 
 ### Removed
 

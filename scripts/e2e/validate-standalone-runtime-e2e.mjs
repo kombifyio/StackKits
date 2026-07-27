@@ -145,7 +145,7 @@ export function validateStandaloneRuntimeE2E(evidencePath, trafficPath, originSc
   const expectedArchiveName = versionMatch === null ||
       !['amd64', 'arm64'].includes(receipt.platform.arch)
     ? ''
-    : `stackkits-basement-kit_${receipt.version}_linux_${receipt.platform.arch}.tar.gz`
+    : `stackkits-basement-kit_${receipt.version.slice(1)}_linux_${receipt.platform.arch}.tar.gz`
   const expectedInstallSuffix = versionMatch === null
     ? ''
     : `/.stackkit/releases/basement-kit/${receipt.version}/linux-${receipt.platform.arch}`

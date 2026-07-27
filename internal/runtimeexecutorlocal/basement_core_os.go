@@ -31,6 +31,30 @@ type basementCoreProber interface {
 	Probe(context.Context, BasementCoreHealthExpectation) error
 }
 
+type BasementCoreObservationDriftError struct {
+	subject, code, projectRef string
+	cause                     error
+}
+
+func (err *BasementCoreObservationDriftError) Error() string {
+	return "verified Basement runtime differs from the authorized project"
+}
+
+func (err *BasementCoreObservationDriftError) Unwrap() error { return err.cause }
+func (err *BasementCoreObservationDriftError) DriftSubject() string {
+	return err.subject
+}
+func (err *BasementCoreObservationDriftError) DriftCode() string { return err.code }
+func (err *BasementCoreObservationDriftError) DriftProjectRef() string {
+	return err.projectRef
+}
+
+func basementCoreObservationDrift(projectRef, code string, cause error) error {
+	return &BasementCoreObservationDriftError{
+		subject: "runtime-configuration", code: code, projectRef: projectRef, cause: cause,
+	}
+}
+
 type osBasementCoreOperations struct {
 	workspaceRoot string
 	runner        basementCoreProcessRunner
@@ -111,17 +135,29 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 		return BasementCoreVerifyObservation{}, fmt.Errorf("verify local Basement runtime custody before observation: %w", err)
 	}
 	composePath := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "basement-core", "compose.yaml")
-	content, err := os.ReadFile(composePath) //nolint:gosec // fixed construction-owned path
-	if err != nil || !bytes.Equal(content, project.Definition) {
-		return BasementCoreVerifyObservation{}, errors.New("persisted Basement core Compose definition does not match the authorized artifact")
+	content, err := readStablePrivateBasementRuntimeFile(o.workspaceRoot, composePath)
+	if err != nil {
+		return BasementCoreVerifyObservation{}, fmt.Errorf("verify Basement core Compose authority: %w", err)
+	}
+	if !bytes.Equal(content, project.Definition) {
+		return BasementCoreVerifyObservation{}, basementCoreObservationDrift(
+			project.ProjectRef, "runtime-compose-changed", nil,
+		)
 	}
 	raw, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "ps"), filepath.Dir(composePath), o.environment())
 	if err != nil {
-		return BasementCoreVerifyObservation{}, errors.New("local Docker Compose status observation failed")
+		if isBasementCoreContextTermination(err) {
+			return BasementCoreVerifyObservation{}, err
+		}
+		return BasementCoreVerifyObservation{}, basementCoreObservationDrift(
+			project.ProjectRef, "runtime-status-unavailable", err,
+		)
 	}
 	services, err := parseBasementCoreComposeStatus(raw, project.Services)
 	if err != nil {
-		return BasementCoreVerifyObservation{}, err
+		return BasementCoreVerifyObservation{}, basementCoreObservationDrift(
+			project.ProjectRef, "runtime-service-set-changed", err,
+		)
 	}
 	probes := make([]BasementCoreProbeObservation, 0, len(project.Health))
 	for _, expectation := range project.Health {
@@ -129,7 +165,12 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 		// observation above; HTTP and TCP contracts require direct probes.
 		if expectation.Kind != "contract" && expectation.Kind != "container" {
 			if err := o.prober.Probe(ctx, expectation); err != nil {
-				return BasementCoreVerifyObservation{}, fmt.Errorf("local health probe %q failed", expectation.SourceRef)
+				if isBasementCoreContextTermination(err) {
+					return BasementCoreVerifyObservation{}, err
+				}
+				return BasementCoreVerifyObservation{}, basementCoreObservationDrift(
+					project.ProjectRef, "runtime-health-changed", err,
+				)
 			}
 		}
 		probes = append(probes, BasementCoreProbeObservation{
@@ -146,6 +187,48 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
 		Status:             "ready", Services: services, Probes: probes,
 	}, nil
+}
+
+func readStablePrivateBasementRuntimeFile(workspaceRoot, absolutePath string) ([]byte, error) {
+	before, err := os.Lstat(absolutePath)
+	if err != nil {
+		return nil, fmt.Errorf("inspect Basement runtime file before read: %w", err)
+	}
+	if err := requirePrivateBasementRuntimeFile(absolutePath, before); err != nil {
+		return nil, err
+	}
+	root, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = transaction.Close() }()
+	relative, err := filepath.Rel(workspaceRoot, absolutePath)
+	if err != nil {
+		return nil, errors.New("Basement runtime file is outside the workspace")
+	}
+	content, info, err := transaction.ReadStable(filepath.ToSlash(relative))
+	if err != nil {
+		return nil, err
+	}
+	if len(content) > basementCoreProcessOutputLimit {
+		return nil, errors.New("Basement runtime file exceeds the bounded size")
+	}
+	if !os.SameFile(before, info) {
+		return nil, errors.New("Basement runtime file changed between authority check and stable read")
+	}
+	if err := requirePrivateBasementRuntimeFile(absolutePath, info); err != nil {
+		return nil, err
+	}
+	return content, nil
+}
+
+func isBasementCoreContextTermination(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (o *osBasementCoreOperations) ready(ctx context.Context) error {

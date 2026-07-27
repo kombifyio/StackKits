@@ -141,7 +141,7 @@ func verifyArchitectureV2LocalState(
 	}
 	observation, err := verifyBasementCoreWorkspace(ctx, workspaceRoot, plan, manifest, owner.Binding)
 	if err != nil {
-		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify live Basement core: %w", err)
+		return ownerSummary, nil, fmt.Errorf("verify live Basement core: %w", err)
 	}
 	if observation.OwnerRef != ownerSummary.OwnerRef ||
 		observation.PocketIDSubject != ownerSummary.PocketIDSubject ||
