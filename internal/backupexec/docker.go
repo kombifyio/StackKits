@@ -316,8 +316,7 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 		return fmt.Errorf("container cgroup resource policy differs from the governed runtime")
 	}
 	if config.OomScoreAdj != 0 ||
-		config.OomKillDisable == nil ||
-		*config.OomKillDisable ||
+		(config.OomKillDisable != nil && *config.OomKillDisable) ||
 		config.PidsLimit != nil {
 		return fmt.Errorf("container process availability policy differs from the governed runtime")
 	}
