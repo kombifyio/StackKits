@@ -440,7 +440,7 @@ if [ "$stable_day2_proof" = "1" ]; then
 
   if timeout 60 "$candidate_stackkit" advanced change-set create \
     --capability "$project_dir/missing-advanced-capability.json" \
-    --candidate-spec "$project_dir/stack.yaml" \
+    --candidate-spec "$project_dir/stack-spec.yaml" \
     --json \
     >"$stable_day2_dir/advanced-denial.json" \
     2>"$stable_day2_dir/advanced-denial.stderr.log"; then

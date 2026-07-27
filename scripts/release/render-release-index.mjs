@@ -64,7 +64,19 @@ export function renderReleaseIndex({
   if (!Number.isFinite(timestamp.valueOf()) || !String(publishedAt).endsWith('Z')) {
     fail('published-at must be an RFC3339 UTC instant')
   }
-  const expectedBaseURL = `https://github.com/kombifyio/stackKits/releases/download/${tag}`
+  // GitHub emits browser_download_url with the repository's canonical casing,
+  // and internal/releaseindex/resolver.go compares the index's recorded URL
+  // against it byte for byte. Spelling the repository "stackKits" here made
+  // every published release fail its own resolution with "release index trusted
+  // root does not match the attested GitHub release asset" -- reproduced
+  // against v0.8.0-beta.2, beta.3 and beta.4, where the asset name and SHA-256
+  // matched and only this URL differed. The certificate identity two lines
+  // below already used the canonical spelling.
+  //
+  // release.repository below stays lowercase on purpose: that identifier is
+  // compared against the lowercase spelling by both validate.go and Techstack's
+  // internal/stackkitrelease/cache.go, and GitHub never echoes it back.
+  const expectedBaseURL = `https://github.com/kombifyio/StackKits/releases/download/${tag}`
   if (baseURL !== expectedBaseURL) {
     fail(`base-url must be ${expectedBaseURL}`)
   }

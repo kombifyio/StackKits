@@ -31,7 +31,7 @@ function render(overrides = {}) {
     ...files,
     tag,
     publishedAt: '2026-07-26T12:00:00Z',
-    baseURL: `https://github.com/kombifyio/stackKits/releases/download/${tag}`,
+    baseURL: `https://github.com/kombifyio/StackKits/releases/download/${tag}`,
     certificateIdentity:
       `https://github.com/kombifyio/StackKits/.github/workflows/release.yml@refs/tags/${tag}`,
     ...overrides
@@ -80,7 +80,7 @@ test('CLI writes one newline-terminated canonical index', () => {
     '--published-at',
     '2026-07-26T12:00:00Z',
     '--base-url',
-    'https://github.com/kombifyio/stackKits/releases/download/v0.8.0-beta.1',
+    'https://github.com/kombifyio/StackKits/releases/download/v0.8.0-beta.1',
     '--trusted-root',
     files.trustedRoot,
     '--attestation',
@@ -93,4 +93,34 @@ test('CLI writes one newline-terminated canonical index', () => {
   const raw = readFileSync(output, 'utf8')
   assert.equal(raw.endsWith('\n'), true)
   assert.equal(JSON.parse(raw).assets.length, 2)
+})
+
+// GitHub emits browser_download_url with the repository's canonical casing, and
+// internal/releaseindex/resolver.go compares the index's recorded URL against it
+// byte for byte. Recording "stackKits" made every published release fail its own
+// resolution -- reproduced against v0.8.0-beta.2, beta.3 and beta.4 with:
+//
+//   release index trusted root does not match the attested GitHub release asset
+//
+// The asset name and SHA-256 matched in every case; only this URL differed.
+test('records asset URLs with the canonical repository casing GitHub returns', () => {
+  const index = render()
+  const urls = [
+    index.release.trustedRoot.url,
+    ...index.assets.flatMap((asset) => [asset.archive.url, asset.sbom.url])
+  ]
+  for (const url of urls) {
+    assert.ok(
+      url.startsWith('https://github.com/kombifyio/StackKits/releases/download/'),
+      `asset URL ${url} does not use the canonical repository casing`
+    )
+  }
+})
+
+// The repository identifier is a separate contract: both StackKits
+// (internal/releaseindex/validate.go) and Techstack
+// (internal/stackkitrelease/cache.go) compare it against the lowercase spelling,
+// so it must not be changed along with the URLs.
+test('keeps the lowercase repository identifier both verifiers expect', () => {
+  assert.equal(render().release.repository, 'kombifyio/stackKits')
 })

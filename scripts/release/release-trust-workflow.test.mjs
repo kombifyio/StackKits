@@ -102,9 +102,21 @@ test('public manual workflow binds exact ready draft bytes before publishing a r
     publicRelease,
     /gh release download "\$TAG" --dir dist --pattern "\$name" --clobber/u
   )
+  // Both the certificate identity and the asset base URL must come from
+  // GITHUB_REPOSITORY. Hardcoding the repository here let the two drift: the
+  // identity used the canonical casing while the base URL spelled it
+  // "stackKits", so every published index recorded URLs that could never equal
+  // the browser_download_url GitHub returns, and release resolution failed with
+  // "release index trusted root does not match the attested GitHub release
+  // asset" on every 0.8 beta.
   assert.match(
     publicRelease,
-    /identity="https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\/\.github\/workflows\/release\.yml@refs\/tags\/\$\{TAG\}"[\s\S]*?--base-url "https:\/\/github\.com\/kombifyio\/stackKits\/releases\/download\/\$\{TAG\}"/u
+    /identity="https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\/\.github\/workflows\/release\.yml@refs\/tags\/\$\{TAG\}"[\s\S]*?--base-url "https:\/\/github\.com\/\$\{GITHUB_REPOSITORY\}\/releases\/download\/\$\{TAG\}"/u
+  )
+  assert.doesNotMatch(
+    publicRelease,
+    /--base-url "https:\/\/github\.com\/kombifyio\//u,
+    'the release base URL must be derived from GITHUB_REPOSITORY, not hardcoded'
   )
   const attachStart = publicRelease.indexOf('- name: Attach runtime evidence and publish the prerelease')
   const attachEnd = publicRelease.indexOf('--clobber', attachStart)

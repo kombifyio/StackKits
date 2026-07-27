@@ -71,7 +71,7 @@ func (resolver Resolver) Resolve(ctx context.Context, request ResolveRequest) (R
 			return Resolution{}, fmt.Errorf("release index version %q does not match GitHub tag %q", index.Release.Version, release.TagName)
 		}
 		if index.Release.TrustedRoot.Name != TrustedRootAssetName ||
-			index.Release.TrustedRoot.URL != release.TrustedRootURL ||
+			!sameReleaseAssetURL(index.Release.TrustedRoot.URL, release.TrustedRootURL) ||
 			index.Release.TrustedRoot.SHA256 != fmt.Sprintf("%x", sha256.Sum256(rawTrustedRoot)) {
 			return Resolution{}, fmt.Errorf("release index trusted root does not match the attested GitHub release asset")
 		}
@@ -137,4 +137,49 @@ func releaseMatches(release Release, version parsedVersion, channel Channel, exa
 		return !release.Prerelease
 	}
 	return release.Prerelease
+}
+
+// sameReleaseAssetURL reports whether two GitHub release asset URLs address the
+// same asset.
+//
+// The URL is a locator, not the security control: the asset's bytes are bound by
+// the SHA-256 checked alongside this and by the attestation verified above.
+// GitHub treats the owner and repository segments case-insensitively and echoes
+// them back in the repository's canonical casing, so a byte-exact comparison
+// rejected indexes that named the very asset just fetched. Every published
+// 0.8.0-beta recorded "kombifyio/stackKits" while GitHub returned
+// "kombifyio/StackKits", which made those releases impossible to resolve,
+// install, or pin -- the generator side is fixed for future releases, and this
+// makes the already-published ones usable again.
+//
+// Only the case of the scheme, host, owner and repository is ignored. The tag
+// and file name stay byte-exact, because those select which asset is meant.
+func sameReleaseAssetURL(indexed, actual string) bool {
+	if indexed == actual {
+		return true
+	}
+	indexedPrefix, indexedRest, indexedOK := splitReleaseAssetURL(indexed)
+	actualPrefix, actualRest, actualOK := splitReleaseAssetURL(actual)
+	if !indexedOK || !actualOK {
+		return false
+	}
+	return strings.EqualFold(indexedPrefix, actualPrefix) && indexedRest == actualRest
+}
+
+// splitReleaseAssetURL separates the case-insensitive
+// scheme://host/owner/repository prefix from the case-sensitive remainder.
+func splitReleaseAssetURL(raw string) (prefix, rest string, ok bool) {
+	const scheme = "https://"
+	if !strings.HasPrefix(strings.ToLower(raw), scheme) {
+		return "", "", false
+	}
+	segments := strings.SplitN(raw[len(scheme):], "/", 4)
+	if len(segments) != 4 {
+		return "", "", false
+	}
+	host, owner, repository := segments[0], segments[1], segments[2]
+	if host == "" || owner == "" || repository == "" {
+		return "", "", false
+	}
+	return scheme + host + "/" + owner + "/" + repository, segments[3], true
 }
