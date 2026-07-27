@@ -11,6 +11,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
@@ -78,6 +79,19 @@ type Result struct {
 // embedded CUE authority, then performs a non-blocking exact-hash CAS beneath
 // one held workspace root. It never accepts v1 as current or candidate intent.
 func Persist(request Request) (result Result, returnErr error) {
+	err := lifecyclemutation.WithIdleMutation(
+		request.WorkspaceRoot,
+		lifecyclemutation.JoinRequest{},
+		func() error {
+			var persistErr error
+			result, persistErr = persist(request)
+			return persistErr
+		},
+	)
+	return result, err
+}
+
+func persist(request Request) (result Result, returnErr error) {
 	authority := request.Authority
 	if authority == nil {
 		service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(request.BuildVersion))

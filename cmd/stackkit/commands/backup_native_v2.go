@@ -117,17 +117,24 @@ func runNativeV2BackupRequest(
 		return fmt.Errorf("backup %s authority: %w", operation, err)
 	}
 	var result any
-	err = withArchitectureV2OutputLock(workspace, initial.OutputRoot, func(_ *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
-		current, inspectErr := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
-		if inspectErr != nil {
-			return fmt.Errorf("backup %s locked authority: %w", operation, inspectErr)
-		}
-		if !sameNativeV2BackupAuthority(initial, current) {
-			return errors.New("native v2 backup authority changed while acquiring the output lock")
-		}
-		result, inspectErr = continueNativeV2Backup(ctx, operation, current, request)
-		return inspectErr
-	})
+	execute := func() error {
+		return withArchitectureV2OutputLock(workspace, initial.OutputRoot, func(_ *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
+			current, inspectErr := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
+			if inspectErr != nil {
+				return fmt.Errorf("backup %s locked authority: %w", operation, inspectErr)
+			}
+			if !sameNativeV2BackupAuthority(initial, current) {
+				return errors.New("native v2 backup authority changed while acquiring the output lock")
+			}
+			result, inspectErr = continueNativeV2Backup(ctx, operation, current, request)
+			return inspectErr
+		})
+	}
+	if operation == nativeV2BackupStatus {
+		err = execute()
+	} else {
+		err = withLifecycleMutation(workspace, "backup "+string(operation), execute)
+	}
 	if err != nil {
 		return err
 	}

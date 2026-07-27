@@ -2,8 +2,6 @@ name: CI Fast (Affected)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -22,7 +20,7 @@ jobs:
   affected:
     name: Fast affected checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 2
     steps:
       - name: Checkout bounded history
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -53,7 +51,6 @@ jobs:
           cat affected-plan.json
           echo "need_cue=$(jq -r 'any(.commands[]; .kind == "cue")' affected-plan.json)" >> "$GITHUB_OUTPUT"
           echo "need_node=$(jq -r 'any(.commands[]; .kind == "website" or .kind == "release")' affected-plan.json)" >> "$GITHUB_OUTPUT"
-          echo "need_release_general=$(jq -r '.classification.releaseGeneral // false' affected-plan.json)" >> "$GITHUB_OUTPUT"
 
       - name: Setup CUE only when affected
         if: steps.plan.outputs.need_cue == 'true'
@@ -69,28 +66,6 @@ jobs:
 
       - name: Validate the small public Architecture v2 contract proof
         run: node scripts/release/validate-architecture-contract-fixture.mjs --repo-root .
-
-      - name: Run affected public release-contract tests
-        if: steps.plan.outputs.need_release_general == 'true'
-        run: |
-          node --test \
-            scripts/e2e/validate-standalone-oss-e2e.test.mjs \
-            scripts/e2e/validate-standalone-runtime-e2e.test.mjs \
-            scripts/release/changelog.test.mjs \
-            scripts/release/install-latest-resolution.test.mjs \
-            scripts/release/release-evidence.test.mjs \
-            scripts/release/render-release-index.test.mjs \
-            scripts/release/release-trust-workflow.test.mjs \
-            scripts/release/verify-trusted-root.test.mjs \
-            scripts/release/verify-release-attestations.test.mjs \
-            scripts/release/validate-release-evidence.test.mjs \
-            scripts/release/validate-scenario-artifact.test.mjs \
-            scripts/release/check-l3-paas-contract.test.mjs \
-            scripts/release/check-node24-actions.test.mjs \
-            scripts/release/check-timeout-budget.test.mjs \
-            scripts/release/validate-release-archives.test.mjs \
-            scripts/evidence/capture-basekit-browser-evidence.test.mjs \
-            scripts/evidence/update-homelab-setup-actions.test.mjs
 
       - name: Execute only planned checks
         run: bash -euxo pipefail affected-plan.sh

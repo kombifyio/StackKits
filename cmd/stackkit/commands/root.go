@@ -54,13 +54,16 @@ var (
 
 // Global flags
 var (
-	verbose       bool
-	quiet         bool
-	workDir       string
-	specFile      string
-	contextFlag   string
-	noLog         bool
-	progressJSONL string
+	verbose                bool
+	quiet                  bool
+	workDir                string
+	specFile               string
+	contextFlag            string
+	noLog                  bool
+	progressJSONL          string
+	lifecycleJoinOperation string
+	lifecycleJoinPhase     string
+	lifecycleJoinNonce     string
 )
 
 // deployLog is the structured deploy logger for the current CLI run.
@@ -160,6 +163,21 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&contextFlag, "context", "", "Node context override (local, cloud, pi). Auto-detected if omitted.")
 	rootCmd.PersistentFlags().BoolVar(&noLog, "no-log", false, "Disable structured deploy logging")
 	rootCmd.PersistentFlags().StringVar(&progressJSONL, "progress-jsonl", "", "Write redacted machine-readable rollout progress JSONL to a path, or '-' for stdout")
+	rootCmd.PersistentFlags().StringVar(
+		&lifecycleJoinOperation, "internal-lifecycle-operation", "",
+		"Internal exact lifecycle mutation operation.",
+	)
+	rootCmd.PersistentFlags().StringVar(
+		&lifecycleJoinPhase, "internal-lifecycle-phase", "",
+		"Internal exact lifecycle mutation phase.",
+	)
+	rootCmd.PersistentFlags().StringVar(
+		&lifecycleJoinNonce, "internal-lifecycle-nonce", "",
+		"Internal one-use lifecycle mutation nonce.",
+	)
+	_ = rootCmd.PersistentFlags().MarkHidden("internal-lifecycle-operation")
+	_ = rootCmd.PersistentFlags().MarkHidden("internal-lifecycle-phase")
+	_ = rootCmd.PersistentFlags().MarkHidden("internal-lifecycle-nonce")
 
 	// Add subcommands
 	rootCmd.AddCommand(initCmd)

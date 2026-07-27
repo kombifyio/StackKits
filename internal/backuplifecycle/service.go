@@ -991,6 +991,50 @@ func VerifyRestoreResult(workspaceRoot string, result RestoreResult) error {
 	return localevidence.VerifyOwnerRestoreResult(workspaceRoot, signingBytes, result.Signature)
 }
 
+// LoadRestoreResult loads one content-addressed staged restore result and
+// verifies its complete owner-signed recovery chain before returning it.
+// Callers cannot select a path: resultID alone derives the confined location.
+func LoadRestoreResult(workspaceRoot, resultID string) (RestoreResult, error) {
+	if !validDigest(resultID) {
+		return RestoreResult{}, errors.New("backuplifecycle: restore result identity is invalid")
+	}
+	root, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return RestoreResult{}, err
+	}
+	defer func() { _ = root.Close() }()
+	view, err := root.View(".")
+	if err != nil {
+		return RestoreResult{}, err
+	}
+	resultPath := restoreResultDirectory + "/" + strings.TrimPrefix(resultID, "sha256:") + ".json"
+	file, err := view.Open(resultPath)
+	if err != nil {
+		return RestoreResult{}, err
+	}
+	defer func() { _ = file.Close() }()
+	var result RestoreResult
+	decoder := json.NewDecoder(file)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return RestoreResult{}, fmt.Errorf("backuplifecycle: decode %s: %w", resultPath, err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			err = errors.New("multiple JSON values")
+		}
+		return RestoreResult{}, fmt.Errorf("backuplifecycle: decode %s: trailing content: %w", resultPath, err)
+	}
+	if result.ID != resultID {
+		return RestoreResult{}, errors.New("backuplifecycle: stored restore result identity differs from its content address")
+	}
+	if err := VerifyRestoreResult(root.Name(), result); err != nil {
+		return RestoreResult{}, err
+	}
+	return result, nil
+}
+
 func (s *Service) ready(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("backuplifecycle: context is required")
@@ -1119,21 +1163,7 @@ func (s *Service) loadRestoreOperation(relative string) (restoreOperation, error
 }
 
 func (s *Service) loadStoredRestoreResult(resultID string) (RestoreResult, error) {
-	if !validDigest(resultID) {
-		return RestoreResult{}, errors.New("backuplifecycle: restore result identity is invalid")
-	}
-	resultPath := restoreResultDirectory + "/" + strings.TrimPrefix(resultID, "sha256:") + ".json"
-	var result RestoreResult
-	if err := s.readJSON(resultPath, &result); err != nil {
-		return RestoreResult{}, err
-	}
-	if result.ID != resultID {
-		return RestoreResult{}, errors.New("backuplifecycle: stored restore result identity differs from its content address")
-	}
-	if err := VerifyRestoreResult(s.workspaceRoot, result); err != nil {
-		return RestoreResult{}, err
-	}
-	return result, nil
+	return LoadRestoreResult(s.workspaceRoot, resultID)
 }
 
 func (s *Service) readJSON(relative string, target any) error {

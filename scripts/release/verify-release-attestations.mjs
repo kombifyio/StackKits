@@ -1,16 +1,30 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { validateReleaseEvidenceFile } from './validate-release-evidence.mjs';
 
-function parseArgs(argv) {
+const DEFAULT_JOBS = 6;
+const MAX_JOBS = 8;
+
+function parseJobs(value) {
+  const jobs = Number(value);
+  if (!Number.isInteger(jobs) || jobs < 1 || jobs > MAX_JOBS) {
+    throw new Error(`--jobs must be an integer between 1 and ${MAX_JOBS}`);
+  }
+  return jobs;
+}
+
+export function parseArgs(argv) {
   const opts = {
     dist: '',
     includeEvidence: false,
     evidenceOnly: false,
     dryRun: false,
     images: [],
+    jobs: DEFAULT_JOBS,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -27,6 +41,10 @@ function parseArgs(argv) {
         break;
       case '--image':
         opts.images.push(next);
+        i += 1;
+        break;
+      case '--jobs':
+        opts.jobs = parseJobs(next);
         i += 1;
         break;
       case '--include-evidence':
@@ -91,17 +109,27 @@ async function collectSubjects(opts) {
 }
 
 function sleep(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function verifySubject(repo, subject) {
+function spawnCommand(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+    child.once('error', reject);
+    child.once('close', (status) => resolve({ status }));
+  });
+}
+
+export async function verifySubject(repo, subject, options = {}) {
+  const run = options.run ?? spawnCommand;
+  const retryDelayMs = options.retryDelayMs ?? 5000;
   const args = ['attestation', 'verify', subject.value, '-R', repo];
   const attempts = 6;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const result = spawnSync('gh', args, { stdio: 'inherit', shell: process.platform === 'win32' });
-    if (result.error) {
-      throw result.error;
-    }
+    const result = await run('gh', args);
     if (result.status === 0) {
       return;
     }
@@ -109,27 +137,61 @@ function verifySubject(repo, subject) {
       throw new Error(`gh ${args.join(' ')} failed with exit code ${result.status}`);
     }
     console.error(`attestation for ${subject.value} not ready yet; retrying (${attempt}/${attempts})`);
-    sleep(5000);
+    await sleep(retryDelayMs);
   }
 }
 
-async function main() {
+export async function verifySubjects(subjects, options = {}) {
+  const jobs = parseJobs(options.jobs ?? DEFAULT_JOBS);
+  const verify = options.verify;
+  if (typeof verify !== 'function') {
+    throw new Error('verify worker is required');
+  }
+
+  let nextIndex = 0;
+  let firstError;
+  async function worker() {
+    while (nextIndex < subjects.length) {
+      const subject = subjects[nextIndex];
+      nextIndex += 1;
+      try {
+        await verify(subject);
+      } catch (err) {
+        firstError ??= err;
+      }
+    }
+  }
+
+  const workerCount = Math.min(jobs, subjects.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  if (firstError) {
+    throw firstError;
+  }
+}
+
+export async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const subjects = await collectSubjects(opts);
   if (subjects.length === 0) {
     throw new Error('no release attestation subjects found');
   }
 
-  for (const subject of subjects) {
-    if (opts.dryRun) {
+  if (opts.dryRun) {
+    for (const subject of subjects) {
       console.log(`${subject.type}:${subject.value}`);
-    } else {
-      verifySubject(opts.repo, subject);
     }
+    return;
   }
+
+  await verifySubjects(subjects, {
+    jobs: opts.jobs,
+    verify: (subject) => verifySubject(opts.repo, subject),
+  });
 }
 
-main().catch((err) => {
-  console.error(err.message);
-  process.exit(1);
-});
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err.message);
+    process.exit(1);
+  });
+}

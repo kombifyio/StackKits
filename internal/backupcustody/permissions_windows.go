@@ -123,6 +123,17 @@ func requirePrivatePath(path string, directory bool) error {
 	return nil
 }
 
+// ProtectPrivatePath applies and verifies the current-user-only custody ACL.
+// It is also used by other local Owner-signed lifecycle state.
+func ProtectPrivatePath(path string, directory bool) error {
+	return restrictPathToCurrentUser(path, directory)
+}
+
+// RequirePrivatePath verifies the current-user-only custody ACL.
+func RequirePrivatePath(path string, directory bool) error {
+	return requirePrivatePath(path, directory)
+}
+
 func currentProcessUserSID() (*windows.SID, error) {
 	currentUser, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil || currentUser == nil || currentUser.User.Sid == nil {

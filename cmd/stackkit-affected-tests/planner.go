@@ -31,6 +31,9 @@ var fileFocusedTests = map[string][]string{
 	"internal/backuplifecycle/snapshot_anchor_store.go": {
 		"TestNativeV2LocalBackupConfigureAndSnapshotAnchor",
 	},
+	"internal/backupcustody/permissions_other.go": {
+		"TestRequirePrivatePathAcceptsOnlyExpectedPrivateTypeAndMode",
+	},
 	"cmd/stackkit/commands/backup.go": {
 		"TestBackupCommandContract",
 		"TestLegacyV06BackupMigrationForwardsExactImporterArguments",
@@ -82,6 +85,25 @@ var fileFocusedTests = map[string][]string{
 	"internal/localevidence/executor_state_signature.go": {
 		"TestOwnerExecutorStateSignatureIsDomainSeparatedAndOwnerBound",
 	},
+	"internal/localevidence/lifecycle_mutation_signature.go": {
+		"TestOwnerLifecycleMutationSignatureRejectsTamper",
+	},
+	"internal/lifecyclemutation/journal.go": {
+		"TestJournalSerializesMutationAndAdmitsOnlyExactJoinedPhase",
+		"TestJournalRejectsReplayedSignedPhaseAndRepairsOnlyExplicitRecovery",
+		"TestJournalFailsClosedOnDivergentImmutableHead",
+		"TestJournalMissingPointerBlocksOrdinaryMutationUntilExplicitRecovery",
+		"TestJournalExplicitRecoveryRepairsTerminalAndPriorPointerCrashWindows",
+		"TestJournalIgnoresOnlyPrivateBoundedAtomicTemporaryArtifacts",
+		"TestJournalExplicitRecoveryOwnsClaimRaceAndRejectsClaimedChild",
+	},
+	"internal/stackspecintent/store.go": {
+		"TestPersistUsesCanonicalExpectedHashCAS",
+		"TestPersistRejectsMissingInvalidAndLegacyTargetsWithoutCandidateWrite",
+		"TestPersistRejectsPathEscapeBeforeWrite",
+		"TestPersistFailsFastOnSharedWriterLockWithoutTargetMutation",
+		"TestPersistRejectsSymlinkTargetWithoutFollowingIt",
+	},
 	"internal/upgradelifecycle/executor_state.go": {
 		"TestExecutorStateStoreCapturesVerifiableIdempotentComposeRecoveryClosure",
 		"TestExecutorStateStoreRejectsRuntimeComposeDriftBeforePersistence",
@@ -116,6 +138,17 @@ var fileFocusedTests = map[string][]string{
 		"TestPublicUpgradeTransactionCommitsOnlyExactLiveVerifiedTarget",
 		"TestPublicUpgradeTransactionFailureRestoresPriorRuntimeWithDataStaged",
 		"TestPublicUpgradeTransactionTamperedCheckpointStopsBeforeTargetSideEffects",
+		"TestPublicUpgradeSuccessProofIsRemovedBeforeRollback",
+	},
+	"cmd/stackkit/commands/upgrade_recover.go": {
+		"TestPublicUpgradeExplicitRecoveryNeverReplaysAmbiguousChild",
+	},
+	"cmd/stackkit/commands/lifecycle_mutation.go": {
+		"TestPublicUpgradeTransactionCommitsOnlyExactLiveVerifiedTarget",
+		"TestPublicUpgradeExplicitRecoveryNeverReplaysAmbiguousChild",
+	},
+	"cmd/stackkit/commands/drift.go": {
+		"TestDriftReconcileModesDenyBeforeLifecycleSideEffects",
 	},
 }
 
@@ -184,6 +217,10 @@ var releaseTestBindings = map[string][]string{
 	"scripts/public/workflows/release.yml": {
 		"scripts/release/check-fast-feedback-budget.test.mjs",
 		"scripts/release/release-evidence.private.test.mjs",
+		"scripts/release/release-trust-workflow.test.mjs",
+	},
+	"scripts/public/workflows/publish-image.yml": {
+		"scripts/release/check-fast-feedback-budget.test.mjs",
 		"scripts/release/release-trust-workflow.test.mjs",
 	},
 	"scripts/public/workflows/ci.yml": {

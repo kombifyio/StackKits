@@ -5,6 +5,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {
+  parseArgs,
+  verifySubjects,
+} from './verify-release-attestations.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -61,6 +65,57 @@ test('verify-release-attestations rejects invalid release evidence before listin
     ]),
     /scenarioEvidence must contain canonical/,
   );
+});
+
+test('verify-release-attestations bounds workers and verifies every subject', async () => {
+  const subjects = Array.from({ length: 23 }, (_, index) => ({ value: `subject-${index}` }));
+  const seen = [];
+  let active = 0;
+  let maxActive = 0;
+
+  await verifySubjects(subjects, {
+    jobs: 4,
+    verify: async (subject) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setImmediate(resolve));
+      seen.push(subject.value);
+      active -= 1;
+    },
+  });
+
+  assert.equal(maxActive, 4);
+  assert.deepEqual(seen.toSorted(), subjects.map((subject) => subject.value).toSorted());
+});
+
+test('verify-release-attestations rejects the whole batch after draining every subject', async () => {
+  const subjects = Array.from({ length: 9 }, (_, index) => ({ value: `subject-${index}` }));
+  const seen = [];
+
+  await assert.rejects(
+    verifySubjects(subjects, {
+      jobs: 3,
+      verify: async (subject) => {
+        seen.push(subject.value);
+        if (subject.value === 'subject-3') {
+          throw new Error('rejected attestation');
+        }
+        await new Promise((resolve) => setImmediate(resolve));
+      },
+    }),
+    /rejected attestation/,
+  );
+  assert.deepEqual(seen.toSorted(), subjects.map((subject) => subject.value).toSorted());
+});
+
+test('verify-release-attestations defaults to six jobs and rejects invalid bounds', () => {
+  assert.equal(parseArgs(['--repo', 'kombifyio/stackKits']).jobs, 6);
+  for (const jobs of ['0', '9', '1.5', 'nope']) {
+    assert.throws(
+      () => parseArgs(['--repo', 'kombifyio/stackKits', '--jobs', jobs]),
+      /--jobs must be an integer between 1 and 8/,
+    );
+  }
 });
 
 function validEvidence() {

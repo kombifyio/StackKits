@@ -155,6 +155,20 @@ func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 	if cmd == nil || commandDisablesDeployObservability(cmd) {
 		return nil
 	}
+	switch cmd {
+	case generateCmd:
+		if err := admitLifecycleMutationBeforeObservability(
+			getWorkDir(), "generate", true,
+		); err != nil {
+			return err
+		}
+	case verifyCmd:
+		if err := admitLifecycleMutationBeforeObservability(
+			getWorkDir(), "verify", false,
+		); err != nil {
+			return err
+		}
+	}
 	// Current-source generation is native-v2-only for every build identity.
 	// Immutable v0.6 release artifacts retain their historical implementation,
 	// but rebuilding current source with an old version string must not restore
@@ -236,6 +250,11 @@ func requireNativeV2StackSpec(wd, requestedSpecPath string, mode architectureV2E
 // admitApplyBeforeDeployObservability classifies local intent before the root
 // command creates deploy logs, rollout receipts, or telemetry.
 func admitApplyBeforeDeployObservability(wd, requestedSpecPath string) error {
+	if err := admitLifecycleMutationBeforeObservability(
+		wd, "apply", true,
+	); err != nil {
+		return err
+	}
 	if !architectureV2RejectsV1Execution(version) {
 		return nil
 	}
@@ -418,16 +437,27 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		return g.continueV2Execution(wd, mode, options, authority, currentResolution, persisted, resolved.CanonicalPlan, defaultManifestPath, defaultReceiptPath, transaction, outputLock)
 	}
 	if mode == architectureV2Generate {
-		return execute(nil, nil)
+		return withLifecycleMutation(wd, "generate", func() error {
+			return execute(nil, nil)
+		})
 	}
-	if mode == architectureV2Plan || mode == architectureV2Verify {
+	if mode == architectureV2Verify {
+		return withLifecycleJoinIfPresent(wd, "verify", func() error {
+			return withArchitectureV2ReadOnlyOutput(
+				wd, current.OutputRoot(), func() error { return execute(nil, nil) },
+			)
+		})
+	}
+	if mode == architectureV2Plan {
 		return withArchitectureV2ReadOnlyOutput(wd, current.OutputRoot(), func() error { return execute(nil, nil) })
 	}
-	return withArchitectureV2OutputLock(wd, current.OutputRoot(), func(transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
-		if err := architecturev2.RequireNoPendingOutputTransaction(transaction, current.OutputRoot()); err != nil {
-			return err
-		}
-		return execute(transaction, outputLock)
+	return withLifecycleMutation(wd, "apply", func() error {
+		return withArchitectureV2OutputLock(wd, current.OutputRoot(), func(transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
+			if err := architecturev2.RequireNoPendingOutputTransaction(transaction, current.OutputRoot()); err != nil {
+				return err
+			}
+			return execute(transaction, outputLock)
+		})
 	})
 }
 

@@ -46,6 +46,9 @@ var (
 	backupOutputJSON                    bool
 	backupRestoreOperationID            string
 	backupRestoreOwnerApproved          bool
+	backupActivationOperationID         string
+	backupActivationOwnerApproved       bool
+	backupRecoveryOwnerApproved         bool
 	backupEmergencyExportTarget         string
 	backupEmergencyExportFormat         string
 	backupEmergencyExportLargeMediaMode string
@@ -152,6 +155,22 @@ authorization; this command never requires a Kombify account or Cloud service.`,
 	RunE: runBackupRestore,
 }
 
+var backupRestoreActivateCmd = &cobra.Command{
+	Use:         "activate <restore-result-id>",
+	Short:       "Activate one verified staged restore into the live Basement volumes",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	Args:        cobra.ExactArgs(1),
+	RunE:        runBackupRestoreActivate,
+}
+
+var backupRestoreRecoverCmd = &cobra.Command{
+	Use:         "recover <activation-operation-id>",
+	Short:       "Roll back one interrupted live restore activation",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	Args:        cobra.ExactArgs(1),
+	RunE:        runBackupRestoreRecover,
+}
+
 var backupVerifyCmd = &cobra.Command{
 	Use:         "verify",
 	Short:       "Validate the repository against its storage provider",
@@ -199,6 +218,19 @@ func init() {
 		"Stable idempotency key for this staged restore operation")
 	backupRestoreCmd.Flags().BoolVar(&backupRestoreOwnerApproved, "owner-approve", false,
 		"Authorize this staged restore with the established local Owner custody")
+	backupRestoreActivateCmd.Flags().BoolVar(&backupOutputJSON, "json", false,
+		"Emit stackkit.command-result/v1 JSON")
+	backupRestoreActivateCmd.Flags().StringVar(&backupActivationOperationID, "operation-id", "",
+		"Stable idempotency key for this live restore activation")
+	backupRestoreActivateCmd.Flags().BoolVar(&backupActivationOwnerApproved, "owner-approve", false,
+		"Authorize live activation with the established local Owner custody")
+	backupRestoreRecoverCmd.Flags().BoolVar(&backupOutputJSON, "json", false,
+		"Emit stackkit.command-result/v1 JSON")
+	backupRestoreRecoverCmd.Flags().BoolVar(&backupRecoveryOwnerApproved, "owner-approve", false,
+		"Authorize explicit rollback recovery with the established local Owner custody")
+	backupRestoreRecoverCmd.Flags().Bool("rollback", false,
+		"Require rollback of the exact interrupted activation")
+	backupRestoreCmd.AddCommand(backupRestoreActivateCmd, backupRestoreRecoverCmd)
 	backupEmergencyExportCmd.Flags().StringVar(&backupEmergencyExportTarget, "target", "/backup/emergency-export",
 		"Directory where the emergency export manifest and runbook are written")
 	backupEmergencyExportCmd.Flags().StringVar(&backupEmergencyExportFormat, "format", "tar.zst.age",
@@ -310,6 +342,26 @@ func runBackupRestore(cmd *cobra.Command, args []string) error {
 		args[0],
 		backupRestoreOperationID,
 		backupRestoreOwnerApproved,
+	)
+}
+
+func runBackupRestoreActivate(cmd *cobra.Command, args []string) error {
+	return runNativeV2RestoreActivationCommand(
+		cmd, args[0], backupActivationOperationID,
+		backupActivationOwnerApproved,
+	)
+}
+
+func runBackupRestoreRecover(cmd *cobra.Command, args []string) error {
+	rollback, err := cmd.Flags().GetBool("rollback")
+	if err != nil {
+		return err
+	}
+	if !rollback {
+		return fmt.Errorf("backup restore recover requires --rollback")
+	}
+	return runNativeV2RestoreRecoveryCommand(
+		cmd, args[0], backupRecoveryOwnerApproved,
 	)
 }
 

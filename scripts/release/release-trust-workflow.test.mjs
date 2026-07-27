@@ -7,11 +7,13 @@ import test from 'node:test'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const privatePublishPath = path.join(root, '.github/workflows/publish-oss.yml')
 const publicTemplatePath = path.join(root, 'scripts/public/workflows/release.yml')
+const publicImagePath = path.join(root, 'scripts/public/workflows/publish-image.yml')
 const publicReleasePath = existsSync(publicTemplatePath)
   ? publicTemplatePath
   : path.join(root, '.github/workflows/release.yml')
 const privatePublish = existsSync(privatePublishPath) ? readFileSync(privatePublishPath, 'utf8') : null
 const publicRelease = readFileSync(publicReleasePath, 'utf8')
+const publicImage = readFileSync(publicImagePath, 'utf8')
 const releaseEvidenceSchema = JSON.parse(readFileSync(
   path.join(root, 'schemas/release-evidence.schema.json'),
   'utf8',
@@ -35,15 +37,31 @@ test('private publisher creates an immutable draft and cannot publish it directl
   assert.match(privatePublish, /public repository tag workflow owns archive attestation/u)
 })
 
-test('public tag workflow binds exact draft bytes before publishing a prerelease', () => {
+test('publisher dispatches public trust only after final immutable evidence', () => {
+  if (privatePublish === null) return
+  before(privatePublish, 'Verify final release evidence attestation', 'Signal public trust after immutable evidence is ready')
+  before(privatePublish, 'Apply changelog release notes with release app', 'Signal public trust after immutable evidence is ready')
+  assert.doesNotMatch(privatePublish, /permission-actions: write/u)
+  assert.match(
+    privatePublish,
+    /event_type:"stackkits-release-ready"[\s\S]*?client_payload:\{tag:\$tag,source_commit:\$sourceCommit\}[\s\S]*?repos\/\$\{OSS_REPO\}\/dispatches/u
+  )
+})
+
+test('public manual workflow binds exact ready draft bytes before publishing a prerelease', () => {
   assert.ok(releaseEvidenceSchema.properties.release.required.includes('commit'))
   assert.equal(releaseEvidenceSchema.properties.source, undefined)
   for (const fragment of [
+    'repository_dispatch:',
+    'stackkits-release-ready',
+    'workflow_dispatch:',
+    'source_commit:',
     'contents: write',
     'jq -r \'.isDraft\'',
     '.checks.attestationVerification.status',
     '.release.commit == $expectedSourceCommit',
-    'EXPECTED_SOURCE_COMMIT: ${{ github.sha }}',
+    'EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}',
+    'Release dispatch mismatch',
     'actions/attest-build-provenance',
     'GH_CLI_LINUX_AMD64_SHA256',
     'Install pinned GitHub CLI',
@@ -60,6 +78,17 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
   ]) {
     assert.match(publicRelease, new RegExp(fragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
   }
+  assert.doesNotMatch(publicRelease, /^\s*push:\s*$/mu)
+  assert.doesNotMatch(publicRelease, /seq 1 60|sleep 5|within 300 seconds/u)
+  before(publicRelease, 'Dispatch exact publisher-ready tag', 'Attest exact release and prove standalone runtime')
+  assert.match(
+    publicRelease,
+    /permissions:\n\s+actions: write\n\s+contents: read[\s\S]*?gh workflow run release\.yml[\s\S]*?--ref "\$TAG"/u
+  )
+  assert.match(
+    publicRelease,
+    /release-trust:[\s\S]*?github\.event_name == 'workflow_dispatch'/u
+  )
   assert.doesNotMatch(publicRelease, /gh release create/u)
   before(publicRelease, 'Attest exact per-kit release archives', 'render-release-index.mjs')
   before(publicRelease, 'Install pinned GitHub CLI', 'gh attestation trusted-root')
@@ -125,4 +154,12 @@ test('public runtime failure diagnostics are explicit, sanitized, and short-live
   assert.match(block, /if-no-files-found: warn/u)
   assert.match(block, /retention-days: 1/u)
   assert.doesNotMatch(block, /\.stackkit|custody|work_root|project_dir|home_dir/u)
+})
+
+test('image publication is asynchronous and outside the release gate', () => {
+  assert.doesNotMatch(publicRelease, /^  publish-image:/mu)
+  assert.match(publicImage, /^\s*release:\s*$/mu)
+  assert.match(publicImage, /^\s*types:\s*\[published\]\s*$/mu)
+  assert.match(publicImage, /^\s*workflow_dispatch:\s*$/mu)
+  assert.doesNotMatch(publicImage, /^\s*needs:\s*(?:release-trust|runtime-e2e)\s*$/mu)
 })

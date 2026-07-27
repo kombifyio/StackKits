@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
@@ -18,6 +20,7 @@ var (
 	publicUpgradeTo                string
 	publicUpgradeDryRun            bool
 	publicUpgradeJSON              bool
+	publicUpgradeRecover           string
 	newUpgradeInspectionRunner     = func() upgradelifecycle.Runner { return upgradelifecycle.ExecRunner{} }
 	newCurrentUpgradeInspection    = currentUpgradeInspection
 	inspectPublicUpgradeTarget     = inspectVerifiedPublicUpgradeTarget
@@ -26,6 +29,12 @@ var (
 		return (releaseindex.Installer{Source: source, Attestations: attestations}).Install(ctx, resolution, workspace)
 	}
 	executePublicUpgradeTransaction = runPublicUpgradeTransaction
+	beginPublicUpgradeMutation      = func(
+		workspace string,
+		prepare func() (lifecyclemutation.BeginRequest, error),
+	) (publicUpgradeLifecycleSession, error) {
+		return lifecyclemutation.BeginUpgradePrepared(workspace, prepare)
+	}
 )
 
 type publicUpgradeCheckpoint struct {
@@ -78,6 +87,10 @@ staging until a separately governed live-volume cutover exists.`,
 	command.Flags().StringVar(&publicUpgradeTo, "to", "latest", "Target: latest, vX.Y.Z, or channel:stable|beta|edge.")
 	command.Flags().BoolVar(&publicUpgradeDryRun, "dry-run", false, "Verify and inspect target generation in a bounded shadow workspace without applying it.")
 	command.Flags().BoolVar(&publicUpgradeJSON, "json", false, "Emit stackkit.command-result/v1 JSON.")
+	command.Flags().StringVar(
+		&publicUpgradeRecover, "recover", "",
+		"Explicitly recover one exact interrupted lifecycle operation ID.",
+	)
 	return command
 }
 
@@ -92,6 +105,30 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		ctx = context.Background()
 	}
 	workspace := getWorkDir()
+	if strings.TrimSpace(publicUpgradeRecover) != "" {
+		if publicUpgradeDryRun || cmd.Flags().Changed("to") {
+			return errors.New("--recover cannot be combined with --dry-run or --to")
+		}
+		recovery, recoverErr := recoverPublicUpgradeOperation(
+			ctx, workspace, specFile, strings.TrimSpace(publicUpgradeRecover),
+		)
+		if publicUpgradeJSON {
+			if writeErr := writeCommandResultStatus(
+				cmd, cmd.CommandPath(),
+				map[bool]string{true: "success", false: "failed"}[recoverErr == nil],
+				recovery,
+			); writeErr != nil {
+				return errors.Join(recoverErr, writeErr)
+			}
+		} else if recoverErr == nil {
+			_, _ = fmt.Fprintf(
+				cmd.OutOrStdout(),
+				"Recovered lifecycle operation %s: %s\n",
+				recovery.OperationID, recovery.Rollback.Status,
+			)
+		}
+		return recoverErr
+	}
 	kit, err := loadWorkspaceKit(workspace)
 	if err != nil {
 		return fmt.Errorf("load StackKit identity before release resolution: %w", err)
@@ -124,22 +161,81 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 	}
 	result.Inspection = &inspection
 	if !publicUpgradeDryRun {
-		checkpoint, checkpointErr := preparePublicUpgradeCheckpoint(ctx, workspace, kit, resolution)
-		if checkpointErr != nil {
-			return fmt.Errorf("create pre-upgrade rollback checkpoint: %w", checkpointErr)
+		var checkpoint publicUpgradeCheckpoint
+		var receipt releaseindex.Receipt
+		mutation, mutationErr := beginPublicUpgradeMutation(
+			workspace,
+			func() (lifecyclemutation.BeginRequest, error) {
+				prepared, checkpointErr := preparePublicUpgradeCheckpoint(
+					ctx, workspace, kit, resolution,
+				)
+				if checkpointErr != nil {
+					return lifecyclemutation.BeginRequest{}, fmt.Errorf(
+						"create pre-upgrade rollback checkpoint: %w", checkpointErr,
+					)
+				}
+				if checkpointErr := prepared.validate(); checkpointErr != nil {
+					return lifecyclemutation.BeginRequest{}, checkpointErr
+				}
+				installed, installErr := installPublicUpgradeRelease(
+					ctx, source, attestations, resolution, workspace,
+				)
+				if installErr != nil {
+					return lifecyclemutation.BeginRequest{}, fmt.Errorf(
+						"install verified StackKit release: %w", installErr,
+					)
+				}
+				snapshot, loadErr := loadPublicUpgradeRecoveryCheckpoint(
+					workspace, prepared.ExecutorStateSnapshotID,
+				)
+				if loadErr != nil {
+					return lifecyclemutation.BeginRequest{}, fmt.Errorf(
+						"load exact upgrade recovery checkpoint: %w", loadErr,
+					)
+				}
+				var targetExecutableDigest string
+				if executableErr := withPublicUpgradeInstalledExecutable(
+					ctx, installed, func(path string) error {
+						var digestErr error
+						targetExecutableDigest, digestErr = executableFileSHA256(path)
+						return digestErr
+					},
+				); executableErr != nil {
+					return lifecyclemutation.BeginRequest{}, fmt.Errorf(
+						"bind exact target lifecycle executable: %w", executableErr,
+					)
+				}
+				checkpoint = prepared
+				receipt = installed
+				return lifecyclemutation.BeginRequest{
+					OperationID: prepared.OperationID,
+					OwnerRef:    snapshot.OwnerRef,
+					Checkpoint: lifecyclemutation.CheckpointAuthority{
+						ExecutorStateSnapshotID: prepared.ExecutorStateSnapshotID,
+						KopiaAnchorID:           prepared.KopiaAnchorID,
+					},
+					Target: lifecyclemutation.ReleaseAuthority{
+						Version:          architectureV2ComponentVersion(installed.Version),
+						ArchiveSHA256:    "sha256:" + installed.ArchiveSHA256,
+						ExecutableSHA256: targetExecutableDigest,
+					},
+					Prior: lifecyclemutation.ReleaseAuthority{
+						Version:          architectureV2ComponentVersion(snapshot.Release.Version),
+						ArchiveSHA256:    snapshot.Release.ArchiveSHA256,
+						ExecutableSHA256: snapshot.Executable.Blob.SHA256,
+					},
+				}, nil
+			},
+		)
+		if mutationErr != nil {
+			return fmt.Errorf("begin exclusive lifecycle mutation: %w", mutationErr)
 		}
-		if checkpointErr := checkpoint.validate(); checkpointErr != nil {
-			return fmt.Errorf("create pre-upgrade rollback checkpoint: %w", checkpointErr)
-		}
+		defer mutation.Close()
 		result.Checkpoint = &checkpoint
-		receipt, installErr := installPublicUpgradeRelease(ctx, source, attestations, resolution, workspace)
-		if installErr != nil {
-			return fmt.Errorf("install verified StackKit release: %w", installErr)
-		}
 		result.InstallDir = receipt.InstallDir
 		result.Receipt = &receipt
 		transaction, transactionErr := executePublicUpgradeTransaction(
-			ctx, workspace, specFile, receipt, inspection, checkpoint,
+			ctx, workspace, specFile, receipt, inspection, checkpoint, mutation,
 		)
 		result.Transaction = &transaction
 		result.ApplyInvoked = transaction.Target.ApplyInvoked

@@ -4,6 +4,59 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0-beta.4] - 2026-07-27
+
+> **Live restore beta** for owner-approved activation of staged Kopia data,
+> durable crash recovery, and a release path whose only long gate is the exact
+> published-archive runtime test.
+
+### Added
+
+- Local lifecycle mutations now share one owner-signed, hash-chained journal
+  and exclusive workspace authority across config persistence, generation,
+  Apply, and upgrade. Upgrade child processes join only their exact
+  executable-bound phase through a one-use nonce; ordinary commands never
+  implicitly resume an interrupted operation.
+- `stackkit upgrade --recover <operation-id>` performs explicit recovery of
+  an interrupted standard upgrade. Ambiguous already-claimed child phases fail
+  closed, and rollback removes any operation-scoped success proof before
+  restoring the prior runtime.
+- `stackkit backup restore activate <restore-result-id>` promotes one verified,
+  owner-signed staged restore into the exact Basement volumes derived from the
+  current CUE ResolvedPlan and generation manifest. It creates a mandatory
+  safety snapshot before stopping the verified Compose project.
+- `stackkit backup restore recover <operation-id> --rollback` explicitly
+  restores every possibly changed live volume from deterministic rollback
+  volumes, starts the exact verified Compose artifact, and verifies services
+  plus the PocketID Owner binding before closing the signed journal.
+
+### Changed
+
+- Release attestation verification now checks up to six subjects concurrently
+  (`--jobs 1..8`) while retaining six retries per subject and failing the whole
+  command on any rejection.
+- The public trust/runtime workflow is dispatched only after the publisher has
+  finalized and verified the immutable draft evidence, removing the tag-push
+  race and its fixed polling window without weakening draft, digest,
+  attestation, or runtime gates.
+- POSIX private lifecycle custody now accepts only `0700` directories or
+  `0600` regular files and continues to reject links and irregular paths.
+- Pull requests now run only the affected compile/contract gate and
+  changed-content secret scan. Container image publication is asynchronous;
+  release trust remains bound to archive, SBOM, index, attestation, and the
+  published-archive runtime proof.
+- Native backup configure, snapshot, and staging restore operations now share
+  the same exclusive local lifecycle mutation authority as generate, Apply,
+  drift reconcile, upgrade, and restore activation.
+
+### Known limitations
+
+- Stable `v0.8.0` still requires the exact `v0.8.0-beta.4` public archive to
+  prove interrupted activation rollback and successful activation on a fresh
+  Ubuntu Basement installation.
+- Terramate change sets and offline verification of Techstack-issued Advanced
+  capabilities remain the final Advanced-Mode implementation slice.
+
 ## [0.8.0-beta.3] - 2026-07-27
 
 > **Transactional upgrade beta** for exact target Apply/Verify and honest

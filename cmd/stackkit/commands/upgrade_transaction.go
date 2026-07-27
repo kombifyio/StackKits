@@ -3,6 +3,7 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
@@ -56,6 +58,8 @@ var (
 	withPublicUpgradeInstalledExecutable  = withVerifiedPublicUpgradeExecutable
 	reverifyPublicUpgradeInstalledReceipt = verifyInstalledPublicUpgradeReceipt
 	withPublicUpgradeTransactionLock      = withUpgradeTransactionLock
+	hashPublicUpgradeExecutable           = executableFileSHA256
+	removePublicUpgradeCommittedSuccess   = removePublicUpgradeSuccess
 )
 
 type publicUpgradeTransaction struct {
@@ -131,6 +135,7 @@ func runPublicUpgradeTransaction(
 	targetReceipt releaseindex.Receipt,
 	inspection upgradelifecycle.Inspection,
 	checkpoint publicUpgradeCheckpoint,
+	mutation publicUpgradeLifecycleSession,
 ) (result publicUpgradeTransaction, err error) {
 	result = publicUpgradeTransaction{
 		APIVersion:  publicUpgradeTransactionAPIVersion,
@@ -158,6 +163,15 @@ func runPublicUpgradeTransaction(
 	if err := validatePublicUpgradeTargetReceipt(targetReceipt, inspection); err != nil {
 		result.FailedPhase = "target-authority"
 		return result, err
+	}
+	if mutation == nil ||
+		mutation.Record().OperationID != checkpoint.OperationID ||
+		mutation.Record().Checkpoint.ExecutorStateSnapshotID != checkpoint.ExecutorStateSnapshotID ||
+		mutation.Record().Checkpoint.KopiaAnchorID != checkpoint.KopiaAnchorID {
+		result.FailedPhase = "lifecycle-authority"
+		return result, errors.New(
+			"upgrade transaction requires the exact held lifecycle mutation authority",
+		)
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -217,11 +231,23 @@ func runPublicUpgradeTransaction(
 						requestedSpec,
 						inspection,
 						targetReceipt,
+						mutation,
 						snapshot.OwnerRef,
 						snapshot.Lineage.OwnerBindingDigest,
 						&result.Target,
 						checkpoint.OperationID,
 					)
+					if targetErr == nil {
+						if transitionErr := mutation.Transition(
+							lifecyclemutation.PhaseTargetVerifySucceeded,
+							lifecyclemutation.PhaseCommitStarted,
+						); transitionErr != nil {
+							targetErr = &publicUpgradePhaseError{
+								phase: "commit-start",
+								cause: transitionErr,
+							}
+						}
+					}
 					if targetErr == nil {
 						if verifyErr := reverifyPublicUpgradeInstalledReceipt(
 							operationCtx, targetReceipt,
@@ -254,6 +280,20 @@ func runPublicUpgradeTransaction(
 							result.FailedPhase = "commit"
 							targetErr = fmt.Errorf("commit verified upgrade authority: %w", commitErr)
 						} else {
+							if transitionErr := mutation.Transition(
+								lifecyclemutation.PhaseCommitStarted,
+								lifecyclemutation.PhaseCommitSucceeded,
+							); transitionErr != nil {
+								result.FailedPhase = "commit-journal"
+								targetErr = transitionErr
+							} else if completeErr := mutation.Complete(
+								lifecyclemutation.StatusSucceeded,
+							); completeErr != nil {
+								result.FailedPhase = "commit-journal"
+								targetErr = completeErr
+							}
+						}
+						if targetErr == nil {
 							result.Status = "succeeded"
 							result.CommittedAt = &now
 							result.SuccessProof = &proof
@@ -275,6 +315,8 @@ func runPublicUpgradeTransaction(
 						requestedSpec,
 						checkpoint,
 						snapshot,
+						mutation,
+						transaction,
 						&result,
 					)
 					if rollbackErr != nil {
@@ -302,6 +344,7 @@ func executePublicUpgradeRelease(
 	binary, workspace, requestedSpec string,
 	inspection upgradelifecycle.Inspection,
 	targetReceipt releaseindex.Receipt,
+	mutation publicUpgradeLifecycleSession,
 	expectedOwnerRef, expectedOwnerBindingHash string,
 	result *publicUpgradeExecution,
 	operationID string,
@@ -309,12 +352,39 @@ func executePublicUpgradeRelease(
 	if runner == nil || result == nil {
 		return errors.New("target execution runner and result are required")
 	}
+	executableDigest, err := hashPublicUpgradeExecutable(binary)
+	if err != nil {
+		return &publicUpgradePhaseError{
+			phase: "target-executable", cause: err,
+		}
+	}
 	common := publicUpgradeCommandPrefix(workspace, requestedSpec)
 	result.GenerateInvoked = true
 	emitPublicUpgradeTransactionEvent(operationID, "target-generate", "started")
-	if _, err := runner.Run(ctx, binary, append(common, "generate"), workspace); err != nil {
+	generateNonce, err := mutation.BeginJoin(
+		lifecyclemutation.PhasePrepared,
+		lifecyclemutation.PhaseTargetGenerateStarted,
+		"generate", architectureV2ComponentVersion(targetReceipt.Version),
+		executableDigest,
+	)
+	if err != nil {
+		return &publicUpgradePhaseError{phase: "target-generate-journal", cause: err}
+	}
+	generateArgs := append(
+		append(common, lifecycleChildFlags(
+			operationID, lifecyclemutation.PhaseTargetGenerateStarted, generateNonce,
+		)...),
+		"generate",
+	)
+	if _, err := runner.Run(ctx, binary, generateArgs, workspace); err != nil {
 		emitPublicUpgradeTransactionEvent(operationID, "target-generate", "failed")
 		return &publicUpgradePhaseError{phase: "target-generate", cause: err}
+	}
+	if err := mutation.Transition(
+		lifecyclemutation.PhaseTargetGenerateStarted,
+		lifecyclemutation.PhaseTargetGenerateSucceeded,
+	); err != nil {
+		return &publicUpgradePhaseError{phase: "target-generate-journal", cause: err}
 	}
 	emitPublicUpgradeTransactionEvent(operationID, "target-generate", "succeeded")
 
@@ -336,15 +406,51 @@ func executePublicUpgradeRelease(
 
 	result.ApplyInvoked = true
 	emitPublicUpgradeTransactionEvent(operationID, "target-apply", "started")
-	if _, err := runner.Run(ctx, binary, append(common, "apply", "--auto-approve"), workspace); err != nil {
+	applyNonce, err := mutation.BeginJoin(
+		lifecyclemutation.PhaseTargetGenerateSucceeded,
+		lifecyclemutation.PhaseTargetApplyStarted,
+		"apply", architectureV2ComponentVersion(targetReceipt.Version),
+		executableDigest,
+	)
+	if err != nil {
+		return &publicUpgradePhaseError{phase: "target-apply-journal", cause: err}
+	}
+	applyArgs := append(
+		append(common, lifecycleChildFlags(
+			operationID, lifecyclemutation.PhaseTargetApplyStarted, applyNonce,
+		)...),
+		"apply", "--auto-approve",
+	)
+	if _, err := runner.Run(ctx, binary, applyArgs, workspace); err != nil {
 		emitPublicUpgradeTransactionEvent(operationID, "target-apply", "failed")
 		return &publicUpgradePhaseError{phase: "target-apply", cause: err}
+	}
+	if err := mutation.Transition(
+		lifecyclemutation.PhaseTargetApplyStarted,
+		lifecyclemutation.PhaseTargetApplySucceeded,
+	); err != nil {
+		return &publicUpgradePhaseError{phase: "target-apply-journal", cause: err}
 	}
 	emitPublicUpgradeTransactionEvent(operationID, "target-apply", "succeeded")
 
 	result.VerifyInvoked = true
 	emitPublicUpgradeTransactionEvent(operationID, "target-verify", "started")
-	rawVerify, err := runner.Run(ctx, binary, append(common, "verify", "--json"), workspace)
+	verifyNonce, err := mutation.BeginJoin(
+		lifecyclemutation.PhaseTargetApplySucceeded,
+		lifecyclemutation.PhaseTargetVerifyStarted,
+		"verify", architectureV2ComponentVersion(targetReceipt.Version),
+		executableDigest,
+	)
+	if err != nil {
+		return &publicUpgradePhaseError{phase: "target-verify-journal", cause: err}
+	}
+	verifyArgs := append(
+		append(common, lifecycleChildFlags(
+			operationID, lifecyclemutation.PhaseTargetVerifyStarted, verifyNonce,
+		)...),
+		"verify", "--json",
+	)
+	rawVerify, err := runner.Run(ctx, binary, verifyArgs, workspace)
 	if err != nil {
 		emitPublicUpgradeTransactionEvent(operationID, "target-verify", "failed")
 		return &publicUpgradePhaseError{phase: "target-verify", cause: err}
@@ -362,6 +468,12 @@ func executePublicUpgradeRelease(
 	result.OwnerRef = report.Owner.OwnerRef
 	result.OwnerBindingHash = report.Owner.OwnerBindingDigest
 	result.Verified = true
+	if err := mutation.Transition(
+		lifecyclemutation.PhaseTargetVerifyStarted,
+		lifecyclemutation.PhaseTargetVerifySucceeded,
+	); err != nil {
+		return &publicUpgradePhaseError{phase: "target-verify-journal", cause: err}
+	}
 	emitPublicUpgradeTransactionEvent(operationID, "target-verify", "succeeded")
 	return nil
 }
@@ -371,10 +483,29 @@ func rollbackPublicUpgrade(
 	workspace, requestedSpec string,
 	checkpoint publicUpgradeCheckpoint,
 	snapshot upgradelifecycle.ExecutorStateSnapshot,
+	mutation publicUpgradeLifecycleSession,
+	controlTransaction *confinedfs.Transaction,
 	transaction *publicUpgradeTransaction,
 ) error {
 	transaction.FailedPhase = publicUpgradeFailurePhase(transaction.FailedPhase)
 	emitPublicUpgradeTransactionEvent(checkpoint.OperationID, "rollback", "started")
+	if mutation == nil {
+		return errors.New("rollback requires held lifecycle mutation authority")
+	}
+	if err := removePublicUpgradeCommittedSuccess(
+		controlTransaction, checkpoint.OperationID,
+	); err != nil {
+		return fmt.Errorf(
+			"remove stale upgrade success authority before rollback: %w", err,
+		)
+	}
+	if mutation.Record().Phase != lifecyclemutation.PhaseRollbackStarted {
+		if err := mutation.Transition(
+			mutation.Record().Phase, lifecyclemutation.PhaseRollbackStarted,
+		); err != nil {
+			return fmt.Errorf("start durable lifecycle rollback: %w", err)
+		}
+	}
 	recovered, err := recoverPublicUpgradeExecutor(
 		ctx,
 		workspace,
@@ -390,10 +521,37 @@ func rollbackPublicUpgrade(
 			}
 			runner := newPublicUpgradeTransactionRunner()
 			common := publicUpgradeCommandPrefix(workspace, requestedSpec)
+			executableDigest, runErr := hashPublicUpgradeExecutable(priorBinary)
+			if runErr != nil {
+				return fmt.Errorf("hash recovered prior executable: %w", runErr)
+			}
+			priorVersion := architectureV2ComponentVersion(snapshot.Release.Version)
+			generateNonce, runErr := mutation.BeginJoin(
+				lifecyclemutation.PhaseRollbackStarted,
+				lifecyclemutation.PhaseRollbackGenerateStarted,
+				"generate", priorVersion, executableDigest,
+			)
+			if runErr != nil {
+				return fmt.Errorf("authorize prior release generate: %w", runErr)
+			}
+			generateArgs := append(
+				append(common, lifecycleChildFlags(
+					checkpoint.OperationID,
+					lifecyclemutation.PhaseRollbackGenerateStarted,
+					generateNonce,
+				)...),
+				"generate",
+			)
 			if _, runErr := runner.Run(
-				recoveryContext, priorBinary, append(common, "generate"), workspace,
+				recoveryContext, priorBinary, generateArgs, workspace,
 			); runErr != nil {
 				return fmt.Errorf("prior release generate: %w", runErr)
+			}
+			if runErr := mutation.Transition(
+				lifecyclemutation.PhaseRollbackGenerateStarted,
+				lifecyclemutation.PhaseRollbackGenerateDone,
+			); runErr != nil {
+				return fmt.Errorf("commit prior release generate phase: %w", runErr)
 			}
 			rawPlan, runErr := runner.Run(
 				recoveryContext, priorBinary, append(common, "plan", "--json"), workspace,
@@ -408,13 +566,51 @@ func rollbackPublicUpgrade(
 			if runErr := validateRecoveredUpgradePlan(plan, snapshot); runErr != nil {
 				return runErr
 			}
+			applyNonce, runErr := mutation.BeginJoin(
+				lifecyclemutation.PhaseRollbackGenerateDone,
+				lifecyclemutation.PhaseRollbackApplyStarted,
+				"apply", priorVersion, executableDigest,
+			)
+			if runErr != nil {
+				return fmt.Errorf("authorize prior release apply: %w", runErr)
+			}
+			applyArgs := append(
+				append(common, lifecycleChildFlags(
+					checkpoint.OperationID,
+					lifecyclemutation.PhaseRollbackApplyStarted,
+					applyNonce,
+				)...),
+				"apply", "--auto-approve",
+			)
 			if _, runErr := runner.Run(
-				recoveryContext, priorBinary, append(common, "apply", "--auto-approve"), workspace,
+				recoveryContext, priorBinary, applyArgs, workspace,
 			); runErr != nil {
 				return fmt.Errorf("prior release apply: %w", runErr)
 			}
+			if runErr := mutation.Transition(
+				lifecyclemutation.PhaseRollbackApplyStarted,
+				lifecyclemutation.PhaseRollbackApplyDone,
+			); runErr != nil {
+				return fmt.Errorf("commit prior release apply phase: %w", runErr)
+			}
+			verifyNonce, runErr := mutation.BeginJoin(
+				lifecyclemutation.PhaseRollbackApplyDone,
+				lifecyclemutation.PhaseRollbackVerifyStarted,
+				"verify", priorVersion, executableDigest,
+			)
+			if runErr != nil {
+				return fmt.Errorf("authorize prior release verify: %w", runErr)
+			}
+			verifyArgs := append(
+				append(common, lifecycleChildFlags(
+					checkpoint.OperationID,
+					lifecyclemutation.PhaseRollbackVerifyStarted,
+					verifyNonce,
+				)...),
+				"verify", "--json",
+			)
 			rawVerify, runErr := runner.Run(
-				recoveryContext, priorBinary, append(common, "verify", "--json"), workspace,
+				recoveryContext, priorBinary, verifyArgs, workspace,
 			)
 			if runErr != nil {
 				return fmt.Errorf("prior release verify: %w", runErr)
@@ -434,6 +630,12 @@ func rollbackPublicUpgrade(
 			}
 			transaction.Rollback.PlanHash = report.PlanHash
 			transaction.Rollback.ApplyResultHash = report.Apply.ResultHash
+			if runErr := mutation.Transition(
+				lifecyclemutation.PhaseRollbackVerifyStarted,
+				lifecyclemutation.PhaseRollbackVerifyDone,
+			); runErr != nil {
+				return fmt.Errorf("commit prior release verify phase: %w", runErr)
+			}
 			return nil
 		},
 	)
@@ -445,6 +647,15 @@ func rollbackPublicUpgrade(
 		return errors.New("completed executor recovery differs from the exact rollback checkpoint")
 	}
 	transaction.Rollback.PriorReleaseVersion = recovered.Release.Version
+	if err := mutation.Transition(
+		lifecyclemutation.PhaseRollbackVerifyDone,
+		lifecyclemutation.PhaseRollbackSucceeded,
+	); err != nil {
+		return fmt.Errorf("commit durable rollback completion: %w", err)
+	}
+	if err := mutation.Complete(lifecyclemutation.StatusRecovered); err != nil {
+		return fmt.Errorf("complete recovered lifecycle mutation: %w", err)
+	}
 	return nil
 }
 
@@ -802,16 +1013,7 @@ func commitPublicUpgradeSuccess(
 	transaction *confinedfs.Transaction,
 	proof publicUpgradeSuccessAuthority,
 ) error {
-	if transaction == nil ||
-		!publicUpgradeOperationIDPattern.MatchString(proof.OperationID) ||
-		!nativeV2BackupDigestPattern.MatchString(proof.TargetArchiveHash) ||
-		!nativeV2BackupDigestPattern.MatchString(proof.PlanHash) ||
-		!nativeV2BackupDigestPattern.MatchString(proof.ManifestHash) ||
-		!nativeV2BackupDigestPattern.MatchString(proof.ApplyResultHash) ||
-		!nativeV2BackupDigestPattern.MatchString(proof.EvidenceBundleHash) ||
-		!nativeV2BackupDigestPattern.MatchString(proof.OwnerBindingHash) ||
-		strings.TrimSpace(proof.OwnerRef) == "" ||
-		proof.VerifiedAt.IsZero() {
+	if transaction == nil || !validPublicUpgradeSuccessProof(proof) {
 		return errors.New("verified upgrade success authority is incomplete")
 	}
 	canonical, err := resolvedplan.CanonicalJSON(proof)
@@ -823,6 +1025,63 @@ func commitPublicUpgradeSuccess(
 		canonical,
 		0o600,
 	)
+}
+
+func validPublicUpgradeSuccessProof(proof publicUpgradeSuccessAuthority) bool {
+	return publicUpgradeOperationIDPattern.MatchString(proof.OperationID) &&
+		nativeV2BackupDigestPattern.MatchString(proof.TargetArchiveHash) &&
+		nativeV2BackupDigestPattern.MatchString(proof.PlanHash) &&
+		nativeV2BackupDigestPattern.MatchString(proof.ManifestHash) &&
+		nativeV2BackupDigestPattern.MatchString(proof.ApplyResultHash) &&
+		nativeV2BackupDigestPattern.MatchString(proof.EvidenceBundleHash) &&
+		nativeV2BackupDigestPattern.MatchString(proof.OwnerBindingHash) &&
+		strings.TrimSpace(proof.OwnerRef) != "" &&
+		!proof.VerifiedAt.IsZero()
+}
+
+func removePublicUpgradeSuccess(
+	transaction *confinedfs.Transaction,
+	operationID string,
+) error {
+	if transaction == nil ||
+		!publicUpgradeOperationIDPattern.MatchString(operationID) {
+		return errors.New("remove upgrade success authority requires exact operation")
+	}
+	path := publicUpgradeTransactionRoot + "/" + operationID + ".json"
+	exists, info, err := transaction.Exists(path)
+	if err != nil || !exists {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("upgrade success authority is not a regular file")
+	}
+	raw, _, err := transaction.ReadStable(path)
+	if err != nil {
+		return err
+	}
+	var proof publicUpgradeSuccessAuthority
+	if err := decodeUpgradeExactJSON(raw, &proof); err != nil {
+		return fmt.Errorf("decode upgrade success authority before rollback: %w", err)
+	}
+	canonical, err := resolvedplan.CanonicalJSON(proof)
+	if proof.OperationID != operationID ||
+		!validPublicUpgradeSuccessProof(proof) ||
+		err != nil || !bytes.Equal(raw, canonical) {
+		return errors.New(
+			"upgrade success authority differs from rollback operation",
+		)
+	}
+	if err := transaction.RemoveTree(path); err != nil {
+		return err
+	}
+	exists, _, err = transaction.Exists(path)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("upgrade success authority remained after rollback cleanup")
+	}
+	return nil
 }
 
 func emitPublicUpgradeTransactionEvent(operationID, phase, status string) {

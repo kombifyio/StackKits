@@ -255,6 +255,11 @@ func printDriftReport(output io.Writer, report driftReport) error {
 }
 
 func runDriftReconcile(cmd *cobra.Command, _ []string) error {
+	if err := admitLifecycleMutationBeforeObservability(
+		getWorkDir(), "drift-reconcile", true,
+	); err != nil {
+		return err
+	}
 	mode := strings.ToLower(strings.TrimSpace(driftReconcileMode))
 	denial := driftOperationDenial{
 		SchemaVersion: operationDenialSchemaVersion,

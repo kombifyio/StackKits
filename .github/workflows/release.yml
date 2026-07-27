@@ -1,9 +1,19 @@
 name: Public Release Trust and Runtime Gate
 
 on:
-  push:
-    tags:
-      - "v*"
+  repository_dispatch:
+    types:
+      - stackkits-release-ready
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact publisher-created release tag
+        required: true
+        type: string
+      source_commit:
+        description: Exact immutable public source commit
+        required: true
+        type: string
 
 concurrency:
   group: public-release-trust-${{ github.ref }}
@@ -11,7 +21,6 @@ concurrency:
 
 permissions:
   contents: write
-  packages: write
   id-token: write
   attestations: write
 
@@ -21,15 +30,41 @@ env:
   GH_CLI_LINUX_AMD64_SHA256: "b57848131bdf0c229cd35e1f2a51aa718199858b2e728410b37e89a428943ec4"
 
 jobs:
+  dispatch-release-ready:
+    name: Dispatch exact publisher-ready tag
+    if: github.repository == 'kombifyio/StackKits' && github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch exact tag trust execution
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.client_payload.tag }}
+          SOURCE_COMMIT: ${{ github.event.client_payload.source_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|edge)\.[0-9]+)?$ ]]
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          gh workflow run release.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TAG" \
+            -f "tag=$TAG" \
+            -f "source_commit=$SOURCE_COMMIT"
+
   release-trust:
     name: Attest exact release and prove standalone runtime
-    if: github.repository == 'kombifyio/StackKits'
+    if: github.repository == 'kombifyio/StackKits' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout published tag
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          ref: ${{ inputs.tag }}
           fetch-depth: 1
 
       - name: Setup Go
@@ -55,40 +90,31 @@ jobs:
           tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
           echo "${RUNNER_TEMP}/gh_${GH_CLI_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
 
-      - name: Wait for the publisher-owned immutable draft
+      - name: Verify the publisher-owned immutable draft
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-          EXPECTED_SOURCE_COMMIT: ${{ github.sha }}
+          TAG: ${{ inputs.tag }}
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           set -euo pipefail
           mkdir -p dist
-          ready=false
-          for attempt in $(seq 1 60); do
-            release="$(gh release view "$TAG" --json isDraft,assets 2>/dev/null || true)"
-            if [ -n "$release" ] && [ "$(jq -r '.isDraft' <<<"$release")" = "true" ]; then
-              names="$(jq -r '.assets[].name' <<<"$release")"
-              if grep -qx 'checksums.txt' <<<"$names" \
-                && grep -qx 'release-evidence.json' <<<"$names" \
-                && grep -Eq '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz$' <<<"$names" \
-                && grep -Eq '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz\.spdx\.json$' <<<"$names"; then
-                gh release download "$TAG" --dir dist --pattern 'checksums.txt' --clobber
-                gh release download "$TAG" --dir dist --pattern 'release-evidence.json' --clobber
-                if jq -e --arg expectedSourceCommit "$EXPECTED_SOURCE_COMMIT" \
-                  '.release.commit == $expectedSourceCommit and .checks.attestationVerification.status == "pass"' \
-                  dist/release-evidence.json >/dev/null; then
-                  ready=true
-                  break
-                fi
-              fi
-            fi
-            sleep 5
-          done
-          if [ "$ready" != "true" ]; then
-            echo "::error title=Draft release not ready::Publisher did not produce an immutable draft with finalized evidence within 300 seconds."
+          if [ "$GITHUB_REF" != "refs/tags/$TAG" ] || [ "$GITHUB_SHA" != "$EXPECTED_SOURCE_COMMIT" ]; then
+            echo "::error title=Release dispatch mismatch::Dispatch ref ${GITHUB_REF} at ${GITHUB_SHA} does not match ${TAG} at ${EXPECTED_SOURCE_COMMIT}."
             exit 1
           fi
+          release="$(gh release view "$TAG" --json isDraft,assets)"
+          test "$(jq -r '.isDraft' <<<"$release")" = "true"
+          names="$(jq -r '.assets[].name' <<<"$release")"
+          grep -qx 'checksums.txt' <<<"$names"
+          grep -qx 'release-evidence.json' <<<"$names"
+          grep -Eq '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz$' <<<"$names"
+          grep -Eq '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz\.spdx\.json$' <<<"$names"
+          gh release download "$TAG" --dir dist --pattern 'checksums.txt' --clobber
+          gh release download "$TAG" --dir dist --pattern 'release-evidence.json' --clobber
+          jq -e --arg expectedSourceCommit "$EXPECTED_SOURCE_COMMIT" \
+            '.release.commit == $expectedSourceCommit and .checks.attestationVerification.status == "pass"' \
+            dist/release-evidence.json >/dev/null
 
       - name: Download exact per-kit archives and SBOMs
         shell: bash
@@ -369,45 +395,3 @@ jobs:
             --draft=false \
             --prerelease \
             --latest=false
-
-  publish-image:
-    name: Publish StackKit Server image
-    needs: runtime-e2e
-    if: github.repository == 'kombifyio/StackKits'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout published tag
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - name: Build and push exact tag
-        id: image
-        shell: bash
-        env:
-          IMAGE: ghcr.io/kombifyio/stackkits
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          stable_args=()
-          if [[ "$TAG" != *-* ]]; then stable_args+=(--tag "${IMAGE}:latest"); fi
-          docker buildx build \
-            --push \
-            --tag "${IMAGE}:${TAG}" \
-            "${stable_args[@]}" \
-            .
-          digest="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{.Manifest.Digest}}')"
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-
-      - name: Attest published image
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-name: ghcr.io/kombifyio/stackkits
-          subject-digest: ${{ steps.image.outputs.digest }}
-          push-to-registry: true
