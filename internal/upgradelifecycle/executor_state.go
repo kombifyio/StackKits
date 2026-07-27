@@ -617,7 +617,35 @@ func verifyExecutorStateReleaseProof(
 	if len(executableBytes) == 0 || len(executableBytes) > 512<<20 {
 		return ExecutorStateRelease{}, errors.New("executor state: exact recovery executable bytes are required")
 	}
+	release, archiveExecutable, err := inspectExecutorStateReleaseProof(proof)
+	if err != nil {
+		return ExecutorStateRelease{}, err
+	}
+	if !bytes.Equal(archiveExecutable, executableBytes) {
+		return ExecutorStateRelease{}, errors.New(
+			"executor state: recovery executable differs from verified installed release",
+		)
+	}
+	return release, nil
+}
+
+// RecoveryExecutableFromVerifiedRelease returns the exact canonical stackkit
+// executable from an already offline-verified installed release proof.
+func RecoveryExecutableFromVerifiedRelease(
+	proof releaseindex.VerifiedInstallation,
+) ([]byte, error) {
+	_, executable, err := inspectExecutorStateReleaseProof(proof)
+	if err != nil {
+		return nil, err
+	}
+	return executable, nil
+}
+
+func inspectExecutorStateReleaseProof(
+	proof releaseindex.VerifiedInstallation,
+) (ExecutorStateRelease, []byte, error) {
 	var verifiedRelease ExecutorStateRelease
+	var verifiedExecutable []byte
 	err := proof.Inspect(func(
 		receipt releaseindex.Receipt,
 		asset releaseindex.Asset,
@@ -685,16 +713,16 @@ func verifyExecutorStateReleaseProof(
 		if err != nil {
 			return fmt.Errorf("executor state: read exact executable from verified release: %w", err)
 		}
-		if !bytes.Equal(archiveExecutable, executableBytes) {
-			return errors.New("executor state: recovery executable differs from verified installed release")
-		}
 		verifiedRelease = release
+		verifiedExecutable = append([]byte(nil), archiveExecutable...)
 		return nil
 	})
 	if err != nil {
-		return ExecutorStateRelease{}, fmt.Errorf("executor state: verified installed release proof: %w", err)
+		return ExecutorStateRelease{}, nil, fmt.Errorf(
+			"executor state: verified installed release proof: %w", err,
+		)
 	}
-	return verifiedRelease, nil
+	return verifiedRelease, verifiedExecutable, nil
 }
 
 func executorStateReleaseDigest(raw string) string {

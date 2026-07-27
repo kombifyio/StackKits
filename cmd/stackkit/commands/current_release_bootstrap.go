@@ -42,10 +42,6 @@ func verifyExactCurrentReleaseForInit(
 	kit string,
 	buildVersion string,
 ) (releaseindex.Receipt, error) {
-	exactTag, err := releaseindex.ExactTagForBuildVersion(buildVersion)
-	if err != nil {
-		return releaseindex.Receipt{}, err
-	}
 	platform := currentReleasePlatform()
 	processImage, err := acquireCurrentProcessImage(platform.OS)
 	if err != nil {
@@ -55,8 +51,25 @@ func verifyExactCurrentReleaseForInit(
 		return releaseindex.Receipt{}, fmt.Errorf("current StackKit process-image cleanup contract is required")
 	}
 	defer func() { _ = processImage.cleanup() }()
+	return verifyExactCurrentReleaseForBoundImage(
+		ctx, workspaceRoot, kit, buildVersion, platform, processImage.path,
+	)
+}
+
+func verifyExactCurrentReleaseForBoundImage(
+	ctx context.Context,
+	workspaceRoot string,
+	kit string,
+	buildVersion string,
+	platform releaseindex.Platform,
+	processImagePath string,
+) (releaseindex.Receipt, error) {
+	exactTag, err := releaseindex.ExactTagForBuildVersion(buildVersion)
+	if err != nil {
+		return releaseindex.Receipt{}, err
+	}
 	identity := releaseindex.ExecutableIdentity{
-		Path: processImage.path, BuildVersion: buildVersion,
+		Path: processImagePath, BuildVersion: buildVersion,
 	}
 	installDir := filepath.Join(
 		workspaceRoot,

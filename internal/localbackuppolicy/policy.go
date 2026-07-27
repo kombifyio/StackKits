@@ -45,6 +45,20 @@ var (
 	imageDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
+var managedVolumeNames = []string{
+	"stackkit-basement-core_coolify-applications",
+	"stackkit-basement-core_coolify-backups",
+	"stackkit-basement-core_coolify-data",
+	"stackkit-basement-core_coolify-databases",
+	"stackkit-basement-core_coolify-postgres-data",
+	"stackkit-basement-core_coolify-redis-data",
+	"stackkit-basement-core_coolify-services",
+	"stackkit-basement-core_coolify-ssh",
+	"stackkit-basement-core_pocketid-data",
+	"stackkit-basement-core_step-ca-db",
+	"stackkit-basement-core_tinyauth-data",
+}
+
 // Document is the versioned on-disk local Kopia runtime policy artifact.
 type Document struct {
 	APIVersion string `json:"apiVersion"`
@@ -77,16 +91,17 @@ type Runtime struct {
 }
 
 type Source struct {
-	Kind            string   `json:"kind"`
-	HostPath        string   `json:"hostPath"`
-	ContainerPath   string   `json:"containerPath"`
-	ReadOnly        bool     `json:"readOnly"`
-	ExcludePaths    []string `json:"excludePaths"`
-	RepositoryPath  string   `json:"repositoryPath"`
-	ConfigPath      string   `json:"configPath"`
-	CachePath       string   `json:"cachePath"`
-	Custody         string   `json:"custody"`
-	RuntimeMaterial string   `json:"runtimeMaterial"`
+	Kind               string   `json:"kind"`
+	HostPath           string   `json:"hostPath"`
+	ContainerPath      string   `json:"containerPath"`
+	ReadOnly           bool     `json:"readOnly"`
+	ManagedVolumeNames []string `json:"managedVolumeNames"`
+	ExcludePaths       []string `json:"excludePaths"`
+	RepositoryPath     string   `json:"repositoryPath"`
+	ConfigPath         string   `json:"configPath"`
+	CachePath          string   `json:"cachePath"`
+	Custody            string   `json:"custody"`
+	RuntimeMaterial    string   `json:"runtimeMaterial"`
 }
 
 // New returns the exact governed policy for one resolved Basement target.
@@ -135,6 +150,9 @@ func GovernedSource() Source {
 		HostPath:      "/var/lib/docker/volumes",
 		ContainerPath: SourcePath,
 		ReadOnly:      true,
+		ManagedVolumeNames: append(
+			[]string(nil), managedVolumeNames...,
+		),
 		ExcludePaths: []string{
 			"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
 			"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
@@ -147,6 +165,13 @@ func GovernedSource() Source {
 		Custody:         Custody,
 		RuntimeMaterial: RuntimeMaterial,
 	}
+}
+
+// ManagedVolumeNames returns the exact Compose-qualified persistent volume
+// allowlist that the local Kopia source may observe. Repository, cache, and
+// restore-staging volumes are intentionally absent.
+func ManagedVolumeNames() []string {
+	return append([]string(nil), managedVolumeNames...)
 }
 
 // IsRecognizedSnapshotSelection accepts the current governed backup selection
@@ -213,6 +238,7 @@ func ValidateSnapshotPolicy(policy Policy) error {
 // translation without allowing callers to mutate the decoded authority.
 func (policy Policy) SourceProjection() Source {
 	source := policy.Source
+	source.ManagedVolumeNames = append([]string(nil), policy.Source.ManagedVolumeNames...)
 	source.ExcludePaths = append([]string(nil), policy.Source.ExcludePaths...)
 	return source
 }

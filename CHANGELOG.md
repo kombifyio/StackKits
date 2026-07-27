@@ -4,6 +4,49 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0-beta.3] - 2026-07-27
+
+> **Transactional upgrade beta** for exact target Apply/Verify and honest
+> executable runtime rollback. Live data activation and crash recovery remain
+> explicit stable blockers.
+
+### Added
+
+- Non-dry-run `stackkit upgrade` now performs the verified target inspection,
+  requires an already configured and crash-consistent local Kopia repository,
+  creates a Kopia snapshot with an owner-signed anchor and a content-addressed
+  executor-state recovery checkpoint, and only then installs the verified
+  target release. Every invocation persists a fresh attempt identity and never
+  silently resumes a target-only prior snapshot; recovery uses the release
+  receipt bound to the verified Apply result, not the inspecting CLI version.
+  The snapshot source exposes only the exact Compose-derived StackKits-managed
+  volume allowlist and never the whole Docker volume root.
+  Missing or malformed checkpoint identifiers fail before installation.
+- The standard upgrade transaction now executes the canonical binary extracted
+  from the reverified installed target, requires its real generated Plan and
+  manifest to equal the prior shadow inspection, applies, and strictly binds
+  live verification to the target release receipt, Owner, Apply evidence, and
+  runtime before writing an exclusive success marker. Before target mutation it
+  verifies an isolated Kopia restore staging result. Target failure restores
+  the captured StackSpec and optional Inventory, executes the exact captured
+  prior binary through generate/apply/verify, and reports
+  `runtime-restored,dataStaged` without claiming that staged data became live.
+  `stackkit.upgrade-transaction/v1` results and
+  `stackkit.upgrade-event/v1` JSONL events contain only secret-free authority
+  references.
+
+### Known limitations
+
+- Automatic rollback restores and verifies configuration and runtime, but the
+  verified Kopia restore remains isolated in staging. Managed-volume cutover,
+  application boot from restored data, crash-resume, and exact released-archive
+  upgrade/rollback evidence remain required before stable v0.8
+  upgrade/rollback support can be claimed.
+- A second exact current-authority check immediately before target generation
+  narrows the concurrent-writer window but does not close it. Upgrade and
+  independent Apply/config mutation still need one shared lifecycle lock and
+  crash-resume protocol before stable v0.8 can claim concurrent-writer safety.
+
 ## [0.8.0-beta.2] - 2026-07-27
 
 > **Standalone boundary correction beta** for the native v2 CLI, local Owner

@@ -28,8 +28,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:12|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-docker-volume-source,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:12|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-docker-volume-source,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:13|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:13|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -218,7 +218,17 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: ["trap : TERM INT; sleep infinity & wait"]
     volumes:
-      - /var/lib/docker/volumes:/source/docker-volumes:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-applications/_data:/source/docker-volumes/stackkit-basement-core_coolify-applications/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-backups/_data:/source/docker-volumes/stackkit-basement-core_coolify-backups/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-data/_data:/source/docker-volumes/stackkit-basement-core_coolify-data/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-databases/_data:/source/docker-volumes/stackkit-basement-core_coolify-databases/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-postgres-data/_data:/source/docker-volumes/stackkit-basement-core_coolify-postgres-data/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-redis-data/_data:/source/docker-volumes/stackkit-basement-core_coolify-redis-data/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-services/_data:/source/docker-volumes/stackkit-basement-core_coolify-services/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_coolify-ssh/_data:/source/docker-volumes/stackkit-basement-core_coolify-ssh/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_pocketid-data/_data:/source/docker-volumes/stackkit-basement-core_pocketid-data/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_step-ca-db/_data:/source/docker-volumes/stackkit-basement-core_step-ca-db/_data:ro
+      - /var/lib/docker/volumes/stackkit-basement-core_tinyauth-data/_data:/source/docker-volumes/stackkit-basement-core_tinyauth-data/_data:ro
       - kopia-repository:/app/repository
       - kopia-config:/app/config
       - kopia-cache:/app/cache

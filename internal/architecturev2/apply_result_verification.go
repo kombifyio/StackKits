@@ -43,6 +43,14 @@ func (r VerifiedApplyResult) Summary() ApplyResultSummary {
 	}
 }
 
+// ExecutorIdentity returns the exact product-owned executor that produced the
+// verified Apply result. Upgrade recovery uses this version to select the
+// workspace release receipt that was actually applied, never the version of a
+// newer CLI process inspecting the workspace.
+func (r VerifiedApplyResult) ExecutorIdentity() generationartifact.ApplyExecutorIdentity {
+	return r.envelope.Executor
+}
+
 // VerifyProductApplyResult revalidates one self-contained, content-addressed
 // Apply result against the exact current plan, generation controls, local
 // producer trust, and product-owned executor identity.

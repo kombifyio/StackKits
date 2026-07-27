@@ -168,7 +168,6 @@ func validateDockerV2Runtime(container *docker.ContainerInfo, network *docker.Ne
 	}
 
 	wantMounts := map[string]docker.ContainerMount{
-		source.ContainerPath: {Type: "bind", Source: source.HostPath, Destination: source.ContainerPath, RW: false},
 		source.RepositoryPath: {
 			Type: "volume", Name: v2ComposeProject + "_kopia-repository",
 			Destination: source.RepositoryPath, RW: true,
@@ -185,6 +184,13 @@ func validateDockerV2Runtime(container *docker.ContainerInfo, network *docker.Ne
 			Type: "volume", Name: v2ComposeProject + "_kopia-restore-staging",
 			Destination: localbackuppolicy.RestoreStagingPath, RW: true,
 		},
+	}
+	for _, volumeName := range source.ManagedVolumeNames {
+		hostPath := source.HostPath + "/" + volumeName + "/_data"
+		containerPath := source.ContainerPath + "/" + volumeName + "/_data"
+		wantMounts[containerPath] = docker.ContainerMount{
+			Type: "bind", Source: hostPath, Destination: containerPath, RW: false,
+		}
 	}
 	if len(container.Mounts) != len(wantMounts) {
 		return fmt.Errorf("container mount count differs from the governed runtime")
@@ -220,13 +226,20 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 	if len(config.UnknownInspectionFields) != 0 {
 		return fmt.Errorf("container inspection contains unsupported host controls")
 	}
-	wantBinds := []string{
-		source.HostPath + ":" + source.ContainerPath + ":ro",
-		v2ComposeProject + "_kopia-repository:" + source.RepositoryPath + ":rw",
-		v2ComposeProject + "_kopia-config:" + source.ConfigPath + ":rw",
-		v2ComposeProject + "_kopia-cache:" + source.CachePath + ":rw",
-		v2ComposeProject + "_kopia-restore-staging:" + localbackuppolicy.RestoreStagingPath + ":rw",
+	wantBinds := make([]string, 0, len(source.ManagedVolumeNames)+4)
+	for _, volumeName := range source.ManagedVolumeNames {
+		wantBinds = append(
+			wantBinds,
+			source.HostPath+"/"+volumeName+"/_data:"+
+				source.ContainerPath+"/"+volumeName+"/_data:ro",
+		)
 	}
+	wantBinds = append(wantBinds,
+		v2ComposeProject+"_kopia-repository:"+source.RepositoryPath+":rw",
+		v2ComposeProject+"_kopia-config:"+source.ConfigPath+":rw",
+		v2ComposeProject+"_kopia-cache:"+source.CachePath+":rw",
+		v2ComposeProject+"_kopia-restore-staging:"+localbackuppolicy.RestoreStagingPath+":rw",
+	)
 	if !slices.Equal(config.Binds, wantBinds) ||
 		config.ContainerIDFile != "" ||
 		len(config.PortBindings) != 0 ||

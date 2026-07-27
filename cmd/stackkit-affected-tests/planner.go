@@ -91,6 +91,19 @@ var fileFocusedTests = map[string][]string{
 		"TestExecutorStateStoreFailsFastWhileStoreLockIsHeld",
 		"TestExecutorStateStoreRejectsPreexistingTornNamedCASObject",
 	},
+	"internal/upgradelifecycle/recovery.go": {
+		"TestExecutorStateStoreRecoverRestoresAuthorityAndInvokesExactExecutable",
+		"TestExecutorStateStoreRecoverRejectsTamperBeforeWritesOrCallback",
+	},
+	"internal/architecturev2/apply_result_verification.go": {
+		"TestExecuteProductApplyCollectsFreshEvidenceThroughConstructionOwnedRuntimeGraph",
+	},
+	"internal/backupexec/docker.go": {
+		"TestDockerV2Adapter",
+	},
+	"internal/resolvedplan/module_input_bindings.go": {
+		"TestHomeBackupBindingProjectsOnlyLocalBackupRoot",
+	},
 	"internal/releaseindex/installed.go": {
 		"TestInspectInstalledReturnsReverifiedCallbackScopedProof",
 	},
@@ -98,6 +111,11 @@ var fileFocusedTests = map[string][]string{
 		"TestPublicUpgradeDryRunResolvesWithoutInstalling",
 		"TestPublicUpgradeInstallAndOfflineVerifyUseSameReceipt",
 		"TestKitListUsesPublishedReleaseIndex",
+	},
+	"cmd/stackkit/commands/upgrade_transaction.go": {
+		"TestPublicUpgradeTransactionCommitsOnlyExactLiveVerifiedTarget",
+		"TestPublicUpgradeTransactionFailureRestoresPriorRuntimeWithDataStaged",
+		"TestPublicUpgradeTransactionTamperedCheckpointStopsBeforeTargetSideEffects",
 	},
 }
 

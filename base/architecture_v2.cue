@@ -3441,6 +3441,19 @@ _servicePublicationShape: {
 	hostPath:           "/var/lib/docker/volumes"
 	containerPath:      "/source/docker-volumes"
 	readOnly:           true
+	managedVolumeNames: [
+		"stackkit-basement-core_coolify-applications",
+		"stackkit-basement-core_coolify-backups",
+		"stackkit-basement-core_coolify-data",
+		"stackkit-basement-core_coolify-databases",
+		"stackkit-basement-core_coolify-postgres-data",
+		"stackkit-basement-core_coolify-redis-data",
+		"stackkit-basement-core_coolify-services",
+		"stackkit-basement-core_coolify-ssh",
+		"stackkit-basement-core_pocketid-data",
+		"stackkit-basement-core_step-ca-db",
+		"stackkit-basement-core_tinyauth-data",
+	]
 	excludePaths: [
 		"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
 		"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
