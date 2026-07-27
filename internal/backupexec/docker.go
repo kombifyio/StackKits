@@ -207,10 +207,13 @@ func validateDockerV2Runtime(container *docker.ContainerInfo, network *docker.Ne
 		if actual.Type == "bind" && actual.Source != want.Source {
 			return fmt.Errorf("container bind source differs from the governed runtime")
 		}
-		// Docker reports its default private bind propagation as either an
-		// explicit rprivate value or an omitted value, depending on the engine
-		// API. Both are private; shared and slave propagation remain forbidden.
-		if actual.Type == "bind" && actual.Propagation != "" && actual.Propagation != "rprivate" {
+		// Docker reports the same read-only bind as omitted, rprivate, or
+		// rslave depending on the host mount namespace. rslave remains
+		// one-way into this read-only container; shared propagation is forbidden.
+		if actual.Type == "bind" &&
+			actual.Propagation != "" &&
+			actual.Propagation != "rprivate" &&
+			actual.Propagation != "rslave" {
 			return fmt.Errorf("container bind propagation differs from the governed runtime")
 		}
 	}
