@@ -328,11 +328,29 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 	wantReadonlyPaths := []string{
 		"/proc/bus", "/proc/fs", "/proc/irq", "/proc/sys", "/proc/sysrq-trigger",
 	}
-	if !slices.Equal(config.MaskedPaths, wantMaskedPaths) ||
-		!slices.Equal(config.ReadonlyPaths, wantReadonlyPaths) {
+	// Docker owns these default hardening lists and may reorder them or add
+	// further restrictions between engine releases. Require every governed
+	// restriction, while accepting engine-added masking/readonly paths: those
+	// additions can only further constrain the Kopia process and the pinned
+	// command/health checks still prove it is usable.
+	if !containsAllPaths(config.MaskedPaths, wantMaskedPaths) ||
+		!containsAllPaths(config.ReadonlyPaths, wantReadonlyPaths) {
 		return fmt.Errorf("container proc/sys isolation differs from the governed runtime")
 	}
 	return nil
+}
+
+func containsAllPaths(actual, required []string) bool {
+	seen := make(map[string]struct{}, len(actual))
+	for _, path := range actual {
+		seen[path] = struct{}{}
+	}
+	for _, path := range required {
+		if _, ok := seen[path]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func validateDockerV2Labels(container *docker.ContainerInfo) error {
