@@ -268,7 +268,7 @@ mapfile -t resolved_host_gateways < <(
 resolved_host_gateway="${resolved_host_gateways[0]}"
 node -e '
   const {isIP} = require("node:net")
-  process.exit(isIP(process.argv[1]) === 0 || process.argv[1] !== process.argv[1].toLowerCase())
+  process.exit(isIP(process.argv[1]) !== 0 && process.argv[1] === process.argv[1].toLowerCase() ? 0 : 1)
 ' "$resolved_host_gateway" || {
   printf 'running Coolify host.docker.internal resolution is not a canonical IP address\n' >&2
   exit 1

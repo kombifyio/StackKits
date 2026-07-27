@@ -281,6 +281,7 @@ test('harness binds evidence to exact Compose project scope and the new capture 
     'config --services',
     'compose-origin-scope.json',
     'stackkit.compose-origin-scope/v2',
+    'process.exit(isIP(process.argv[1]) !== 0 && process.argv[1] === process.argv[1].toLowerCase() ? 0 : 1)',
     'originScopeSha256',
     'host-forbidden-dns+compose-origin-initial-syn/v1',
     'stackkit apply >"$output_dir/apply.log" 2>&1',
