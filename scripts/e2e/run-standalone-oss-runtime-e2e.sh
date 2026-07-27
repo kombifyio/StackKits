@@ -431,7 +431,14 @@ if [ "$stable_day2_proof" = "1" ]; then
     | .version
   ' "$candidate_release_index")"
 
-  if timeout 60 stackkit advanced change-set create \
+  tar xzf "$candidate_archive" -C "$candidate_extract_dir"
+  candidate_stackkit="$candidate_extract_dir/stackkit"
+  [ -x "$candidate_stackkit" ] || {
+    printf 'candidate archive does not contain an executable stackkit binary\n' >&2
+    exit 1
+  }
+
+  if timeout 60 "$candidate_stackkit" advanced change-set create \
     --capability "$project_dir/missing-advanced-capability.json" \
     --candidate-spec "$project_dir/stack.yaml" \
     --json \
@@ -509,12 +516,6 @@ if [ "$stable_day2_proof" = "1" ]; then
     exit 1
   }
 
-  tar xzf "$candidate_archive" -C "$candidate_extract_dir"
-  candidate_stackkit="$candidate_extract_dir/stackkit"
-  [ -x "$candidate_stackkit" ] || {
-    printf 'candidate archive does not contain an executable stackkit binary\n' >&2
-    exit 1
-  }
   timeout 120 "$candidate_stackkit" drift detect --json >"$stable_day2_dir/drift.json"
   jq -e '
     .schemaVersion == "stackkit.command-result/v1"
