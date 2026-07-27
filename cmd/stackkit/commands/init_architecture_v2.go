@@ -1,8 +1,10 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -18,7 +21,27 @@ import (
 
 const architectureV2DomainOverride = "network.domain.base"
 
+var architectureV2InitDevelopmentVersion = regexp.MustCompile(
+	`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-devel$`,
+)
+
 func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
+	return runArchitectureV2InitWithBootstrap(cmd, args, wd, nil)
+}
+
+type architectureV2InitReleaseBootstrap func(
+	context.Context,
+	string,
+	string,
+	string,
+) (releaseindex.Receipt, error)
+
+func runArchitectureV2InitWithBootstrap(
+	cmd *cobra.Command,
+	args []string,
+	wd string,
+	bootstrap architectureV2InitReleaseBootstrap,
+) error {
 	if err := validateArchitectureV2InitFlags(cmd); err != nil {
 		return err
 	}
@@ -69,6 +92,22 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	if err != nil {
 		return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)
 	}
+	if bootstrap != nil && !architectureV2InitDevelopmentBuild(version) {
+		ctx := context.Background()
+		if cmd != nil && cmd.Context() != nil {
+			ctx = cmd.Context()
+		}
+		receipt, err := bootstrap(ctx, wd, stackkitName, version)
+		if err != nil {
+			return fmt.Errorf("verify exact current StackKit release before init: %w", err)
+		}
+		printSuccess(
+			"Verified exact current release authority: %s (%s/%s)",
+			receipt.Version,
+			receipt.Platform.OS,
+			receipt.Platform.Arch,
+		)
+	}
 
 	loader := config.NewLoader(wd)
 	specPath, displayPath, _, err := loader.ResolveStackSpecPathForRead(specFile)
@@ -113,12 +152,14 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		if err != nil {
 			return fmt.Errorf("establish local owner custody: %w", err)
 		}
-		runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd)
-		if err != nil {
-			return fmt.Errorf("establish Basement runtime custody: %w", err)
-		}
 		printSuccess("Established local owner custody: %s", custody.OwnerRef)
-		printSuccess("Established owner-bound Basement runtime custody: %s", runtimeCustody.KeyID)
+		if stackkitName == "basement-kit" {
+			runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd)
+			if err != nil {
+				return fmt.Errorf("establish Basement runtime custody: %w", err)
+			}
+			printSuccess("Established owner-bound Basement runtime custody: %s", runtimeCustody.KeyID)
+		}
 		printInfo("Local execution binding: %s / %s / %s", custody.Binding.SiteRef, custody.Binding.NodeRef, custody.Binding.ChannelRef)
 	}
 	printInfo("StackKit: %s", stackkitName)
@@ -128,6 +169,12 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	}
 	printArchitectureV2InitSummary(displayPath)
 	return nil
+}
+
+func architectureV2InitDevelopmentBuild(buildVersion string) bool {
+	buildVersion = strings.TrimSpace(buildVersion)
+	return buildVersion == "dev" ||
+		architectureV2InitDevelopmentVersion.MatchString(buildVersion)
 }
 
 func validateArchitectureV2InitFlags(cmd *cobra.Command) error {

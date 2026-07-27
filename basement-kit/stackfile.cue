@@ -108,6 +108,7 @@ Definition: base.#ProductKitDefinition & {
 			"local-control-authority",
 			"offline-autonomy",
 			"local-backup-target",
+			"local-backup-runtime",
 		]])
 		defaults: []
 		optional: [

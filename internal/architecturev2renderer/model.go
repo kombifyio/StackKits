@@ -184,6 +184,7 @@ type rawRenderUnit struct {
 	ID                  string                     `json:"id"`
 	Kind                string                     `json:"kind"`
 	RendererRef         string                     `json:"rendererRef"`
+	ApplyMode           string                     `json:"applyMode"`
 	CompatibleTargets   []string                   `json:"compatibleTargets"`
 	TemplateRef         string                     `json:"templateRef"`
 	Version             string                     `json:"version"`
@@ -1804,6 +1805,13 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 			}
 			if _, err := decodeHomeBackupRoot(value, unitPath+".values."+binding.TargetRef); err != nil {
 				return nil, err
+			}
+		case "backup.localKopiaSource":
+			if binding.ValueType != "local-kopia-backup-source-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "backup.localKopiaSource has an invalid type or cardinality")
+			}
+			if _, exists := unit.Values[binding.TargetRef]; !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound backup.localKopiaSource value is missing")
 			}
 		default:
 			return nil, fail(ErrInvalidPlan, path+".sourceRef", "unsupported resolved-plan input source")

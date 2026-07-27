@@ -1376,6 +1376,39 @@ an optional Orchestrator UI, but cannot inject an executor, mint evidence, or
 expand the resolved operation set. Multi-node/hybrid channel authority remains
 a v0.9 concern.
 
+The native v0.8 backup path reuses that local authority rather than creating a
+parallel backup control plane. Before configure, status, or snapshot side
+effects it binds the full Plan identity, manifest and generation receipt, the
+current Apply result and owner-signed Apply receipt, and the exact
+CUE-generated Kopia policy. The passphrase is held only in owner-signed local
+custody and passed through a redacted stdin boundary. Snapshot operations are
+journaled under `.stackkit/backups/`; their content-addressed
+`stackkit.local-backup-snapshot-anchor/v1` records are owner-signed and
+idempotent by operation ID. Techstack may display or dispatch this public CLI
+contract, but cannot supply repository credentials, rewrite the policy, or
+replace local PocketID/TinyAuth/step-ca authority.
+
+Upgrade recovery follows the executor that actually performed Product Apply.
+For the v0.8 Basement default this is Compose, not the alternative OpenTofu
+renderer. The internal `stackkit.executor-state-snapshot/v1` store already
+provides private content-addressed blobs, owner signatures, an operation marker
+as final commit point, an immutable offline-verified installed-release proof,
+byte matching of the recovery executable, and re-verification of the exact
+persisted Kopia anchor plus the current PocketID Owner runtime binding. CAS
+objects are atomically published under one non-blocking store lock and their
+directory hierarchy is durability-synced where the platform supports it.
+
+This store is deliberately not command-reachable yet. Its capture API accepts
+only a package-private sealed current-state authority handle; no other package
+can fabricate one. The command-level upgrade slice must mint that handle only
+after it has re-run the complete current Plan/Generation/Apply authority gate
+and bound every captured artifact to its verified manifest and receipts. Until
+that verifier exists, StackKits does not claim an executable transactional
+upgrade or rollback anchor. OpenTofu state is required only if a future Product
+Apply actually selects an OpenTofu state owner; unsupported executor targets
+fail before runtime side effects rather than recording empty or unrelated
+state.
+
 `ProductApplyFileJournal` is the concrete provider-free durable option for a
 workspace-bound product integration. Construction opens and validates the
 held workspace without creating files; the first real Journal/recovery
@@ -1562,7 +1595,7 @@ and removes the private module dependency before its public build gate.
 
 | Container | Location | Responsibility |
 | --- | --- | --- |
-| CLI | `cmd/stackkit`, `internal/*` | Operator workflow: init, prepare, validate, generate, plan, apply, verify, update, registry, logs, and recovery commands. |
+| CLI | `cmd/stackkit`, `internal/*` | Standalone operator workflow: init, validate, generate, plan, apply, verify, upgrade, drift, registry inspection, logs, and recovery commands. |
 | API server | `cmd/stackkit-server`, `internal/api` | HTTP surface for catalog, canonical `stackfile.cue` schemas, versioned validation, logs, capabilities, and OpenAPI. Legacy generation/setup/registry operations are exact-v0.6 compatibility surfaces and are absent from native-v0.7 capability discovery. |
 | CUE contracts | `base/`, `basement-kit/`, `cloud-kit/`, `modules/` | Schemas, defaults, constraints, module contracts, and deployment shape. |
 | Composition/generation | `internal/cue`, `internal/composition`, `internal/iac`, `internal/tofu`, `internal/terramate` | Bind CUE/spec data into generated deployment artifacts and execution adapters. |
@@ -1571,18 +1604,31 @@ and removes the private module dependency before its public build gate.
 
 ## Core Data Flow
 
-1. `stackkit init` creates a `stack-spec.yaml` from user intent.
-2. `stackkit prepare` validates prerequisites, can install Docker on supported targets, and verifies the StackKit-packaged OpenTofu binary.
-3. The current v1 path applies generic Go validation and builds kit CUE packages
-   separately; it does not yet prove that the selected KitDefinition and user
-   spec unify. Architecture v2 replaces this with the single ResolvedPlan
-   compiler before generation.
-4. `stackkit generate` writes generated rollout artifacts under `deploy/`.
-5. `stackkit plan` and `stackkit apply` execute OpenTofu through the Go adapter.
-6. After OpenTofu bootstraps the selected PaaS, `stackkit apply` consumes the generated platform manifest. StackKit may operate StackKit-owned system apps and StackKit-owned L3 application use cases through the platform adapter, but customer-owned user apps remain PaaS handoff metadata and are deployed, updated, and operated by the selected external PaaS tooling.
-7. On exact v0.6, first-run setup is represented separately from deployment as setup-drop metadata and the Node Hub may mutate its legacy TinyAuth, credential, and setup-run artifacts. Native v0.7 exposes none of these operations: it returns a typed unavailable response before artifact reads, credentials, external calls, or state writes until a CUE-governed v2 setup contract exists.
-8. `stackkit verify` performs read-only host checks and optional HTTP URL checks.
-9. `stackkit-server` exposes catalog, canonical schema, versioned validation, logs, and capability discovery over HTTP. Its Direct Connect map is exact-v0.6 in-process compatibility state, not a central Kombify, Cloudflare, or TechStack registry; native v0.7 rejects those endpoints before decode or mutation.
+1. `stackkit init --owner-source=local` verifies the exact published release,
+   writes the CUE-governed `stack-spec.yaml`, and establishes owner-only local
+   custody plus the desired PocketID/step-ca Owner projection.
+2. `stackkit validate` resolves and validates intent without persisting rollout
+   state or initializing deploy observability.
+3. `stackkit generate` resolves the same intent through the embedded CUE
+   authority, atomically persists the canonical ResolvedPlan, and writes only
+   hash-bound deterministic Compose/OpenTofu artifacts and generation evidence.
+4. `stackkit plan` previews the exact generated OpenTofu change set.
+5. `stackkit apply` consumes only the local ResolvedPlan, local Owner custody,
+   generated artifacts, and local execution channel. It realizes the Basement
+   core, binds the PocketID subject through TinyAuth to `ownerRef` and step-ca,
+   and records owner-signed local Apply evidence.
+6. `stackkit verify` revalidates release receipt, generation/Apply lineage,
+   Owner binding, selected services, Healthchecks, routes, and executable probes.
+7. `stackkit upgrade`, backup/restore, and drift operations extend that same
+   local evidence chain. Techstack may dispatch the pinned binary and display
+   results, but never becomes lifecycle authority.
+8. Provider creation, credentials, raw SSH transport, server allocation, and
+   host lifecycle are external handoff concerns. They are not StackSpec intent
+   and do not enter the standalone lifecycle.
+9. `stackkit-server` exposes catalog, canonical schema, versioned validation,
+   logs, and capability discovery over HTTP. Its Direct Connect map and
+   Verify/Doctor/Plan operations are exact-v0.6 compatibility state; native
+   v0.7+ rejects those legacy endpoints before decode or mutation.
 
 ## Routing Ownership
 
@@ -1637,14 +1683,15 @@ Protected endpoints cover:
 
 The implemented top-level command groups are documented in [CLI.md](CLI.md):
 
-`init`, `prepare`, `generate`, `plan`, `apply`, `verify`, `remove`, `status`, `validate`, `app`, `break-glass`, `backup`, `cluster`, `compat`, `doctor`, `kit`, `logs`, `module`, `registry`, `wizard`, `completion`, and `version`.
+`init`, `prepare`, `generate`, `plan`, `apply`, `verify`, `remove`, `status`, `validate`, `app`, `break-glass`, `backup`, `cluster`, `compat`, `agent`, `kit`, `logs`, `registry`, `completion`, and `version`.
 
 ## Source Of Truth Boundaries
 
 | Concern | Source |
 | --- | --- |
 | Technical deployment contract | CUE files in this repo |
-| Registry, catalog, lifecycle mirror | kombify database / Admin API |
+| Registry and catalog | Embedded CUE-derived public registry snapshot |
+| Installed release and lifecycle state | Verified GitHub Release Index cache plus local `.stackkit/` state and evidence |
 | API wire shape | `api/openapi/stackkits-v1.yaml` plus server tests |
 | CLI behavior | Cobra command definitions and tests |
 | Architecture overview | `docs/ARCHITECTURE.md` |

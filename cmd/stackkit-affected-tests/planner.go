@@ -28,6 +28,32 @@ var coreCUERoots = []string{
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
+	"internal/backuplifecycle/snapshot_anchor_store.go": {
+		"TestNativeV2LocalBackupConfigureAndSnapshotAnchor",
+	},
+	"cmd/stackkit/commands/backup.go": {
+		"TestBackupCommandContract",
+		"TestLegacyV06BackupMigrationForwardsExactImporterArguments",
+		"TestNativeV2RetiresLegacyBackupUtilityCommandsBeforeSideEffects",
+		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
+		"TestBackupEmergencyExportWritesManifestAndRunbook",
+		"TestBackupEmergencyExportRejectsUnsupportedFormat",
+		"TestHumanSize",
+		"TestTruncateBackup",
+	},
+	"cmd/stackkit/commands/backup_native_v2.go": {
+		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
+		"TestNativeV2BackupRequestForwardsNormalizedRunAndRestoreAuthority",
+		"TestNativeV2BackupRequestRejectsAuthorityMutationBetweenInspections",
+	},
+	"cmd/stackkit/commands/backup_native_v2_runtime.go": {
+		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
+		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
+	},
+	"internal/api/runtime_actions_backup_test.go": {
+		"TestLegacyV06BackupRuntimeActionCompatibilityBoundary",
+		"TestNativeV2RetiresAllLegacyBackupRuntimeActionsBeforeStateOrExecution",
+	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
 		"TestRunArchitectureV2InitMaterializesCanonicalProductSpecs",
 		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
@@ -53,6 +79,21 @@ var fileFocusedTests = map[string][]string{
 		"TestModernIdentitySiteExecutorsKeepHomeAndCloudAuthoritySeparate",
 		"TestModernIdentitySiteExecutorsRejectCrossSiteAndChannelSubstitution",
 	},
+	"internal/localevidence/executor_state_signature.go": {
+		"TestOwnerExecutorStateSignatureIsDomainSeparatedAndOwnerBound",
+	},
+	"internal/upgradelifecycle/executor_state.go": {
+		"TestExecutorStateStoreCapturesVerifiableIdempotentComposeRecoveryClosure",
+		"TestExecutorStateStoreRejectsRuntimeComposeDriftBeforePersistence",
+		"TestExecutorStateStoreRejectsConflictingOperationAndUnsupportedTarget",
+		"TestExecutorStateStoreRejectsUnverifiedInputsBeforeCommit",
+		"TestExecutorStateStoreUsesOperationMarkerAsCommitPoint",
+		"TestExecutorStateStoreFailsFastWhileStoreLockIsHeld",
+		"TestExecutorStateStoreRejectsPreexistingTornNamedCASObject",
+	},
+	"internal/releaseindex/installed.go": {
+		"TestInspectInstalledReturnsReverifiedCallbackScopedProof",
+	},
 	"cmd/stackkit/commands/release_commands_test.go": {
 		"TestPublicUpgradeDryRunResolvesWithoutInstalling",
 		"TestPublicUpgradeInstallAndOfflineVerifyUseSameReceipt",
@@ -64,6 +105,7 @@ var defaultReleaseContractSmokeTests = []string{
 	"scripts/release/release-evidence.test.mjs",
 	"scripts/release/render-release-index.test.mjs",
 	"scripts/release/release-trust-workflow.test.mjs",
+	"scripts/release/verify-trusted-root.test.mjs",
 	"scripts/release/validate-release-archives.test.mjs",
 	"scripts/release/check-fast-feedback-budget.test.mjs",
 	"scripts/public/export-public-verification.test.mjs",
@@ -164,6 +206,13 @@ var releaseTestBindings = map[string][]string{
 	},
 	"scripts/release/render-release-index.mjs": {
 		"scripts/release/render-release-index.test.mjs",
+	},
+	"scripts/release/verify-trusted-root.mjs": {
+		"scripts/release/verify-trusted-root.test.mjs",
+	},
+	"internal/releaseindex/release-trust-policy.json": {
+		"scripts/release/release-trust-workflow.test.mjs",
+		"scripts/release/verify-trusted-root.test.mjs",
 	},
 	"scripts/release/validate-os-matrix.mjs": {
 		"scripts/release/validate-os-matrix.test.mjs",
@@ -496,13 +545,13 @@ func isReleaseE2EPath(file string) bool {
 
 func isGeneralReleasePath(file string) bool {
 	if file == ".goreleaser.yaml" || file == "install.sh" || file == "Dockerfile" || file == "mise.toml" || file == "scripts/sync-public.sh" ||
-		file == "scripts/dev/architecture-v2-generation.mjs" || file == "scripts/dev/architecture-v2-generation.test.mjs" {
+		file == "scripts/dev/architecture-v2-generation.mjs" || file == "scripts/dev/architecture-v2-generation.test.mjs" ||
+		file == "internal/releaseindex/release-trust-policy.json" {
 		return true
 	}
 	return strings.HasPrefix(file, "scripts/release/") ||
 		strings.HasPrefix(file, "scripts/public/") ||
-		strings.HasPrefix(file, ".github/workflows/") ||
-		strings.HasPrefix(file, ".depot/workflows/")
+		strings.HasPrefix(file, ".github/workflows/")
 }
 
 type affectedGoSelection struct {
@@ -529,7 +578,8 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 	}
 
 	for _, file := range files {
-		if !strings.HasSuffix(file, ".go") {
+		embeddedReleaseTrustPolicy := file == "internal/releaseindex/release-trust-policy.json"
+		if !strings.HasSuffix(file, ".go") && !embeddedReleaseTrustPolicy {
 			continue
 		}
 		dir := path.Dir(file)
@@ -538,12 +588,12 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 		if _, seen := generatedOnlyPatterns[pattern]; !seen {
 			generatedOnlyPatterns[pattern] = true
 		}
-		if strings.HasSuffix(file, "_test.go") || !strings.HasSuffix(file, "_generated.go") {
+		if embeddedReleaseTrustPolicy || strings.HasSuffix(file, "_test.go") || !strings.HasSuffix(file, "_generated.go") {
 			generatedOnlyPatterns[pattern] = false
 		}
 		if pkg, ok := dirToPackage[dir]; ok {
 			changedImports[pkg.ImportPath] = struct{}{}
-			if !strings.HasSuffix(file, "_test.go") {
+			if embeddedReleaseTrustPolicy || !strings.HasSuffix(file, "_test.go") {
 				productionChange[pkg.ImportPath] = struct{}{}
 			}
 		}
@@ -591,7 +641,12 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 	}
 	focusedSelections := []focusedSelection{}
 	fullPatterns := []string{}
+	productionCompilePatterns := []string{}
 	for _, pattern := range selection.Changed {
+		if pattern == "./tests/production" {
+			productionCompilePatterns = append(productionCompilePatterns, pattern)
+			continue
+		}
 		dir := strings.TrimPrefix(pattern, "./")
 		if dir == "." {
 			dir = "."
@@ -623,6 +678,15 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-packages", Argv: append(args, fullPatterns...),
 			Reason: "run changed packages that have no changed test-function boundary",
+		})
+	}
+	if len(productionCompilePatterns) > 0 {
+		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
+		args = appendRequiredBuildTags(args, productionCompilePatterns)
+		args = append(args, productionCompilePatterns...)
+		commands = append(commands, testCommand{
+			Kind: "go", Scope: "production-package-compile", Argv: args,
+			Reason: "compile production-tagged live-test sources without running target-dependent tests in the fast path",
 		})
 	}
 	if len(selection.CompileOnly) > 0 {

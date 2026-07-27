@@ -301,6 +301,7 @@ func verifiedBasementCoreHealth(
 		{sourceRef: "basement-hub-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/healthz", port: 80, statuses: []int{200}},
 		{sourceRef: "basement-router-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/ping", port: 8080, statuses: []int{200}},
 		{sourceRef: "coolify-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/", port: 8000, statuses: []int{200, 302}},
+		{sourceRef: "local-kopia-runtime-container", kind: "container", targetKind: "module", targetRef: target.ModuleRef},
 		{sourceRef: "pocketid-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/", port: 1411, statuses: []int{200, 302}},
 		{sourceRef: "step-ca-tcp", kind: "tcp", targetKind: "module", targetRef: target.ModuleRef, port: 9000},
 		{sourceRef: "tinyauth-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/", port: 4000, statuses: []int{200, 302}},
@@ -322,7 +323,7 @@ func verifiedBasementCoreHealth(
 	for _, want := range expected {
 		item, ok := bySource[want.sourceRef]
 		if !ok {
-			return nil, errors.New("verified Basement runtime lacks one of its exact seven postconditions")
+			return nil, errors.New("verified Basement runtime lacks one of its exact eight postconditions")
 		}
 		expectation := runtimeexecutorlocal.BasementCoreHealthExpectation{
 			RequirementID: item.ID, SourceRef: item.SourceRef, Kind: item.Kind,

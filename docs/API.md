@@ -91,7 +91,7 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `POST` | `/api/v1/generate/preview` | Exact-v0.6 compatibility preview; not advertised on native v0.7. | Yes |
 | `GET` | `/api/v1/status` | Read node-local StackKit rollout status. | Yes |
 | `POST` | `/api/v1/verify` | Run node-local read-only verification. | Yes |
-| `POST` | `/api/v1/doctor` | Run read-only node-local diagnostics. | Yes |
+| `POST` | `/api/v1/doctor` | Exact-v0.6 compatibility diagnostics; native v0.7+ returns `501 operational_surface_unavailable`. | Yes |
 | `POST` | `/api/v1/plan` | Preview local management readiness without mutation. | Yes |
 | `GET` | `/api/v1/runs/{runID}/evidence` | Read rollout evidence by run ID. | Yes |
 | `GET` | `/api/v1/logs` | List deploy log runs with pagination. | Yes |

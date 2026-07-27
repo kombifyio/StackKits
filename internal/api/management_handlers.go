@@ -222,6 +222,10 @@ func (s *Server) handleManagementPlan(w http.ResponseWriter, r *http.Request) {
 	deployDir := filepath.Join(s.config.BaseDir, config.GetDeployDir())
 	tfFiles := listTerraformFiles(deployDir)
 	ready := specErr == nil && spec != nil && len(tfFiles) > 0
+	nextCommands := []string{"stackkit validate", "stackkit generate", "stackkit plan"}
+	if !stackspecadmission.RejectOperationalV1(s.config.Version) {
+		nextCommands = []string{"stackkit migrate --complete-with <explicit-v2> --spec-output <stack-spec-v2.json>"}
+	}
 
 	data := map[string]any{
 		"dryRun":         true,
@@ -230,11 +234,7 @@ func (s *Server) handleManagementPlan(w http.ResponseWriter, r *http.Request) {
 		"specPath":       specPath,
 		"deployDir":      deployDir,
 		"terraformFiles": tfFiles,
-		"nextCommands": []string{
-			"stackkit validate",
-			"stackkit generate --force",
-			"stackkit plan",
-		},
+		"nextCommands":   nextCommands,
 	}
 	if spec != nil {
 		data["stackkit"] = spec.StackKit

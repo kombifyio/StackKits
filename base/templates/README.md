@@ -16,11 +16,12 @@ sentinels, which the generator substitutes per kit:
 | `__KIT_DISPLAY__` | `Basement Kit` | `Cloud Kit` |
 | `__KIT_DISPLAY_UPPER__` | `BASEMENT KIT` | `CLOUD KIT` |
 
-Sentinels are plain literals, not Go template directives, so the runtime
-`{{ ... }}` directives and HCL `${ ... }` interpolations in the templates pass
-through untouched — they are rendered later by `internal/template` at
-`stackkit generate` time. ASCII banner lines whose width changes with the kit
-name are re-padded so the box border stays aligned.
+Sentinels are plain literals, not Go template directives, so the historical
+`{{ ... }}` directives and HCL `${ ... }` interpolations pass through untouched.
+These trees are retained as generated exact-v0.6 compatibility assets; native
+v2 `stackkit generate` renders typed ResolvedPlan units and does not consume
+them. ASCII banner lines whose width changes with the kit name are re-padded so
+the box border stays aligned.
 
 `README.md` (this file) is the only file the generator skips; everything else is
 materialized into each kit.

@@ -126,27 +126,16 @@ func (a *App) OpenMCP() map[string]any {
 	if a.opts.Modes["actions"] && a.cliBinding != nil && stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		tools = append(tools, toolDefinition("stackkit_plan", true, false, true))
 	}
-	if a.opts.Modes["actions"] && a.opts.AllowWrite {
+	if a.opts.Modes["actions"] && a.opts.AllowWrite && stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		tools = append(tools, toolDefinition("stackkit_config_set", false, true, true))
 		if a.cliBinding != nil {
-			writeTools := []map[string]any{
+			tools = append(tools,
 				toolDefinition("stackkit_init", false, false, false),
-				toolDefinition("stackkit_prepare", false, false, false),
 				toolDefinition("stackkit_resolve", false, false, false),
 				toolDefinition("stackkit_generate", false, false, false),
 				toolDefinition("stackkit_apply", false, true, false),
 				toolDefinition("stackkit_verify_plan", true, false, true),
-			}
-			if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
-				writeTools = append(writeTools, toolDefinition("stackkit_plan", false, false, true))
-			}
-			tools = append(tools, writeTools...)
-			if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
-				tools = append(tools,
-					toolDefinition("stackkit_update", false, true, false),
-					toolDefinition("stackkit_rollout", false, true, false),
-				)
-			}
+			)
 		}
 	}
 	return map[string]any{
@@ -284,26 +273,18 @@ func (a *App) addServerTools(server *mcp.Server) {
 }
 
 func (a *App) addActions(server *mcp.Server) {
+	if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
+		return
+	}
 	mcp.AddTool(server, mcpTool("stackkit_config_set", "Create or expected-spec-hash compare-and-swap a canonical CUE-validated StackSpec v2.", false, true, true), a.configSet)
 	if a.cliBinding == nil {
 		return
 	}
-	if stackspecadmission.RejectOperationalV1(a.opts.Version) {
-		mcp.AddTool(server, mcpTool("stackkit_init", "Materialize a native Architecture v2 StackSpec from the embedded CUE authoring contract.", false, false, false), a.stackkitInitV2)
-		mcp.AddTool(server, mcpTool("stackkit_prepare", "Prepare the local Architecture v2 workspace without accepting a transport or provider target.", false, false, false), a.stackkitPrepareV2)
-		mcp.AddTool(server, mcpTool("stackkit_resolve", "Resolve StackSpec v2 plus observed Inventory into the canonical persisted ResolvedPlan.", false, false, false), a.stackkitResolveV2)
-		mcp.AddTool(server, mcpTool("stackkit_generate", "Generate from the exact persisted Architecture v2 ResolvedPlan.", false, false, false), a.stackkitGenerateV2)
-		mcp.AddTool(server, mcpTool("stackkit_apply", "Apply the exact persisted Architecture v2 plan after explicit approval.", false, true, false), a.stackkitApplyV2)
-		mcp.AddTool(server, mcpTool("stackkit_verify_plan", "Verify the exact Architecture v2 spec, plan, manifest, receipt, and generated outputs.", true, false, true), a.stackkitVerifyV2)
-		return
-	}
-	mcp.AddTool(server, mcpTool("stackkit_init", "Run stackkit init on the exact v0.6 compatibility workspace.", false, false, false), a.stackkitInit)
-	mcp.AddTool(server, mcpTool("stackkit_prepare", "Run stackkit prepare on the exact v0.6 compatibility workspace.", false, false, false), a.stackkitPrepare)
-	mcp.AddTool(server, mcpTool("stackkit_generate", "Run stackkit generate on the exact v0.6 compatibility workspace.", false, false, false), a.stackkitGenerate)
-	mcp.AddTool(server, mcpTool("stackkit_plan", "Run stackkit plan on the exact v0.6 compatibility workspace.", false, false, true), a.stackkitPlan)
-	mcp.AddTool(server, mcpTool("stackkit_apply", "Run stackkit apply on the exact v0.6 compatibility workspace.", false, true, false), a.stackkitApply)
-	mcp.AddTool(server, mcpTool("stackkit_update", "Run stackkit kit upgrade on the exact v0.6 compatibility workspace.", false, true, false), a.stackkitUpdate)
-	mcp.AddTool(server, mcpTool("stackkit_rollout", "Run the exact v0.6 compatibility rollout.", false, true, false), a.stackkitRollout)
+	mcp.AddTool(server, mcpTool("stackkit_init", "Materialize a native Architecture v2 StackSpec from the embedded CUE authoring contract.", false, false, false), a.stackkitInitV2)
+	mcp.AddTool(server, mcpTool("stackkit_resolve", "Resolve StackSpec v2 plus observed Inventory into the canonical persisted ResolvedPlan.", false, false, false), a.stackkitResolveV2)
+	mcp.AddTool(server, mcpTool("stackkit_generate", "Generate from the exact persisted Architecture v2 ResolvedPlan.", false, false, false), a.stackkitGenerateV2)
+	mcp.AddTool(server, mcpTool("stackkit_apply", "Apply the exact persisted Architecture v2 plan after explicit approval.", false, true, false), a.stackkitApplyV2)
+	mcp.AddTool(server, mcpTool("stackkit_verify_plan", "Verify the exact Architecture v2 spec, plan, manifest, receipt, and generated outputs.", true, false, true), a.stackkitVerifyV2)
 }
 
 func (a *App) addReadOnlyActions(server *mcp.Server) {
@@ -338,11 +319,9 @@ var onboardingWidgetToolNames = map[string]bool{
 	"stackkit_config_set":       true,
 	"stackkit_validate_spec":    true,
 	"stackkit_generate_preview": true,
-	"stackkit_prepare":          true,
 	"stackkit_resolve":          true,
 	"stackkit_generate":         true,
 	"stackkit_plan":             true,
-	"stackkit_rollout":          true,
 	"stackkit_verify":           true,
 	"stackkit_verify_plan":      true,
 	"stackkit_logs_list":        true,

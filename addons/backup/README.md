@@ -1,23 +1,29 @@
 # Self-hosted Backup Add-On (v2.0.0)
 
 The public backup contract standardizes encrypted, deduplicated local backups
-on Kopia. Operators use an existing `kopia-agent` container through the
-`stackkit backup` CLI and can expose Kopia's Web UI behind their own authenticated
-reverse proxy.
+on Kopia. The standalone Basement core renders and applies the pinned,
+idle-until-owner-command `kopia-agent`; operators control the native v0.8
+repository and snapshot path through the `stackkit backup` CLI.
 
 ## Release boundary
 
-This release contains the self-hosted CUE contract, local CLI, database-hook
-metadata, integrity policy, and Restic migration contract. The CLI operates an
-already materialized `kopia-agent` deployment. It does not install that
-container or prove that a fresh StackKit generation creates it; generator/apply
-materialization requires its own release evidence before such a claim is made.
+This release contains the self-hosted CUE contract, the Basement renderer and
+local Apply owner for `kopia-agent`, native configure/status/run, a verified
+isolated staging restore, database-hook metadata, integrity policy, and the
+Restic migration contract. Fresh-host Day-2 release evidence, live restore
+cutover/boot proof, schedules, database quiesce execution, and restore drills
+remain separate gates and are not implied here.
 
 The local surface is:
 
 - `init`, `configure`, `status`, `run`, `list`, `restore`, and `verify`
 - `emergency-export` for a Kopia-independent manifest and restore runbook
 - `migrate-from-restic` for the one-shot legacy migration
+
+`configure`, `status`, `run`, and the isolated `restore` are native v2.
+`list`, `verify`, and `migrate-from-restic` remain exact-v0.6 compatibility
+commands and fail closed on native-v2 workspaces until their lifecycle slices
+land.
 
 Fleet enrollment, tenant identity, and controller operation are not part of the
 public command or CUE surface.
@@ -27,7 +33,8 @@ public command or CUE surface.
 The v1 add-on used Restic. v2 standardizes on Kopia because it provides:
 
 1. Client-side encryption, compression, deduplication, and retention policies.
-2. A built-in Web UI for local operators.
+2. A built-in Web UI that may be exposed later as an opt-in convenience behind
+   PocketID and TinyAuth; it is not the v0.8 lifecycle authority.
 3. B2, S3-compatible, SFTP, and Hetzner Storage Box targets.
 
 Restic remains only as a one-shot migration input. It is not a second daily
@@ -35,29 +42,54 @@ backup engine.
 
 ## Local CLI
 
-First verify that the target deployment already runs the expected container:
+First materialize and verify the standalone Basement deployment:
 
 ```bash
-docker ps --filter name=kopia-agent
-stackkit backup init
+stackkit init --owner-source=local
+stackkit validate
+stackkit generate
+stackkit apply
+stackkit verify
 ```
 
-Then use the local operator commands:
+Then establish the owner-local repository and create a snapshot:
 
 ```bash
-stackkit backup configure --repo local:/backup/kopia
-stackkit backup status
-stackkit backup run
+stackkit backup configure --json
+stackkit backup status --json
+stackkit backup run --operation-id first-owner-snapshot --json
 stackkit backup list
 stackkit backup list --json
-stackkit backup restore <snapshot-id> --target /tmp/stackkit-restore
+stackkit backup restore sha256:<snapshot-anchor-id> \
+  --owner-approve \
+  --operation-id first-owner-restore \
+  --json
 stackkit backup verify
 stackkit backup migrate-from-restic --dry-run
 ```
 
-`configure` supports filesystem repositories mounted into `kopia-agent` using
-`local:/path` or `filesystem:/path`. Object-store credentials stay in the
-deployment configuration; the local CLI does not accept or persist them.
+The native path accepts no repository, container, source, exclusion, or
+password override. Those values come from the exact generated CUE policy and
+owner-local custody. Object-store targets remain a future/explicit deployment
+contract; they are not silently selected by the local CLI.
+
+Restore likewise accepts neither a raw Kopia snapshot ID nor a target path. It
+loads the signed snapshot anchor, records an owner-signed recovery anchor,
+verifies all snapshot files, and extracts into a deterministic directory inside
+the dedicated `kopia-restore-staging` volume. It verifies the snapshot again
+after extraction and records an owner-signed result only after the current live
+Stack, PocketID Owner binding, services, and probes still pass verification.
+The staging volume is canonically excluded from subsequent snapshots, and a
+persisted staged receipt prevents retries after post-verification failure from
+repeating the repository restore.
+This proves isolated recovery bytes without writing into live Docker volumes;
+it does not activate those bytes or prove that services boot from them.
+
+StackKits remains the standalone lifecycle authority. Techstack can provide an
+optional Orchestrator UI/RIL over the exact published binary and versioned
+results. kombify Cloud can provide user-approved identity sync convenience for
+the local PocketID/TinyAuth plane, but neither service is required for backup or
+restore authorization.
 
 See [`docs/CLI.md`](../../docs/CLI.md#stackkit-backup) for flags and command
 details.

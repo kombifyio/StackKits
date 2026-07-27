@@ -120,7 +120,10 @@ Use `--compute-tier low` or `--context pi` for constrained hardware intent. `--m
 
 ### 5. Tool Role = Per-StackKit Per-Tool Assignment
 
-Every tool has a ROLE relative to each StackKit. Roles are managed in the StackKits registry tables and consumed by CUE-backed release contracts with hash parity.
+Every tool has a ROLE relative to each StackKit. Canonical CUE contracts define
+those roles. The embedded registry snapshot and any private DB projection are
+derived read models that may mirror the published contract but cannot override
+it or become a local lifecycle dependency.
 The compact authoring and promotion matrix lives in [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md).
 
 | Role | Meaning | Example |
@@ -242,9 +245,10 @@ Service placement rules:
 
 - **Use cases are the reason to install a StackKit.**
 - **Variants are DEAD.** Use the role system (default/alternative/optional).
-- **ADR-0029 is the target architecture.** The v1/v5 shapes are compatibility inputs during the bounded migration, not authorities for new design.
+- **ADR-0031 defines the standalone lifecycle boundary; ADR-0029 defines kit topology.** The v1/v5 shapes are compatibility inputs during the bounded migration, not authorities for new design.
 - **CUE is the technical contract source of truth; DB is the registry and operations mirror.** Never edit generated files.
 - **OpenTofu, never Terraform.** Licensing violation.
 - **Local default links must open as printed.** Use browser-native names such as `service.home.localhost`; never require hosts-file edits, manual DNS mapping, trust-store setup, or port suffixes for generated default links.
-- **StackKits registry defines tool roles; CUE contracts enforce them.**
+- **CUE contracts define tool roles; embedded registries and private databases
+  are derived mirrors.**
 - **Resource profile = user intent, not just hardware.** `--compute-tier low` can be chosen explicitly even when hardware auto-detection would allow more.

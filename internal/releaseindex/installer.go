@@ -16,7 +16,10 @@ import (
 	"time"
 )
 
-const tempPrefix = ".install-"
+const (
+	tempPrefix             = ".install-"
+	maxReleaseReceiptBytes = int64(1 << 20)
+)
 
 type Installer struct {
 	Source       Source
@@ -68,6 +71,20 @@ func (installer Installer) InspectVerifiedArchive(ctx context.Context, resolutio
 		return fmt.Errorf("create bounded release inspection directory: %w", err)
 	}
 	defer os.RemoveAll(stage)
+	if err := os.WriteFile(
+		filepath.Join(stage, ReleaseIndexAssetName),
+		resolution.RawIndex,
+		0o600,
+	); err != nil {
+		return fmt.Errorf("stage release index: %w", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(stage, ReleaseIndexAttestationAssetName),
+		resolution.RawIndexAttestation,
+		0o600,
+	); err != nil {
+		return fmt.Errorf("stage release index attestation: %w", err)
+	}
 	trustedRootPath := filepath.Join(stage, TrustedRootAssetName)
 	if err := os.WriteFile(trustedRootPath, resolution.RawTrustedRoot, 0o600); err != nil {
 		return fmt.Errorf("stage trusted root: %w", err)
@@ -90,6 +107,17 @@ func (installer Installer) InspectVerifiedArchive(ctx context.Context, resolutio
 	}); err != nil {
 		return fmt.Errorf("verify GitHub OIDC attestation: %w", err)
 	}
+	if err := revalidateStagedReleaseTrustSet(
+		resolution,
+		stage,
+		archivePath,
+		sbomPath,
+		attestationPath,
+		trustedRootPath,
+		limit,
+	); err != nil {
+		return err
+	}
 	return inspect(VerifiedArchive{
 		ArchivePath: archivePath, SBOMPath: sbomPath,
 		AttestationPath: attestationPath, TrustedRootPath: trustedRootPath,
@@ -97,8 +125,19 @@ func (installer Installer) InspectVerifiedArchive(ctx context.Context, resolutio
 }
 
 func (installer Installer) Install(ctx context.Context, resolution Resolution, workspaceRoot string) (Receipt, error) {
-	if installer.Source == nil || installer.Attestations == nil {
-		return Receipt{}, fmt.Errorf("release source and attestation verifier are required")
+	return installer.install(ctx, resolution, workspaceRoot, nil)
+}
+
+type verifiedArchiveValidator func([]byte, Asset) error
+
+func (installer Installer) install(
+	ctx context.Context,
+	resolution Resolution,
+	workspaceRoot string,
+	validateArchive verifiedArchiveValidator,
+) (Receipt, error) {
+	if installer.Attestations == nil {
+		return Receipt{}, fmt.Errorf("attestation verifier is required")
 	}
 	workspaceRoot, err := filepath.Abs(workspaceRoot)
 	if err != nil {
@@ -117,10 +156,39 @@ func (installer Installer) Install(ctx context.Context, resolution Resolution, w
 	}
 	releaseRoot := filepath.Join(workspaceRoot, ".stackkit", "releases")
 	target := filepath.Join(releaseRoot, resolution.Asset.Kit, resolution.Asset.Version, resolution.Asset.Platform.OS+"-"+resolution.Asset.Platform.Arch)
+	if err := ensureReleaseCachePathConfined(workspaceRoot, target); err != nil {
+		return Receipt{}, err
+	}
 	if _, err := os.Stat(filepath.Join(target, ReleaseReceiptName)); err == nil {
-		return installer.VerifyInstalled(ctx, target)
+		receipt, verifyErr := installer.VerifyInstalled(ctx, target)
+		if verifyErr != nil {
+			return Receipt{}, verifyErr
+		}
+		if verifyErr := verifyReceiptMatchesResolution(receipt, resolution); verifyErr != nil {
+			return Receipt{}, verifyErr
+		}
+		if validateArchive != nil {
+			archiveBytes, readErr := readInstalledFileBounded(
+				filepath.Join(target, resolution.Asset.Archive.Name),
+				limit,
+			)
+			if readErr != nil {
+				return Receipt{}, fmt.Errorf("read cached release archive snapshot: %w", readErr)
+			}
+			if digestBytes(archiveBytes) != receipt.ArchiveSHA256 ||
+				receipt.ArchiveSHA256 != resolution.Asset.Archive.SHA256 {
+				return Receipt{}, fmt.Errorf("%w for cached release archive snapshot", ErrDigestMismatch)
+			}
+			if verifyErr := validateArchive(archiveBytes, resolution.Asset); verifyErr != nil {
+				return Receipt{}, verifyErr
+			}
+		}
+		return receipt, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Receipt{}, fmt.Errorf("read existing release receipt: %w", err)
+	}
+	if installer.Source == nil {
+		return Receipt{}, fmt.Errorf("release source is required for an uncached release")
 	}
 
 	stage, err := os.MkdirTemp(workspaceRoot, tempPrefix)
@@ -170,6 +238,18 @@ func (installer Installer) Install(ctx context.Context, resolution Resolution, w
 	}); err != nil {
 		return Receipt{}, fmt.Errorf("verify GitHub OIDC attestation: %w", err)
 	}
+	if validateArchive != nil {
+		archiveBytes, readErr := readInstalledFileBounded(archivePath, limit)
+		if readErr != nil {
+			return Receipt{}, fmt.Errorf("read staged release archive snapshot: %w", readErr)
+		}
+		if digestBytes(archiveBytes) != resolution.Asset.Archive.SHA256 {
+			return Receipt{}, fmt.Errorf("%w for staged release archive snapshot", ErrDigestMismatch)
+		}
+		if err := validateArchive(archiveBytes, resolution.Asset); err != nil {
+			return Receipt{}, err
+		}
+	}
 	receipt := Receipt{
 		SchemaVersion: ReceiptSchemaVersion, Kit: resolution.Asset.Kit, Version: resolution.Asset.Version,
 		Channel: resolution.Asset.Channel, Platform: resolution.Asset.Platform,
@@ -189,14 +269,99 @@ func (installer Installer) Install(ctx context.Context, resolution Resolution, w
 	if err := os.WriteFile(filepath.Join(stage, ReleaseReceiptName), receiptBytes, 0o600); err != nil {
 		return Receipt{}, fmt.Errorf("write release receipt: %w", err)
 	}
+	if err := revalidateStagedReleaseTrustSet(
+		resolution,
+		stage,
+		archivePath,
+		sbomPath,
+		attestationPath,
+		trustedRootPath,
+		limit,
+	); err != nil {
+		return Receipt{}, err
+	}
 	parent := filepath.Dir(target)
 	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return Receipt{}, fmt.Errorf("create release parent: %w", err)
+	}
+	if err := ensureReleaseCachePathConfined(workspaceRoot, parent); err != nil {
+		return Receipt{}, err
 	}
 	if err := os.Rename(stage, target); err != nil {
 		return Receipt{}, fmt.Errorf("atomically install verified release: %w", err)
 	}
 	return receipt, nil
+}
+
+func revalidateStagedReleaseTrustSet(
+	resolution Resolution,
+	stage string,
+	archivePath string,
+	sbomPath string,
+	attestationPath string,
+	trustedRootPath string,
+	blobLimit int64,
+) error {
+	checks := []struct {
+		path     string
+		expected string
+		limit    int64
+	}{
+		{
+			path:     filepath.Join(stage, ReleaseIndexAssetName),
+			expected: digestBytes(resolution.RawIndex),
+			limit:    maxIndexBytes,
+		},
+		{
+			path:     filepath.Join(stage, ReleaseIndexAttestationAssetName),
+			expected: digestBytes(resolution.RawIndexAttestation),
+			limit:    maxIndexBytes,
+		},
+		{
+			path:     trustedRootPath,
+			expected: resolution.Index.Release.TrustedRoot.SHA256,
+			limit:    maxIndexBytes,
+		},
+		{
+			path:     archivePath,
+			expected: resolution.Asset.Archive.SHA256,
+			limit:    blobLimit,
+		},
+		{
+			path:     sbomPath,
+			expected: resolution.Asset.SBOM.SHA256,
+			limit:    blobLimit,
+		},
+		{
+			path:     attestationPath,
+			expected: resolution.Asset.Attestation.SHA256,
+			limit:    blobLimit,
+		},
+	}
+	for _, check := range checks {
+		if err := verifyFileDigest(check.path, check.expected, check.limit); err != nil {
+			return fmt.Errorf("revalidate staged release trust set: %w", err)
+		}
+	}
+	return nil
+}
+
+func verifyReceiptMatchesResolution(receipt Receipt, resolution Resolution) error {
+	if receipt.Kit != resolution.Asset.Kit ||
+		receipt.Version != resolution.Asset.Version ||
+		receipt.Channel != resolution.Asset.Channel ||
+		receipt.Platform != resolution.Asset.Platform ||
+		receipt.ArchiveSHA256 != resolution.Asset.Archive.SHA256 ||
+		receipt.SBOMSHA256 != resolution.Asset.SBOM.SHA256 ||
+		receipt.AttestationSHA256 != resolution.Asset.Attestation.SHA256 ||
+		receipt.AttestationIssuer != resolution.Asset.Attestation.Issuer ||
+		receipt.AttestationSubject != resolution.Asset.Attestation.Subject ||
+		receipt.TrustedRootSHA256 != resolution.Index.Release.TrustedRoot.SHA256 ||
+		receipt.IndexSHA256 != digestBytes(resolution.RawIndex) ||
+		receipt.IndexAttestationSHA256 != digestBytes(resolution.RawIndexAttestation) {
+		return fmt.Errorf("cached release receipt does not match the exact resolved release")
+	}
+	return nil
 }
 
 func (installer Installer) VerifyInstalled(ctx context.Context, installDir string) (Receipt, error) {
@@ -223,20 +388,15 @@ func (installer Installer) VerifyInstalled(ctx context.Context, installDir strin
 	indexPath := filepath.Join(installDir, ReleaseIndexAssetName)
 	indexAttestationPath := filepath.Join(installDir, ReleaseIndexAttestationAssetName)
 	trustedRootPath := filepath.Join(installDir, TrustedRootAssetName)
-	for _, path := range []string{indexPath, indexAttestationPath, trustedRootPath} {
-		if err := requireRegularFile(path); err != nil {
-			return Receipt{}, err
-		}
-	}
-	rawIndex, err := os.ReadFile(indexPath)
+	rawIndex, err := readInstalledFileBounded(indexPath, maxIndexBytes)
 	if err != nil {
 		return Receipt{}, fmt.Errorf("read cached release index: %w", err)
 	}
-	rawIndexAttestation, err := os.ReadFile(indexAttestationPath)
+	rawIndexAttestation, err := readInstalledFileBounded(indexAttestationPath, maxIndexBytes)
 	if err != nil {
 		return Receipt{}, fmt.Errorf("read cached release index attestation: %w", err)
 	}
-	rawTrustedRoot, err := os.ReadFile(trustedRootPath)
+	rawTrustedRoot, err := readInstalledFileBounded(trustedRootPath, maxIndexBytes)
 	if err != nil {
 		return Receipt{}, fmt.Errorf("read cached trusted root: %w", err)
 	}
@@ -274,12 +434,13 @@ func (installer Installer) VerifyInstalled(ctx context.Context, installDir strin
 		receipt.TrustedRootSHA256 != index.Release.TrustedRoot.SHA256 {
 		return Receipt{}, fmt.Errorf("release receipt does not match cached release index")
 	}
+	limit := installer.MaxBlobBytes
+	if limit <= 0 {
+		limit = DefaultMaxBlobBytes
+	}
 	for _, blob := range []Blob{asset.Archive, asset.SBOM, asset.Attestation.Blob} {
 		path := filepath.Join(installDir, blob.Name)
-		if err := requireRegularFile(path); err != nil {
-			return Receipt{}, err
-		}
-		if err := verifyFileDigest(path, blob.SHA256); err != nil {
+		if err := verifyFileDigest(path, blob.SHA256, limit); err != nil {
 			return Receipt{}, err
 		}
 	}
@@ -362,10 +523,7 @@ func (installer Installer) fetchVerified(ctx context.Context, blob Blob, stage s
 }
 
 func readReceipt(path string) (Receipt, error) {
-	if err := requireRegularFile(path); err != nil {
-		return Receipt{}, err
-	}
-	data, err := os.ReadFile(path)
+	data, err := readInstalledFileBounded(path, maxReleaseReceiptBytes)
 	if err != nil {
 		return Receipt{}, err
 	}
@@ -387,26 +545,77 @@ func readReceipt(path string) (Receipt, error) {
 	return receipt, nil
 }
 
-func requireRegularFile(path string) error {
+func verifyFileDigest(path, expected string, limit int64) error {
 	info, err := os.Lstat(path)
 	if err != nil {
-		return fmt.Errorf("inspect cached release file %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("inspect cached release blob %s: %w", filepath.Base(path), err)
 	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("cached release file %s must be a regular file", filepath.Base(path))
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 ||
+		info.Size() < 0 || info.Size() > limit {
+		return fmt.Errorf("cached release blob %s must be a bounded regular file", filepath.Base(path))
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open cached release blob %s: %w", filepath.Base(path), err)
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(info, opened) || opened.Size() != info.Size() {
+		return fmt.Errorf("cached release blob %s changed before it was read", filepath.Base(path))
+	}
+	digest := sha256.New()
+	written, err := io.Copy(digest, io.LimitReader(file, info.Size()+1))
+	if err != nil {
+		return fmt.Errorf("read cached release blob %s: %w", filepath.Base(path), err)
+	}
+	after, err := file.Stat()
+	if err != nil || written != info.Size() || after.Size() != info.Size() ||
+		!after.ModTime().Equal(opened.ModTime()) {
+		return fmt.Errorf("cached release blob %s changed while it was read", filepath.Base(path))
+	}
+	actual := hex.EncodeToString(digest.Sum(nil))
+	if actual != expected {
+		return fmt.Errorf("%w for cached %s: expected %s, got %s", ErrDigestMismatch, filepath.Base(path), expected, actual)
 	}
 	return nil
 }
 
-func verifyFileDigest(path, expected string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read cached release blob %s: %w", filepath.Base(path), err)
+func ensureReleaseCachePathConfined(workspaceRoot, candidate string) error {
+	workspaceRoot = filepath.Clean(workspaceRoot)
+	candidate = filepath.Clean(candidate)
+	relative, err := filepath.Rel(workspaceRoot, candidate)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("release cache path escapes the workspace")
 	}
-	sum := sha256.Sum256(data)
-	actual := hex.EncodeToString(sum[:])
-	if actual != expected {
-		return fmt.Errorf("%w for cached %s: expected %s, got %s", ErrDigestMismatch, filepath.Base(path), expected, actual)
+	resolvedWorkspace, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		return fmt.Errorf("resolve release cache workspace: %w", err)
+	}
+	current := workspaceRoot
+	for _, component := range strings.Split(relative, string(filepath.Separator)) {
+		if component == "" || component == "." {
+			continue
+		}
+		current = filepath.Join(current, component)
+		info, statErr := os.Lstat(current)
+		if errors.Is(statErr, os.ErrNotExist) {
+			return nil
+		}
+		if statErr != nil {
+			return fmt.Errorf("inspect release cache path: %w", statErr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("release cache path must contain only real directories")
+		}
+		resolved, resolveErr := filepath.EvalSymlinks(current)
+		if resolveErr != nil {
+			return fmt.Errorf("resolve release cache path: %w", resolveErr)
+		}
+		resolvedRelative, relativeErr := filepath.Rel(resolvedWorkspace, resolved)
+		if relativeErr != nil || resolvedRelative == ".." ||
+			strings.HasPrefix(resolvedRelative, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("release cache path escapes the workspace through a link or junction")
+		}
 	}
 	return nil
 }

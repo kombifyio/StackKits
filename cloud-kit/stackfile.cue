@@ -197,6 +197,17 @@ Definition: base.#ProductKitDefinition & {
 		contractVersion:   "1.0.0"
 		initialSpecStatus: "supported"
 		requiredOverrides: ["network.domain.base"]
+		standaloneOwner: {
+			source:               "local"
+			siteRef:              "cloud"
+			nodeRef:              "cloud-main"
+			executionChannelRef:  "host-channel-cloud-main"
+			identityProvider:     "pocketid"
+			certificateAuthority: "step-ca"
+			humanAuthorityRef:    "cloud-human-authority"
+			humanIssuerRef:       "cloud-human-credential-issuer"
+			trustDomainRef:       "cloud-stackkit-trust"
+		}
 		initialSpec: {
 			apiVersion: "stackkit/v2alpha1"
 			kind:       "StackSpec"

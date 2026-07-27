@@ -89,6 +89,7 @@ _architectureV2ContractFixtureRequiredCapabilities: list.Concat([base.#CommonCap
 	"local-control-authority",
 	"offline-autonomy",
 	"local-backup-target",
+	"local-backup-runtime",
 	"basement-compose-runtime",
 ]])
 

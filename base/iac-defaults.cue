@@ -2,9 +2,9 @@
 //
 // Host-local implementation-adapter versions, default tag-set, and backend-config templates are
 // centralized here so that every kit reaches a consistent IaC starting point.
-// The Go template renderer (`internal/template/renderer.go`) projects values
-// from a kit's `iac:` field onto the `iac/defaults` Terraform module, which
-// each kit imports as `module "defaults"`.
+// Historical exact-v0.6 templates projected a kit's `iac:` field onto the
+// `iac/defaults` Terraform module. Native v2 generation does not use that
+// removed Go template renderer.
 //
 // Why a CUE schema instead of pure HCL `locals`:
 //   - Type-safety + unification: a kit author cannot omit `kit_slug`/`kit_version`.

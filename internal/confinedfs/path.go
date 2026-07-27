@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+// ValidatePortablePath returns the canonical spelling of a slash-separated
+// relative path that is safe on every supported platform.
+func ValidatePortablePath(value string) (string, error) {
+	return validatePortablePath(value, false)
+}
+
 func validatePortablePath(value string, allowDot bool) (string, error) {
 	if value == "." && allowDot {
 		return value, nil

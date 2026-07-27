@@ -54,7 +54,6 @@ function validate(repoRoot) {
   const failures = [];
   const workflowFiles = [
     ...walk(path.join(repoRoot, '.github', 'workflows'), (file) => /\.(ya?ml)$/i.test(file)),
-    ...walk(path.join(repoRoot, '.depot', 'workflows'), (file) => /\.(ya?ml)$/i.test(file)),
     ...walk(path.join(repoRoot, 'scripts', 'public', 'workflows'), (file) => /\.(ya?ml)$/i.test(file)),
   ];
   const commandTimeoutFiles = [

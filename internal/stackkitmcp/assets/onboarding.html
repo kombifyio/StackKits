@@ -613,7 +613,6 @@
     const panels = ["contact", "kit", "domain", "review", "rollout"];
     const runSteps = [
       ["stackkit_init", "Init"],
-      ["stackkit_prepare", "Prepare"],
       ["stackkit_validate_spec", "Validate"],
       ["stackkit_resolve", "Resolve"],
       ["stackkit_generate", "Generate"],
@@ -716,13 +715,6 @@
         kit_profile: state.form.stackkit,
         name: clean(state.form.name),
         domain_base: selectedDomain()
-      });
-    }
-
-    function prepareArgs(dryRun) {
-      return prune({
-        ...baseArgs(),
-        dry_run: !!dryRun
       });
     }
 
@@ -850,7 +842,6 @@
         return;
       }
       const sequence = [
-        ["stackkit_prepare", prepareArgs(true)],
         ["stackkit_validate_spec", baseArgs()],
         ["stackkit_resolve", resolveArgs()],
         ["stackkit_generate", baseArgs()],
@@ -882,7 +873,6 @@
         return;
       }
       const sequence = [
-        ["stackkit_prepare", prepareArgs(false)],
         ["stackkit_validate_spec", baseArgs()],
         ["stackkit_resolve", resolveArgs()],
         ["stackkit_generate", baseArgs()],

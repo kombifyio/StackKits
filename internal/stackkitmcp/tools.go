@@ -58,20 +58,6 @@ type stackkitCommandInput struct {
 	ExtraEnv       map[string]string `json:"extra_env,omitempty" jsonschema:"additional environment variables"`
 }
 
-type initInput struct {
-	stackkitCommandInput
-	StackKit       string `json:"stackkit,omitempty" jsonschema:"StackKit slug, default basement-kit"`
-	AdminEmail     string `json:"admin_email,omitempty" jsonschema:"operator or owner email"`
-	Mode           string `json:"mode,omitempty" jsonschema:"install mode"`
-	Context        string `json:"context,omitempty" jsonschema:"node context such as local, cloud, or pi"`
-	Domain         string `json:"domain,omitempty" jsonschema:"domain override"`
-	ComputeTier    string `json:"compute_tier,omitempty" jsonschema:"compute tier"`
-	ServiceProfile string `json:"service_profile,omitempty" jsonschema:"BaseKit service profile"`
-	Force          bool   `json:"force,omitempty" jsonschema:"overwrite existing stack-spec.yaml"`
-	LocalDNS       bool   `json:"local_dns,omitempty" jsonschema:"use local DNS"`
-	LocalName      string `json:"local_name,omitempty" jsonschema:"local DNS short name"`
-}
-
 // architectureV2CommandInput intentionally excludes environment injection and
 // all legacy host/topology fields. Inventory and execution-channel selection
 // are separate governed inputs, never MCP convenience flags.
@@ -92,13 +78,6 @@ type architectureV2InitInput struct {
 	DomainBase string `json:"domain_base,omitempty" jsonschema:"CUE-governed network.domain.base override when required"`
 }
 
-type architectureV2PrepareInput struct {
-	architectureV2CommandInput
-	DryRun     bool `json:"dry_run,omitempty"`
-	SkipDocker bool `json:"skip_docker,omitempty"`
-	SkipTofu   bool `json:"skip_tofu,omitempty"`
-}
-
 type architectureV2ResolveInput struct {
 	architectureV2CommandInput
 	InventoryPath string `json:"inventory_path" jsonschema:"path to observed Inventory owned outside StackSpec"`
@@ -109,77 +88,11 @@ type architectureV2ApplyInput struct {
 	AutoApprove bool `json:"auto_approve,omitempty"`
 }
 
-type prepareInput struct {
-	stackkitCommandInput
-	DryRun     bool   `json:"dry_run,omitempty"`
-	Host       string `json:"host,omitempty"`
-	User       string `json:"user,omitempty"`
-	KeyPath    string `json:"key_path,omitempty"`
-	SkipDocker bool   `json:"skip_docker,omitempty"`
-	SkipTofu   bool   `json:"skip_tofu,omitempty"`
-	Force      bool   `json:"force,omitempty"`
-}
-
-type generateInput struct {
-	stackkitCommandInput
-	Force     *bool  `json:"force,omitempty"`
-	OutputDir string `json:"output_dir,omitempty"`
-	Fragments bool   `json:"fragments,omitempty"`
-}
-
-type planInput struct {
-	stackkitCommandInput
-	OutFile string `json:"out_file,omitempty"`
-	Destroy bool   `json:"destroy,omitempty"`
-}
-
-type applyInput struct {
-	stackkitCommandInput
-	PlanFile         string `json:"plan_file,omitempty"`
-	AutoApprove      *bool  `json:"auto_approve,omitempty"`
-	Verify           *bool  `json:"verify,omitempty"`
-	VerifyHTTP       *bool  `json:"verify_http,omitempty"`
-	VerifyStrict     bool   `json:"verify_strict,omitempty"`
-	SkipPlatformApps *bool  `json:"skip_platform_apps,omitempty"`
-}
-
-type updateInput struct {
-	stackkitCommandInput
-	To          string   `json:"to,omitempty"`
-	KitChannel  string   `json:"kit_channel,omitempty"`
-	DryRun      bool     `json:"dry_run,omitempty"`
-	AutoApprove *bool    `json:"auto_approve,omitempty"`
-	Volumes     []string `json:"volumes,omitempty"`
-}
-
 type configSetInput struct {
 	BaseDir          string `json:"base_dir,omitempty" jsonschema:"workspace directory"`
 	SpecPath         string `json:"spec_path,omitempty" jsonschema:"target stack spec path"`
 	YAML             string `json:"yaml" jsonschema:"complete StackSpec v2 content"`
 	ExpectedSpecHash string `json:"expected_spec_hash,omitempty" jsonschema:"exact current CUE-normalized sha256 spec hash required when replacing existing intent"`
-}
-
-type rolloutInput struct {
-	stackkitCommandInput
-	StackKit          string `json:"stackkit,omitempty"`
-	AdminEmail        string `json:"admin_email,omitempty"`
-	Mode              string `json:"mode,omitempty"`
-	Context           string `json:"context,omitempty"`
-	Domain            string `json:"domain,omitempty"`
-	ComputeTier       string `json:"compute_tier,omitempty"`
-	ServiceProfile    string `json:"service_profile,omitempty"`
-	Host              string `json:"host,omitempty"`
-	User              string `json:"user,omitempty"`
-	KeyPath           string `json:"key_path,omitempty"`
-	LocalDNS          bool   `json:"local_dns,omitempty"`
-	LocalName         string `json:"local_name,omitempty"`
-	SkipInit          bool   `json:"skip_init,omitempty"`
-	PrepareDryRun     bool   `json:"prepare_dry_run,omitempty"`
-	PrepareSkipDocker bool   `json:"prepare_skip_docker,omitempty"`
-	PrepareSkipTofu   bool   `json:"prepare_skip_tofu,omitempty"`
-	ApplyAutoApprove  *bool  `json:"apply_auto_approve,omitempty"`
-	SkipPlatformApps  *bool  `json:"skip_platform_apps,omitempty"`
-	VerifyHTTP        *bool  `json:"verify_http,omitempty"`
 }
 
 func (a *App) docsSearch(ctx context.Context, req *mcp.CallToolRequest, in queryInput) (*mcp.CallToolResult, any, error) {
@@ -222,47 +135,21 @@ func (a *App) getOpenAPISpec(ctx context.Context, req *mcp.CallToolRequest, _ st
 }
 
 func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
-	if stackspecadmission.RejectOperationalV1(a.opts.Version) {
-		steps := []map[string]any{
-			{"command": "stackkit version", "purpose": "require the exact native v0.7 candidate bundle and its packaged definitions", "mutation": false},
-			{"command": "stackkit init basement-kit --non-interactive", "purpose": "materialize canonical StackSpec v2 from the embedded CUE authoring contract", "mutation": true},
-			{"command": "stackkit prepare --dry-run", "purpose": "check local host prerequisites without selecting a provider or transport", "mutation": false},
-			{"command": "stackkit validate", "purpose": "validate desired StackSpec v2 intent only", "mutation": false},
-			{"command": "stackkit resolve --inventory <observed-inventory.json> --output deploy/.stackkit/resolved-plan.json", "purpose": "bind desired intent to externally observed Inventory", "mutation": true},
-			{"command": "stackkit generate", "purpose": "render the exact authorized ResolvedPlan", "mutation": true},
-			{"command": "stackkit plan", "purpose": "preview the exact persisted plan", "mutation": false},
-			{"command": "stackkit apply", "purpose": "apply only when the ResolvedPlan reports readiness", "mutation": true},
-			{"command": "stackkit verify --json", "purpose": "verify the exact v2 intent, plan, manifest, receipt, and outputs", "mutation": false},
-		}
-		out := map[string]any{
-			"scenario": "architecture-v2-basement-rollout", "kit": "basement-kit", "source_version": stackspecmigration.SourceVersionV2Alpha1,
-			"steps": steps,
-			"notes": []string{
-				"StackSpec never contains provider lifecycle, credentials, management addresses, or observed host facts.",
-				"Spec validation is not generation or apply readiness; the Inventory-bound ResolvedPlan is authoritative.",
-				"Do not hand-edit generated rollout artifacts.",
-			},
-		}
-		return JSONResult(out), out, nil
-	}
 	steps := []map[string]any{
-		{"command": "curl -sSL https://base.stackkit.cc | sh", "purpose": "install stackkit, stackkit-server, stackkit-mcp, packaged OpenTofu, and BaseKit definitions", "mutation": true},
-		{"command": "stackkit init basement-kit --non-interactive --admin-email <operator-email>", "purpose": "write stack-spec.yaml", "mutation": true},
-		{"command": "stackkit prepare --dry-run", "purpose": "check host prerequisites without mutation", "mutation": false},
-		{"command": "stackkit validate", "purpose": "validate StackSpec and CUE", "mutation": false},
-		{"command": "stackkit generate --force", "purpose": "generate deployment artifacts", "mutation": true},
-		{"command": "stackkit plan", "purpose": "preview OpenTofu changes", "mutation": false},
-		{"command": "stackkit apply", "purpose": "apply after operator approval", "mutation": true},
-		{"command": "stackkit verify --http --json", "purpose": "produce functional evidence", "mutation": false},
+		{"command": "stackkit version", "purpose": "require the exact native v0.8 candidate bundle and its packaged definitions", "mutation": false},
+		{"command": "stackkit init basement-kit --non-interactive --owner-source=local", "purpose": "materialize canonical StackSpec v2 and local owner custody from the embedded CUE authoring contract", "mutation": true},
+		{"command": "stackkit validate", "purpose": "validate desired StackSpec v2 intent only", "mutation": false},
+		{"command": "stackkit generate", "purpose": "resolve, persist, and render the exact authorized ResolvedPlan", "mutation": true},
+		{"command": "stackkit plan", "purpose": "preview the exact persisted plan", "mutation": false},
+		{"command": "stackkit apply", "purpose": "apply only when the ResolvedPlan reports readiness", "mutation": true},
+		{"command": "stackkit verify --json", "purpose": "verify the exact v2 intent, plan, manifest, receipt, owner binding, and outputs", "mutation": false},
 	}
 	out := map[string]any{
-		"scenario": "basekit-autonomous-rollout",
-		"kit":      "basement-kit",
-		"hub_url":  "http://base.home.localhost",
-		"steps":    steps,
+		"scenario": "architecture-v2-basement-rollout", "kit": "basement-kit", "source_version": stackspecmigration.SourceVersionV2Alpha1,
+		"steps": steps,
 		"notes": []string{
-			"BaseKit is release-ready.",
-			"Unreleased kit definitions are outside this public install plan.",
+			"StackSpec never contains provider lifecycle, credentials, management addresses, or observed host facts.",
+			"Spec validation is not generation or apply readiness; the Inventory-bound ResolvedPlan is authoritative.",
 			"Do not hand-edit generated rollout artifacts.",
 		},
 	}
@@ -271,22 +158,16 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 
 func (a *App) selfCheckPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	serverURL := firstNonEmpty(a.opts.ServerURL, "http://localhost:8082")
-	verifyCommand := "stackkit verify --http --json"
-	statusPurpose := "legacy node-local rollout status"
-	if stackspecadmission.RejectOperationalV1(a.opts.Version) {
-		verifyCommand = "stackkit verify --json"
-		statusPurpose = "spec-only status; resolve-required must not be treated as operational readiness"
-	}
 	out := map[string]any{
 		"server_url":     serverURL,
-		"status_purpose": statusPurpose,
+		"status_purpose": "spec-only status; resolve-required must not be treated as operational readiness",
 		"probes": []map[string]string{
 			{"name": "cli", "command": "stackkit version"},
 			{"name": "server", "command": "stackkit-server --help"},
 			{"name": "mcp", "command": "stackkit-mcp --mode docs"},
 			{"name": "api-health", "command": "curl -fsS " + serverURL + "/api/v1/health"},
 			{"name": "api-status", "command": "curl -fsS " + serverURL + "/api/v1/status"},
-			{"name": "verify", "command": verifyCommand},
+			{"name": "verify", "command": "stackkit verify --json"},
 		},
 	}
 	return JSONResult(out), out, nil
@@ -382,26 +263,11 @@ func (a *App) generatePreview(ctx context.Context, req *mcp.CallToolRequest, in 
 		out["commands"] = []string{"stackkit validate", "stackkit resolve --inventory <inventory-file>", "stackkit generate"}
 		return JSONResult(out), out, nil
 	}
-	if stackspecadmission.RejectOperationalV1(a.opts.Version) {
-		out["ready"] = false
-		out["source_version"] = loaded.Document.Version
-		out["migration_required"] = true
-		out["error"] = "StackSpec v1 is read-only migration input on the native v2 line"
-		out["commands"] = []string{"stackkit migrate --complete-with <explicit-v2> --spec-output <stack-spec-v2.json>"}
-		return JSONResult(out), out, nil
-	}
-	spec, err := loader.LoadLegacyStackSpec(specPath)
-	if err != nil {
-		out["ready"] = false
-		out["error"] = err.Error()
-		return JSONResult(out), out, nil
-	}
-	out["ready"] = true
+	out["ready"] = false
 	out["source_version"] = loaded.Document.Version
-	out["stackkit"] = spec.StackKit
-	out["mode"] = spec.Mode
-	out["deploy_dir"] = filepath.Join(baseDir, config.GetDeployDir())
-	out["commands"] = []string{"stackkit validate", "stackkit generate --force", "stackkit plan"}
+	out["migration_required"] = true
+	out["error"] = "StackSpec v1 is read-only migration input on the native v2 line"
+	out["commands"] = []string{"stackkit migrate --complete-with <explicit-v2> --spec-output <stack-spec-v2.json>"}
 	return JSONResult(out), out, nil
 }
 
@@ -686,49 +552,16 @@ func validateCanonicalStackSpecV2(raw, buildVersion string) (map[string]any, []b
 	}, append([]byte(nil), result.CanonicalStackSpec...), nil
 }
 
-func (a *App) stackkitInit(ctx context.Context, req *mcp.CallToolRequest, in initInput) (*mcp.CallToolResult, any, error) {
-	kit := firstNonEmpty(in.StackKit, "basement-kit")
-	args := []string{"init", kit, "--non-interactive"}
-	args = appendOptionalFlag(args, "--admin-email", in.AdminEmail)
-	args = appendOptionalFlag(args, "--mode", in.Mode)
-	args = appendOptionalFlag(args, "--context", in.Context)
-	args = appendOptionalFlag(args, "--domain", in.Domain)
-	args = appendOptionalFlag(args, "--compute-tier", in.ComputeTier)
-	args = appendOptionalFlag(args, "--service-profile", in.ServiceProfile)
-	args = appendOptionalFlag(args, "--local-name", in.LocalName)
-	if in.Force {
-		args = append(args, "--force")
-	}
-	if in.LocalDNS {
-		args = append(args, "--local-dns")
-	}
-	return a.runStackkitTool(ctx, "stackkit_init", in.stackkitCommandInput, appendSpecFlag(args, in.SpecPath), nil)
-}
-
 func (a *App) stackkitInitV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2InitInput) (*mcp.CallToolResult, any, error) {
 	kit := strings.TrimSpace(in.KitProfile)
 	if kit == "" {
 		out := errorOutput("stackkit_init", fmt.Errorf("kit_profile is required for native Architecture v2 authoring"))
 		return errorJSONResult(out), out, nil
 	}
-	args := []string{"init", kit, "--non-interactive"}
+	args := []string{"init", kit, "--non-interactive", "--owner-source=local"}
 	args = appendOptionalFlag(args, "--name", in.Name)
 	args = appendOptionalFlag(args, "--domain", in.DomainBase)
 	return a.runStackkitTool(ctx, "stackkit_init", in.commandInput(), args, nil)
-}
-
-func (a *App) stackkitPrepareV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2PrepareInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"prepare"}
-	if in.DryRun {
-		args = append(args, "--dry-run")
-	}
-	if in.SkipDocker {
-		args = append(args, "--skip-docker")
-	}
-	if in.SkipTofu {
-		args = append(args, "--skip-tofu")
-	}
-	return a.runStackkitTool(ctx, "stackkit_prepare", in.commandInput(), args, nil)
 }
 
 func (a *App) stackkitGenerateV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
@@ -760,181 +593,6 @@ func (a *App) stackkitApplyV2(ctx context.Context, req *mcp.CallToolRequest, in 
 
 func (a *App) stackkitVerifyV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
 	return a.runStackkitTool(ctx, "stackkit_verify_plan", in.commandInput(), []string{"verify", "--json"}, nil)
-}
-
-func (a *App) stackkitPrepare(ctx context.Context, req *mcp.CallToolRequest, in prepareInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"prepare"}
-	args = appendOptionalFlag(args, "--spec", in.SpecPath)
-	args = appendOptionalFlag(args, "--host", in.Host)
-	args = appendOptionalFlag(args, "--user", in.User)
-	args = appendOptionalFlag(args, "--key", in.KeyPath)
-	if in.DryRun {
-		args = append(args, "--dry-run")
-	}
-	if in.SkipDocker {
-		args = append(args, "--skip-docker")
-	}
-	if in.SkipTofu {
-		args = append(args, "--skip-tofu")
-	}
-	if in.Force {
-		args = append(args, "--force")
-	}
-	return a.runStackkitTool(ctx, "stackkit_prepare", in.stackkitCommandInput, args, nil)
-}
-
-func (a *App) stackkitGenerate(ctx context.Context, req *mcp.CallToolRequest, in generateInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"generate"}
-	args = appendOptionalFlag(args, "--spec", in.SpecPath)
-	args = appendOptionalFlag(args, "--output", in.OutputDir)
-	if boolDefault(in.Force, true) {
-		args = append(args, "--force")
-	}
-	if in.Fragments {
-		args = append(args, "--fragments")
-	}
-	return a.runStackkitTool(ctx, "stackkit_generate", in.stackkitCommandInput, args, nil)
-}
-
-func (a *App) stackkitPlan(ctx context.Context, req *mcp.CallToolRequest, in planInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"plan"}
-	args = appendOptionalFlag(args, "--spec", in.SpecPath)
-	args = appendOptionalFlag(args, "--out", in.OutFile)
-	if in.Destroy {
-		args = append(args, "--destroy")
-	}
-	return a.runStackkitTool(ctx, "stackkit_plan", in.stackkitCommandInput, args, nil)
-}
-
-func (a *App) stackkitApply(ctx context.Context, req *mcp.CallToolRequest, in applyInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"apply"}
-	args = appendOptionalFlag(args, "--spec", in.SpecPath)
-	if boolDefault(in.AutoApprove, true) {
-		args = append(args, "--auto-approve")
-	}
-	if boolDefault(in.Verify, true) {
-		args = append(args, "--verify")
-	}
-	if boolDefault(in.VerifyHTTP, true) {
-		args = append(args, "--verify-http")
-	}
-	if in.VerifyStrict {
-		args = append(args, "--verify-strict")
-	}
-	skipPlatformApps := boolDefault(in.SkipPlatformApps, true)
-	if skipPlatformApps {
-		args = append(args, "--skip-platform-apps")
-	}
-	args = appendOptionalArg(args, in.PlanFile)
-	env := map[string]string{}
-	if skipPlatformApps {
-		env["STACKKIT_SKIP_PLATFORM_APPS"] = "true"
-	}
-	return a.runStackkitTool(ctx, "stackkit_apply", in.stackkitCommandInput, args, env)
-}
-
-func (a *App) stackkitUpdate(ctx context.Context, req *mcp.CallToolRequest, in updateInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"kit", "upgrade"}
-	args = appendOptionalFlag(args, "--spec", in.SpecPath)
-	args = appendOptionalFlag(args, "--to", in.To)
-	args = appendOptionalFlag(args, "--kit-channel", in.KitChannel)
-	if in.DryRun {
-		args = append(args, "--dry-run")
-	}
-	if boolDefault(in.AutoApprove, true) {
-		args = append(args, "--auto-approve")
-	}
-	if len(in.Volumes) > 0 {
-		args = append(args, "--volumes", strings.Join(in.Volumes, ","))
-	}
-	return a.runStackkitTool(ctx, "stackkit_update", in.stackkitCommandInput, args, map[string]string{"STACKKIT_SKIP_PLATFORM_APPS": "true"})
-}
-
-func (a *App) stackkitRollout(ctx context.Context, req *mcp.CallToolRequest, in rolloutInput) (*mcp.CallToolResult, any, error) {
-	if !a.opts.AllowWrite {
-		out := writeDisabledOutput("stackkit_rollout")
-		return errorJSONResult(out), out, nil
-	}
-	rolloutCtx, cancel := context.WithTimeout(ctx, commandTimeout(in.stackkitCommandInput))
-	defer cancel()
-
-	baseInput := in.stackkitCommandInput
-	steps := make([]map[string]any, 0, 7)
-	runStep := func(name string, args []string, env map[string]string) bool {
-		out := a.runStackkitCommand(rolloutCtx, name, baseInput, args, env, true)
-		steps = append(steps, out)
-		success, _ := out["success"].(bool)
-		return success
-	}
-
-	if !in.SkipInit {
-		initArgs := []string{"init", firstNonEmpty(in.StackKit, "basement-kit"), "--non-interactive"}
-		initArgs = appendOptionalFlag(initArgs, "--admin-email", in.AdminEmail)
-		initArgs = appendOptionalFlag(initArgs, "--mode", in.Mode)
-		initArgs = appendOptionalFlag(initArgs, "--context", in.Context)
-		initArgs = appendOptionalFlag(initArgs, "--domain", in.Domain)
-		initArgs = appendOptionalFlag(initArgs, "--compute-tier", in.ComputeTier)
-		initArgs = appendOptionalFlag(initArgs, "--service-profile", in.ServiceProfile)
-		initArgs = appendOptionalFlag(initArgs, "--local-name", in.LocalName)
-		if in.LocalDNS {
-			initArgs = append(initArgs, "--local-dns")
-		}
-		if !runStep("stackkit_init", appendSpecFlag(initArgs, in.SpecPath), nil) {
-			return rolloutResult(steps, false), map[string]any{"success": false, "steps": steps}, nil
-		}
-	}
-	prepareArgs := []string{"prepare"}
-	prepareArgs = appendOptionalFlag(prepareArgs, "--spec", in.SpecPath)
-	prepareArgs = appendOptionalFlag(prepareArgs, "--host", in.Host)
-	prepareArgs = appendOptionalFlag(prepareArgs, "--user", in.User)
-	prepareArgs = appendOptionalFlag(prepareArgs, "--key", in.KeyPath)
-	if in.PrepareDryRun {
-		prepareArgs = append(prepareArgs, "--dry-run")
-	}
-	if in.PrepareSkipDocker {
-		prepareArgs = append(prepareArgs, "--skip-docker")
-	}
-	if in.PrepareSkipTofu {
-		prepareArgs = append(prepareArgs, "--skip-tofu")
-	}
-	if !runStep("stackkit_prepare", prepareArgs, nil) {
-		return rolloutResult(steps, false), map[string]any{"success": false, "steps": steps}, nil
-	}
-	if !runStep("stackkit_validate", appendSpecFlag([]string{"validate"}, in.SpecPath), nil) {
-		return rolloutResult(steps, false), map[string]any{"success": false, "steps": steps}, nil
-	}
-	if !runStep("stackkit_generate", appendSpecFlag([]string{"generate", "--force"}, in.SpecPath), nil) {
-		return rolloutResult(steps, false), map[string]any{"success": false, "steps": steps}, nil
-	}
-	if !runStep("stackkit_plan", appendSpecFlag([]string{"plan"}, in.SpecPath), nil) {
-		return rolloutResult(steps, false), map[string]any{"success": false, "steps": steps}, nil
-	}
-	applyArgs := []string{"apply"}
-	applyArgs = appendOptionalFlag(applyArgs, "--spec", in.SpecPath)
-	if boolDefault(in.ApplyAutoApprove, true) {
-		applyArgs = append(applyArgs, "--auto-approve")
-	}
-	if boolDefault(in.VerifyHTTP, true) {
-		applyArgs = append(applyArgs, "--verify", "--verify-http")
-	}
-	skipPlatformApps := boolDefault(in.SkipPlatformApps, true)
-	if skipPlatformApps {
-		applyArgs = append(applyArgs, "--skip-platform-apps")
-	}
-	env := map[string]string{}
-	if skipPlatformApps {
-		env["STACKKIT_SKIP_PLATFORM_APPS"] = "true"
-	}
-	if !runStep("stackkit_apply", applyArgs, env) {
-		return rolloutResult(steps, false), map[string]any{"success": false, "steps": steps}, nil
-	}
-	verifyArgs := []string{"verify", "--json"}
-	verifyArgs = appendOptionalFlag(verifyArgs, "--spec", in.SpecPath)
-	if boolDefault(in.VerifyHTTP, true) {
-		verifyArgs = append(verifyArgs, "--http")
-	}
-	success := runStep("stackkit_verify", verifyArgs, nil)
-	return rolloutResult(steps, success), map[string]any{"success": success, "steps": steps}, nil
 }
 
 func (a *App) serverRequest(ctx context.Context, method, path string, payload any) (*mcp.CallToolResult, any, error) {
@@ -1106,13 +764,6 @@ func appendOptionalFlag(args []string, flagName, value string) []string {
 	return append(args, flagName, strings.TrimSpace(value))
 }
 
-func appendOptionalArg(args []string, value string) []string {
-	if strings.TrimSpace(value) == "" {
-		return args
-	}
-	return append(args, strings.TrimSpace(value))
-}
-
 func appendSpecFlag(args []string, specPath string) []string {
 	specPath = strings.TrimSpace(specPath)
 	if specPath == "" || containsArg(args, "--spec") || containsArg(args, "-s") {
@@ -1128,13 +779,6 @@ func containsArg(args []string, needle string) bool {
 		}
 	}
 	return false
-}
-
-func boolDefault(value *bool, fallback bool) bool {
-	if value == nil {
-		return fallback
-	}
-	return *value
 }
 
 func truncateOutput(value string) string {
@@ -1171,15 +815,6 @@ func errorOutput(tool string, err error) map[string]any {
 func errorJSONResult(out map[string]any) *mcp.CallToolResult {
 	result := JSONResult(out)
 	result.IsError = true
-	return result
-}
-
-func rolloutResult(steps []map[string]any, success bool) *mcp.CallToolResult {
-	out := map[string]any{"success": success, "steps": steps}
-	result := JSONResult(out)
-	if !success {
-		result.IsError = true
-	}
 	return result
 }
 

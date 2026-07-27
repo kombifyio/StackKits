@@ -13,6 +13,7 @@ import (
 const (
 	ApplyExecutionClassExecutable      = "executable"
 	ApplyExecutionClassContractHandoff = "contract-handoff"
+	ApplyExecutionClassArtifactOnly    = "artifact-only"
 	ApplyExecutionClassPlan            = "plan"
 )
 
@@ -361,6 +362,7 @@ type applyProviderContract struct {
 
 type applyUnit struct {
 	id, contractHash string
+	applyMode        string
 	planInputRefs    []string
 	secretRefs       map[string]string
 	secretBindings   map[string]applySecretInputBinding
@@ -537,6 +539,16 @@ func parseApplyUnits(module map[string]any, modulePath string) ([]applyUnit, err
 		if err != nil {
 			return nil, err
 		}
+		applyMode := "runtime"
+		if _, exists := unit["applyMode"]; exists {
+			applyMode, err = requiredString(unit, "applyMode", path+".applyMode")
+			if err != nil {
+				return nil, err
+			}
+		}
+		if applyMode != "runtime" && applyMode != ApplyExecutionClassArtifactOnly {
+			return nil, fail(ErrInvalidPlan, path+".applyMode", "must be runtime or artifact-only")
+		}
 		secretRefs, err := applyStringMap(unit, "secretRefs", path+".secretRefs")
 		if err != nil {
 			return nil, err
@@ -557,7 +569,7 @@ func parseApplyUnits(module map[string]any, modulePath string) ([]applyUnit, err
 		if err != nil {
 			return nil, err
 		}
-		units = append(units, applyUnit{id: id, contractHash: contractHash, planInputRefs: planInputRefs, secretRefs: secretRefs, secretBindings: secretBindings, instances: instances, daemonBindings: daemons})
+		units = append(units, applyUnit{id: id, contractHash: contractHash, applyMode: applyMode, planInputRefs: planInputRefs, secretRefs: secretRefs, secretBindings: secretBindings, instances: instances, daemonBindings: daemons})
 	}
 	return units, nil
 }
@@ -872,7 +884,7 @@ func appendApplyModuleRequirements(modules map[string]applyModule, workloadByMod
 				if instance.nodeRef != "" {
 					nodeRefs = []string{instance.nodeRef}
 				}
-				if module.executionClass == ApplyExecutionClassExecutable {
+				if module.executionClass == ApplyExecutionClassExecutable && unit.applyMode != ApplyExecutionClassArtifactOnly {
 					runtimeRequirement := ApplyRuntimeRequirement{
 						ID: moduleID + "/" + unit.id + "/" + instance.id, OwnerKind: "module", OwnerRef: moduleID, OwnerContractHash: module.contractHash,
 						ProviderRef: module.providerRef, ProviderContractHash: module.providerContractHash, ModuleRef: moduleID, ModuleContractHash: module.contractHash,
@@ -1006,6 +1018,9 @@ func appendApplyArtifactRequirements(plan resolvedplan.ResolvedPlan, binding Pla
 				return fail(ErrInvalidPlan, path+".owner", "artifact owner does not match an exact module/unit/instance output")
 			}
 			requirement.UnitContractHash = unit.contractHash
+			if unit.applyMode == ApplyExecutionClassArtifactOnly {
+				requirement.ExecutionClass = ApplyExecutionClassArtifactOnly
+			}
 			requirement.OwnerContractHash = unit.contractHash
 			requirement.SiteRefs = append([]string(nil), module.siteRefs...)
 			requirement.NodeRefs = append([]string(nil), module.nodeRefs...)
@@ -1921,8 +1936,12 @@ func validateApplyArtifactRuntimeClosure(requirements ApplyRequirements) error {
 				if runtimeReferenced[artifact.ID] != 0 {
 					return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID, "contract-handoff artifact must not be assigned to an executable runtime")
 				}
+			case ApplyExecutionClassArtifactOnly:
+				if runtimeReferenced[artifact.ID] != 0 || adapterReferenced[artifact.ID] != 0 {
+					return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID, "artifact-only render-instance must not be assigned to a runtime or adapter")
+				}
 			default:
-				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID+".executionClass", "render-instance artifact requires an executable or contract-handoff execution class")
+				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID+".executionClass", "render-instance artifact requires an executable, contract-handoff, or artifact-only execution class")
 			}
 		default:
 			return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.artifacts."+artifact.ID+".ownerKind", "unsupported owner kind %q", artifact.OwnerKind)

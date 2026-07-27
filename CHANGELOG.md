@@ -4,6 +4,54 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0-beta.2] - 2026-07-27
+
+> **Standalone boundary correction beta** for the native v2 CLI, local Owner
+> custody, public bootstraps, and fast release feedback.
+
+### Changed
+
+- `stackkit generate` is now exclusively the native ResolvedPlan renderer in
+  current source. StackSpec v1 fails with explicit migration guidance before
+  lifecycle state or output writes, including exact-v0.6 compatibility builds.
+- Basement and Cloud public installers now perform only release installation,
+  local-Owner `init`, and read-only `validate`. Host preparation, generation,
+  plan review, and Apply remain explicit operator steps.
+- Cloud Kit now publishes its own CUE-owned local Owner binding. CLI, MCP, and
+  agent install plans request local PocketID/step-ca Owner custody without
+  creating Basement-specific runtime secrets for Cloud.
+- Native MCP exposes individual exact-sibling-bound v2 lifecycle actions; the
+  compatibility prepare/update/combined-rollout process actions are retired.
+- Fast-Affected compiles production-tagged live-test sources without executing
+  target-dependent suites. Exact release-archive installation and runtime E2E
+  remains the blocking product test.
+- Pre-trust archive validation is limited to structure, executability, and
+  public CLI contracts. Native lifecycle execution runs once after the release
+  index and attestations exist, against the exact published Basement archive,
+  avoiding an impossible dependency on an unpublished release.
+
+### Removed
+
+- The unreachable monolithic v1 Go renderer, legacy generator coverage
+  inventory, dead static-secret writers, obsolete generator goldens/matrices,
+  the MCP rollout macro, and five v0.4 public-installer evidence tests.
+
+### Security
+
+- Native and public Cloud bootstraps cannot silently omit local Owner custody.
+- Public bootstrap scripts no longer mutate host prerequisites or silently
+  Apply workloads.
+- The public CLI dependency/binary boundary and structural OSS export remain
+  fail-closed against private clients, internal hosts, and forbidden
+  environment names.
+
+### Known limitations
+
+- Stable `v0.8.0` remains blocked on transactional upgrade/rollback, live
+  restore cutover, standard drift reconciliation, and capability-gated
+  Terramate Advanced evidence.
+- Modern Homelab/HA and opt-in Photos, Vault, and Files remain v0.9 scope.
+
 ## [0.8.0-beta.1] - 2026-07-26
 
 > **First standalone OSS lifecycle beta** for a provider-free, single-node

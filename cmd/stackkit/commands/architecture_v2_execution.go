@@ -36,7 +36,6 @@ const (
 	architectureV2Upgrade  architectureV2ExecutionMode = "upgrade"
 	architectureV2Cluster  architectureV2ExecutionMode = "cluster join-token"
 	architectureV2Status   architectureV2ExecutionMode = "status"
-	architectureV2Doctor   architectureV2ExecutionMode = "doctor"
 	architectureV2Validate architectureV2ExecutionMode = "validate"
 	architectureV2AppAdd   architectureV2ExecutionMode = "app add"
 	architectureV2AddonAdd architectureV2ExecutionMode = "addon add"
@@ -152,7 +151,14 @@ func architectureV2RejectsV1Execution(buildVersion string) bool {
 // only; CUE resolution, plan/artifact verification, and execution remain owned
 // by the command after logging starts.
 func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
-	if cmd == nil || !architectureV2RejectsV1Execution(version) || commandDisablesDeployObservability(cmd) {
+	if cmd == nil || commandDisablesDeployObservability(cmd) {
+		return nil
+	}
+	// Current-source generation is native-v2-only for every build identity.
+	// Immutable v0.6 release artifacts retain their historical implementation,
+	// but rebuilding current source with an old version string must not restore
+	// the retired v1 generator or create lifecycle state before denying it.
+	if !architectureV2RejectsV1Execution(version) && cmd != generateCmd {
 		return nil
 	}
 	if cmd == verifyCmd && verifyOffline {

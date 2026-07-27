@@ -6,8 +6,8 @@
 // docs/plans/2026-06-10-stackkit-lifecycle-truth-consolidation.md); setup
 // profiles move to kombify-DB sk_stackkit_spec_profile with
 // kombify-StackKits-1if (closes in WS-2), after which this file is emitted
-// from the registry snapshot. Until then: edit by hand, keep
-// cmd/stackkit/commands/canonical_scenario_test.go parity green.
+// from the registry snapshot. Until then: edit by hand and keep the registry
+// profile contract checks green.
 // =============================================================================
 
 package base

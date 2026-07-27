@@ -17,6 +17,8 @@ permissions:
 
 env:
   GO_VERSION: "1.26.5"
+  GH_CLI_VERSION: "2.92.0"
+  GH_CLI_LINUX_AMD64_SHA256: "b57848131bdf0c229cd35e1f2a51aa718199858b2e728410b37e89a428943ec4"
 
 jobs:
   release-trust:
@@ -40,6 +42,18 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
+
+      - name: Install pinned GitHub CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          echo "${GH_CLI_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          echo "${RUNNER_TEMP}/gh_${GH_CLI_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
 
       - name: Wait for the publisher-owned immutable draft
         shell: bash
@@ -137,6 +151,9 @@ jobs:
           test -s dist/stackkits-release-assets.intoto.jsonl
           gh attestation trusted-root > dist/sigstore-trusted-root.jsonl
           test -s dist/sigstore-trusted-root.jsonl
+          node scripts/release/verify-trusted-root.mjs \
+            --policy internal/releaseindex/release-trust-policy.json \
+            --trusted-root dist/sigstore-trusted-root.jsonl
 
           identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${TAG}"
           node scripts/release/render-release-index.mjs \
@@ -296,11 +313,13 @@ jobs:
             artifacts/standalone-runtime/tcpdump.log
             artifacts/standalone-runtime/network-events.jsonl
             artifacts/standalone-runtime/compose-origin-scope.json
+            artifacts/standalone-runtime/tcpdump-init.stderr.log
             artifacts/standalone-runtime/tcpdump.stderr.log
+            artifacts/standalone-runtime/fixture.log
             artifacts/standalone-runtime/init.log
             artifacts/standalone-runtime/validate.log
             artifacts/standalone-runtime/generate.log
-            artifacts/standalone-runtime/release-install.json
+            artifacts/standalone-runtime/release-bootstrap.json
             artifacts/standalone-runtime/apply.log
             artifacts/standalone-runtime/verify.json
             artifacts/standalone-runtime/runtime-evidence.json
@@ -337,6 +356,7 @@ jobs:
           fi
           gh release upload "$TAG" \
             artifacts/standalone-runtime/runtime-evidence.json \
+            artifacts/standalone-runtime/release-bootstrap.json \
             artifacts/standalone-runtime/network-events.jsonl \
             artifacts/standalone-runtime/compose-origin-scope.json \
             artifacts/standalone-runtime/apply.log \

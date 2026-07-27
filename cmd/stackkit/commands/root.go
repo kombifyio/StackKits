@@ -179,7 +179,6 @@ func init() {
 	rootCmd.AddCommand(appCmd)
 	rootCmd.AddCommand(compatCmd)
 	rootCmd.AddCommand(clusterCmd)
-	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(agentCmd)
 	rootCmd.AddCommand(hostCmd)
 	rootCmd.AddCommand(outputTransactionCmd)

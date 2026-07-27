@@ -125,7 +125,9 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 	}
 	probes := make([]BasementCoreProbeObservation, 0, len(project.Health))
 	for _, expectation := range project.Health {
-		if expectation.Kind != "contract" {
+		// Container health is proven by the exact pinned Compose service
+		// observation above; HTTP and TCP contracts require direct probes.
+		if expectation.Kind != "contract" && expectation.Kind != "container" {
 			if err := o.prober.Probe(ctx, expectation); err != nil {
 				return BasementCoreVerifyObservation{}, fmt.Errorf("local health probe %q failed", expectation.SourceRef)
 			}
@@ -285,12 +287,17 @@ func parseBasementCoreComposeStatus(raw []byte, expected []BasementCoreServiceEx
 		wantImage := want.ImageRef + "@" + want.ImageDigest
 		health := strings.ToLower(strings.TrimSpace(row.Health))
 		if !ok || row.Image != wantImage || strings.ToLower(row.State) != "running" ||
-			(health != "" && health != "healthy") {
+			(want.HealthRequired && health != "healthy") ||
+			(!want.HealthRequired && health != "") {
 			return nil, errors.New("Docker Compose status does not prove every pinned Basement core service")
+		}
+		observedHealth := "not-configured"
+		if want.HealthRequired {
+			observedHealth = "healthy"
 		}
 		result = append(result, BasementCoreServiceObservation{
 			Ref: want.Ref, ImageRef: want.ImageRef, ImageDigest: want.ImageDigest,
-			Status: "running", Health: "healthy",
+			Status: "running", Health: observedHealth,
 		})
 		delete(expectedByRef, row.Service)
 	}

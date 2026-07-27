@@ -925,9 +925,7 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 			fmt.Println("  1. domain: kombify.me    (free public subdomains via kombify.me)")
 			fmt.Println("  2. domain: yourdomain.com  (your own domain with DNS configured)")
 			fmt.Println()
-			printInfo("Then re-deploy:")
-			fmt.Println("  stackkit generate --force")
-			fmt.Println("  stackkit apply --auto-approve")
+			printInfo("Then migrate this v0.6 workspace and use the native generate/apply workflow.")
 		}
 	} else if !firstDNSOK {
 		printInfo("DNS resolution failed for '%s'", firstFailure.Host)

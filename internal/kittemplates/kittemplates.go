@@ -10,9 +10,9 @@
 //
 // The canonical files carry three literal sentinels — substituted per kit — and
 // are otherwise byte-identical to every kit. Sentinels are plain literals (not
-// Go template directives) so the 46 runtime `{{ ... }}` directives and HCL
-// `${ ... }` interpolations in the templates pass through untouched and are
-// rendered later by internal/template at `stackkit generate` time.
+// Go template directives) so the historical runtime `{{ ... }}` directives and
+// HCL `${ ... }` interpolations pass through untouched. Native v2 generation
+// does not consume these compatibility trees.
 package kittemplates
 
 //go:generate go run github.com/kombifyio/stackkits/cmd/gen-kit-templates

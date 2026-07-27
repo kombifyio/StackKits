@@ -268,7 +268,7 @@ The user supplies minimum intent up front and approves the target. The installer
 
 ### `A4`: Durable Connector Operation
 
-The target already has a native connector. An external agent can call read-only tools continuously and mutating tools only when write mode is explicitly enabled. This is the target shape for repeatable StackKit-owned day-2 operations such as update, verify, logs, doctor, and evidence review.
+The target already has a native connector. An external agent can call read-only tools continuously and mutating tools only when write mode is explicitly enabled. This is the target shape for repeatable StackKit-owned day-2 operations such as update planning, status, verify, logs, drift detection, and evidence review.
 
 ## Process Shape By Individualization Level
 
@@ -391,42 +391,40 @@ on the network.
 Beta validation should pin the tested release explicitly:
 
 ```bash
-env STACKKIT_RELEASE_VERSION=v0.4.5-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
+env STACKKIT_RELEASE_VERSION=v0.8.0-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
 ```
 
 Current implementation:
 
 1. Downloads and runs the shared CLI installer from `https://install.stackkit.cc`.
 2. Installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, and Basement Kit definitions.
-3. Runs `stackkit prepare`.
-4. Creates the Basement Kit spec non-interactively where possible.
-5. Generates and applies the deployment.
-6. Prints access information and technical bootstrap material.
+3. Creates canonical StackSpec v2 and local Owner custody non-interactively.
+4. Runs read-only `stackkit validate`.
+5. Prints the workspace and explicit `generate`/`plan`/`apply` next steps.
+
+The installer does not prepare or mutate the host, generate deployment
+artifacts, Apply workloads, or expose private custody. Host/provider lifecycle
+is external; the operator runs the remaining standalone lifecycle explicitly
+after reviewing the intent.
 
 Important environment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `STACKKIT_ADMIN_EMAIL` or `KOMBIFY_USER_EMAIL` | Owner/admin email |
-| `STACKKIT_MODE` | `bare`, `bootstrapped`, or `advanced` |
-| `STACKKIT_SERVICE_PROFILE` | `default` or `admin-only` |
-| `DOMAIN` | Custom domain |
-| `KOMBIFY_CONTEXT=cloud` | Enables cloud/kombify.me style context where supported |
-| `KOMBIFY_API_KEY` | Required for kombify.me registration paths |
-| `CLOUDFLARE_API_TOKEN` | Required for custom-domain DNS/TLS paths where Cloudflare is used |
-| `STACKKIT_PLATFORM` or `STACKKIT_PAAS` | `coolify` or `komodo`; Dokploy remains draft |
+| `HOMELAB_DIR` | Workspace; defaults to `$HOME/my-homelab`. |
+| `STACKKIT_INSTALL_URL` | Alternate published release-installer endpoint for fixtures or mirrors. |
+| `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. |
 
 Use when:
 
-- the target host is fresh and dedicated to StackKits;
-- the operator wants the fastest Basement Kit path;
+- the operator wants the fastest account-free Basement intent bootstrap;
 - the agent or user can execute shell commands directly on the target.
 
 Do not use when:
 
 - the operator needs a preview-only plan before any mutation;
-- the target already has important services and needs manual compatibility review first;
-- the desired rollout is outside the published Basement Kit beta scope.
+- the desired intent is outside the published Basement Kit beta scope;
+- an automated full Apply is expected from the bootstrap command itself.
 
 ## P2: Shared CLI Installer Plus Direct CLI
 
@@ -436,12 +434,11 @@ This path installs the toolchain first, then runs lifecycle commands explicitly.
 curl -sSL https://install.stackkit.cc | sh
 mkdir my-homelab
 cd my-homelab
-stackkit init basement-kit
-stackkit prepare
+stackkit init basement-kit --owner-source=local
 stackkit validate
 stackkit generate
 stackkit plan
-stackkit apply --verify
+stackkit apply
 stackkit verify --http --json
 ```
 
@@ -480,10 +477,9 @@ curl -sSL https://base.stackkit.cc | sh
 curl -sSL https://install.stackkit.cc | sh
 stackkit agent install-plan --json
 stackkit agent self-check --json
-stackkit init basement-kit --non-interactive --admin-email <operator-email>
-stackkit prepare --dry-run
+stackkit init basement-kit --owner-source=local --non-interactive
 stackkit validate
-stackkit generate --force
+stackkit generate
 stackkit plan
 stackkit apply
 stackkit verify --http --json
@@ -555,7 +551,7 @@ Security requirements for any non-loopback MCP access:
 - restrict operations to StackKits workspaces and generated evidence paths;
 - log every mutating tool call with run ID, actor, target, input hash, and evidence location.
 
-Current product stance: StackKit-owned durable day-2 through remote MCP is a target capability. Today, StackKits first-install flows should use `P1`, `P2`, `P3`, or `P4`. Once an installed StackKit owns a hardened `stackkit-server` process, `P5` becomes the interesting day-2 path for config read, status, doctor, verify, logs, update planning, and gated updates without giving the agent a general SSH shell.
+Current product stance: StackKit-owned durable day-2 through remote MCP is a target capability. Today, StackKits first-install flows should use `P1`, `P2`, `P3`, or `P4`. Once an installed StackKit owns a hardened `stackkit-server` process, `P5` becomes the interesting day-2 path for config read, status, verify, logs, drift detection, update planning, and gated updates without giving the agent a general SSH shell.
 
 ## P5: Protected Durable StackKits MCP Endpoint
 
@@ -584,7 +580,7 @@ User journey:
 4. External agent reads `GET /openmcp.json`.
 5. Agent opens `ui://stackkits/onboarding.html` if the host supports MCP Apps.
 6. User or agent supplies email, workspace, kit, core settings, domain choice, and approval.
-7. Agent uses read-only tools first: config, status, doctor, logs, verify, generate preview.
+7. Agent uses read-only tools first: config, status, logs, verify, drift detection, generate preview.
 8. Agent uses write tools only after approval and write gate.
 9. Agent reports evidence and latest run output.
 
@@ -593,7 +589,9 @@ Boundary:
 - This is external management of a target-local connector.
 - The connector has the same authority as a user running StackKits on that server once write mode is enabled.
 - The connector is narrower than SSH: it exposes StackKits tools, not an arbitrary shell.
-- `stackkit_apply` and `stackkit_rollout` skip platform app lifecycle by default.
+- Native MCP exposes identity-bound individual StackKits commands; it has no
+  combined rollout or update macro. `stackkit_apply` remains limited to the
+  verified local StackKits artifact closure.
 - This is not the current default first-install path while StackKit-owned day-2 is still being shaped.
 
 ## P6: Local StackKits MCP Adapter

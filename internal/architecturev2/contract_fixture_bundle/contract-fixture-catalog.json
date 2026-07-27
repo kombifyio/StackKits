@@ -343,6 +343,20 @@
         "resolved-plan-contract"
       ],
       "metadata": {
+        "description": "Home-site Architecture v2 contract for local-backup-runtime.",
+        "id": "local-backup-runtime",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
         "description": "Basement-owned Compose rollout contract; it is not inferred from a home site or legacy context.",
         "id": "basement-compose-runtime",
         "layer": "platform",
@@ -649,6 +663,18 @@
         "siteKind": "cloud"
       },
       {
+        "capability": "local-backup-runtime",
+        "matches": [
+          "fixture-basement-provider"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "local-backup-runtime",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
         "capability": "basement-compose-runtime",
         "matches": [
           "fixture-basement-provider"
@@ -824,6 +850,13 @@
         "module": "fixture-http-consumer"
       },
       {
+        "capability": "local-backup-runtime",
+        "matches": [
+          "local-backup-runtime"
+        ],
+        "module": "fixture-http-consumer"
+      },
+      {
         "capability": "basement-compose-runtime",
         "matches": [
           "basement-compose-runtime"
@@ -889,6 +922,7 @@
             "local-control-authority",
             "offline-autonomy",
             "local-backup-target",
+            "local-backup-runtime",
             "basement-compose-runtime"
           ],
           "providerID": "fixture-basement-provider"
@@ -1058,6 +1092,13 @@
         "provider": "fixture-basement-provider"
       },
       {
+        "capability": "local-backup-runtime",
+        "matches": [
+          "local-backup-runtime"
+        ],
+        "provider": "fixture-basement-provider"
+      },
+      {
         "capability": "basement-compose-runtime",
         "matches": [
           "basement-compose-runtime"
@@ -1189,6 +1230,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose"
           ],
@@ -1336,6 +1378,7 @@
         "local-control-authority",
         "offline-autonomy",
         "local-backup-target",
+        "local-backup-runtime",
         "basement-compose-runtime"
       ],
       "realizationSupport": {
@@ -1385,6 +1428,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose"
           ],
@@ -1534,6 +1578,7 @@
         "local-control-authority",
         "offline-autonomy",
         "local-backup-target",
+        "local-backup-runtime",
         "basement-compose-runtime"
       ],
       "realization": {

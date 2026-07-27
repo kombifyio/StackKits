@@ -164,6 +164,9 @@ func unsealedSharedExecutionRequest(request applyRuntimeExecutionRequest) (runti
 	}
 	adapterArtifactRefs := sharedRuntimeAdapterArtifactRefs(request.Requirements.RuntimeInstances)
 	for _, artifact := range request.Artifacts {
+		if artifact.ExecutionClass == generationartifact.ApplyExecutionClassArtifactOnly {
+			continue
+		}
 		if artifact.ExecutionClass == generationartifact.ApplyExecutionClassContractHandoff {
 			if _, selected := adapterArtifactRefs[artifact.ID]; !selected {
 				continue

@@ -60,17 +60,21 @@ OpenTofu is invoked by the `stackkit` CLI. Users should not edit generated `.tf`
 
 ```bash
 stackkit init basement-kit
-stackkit prepare
+stackkit validate
 stackkit generate
 stackkit plan
 stackkit apply
+stackkit verify --json
 ```
 
-For local development smoke tests, generating into `build/` is enough:
+For local development smoke tests, use a clean workspace and the native owner
+contract:
 
 ```bash
-stackkit generate --spec basement-kit/default-spec.yaml --output build/basement-local --force
-stackkit --chdir build/basement-local plan
+mkdir build/basement-local
+stackkit --chdir build/basement-local init basement-kit --owner-source=local
+stackkit --chdir build/basement-local validate
+stackkit --chdir build/basement-local generate
 ```
 
 ## Access

@@ -1,6 +1,6 @@
 # StackKits Configuration
 
-> Last verified: 2026-06-02
+> Last verified: 2026-07-27
 
 This document collects the runtime configuration surfaces for StackKits. CUE remains the technical contract source of truth; `stack-spec.yaml`, CLI flags, environment variables, registry snapshots, and server settings are inputs or mirrors, not replacements for CUE contracts.
 
@@ -11,31 +11,61 @@ This document collects the runtime configuration surfaces for StackKits. CUE rem
 | CUE files under `base/`, `basement-kit/`, `cloud-kit/`, and `modules/` | Developers | Schemas, defaults, constraints, and deployment shape. |
 | `stack-spec.yaml` | Operators or TechStack | User intent and selected defaults for one deployment. |
 | CLI flags | Operators or CI | One-run overrides for init, generate, apply, verify, and registry operations. |
-| `stackkit-server` flags/env | Operators or platform | API auth, CORS, rate limits, log directory, and registry heartbeat. |
-| Registry snapshot | Release pipeline | Read-only catalog mirror baked into CLI/runtime when Admin API is unavailable. |
+| `stackkit-server` flags/env | Operators or platform | Local API auth, CORS, rate limits, and log directory. |
+| Registry snapshot | Release pipeline | Read-only, CUE-derived catalog mirror baked into CLI/runtime; it has no Admin or DB availability dependency. |
 | Test env vars | CI/operators | Fresh-VM, kombify.me, Simulate, and proxy test credentials. |
 
 ## Stack Spec
 
-The default spec path is `stack-spec.yaml`. `kombination.yaml` is accepted when the default file is missing.
+The default spec path is `stack-spec.yaml`. `kombination.yaml` is accepted when
+the default file is missing. Do not hand-author a minimal default:
+`stackkit init --owner-source=local` writes the complete CUE-owned seed. Its
+native-v2 Basement shape includes:
 
 ```yaml
-stackkit: basement-kit
-mode: bootstrapped
-domain: home.localhost
-adminEmail: admin@example.com
-bootstrap:
-  platformPolicy: automatic
-  applicationDefaultPolicy: on_demand
-compute:
-  tier: standard
-context: local
+apiVersion: stackkit/v2alpha1
+kind: StackSpec
+metadata:
+  name: my-homelab
+source:
+  kind: native-v2
+kit:
+  slug: basement-kit
+install:
+  mode: bootstrapped
+  runtime: docker
+generation:
+  strategy: kit-template
+  target: compose
+storage:
+  dataRoot: /absolute/local/path/data
+  backupRoot: /absolute/local/path/backups
+  stacksRoot: /absolute/local/path/stacks
+network:
+  mode: private
+  domain:
+    base: home.localhost
+sites:
+  - id: home
+    kind: home
+    failureDomain: home-primary
 nodes:
-  - name: main
-    role: main
+  - id: main
+    siteRef: home
+    roles: [controller, worker]
+    failureDomain: node-main
+controlPlane:
+  mode: single
+  authoritySiteRef: home
+  members: [main]
 ```
 
-The canonical schema and examples are documented in [stack-spec-reference.md](stack-spec-reference.md). Generated OpenTofu, Compose, tfvars, scripts, and snapshots are outputs and must not be hand-edited.
+`stackkit init --owner-source=local` derives platform-appropriate absolute
+storage paths and persists Owner custody separately under `.stackkit/custody/`.
+The StackSpec does not contain private keys, Cloud sessions, or an Admin-owned
+identity envelope. The canonical schema and examples are documented in
+[stack-spec-reference.md](stack-spec-reference.md). Generated OpenTofu,
+Compose, tfvars, scripts, and snapshots are outputs and must not be hand-edited.
 
 ## Global CLI Flags
 
@@ -53,12 +83,12 @@ The canonical schema and examples are documented in [stack-spec-reference.md](st
 | Command | Important flags/env | Purpose |
 | --- | --- | --- |
 | `stackkit init` (native v2: v0.8+) | `--name`, `--domain`, `--owner-source=local`, `--expected-spec-hash`, `--non-interactive` | Materialize the selected product's embedded CUE authoring seed as canonical StackSpec v2. Basement includes concrete absolute local storage roots; `--owner-source=local` establishes standalone owner custody. Create is atomic no-replace; an existing CUE-valid v2 spec changes only when its exact normalized hash is supplied. `--force` is rejected. Cloud Kit and Modern Home Lab require `--domain`. No empty deployment directory is created and no readiness claim is made. |
-| `stackkit init` (v0.6 compatibility) | `--compute-tier`, `--domain`, `--local-dns`, `--local-name`, `--mode`, `--output`, `--force`, `--non-interactive`, `--admin-email`, `--service-profile` | Create the legacy v1 initial spec and deployment directory. Local kit paths are supported only on this line. |
+| Exact-v0.6 `stackkit init` compatibility | `--compute-tier`, `--domain`, `--local-dns`, `--local-name`, `--mode`, `--output`, `--force`, `--non-interactive`, `--admin-email`, `--service-profile` | Historical authoring compatibility only. It cannot restore the current-source v1 generator, which is retired across build identities. |
 | `stackkit init` owner bootstrap | `--owner-source=local`, optional exact `--local-site`, `--local-node`, `--local-execution-channel`; legacy v1 flags remain migration-only | Native v2 creates local ownerRef/Ed25519/step-ca custody and desired PocketID projection outside StackSpec. |
 | `stackkit init` cloud owner handoff (v0.6 compatibility) | `--cloud-oidc-issuer`, `--cloud-oidc-client-id`, `--cloud-oidc-client-secret-ref`, `--cloud-oidc-foreign-subject` | Optional legacy metadata for orchestrator-managed auto owner bootstrap. |
 | `stackkit addon list` | none | On v0.7, list the embedded CUE add-on catalog and, when a canonical v2 spec exists, its validated kit-filtered selection state. This is discovery only. `addon add/remove` remains v0.6 compatibility-only. |
 | `stackkit app add` (v0.6 compatibility) | `<name>`, `--image`, `--kind`, `--port`, `--host`, `--auth`, `--health-path`, repeated `--env`, repeated `--secret` | Add legacy PaaS handoff metadata. Native v2 fails closed: catalog apps remain StackKit-owned, and no TechStack customer-workload desired-state contract exists yet. |
-| `stackkit generate` | `--output`, `--force`, `--fragments`, `--inventory`, `--resolved-plan`, `STACKKIT_DNS_TOKEN`, `STACKKIT_DNS_EMAIL` | Generate rollout artifacts. StackSpec v1 retains the compatibility OpenTofu flags. Architecture v2 resolves and atomically persists the current canonical ResolvedPlan itself, takes strategy/output from that plan, accepts `--output` only when it matches the governed root, and rejects `--force`/`--fragments`. |
+| `stackkit generate` | `--output`, `--inventory`, `--resolved-plan`; deprecated rejection-only `--force`, `--fragments` | Resolve StackSpec v2 and atomically persist the current canonical ResolvedPlan, then render only its governed output. StackSpec v1 returns `migration_required` before output or lifecycle state is written. |
 | `stackkit apply` | `--auto-approve`, `--verify`, `--verify-http`, `--verify-strict` | Apply only local generated infrastructure and optionally verify results. The public command has no Admin or tenant-deployment path. |
 | `stackkit apply` env | local execution, renderer, and optional observability variables only | Public Apply does not consume Admin endpoints/tokens, Kombify credentials, or a managed bootstrap envelope. |
 | `stackkit verify` | `--json`, `--http`, `--strict`, `--host`, `--user`, `--key`, `--port`, `--remote-dir`, `--inventory`, `--resolved-plan`, `--artifact-manifest`, `--generation-receipt` | Verify deployment state. Architecture v2 verifies the governed artifact closure before its typed verifier boundary; raw SSH remains an explicit v1-only compatibility transport. |
@@ -67,7 +97,10 @@ On the v0.6 compatibility line, `stackkit app add --host` accepts a DNS hostname
 
 The v0.6 compatibility Basement Kit supports `--service-profile admin-only` for managed first rollouts. Native v2 init rejects this flag because application selection is not part of its initial authoring seed. On v0.6 the profile keeps L1/L2 services and admin access enabled while disabling L3 application modules such as Vaultwarden, Jellyfin, and Immich. The one-line installer exposes the same switch through `STACKKIT_SERVICE_PROFILE=admin-only`.
 
-The Basement Kit installer also configures the node-local StackKits API image. If `STACKKIT_SERVER_IMAGE` is set, that image is used directly. Otherwise current release archives install the static `stackkit-server` binary beside the CLI and `base-install.sh` builds a local `stackkit-server:local` scratch image after Docker preparation, copying the host CA bundle into the image. This keeps managed rollouts independent of a registry-hosted system image and avoids package-manager network access during the installer; operators can still point `STACKKIT_SERVER_IMAGE` at a pinned internal image when they want centralized image promotion.
+The public Basement installer installs the released artifacts, initializes local
+Owner custody, and validates StackSpec v2. It does not prepare a host, build a
+server image, or silently apply workloads. Generation and Apply remain explicit
+standalone lifecycle commands.
 
 ## Platform App Deployment Env
 
@@ -86,11 +119,20 @@ Layer rules are part of the public service contract:
 - The Base Node Hub is the bootstrap entrypoint. Local `.localhost` and managed LAN-DNS Base routes are open by default so first setup is reachable before a PocketID user exists. They must show `This page is currently unprotected.` while bootstrap-open; after owner setup, use the `Protect Base Hub` button in the Hub to persist the protection setting and move local Base behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled. The onboarding panel is hidden on later page loads once the one-time technical bootstrap credentials have been revealed.
 - Other L1/L2 platform services must be complete after rollout. The user must not land in a required upstream setup wizard for the identity layer, reverse proxy, selected PaaS, Uptime Kuma, or routing diagnostics.
 - Uptime Kuma and Whoami are L2 platform services, not L3 apps. Uptime Kuma is bootstrapped automatically and registers monitors for enabled L1/L2/L3 services. Kuma v2 bootstraps use SQLite explicitly, create the local `admin` app account only for setup, disable app auth behind TinyAuth/PocketID, and upsert monitors by name instead of duplicating them. In the Coolify router path, Kuma checks the router-internal endpoint (`coolify-proxy`) with the public service `Host` header instead of relying on container DNS for `*.home.localhost`.
-- StackKit-owned/default L3 application tools are PaaS-intended. In `bootstrapped` mode the default path is `on_demand` for Photos, Files, and Vault: the Node Hub exposes setup actions, but `stackkit apply` does not preconfigure them unless the spec sets the use case or tool policy to `automatic`. User-installed L3 apps outside this manifest path remain unmanaged state.
+- On the exact-v0.6 compatibility line, StackKit-owned L3 application tools are
+  PaaS-intended and may expose legacy `on_demand` setup actions. Native v0.8
+  does not select, render, or expose Photos, Vault, or Files by default; these
+  application slices are v0.9 opt-ins. User-installed applications outside a
+  governed StackKit manifest remain unmanaged state.
 
-Files is part of the Basement Kit default. `application.files.enabled` controls the use case, and `application.files.tool` selects `cloudreve` or `nextcloud`. Compatible `services.files.*` aliases are accepted only when they do not conflict with the public `application.files.*` values. Generated rollout values set `enable_files`, `files_provider`, and exactly one provider flag (`enable_cloudreve` or `enable_nextcloud`). Cloudreve is the default provider in all Basement Kit tiers; Nextcloud is allowed only for `standard` and `high` tiers.
+On the exact-v0.6 compatibility line, `application.files.enabled` controls the
+legacy Files use case and `application.files.tool` selects `cloudreve` or
+`nextcloud`. That compatibility behavior does not make Files part of the v0.8
+Basement core or readiness claim.
 
-Basement Kit records `immich-owner-bootstrap`, `vaultwarden-admin-handoff`, and the Files provider owner bootstrap as setup drops when their effective policy is `on_demand` or `automatic`. `stackkit apply` preserves existing setup-run evidence before rewriting `.stackkit/state.yaml`, records completed automatic `compose-provisioner` drops such as Kuma during platform app rollout, then triggers only `automatic` node-local `stackkit-script` drops through the Base Hub setup API and reloads persisted state. `POST /api/v1/setup/services/{service}/run` remains the one-click/retry path and skips the runner on completed re-runs. Persisted runs include stable `runId`, attempt count, phase logs, machine-readable evidence, stable failure classes, retry timestamps, and rollback notes from the generated manifest. Immich seeds a beta demo image when `demoData.enabled` is true and the library is empty. Cloudreve seeds `StackKit Demo/README.txt` through the native Cloudreve v4 API when `demoData.enabled` is true and updates that file idempotently on retry. Vaultwarden verifies the admin endpoint with generated material, requires PHC+B64 runtime token transport, rejects plaintext `ADMIN_TOKEN` environment persistence, keeps app-local signups disabled, and prepares a Vaultwarden invite for the activated PocketID Owner while keeping the admin token as break-glass material.
+The exact-v0.6 compatibility line may record Immich, Vaultwarden, and Files
+provider setup drops. Those legacy setup-drop and demo-data behaviors are not
+part of the native v0.8 core lifecycle.
 
 `stackkit-server` reads the generated platform-app manifest from `<base-dir>/.platform-apps-manifest.json` or `<base-dir>/platform-apps/manifest.json`. In Basement Kit deployments it is mounted at `/workspace` so the Dashboard action and the generated manifest share one rollout source of truth.
 
@@ -101,19 +143,40 @@ Basement Kit records `immich-owner-bootstrap`, `vaultwarden-admin-handoff`, and 
 | `STACKKIT_ADMIN_PASSWORD` | Technical bootstrap admin password used by supported setup drops. This is not a PocketID password. |
 | `STACKKIT_SETUP_IMMICH_URL` | Internal Immich URL for `immich-owner-bootstrap`; defaults to `http://immich:2283`. |
 
-The StackKits service catalog and registry snapshot also mirror tool UI metadata (`layer`, `logo_url`, `setup_policy`, `setup_action_label`) plus v0.4 bootstrap metadata (`role`, `default_tool`, `alternatives`, `delivery.managedBy`, `bootstrap_provider`). The kombify DB must keep the same fields on the canonical tool/service rows so generated Node Hub cards and product UI use one repeatable metadata source.
+The CUE service and module contracts define tool roles, selection, delivery,
+and setup metadata. The release pipeline derives the embedded registry snapshot
+and Node Hub projection from those contracts. A private kombify DB may mirror a
+published projection for product UI or fleet views, but DB parity is not a
+public generation, lifecycle, or release prerequisite.
 
-The fast Admin-generated-CUE freshness gate lives in `cmd/stackkit/commands/generated_catalog_freshness_test.go` and is covered by `go test ./cmd/stackkit/commands`. It compares sentinel tool rows from the embedded Admin registry snapshot against `base/generated/tool_catalog.cue`, and compares sentinel Basement Kit services from the current module contracts against the generated `#ServiceCatalog`. It is intentionally DB-free and must fail when Cloudreve, Nextcloud, Files, Photos, Vault, Uptime Kuma, Whoami, layer labels, logo URLs, setup policies, or setup action metadata drift out of the generated CUE artifact.
+The bounded catalog freshness check verifies that the embedded, CUE-derived
+read model matches the canonical module contracts. It is deliberately DB-free;
+no Admin endpoint or private credential participates in public validation.
 
 ## Install Modes and Bootstrap
 
 `mode` selects the installation automation level:
 
 - `bare` deploys infrastructure and selected StackKit tools without Base Hub, `stackkit-server`, SetupRuns, or demo data. Setup policy is forced to `manual`.
-- `bootstrapped` is the default. Base Hub, owner/identity, monitoring baseline, and L1/L2 platform setup are automatic. L3 applications default to `on_demand`.
-- `advanced` is the full Terramate Plus lifecycle mode: bootstrapped baseline, StackKit-packaged Terramate orchestration, drift/change/rollback/restore-drill surfaces, Runtime Intelligence Layer, and Frontend Intelligence handoff. L3 remains `on_demand` unless the TechStack/kombify-Desk path or the spec sets `automatic`. Legacy `terramate` / `advanced-terramate` inputs normalize to this same Advanced contract.
+- `bootstrapped` is the default. Base Hub, owner/identity, monitoring baseline,
+  and L1/L2 platform setup are automatic. Native v0.8 leaves L3 application
+  slices unselected; exact-v0.6 compatibility may retain `on_demand` defaults.
+- `advanced` is the capability-gated Terramate lifecycle mode: bootstrapped
+  baseline, StackKit-packaged Terramate orchestration,
+  drift/change/rollback/restore-drill surfaces, and Runtime Intelligence Layer
+  handoff. It does not select Photos, Vault, Files, or another L3 application.
+  Techstack may unify a user-approved v0.9 opt-in, but the CUE contract remains
+  final authority. Legacy `terramate` / `advanced-terramate` inputs normalize to
+  this same Advanced contract.
 
-`bootstrap` configures setup policy defaults; it is not a second install mode. `bootstrap.platformPolicy` defaults to `automatic` outside `bare`, and `bootstrap.applicationDefaultPolicy` defaults to `on_demand`. More specific policies override in this order: `services.<tool>.setup.policy`, then `application.<useCase>.setup.policy`, then the bootstrap default, then the mode default. Valid policy values are `manual`, `on_demand`, and `automatic`.
+`bootstrap` configures setup policy defaults; it is not a second install mode.
+`bootstrap.platformPolicy` defaults to `automatic` outside `bare`. On
+compatibility inputs, `bootstrap.applicationDefaultPolicy` may default to
+`on_demand`; this policy affects only an already-selected application and never
+selects one implicitly. More specific policies override in this order:
+`services.<tool>.setup.policy`, then `application.<useCase>.setup.policy`, then
+the bootstrap default, then the mode default. Valid policy values are `manual`,
+`on_demand`, and `automatic`.
 
 `demoData.enabled` defaults to `false`. Setup packs seed first-login sample content only when this is explicitly enabled.
 
@@ -124,7 +187,9 @@ creates the stable `ownerRef`, Ed25519 evidence key, step-ca certificate, and
 desired PocketID projection outside StackSpec. The first Apply realizes the
 PocketID Owner plus TinyAuth OIDC client and signs their binding. Public Apply
 accepts only this local custody; Techstack or kombify Cloud may propose a
-user-approved profile projection but cannot replace it.
+user-approved profile projection, and kombify Cloud may synchronize approved
+user fields as a convenience, but neither can replace local authority or sync
+passwords, passkeys, private keys, or Cloud sessions.
 
 The fields below describe only the bounded v1 compatibility/migration contract:
 
@@ -143,7 +208,16 @@ keys are never user-sync fields.
 
 `breakGlass` is the separate emergency path. It is enabled by default with `scope: full-emergency-admin` and covers a PocketID admin, TinyAuth static fallback, and server recovery material in the encrypted recovery bundle. Synthetic local defaults use reserved/local domains such as `admin@example.com` and `.invalid`; tests must not invent real `@kombify.io` accounts.
 
-`stackkit apply` resolves platform adapter configuration from environment first, then from `.stackkit/platform.json` in the deployment working directory. Use the generic `STACKKIT_PLATFORM_*` names where possible. Provider-specific names remain supported for compatibility. In the default self-managed Basement Kit path, the generated Coolify bootstrap creates a root-scoped Coolify API token inside the installed Coolify instance, enables the Coolify API, resolves the StackKit project/environment/server/destination placement IDs, and writes `.stackkit/platform.json` before StackKit-owned app deployment begins. In the explicit Komodo path, the generated bootstrap logs in with the generated initial admin, creates a Komodo API key/secret through the HTTP API, and writes the same file with `apiKey`/`apiSecret`. `base-install.sh` still persists this file automatically when endpoint/token or endpoint/api-key/api-secret variables are present for external platform targets, and the managed Admin bootstrap path writes the same file from deployment-scoped spec environment before redacting platform credential values from `stack-spec.yaml`.
+## Historical v0.6 Platform Adapter Contract
+
+The following platform environment, `.stackkit/platform.json`, generated
+technical-admin, and standalone-fallback behavior describes immutable v0.6
+release artifacts only. Native v2 uses local owner-signed runtime custody and
+typed renderer contracts; it does not accept these variables as public Apply
+authority or let a Kit own external platform credentials/lifecycle.
+
+Historical `stackkit apply` resolved platform adapter configuration from
+environment first, then from `.stackkit/platform.json`.
 
 | Variable | Provider alias | Purpose |
 | --- | --- | --- |
@@ -173,11 +247,17 @@ Persisted platform config shape:
 }
 ```
 
-Coolify is the default platform. StackKits bootstraps its root user during installation from generated `admin_password_plaintext` and the same technical admin email rendered into `adminEmail` by passing Coolify's official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables, then creates the API token required for StackKit-owned `systemApps` and product-bundled L3 `apps`. Local-only rollouts synthesize `admin@example.com` when no admin email is supplied; local tests must not use Kombify-owned domains for synthetic users. The bootstrap disables Coolify public registration and clears Coolify onboarding before the rollout can pass. Komodo is the beta-supported alternative. Dokploy remains a draft adapter and is not part of the canonical E2E matrix. If strict PaaS mode reaches `stackkit apply` without a complete platform config, the apply fails; it must not fall through to standalone Compose unless `platformFallback.mode: "standalone-compose"` is explicitly enabled. Customer-owned user `apps` remain handoff metadata and do not make `stackkit apply` responsible for app deployment.
+Historical Coolify generation bootstrapped a technical root user and API token;
+Komodo was the alternative and Dokploy remained draft. Those generated
+`admin_password_plaintext`, placement-ID, and fallback semantics are not native
+v2 configuration. Current owner identity is realized through PocketID, TinyAuth,
+step-ca, and the signed local Owner binding.
 
 ## Dev PaaS App Handoff Env
 
-On the v0.6 compatibility line, `base-install.sh` can add one dev-only PaaS handoff app before `generate` by calling `stackkit app add`. This is only for local validation of legacy handoff manifests and must not be treated as StackKit-managed app deployment. Set `STACKKIT_ENABLE_DEV_APP_HANDOFF=true` and `STACKKIT_DEV_APP_IMAGE` to enable this compatibility path.
+The variables below describe archived v0.6 development installers only.
+Current `base-install.sh` does not call `stackkit app add`; native applications
+come from the CUE-owned module catalog.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

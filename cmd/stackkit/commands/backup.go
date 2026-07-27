@@ -2,12 +2,10 @@ package commands
 
 // stackkit backup — operator surface for the addons/backup add-on.
 //
-// All subcommands are thin orchestration layers over the local kopia-agent
-// container. They do not reach into Kopia's repository directly; the agent
-// already holds the credentials and the cache, so we shell out via
-// `docker exec` and let it do the work. This keeps the CLI honest:
-// anything you can do from the CLI you can also do from the Kopia Web UI,
-// because both end up calling the same binary in the same container.
+// Native v2 configure/status/run/restore are authorized from the exact local
+// ResolvedPlan, generation closure, owner custody, and Apply evidence before
+// entering the Kopia runtime. Remaining v0.6-only verbs retain their isolated
+// compatibility adapter until their native lifecycle slices replace it.
 //
 // Subcommands:
 //   init                    print first-run wizard instructions
@@ -15,7 +13,7 @@ package commands
 //   status                  show local Kopia repository status
 //   run                     force a snapshot of all configured paths
 //   list                    list snapshots (table or --json)
-//   restore <snapshot>      restore a snapshot to --target (default: tmpfs)
+//   restore <anchor>        verify and stage one owner-signed snapshot anchor
 //   verify                  trigger validate-provider ad-hoc
 //   migrate-from-restic     drive the one-shot Restic→Kopia importer
 //
@@ -38,39 +36,38 @@ import (
 )
 
 const (
-	// backupContainer is the default name of the local Kopia agent container.
-	// Operators can override via --container if they renamed it (rare).
-	backupContainer = backupexec.DefaultContainer
-
 	// Aliased from backupexec so CLI command budgets and the shared docker
 	// adapter can never drift apart.
 	backupLongOperationTimeout  = backupexec.LongOperationTimeout
 	backupQuickOperationTimeout = backupexec.QuickOperationTimeout
-
-	defaultBackupRepo = "local:/backup/kopia"
 )
 
 var (
-	backupContainerName                 string
 	backupOutputJSON                    bool
-	backupRestoreTarget                 string
-	backupConfigureRepo                 string
+	backupRestoreOperationID            string
+	backupRestoreOwnerApproved          bool
 	backupEmergencyExportTarget         string
 	backupEmergencyExportFormat         string
 	backupEmergencyExportLargeMediaMode string
 	backupEmergencyExportIncludeClasses []string
 	backupEmergencyExportSourcePaths    []string
 	backupMigrateDryRun                 bool
+	backupRunOperationID                string
 )
 
-type backupExecutor func(context.Context, []string) (string, error)
+// backupEngine exists only for the exact-v0.6 compatibility verbs that remain
+// in source during the v0.8 deprecation window. Native configure/status/run use
+// the CUE-owned Compose service through localbackupruntime.
+var backupEngine = func() backupexec.Engine {
+	return backupexec.NewDockerEngine(backupexec.DefaultContainer)
+}
 
-var backupExec backupExecutor = dockerBackupExec
-
-// backupEngine wires the shared Kopia primitives to the CLI's executor seam.
-// Built per call so tests swapping backupExec keep working.
-func backupEngine() backupexec.Engine {
-	return backupexec.Engine{Exec: backupexec.Executor(backupExec)}
+var runResticImporter = func(ctx context.Context, args []string) error {
+	cmdLine := exec.CommandContext(ctx, "docker", args...)
+	cmdLine.Stdout = os.Stdout
+	cmdLine.Stderr = os.Stderr
+	cmdLine.Stdin = os.Stdin
+	return cmdLine.Run()
 }
 
 var backupCmd = &cobra.Command{
@@ -83,16 +80,17 @@ var backupCmd = &cobra.Command{
 	Long: `Manage backups for this StackKit deployment.
 
 Backups are powered by Kopia (see ADR-0016) and run in the local
-kopia-agent container. The same actions are available in the Kopia Web
-UI under https://backups.<domain> — the CLI is here for power users and
-scripting.
+kopia-agent service rendered by the Basement core. Native configure, status,
+and run revalidate the exact local Plan, generated artifacts, owner custody,
+and Apply evidence before touching Kopia. Repository, source, exclusions,
+service identity, and credentials are CUE- or owner-custody-owned.
 
 Examples:
+  stackkit backup configure --json
   stackkit backup status
-  stackkit backup configure --repo local:/backup/kopia
-  stackkit backup run
+  stackkit backup run --operation-id nightly-20260727
   stackkit backup list --json
-  stackkit backup restore k1234567 --target /tmp/restore
+  stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve
   stackkit backup verify
   stackkit backup migrate-from-restic`,
 }
@@ -102,34 +100,36 @@ var backupInitCmd = &cobra.Command{
 	Short: "Print first-run setup instructions",
 	Long: `Print the first-run setup steps for the backup addon.
 
-This command does not modify or provision anything. It describes how to
-verify and configure an already materialized local kopia-agent deployment.`,
+This command is read-only. It describes the native lifecycle that renders and
+applies the CUE-owned local kopia-agent before repository configuration.`,
 	RunE: runBackupInit,
 }
 
 var backupConfigureCmd = &cobra.Command{
 	Use:         "configure",
-	Short:       "Configure or reconnect the local Kopia repository",
-	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup configure"},
-	Long: `Configure or reconnect the local Kopia repository used by the backup addon.
+	Short:       "Configure the CUE-governed local Kopia repository",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	Args:        cobra.NoArgs,
+	Long: `Configure the local Kopia repository from the exact generated StackSpec v2 backup policy.
 
-This command intentionally covers the local-first self-hosted path only:
-local filesystem repositories mounted into the kopia-agent container.
-Object-store onboarding remains an explicit deployment configuration concern.`,
+The repository path and kopia-agent service are CUE-owned and cannot be
+overridden at the command line.`,
 	RunE: runBackupConfigure,
 }
 
 var backupStatusCmd = &cobra.Command{
 	Use:         "status",
 	Short:       "Show local Kopia repository status",
-	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup status"},
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	Args:        cobra.NoArgs,
 	RunE:        runBackupStatus,
 }
 
 var backupRunCmd = &cobra.Command{
 	Use:         "run",
 	Short:       "Force a snapshot now (out of band)",
-	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup run"},
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	Args:        cobra.NoArgs,
 	RunE:        runBackupRun,
 }
 
@@ -141,11 +141,15 @@ var backupListCmd = &cobra.Command{
 }
 
 var backupRestoreCmd = &cobra.Command{
-	Use:         "restore <snapshot-id>",
-	Short:       "Restore a snapshot to a target directory",
-	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "backup restore"},
+	Use:         "restore <snapshot-anchor-id>",
+	Short:       "Verify and restore a signed snapshot into isolated staging",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.ExactArgs(1),
-	RunE:        runBackupRestore,
+	Long: `Restore one content-addressed, owner-signed snapshot anchor into the
+CUE-owned isolated staging volume. The raw Kopia snapshot ID and staging path
+are not caller-controlled. --owner-approve records explicit local Owner
+authorization; this command never requires a Kombify account or Cloud service.`,
+	RunE: runBackupRestore,
 }
 
 var backupVerifyCmd = &cobra.Command{
@@ -183,17 +187,18 @@ After a successful import the addon flips engine: "restic-import" to
 }
 
 func init() {
-	// Shared flag: container name override.
-	backupCmd.PersistentFlags().StringVar(&backupContainerName, "container", backupContainer,
-		"Name of the local Kopia agent container")
-
 	// Subcommand-specific flags.
-	backupConfigureCmd.Flags().StringVar(&backupConfigureRepo, "repo", defaultBackupRepo,
-		"Repository to configure; supported shapes: local:/path or filesystem:/path")
-	backupStatusCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Output Kopia repository status as JSON")
+	backupConfigureCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	backupStatusCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	backupRunCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	backupRunCmd.Flags().StringVar(&backupRunOperationID, "operation-id", "",
+		"Stable idempotency key for this snapshot operation")
 	backupListCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Output snapshots as JSON")
-	backupRestoreCmd.Flags().StringVar(&backupRestoreTarget, "target", "/tmp/stackkit-restore",
-		"Directory to restore into (default: /tmp/stackkit-restore)")
+	backupRestoreCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	backupRestoreCmd.Flags().StringVar(&backupRestoreOperationID, "operation-id", "",
+		"Stable idempotency key for this staged restore operation")
+	backupRestoreCmd.Flags().BoolVar(&backupRestoreOwnerApproved, "owner-approve", false,
+		"Authorize this staged restore with the established local Owner custody")
 	backupEmergencyExportCmd.Flags().StringVar(&backupEmergencyExportTarget, "target", "/backup/emergency-export",
 		"Directory where the emergency export manifest and runbook are written")
 	backupEmergencyExportCmd.Flags().StringVar(&backupEmergencyExportFormat, "format", "tar.zst.age",
@@ -228,116 +233,35 @@ func init() {
 func runBackupInit(cmd *cobra.Command, args []string) error {
 	printInfo("Local backup CLI (Kopia engine) — readiness checklist")
 	fmt.Println()
-	fmt.Println("  1. Confirm this deployment already materializes a kopia-agent container:")
-	fmt.Println("       docker ps --filter name=kopia-agent")
+	fmt.Println("  1. Materialize and verify the standalone Basement core:")
+	fmt.Println("       stackkit init --owner-source=local")
+	fmt.Println("       stackkit validate")
+	fmt.Println("       stackkit generate")
+	fmt.Println("       stackkit apply")
+	fmt.Println("       stackkit verify")
 	fmt.Println()
-	fmt.Println("  2. Configure or connect its local filesystem repository:")
-	fmt.Println("       stackkit backup configure --repo local:/backup/kopia")
+	fmt.Println("  2. Configure the CUE-owned local repository:")
+	fmt.Println("       stackkit backup configure")
 	fmt.Println()
 	fmt.Println("  3. Check repository status and create the first snapshot:")
 	fmt.Println("       stackkit backup status")
 	fmt.Println("       stackkit backup run")
 	fmt.Println()
-	printWarning("This command does not install or generate kopia-agent deployment assets.")
+	printInfo("Repository, source, exclusions, service, and passphrase custody have no CLI overrides.")
 	printInfo("Documentation: addons/backup/README.md and docs/CLI.md")
 	return nil
 }
 
 func runBackupConfigure(cmd *cobra.Command, args []string) error {
-	if err := requireLegacyBackupCLI("configure"); err != nil {
-		return err
-	}
-	repo, err := parseBackupRepository(backupConfigureRepo)
-	if err != nil {
-		return err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), backupLongOperationTimeout)
-	defer cancel()
-
-	engine := backupEngine()
-	out, statusErr := engine.RepositoryStatusJSON(ctx)
-	if statusErr == nil && backupStatusConfigured(out) {
-		printSuccess("Kopia repository already configured")
-		if verbose || backupOutputJSON {
-			fmt.Print(out)
-			if !strings.HasSuffix(out, "\n") {
-				fmt.Println()
-			}
-		}
-		return nil
-	}
-	if statusErr != nil && !backupOutputLooksNotConfigured(out, statusErr) {
-		return fmt.Errorf("check kopia repository status: %w", statusErr)
-	}
-
-	printInfo("Configuring Kopia local repository at %s", repo.Path)
-	out, err = engine.EnsureFilesystemRepository(ctx, repo.Path)
-	if err != nil {
-		return err
-	}
-	if verbose && out != "" {
-		fmt.Println(out)
-	}
-	printSuccess("Kopia repository configured")
-	return nil
+	return runNativeV2BackupCommand(cmd, nativeV2BackupConfigure, "")
 }
 
 func runBackupStatus(cmd *cobra.Command, args []string) error {
-	if err := requireLegacyBackupCLI("status"); err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), backupQuickOperationTimeout)
-	defer cancel()
-
-	out, err := backupEngine().RepositoryStatusJSON(ctx)
-	if err != nil {
-		if backupOutputLooksNotConfigured(out, err) {
-			printWarning("Kopia repository is not configured")
-			return fmt.Errorf("kopia repository not configured — run 'stackkit backup configure' first")
-		}
-		return fmt.Errorf("kopia repository status: %w", err)
-	}
-	if backupOutputJSON {
-		fmt.Print(out)
-		if !strings.HasSuffix(out, "\n") {
-			fmt.Println()
-		}
-		return nil
-	}
-	if !backupStatusConfigured(out) {
-		printWarning("Kopia repository is not configured")
-		return fmt.Errorf("kopia repository not configured — run 'stackkit backup configure' first")
-	}
-	printSuccess("Kopia repository configured")
-	printBackupStatusSummary(out)
-	return nil
+	return runNativeV2BackupCommand(cmd, nativeV2BackupStatus, "")
 }
 
 func runBackupRun(cmd *cobra.Command, args []string) error {
-	if err := requireLegacyBackupCLI("run"); err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), backupLongOperationTimeout)
-	defer cancel()
-
-	out, err := backupEngine().Snapshot(
-		ctx,
-		backupexec.DefaultVolumeSource,
-		fmt.Sprintf("ad-hoc via stackkit backup run @ %s", time.Now().UTC().Format(time.RFC3339)),
-	)
-	if err != nil {
-		printError("snapshot failed: %v", err)
-		if out != "" {
-			fmt.Fprintln(os.Stderr, out)
-		}
-		return err
-	}
-	if verbose {
-		fmt.Println(out)
-	}
-	printSuccess("Snapshot created")
-	return nil
+	return runNativeV2BackupCommand(cmd, nativeV2BackupRun, backupRunOperationID)
 }
 
 func runBackupList(cmd *cobra.Command, args []string) error {
@@ -381,28 +305,12 @@ func runBackupList(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupRestore(cmd *cobra.Command, args []string) error {
-	if err := requireLegacyBackupCLI("restore"); err != nil {
-		return err
-	}
-	snapshotID := args[0]
-	if backupRestoreTarget == "" {
-		return fmt.Errorf("--target is required (use a path on the host that the agent can write to)")
-	}
-	if err := os.MkdirAll(backupRestoreTarget, 0o700); err != nil {
-		return fmt.Errorf("prepare target dir: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), backupLongOperationTimeout)
-	defer cancel()
-
-	printInfo("Restoring snapshot %s → %s", snapshotID, backupRestoreTarget)
-	_, err := backupEngine().Restore(ctx, snapshotID, backupRestoreTarget)
-	if err != nil {
-		return fmt.Errorf("restore: %w", err)
-	}
-	printSuccess("Restore complete")
-	printWarning("Verify the restored data before pointing services at it. The restore drill (monthly cron) does this automatically — manual restores do not.")
-	return nil
+	return runNativeV2BackupRestoreCommand(
+		cmd,
+		args[0],
+		backupRestoreOperationID,
+		backupRestoreOwnerApproved,
+	)
 }
 
 func runBackupVerify(cmd *cobra.Command, args []string) error {
@@ -513,11 +421,7 @@ func runBackupMigrateRestic(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), backupLongOperationTimeout)
 	defer cancel()
 
-	cmdLine := exec.CommandContext(ctx, "docker", args2...)
-	cmdLine.Stdout = os.Stdout
-	cmdLine.Stderr = os.Stderr
-	cmdLine.Stdin = os.Stdin
-	if err := cmdLine.Run(); err != nil {
+	if err := runResticImporter(ctx, args2); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("restic-importer exceeded %s command budget: %w", backupLongOperationTimeout, ctx.Err())
 		}
@@ -532,26 +436,13 @@ func runBackupMigrateRestic(cmd *cobra.Command, args []string) error {
 func requireLegacyBackupCLI(operation string) error {
 	return requireLegacyV06Command(
 		"backup "+strings.TrimSpace(operation),
-		"the local Kopia-agent executor and Restic importer have no canonical StackSpec v2 backup contract; use exact v0.6 compatibility or wait for the native v2 recovery authority",
+		"this compatibility operation has no canonical StackSpec v2 contract; use exact v0.6 compatibility or a native v2 lifecycle command",
 	)
 }
 
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-// backupExec runs a command inside the local Kopia agent container via the
-// shared backupexec docker adapter — CLI and StackAction endpoints must
-// speak identical argv against the same container. The container name is
-// resolved at call time so the --container flag keeps working.
-func dockerBackupExec(ctx context.Context, command []string) (string, error) {
-	return backupexec.DockerExecutor(backupContainerName)(ctx, command)
-}
-
-type backupRepository struct {
-	Kind string
-	Path string
-}
 
 type backupEmergencyExportManifest struct {
 	SchemaVersion          string                        `json:"schemaVersion"`
@@ -646,53 +537,6 @@ func renderEmergencyExportRunbook(manifest backupEmergencyExportManifest) string
 	b.WriteString("4. Restore documents and user content; reattach large-media stores when largeMediaMode is manifest-only.\n")
 	b.WriteString("5. Run `stackkit backup verify` when Kopia is available again, then perform an application-level restore drill.\n")
 	return b.String()
-}
-
-func parseBackupRepository(raw string) (backupRepository, error) {
-	if strings.TrimSpace(raw) == "" {
-		raw = defaultBackupRepo
-	}
-	kind, path, ok := strings.Cut(raw, ":")
-	if !ok || strings.TrimSpace(kind) == "" || strings.TrimSpace(path) == "" {
-		return backupRepository{}, fmt.Errorf("invalid --repo %q (expected local:/path or filesystem:/path)", raw)
-	}
-	switch kind {
-	case "local", "filesystem":
-		return backupRepository{Kind: "filesystem", Path: path}, nil
-	default:
-		return backupRepository{}, fmt.Errorf("unsupported backup repository %q: configure currently supports local:/path or filesystem:/path; use the backup addon/Web UI for object-store targets", raw)
-	}
-}
-
-// Classification lives in internal/backupexec so the CLI and the node-local
-// StackAction endpoints share one implementation; these wrappers keep the
-// historical names used across this package and its tests.
-func backupStatusConfigured(out string) bool {
-	return backupexec.StatusConfigured(out)
-}
-
-func backupOutputLooksNotConfigured(out string, err error) bool {
-	return backupexec.OutputLooksNotConfigured(out, err)
-}
-
-func backupOutputLooksRepoExists(out string, err error) bool {
-	return backupexec.OutputLooksRepoExists(out, err)
-}
-
-func printBackupStatusSummary(out string) {
-	var status struct {
-		ConfigFile string `json:"configFile"`
-		Storage    string `json:"storage"`
-	}
-	if err := json.Unmarshal([]byte(out), &status); err != nil {
-		return
-	}
-	if status.ConfigFile != "" {
-		printInfo("Config: %s", status.ConfigFile)
-	}
-	if status.Storage != "" {
-		printInfo("Storage: %s", status.Storage)
-	}
 }
 
 func truncate(s string, n int) string {

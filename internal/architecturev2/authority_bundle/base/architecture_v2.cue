@@ -3123,8 +3123,8 @@ _servicePublicationShape: {
 // architecture authority into public renderer inputs. Sources are finite and
 // typed; arbitrary paths, raw StackSpec access, module outputs, and secrets are
 // intentionally unrepresentable.
-#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot"
-#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1"
+#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot" | "backup.localKopiaSource"
+#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1"
 #ModuleRenderInputCardinalityV2: "single" | "list"
 
 // This projection renames credentialTTLSeconds to lifetimeSeconds so the
@@ -3436,6 +3436,24 @@ _servicePublicationShape: {
 	volumeDriver: "local"
 }
 
+#ModulePublicLocalKopiaBackupSourceV1: {
+	kind:               "docker-volume-root"
+	hostPath:           "/var/lib/docker/volumes"
+	containerPath:      "/source/docker-volumes"
+	readOnly:           true
+	excludePaths: [
+		"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
+		"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
+		"/source/docker-volumes/stackkit-basement-core_kopia-cache/_data",
+		"/source/docker-volumes/stackkit-basement-core_kopia-restore-staging/_data",
+	]
+	repositoryPath:     "/app/repository"
+	configPath:         "/app/config"
+	cachePath:          "/app/cache"
+	custody:            "owner-local"
+	runtimeMaterial: "owner-command"
+}
+
 #ModulePublicCloudHostSecurityPolicyV2: {
 	networkMode:     "public-capable" | "hybrid"
 	transportSubnet: #NetworkCIDRV2
@@ -3686,12 +3704,17 @@ _servicePublicationShape: {
 		cardinality: "single"
 		if required == false {defaultValue: #ModulePublicLocalBackupRootV1}
 	}
+	if sourceRef == "backup.localKopiaSource" {
+		valueType:   "local-kopia-backup-source-v1"
+		cardinality: "single"
+		if required == false {defaultValue: #ModulePublicLocalKopiaBackupSourceV1}
+	}
 } & ({
 	required:      true
 	defaultValue?: _|_
 } | {
 	required: false
-	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityPolicyV2 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1
+	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityPolicyV2 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1 | #ModulePublicLocalKopiaBackupSourceV1
 })
 
 // #ModuleSecretInputBindingV2 is the closed compiler-owned seam from a
@@ -4370,6 +4393,9 @@ _servicePublicationShape: {
 	id:          #ContractID
 	kind:        #ModuleRenderUnitKindV2
 	rendererRef: #ContractID
+	// applyMode separates a render-only companion artifact from an executable
+	// runtime instance without weakening the owning module's Apply authority.
+	applyMode: *"runtime" | "artifact-only"
 	// compatibleTargets makes target selection an explicit module contract.
 	// The compiler selects units before resolving inputs and artifacts; callers
 	// never filter a mixed realization after compilation.
@@ -4428,6 +4454,11 @@ _servicePublicationShape: {
 		// Routable backends require concrete site/node/instance locality. A
 		// module-scoped singleton has no executable network origin to publish.
 		placement: scope: "node-local"
+	}
+	if applyMode == "artifact-only" {
+		serviceEndpoints:   []
+		providesInterfaces: []
+		requiresInterfaces: []
 	}
 	_directAndProxyDisjoint: [
 		for directContract in requiresInterfaces
@@ -4664,9 +4695,6 @@ _servicePublicationShape: {
 	}
 	if runtimeAdapterAgent != _|_ {
 		role: "platform"
-	}
-	if role == "workload" {
-		provides: []
 	}
 	if requires != _|_ {
 		_requiresUnique: list.UniqueItems(requires) & true
@@ -5087,7 +5115,15 @@ _servicePublicationShape: {
 			}] & list.MinItems(1) & list.MaxItems(1)
 			moduleMatches: [for module in modules if module.metadata.id == alternative.moduleRef && module.providerRef == alternative.providerRef && module.role == "workload" {
 				moduleID: module.metadata.id
-				capabilityProvides: module.provides & []
+				capabilityProvides: [for capabilityRef in module.provides {
+					capability: capabilityRef
+					matches: [
+						for provider in providers
+						if provider.metadata.id == module.providerRef
+						for providerCapabilityRef in provider.provides
+						if providerCapabilityRef == capabilityRef {providerCapabilityRef},
+					] & list.MinItems(1) & list.MaxItems(1)
+				}]
 				providerSiteKinds: [for provider in providers if provider.metadata.id == alternative.providerRef {
 					workloadCoverage: [for siteKind in workload.supportedSiteKinds {
 						kind: siteKind
@@ -5781,6 +5817,9 @@ _servicePublicationShape: {
 	id:          #ContractID
 	kind:        #ModuleRenderUnitKindV2
 	rendererRef: #ContractID
+	// ResolvedPlan v1 predates applyMode. Missing persisted values retain the
+	// historical executable-runtime behavior during schema normalization.
+	applyMode: *"runtime" | "artifact-only"
 	compatibleTargets: [...#GenerationTarget] & list.MinItems(1)
 	templateRef:  string & =~"^[^[:space:]]+$"
 	version:      #SemanticVersion
@@ -6066,9 +6105,6 @@ _servicePublicationShape: {
 	}
 	if runtimeAdapterAgent != _|_ {
 		role: "platform"
-	}
-	if role == "workload" {
-		provides: []
 	}
 	if requires != _|_ {
 		_requiresUnique: list.UniqueItems(requires) & true

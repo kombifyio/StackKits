@@ -95,7 +95,6 @@ Process-backed write, artifact, and plan-verification tools:
 These tools are registered only when write mode is enabled and the MCP process cryptographically binds the packaged sibling CLI with the identical version, commit, and startup digest:
 
 - `stackkit_init`
-- `stackkit_prepare`
 - `stackkit_resolve`
 - `stackkit_generate`
 - `stackkit_plan`
@@ -104,9 +103,13 @@ These tools are registered only when write mode is enabled and the MCP process c
 
 Native init and `stackkit_config_set` share one persistence authority: create is no-replace, replacement requires the exact current CUE-normalized hash (`--expected-spec-hash` in the CLI, `expected_spec_hash` in MCP), and already-applied retries are idempotent. Native v0.7 does not register the legacy combined rollout, update, node-local HTTP verify/doctor, or arbitrary provider/SSH inputs.
 
-## Exact-v0.6 Compatibility Tools
+## Exact-v0.6 HTTP Compatibility
 
-An exact v0.6 bundle retains the legacy `stackkit_verify`, `stackkit_doctor`, `stackkit_update`, and `stackkit_rollout` contract. They are not native-v0.7 tools and are never selected by falling back to an arbitrary CLI from `PATH`.
+Current source preserves only the protected node-local HTTP-backed
+`stackkit_verify` and `stackkit_doctor` MCP tools when built for exact v0.6.
+Process-backed v1 init/generate/apply/update and the combined rollout macro are
+not rebuilt. Immutable published v0.6 artifacts remain the historical rollback
+boundary.
 
 Out of scope:
 

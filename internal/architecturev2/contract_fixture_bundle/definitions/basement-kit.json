@@ -137,7 +137,8 @@
       "device-enrollment-home",
       "local-control-authority",
       "offline-autonomy",
-      "local-backup-target"
+      "local-backup-target",
+      "local-backup-runtime"
     ]
   },
   "dataDefaults": {

@@ -81,6 +81,7 @@ jobs:
             scripts/release/release-evidence.test.mjs \
             scripts/release/render-release-index.test.mjs \
             scripts/release/release-trust-workflow.test.mjs \
+            scripts/release/verify-trusted-root.test.mjs \
             scripts/release/verify-release-attestations.test.mjs \
             scripts/release/validate-release-evidence.test.mjs \
             scripts/release/validate-scenario-artifact.test.mjs \

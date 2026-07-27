@@ -62,6 +62,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(homeBackupTarget.contract, homeBackupTarget); err != nil {
 		return nil, err
 	}
+	localKopiaRuntime := newLocalKopiaRuntimeRenderer()
+	if err := registry.Register(localKopiaRuntime.contract, localKopiaRuntime); err != nil {
+		return nil, err
+	}
 	monitoringAgent := newMonitoringAgentIntentRenderer()
 	if err := registry.Register(monitoringAgent.contract, monitoringAgent); err != nil {
 		return nil, err

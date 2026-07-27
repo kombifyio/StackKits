@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { readComposeOriginScope } from './compose-origin-scope.mjs'
 import { validateStandaloneTraffic } from './validate-standalone-oss-e2e.mjs'
 
-const schema = 'stackkit.oss-runtime-e2e-evidence/v2'
+const schema = 'stackkit.oss-runtime-e2e-evidence/v3'
 const sha256Pattern = /^[0-9a-f]{64}$/u
 const sourceDigestPattern = /^sha256:[0-9a-f]{64}$/u
 const commitPattern = /^[0-9a-f]{40}$/u
@@ -68,14 +68,108 @@ export function validateStandaloneRuntimeE2E(evidencePath, trafficPath, originSc
     fail('source does not identify one exact public StackKits tree')
   }
 
-  exactKeys(evidence.archive, ['name', 'sha256', 'sbomSha256', 'attestationSha256', 'releaseIndexSha256'], 'archive')
+  exactKeys(
+    evidence.archive,
+    [
+      'name',
+      'sha256',
+      'sbomSha256',
+      'attestationSha256',
+      'releaseIndexSha256',
+      'releaseIndexAttestationSha256',
+      'trustedRootSha256',
+      'releaseBootstrapSha256'
+    ],
+    'archive'
+  )
   if (typeof evidence.archive.name !== 'string' ||
       path.basename(evidence.archive.name) !== evidence.archive.name ||
       !/^stackkits-basement-kit_.+_linux_(?:amd64|arm64)\.tar\.gz$/u.test(evidence.archive.name)) {
     fail('archive.name is not a safe Basement Linux release archive')
   }
-  for (const field of ['sha256', 'sbomSha256', 'attestationSha256', 'releaseIndexSha256']) {
+  for (const field of [
+    'sha256',
+    'sbomSha256',
+    'attestationSha256',
+    'releaseIndexSha256',
+    'releaseIndexAttestationSha256',
+    'trustedRootSha256',
+    'releaseBootstrapSha256'
+  ]) {
     requireDigest(evidence.archive[field], `archive.${field}`)
+  }
+  const evidenceDirectory = path.dirname(path.resolve(evidencePath))
+  const releaseBootstrapRaw = readFileSync(path.join(evidenceDirectory, 'release-bootstrap.json'))
+  if (digest(releaseBootstrapRaw) !== evidence.archive.releaseBootstrapSha256) {
+    fail('release bootstrap evidence differs from the attested runtime evidence')
+  }
+  const releaseBootstrap = JSON.parse(releaseBootstrapRaw)
+  rejectSecrets(releaseBootstrap, 'releaseBootstrap')
+  exactKeys(
+    releaseBootstrap,
+    ['schemaVersion', 'command', 'status', 'data'],
+    'release bootstrap'
+  )
+  if (releaseBootstrap.schemaVersion !== 'stackkit.command-result/v1' ||
+      releaseBootstrap.command !== 'stackkit kit verify' ||
+      releaseBootstrap.status !== 'success' ||
+      !Array.isArray(releaseBootstrap.data) ||
+      releaseBootstrap.data.length !== 1) {
+    fail('init did not bind the exact release receipt to the runtime archive')
+  }
+  const receipt = releaseBootstrap.data[0]
+  exactKeys(
+    receipt,
+    [
+      'schemaVersion',
+      'kit',
+      'version',
+      'channel',
+      'platform',
+      'archiveSha256',
+      'sbomSha256',
+      'attestationSha256',
+      'attestationIssuer',
+      'attestationSubject',
+      'trustedRootSha256',
+      'indexSha256',
+      'indexAttestationSha256',
+      'verifiedAt',
+      'installDir'
+    ],
+    'release receipt'
+  )
+  exactKeys(receipt.platform, ['os', 'arch'], 'release receipt platform')
+  const versionMatch = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(beta|edge)\.(0|[1-9][0-9]*))?$/u.exec(receipt.version)
+  const expectedChannel = versionMatch?.[4] ?? 'stable'
+  const expectedArchiveName = versionMatch === null ||
+      !['amd64', 'arm64'].includes(receipt.platform.arch)
+    ? ''
+    : `stackkits-basement-kit_${receipt.version}_linux_${receipt.platform.arch}.tar.gz`
+  const expectedInstallSuffix = versionMatch === null
+    ? ''
+    : `/.stackkit/releases/basement-kit/${receipt.version}/linux-${receipt.platform.arch}`
+  if (receipt.schemaVersion !== 'stackkit.release-receipt/v1' ||
+      receipt.kit !== 'basement-kit' ||
+      versionMatch === null ||
+      receipt.channel !== expectedChannel ||
+      receipt.platform.os !== 'linux' ||
+      !['amd64', 'arm64'].includes(receipt.platform.arch) ||
+      evidence.archive.name !== expectedArchiveName ||
+      receipt.archiveSha256 !== evidence.archive.sha256 ||
+      receipt.sbomSha256 !== evidence.archive.sbomSha256 ||
+      receipt.attestationSha256 !== evidence.archive.attestationSha256 ||
+      receipt.attestationIssuer !== 'https://token.actions.githubusercontent.com' ||
+      receipt.attestationSubject !== evidence.archive.name ||
+      receipt.trustedRootSha256 !== evidence.archive.trustedRootSha256 ||
+      receipt.indexSha256 !== evidence.archive.releaseIndexSha256 ||
+      receipt.indexAttestationSha256 !== evidence.archive.releaseIndexAttestationSha256 ||
+      typeof receipt.installDir !== 'string' ||
+      !receipt.installDir.replaceAll('\\', '/').endsWith(expectedInstallSuffix) ||
+      !Number.isFinite(Date.parse(receipt.verifiedAt)) ||
+      typeof receipt.verifiedAt !== 'string' ||
+      !receipt.verifiedAt.endsWith('Z')) {
+    fail('init did not bind the exact release receipt to the runtime archive')
   }
 
   exactKeys(
@@ -118,7 +212,6 @@ export function validateStandaloneRuntimeE2E(evidencePath, trafficPath, originSc
     fail('runtime phase duration is inconsistent or exceeds 600 seconds')
   }
   if (!Array.isArray(phase.evidence) || phase.evidence.length !== 2) fail('runtime phase requires Apply and Verify evidence')
-  const evidenceDirectory = path.dirname(path.resolve(evidencePath))
   const expectedNames = ['apply.log', 'verify.json']
   phase.evidence.forEach((item, index) => {
     exactKeys(item, ['name', 'sha256'], `phase.evidence[${index}]`)

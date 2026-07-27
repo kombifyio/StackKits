@@ -394,6 +394,20 @@
         "SK-S1"
       ],
       "metadata": {
+        "description": "Home-site Architecture v2 contract for local-backup-runtime.",
+        "id": "local-backup-runtime",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S1"
+      ],
+      "metadata": {
         "description": "Home-site Architecture v2 contract for lan-dns.",
         "id": "lan-dns",
         "layer": "platform",
@@ -1240,6 +1254,16 @@
         "siteKind": "cloud"
       },
       {
+        "capability": "local-backup-runtime",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "local-backup-runtime",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
         "capability": "lan-dns",
         "matches": [
           "stackkits-home-lan-dns-contract"
@@ -1779,6 +1803,13 @@
           "basement-compose-runtime"
         ],
         "module": "stackkits-basement-compose-runtime"
+      },
+      {
+        "capability": "local-backup-runtime",
+        "matches": [
+          "local-backup-runtime"
+        ],
+        "module": "stackkits-basement-core-runtime"
       },
       {
         "capability": "service-publication",
@@ -2434,6 +2465,13 @@
       },
       {
         "matches": [
+          "stackkits-home-backup-target"
+        ],
+        "module": "stackkits-basement-core-runtime",
+        "requires": "stackkits-home-backup-target"
+      },
+      {
+        "matches": [
           "stackkits-komodo-core-runtime"
         ],
         "module": "stackkits-komodo-periphery-runtime",
@@ -2760,6 +2798,7 @@
         },
         {
           "contracts": [
+            "local-backup-runtime",
             "basement-core"
           ],
           "providerID": "stackkits-basement-core"
@@ -3190,6 +3229,13 @@
           "basement-compose-runtime"
         ],
         "provider": "stackkits-basement-compose"
+      },
+      {
+        "capability": "local-backup-runtime",
+        "matches": [
+          "local-backup-runtime"
+        ],
+        "provider": "stackkits-basement-core"
       },
       {
         "capability": "site-federation",
@@ -4043,9 +4089,23 @@
         "provider": "stackkits-basement-compose"
       },
       {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-basement-core"
+      },
+      {
         "capability": "host-bootstrap",
         "matches": [
           "host-bootstrap"
+        ],
+        "provider": "stackkits-basement-core"
+      },
+      {
+        "capability": "local-backup-target",
+        "matches": [
+          "local-backup-target"
         ],
         "provider": "stackkits-basement-core"
       },
@@ -4836,7 +4896,14 @@
           "alternativeID": "standalone",
           "moduleMatches": [
             {
-              "capabilityProvides": [],
+              "capabilityProvides": [
+                {
+                  "capability": "local-backup-runtime",
+                  "matches": [
+                    "local-backup-runtime"
+                  ]
+                }
+              ],
               "moduleID": "stackkits-basement-core-runtime",
               "moduleSiteKinds": [
                 {
@@ -5080,6 +5147,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -5200,6 +5268,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -5325,6 +5394,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -5473,6 +5543,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -5608,6 +5679,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -5751,6 +5823,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -5894,6 +5967,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -6041,6 +6115,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -6187,6 +6262,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -6339,6 +6415,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -6490,6 +6567,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -6633,6 +6711,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -6756,6 +6835,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -6902,6 +6982,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -7107,6 +7188,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -7253,6 +7335,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -7377,6 +7460,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -7535,6 +7619,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -7686,6 +7771,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -7814,6 +7900,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -7993,6 +8080,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose"
           ],
@@ -8159,6 +8247,13 @@
           "timeoutSeconds": 30
         },
         {
+          "id": "local-kopia-runtime-container",
+          "kind": "container",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        },
+        {
           "expectedStatuses": [
             200
           ],
@@ -8184,7 +8279,9 @@
         ]
       },
       "providerRef": "stackkits-basement-core",
-      "provides": [],
+      "provides": [
+        "local-backup-runtime"
+      ],
       "realizationSupport": {
         "artifacts": {
           "contracts": [
@@ -8211,6 +8308,19 @@
               "outputRef": "platform/basement-core/main.tf",
               "required": true,
               "unitRef": "opentofu"
+            },
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "local-kopia-backup-source-policy",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "home/backup/kopia-source-policy.json",
+              "required": true,
+              "unitRef": "source-policy"
             }
           ],
           "outputBindings": [
@@ -8223,11 +8333,17 @@
               "artifactRef": "basement-core-opentofu",
               "outputRef": "platform/basement-core/main.tf",
               "unitRef": "opentofu"
+            },
+            {
+              "artifactRef": "local-kopia-backup-source-policy",
+              "outputRef": "home/backup/kopia-source-policy.json",
+              "unitRef": "source-policy"
             }
           ],
           "requiredRefs": [
             "basement-core-compose",
-            "basement-core-opentofu"
+            "basement-core-opentofu",
+            "local-kopia-backup-source-policy"
           ]
         },
         "compatibleRendererRefs": [
@@ -8241,21 +8357,30 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "backup-source"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities"
+          ]
         },
         "scope": "concrete"
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:dcda349bd46c6e008c17ffa8f678726eac6116a768cbbe1be95b5b75699c34e3",
+          "contractHash": "sha256:3d11d396b84bed990ac1048a49880f1e9ccd3ca1a21d5a83d1f142ed5e202db2",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -8295,10 +8420,11 @@
           "version": "1.0.0"
         },
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:159c9242c58d84ef81f9d0d1b3acf91e6ae96e465f20ddb41c0fb36c9309e757",
+          "contractHash": "sha256:f10fea0283ca2c1c01c65c5a67c338b433e747dcb98a0e3c41d5aace737f39f6",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -8336,39 +8462,106 @@
           ],
           "templateRef": "builtin://basement/core/opentofu/v1.tf",
           "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3",
+          "id": "source-policy",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "home/backup/kopia-source-policy.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/backup/kopia-source/v1.json",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
         {
           "artifactRefs": [
-            "basement-core-compose"
+            "basement-core-compose",
+            "local-kopia-backup-source-policy"
           ],
           "contractHash": "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53",
           "id": "compose",
-          "planInputRefs": [],
-          "publicInputRefs": [],
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "compose",
           "unitRefs": [
-            "compose"
+            "compose",
+            "source-policy"
           ]
         },
         {
           "artifactRefs": [
-            "basement-core-opentofu"
+            "basement-core-opentofu",
+            "local-kopia-backup-source-policy"
           ],
           "contractHash": "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c",
           "id": "opentofu",
-          "planInputRefs": [],
-          "publicInputRefs": [],
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "opentofu",
           "unitRefs": [
-            "opentofu"
+            "opentofu",
+            "source-policy"
           ]
         }
+      ],
+      "requires": [
+        "stackkits-home-backup-target"
       ],
       "rilActionPrimitives": [],
       "role": "workload",
@@ -8639,6 +8832,52 @@
             "role": "application"
           },
           {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "kopia",
+                "--version"
+              ],
+              "kind": "command"
+            },
+            "id": "kopia-agent",
+            "image": {
+              "digest": "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043",
+              "ref": "docker.io/kopia/kopia:0.18.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-backup"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-repository",
+                "target": "/app/repository"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-config",
+                "target": "/app/config"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "kopia-cache",
+                "target": "/app/cache"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-restore-staging",
+                "target": "/restore-staging"
+              }
+            ]
+          },
+          {
             "dependsOn": [
               "tinyauth"
             ],
@@ -8756,6 +8995,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -9184,6 +9424,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -9348,6 +9589,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -9516,6 +9758,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -9701,6 +9944,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -9848,6 +10092,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -9996,6 +10241,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -10144,6 +10390,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -10274,6 +10521,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -10417,6 +10665,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -10584,6 +10833,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -10739,6 +10989,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -10862,6 +11113,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -10995,6 +11247,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -11126,6 +11379,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -11257,6 +11511,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -11388,6 +11643,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -11519,6 +11775,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -11651,6 +11908,7 @@
       },
       "renderUnits": [
         {
+          "applyMode": "runtime",
           "compatibleTargets": [
             "compose",
             "opentofu"
@@ -13478,20 +13736,30 @@
         "version": "1.0.0"
       },
       "overlayContracts": [],
-      "provides": [],
+      "provides": [
+        "local-backup-runtime"
+      ],
       "realization": {
         "kind": "modules",
         "moduleRefs": {
-          "optional": [
+          "optional": [],
+          "required": [
             "stackkits-basement-core-runtime"
-          ],
-          "required": []
+          ]
         }
       },
       "remoteActionContracts": [],
       "requires": [
         {
+          "id": "backup-core",
+          "optional": false
+        },
+        {
           "id": "host-bootstrap",
+          "optional": false
+        },
+        {
+          "id": "local-backup-target",
           "optional": false
         },
         {

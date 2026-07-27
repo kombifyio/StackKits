@@ -37,7 +37,11 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
     'jq -r \'.isDraft\'',
     '.checks.attestationVerification.status',
     'actions/attest-build-provenance',
+    'GH_CLI_LINUX_AMD64_SHA256',
+    'Install pinned GitHub CLI',
     'gh attestation trusted-root',
+    'verify-trusted-root.mjs',
+    'release-trust-policy.json',
     'render-release-index.mjs',
     'stackkits-release-index-v1.json.intoto.jsonl',
     'Hand exact release trust set to the runtime proof',
@@ -50,6 +54,7 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
   }
   assert.doesNotMatch(publicRelease, /gh release create/u)
   before(publicRelease, 'Attest exact per-kit release archives', 'render-release-index.mjs')
+  before(publicRelease, 'Install pinned GitHub CLI', 'gh attestation trusted-root')
   before(publicRelease, 'render-release-index.mjs', 'Attest the release index')
   before(publicRelease, 'Publish and verify the release-index attestation', 'Hand exact release trust set to the runtime proof')
   before(publicRelease, 'Hand exact release trust set to the runtime proof', 'Download exact release trust set from the producing job')
@@ -73,6 +78,7 @@ test('public tag workflow binds exact draft bytes before publishing a prerelease
     )].map((match) => match[1]),
     [
       'runtime-evidence.json',
+      'release-bootstrap.json',
       'network-events.jsonl',
       'compose-origin-scope.json',
       'apply.log',
@@ -95,11 +101,13 @@ test('public runtime failure diagnostics are explicit, sanitized, and short-live
     'tcpdump.log',
     'network-events.jsonl',
     'compose-origin-scope.json',
+    'tcpdump-init.stderr.log',
     'tcpdump.stderr.log',
+    'fixture.log',
     'init.log',
     'validate.log',
     'generate.log',
-    'release-install.json',
+    'release-bootstrap.json',
     'apply.log',
     'verify.json',
     'runtime-evidence.json'

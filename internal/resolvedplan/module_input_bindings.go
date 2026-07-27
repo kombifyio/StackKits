@@ -23,6 +23,7 @@ const (
 	moduleInputSourceHostBootstrap    = "host.bootstrapRuntime"
 	moduleInputSourceStorageHostRoots = "storage.hostRoots"
 	moduleInputSourceStorageBackup    = "storage.backupRoot"
+	moduleInputSourceLocalKopiaBackup = "backup.localKopiaSource"
 	moduleInputTypeDeviceEnrollment   = "device-enrollment-public-v1"
 	moduleInputTypeHomeAuthority      = "home-device-authority-v1"
 	moduleInputTypeBasementVerify     = "basement-identity-verification-v1"
@@ -36,6 +37,7 @@ const (
 	moduleInputTypeHostBootstrap      = "host-bootstrap-runtime-v1"
 	moduleInputTypeStorageHostRoots   = "host-storage-roots-v1"
 	moduleInputTypeStorageBackup      = "local-backup-root-v1"
+	moduleInputTypeLocalKopiaBackup   = "local-kopia-backup-source-v1"
 	moduleInputTypeNetworkRoutes      = moduleInputTypeNetworkRoutesV4
 )
 
@@ -305,6 +307,13 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 				return fail(ErrContractConflict, path+".defaultValue", "backup-root default is not the exact public projection")
 			}
 		}
+	case moduleInputSourceLocalKopiaBackup:
+		if valueType != moduleInputTypeLocalKopiaBackup || cardinality != "single" {
+			return fail(ErrContractConflict, path, "backup.localKopiaSource requires type %q and single cardinality", moduleInputTypeLocalKopiaBackup)
+		}
+		if hasDefault {
+			return fail(ErrContractConflict, path+".defaultValue", "local Kopia backup source is compiler-owned and cannot declare a default")
+		}
 	default:
 		return fail(ErrContractConflict, path+".sourceRef", "unsupported resolved-plan input source %q", sourceRef)
 	}
@@ -481,8 +490,30 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding) 
 		}
 		projected, err := projectPublicLocalBackupRoot(source.storage, "resolvedPlan.storage.backupRoot", false)
 		return projected, err == nil, err
+	case moduleInputSourceLocalKopiaBackup:
+		return localKopiaBackupSourceProjection(), true, nil
 	default:
 		return nil, false, fmt.Errorf("unsupported resolved-plan input source %q", binding.sourceRef)
+	}
+}
+
+func localKopiaBackupSourceProjection() map[string]any {
+	return map[string]any{
+		"kind":          "docker-volume-root",
+		"hostPath":      "/var/lib/docker/volumes",
+		"containerPath": "/source/docker-volumes",
+		"readOnly":      true,
+		"excludePaths": []any{
+			"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
+			"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
+			"/source/docker-volumes/stackkit-basement-core_kopia-cache/_data",
+			"/source/docker-volumes/stackkit-basement-core_kopia-restore-staging/_data",
+		},
+		"repositoryPath":  "/app/repository",
+		"configPath":      "/app/config",
+		"cachePath":       "/app/cache",
+		"custody":         "owner-local",
+		"runtimeMaterial": "owner-command",
 	}
 }
 

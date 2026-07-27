@@ -491,7 +491,12 @@ func gatherInitChoices(p *prompter, stackkit *models.StackKit, defaults initDefa
 func runInit(cmd *cobra.Command, args []string) error {
 	wd := getWorkDir()
 	if stackspecadmission.RejectOperationalV1(version) {
-		return runArchitectureV2Init(cmd, args, wd)
+		return runArchitectureV2InitWithBootstrap(
+			cmd,
+			args,
+			wd,
+			verifyCurrentReleaseBootstrap,
+		)
 	}
 	if strings.TrimSpace(initExpectedSpecHash) != "" {
 		return fmt.Errorf("--expected-spec-hash is a native Architecture v2 authoring contract and is unavailable on the exact-v0.6 compatibility line")

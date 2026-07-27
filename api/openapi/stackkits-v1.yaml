@@ -3516,6 +3516,7 @@ components:
       required:
         - id
         - kind
+        - applyMode
         - rendererRef
         - compatibleTargets
         - templateRef
@@ -3544,6 +3545,9 @@ components:
         kind:
           type: string
           enum: [compose, cue-fragment, host, job, opentofu, native-config]
+        applyMode:
+          type: string
+          enum: [runtime, artifact-only]
         rendererRef:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         compatibleTargets:
@@ -3646,6 +3650,19 @@ components:
               - $ref: "#/components/schemas/ArchitectureV2DockerSocketDirectRequirement"
       allOf:
         - if:
+            required: [applyMode]
+            properties:
+              applyMode:
+                const: artifact-only
+          then:
+            properties:
+              serviceEndpoints:
+                maxItems: 0
+              providesInterfaces:
+                maxItems: 0
+              requiresInterfaces:
+                maxItems: 0
+        - if:
             required: [serviceEndpoints]
             properties:
               serviceEndpoints:
@@ -3665,10 +3682,10 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         sourceRef:
           type: string
-          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, access.homeEnforcement, localAutonomy.policy, network.routes, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot]
+          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, access.homeEnforcement, localAutonomy.policy, network.routes, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot, backup.localKopiaSource]
         valueType:
           type: string
-          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, home-access-enforcement-v1, local-autonomy-policy-v1, authority-bound-service-route-list-v4, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1]
+          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, home-access-enforcement-v1, local-autonomy-policy-v1, authority-bound-service-route-list-v4, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1, local-kopia-backup-source-v1]
         cardinality:
           type: string
           enum: [single, list]
@@ -3689,6 +3706,7 @@ components:
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostBootstrapRuntime"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostStorageRoots"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalBackupRoot"
+            - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalKopiaBackupSource"
       allOf:
         - if:
             properties: {sourceRef: {const: identity.deviceEnrollment}}
@@ -3796,6 +3814,15 @@ components:
               cardinality: {const: single}
               defaultValue:
                 $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalBackupRoot"
+        - if:
+            properties: {sourceRef: {const: backup.localKopiaSource}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: local-kopia-backup-source-v1}
+              cardinality: {const: single}
+              defaultValue:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalKopiaBackupSource"
         - if:
             properties: {required: {const: true}}
             required: [required]
@@ -4094,6 +4121,31 @@ components:
       properties:
         path: {type: string, pattern: ^/}
         volumeDriver: {type: string, const: local}
+    ArchitectureV2ModulePublicLocalKopiaBackupSource:
+      type: object
+      additionalProperties: false
+      required: [kind, hostPath, containerPath, readOnly, excludePaths, repositoryPath, configPath, cachePath, custody, runtimeMaterial]
+      properties:
+        kind: {type: string, const: docker-volume-root}
+        hostPath: {type: string, const: /var/lib/docker/volumes}
+        containerPath: {type: string, const: /source/docker-volumes}
+        readOnly: {type: boolean, const: true}
+        excludePaths:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            type: string
+          prefixItems:
+            - {const: /source/docker-volumes/stackkit-basement-core_kopia-repository/_data}
+            - {const: /source/docker-volumes/stackkit-basement-core_kopia-config/_data}
+            - {const: /source/docker-volumes/stackkit-basement-core_kopia-cache/_data}
+            - {const: /source/docker-volumes/stackkit-basement-core_kopia-restore-staging/_data}
+        repositoryPath: {type: string, const: /app/repository}
+        configPath: {type: string, const: /app/config}
+        cachePath: {type: string, const: /app/cache}
+        custody: {type: string, const: owner-local}
+        runtimeMaterial: {type: string, const: owner-command}
     ArchitectureV2ModulePublicCloudHostSecurityPolicy:
       type: object
       additionalProperties: false

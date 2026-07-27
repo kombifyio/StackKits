@@ -739,14 +739,14 @@ func resolveModuleProvides(moduleID, providerID string, contract map[string]any,
 	if err != nil {
 		return nil, err
 	}
-	if role == "workload" {
-		return []string{}, nil
-	}
 	contractProvides, err := stringListField(contract, "catalog.modules."+moduleID, "provides", true)
 	if err != nil {
 		return nil, err
 	}
 	if len(contractProvides) == 0 {
+		if role == "workload" {
+			return []string{}, nil
+		}
 		hasTypedImplementation, err := moduleProvidesTypedImplementation(moduleID, contract)
 		if err != nil {
 			return nil, err

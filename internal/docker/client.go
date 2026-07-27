@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"reflect"
 	"regexp"
+	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -48,9 +51,10 @@ func validateNameOrID(nameOrID string) error {
 
 // Client handles Docker operations
 type Client struct {
-	binary  string
-	timeout time.Duration
-	env     []string
+	binary    string
+	timeout   time.Duration
+	env       []string
+	localOnly bool
 }
 
 // ClientOption configures the Docker client
@@ -92,23 +96,270 @@ func NewClient(opts ...ClientOption) *Client {
 	return c
 }
 
+// NewLocalClient creates a Docker CLI client that cannot follow process or
+// option-provided remote daemon configuration. Every command binds the
+// platform's canonical local socket/named pipe explicitly.
+func NewLocalClient(opts ...ClientOption) *Client {
+	c := NewClient(opts...)
+	c.localOnly = true
+	return c
+}
+
 func (c *Client) command(ctx context.Context, args ...string) *exec.Cmd {
+	if c.localOnly {
+		args = append([]string{"--host", localDockerEndpoint()}, args...)
+	}
 	cmd := exec.CommandContext(ctx, c.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
-	if len(c.env) > 0 {
-		cmd.Env = append(os.Environ(), c.env...)
+	environment := append(os.Environ(), c.env...)
+	if c.localOnly {
+		environment = environmentWithoutDockerTransport(environment)
+	}
+	if len(c.env) > 0 || c.localOnly {
+		cmd.Env = environment
 	}
 	return cmd
 }
 
+func localDockerEndpoint() string {
+	if runtime.GOOS == "windows" {
+		return "npipe:////./pipe/docker_engine"
+	}
+	return "unix:///var/run/docker.sock"
+}
+
+var dockerTransportEnvironment = []string{
+	"DOCKER_HOST",
+	"DOCKER_CONTEXT",
+	"DOCKER_TLS",
+	"DOCKER_TLS_VERIFY",
+	"DOCKER_CERT_PATH",
+	"DOCKER_SSH_COMMAND",
+	"DOCKER_SSH_CONFIG",
+}
+
+func environmentWithoutDockerTransport(environment []string) []string {
+	filtered := make([]string, 0, len(environment))
+	for _, entry := range environment {
+		key, _, _ := strings.Cut(entry, "=")
+		if slices.Contains(dockerTransportEnvironment, strings.ToUpper(key)) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
+}
+
 // ContainerInfo represents container information
 type ContainerInfo struct {
-	ID      string            `json:"Id"`
-	Name    string            `json:"Name"`
-	Image   string            `json:"Image"`
-	State   ContainerState    `json:"State"`
-	Ports   []ContainerPort   `json:"Ports"`
-	Labels  map[string]string `json:"Labels"`
-	Created string            `json:"Created"`
+	ID              string                   `json:"Id"`
+	Name            string                   `json:"Name"`
+	Image           string                   `json:"Image"`
+	State           ContainerState           `json:"State"`
+	Ports           []ContainerPort          `json:"Ports"`
+	Labels          map[string]string        `json:"Labels"`
+	Created         string                   `json:"Created"`
+	Config          ContainerConfig          `json:"Config"`
+	HostConfig      ContainerHostConfig      `json:"HostConfig"`
+	Mounts          []ContainerMount         `json:"Mounts"`
+	NetworkSettings ContainerNetworkSettings `json:"NetworkSettings"`
+}
+
+// ContainerConfig is the security-relevant runtime projection returned by
+// docker inspect. Environment values are retained so the native-v2 adapter can
+// require the exact credential-free environment inherited from its pinned image.
+type ContainerConfig struct {
+	Hostname     string                `json:"Hostname"`
+	Image        string                `json:"Image"`
+	User         string                `json:"User"`
+	WorkingDir   string                `json:"WorkingDir"`
+	Env          []string              `json:"Env"`
+	ExposedPorts map[string]any        `json:"ExposedPorts"`
+	Entrypoint   []string              `json:"Entrypoint"`
+	Cmd          []string              `json:"Cmd"`
+	Labels       map[string]string     `json:"Labels"`
+	Healthcheck  *ContainerHealthcheck `json:"Healthcheck"`
+}
+
+type ContainerHealthcheck struct {
+	Test        []string `json:"Test"`
+	Interval    int64    `json:"Interval"`
+	Timeout     int64    `json:"Timeout"`
+	Retries     int      `json:"Retries"`
+	StartPeriod int64    `json:"StartPeriod"`
+}
+
+type ContainerHostConfig struct {
+	Binds                   []string                          `json:"Binds"`
+	ContainerIDFile         string                            `json:"ContainerIDFile"`
+	LogConfig               ContainerLogConfig                `json:"LogConfig"`
+	NetworkMode             string                            `json:"NetworkMode"`
+	PortBindings            map[string][]ContainerPortBinding `json:"PortBindings"`
+	RestartPolicy           ContainerRestartPolicy            `json:"RestartPolicy"`
+	AutoRemove              bool                              `json:"AutoRemove"`
+	VolumeDriver            string                            `json:"VolumeDriver"`
+	VolumesFrom             []string                          `json:"VolumesFrom"`
+	ConsoleSize             [2]uint                           `json:"ConsoleSize"`
+	CapAdd                  []string                          `json:"CapAdd"`
+	CapDrop                 []string                          `json:"CapDrop"`
+	CgroupnsMode            string                            `json:"CgroupnsMode"`
+	DNS                     []string                          `json:"Dns"`
+	DNSOptions              []string                          `json:"DnsOptions"`
+	DNSSearch               []string                          `json:"DnsSearch"`
+	ExtraHosts              []string                          `json:"ExtraHosts"`
+	GroupAdd                []string                          `json:"GroupAdd"`
+	IpcMode                 string                            `json:"IpcMode"`
+	Cgroup                  string                            `json:"Cgroup"`
+	Links                   []string                          `json:"Links"`
+	OomScoreAdj             int                               `json:"OomScoreAdj"`
+	PidMode                 string                            `json:"PidMode"`
+	Privileged              bool                              `json:"Privileged"`
+	PublishAllPorts         bool                              `json:"PublishAllPorts"`
+	ReadonlyRootfs          bool                              `json:"ReadonlyRootfs"`
+	SecurityOpt             []string                          `json:"SecurityOpt"`
+	UTSMode                 string                            `json:"UTSMode"`
+	UsernsMode              string                            `json:"UsernsMode"`
+	ShmSize                 int64                             `json:"ShmSize"`
+	Runtime                 string                            `json:"Runtime"`
+	Isolation               string                            `json:"Isolation"`
+	CPUShares               int64                             `json:"CpuShares"`
+	Memory                  int64                             `json:"Memory"`
+	NanoCPUs                int64                             `json:"NanoCpus"`
+	CgroupParent            string                            `json:"CgroupParent"`
+	BlkioWeight             uint16                            `json:"BlkioWeight"`
+	BlkioWeightDevice       []ContainerWeightDevice           `json:"BlkioWeightDevice"`
+	BlkioDeviceReadBps      []ContainerThrottleDevice         `json:"BlkioDeviceReadBps"`
+	BlkioDeviceWriteBps     []ContainerThrottleDevice         `json:"BlkioDeviceWriteBps"`
+	BlkioDeviceReadIOps     []ContainerThrottleDevice         `json:"BlkioDeviceReadIOps"`
+	BlkioDeviceWriteIOps    []ContainerThrottleDevice         `json:"BlkioDeviceWriteIOps"`
+	CPUPeriod               int64                             `json:"CpuPeriod"`
+	CPUQuota                int64                             `json:"CpuQuota"`
+	CPURealtimePeriod       int64                             `json:"CpuRealtimePeriod"`
+	CPURealtimeRuntime      int64                             `json:"CpuRealtimeRuntime"`
+	CpusetCPUs              string                            `json:"CpusetCpus"`
+	CpusetMems              string                            `json:"CpusetMems"`
+	Devices                 []ContainerDeviceMapping          `json:"Devices"`
+	DeviceCgroupRules       []string                          `json:"DeviceCgroupRules"`
+	DeviceRequests          []ContainerDeviceRequest          `json:"DeviceRequests"`
+	MemoryReservation       int64                             `json:"MemoryReservation"`
+	MemorySwap              int64                             `json:"MemorySwap"`
+	MemorySwappiness        *int64                            `json:"MemorySwappiness"`
+	OomKillDisable          *bool                             `json:"OomKillDisable"`
+	PidsLimit               *int64                            `json:"PidsLimit"`
+	Ulimits                 []ContainerUlimit                 `json:"Ulimits"`
+	CPUCount                int64                             `json:"CpuCount"`
+	CPUPercent              int64                             `json:"CpuPercent"`
+	IOMaximumIOps           uint64                            `json:"IOMaximumIOps"`
+	IOMaximumBandwidth      uint64                            `json:"IOMaximumBandwidth"`
+	MaskedPaths             []string                          `json:"MaskedPaths"`
+	ReadonlyPaths           []string                          `json:"ReadonlyPaths"`
+	Sysctls                 map[string]string                 `json:"Sysctls"`
+	Init                    *bool                             `json:"Init"`
+	UnknownInspectionFields []string                          `json:"-"`
+}
+
+// UnmarshalJSON retains fields unknown to this typed projection. Native
+// lifecycle validators can then reject a daemon inspection surface they do
+// not understand instead of silently ignoring a future privilege control.
+func (config *ContainerHostConfig) UnmarshalJSON(data []byte) error {
+	type hostConfigAlias ContainerHostConfig
+	var decoded hostConfigAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	known := make(map[string]struct{})
+	projection := reflect.TypeOf(decoded)
+	for index := 0; index < projection.NumField(); index++ {
+		name := strings.Split(projection.Field(index).Tag.Get("json"), ",")[0]
+		if name != "" && name != "-" {
+			known[name] = struct{}{}
+		}
+	}
+	var unknown []string
+	for name := range raw {
+		if _, ok := known[name]; !ok {
+			unknown = append(unknown, name)
+		}
+	}
+	slices.Sort(unknown)
+	*config = ContainerHostConfig(decoded)
+	config.UnknownInspectionFields = unknown
+	return nil
+}
+
+type ContainerLogConfig struct {
+	Type   string            `json:"Type"`
+	Config map[string]string `json:"Config"`
+}
+
+type ContainerWeightDevice struct {
+	Path   string `json:"Path"`
+	Weight uint16 `json:"Weight"`
+}
+
+type ContainerThrottleDevice struct {
+	Path string `json:"Path"`
+	Rate uint64 `json:"Rate"`
+}
+
+type ContainerDeviceMapping struct {
+	PathOnHost        string `json:"PathOnHost"`
+	PathInContainer   string `json:"PathInContainer"`
+	CgroupPermissions string `json:"CgroupPermissions"`
+}
+
+type ContainerDeviceRequest struct {
+	Driver       string            `json:"Driver"`
+	Count        int               `json:"Count"`
+	DeviceIDs    []string          `json:"DeviceIDs"`
+	Capabilities [][]string        `json:"Capabilities"`
+	Options      map[string]string `json:"Options"`
+}
+
+type ContainerUlimit struct {
+	Name string `json:"Name"`
+	Hard int64  `json:"Hard"`
+	Soft int64  `json:"Soft"`
+}
+
+type ContainerPortBinding struct {
+	HostIP   string `json:"HostIp"`
+	HostPort string `json:"HostPort"`
+}
+
+type ContainerRestartPolicy struct {
+	Name              string `json:"Name"`
+	MaximumRetryCount int    `json:"MaximumRetryCount"`
+}
+
+type ContainerMount struct {
+	Type        string `json:"Type"`
+	Name        string `json:"Name"`
+	Source      string `json:"Source"`
+	Destination string `json:"Destination"`
+	RW          bool   `json:"RW"`
+	Propagation string `json:"Propagation"`
+}
+
+type ContainerNetworkSettings struct {
+	Networks map[string]ContainerNetwork `json:"Networks"`
+}
+
+type ContainerNetwork struct{}
+
+// NetworkInfo is the exact isolation projection returned by docker network
+// inspect for a rendered local-only network.
+type NetworkInfo struct {
+	Name       string                      `json:"Name"`
+	Internal   bool                        `json:"Internal"`
+	Containers map[string]NetworkContainer `json:"Containers"`
+}
+
+type NetworkContainer struct {
+	Name string `json:"Name"`
 }
 
 // ContainerState represents container state
@@ -295,6 +546,60 @@ func (c *Client) GetContainersByLabel(ctx context.Context, label string) ([]Cont
 	return parseDockerPSOutput(output), nil
 }
 
+// ResolveComposeServiceContainer resolves one running, healthy container by
+// the two exact labels Compose owns. Native-v2 lifecycle code uses this instead
+// of assuming that a service name is also the runtime container name.
+func (c *Client) ResolveComposeServiceContainer(ctx context.Context, project, service string) (*ContainerInfo, error) {
+	if err := validateName(project); err != nil {
+		return nil, fmt.Errorf("invalid compose project: %w", err)
+	}
+	if err := validateName(service); err != nil {
+		return nil, fmt.Errorf("invalid compose service: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	cmd := c.command(ctx,
+		"ps",
+		"--filter", "label=com.docker.compose.project="+project,
+		"--filter", "label=com.docker.compose.service="+service,
+		"--filter", "status=running",
+		"--format", "{{.ID}}\t{{.Names}}",
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("resolve compose service container: %w", err)
+	}
+
+	var candidates []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		fields := strings.SplitN(strings.TrimSpace(line), "\t", 2)
+		if len(fields) == 2 && fields[0] != "" && fields[1] != "" {
+			candidates = append(candidates, fields[0])
+		}
+	}
+	if len(candidates) != 1 {
+		return nil, fmt.Errorf(
+			"compose service %s/%s resolved %d running containers; exactly one is required",
+			project,
+			service,
+			len(candidates),
+		)
+	}
+
+	container, err := c.InspectContainer(ctx, candidates[0])
+	if err != nil {
+		return nil, fmt.Errorf("inspect compose service %s/%s: %w", project, service, err)
+	}
+	if !container.State.Running ||
+		container.State.Health == nil ||
+		container.State.Health.Status != "healthy" {
+		return nil, fmt.Errorf("compose service %s/%s is not healthy", project, service)
+	}
+	return container, nil
+}
+
 func parseDockerPSOutput(output []byte) []ContainerInfo {
 	var containers []ContainerInfo
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -333,6 +638,30 @@ func (c *Client) NetworkExists(ctx context.Context, name string) bool {
 	return cmd.Run() == nil
 }
 
+// InspectNetwork returns the typed isolation and peer projection for one
+// Docker network.
+func (c *Client) InspectNetwork(ctx context.Context, name string) (*NetworkInfo, error) {
+	if err := validateName(name); err != nil {
+		return nil, fmt.Errorf("invalid network name: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	cmd := c.command(ctx, "network", "inspect", name)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect network: %w", err)
+	}
+	var networks []NetworkInfo
+	if err := json.Unmarshal(output, &networks); err != nil {
+		return nil, fmt.Errorf("failed to parse network info: %w", err)
+	}
+	if len(networks) != 1 {
+		return nil, fmt.Errorf("network inspect returned %d records for %s", len(networks), name)
+	}
+	return &networks[0], nil
+}
+
 // VolumeExists checks if a volume exists
 func (c *Client) VolumeExists(ctx context.Context, name string) bool {
 	// Validate volume name
@@ -369,6 +698,91 @@ func (c *Client) Exec(ctx context.Context, container string, command []string) (
 	}
 
 	return stdout.String(), nil
+}
+
+// ExecWithStdin runs a command in a container with docker exec's interactive
+// stdin enabled. The input is treated as sensitive material: it is never
+// copied into argv, inherited environment entries containing it are removed,
+// and any command output echoing it is redacted before returning.
+func (c *Client) ExecWithStdin(ctx context.Context, container string, command []string, sensitiveInput []byte) (string, error) {
+	if err := validateNameOrID(container); err != nil {
+		return "", fmt.Errorf("invalid container name/ID: %w", err)
+	}
+
+	secrets := sensitiveValues(sensitiveInput)
+	for _, secret := range secrets {
+		for _, arg := range command {
+			if bytes.Contains([]byte(arg), secret) {
+				return "", fmt.Errorf("sensitive stdin must not be present in docker exec argv")
+			}
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	args := append([]string{"exec", "-i", container}, command...)
+	cmd := c.command(ctx, args...)
+	cmd.Env = environmentWithoutSecrets(cmd.Environ(), secrets)
+
+	inputCopy := append([]byte(nil), sensitiveInput...)
+	defer clear(inputCopy)
+	cmd.Stdin = bytes.NewReader(inputCopy)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		message := redactSensitive(stderr.String(), secrets)
+		return redactSensitive(stdout.String(), secrets), fmt.Errorf("exec failed: %w: %s", err, message)
+	}
+
+	return redactSensitive(stdout.String(), secrets), nil
+}
+
+func sensitiveValues(sensitiveInput []byte) [][]byte {
+	whole := bytes.TrimRight(sensitiveInput, "\r\n")
+	if len(whole) == 0 {
+		return nil
+	}
+	values := [][]byte{whole}
+	for _, line := range bytes.FieldsFunc(whole, func(char rune) bool {
+		return char == '\r' || char == '\n'
+	}) {
+		if len(line) > 0 {
+			values = append(values, line)
+		}
+	}
+	return values
+}
+
+func environmentWithoutSecrets(environment []string, secrets [][]byte) []string {
+	if len(secrets) == 0 {
+		return environment
+	}
+	filtered := make([]string, 0, len(environment))
+	for _, entry := range environment {
+		containsSecret := false
+		for _, secret := range secrets {
+			if bytes.Contains([]byte(entry), secret) {
+				containsSecret = true
+				break
+			}
+		}
+		if !containsSecret {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
+}
+
+func redactSensitive(value string, secrets [][]byte) string {
+	redacted := []byte(value)
+	for _, secret := range secrets {
+		redacted = bytes.ReplaceAll(redacted, secret, []byte("[REDACTED]"))
+	}
+	return string(redacted)
 }
 
 // Logs returns container logs

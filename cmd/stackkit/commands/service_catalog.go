@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -91,4 +92,18 @@ func loadCUEServiceCatalog(wd string, spec *models.StackSpec) []servicecatalog.S
 		return servicecatalog.Default()
 	}
 	return servicecatalog.FromCUE(domains)
+}
+
+func resolveModulesDir(stackkitDir, workDir string) string {
+	candidates := []string{
+		filepath.Join(stackkitDir, "modules"),
+		filepath.Join(workDir, "modules"),
+		filepath.Join(filepath.Dir(stackkitDir), "modules"),
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return candidates[0]
 }

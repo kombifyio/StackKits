@@ -1,6 +1,6 @@
 # StackKit CLI Reference
 
-> Last verified: 2026-07-11
+> Last verified: 2026-07-27
 
 This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
 
@@ -14,16 +14,17 @@ stackkit version
 The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`,
 packaged OpenTofu, packaged Terramate, and the public kit catalog under
 `~/.stackkits`, so `stackkit init basement-kit` works from a clean directory
-without a repo checkout. Basement Kit is the verified beta one-click path and
-the only public OSS kit surface for this release line. The installer also adds a
+without a repo checkout. Basement Kit is the verified v0.8 standalone path;
+Cloud Kit exposes the same account-free intent bootstrap with an explicit
+domain, while Modern Homelab remains a v0.9 preview. The installer also adds a
 short `sk -> stackkit` symlink when the `sk` name is free — it never overwrites
 an existing `sk` (e.g. `skim`). Opt out with `STACKKIT_SKIP_SK_SYMLINK=1`.
 Unpinned installer runs use the current stable GitHub `releases/latest`. To
-test a prerelease such as `v0.4.5-beta.1`, export the pin before invoking the
+test a v0.8 prerelease, export the exact candidate tag before invoking the
 installer:
 
 ```bash
-export STACKKIT_RELEASE_VERSION=v0.4.5-beta.1
+export STACKKIT_RELEASE_VERSION=v0.8.0-beta.1
 curl -sSL https://base.stackkit.cc | sh
 ```
 
@@ -31,7 +32,7 @@ For a single copy/paste command, pass the pin to the shell that executes the
 installer:
 
 ```bash
-env STACKKIT_RELEASE_VERSION=v0.4.5-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
+env STACKKIT_RELEASE_VERSION=v0.8.0-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
 ```
 
 For local-server beta tests, run the command in the shell of the target server
@@ -70,19 +71,22 @@ go build -o build/stackkit-mcp ./cmd/stackkit-mcp
 ## Primary Workflow
 
 ```bash
-stackkit init basement-kit
-stackkit prepare
+stackkit init --owner-source=local
+stackkit validate
 stackkit generate
-stackkit plan
-stackkit apply --verify
-stackkit verify --http --json
+stackkit apply
+stackkit verify --json
 ```
+
+`init` defaults to `basement-kit`. `prepare` remains an optional host-conformance
+step. `plan` is used only when the selected Product Apply executor is OpenTofu;
+the v0.8 Basement default executes Compose directly.
 
 ## Top-Level Commands
 
 | Command | Purpose |
 | --- | --- |
-| `init [stackkit]` | Create a CUE-owned StackSpec. Explicit v0.6 compatibility builds also create the legacy output directory. |
+| `init [stackkit]` | Create a CUE-owned StackSpec. Published v0.6 binaries also created a legacy output directory; current v0.8 uses native v2 plus local Owner custody. |
 | `prepare` / `prep` | Prepare local or SSH target: prerequisites, Docker checks, packaged OpenTofu check, spec validation, hardware checks. |
 | `generate` / `gen` | Generate rollout artifacts from the spec and CUE contracts. |
 | `plan` | Run an OpenTofu plan for the generated deployment. |
@@ -99,15 +103,16 @@ stackkit verify --http --json
 | `backup` | Configure, inspect, run, verify, restore, and migrate Kopia backups. |
 | `cluster` | Manage multi-node cluster membership. |
 | `compat` | Show published OS support evidence and run non-destructive host prerequisite diagnostics. |
-| `doctor` | Run local diagnostics for common StackKit issues. |
 | `agent` | Emit agent-native install plans, prompts, self-checks, and MCP config. |
-| `kit` | Import, export, list, verify, upgrade, rollback, history, roundtrip, and unlock kit definitions. |
+| `kit` | Public release list, verify, and deprecated upgrade alias; import/export and registry maintenance exist only in `stackkit-publisher`. |
 | `logs` | List and read structured deploy logs. |
-| `module` | Release module versions and verify DB parity. |
-| `registry` | Manage the embedded registry snapshot. |
-| `wizard` | Report wizard answers and free-form intents to the Admin API. |
+| `registry` | Inspect the embedded CUE-derived registry snapshot. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
+
+Publisher-only `module`, `wizard`, registry-maintenance, DB, and Admin
+operations are not part of this public command tree. They compile only into the
+private `stackkit-publisher` executable.
 
 ## Command Details
 
@@ -117,29 +122,52 @@ Development and v0.7+ builds create a canonical Architecture v2
 `stack-spec.yaml` directly from the selected product's embedded CUE
 `Definition.authoring.initialSpec`. They do not discover local kit paths or
 create an empty deployment directory, and they make no generation/apply
-readiness claim. Topology belongs to the KitDefinition, observed host facts to
-Inventory, and identity to a separate handoff.
+readiness claim. Topology belongs to the KitDefinition and observed host facts
+to Inventory. The local PocketID Owner projection and `ownerRef`/step-ca
+lifecycle authority are initialized as local custody outside StackSpec; an
+optional Techstack or kombify Cloud projection may propose user-approved
+identity data but cannot replace that authority.
+
+For a published build, `init` first resolves its exact embedded SemVer through
+the public Release Index, verifies the index, trusted root, archive, SBOM and
+attestations, and proves that the archive's canonical `stackkit` executable is
+byte-identical to the running binary. Only then may it persist StackSpec or
+Owner custody. The verified trust set and receipt are installed atomically
+under `.stackkit/releases/`; a damaged exact cache or substituted binary fails
+without a network fallback. The literal `dev` build and GoReleaser
+`-devel` snapshots run only as development artifacts and do not claim
+published-release authority.
+
+The published-init executable proof currently has a kernel-bound source on
+Linux (`/proc/self/exe`) and Windows (the loader-locked running image). A
+released Darwin build fails closed during `init` until an equivalently safe
+current-process-image source is implemented. This is the support boundary of
+the released-init bootstrap proof, not a general claim about every v0.8 command
+or artifact on those operating systems.
 
 Native Architecture v2 flags:
 
 - `--name`
 - `--domain` (required by Cloud Kit and Modern Home Lab)
-- `--force`, `-f`
+- `--expected-spec-hash` (required for an intentional replacement)
 - `--non-interactive`
+- `--owner-source=local`
+- `--owner-email`
+- `--owner-username`
+- `--owner-display-name`
 
-The following flags and local-path input are available only in an explicitly
-versioned v0.6 compatibility binary:
+The following init flags belong to the exact-v0.6 compatibility surface. They
+are not part of the native v0.8 workflow and do not restore the removed v1
+generator:
 
+- `--force`, `-f`
 - `--mode`
 - `--compute-tier`
 - `--local-dns`
 - `--local-name`
 - `--admin-email`
 - `--owner-bootstrap-mode`
-- `--owner-source`
-- `--owner-email`
-- `--owner-username`
-- `--owner-display-name`
+- `--owner-source=cloud`
 - `--recovery-passphrase-hash`
 - `--recovery-material-ref`
 - `--output`, `-o`
@@ -154,74 +182,29 @@ v0.6 compatibility Owner bootstrap modes:
 
 ### `stackkit prepare`
 
-Checks and installs prerequisites when allowed, validates the spec, and reports resource readiness.
-
-Common flags:
-
-- `--host`
-- `--user`
-- `--key`
-- `--port`
-- `--dry-run`
-- `--skip-docker`
-- `--skip-tofu`
-- `--auto-fix`
-- `--force`
-- `--non-interactive`
-
-`prepare` is the non-interactive TechStack prep contract when called as:
-
-```bash
-stackkit --progress-jsonl - prepare --non-interactive --host <ip> --user <ssh-user> --key <private-key> --port 22 --spec stack-spec.yaml
-```
-
-It validates the spec, connects to the remote target when `--host` is not
-`localhost`, waits for apt/dpkg locks as a bounded `apt_wait` phase, installs
-Docker on supported OS families, installs StackKit-packaged OpenTofu, installs
-StackKit-packaged Terramate for `mode: advanced`, emits a telemetry handoff
-status, and reports resource checks. Re-running on an already prepared host is
-idempotent: existing Docker/OpenTofu/Terramate installations are detected and
-reported as checked or already installed instead of creating a new VM or stack.
-
-The same redacted event shape is written to `.stackkit/runs/<runId>/events.jsonl`
-and streamed through `--progress-jsonl`. The schema is
-[`schemas/stackkit-rollout-event.schema.json`](../schemas/stackkit-rollout-event.schema.json).
-Prepare emits these stable phases for orchestrators:
-
-| Phase | Meaning |
-| --- | --- |
-| `prepare` | Command lifecycle. |
-| `spec.load` | StackSpec load and validation boundary. |
-| `target.connect` / `target.inspect` | SSH connection and remote system inventory. |
-| `host_conformance` / `network_env` | Local runtime-prerequisite and network context detection. `vps_compat` is emitted in parallel as a deprecated one-minor wire alias for existing orchestrators; it carries no server-provider compatibility claim. |
-| `resources.disk` / `resources.check` | Disk preflight plus CPU/RAM/disk resource evidence. |
-| `apt_wait` | Bounded package-manager wait before Docker installation. |
-| `docker.check` / `docker.install` / `docker.runtime` / `docker.dns` / `docker.prepull` | Docker readiness and optional image pre-pull. |
-| `opentofu.check` | StackKit-packaged OpenTofu readiness or remote install. |
-| `terramate.check` | StackKit-packaged Terramate readiness or remote install for Advanced mode. |
-| `telemetry.handshake` | Whether OTLP/Sentry handoff configuration was supplied; OSS default is `skipped`. |
-| `ports.check` | Remote HTTP/HTTPS port availability check. |
-
-`apt_wait` failures use granular classes when possible:
-`cloud_init_timeout`, `apt_lock_timeout`, `apt_process_timeout`,
-`unattended_upgrade_timeout`, or the compatibility fallback
-`apt_wait_timeout`.
+Provider creation, credentials, SSH transport, and host package lifecycle are
+outside the standalone StackKits boundary. Current native-v2 `prepare` therefore
+fails closed instead of inferring or mutating a host. Techstack or another
+external host owner may perform those operations and hand StackKits observed
+Inventory plus an execution-channel binding. The former remote preparation
+flags and phase events describe immutable v0.6 artifacts only.
 
 ### `stackkit generate`
 
-StackSpec v1 generates the compatibility OpenTofu/tfvars output. Architecture
-v2 resolves the current Spec and optional Inventory, atomically writes the
+Current-source `generate` accepts canonical StackSpec v2 only. It resolves the
+current Spec and optional Inventory, atomically writes the
 exact canonical plan to `<outputRoot>/.stackkit/resolved-plan.json`, authorizes
 only that generation-ready plan, and atomically installs its complete
 heterogeneous artifact set plus manifest and receipt beneath the plan-owned
 `outputRoot`. A separate `stackkit resolve --output ...` step is not required
 for the normal workflow. `resolve` remains a read-only inspection command
 unless an explicit output is requested. Generation never falls through to the
-v1 generator.
+retired v1 generator.
 
-The following shape flags belong to the v1 compatibility generator:
+`--output`/`-o` remains a valid native override only when it resolves to the
+exact plan-owned `outputRoot`. The following deprecated flags remain parseable
+only to return a structured denial; they never select a compatibility generator:
 
-- `--output`, `-o`
 - `--force`, `-f`
 - `--fragments`
 
@@ -235,8 +218,8 @@ Generated files are disposable outputs and must not be hand-edited.
 
 ### `stackkit plan`
 
-On exact v0.6, this runs the StackKit-packaged OpenTofu plan against the
-generated deployment directory.
+Exact-v0.6 compatibility builds can still inspect historical generated
+deployments with packaged OpenTofu. The native v0.8 build never selects that path.
 
 On native v0.7, `stackkit plan` is a deterministic read-only inspection of the
 current canonical ResolvedPlan and its verified generation manifest, receipt,
@@ -252,7 +235,8 @@ MCP write gate is disabled; a missing workspace is rejected rather than created.
 
 ### `stackkit apply [plan-file]`
 
-Applies generated infrastructure. If the deploy directory is missing or empty, generation runs first.
+Applies only the exact locally generated, verified ResolvedPlan artifact closure.
+It does not infer a host, fetch tenant state, or fall back to legacy generation.
 
 Common flags:
 
@@ -309,34 +293,72 @@ Reads local deployment state and reports service health from generated outputs a
 
 ### `stackkit backup`
 
-Operates an already materialized local `kopia-agent` deployment. The public CLI
-does not install or generate that container, and the presence of these commands
-is not fresh-host deployment proof. Filesystem repository operations are
-local-first; object-store targets remain part of deployment configuration.
-The portable emergency export is modeled in `backup.resilience.emergencyExport`
-and has a Kopia-independent manifest/runbook runner.
+The native v0.8 path operates the pinned `kopia-agent` rendered and applied by
+the Basement core. Before every repository, snapshot, or staged-restore side
+effect, `configure`, `status`, `run`, and `restore` revalidate the current
+StackSpec and ResolvedPlan, generated manifest and receipt, exact CUE
+backup-policy artifact, local Owner custody, current Apply result, and its
+owner-signed receipt. The same authority is checked again while holding the
+governed output lock.
 
-The Kopia-agent and Restic operations below are exact-v0.6 compatibility
-commands. Development and v0.7+ builds reject configure, status, run, list,
-restore, verify, migrate, and managed enroll before target creation, Docker,
-Kopia, or network work because no CUE-governed native-v2 backup execution
-contract exists yet. The read-only `backup init` checklist and
-Kopia-independent `backup emergency-export` remain available without claiming
-v2 backup readiness.
+Repository, source, exclusions, service identity, and passphrase custody are
+not CLI inputs. The passphrase remains in owner-only local custody and is sent
+to Kopia only over a redacted stdin boundary. Successful JSON uses
+`stackkit.command-result/v1`.
+
+`restore` accepts only the content-addressed ID of an owner-signed native-v2
+snapshot anchor. It requires explicit local Owner approval, writes an
+owner-signed recovery anchor before invoking Kopia, verifies every snapshot
+file before and after extraction, and restores into a deterministic directory
+inside the CUE-owned `kopia-restore-staging` volume. The caller cannot choose a
+raw Kopia snapshot ID or target path. The final owner-signed result also proves
+that the unchanged live Stack authority, PocketID Owner binding, services, and
+probes still verify. Staging is excluded from future snapshots, and successful
+extraction is journaled before post-verification so a retry does not restore
+the same bytes again.
+
+This is a **verified isolated staging restore**, not an in-place restore,
+service cutover, or proof that services boot from the restored bytes.
+Transactional activation and rollback belong to the upgrade/rollback slice.
+`list`, `verify`, and `migrate-from-restic` still use the exact-v0.6
+compatibility implementation and are rejected by native-v2 builds until their
+corresponding lifecycle slices land. The Kopia-independent `emergency-export`
+command remains available without claiming archive bytes or a completed data
+restore.
+
+The internal owner-signed `stackkit.executor-state-snapshot/v1` store is now
+available for the command-level upgrade implementation. It already provides an
+immutable verified installed-release proof, exact archive-to-executable byte
+matching, current PocketID Owner-binding verification, persisted Kopia-anchor
+verification, private atomic CAS objects, and a final operation commit marker.
+Its capture entry point is intentionally sealed and cannot yet be called by the
+CLI: the next upgrade slice must first add the verifier that binds every
+StackSpec/plan/artifact/runtime byte to the current Plan/Generation/Apply
+manifest and receipts. Therefore this release does not yet claim a working
+transactional upgrade or rollback command. Because Compose is the real Basement
+executor, no fictional `terraform.tfstate` is created. An actual OpenTofu target
+remains `unsupported_state_snapshot` until a Product Apply executor owns state
+pull/restore.
 
 Common commands:
 
 - `stackkit backup init` prints the first-run checklist.
-- `stackkit backup configure --repo local:/backup/kopia` creates or reconnects the local Kopia filesystem repository inside `kopia-agent`.
-- `stackkit backup status` checks whether the local Kopia repository is configured.
-- `stackkit backup run` creates an ad-hoc snapshot of configured Docker volumes.
+- `stackkit backup configure [--json]` creates or reconnects the exact CUE-governed local filesystem repository.
+- `stackkit backup status [--json]` checks the exact local repository.
+- `stackkit backup run [--operation-id ID] [--json]` creates a crash-consistent snapshot of the governed read-only Docker-volume source. Reusing an operation ID returns its existing exact snapshot instead of duplicating it.
 - `stackkit backup list [--json]` lists snapshots.
-- `stackkit backup restore <snapshot-id> --target /tmp/stackkit-restore` restores one snapshot.
+- `stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve [--operation-id ID] [--json]` verifies and extracts one signed snapshot into isolated CUE-owned staging. Reusing the operation ID returns the existing exact result.
 - `stackkit backup verify` runs `kopia repository validate-provider`.
 - `stackkit backup emergency-export --target /backup/emergency-export` writes a portable export manifest and restore runbook without requiring a healthy Kopia repository. Use `--large-media-mode manifest-only|include|exclude` to control media handling.
 - `stackkit backup migrate-from-restic [--dry-run]` runs the one-shot legacy importer.
 
 Fleet enrollment and controller operations are outside the public CLI contract.
+There are no native `--repo`, `--container`, source, exclusion, password,
+raw-snapshot, or restore-target overrides. Techstack may dispatch this exact
+published CLI and consume its versioned result; it does not replace local
+authority. kombify Cloud identity sync is an optional, user-approved
+convenience for the local PocketID/TinyAuth identity plane and is never required
+to authorize or execute a restore.
 
 ### `stackkit validate [file]`
 
@@ -368,11 +390,11 @@ cannot both be stdout aliases. An in-place replacement of the legacy spec is
 allowed only when `--force` is explicit and after the exact v1 source has been
 read and resolved.
 
-v0.6 remains the sole compatibility minor for first-party v1 execution. From
-v0.7/M+1, raw v1 never falls through to the legacy implementation of `generate`,
-`plan`, `apply`, `verify`, or the legacy remote verifier. Those commands return the shared typed
-`migration_required` or `migration_blocked` error and retain the complete
-migration report. Retry them with `--spec <stack-spec.v2.json>` after completion.
+Immutable v0.6 release artifacts remain available for rollback and migration
+inspection. Native v0.8 rejects raw v1 operational commands. The CLI generator
+has additionally been removed from current source across every build identity,
+so even an exact-v0.6 version string cannot restore v1 generation. Retry the
+native workflow with `--spec <stack-spec.v2.json>` after migration completion.
 
 ### `stackkit addon`
 
@@ -444,10 +466,6 @@ iptables, and cgroups. Host diagnostics do not certify or recommend a server
 provider. StackKits does not publish provider pricing or provider-specific
 server configuration.
 
-### `stackkit doctor`
-
-Runs local diagnostics for common StackKit issues. `--check-updates` adds Admin API-backed update discovery when endpoint and token configuration are present.
-
 ### `stackkit agent`
 
 Read-only helpers for Coding Agents and Assistants. These commands do not create rollout logs or mutate deployment state.
@@ -469,7 +487,10 @@ stackkit agent mcp-config --client codex --mode docs,local,server
 
 `stackkit-server` also mounts the native local MCP connector at `POST /mcp` and publishes local discovery at `GET /openmcp.json`. `stackkit-mcp` is the local stdio or loopback adapter for the same user-facing `stackkit` MCP connection and uses the same registration. Both runtime forms support `docs`, `local`, `server`, and optional `actions` modes. Write tools stay disabled unless `STACKKIT_MCP_ALLOW_WRITE=true` or `stackkit-server --mcp-allow-write` is set. MCP HTTP auth uses `STACKKIT_MCP_TOKEN` or `stackkit-server --mcp-token`. Non-loopback MCP access is a protected day-2 target posture, not the default first-install path.
 
-The write-capable MCP tools execute local CLI-equivalent StackKits operations. `stackkit_apply` and `stackkit_rollout` use `--skip-platform-apps` by default so the connector manages StackKits rollout and evidence, not customer app or managed-serverless orchestration.
+The write-capable MCP tools execute the native, identity-bound CLI operations
+individually. There is no combined MCP rollout macro or MCP update action.
+Techstack may sequence the same published commands through versioned JSON and
+JSONL contracts, but it does not gain a second lifecycle implementation.
 
 ### `stackkit kit`
 
@@ -486,7 +507,7 @@ operations are Publisher-only.
 `stackkit upgrade` is the canonical public command. Upgrading a single
 tool/module (not the whole Kit) stays outside the public v0.8 lifecycle.
 
-### `stackkit module` (Publisher-only)
+### `stackkit-publisher module` (Publisher-only)
 
 Subcommands:
 
@@ -500,7 +521,8 @@ merge-base guard that requires a strictly higher SemVer whenever a canonical
 module contract changes. `verify-version-bumps` accepts exactly one of
 `--baseline-ref` or `--baseline-tree`; new modules are allowed, but every
 declared module version must be valid SemVer.
-Admin API auth follows the kit commands: `SERVICE_AUTH_SECRET` mints the
+Publisher Admin API auth follows the publisher kit commands:
+`SERVICE_AUTH_SECRET` mints the
 preferred `X-Kombify-Service-Auth` token, with `STACKKIT_ADMIN_TOKEN` or
 `KOMBIFY_ADMIN_API_KEY` only as legacy Bearer fallbacks.
 
@@ -522,7 +544,7 @@ Subcommands:
 
 Structured deploy logs live under `.stackkit/logs` unless configured otherwise.
 
-### `stackkit wizard` (Publisher-only)
+### `stackkit-publisher wizard` (Publisher-only)
 
 Subcommands:
 

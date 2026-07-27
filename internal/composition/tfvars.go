@@ -143,9 +143,8 @@ func overlayIdentityConfig(tfvars map[string]any, ic *IdentityConfig) error {
 
 	if ic.PocketIDEnabled {
 		tfvars["pocketid_app_url"] = ic.PocketIDAppURL
-		// pocketid_encryption_key is provisioned by the CLI's file-based path
-		// (internal/identity.EnsureEncryptionKey) and written into the tfvars
-		// map directly by cmd/stackkit/commands/generate.go, so that destroy →
+		// pocketid_encryption_key was provisioned by the historical v0.6
+		// generator and written into the tfvars map directly, so that destroy →
 		// re-apply round-trips reuse the same key.
 		tfvars["enable_pocketid"] = true
 	} else {

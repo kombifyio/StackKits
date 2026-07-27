@@ -95,35 +95,6 @@ for input in "$archive" "$sbom" "$attestation" "$trusted_root"; do
   }
 done
 
-export HOME="$home_dir"
-export PATH="$extract_dir:$PATH"
-cd "$project_dir"
-timeout 600 stackkit init --owner-source=local --non-interactive >"$output_dir/init.log"
-before_validate="$(find . -type f -print0 | sort -z | xargs -0 sha256sum)"
-timeout 600 stackkit validate >"$output_dir/validate.log"
-after_validate="$(find . -type f -print0 | sort -z | xargs -0 sha256sum)"
-[ "$before_validate" = "$after_validate" ] || {
-  printf 'standalone validate mutated the workspace\n' >&2
-  exit 1
-}
-timeout 600 stackkit generate >"$output_dir/generate.log"
-
-compose="$project_dir/deploy/instances/stackkits-basement-core-runtime/compose-node-main/platform/basement-core/compose.yaml"
-[ -s "$compose" ] || {
-  printf 'standalone generate did not produce the Basement Compose artifact\n' >&2
-  exit 1
-}
-while IFS= read -r image; do
-  if ! docker image inspect "$image" >/dev/null; then
-    if [ "${STACKKIT_E2E_PRELOAD_IMAGES:-0}" != "1" ]; then
-      printf 'recorded runtime phase requires preloaded image %s\n' "$image" >&2
-      exit 1
-    fi
-    printf 'preloading runtime image before traffic capture: %s\n' "$image"
-    docker pull "$image"
-  fi
-done < <(STACKKIT_CUSTODY_DIR="$project_dir/.stackkit/custody" docker compose -f "$compose" config --images | sort -u)
-
 fixture_port="${STACKKIT_E2E_FIXTURE_PORT:-18080}"
 node "$script_dir/github-release-fixture.mjs" "$fixture_dir" "$fixture_port" >"$output_dir/fixture-url.txt" 2>"$output_dir/fixture.log" &
 fixture_pid=$!
@@ -141,27 +112,88 @@ fixture_url="$(head -n1 "$output_dir/fixture-url.txt")"
   exit 1
 }
 
-# Host-visible DNS stays bidirectional solely as a negative Kombify-domain gate.
-# TCP is narrowed to initial SYN packets; the parser admits only Compose-origin
-# `P` packets whose source is an exact inspected container address.
+export HOME="$home_dir"
+export PATH="$extract_dir:$PATH"
+export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
+
+# Capture begins before init because released init establishes release authority
+# through the fixture. Host DNS is retained as a negative Kombify-domain gate;
+# Compose-origin TCP is bound later to the inspected runtime scope.
 capture_filter='(udp port 53 or (tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn))'
 tcpdump -ddd "$capture_filter" >/dev/null
-tcpdump -tttt -i any -nn -l "$capture_filter" >"$raw_traffic" 2>"$output_dir/tcpdump.stderr.log" &
+tcpdump -tttt -i any -nn -l "$capture_filter" >"$raw_traffic" 2>"$output_dir/tcpdump-init.stderr.log" &
+capture_pid=$!
+for _ in $(seq 1 50); do
+  grep -q 'listening on' "$output_dir/tcpdump-init.stderr.log" && break
+  kill -0 "$capture_pid" 2>/dev/null || {
+    printf 'authoring traffic capture exited before readiness\n' >&2
+    exit 1
+  }
+  sleep 0.1
+done
+grep -q 'listening on' "$output_dir/tcpdump-init.stderr.log" || {
+  printf 'authoring traffic capture did not become ready\n' >&2
+  exit 1
+}
+
+cd "$project_dir"
+timeout 600 stackkit init --owner-source=local --non-interactive >"$output_dir/init.log"
+timeout 600 stackkit kit verify --json >"$output_dir/release-bootstrap.json"
+jq -e --arg version "$version" '
+  .schemaVersion == "stackkit.command-result/v1"
+  and .status == "success"
+  and (.data | length) == 1
+  and .data[0].version == $version
+' "$output_dir/release-bootstrap.json" >/dev/null || {
+  printf 'standalone init did not establish the exact release receipt\n' >&2
+  exit 1
+}
+before_validate="$(find . -type f -print0 | sort -z | xargs -0 sha256sum)"
+timeout 600 stackkit validate >"$output_dir/validate.log"
+after_validate="$(find . -type f -print0 | sort -z | xargs -0 sha256sum)"
+[ "$before_validate" = "$after_validate" ] || {
+  printf 'standalone validate mutated the workspace\n' >&2
+  exit 1
+}
+timeout 600 stackkit generate >"$output_dir/generate.log"
+
+# End the authoring segment before optional image downloads. The second
+# segment appends runtime traffic after all images are present locally.
+kill -INT "$capture_pid"
+wait "$capture_pid" || true
+capture_pid=
+
+compose="$project_dir/deploy/instances/stackkits-basement-core-runtime/compose-node-main/platform/basement-core/compose.yaml"
+[ -s "$compose" ] || {
+  printf 'standalone generate did not produce the Basement Compose artifact\n' >&2
+  exit 1
+}
+while IFS= read -r image; do
+  if ! docker image inspect "$image" >/dev/null; then
+    if [ "${STACKKIT_E2E_PRELOAD_IMAGES:-0}" != "1" ]; then
+      printf 'recorded runtime phase requires preloaded image %s\n' "$image" >&2
+      exit 1
+    fi
+    printf 'preloading runtime image before traffic capture: %s\n' "$image"
+    docker pull "$image"
+  fi
+done < <(STACKKIT_CUSTODY_DIR="$project_dir/.stackkit/custody" docker compose -f "$compose" config --images | sort -u)
+
+tcpdump -ddd "$capture_filter" >/dev/null
+tcpdump -tttt -i any -nn -l "$capture_filter" >>"$raw_traffic" 2>"$output_dir/tcpdump.stderr.log" &
 capture_pid=$!
 for _ in $(seq 1 50); do
   grep -q 'listening on' "$output_dir/tcpdump.stderr.log" && break
   kill -0 "$capture_pid" 2>/dev/null || {
-    printf 'traffic capture exited before readiness\n' >&2
+    printf 'runtime traffic capture exited before readiness\n' >&2
     exit 1
   }
   sleep 0.1
 done
 grep -q 'listening on' "$output_dir/tcpdump.stderr.log" || {
-  printf 'traffic capture did not become ready\n' >&2
+  printf 'runtime traffic capture did not become ready\n' >&2
   exit 1
 }
-export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
-timeout 600 stackkit upgrade --to "$version" --json >"$output_dir/release-install.json"
 
 runtime_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 runtime_started_epoch="$(date +%s)"
@@ -336,6 +368,9 @@ jq -n \
   --arg sbomSha256 "$(evidence_digest "$sbom")" \
   --arg attestationSha256 "$(evidence_digest "$attestation")" \
   --arg releaseIndexSha256 "$(evidence_digest "$release_index")" \
+  --arg releaseIndexAttestationSha256 "$(evidence_digest "$release_index_attestation")" \
+  --arg trustedRootSha256 "$(evidence_digest "$trusted_root")" \
+  --arg releaseBootstrapSha256 "$(evidence_digest "$output_dir/release-bootstrap.json")" \
   --arg sourceCommit "$source_commit" \
   --arg sourceDigest "$source_digest" \
   --arg startedAt "$runtime_started" \
@@ -347,11 +382,14 @@ jq -n \
   --arg applySha256 "$(evidence_digest "$output_dir/apply.log")" \
   --arg verifySha256 "$(evidence_digest "$output_dir/verify.json")" \
   '{
-    schemaVersion: "stackkit.oss-runtime-e2e-evidence/v2",
+    schemaVersion: "stackkit.oss-runtime-e2e-evidence/v3",
     source: {repository: "kombifyio/stackKits", commit: $sourceCommit, digest: $sourceDigest},
     archive: {
       name: $archiveName, sha256: $archiveSha256, sbomSha256: $sbomSha256,
-      attestationSha256: $attestationSha256, releaseIndexSha256: $releaseIndexSha256
+      attestationSha256: $attestationSha256, releaseIndexSha256: $releaseIndexSha256,
+      releaseIndexAttestationSha256: $releaseIndexAttestationSha256,
+      trustedRootSha256: $trustedRootSha256,
+      releaseBootstrapSha256: $releaseBootstrapSha256
     },
     network: {
       recorder: "stackkit.hermetic-network-log/v2",

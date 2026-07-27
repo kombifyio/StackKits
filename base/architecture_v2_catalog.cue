@@ -74,6 +74,7 @@ _architectureV2LocalCapabilities: [
 	"local-control-authority",
 	"offline-autonomy",
 	"local-backup-target",
+	"local-backup-runtime",
 	"lan-dns",
 	"private-remote-access",
 	"public-publish-egress",
@@ -97,6 +98,7 @@ _architectureV2HomeIdentityAuthorityCapabilities: [
 // selected by Basement Kit because that kit requires local-backup-target; a
 // Modern Homelab has a Home site but does not inherit this Basement default.
 _architectureV2HomeBackupTargetCapabilities: ["local-backup-target"]
+_architectureV2BasementCoreCapabilities: ["local-backup-runtime"]
 
 _architectureV2LocalTopologyCapabilities: ["site-local"]
 
@@ -764,10 +766,12 @@ _architectureV2Providers: list.Concat([[
 	},
 	{
 		metadata: {id: "stackkits-basement-core", version: "1.0.0"}
-		provides: []
+		provides: _architectureV2BasementCoreCapabilities
 		workloadRefs: ["basement-core"]
 		requires: [
+			{id: "backup-core"},
 			{id: "host-bootstrap"},
+			{id: "local-backup-target"},
 			{id: "local-ingress"},
 			{id: "service-catalog"},
 		]
@@ -775,8 +779,8 @@ _architectureV2Providers: list.Concat([[
 		realization: {
 			kind: "modules"
 			moduleRefs: {
-				required: []
-				optional: ["stackkits-basement-core-runtime"]
+				required: ["stackkits-basement-core-runtime"]
+				optional: []
 			}
 		}
 		health: [{id: "basement-core-provider-contract", kind: "contract"}]
@@ -2395,7 +2399,8 @@ _architectureV2Modules: list.Concat([[
 		}
 		role:        "workload"
 		providerRef: "stackkits-basement-core"
-		provides: []
+		provides:    _architectureV2BasementCoreCapabilities
+		requires: ["stackkits-home-backup-target"]
 		supportedSiteKinds: ["home"]
 		nodeSelection: {
 			authority:           "control-authority-site"
@@ -2514,6 +2519,21 @@ _architectureV2Modules: list.Concat([[
 					health: {kind: "http", path: "/ready", port: 6001}
 				},
 				{
+					id: "kopia-agent", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/kopia/kopia:0.18.2"
+						digest: "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"
+					}
+					dependsOn: [], networkRefs: ["basement-backup"]
+					volumes: [
+						{id: "kopia-repository", target: "/app/repository", class: "persistent", backup: false},
+						{id: "kopia-config", target: "/app/config", class: "persistent", backup: false},
+						{id: "kopia-cache", target: "/app/cache", class: "cache", backup: false},
+						{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
+					]
+					health: {kind: "command", command: ["kopia", "--version"]}
+				},
+				{
 					id: "hub", role: "application", lifecycle: "daemon"
 					image: {
 						ref:    "docker.io/library/nginx:alpine"
@@ -2528,7 +2548,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id: "compose", kind: "compose", rendererRef: "stackkit"
 				templateRef: "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:dcda349bd46c6e008c17ffa8f678726eac6116a768cbbe1be95b5b75699c34e3"
+				contractHash: "sha256:3d11d396b84bed990ac1048a49880f1e9ccd3ca1a21d5a83d1f142ed5e202db2"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -2543,7 +2563,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id: "opentofu", kind: "opentofu", rendererRef: "stackkit"
 				templateRef: "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:159c9242c58d84ef81f9d0d1b3acf91e6ae96e465f20ddb41c0fb36c9309e757"
+				contractHash: "sha256:f10fea0283ca2c1c01c65c5a67c338b433e747dcb98a0e3c41d5aace737f39f6"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -2555,19 +2575,41 @@ _architectureV2Modules: list.Concat([[
 					healthRef:      "basement-hub-http"
 				}]
 			},
+			{
+				id:           "source-policy"
+				kind:         "native-config"
+				rendererRef:  "stackkit"
+				applyMode:    "artifact-only"
+				templateRef:  "builtin://home/backup/kopia-source/v1.json"
+				version:      "1.0.0"
+				contractHash: "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3"
+				publicInputRefs: ["backup-source"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+				inputBindings: [{
+					targetRef:   "backup-source"
+					sourceRef:   "backup.localKopiaSource"
+					valueType:   "local-kopia-backup-source-v1"
+					cardinality: "single"
+					required:    true
+				}]
+				outputs: ["home/backup/kopia-source-policy.json"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+			},
 		]
 		renderVariants: [
 			{
 				id: "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53"
-				unitRefs: ["compose"], artifactRefs: ["basement-core-compose"]
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-compose", "local-kopia-backup-source-policy"]
+				publicInputRefs: ["backup-source"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 			},
 			{
 				id: "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c"
-				unitRefs: ["opentofu"], artifactRefs: ["basement-core-opentofu"]
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-opentofu", "local-kopia-backup-source-policy"]
+				publicInputRefs: ["backup-source"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 			},
 		]
 		realizationSupport: {
@@ -2575,10 +2617,13 @@ _architectureV2Modules: list.Concat([[
 			scope:           "concrete"
 			level:           "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
-			inputs: {contractComplete: true, requiredRefs: []}
-			planInputs: {contractComplete: true, requiredRefs: []}
+			inputs: {contractComplete: true, requiredRefs: ["backup-source"]}
+			planInputs: {
+				contractComplete: true
+				requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+			}
 			artifacts: {
-				requiredRefs: ["basement-core-compose", "basement-core-opentofu"]
+				requiredRefs: ["basement-core-compose", "basement-core-opentofu", "local-kopia-backup-source-policy"]
 				outputBindings: [
 					{
 						artifactRef: "basement-core-compose", unitRef: "compose"
@@ -2587,6 +2632,10 @@ _architectureV2Modules: list.Concat([[
 					{
 						artifactRef: "basement-core-opentofu", unitRef: "opentofu"
 						outputRef: "platform/basement-core/main.tf"
+					},
+					{
+						artifactRef: "local-kopia-backup-source-policy", unitRef: "source-policy"
+						outputRef: "home/backup/kopia-source-policy.json"
 					},
 				]
 				contracts: [
@@ -2600,6 +2649,11 @@ _architectureV2Modules: list.Concat([[
 						compatibleTargets: ["opentofu"], unitRef: "opentofu"
 						outputRef: "platform/basement-core/main.tf"
 					},
+					{
+						id: "local-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true
+						compatibleTargets: ["compose", "opentofu"], unitRef: "source-policy"
+						outputRef: "home/backup/kopia-source-policy.json"
+					},
 				]
 			}
 			evidence: requiredRefs: ["basement-core-runtime-evidence"]
@@ -2610,6 +2664,7 @@ _architectureV2Modules: list.Concat([[
 			{id: "tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
 			{id: "step-ca-tcp", kind: "tcp", port: 9000},
 			{id: "coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
+			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
 			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
 		]
 		evidence: ["basement-core-runtime-evidence"]

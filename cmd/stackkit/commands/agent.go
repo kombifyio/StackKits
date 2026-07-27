@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/spf13/cobra"
 )
 
@@ -65,7 +64,6 @@ Run:
 stackkit status --json
 stackkit verify --json
 stackkit logs list --json
-stackkit doctor --json
 
 Report current StackKit, mode, Hub URL, service URLs, failing checks, latest run ID, and evidence paths.`,
 	"diagnose-failed-rollout": `Diagnose a failed StackKits rollout with read-only evidence first.
@@ -73,7 +71,6 @@ Report current StackKit, mode, Hub URL, service URLs, failing checks, latest run
 Run:
 stackkit logs list --json
 stackkit logs latest --json
-stackkit doctor --json
 stackkit verify --json
 stackkit status --json
 
@@ -250,13 +247,8 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 	if workspace == "" {
 		workspace = "my-homelab"
 	}
-	if !stackspecadmission.RejectOperationalV1(version) {
-		return legacyAgentInstallPlan(kit, target, workspace)
-	}
-	initCommand := "stackkit init " + kit + " --non-interactive"
-	if kit == "basement-kit" {
-		initCommand += " --owner-source=local"
-	} else if kit == "cloud-kit" || kit == "modern-homelab" {
+	initCommand := "stackkit init " + kit + " --non-interactive --owner-source=local"
+	if kit == "cloud-kit" || kit == "modern-homelab" {
 		initCommand += " --domain <domain-base>"
 	}
 	return agentInstallPlan{
@@ -282,25 +274,6 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 			"functional result matching stackkit-agent-functional-result.schema.json",
 		},
 		ReadinessNote: "StackSpec validity is not generation or apply readiness; the ResolvedPlan written atomically by generate is authoritative.",
-	}
-}
-
-func legacyAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
-	return agentInstallPlan{
-		Scenario: "basekit-autonomous-rollout", Kit: kit, Target: target, Workspace: workspace,
-		Commands: []agentCommandStep{
-			{Command: "curl -sSL https://base.stackkit.cc | sh", Purpose: "install the exact v0.6 compatibility bundle", Mutation: true},
-			{Command: "mkdir -p " + workspace + " && cd " + workspace, Purpose: "create a clean workspace", Mutation: true},
-			{Command: "stackkit init " + kit + " --non-interactive --admin-email <operator-email>", Purpose: "write the exact v0.6 StackSpec", Mutation: true},
-			{Command: "stackkit prepare --dry-run", Purpose: "check host prerequisites", Mutation: false},
-			{Command: "stackkit validate", Purpose: "validate v0.6 intent", Mutation: false},
-			{Command: "stackkit generate --force", Purpose: "generate v0.6 artifacts", Mutation: true},
-			{Command: "stackkit plan", Purpose: "preview v0.6 changes", Mutation: false},
-			{Command: "stackkit apply", Purpose: "apply the approved v0.6 rollout", Mutation: true},
-			{Command: "stackkit verify --http --json", Purpose: "produce v0.6 evidence", Mutation: false},
-		},
-		Evidence:      []string{"stackkit verify --http --json output", ".stackkit/logs/<runID>.jsonl", ".stackkit/runs/<runID>/summary.json"},
-		ReadinessNote: "Exact v0.6 compatibility workflow; migrate to StackSpec v2 before native v0.7 operations.",
 	}
 }
 

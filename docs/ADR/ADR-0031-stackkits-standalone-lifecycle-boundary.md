@@ -67,9 +67,13 @@ the public command tree or dependency graph.
 
 ### 4. Lifecycle modes
 
-Standard Mode owns account-free OpenTofu-backed apply, verify, upgrade,
+Standard Mode owns account-free executor-native apply, verify, upgrade,
 snapshot, rollback, backup, restore, drift detection, and approved standard
-reconciliation.
+reconciliation. The v0.8 Basement default executes Compose directly; its
+recovery state therefore binds the exact Compose generation/runtime closure.
+An OpenTofu state snapshot is mandatory only when OpenTofu is the actual
+selected Product Apply executor. A target without a real state owner fails
+before lifecycle side effects instead of manufacturing an empty state file.
 
 Advanced Mode adds StackKits-owned Terramate rendering and coordinated change
 sets, rollback, restore drills, and runtime-intelligence integration. Advanced
@@ -115,8 +119,10 @@ denial, public export, and exact-source release evidence.
 
 ## Consequences
 
-- ADR-0018's Kopia snapshot, OpenTofu state anchor, confirmation, and rollback
-  safety decisions remain valid.
+- ADR-0018's snapshot, state-anchor, confirmation, and rollback safety
+  decisions remain valid, interpreted through the selected executor: Compose
+  gets an executor-native recovery closure; OpenTofu state is required only
+  when OpenTofu actually executes the Product Apply.
 - ADR-0018's Admin compatibility resolver, mandatory node deployment mirror,
   and DB channel authority are superseded for the public lifecycle.
 - Admin and fleet systems may consume local receipts asynchronously but cannot

@@ -48,8 +48,8 @@ require_archive_matrix() {
 }
 
 # GoReleaser builds every supported target before validation. Require every
-# configured full/per-kit archive, then execute the semantic smoke on the
-# native Linux/amd64 artifacts below.
+# configured full/per-kit archive and inspect the native Linux/amd64 archive
+# layouts without executing lifecycle commands before release trust exists.
 require_archive_matrix
 
 full_archive="$(find_archive 'stackkits_*_linux_amd64.tar.gz' 'full linux_amd64')"
@@ -107,81 +107,20 @@ check_archive_contents() {
   done
 }
 
-smoke_public_backup_cli() {
-  local label="$1"
-  local extract_dir="$2"
-  local help_log="$tmp/${label}-backup-help.log"
-  local enroll_log="$tmp/${label}-backup-enroll.log"
-  local export_dir="$tmp/${label}-emergency-export"
-
-  "$extract_dir/stackkit" backup --help >"$help_log"
-  local verb
-  for verb in init configure status run list restore verify emergency-export migrate-from-restic; do
-    grep -Eq "^[[:space:]]+${verb}[[:space:]]" "$help_log" ||
-      fail "$label archive CLI is missing public backup verb: $verb"
-  done
-  if grep -Eq '^[[:space:]]+enroll[[:space:]]' "$help_log"; then
-    fail "$label archive CLI leaked backup enroll"
-  fi
-  if "$extract_dir/stackkit" backup enroll >"$enroll_log" 2>&1; then
-    fail "$label archive CLI unexpectedly resolved backup enroll"
-  fi
-  grep -qi 'unknown command "enroll"' "$enroll_log" ||
-    fail "$label archive CLI did not reject backup enroll as an unknown command"
-
-  "$extract_dir/stackkit" backup emergency-export \
-    --target "$export_dir" \
-    --source "$extract_dir/README.md" \
-    --include-class config >"$tmp/${label}-emergency-export.log"
-  [ -f "$export_dir/stackkit-emergency-export-manifest.json" ] ||
-    fail "$label emergency export did not write its manifest"
-  [ -f "$export_dir/RESTORE.md" ] ||
-    fail "$label emergency export did not write its restore runbook"
-  grep -q '"schemaVersion": "stackkit.backup-emergency-export/v1"' \
-    "$export_dir/stackkit-emergency-export-manifest.json" ||
-    fail "$label emergency export manifest schema drifted"
-}
-
 check_archive_contents "$full_archive" basement-kit/stackkit.yaml cloud-kit/stackkit.yaml modern-homelab/stackkit.yaml
 check_archive_contents "$basement_archive" basement-kit/stackkit.yaml
 check_archive_contents "$cloud_archive" cloud-kit/stackkit.yaml
 check_archive_contents "$modern_archive" modern-homelab/stackkit.yaml
 
-stage_stackkits_home() {
+# Keep the quick executable/public-surface contract before publication. These
+# checks do not resolve a release or create lifecycle state.
+smoke_public_archive_cli() {
   local extract_dir="$1"
-  local home_dir="$2"
-  shift 2
+  local help_log="$tmp/archive-backup-help.log"
+  local restore_help_log="$tmp/archive-backup-restore-help.log"
+  local enroll_log="$tmp/archive-backup-enroll.log"
+  local export_dir="$tmp/archive-emergency-export"
 
-  mkdir -p "$home_dir/.stackkits"
-  local dir
-  for dir in base modules cue.mod "$@"; do
-    if [ -e "$extract_dir/$dir" ]; then
-      rm -rf "$home_dir/.stackkits/$dir"
-      cp -R "$extract_dir/$dir" "$home_dir/.stackkits/"
-    fi
-  done
-
-  local kit
-  for kit in "$@"; do
-    if [ -d "$extract_dir/base" ] && [ -d "$home_dir/.stackkits/$kit" ]; then
-      rm -rf "$home_dir/.stackkits/$kit/base"
-      cp -R "$extract_dir/base" "$home_dir/.stackkits/$kit/"
-    fi
-  done
-}
-
-# Native v2 archive smoke. Basement additionally proves the complete read-only
-# authoring and canonical generation phase from the extracted archive alone.
-smoke_v2_authoring() {
-  local label="$1"
-  local extract_dir="$2"
-  local home_dir="$3"
-  local project_dir="$4"
-  local kit="$5"
-  local name="$6"
-  local domain="${7:-}"
-
-  mkdir -p "$project_dir"
   "$extract_dir/stackkit" version >/dev/null
   "$extract_dir/tofu" version >/dev/null
   "$extract_dir/terramate" version >/dev/null
@@ -189,126 +128,55 @@ smoke_v2_authoring() {
   "$extract_dir/stackkit-mcp" --help >/dev/null 2>&1
   node "$extract_dir/scripts/release/validate-architecture-contract-fixture.mjs" \
     --repo-root "$extract_dir" --proof-only
-  smoke_public_backup_cli "$label" "$extract_dir"
 
-  local init_args=("$kit" --non-interactive --name "$name")
-  # v0.8 makes Basement the mandatory standalone lifecycle product. Cloud and
-  # Modern remain self-contained preview definitions, but they do not publish
-  # Basement's CUE-owned PocketID/TinyAuth local-owner custody contract.
-  if [ "$kit" = "basement-kit" ]; then
-    init_args+=(--owner-source=local)
-  fi
-  if [ -n "$domain" ]; then
-    init_args+=(--domain "$domain")
-  fi
-  (
-    cd "$project_dir"
-    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      init "${init_args[@]}" >"$tmp/${label}-init.log"
-  )
-
-  local spec="$project_dir/stack-spec.yaml"
-  [ -f "$spec" ] || fail "$label smoke did not materialize stack-spec.yaml"
-  grep -q '"apiVersion":"stackkit/v2alpha1"' "$spec" ||
-    fail "$label smoke did not materialize a native v2 StackSpec"
-  grep -q "\"slug\":\"${kit}\"" "$spec" ||
-    fail "$label smoke selected the wrong kit profile"
-  grep -q "\"name\":\"${name}\"" "$spec" ||
-    fail "$label smoke did not preserve the approved deployment name override"
-  if [ -n "$domain" ]; then
-    grep -q "\"base\":\"${domain}\"" "$spec" ||
-      fail "$label smoke did not preserve the approved domain override"
-  fi
-  [ ! -e "$project_dir/deploy" ] ||
-    fail "$label native v2 init invented plan-owned generation output"
-
-  if [ "$kit" != "basement-kit" ]; then
-    return
-  fi
-
-  local before_validate="$tmp/${label}-before-validate.sha256"
-  local after_validate="$tmp/${label}-after-validate.sha256"
-  (
-    cd "$project_dir"
-    find . -type f -print0 | sort -z | xargs -0 sha256sum >"$before_validate"
-    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      validate >"$tmp/${label}-validate.log"
-    find . -type f -print0 | sort -z | xargs -0 sha256sum >"$after_validate"
-  )
-  cmp "$before_validate" "$after_validate" ||
-    fail "$label validate mutated the standalone workspace"
-
-  (
-    cd "$project_dir"
-    HOME="$home_dir" PATH="$extract_dir:$PATH" "$extract_dir/stackkit" \
-      generate >"$tmp/${label}-generate.log"
-  )
-
-  local metadata="$project_dir/deploy/.stackkit"
-  local compose="$project_dir/deploy/instances/stackkits-basement-core-runtime/compose-node-main/platform/basement-core/compose.yaml"
-  for generated in \
-    "$metadata/resolved-plan.json" \
-    "$metadata/generation-manifest.json" \
-    "$metadata/generation-receipt.json" \
-    "$compose"; do
-    [ -s "$generated" ] || fail "$label generate did not materialize ${generated#"$project_dir/"}"
+  "$extract_dir/stackkit" backup --help >"$help_log"
+  local verb
+  for verb in init configure status run list restore verify emergency-export migrate-from-restic; do
+    grep -Eq "^[[:space:]]+${verb}[[:space:]]" "$help_log" ||
+      fail "archive CLI is missing public backup verb: $verb"
   done
-  grep -q '"status":"ready"' "$metadata/resolved-plan.json" ||
-    fail "$label generated ResolvedPlan is not honestly ready"
-  grep -q 'stackkit-basement-core' "$compose" ||
-    fail "$label generated Compose project identity drifted"
-  local service
-  for service in socket-proxy router pocketid tinyauth step-ca coolify hub; do
-    grep -q "^  ${service}:" "$compose" ||
-      fail "$label generated Compose is missing core service ${service}"
-  done
+  if grep -Eq '^[[:space:]]+enroll[[:space:]]' "$help_log"; then
+    fail "archive CLI leaked backup enroll"
+  fi
+  if "$extract_dir/stackkit" backup enroll >"$enroll_log" 2>&1; then
+    fail "archive CLI unexpectedly resolved backup enroll"
+  fi
+  grep -qi 'unknown command "enroll"' "$enroll_log" ||
+    fail "archive CLI did not reject backup enroll as an unknown command"
 
-  local private_file
-  while IFS= read -r -d '' private_file; do
-    [ "$(stat -c '%a' "$private_file")" = "600" ] ||
-      fail "$label custody file is not owner-only: ${private_file#"$project_dir/"}"
-  done < <(find "$project_dir/.stackkit/custody" -type f -print0)
+  "$extract_dir/stackkit" backup restore --help >"$restore_help_log"
+  grep -Eqi 'snapshot[- ]anchor' "$restore_help_log" ||
+    fail "archive CLI does not describe restore as a snapshot-anchor operation"
+  local restore_flag
+  for restore_flag in --owner-approve --operation-id --json; do
+    grep -q -- "$restore_flag" "$restore_help_log" ||
+      fail "archive CLI restore is missing ${restore_flag}"
+  done
+  if grep -Eq -- '(^|[[:space:]])--target([=[:space:]]|$)' "$restore_help_log"; then
+    fail "archive CLI restore exposed a caller-controlled target"
+  fi
+
+  "$extract_dir/stackkit" backup emergency-export \
+    --target "$export_dir" \
+    --source "$extract_dir/README.md" \
+    --include-class config >"$tmp/archive-emergency-export.log"
+  [ -f "$export_dir/stackkit-emergency-export-manifest.json" ] ||
+    fail "archive emergency export did not write its manifest"
+  [ -f "$export_dir/RESTORE.md" ] ||
+    fail "archive emergency export did not write its restore runbook"
+  grep -q '"schemaVersion": "stackkit.backup-emergency-export/v1"' \
+    "$export_dir/stackkit-emergency-export-manifest.json" ||
+    fail "archive emergency export manifest schema drifted"
 }
 
-# Basement smokes: from the dedicated basement archive and from the full catalog archive.
-basement_extract="$tmp/basement-extract"
-basement_home="$tmp/basement-home"
-basement_project="$tmp/basement-project"
-mkdir -p "$basement_extract"
-tar xzf "$basement_archive" -C "$basement_extract"
-stage_stackkits_home "$basement_extract" "$basement_home" basement-kit
-smoke_v2_authoring "basement-archive" "$basement_extract" "$basement_home" "$basement_project" \
-  basement-kit release-smoke-basement
-
 full_extract="$tmp/full-extract"
-full_home="$tmp/full-home"
-full_project="$tmp/full-project"
 mkdir -p "$full_extract"
 tar xzf "$full_archive" -C "$full_extract"
-stage_stackkits_home "$full_extract" "$full_home" basement-kit cloud-kit modern-homelab
-smoke_v2_authoring "full-archive-cli-catalog" "$full_extract" "$full_home" "$full_project" \
-  basement-kit release-smoke-full
+smoke_public_archive_cli "$full_extract"
 
-# Cloud smoke from the dedicated cloud archive.
-cloud_extract="$tmp/cloud-extract"
-cloud_home="$tmp/cloud-home"
-cloud_project="$tmp/cloud-project"
-mkdir -p "$cloud_extract"
-tar xzf "$cloud_archive" -C "$cloud_extract"
-stage_stackkits_home "$cloud_extract" "$cloud_home" cloud-kit
-smoke_v2_authoring "cloud-archive" "$cloud_extract" "$cloud_home" "$cloud_project" \
-  cloud-kit release-smoke-cloud cloud-smoke.example.com
-
-# Modern smoke proves that the released Preview definition is self-contained
-# and can materialize its CUE-validated initial intent without claiming live
-# federation execution. Full resolution remains Inventory-bound.
-modern_extract="$tmp/modern-extract"
-modern_home="$tmp/modern-home"
-modern_project="$tmp/modern-project"
-mkdir -p "$modern_extract"
-tar xzf "$modern_archive" -C "$modern_extract"
-stage_stackkits_home "$modern_extract" "$modern_home" modern-homelab
-smoke_v2_authoring "modern-archive" "$modern_extract" "$modern_home" "$modern_project" \
-  modern-homelab release-smoke-modern modern-smoke.example.com
-
-printf 'release archive validation passed\n'
+# Lifecycle execution cannot be authoritative before the release index and its
+# attestations exist. The public tag workflow therefore keeps this pre-trust
+# gate structural and runs the exact Basement init/validate/generate/apply/
+# verify path once, after the trust set is materialized, in
+# run-standalone-oss-runtime-e2e.sh.
+printf 'pre-trust release archive structural validation passed\n'

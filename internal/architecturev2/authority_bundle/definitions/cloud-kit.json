@@ -130,7 +130,18 @@
     "initialSpecStatus": "supported",
     "requiredOverrides": [
       "network.domain.base"
-    ]
+    ],
+    "standaloneOwner": {
+      "certificateAuthority": "step-ca",
+      "executionChannelRef": "host-channel-cloud-main",
+      "humanAuthorityRef": "cloud-human-authority",
+      "humanIssuerRef": "cloud-human-credential-issuer",
+      "identityProvider": "pocketid",
+      "nodeRef": "cloud-main",
+      "siteRef": "cloud",
+      "source": "local",
+      "trustDomainRef": "cloud-stackkit-trust"
+    }
   },
   "availability": {
     "policies": {

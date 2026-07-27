@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "stackkit.release-trust-policy/v1",
+  "sigstoreTrustedRootDocumentSha256": [
+    "844a1c6de3986c9f02070266b25e0d1a2fa99ceccc89f6b9ad90aae47b62a16e",
+    "f7a479f2bd2cc8d0389c74e99319a68524f3019d283d1c93d6de24362717012c"
+  ]
+}

@@ -1197,18 +1197,37 @@ func validateResolvedWorkloadInputFanout(module, contract map[string]any, module
 		if err != nil {
 			return err
 		}
+		values, _, err := optionalObjectField(unit, unitPath, "values")
+		if err != nil {
+			return err
+		}
+		bindings, err := moduleRenderInputBindings(unit, unitPath)
+		if err != nil {
+			return err
+		}
+		boundPublicRefs := make(map[string]struct{}, len(bindings))
+		for _, binding := range bindings {
+			boundPublicRefs[binding.targetRef] = struct{}{}
+		}
 		expectedValues := map[string]any{}
 		for _, key := range publicRefs {
+			if _, compilerBound := boundPublicRefs[key]; compilerBound {
+				value, exists := values[key]
+				if !exists {
+					return fmt.Errorf("%s.values.%s omits compiler-bound public input", unitPath, key)
+				}
+				// Exact compiler reconstruction is enforced by
+				// validateResolvedModulePlanInputProjection below. Workload
+				// settings must neither duplicate nor override this value.
+				expectedValues[key] = value
+				continue
+			}
 			if !contains(allowedSettings, key) {
 				return fmt.Errorf("%s.%s is not governed by %s.alternative inputs", unitPath+".publicInputRefs", key, workloadPath)
 			}
 			if value, exists := moduleValues[key]; exists {
 				expectedValues[key] = value
 			}
-		}
-		values, _, err := optionalObjectField(unit, unitPath, "values")
-		if err != nil {
-			return err
 		}
 		equal, err := canonicalEqual(values, expectedValues)
 		if err != nil {
@@ -2079,7 +2098,7 @@ func validateResolvedRenderUnitBodies(module, contract map[string]any, path stri
 		have := haveByID[id]
 		want := wantByID[id]
 		unitPath := path + ".renderUnits." + id
-		for _, field := range []string{"id", "kind", "rendererRef", "templateRef", "version", "contractHash"} {
+		for _, field := range []string{"id", "kind", "rendererRef", "applyMode", "templateRef", "version", "contractHash"} {
 			if !reflect.DeepEqual(have[field], want[field]) {
 				return fmt.Errorf("%s.%s does not match the bound render-unit body", unitPath, field)
 			}

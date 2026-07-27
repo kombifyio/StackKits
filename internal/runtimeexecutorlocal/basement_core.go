@@ -29,9 +29,10 @@ const (
 )
 
 type BasementCoreServiceExpectation struct {
-	Ref         string
-	ImageRef    string
-	ImageDigest string
+	Ref            string
+	ImageRef       string
+	ImageDigest    string
+	HealthRequired bool
 }
 
 type BasementCoreHealthExpectation struct {
@@ -122,7 +123,7 @@ func (e *BasementCoreExecutor) Execute(ctx context.Context, request runtimeexecu
 	if e == nil || e.operations == nil || strings.TrimSpace(e.binding.SiteRef) == "" ||
 		strings.TrimSpace(e.binding.NodeRef) == "" || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) ||
-		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != 7 {
+		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != 8 {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor requires one explicit authenticated local authority")
 	}
 	target, health, project, err := validateBasementCoreRequest(request, e.binding, e.authority)
@@ -203,8 +204,8 @@ func defensiveBasementCoreProject(project BasementCoreProject) BasementCoreProje
 }
 
 func validateBasementCoreRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority BasementCoreAuthority) (runtimeexecutor.RuntimeTarget, []runtimeexecutor.HealthTarget, BasementCoreProject, error) {
-	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) != 7 {
-		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, errors.New("Basement core requires exactly one runtime, seven health targets, and no access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) != 8 {
+		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, errors.New("Basement core requires exactly one runtime, eight health targets, and no access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.BasementCoreComposeRendererContract()
@@ -287,6 +288,7 @@ var basementCoreHealthSpecs = []basementCoreHealthSpec{
 	{source: "basement-hub-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/healthz", port: 80, timeout: 30, statuses: []int{200}},
 	{source: "basement-router-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/ping", port: 8080, timeout: 30, statuses: []int{200}},
 	{source: "coolify-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 8000, timeout: 30, statuses: []int{200, 302}},
+	{source: "local-kopia-runtime-container", kind: "container", targetKind: "module", targetRef: basementCoreModuleRef},
 	{source: "pocketid-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 1411, timeout: 30, statuses: []int{200, 302}},
 	{source: "step-ca-tcp", kind: "tcp", targetKind: "module", targetRef: basementCoreModuleRef, port: 9000, timeout: 30},
 	{source: "tinyauth-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 4000, timeout: 30, statuses: []int{200, 302}},
@@ -350,8 +352,12 @@ func validateBasementCoreVerification(project BasementCoreProject, observation B
 	sort.Slice(gotServices, func(i, j int) bool { return gotServices[i].Ref < gotServices[j].Ref })
 	for index, want := range wantServices {
 		got := gotServices[index]
+		wantHealth := "not-configured"
+		if want.HealthRequired {
+			wantHealth = "healthy"
+		}
 		if got.Ref != want.Ref || got.ImageRef != want.ImageRef || got.ImageDigest != want.ImageDigest ||
-			got.Status != "running" || got.Health != "healthy" {
+			got.Status != "running" || got.Health != wantHealth {
 			return errors.New("Basement core verification does not prove every pinned service")
 		}
 	}
