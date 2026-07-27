@@ -224,7 +224,15 @@ while IFS= read -r image; do
       exit 1
     fi
     printf 'preloading runtime image before traffic capture: %s\n' "$image"
-    docker pull "$image"
+    pull_attempt=1
+    until docker pull "$image"; do
+      if [ "$pull_attempt" -ge 3 ]; then
+        printf 'failed to preload runtime image after %s attempts: %s\n' "$pull_attempt" "$image" >&2
+        return 1
+      fi
+      pull_attempt=$((pull_attempt + 1))
+      printf 'retrying runtime image preload (%s/3): %s\n' "$pull_attempt" "$image" >&2
+    done
   fi
 done < <(STACKKIT_CUSTODY_DIR="$project_dir/.stackkit/custody" docker compose -f "$compose" config --images | sort -u)
 
