@@ -282,7 +282,7 @@ import (
 }
 
 #GenerationStrategy: "kit-template" | "module-fragments"
-#GenerationTarget:   "opentofu" | "compose" | "native"
+#GenerationTarget:   "opentofu" | "compose" | "terramate" | "native"
 #NetworkModeV2:      "private" | "public-capable" | "hybrid"
 
 // #KitGenerationContract is definition-owned. Its values are covered by the
@@ -2827,9 +2827,9 @@ _servicePublicationShape: {
 	_operationsUnique:     list.UniqueItems(operations) & true
 }
 
-#ModuleRenderUnitKindV2: "compose" | "cue-fragment" | "host" | "job" | "opentofu" | "native-config"
+#ModuleRenderUnitKindV2: "compose" | "cue-fragment" | "host" | "job" | "opentofu" | "terramate" | "native-config"
 
-#GenerationArtifactKindV2:   "opentofu" | "compose" | "metadata" | "script" | "native-config"
+#GenerationArtifactKindV2:   "opentofu" | "compose" | "terramate" | "metadata" | "script" | "native-config"
 #GenerationArtifactFormatV2: "json" | "yaml" | "hcl" | "shell" | "text"
 
 // Implementation interfaces are runtime seams between selected modules. They
@@ -3107,6 +3107,9 @@ _servicePublicationShape: {
 	_compatibleTargetsUnique: list.UniqueItems(compatibleTargets) & true
 	if kind == "opentofu" {
 		compatibleTargets: [..."opentofu"]
+	}
+	if kind == "terramate" {
+		compatibleTargets: [..."terramate"]
 	}
 	if kind == "compose" {
 		compatibleTargets: [..."compose"]
@@ -4462,6 +4465,9 @@ _servicePublicationShape: {
 	if kind == "opentofu" {
 		compatibleTargets: ["opentofu"]
 	}
+	if kind == "terramate" {
+		compatibleTargets: ["terramate"]
+	}
 	_serviceRefsUnique: list.UniqueItems([for endpoint in serviceEndpoints {endpoint.serviceRef}]) & true
 	if len(serviceEndpoints) > 0 {
 		// Routable backends require concrete site/node/instance locality. A
@@ -4556,7 +4562,13 @@ _servicePublicationShape: {
 		_outputBindingArtifactRefsUnique: list.UniqueItems([for binding in outputBindings {binding.artifactRef}]) & true
 		_outputBindingUnitOutputsUnique: list.UniqueItems([for binding in outputBindings {"\(binding.unitRef)/\(binding.outputRef)"}]) & true
 		_contractIDsUnique: list.UniqueItems([for contract in contracts {contract.id}]) & true
-		_contractOutputsUnique: list.UniqueItems([for contract in contracts {contract.outputRef}]) & true
+		// Two disjoint generation targets may intentionally materialize the
+		// same portable path (for example plain OpenTofu and Terramate's
+		// OpenTofu underlay). A collision remains forbidden within a target.
+		_contractTargetOutputsUnique: list.UniqueItems([
+			for contract in contracts
+			for target in contract.compatibleTargets {"\(target)/\(contract.outputRef)"},
+		]) & true
 	}
 	evidence: requiredRefs: [...string & =~"^[^[:space:]]+$"] | *[]
 
@@ -4737,7 +4749,11 @@ _servicePublicationShape: {
 			matches: [for providedRef in provides if providedRef == capabilityRef {providedRef}] & list.MinItems(1) & list.MaxItems(1)
 		}]
 	}
-	_renderUnitOutputsUnique: list.UniqueItems([for unit in renderUnits for outputRef in unit.outputs {outputRef}]) & true
+	_renderUnitTargetOutputsUnique: list.UniqueItems([
+		for unit in renderUnits
+		for target in unit.compatibleTargets
+		for outputRef in unit.outputs {"\(target)/\(outputRef)"},
+	]) & true
 	if len(renderVariants) == 0 {
 		_moduleServiceRefsUnique: list.UniqueItems([for unit in renderUnits for endpoint in unit.serviceEndpoints {endpoint.serviceRef}]) & true
 	}
@@ -5013,7 +5029,7 @@ _servicePublicationShape: {
 		format:   "json"
 		mode:     "0600"
 		required: true
-		compatibleTargets: ["compose", "opentofu"]
+		compatibleTargets: ["compose", "opentofu", "terramate"]
 	}]
 	_planArtifactExact: [
 		for artifact in planArtifacts
@@ -5051,8 +5067,9 @@ _servicePublicationShape: {
 			for binding in contract.realizationSupport.artifacts.outputBindings {binding.artifactRef},
 		]) & true
 		moduleArtifactOutputRefsUnique: list.UniqueItems([
-			for contract in modules
-			for binding in contract.realizationSupport.artifacts.outputBindings {binding.outputRef},
+			for module in modules
+			for contract in module.realizationSupport.artifacts.contracts
+			for target in contract.compatibleTargets {"\(target)/\(contract.outputRef)"},
 		]) & true
 		generationArtifactIDsUnique: list.UniqueItems([
 			for contract in planArtifacts {contract.id},
@@ -5060,14 +5077,18 @@ _servicePublicationShape: {
 			for contract in module.realizationSupport.artifacts.contracts {contract.id},
 		]) & true
 		generationArtifactPathsUnique: list.UniqueItems([
-			for contract in planArtifacts {contract.path},
+			for contract in planArtifacts
+			for target in contract.compatibleTargets {"\(target)/\(contract.path)"},
 			for module in modules
-			for contract in module.realizationSupport.artifacts.contracts {contract.outputRef},
+			for contract in module.realizationSupport.artifacts.contracts
+			for target in contract.compatibleTargets {"\(target)/\(contract.outputRef)"},
 		]) & true
 		generationArtifactPortablePathsUnique: list.UniqueItems([
-			for contract in planArtifacts {strings.ToLower(contract.path)},
+			for contract in planArtifacts
+			for target in contract.compatibleTargets {"\(target)/\(strings.ToLower(contract.path))"},
 			for module in modules
-			for contract in module.realizationSupport.artifacts.contracts {strings.ToLower(contract.outputRef)},
+			for contract in module.realizationSupport.artifacts.contracts
+			for target in contract.compatibleTargets {"\(target)/\(strings.ToLower(contract.outputRef))"},
 		]) & true
 	}
 	integrity: ownership: {
@@ -5234,13 +5255,19 @@ _servicePublicationShape: {
 			] & list.MaxItems(0)
 		}
 	}]
-	_generationArtifactPathClosure: #ArtifactPathSetClosureV2 & {
-		paths: [
-			for contract in planArtifacts {contract.path},
-			for module in modules
-			for contract in module.realizationSupport.artifacts.contracts {contract.outputRef},
-		]
-	}
+	_generationArtifactPathClosure: [for target in ["compose", "opentofu", "terramate", "native"] {
+		#ArtifactPathSetClosureV2 & {
+			paths: [
+				for contract in planArtifacts
+				for compatibleTarget in contract.compatibleTargets
+				if compatibleTarget == target {contract.path},
+				for module in modules
+				for contract in module.realizationSupport.artifacts.contracts
+				for compatibleTarget in contract.compatibleTargets
+				if compatibleTarget == target {contract.outputRef},
+			]
+		}
+	}]
 
 	integrity: providerCapabilities: [for providerContract in providers for capabilityRef in providerContract.provides {
 		provider:   providerContract.metadata.id
@@ -8335,7 +8362,7 @@ _servicePublicationShape: {
 	_moduleArtifactsCompatibleWithTarget: [for module in modules for contract in module.realizationSupport.artifacts.contracts {
 		module:   module.id
 		artifact: contract.id
-		matches: [for target in contract.compatibleTargets if target == generation.target {target}] & list.MinItems(1) & list.MaxItems(1)
+		matches: [for target in contract.compatibleTargets if target == module.renderTarget {target}] & list.MinItems(1) & list.MaxItems(1)
 	}]
 	_moduleArtifactsGeneratedExactly: [
 		for module in modules

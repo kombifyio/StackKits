@@ -194,7 +194,7 @@ Definition: base.#ProductKitDefinition & {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
 		defaultTarget: "compose"
-		allowedTargets: ["opentofu", "compose"]
+		allowedTargets: ["opentofu", "compose", "terramate"]
 		contractVersion: "1.0.0"
 	}
 	network: {

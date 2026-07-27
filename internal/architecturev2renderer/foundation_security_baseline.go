@@ -125,6 +125,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(basementCoreOpenTofu.contract, basementCoreOpenTofu); err != nil {
 		return nil, err
 	}
+	basementCoreTerramate := newBasementCoreTerramateRenderer()
+	if err := registry.Register(basementCoreTerramate.contract, basementCoreTerramate); err != nil {
+		return nil, err
+	}
 	coolifyAdapter := newCoolifyRuntimeAdapterRenderer()
 	if err := registry.Register(coolifyAdapter.contract, coolifyAdapter); err != nil {
 		return nil, err

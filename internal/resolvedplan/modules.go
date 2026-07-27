@@ -822,14 +822,14 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 		return nil, err
 	}
 	placement := newModuleRenderPlacementContext(siteRefs, nodeRefs, nodes)
-	resolvedRuntime, resolvedRenderUnits, resolvedSupport, resolvedVariant, err := resolveModuleRuntimeContracts(moduleID, contract, rawIntent, capabilitySecretRefs, placement, generationTarget)
+	resolvedRuntime, resolvedRenderUnits, resolvedSupport, resolvedVariant, renderTarget, err := resolveModuleRuntimeContracts(moduleID, contract, rawIntent, capabilitySecretRefs, placement, generationTarget)
 	if err != nil {
 		return nil, err
 	}
 	module := map[string]any{
 		"id": moduleID, "version": version, "contractHash": contractHash,
 		"provides": stringSliceAny(provides), "siteRefs": stringSliceAny(siteRefs), "nodeRefs": stringSliceAny(nodeRefs),
-		"runtime": resolvedRuntime, "renderTarget": generationTarget, "renderUnits": resolvedRenderUnits, "realizationSupport": resolvedSupport,
+		"runtime": resolvedRuntime, "renderTarget": renderTarget, "renderUnits": resolvedRenderUnits, "realizationSupport": resolvedSupport,
 	}
 	if resolvedVariant != nil {
 		module["renderVariant"] = resolvedVariant
@@ -866,34 +866,91 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	return module, nil
 }
 
-func resolveModuleRuntimeContracts(moduleID string, contract map[string]any, rawIntent any, capabilitySecretRefs map[string]any, placement moduleRenderPlacementContext, generationTarget string) (map[string]any, []any, map[string]any, map[string]any, error) {
+func resolveModuleRuntimeContracts(moduleID string, contract map[string]any, rawIntent any, capabilitySecretRefs map[string]any, placement moduleRenderPlacementContext, generationTarget string) (map[string]any, []any, map[string]any, map[string]any, string, error) {
 	runtimeContract, err := objectField(contract, "catalog.modules."+moduleID, "runtime")
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, "", err
 	}
 	resolvedRuntime, err := cloneObject(runtimeContract, true)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, "", err
 	}
-	resolvedRenderUnits, selectedUnitIDs, declared, resolvedVariant, err := resolveModuleRenderUnits(moduleID, contract, rawIntent, capabilitySecretRefs, placement, generationTarget)
+	renderTarget, err := resolveModuleGenerationTarget(moduleID, contract, generationTarget)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, "", err
+	}
+	resolvedRenderUnits, selectedUnitIDs, declared, resolvedVariant, err := resolveModuleRenderUnits(moduleID, contract, rawIntent, capabilitySecretRefs, placement, renderTarget)
+	if err != nil {
+		return nil, nil, nil, nil, "", err
 	}
 	supportContract, err := objectField(contract, "catalog.modules."+moduleID, "realizationSupport")
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, "", err
 	}
 	resolvedSupport, err := cloneObject(supportContract, true)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, "", err
 	}
-	if err := selectModuleRealizationSupport(moduleID, resolvedSupport, selectedUnitIDs, declared, resolvedVariant, generationTarget); err != nil {
-		return nil, nil, nil, nil, err
+	if err := selectModuleRealizationSupport(moduleID, resolvedSupport, selectedUnitIDs, declared, resolvedVariant, renderTarget); err != nil {
+		return nil, nil, nil, nil, "", err
 	}
 	if err := bindResolvedRenderInstanceOutputs(moduleID, resolvedRenderUnits, resolvedSupport); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, "", err
 	}
-	return resolvedRuntime, resolvedRenderUnits, resolvedSupport, resolvedVariant, nil
+	return resolvedRuntime, resolvedRenderUnits, resolvedSupport, resolvedVariant, renderTarget, nil
+}
+
+// resolveModuleGenerationTarget is the single orchestration alias seam.
+// Terramate is not a fourth provider renderer: modules that own an explicit
+// Terramate wrapper select it, while ordinary infrastructure modules retain
+// their governed OpenTofu variant. Compose-only modules are never aliased.
+func resolveModuleGenerationTarget(moduleID string, contract map[string]any, requested string) (string, error) {
+	if requested != "terramate" {
+		return requested, nil
+	}
+	path := "catalog.modules." + moduleID
+	variants, err := objectListOptional(contract, "renderVariants")
+	if err != nil {
+		return "", fail(ErrContractConflict, path+".renderVariants", "%v", err)
+	}
+	for _, candidate := range []string{"terramate", "opentofu"} {
+		for index, variant := range variants {
+			target, err := stringField(variant, fmt.Sprintf("%s.renderVariants[%d]", path, index), "target")
+			if err != nil {
+				return "", err
+			}
+			if target == candidate {
+				return candidate, nil
+			}
+		}
+	}
+	if len(variants) > 0 {
+		// Keep the requested target so ordinary selection fails closed instead
+		// of ever treating a Compose-only workload as Terramate/OpenTofu.
+		return requested, nil
+	}
+	units, err := objectListField(contract, path, "renderUnits")
+	if err != nil {
+		return "", err
+	}
+	for _, candidate := range []string{"terramate", "opentofu"} {
+		for index, unit := range units {
+			targets, err := stringListField(unit, fmt.Sprintf("%s.renderUnits[%d]", path, index), "compatibleTargets", false)
+			if err != nil {
+				return "", err
+			}
+			if len(targets) == 0 {
+				targets = []string{"compose", "opentofu"}
+			}
+			if contains(targets, candidate) {
+				return candidate, nil
+			}
+		}
+	}
+	if len(units) == 0 {
+		return "opentofu", nil
+	}
+	return requested, nil
 }
 
 type indexedModuleRenderUnit struct {

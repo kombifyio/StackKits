@@ -36,6 +36,8 @@ mkdir -p "$output_dir"
 work_root="$(mktemp -d)"
 fixture_pid=
 capture_pid=
+restore_activation_pid=
+restore_helper_name=
 project_dir="$work_root/project"
 extract_dir="$work_root/archive"
 home_dir="$work_root/home"
@@ -45,6 +47,14 @@ traffic_events="$output_dir/network-events.jsonl"
 network_scope="$output_dir/compose-origin-scope.json"
 
 cleanup() {
+  if [ -n "${restore_activation_pid:-}" ]; then
+    kill -KILL -- "-$restore_activation_pid" 2>/dev/null || true
+    wait "$restore_activation_pid" 2>/dev/null || true
+  fi
+  if [ -n "${restore_helper_name:-}" ]; then
+    docker unpause "$restore_helper_name" >/dev/null 2>&1 || true
+    docker rm -f "$restore_helper_name" >/dev/null 2>&1 || true
+  fi
   if [ -n "${capture_pid:-}" ]; then
     kill -INT "$capture_pid" 2>/dev/null || true
     wait "$capture_pid" 2>/dev/null || true
@@ -345,6 +355,338 @@ node -e '
 ' "$script_dir/compose-origin-scope.mjs" "$network_scope"
 
 timeout 600 stackkit verify --json >"$output_dir/verify.json"
+
+if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
+  command -v setsid >/dev/null || {
+    printf 'standalone restore proof requires setsid\n' >&2
+    exit 1
+  }
+
+  restore_proof_dir="$output_dir/restore-proof"
+  mkdir -p "$restore_proof_dir"
+  kopia_helper_image="$(jq -er '.services["kopia-agent"].image' "$runtime_compose_config")"
+  first_volume="$(
+    jq -er '
+      [
+        .volumes
+        | keys[]
+        | select(startswith("kopia-") | not)
+        | "stackkit-basement-core_" + .
+      ]
+      | sort
+      | if length > 0 then .[0]
+        else error("Basement runtime has no managed backup volumes")
+        end
+    ' "$runtime_compose_config"
+  )"
+  sentinel_path="stackkit-restore-proof/sentinel"
+  before_activation="before-activation"
+  current_live="current-live"
+
+  timeout 60 docker run --rm --network none --entrypoint /bin/sh \
+    --mount "type=volume,src=$first_volume,dst=/target" \
+    "$kopia_helper_image" -ceu '
+      sentinel=$1
+      expected=$2
+      mkdir -p "/target/$(dirname "$sentinel")" "/target/stackkit-restore-proof/files"
+      printf "%s\n" "$expected" >"/target/$sentinel"
+      i=0
+      while [ "$i" -lt 12000 ]; do
+        printf "restore-proof-%05d\n" "$i" >"/target/stackkit-restore-proof/files/file-$(printf "%05d" "$i")"
+        i=$((i + 1))
+      done
+    ' -- "$sentinel_path" "$before_activation" >"$restore_proof_dir/seed.log"
+
+  timeout 120 stackkit backup configure --json >"$restore_proof_dir/configure.json"
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+    and .data.apiVersion == "stackkit.local-backup-configuration/v1"
+  ' "$restore_proof_dir/configure.json" >/dev/null
+
+  timeout 180 stackkit backup run \
+    --operation-id restore-proof-anchor-a --json \
+    >"$restore_proof_dir/anchor-a.json"
+  anchor_a="$(
+    jq -er '
+      select(
+        .schemaVersion == "stackkit.command-result/v1"
+        and .status == "success"
+        and .data.apiVersion == "stackkit.local-backup-snapshot-anchor/v1"
+      )
+      | .data.id
+      | select(test("^sha256:[0-9a-f]{64}$"))
+    ' "$restore_proof_dir/anchor-a.json"
+  )"
+
+  timeout 30 docker run --rm --network none --entrypoint /bin/sh \
+    --mount "type=volume,src=$first_volume,dst=/target" \
+    "$kopia_helper_image" -ceu '
+      printf "%s\n" "$2" >"/target/$1"
+    ' -- "$sentinel_path" "$current_live" >"$restore_proof_dir/mutate.log"
+
+  timeout 180 stackkit backup restore "$anchor_a" \
+    --operation-id restore-proof-stage-a --owner-approve --json \
+    >"$restore_proof_dir/stage-a.json"
+  restore_result_a="$(
+    jq -er '
+      select(
+        .schemaVersion == "stackkit.command-result/v1"
+        and .status == "success"
+        and .data.apiVersion == "stackkit.local-backup-restore-result/v1"
+      )
+      | .data.id
+      | select(test("^sha256:[0-9a-f]{64}$"))
+    ' "$restore_proof_dir/stage-a.json"
+  )"
+
+  activation_operation_a="restore-proof-activate-a"
+  setsid timeout 300 stackkit backup restore activate "$restore_result_a" \
+    --operation-id "$activation_operation_a" --owner-approve --json \
+    >"$restore_proof_dir/activate-a-interrupted.json" 2>&1 &
+  restore_activation_pid=$!
+
+  activation_journal="$project_dir/.stackkit/lifecycle-mutations/active.json"
+  activation_ready=0
+  for _ in $(seq 1 300); do
+    if [ -s "$activation_journal" ] &&
+      jq -e --arg operation "$activation_operation_a" --arg volume "$first_volume" '
+        .apiVersion == "stackkit.lifecycle-mutation/v1"
+        and .operationId == $operation
+        and .kind == "restore-activation"
+        and .status == "active"
+        and .phase == "activation-copy-started"
+        and .restoreActivation.authority.volumes[0] == $volume
+        and .restoreActivation.inFlight.volume == $volume
+      ' "$activation_journal" >/dev/null 2>&1; then
+      restore_helper_name="$(
+        printf '%s\0%s' "$activation_operation_a" "$first_volume" |
+          sha256sum | cut -c1-16
+      )"
+      restore_helper_name="stackkit-restore-$restore_helper_name"
+      if docker ps --quiet --filter "name=^/${restore_helper_name}$" | grep -q .; then
+        activation_ready=1
+        break
+      fi
+    fi
+    kill -0 "$restore_activation_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  [ "$activation_ready" = "1" ] || {
+    printf 'restore proof did not observe the first activation copy and helper\n' >&2
+    exit 1
+  }
+
+  docker pause "$restore_helper_name" >"$restore_proof_dir/pause-helper.log"
+  kill -KILL -- "-$restore_activation_pid"
+  wait "$restore_activation_pid" 2>/dev/null || true
+  restore_activation_pid=
+  docker unpause "$restore_helper_name" >"$restore_proof_dir/unpause-helper.log"
+  docker rm -f "$restore_helper_name" >"$restore_proof_dir/remove-helper.log"
+  restore_helper_name=
+
+  if timeout 30 stackkit generate >"$restore_proof_dir/mutation-denial.log" 2>&1; then
+    printf 'ordinary mutation unexpectedly succeeded during interrupted restore activation\n' >&2
+    exit 1
+  fi
+  denial_count="$(grep -c 'ordinary mutation is denied' "$restore_proof_dir/mutation-denial.log" || true)"
+  [ "$denial_count" -eq 1 ] || {
+    printf 'interrupted restore activation did not produce exactly one ordinary mutation denial\n' >&2
+    exit 1
+  }
+
+  timeout 300 stackkit backup restore recover "$activation_operation_a" \
+    --owner-approve --rollback --json \
+    >"$restore_proof_dir/recover-a.json"
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+    and .data.apiVersion == "stackkit.restore-activation-result/v1"
+    and .data.status == "recovered"
+    and .data.verification.servicesVerified == true
+  ' "$restore_proof_dir/recover-a.json" >/dev/null
+  recovered_sentinel="$(
+    timeout 30 docker run --rm --network none --entrypoint /bin/sh \
+      --mount "type=volume,src=$first_volume,dst=/target,readonly" \
+      "$kopia_helper_image" -ceu 'cat "/target/$1"' -- "$sentinel_path"
+  )"
+  [ "$recovered_sentinel" = "$current_live" ] || {
+    printf 'restore recovery did not retain the current-live sentinel\n' >&2
+    exit 1
+  }
+
+  activation_operation_b="restore-proof-activate-b"
+  timeout 300 stackkit backup restore activate "$restore_result_a" \
+    --operation-id "$activation_operation_b" --owner-approve --json \
+    >"$restore_proof_dir/activate-b.json"
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+    and .data.apiVersion == "stackkit.restore-activation-result/v1"
+    and .data.status == "activated"
+    and .data.verification.servicesVerified == true
+  ' "$restore_proof_dir/activate-b.json" >/dev/null
+  activated_sentinel="$(
+    timeout 30 docker run --rm --network none --entrypoint /bin/sh \
+      --mount "type=volume,src=$first_volume,dst=/target,readonly" \
+      "$kopia_helper_image" -ceu 'cat "/target/$1"' -- "$sentinel_path"
+  )"
+  [ "$activated_sentinel" = "$before_activation" ] || {
+    printf 'successful restore activation did not restore the Anchor A sentinel\n' >&2
+    exit 1
+  }
+  [ -z "$(
+    docker volume ls --quiet \
+      --filter "label=io.stackkit.restore.role=rollback" \
+      --filter "label=io.stackkit.restore.operation=$activation_operation_a"
+  )" ] && [ -z "$(
+    docker volume ls --quiet \
+      --filter "label=io.stackkit.restore.role=rollback" \
+      --filter "label=io.stackkit.restore.operation=$activation_operation_b"
+  )" ] || {
+    printf 'restore proof left rollback volumes behind\n' >&2
+    exit 1
+  }
+
+  timeout 120 stackkit verify --json >"$restore_proof_dir/final-verify.json"
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+  ' "$restore_proof_dir/final-verify.json" >/dev/null
+  restore_completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  restore_live_evidence="$output_dir/restore-live-evidence.json"
+  restore_live_evidence_pending="$work_root/restore-live-evidence.pending.json"
+  jq -n \
+    --arg sourceCommit "$source_commit" \
+    --arg sourceDigest "$source_digest" \
+    --arg archiveName "$archive_name" \
+    --arg archiveSha256 "$(sha256sum "$archive" | cut -d' ' -f1)" \
+    --arg sbomSha256 "$(sha256sum "$sbom" | cut -d' ' -f1)" \
+    --arg snapshotAnchorId "$anchor_a" \
+    --arg restoreResultId "$restore_result_a" \
+    --arg interruptedActivationId "$activation_operation_a" \
+    --arg recoveredActivationId "$activation_operation_a" \
+    --arg completedActivationId "$activation_operation_b" \
+    --arg firstVolume "$first_volume" \
+    --arg recoveredSentinel "$recovered_sentinel" \
+    --arg activatedSentinel "$activated_sentinel" \
+    --arg completedAt "$restore_completed_at" \
+    --arg applySha256 "$(sha256sum "$output_dir/apply.log" | cut -d' ' -f1)" \
+    --arg verifySha256 "$(sha256sum "$output_dir/verify.json" | cut -d' ' -f1)" \
+    --arg seedSha256 "$(sha256sum "$restore_proof_dir/seed.log" | cut -d' ' -f1)" \
+    --arg configureSha256 "$(sha256sum "$restore_proof_dir/configure.json" | cut -d' ' -f1)" \
+    --arg anchorSha256 "$(sha256sum "$restore_proof_dir/anchor-a.json" | cut -d' ' -f1)" \
+    --arg mutateSha256 "$(sha256sum "$restore_proof_dir/mutate.log" | cut -d' ' -f1)" \
+    --arg stageSha256 "$(sha256sum "$restore_proof_dir/stage-a.json" | cut -d' ' -f1)" \
+    --arg interruptedSha256 "$(sha256sum "$restore_proof_dir/activate-a-interrupted.json" | cut -d' ' -f1)" \
+    --arg pauseSha256 "$(sha256sum "$restore_proof_dir/pause-helper.log" | cut -d' ' -f1)" \
+    --arg unpauseSha256 "$(sha256sum "$restore_proof_dir/unpause-helper.log" | cut -d' ' -f1)" \
+    --arg removeSha256 "$(sha256sum "$restore_proof_dir/remove-helper.log" | cut -d' ' -f1)" \
+    --arg denialSha256 "$(sha256sum "$restore_proof_dir/mutation-denial.log" | cut -d' ' -f1)" \
+    --arg recoverSha256 "$(sha256sum "$restore_proof_dir/recover-a.json" | cut -d' ' -f1)" \
+    --arg activatedSha256 "$(sha256sum "$restore_proof_dir/activate-b.json" | cut -d' ' -f1)" \
+    --arg finalVerifySha256 "$(sha256sum "$restore_proof_dir/final-verify.json" | cut -d' ' -f1)" \
+    '{
+      schemaVersion: "stackkit.restore-live-e2e-evidence/v1",
+      status: "pass",
+      source: {
+        repository: "kombifyio/stackKits",
+        commit: $sourceCommit,
+        digest: $sourceDigest
+      },
+      archive: {
+        name: $archiveName,
+        sha256: $archiveSha256,
+        sbomSha256: $sbomSha256
+      },
+      authority: {
+        snapshotAnchorId: $snapshotAnchorId,
+        restoreResultId: $restoreResultId,
+        interruptedActivationId: $interruptedActivationId,
+        recoveredActivationId: $recoveredActivationId,
+        completedActivationId: $completedActivationId,
+        firstActivatedVolume: $firstVolume
+      },
+      proof: {
+        recoveredSentinel: $recoveredSentinel,
+        activatedSentinel: $activatedSentinel,
+        mutationDenied: true,
+        rollbackVolumesRemaining: 0,
+        servicesVerified: true,
+        finalVerifySucceeded: true,
+        completedAt: $completedAt
+      },
+      runtimeEvidenceInputs: {
+        applySha256: $applySha256,
+        verifySha256: $verifySha256
+      },
+      outputs: [
+        {name: "restore-proof/seed.log", sha256: $seedSha256},
+        {name: "restore-proof/configure.json", sha256: $configureSha256},
+        {name: "restore-proof/anchor-a.json", sha256: $anchorSha256},
+        {name: "restore-proof/mutate.log", sha256: $mutateSha256},
+        {name: "restore-proof/stage-a.json", sha256: $stageSha256},
+        {name: "restore-proof/activate-a-interrupted.json", sha256: $interruptedSha256},
+        {name: "restore-proof/pause-helper.log", sha256: $pauseSha256},
+        {name: "restore-proof/unpause-helper.log", sha256: $unpauseSha256},
+        {name: "restore-proof/remove-helper.log", sha256: $removeSha256},
+        {name: "restore-proof/mutation-denial.log", sha256: $denialSha256},
+        {name: "restore-proof/recover-a.json", sha256: $recoverSha256},
+        {name: "restore-proof/activate-b.json", sha256: $activatedSha256},
+        {name: "restore-proof/final-verify.json", sha256: $finalVerifySha256}
+      ]
+    }' >"$restore_live_evidence_pending"
+  jq -e \
+    --arg sourceCommit "$source_commit" \
+    --arg sourceDigest "$source_digest" \
+    --arg archiveName "$archive_name" \
+    --arg archiveSha256 "$(sha256sum "$archive" | cut -d' ' -f1)" \
+    --arg sbomSha256 "$(sha256sum "$sbom" | cut -d' ' -f1)" \
+    --arg snapshotAnchorId "$anchor_a" \
+    --arg restoreResultId "$restore_result_a" \
+    --arg interruptedActivationId "$activation_operation_a" \
+    --arg completedActivationId "$activation_operation_b" \
+    --arg recoveredSentinel "$current_live" \
+    --arg activatedSentinel "$before_activation" '
+      .schemaVersion == "stackkit.restore-live-e2e-evidence/v1"
+      and .status == "pass"
+      and .source == {
+        repository: "kombifyio/stackKits",
+        commit: $sourceCommit,
+        digest: $sourceDigest
+      }
+      and .archive.name == $archiveName
+      and .archive.sha256 == $archiveSha256
+      and .archive.sbomSha256 == $sbomSha256
+      and .authority.snapshotAnchorId == $snapshotAnchorId
+      and .authority.restoreResultId == $restoreResultId
+      and .authority.interruptedActivationId == $interruptedActivationId
+      and .authority.recoveredActivationId == $interruptedActivationId
+      and .authority.completedActivationId == $completedActivationId
+      and .proof.recoveredSentinel == $recoveredSentinel
+      and .proof.activatedSentinel == $activatedSentinel
+      and .proof.mutationDenied == true
+      and .proof.rollbackVolumesRemaining == 0
+      and .proof.servicesVerified == true
+      and .proof.finalVerifySucceeded == true
+      and (.proof.completedAt | type == "string" and endswith("Z"))
+      and (.runtimeEvidenceInputs.applySha256 | test("^[0-9a-f]{64}$"))
+      and (.runtimeEvidenceInputs.verifySha256 | test("^[0-9a-f]{64}$"))
+      and (.outputs | length == 13)
+      and all(.outputs[];
+        (.name | test("^restore-proof/[a-z0-9.-]+$"))
+        and (.sha256 | test("^[0-9a-f]{64}$"))
+      )
+    ' "$restore_live_evidence_pending" >/dev/null
+  while IFS=$'\t' read -r evidence_name evidence_sha256; do
+    [ "$(sha256sum "$output_dir/$evidence_name" | cut -d' ' -f1)" = "$evidence_sha256" ] || {
+      printf 'restore proof output differs from restore-live evidence: %s\n' "$evidence_name" >&2
+      exit 1
+    }
+  done < <(jq -r '.outputs[] | [.name, .sha256] | @tsv' "$restore_live_evidence_pending")
+  printf 'standalone restore proof passed\n'
+fi
+
 runtime_finished_epoch="$(date +%s)"
 runtime_finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 runtime_duration=$((runtime_finished_epoch - runtime_started_epoch))
@@ -411,4 +753,29 @@ jq -n \
 
 node "$script_dir/validate-standalone-runtime-e2e.mjs" \
   "$output_dir/runtime-evidence.json" "$traffic_events" "$network_scope"
+if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
+  runtime_evidence_sha256="$(evidence_digest "$output_dir/runtime-evidence.json")"
+  restore_evidence_next="$work_root/restore-live-evidence.json"
+  jq --arg runtimeSha256 "$runtime_evidence_sha256" '
+    . + {
+      runtimeEvidence: {
+        name: "runtime-evidence.json",
+        sha256: $runtimeSha256
+      }
+    }
+  ' "$restore_live_evidence_pending" >"$restore_evidence_next"
+  mv "$restore_evidence_next" "$restore_live_evidence"
+  jq -e --arg runtimeSha256 "$runtime_evidence_sha256" '
+    .schemaVersion == "stackkit.restore-live-e2e-evidence/v1"
+    and .status == "pass"
+    and .runtimeEvidence == {
+      name: "runtime-evidence.json",
+      sha256: $runtimeSha256
+    }
+  ' "$restore_live_evidence" >/dev/null
+  [ "$(evidence_digest "$output_dir/runtime-evidence.json")" = "$runtime_evidence_sha256" ] || {
+    printf 'runtime evidence changed while binding restore-live evidence\n' >&2
+    exit 1
+  }
+fi
 printf 'standalone OSS runtime E2E passed: %s\n' "$output_dir/runtime-evidence.json"

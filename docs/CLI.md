@@ -298,9 +298,51 @@ than being downgraded to ordinary drift.
 
 `stackkit drift reconcile --mode standard|advanced` currently denies before
 rendering or side effects. Standard reconciliation remains unavailable until
-the Owner-approved snapshot/Apply/Verify/rollback transaction exists; Advanced
-remains unavailable until `stackkit.advanced-capability/v1` can be verified
-offline.
+its Owner-approved snapshot/Apply/Verify/rollback transaction is wired to this
+command. Advanced reconciliation also remains unavailable: offline capability
+verification, Owner-installed trust, deterministic Terramate rendering, and
+signed change-set creation exist, but change-set execution is not yet exposed.
+
+### `stackkit advanced trust`
+
+Advanced operations remain optional and account-free. They trust no network
+service at execution time. The local Owner explicitly imports an exact public
+issuer bundle:
+
+```bash
+stackkit advanced trust import \
+  --bundle techstack-advanced-trust.json \
+  --expect-sha256 sha256:<64-lowercase-hex> \
+  --owner-approve \
+  --json
+```
+
+The CLI verifies the digest and canonical
+`stackkit.advanced-trust-bundle/v1` before entering the lifecycle mutation,
+then stores an owner-signed private record under
+`.stackkit/advanced/trust/bundle.json`. The bundle contains only issuer IDs
+and Ed25519 public verification keys; credentials, account tokens, endpoints,
+and private keys are invalid inputs.
+
+`stackkit advanced trust inspect [--json]` is read-only and verifies the local
+Owner signature and file permissions before returning only the bundle digest,
+Owner reference, issuer IDs, and key IDs. Techstack may issue short-lived
+capabilities against one of these keys, but cannot install trust or replace
+local Owner custody.
+
+`stackkit advanced change-set create --capability <file> --candidate-spec
+<file> [--json]` accepts only a candidate whose generation target is
+`terramate` and whose stack ID and output root match the verified current
+baseline. It resolves both plans in memory and verifies local Owner custody,
+the owner-signed trust record, and the short-lived capability before entering
+the lifecycle lock or creating a temporary directory. After revalidation it
+uses the existing pure OpenTofu/Terramate renderer, writes no generated
+deployment output, and atomically stores an owner-signed, content-addressed
+change set under `.stackkit/advanced/change-sets/`.
+
+Capability denial is emitted as `stackkit.operation-denial/v1` with a stable
+public reason code. Creating a change set does not invoke Terramate, OpenTofu,
+Docker, Techstack, or a network service.
 
 ### `stackkit remove`
 
@@ -313,12 +355,13 @@ Reads local deployment state and reports service health from generated outputs a
 ### `stackkit backup`
 
 The native v0.8 path operates the pinned `kopia-agent` rendered and applied by
-the Basement core. Before every repository, snapshot, or staged-restore side
-effect, `configure`, `status`, `run`, and `restore` revalidate the current
+the Basement core. Before every repository, snapshot, staged-restore, live
+activation, or rollback side effect, the command revalidates the current
 StackSpec and ResolvedPlan, generated manifest and receipt, exact CUE
 backup-policy artifact, local Owner custody, current Apply result, and its
-owner-signed receipt. The same authority is checked again while holding the
-governed output lock.
+owner-signed receipt. Mutating backup operations share the exclusive local
+lifecycle-mutation lock; `status` remains read-only. Authority is checked again
+while the lock is held.
 
 Repository, source, exclusions, service identity, and passphrase custody are
 not CLI inputs. The passphrase remains in owner-only local custody and is sent
@@ -336,9 +379,38 @@ probes still verify. Staging is excluded from future snapshots, and successful
 extraction is journaled before post-verification so a retry does not restore
 the same bytes again.
 
-This is a **verified isolated staging restore**, not an in-place restore,
-service cutover, or proof that services boot from the restored bytes.
-Transactional activation and rollback belong to the upgrade/rollback slice.
+This command is a **verified isolated staging restore**. Live replacement is a
+separate, explicit Owner-approved step:
+
+```bash
+stackkit backup restore activate sha256:<restore-result-id> \
+  --owner-approve \
+  --operation-id restore-activation-20260727 \
+  --json
+```
+
+Activation accepts only the signed restore-result ID, derives the exact managed
+volume set from the verified Plan and artifact manifest, and creates a
+mandatory Kopia safety snapshot before stopping services or copying data. It
+keeps per-volume rollback copies, starts the Basement runtime, and commits only
+after the local Owner binding and all selected services and probes verify.
+
+An interrupted activation blocks ordinary lifecycle mutations. Recovery is
+explicit and fail-closed:
+
+```bash
+stackkit backup restore recover restore-activation-20260727 \
+  --owner-approve \
+  --rollback \
+  --json
+```
+
+Recovery reopens the exact owner-signed mutation journal. If a crash occurred
+after an activation copy started but before completion was recorded, the
+in-flight volume is conservatively treated as modified and rolled back. The
+runtime is restarted and Owner/service verification must pass before the
+operation is marked recovered.
+
 `list`, `verify`, and `migrate-from-restic` still use the exact-v0.6
 compatibility implementation and are rejected by native-v2 builds until their
 corresponding lifecycle slices land. The Kopia-independent `emergency-export`
@@ -367,6 +439,8 @@ Common commands:
 - `stackkit backup run [--operation-id ID] [--json]` creates a crash-consistent snapshot of the governed read-only Docker-volume source. Reusing an operation ID returns its existing exact snapshot instead of duplicating it.
 - `stackkit backup list [--json]` lists snapshots.
 - `stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve [--operation-id ID] [--json]` verifies and extracts one signed snapshot into isolated CUE-owned staging. Reusing the operation ID returns the existing exact result.
+- `stackkit backup restore activate sha256:<restore-result-id> --owner-approve [--operation-id ID] [--json]` creates the mandatory safety snapshot, activates the exact Plan-owned volume set, restarts the runtime, and verifies Owner binding and services.
+- `stackkit backup restore recover <activation-operation-id> --owner-approve --rollback [--json]` explicitly rolls back an interrupted activation from its signed journal and verifies the recovered runtime.
 - `stackkit backup verify` runs `kopia repository validate-provider`.
 - `stackkit backup emergency-export --target /backup/emergency-export` writes a portable export manifest and restore runbook without requiring a healthy Kopia repository. Use `--large-media-mode manifest-only|include|exclude` to control media handling.
 - `stackkit backup migrate-from-restic [--dry-run]` runs the one-shot legacy importer.

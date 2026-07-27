@@ -156,6 +156,33 @@ test('public runtime failure diagnostics are explicit, sanitized, and short-live
   assert.doesNotMatch(block, /\.stackkit|custody|work_root|project_dir|home_dir/u)
 })
 
+test('public release workflow can replay an exact live restore proof without changing publisher flow', () => {
+  for (const fragment of [
+    'mode:',
+    'restore-proof',
+    "inputs.mode != 'restore-proof'",
+    "inputs.mode == 'restore-proof'",
+    'Checkout the current public proof harness',
+    'EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}',
+    'stackkits-release-assets.intoto.jsonl',
+    'stackkits-release-index-v1.json.intoto.jsonl',
+    'gh attestation verify "$archive"',
+    'STACKKIT_E2E_RESTORE_PROOF: "1"',
+    'stackkit.restore-live-e2e-evidence/v1',
+    'artifacts/standalone-runtime/restore-live-evidence.json',
+    'retention-days: 90'
+  ]) {
+    assert.match(publicRelease, new RegExp(fragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
+  }
+  before(publicRelease, 'Download and verify the exact live release trust set', 'Run bounded exact-archive restore proof')
+  const restoreJob = publicRelease.slice(publicRelease.indexOf('\n  restore-proof:'))
+  before(restoreJob, 'Run bounded exact-archive restore proof', 'Attest exact restore evidence')
+  assert.match(
+    publicRelease,
+    /release-trust:[\s\S]*?inputs\.mode != 'restore-proof'[\s\S]*?restore-proof:[\s\S]*?inputs\.mode == 'restore-proof'/u
+  )
+})
+
 test('image publication is asynchronous and outside the release gate', () => {
   assert.doesNotMatch(publicRelease, /^  publish-image:/mu)
   assert.match(publicImage, /^\s*release:\s*$/mu)

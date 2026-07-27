@@ -2923,7 +2923,7 @@ func validateRenderUnitIdentity(unit rawRenderUnit, unitPath string) error {
 	if !validSHA256(unit.ContractHash) {
 		return fail(ErrInvalidPlan, unitPath+".contractHash", "must be a lowercase sha256 digest")
 	}
-	if len(unit.CompatibleTargets) != 1 || !oneOf(unit.CompatibleTargets[0], "compose", "opentofu") {
+	if len(unit.CompatibleTargets) != 1 || !oneOf(unit.CompatibleTargets[0], "compose", "opentofu", "terramate") {
 		return fail(ErrInvalidPlan, unitPath+".compatibleTargets", "resolved render unit must carry exactly one selected generation target")
 	}
 	return nil

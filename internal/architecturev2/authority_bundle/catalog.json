@@ -4938,6 +4938,9 @@
                 },
                 {
                   "unitID": "opentofu"
+                },
+                {
+                  "unitID": "terramate"
                 }
               ],
               "settingsRefs": []
@@ -8311,8 +8314,45 @@
             },
             {
               "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "basement-core-terramate-opentofu",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/basement-core/main.tf",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "basement-core-terramate-root",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/basement-core/terramate.tm.hcl",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "basement-core-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/basement-core/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
                 "compose",
-                "opentofu"
+                "opentofu",
+                "terramate"
               ],
               "format": "json",
               "id": "local-kopia-backup-source-policy",
@@ -8335,6 +8375,21 @@
               "unitRef": "opentofu"
             },
             {
+              "artifactRef": "basement-core-terramate-opentofu",
+              "outputRef": "platform/basement-core/main.tf",
+              "unitRef": "terramate"
+            },
+            {
+              "artifactRef": "basement-core-terramate-root",
+              "outputRef": "platform/basement-core/terramate.tm.hcl",
+              "unitRef": "terramate"
+            },
+            {
+              "artifactRef": "basement-core-terramate-stack",
+              "outputRef": "platform/basement-core/stack.tm.hcl",
+              "unitRef": "terramate"
+            },
+            {
               "artifactRef": "local-kopia-backup-source-policy",
               "outputRef": "home/backup/kopia-source-policy.json",
               "unitRef": "source-policy"
@@ -8343,6 +8398,9 @@
           "requiredRefs": [
             "basement-core-compose",
             "basement-core-opentofu",
+            "basement-core-terramate-opentofu",
+            "basement-core-terramate-root",
+            "basement-core-terramate-stack",
             "local-kopia-backup-source-policy"
           ]
         },
@@ -8464,10 +8522,57 @@
           "version": "1.0.0"
         },
         {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:f6a6ddb4e024ccba609e95cfcbebb3a87fc7202131dc4911fc20dfa77fa85cf7",
+          "id": "terramate",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/basement-core/main.tf",
+            "platform/basement-core/terramate.tm.hcl",
+            "platform/basement-core/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "basement-hub-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "basement-hub",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://basement/core/terramate/v1",
+          "version": "1.0.0"
+        },
+        {
           "applyMode": "artifact-only",
           "compatibleTargets": [
             "compose",
-            "opentofu"
+            "opentofu",
+            "terramate"
           ],
           "contractHash": "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3",
           "id": "source-policy",
@@ -8556,6 +8661,33 @@
           "target": "opentofu",
           "unitRefs": [
             "opentofu",
+            "source-policy"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "basement-core-terramate-opentofu",
+            "basement-core-terramate-root",
+            "basement-core-terramate-stack",
+            "local-kopia-backup-source-policy"
+          ],
+          "contractHash": "sha256:b5b8c38c50d99d14cc822faeae79c76ab10c77fa7c01a4fc83578aa223ca8ff5",
+          "id": "terramate",
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "terramate",
             "source-policy"
           ]
         }
@@ -11962,7 +12094,8 @@
     {
       "compatibleTargets": [
         "compose",
-        "opentofu"
+        "opentofu",
+        "terramate"
       ],
       "format": "json",
       "id": "resolved-plan",

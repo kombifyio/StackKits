@@ -325,7 +325,7 @@ _architectureV2PlanArtifacts: [#CatalogPlanArtifactV2 & {
 	format:   "json"
 	mode:     "0600"
 	required: true
-	compatibleTargets: ["compose", "opentofu"]
+	compatibleTargets: ["compose", "opentofu", "terramate"]
 }]
 
 // These capabilities are intentionally catalogued without a provider. A kit
@@ -2576,6 +2576,25 @@ _architectureV2Modules: list.Concat([[
 				}]
 			},
 			{
+				id: "terramate", kind: "terramate", rendererRef: "stackkit"
+				templateRef: "builtin://basement/core/terramate/v1", version: "1.0.0"
+				contractHash: "sha256:f6a6ddb4e024ccba609e95cfcbebb3a87fc7202131dc4911fc20dfa77fa85cf7"
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				outputs: [
+					"platform/basement-core/main.tf",
+					"platform/basement-core/terramate.tm.hcl",
+					"platform/basement-core/stack.tm.hcl",
+				]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: [{
+					serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
+					allowedIngressProtocols: ["http", "https"]
+					allowedExposures: ["local", "remote-private"]
+					originSelector: "control-authority-site"
+					healthRef:      "basement-hub-http"
+				}]
+			},
+			{
 				id:           "source-policy"
 				kind:         "native-config"
 				rendererRef:  "stackkit"
@@ -2583,6 +2602,7 @@ _architectureV2Modules: list.Concat([[
 				templateRef:  "builtin://home/backup/kopia-source/v1.json"
 				version:      "1.0.0"
 				contractHash: "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3"
+				compatibleTargets: ["compose", "opentofu", "terramate"]
 				publicInputRefs: ["backup-source"], secretInputRefs: []
 				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 				inputBindings: [{
@@ -2611,6 +2631,19 @@ _architectureV2Modules: list.Concat([[
 				publicInputRefs: ["backup-source"], secretInputRefs: []
 				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 			},
+			{
+				id: "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: "sha256:b5b8c38c50d99d14cc822faeae79c76ab10c77fa7c01a4fc83578aa223ca8ff5"
+				unitRefs: ["terramate", "source-policy"]
+				artifactRefs: [
+					"basement-core-terramate-opentofu",
+					"basement-core-terramate-root",
+					"basement-core-terramate-stack",
+					"local-kopia-backup-source-policy",
+				]
+				publicInputRefs: ["backup-source"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+			},
 		]
 		realizationSupport: {
 			contractVersion: "1.0.0"
@@ -2623,7 +2656,14 @@ _architectureV2Modules: list.Concat([[
 				requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 			}
 			artifacts: {
-				requiredRefs: ["basement-core-compose", "basement-core-opentofu", "local-kopia-backup-source-policy"]
+				requiredRefs: [
+					"basement-core-compose",
+					"basement-core-opentofu",
+					"basement-core-terramate-opentofu",
+					"basement-core-terramate-root",
+					"basement-core-terramate-stack",
+					"local-kopia-backup-source-policy",
+				]
 				outputBindings: [
 					{
 						artifactRef: "basement-core-compose", unitRef: "compose"
@@ -2632,6 +2672,18 @@ _architectureV2Modules: list.Concat([[
 					{
 						artifactRef: "basement-core-opentofu", unitRef: "opentofu"
 						outputRef: "platform/basement-core/main.tf"
+					},
+					{
+						artifactRef: "basement-core-terramate-opentofu", unitRef: "terramate"
+						outputRef: "platform/basement-core/main.tf"
+					},
+					{
+						artifactRef: "basement-core-terramate-root", unitRef: "terramate"
+						outputRef: "platform/basement-core/terramate.tm.hcl"
+					},
+					{
+						artifactRef: "basement-core-terramate-stack", unitRef: "terramate"
+						outputRef: "platform/basement-core/stack.tm.hcl"
 					},
 					{
 						artifactRef: "local-kopia-backup-source-policy", unitRef: "source-policy"
@@ -2650,8 +2702,23 @@ _architectureV2Modules: list.Concat([[
 						outputRef: "platform/basement-core/main.tf"
 					},
 					{
+						id: "basement-core-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef: "platform/basement-core/main.tf"
+					},
+					{
+						id: "basement-core-terramate-root", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef: "platform/basement-core/terramate.tm.hcl"
+					},
+					{
+						id: "basement-core-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef: "platform/basement-core/stack.tm.hcl"
+					},
+					{
 						id: "local-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true
-						compatibleTargets: ["compose", "opentofu"], unitRef: "source-policy"
+						compatibleTargets: ["compose", "opentofu", "terramate"], unitRef: "source-policy"
 						outputRef: "home/backup/kopia-source-policy.json"
 					},
 				]

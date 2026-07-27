@@ -104,8 +104,9 @@ func (runtime *dockerRuntime) ValidateStaging(ctx context.Context, authority Aut
 		"--rm", "--network", "none", "--read-only",
 		"--cap-drop", "ALL", "--security-opt", "no-new-privileges",
 		"--mount", "type=volume,src=" + authority.StagingVolume + ",dst=/staging,readonly",
+		"--entrypoint", "/bin/sh",
 		authority.KopiaHelperImage,
-		"/bin/sh", "-ceu", stagingValidationScript, "--", "/staging",
+		"-ceu", stagingValidationScript, "--", "/staging",
 	}
 	args = append(args, paths...)
 	if _, err := runtime.docker(ctx, args...); err != nil {
@@ -231,8 +232,9 @@ func (runtime *dockerRuntime) copyVolume(
 		"--cap-drop", "ALL", "--security-opt", "no-new-privileges",
 		"--mount", "type=volume,src=" + source + ",dst=/source,readonly",
 		"--mount", "type=volume,src=" + destination + ",dst=/target",
+		"--entrypoint", "/bin/sh",
 		authority.KopiaHelperImage,
-		"/bin/sh", "-ceu", copyScript, "--", "/source" + sourcePath, "/target",
+		"-ceu", copyScript, "--", "/source" + sourcePath, "/target",
 	}
 	if _, err := runtime.docker(ctx, args...); err != nil {
 		return wrapDocker("copy governed volume", err)

@@ -162,7 +162,8 @@
     ],
     "allowedTargets": [
       "opentofu",
-      "compose"
+      "compose",
+      "terramate"
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",

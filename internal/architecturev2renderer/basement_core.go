@@ -386,6 +386,10 @@ func (r basementCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) (
 }
 
 func validateBasementCoreUnit(unit RenderUnit, contract RendererContract, unitID, outputRef string) error {
+	return validateBasementCoreUnitOutputs(unit, contract, unitID, []string{outputRef})
+}
+
+func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract, unitID string, outputRefs []string) error {
 	path := "resolvedPlan.modules." + basementCoreModuleID + ".renderUnits." + unitID
 	if unit.ModuleID() != basementCoreModuleID || unit.ID() != unitID {
 		return fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", basementCoreModuleID, unitID)
@@ -431,8 +435,8 @@ func validateBasementCoreUnit(unit RenderUnit, contract RendererContract, unitID
 		placement.Scope != "node-local" || placement.Cardinality != "one-per-node" {
 		return fail(ErrInvalidPlan, path+".placement", "requires exact node-local/one-per-node placement")
 	}
-	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != outputRef {
-		return fail(ErrInvalidPlan, path+".outputs", "requires exactly output %q", outputRef)
+	if outputs := unit.DeclaredOutputs(); !exactStringList(outputs, outputRefs) {
+		return fail(ErrInvalidPlan, path+".outputs", "requires exactly the governed outputs")
 	}
 	if err := validateBasementCoreComponents(unit.RuntimeComponentsJSON(), path+".runtime.components"); err != nil {
 		return err

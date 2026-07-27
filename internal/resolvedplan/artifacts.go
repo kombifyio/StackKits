@@ -15,13 +15,14 @@ var (
 )
 
 type generationArtifactRecord struct {
-	id       string
-	kind     string
-	path     string
-	format   string
-	mode     string
-	required bool
-	owner    map[string]any
+	id                string
+	kind              string
+	path              string
+	format            string
+	mode              string
+	required          bool
+	compatibleTargets []string
+	owner             map[string]any
 }
 
 type moduleArtifactContract struct {
@@ -322,11 +323,22 @@ func deriveGenerationArtifacts(planContracts []map[string]any, modules []any, ta
 		return nil, err
 	}
 	for index, rawModule := range modules {
-		module, err := asObject(rawModule, fmt.Sprintf("modules[%d]", index))
+		modulePath := fmt.Sprintf("modules[%d]", index)
+		module, err := asObject(rawModule, modulePath)
 		if err != nil {
 			return nil, err
 		}
-		moduleRecords, err := deriveModuleArtifactRecords(module, fmt.Sprintf("modules[%d]", index), target, outputRoot)
+		// A Terramate plan can contain an explicit Terramate wrapper alongside
+		// ordinary modules that intentionally retain their OpenTofu contract.
+		// The resolved module target is authoritative for its own artifacts.
+		moduleTarget, hasModuleTarget, err := optionalStringField(module, modulePath, "renderTarget")
+		if err != nil {
+			return nil, err
+		}
+		if !hasModuleTarget {
+			moduleTarget = target
+		}
+		moduleRecords, err := deriveModuleArtifactRecords(module, modulePath, moduleTarget, outputRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -897,6 +909,7 @@ func parseGenerationArtifactMetadata(raw map[string]any, artifactPath, pathField
 		return generationArtifactRecord{}, nil, err
 	}
 	record.required = true
+	record.compatibleTargets = append([]string(nil), targets...)
 	if err := validateGenerationArtifactMetadata(record, targets, artifactPath); err != nil {
 		return generationArtifactRecord{}, nil, err
 	}
@@ -907,7 +920,7 @@ func validateGenerationArtifactMetadata(record generationArtifactRecord, targets
 	if !generationArtifactIDPattern.MatchString(record.id) {
 		return fail(ErrContractConflict, artifactPath+".id", "invalid generation artifact ID %q", record.id)
 	}
-	if !contains([]string{"opentofu", "compose", "metadata", "script", "native-config"}, record.kind) {
+	if !contains([]string{"opentofu", "compose", "terramate", "metadata", "script", "native-config"}, record.kind) {
 		return fail(ErrContractConflict, artifactPath+".kind", "unsupported generation artifact kind %q", record.kind)
 	}
 	if !contains([]string{"json", "yaml", "hcl", "shell", "text"}, record.format) {
@@ -923,10 +936,10 @@ func validateGenerationArtifactMetadata(record generationArtifactRecord, targets
 		return fail(ErrContractConflict, artifactPath, "artifact path %q is reserved for generator transaction control", record.path)
 	}
 	for _, target := range targets {
-		if target != "compose" && target != "opentofu" {
+		if target != "compose" && target != "opentofu" && target != "terramate" {
 			return fail(ErrContractConflict, artifactPath+".compatibleTargets", "unsupported generation target %q", target)
 		}
-		if (record.kind == "compose" || record.kind == "opentofu") && target != record.kind {
+		if (record.kind == "compose" || record.kind == "opentofu" || record.kind == "terramate") && target != record.kind {
 			return fail(ErrContractConflict, artifactPath+".compatibleTargets", "artifact kind %q is incompatible with generation target %q", record.kind, target)
 		}
 	}
@@ -1022,28 +1035,39 @@ func validateModuleArtifactOwnership(contract moduleArtifactContract, contractPa
 
 func validateGenerationArtifactUniqueness(records []generationArtifactRecord) error {
 	ids := make(map[string]struct{}, len(records))
-	paths := make(map[string]string, len(records))
-	pathKeys := make([]string, 0, len(records))
+	pathsByTarget := make(map[string]map[string]string)
 	for index, record := range records {
 		artifactPath := fmt.Sprintf("generation.artifacts[%d]", index)
 		if _, duplicate := ids[record.id]; duplicate {
 			return fail(ErrContractConflict, artifactPath+".id", "generation artifact ID %q is owned more than once", record.id)
 		}
 		ids[record.id] = struct{}{}
-		pathKey := strings.ToLower(path.Clean(record.path))
-		if owner, duplicate := paths[pathKey]; duplicate {
-			return fail(ErrContractConflict, artifactPath+".path", "generation artifact path %q conflicts with artifact %q", record.path, owner)
+		for _, target := range record.compatibleTargets {
+			paths := pathsByTarget[target]
+			if paths == nil {
+				paths = make(map[string]string)
+				pathsByTarget[target] = paths
+			}
+			pathKey := strings.ToLower(path.Clean(record.path))
+			if owner, duplicate := paths[pathKey]; duplicate {
+				return fail(ErrContractConflict, artifactPath+".path", "generation artifact path %q conflicts with artifact %q for target %q", record.path, owner, target)
+			}
+			paths[pathKey] = record.id
 		}
-		paths[pathKey] = record.id
-		pathKeys = append(pathKeys, pathKey)
 	}
-	sort.Strings(pathKeys)
-	for _, descendantPath := range pathKeys {
-		segments := strings.Split(descendantPath, "/")
-		for boundary := 1; boundary < len(segments); boundary++ {
-			ancestorPath := strings.Join(segments[:boundary], "/")
-			if owner, conflict := paths[ancestorPath]; conflict {
-				return fail(ErrContractConflict, "generation.artifacts", "generation artifact path %q descends from file artifact %q at %q", descendantPath, owner, ancestorPath)
+	for target, paths := range pathsByTarget {
+		pathKeys := make([]string, 0, len(paths))
+		for pathKey := range paths {
+			pathKeys = append(pathKeys, pathKey)
+		}
+		sort.Strings(pathKeys)
+		for _, descendantPath := range pathKeys {
+			segments := strings.Split(descendantPath, "/")
+			for boundary := 1; boundary < len(segments); boundary++ {
+				ancestorPath := strings.Join(segments[:boundary], "/")
+				if owner, conflict := paths[ancestorPath]; conflict {
+					return fail(ErrContractConflict, "generation.artifacts", "generation artifact path %q descends from file artifact %q at %q for target %q", descendantPath, owner, ancestorPath, target)
+				}
 			}
 		}
 	}
@@ -1062,7 +1086,7 @@ func uniqueStringSet(values []string, valuePath string) (map[string]struct{}, er
 }
 
 func artifactKindRequiresMatchingUnit(kind string) bool {
-	return kind == "compose" || kind == "opentofu" || kind == "native-config"
+	return kind == "compose" || kind == "opentofu" || kind == "terramate" || kind == "native-config"
 }
 
 func (record generationArtifactRecord) document() map[string]any {

@@ -1512,7 +1512,8 @@
     {
       "compatibleTargets": [
         "compose",
-        "opentofu"
+        "opentofu",
+        "terramate"
       ],
       "format": "json",
       "id": "resolved-plan",

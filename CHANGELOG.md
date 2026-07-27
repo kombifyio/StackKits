@@ -4,6 +4,48 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0-beta.5] - 2026-07-27
+
+> **Offline Advanced-Mode and restore-evidence beta** for deterministic
+> Terramate change sets, Owner-controlled local trust, and the exact-archive
+> activation/crash-recovery proof required before stable v0.8.
+
+### Added
+
+- `stackkit.advanced-capability/v1` is verified fully offline against injected
+  Ed25519 trust, with strict canonical JSON, stack/Owner/operation scope,
+  validity, maximum 30-day lifetime, and stable fail-closed denial codes.
+- `stackkit advanced trust import` pins and validates a public-key-only trust
+  bundle before storing an Owner-signed private record; `trust inspect`
+  re-verifies custody and exposes only non-secret issuer/key metadata.
+- `terramate` is a native CUE generation target. Basement renders deterministic
+  Terramate stacks over the existing OpenTofu modules without adding provider,
+  credential, account, or Cloud authority.
+- `stackkit advanced change-set create` verifies local Owner custody, trust,
+  capability, baseline, candidate, and output scope before temporary files or
+  rendering. It persists an Owner-signed, content-addressed change set without
+  invoking Terramate, OpenTofu, Docker, Techstack, or a network service.
+- The public release workflow has a separate exact-live-release restore proof.
+  It verifies the published archive, release index, SBOM, and attestations,
+  forcibly interrupts an Owner-approved activation, rejects concurrent
+  mutation, proves conservative explicit rollback, then completes a second
+  activation plus Owner/service verification.
+
+### Fixed
+
+- Restore validation and volume-copy helpers now override the pinned Kopia
+  image entrypoint explicitly, so the required restricted shell command is
+  executed consistently by the live activation runtime.
+
+### Known limitations
+
+- The restore proof is implemented in the release workflow but remains
+  unverified until it passes against the published `v0.8.0-beta.5` archive.
+- Terramate change-set apply, Advanced reconcile, coordinated rollback, and
+  restore drills remain unavailable; the implemented Advanced surface stops at
+  offline verification, local trust, deterministic rendering, and signed
+  change-set creation.
+
 ## [0.8.0-beta.4] - 2026-07-27
 
 > **Live restore beta** for owner-approved activation of staged Kopia data,

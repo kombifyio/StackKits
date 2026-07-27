@@ -6,6 +6,14 @@ on:
       - stackkits-release-ready
   workflow_dispatch:
     inputs:
+      mode:
+        description: Release publication or an exact live-release restore proof
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - restore-proof
       tag:
         description: Exact publisher-created release tag
         required: true
@@ -57,7 +65,7 @@ jobs:
 
   release-trust:
     name: Attest exact release and prove standalone runtime
-    if: github.repository == 'kombifyio/StackKits' && github.event_name == 'workflow_dispatch'
+    if: github.repository == 'kombifyio/StackKits' && github.event_name == 'workflow_dispatch' && inputs.mode != 'restore-proof'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -315,6 +323,7 @@ jobs:
         shell: bash
         env:
           STACKKIT_E2E_PRELOAD_IMAGES: "1"
+          STACKKIT_E2E_RESTORE_PROOF: "1"
         run: |
           set -euo pipefail
           archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
@@ -332,6 +341,9 @@ jobs:
             "$GITHUB_SHA" \
             "$source_digest" \
             artifacts/standalone-runtime
+          jq -e \
+            '.schemaVersion == "stackkit.restore-live-e2e-evidence/v1"' \
+            artifacts/standalone-runtime/restore-live-evidence.json >/dev/null
 
       - name: Retain sanitized standalone failure diagnostics
         if: ${{ failure() }}
@@ -352,9 +364,19 @@ jobs:
             artifacts/standalone-runtime/apply.log
             artifacts/standalone-runtime/verify.json
             artifacts/standalone-runtime/runtime-evidence.json
+            artifacts/standalone-runtime/restore-live-evidence.json
+            artifacts/standalone-runtime/restore-proof/*.log
+            artifacts/standalone-runtime/restore-proof/*.json
           if-no-files-found: warn
           compression-level: 0
           retention-days: 1
+
+      - name: Attest exact restore evidence
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: artifacts/standalone-runtime/restore-live-evidence.json
+          create-storage-record: false
+          show-summary: false
 
       - name: Attest standalone runtime evidence
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
@@ -395,3 +417,186 @@ jobs:
             --draft=false \
             --prerelease \
             --latest=false
+
+  restore-proof:
+    name: Prove restore against an exact live Basement archive
+    if: github.repository == 'kombifyio/StackKits' && github.event_name == 'workflow_dispatch' && inputs.mode == 'restore-proof'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the current public proof harness
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Install pinned GitHub CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          echo "${GH_CLI_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          echo "${RUNNER_TEMP}/gh_${GH_CLI_VERSION}_linux_amd64/bin" >> "$GITHUB_PATH"
+
+      - name: Download and verify the exact live release trust set
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|edge)\.[0-9]+)?$ ]]
+          [[ "$EXPECTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          tag_source_commit="$(git rev-list -n 1 "refs/tags/$TAG")"
+          if [ "$tag_source_commit" != "$EXPECTED_SOURCE_COMMIT" ]; then
+            echo "::error title=Restore proof source mismatch::Tag ${TAG} resolves to ${tag_source_commit}; expected ${EXPECTED_SOURCE_COMMIT}."
+            exit 1
+          fi
+
+          release="$(gh release view "$TAG" --json tagName,isDraft,assets)"
+          jq -e --arg tag "$TAG" \
+            '.tagName == $tag and .isDraft == false' <<<"$release" >/dev/null
+          names="$(jq -r '.assets[].name' <<<"$release")"
+          for required in \
+            checksums.txt \
+            release-evidence.json \
+            stackkits-release-assets.intoto.jsonl \
+            sigstore-trusted-root.jsonl \
+            stackkits-release-index-v1.json \
+            stackkits-release-index-v1.json.intoto.jsonl; do
+            grep -qx "$required" <<<"$names"
+          done
+          test "$(grep -Ec '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz$' <<<"$names")" -eq 1
+          test "$(grep -Ec '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz\.spdx\.json$' <<<"$names")" -eq 1
+
+          mkdir -p dist
+          for pattern in \
+            checksums.txt \
+            release-evidence.json \
+            stackkits-release-assets.intoto.jsonl \
+            sigstore-trusted-root.jsonl \
+            stackkits-release-index-v1.json \
+            stackkits-release-index-v1.json.intoto.jsonl \
+            'stackkits-basement-kit_*_linux_amd64.tar.gz' \
+            'stackkits-basement-kit_*_linux_amd64.tar.gz.spdx.json'; do
+            gh release download "$TAG" --dir dist --pattern "$pattern" --clobber
+          done
+          (
+            cd dist
+            sha256sum --ignore-missing --check --strict checksums.txt
+          )
+
+          archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
+          test -n "$archive"
+          sbom="${archive}.spdx.json"
+          archive_name="$(basename "$archive")"
+          sbom_name="$(basename "$sbom")"
+          archive_sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
+          sbom_sha256="$(sha256sum "$sbom" | cut -d' ' -f1)"
+          jq -e \
+            --arg tag "$TAG" \
+            --arg archiveName "$archive_name" \
+            --arg archiveSha256 "$archive_sha256" \
+            --arg sbomName "$sbom_name" \
+            --arg sbomSha256 "$sbom_sha256" \
+            '
+              .schemaVersion == "stackkits-release-index/v1" and
+              .release.repository == "kombifyio/stackKits" and
+              .release.version == $tag and
+              ([.assets[] |
+                select(
+                  .kit == "basement-kit" and
+                  .version == $tag and
+                  .platform.os == "linux" and
+                  .platform.arch == "amd64" and
+                  .archive.name == $archiveName and
+                  .archive.sha256 == $archiveSha256 and
+                  .sbom.name == $sbomName and
+                  .sbom.sha256 == $sbomSha256
+                )
+              ] | length) == 1
+            ' dist/stackkits-release-index-v1.json >/dev/null
+          jq -e --arg tag "$TAG" --arg commit "$EXPECTED_SOURCE_COMMIT" \
+            '.release.tag == $tag and .release.commit == $commit and
+             .checks.attestationVerification.status == "pass"' \
+            dist/release-evidence.json >/dev/null
+
+          gh attestation verify "$archive" \
+            -R "$GITHUB_REPOSITORY" \
+            --bundle dist/stackkits-release-assets.intoto.jsonl \
+            --custom-trusted-root dist/sigstore-trusted-root.jsonl
+          gh attestation verify dist/stackkits-release-index-v1.json \
+            -R "$GITHUB_REPOSITORY" \
+            --bundle dist/stackkits-release-index-v1.json.intoto.jsonl \
+            --custom-trusted-root dist/sigstore-trusted-root.jsonl
+
+      - name: Admit packet capture without a privileged runtime
+        shell: bash
+        run: sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
+
+      - name: Run bounded exact-archive restore proof
+        shell: bash
+        env:
+          STACKKIT_E2E_PRELOAD_IMAGES: "1"
+          STACKKIT_E2E_RESTORE_PROOF: "1"
+        run: |
+          set -euo pipefail
+          archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
+          test -n "$archive"
+          source_commit="${{ inputs.source_commit }}"
+          tree="$(git rev-parse "${source_commit}^{tree}")"
+          source_digest="sha256:$(printf '%s\0%s' "$source_commit" "$tree" | sha256sum | cut -d' ' -f1)"
+          mkdir -p artifacts/standalone-runtime
+          bash scripts/e2e/run-standalone-oss-runtime-e2e.sh \
+            "$archive" \
+            "${archive}.spdx.json" \
+            dist/stackkits-release-assets.intoto.jsonl \
+            dist/sigstore-trusted-root.jsonl \
+            dist/stackkits-release-index-v1.json \
+            dist/stackkits-release-index-v1.json.intoto.jsonl \
+            "$source_commit" \
+            "$source_digest" \
+            artifacts/standalone-runtime
+          jq -e \
+            '.schemaVersion == "stackkit.restore-live-e2e-evidence/v1"' \
+            artifacts/standalone-runtime/restore-live-evidence.json >/dev/null
+
+      - name: Retain sanitized restore failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: restore-live-failure-${{ inputs.tag }}-${{ inputs.source_commit }}
+          path: |
+            artifacts/standalone-runtime/*.log
+            artifacts/standalone-runtime/*.json
+            artifacts/standalone-runtime/*.jsonl
+            artifacts/standalone-runtime/restore-proof/*.log
+            artifacts/standalone-runtime/restore-proof/*.json
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 1
+
+      - name: Attest exact restore evidence
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: artifacts/standalone-runtime/restore-live-evidence.json
+          create-storage-record: false
+          show-summary: false
+
+      - name: Retain exact restore evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: restore-live-${{ inputs.tag }}-${{ inputs.source_commit }}
+          path: artifacts/standalone-runtime
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90

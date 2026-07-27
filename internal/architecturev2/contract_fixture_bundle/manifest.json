@@ -9,11 +9,11 @@
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
     "architecture/v2/contractfixture/catalog.cue": "sha256:89e02922e6092eaec6d42a57d2271bf84d9015e59ffe49a455e5596a3e27040f",
-    "base/architecture_v2.cue": "sha256:70176a8c86e8f75974fc8019d2d3b3cbdf1138e9f7bf9020ed5090975ee2db7c",
-    "base/architecture_v2_catalog.cue": "sha256:ca2fa9b98c28a0b1c7466eea1890b9ee6cc6fed99af67066871c691929947807",
+    "base/architecture_v2.cue": "sha256:7195eae186a608dcb5c554b72a59f548bedf5f4b377e30fd743ba34306f4a3f0",
+    "base/architecture_v2_catalog.cue": "sha256:23edd74291a668f6cb1cf1a386090bf2c2b53a1341882953d43f604b1712e9ad",
     "base/architecture_v2_definition_binding.cue": "sha256:692c5ec5ed511c8ee23e5a0a11c4911c8a865efda9464dbceb6c28d92aa9a5bd",
     "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",
-    "basement-kit/stackfile.cue": "sha256:afa68206c34bc44cdfebbb014f5a63c53a1fe413767657f37930f3fe1b2ebcba",
+    "basement-kit/stackfile.cue": "sha256:2072cf0dfcb2f25f7caa0d15083f9b699c7e73c43993721b1f17a75c9897a7c5",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee"
   }
 }
