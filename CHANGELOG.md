@@ -4,6 +4,70 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0] - 2026-07-27
+
+> **Stable standalone OSS lifecycle** for an account-free, single-node
+> Basement homelab managed end to end through the public `stackkit` CLI.
+
+### Added
+
+- Local CUE, the canonical ResolvedPlan, Owner custody, and lifecycle evidence
+  are the authoritative Stack state. `stackkit init --owner-source=local`
+  establishes the local Owner identity and its PocketID, TinyAuth, and step-ca
+  binding without requiring Kombify Cloud or Techstack.
+- Attested GitHub release indexes provide the public distribution authority for
+  install, offline verification, and explicit stable, beta, edge, or exact
+  SemVer resolution.
+- The default Basement workflow renders and operates the host and Docker
+  baseline, local ingress, PocketID, TinyAuth, step-ca, Coolify, Hub, and their
+  verification endpoints through `init`, `validate`, `generate`, `apply`, and
+  `verify`.
+- Standard upgrade, backup, staged restore activation, explicit crash recovery,
+  and read-only drift detection use the local Owner authority and signed
+  lifecycle evidence. `stackkit drift reconcile --mode standard
+  --owner-approve` creates mandatory Kopia and executor-state rollback
+  checkpoints before generate, Apply, and Verify.
+- Offline Advanced capabilities, Owner-pinned trust bundles, deterministic
+  Terramate generation, and signed change-set creation establish the optional
+  integration boundary for a Techstack orchestration UI without adding Cloud
+  authority to the standalone lifecycle.
+
+### Changed
+
+- Techstack is an optional consumer of pinned public StackKits artifacts,
+  structured command results, and lifecycle events. Kombify Cloud may provide
+  convenience identity sync, but neither service is required for local
+  ownership or standard Day-1 and Day-2 operations.
+- The public CLI and release surface are structurally separated from private
+  publisher, Admin API, database, internal-host, and service-secret paths.
+
+### Fixed
+
+- Kopia repository passwords now enter the fixed local backup executor only
+  through sensitive stdin and a child-process environment, avoiding the
+  terminal-only prompt that blocked the exact published-archive restore proof.
+
+### Release evidence
+
+- Stable publication requires the exact published `v0.8.0-beta.5` archive to
+  install, Apply, Verify, upgrade to the exact candidate, detect drift, and
+  preserve the independently proven activation rollback anchor. Archive,
+  release index, SPDX SBOM, and GitHub-OIDC attestations remain fail-closed.
+- Missing Advanced capability is exercised as a structured denial before
+  rendering or lifecycle side effects.
+
+### Known limitations
+
+- v0.8.0 supports the governed single-node Basement path. Multi-node rolling
+  upgrades, Photos, Vault, Files, and the broader Modern Homelab profile remain
+  v0.9 scope.
+- Terramate change-set Apply, Advanced reconcile, coordinated Advanced
+  rollback, and restore drills remain unavailable. Standard Apply, upgrade,
+  backup, restore, drift detection, and Owner-approved standard reconcile are
+  account-free.
+- Provider credentials, server provisioning, and host lifecycle remain outside
+  StackKits and may be orchestrated by Techstack.
+
 ## [0.8.0-beta.5] - 2026-07-27
 
 > **Offline Advanced-Mode and restore-evidence beta** for deterministic

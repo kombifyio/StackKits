@@ -46,7 +46,7 @@ jobs:
           if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]] || ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
             base_sha="$(git rev-parse HEAD^)"
           fi
-          go run ./cmd/stackkit-affected-tests --merge-base "$base_sha" --max-reverse 6 --format json > affected-plan.json
+          go run ./cmd/stackkit-affected-tests --merge-base "$base_sha" --max-reverse 0 --format json > affected-plan.json
           jq -r '.commands[].argv | @sh' affected-plan.json > affected-plan.sh
           cat affected-plan.json
           echo "need_cue=$(jq -r 'any(.commands[]; .kind == "cue")' affected-plan.json)" >> "$GITHUB_OUTPUT"

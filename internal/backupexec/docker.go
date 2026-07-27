@@ -55,10 +55,11 @@ func NewDockerEngine(container string) Engine {
 }
 
 // DockerV2Executor binds the native-v2 secret executor to docker exec -i.
-// Kopia 0.18.2 has no password-command/password-file flag and its password
-// prompt rejects a plain pipe. The pinned image includes util-linux script, so
-// this adapter allocates the required in-container PTY while keeping the secret
-// exclusively on stdin. No caller can supply a free-form shell command.
+// Kopia 0.18.2 reads KOPIA_PASSWORD before attempting its terminal-only
+// password prompt. A fixed shell adapter reads exactly one secret line from
+// stdin into that child-process environment and then execs the closed Kopia
+// argv. The secret is never present in Docker argv, the container definition,
+// or a persistent environment. No caller can supply a free-form shell command.
 func DockerV2Executor() SecretExecutor {
 	return dockerV2Executor(func(timeout time.Duration) dockerV2Client {
 		return docker.NewLocalClient(docker.WithTimeout(timeout))
@@ -98,11 +99,11 @@ func dockerV2Executor(newClient dockerV2ClientFactory) SecretExecutor {
 		if err := validateDockerV2Runtime(container, network); err != nil {
 			return "", fmt.Errorf("local kopia runtime differs from the governed policy: %w", err)
 		}
-		ptyCommand, err := kopiaPTYCommand(command)
+		passwordCommand, err := kopiaPasswordCommand(command)
 		if err != nil {
 			return "", err
 		}
-		return client.ExecWithStdin(ctx, container.ID, ptyCommand, sensitiveInput)
+		return client.ExecWithStdin(ctx, container.ID, passwordCommand, sensitiveInput)
 	}
 }
 
@@ -355,28 +356,21 @@ func validateDockerV2Labels(container *docker.ContainerInfo) error {
 	return nil
 }
 
-func kopiaPTYCommand(command []string) ([]string, error) {
+func kopiaPasswordCommand(command []string) ([]string, error) {
 	if len(command) == 0 || command[0] != "kopia" {
-		return nil, fmt.Errorf("native-v2 PTY adapter accepts only kopia argv")
+		return nil, fmt.Errorf("native-v2 password adapter accepts only kopia argv")
 	}
-	quoted := make([]string, len(command))
-	for index, arg := range command {
+	for _, arg := range command {
 		if strings.ContainsRune(arg, '\x00') {
 			return nil, fmt.Errorf("kopia argv contains NUL")
 		}
-		quoted[index] = quotePOSIXShellArg(arg)
 	}
-	return []string{
-		"/usr/bin/script",
-		"-qec",
-		strings.Join(quoted, " "),
-		"-E", "never",
-		"/dev/null",
-	}, nil
-}
-
-func quotePOSIXShellArg(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+	argv := []string{
+		"/bin/sh", "-ceu",
+		`IFS= read -r KOPIA_PASSWORD; export KOPIA_PASSWORD; exec "$@"`,
+		"--",
+	}
+	return append(argv, command...), nil
 }
 
 // NewDockerV2Engine wires the native-v2 engine to its fixed Docker adapter.

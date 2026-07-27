@@ -48,7 +48,7 @@ test('publisher dispatches public trust only after final immutable evidence', ()
   )
 })
 
-test('public manual workflow binds exact ready draft bytes before publishing a prerelease', () => {
+test('public manual workflow binds exact ready draft bytes before publishing a release', () => {
   assert.ok(releaseEvidenceSchema.properties.release.required.includes('commit'))
   assert.equal(releaseEvidenceSchema.properties.source, undefined)
   for (const fragment of [
@@ -122,7 +122,25 @@ test('public manual workflow binds exact ready draft bytes before publishing a p
       'verify.json'
     ]
   )
-  assert.match(publicRelease, /Stable publication requires the S4 upgrade, rollback, backup, and drift receipt/u)
+  for (const stableFragment of [
+    'Download and verify exact previous beta release for stable Day-2',
+    'stable_previous_tag:',
+    'STACKKIT_E2E_STABLE_DAY2_PROOF: "1"',
+    'STACKKIT_E2E_PREVIOUS_TAG',
+    'STACKKIT_E2E_PREVIOUS_ARCHIVE',
+    'stackkit.stable-day2-live-e2e-evidence/v1',
+    'Attest exact stable Day-2 evidence',
+    'Retain exact stable Day-2 evidence',
+    'Attach exact Day-2 evidence and publish the stable release',
+    '--prerelease=false',
+    '--latest'
+  ]) {
+    assert.match(publicRelease, new RegExp(stableFragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
+  }
+  assert.doesNotMatch(publicRelease, /Stable release gate incomplete/u)
+  before(publicRelease, 'Download and verify exact previous beta release for stable Day-2', 'Run bounded stable Day-2 proof from exact beta baseline to candidate')
+  before(publicRelease, 'Run bounded stable Day-2 proof from exact beta baseline to candidate', 'Attest exact stable Day-2 evidence')
+  before(publicRelease, 'Attest exact stable Day-2 evidence', 'Attach exact Day-2 evidence and publish the stable release')
 })
 
 test('public runtime failure diagnostics are explicit, sanitized, and short-lived', () => {

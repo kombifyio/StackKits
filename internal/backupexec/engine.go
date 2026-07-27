@@ -147,8 +147,9 @@ func (e Engine) ConnectS3Repository(ctx context.Context, repo S3Repository, pass
 }
 
 // CreateFilesystemRepository initializes a native-v2 local repository. The
-// repository password is supplied only to the fixed PTY adapter over sensitive
-// stdin; it is never part of argv or environment.
+// repository password is supplied only to the fixed per-process password
+// adapter over sensitive stdin; it is never part of Docker argv or persistent
+// container configuration.
 func (e V2Engine) CreateFilesystemRepository(ctx context.Context, repositoryPath string, password []byte) error {
 	_, err := e.createFilesystemRepository(ctx, repositoryPath, password)
 	return err
@@ -438,8 +439,8 @@ func repositoryPasswordInput(password []byte, repetitions int) ([]byte, error) {
 	if len(password) == 0 {
 		return nil, fmt.Errorf("repository password is required")
 	}
-	if bytes.IndexAny(password, "\r\n") >= 0 {
-		return nil, fmt.Errorf("repository password must be a single line")
+	if bytes.IndexAny(password, "\x00\r\n") >= 0 {
+		return nil, fmt.Errorf("repository password must be a non-NUL single line")
 	}
 	input := make([]byte, 0, repetitions*(len(password)+1))
 	for range repetitions {

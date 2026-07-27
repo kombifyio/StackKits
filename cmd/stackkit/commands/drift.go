@@ -8,6 +8,9 @@ import (
 	"io"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
+	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +23,7 @@ var (
 	driftDetectJSON            bool
 	driftReconcileMode         string
 	driftReconcileJSON         bool
+	driftReconcileOwnerApprove bool
 	observeArchitectureV2Drift = observeCurrentArchitectureV2Drift
 )
 
@@ -91,6 +95,16 @@ func (err *driftReconcileDeniedError) Error() string {
 	return err.denial.Message
 }
 
+type standardDriftReconcileResult struct {
+	SchemaVersion string                    `json:"schemaVersion"`
+	Mode          string                    `json:"mode"`
+	Operation     string                    `json:"operation"`
+	Changed       bool                      `json:"changed"`
+	Before        driftReport               `json:"before"`
+	Checkpoint    *publicUpgradeCheckpoint  `json:"checkpoint,omitempty"`
+	Transaction   *publicUpgradeTransaction `json:"transaction,omitempty"`
+}
+
 var driftCmd = &cobra.Command{
 	Use:   "drift",
 	Short: "Observe and reconcile local StackKit drift",
@@ -111,10 +125,13 @@ runtime without refreshing state or writing lifecycle data.`,
 
 var driftReconcileCmd = &cobra.Command{
 	Use:   "reconcile",
-	Short: "Reconcile drift after the required lifecycle authority is available",
-	Long: `Fail closed until the complete Owner-approved standard snapshot
-transaction or the offline-verified Advanced capability is available. This
-command performs no rendering, snapshot, Apply, or runtime side effect.`,
+	Short: "Reconcile drift through the governed local lifecycle",
+	Long: `Standard mode requires explicit local Owner approval, verifies the
+current local authority, creates a mandatory Kopia and executor-state rollback
+checkpoint, then runs generate, apply, and verify through the exclusive
+lifecycle journal. A failed target phase automatically restores, reapplies, and
+verifies the captured prior executor state. Advanced mode remains fail-closed
+until an offline-verified capability is supplied.`,
 	Args: cobra.NoArgs,
 	RunE: runDriftReconcile,
 }
@@ -122,7 +139,8 @@ command performs no rendering, snapshot, Apply, or runtime side effect.`,
 func init() {
 	driftDetectCmd.Flags().BoolVar(&driftDetectJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
 	driftReconcileCmd.Flags().StringVar(&driftReconcileMode, "mode", "standard", "Reconcile mode: standard or advanced")
-	driftReconcileCmd.Flags().BoolVar(&driftReconcileJSON, "json", false, "Emit a stackkit.command-result/v1 denial")
+	driftReconcileCmd.Flags().BoolVar(&driftReconcileOwnerApprove, "owner-approve", false, "Record explicit local Owner approval for standard reconciliation")
+	driftReconcileCmd.Flags().BoolVar(&driftReconcileJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
 	driftCmd.AddCommand(driftDetectCmd)
 	driftCmd.AddCommand(driftReconcileCmd)
 	rootCmd.AddCommand(driftCmd)
@@ -261,15 +279,15 @@ func runDriftReconcile(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	mode := strings.ToLower(strings.TrimSpace(driftReconcileMode))
+	if mode == "standard" {
+		return runStandardDriftReconcile(cmd)
+	}
 	denial := driftOperationDenial{
 		SchemaVersion: operationDenialSchemaVersion,
 		Operation:     "drift-reconcile",
 		Mode:          mode,
 	}
 	switch mode {
-	case "standard":
-		denial.ReasonCode = "standard_reconcile_transaction_unavailable"
-		denial.Message = "standard drift reconcile is denied until the Owner-approved snapshot, Apply, Verify, and rollback transaction is available"
 	case "advanced":
 		denial.ReasonCode = "advanced_capability_unavailable"
 		denial.Message = "advanced drift reconcile is denied until an offline-verified stackkit.advanced-capability/v1 is available"
@@ -285,6 +303,204 @@ func runDriftReconcile(cmd *cobra.Command, _ []string) error {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Denied: %s\n", denial.Message)
 	}
 	return &driftReconcileDeniedError{denial: denial}
+}
+
+func runStandardDriftReconcile(cmd *cobra.Command) error {
+	result := standardDriftReconcileResult{
+		SchemaVersion: "stackkit.standard-drift-reconcile/v1",
+		Mode:          "standard",
+		Operation:     "drift-reconcile",
+	}
+	if !driftReconcileOwnerApprove {
+		return denyStandardDriftReconcile(
+			cmd,
+			"owner_approval_required",
+			"standard drift reconcile requires explicit --owner-approve",
+		)
+	}
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	workspace := getWorkDir()
+	observation, err := observeArchitectureV2Drift(ctx, workspace, specFile)
+	if err != nil {
+		return failStandardDriftReconcile(cmd, result, fmt.Errorf("verify current drift authority: %w", err))
+	}
+	result.Before, err = newDriftReport(observation)
+	if err != nil {
+		return failStandardDriftReconcile(cmd, result, err)
+	}
+	if !result.Before.HasDrift {
+		if driftReconcileJSON {
+			return writeCommandResult(cmd, cmd.CommandPath(), result)
+		}
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), "No drift detected; no lifecycle mutation was required.")
+		return err
+	}
+
+	kit, err := loadWorkspaceKit(workspace)
+	if err != nil {
+		return failStandardDriftReconcile(cmd, result, fmt.Errorf("load StackKit identity: %w", err))
+	}
+	receipts, err := verifyWorkspaceReleaseReceipts(cmd, workspace)
+	if err != nil {
+		return failStandardDriftReconcile(cmd, result, err)
+	}
+	receipt, err := currentDriftReconcileReceipt(receipts, kit)
+	if err != nil {
+		return failStandardDriftReconcile(cmd, result, err)
+	}
+	current, err := newCurrentUpgradeInspection(ctx, workspace, specFile)
+	if err != nil {
+		return failStandardDriftReconcile(cmd, result, fmt.Errorf("inspect current generation: %w", err))
+	}
+	inspection := upgradelifecycle.Inspection{
+		SchemaVersion: upgradelifecycle.InspectionSchemaVersion,
+		Target: upgradelifecycle.Target{
+			Kit: receipt.Kit, Version: receipt.Version, Channel: receipt.Channel,
+			Platform: receipt.Platform, ArchiveSHA256: receipt.ArchiveSHA256,
+		},
+		Plan: upgradelifecycle.PlanDiff{
+			Changed:         false,
+			CurrentPlanHash: current.Binding.PlanHash, TargetPlanHash: current.Binding.PlanHash,
+			CurrentManifestHash: current.Manifest.Hash, TargetManifestHash: current.Manifest.Hash,
+		},
+		Execution: upgradelifecycle.InspectionExecution{
+			Mode: "standard-reconcile", GenerateInvoked: false,
+			ApplyInvoked: false, SnapshotCreated: false,
+		},
+	}
+	resolution := releaseindex.Resolution{Asset: releaseindex.Asset{
+		Kit: receipt.Kit, Version: receipt.Version, Channel: receipt.Channel,
+		Platform: receipt.Platform,
+		Archive:  releaseindex.Blob{SHA256: receipt.ArchiveSHA256},
+	}}
+
+	var checkpoint publicUpgradeCheckpoint
+	mutation, err := beginPublicUpgradeMutation(
+		workspace,
+		func() (lifecyclemutation.BeginRequest, error) {
+			prepared, prepareErr := preparePublicUpgradeCheckpoint(ctx, workspace, kit, resolution)
+			if prepareErr != nil {
+				return lifecyclemutation.BeginRequest{}, fmt.Errorf(
+					"create mandatory drift-reconcile rollback checkpoint: %w", prepareErr,
+				)
+			}
+			if prepareErr := prepared.validate(); prepareErr != nil {
+				return lifecyclemutation.BeginRequest{}, prepareErr
+			}
+			snapshot, loadErr := loadPublicUpgradeRecoveryCheckpoint(
+				workspace, prepared.ExecutorStateSnapshotID,
+			)
+			if loadErr != nil {
+				return lifecyclemutation.BeginRequest{}, loadErr
+			}
+			var executableDigest string
+			if executableErr := withPublicUpgradeInstalledExecutable(
+				ctx, receipt, func(path string) error {
+					var digestErr error
+					executableDigest, digestErr = executableFileSHA256(path)
+					return digestErr
+				},
+			); executableErr != nil {
+				return lifecyclemutation.BeginRequest{}, executableErr
+			}
+			checkpoint = prepared
+			return lifecyclemutation.BeginRequest{
+				OperationID: prepared.OperationID,
+				OwnerRef:    snapshot.OwnerRef,
+				Checkpoint: lifecyclemutation.CheckpointAuthority{
+					ExecutorStateSnapshotID: prepared.ExecutorStateSnapshotID,
+					KopiaAnchorID:           prepared.KopiaAnchorID,
+				},
+				Target: lifecyclemutation.ReleaseAuthority{
+					Version:          architectureV2ComponentVersion(receipt.Version),
+					ArchiveSHA256:    "sha256:" + receipt.ArchiveSHA256,
+					ExecutableSHA256: executableDigest,
+				},
+				Prior: lifecyclemutation.ReleaseAuthority{
+					Version:          architectureV2ComponentVersion(snapshot.Release.Version),
+					ArchiveSHA256:    snapshot.Release.ArchiveSHA256,
+					ExecutableSHA256: snapshot.Executable.Blob.SHA256,
+				},
+			}, nil
+		},
+	)
+	if err != nil {
+		return failStandardDriftReconcile(cmd, result, fmt.Errorf("begin standard reconcile lifecycle: %w", err))
+	}
+	defer mutation.Close()
+	result.Checkpoint = &checkpoint
+	transaction, transactionErr := executePublicUpgradeTransaction(
+		ctx, workspace, specFile, receipt, inspection, checkpoint, mutation,
+	)
+	result.Transaction = &transaction
+	result.Changed = transaction.Target.ApplyInvoked
+	if transactionErr != nil {
+		return failStandardDriftReconcile(cmd, result, transactionErr)
+	}
+	if driftReconcileJSON {
+		return writeCommandResult(cmd, cmd.CommandPath(), result)
+	}
+	_, err = fmt.Fprintf(
+		cmd.OutOrStdout(),
+		"Standard drift reconcile completed and verified.\nRollback checkpoint: %s (Kopia %s)\n",
+		checkpoint.ExecutorStateSnapshotID, checkpoint.KopiaAnchorID,
+	)
+	return err
+}
+
+func currentDriftReconcileReceipt(
+	receipts []releaseindex.Receipt,
+	kit string,
+) (releaseindex.Receipt, error) {
+	exactVersion, err := releaseindex.ExactTagForBuildVersion(version)
+	if err != nil {
+		return releaseindex.Receipt{}, fmt.Errorf("bind standard reconcile to exact current release: %w", err)
+	}
+	platform := currentReleasePlatform()
+	var matches []releaseindex.Receipt
+	for _, receipt := range receipts {
+		if receipt.Kit == kit && receipt.Version == exactVersion && receipt.Platform == platform {
+			matches = append(matches, receipt)
+		}
+	}
+	if len(matches) != 1 || strings.TrimSpace(matches[0].InstallDir) == "" {
+		return releaseindex.Receipt{}, errors.New(
+			"standard reconcile requires exactly one verified installed receipt for the running StackKit release",
+		)
+	}
+	return matches[0], nil
+}
+
+func denyStandardDriftReconcile(cmd *cobra.Command, code, message string) error {
+	denial := driftOperationDenial{
+		SchemaVersion: operationDenialSchemaVersion,
+		Operation:     "drift-reconcile", Mode: "standard",
+		ReasonCode: code, Message: message,
+	}
+	if driftReconcileJSON {
+		if err := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", denial); err != nil {
+			return err
+		}
+	} else {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Denied: %s\n", message)
+	}
+	return &driftReconcileDeniedError{denial: denial}
+}
+
+func failStandardDriftReconcile(
+	cmd *cobra.Command,
+	result standardDriftReconcileResult,
+	cause error,
+) error {
+	if driftReconcileJSON {
+		if err := writeCommandResultStatus(cmd, cmd.CommandPath(), "failed", result); err != nil {
+			return errors.Join(cause, err)
+		}
+	}
+	return cause
 }
 
 func writeCommandResultStatus(

@@ -16,6 +16,45 @@ source_commit="$7"
 source_digest="$8"
 output_dir="$(realpath -m "$9")"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+stable_day2_proof="${STACKKIT_E2E_STABLE_DAY2_PROOF:-0}"
+previous_tag="${STACKKIT_E2E_PREVIOUS_TAG:-v0.8.0-beta.5}"
+candidate_archive="$archive"
+candidate_sbom="$sbom"
+candidate_attestation="$attestation"
+candidate_trusted_root="$trusted_root"
+candidate_release_index="$release_index"
+candidate_release_index_attestation="$release_index_attestation"
+candidate_source_commit="$source_commit"
+candidate_source_digest="$source_digest"
+
+if [ "$stable_day2_proof" = "1" ]; then
+  [[ "$previous_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] || {
+    printf 'STACKKIT_E2E_PREVIOUS_TAG must be an exact v-prefixed release tag\n' >&2
+    exit 1
+  }
+  for variable in \
+    STACKKIT_E2E_PREVIOUS_ARCHIVE \
+    STACKKIT_E2E_PREVIOUS_SBOM \
+    STACKKIT_E2E_PREVIOUS_ATTESTATION \
+    STACKKIT_E2E_PREVIOUS_TRUSTED_ROOT \
+    STACKKIT_E2E_PREVIOUS_RELEASE_INDEX \
+    STACKKIT_E2E_PREVIOUS_RELEASE_INDEX_ATTESTATION \
+    STACKKIT_E2E_PREVIOUS_SOURCE_COMMIT \
+    STACKKIT_E2E_PREVIOUS_SOURCE_DIGEST; do
+    [ -n "${!variable:-}" ] || {
+      printf 'stable Day-2 proof requires %s\n' "$variable" >&2
+      exit 1
+    }
+  done
+  archive="$(realpath "$STACKKIT_E2E_PREVIOUS_ARCHIVE")"
+  sbom="$(realpath "$STACKKIT_E2E_PREVIOUS_SBOM")"
+  attestation="$(realpath "$STACKKIT_E2E_PREVIOUS_ATTESTATION")"
+  trusted_root="$(realpath "$STACKKIT_E2E_PREVIOUS_TRUSTED_ROOT")"
+  release_index="$(realpath "$STACKKIT_E2E_PREVIOUS_RELEASE_INDEX")"
+  release_index_attestation="$(realpath "$STACKKIT_E2E_PREVIOUS_RELEASE_INDEX_ATTESTATION")"
+  source_commit="$STACKKIT_E2E_PREVIOUS_SOURCE_COMMIT"
+  source_digest="$STACKKIT_E2E_PREVIOUS_SOURCE_DIGEST"
+fi
 
 for executable in docker jq node sha256sum tar tcpdump timeout; do
   command -v "$executable" >/dev/null || {
@@ -355,6 +394,202 @@ node -e '
 ' "$script_dir/compose-origin-scope.mjs" "$network_scope"
 
 timeout 600 stackkit verify --json >"$output_dir/verify.json"
+base_runtime_finished_epoch="$(date +%s)"
+base_runtime_finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+if [ "$stable_day2_proof" = "1" ]; then
+  stable_day2_dir="$output_dir/stable-day2"
+  candidate_fixture_dir="$work_root/candidate-release-fixture"
+  candidate_extract_dir="$work_root/candidate-archive"
+  mkdir -p "$stable_day2_dir" "$candidate_fixture_dir" "$candidate_extract_dir"
+  [ "$version" = "$previous_tag" ] || {
+    printf 'stable Day-2 previous index resolved %s, expected %s\n' "$version" "$previous_tag" >&2
+    exit 1
+  }
+
+  cp \
+    "$candidate_archive" \
+    "$candidate_sbom" \
+    "$candidate_attestation" \
+    "$candidate_trusted_root" \
+    "$candidate_fixture_dir/"
+  cp "$candidate_release_index" "$candidate_fixture_dir/stackkits-release-index-v1.json"
+  cp "$candidate_release_index_attestation" \
+    "$candidate_fixture_dir/stackkits-release-index-v1.json.intoto.jsonl"
+  candidate_archive_name="$(basename "$candidate_archive")"
+  candidate_version="$(jq -er --arg name "$candidate_archive_name" '
+    .assets[]
+    | select(.kit == "basement-kit" and .platform.os == "linux" and .archive.name == $name)
+    | .version
+  ' "$candidate_release_index")"
+
+  if timeout 60 stackkit advanced change-set create \
+    --capability "$project_dir/missing-advanced-capability.json" \
+    --candidate-spec "$project_dir/stack.yaml" \
+    --json \
+    >"$stable_day2_dir/advanced-denial.json" \
+    2>"$stable_day2_dir/advanced-denial.stderr.log"; then
+    printf 'advanced change-set unexpectedly succeeded without a capability\n' >&2
+    exit 1
+  fi
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "denied"
+    and .data.schemaVersion == "stackkit.operation-denial/v1"
+    and .data.operation == "terramate.change-set.create"
+    and .data.mode == "advanced"
+    and (.data.reasonCode | type == "string" and length > 0)
+  ' "$stable_day2_dir/advanced-denial.json" >/dev/null || {
+    printf 'advanced change-set denial was not structured and fail-closed\n' >&2
+    exit 1
+  }
+
+  kill "$fixture_pid" 2>/dev/null || true
+  wait "$fixture_pid" 2>/dev/null || true
+  fixture_pid=
+  candidate_fixture_port="${STACKKIT_E2E_CANDIDATE_FIXTURE_PORT:-18081}"
+  node "$script_dir/github-release-fixture.mjs" \
+    "$candidate_fixture_dir" "$candidate_fixture_port" \
+    >"$stable_day2_dir/fixture-url.txt" \
+    2>"$stable_day2_dir/fixture.log" &
+  fixture_pid=$!
+  for _ in $(seq 1 50); do
+    [ -s "$stable_day2_dir/fixture-url.txt" ] && break
+    kill -0 "$fixture_pid" 2>/dev/null || {
+      printf 'candidate GitHub release fixture exited before readiness\n' >&2
+      exit 1
+    }
+    sleep 0.1
+  done
+  candidate_fixture_url="$(head -n1 "$stable_day2_dir/fixture-url.txt")"
+  [ -n "$candidate_fixture_url" ] || {
+    printf 'candidate GitHub release fixture did not become ready\n' >&2
+    exit 1
+  }
+  export STACKKIT_RELEASE_FIXTURE_URL="$candidate_fixture_url"
+
+  timeout 600 stackkit upgrade --to "$candidate_version" --dry-run --json \
+    >"$stable_day2_dir/upgrade-dry-run.json"
+  jq -e --arg version "$candidate_version" '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+    and .data.version == $version
+    and .data.dryRun == true
+    and .data.applyInvoked == false
+    and .data.inspection.plan != null
+  ' "$stable_day2_dir/upgrade-dry-run.json" >/dev/null || {
+    printf 'candidate upgrade dry-run did not inspect the exact target\n' >&2
+    exit 1
+  }
+
+  timeout 600 stackkit upgrade --to "$candidate_version" --json \
+    >"$stable_day2_dir/upgrade.json"
+  jq -e --arg version "$candidate_version" '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+    and .data.version == $version
+    and .data.dryRun == false
+    and .data.applyInvoked == true
+    and (.data.checkpoint.kopiaAnchorId | test("^sha256:[0-9a-f]{64}$"))
+    and (.data.checkpoint.executorStateSnapshotId | test("^sha256:[0-9a-f]{64}$"))
+    and .data.transaction.status == "succeeded"
+    and .data.transaction.target.applyInvoked == true
+    and .data.transaction.target.verifyInvoked == true
+    and .data.transaction.target.verified == true
+  ' "$stable_day2_dir/upgrade.json" >/dev/null || {
+    printf 'candidate upgrade did not prove snapshot, Apply, and Verify\n' >&2
+    exit 1
+  }
+
+  tar xzf "$candidate_archive" -C "$candidate_extract_dir"
+  candidate_stackkit="$candidate_extract_dir/stackkit"
+  [ -x "$candidate_stackkit" ] || {
+    printf 'candidate archive does not contain an executable stackkit binary\n' >&2
+    exit 1
+  }
+  timeout 120 "$candidate_stackkit" drift detect --json >"$stable_day2_dir/drift.json"
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+    and .data.schemaVersion == "stackkit.drift-report/v1"
+    and .data.hasDrift == false
+  ' "$stable_day2_dir/drift.json" >/dev/null || {
+    printf 'candidate drift report did not prove the upgraded runtime in sync\n' >&2
+    exit 1
+  }
+  timeout 120 "$candidate_stackkit" verify --json >"$stable_day2_dir/final-verify.json"
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+  ' "$stable_day2_dir/final-verify.json" >/dev/null || {
+    printf 'candidate final verification failed\n' >&2
+    exit 1
+  }
+
+  stable_day2_evidence="$output_dir/stable-day2-live-evidence.json"
+  upgrade_snapshot_anchor="$(
+    jq -er '.data.checkpoint.kopiaAnchorId | select(test("^sha256:[0-9a-f]{64}$"))' \
+      "$stable_day2_dir/upgrade.json"
+  )"
+  capability_denial_reason="$(
+    jq -er '.data.reasonCode | select(type == "string" and length > 0)' \
+      "$stable_day2_dir/advanced-denial.json"
+  )"
+  jq -n \
+    --arg sourceCommit "$candidate_source_commit" \
+    --arg sourceDigest "$candidate_source_digest" \
+    --arg previousTag "$previous_tag" \
+    --arg previousArchiveSha256 "$(sha256sum "$archive" | cut -d' ' -f1)" \
+    --arg candidateArchiveSha256 "$(sha256sum "$candidate_archive" | cut -d' ' -f1)" \
+    --arg snapshotAnchorId "$upgrade_snapshot_anchor" \
+    --arg denialReasonCode "$capability_denial_reason" \
+    '{
+      schemaVersion: "stackkit.stable-day2-live-e2e-evidence/v1",
+      status: "pass",
+      source: {
+        commit: $sourceCommit,
+        digest: $sourceDigest
+      },
+      previous: {
+        tag: $previousTag,
+        archiveSha256: $previousArchiveSha256
+      },
+      candidate: {
+        archiveSha256: $candidateArchiveSha256
+      },
+      upgrade: {
+        status: "pass",
+        snapshotAnchorId: $snapshotAnchorId,
+        verified: true
+      },
+      drift: {status: "pass"},
+      capabilityDenial: {reasonCode: $denialReasonCode},
+      finalVerify: true
+    }' >"$stable_day2_evidence"
+  jq -e \
+    --arg sourceCommit "$candidate_source_commit" \
+    --arg sourceDigest "$candidate_source_digest" \
+    --arg previousTag "$previous_tag" \
+    --arg previousArchiveSha256 "$(sha256sum "$archive" | cut -d' ' -f1)" \
+    --arg candidateArchiveSha256 "$(sha256sum "$candidate_archive" | cut -d' ' -f1)" \
+    --arg snapshotAnchorId "$upgrade_snapshot_anchor" \
+    --arg denialReasonCode "$capability_denial_reason" '
+      .schemaVersion == "stackkit.stable-day2-live-e2e-evidence/v1"
+      and .status == "pass"
+      and .source == {commit: $sourceCommit, digest: $sourceDigest}
+      and .previous == {tag: $previousTag, archiveSha256: $previousArchiveSha256}
+      and .candidate == {archiveSha256: $candidateArchiveSha256}
+      and .upgrade == {
+        status: "pass",
+        snapshotAnchorId: $snapshotAnchorId,
+        verified: true
+      }
+      and .drift == {status: "pass"}
+      and .capabilityDenial == {reasonCode: $denialReasonCode}
+      and .finalVerify == true
+    ' "$stable_day2_evidence" >/dev/null
+  printf 'stable Day-2 live proof passed: %s\n' "$stable_day2_evidence"
+fi
 
 if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
   command -v setsid >/dev/null || {
@@ -687,8 +922,13 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
   printf 'standalone restore proof passed\n'
 fi
 
-runtime_finished_epoch="$(date +%s)"
-runtime_finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+if [ "$stable_day2_proof" = "1" ]; then
+  runtime_finished_epoch="$base_runtime_finished_epoch"
+  runtime_finished="$base_runtime_finished"
+else
+  runtime_finished_epoch="$(date +%s)"
+  runtime_finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+fi
 runtime_duration=$((runtime_finished_epoch - runtime_started_epoch))
 [ "$runtime_duration" -le 600 ] || {
   printf 'standalone runtime phase exceeded 600 seconds\n' >&2

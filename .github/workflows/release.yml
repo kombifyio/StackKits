@@ -22,6 +22,11 @@ on:
         description: Exact immutable public source commit
         required: true
         type: string
+      stable_previous_tag:
+        description: Optional exact published beta baseline for the stable Day-2 proof (otherwise latest v0.8.0-beta.N)
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: public-release-trust-${{ github.ref }}
@@ -53,6 +58,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.client_payload.tag }}
           SOURCE_COMMIT: ${{ github.event.client_payload.source_commit }}
+          STABLE_PREVIOUS_TAG: ${{ github.event.client_payload.stable_previous_tag }}
         run: |
           set -euo pipefail
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|edge)\.[0-9]+)?$ ]]
@@ -61,7 +67,8 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref "$TAG" \
             -f "tag=$TAG" \
-            -f "source_commit=$SOURCE_COMMIT"
+            -f "source_commit=$SOURCE_COMMIT" \
+            -f "stable_previous_tag=$STABLE_PREVIOUS_TAG"
 
   release-trust:
     name: Attest exact release and prove standalone runtime
@@ -315,11 +322,142 @@ jobs:
             test -s "dist/$name"
           done
 
+      - name: Download and verify exact previous beta release for stable Day-2
+        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REQUESTED_PREVIOUS_TAG: ${{ inputs.stable_previous_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$TAG" != "v0.8.0" ]; then
+            echo "::error title=Unsupported stable baseline::The v0.8 stable Day-2 gate accepts only v0.8.0, got ${TAG}."
+            exit 1
+          fi
+          previous_tag="$REQUESTED_PREVIOUS_TAG"
+          if [ -z "$previous_tag" ]; then
+            previous_tag="$(
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                --jq '.[] | select(.draft == false and .prerelease == true) | .tag_name' \
+                | grep -E '^v0\.8\.0-beta\.[0-9]+$' \
+                | sort -V \
+                | tail -n 1 \
+                || true
+            )"
+          fi
+          [[ "$previous_tag" =~ ^v0\.8\.0-beta\.[0-9]+$ ]] || {
+            echo "::error title=Invalid stable baseline::Expected an exact v0.8.0-beta.N tag, got ${previous_tag:-<empty>}."
+            exit 1
+          }
+          git fetch --force --no-tags origin \
+            "+refs/tags/${previous_tag}:refs/tags/${previous_tag}"
+          previous_commit="$(git rev-list -n 1 "refs/tags/${previous_tag}")"
+          [[ "$previous_commit" =~ ^[0-9a-f]{40}$ ]]
+          previous_tree="$(git rev-parse "${previous_commit}^{tree}")"
+          previous_source_digest="sha256:$(printf '%s\0%s' "$previous_commit" "$previous_tree" | sha256sum | cut -d' ' -f1)"
+
+          release="$(gh release view "$previous_tag" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets)"
+          jq -e --arg tag "$previous_tag" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == true' \
+            <<<"$release" >/dev/null
+          names="$(jq -r '.assets[].name' <<<"$release")"
+          for required in \
+            checksums.txt \
+            release-evidence.json \
+            stackkits-release-assets.intoto.jsonl \
+            sigstore-trusted-root.jsonl \
+            stackkits-release-index-v1.json \
+            stackkits-release-index-v1.json.intoto.jsonl; do
+            grep -qx "$required" <<<"$names"
+          done
+          test "$(grep -Ec '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz$' <<<"$names")" -eq 1
+          test "$(grep -Ec '^stackkits-basement-kit_.+_linux_amd64\.tar\.gz\.spdx\.json$' <<<"$names")" -eq 1
+
+          previous_dist="${GITHUB_WORKSPACE}/previous-dist"
+          mkdir -p "$previous_dist"
+          for pattern in \
+            checksums.txt \
+            release-evidence.json \
+            stackkits-release-assets.intoto.jsonl \
+            sigstore-trusted-root.jsonl \
+            stackkits-release-index-v1.json \
+            stackkits-release-index-v1.json.intoto.jsonl \
+            'stackkits-basement-kit_*_linux_amd64.tar.gz' \
+            'stackkits-basement-kit_*_linux_amd64.tar.gz.spdx.json'; do
+            gh release download "$previous_tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --dir "$previous_dist" \
+              --pattern "$pattern" \
+              --clobber
+          done
+          (
+            cd "$previous_dist"
+            sha256sum --ignore-missing --check --strict checksums.txt
+          )
+
+          previous_archive="$(find "$previous_dist" -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
+          test -n "$previous_archive"
+          previous_sbom="${previous_archive}.spdx.json"
+          previous_archive_name="$(basename "$previous_archive")"
+          previous_sbom_name="$(basename "$previous_sbom")"
+          previous_archive_sha256="$(sha256sum "$previous_archive" | cut -d' ' -f1)"
+          previous_sbom_sha256="$(sha256sum "$previous_sbom" | cut -d' ' -f1)"
+          jq -e \
+            --arg tag "$previous_tag" \
+            --arg archiveName "$previous_archive_name" \
+            --arg archiveSha256 "$previous_archive_sha256" \
+            --arg sbomName "$previous_sbom_name" \
+            --arg sbomSha256 "$previous_sbom_sha256" \
+            '
+              .schemaVersion == "stackkits-release-index/v1" and
+              .release.repository == "kombifyio/stackKits" and
+              .release.version == $tag and
+              ([.assets[] |
+                select(
+                  .kit == "basement-kit" and
+                  .version == $tag and
+                  .platform.os == "linux" and
+                  .platform.arch == "amd64" and
+                  .archive.name == $archiveName and
+                  .archive.sha256 == $archiveSha256 and
+                  .sbom.name == $sbomName and
+                  .sbom.sha256 == $sbomSha256
+                )
+              ] | length) == 1
+            ' "$previous_dist/stackkits-release-index-v1.json" >/dev/null
+          jq -e --arg tag "$previous_tag" --arg commit "$previous_commit" \
+            '.release.tag == $tag and .release.commit == $commit and
+             .checks.attestationVerification.status == "pass"' \
+            "$previous_dist/release-evidence.json" >/dev/null
+
+          gh attestation verify "$previous_archive" \
+            -R "$GITHUB_REPOSITORY" \
+            --bundle "$previous_dist/stackkits-release-assets.intoto.jsonl" \
+            --custom-trusted-root "$previous_dist/sigstore-trusted-root.jsonl"
+          gh attestation verify "$previous_dist/stackkits-release-index-v1.json" \
+            -R "$GITHUB_REPOSITORY" \
+            --bundle "$previous_dist/stackkits-release-index-v1.json.intoto.jsonl" \
+            --custom-trusted-root "$previous_dist/sigstore-trusted-root.jsonl"
+
+          {
+            echo "STACKKIT_E2E_PREVIOUS_TAG=$previous_tag"
+            echo "STACKKIT_E2E_PREVIOUS_ARCHIVE=$previous_archive"
+            echo "STACKKIT_E2E_PREVIOUS_SBOM=$previous_sbom"
+            echo "STACKKIT_E2E_PREVIOUS_ATTESTATION=$previous_dist/stackkits-release-assets.intoto.jsonl"
+            echo "STACKKIT_E2E_PREVIOUS_TRUSTED_ROOT=$previous_dist/sigstore-trusted-root.jsonl"
+            echo "STACKKIT_E2E_PREVIOUS_RELEASE_INDEX=$previous_dist/stackkits-release-index-v1.json"
+            echo "STACKKIT_E2E_PREVIOUS_RELEASE_INDEX_ATTESTATION=$previous_dist/stackkits-release-index-v1.json.intoto.jsonl"
+            echo "STACKKIT_E2E_PREVIOUS_SOURCE_COMMIT=$previous_commit"
+            echo "STACKKIT_E2E_PREVIOUS_SOURCE_DIGEST=$previous_source_digest"
+          } >> "$GITHUB_ENV"
+
       - name: Admit packet capture without a privileged runtime
         shell: bash
         run: sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
 
       - name: Run bounded standalone Basement archive Apply and Verify
+        if: ${{ contains(github.ref_name, '-beta.') || contains(github.ref_name, '-edge.') }}
         shell: bash
         env:
           STACKKIT_E2E_PRELOAD_IMAGES: "1"
@@ -345,6 +483,53 @@ jobs:
             '.schemaVersion == "stackkit.restore-live-e2e-evidence/v1"' \
             artifacts/standalone-runtime/restore-live-evidence.json >/dev/null
 
+      - name: Run bounded stable Day-2 proof from exact beta baseline to candidate
+        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        shell: bash
+        env:
+          STACKKIT_E2E_PRELOAD_IMAGES: "1"
+          STACKKIT_E2E_RESTORE_PROOF: "1"
+          STACKKIT_E2E_STABLE_DAY2_PROOF: "1"
+        run: |
+          set -euo pipefail
+          archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
+          test -n "$archive"
+          tree="$(git rev-parse HEAD^{tree})"
+          source_digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
+          mkdir -p artifacts/standalone-runtime
+          bash scripts/e2e/run-standalone-oss-runtime-e2e.sh \
+            "$archive" \
+            "${archive}.spdx.json" \
+            dist/stackkits-release-assets.intoto.jsonl \
+            dist/sigstore-trusted-root.jsonl \
+            dist/stackkits-release-index-v1.json \
+            dist/stackkits-release-index-v1.json.intoto.jsonl \
+            "$GITHUB_SHA" \
+            "$source_digest" \
+            artifacts/standalone-runtime
+          candidate_archive_sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
+          previous_archive_sha256="$(sha256sum "$STACKKIT_E2E_PREVIOUS_ARCHIVE" | cut -d' ' -f1)"
+          jq -e \
+            --arg sourceCommit "$GITHUB_SHA" \
+            --arg sourceDigest "$source_digest" \
+            --arg previousTag "$STACKKIT_E2E_PREVIOUS_TAG" \
+            --arg previousArchiveSha256 "$previous_archive_sha256" \
+            --arg candidateArchiveSha256 "$candidate_archive_sha256" \
+            '
+              .schemaVersion == "stackkit.stable-day2-live-e2e-evidence/v1" and
+              .status == "pass" and
+              .source == {commit: $sourceCommit, digest: $sourceDigest} and
+              .previous.tag == $previousTag and
+              .previous.archiveSha256 == $previousArchiveSha256 and
+              .candidate.archiveSha256 == $candidateArchiveSha256 and
+              .upgrade.status == "pass" and
+              (.upgrade.snapshotAnchorId | test("^sha256:[0-9a-f]{64}$")) and
+              .upgrade.verified == true and
+              .drift.status == "pass" and
+              .capabilityDenial.reasonCode == "advanced_capability_required" and
+              .finalVerify == true
+            ' artifacts/standalone-runtime/stable-day2-live-evidence.json >/dev/null
+
       - name: Retain sanitized standalone failure diagnostics
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -365,6 +550,9 @@ jobs:
             artifacts/standalone-runtime/verify.json
             artifacts/standalone-runtime/runtime-evidence.json
             artifacts/standalone-runtime/restore-live-evidence.json
+            artifacts/standalone-runtime/stable-day2-live-evidence.json
+            artifacts/standalone-runtime/stable-day2/*.log
+            artifacts/standalone-runtime/stable-day2/*.json
             artifacts/standalone-runtime/restore-proof/*.log
             artifacts/standalone-runtime/restore-proof/*.json
           if-no-files-found: warn
@@ -375,6 +563,14 @@ jobs:
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: artifacts/standalone-runtime/restore-live-evidence.json
+          create-storage-record: false
+          show-summary: false
+
+      - name: Attest exact stable Day-2 evidence
+        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: artifacts/standalone-runtime/stable-day2-live-evidence.json
           create-storage-record: false
           show-summary: false
 
@@ -394,17 +590,24 @@ jobs:
           compression-level: 0
           retention-days: 90
 
+      - name: Retain exact stable Day-2 evidence
+        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: stable-day2-live-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/standalone-runtime/stable-day2-live-evidence.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
       - name: Attach runtime evidence and publish the prerelease
+        if: ${{ contains(github.ref_name, '-beta.') || contains(github.ref_name, '-edge.') }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [[ "$TAG" != *-beta.* && "$TAG" != *-edge.* ]]; then
-            echo "::error title=Stable release gate incomplete::Stable publication requires the S4 upgrade, rollback, backup, and drift receipt."
-            exit 1
-          fi
           gh release upload "$TAG" \
             artifacts/standalone-runtime/runtime-evidence.json \
             artifacts/standalone-runtime/release-bootstrap.json \
@@ -417,6 +620,54 @@ jobs:
             --draft=false \
             --prerelease \
             --latest=false
+
+      - name: Attach exact Day-2 evidence and publish the stable release
+        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
+          test -n "$archive"
+          tree="$(git rev-parse HEAD^{tree})"
+          source_digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
+          candidate_archive_sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
+          previous_archive_sha256="$(sha256sum "$STACKKIT_E2E_PREVIOUS_ARCHIVE" | cut -d' ' -f1)"
+          jq -e \
+            --arg sourceCommit "$GITHUB_SHA" \
+            --arg sourceDigest "$source_digest" \
+            --arg previousTag "$STACKKIT_E2E_PREVIOUS_TAG" \
+            --arg previousArchiveSha256 "$previous_archive_sha256" \
+            --arg candidateArchiveSha256 "$candidate_archive_sha256" \
+            '
+              .schemaVersion == "stackkit.stable-day2-live-e2e-evidence/v1" and
+              .status == "pass" and
+              .source == {commit: $sourceCommit, digest: $sourceDigest} and
+              .previous.tag == $previousTag and
+              .previous.archiveSha256 == $previousArchiveSha256 and
+              .candidate.archiveSha256 == $candidateArchiveSha256 and
+              .upgrade.status == "pass" and
+              (.upgrade.snapshotAnchorId | test("^sha256:[0-9a-f]{64}$")) and
+              .upgrade.verified == true and
+              .drift.status == "pass" and
+              .capabilityDenial.reasonCode == "advanced_capability_required" and
+              .finalVerify == true
+            ' artifacts/standalone-runtime/stable-day2-live-evidence.json >/dev/null
+          gh release upload "$TAG" \
+            artifacts/standalone-runtime/runtime-evidence.json \
+            artifacts/standalone-runtime/release-bootstrap.json \
+            artifacts/standalone-runtime/network-events.jsonl \
+            artifacts/standalone-runtime/compose-origin-scope.json \
+            artifacts/standalone-runtime/apply.log \
+            artifacts/standalone-runtime/verify.json \
+            artifacts/standalone-runtime/stable-day2-live-evidence.json \
+            --clobber
+          gh release edit "$TAG" \
+            --draft=false \
+            --prerelease=false \
+            --latest
 
   restore-proof:
     name: Prove restore against an exact live Basement archive
