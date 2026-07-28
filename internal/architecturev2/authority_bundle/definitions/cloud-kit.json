@@ -124,7 +124,12 @@
       "source": {
         "kind": "native-v2"
       },
-      "storage": {},
+      "storage": {
+        "backupRoot": "/opt/backups",
+        "dataRoot": "/opt/data",
+        "stacksRoot": "/opt/stacks",
+        "volumeDriver": "local"
+      },
       "system": {}
     },
     "initialSpecStatus": "supported",

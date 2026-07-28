@@ -963,7 +963,12 @@ import (
 	install:    #InstallIntentV2
 	generation: #GenerationIntentV2
 	system: #SystemIntentV2 | *{}
-	storage: #StorageIntentV2 | *{}
+	// No `| *{}` here: an empty default wins over the disjunct, so a kit that
+	// authors `storage: {}` never picks up #StorageIntentV2's own root defaults
+	// and the resolved plan rejects its own init output --
+	// "resolvedPlan.storage.hostRoots.dataRoot: requires an absolute host
+	// storage root". cloud-kit and modern-homelab both shipped that way.
+	storage: #StorageIntentV2
 	network:    #NetworkIntentV2
 	container?: #ContainerRuntimeIntentV2
 

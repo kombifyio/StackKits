@@ -1,5 +1,5 @@
 {
-  "distributionFingerprint": "sha256:38a7e5e1d44520124eac7aa1e720a2613a94e69bb754b6a70969dbfdf150f282",
+  "distributionFingerprint": "sha256:154689d06dd147104f2057db4954ebec61cbf3fd428c78ba07b05c5e579af15e",
   "documents": {
     "catalog": "catalog.json"
   },
@@ -12,7 +12,7 @@
   },
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
-    "base/architecture_v2.cue": "sha256:92d661c40eea9fac8359894781784a1d754dc931ad71f82178d36e4de4e66b93",
+    "base/architecture_v2.cue": "sha256:d5083139ec2134586748204de925e13a9c16ab48a8ee52768b0f3731d1c191da",
     "base/architecture_v2_catalog.cue": "sha256:d93916ce4bc159fae25e7f2d52d0b4b9964d1d3ef1924e61e64a9da468240962",
     "base/architecture_v2_definition_binding.cue": "sha256:692c5ec5ed511c8ee23e5a0a11c4911c8a865efda9464dbceb6c28d92aa9a5bd",
     "base/architecture_v2_federation.cue": "sha256:35d8735150dbaed887dfa73fd50a8ce4c5ce117f77ada096d339252e8f7ce352",
