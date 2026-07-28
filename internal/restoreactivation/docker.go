@@ -21,7 +21,7 @@ const (
 dst=$2
 test -d "$src"
 find "$dst" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} \;
-cp -a "$src"/. "$dst"/`
+find "$src" -mindepth 1 -maxdepth 1 -exec cp -a -- {} "$dst"/ \;`
 	stagingValidationScript = `root=$1
 shift
 for path do
