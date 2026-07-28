@@ -855,7 +855,7 @@ _architectureV2Providers: list.Concat([[
 		supportedSiteKinds: haRealization.supportedSiteKinds
 		realization: {kind: "modules", moduleRefs: {required: [haRealization.moduleID], optional: []}}
 		health: [{id: haRealization.healthID, kind: "contract"}]
-		evidence: [haRealization.evidenceRef]
+		evidence: [haRealization.evidenceRef, "ha-availability-runtime-contract"]
 	}],
 ])
 
@@ -1437,13 +1437,13 @@ _architectureV2SocketProxySupport: #ModuleRealizationSupportV2 & {
 }
 
 // Immich owns one complete provider-neutral, target-bound selected-PaaS bundle.
-// Generation is concrete; provider/PaaS lifecycle and runtime evidence remain
-// separate Apply authority and therefore deliberately do not graduate with
-// this renderer.
+// Apply is admitted only through the exact selected-PaaS runtime registration
+// and an authenticated execution channel; provider/PaaS lifecycle and
+// credentials remain in the external operations owner's custody.
 _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
 		contractComplete: true
@@ -1467,7 +1467,7 @@ _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 			outputRef: "workloads/immich/bundle.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
 }
 
 // Coolify owns a deterministic provider-free adapter handoff. Generation does
@@ -2881,7 +2881,7 @@ _architectureV2Modules: list.Concat([[
 			timeoutSeconds: 10
 			expectedStatuses: [200]
 		}]
-		evidence: ["SK-S1", "SK-S2", "SK-S4"]
+		evidence: ["SK-S1", "SK-S2", "SK-S4", "immich-selected-paas-runtime-contract"]
 		rilActionPrimitives: [{
 			id:      "inspect-immich-runtime-health", version: "1.0.0", title:     "Inspect governed Immich runtime health", category: "verify"
 			support: "contract-only", mutation:                false, destructive: false, risk:                                        "read-only"

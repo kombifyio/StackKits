@@ -8791,6 +8791,11 @@ _servicePublicationShape: {
 	]
 	_moduleApplySupportReadiness: [
 		for module in modules
+		// Contract handoffs are governed generation artifacts consumed by an
+		// executable runtime owner. They do not execute independently and must
+		// therefore neither claim apply-ready support nor block the enclosing
+		// executable workload once its exact runtime channel is bound.
+		if module.runtime.execution == "executable"
 		if module.realizationSupport.level != "apply-ready" {
 			apply: #ExecutionReadinessRequirementV1 & {
 				phase: executionReadiness.apply

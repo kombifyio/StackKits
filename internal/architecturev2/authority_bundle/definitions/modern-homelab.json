@@ -327,6 +327,7 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
+            "ha-availability-runtime-contract",
             "ha-modern-quorum-partition-majority-proof"
           ]
         },
@@ -367,6 +368,7 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
+            "ha-availability-runtime-contract",
             "ha-modern-warm-standby-partition-isolation-proof"
           ]
         },

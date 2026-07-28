@@ -59,7 +59,7 @@ Definition: base.#ProductKitDefinition & {
 				]
 				memberReadiness: "all"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-modern-warm-standby-partition-isolation-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-availability-runtime-contract", "ha-modern-warm-standby-partition-isolation-proof"]
 		}
 		quorum: {
 			policyRef:      "modern-ha-quorum-policy"
@@ -84,7 +84,7 @@ Definition: base.#ProductKitDefinition & {
 				]
 				memberReadiness: "majority"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-modern-quorum-partition-majority-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-availability-runtime-contract", "ha-modern-quorum-partition-majority-proof"]
 		}
 	}
 	capabilities: {

@@ -71,7 +71,7 @@ Definition: base.#ProductKitDefinition & {
 				]
 				memberReadiness: "all"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-cloud-warm-standby-failure-domain-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-availability-runtime-contract", "ha-cloud-warm-standby-failure-domain-proof"]
 		}
 		quorum: {
 			policyRef:      "cloud-ha-quorum-policy"
@@ -96,7 +96,7 @@ Definition: base.#ProductKitDefinition & {
 				]
 				memberReadiness: "majority"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-cloud-quorum-failure-domain-majority-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-availability-runtime-contract", "ha-cloud-quorum-failure-domain-majority-proof"]
 		}
 	}
 	capabilities: {

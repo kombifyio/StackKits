@@ -397,6 +397,7 @@ type readinessModule struct {
 	ref                     string
 	level                   string
 	scope                   string
+	runtimeExecution        string
 	support                 map[string]any
 	enforcementRequirement  map[string]any
 	runtimeOwnerRequirement map[string]any
@@ -554,6 +555,14 @@ func readReadinessModule(raw any, index int) (readinessModule, error) {
 		return result, err
 	}
 	result.level, err = stringField(result.support, "modules."+result.id+".realizationSupport", "level")
+	if err != nil {
+		return result, err
+	}
+	runtime, err := objectField(module, "modules."+result.id, "runtime")
+	if err != nil {
+		return result, err
+	}
+	result.runtimeExecution, err = stringField(runtime, "modules."+result.id+".runtime", "execution")
 	if err != nil {
 		return result, err
 	}
@@ -980,16 +989,20 @@ func readinessUnitOutputKey(unitRef, outputRef string) string {
 }
 
 func moduleApplyBlockers(module readinessModule, evidenceRefs map[string]struct{}) ([]executionReadinessBlocker, error) {
-	blockers, err := realizationApplyBlockers(
-		module.level,
-		module.ref,
-		module.support,
-		"modules."+module.id+".realizationSupport",
-		"module-apply-support-missing",
-		evidenceRefs,
-	)
-	if err != nil {
-		return blockers, err
+	var blockers []executionReadinessBlocker
+	if module.runtimeExecution == "executable" {
+		var err error
+		blockers, err = realizationApplyBlockers(
+			module.level,
+			module.ref,
+			module.support,
+			"modules."+module.id+".realizationSupport",
+			"module-apply-support-missing",
+			evidenceRefs,
+		)
+		if err != nil {
+			return blockers, err
+		}
 	}
 	if module.enforcementRequirement != nil {
 		policyBlocker, err := unboundOwnerBlocker(module, module.enforcementRequirement, "enforcementRequirement", "policy-enforcement-owner-unbound", "enforcement:")

@@ -138,7 +138,7 @@ _assertImmichServiceContract: [
 	providerRef: "stackkits-immich"
 	authority:   "control-authority-site"
 	requiredRoles: ["worker"]
-	realizationLevel: "generation-ready"
+	realizationLevel: "apply-ready"
 	unitID:           "immich-server"
 	placement: {
 		scope:       "node-local"

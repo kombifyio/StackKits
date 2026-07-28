@@ -159,6 +159,7 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
+            "ha-availability-runtime-contract",
             "ha-cloud-quorum-failure-domain-majority-proof"
           ]
         },
@@ -199,6 +200,7 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
+            "ha-availability-runtime-contract",
             "ha-cloud-warm-standby-failure-domain-proof"
           ]
         },

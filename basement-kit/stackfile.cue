@@ -71,7 +71,7 @@ Definition: base.#ProductKitDefinition & {
 				]
 				memberReadiness: "all"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-basement-warm-standby-failure-domain-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-availability-runtime-contract", "ha-basement-warm-standby-failure-domain-proof"]
 		}
 		quorum: {
 			policyRef:      "basement-ha-quorum-policy"
@@ -96,7 +96,7 @@ Definition: base.#ProductKitDefinition & {
 				]
 				memberReadiness: "majority"
 			}
-			evidenceAcceptance: requiredRefs: ["ha-basement-quorum-failure-domain-proof"]
+			evidenceAcceptance: requiredRefs: ["ha-availability-runtime-contract", "ha-basement-quorum-failure-domain-proof"]
 		}
 	}
 	capabilities: {

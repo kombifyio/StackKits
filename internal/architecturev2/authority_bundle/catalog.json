@@ -9051,7 +9051,8 @@
       "evidence": [
         "SK-S1",
         "SK-S2",
-        "SK-S4"
+        "SK-S4",
+        "immich-selected-paas-runtime-contract"
       ],
       "health": [
         {
@@ -9113,7 +9114,9 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "immich-selected-paas-runtime-contract"
+          ]
         },
         "inputs": {
           "contractComplete": true,
@@ -9121,7 +9124,7 @@
             "database-password"
           ]
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": []
@@ -14681,7 +14684,8 @@
     {
       "certificateIssuers": [],
       "evidence": [
-        "ha-basement-warm-standby-failure-domain-proof"
+        "ha-basement-warm-standby-failure-domain-proof",
+        "ha-availability-runtime-contract"
       ],
       "health": [
         {
@@ -14724,7 +14728,8 @@
     {
       "certificateIssuers": [],
       "evidence": [
-        "ha-basement-quorum-failure-domain-proof"
+        "ha-basement-quorum-failure-domain-proof",
+        "ha-availability-runtime-contract"
       ],
       "health": [
         {
@@ -14767,7 +14772,8 @@
     {
       "certificateIssuers": [],
       "evidence": [
-        "ha-cloud-warm-standby-failure-domain-proof"
+        "ha-cloud-warm-standby-failure-domain-proof",
+        "ha-availability-runtime-contract"
       ],
       "health": [
         {
@@ -14810,7 +14816,8 @@
     {
       "certificateIssuers": [],
       "evidence": [
-        "ha-cloud-quorum-failure-domain-majority-proof"
+        "ha-cloud-quorum-failure-domain-majority-proof",
+        "ha-availability-runtime-contract"
       ],
       "health": [
         {
@@ -14853,7 +14860,8 @@
     {
       "certificateIssuers": [],
       "evidence": [
-        "ha-modern-warm-standby-partition-isolation-proof"
+        "ha-modern-warm-standby-partition-isolation-proof",
+        "ha-availability-runtime-contract"
       ],
       "health": [
         {
@@ -14897,7 +14905,8 @@
     {
       "certificateIssuers": [],
       "evidence": [
-        "ha-modern-quorum-partition-majority-proof"
+        "ha-modern-quorum-partition-majority-proof",
+        "ha-availability-runtime-contract"
       ],
       "health": [
         {

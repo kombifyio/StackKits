@@ -169,6 +169,7 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
+            "ha-availability-runtime-contract",
             "ha-basement-quorum-failure-domain-proof"
           ]
         },
@@ -209,6 +210,7 @@
         },
         "evidenceAcceptance": {
           "requiredRefs": [
+            "ha-availability-runtime-contract",
             "ha-basement-warm-standby-failure-domain-proof"
           ]
         },
