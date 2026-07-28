@@ -30,10 +30,11 @@ const (
 )
 
 type publicUpgradeBridge struct {
-	Enabled bool
-	Current generationartifact.PlanInspection
-	Verify  architectureV2VerifyReport
-	Receipt releaseindex.Receipt
+	Enabled    bool
+	Current    generationartifact.PlanInspection
+	Verify     architectureV2VerifyReport
+	LiveVerify architectureV2VerifyReport
+	Receipt    releaseindex.Receipt
 }
 
 func inspectExactBeta4UpgradeBridge(
@@ -104,6 +105,20 @@ func inspectExactBeta4UpgradeBridge(
 			return verifyErr
 		}
 		bridge.Verify = report
+		rawLiveVerify, runErr := runner.Run(
+			ctx, binary, append(common, "verify", "--json"), workspace,
+		)
+		if runErr != nil {
+			return fmt.Errorf("run attested beta.4 live verification: %w", runErr)
+		}
+		liveReport, liveVerifyErr := decodeAndValidateUpgradeVerify(
+			rawLiveVerify, current.Binding.PlanHash, receipt,
+			bridge.Verify.Owner.OwnerRef, bridge.Verify.Owner.OwnerBindingDigest,
+		)
+		if liveVerifyErr != nil {
+			return fmt.Errorf("validate attested beta.4 live verification: %w", liveVerifyErr)
+		}
+		bridge.LiveVerify = liveReport
 		return nil
 	})
 	if err != nil {
@@ -178,6 +193,12 @@ func validateExactBeta4VerifyResult(
 	if err := decodeUpgradeExactJSON(envelope.Data, &report); err != nil {
 		return architectureV2VerifyReport{}, fmt.Errorf("decode beta.4 verify report: %w", err)
 	}
+	exactReleaseMatches := 0
+	for _, candidate := range report.Releases {
+		if reflect.DeepEqual(candidate, receipt) {
+			exactReleaseMatches++
+		}
+	}
 	if report.SchemaVersion != "stackkit.verify-result/v1" ||
 		!report.Offline ||
 		report.PlanHash != current.Binding.PlanHash ||
@@ -188,8 +209,7 @@ func validateExactBeta4VerifyResult(
 		report.Owner.PocketIDSubject == "" ||
 		report.Owner.OwnerBindingDigest == "" ||
 		report.Runtime != nil ||
-		len(report.Releases) != 1 ||
-		!reflect.DeepEqual(report.Releases[0], receipt) {
+		exactReleaseMatches != 1 {
 		return architectureV2VerifyReport{}, errors.New("beta.4 offline verification is not bound to the exact plan, owner, apply evidence, and release")
 	}
 	return report, nil

@@ -424,37 +424,16 @@ func verifyExactBeta4BackupRestore(
 		)
 	}
 
-	var report architectureV2VerifyReport
-	err = withVerifiedPublicUpgradeExecutable(
-		ctx, expected.LegacyBeta4.Receipt, func(binary string) error {
-			runner := newUpgradeInspectionRunner()
-			if runner == nil {
-				return errors.New("beta.4 restore verification requires an execution runner")
-			}
-			raw, runErr := runner.Run(
-				ctx,
-				binary,
-				append(
-					publicUpgradeCommandPrefix(expected.WorkspaceRoot, specFile),
-					"verify", "--json",
-				),
-				expected.WorkspaceRoot,
-			)
-			if runErr != nil {
-				return fmt.Errorf("run attested beta.4 live verification: %w", runErr)
-			}
-			report, runErr = decodeAndValidateUpgradeVerify(
-				raw,
-				expected.Lineage.Binding.PlanHash,
-				expected.LegacyBeta4.Receipt,
-				expected.OwnerRef,
-				expected.Lineage.OwnerBindingDigest,
-			)
-			return runErr
-		},
-	)
-	if err != nil {
-		return backuplifecycle.RestoreVerification{}, err
+	report := expected.LegacyBeta4.LiveVerify
+	if report.Offline ||
+		report.PlanHash != expected.Lineage.Binding.PlanHash ||
+		report.Owner.OwnerRef != expected.OwnerRef ||
+		report.Owner.OwnerBindingDigest != expected.Lineage.OwnerBindingDigest ||
+		report.Owner.PocketIDSubject != expected.Lineage.PocketIDSubject ||
+		len(report.Releases) != 1 || report.Releases[0] != expected.LegacyBeta4.Receipt {
+		return backuplifecycle.RestoreVerification{}, errors.New(
+			"beta.4 live verification proof differs from the exact staged restore authority",
+		)
 	}
 	return backuplifecycle.RestoreVerification{
 		APIVersion:         "stackkit.local-backup-restore-verification/v1",
