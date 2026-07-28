@@ -13,13 +13,15 @@ commit="$5"
 source_digest="$6"
 output="$(realpath -m "$7")"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source_root="$(cd "$script_dir/../.." && pwd)"
 work="$(mktemp -d)"
 extract="$work/extract"
 project="$work/project"
 home="$work/home"
 fixture="$work/release-fixture"
+internal_stackkit="$work/internal-helper/stackkit"
 fixture_pid=
-mkdir -p "$extract" "$project" "$home/.stackkits" "$fixture" "$output"
+mkdir -p "$extract" "$project" "$home/.stackkits" "$fixture" "$(dirname "$internal_stackkit")" "$output"
 state="$output/modern-runtime-state.json"
 
 cleanup() {
@@ -42,6 +44,15 @@ test "$phase" = runtime || test "$phase" = ha
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
 [[ "$source_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+test "$(git -C "$source_root" rev-parse --verify HEAD)" = "$commit"
+git -C "$source_root" diff --quiet HEAD -- cmd internal go.mod go.sum
+(
+  cd "$source_root"
+  CGO_ENABLED=0 GOFLAGS=-mod=readonly go build -trimpath -tags stackkit_e2e \
+    -ldflags="-s -w -X main.Version=${tag#v} -X main.GitCommit=$commit" \
+    -o "$internal_stackkit" ./cmd/stackkit
+)
+test -x "$internal_stackkit"
 
 release_index="$release_trust_dir/stackkits-release-index-v1.json"
 release_index_attestation="$release_trust_dir/stackkits-release-index-v1.json.intoto.jsonl"
@@ -103,21 +114,21 @@ fixture_url="$(head -n1 "$output/fixture-url.txt")"
 test -n "$fixture_url"
 
 tar -xzf "$archive" -C "$extract"
-stackkit="$(find "$extract" -maxdepth 2 -type f -name stackkit -print -quit)"
-test -n "$stackkit"
-chmod +x "$stackkit"
+release_stackkit="$(find "$extract" -maxdepth 2 -type f -name stackkit -print -quit)"
+test -n "$release_stackkit"
+chmod +x "$release_stackkit"
 for directory in base modules cue.mod modern-homelab; do
   cp -R "$extract/$directory" "$home/.stackkits/"
 done
 cp -R "$extract/base" "$home/.stackkits/modern-homelab/"
 export HOME="$home"
-export PATH="$(dirname "$stackkit"):$PATH"
+export PATH="$(dirname "$release_stackkit"):$PATH"
 export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
 cd "$project"
 
-timeout 30 stackkit init modern-homelab --owner-source=local \
+timeout 30 "$release_stackkit" init modern-homelab --owner-source=local \
   --domain modern.live.test --non-interactive >"$output/init.log" 2>&1
-timeout 30 stackkit kit verify --json >"$output/release-bootstrap.json"
+timeout 30 "$release_stackkit" kit verify --json >"$output/release-bootstrap.json"
 jq -e --arg version "$tag" '
   .schemaVersion == "stackkit.command-result/v1"
   and .status == "success"
@@ -127,8 +138,8 @@ jq -e --arg version "$tag" '
   and .data[0].platform.os == "linux"
   and .data[0].platform.arch == "amd64"
 ' "$output/release-bootstrap.json" >/dev/null
-timeout 15 stackkit validate >"$output/validate.log" 2>&1
-timeout 30 stackkit generate >"$output/generate-initial.log" 2>&1
+timeout 15 "$release_stackkit" validate >"$output/validate.log" 2>&1
+timeout 30 "$release_stackkit" generate >"$output/generate-initial.log" 2>&1
 plan="$project/deploy/.stackkit/resolved-plan.json"
 test -s "$plan"
 cp "$plan" "$output/resolved-plan-before-binding.json"
@@ -139,12 +150,12 @@ jq -e '
 ' "$plan" >/dev/null
 
 export STACKKIT_HERMETIC_LIVE_PROOF=1
-admission="$project/.stackkit/custody/federation-link-proof.json"
-inventory="$project/.stackkit/inventory.json"
-timeout 20 stackkit internal proof federation-binding issue \
+admission="$project/.stackkit/evidence/federation-binding/proof.json"
+inventory="$project/deploy/.stackkit/inventory.json"
+timeout 20 "$internal_stackkit" internal proof federation-binding issue \
   --resolved-plan "$plan" --candidate-digest "$source_digest" --valid-for 10m \
   --output "$admission" --allow-hermetic-proof >"$output/binding-issue.log" 2>&1
-timeout 20 stackkit federation binding import \
+timeout 20 "$internal_stackkit" federation binding import \
   --admission "$admission" --inventory "$inventory" --allow-hermetic-proof \
   >"$output/binding-import.log" 2>&1
 cp "$admission" "$output/federation-binding-admission.json"
@@ -152,7 +163,7 @@ cp "$admission" "$output/federation-binding-admission.json"
 timeout 90 bash "$script_dir/prepare-modern-runtime-process.sh" \
   "$project" "$inventory" "$output" "$tag" "$commit" "$source_digest"
 cp "$inventory" "$output/inventory.json"
-timeout 30 stackkit generate --inventory "$inventory" >"$output/generate.log" 2>&1
+timeout 30 "$release_stackkit" generate --inventory "$inventory" >"$output/generate.log" 2>&1
 cp "$plan" "$output/resolved-plan.json"
 jq -e '
   .executionReadiness.apply.status == "ready" and
@@ -160,11 +171,11 @@ jq -e '
   .controlPlane.mode == "warm-standby" and
   .availability.mode == "warm-standby"
 ' "$plan" >/dev/null
-timeout 120 stackkit apply --inventory "$inventory" --auto-approve >"$output/apply.log" 2>&1
+timeout 120 "$release_stackkit" apply --inventory "$inventory" --auto-approve >"$output/apply.log" 2>&1
 apply="$(find "$project/.stackkit/evidence/apply/results" -maxdepth 1 -type f -name '*.json' -print -quit)"
 test -s "$apply"
 cp "$apply" "$output/apply-result.json"
-timeout 45 stackkit verify --inventory "$inventory" --json >"$output/verify.json"
+timeout 45 "$release_stackkit" verify --inventory "$inventory" --json >"$output/verify.json"
 jq -e '.schemaVersion=="stackkit.command-result/v1" and .status=="success"' "$output/verify.json" >/dev/null
 cp "$project/.stackkit/evidence/modern-runtime-process/transcript.json" \
   "$output/modern-runtime-process-transcript.json"

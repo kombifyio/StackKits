@@ -52,3 +52,20 @@ test('post-trust runtime proof owns the exact standalone lifecycle', () => {
   assert(init >= 0 && receipt > init && validate > receipt && generate > validate)
   assert(apply > generate && verify > apply)
 })
+
+test('Modern live proof separates the tagged internal helper from the release binary', () => {
+  const runner = readFileSync(
+    path.join(root, 'scripts/e2e/run-modern-live-phase.sh'),
+    'utf8'
+  )
+  assert.match(runner, /test "\$\(git -C "\$source_root" rev-parse --verify HEAD\)" = "\$commit"/u)
+  assert.match(runner, /go build -trimpath -tags stackkit_e2e[\s\S]*?-X main\.Version=\$\{tag#v\} -X main\.GitCommit=\$commit/u)
+  assert.match(runner, /"\$internal_stackkit" internal proof federation-binding issue/u)
+  assert.match(runner, /"\$internal_stackkit" federation binding import/u)
+  assert.match(runner, /admission="\$project\/\.stackkit\/evidence\/federation-binding\/proof\.json"/u)
+  assert.match(runner, /inventory="\$project\/deploy\/\.stackkit\/inventory\.json"/u)
+  for (const command of ['init modern-homelab', 'kit verify', 'validate', 'generate', 'apply', 'verify']) {
+    assert.ok(runner.includes(`"$release_stackkit" ${command}`))
+  }
+  assert.doesNotMatch(runner, /"\$release_stackkit" (?:internal proof|federation binding import)/u)
+})
