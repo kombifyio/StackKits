@@ -492,6 +492,8 @@ if [ "$stable_day2_proof" = "1" ]; then
   done
   cp -R "$candidate_extract_dir/base" "$home_dir/.stackkits/basement-kit/"
   timeout 600 "$candidate_stackkit" generate >"$stable_day2_dir/candidate-generate.log"
+  timeout 600 "$candidate_stackkit" apply --auto-approve \
+    >"$stable_day2_dir/candidate-apply.log"
 
   timeout 120 "$candidate_stackkit" backup configure --json \
     >"$stable_day2_dir/backup-configure.json"
