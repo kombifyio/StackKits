@@ -686,7 +686,9 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
 
   activation_journal="$project_dir/.stackkit/lifecycle-mutations/active.json"
   activation_ready=0
-  for _ in $(seq 1 300); do
+  # Activation first stops the verified Compose runtime with a 60-second
+  # bounded grace period before it can commit the first governed volume copy.
+  for _ in $(seq 1 1200); do
     if [ -s "$activation_journal" ] &&
       jq -e --arg operation "$activation_operation_a" --arg volume "$first_volume" '
         .apiVersion == "stackkit.lifecycle-mutation/v1"
