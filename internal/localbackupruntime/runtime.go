@@ -117,6 +117,9 @@ func (r *Runtime) Configure(ctx context.Context, configuration backuplifecycle.R
 	engineErr = r.newEngine().ConfigureSourcePolicy(ctx, source.ContainerPath, source.ExcludePaths, secret)
 	backupcustody.Clear(secret)
 	if engineErr != nil {
+		if diagnostic, ok := backupexec.SafeDiagnostic(engineErr); ok {
+			return backuplifecycle.RepositoryReceipt{}, fmt.Errorf("localbackupruntime: configure source policy failed: %s", diagnostic)
+		}
 		return backuplifecycle.RepositoryReceipt{}, errors.New("localbackupruntime: configure source policy failed")
 	}
 	policyStatus, err := r.sourcePolicy(ctx, configuration.OwnerRef, configuration.AuthorityRef, configuration.Lineage, source)
