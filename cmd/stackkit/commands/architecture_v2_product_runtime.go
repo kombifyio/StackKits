@@ -101,10 +101,14 @@ func newLocalOwnerApplyEvidenceCollector(workspaceRoot string) (architecturev2.P
 	if err != nil {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local host observer: %w", err)
 	}
+	secretObserver, err := localevidence.NewSecretObserver(workspaceRoot)
+	if err != nil {
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local secret observer: %w", err)
+	}
 	collector, err := localevidence.NewOwnerCollector(localevidence.CollectorConfig{
 		Key:       key,
 		Version:   architectureV2ComponentVersion(version),
-		Observers: map[string]localevidence.Observer{"host": hostObserver},
+		Observers: map[string]localevidence.Observer{"host": hostObserver, "secret": secretObserver},
 	})
 	if err != nil {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local Apply evidence collector: %w", err)
@@ -117,7 +121,7 @@ func newLocalOwnerApplyEvidenceCollector(workspaceRoot string) (architecturev2.P
 		Producer: generationartifact.ApplyEvidenceProducer{
 			ID: producer.ID, Version: producer.Version, KeyID: producer.KeyID,
 		},
-		PublicKey: ed25519.PublicKey(publicKey), RequirementKinds: []string{"host"},
+		PublicKey: ed25519.PublicKey(publicKey), RequirementKinds: []string{"host", "secret"},
 	}, custody.Binding, nil
 }
 

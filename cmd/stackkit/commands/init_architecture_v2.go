@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -160,6 +161,13 @@ func runArchitectureV2InitWithBootstrap(
 			}
 			printSuccess("Established owner-bound Basement runtime custody: %s", runtimeCustody.KeyID)
 		}
+		secretCount, err := materializeArchitectureV2LocalSecrets(wd, validation.CanonicalStackSpec)
+		if err != nil {
+			return fmt.Errorf("establish workload secret custody: %w", err)
+		}
+		if secretCount > 0 {
+			printSuccess("Established %d owner-bound workload secret custodies", secretCount)
+		}
 		printInfo("Local execution binding: %s / %s / %s", custody.Binding.SiteRef, custody.Binding.NodeRef, custody.Binding.ChannelRef)
 	}
 	printInfo("StackKit: %s", stackkitName)
@@ -169,6 +177,36 @@ func runArchitectureV2InitWithBootstrap(
 	}
 	printArchitectureV2InitSummary(displayPath)
 	return nil
+}
+
+func materializeArchitectureV2LocalSecrets(workspaceRoot string, canonicalStackSpec []byte) (int, error) {
+	var spec struct {
+		Workloads map[string]struct {
+			SecretRefs map[string]string `json:"secretRefs"`
+		} `json:"workloads"`
+	}
+	if err := json.Unmarshal(canonicalStackSpec, &spec); err != nil {
+		return 0, fmt.Errorf("decode canonical StackSpec secret authority: %w", err)
+	}
+	refs := map[string]struct{}{}
+	for _, workload := range spec.Workloads {
+		for _, ref := range workload.SecretRefs {
+			if strings.HasPrefix(strings.TrimSpace(ref), "secret://") {
+				refs[strings.TrimSpace(ref)] = struct{}{}
+			}
+		}
+	}
+	ordered := make([]string, 0, len(refs))
+	for ref := range refs {
+		ordered = append(ordered, ref)
+	}
+	sort.Strings(ordered)
+	for _, ref := range ordered {
+		if err := localevidence.MaterializeLocalSecret(workspaceRoot, ref); err != nil {
+			return 0, err
+		}
+	}
+	return len(ordered), nil
 }
 
 func architectureV2InitDevelopmentBuild(buildVersion string) bool {

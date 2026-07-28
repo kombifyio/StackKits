@@ -573,7 +573,12 @@ func applyEvidenceExpectations(requirements ApplyRequirements) (map[string]Apply
 		return nil
 	}
 	for _, value := range requirements.Secrets {
-		if err := add("secret", value.ID, value, ApplyEvidenceSubject{OwnerKind: value.OwnerKind, OwnerRef: value.OwnerRef, ModuleRef: value.ModuleRef, UnitRef: value.UnitRef, InstanceRef: value.InstanceRef}); err != nil {
+		refDigest := sha256.Sum256([]byte(value.SecretRef))
+		if err := add("secret", value.ID, value, ApplyEvidenceSubject{
+			OwnerKind: value.OwnerKind, OwnerRef: value.OwnerRef, ModuleRef: value.ModuleRef,
+			UnitRef: value.UnitRef, InstanceRef: value.InstanceRef,
+			ContractHash: hex.EncodeToString(refDigest[:]),
+		}); err != nil {
 			return nil, err
 		}
 	}
