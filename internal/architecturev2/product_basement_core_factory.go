@@ -35,8 +35,8 @@ func (f *productBasementCoreFactory) PrepareRuntimeOwner(request ProductRuntimeO
 	health := cloneProductHealthTargets(request.HealthTargets)
 	if productRuntimeOwnerSelectorForTarget(target) != productBasementCoreSelector() ||
 		len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
-		strings.TrimSpace(target.ExecutionChannelRef) == "" || len(health) != 8 {
-		return nil, errors.New("Basement core product factory requires one exact channel-bound target and eight postconditions")
+		strings.TrimSpace(target.ExecutionChannelRef) == "" || len(health) != 7 {
+		return nil, errors.New("Basement core product factory requires one exact channel-bound target and seven postconditions")
 	}
 	healthHashes := make(map[string]string, len(health))
 	for _, item := range health {

@@ -162,7 +162,7 @@
       "generation": {
         "outputRoot": "deploy",
         "strategy": "kit-template",
-        "target": "opentofu"
+        "target": "compose"
       },
       "install": {
         "mode": "bootstrapped",
@@ -496,7 +496,7 @@
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
-    "defaultTarget": "opentofu"
+    "defaultTarget": "compose"
   },
   "identityTrust": {
     "authorities": [

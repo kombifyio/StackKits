@@ -199,7 +199,7 @@ Definition: base.#ProductKitDefinition & {
 	generation: {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
-		defaultTarget: "opentofu"
+		defaultTarget: "compose"
 		allowedTargets: ["opentofu", "compose"]
 		contractVersion: "1.0.0"
 	}
@@ -240,7 +240,7 @@ Definition: base.#ProductKitDefinition & {
 			}
 			generation: {
 				strategy: "kit-template"
-				target:   "opentofu"
+				target:   "compose"
 			}
 			system: {}
 			storage: {}

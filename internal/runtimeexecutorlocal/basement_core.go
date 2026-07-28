@@ -123,7 +123,7 @@ func (e *BasementCoreExecutor) Execute(ctx context.Context, request runtimeexecu
 	if e == nil || e.operations == nil || strings.TrimSpace(e.binding.SiteRef) == "" ||
 		strings.TrimSpace(e.binding.NodeRef) == "" || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) ||
-		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != 8 {
+		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != 7 {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor requires one explicit authenticated local authority")
 	}
 	target, health, project, err := validateBasementCoreRequest(request, e.binding, e.authority)
@@ -204,8 +204,8 @@ func defensiveBasementCoreProject(project BasementCoreProject) BasementCoreProje
 }
 
 func validateBasementCoreRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority BasementCoreAuthority) (runtimeexecutor.RuntimeTarget, []runtimeexecutor.HealthTarget, BasementCoreProject, error) {
-	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) != 8 {
-		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, errors.New("Basement core requires exactly one runtime, eight health targets, and no access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) != 7 {
+		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, errors.New("Basement core requires exactly one runtime, seven health targets, and no access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.BasementCoreComposeRendererContract()
@@ -284,7 +284,6 @@ type basementCoreHealthSpec struct {
 }
 
 var basementCoreHealthSpecs = []basementCoreHealthSpec{
-	{source: "basement-core-provider-contract", kind: "contract", targetKind: "provider", targetRef: basementCoreProviderRef},
 	{source: "basement-hub-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/healthz", port: 80, timeout: 30, statuses: []int{200}},
 	{source: "basement-router-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/ping", port: 8080, timeout: 30, statuses: []int{200}},
 	{source: "coolify-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 8000, timeout: 30, statuses: []int{200, 302}},
