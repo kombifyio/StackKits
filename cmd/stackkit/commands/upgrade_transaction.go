@@ -665,7 +665,9 @@ func stagePublicUpgradeData(
 	checkpoint publicUpgradeCheckpoint,
 	snapshot upgradelifecycle.ExecutorStateSnapshot,
 ) (backuplifecycle.RestoreResult, error) {
-	authority, err := inspectNativeV2BackupAuthority(ctx, workspace, requestedSpec)
+	authority, err := inspectPublicUpgradeSnapshotAuthority(
+		ctx, workspace, requestedSpec, snapshot,
+	)
 	if err != nil {
 		return backuplifecycle.RestoreResult{}, err
 	}
@@ -708,7 +710,9 @@ func revalidatePublicUpgradeAuthority(
 	workspace, requestedSpec string,
 	snapshot upgradelifecycle.ExecutorStateSnapshot,
 ) error {
-	authority, err := inspectNativeV2BackupAuthority(ctx, workspace, requestedSpec)
+	authority, err := inspectPublicUpgradeSnapshotAuthority(
+		ctx, workspace, requestedSpec, snapshot,
+	)
 	if err != nil {
 		return err
 	}

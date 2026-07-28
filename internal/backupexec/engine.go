@@ -409,7 +409,7 @@ func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths 
 	}
 	slices.Sort(relative)
 	slices.Sort(expected)
-	exactShape := len(row) == 2 &&
+	exactShape := exactKopiaSourcePolicyShape(row) &&
 		len(files) == 1 &&
 		len(scheduling) == 1 &&
 		manual
@@ -418,6 +418,49 @@ func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths 
 		ExcludePaths: effective,
 		Exact:        exactShape && slices.Equal(relative, expected),
 	}, nil
+}
+
+func exactKopiaSourcePolicyShape(row map[string]json.RawMessage) bool {
+	emptyObjects := []string{
+		"retention",
+		"errorHandling",
+		"compression",
+		"metadataCompression",
+		"splitter",
+		"actions",
+		"upload",
+	}
+	if len(row) != len(emptyObjects)+4 {
+		return false
+	}
+	for _, name := range emptyObjects {
+		var value map[string]json.RawMessage
+		if err := json.Unmarshal(row[name], &value); err != nil || len(value) != 0 {
+			return false
+		}
+	}
+	var osSnapshots map[string]json.RawMessage
+	if err := json.Unmarshal(row["osSnapshots"], &osSnapshots); err != nil ||
+		len(osSnapshots) != 1 {
+		return false
+	}
+	var volumeShadowCopy map[string]json.RawMessage
+	if err := json.Unmarshal(osSnapshots["volumeShadowCopy"], &volumeShadowCopy); err != nil ||
+		len(volumeShadowCopy) != 0 {
+		return false
+	}
+	var logging map[string]json.RawMessage
+	if err := json.Unmarshal(row["logging"], &logging); err != nil ||
+		len(logging) != 2 {
+		return false
+	}
+	for _, name := range []string{"directories", "entries"} {
+		var value map[string]json.RawMessage
+		if err := json.Unmarshal(logging[name], &value); err != nil || len(value) != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func governedRelativeExcludes(source string, excludePaths []string) ([]string, error) {

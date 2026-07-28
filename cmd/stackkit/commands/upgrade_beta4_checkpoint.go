@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
@@ -356,6 +357,114 @@ func withPreparedExactBeta4UpgradeCapture(
 			},
 		})
 	})
+}
+
+func inspectPublicUpgradeSnapshotAuthority(
+	ctx context.Context,
+	workspace string,
+	requestedSpec string,
+	snapshot upgradelifecycle.ExecutorStateSnapshot,
+) (nativeV2BackupAuthority, error) {
+	current, currentErr := inspectNativeV2BackupAuthority(
+		ctx, workspace, requestedSpec,
+	)
+	if currentErr == nil {
+		return current, nil
+	}
+	if snapshot.Release.Kit != "basement-kit" ||
+		snapshot.Release.Version != exactBeta4UpgradeVersion ||
+		snapshot.Release.Channel != releaseindex.ChannelBeta ||
+		snapshot.Release.Platform != currentReleasePlatform() ||
+		snapshot.Release.ArchiveSHA256 != "sha256:"+exactBeta4UpgradeArchiveSHA256 ||
+		snapshot.Release.IndexSHA256 != "sha256:"+exactBeta4UpgradeIndexSHA256 {
+		return nativeV2BackupAuthority{}, currentErr
+	}
+	legacy, legacyErr := inspectExactBeta4BackupAuthority(
+		ctx,
+		workspace,
+		requestedSpec,
+		snapshot.Release.Kit,
+		releaseindex.Resolution{Asset: releaseindex.Asset{
+			Kit:      snapshot.Release.Kit,
+			Version:  exactBeta4UpgradeTargetVersion,
+			Channel:  releaseindex.ChannelStable,
+			Platform: snapshot.Release.Platform,
+		}},
+	)
+	if legacyErr != nil {
+		return nativeV2BackupAuthority{}, errors.Join(currentErr, legacyErr)
+	}
+	return legacy, nil
+}
+
+func verifyExactBeta4BackupRestore(
+	ctx context.Context,
+	expected nativeV2BackupAuthority,
+	request backuplifecycle.RestoreVerificationRequest,
+) (backuplifecycle.RestoreVerification, error) {
+	if expected.LegacyBeta4 == nil ||
+		request.OwnerRef != expected.OwnerRef ||
+		request.AuthorizationLineage != expected.Lineage ||
+		request.SnapshotAnchorID == "" ||
+		request.OperationID == "" ||
+		request.StagingPath != backuplifecycle.RestoreStagingPath(request.OperationID) {
+		return backuplifecycle.RestoreVerification{}, errors.New(
+			"beta.4 restore target authority changed before live post-verification",
+		)
+	}
+	state, err := readExactBeta4CheckpointState(
+		expected.WorkspaceRoot, *expected.LegacyBeta4,
+	)
+	if err != nil {
+		return backuplifecycle.RestoreVerification{}, err
+	}
+	if !sameNativeV2BackupAuthority(expected, state.authority) {
+		return backuplifecycle.RestoreVerification{}, errors.New(
+			"beta.4 restore authority changed before live post-verification",
+		)
+	}
+
+	var report architectureV2VerifyReport
+	err = withVerifiedPublicUpgradeExecutable(
+		ctx, expected.LegacyBeta4.Receipt, func(binary string) error {
+			runner := newUpgradeInspectionRunner()
+			if runner == nil {
+				return errors.New("beta.4 restore verification requires an execution runner")
+			}
+			raw, runErr := runner.Run(
+				ctx,
+				binary,
+				append(
+					publicUpgradeCommandPrefix(expected.WorkspaceRoot, specFile),
+					"verify", "--json",
+				),
+				expected.WorkspaceRoot,
+			)
+			if runErr != nil {
+				return fmt.Errorf("run attested beta.4 live verification: %w", runErr)
+			}
+			report, runErr = decodeAndValidateUpgradeVerify(
+				raw,
+				expected.Lineage.Binding.PlanHash,
+				expected.LegacyBeta4.Receipt,
+				expected.OwnerRef,
+				expected.Lineage.OwnerBindingDigest,
+			)
+			return runErr
+		},
+	)
+	if err != nil {
+		return backuplifecycle.RestoreVerification{}, err
+	}
+	return backuplifecycle.RestoreVerification{
+		APIVersion:         "stackkit.local-backup-restore-verification/v1",
+		OwnerRef:           report.Owner.OwnerRef,
+		OwnerBindingDigest: report.Owner.OwnerBindingDigest,
+		PocketIDSubject:    report.Owner.PocketIDSubject,
+		PlanHash:           report.PlanHash,
+		ServicesVerified:   true,
+		VerifiedAt:         time.Now().UTC(),
+	}, nil
 }
 
 func exactBeta4CheckpointDigest(data []byte) string {

@@ -288,6 +288,9 @@ func verifyNativeV2BackupRestore(
 	expected nativeV2BackupAuthority,
 	request backuplifecycle.RestoreVerificationRequest,
 ) (backuplifecycle.RestoreVerification, error) {
+	if expected.LegacyBeta4 != nil {
+		return verifyExactBeta4BackupRestore(ctx, expected, request)
+	}
 	current, err := inspectNativeV2BackupAuthority(ctx, expected.WorkspaceRoot, specFile)
 	if err != nil {
 		return backuplifecycle.RestoreVerification{}, err
