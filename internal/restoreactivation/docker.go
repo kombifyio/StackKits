@@ -230,7 +230,7 @@ func (runtime *dockerRuntime) copyVolume(
 	args := []string{
 		"run", "--name", helperName(authority, volume.LiveName),
 		"--rm", "--network", "none", "--read-only",
-		"--cap-drop", "ALL", "--cap-add", "CHOWN",
+		"--cap-drop", "ALL", "--cap-add", "CHOWN", "--cap-add", "FOWNER",
 		"--security-opt", "no-new-privileges",
 		"--mount", "type=volume,src=" + source + ",dst=/source,readonly",
 		"--mount", "type=volume,src=" + destination + ",dst=/target",
