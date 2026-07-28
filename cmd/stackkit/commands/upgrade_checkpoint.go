@@ -74,11 +74,19 @@ func createPublicUpgradeCheckpoint(
 		if currentErr == nil {
 			return current, nil
 		}
+		stableV08, stableV08Err := inspectPublishedV08BackupAuthority(
+			checkpointContext, workspace, specFile, kit, target,
+		)
+		if stableV08Err == nil {
+			return stableV08, nil
+		}
 		legacy, legacyErr := inspectExactBeta4BackupAuthority(
 			checkpointContext, workspace, specFile, kit, target,
 		)
 		if legacyErr != nil {
-			return nativeV2BackupAuthority{}, errors.Join(currentErr, legacyErr)
+			return nativeV2BackupAuthority{}, errors.Join(
+				currentErr, stableV08Err, legacyErr,
+			)
 		}
 		return legacy, nil
 	}
@@ -197,21 +205,6 @@ func createPublicUpgradeSnapshot(
 	if err != nil {
 		return backuplifecycle.SnapshotAnchor{}, err
 	}
-	if authority.LegacyBeta4 != nil {
-		configureContext, cancelConfigure := nativeV2BackupOperationContext(
-			ctx, backupLongOperationTimeout,
-		)
-		_, err = service.Configure(configureContext, backuplifecycle.ConfigureInput{
-			OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
-			Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
-		})
-		cancelConfigure()
-		if err != nil {
-			return backuplifecycle.SnapshotAnchor{}, fmt.Errorf(
-				"configure exact beta.4 pre-upgrade Kopia repository: %w", err,
-			)
-		}
-	}
 	statusContext, cancelStatus := nativeV2BackupOperationContext(
 		ctx, backupQuickOperationTimeout,
 	)
@@ -287,6 +280,11 @@ func withPreparedPublicUpgradeCapture(
 	}
 	if authority.LegacyBeta4 != nil {
 		return withPreparedExactBeta4UpgradeCapture(
+			ctx, workspace, kit, authority, continuePrepared,
+		)
+	}
+	if authority.LegacyV08 != nil {
+		return withPreparedPublishedV08UpgradeCapture(
 			ctx, workspace, kit, authority, continuePrepared,
 		)
 	}

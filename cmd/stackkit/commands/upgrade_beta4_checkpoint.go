@@ -62,6 +62,31 @@ func inspectExactBeta4BackupAuthority(
 	return state.authority, nil
 }
 
+func inspectPublishedV08BackupAuthority(
+	ctx context.Context,
+	workspace string,
+	requestedSpec string,
+	kit string,
+	target releaseindex.Resolution,
+) (nativeV2BackupAuthority, error) {
+	bridge, err := inspectPublishedV08UpgradeBridge(
+		ctx, workspace, requestedSpec, kit, target,
+	)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	if !bridge.Enabled {
+		return nativeV2BackupAuthority{}, errors.New(
+			"current state is not eligible for the published v0.8 checkpoint bridge",
+		)
+	}
+	state, err := readPublishedV08CheckpointState(workspace, bridge)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	return state.authority, nil
+}
+
 // inspectNativeV2BackupAuthorityForRequest keeps the normal current authority
 // path as the default. It may retain the beta.4 authority only when its full
 // attested bridge proof succeeds for the sole supported v0.8.0 target.
@@ -254,6 +279,20 @@ func readExactBeta4CheckpointState(
 	}, nil
 }
 
+func readPublishedV08CheckpointState(
+	workspace string,
+	bridge publicUpgradeBridge,
+) (exactBeta4CheckpointState, error) {
+	state, err := readExactBeta4CheckpointState(workspace, bridge)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	bridgeCopy := bridge
+	state.authority.LegacyBeta4 = nil
+	state.authority.LegacyV08 = &bridgeCopy
+	return state, nil
+}
+
 func withPreparedExactBeta4UpgradeCapture(
 	ctx context.Context,
 	workspace string,
@@ -261,12 +300,44 @@ func withPreparedExactBeta4UpgradeCapture(
 	authority nativeV2BackupAuthority,
 	continuePrepared func(upgradelifecycle.CurrentStateAuthorityInput) error,
 ) error {
-	if authority.LegacyBeta4 == nil {
+	return withPreparedHistoricalUpgradeCapture(
+		ctx, workspace, kit, authority, authority.LegacyBeta4,
+		false, continuePrepared,
+	)
+}
+
+func withPreparedPublishedV08UpgradeCapture(
+	ctx context.Context,
+	workspace string,
+	kit string,
+	authority nativeV2BackupAuthority,
+	continuePrepared func(upgradelifecycle.CurrentStateAuthorityInput) error,
+) error {
+	return withPreparedHistoricalUpgradeCapture(
+		ctx, workspace, kit, authority, authority.LegacyV08,
+		true, continuePrepared,
+	)
+}
+
+func withPreparedHistoricalUpgradeCapture(
+	ctx context.Context,
+	workspace string,
+	kit string,
+	authority nativeV2BackupAuthority,
+	bridge *publicUpgradeBridge,
+	publishedV08 bool,
+	continuePrepared func(upgradelifecycle.CurrentStateAuthorityInput) error,
+) error {
+	if bridge == nil {
 		return errors.New("exact beta.4 bridge proof is required")
 	}
-	state, err := readExactBeta4CheckpointState(
-		workspace, *authority.LegacyBeta4,
-	)
+	var state exactBeta4CheckpointState
+	var err error
+	if publishedV08 {
+		state, err = readPublishedV08CheckpointState(workspace, *bridge)
+	} else {
+		state, err = readExactBeta4CheckpointState(workspace, *bridge)
+	}
 	if err != nil {
 		return err
 	}
@@ -324,7 +395,7 @@ func withPreparedExactBeta4UpgradeCapture(
 
 	return (releaseindex.Installer{
 		Attestations: newPublicAttestationVerifier(),
-	}).InspectInstalled(ctx, authority.LegacyBeta4.Receipt.InstallDir, func(
+	}).InspectInstalled(ctx, bridge.Receipt.InstallDir, func(
 		proof releaseindex.VerifiedInstallation,
 	) error {
 		var currentReceipt releaseindex.Receipt
@@ -334,13 +405,18 @@ func withPreparedExactBeta4UpgradeCapture(
 			_ io.Reader,
 		) error {
 			currentReceipt = receipt
+			if publishedV08 {
+				return validatePublishedV08Receipt(
+					receipt, kit, currentReleasePlatform(),
+				)
+			}
 			return validateExactBeta4ReleaseReceipt(
 				receipt, kit, currentReleasePlatform(),
 			)
 		}); err != nil {
 			return err
 		}
-		if currentReceipt != authority.LegacyBeta4.Receipt {
+		if currentReceipt != bridge.Receipt {
 			return errors.New("beta.4 installed release changed before capture")
 		}
 		executableBytes, err := upgradelifecycle.RecoveryExecutableFromVerifiedRelease(proof)
@@ -379,7 +455,7 @@ func withPreparedExactBeta4UpgradeCapture(
 			Capture: capture,
 			Legacy: &upgradelifecycle.LegacyCurrentStateAuthorityInput{
 				WorkspaceRoot:     workspace,
-				Inspection:        authority.LegacyBeta4.Current,
+				Inspection:        bridge.Current,
 				Manifest:          state.manifest,
 				GenerationReceipt: state.generationReceipt,
 				ApplyResult:       state.applyResult,
@@ -401,6 +477,29 @@ func inspectPublicUpgradeSnapshotAuthority(
 	)
 	if currentErr == nil {
 		return current, nil
+	}
+	if snapshot.Release.Kit == "basement-kit" &&
+		snapshot.Release.Version == publishedV08CurrentVersion &&
+		snapshot.Release.Channel == releaseindex.ChannelStable &&
+		snapshot.Release.Platform == currentReleasePlatform() &&
+		snapshot.Release.ArchiveSHA256 == "sha256:"+publishedV08ArchiveSHA256 &&
+		snapshot.Release.IndexSHA256 == "sha256:"+publishedV08IndexSHA256 {
+		legacy, legacyErr := inspectPublishedV08BackupAuthority(
+			ctx,
+			workspace,
+			requestedSpec,
+			snapshot.Release.Kit,
+			releaseindex.Resolution{Asset: releaseindex.Asset{
+				Kit:      snapshot.Release.Kit,
+				Version:  publishedV09UpgradeVersion,
+				Channel:  releaseindex.ChannelStable,
+				Platform: snapshot.Release.Platform,
+			}},
+		)
+		if legacyErr != nil {
+			return nativeV2BackupAuthority{}, errors.Join(currentErr, legacyErr)
+		}
+		return legacy, nil
 	}
 	if snapshot.Release.Kit != "basement-kit" ||
 		snapshot.Release.Version != exactBeta4UpgradeVersion ||
@@ -477,6 +576,22 @@ func verifyExactBeta4BackupRestore(
 		ServicesVerified:   true,
 		VerifiedAt:         time.Now().UTC(),
 	}, nil
+}
+
+func verifyPublishedV08BackupRestore(
+	ctx context.Context,
+	expected nativeV2BackupAuthority,
+	request backuplifecycle.RestoreVerificationRequest,
+) (backuplifecycle.RestoreVerification, error) {
+	if expected.LegacyV08 == nil {
+		return backuplifecycle.RestoreVerification{}, errors.New(
+			"published v0.8 bridge proof is required",
+		)
+	}
+	compatibility := expected
+	compatibility.LegacyBeta4 = compatibility.LegacyV08
+	compatibility.LegacyV08 = nil
+	return verifyExactBeta4BackupRestore(ctx, compatibility, request)
 }
 
 func exactBeta4CheckpointDigest(data []byte) string {

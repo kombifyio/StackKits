@@ -1,25 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -ne 6 ]; then
-  printf 'usage: %s <runtime|ha> <archive> <tag> <source-commit> <source-digest> <output>\n' "$0" >&2
+if [ "$#" -ne 7 ]; then
+  printf 'usage: %s <runtime|ha> <archive> <release-trust-dir> <tag> <source-commit> <source-digest> <output>\n' "$0" >&2
   exit 2
 fi
 phase="$1"
 archive="$(realpath "$2")"
-tag="$3"
-commit="$4"
-source_digest="$5"
-output="$(realpath -m "$6")"
+release_trust_dir="$(realpath "$3")"
+tag="$4"
+commit="$5"
+source_digest="$6"
+output="$(realpath -m "$7")"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 work="$(mktemp -d)"
 extract="$work/extract"
 project="$work/project"
 home="$work/home"
-mkdir -p "$extract" "$project" "$home/.stackkits" "$output"
+fixture="$work/release-fixture"
+fixture_pid=
+mkdir -p "$extract" "$project" "$home/.stackkits" "$fixture" "$output"
 state="$output/modern-runtime-state.json"
 
 cleanup() {
+  if [ -n "${fixture_pid:-}" ]; then
+    kill "$fixture_pid" >/dev/null 2>&1 || true
+    wait "$fixture_pid" 2>/dev/null || true
+  fi
   if [ -s "$state" ]; then
     docker rm -f \
       "$(jq -r .containers.homeMain "$state")" \
@@ -36,6 +43,65 @@ test "$phase" = runtime || test "$phase" = ha
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
 [[ "$source_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
 
+release_index="$release_trust_dir/stackkits-release-index-v1.json"
+release_index_attestation="$release_trust_dir/stackkits-release-index-v1.json.intoto.jsonl"
+test -s "$release_index"
+test -s "$release_index_attestation"
+archive_name="$(basename "$archive")"
+asset="$(
+  jq -cer --arg archive "$archive_name" --arg tag "$tag" '
+    [
+      .assets[]
+      | select(
+          .kit == "modern-homelab"
+          and .version == $tag
+          and .platform.os == "linux"
+          and .platform.arch == "amd64"
+          and .archive.name == $archive
+        )
+    ]
+    | if length == 1 then .[0] else error("exact Modern release asset is ambiguous") end
+  ' "$release_index"
+)"
+sbom_name="$(jq -er .sbom.name <<<"$asset")"
+attestation_name="$(jq -er .attestation.name <<<"$asset")"
+trusted_root_name="$(jq -er .release.trustedRoot.name "$release_index")"
+for input in \
+  "$archive" \
+  "$release_trust_dir/$sbom_name" \
+  "$release_trust_dir/$attestation_name" \
+  "$release_trust_dir/$trusted_root_name"; do
+  test -s "$input"
+  expected="$(
+    jq -er --arg name "$(basename "$input")" '
+      [
+        [.release.trustedRoot, .assets[].archive, .assets[].sbom, .assets[].attestation]
+        | flatten | .[] | select(.name == $name) | .sha256
+      ]
+      | unique
+      | if length == 1 then .[0] else error("release fixture asset digest is ambiguous") end
+    ' "$release_index"
+  )"
+  test "$(sha256sum "$input" | cut -d' ' -f1)" = "$expected"
+  cp "$input" "$fixture/"
+done
+cp "$release_index" "$fixture/stackkits-release-index-v1.json"
+cp "$release_index_attestation" "$fixture/stackkits-release-index-v1.json.intoto.jsonl"
+fixture_port="${STACKKIT_E2E_FIXTURE_PORT:-18080}"
+node "$script_dir/github-release-fixture.mjs" "$fixture" "$fixture_port" \
+  >"$output/fixture-url.txt" 2>"$output/fixture.log" &
+fixture_pid=$!
+for _ in $(seq 1 50); do
+  [ -s "$output/fixture-url.txt" ] && break
+  kill -0 "$fixture_pid" 2>/dev/null || {
+    printf 'Modern release fixture exited before readiness\n' >&2
+    exit 1
+  }
+  sleep 0.1
+done
+fixture_url="$(head -n1 "$output/fixture-url.txt")"
+test -n "$fixture_url"
+
 tar -xzf "$archive" -C "$extract"
 stackkit="$(find "$extract" -maxdepth 2 -type f -name stackkit -print -quit)"
 test -n "$stackkit"
@@ -46,10 +112,21 @@ done
 cp -R "$extract/base" "$home/.stackkits/modern-homelab/"
 export HOME="$home"
 export PATH="$(dirname "$stackkit"):$PATH"
+export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
 cd "$project"
 
 timeout 30 stackkit init modern-homelab --owner-source=local \
   --domain modern.live.test --non-interactive >"$output/init.log" 2>&1
+timeout 30 stackkit kit verify --json >"$output/release-bootstrap.json"
+jq -e --arg version "$tag" '
+  .schemaVersion == "stackkit.command-result/v1"
+  and .status == "success"
+  and (.data | length) == 1
+  and .data[0].kit == "modern-homelab"
+  and .data[0].version == $version
+  and .data[0].platform.os == "linux"
+  and .data[0].platform.arch == "amd64"
+' "$output/release-bootstrap.json" >/dev/null
 timeout 15 stackkit validate >"$output/validate.log" 2>&1
 timeout 30 stackkit generate >"$output/generate-initial.log" 2>&1
 plan="$project/deploy/.stackkit/resolved-plan.json"

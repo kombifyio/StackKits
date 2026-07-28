@@ -23,6 +23,7 @@ var (
 	publicUpgradeRecover           string
 	newUpgradeInspectionRunner     = func() upgradelifecycle.Runner { return upgradelifecycle.ExecRunner{} }
 	newCurrentUpgradeInspection    = currentUpgradeInspection
+	inspectPublishedV08Current     = inspectPublishedV08CurrentGeneration
 	inspectPublicUpgradeTarget     = inspectVerifiedPublicUpgradeTarget
 	inspectPublicUpgradeBridge     = inspectExactBeta4UpgradeBridge
 	preparePublicUpgradeCheckpoint = createPublicUpgradeCheckpoint
@@ -163,9 +164,18 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 	current := bridge.Current
 	if !bridge.Enabled {
 		var currentErr error
-		current, currentErr = newCurrentUpgradeInspection(ctx, workspace, specFile)
+		var compatible bool
+		current, compatible, currentErr = inspectPublishedV08Current(
+			ctx, workspace, specFile, kit, resolution,
+		)
 		if currentErr != nil {
-			return fmt.Errorf("inspect authoritative current generation: %w", currentErr)
+			return fmt.Errorf("inspect published v0.8 current generation: %w", currentErr)
+		}
+		if !compatible {
+			current, currentErr = newCurrentUpgradeInspection(ctx, workspace, specFile)
+			if currentErr != nil {
+				return fmt.Errorf("inspect authoritative current generation: %w", currentErr)
+			}
 		}
 	}
 	attestations := newPublicAttestationVerifier()

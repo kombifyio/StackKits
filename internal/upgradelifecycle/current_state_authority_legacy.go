@@ -23,10 +23,25 @@ const (
 	legacyBeta4DefinitionHash       = "sha256:7bfee231cf6fb90c954fb2a4b01c8d475147df54e1d07c6879b7c12b2454ac48"
 	legacyBeta4CompilerVersion      = "stackkits-resolver/0.8.0-beta.4"
 	legacyBeta4RendererVersion      = "0.8.0-beta.4"
+	legacyV08Version                = "v0.8.0"
+	legacyV08ArchiveSHA256          = "sha256:0d6840ccb789b14840f0ff4c0b6e21fef290a639a0fd47eb8c65ae43cbcb13de"
+	legacyV08IndexSHA256            = "sha256:54815571ccb3ac58c9551dfce80d3a331b2a8660e0e1f1acfd0cad22004c9beb"
+	legacyV08AuthorityFingerprint   = "sha256:082998f2b0843eb6d5dd9cccaede88412c9c73753cfbc201ced8ca5cc19c87ca"
+	legacyV08CatalogHash            = "sha256:36e536598cc040ffa6a440d75eeeeb8ff067b813e0cc5549a10d3e41a971d2ab"
+	legacyV08DefinitionHash         = "sha256:e605db9c5c0f60b7b571a11ec234f051ca65902402b88aca8b07f74169306cf3"
+	legacyV08CompilerVersion        = "stackkits-resolver/0.8.0"
+	legacyV08RendererVersion        = "0.8.0"
 )
 
-// LegacyCurrentStateAuthorityInput is intentionally limited to the single
-// published beta.4 authority discontinuity. The caller must still supply the
+type allowedLegacyRelease struct {
+	version       string
+	channel       releaseindex.Channel
+	archiveSHA256 string
+	indexSHA256   string
+}
+
+// LegacyCurrentStateAuthorityInput is intentionally limited to the exact
+// published beta.4 and v0.8.0 stable authority discontinuities. The caller must still supply the
 // immutable installed-release proof, owner-signed Apply evidence, complete
 // generated artifact closure, and the candidate-created Kopia snapshot.
 type LegacyCurrentStateAuthorityInput struct {
@@ -40,7 +55,7 @@ type LegacyCurrentStateAuthorityInput struct {
 }
 
 // NewVerifiedLegacyExecutorStateCapture is the only cross-release constructor.
-// It does not run the current CUE contract: the attested beta.4 binary already
+// It does not run the current CUE contract: the attested historical binary already
 // supplied the exact PlanInspection and offline Verify proof. Everything that
 // survives into rollback remains independently content-, release-, Owner-, and
 // snapshot-bound here.
@@ -63,7 +78,8 @@ func NewVerifiedLegacyExecutorStateCapture(
 			"legacy current state authority: workspace is required",
 		)
 	}
-	if err := verifyExactBeta4LegacyInspection(input.Inspection); err != nil {
+	allowedRelease, err := verifyAllowedLegacyInspection(input.Inspection)
+	if err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
 	manifestHash, err := input.Manifest.Hash()
@@ -169,12 +185,12 @@ func NewVerifiedLegacyExecutorStateCapture(
 		return VerifiedExecutorStateCapture{}, err
 	}
 	if release.Kit != "basement-kit" ||
-		release.Version != legacyBeta4Version ||
-		release.Channel != releaseindex.ChannelBeta ||
-		release.ArchiveSHA256 != legacyBeta4ArchiveSHA256 ||
-		release.IndexSHA256 != legacyBeta4IndexSHA256 {
+		release.Version != allowedRelease.version ||
+		release.Channel != allowedRelease.channel ||
+		release.ArchiveSHA256 != allowedRelease.archiveSHA256 ||
+		release.IndexSHA256 != allowedRelease.indexSHA256 {
 		return VerifiedExecutorStateCapture{}, errors.New(
-			"legacy current state authority: recovery release is not the exact attested beta.4 distribution",
+			"legacy current state authority: recovery release does not match the exact attested historical distribution",
 		)
 	}
 	if err := appendLegacyCurrentStateControlBlobs(
@@ -212,6 +228,41 @@ func verifyExactBeta4LegacyInspection(
 		)
 	}
 	return nil
+}
+
+func verifyAllowedLegacyInspection(
+	inspection generationartifact.PlanInspection,
+) (allowedLegacyRelease, error) {
+	if err := verifyExactBeta4LegacyInspection(inspection); err == nil {
+		return allowedLegacyRelease{
+			version: legacyBeta4Version, channel: releaseindex.ChannelBeta,
+			archiveSHA256: legacyBeta4ArchiveSHA256,
+			indexSHA256:   legacyBeta4IndexSHA256,
+		}, nil
+	}
+	if err := validatePlanInspection(inspection, "legacy v0.8 stable current"); err != nil {
+		return allowedLegacyRelease{}, err
+	}
+	authority := inspection.Binding.Authority
+	if inspection.Binding.DefinitionHash != legacyV08DefinitionHash ||
+		inspection.Binding.CompilerVersion != legacyV08CompilerVersion ||
+		inspection.Binding.Renderer.ID != "stackkit" ||
+		inspection.Binding.Renderer.Version != legacyV08RendererVersion ||
+		authority.Class != "product" ||
+		authority.Document != "catalog" ||
+		!authority.GraduationEligible ||
+		authority.Issuer != "stackkits-product-authority/v1" ||
+		authority.AuthorityFingerprint != legacyV08AuthorityFingerprint ||
+		authority.CatalogHash != legacyV08CatalogHash {
+		return allowedLegacyRelease{}, errors.New(
+			"legacy current state authority: plan is outside the exact historical authority allowlist",
+		)
+	}
+	return allowedLegacyRelease{
+		version: legacyV08Version, channel: releaseindex.ChannelStable,
+		archiveSHA256: legacyV08ArchiveSHA256,
+		indexSHA256:   legacyV08IndexSHA256,
+	}, nil
 }
 
 func equalLegacyArtifacts(

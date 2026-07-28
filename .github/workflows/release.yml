@@ -816,6 +816,8 @@ jobs:
           set -euo pipefail
           gh release download "$GITHUB_REF_NAME" --dir dist \
             --pattern 'stackkits-modern-homelab_*_linux_amd64.tar.gz' --clobber
+          gh release download "$GITHUB_REF_NAME" --dir dist \
+            --pattern 'stackkits-modern-homelab_*_linux_amd64.tar.gz.spdx.json' --clobber
           archive="$(find dist -maxdepth 1 -name 'stackkits-modern-homelab_*_linux_amd64.tar.gz' -print -quit)"
           test -s "$archive"
           expected="$(jq -er '
@@ -825,9 +827,10 @@ jobs:
           test "$(sha256sum "$archive" | cut -d' ' -f1)" = "$expected"
           tree="$(git rev-parse HEAD^{tree})"
           digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
-          bash scripts/e2e/run-modern-live-phase.sh runtime "$archive" \
+          bash scripts/e2e/run-modern-live-phase.sh runtime "$archive" dist \
             "$GITHUB_REF_NAME" "$GITHUB_SHA" "$digest" artifacts/modern-runtime
       - name: Retain exact runtime phase
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: modern-runtime-${{ github.ref_name }}-${{ github.sha }}
@@ -869,6 +872,8 @@ jobs:
           set -euo pipefail
           gh release download "$GITHUB_REF_NAME" --dir dist \
             --pattern 'stackkits-modern-homelab_*_linux_amd64.tar.gz' --clobber
+          gh release download "$GITHUB_REF_NAME" --dir dist \
+            --pattern 'stackkits-modern-homelab_*_linux_amd64.tar.gz.spdx.json' --clobber
           archive="$(find dist -maxdepth 1 -name 'stackkits-modern-homelab_*_linux_amd64.tar.gz' -print -quit)"
           test -s "$archive"
           expected="$(jq -er '
@@ -878,9 +883,10 @@ jobs:
           test "$(sha256sum "$archive" | cut -d' ' -f1)" = "$expected"
           tree="$(git rev-parse HEAD^{tree})"
           digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
-          bash scripts/e2e/run-modern-live-phase.sh ha "$archive" \
+          bash scripts/e2e/run-modern-live-phase.sh ha "$archive" dist \
             "$GITHUB_REF_NAME" "$GITHUB_SHA" "$digest" artifacts/modern-ha
       - name: Retain exact HA phase
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: modern-ha-${{ github.ref_name }}-${{ github.sha }}
