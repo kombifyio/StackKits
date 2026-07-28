@@ -4,17 +4,6 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.8.0-beta.6] - 2026-07-28
-
-### Fixed
-
-- Public release-index asset URLs now retain GitHub's repository casing, and
-  standalone resolution treats GitHub owner and repository casing
-  equivalently.
-- Stable Day-2 proof mirrors the attested trusted-root URL in its offline
-  release fixture and exercises the candidate CLI's fail-closed Advanced
-  change-set denial using the canonical StackSpec.
-
 ## [0.8.0] - 2026-07-27
 
 > **Stable standalone OSS lifecycle** for an account-free, single-node
@@ -78,6 +67,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   account-free.
 - Provider credentials, server provisioning, and host lifecycle remain outside
   StackKits and may be orchestrated by Techstack.
+
+## [0.8.0-beta.6] - 2026-07-28
+
+### Fixed
+
+- Public release-index asset URLs now retain GitHub's repository casing, and
+  standalone resolution treats GitHub owner and repository casing
+  equivalently.
+- Stable Day-2 proof mirrors the attested trusted-root URL in its offline
+  release fixture and exercises the candidate CLI's fail-closed Advanced
+  change-set denial using the canonical StackSpec.
 
 ## [0.8.0-beta.5] - 2026-07-27
 

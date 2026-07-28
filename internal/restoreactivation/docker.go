@@ -102,7 +102,8 @@ func (runtime *dockerRuntime) ValidateStaging(ctx context.Context, authority Aut
 	args := []string{
 		"run", "--name", helperName(authority, "staging"),
 		"--rm", "--network", "none", "--read-only",
-		"--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+		"--cap-drop", "ALL",
+		"--security-opt", "no-new-privileges",
 		"--mount", "type=volume,src=" + authority.StagingVolume + ",dst=/staging,readonly",
 		"--entrypoint", "/bin/sh",
 		authority.KopiaHelperImage,
@@ -229,7 +230,8 @@ func (runtime *dockerRuntime) copyVolume(
 	args := []string{
 		"run", "--name", helperName(authority, volume.LiveName),
 		"--rm", "--network", "none", "--read-only",
-		"--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+		"--cap-drop", "ALL", "--cap-add", "CHOWN",
+		"--security-opt", "no-new-privileges",
 		"--mount", "type=volume,src=" + source + ",dst=/source,readonly",
 		"--mount", "type=volume,src=" + destination + ",dst=/target",
 		"--entrypoint", "/bin/sh",
