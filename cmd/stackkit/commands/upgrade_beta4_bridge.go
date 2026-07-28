@@ -193,12 +193,6 @@ func validateExactBeta4VerifyResult(
 	if err := decodeUpgradeExactJSON(envelope.Data, &report); err != nil {
 		return architectureV2VerifyReport{}, fmt.Errorf("decode beta.4 verify report: %w", err)
 	}
-	exactReleaseMatches := 0
-	for _, candidate := range report.Releases {
-		if reflect.DeepEqual(candidate, receipt) {
-			exactReleaseMatches++
-		}
-	}
 	if report.SchemaVersion != "stackkit.verify-result/v1" ||
 		!report.Offline ||
 		report.PlanHash != current.Binding.PlanHash ||
@@ -209,10 +203,23 @@ func validateExactBeta4VerifyResult(
 		report.Owner.PocketIDSubject == "" ||
 		report.Owner.OwnerBindingDigest == "" ||
 		report.Runtime != nil ||
-		exactReleaseMatches != 1 {
+		exactBeta4ReceiptMatches(report.Releases, receipt) != 1 {
 		return architectureV2VerifyReport{}, errors.New("beta.4 offline verification is not bound to the exact plan, owner, apply evidence, and release")
 	}
 	return report, nil
+}
+
+func exactBeta4ReceiptMatches(
+	receipts []releaseindex.Receipt,
+	expected releaseindex.Receipt,
+) int {
+	matches := 0
+	for _, candidate := range receipts {
+		if reflect.DeepEqual(candidate, expected) {
+			matches++
+		}
+	}
+	return matches
 }
 
 // Keep the distribution pin next to the semantic tuple even though it is not

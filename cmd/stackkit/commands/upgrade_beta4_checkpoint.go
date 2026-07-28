@@ -430,7 +430,9 @@ func verifyExactBeta4BackupRestore(
 		report.Owner.OwnerRef != expected.OwnerRef ||
 		report.Owner.OwnerBindingDigest != expected.Lineage.OwnerBindingDigest ||
 		report.Owner.PocketIDSubject != expected.Lineage.PocketIDSubject ||
-		len(report.Releases) != 1 || report.Releases[0] != expected.LegacyBeta4.Receipt {
+		exactBeta4ReceiptMatches(
+			report.Releases, expected.LegacyBeta4.Receipt,
+		) != 1 {
 		return backuplifecycle.RestoreVerification{}, errors.New(
 			"beta.4 live verification proof differs from the exact staged restore authority",
 		)
