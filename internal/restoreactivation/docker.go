@@ -247,7 +247,11 @@ func (runtime *dockerRuntime) docker(ctx context.Context, args ...string) ([]byt
 		return nil, errors.New("restoreactivation: Docker runtime is not initialized")
 	}
 	full := append([]string{"--host", localDockerSocket}, args...)
-	return runtime.run(ctx, "docker", full, minimalCommandEnvironment())
+	environment := append(
+		minimalCommandEnvironment(),
+		"STACKKIT_CUSTODY_DIR="+filepath.Join(runtime.workspace, ".stackkit", "custody"),
+	)
+	return runtime.run(ctx, "docker", full, environment)
 }
 
 func (runtime *dockerRuntime) verifyCompose(authority Authority) error {
