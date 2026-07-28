@@ -18,6 +18,11 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535) fail('port must be w
 
 const rawIndex = readFileSync(path.join(root, 'stackkits-release-index-v1.json'))
 const index = JSON.parse(rawIndex)
+const trustedRootSuffix = `/${index.release.trustedRoot.name}`
+if (!index.release.trustedRoot.url.endsWith(trustedRootSuffix)) {
+  fail('release trusted-root URL does not end with its asset name')
+}
+const releaseBase = index.release.trustedRoot.url.slice(0, -trustedRootSuffix.length)
 const assetNames = new Set([
   'stackkits-release-index-v1.json',
   'stackkits-release-index-v1.json.intoto.jsonl',
@@ -38,7 +43,6 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, origin)
   if (url.pathname === '/repos/kombifyio/stackKits/releases') {
     const prerelease = /-(?:beta|edge)\./u.test(index.release.version)
-    const releaseBase = `https://github.com/kombifyio/stackKits/releases/download/${index.release.version}`
     const body = JSON.stringify([{
       tag_name: index.release.version,
       prerelease: prerelease,
