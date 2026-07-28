@@ -483,6 +483,16 @@ if [ "$stable_day2_proof" = "1" ]; then
   }
   export STACKKIT_RELEASE_FIXTURE_URL="$candidate_fixture_url"
 
+  # The prior beta runtime remains active for the Day-2 transition. Candidate
+  # lifecycle operations nevertheless validate the candidate CUE source and
+  # ResolvedPlan, so refresh only the local kit cache and generated plan here.
+  for directory in base modules cue.mod basement-kit; do
+    rm -rf "$home_dir/.stackkits/$directory"
+    cp -R "$candidate_extract_dir/$directory" "$home_dir/.stackkits/"
+  done
+  cp -R "$candidate_extract_dir/base" "$home_dir/.stackkits/basement-kit/"
+  timeout 600 "$candidate_stackkit" generate >"$stable_day2_dir/candidate-generate.log"
+
   timeout 120 "$candidate_stackkit" backup configure --json \
     >"$stable_day2_dir/backup-configure.json"
   jq -e '
