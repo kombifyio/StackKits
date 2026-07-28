@@ -69,3 +69,12 @@ test('Modern live proof separates the tagged internal helper from the release bi
   }
   assert.doesNotMatch(runner, /"\$release_stackkit" (?:internal proof|federation binding import)/u)
 })
+
+test('Modern runtime helpers build from the exact public module root', () => {
+  const preparer = readFileSync(
+    path.join(root, 'scripts/e2e/prepare-modern-runtime-process.sh'),
+    'utf8'
+  )
+  assert.match(preparer, /go -C "\$repo_root" build -trimpath -o "\$build\/site"/u)
+  assert.match(preparer, /go -C "\$repo_root" build -trimpath -o "\$output\/modern-runtime-process"/u)
+})

@@ -23,10 +23,10 @@ edge="stackkits-modern-edge-${suffix}"
 build="$(mktemp -d)"
 trap 'rm -rf "$build"' EXIT
 
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$build/site" \
-  "$repo_root/scripts/e2e/modern-live-site"
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$output/modern-runtime-process" \
-  "$repo_root/scripts/e2e/modern-runtime-process"
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C "$repo_root" build -trimpath -o "$build/site" \
+  ./scripts/e2e/modern-live-site
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C "$repo_root" build -trimpath -o "$output/modern-runtime-process" \
+  ./scripts/e2e/modern-runtime-process
 chmod 0755 "$output/modern-runtime-process"
 process_sha="sha256:$(sha256sum "$output/modern-runtime-process" | cut -d' ' -f1)"
 printf 'FROM scratch\nCOPY site /site\nUSER 65532:65532\nENTRYPOINT ["/site"]\n' >"$build/Dockerfile"
