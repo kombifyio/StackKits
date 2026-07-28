@@ -730,7 +730,8 @@ func validateExecutorContractBundleUnit(unit RenderUnit, renderer executorContra
 		return fail(ErrInvalidPlan, path+".instances", "executor contract requires exact %s/stackkit ownership", wantRuntimeKind)
 	}
 	nodeLocal := renderer.spec.moduleID == cloudHostSecurityModuleID || renderer.spec.moduleID == cloudPublicEdgeModuleID || renderer.spec.moduleID == cloudOffsiteBackupModuleID || renderer.spec.moduleID == federationLinkModuleID ||
-		renderer.spec.moduleID == federationControlAgentModuleID || renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
+		renderer.spec.moduleID == federationControlAgentModuleID || renderer.spec.moduleID == federationBackupModuleID || renderer.spec.moduleID == federationObservabilityModuleID ||
+		renderer.spec.moduleID == homePrivateRemoteAccessModuleID || renderer.spec.moduleID == bridgePublicationModuleID || renderer.spec.moduleID == bridgeOriginMTLSModuleID
 	if nodeLocal {
 		siteRef, hasSite := unit.SiteRef()
 		nodeRef, hasNode := unit.NodeRef()
