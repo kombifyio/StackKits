@@ -108,8 +108,9 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 		entryComponent != "coolify" || !hasEntryComponent || unit.InstanceScope() != "node-local" || !hasSite || !hasNode {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".runtime", "requires the exact node-local Basement core runtime")
 	}
-	if !exactStringList(unit.LogicalSiteRefs(), []string{siteRef}) ||
-		!exactStringList(unit.LogicalNodeRefs(), []string{nodeRef}) {
+	if unit.InstanceID() != localKopiaRuntimeUnitID+"-node-"+nodeRef ||
+		!containsExact(unit.LogicalSiteRefs(), siteRef) ||
+		!containsExact(unit.LogicalNodeRefs(), nodeRef) {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".instances", "requires one exact node-local Basement core target")
 	}
 	if err := validateBasementCoreComponents(unit.RuntimeComponentsJSON(), path+".runtime.components"); err != nil {

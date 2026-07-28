@@ -414,8 +414,9 @@ func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract,
 	siteRef, hasSite := unit.SiteRef()
 	nodeRef, hasNode := unit.NodeRef()
 	if unit.InstanceScope() != "node-local" || !hasSite || !hasNode ||
-		!exactStringList(unit.LogicalSiteRefs(), []string{siteRef}) ||
-		!exactStringList(unit.LogicalNodeRefs(), []string{nodeRef}) {
+		unit.InstanceID() != unitID+"-node-"+nodeRef ||
+		!containsExact(unit.LogicalSiteRefs(), siteRef) ||
+		!containsExact(unit.LogicalNodeRefs(), nodeRef) {
 		return fail(ErrInvalidPlan, path+".instances", "Basement core requires one exact node-local target")
 	}
 	if len(unit.PublicInputRefs()) != 0 || len(unit.SecretInputRefs()) != 0 || len(unit.PlanInputRefs()) != 0 ||
