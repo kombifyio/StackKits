@@ -269,6 +269,8 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			architecturev2.ProductRuntimeOwnerFederationBackup,
 			architecturev2.ProductRuntimeOwnerFederationObservability,
 			architecturev2.ProductRuntimeOwnerHomePrivateRemoteAccess,
+			architecturev2.ProductRuntimeOwnerHAModernWarm,
+			architecturev2.ProductRuntimeOwnerHAModernQuorum,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("register Modern process runtime owners: %w", err)
