@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -74,6 +75,11 @@ type transcript struct {
 
 func main() {
 	if err := run(); err != nil {
+		_ = atomicWrite(
+			filepath.Join(".stackkit", "evidence", "modern-runtime-process", "last-error.log"),
+			[]byte(err.Error()+"\n"),
+			0o600,
+		)
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -134,7 +140,7 @@ func run() error {
 			if !ok {
 				return fmt.Errorf("runtime target %q references missing artifact %q", target.RequirementID, ref)
 			}
-			if artifact.OwnerRef != target.OwnerRef || artifact.InstanceRef != target.InstanceRef {
+			if !artifactBoundToRuntimeInstance(artifact, target) {
 				return fmt.Errorf("artifact %q escaped runtime authority", ref)
 			}
 			path := filepath.Join(cfg.EvidenceRoot, "applied", safe(request.ChannelRef), safe(target.RequirementID), safe(ref))
@@ -184,6 +190,21 @@ func run() error {
 	return json.NewEncoder(os.Stdout).Encode(response{
 		SchemaVersion: responseSchema, ChannelRef: request.ChannelRef, Outcome: outcome,
 	})
+}
+
+func artifactBoundToRuntimeInstance(artifact runtimeexecutor.Artifact, target runtimeexecutor.RuntimeTarget) bool {
+	return artifact.OwnerKind == "render-instance" &&
+		artifact.OwnerRef == target.InstanceRef &&
+		artifact.OwnerContractHash == target.UnitContractHash &&
+		artifact.ProviderRef == target.ProviderRef &&
+		artifact.ProviderContractHash == target.ProviderContractHash &&
+		artifact.ModuleRef == target.ModuleRef &&
+		artifact.ModuleContractHash == target.ModuleContractHash &&
+		artifact.UnitRef == target.UnitRef &&
+		artifact.UnitContractHash == target.UnitContractHash &&
+		artifact.InstanceRef == target.InstanceRef &&
+		slices.Equal(artifact.SiteRefs, target.SiteRefs) &&
+		slices.Equal(artifact.NodeRefs, target.NodeRefs)
 }
 
 func appendTranscript(cfg config, request envelope, outcome runtimeexecutor.ExecutionOutcome) error {

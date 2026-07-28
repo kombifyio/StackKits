@@ -25,6 +25,10 @@ mkdir -p "$extract" "$project" "$home/.stackkits" "$fixture" "$(dirname "$intern
 state="$output/modern-runtime-state.json"
 
 cleanup() {
+  if [ -s "$project/.stackkit/evidence/modern-runtime-process/last-error.log" ]; then
+    cp "$project/.stackkit/evidence/modern-runtime-process/last-error.log" \
+      "$output/modern-runtime-process-error.log"
+  fi
   if [ -n "${fixture_pid:-}" ]; then
     kill "$fixture_pid" >/dev/null 2>&1 || true
     wait "$fixture_pid" 2>/dev/null || true
