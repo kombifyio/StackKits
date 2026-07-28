@@ -483,40 +483,6 @@ if [ "$stable_day2_proof" = "1" ]; then
   }
   export STACKKIT_RELEASE_FIXTURE_URL="$candidate_fixture_url"
 
-  # The prior beta runtime remains active for the Day-2 transition. Candidate
-  # lifecycle operations nevertheless validate the candidate CUE source and
-  # ResolvedPlan, so refresh only the local kit cache and generated plan here.
-  for directory in base modules cue.mod basement-kit; do
-    rm -rf "$home_dir/.stackkits/$directory"
-    cp -R "$candidate_extract_dir/$directory" "$home_dir/.stackkits/"
-  done
-  cp -R "$candidate_extract_dir/base" "$home_dir/.stackkits/basement-kit/"
-  timeout 600 "$candidate_stackkit" generate >"$stable_day2_dir/candidate-generate.log"
-  timeout 600 "$candidate_stackkit" apply --auto-approve \
-    >"$stable_day2_dir/candidate-apply.log"
-
-  timeout 120 "$candidate_stackkit" backup configure --json \
-    >"$stable_day2_dir/backup-configure.json"
-  jq -e '
-    .schemaVersion == "stackkit.command-result/v1"
-    and .status == "success"
-    and .data.apiVersion == "stackkit.local-backup-configuration/v1"
-  ' "$stable_day2_dir/backup-configure.json" >/dev/null
-
-  timeout 600 "$candidate_stackkit" upgrade --to "$candidate_version" --dry-run --json \
-    >"$stable_day2_dir/upgrade-dry-run.json"
-  jq -e --arg version "$candidate_version" '
-    .schemaVersion == "stackkit.command-result/v1"
-    and .status == "success"
-    and .data.version == $version
-    and .data.dryRun == true
-    and .data.applyInvoked == false
-    and .data.inspection.plan != null
-  ' "$stable_day2_dir/upgrade-dry-run.json" >/dev/null || {
-    printf 'candidate upgrade dry-run did not inspect the exact target\n' >&2
-    exit 1
-  }
-
   timeout 600 "$candidate_stackkit" upgrade --to "$candidate_version" --json \
     >"$stable_day2_dir/upgrade.json"
   jq -e --arg version "$candidate_version" '

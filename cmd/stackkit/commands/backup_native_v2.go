@@ -43,6 +43,7 @@ type nativeV2BackupAuthority struct {
 	PolicyDigest   string
 	PolicyArtifact []byte
 	Policy         localbackuppolicy.Policy
+	LegacyBeta4    *publicUpgradeBridge
 }
 
 type nativeV2BackupContinuation func(
@@ -452,7 +453,8 @@ func sameNativeV2BackupAuthority(left, right nativeV2BackupAuthority) bool {
 		left.PolicyDigest == right.PolicyDigest &&
 		left.Lineage == right.Lineage &&
 		bytes.Equal(left.PolicyArtifact, right.PolicyArtifact) &&
-		reflect.DeepEqual(left.Policy, right.Policy)
+		reflect.DeepEqual(left.Policy, right.Policy) &&
+		reflect.DeepEqual(left.LegacyBeta4, right.LegacyBeta4)
 }
 
 func emitNativeV2BackupResult(cmd *cobra.Command, operation nativeV2BackupOperation, result any) error {

@@ -425,7 +425,7 @@ func governedRelativeExcludes(source string, excludePaths []string) ([]string, e
 	if source != governed.ContainerPath {
 		return nil, fmt.Errorf("snapshot source must be %q", governed.ContainerPath)
 	}
-	if !slices.Equal(excludePaths, governed.ExcludePaths) {
+	if !localbackuppolicy.IsRecognizedSnapshotSelection(source, excludePaths) {
 		return nil, fmt.Errorf("snapshot exclusions must equal the governed local backup policy")
 	}
 	source, err := cleanAbsoluteContainerPath(source)

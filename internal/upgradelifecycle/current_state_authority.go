@@ -90,6 +90,7 @@ type CurrentStateAuthorityInput struct {
 	SourceVerifier    CurrentSourceVerifier
 	ApplyVerifier     CurrentApplyResultVerifier
 	Capture           ExecutorStateCaptureInput
+	Legacy            *LegacyCurrentStateAuthorityInput
 }
 
 type currentStateApplyReceipt struct {

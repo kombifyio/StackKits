@@ -67,9 +67,22 @@ func createPublicUpgradeCheckpoint(
 	)
 	defer cancelCheckpoint()
 
-	initial, err := inspectPublicUpgradeBackupAuthority(
-		checkpointContext, workspace, specFile,
-	)
+	inspectCheckpointAuthority := func() (nativeV2BackupAuthority, error) {
+		current, currentErr := inspectPublicUpgradeBackupAuthority(
+			checkpointContext, workspace, specFile,
+		)
+		if currentErr == nil {
+			return current, nil
+		}
+		legacy, legacyErr := inspectExactBeta4BackupAuthority(
+			checkpointContext, workspace, specFile, kit, target,
+		)
+		if legacyErr != nil {
+			return nativeV2BackupAuthority{}, errors.Join(currentErr, legacyErr)
+		}
+		return legacy, nil
+	}
+	initial, err := inspectCheckpointAuthority()
 	if err != nil {
 		return publicUpgradeCheckpoint{}, fmt.Errorf("verify current backup authority: %w", err)
 	}
@@ -78,9 +91,7 @@ func createPublicUpgradeCheckpoint(
 		initial.WorkspaceRoot,
 		initial.OutputRoot,
 		func(transaction *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
-			current, inspectErr := inspectPublicUpgradeBackupAuthority(
-				checkpointContext, initial.WorkspaceRoot, specFile,
-			)
+			current, inspectErr := inspectCheckpointAuthority()
 			if inspectErr != nil {
 				return fmt.Errorf("verify locked current backup authority: %w", inspectErr)
 			}
@@ -186,6 +197,21 @@ func createPublicUpgradeSnapshot(
 	if err != nil {
 		return backuplifecycle.SnapshotAnchor{}, err
 	}
+	if authority.LegacyBeta4 != nil {
+		configureContext, cancelConfigure := nativeV2BackupOperationContext(
+			ctx, backupLongOperationTimeout,
+		)
+		_, err = service.Configure(configureContext, backuplifecycle.ConfigureInput{
+			OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
+			Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
+		})
+		cancelConfigure()
+		if err != nil {
+			return backuplifecycle.SnapshotAnchor{}, fmt.Errorf(
+				"configure exact beta.4 pre-upgrade Kopia repository: %w", err,
+			)
+		}
+	}
 	statusContext, cancelStatus := nativeV2BackupOperationContext(
 		ctx, backupQuickOperationTimeout,
 	)
@@ -230,7 +256,15 @@ func sealAndCapturePublicUpgradeExecutorState(
 ) (string, error) {
 	prepared.Capture.OperationID = operationID
 	prepared.Capture.KopiaSnapshotAnchor = anchor
-	verified, err := upgradelifecycle.NewVerifiedExecutorStateCapture(prepared)
+	var verified upgradelifecycle.VerifiedExecutorStateCapture
+	var err error
+	if prepared.Legacy != nil {
+		legacy := *prepared.Legacy
+		legacy.Capture = prepared.Capture
+		verified, err = upgradelifecycle.NewVerifiedLegacyExecutorStateCapture(legacy)
+	} else {
+		verified, err = upgradelifecycle.NewVerifiedExecutorStateCapture(prepared)
+	}
 	if err != nil {
 		return "", fmt.Errorf("seal current executor-state authority: %w", err)
 	}
@@ -250,6 +284,11 @@ func withPreparedPublicUpgradeCapture(
 ) error {
 	if continuePrepared == nil {
 		return errors.New("prepared public upgrade continuation is required")
+	}
+	if authority.LegacyBeta4 != nil {
+		return withPreparedExactBeta4UpgradeCapture(
+			ctx, workspace, kit, authority, continuePrepared,
+		)
 	}
 	gate := newArchitectureV2ExecutionGate()
 	sourceService, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))

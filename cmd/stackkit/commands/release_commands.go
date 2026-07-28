@@ -24,6 +24,7 @@ var (
 	newUpgradeInspectionRunner     = func() upgradelifecycle.Runner { return upgradelifecycle.ExecRunner{} }
 	newCurrentUpgradeInspection    = currentUpgradeInspection
 	inspectPublicUpgradeTarget     = inspectVerifiedPublicUpgradeTarget
+	inspectPublicUpgradeBridge     = inspectExactBeta4UpgradeBridge
 	preparePublicUpgradeCheckpoint = createPublicUpgradeCheckpoint
 	installPublicUpgradeRelease    = func(ctx context.Context, source releaseindex.Source, attestations releaseindex.AttestationVerifier, resolution releaseindex.Resolution, workspace string) (releaseindex.Receipt, error) {
 		return (releaseindex.Installer{Source: source, Attestations: attestations}).Install(ctx, resolution, workspace)
@@ -147,19 +148,39 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		Platform: resolution.Asset.Platform, Asset: resolution.Asset.Archive.Name,
 		ArchiveSHA256: resolution.Asset.Archive.SHA256, DryRun: publicUpgradeDryRun,
 	}
-	current, currentErr := newCurrentUpgradeInspection(ctx, workspace, specFile)
-	if currentErr != nil {
-		return fmt.Errorf("inspect authoritative current generation: %w", currentErr)
+	bridge, bridgeErr := inspectPublicUpgradeBridge(
+		ctx, workspace, specFile, kit, resolution,
+	)
+	if bridgeErr != nil {
+		return fmt.Errorf("inspect cross-release upgrade authority: %w", bridgeErr)
+	}
+	if bridge.Enabled && publicUpgradeDryRun {
+		return errors.New(
+			"the exact v0.8.0-beta.4 to v0.8.0 authority bridge requires a live " +
+				"checkpointed upgrade; --dry-run is denied before side effects",
+		)
+	}
+	current := bridge.Current
+	if !bridge.Enabled {
+		var currentErr error
+		current, currentErr = newCurrentUpgradeInspection(ctx, workspace, specFile)
+		if currentErr != nil {
+			return fmt.Errorf("inspect authoritative current generation: %w", currentErr)
+		}
 	}
 	attestations := newPublicAttestationVerifier()
-	inspection, inspectErr := inspectPublicUpgradeTarget(
-		ctx, source, attestations, newUpgradeInspectionRunner(),
-		resolution, workspace, specFile, current,
-	)
-	if inspectErr != nil {
-		return fmt.Errorf("inspect verified StackKit upgrade: %w", inspectErr)
+	var inspection upgradelifecycle.Inspection
+	if !bridge.Enabled {
+		var inspectErr error
+		inspection, inspectErr = inspectPublicUpgradeTarget(
+			ctx, source, attestations, newUpgradeInspectionRunner(),
+			resolution, workspace, specFile, current,
+		)
+		if inspectErr != nil {
+			return fmt.Errorf("inspect verified StackKit upgrade: %w", inspectErr)
+		}
+		result.Inspection = &inspection
 	}
-	result.Inspection = &inspection
 	if !publicUpgradeDryRun {
 		var checkpoint publicUpgradeCheckpoint
 		var receipt releaseindex.Receipt
@@ -173,6 +194,19 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 					return lifecyclemutation.BeginRequest{}, fmt.Errorf(
 						"create pre-upgrade rollback checkpoint: %w", checkpointErr,
 					)
+				}
+				if bridge.Enabled {
+					inspection, checkpointErr = inspectPublicUpgradeTarget(
+						ctx, source, attestations, newUpgradeInspectionRunner(),
+						resolution, workspace, specFile, current,
+					)
+					if checkpointErr != nil {
+						return lifecyclemutation.BeginRequest{}, fmt.Errorf(
+							"inspect verified target after beta.4 rollback checkpoint: %w",
+							checkpointErr,
+						)
+					}
+					result.Inspection = &inspection
 				}
 				if checkpointErr := prepared.validate(); checkpointErr != nil {
 					return lifecyclemutation.BeginRequest{}, checkpointErr

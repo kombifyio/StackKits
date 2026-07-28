@@ -1,0 +1,364 @@
+//go:build !publisher
+
+package commands
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
+	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
+)
+
+type exactBeta4CheckpointState struct {
+	authority         nativeV2BackupAuthority
+	manifest          generationartifact.ArtifactManifest
+	generationReceipt generationartifact.GenerationReceipt
+	applyResult       []byte
+	applyReceipt      []byte
+}
+
+func inspectExactBeta4BackupAuthority(
+	ctx context.Context,
+	workspace string,
+	requestedSpec string,
+	kit string,
+	target releaseindex.Resolution,
+) (nativeV2BackupAuthority, error) {
+	bridge, err := inspectExactBeta4UpgradeBridge(
+		ctx, workspace, requestedSpec, kit, target,
+	)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	if !bridge.Enabled {
+		return nativeV2BackupAuthority{}, errors.New(
+			"current state is not eligible for the exact beta.4 checkpoint bridge",
+		)
+	}
+	state, err := readExactBeta4CheckpointState(workspace, bridge)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	return state.authority, nil
+}
+
+func readExactBeta4CheckpointState(
+	workspace string,
+	bridge publicUpgradeBridge,
+) (exactBeta4CheckpointState, error) {
+	if !bridge.Enabled {
+		return exactBeta4CheckpointState{}, errors.New(
+			"exact beta.4 bridge proof is required",
+		)
+	}
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	defer func() { _ = root.Close() }()
+	workspace = root.Name()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	defer func() { _ = transaction.Close() }()
+
+	metadataRoot := filepath.Join(
+		workspace, filepath.FromSlash(bridge.Current.OutputRoot), ".stackkit",
+	)
+	manifestPath := filepath.Join(
+		metadataRoot, generationartifact.ArtifactManifestFileName,
+	)
+	manifest, err := generationartifact.ReadManifest(manifestPath)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	manifestRaw, _, err := transaction.ReadStable(
+		workspaceRelativeBackupPath(workspace, manifestPath),
+	)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	canonicalManifest, err := manifest.MarshalCanonical()
+	if err != nil || !bytes.Equal(manifestRaw, canonicalManifest) ||
+		manifest.Binding != bridge.Current.Binding {
+		return exactBeta4CheckpointState{}, errors.New(
+			"beta.4 generation manifest differs from the attested plan proof",
+		)
+	}
+	manifestHash, err := manifest.Hash()
+	if err != nil || manifestHash != bridge.Current.Manifest.Hash {
+		return exactBeta4CheckpointState{}, errors.New(
+			"beta.4 generation manifest hash differs from the attested plan proof",
+		)
+	}
+
+	receiptPath := filepath.Join(
+		metadataRoot, generationartifact.GenerationReceiptFileName,
+	)
+	generationReceipt, err := generationartifact.ReadReceipt(receiptPath)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	receiptRaw, _, err := transaction.ReadStable(
+		workspaceRelativeBackupPath(workspace, receiptPath),
+	)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	canonicalReceipt, err := generationReceipt.MarshalCanonical()
+	if err != nil || !bytes.Equal(receiptRaw, canonicalReceipt) ||
+		generationReceipt.Binding != bridge.Current.Binding ||
+		generationReceipt.ManifestHash != manifestHash {
+		return exactBeta4CheckpointState{}, errors.New(
+			"beta.4 generation receipt differs from the attested plan proof",
+		)
+	}
+	generationReceiptHash, err := generationReceipt.Hash()
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+
+	policyArtifact, policyDigest, policy, err := readNativeV2BackupPolicy(
+		transaction, manifest,
+	)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	owner, err := localevidence.LoadOwnerCustody(workspace)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	runtimeBinding, err := localevidence.LoadOwnerRuntimeBinding(workspace)
+	if err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	ownerBindingDigest := localevidence.OwnerRuntimeBindingDigest(runtimeBinding)
+	if bridge.Verify.Owner.OwnerRef != owner.OwnerRef ||
+		bridge.Verify.Owner.KeyID != owner.KeyID ||
+		bridge.Verify.Owner.PocketIDSubject != runtimeBinding.PocketIDSubject ||
+		bridge.Verify.Owner.OwnerBindingDigest != ownerBindingDigest ||
+		runtimeBinding.OwnerRef != owner.OwnerRef ||
+		policy.Target.SiteRef != owner.Binding.SiteRef ||
+		policy.Target.NodeRef != owner.Binding.NodeRef {
+		return exactBeta4CheckpointState{}, errors.New(
+			"beta.4 offline proof, Owner custody, runtime binding, and backup target differ",
+		)
+	}
+
+	resultHash := bridge.Verify.Apply.ResultHash
+	if !nativeV2BackupDigestPattern.MatchString(resultHash) {
+		return exactBeta4CheckpointState{}, errors.New(
+			"beta.4 offline proof has no canonical Apply result hash",
+		)
+	}
+	name := strings.TrimPrefix(resultHash, "sha256:") + ".json"
+	resultPath := filepath.ToSlash(filepath.Join(
+		architectureV2ApplyEvidenceRoot, "results", name,
+	))
+	applyResult, info, err := transaction.ReadStable(resultPath)
+	if err != nil || !info.Mode().IsRegular() ||
+		info.Size() <= 0 || info.Size() > 16<<20 ||
+		exactBeta4CheckpointDigest(applyResult) != resultHash {
+		return exactBeta4CheckpointState{}, errors.New(
+			"beta.4 Apply result is not the attested bounded content-addressed file",
+		)
+	}
+	applyReceiptPath := filepath.ToSlash(filepath.Join(
+		architectureV2ApplyEvidenceRoot, "receipts", name,
+	))
+	applyReceipt, info, err := transaction.ReadStable(applyReceiptPath)
+	if err != nil || !info.Mode().IsRegular() ||
+		info.Size() <= 0 || info.Size() > 64<<10 {
+		return exactBeta4CheckpointState{}, errors.New(
+			"beta.4 owner-signed Apply receipt is not a bounded content-addressed file",
+		)
+	}
+	if err := verifyOwnerApplyResultReceipt(
+		workspace, applyResult, applyReceipt, resultHash,
+	); err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	applyReceiptHash := exactBeta4CheckpointDigest(applyReceipt)
+	bridgeCopy := bridge
+	authority := nativeV2BackupAuthority{
+		OwnerRef:      owner.OwnerRef,
+		AuthorityRef:  owner.Trust.HumanAuthorityRef,
+		WorkspaceRoot: workspace,
+		OutputRoot:    bridge.Current.OutputRoot,
+		Lineage: backuplifecycle.AuthorityLineage{
+			Binding:               bridge.Current.Binding,
+			ManifestHash:          manifestHash,
+			GenerationReceiptHash: generationReceiptHash,
+			ApplyResultHash:       resultHash,
+			ApplyReceiptHash:      applyReceiptHash,
+			OwnerBindingDigest:    ownerBindingDigest,
+			PocketIDSubject:       runtimeBinding.PocketIDSubject,
+		},
+		PolicyDigest:   policyDigest,
+		PolicyArtifact: policyArtifact,
+		Policy:         policy,
+		LegacyBeta4:    &bridgeCopy,
+	}
+	return exactBeta4CheckpointState{
+		authority: authority, manifest: manifest,
+		generationReceipt: generationReceipt,
+		applyResult:       append([]byte(nil), applyResult...),
+		applyReceipt:      append([]byte(nil), applyReceipt...),
+	}, nil
+}
+
+func withPreparedExactBeta4UpgradeCapture(
+	ctx context.Context,
+	workspace string,
+	kit string,
+	authority nativeV2BackupAuthority,
+	continuePrepared func(upgradelifecycle.CurrentStateAuthorityInput) error,
+) error {
+	if authority.LegacyBeta4 == nil {
+		return errors.New("exact beta.4 bridge proof is required")
+	}
+	state, err := readExactBeta4CheckpointState(
+		workspace, *authority.LegacyBeta4,
+	)
+	if err != nil {
+		return err
+	}
+	if !sameNativeV2BackupAuthority(authority, state.authority) {
+		return errors.New("beta.4 checkpoint authority changed before capture")
+	}
+	loaded, err := config.NewLoader(workspace).ReadStackSpecDocument(specFile)
+	if err != nil {
+		return err
+	}
+	specRelative, err := filepath.Rel(workspace, loaded.Path)
+	if err != nil {
+		return err
+	}
+	inventoryBytes, err := readArchitectureV2Inventory(workspace, "")
+	if err != nil {
+		return err
+	}
+
+	artifacts := make([]upgradelifecycle.ExecutorStateBlobInput, 0, len(state.manifest.Artifacts))
+	var generatedCompose []byte
+	for _, artifact := range state.manifest.Artifacts {
+		data, readErr := os.ReadFile(
+			filepath.Join(workspace, filepath.FromSlash(artifact.Path)),
+		)
+		if readErr != nil {
+			return fmt.Errorf("read beta.4 recovery artifact %s: %w", artifact.ID, readErr)
+		}
+		if exactBeta4CheckpointDigest(data) != artifact.SHA256 {
+			return fmt.Errorf("beta.4 recovery artifact %s changed after proof", artifact.ID)
+		}
+		recoveryPath := artifact.Path
+		if artifact.ID == upgradeCheckpointComposeArtifactID {
+			recoveryPath = "platform/basement-core/compose.yaml"
+			generatedCompose = append([]byte(nil), data...)
+		}
+		artifacts = append(artifacts, upgradelifecycle.ExecutorStateBlobInput{
+			ID: artifact.ID, Path: recoveryPath, Mode: artifact.Mode, Data: data,
+		})
+	}
+	if err := verifyPublicUpgradeManagedVolumeAuthority(
+		generatedCompose, authority.Policy.SourceProjection(),
+	); err != nil {
+		return err
+	}
+	runtimeCompose, err := os.ReadFile(filepath.Join(
+		workspace, filepath.FromSlash(upgradeCheckpointRuntimeComposePath),
+	))
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(runtimeCompose, generatedCompose) {
+		return errors.New("beta.4 runtime Compose differs from governed generation artifact")
+	}
+
+	return (releaseindex.Installer{
+		Attestations: newPublicAttestationVerifier(),
+	}).InspectInstalled(ctx, authority.LegacyBeta4.Receipt.InstallDir, func(
+		proof releaseindex.VerifiedInstallation,
+	) error {
+		var currentReceipt releaseindex.Receipt
+		if err := proof.Inspect(func(
+			receipt releaseindex.Receipt,
+			_ releaseindex.Asset,
+			_ io.Reader,
+		) error {
+			currentReceipt = receipt
+			return validateExactBeta4ReleaseReceipt(
+				receipt, kit, currentReleasePlatform(),
+			)
+		}); err != nil {
+			return err
+		}
+		if currentReceipt != authority.LegacyBeta4.Receipt {
+			return errors.New("beta.4 installed release changed before capture")
+		}
+		executableBytes, err := upgradelifecycle.RecoveryExecutableFromVerifiedRelease(proof)
+		if err != nil {
+			return err
+		}
+		capture := upgradelifecycle.ExecutorStateCaptureInput{
+			GenerationTarget: "compose",
+			Release:          proof,
+			Executable: upgradelifecycle.ExecutorStateExecutableInput{
+				Blob: upgradelifecycle.ExecutorStateBlobInput{
+					ID:   "stackkit",
+					Path: executorRecoveryBinaryPath(currentReceipt.Platform),
+					Mode: "0755", Data: executableBytes,
+				},
+			},
+			Lineage: authority.Lineage,
+			StackSpec: upgradelifecycle.ExecutorStateBlobInput{
+				ID: "stack-spec", Path: filepath.ToSlash(specRelative),
+				Mode: "0600", Data: append([]byte(nil), loaded.Document.Raw...),
+			},
+			Artifacts: artifacts,
+			RuntimeCompose: upgradelifecycle.ExecutorStateBlobInput{
+				ID:   "basement-core-runtime-compose",
+				Path: upgradeCheckpointRuntimeComposePath,
+				Mode: "0600", Data: runtimeCompose,
+			},
+		}
+		if len(inventoryBytes) > 0 {
+			capture.Inventory = &upgradelifecycle.ExecutorStateBlobInput{
+				ID: "inventory", Path: ".stackkit/inventory.json",
+				Mode: "0600", Data: inventoryBytes,
+			}
+		}
+		return continuePrepared(upgradelifecycle.CurrentStateAuthorityInput{
+			Capture: capture,
+			Legacy: &upgradelifecycle.LegacyCurrentStateAuthorityInput{
+				WorkspaceRoot:     workspace,
+				Inspection:        authority.LegacyBeta4.Current,
+				Manifest:          state.manifest,
+				GenerationReceipt: state.generationReceipt,
+				ApplyResult:       state.applyResult,
+				ApplyReceipt:      state.applyReceipt,
+				Capture:           capture,
+			},
+		})
+	})
+}
+
+func exactBeta4CheckpointDigest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
