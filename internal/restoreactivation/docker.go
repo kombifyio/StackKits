@@ -232,6 +232,7 @@ func (runtime *dockerRuntime) copyVolume(
 		"--rm", "--network", "none", "--read-only",
 		"--user", "0:0",
 		"--cap-drop", "ALL", "--cap-add", "CHOWN", "--cap-add", "FOWNER",
+		"--cap-add", "DAC_OVERRIDE",
 		"--security-opt", "no-new-privileges",
 		"--mount", "type=volume,src=" + source + ",dst=/source,readonly",
 		"--mount", "type=volume,src=" + destination + ",dst=/target",
