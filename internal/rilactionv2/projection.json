@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.rilaction-projection/v1",
   "source": "kombify-go-common/rilaction",
-  "sourceVersion": "v0.3.1-0.20260724075028-a8cff19ff0e9",
-  "sourceCommit": "a8cff19ff0e9b7f9ab0ec2b7362d73fe469ed1c2",
-  "sourceSum": "h1:9ChyU8LLdQtYki0hcrOeWNCJuwEVrgZ6o19bk+EzMwI=",
+  "sourceVersion": "v0.3.1-0.20260728163107-9ac58d832821",
+  "sourceCommit": "9ac58d832821b447c79003d5ef593da36315c233",
+  "sourceSum": "h1:b3Kwyx9Y8gncIeqp+r2aAnoZnE3a8by1obmNy1Ll76g=",
   "sourceFiles": [
     "README.md",
     "evidence.go",

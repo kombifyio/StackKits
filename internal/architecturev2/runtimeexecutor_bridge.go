@@ -59,11 +59,7 @@ func (b *sharedRuntimeExecutorBridge) PrepareProductApplyRecovery(ctx context.Co
 func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request applyRuntimeExecutionRequest) (applyRuntimeExecutionResult, error) {
 	sharedRequest, err := b.sharedExecutionRequest(request)
 	if err != nil {
-		return applyRuntimeExecutionResult{}, fmt.Errorf(
-			"shared runtime execution failed (%s): %w",
-			runtimeExecutionErrorChain(err),
-			err,
-		)
+		return applyRuntimeExecutionResult{}, err
 	}
 	var result runtimeexecutor.ExecutionResult
 	if len(sharedRequest.AccessBindings) == 0 && len(sharedRequest.BackupTargetBindings) == 0 {
@@ -72,7 +68,11 @@ func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request apply
 		result, err = runtimeexecutor.InvokeAt(ctx, b.executor, sharedRequest, request.ExecutionAt)
 	}
 	if err != nil {
-		return applyRuntimeExecutionResult{}, err
+		return applyRuntimeExecutionResult{}, fmt.Errorf(
+			"shared runtime execution failed (%s): %w",
+			runtimeExecutionErrorChain(err),
+			err,
+		)
 	}
 	if result.RequestDigest != sharedRequest.RequestDigest {
 		return applyRuntimeExecutionResult{}, fmt.Errorf("shared runtime executor result does not bind the exact sealed request")

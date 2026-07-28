@@ -233,6 +233,9 @@ func sameTargetScope(health runtimeexecutor.HealthTarget, target runtimeexecutor
 }
 
 func healthTargetsRuntime(health runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget) bool {
+	if health.RuntimeRequirementID != "" {
+		return health.RuntimeRequirementID == target.RequirementID
+	}
 	return health.TargetKind == "module" && health.TargetRef == target.ModuleRef ||
 		health.TargetKind == "provider" && health.TargetRef == target.ProviderRef ||
 		health.TargetKind == "runtime" && health.TargetRef == target.InstanceRef

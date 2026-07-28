@@ -149,9 +149,10 @@ func partitionRequest(request runtimeexecutor.ExecutionRequest, routes map[strin
 			if !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 				continue
 			}
-			if health.TargetKind == "module" && health.TargetRef == target.ModuleRef ||
-				health.TargetKind == "provider" && health.TargetRef == target.ProviderRef ||
-				health.TargetKind == "runtime" && health.TargetRef == target.InstanceRef {
+			if health.RuntimeRequirementID != "" && health.RuntimeRequirementID == target.RequirementID ||
+				health.RuntimeRequirementID == "" && health.TargetKind == "module" && health.TargetRef == target.ModuleRef ||
+				health.RuntimeRequirementID == "" && health.TargetKind == "provider" && health.TargetRef == target.ProviderRef ||
+				health.RuntimeRequirementID == "" && health.TargetKind == "runtime" && health.TargetRef == target.InstanceRef {
 				matchedChannel = target.ExecutionChannelRef
 				matches++
 			}

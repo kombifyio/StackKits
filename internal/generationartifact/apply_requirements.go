@@ -1218,6 +1218,17 @@ func appendApplyProviderOwnerRequirements(plan resolvedplan.ResolvedPlan, target
 		if err != nil {
 			return err
 		}
+		healthGateRefs, err = materializeApplyProviderOwnerHealthRequirements(
+			providerID,
+			ownerNodeRefs,
+			siteByNode,
+			healthGateRefs,
+			&result.HealthRequirements,
+		)
+		if err != nil {
+			return err
+		}
+		ownerRequirement.HealthGateRefs = append([]string(nil), healthGateRefs...)
 		for _, nodeRef := range ownerNodeRefs {
 			siteRef := siteByNode[nodeRef]
 			ownerRequirement.NodeRefs = append(ownerRequirement.NodeRefs, nodeRef)
@@ -1311,6 +1322,58 @@ func applyProviderOwnerNodeRefs(providerID string, healthGateRefs, providerSiteR
 		return nil, fail(ErrInvalidPlan, "resolvedPlan.providers."+providerID+".owner.healthGateRefs", "provider owner has no exact target nodes")
 	}
 	return sortedApplyMapKeys(nodeSet), nil
+}
+
+func materializeApplyProviderOwnerHealthRequirements(
+	providerID string,
+	nodeRefs []string,
+	siteByNode map[string]string,
+	gateRefs []string,
+	healthRequirements *[]ApplyHealthRequirement,
+) ([]string, error) {
+	healthByID := make(map[string]ApplyHealthRequirement, len(*healthRequirements))
+	for _, health := range *healthRequirements {
+		healthByID[health.ID] = health
+	}
+	replaced := make(map[string]struct{})
+	materialized := make([]ApplyHealthRequirement, 0)
+	resultRefs := make([]string, 0, len(gateRefs)*len(nodeRefs))
+	for _, gateRef := range gateRefs {
+		health, exists := healthByID[gateRef]
+		if !exists || health.TargetKind != "provider" || health.TargetRef != providerID {
+			return nil, fail(ErrInvalidPlan, "resolvedPlan.providers."+providerID+".owner.healthGateRefs", "gate %q is not an exact health requirement for this provider", gateRef)
+		}
+		if len(health.SiteRefs) == 1 && len(health.NodeRefs) == 1 {
+			resultRefs = append(resultRefs, gateRef)
+			continue
+		}
+		replaced[gateRef] = struct{}{}
+		for _, nodeRef := range nodeRefs {
+			siteRef := siteByNode[nodeRef]
+			if !slices.Contains(health.SiteRefs, siteRef) || !slices.Contains(health.NodeRefs, nodeRef) {
+				continue
+			}
+			runtimeID := "provider-owner/" + providerID + "/" + nodeRef
+			owned := health
+			owned.ID = health.ID + "/runtime/" + runtimeID
+			owned.RuntimeRequirementID = runtimeID
+			owned.SiteRefs = []string{siteRef}
+			owned.NodeRefs = []string{nodeRef}
+			materialized = append(materialized, owned)
+			resultRefs = append(resultRefs, owned.ID)
+		}
+	}
+	if len(replaced) != 0 {
+		retained := make([]ApplyHealthRequirement, 0, len(*healthRequirements)-len(replaced)+len(materialized))
+		for _, health := range *healthRequirements {
+			if _, remove := replaced[health.ID]; !remove {
+				retained = append(retained, health)
+			}
+		}
+		*healthRequirements = append(retained, materialized...)
+	}
+	sort.Strings(resultRefs)
+	return resultRefs, nil
 }
 
 func appendApplyHostRequirements(plan resolvedplan.ResolvedPlan, targetNodes map[string]struct{}, result *ApplyRequirements) error {
@@ -1422,13 +1485,10 @@ func appendApplyHealthRequirements(plan resolvedplan.ResolvedPlan, modules map[s
 				continue
 			}
 		}
-		if requirement.TargetKind == "provider" && providerHealthDuplicatesSingleModulePostcondition(requirement.TargetRef, rawHealth, result.RuntimeInstances) {
-			// The provider contract remains a required plan/evidence gate, but
-			// its concrete postcondition is owned by the provider's selected
-			// module runtimes. Sending both gates to the same runtime owner
-			// would duplicate one health authority and make exact outcome
-			// accounting impossible. Provider-owner runtimes retain their own
-			// provider health gate.
+		if requirement.TargetKind == "provider" && !applyProviderHasOwner(plan, requirement.TargetRef) {
+			// Provider contracts remain plan/evidence gates. Runtime health is
+			// owned by concrete module postconditions; only an explicit
+			// provider-owner runtime receives a provider health target.
 			continue
 		}
 		requirement.RouteRef, _ = gate["routeRef"].(string)
@@ -1467,33 +1527,52 @@ func appendApplyHealthRequirements(plan resolvedplan.ResolvedPlan, modules map[s
 				continue
 			}
 		}
+		owners := applyPlacementHealthRuntimeOwners(requirement, result.RuntimeInstances)
+		if len(owners) > 1 || len(owners) == 1 && (len(requirement.SiteRefs) != 1 || len(requirement.NodeRefs) != 1) {
+			for _, owner := range owners {
+				owned := requirement
+				owned.ID = requirement.ID + "/runtime/" + owner.ID
+				owned.RuntimeRequirementID = owner.ID
+				owned.SiteRefs = append([]string(nil), owner.SiteRefs...)
+				owned.NodeRefs = append([]string(nil), owner.NodeRefs...)
+				result.HealthRequirements = append(result.HealthRequirements, owned)
+			}
+			continue
+		}
 		result.HealthRequirements = append(result.HealthRequirements, requirement)
 	}
 	return nil
 }
 
-func providerHealthDuplicatesSingleModulePostcondition(providerRef string, rawHealth []any, runtimes []ApplyRuntimeRequirement) bool {
-	moduleRefs := make(map[string]struct{})
+func applyPlacementHealthRuntimeOwners(health ApplyHealthRequirement, runtimes []ApplyRuntimeRequirement) []ApplyRuntimeRequirement {
+	owners := make([]ApplyRuntimeRequirement, 0)
 	for _, runtime := range runtimes {
-		if runtime.ProviderRef == providerRef && runtime.OwnerKind != "provider-owner" {
-			moduleRefs[runtime.ModuleRef] = struct{}{}
-		}
-	}
-	if len(moduleRefs) == 0 {
-		return false
-	}
-	modulePostconditions := 0
-	for _, raw := range rawHealth {
-		gate, ok := raw.(map[string]any)
-		if !ok || gate["targetKind"] != "module" {
+		if len(runtime.SiteRefs) != 1 || len(runtime.NodeRefs) != 1 ||
+			!slices.Contains(health.SiteRefs, runtime.SiteRefs[0]) ||
+			!slices.Contains(health.NodeRefs, runtime.NodeRefs[0]) {
 			continue
 		}
-		targetRef, _ := gate["targetRef"].(string)
-		if _, owned := moduleRefs[targetRef]; owned {
-			modulePostconditions++
+		matches := health.TargetKind == "module" && health.TargetRef == runtime.ModuleRef ||
+			health.TargetKind == "runtime" && health.TargetRef == runtime.InstanceRef
+		if matches {
+			owners = append(owners, runtime)
 		}
 	}
-	return modulePostconditions == 1
+	sort.Slice(owners, func(i, j int) bool { return owners[i].ID < owners[j].ID })
+	return owners
+}
+
+func applyProviderHasOwner(plan resolvedplan.ResolvedPlan, providerRef string) bool {
+	rawProviders, _ := plan["providers"].([]any)
+	for _, raw := range rawProviders {
+		provider, ok := raw.(map[string]any)
+		if !ok || provider["id"] != providerRef {
+			continue
+		}
+		_, hasOwner := provider["owner"].(map[string]any)
+		return hasOwner
+	}
+	return false
 }
 
 func applyRouteHealthProbe(gate map[string]any, path string) (*ApplyHealthProbe, error) {
@@ -1636,12 +1715,13 @@ func bindApplyWorkloadHealthRequirements(result *ApplyRequirements) error {
 				matches = append(matches, health.ID)
 			}
 		}
-		if len(matches) != 1 {
-			return fail(ErrInvalidPlan, "resolvedPlan.workloads."+workload.ID+".alternative.route.healthRef", "must bind exactly one materialized module health gate for logical source %q; got %d", workload.HealthRef, len(matches))
+		if len(matches) == 0 {
+			return fail(ErrInvalidPlan, "resolvedPlan.workloads."+workload.ID+".alternative.route.healthRef", "must bind at least one exact materialized module health gate for logical source %q", workload.HealthRef)
 		}
+		sort.Strings(matches)
 		result.EvidenceRequirements = append(result.EvidenceRequirements, ApplyEvidenceRequirement{
 			ID: "workload/" + workload.ID + "/health/" + matches[0], OwnerKind: "workload", OwnerRef: workload.ID,
-			Ref: workload.HealthRef, HealthGateRefs: []string{matches[0]},
+			Ref: workload.HealthRef, HealthGateRefs: matches,
 		})
 	}
 	return nil

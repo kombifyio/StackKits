@@ -71,8 +71,11 @@ func (e *HostAdmissionExecutor) Execute(ctx context.Context, request runtimeexec
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("runtime target is not the exact verified local host-admission projection")
 	}
 	health := request.HealthTargets[0]
-	if health.RequirementID != "provider-stackkits-host-admission-stackkits-host-admission-contract" ||
-		health.RuntimeRequirementID != "" || health.SourceRef != "stackkits-host-admission-contract" ||
+	baseHealthRequirementID := "provider-stackkits-host-admission-stackkits-host-admission-contract"
+	exactHealthOwner := health.RuntimeRequirementID == "" && health.RequirementID == baseHealthRequirementID ||
+		health.RuntimeRequirementID == target.RequirementID &&
+			health.RequirementID == baseHealthRequirementID+"/runtime/"+target.RequirementID
+	if !exactHealthOwner || health.SourceRef != "stackkits-host-admission-contract" ||
 		health.ContractHash != e.authority.HealthContractHash ||
 		health.Phase != "post-apply" || health.Kind != "contract" ||
 		health.TargetKind != "provider" || health.TargetRef != hostAdmissionProviderRef ||
