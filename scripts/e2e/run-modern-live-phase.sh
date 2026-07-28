@@ -195,11 +195,20 @@ if [ "$phase" = runtime ]; then
   disconnected="$(docker network inspect "$network" \
     --format '{{json .Containers}}' | jq --arg id "$(docker inspect -f '{{.Id}}' "$edge_container")" \
     'has($id) | not')"
+  edge_id="$(docker inspect -f '{{.Id}}' "$edge_container")"
   docker network connect --alias cloud-edge "$network" "$edge_container"
-  edge_url="$(jq -r .urls.cloudEdge "$state")"
   edge_reconnected=false
   for _ in $(seq 1 50); do
-    if curl -fsS "$edge_url/healthz" >/dev/null 2>&1; then
+    edge_ip="$(
+      docker network inspect "$network" --format '{{json .Containers}}' |
+        jq -r --arg id "$edge_id" '.[$id].IPv4Address // "" | split("/")[0]'
+    )"
+    edge_status="$(
+      curl -fsS --connect-timeout 1 --max-time 2 \
+        "http://$edge_ip:8080/healthz" 2>/dev/null ||
+        true
+    )"
+    if jq -e '.site == "cloud" and .role == "edge"' >/dev/null 2>&1 <<<"$edge_status"; then
       edge_reconnected=true
       break
     fi
