@@ -370,6 +370,9 @@ test('harness binds evidence to exact Compose project scope and the new capture 
     'originScopeSha256',
     'host-forbidden-dns+compose-origin-initial-syn/v1',
     'export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"',
+    'lifecycle_stackkit="$candidate_stackkit"',
+    'timeout 120 "$lifecycle_stackkit" backup configure --json',
+    'timeout 120 "$lifecycle_stackkit" verify --json',
     'stackkit kit verify --json >"$output_dir/release-bootstrap.json"',
     'stackkit apply >"$output_dir/apply.log" 2>&1',
     'parse-standalone-traffic.mjs" "$raw_traffic" "$network_scope" "$traffic_events"'
@@ -391,6 +394,7 @@ test('harness binds evidence to exact Compose project scope and the new capture 
   assert.ok(captureStarts[1] < applyIndex)
   assert.ok(harness.indexOf('stackkit init') < harness.indexOf('stackkit kit verify --json'))
   assert.doesNotMatch(harness, /stackkit upgrade --to "\$version"/u)
+  assert.doesNotMatch(harness, /timeout \d+ stackkit backup/u)
   assert.doesNotMatch(harness, /release-install\.json/u)
   assert.ok(harness.indexOf('stackkit apply') < harness.indexOf('docker inspect "$container_id"'))
   assert.ok(harness.indexOf('docker inspect "$container_id"') < harness.indexOf('stackkit verify --json'))

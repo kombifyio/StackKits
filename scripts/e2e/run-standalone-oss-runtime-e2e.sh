@@ -164,6 +164,11 @@ fixture_url="$(head -n1 "$output_dir/fixture-url.txt")"
 export HOME="$home_dir"
 export PATH="$extract_dir:$PATH"
 export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
+lifecycle_stackkit="$extract_dir/stackkit"
+[ -x "$lifecycle_stackkit" ] || {
+  printf 'release archive does not contain an executable stackkit binary\n' >&2
+  exit 1
+}
 
 # Capture begins before init because released init establishes release authority
 # through the fixture. Host DNS is retained as a negative Kombify-domain gate;
@@ -437,6 +442,9 @@ if [ "$stable_day2_proof" = "1" ]; then
     printf 'candidate archive does not contain an executable stackkit binary\n' >&2
     exit 1
   }
+  # Every operation after a successful upgrade must exercise the candidate,
+  # never the previous release that remains first in PATH for baseline proof.
+  lifecycle_stackkit="$candidate_stackkit"
 
   if timeout 60 "$candidate_stackkit" advanced change-set create \
     --capability "$project_dir/missing-advanced-capability.json" \
@@ -627,14 +635,14 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
       done
     ' -- "$sentinel_path" "$before_activation" >"$restore_proof_dir/seed.log"
 
-  timeout 120 stackkit backup configure --json >"$restore_proof_dir/configure.json"
+  timeout 120 "$lifecycle_stackkit" backup configure --json >"$restore_proof_dir/configure.json"
   jq -e '
     .schemaVersion == "stackkit.command-result/v1"
     and .status == "success"
     and .data.apiVersion == "stackkit.local-backup-configuration/v1"
   ' "$restore_proof_dir/configure.json" >/dev/null
 
-  timeout 180 stackkit backup run \
+  timeout 180 "$lifecycle_stackkit" backup run \
     --operation-id restore-proof-anchor-a --json \
     >"$restore_proof_dir/anchor-a.json"
   anchor_a="$(
@@ -655,7 +663,7 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
       printf "%s\n" "$2" >"/target/$1"
     ' -- "$sentinel_path" "$current_live" >"$restore_proof_dir/mutate.log"
 
-  timeout 180 stackkit backup restore "$anchor_a" \
+  timeout 180 "$lifecycle_stackkit" backup restore "$anchor_a" \
     --operation-id restore-proof-stage-a --owner-approve --json \
     >"$restore_proof_dir/stage-a.json"
   restore_result_a="$(
@@ -671,7 +679,7 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
   )"
 
   activation_operation_a="restore-proof-activate-a"
-  setsid timeout 300 stackkit backup restore activate "$restore_result_a" \
+  setsid timeout 300 "$lifecycle_stackkit" backup restore activate "$restore_result_a" \
     --operation-id "$activation_operation_a" --owner-approve --json \
     >"$restore_proof_dir/activate-a-interrupted.json" 2>&1 &
   restore_activation_pid=$!
@@ -725,7 +733,7 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
     exit 1
   }
 
-  timeout 300 stackkit backup restore recover "$activation_operation_a" \
+  timeout 300 "$lifecycle_stackkit" backup restore recover "$activation_operation_a" \
     --owner-approve --rollback --json \
     >"$restore_proof_dir/recover-a.json"
   jq -e '
@@ -746,7 +754,7 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
   }
 
   activation_operation_b="restore-proof-activate-b"
-  timeout 300 stackkit backup restore activate "$restore_result_a" \
+  timeout 300 "$lifecycle_stackkit" backup restore activate "$restore_result_a" \
     --operation-id "$activation_operation_b" --owner-approve --json \
     >"$restore_proof_dir/activate-b.json"
   jq -e '
@@ -778,7 +786,7 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
     exit 1
   }
 
-  timeout 120 stackkit verify --json >"$restore_proof_dir/final-verify.json"
+  timeout 120 "$lifecycle_stackkit" verify --json >"$restore_proof_dir/final-verify.json"
   jq -e '
     .schemaVersion == "stackkit.command-result/v1"
     and .status == "success"
