@@ -483,6 +483,14 @@ if [ "$stable_day2_proof" = "1" ]; then
   }
   export STACKKIT_RELEASE_FIXTURE_URL="$candidate_fixture_url"
 
+  timeout 120 stackkit backup configure --json \
+    >"$stable_day2_dir/backup-configure.json"
+  jq -e '
+    .schemaVersion == "stackkit.command-result/v1"
+    and .status == "success"
+    and .data.apiVersion == "stackkit.local-backup-configuration/v1"
+  ' "$stable_day2_dir/backup-configure.json" >/dev/null
+
   timeout 600 stackkit upgrade --to "$candidate_version" --dry-run --json \
     >"$stable_day2_dir/upgrade-dry-run.json"
   jq -e --arg version "$candidate_version" '

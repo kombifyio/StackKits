@@ -330,13 +330,14 @@ func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excl
 	clear(input)
 
 	command := []string{
-		"policy", "set", source,
+		"policy", "set",
 		"--inherit=false",
 		"--manual",
 	}
 	for _, relative := range relativeExcludes {
 		command = append(command, "--add-ignore", relative)
 	}
+	command = append(command, source)
 	input, err = repositoryPasswordInput(password, 1)
 	if err != nil {
 		return err
