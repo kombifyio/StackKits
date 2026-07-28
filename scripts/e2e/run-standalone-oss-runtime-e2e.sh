@@ -685,6 +685,11 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
   restore_activation_pid=$!
 
   activation_journal="$project_dir/.stackkit/lifecycle-mutations/active.json"
+  restore_helper_name="$(
+    printf '%s\0%s' "$activation_operation_a" "$first_volume" |
+      sha256sum | cut -c1-16
+  )"
+  restore_helper_name="stackkit-restore-$restore_helper_name"
   activation_ready=0
   # Activation captures a safety snapshot, stops the verified Compose runtime,
   # and prepares rollback copies for every governed volume before its first
@@ -700,11 +705,6 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
         and .restoreActivation.authority.volumes[0] == $volume
         and .restoreActivation.inFlight.volume == $volume
       ' "$activation_journal" >/dev/null 2>&1; then
-      restore_helper_name="$(
-        printf '%s\0%s' "$activation_operation_a" "$first_volume" |
-          sha256sum | cut -c1-16
-      )"
-      restore_helper_name="stackkit-restore-$restore_helper_name"
       if docker ps --quiet --filter "name=^/${restore_helper_name}$" | grep -q .; then
         activation_ready=1
         break
@@ -714,6 +714,58 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
     sleep 0.1
   done
   [ "$activation_ready" = "1" ] || {
+    helper_running=false
+    if docker ps --quiet --filter "name=^/${restore_helper_name}$" | grep -q .; then
+      helper_running=true
+    fi
+    if [ -s "$activation_journal" ]; then
+      jq \
+        --arg expectedHelper "$restore_helper_name" \
+        --argjson helperRunning "$helper_running" '
+          {
+            schemaVersion: "stackkit.restore-activation-observation/v1",
+            status: "timeout",
+            expectedHelper: $expectedHelper,
+            helperRunning: $helperRunning,
+            journal: {
+              apiVersion: .apiVersion,
+              operationId: .operationId,
+              kind: .kind,
+              status: .status,
+              phase: .phase,
+              sequence: .sequence,
+              updatedAt: .updatedAt,
+              restoreActivation: {
+                rollbackPrepared: (.restoreActivation.rollbackPrepared // []),
+                activated: (.restoreActivation.activated // []),
+                inFlight: (.restoreActivation.inFlight // null),
+                authority: {
+                  operationId: .restoreActivation.authority.operationId,
+                  restoreResultId: .restoreActivation.authority.restoreResultId,
+                  safetySnapshotId: .restoreActivation.authority.safetySnapshotId,
+                  planHash: .restoreActivation.authority.planHash,
+                  manifestHash: .restoreActivation.authority.manifestHash,
+                  applyResultHash: .restoreActivation.authority.applyResultHash,
+                  managedVolumeSetHash: .restoreActivation.authority.managedVolumeSetHash,
+                  volumes: (.restoreActivation.authority.volumes // [])
+                }
+              }
+            }
+          }
+        ' "$activation_journal" >"$restore_proof_dir/activation-observation-failure.json"
+    else
+      jq -n \
+        --arg expectedHelper "$restore_helper_name" \
+        --argjson helperRunning "$helper_running" '
+          {
+            schemaVersion: "stackkit.restore-activation-observation/v1",
+            status: "timeout",
+            expectedHelper: $expectedHelper,
+            helperRunning: $helperRunning,
+            journal: null
+          }
+        ' >"$restore_proof_dir/activation-observation-failure.json"
+    fi
     printf 'restore proof did not observe the first activation copy and helper\n' >&2
     exit 1
   }

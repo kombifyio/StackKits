@@ -488,7 +488,6 @@ jobs:
         shell: bash
         env:
           STACKKIT_E2E_PRELOAD_IMAGES: "1"
-          STACKKIT_E2E_RESTORE_PROOF: "1"
           STACKKIT_E2E_STABLE_DAY2_PROOF: "1"
         run: |
           set -euo pipefail
@@ -560,6 +559,7 @@ jobs:
           retention-days: 1
 
       - name: Attest exact restore evidence
+        if: ${{ contains(github.ref_name, '-beta.') || contains(github.ref_name, '-edge.') }}
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: artifacts/standalone-runtime/restore-live-evidence.json
@@ -621,40 +621,270 @@ jobs:
             --prerelease \
             --latest=false
 
-      - name: Attach exact Day-2 evidence and publish the stable release
+      - name: Retain stable evidence for the terminal release gate
         if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s artifacts/standalone-runtime/stable-day2-live-evidence.json
+
+  stable-restore-e2e:
+    name: Prove exact stable restore archive
+    needs: release-trust
+    if: >-
+      ${{
+        github.repository == 'kombifyio/StackKits' &&
+        !contains(github.ref_name, '-beta.') &&
+        !contains(github.ref_name, '-edge.')
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout published tag
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Download exact release trust set from the producing job
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-trust-${{ github.ref_name }}-${{ github.sha }}
+          path: dist
+
+      - name: Download and bind the exact Basement archive
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          gh release download "$TAG" --dir dist \
+            --pattern 'stackkits-basement-kit_*_linux_amd64.tar.gz' --clobber
+          gh release download "$TAG" --dir dist \
+            --pattern 'stackkits-basement-kit_*_linux_amd64.tar.gz.spdx.json' --clobber
           archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
-          test -n "$archive"
+          test -s "$archive"
+          test -s "${archive}.spdx.json"
+          archive_name="$(basename "$archive")"
+          archive_sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
+          sbom_name="$(basename "${archive}.spdx.json")"
+          sbom_sha256="$(sha256sum "${archive}.spdx.json" | cut -d' ' -f1)"
+          jq -e \
+            --arg tag "$TAG" \
+            --arg archiveName "$archive_name" \
+            --arg archiveSha256 "$archive_sha256" \
+            --arg sbomName "$sbom_name" \
+            --arg sbomSha256 "$sbom_sha256" '
+              .schemaVersion == "stackkits-release-index/v1" and
+              .release.version == $tag and
+              ([.assets[] | select(
+                .kit == "basement-kit" and
+                .version == $tag and
+                .platform.os == "linux" and
+                .platform.arch == "amd64" and
+                .archive.name == $archiveName and
+                .archive.sha256 == $archiveSha256 and
+                .sbom.name == $sbomName and
+                .sbom.sha256 == $sbomSha256
+              )] | length) == 1
+            ' dist/stackkits-release-index-v1.json >/dev/null
+
+      - name: Admit packet capture without a privileged runtime
+        shell: bash
+        run: sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
+
+      - name: Run bounded exact-archive stable restore proof
+        shell: bash
+        env:
+          STACKKIT_E2E_PRELOAD_IMAGES: "1"
+          STACKKIT_E2E_RESTORE_PROOF: "1"
+        run: |
+          set -euo pipefail
+          archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
+          test -s "$archive"
           tree="$(git rev-parse HEAD^{tree})"
           source_digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
-          candidate_archive_sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
-          previous_archive_sha256="$(sha256sum "$STACKKIT_E2E_PREVIOUS_ARCHIVE" | cut -d' ' -f1)"
+          mkdir -p artifacts/standalone-restore
+          bash scripts/e2e/run-standalone-oss-runtime-e2e.sh \
+            "$archive" \
+            "${archive}.spdx.json" \
+            dist/stackkits-release-assets.intoto.jsonl \
+            dist/sigstore-trusted-root.jsonl \
+            dist/stackkits-release-index-v1.json \
+            dist/stackkits-release-index-v1.json.intoto.jsonl \
+            "$GITHUB_SHA" \
+            "$source_digest" \
+            artifacts/standalone-restore
           jq -e \
             --arg sourceCommit "$GITHUB_SHA" \
             --arg sourceDigest "$source_digest" \
-            --arg previousTag "$STACKKIT_E2E_PREVIOUS_TAG" \
-            --arg previousArchiveSha256 "$previous_archive_sha256" \
-            --arg candidateArchiveSha256 "$candidate_archive_sha256" \
-            '
+            --arg archiveSha256 "$(sha256sum "$archive" | cut -d' ' -f1)" '
+              .schemaVersion == "stackkit.restore-live-e2e-evidence/v1" and
+              .status == "pass" and
+              .source == {
+                repository: "kombifyio/stackKits",
+                commit: $sourceCommit,
+                digest: $sourceDigest
+              } and
+              .archive.sha256 == $archiveSha256 and
+              .authority.interruptedActivationId ==
+                .authority.recoveredActivationId and
+              .authority.completedActivationId !=
+                .authority.interruptedActivationId and
+              .proof.mutationDenied == true and
+              .proof.rollbackVolumesRemaining == 0 and
+              .proof.servicesVerified == true and
+              .proof.finalVerifySucceeded == true and
+              (.outputs | length) == 13
+            ' artifacts/standalone-restore/restore-live-evidence.json >/dev/null
+
+      - name: Retain sanitized stable restore failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: stable-restore-failure-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            artifacts/standalone-restore/*.log
+            artifacts/standalone-restore/*.json
+            artifacts/standalone-restore/*.jsonl
+            artifacts/standalone-restore/restore-proof/*.log
+            artifacts/standalone-restore/restore-proof/*.json
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 1
+
+      - name: Attest exact stable restore evidence
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: artifacts/standalone-restore/restore-live-evidence.json
+          create-storage-record: false
+          show-summary: false
+
+      - name: Retain exact stable restore evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: stable-restore-live-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/standalone-restore
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  finalize-stable-release:
+    name: Publish stable from exact Day-2 and restore receipts
+    needs: [runtime-e2e, stable-restore-e2e]
+    if: >-
+      ${{
+        github.repository == 'kombifyio/StackKits' &&
+        !contains(github.ref_name, '-beta.') &&
+        !contains(github.ref_name, '-edge.')
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Checkout published tag
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+
+      - name: Download exact runtime evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: standalone-runtime-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/standalone-runtime
+
+      - name: Download exact stable Day-2 receipt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: stable-day2-live-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/stable-day2
+
+      - name: Download exact stable restore receipt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: stable-restore-live-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/stable-restore
+
+      - name: Download exact release trust set
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-trust-${{ github.ref_name }}-${{ github.sha }}
+          path: dist
+
+      - name: Revalidate exact receipts and publish stable
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tree="$(git rev-parse HEAD^{tree})"
+          source_digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
+          candidate_archive_sha256="$(jq -er '
+            [.assets[] | select(
+              .kit == "basement-kit" and
+              .platform.os == "linux" and
+              .platform.arch == "amd64"
+            ) | .archive.sha256] |
+            unique |
+            if length == 1 then .[0]
+            else error("ambiguous Basement archive")
+            end
+          ' dist/stackkits-release-index-v1.json)"
+          day2=artifacts/stable-day2/stable-day2-live-evidence.json
+          restore=artifacts/stable-restore/restore-live-evidence.json
+          jq -e \
+            --arg sourceCommit "$GITHUB_SHA" \
+            --arg sourceDigest "$source_digest" \
+            --arg candidateArchiveSha256 "$candidate_archive_sha256" '
               .schemaVersion == "stackkit.stable-day2-live-e2e-evidence/v1" and
               .status == "pass" and
               .source == {commit: $sourceCommit, digest: $sourceDigest} and
-              .previous.tag == $previousTag and
-              .previous.archiveSha256 == $previousArchiveSha256 and
-              .candidate.archiveSha256 == $candidateArchiveSha256 and
+              (.previous.tag | test("^v0\\.8\\.0-beta\\.[0-9]+$")) and
+              (.previous.archiveSha256 | test("^[0-9a-f]{64}$")) and
+              .candidate == {archiveSha256: $candidateArchiveSha256} and
               .upgrade.status == "pass" and
               (.upgrade.snapshotAnchorId | test("^sha256:[0-9a-f]{64}$")) and
               .upgrade.verified == true and
               .drift.status == "pass" and
-              .capabilityDenial.reasonCode == "advanced_capability_required" and
+              .capabilityDenial.reasonCode ==
+                "advanced_capability_required" and
               .finalVerify == true
-            ' artifacts/standalone-runtime/stable-day2-live-evidence.json >/dev/null
+            ' "$day2" >/dev/null
+          jq -e \
+            --arg sourceCommit "$GITHUB_SHA" \
+            --arg sourceDigest "$source_digest" \
+            --arg candidateArchiveSha256 "$candidate_archive_sha256" '
+              .schemaVersion == "stackkit.restore-live-e2e-evidence/v1" and
+              .status == "pass" and
+              .source == {
+                repository: "kombifyio/stackKits",
+                commit: $sourceCommit,
+                digest: $sourceDigest
+              } and
+              .archive.sha256 == $candidateArchiveSha256 and
+              .authority.interruptedActivationId ==
+                .authority.recoveredActivationId and
+              .authority.completedActivationId !=
+                .authority.interruptedActivationId and
+              .proof.mutationDenied == true and
+              .proof.rollbackVolumesRemaining == 0 and
+              .proof.servicesVerified == true and
+              .proof.finalVerifySucceeded == true and
+              (.runtimeEvidenceInputs.applySha256 |
+                test("^[0-9a-f]{64}$")) and
+              (.runtimeEvidenceInputs.verifySha256 |
+                test("^[0-9a-f]{64}$")) and
+              (.outputs | length) == 13 and
+              all(.outputs[];
+                (.name | test("^restore-proof/[a-z0-9.-]+$")) and
+                (.sha256 | test("^[0-9a-f]{64}$"))
+              )
+            ' "$restore" >/dev/null
           gh release upload "$TAG" \
             artifacts/standalone-runtime/runtime-evidence.json \
             artifacts/standalone-runtime/release-bootstrap.json \
@@ -662,7 +892,8 @@ jobs:
             artifacts/standalone-runtime/compose-origin-scope.json \
             artifacts/standalone-runtime/apply.log \
             artifacts/standalone-runtime/verify.json \
-            artifacts/standalone-runtime/stable-day2-live-evidence.json \
+            "$day2" \
+            "$restore" \
             --clobber
           gh release edit "$TAG" \
             --draft=false \

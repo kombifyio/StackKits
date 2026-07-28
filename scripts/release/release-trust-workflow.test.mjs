@@ -14,6 +14,10 @@ const publicReleasePath = existsSync(publicTemplatePath)
 const privatePublish = existsSync(privatePublishPath) ? readFileSync(privatePublishPath, 'utf8') : null
 const publicRelease = readFileSync(publicReleasePath, 'utf8')
 const publicImage = readFileSync(publicImagePath, 'utf8')
+const runtimeHarness = readFileSync(
+  path.join(root, 'scripts/e2e/run-standalone-oss-runtime-e2e.sh'),
+  'utf8',
+)
 const releaseEvidenceSchema = JSON.parse(readFileSync(
   path.join(root, 'schemas/release-evidence.schema.json'),
   'utf8',
@@ -144,7 +148,11 @@ test('public manual workflow binds exact ready draft bytes before publishing a r
     'stackkit.stable-day2-live-e2e-evidence/v1',
     'Attest exact stable Day-2 evidence',
     'Retain exact stable Day-2 evidence',
-    'Attach exact Day-2 evidence and publish the stable release',
+    'stable-restore-e2e:',
+    'Run bounded exact-archive stable restore proof',
+    'Attest exact stable restore evidence',
+    'finalize-stable-release:',
+    'Publish stable from exact Day-2 and restore receipts',
     '--prerelease=false',
     '--latest'
   ]) {
@@ -153,7 +161,32 @@ test('public manual workflow binds exact ready draft bytes before publishing a r
   assert.doesNotMatch(publicRelease, /Stable release gate incomplete/u)
   before(publicRelease, 'Download and verify exact previous beta release for stable Day-2', 'Run bounded stable Day-2 proof from exact beta baseline to candidate')
   before(publicRelease, 'Run bounded stable Day-2 proof from exact beta baseline to candidate', 'Attest exact stable Day-2 evidence')
-  before(publicRelease, 'Attest exact stable Day-2 evidence', 'Attach exact Day-2 evidence and publish the stable release')
+  before(publicRelease, 'Run bounded exact-archive stable restore proof', 'Attest exact stable restore evidence')
+  before(publicRelease, 'Attest exact stable Day-2 evidence', 'Publish stable from exact Day-2 and restore receipts')
+  before(publicRelease, 'Attest exact stable restore evidence', 'Publish stable from exact Day-2 and restore receipts')
+  const stableDay2Step = publicRelease.slice(
+    publicRelease.indexOf('- name: Run bounded stable Day-2 proof from exact beta baseline to candidate'),
+    publicRelease.indexOf('- name: Retain sanitized standalone failure diagnostics')
+  )
+  assert.doesNotMatch(stableDay2Step, /STACKKIT_E2E_RESTORE_PROOF/u)
+  assert.match(
+    publicRelease,
+    /finalize-stable-release:[\s\S]*?needs: \[runtime-e2e, stable-restore-e2e\][\s\S]*?\.source == \{commit: \$sourceCommit, digest: \$sourceDigest\}[\s\S]*?\.archive\.sha256 == \$candidateArchiveSha256[\s\S]*?gh release edit "\$TAG"/u
+  )
+})
+
+test('restore observation covers the governed stop and copy path with sanitized diagnostics', () => {
+  assert.match(runtimeHarness, /setsid timeout 600 "\$lifecycle_stackkit" backup restore activate/u)
+  assert.match(runtimeHarness, /for _ in \$\(seq 1 5400\); do/u)
+  assert.match(runtimeHarness, /stackkit\.restore-activation-observation\/v1/u)
+  assert.match(runtimeHarness, /activation-observation-failure\.json/u)
+
+  const start = runtimeHarness.indexOf('[ "$activation_ready" = "1" ] || {')
+  const end = runtimeHarness.indexOf('  docker pause "$restore_helper_name"', start)
+  assert.notEqual(start, -1)
+  assert.ok(end > start)
+  const diagnosticBlock = runtimeHarness.slice(start, end)
+  assert.doesNotMatch(diagnosticBlock, /\.ownerRef|\.signature|workspaceHash/u)
 })
 
 test('public runtime failure diagnostics are explicit, sanitized, and short-lived', () => {
