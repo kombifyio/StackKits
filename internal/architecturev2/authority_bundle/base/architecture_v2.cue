@@ -5688,6 +5688,22 @@ _servicePublicationShape: {
 	}
 }
 
+// #StandardExecutionChannelV1 is owner-supplied local dispatcher
+// configuration. The digest-pinned process retains transport/authentication
+// custody; Inventory carries neither credentials nor endpoints.
+#StandardExecutionChannelV1: {
+	apiVersion:     "stackkit.standard-execution-channel/v1"
+	kind:           "StandardExecutionChannel"
+	channelRef:     #ContractID
+	siteRef:        #SiteID
+	nodeRef:        #NodeID
+	operationClass: "standard"
+	operationsProcess: {
+		executable:       string & =~"^.+$"
+		executableSha256: #ContentHash
+	}
+}
+
 // Inventory is a separate compiler input. Facts validate an intent; they never
 // select or mutate the kit. Host binding and conformance are optional during
 // fast shadow planning; their presence is nevertheless strict and hash-bound.
@@ -5697,6 +5713,10 @@ _servicePublicationShape: {
 	externalBackupTargetBindings: [#SiteID]: [#CapabilityID]: #ExternalBackupTargetBindingV1 | *{}
 	externalHomeBackupTargetBindings: [#SiteID]: [#CapabilityID]: #ExternalHomeBackupTargetBindingV1 | *{}
 	externalFederationLinkBindings: [#CapabilityID]: #ExternalFederationLinkBindingV1 | *{}
+	executionChannels: [#ContractID]: #StandardExecutionChannelV1 | *{}
+	_executionChannelKeys: [for channelRef, channel in executionChannels {
+		ref: channelRef & channel.channelRef
+	}]
 	_externalHomeAccessBindingKeys: [for siteRef, capabilityBindings in externalHomeAccessBindings for capabilityRef, binding in capabilityBindings {
 		site:       siteRef & binding.siteRef
 		capability: capabilityRef & binding.capabilityRef
@@ -8838,6 +8858,14 @@ _servicePublicationShape: {
 			if module.enforcementRequirement.ownerRef == "stackkits-federation-control-agent-executor" {
 				module.id
 			}]
+		_boundFederationPolicyEnforcers: [for module in modules
+			if module.id == "stackkits-modern-federation-policy-manifest"
+			if module.runtime.execution == "executable"
+			if module.enforcementRequirement != _|_
+			if module.enforcementRequirement.status == "bound"
+			if module.enforcementRequirement.ownerRef == "stackkits-modern-federation-policy-enforcer" {
+				module.id
+			}]
 		_boundHomeIdentityVerifiers: [for module in modules
 			if module.id == "stackkits-modern-home-identity-trust-policy-manifest"
 			if module.runtime.execution == "executable"
@@ -8877,15 +8905,21 @@ _servicePublicationShape: {
 					refs: ["bridge:control-agent"]
 				}
 			}
-			policyApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "policy-enforcement-unverified"
-				refs: ["bridge:policy"]
-			}
-			partitionPolicyApply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "partition-policy-enforcement-unverified"
-				refs: ["bridge:partition-policy"]
+			// The local policy owner enforces only the declared per-node flow and
+			// partition guardrails. It neither creates nor satisfies the separate
+			// external Federation-link binding, transport, endpoint, or credential
+			// custody requirements.
+			if len(_boundFederationPolicyEnforcers) == 0 {
+				policyApply: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "policy-enforcement-unverified"
+					refs: ["bridge:policy"]
+				}
+				partitionPolicyApply: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "partition-policy-enforcement-unverified"
+					refs: ["bridge:partition-policy"]
+				}
 			}
 			if len(_boundHomeIdentityVerifiers) == 0 || len(_boundCloudIdentityVerifiers) == 0 {
 				deviceVerifierApply: #ExecutionReadinessRequirementV1 & {

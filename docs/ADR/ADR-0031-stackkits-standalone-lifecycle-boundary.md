@@ -1,6 +1,7 @@
 # ADR-0031 — StackKits Standalone Lifecycle Boundary
 
 **Status:** Accepted (2026-07-26)
+**Amended:** 2026-07-28
 **Owner:** StackKits
 **Related:** ADR-0016, ADR-0018, ADR-0029
 **Supersedes:** ADR-0018 server-side compatibility resolver, mandatory Admin
@@ -34,8 +35,8 @@ Local owner custody is established explicitly during
 `stackkit init --owner-source=local`. The CUE contract and resolved Inventory
 own the trust profile and exact Site/node/execution-channel binding; Go
 composition may realize and consume those decisions but must not invent them.
-The local Owner is realized as a PocketID human identity and group membership,
-authenticated to protected services through TinyAuth. StackKits binds that
+The local Owner is realized as a PocketID human identity and group membership.
+TinyAuth is the local protected-service login and policy broker. StackKits binds
 identity projection to the stable `ownerRef`, the local Ed25519 evidence key,
 and its step-ca certificate. PocketID and TinyAuth are therefore the human
 identity/login plane; the local custody key and certificate are the lifecycle
@@ -85,22 +86,51 @@ available without that capability.
 
 Techstack is the optional Orchestrator UI over the standalone product. It
 consumes an exactly pinned published StackKits release plus versioned CLI
-JSON/JSONL contracts. It may unify compatible user-approved configuration
-inputs, present Standard lifecycle operations, and dispatch capability-gated
+JSON/JSONL contracts. The v0.9 target orchestration contract is:
+
+```text
+Techstack Core/UI
+  -> closed StackKitCommand over Techstack-owned outbound/reverse mTLS gRPC
+  -> node-side Techstack Agent
+  -> locally revalidated, exactly pinned stackkit CLI subprocess
+  -> stackkit.command-result/v1 + stackkit.rollout-event/v1 JSONL
+```
+
+This is a target boundary, not Slice 1 delivery evidence. Slice 1 establishes
+the additive local Owner/Modern model, Federation admission, and the
+credential-free desired identity projection. Techstack Agent execution-channel
+admission lands in Slice 2.
+
+The Agent verifies the exact release pin, release index, receipt, and
+executable, removes Techstack/Kombify control-plane environment, and invokes no
+caller-selected command or binary. StackKits exposes no gRPC endpoint and owns
+no Techstack worker enrollment, certificates, transport, provider, or server
+lifecycle.
+
+Techstack may unify compatible configuration inputs, but Unifier output is a
+review proposal rather than a ResolvedPlan. The local Owner approves it and the
+pinned CLI's CUE `validate`/`generate` path remains final authority. Techstack
+may present Standard lifecycle operations and dispatch capability-gated
 Advanced Day-2 operations such as Terramate change sets, coordinated rollback,
-restore drills, and Runtime Intelligence Layer (RIL) workflows. StackKits CUE
-validation remains the final authority for the resulting StackSpec and
-ResolvedPlan. Techstack does not import StackKits source packages, copy kit
-catalogs or renderers, mint local owner evidence, or reinterpret a ResolvedPlan.
+restore drills, and RIL workflows. It does not import StackKits source
+packages, copy kit catalogs or renderers, mint local owner evidence, or
+reinterpret a ResolvedPlan.
 
 kombify Cloud may provide an optional convenience identity and user-sync lane.
 A Cloud profile can become a desired local PocketID user/Owner projection only
-through an explicit, authenticated, user-approved sync request. The local
-StackKits workflow validates and realizes the projection; the local `ownerRef`,
-custody key, step-ca certificate, PocketID directory, and TinyAuth binding
-remain authoritative. Passwords, passkeys, private keys, and Cloud session
-credentials are never synchronized. Cloud absence or sync failure cannot block
-the standalone lifecycle or silently replace the local Owner.
+as a signed, time-bounded request containing issuer, subject, version, digest,
+issue/expiry time, approval provenance, and signing key ID. The local Owner
+must explicitly approve it before any PocketID mutation. The local StackKits
+workflow validates and realizes the projection; the local `ownerRef`, custody
+key, step-ca certificate, PocketID directory, and TinyAuth binding remain
+authoritative.
+
+Cloud outage, unlink, expiry, stale state, or unverifiable signatures withdraw
+authority for future Cloud-driven create, update, or delete operations. They
+cause no new mutation and do not disable or remove already approved local
+PocketID users or the Owner. Local removal is a separate Owner-approved action.
+Passwords, passkeys, sessions, private keys, CA material, and recovery secrets
+are never synchronized.
 
 ### 6. Release gates
 
@@ -129,8 +159,9 @@ denial, public export, and exact-source release evidence.
   become mutation prerequisites.
 - Release metadata and public/private dependency boundaries become explicit
   versioned contracts with tamper and export tests.
-- v0.8 is the standalone lifecycle milestone. Broader Modern Homelab and HA
-  expansion moves to v0.9.
+- v0.8 is the stable standalone lifecycle baseline. v0.9 adds Modern Homelab,
+  HA add-on realizations, and optional orchestration without changing that
+  authority boundary.
 
 ## Migration
 

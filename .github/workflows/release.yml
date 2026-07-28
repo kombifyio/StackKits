@@ -23,7 +23,7 @@ on:
         required: true
         type: string
       stable_previous_tag:
-        description: Optional exact published beta baseline for the stable Day-2 proof (otherwise latest v0.8.0-beta.N)
+        description: Exact published stable SemVer baseline required for a stable Day-2 proof; must be empty for prereleases
         required: false
         default: ''
         type: string
@@ -63,6 +63,17 @@ jobs:
           set -euo pipefail
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|edge)\.[0-9]+)?$ ]]
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$TAG" =~ -(beta|edge)\.[0-9]+$ ]]; then
+            [ -z "$STABLE_PREVIOUS_TAG" ] || {
+              echo "::error title=Unexpected stable baseline::stable_previous_tag must be empty for prerelease ${TAG}."
+              exit 1
+            }
+          else
+            [[ "$STABLE_PREVIOUS_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+              echo "::error title=Missing stable baseline::Stable release ${TAG} requires an exact stable_previous_tag."
+              exit 1
+            }
+          fi
           gh workflow run release.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref "$TAG" \
@@ -322,7 +333,7 @@ jobs:
             test -s "dist/$name"
           done
 
-      - name: Download and verify exact previous beta release for stable Day-2
+      - name: Download and verify exact previous stable release for stable Day-2
         if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
         shell: bash
         env:
@@ -331,25 +342,23 @@ jobs:
           REQUESTED_PREVIOUS_TAG: ${{ inputs.stable_previous_tag }}
         run: |
           set -euo pipefail
-          if [ "$TAG" != "v0.8.0" ]; then
-            echo "::error title=Unsupported stable baseline::The v0.8 stable Day-2 gate accepts only v0.8.0, got ${TAG}."
-            exit 1
-          fi
-          previous_tag="$REQUESTED_PREVIOUS_TAG"
-          if [ -z "$previous_tag" ]; then
-            previous_tag="$(
-              gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-                --jq '.[] | select(.draft == false and .prerelease == true) | .tag_name' \
-                | grep -E '^v0\.8\.0-beta\.[0-9]+$' \
-                | sort -V \
-                | tail -n 1 \
-                || true
-            )"
-          fi
-          [[ "$previous_tag" =~ ^v0\.8\.0-beta\.[0-9]+$ ]] || {
-            echo "::error title=Invalid stable baseline::Expected an exact v0.8.0-beta.N tag, got ${previous_tag:-<empty>}."
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "::error title=Invalid stable candidate::Expected an exact stable SemVer tag, got ${TAG}."
             exit 1
           }
+          previous_tag="$REQUESTED_PREVIOUS_TAG"
+          [[ "$previous_tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+            echo "::error title=Invalid stable baseline::Expected the exact frozen published stable SemVer, got ${previous_tag:-<empty>}."
+            exit 1
+          }
+          IFS=. read -r candidate_major candidate_minor candidate_patch <<<"${TAG#v}"
+          IFS=. read -r previous_major previous_minor previous_patch <<<"${previous_tag#v}"
+          if (( previous_major > candidate_major ||
+                (previous_major == candidate_major && previous_minor > candidate_minor) ||
+                (previous_major == candidate_major && previous_minor == candidate_minor && previous_patch >= candidate_patch) )); then
+            echo "::error title=Invalid stable ordering::Previous stable ${previous_tag} must be lower than candidate ${TAG}."
+            exit 1
+          fi
           git fetch --force --no-tags origin \
             "+refs/tags/${previous_tag}:refs/tags/${previous_tag}"
           previous_commit="$(git rev-list -n 1 "refs/tags/${previous_tag}")"
@@ -359,7 +368,7 @@ jobs:
 
           release="$(gh release view "$previous_tag" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets)"
           jq -e --arg tag "$previous_tag" \
-            '.tagName == $tag and .isDraft == false and .isPrerelease == true' \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == false' \
             <<<"$release" >/dev/null
           names="$(jq -r '.assets[].name' <<<"$release")"
           for required in \
@@ -483,7 +492,7 @@ jobs:
             '.schemaVersion == "stackkit.restore-live-e2e-evidence/v1"' \
             artifacts/standalone-runtime/restore-live-evidence.json >/dev/null
 
-      - name: Run bounded stable Day-2 proof from exact beta baseline to candidate
+      - name: Run bounded stable Day-2 proof from exact stable baseline to candidate
         if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
         shell: bash
         env:
@@ -774,9 +783,150 @@ jobs:
           compression-level: 0
           retention-days: 90
 
+  modern-runtime-e2e:
+    name: Modern exact-archive runtime and partition proof
+    needs: release-trust
+    if: >-
+      ${{
+        github.repository == 'kombifyio/StackKits' &&
+        !contains(github.ref_name, '-beta.') &&
+        !contains(github.ref_name, '-edge.')
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 1
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Download exact trust set
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-trust-${{ github.ref_name }}-${{ github.sha }}
+          path: dist
+      - name: Run exact runtime phase
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download "$GITHUB_REF_NAME" --dir dist \
+            --pattern 'stackkits-modern-homelab_*_linux_amd64.tar.gz' --clobber
+          archive="$(find dist -maxdepth 1 -name 'stackkits-modern-homelab_*_linux_amd64.tar.gz' -print -quit)"
+          test -s "$archive"
+          expected="$(jq -er '
+            [.assets[] | select(.kit=="modern-homelab" and .platform.os=="linux" and .platform.arch=="amd64") | .archive.sha256]
+            | unique | if length==1 then .[0] else error("ambiguous Modern archive") end
+          ' dist/stackkits-release-index-v1.json)"
+          test "$(sha256sum "$archive" | cut -d' ' -f1)" = "$expected"
+          tree="$(git rev-parse HEAD^{tree})"
+          digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
+          bash scripts/e2e/run-modern-live-phase.sh runtime "$archive" \
+            "$GITHUB_REF_NAME" "$GITHUB_SHA" "$digest" artifacts/modern-runtime
+      - name: Retain exact runtime phase
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: modern-runtime-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/modern-runtime
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  modern-ha-e2e:
+    name: Modern measured warm-standby proof
+    needs: release-trust
+    if: >-
+      ${{
+        github.repository == 'kombifyio/StackKits' &&
+        !contains(github.ref_name, '-beta.') &&
+        !contains(github.ref_name, '-edge.')
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 1
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Download exact trust set
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-trust-${{ github.ref_name }}-${{ github.sha }}
+          path: dist
+      - name: Run exact HA phase
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download "$GITHUB_REF_NAME" --dir dist \
+            --pattern 'stackkits-modern-homelab_*_linux_amd64.tar.gz' --clobber
+          archive="$(find dist -maxdepth 1 -name 'stackkits-modern-homelab_*_linux_amd64.tar.gz' -print -quit)"
+          test -s "$archive"
+          expected="$(jq -er '
+            [.assets[] | select(.kit=="modern-homelab" and .platform.os=="linux" and .platform.arch=="amd64") | .archive.sha256]
+            | unique | if length==1 then .[0] else error("ambiguous Modern archive") end
+          ' dist/stackkits-release-index-v1.json)"
+          test "$(sha256sum "$archive" | cut -d' ' -f1)" = "$expected"
+          tree="$(git rev-parse HEAD^{tree})"
+          digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
+          bash scripts/e2e/run-modern-live-phase.sh ha "$archive" \
+            "$GITHUB_REF_NAME" "$GITHUB_SHA" "$digest" artifacts/modern-ha
+      - name: Retain exact HA phase
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: modern-ha-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/modern-ha
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  modern-terminal-receipt:
+    name: Compose exact Modern terminal receipt
+    needs: [modern-runtime-e2e, modern-ha-e2e]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: modern-runtime-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/modern-terminal
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: modern-ha-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/modern-ha
+      - name: Compose and independently validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp artifacts/modern-ha/modern-warm-standby-live-receipt.json artifacts/modern-terminal/
+          tree="$(git rev-parse HEAD^{tree})"
+          digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
+          bash scripts/e2e/compose-modern-terminal-live.sh artifacts/modern-terminal \
+            "$GITHUB_REF_NAME" "$GITHUB_SHA" "$digest"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: modern-terminal-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/modern-terminal
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
   finalize-stable-release:
-    name: Publish stable from exact Day-2 and restore receipts
-    needs: [runtime-e2e, stable-restore-e2e]
+    name: Publish stable from exact Basement and Modern receipts
+    needs: [runtime-e2e, stable-restore-e2e, modern-terminal-receipt]
     if: >-
       ${{
         github.repository == 'kombifyio/StackKits' &&
@@ -809,6 +959,12 @@ jobs:
           name: stable-restore-live-${{ github.ref_name }}-${{ github.sha }}
           path: artifacts/stable-restore
 
+      - name: Download exact Modern terminal receipt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: modern-terminal-${{ github.ref_name }}-${{ github.sha }}
+          path: artifacts/modern-terminal
+
       - name: Download exact release trust set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -820,6 +976,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          STABLE_PREVIOUS_TAG: ${{ inputs.stable_previous_tag }}
         run: |
           set -euo pipefail
           tree="$(git rev-parse HEAD^{tree})"
@@ -840,11 +997,12 @@ jobs:
           jq -e \
             --arg sourceCommit "$GITHUB_SHA" \
             --arg sourceDigest "$source_digest" \
+            --arg previousTag "$STABLE_PREVIOUS_TAG" \
             --arg candidateArchiveSha256 "$candidate_archive_sha256" '
               .schemaVersion == "stackkit.stable-day2-live-e2e-evidence/v1" and
               .status == "pass" and
               .source == {commit: $sourceCommit, digest: $sourceDigest} and
-              (.previous.tag | test("^v0\\.8\\.0-beta\\.[0-9]+$")) and
+              .previous.tag == $previousTag and
               (.previous.archiveSha256 | test("^[0-9a-f]{64}$")) and
               .candidate == {archiveSha256: $candidateArchiveSha256} and
               .upgrade.status == "pass" and
@@ -885,6 +1043,12 @@ jobs:
                 (.sha256 | test("^[0-9a-f]{64}$"))
               )
             ' "$restore" >/dev/null
+          node scripts/release/validate-modern-terminal-receipt.mjs \
+            --receipt artifacts/modern-terminal/modern-terminal-live-receipt.json \
+            --artifacts-root artifacts/modern-terminal \
+            --tag "$TAG" \
+            --source-commit "$GITHUB_SHA" \
+            --source-digest "$source_digest"
           gh release upload "$TAG" \
             artifacts/standalone-runtime/runtime-evidence.json \
             artifacts/standalone-runtime/release-bootstrap.json \
@@ -894,6 +1058,7 @@ jobs:
             artifacts/standalone-runtime/verify.json \
             "$day2" \
             "$restore" \
+            artifacts/modern-terminal/modern-terminal-live-receipt.json \
             --clobber
           gh release edit "$TAG" \
             --draft=false \

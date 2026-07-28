@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -327,9 +329,87 @@ func validateModernFederationPolicyUnit(unit RenderUnit, contract RendererContra
 	return validateGenerationOnlyPolicyUnit(unit, generationOnlyPolicyUnitSpec{
 		moduleID: modernFederationPolicyModuleID, unitID: modernFederationPolicyUnitID,
 		outputRef: modernFederationPolicyOutputRef, policyName: "federation policy",
+		placementScope: "node-local", placementCardinality: "one-per-node",
 		contract: contract, planInputRefs: modernFederationPolicyPlanInputRefs,
 		validatePlanInput: validateModernFederationPlanInputs,
 	})
+}
+
+// ModernFederationFlow is one exact, identity-bound cross-Site allow rule.
+// It contains no endpoint, credential, provider resource, or transport handle.
+type ModernFederationFlow = modernFederationFlow
+
+// ModernFederationPartitionPolicy is the exact fail-closed failure policy
+// admitted for local enforcement.
+type ModernFederationPartitionPolicy = modernFederationPartition
+
+// ModernFederationPolicyEnforcementPolicy is the closed, credential-free
+// projection a local policy executor may consume. The external link binding is
+// deliberately absent and remains an independent Apply admission.
+type ModernFederationPolicyEnforcementPolicy struct {
+	StackID       string
+	KitSlug       string
+	SiteRefs      []string
+	HomeSiteRefs  []string
+	CloudSiteRefs []string
+	DefaultDeny   bool
+	AllowedFlows  []ModernFederationFlow
+	Partition     ModernFederationPartitionPolicy
+}
+
+type modernFederationPolicyArtifact struct {
+	APIVersion string                     `json:"apiVersion"`
+	Kind       string                     `json:"kind"`
+	Contract   map[string]any             `json:"contract"`
+	PlanInputs modernFederationPlanInputs `json:"planInputs"`
+}
+
+// ValidateModernFederationPolicyArtifact verifies the immutable renderer
+// envelope and re-runs the complete governed Modern policy validation before
+// exposing the narrow local-enforcement projection.
+func ValidateModernFederationPolicyArtifact(raw []byte) (ModernFederationPolicyEnforcementPolicy, error) {
+	var document modernFederationPolicyArtifact
+	if err := decodeStrict(raw, &document); err != nil {
+		return ModernFederationPolicyEnforcementPolicy{}, wrap(ErrInvalidPlan, "modernFederationPolicy", "decode exact policy artifact", err)
+	}
+	var skeleton modernFederationPolicyArtifact
+	template := bytes.Replace([]byte(modernFederationPolicyTemplate), []byte(modernFederationPolicyToken), []byte(`{}`), 1)
+	if err := json.Unmarshal(template, &skeleton); err != nil {
+		return ModernFederationPolicyEnforcementPolicy{}, wrap(ErrRendererFailure, "modernFederationPolicy.contract", "decode embedded policy contract", err)
+	}
+	if document.APIVersion != "stackkit.federation-policy/v1" || document.Kind != "FederationPolicyManifest" ||
+		!reflect.DeepEqual(document.Contract, skeleton.Contract) {
+		return ModernFederationPolicyEnforcementPolicy{}, fail(ErrInvalidPlan, "modernFederationPolicy.contract", "artifact widened or fabricated the generation-only policy contract")
+	}
+	planInputs, err := json.Marshal(document.PlanInputs)
+	if err != nil {
+		return ModernFederationPolicyEnforcementPolicy{}, wrap(ErrRendererFailure, "modernFederationPolicy.planInputs", "marshal exact policy projection", err)
+	}
+	siteRefs, err := validateModernFederationPlanInputs(planInputs, "modernFederationPolicy.planInputs")
+	if err != nil {
+		return ModernFederationPolicyEnforcementPolicy{}, err
+	}
+	policy := ModernFederationPolicyEnforcementPolicy{
+		StackID: document.PlanInputs.StackID, KitSlug: document.PlanInputs.Kit.Slug,
+		SiteRefs: append([]string(nil), siteRefs...), DefaultDeny: document.PlanInputs.FederationPolicy.Policy.DefaultDeny,
+		Partition:    document.PlanInputs.FederationPolicy.Partition,
+		AllowedFlows: append([]ModernFederationFlow(nil), document.PlanInputs.FederationPolicy.Policy.AllowedFlows...),
+	}
+	for _, site := range document.PlanInputs.Sites {
+		if site.Kind == "home" {
+			policy.HomeSiteRefs = append(policy.HomeSiteRefs, site.ID)
+		} else if site.Kind == "cloud" {
+			policy.CloudSiteRefs = append(policy.CloudSiteRefs, site.ID)
+		}
+	}
+	sort.Strings(policy.HomeSiteRefs)
+	sort.Strings(policy.CloudSiteRefs)
+	for index := range policy.AllowedFlows {
+		policy.AllowedFlows[index].Ports = append([]int(nil), policy.AllowedFlows[index].Ports...)
+		policy.AllowedFlows[index].Methods = append([]string(nil), policy.AllowedFlows[index].Methods...)
+		policy.AllowedFlows[index].DataClasses = append([]string(nil), policy.AllowedFlows[index].DataClasses...)
+	}
+	return policy, nil
 }
 
 //nolint:gocyclo // The complete generation-only projection is validated atomically so no partially checked federation policy can be rendered.

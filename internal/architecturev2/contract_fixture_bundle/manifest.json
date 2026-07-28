@@ -9,8 +9,8 @@
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
     "architecture/v2/contractfixture/catalog.cue": "sha256:89e02922e6092eaec6d42a57d2271bf84d9015e59ffe49a455e5596a3e27040f",
-    "base/architecture_v2.cue": "sha256:7195eae186a608dcb5c554b72a59f548bedf5f4b377e30fd743ba34306f4a3f0",
-    "base/architecture_v2_catalog.cue": "sha256:23edd74291a668f6cb1cf1a386090bf2c2b53a1341882953d43f604b1712e9ad",
+    "base/architecture_v2.cue": "sha256:92d661c40eea9fac8359894781784a1d754dc931ad71f82178d36e4de4e66b93",
+    "base/architecture_v2_catalog.cue": "sha256:d93916ce4bc159fae25e7f2d52d0b4b9964d1d3ef1924e61e64a9da468240962",
     "base/architecture_v2_definition_binding.cue": "sha256:692c5ec5ed511c8ee23e5a0a11c4911c8a865efda9464dbceb6c28d92aa9a5bd",
     "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",
     "basement-kit/stackfile.cue": "sha256:2072cf0dfcb2f25f7caa0d15083f9b699c7e73c43993721b1f17a75c9897a7c5",

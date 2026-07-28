@@ -1,17 +1,29 @@
 # StackKits API
 
-> Last verified: 2026-07-24
+> Last verified: 2026-07-28
 
-This document summarizes the StackKits HTTP API for operators, TechStack integrations, and AI agents. The general contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml); the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server) and [internal/api](../internal/api). The node-operational StackAction v1 subset is generated from the sole CUE authority [base/stack_action.cue](../base/stack_action.cue) into `internal/stackaction` and marked OpenAPI regions.
+This document summarizes the local and compatibility StackKits HTTP API. The
+general contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml);
+the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server)
+and [internal/api](../internal/api). This server is neither a standalone
+lifecycle dependency nor the v0.9 target Techstack orchestration boundary.
 
-The HTTP server is not the v0.8 standalone lifecycle authority or the public
-Techstack integration boundary. The supported standalone surface is the
-published `stackkit` binary, release index, `stackkit.command-result/v1` JSON,
-and versioned JSONL events. Techstack uses those artifacts as its optional
-Orchestrator UI for configuration unification and Advanced Day-2/RIL dispatch.
-The internal service-auth routes below are compatibility surfaces and cannot
-mint local Owner evidence, reinterpret the ResolvedPlan, or become a
-prerequisite for Standard Mode.
+The HTTP server is not the standalone lifecycle authority or the Techstack
+integration boundary. The supported standalone surface is the published
+`stackkit` binary, release index, `stackkit.command-result/v1` JSON, and
+versioned JSONL events.
+
+In the v0.9 target architecture, Techstack uses those artifacts through its own
+transport: Techstack Core/UI sends a closed `StackKitCommand` over a
+Techstack-owned outbound/reverse mTLS gRPC channel to the node-side Techstack
+Agent, which revalidates and invokes the exact pinned `stackkit` CLI subprocess.
+gRPC terminates in that Agent, not in StackKits. The Agent returns bounded
+`stackkit.command-result/v1` and `stackkit.rollout-event/v1` JSONL.
+
+This describes the target contract. Agent execution-channel admission is Slice
+2 and is not claimed as Slice 1 delivery evidence. The internal service-auth
+routes below are compatibility surfaces and cannot mint local Owner evidence,
+reinterpret the ResolvedPlan, or become a prerequisite for Standard Mode.
 
 Implementation note: `internal/api/server.go` registers health, capabilities, catalog, validation, generation, node-local management, log, node-local setup, Architecture-v2 RuntimeAction, StackAction, and Direct Connect registry routes.
 
@@ -20,7 +32,7 @@ Implementation note: `internal/api/server.go` registers health, capabilities, ca
 | Surface | Base URL | Purpose |
 | --- | --- | --- |
 | Local development | `http://localhost:8082` | Local `stackkit-server` process. |
-| Production edge | `https://api.kombify.io/stackkits` | Cloudflare edge route used by kombify consumers. |
+| Compatibility edge | `https://api.kombify.io/stackkits` | Optional legacy/compatibility route; not a standalone lifecycle or Techstack orchestration dependency. |
 
 ## Authentication
 
@@ -40,7 +52,10 @@ Set `STACKKITS_RUNTIME_PROFILE=production`, `public`, `managed`, or
 to start with unauthenticated API access or wildcard CORS, even if the local
 development flags are present.
 
-Internal runtime-action endpoints are not browser/API-key endpoints. They require `X-Kombify-Service-Auth` with caller `techstack` and audience `stackkits`; configure `SERVICE_AUTH_SECRET` and optional `SERVICE_AUTH_SECRET_NEXT` on the server. The versioned wire contract is `github.com/kombify/kombify-go-common/runtimeaction`; local OpenAPI schemas document the service surface but are not a separate source of truth. Governed rollout and verification use the physically separate `/api/v2/internal/runtime-actions/stackkit-rollout` and `/api/v2/internal/runtime-actions/stackkit-verify` routes. Those routes admit only explicit `stackkit.runtime-action/v2alpha1`: a closed provider-free envelope containing StackSpec, Inventory, expected plan hash, stack/tenant/owner identity, and endpoint-bound rollout/verify operation. Raw host transport, SSH material, provider lease identity, caller-selected IaC paths, backup, wipe, restore, upgrade, and simulation have no representation. Valid V2 admission currently returns typed `501 architecture_v2_runtime_action_not_implemented` before dry-run, OpenTofu, SSH, enrollment, or legacy verification.
+The internal runtime-action HTTP routes below document historical v0.7.1
+compatibility and migration debt. They are not the v0.9 Techstack delivery
+path and must not be used to introduce a StackKits gRPC endpoint or a managed
+control-plane dependency into the public CLI.
 
 The three deployment routes below `/api/v1/internal/runtime-actions/` are exact-v0.6 compatibility only. Native v0.7 returns `410 legacy_runtime_action_retired` before decoding or execution. This StackSpec/deployment retirement does not silently re-version the independently shared backup-operation protocol (`backup-run`, `backup-status`, `backup-restore`, `backup-wipe`); those actions are a separate go-common contract and are not evidence that StackSpec v1 remains operational.
 

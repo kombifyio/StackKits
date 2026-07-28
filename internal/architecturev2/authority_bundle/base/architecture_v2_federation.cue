@@ -80,7 +80,7 @@ _architectureV2ProfileExtensionCapabilityContracts: list.Concat([
 _architectureV2ModernFederationPolicySupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
-	level:           "generation-ready"
+	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {
 		contractComplete: true
@@ -108,7 +108,7 @@ _architectureV2ModernFederationPolicySupport: #ModuleRealizationSupportV2 & {
 			outputRef: "modern/federation/policy.json"
 		}]
 	}
-	evidence: requiredRefs: []
+	evidence: requiredRefs: ["modern-federation-policy-enforcement"]
 }
 
 _architectureV2ModernHomeIdentityTrustSupport: #ModuleRealizationSupportV2 & {
@@ -202,12 +202,7 @@ _architectureV2FederationRuntimeSupports: {
 		"\(runtimeName)": #ModuleRealizationSupportV2 & {
 			contractVersion: "1.0.0"
 			scope:           "concrete"
-			if runtimeName == "link" || runtimeName == "controlAgent" {
-				level: "apply-ready"
-			}
-			if runtimeName != "link" && runtimeName != "controlAgent" {
-				level: "generation-ready"
-			}
+			level: "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
 			inputs: {contractComplete: true, requiredRefs: []}
 			planInputs: {
@@ -240,8 +235,11 @@ _architectureV2FederationRuntimeSupports: {
 			if runtimeName == "controlAgent" {
 				evidence: requiredRefs: ["federation-control-agent-evidence"]
 			}
-			if runtimeName != "link" && runtimeName != "controlAgent" {
-				evidence: requiredRefs: []
+			if runtimeName == "backup" {
+				evidence: requiredRefs: ["federation-backup-evidence"]
+			}
+			if runtimeName == "observability" {
+				evidence: requiredRefs: ["federation-observability-evidence"]
 			}
 		}
 	}
@@ -489,9 +487,10 @@ _architectureV2ProfileExtensionModules: [
 		role: "foundation", providerRef: "stackkits-federation-backup", provides: ["cross-site-backup"]
 		requires: ["stackkits-modern-federation-policy-manifest"]
 		supportedSiteKinds: ["home", "cloud"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status: "unbound", ownerRef: "stackkits-federation-backup-executor", capabilityRefs: ["cross-site-backup"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-federation-backup-executor"
+			policyArtifactRefs: ["federation-backup-executor-contract"]
 			targetScope: "federated-sites", operations: ["bind-cross-site-backup", "remove-cross-site-backup-binding", "verify-cross-site-backup"]
 			requiredHealthRef: "federation-backup-health", requiredEvidenceRef: "federation-backup-evidence"
 		}
@@ -502,18 +501,19 @@ _architectureV2ProfileExtensionModules: [
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationBackupPolicy"]
 			outputs: ["modern/federation/backup/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.backup
-		health: [{id: "federation-backup-contract", kind: "contract"}], evidence: ["federation-backup-contract"]
+		health: [{id: "federation-backup-health", kind: "contract", scope: "each-node"}], evidence: ["federation-backup-evidence"]
 	},
 	{
 		metadata: {id: "stackkits-federation-observability-runtime", version: "1.0.0", description: "Typed bridge-observability boundary; telemetry backend lifecycle, credentials, transport, and provider configuration remain external."}
 		role: "operations", providerRef: "stackkits-federation-observability", provides: ["bridge-observability"]
 		requires: ["stackkits-modern-federation-policy-manifest"]
 		supportedSiteKinds: ["home", "cloud"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status: "unbound", ownerRef: "stackkits-federation-observability-executor", capabilityRefs: ["bridge-observability"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-federation-observability-executor"
+			policyArtifactRefs: ["federation-observability-executor-contract"]
 			targetScope: "federated-sites", operations: ["bind-bridge-observability", "remove-bridge-observability", "verify-bridge-observability"]
 			requiredHealthRef: "federation-observability-health", requiredEvidenceRef: "federation-observability-evidence"
 		}
@@ -524,9 +524,9 @@ _architectureV2ProfileExtensionModules: [
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationObservability"]
 			outputs: ["modern/federation/observability/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}], realizationSupport: _architectureV2FederationRuntimeSupports.observability
-		health: [{id: "federation-observability-contract", kind: "contract"}], evidence: ["federation-observability-contract"]
+		health: [{id: "federation-observability-health", kind: "contract", scope: "each-node"}], evidence: ["federation-observability-evidence"]
 	},
 	{
 		metadata: {
@@ -608,14 +608,25 @@ _architectureV2ProfileExtensionModules: [
 		metadata: {
 			id:          "stackkits-modern-federation-policy-manifest"
 			version:     "1.0.0"
-			description: "Generation-only Modern federation and partition policy manifest; transport, publication, control-agent, and verifier realization remain separately blocked."
+			description: "Node-local Modern federation and partition guardrails; the external Federation link, transport, endpoints, credentials, publication, control-agent, and verifier realization remain separately bound."
 		}
 		role:        "platform"
 		providerRef: "stackkits-modern-federation-policy"
 		provides:    _architectureV2FederationPolicyCapabilities
 		requires: ["stackkits-home-device-authority-policy-manifest"]
 		supportedSiteKinds: ["home", "cloud"]
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		// This owner applies only the exact generated flow and partition policy
+		// to already selected local nodes. It owns no Federation transport,
+		// endpoint discovery, external credential custody, or fabric lifecycle.
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-modern-federation-policy-enforcer"
+			policyArtifactRefs: ["modern-federation-policy-manifest"]
+			targetScope: "federated-sites"
+			operations: ["enforce-declared-federation-flows", "enforce-default-deny", "enforce-partition-fail-closed", "verify-federation-policy"]
+			requiredHealthRef:   "modern-federation-policy-enforcement"
+			requiredEvidenceRef: "modern-federation-policy-enforcement"
+		}
 		renderUnits: [{
 			id:           "policy-bundle"
 			kind:         "native-config"
@@ -628,11 +639,12 @@ _architectureV2ProfileExtensionModules: [
 			planInputRefs: ["stackId", "kit", "sites", "controlPlane", "federationPolicy"]
 			outputs: ["modern/federation/policy.json"]
 			placement: {
-				scope:       "module"
-				cardinality: "single"
+				scope:       "node-local"
+				cardinality: "one-per-node"
 			}
 		}]
 		realizationSupport: _architectureV2ModernFederationPolicySupport
-		evidence: ["resolved-plan-contract"]
+		health: [{id: "modern-federation-policy-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["resolved-plan-contract", "modern-federation-policy-enforcement"]
 	},
 ]

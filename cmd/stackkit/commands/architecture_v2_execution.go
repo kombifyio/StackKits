@@ -47,6 +47,8 @@ type architectureV2ExecutionCLIOptions struct {
 	inventoryPath    string
 	planPath         string
 	manifestPath     string
+	stackSpecData    []byte
+	inventoryData    []byte
 	receiptPath      string
 	localSiteRef     string
 	localNodeRef     string
@@ -365,6 +367,8 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	if err != nil {
 		return err
 	}
+	options.stackSpecData = append([]byte(nil), rawSpec...)
+	options.inventoryData = append([]byte(nil), inventory...)
 	authority, err := g.openV2Authority(wd, mode, options)
 	if err != nil {
 		return err

@@ -5606,14 +5606,30 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "bind-private-remote-access",
+          "remove-private-remote-access",
+          "verify-private-remote-access"
+        ],
+        "ownerRef": "stackkits-home-private-remote-access-executor",
+        "policyArtifactRefs": [
+          "home-private-remote-access-executor-contract"
+        ],
+        "requiredEvidenceRef": "home-private-remote-access-evidence",
+        "requiredHealthRef": "home-private-remote-access-health",
+        "status": "bound",
+        "targetScope": "home-sites"
+      },
       "evidence": [
-        "home-private-remote-access-contract"
+        "home-private-remote-access-evidence"
       ],
       "health": [
         {
-          "id": "home-private-remote-access-contract",
+          "id": "home-private-remote-access-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -5659,13 +5675,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "home-private-remote-access-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -5695,8 +5713,8 @@
             "home/remote-access/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -5727,23 +5745,8 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "private-remote-access"
-        ],
-        "operations": [
-          "bind-private-remote-access",
-          "remove-private-remote-access",
-          "verify-private-remote-access"
-        ],
-        "ownerRef": "stackkits-home-private-remote-access-executor",
-        "requiredEvidenceRef": "home-private-remote-access-evidence",
-        "requiredHealthRef": "home-private-remote-access-health",
-        "status": "unbound",
-        "targetScope": "home-sites"
       },
       "supportedSiteKinds": [
         "home"
@@ -10577,14 +10580,30 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "bind-cross-site-backup",
+          "remove-cross-site-backup-binding",
+          "verify-cross-site-backup"
+        ],
+        "ownerRef": "stackkits-federation-backup-executor",
+        "policyArtifactRefs": [
+          "federation-backup-executor-contract"
+        ],
+        "requiredEvidenceRef": "federation-backup-evidence",
+        "requiredHealthRef": "federation-backup-health",
+        "status": "bound",
+        "targetScope": "federated-sites"
+      },
       "evidence": [
-        "federation-backup-contract"
+        "federation-backup-evidence"
       ],
       "health": [
         {
-          "id": "federation-backup-contract",
+          "id": "federation-backup-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10630,13 +10649,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "federation-backup-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -10666,8 +10687,8 @@
             "modern/federation/backup/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -10697,23 +10718,8 @@
       "role": "foundation",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "cross-site-backup"
-        ],
-        "operations": [
-          "bind-cross-site-backup",
-          "remove-cross-site-backup-binding",
-          "verify-cross-site-backup"
-        ],
-        "ownerRef": "stackkits-federation-backup-executor",
-        "requiredEvidenceRef": "federation-backup-evidence",
-        "requiredHealthRef": "federation-backup-health",
-        "status": "unbound",
-        "targetScope": "federated-sites"
       },
       "supportedSiteKinds": [
         "home",
@@ -10721,14 +10727,30 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "bind-bridge-observability",
+          "remove-bridge-observability",
+          "verify-bridge-observability"
+        ],
+        "ownerRef": "stackkits-federation-observability-executor",
+        "policyArtifactRefs": [
+          "federation-observability-executor-contract"
+        ],
+        "requiredEvidenceRef": "federation-observability-evidence",
+        "requiredHealthRef": "federation-observability-health",
+        "status": "bound",
+        "targetScope": "federated-sites"
+      },
       "evidence": [
-        "federation-observability-contract"
+        "federation-observability-evidence"
       ],
       "health": [
         {
-          "id": "federation-observability-contract",
+          "id": "federation-observability-health",
           "kind": "contract",
           "phase": "post-apply",
+          "scope": "each-node",
           "timeoutSeconds": 30
         }
       ],
@@ -10774,13 +10796,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "federation-observability-evidence"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -10810,8 +10834,8 @@
             "modern/federation/observability/executor-contract.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -10841,23 +10865,8 @@
       "role": "operations",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "host"
-      },
-      "runtimeOwnerRequirement": {
-        "capabilityRefs": [
-          "bridge-observability"
-        ],
-        "operations": [
-          "bind-bridge-observability",
-          "remove-bridge-observability",
-          "verify-bridge-observability"
-        ],
-        "ownerRef": "stackkits-federation-observability-executor",
-        "requiredEvidenceRef": "federation-observability-evidence",
-        "requiredHealthRef": "federation-observability-health",
-        "status": "unbound",
-        "targetScope": "federated-sites"
       },
       "supportedSiteKinds": [
         "home",
@@ -11178,11 +11187,37 @@
       ]
     },
     {
+      "enforcementRequirement": {
+        "operations": [
+          "enforce-declared-federation-flows",
+          "enforce-default-deny",
+          "enforce-partition-fail-closed",
+          "verify-federation-policy"
+        ],
+        "ownerRef": "stackkits-modern-federation-policy-enforcer",
+        "policyArtifactRefs": [
+          "modern-federation-policy-manifest"
+        ],
+        "requiredEvidenceRef": "modern-federation-policy-enforcement",
+        "requiredHealthRef": "modern-federation-policy-enforcement",
+        "status": "bound",
+        "targetScope": "federated-sites"
+      },
       "evidence": [
-        "resolved-plan-contract"
+        "resolved-plan-contract",
+        "modern-federation-policy-enforcement"
+      ],
+      "health": [
+        {
+          "id": "modern-federation-policy-enforcement",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
       ],
       "metadata": {
-        "description": "Generation-only Modern federation and partition policy manifest; transport, publication, control-agent, and verifier realization remain separately blocked.",
+        "description": "Node-local Modern federation and partition guardrails; the external Federation link, transport, endpoints, credentials, publication, control-agent, and verifier realization remain separately bound.",
         "id": "stackkits-modern-federation-policy-manifest",
         "version": "1.0.0"
       },
@@ -11224,13 +11259,15 @@
         ],
         "contractVersion": "1.0.0",
         "evidence": {
-          "requiredRefs": []
+          "requiredRefs": [
+            "modern-federation-policy-enforcement"
+          ]
         },
         "inputs": {
           "contractComplete": true,
           "requiredRefs": []
         },
-        "level": "generation-ready",
+        "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
           "requiredRefs": [
@@ -11258,8 +11295,8 @@
             "modern/federation/policy.json"
           ],
           "placement": {
-            "cardinality": "single",
-            "scope": "module"
+            "cardinality": "one-per-node",
+            "scope": "node-local"
           },
           "planInputRefs": [
             "stackId",
@@ -11287,7 +11324,7 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "supportedSiteKinds": [

@@ -87,6 +87,14 @@ nodes:
       profile: standard
     failureDomain: home-host-a
     enabled: true
+  - id: home-standby
+    siteRef: home
+    roles: [controller, worker, storage]
+    hardware:
+      arch: amd64
+      profile: standard
+    failureDomain: home-host-b
+    enabled: true
   - id: cloud-edge
     siteRef: edge
     roles: [edge, worker]
@@ -98,9 +106,9 @@ nodes:
 
 # Control, identity signing, device enrollment, and data authority remain Home.
 controlPlane:
-  mode: single
+  mode: warm-standby
   authoritySiteRef: home
-  members: [home-main]
+  members: [home-main, home-standby]
 
 capabilities:
   enable: []
@@ -112,10 +120,17 @@ workloads:
       siteRefs: [home]
       nodeRefs: [home-main]
 
+addons:
+  ha:
+    enabled: true
+
 availability:
-  enabled: false
-  mode: single
-  fencing: none
+  enabled: true
+  mode: warm-standby
+  rpoSeconds: 120
+  rtoSeconds: 600
+  failureDomainSpread: 2
+  fencing: automatic
 
 deviceEnrollment:
   mode: local-only

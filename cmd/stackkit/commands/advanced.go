@@ -27,14 +27,17 @@ const (
 )
 
 var (
-	advancedTrustBundlePath string
-	advancedTrustDigest     string
-	advancedTrustOwnerOK    bool
-	advancedTrustJSON       bool
-	advancedCapabilityPath  string
-	advancedCandidatePath   string
-	advancedChangeSetJSON   bool
-	advancedSHA256Pattern   = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	advancedTrustBundlePath    string
+	advancedTrustDigest        string
+	advancedTrustOwnerOK       bool
+	advancedTrustJSON          bool
+	advancedCapabilityPath     string
+	advancedCandidatePath      string
+	advancedChangeSetJSON      bool
+	advancedChangeSetID        string
+	advancedChangeSetDigest    string
+	advancedChangeSetApplyJSON bool
+	advancedSHA256Pattern      = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
 var advancedCmd = &cobra.Command{
@@ -74,6 +77,13 @@ var advancedChangeSetCreateCmd = &cobra.Command{
 	Short: "Create an Owner-signed Terramate change set",
 	Args:  cobra.NoArgs,
 	RunE:  runAdvancedChangeSetCreate,
+}
+
+var advancedChangeSetApplyCmd = &cobra.Command{
+	Use:   "apply",
+	Short: "Apply an exact Owner-approved Terramate change set",
+	Args:  cobra.NoArgs,
+	RunE:  runAdvancedChangeSetApply,
 }
 
 func init() {
@@ -119,8 +129,28 @@ func init() {
 		&advancedChangeSetJSON, "json", false,
 		"Emit stackkit.command-result/v1 JSON",
 	)
+	advancedChangeSetApplyCmd.Flags().StringVar(
+		&advancedCapabilityPath, "capability", "",
+		"Path to the canonical stackkit.advanced-capability/v1 used to create the change set",
+	)
+	advancedChangeSetApplyCmd.Flags().StringVar(
+		&advancedCandidatePath, "candidate-spec", "",
+		"Path to the exact candidate StackSpec v2 using generation.target=terramate",
+	)
+	advancedChangeSetApplyCmd.Flags().StringVar(
+		&advancedChangeSetID, "change-set", "",
+		"Exact sha256:<hex> Owner-signed change-set content address",
+	)
+	advancedChangeSetApplyCmd.Flags().StringVar(
+		&advancedChangeSetDigest, "expect-sha256", "",
+		"Required exact sha256:<hex> digest of the canonical stored change-set bytes",
+	)
+	advancedChangeSetApplyCmd.Flags().BoolVar(
+		&advancedChangeSetApplyJSON, "json", false,
+		"Emit stackkit.command-result/v1 JSON",
+	)
 	advancedTrustCmd.AddCommand(advancedTrustImportCmd, advancedTrustInspectCmd)
-	advancedChangeSetCmd.AddCommand(advancedChangeSetCreateCmd)
+	advancedChangeSetCmd.AddCommand(advancedChangeSetCreateCmd, advancedChangeSetApplyCmd)
 	advancedCmd.AddCommand(advancedTrustCmd, advancedChangeSetCmd)
 	rootCmd.AddCommand(advancedCmd)
 }

@@ -1006,7 +1006,12 @@ _architectureV2HomeExtensionRuntimeSupports: {
 		"\(runtimeName)": #ModuleRealizationSupportV2 & {
 			contractVersion: "1.0.0"
 			scope:           "concrete"
-			level:           "generation-ready"
+			if runtimeName == "privateRemoteAccess" {
+				level: "apply-ready"
+			}
+			if runtimeName != "privateRemoteAccess" {
+				level: "generation-ready"
+			}
 			compatibleRendererRefs: ["stackkit"]
 			inputs: {contractComplete: true, requiredRefs: []}
 			planInputs: {
@@ -1026,7 +1031,7 @@ _architectureV2HomeExtensionRuntimeSupports: {
 					unitRef: "executor-contract", outputRef: artifact.outputRef
 				}]
 			}
-			evidence: requiredRefs: []
+			evidence: requiredRefs: [for ref in ["home-private-remote-access-evidence"] if runtimeName == "privateRemoteAccess" {ref}]
 		}
 	}
 }
@@ -1728,10 +1733,10 @@ _architectureV2Modules: list.Concat([[
 		role: "platform", providerRef: "stackkits-home-private-remote-access", provides: _architectureV2HomePrivateRemoteAccessCapabilities
 		requires: ["stackkits-core-host-bootstrap", "stackkits-home-access-policy-manifest"]
 		supportedSiteKinds: ["home"]
-		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
-		runtimeOwnerRequirement: {
-			status:         "unbound", ownerRef: "stackkits-home-private-remote-access-executor"
-			capabilityRefs: _architectureV2HomePrivateRemoteAccessCapabilities
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-home-private-remote-access-executor"
+			policyArtifactRefs: ["home-private-remote-access-executor-contract"]
 			targetScope:    "home-sites", operations: ["bind-private-remote-access", "remove-private-remote-access", "verify-private-remote-access"]
 			requiredHealthRef: "home-private-remote-access-health", requiredEvidenceRef: "home-private-remote-access-evidence"
 		}
@@ -1742,11 +1747,11 @@ _architectureV2Modules: list.Concat([[
 			publicInputRefs: [], secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "homeAccessHandoff"]
 			inputBindings: [], outputs: ["home/remote-access/executor-contract.json"]
-			placement: {scope: "module", cardinality: "single"}
+			placement: {scope: "node-local", cardinality: "one-per-node"}
 		}]
 		realizationSupport: _architectureV2HomeExtensionRuntimeSupports.privateRemoteAccess
-		health: [{id: "home-private-remote-access-contract", kind: "contract"}]
-		evidence: ["home-private-remote-access-contract"]
+		health: [{id: "home-private-remote-access-health", kind: "contract", scope: "each-node"}]
+		evidence: ["home-private-remote-access-evidence"]
 	},
 	{
 		metadata: {

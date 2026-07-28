@@ -145,7 +145,7 @@ func newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(
 	if err != nil {
 		return nil, fmt.Errorf("construct Architecture v2 product runtime identity: %w", err)
 	}
-	registrations, err := architectureV2LocalRuntimeOwnerRegistrations(workspaceRoot, runtimeVersion)
+	registrations, err := architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion, options)
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +197,10 @@ func bindArchitectureV2LocalExecutionOptions(options architectureV2ExecutionCLIO
 }
 
 func architectureV2LocalRuntimeOwnerRegistrations(workspaceRoot, runtimeVersion string) ([]architecturev2.ProductRuntimeOwnerRegistration, error) {
+	return architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion, architectureV2ExecutionCLIOptions{})
+}
+
+func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion string, options architectureV2ExecutionCLIOptions) ([]architecturev2.ProductRuntimeOwnerRegistration, error) {
 	policies, err := runtimeexecutorlocal.NewOSBasementPolicyOperations(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("configure owner-bound local policy operations: %w", err)
@@ -242,10 +246,48 @@ func architectureV2LocalRuntimeOwnerRegistrations(workspaceRoot, runtimeVersion 
 		}
 		registrations = append(registrations, registration)
 	}
+	_, active, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+	if err != nil {
+		return nil, err
+	}
+	if active {
+		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(
+			architecturev2.ProductRuntimeOwnerCloudHostSecurity,
+			architecturev2.ProductRuntimeOwnerCloudPublicEdge,
+			architecturev2.ProductRuntimeOwnerPublicTLS,
+			architecturev2.ProductRuntimeOwnerModernHomeIdentity,
+			architecturev2.ProductRuntimeOwnerModernCloudIdentity,
+			architecturev2.ProductRuntimeOwnerFederationLink,
+			architecturev2.ProductRuntimeOwnerFederationControlAgent,
+			architecturev2.ProductRuntimeOwnerBridgePublication,
+			architecturev2.ProductRuntimeOwnerBridgeOriginMTLS,
+			architecturev2.ProductRuntimeOwnerModernFederationPolicy,
+			architecturev2.ProductRuntimeOwnerFederationBackup,
+			architecturev2.ProductRuntimeOwnerFederationObservability,
+			architecturev2.ProductRuntimeOwnerHomePrivateRemoteAccess,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("register Modern process runtime owners: %w", err)
+		}
+		registrations = append(registrations, remote...)
+	}
 	return registrations, nil
 }
 
 func architectureV2ProductExecutionChannels(options architectureV2ExecutionCLIOptions) (architecturev2.ProductExecutionChannelFactory, error) {
+	configuredRuntime, active, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+	if err != nil {
+		return nil, err
+	}
+	if active {
+		channels, err := architecturev2.NewProductProcessExecutionChannelFactory(
+			architectureV2ComponentVersion(version), configuredRuntime.bindings,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("configure multi-Site standard execution channels: %w", err)
+		}
+		return channels, nil
+	}
 	values := []string{options.localSiteRef, options.localNodeRef, options.localChannelRef}
 	configured := 0
 	for _, value := range values {

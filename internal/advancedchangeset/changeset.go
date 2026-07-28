@@ -48,6 +48,17 @@ func Create(request CreateRequest) (Record, error) {
 	return record, nil
 }
 
+// RenderSHA256 exposes the exact canonical render identity used by Record.
+// Apply uses it to prove that freshly rendered candidate bytes are the bytes
+// the Owner approved, before any snapshot or runtime side effect is started.
+func RenderSHA256(result architecturev2renderer.RenderResult) (string, error) {
+	canonical, err := result.MarshalCanonical()
+	if err != nil {
+		return "", wrap(ErrInvalid, "renderResult", "cannot canonicalize render result", err)
+	}
+	return digestBytes(canonical), nil
+}
+
 type renderSnapshot struct {
 	canonical []byte
 	artifacts []architecturev2renderer.Artifact

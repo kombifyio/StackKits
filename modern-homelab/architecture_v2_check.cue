@@ -10,7 +10,17 @@ _assertRemoteAccessCapability: "private-remote-access" & Definition.reachability
 _assertRemoteAccessRole:       "access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].role
 _assertPublicEdgeCapability:   "public-edge" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
 _assertPublicEdgeRole:         "edge" & Definition.reachability.routes.public.requiredRealizations[0].role
+_assertHomeCoreRequired:       "basement-core" & Definition.workloads.required[0]
 _assertPhotosOptional: [for workload in Definition.workloads.optional if workload == "photos" {workload}] & ["photos"]
+_assertHomeBackupTargetRequired: [for capability in Definition.capabilities.required if capability == "local-backup-target" {capability}] & ["local-backup-target"]
+_assertHomeBackupRuntimeRequired: [for capability in Definition.capabilities.required if capability == "local-backup-runtime" {capability}] & ["local-backup-runtime"]
+_assertHASelectable: [for capability in Definition.capabilities.optional if capability == "availability-ha" {capability}] & ["availability-ha"]
+_assertStandaloneOwnerSource:               "local" & Definition.authoring.standaloneOwner.source
+_assertStandaloneOwnerSite:                 "home" & Definition.authoring.standaloneOwner.siteRef
+_assertStandaloneOwnerNode:                 "home-main" & Definition.authoring.standaloneOwner.nodeRef
+_assertStandaloneOwnerChannel:              "local-home-main" & Definition.authoring.standaloneOwner.executionChannelRef
+_assertStandaloneOwnerIdentityProvider:     "pocketid" & Definition.authoring.standaloneOwner.identityProvider
+_assertStandaloneOwnerCertificateAuthority: "step-ca" & Definition.authoring.standaloneOwner.certificateAuthority
 _assertReachabilityMatrix: Definition.reachability & {
 	accessPolicies: {allowedExposures: ["private", "lan", "public"], lanStepDownAllowed: true}
 	routes: {
@@ -52,6 +62,13 @@ _validModernV2: #ModernHomelabStackV2 & {
 				failureDomain: "home-host-a"
 			},
 			{
+				id:      "home-standby"
+				siteRef: "home"
+				roles: ["controller", "worker", "storage"]
+				hardware: {}
+				failureDomain: "home-host-b"
+			},
+			{
 				id:      "cloud-edge"
 				siteRef: "edge"
 				roles: ["edge", "worker"]
@@ -59,11 +76,16 @@ _validModernV2: #ModernHomelabStackV2 & {
 				failureDomain: "cloud-zone-a"
 			},
 		]
-		controlPlane: {authoritySiteRef: "home", members: ["home-main"]}
+		controlPlane: {mode: "warm-standby", authoritySiteRef: "home", members: ["home-main", "home-standby"]}
 		capabilities: enable: []
 		workloads: photos: {
 			alternative: "immich"
 			placement: {siteRefs: ["home"], nodeRefs: ["home-main"]}
+		}
+		addons: ha: enabled: true
+		availability: {
+			enabled: true, mode: "warm-standby", rpoSeconds: 120, rtoSeconds: 600
+			failureDomainSpread: 2, fencing: "automatic"
 		}
 		deviceEnrollment: {
 			mode:                      "local-only"

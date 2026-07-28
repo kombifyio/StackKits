@@ -49,8 +49,9 @@ test('publisher dispatches public trust only after final immutable evidence', ()
   assert.doesNotMatch(privatePublish, /permission-actions: write/u)
   assert.match(
     privatePublish,
-    /event_type:"stackkits-release-ready"[\s\S]*?client_payload:\{tag:\$tag,source_commit:\$sourceCommit\}[\s\S]*?repos\/\$\{OSS_REPO\}\/dispatches/u
+    /event_type:"stackkits-release-ready"[\s\S]*?client_payload:\{tag:\$tag,source_commit:\$sourceCommit,stable_previous_tag:\$stablePreviousTag\}[\s\S]*?repos\/\$\{OSS_REPO\}\/dispatches/u
   )
+  assert.match(privatePublish, /stable_previous_tag: \$\{\{ steps\.plan\.outputs\.stable_previous_tag \}\}/u)
 })
 
 test('public manual workflow binds exact ready draft bytes before publishing a release', () => {
@@ -140,8 +141,10 @@ test('public manual workflow binds exact ready draft bytes before publishing a r
     ]
   )
   for (const stableFragment of [
-    'Download and verify exact previous beta release for stable Day-2',
+    'Download and verify exact previous stable release for stable Day-2',
     'stable_previous_tag:',
+    '-f "stable_previous_tag=$STABLE_PREVIOUS_TAG"',
+    'Expected the exact frozen published stable SemVer',
     'STACKKIT_E2E_STABLE_DAY2_PROOF: "1"',
     'STACKKIT_E2E_PREVIOUS_TAG',
     'STACKKIT_E2E_PREVIOUS_ARCHIVE',
@@ -151,27 +154,35 @@ test('public manual workflow binds exact ready draft bytes before publishing a r
     'stable-restore-e2e:',
     'Run bounded exact-archive stable restore proof',
     'Attest exact stable restore evidence',
+    'modern-runtime-e2e:',
+    'Modern exact-archive runtime and partition proof',
+    'modern-ha-e2e:',
+    'Modern measured warm-standby proof',
+    'modern-terminal-receipt:',
+    'Compose exact Modern terminal receipt',
+    'modern-terminal-live-receipt.json',
     'finalize-stable-release:',
-    'Publish stable from exact Day-2 and restore receipts',
+    'Publish stable from exact Basement and Modern receipts',
     '--prerelease=false',
     '--latest'
   ]) {
     assert.match(publicRelease, new RegExp(stableFragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
   }
   assert.doesNotMatch(publicRelease, /Stable release gate incomplete/u)
-  before(publicRelease, 'Download and verify exact previous beta release for stable Day-2', 'Run bounded stable Day-2 proof from exact beta baseline to candidate')
-  before(publicRelease, 'Run bounded stable Day-2 proof from exact beta baseline to candidate', 'Attest exact stable Day-2 evidence')
+  before(publicRelease, 'Download and verify exact previous stable release for stable Day-2', 'Run bounded stable Day-2 proof from exact stable baseline to candidate')
+  before(publicRelease, 'Run bounded stable Day-2 proof from exact stable baseline to candidate', 'Attest exact stable Day-2 evidence')
   before(publicRelease, 'Run bounded exact-archive stable restore proof', 'Attest exact stable restore evidence')
-  before(publicRelease, 'Attest exact stable Day-2 evidence', 'Publish stable from exact Day-2 and restore receipts')
-  before(publicRelease, 'Attest exact stable restore evidence', 'Publish stable from exact Day-2 and restore receipts')
+  before(publicRelease, 'Attest exact stable Day-2 evidence', 'Publish stable from exact Basement and Modern receipts')
+  before(publicRelease, 'Attest exact stable restore evidence', 'Publish stable from exact Basement and Modern receipts')
+  before(publicRelease, 'Compose exact Modern terminal receipt', 'Publish stable from exact Basement and Modern receipts')
   const stableDay2Step = publicRelease.slice(
-    publicRelease.indexOf('- name: Run bounded stable Day-2 proof from exact beta baseline to candidate'),
+    publicRelease.indexOf('- name: Run bounded stable Day-2 proof from exact stable baseline to candidate'),
     publicRelease.indexOf('- name: Retain sanitized standalone failure diagnostics')
   )
   assert.doesNotMatch(stableDay2Step, /STACKKIT_E2E_RESTORE_PROOF/u)
   assert.match(
     publicRelease,
-    /finalize-stable-release:[\s\S]*?needs: \[runtime-e2e, stable-restore-e2e\][\s\S]*?\.source == \{commit: \$sourceCommit, digest: \$sourceDigest\}[\s\S]*?\.archive\.sha256 == \$candidateArchiveSha256[\s\S]*?gh release edit "\$TAG"/u
+    /finalize-stable-release:[\s\S]*?needs: \[runtime-e2e, stable-restore-e2e, modern-terminal-receipt\][\s\S]*?\.source == \{commit: \$sourceCommit, digest: \$sourceDigest\}[\s\S]*?\.archive\.sha256 == \$candidateArchiveSha256[\s\S]*?validate-modern-terminal-receipt\.mjs[\s\S]*?gh release edit "\$TAG"/u
   )
 })
 

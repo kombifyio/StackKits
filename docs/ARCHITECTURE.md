@@ -1,6 +1,6 @@
 # Architecture — kombify StackKits
 
-> Last verified: 2026-07-26
+> Last verified: 2026-07-28
 
 This is the current implementation overview for this repo. Normative product and module rules are summarized here and in accepted ADRs.
 
@@ -33,24 +33,42 @@ evidence are authoritative. Remote databases may mirror public registry or
 fleet state, but they do not replace live CUE contracts or gate the standalone
 lifecycle.
 
-### v0.8 standalone boundary
+### Standalone product and optional orchestration boundary
 
 [ADR-0031](ADR/ADR-0031-stackkits-standalone-lifecycle-boundary.md) defines the
-v0.8 product boundary: StackKits is the standalone CLI-manageable Homelab
-standard. Local CUE plus lifecycle evidence are authoritative, and attested
-GitHub Releases are the account-free distribution source.
+product boundary: StackKits is the standalone CLI-manageable Homelab standard.
+Local CUE, StackSpec, immutable ResolvedPlan, lifecycle state, Owner custody,
+and evidence are authoritative. Attested GitHub Releases are the account-free
+distribution source.
 
-Techstack is the optional Orchestrator UI. It may unify compatible,
-user-approved StackSpec inputs and dispatch Standard operations or
-capability-gated Advanced Day-2/RIL workflows through exactly pinned public
-binaries and versioned JSON/JSONL. StackKits performs final CUE validation and
-never delegates ResolvedPlan interpretation or local authority.
+For v0.9, Techstack is the optional Orchestrator UI, Config Unifier, and Advanced
+Day-2/RIL control plane. Techstack Core sends only a closed `StackKitCommand`
+over its own outbound/reverse mTLS gRPC worker channel to the node-side
+Techstack Agent. The Agent revalidates the exact release pin, index, receipt,
+and executable; scrubs Techstack/Kombify control environment; and starts the
+exact published CLI locally. Results return only as bounded
+`stackkit.command-result/v1` plus `stackkit.rollout-event/v1` JSONL. StackKits
+has no gRPC server and owns no Techstack worker enrollment, certificates, or
+transport.
 
-The Owner is local: PocketID holds the human directory, TinyAuth provides OIDC
-login, and StackKits binds the PocketID subject to `ownerRef` plus the
-step-ca-certified evidence key. kombify Cloud may offer user-approved profile
-sync as a convenience projection into PocketID. It never synchronizes
-credentials or becomes a standalone prerequisite.
+This paragraph specifies the v0.9 target boundary. Slice 1 does not claim the
+execution channel is live; executable Agent admission is Slice 2.
+
+The Config Unifier emits a review proposal, not a ResolvedPlan. The local Owner
+approves it and the pinned CLI performs final CUE validation and generation.
+Advanced Terramate change sets, Advanced reconcile, coordinated rollback, and
+restore drills require a short-lived offline-valid capability before rendering
+or side effects. Standard CLI apply, verify, upgrade, backup, restore, and
+read-only drift detection require neither Techstack nor that capability.
+
+The Owner is local: PocketID holds the human directory, TinyAuth is the local
+protected-service login and policy broker, and StackKits binds the PocketID
+subject to `ownerRef` plus the local Ed25519 key and its step-ca certificate.
+kombify Cloud may offer only a signed, time-bounded desired identity projection
+for explicit local approval. Outage, unlink, expiry, staleness, or failed
+verification withdraws future Cloud mutation authority without deleting or
+disabling an already approved local identity. Passwords, passkeys, sessions,
+private keys, CA material, and recovery secrets never cross this boundary.
 
 ## Architecture v2 Keystone
 

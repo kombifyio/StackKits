@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
@@ -24,6 +25,10 @@ var (
 	driftReconcileMode         string
 	driftReconcileJSON         bool
 	driftReconcileOwnerApprove bool
+	driftAdvancedCapability    string
+	driftAdvancedCandidate     string
+	driftAdvancedChangeSet     string
+	driftAdvancedChangeSetSHA  string
 	observeArchitectureV2Drift = observeCurrentArchitectureV2Drift
 )
 
@@ -141,6 +146,10 @@ func init() {
 	driftReconcileCmd.Flags().StringVar(&driftReconcileMode, "mode", "standard", "Reconcile mode: standard or advanced")
 	driftReconcileCmd.Flags().BoolVar(&driftReconcileOwnerApprove, "owner-approve", false, "Record explicit local Owner approval for standard reconciliation")
 	driftReconcileCmd.Flags().BoolVar(&driftReconcileJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	driftReconcileCmd.Flags().StringVar(&driftAdvancedCapability, "capability", "", "Advanced: canonical offline capability file")
+	driftReconcileCmd.Flags().StringVar(&driftAdvancedCandidate, "candidate-spec", "", "Advanced: exact Terramate candidate StackSpec")
+	driftReconcileCmd.Flags().StringVar(&driftAdvancedChangeSet, "change-set", "", "Advanced: exact Owner-signed change-set ID")
+	driftReconcileCmd.Flags().StringVar(&driftAdvancedChangeSetSHA, "expect-sha256", "", "Advanced: exact stored change-set byte digest")
 	driftCmd.AddCommand(driftDetectCmd)
 	driftCmd.AddCommand(driftReconcileCmd)
 	rootCmd.AddCommand(driftCmd)
@@ -282,19 +291,61 @@ func runDriftReconcile(cmd *cobra.Command, _ []string) error {
 	if mode == "standard" {
 		return runStandardDriftReconcile(cmd)
 	}
+	if mode == "advanced" {
+		capabilityPath := strings.TrimSpace(driftAdvancedCapability)
+		if capabilityPath == "" {
+			denial := driftOperationDenial{
+				SchemaVersion: operationDenialSchemaVersion,
+				Operation:     "drift-reconcile",
+				Mode:          "advanced",
+				ReasonCode:    string(advancedcapability.ReasonCapabilityUnavailable),
+				Message:       "advanced drift reconciliation requires an offline-verifiable capability",
+			}
+			if driftReconcileJSON {
+				if err := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", denial); err != nil {
+					return err
+				}
+			} else {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Denied: %s\n", denial.Message)
+			}
+			return &driftReconcileDeniedError{denial: denial}
+		}
+		result, err := runAdvancedMutation(cmd, advancedMutationRequest{
+			CapabilityPath: capabilityPath,
+			CandidatePath:  strings.TrimSpace(driftAdvancedCandidate),
+			ChangeSetID:    strings.TrimSpace(driftAdvancedChangeSet),
+			ChangeSetSHA:   strings.TrimSpace(driftAdvancedChangeSetSHA),
+			Operation:      advancedcapability.OperationDriftReconcileAdvanced,
+		})
+		if driftReconcileJSON {
+			status := "success"
+			var data any = result
+			if err != nil {
+				status = "failed"
+				if reason, ok := advancedcapability.Reason(err); ok {
+					status = "denied"
+					data = driftOperationDenial{
+						SchemaVersion: operationDenialSchemaVersion,
+						Operation:     "drift-reconcile",
+						Mode:          "advanced",
+						ReasonCode:    string(reason),
+						Message:       err.Error(),
+					}
+				}
+			}
+			if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), status, data); writeErr != nil {
+				return errors.Join(err, writeErr)
+			}
+		}
+		return err
+	}
 	denial := driftOperationDenial{
 		SchemaVersion: operationDenialSchemaVersion,
 		Operation:     "drift-reconcile",
 		Mode:          mode,
 	}
-	switch mode {
-	case "advanced":
-		denial.ReasonCode = "advanced_capability_unavailable"
-		denial.Message = "advanced drift reconcile is denied until an offline-verified stackkit.advanced-capability/v1 is available"
-	default:
-		denial.ReasonCode = "invalid_reconcile_mode"
-		denial.Message = "drift reconcile mode must be standard or advanced"
-	}
+	denial.ReasonCode = "invalid_reconcile_mode"
+	denial.Message = "drift reconcile mode must be standard or advanced"
 	if driftReconcileJSON {
 		if err := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", denial); err != nil {
 			return err

@@ -10,11 +10,19 @@
   "authoring": {
     "contractVersion": "1.0.0",
     "initialSpec": {
+      "addons": {
+        "ha": {
+          "enabled": true
+        }
+      },
       "apiVersion": "stackkit/v2alpha1",
       "availability": {
-        "enabled": false,
-        "fencing": "none",
-        "mode": "single"
+        "enabled": true,
+        "failureDomainSpread": 2,
+        "fencing": "automatic",
+        "mode": "warm-standby",
+        "rpoSeconds": 120,
+        "rtoSeconds": 600
       },
       "backupPolicy": {},
       "bridge": {
@@ -58,9 +66,10 @@
       "controlPlane": {
         "authoritySiteRef": "home",
         "members": [
-          "home-main"
+          "home-main",
+          "home-standby"
         ],
-        "mode": "single"
+        "mode": "warm-standby"
       },
       "data": {
         "defaultAuthority": "home"
@@ -145,6 +154,20 @@
         },
         {
           "enabled": true,
+          "failureDomain": "node-home-standby",
+          "hardware": {
+            "arch": "amd64",
+            "profile": "standard"
+          },
+          "id": "home-standby",
+          "roles": [
+            "controller",
+            "worker"
+          ],
+          "siteRef": "home"
+        },
+        {
+          "enabled": true,
           "failureDomain": "node-cloud-edge",
           "hardware": {
             "arch": "amd64",
@@ -187,7 +210,18 @@
     "initialSpecStatus": "preview",
     "requiredOverrides": [
       "network.domain.base"
-    ]
+    ],
+    "standaloneOwner": {
+      "certificateAuthority": "step-ca",
+      "executionChannelRef": "local-home-main",
+      "humanAuthorityRef": "home-human-authority",
+      "humanIssuerRef": "home-human-credential-issuer",
+      "identityProvider": "pocketid",
+      "nodeRef": "home-main",
+      "siteRef": "home",
+      "source": "local",
+      "trustDomainRef": "home-stackkit-trust"
+    }
   },
   "availability": {
     "policies": {
@@ -330,6 +364,8 @@
       "local-control-authority",
       "device-enrollment-home",
       "local-ingress",
+      "local-backup-target",
+      "local-backup-runtime",
       "lan-access-policy",
       "offline-autonomy",
       "cross-site-placement",
@@ -939,6 +975,8 @@
     "optional": [
       "photos"
     ],
-    "required": []
+    "required": [
+      "basement-core"
+    ]
   }
 }

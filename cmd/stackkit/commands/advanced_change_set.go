@@ -30,6 +30,17 @@ func admitAdvancedChangeSetCreate(
 	workspace, capabilityPath, candidatePath string,
 	now time.Time,
 ) (advancedChangeSetAdmission, error) {
+	return admitAdvancedChangeSetOperation(
+		workspace, capabilityPath, candidatePath, now,
+		advancedcapability.OperationTerramateChangeSetCreate,
+	)
+}
+
+func admitAdvancedChangeSetOperation(
+	workspace, capabilityPath, candidatePath string,
+	now time.Time,
+	operation string,
+) (advancedChangeSetAdmission, error) {
 	candidateRaw, err := readAdvancedRegular(candidatePath, maxAdvancedCandidateBytes, "candidate StackSpec")
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
@@ -60,7 +71,7 @@ func admitAdvancedChangeSetCreate(
 		return advancedChangeSetAdmission{}, err
 	}
 	if !handled || sourceVersion != stackspecmigration.SourceVersionV2Alpha1 {
-		return advancedChangeSetAdmission{}, errors.New("advanced change-set create requires a canonical Architecture v2 baseline StackSpec")
+		return advancedChangeSetAdmission{}, errors.New("advanced lifecycle operation requires a canonical Architecture v2 baseline StackSpec")
 	}
 	inventory, err := readArchitectureV2Inventory(workspace, "")
 	if err != nil {
@@ -97,7 +108,7 @@ func admitAdvancedChangeSetCreate(
 	grant, err := advancedcapability.Verify(capabilityRaw, advancedcapability.Request{
 		Now: now, TrustBundle: ptrTrustBundle(trust.TrustBundle()),
 		StackID: stackID, OwnerRef: owner.OwnerRef,
-		Operation: advancedcapability.OperationTerramateChangeSetCreate,
+		Operation: operation,
 	})
 	if err != nil {
 		return advancedChangeSetAdmission{}, err

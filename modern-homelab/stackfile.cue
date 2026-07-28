@@ -106,6 +106,8 @@ Definition: base.#ProductKitDefinition & {
 			"local-control-authority",
 			"device-enrollment-home",
 			"local-ingress",
+			"local-backup-target",
+			"local-backup-runtime",
 			"lan-access-policy",
 			"offline-autonomy",
 			"cross-site-placement",
@@ -119,7 +121,7 @@ Definition: base.#ProductKitDefinition & {
 		optional: ["lan-discovery", "lan-dns", "internal-pki", "private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["cloud-enrollment-authority", "broad-lan-route-advertisement"]
 	}
-	workloads: {required: [], defaults: [], optional: ["photos"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: ["photos"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -210,6 +212,17 @@ Definition: base.#ProductKitDefinition & {
 		contractVersion:   "1.0.0"
 		initialSpecStatus: "preview"
 		requiredOverrides: ["network.domain.base"]
+		standaloneOwner: {
+			source:               "local"
+			siteRef:              "home"
+			nodeRef:              "home-main"
+			executionChannelRef:  "local-home-main"
+			identityProvider:     "pocketid"
+			certificateAuthority: "step-ca"
+			humanAuthorityRef:    "home-human-authority"
+			humanIssuerRef:       "home-human-credential-issuer"
+			trustDomainRef:       "home-stackkit-trust"
+		}
 		initialSpec: {
 			apiVersion: "stackkit/v2alpha1"
 			kind:       "StackSpec"
@@ -255,6 +268,12 @@ Definition: base.#ProductKitDefinition & {
 				hardware: {}
 				failureDomain: "node-home-main"
 			}, {
+				id:      "home-standby"
+				siteRef: "home"
+				roles: ["controller", "worker"]
+				hardware: {}
+				failureDomain: "node-home-standby"
+			}, {
 				id:      "cloud-edge"
 				siteRef: "cloud"
 				roles: ["edge", "worker"]
@@ -262,12 +281,20 @@ Definition: base.#ProductKitDefinition & {
 				failureDomain: "node-cloud-edge"
 			}]
 			controlPlane: {
-				mode:             "single"
+				mode:             "warm-standby"
 				authoritySiteRef: "home"
-				members: ["home-main"]
+				members: ["home-main", "home-standby"]
 			}
 			capabilities: {enable: [], disable: []}
-			availability: {}
+			addons: ha: enabled: true
+			availability: {
+				enabled:             true
+				mode:                "warm-standby"
+				rpoSeconds:          120
+				rtoSeconds:          600
+				failureDomainSpread: 2
+				fencing:             "automatic"
+			}
 			deviceEnrollment: {
 				mode:                      "local-only"
 				authoritySiteRef:          "home"

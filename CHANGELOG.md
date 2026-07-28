@@ -4,6 +4,47 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0] - 2026-07-28
+
+> **Modern Homelab and optional orchestration** over the stable, standalone
+> v0.8 StackKits lifecycle.
+
+### Added
+
+- Modern Homelab resolves an explicit Home-and-Cloud topology with local Owner
+  authority, Owner-specific federation projections, and governed warm-standby
+  placement without restoring HA as a separate Kit.
+- Signed execution-channel bundles and the digest-pinned process executor
+  provide an offline-verifiable boundary for Techstack Advanced Day-2 and RIL
+  operations. Inventory carries neither credentials nor transport endpoints.
+- Advanced Terramate change sets can be applied through the published CLI with
+  mandatory capability, Owner, checkpoint, rollback, and verification
+  authority.
+- The public release workflow records an exact Modern terminal receipt from
+  the bounded live phase before stable publication.
+
+### Changed
+
+- v0.8.0 remains the stable standalone Basement baseline. Standard local
+  install, Apply, verify, upgrade, backup, restore, and drift operations remain
+  account-free and do not require Techstack or Kombify Cloud.
+- Techstack remains an optional orchestrator UI, configuration unifier, and
+  RIL dispatcher over pinned public StackKits artifacts and structured
+  results; it does not become local lifecycle or Owner authority.
+
+### Fixed
+
+- Advanced drift-reconcile denials now expose their stable machine-readable
+  reason code before rendering or lifecycle side effects.
+- Execution-channel verification canonicalizes and re-seals runtime requests
+  before comparing their governed digests.
+
+### Release evidence
+
+- Stable publication requires the exact source, public export, immutable
+  archives, release notes, and Modern terminal receipt to agree before the
+  public release is finalized.
+
 ## [0.8.0] - 2026-07-27
 
 > **Stable standalone OSS lifecycle** for an account-free, single-node

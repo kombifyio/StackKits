@@ -11,32 +11,36 @@ import (
 type ProductRuntimeOwnerID string
 
 const (
-	ProductRuntimeOwnerSecurityBaseline       ProductRuntimeOwnerID = "security-baseline"
-	ProductRuntimeOwnerCoreHostBootstrap      ProductRuntimeOwnerID = "stackkits-core-host-bootstrap"
-	ProductRuntimeOwnerHomeBackupTarget       ProductRuntimeOwnerID = "stackkits-home-backup-target"
-	ProductRuntimeOwnerBasementCompose        ProductRuntimeOwnerID = "socket-proxy"
-	ProductRuntimeOwnerBasementIdentityTrust  ProductRuntimeOwnerID = "stackkits-basement-identity-trust-policy-manifest"
-	ProductRuntimeOwnerCloudIdentityTrust     ProductRuntimeOwnerID = "stackkits-cloud-identity-trust-policy-manifest"
-	ProductRuntimeOwnerCloudHostSecurity      ProductRuntimeOwnerID = "stackkits-cloud-host-security-runtime"
-	ProductRuntimeOwnerCloudPublicEdge        ProductRuntimeOwnerID = "stackkits-cloud-public-edge-runtime"
-	ProductRuntimeOwnerCloudOffsiteBackup     ProductRuntimeOwnerID = "stackkits-cloud-offsite-backup-runtime"
-	ProductRuntimeOwnerPublicTLS              ProductRuntimeOwnerID = "stackkits-public-tls-contract"
-	ProductRuntimeOwnerHomeDeviceAuthority    ProductRuntimeOwnerID = "stackkits-home-device-authority-policy-manifest"
-	ProductRuntimeOwnerHomeAccess             ProductRuntimeOwnerID = "stackkits-home-access-policy-manifest"
-	ProductRuntimeOwnerLocalAutonomy          ProductRuntimeOwnerID = "stackkits-local-autonomy-policy-manifest"
-	ProductRuntimeOwnerMonitoringAgent        ProductRuntimeOwnerID = "stackkits-monitoring-agent-runtime"
-	ProductRuntimeOwnerModernHomeIdentity     ProductRuntimeOwnerID = "stackkits-modern-home-identity-trust-policy-manifest"
-	ProductRuntimeOwnerModernCloudIdentity    ProductRuntimeOwnerID = "stackkits-modern-cloud-identity-verifier-policy-manifest"
-	ProductRuntimeOwnerFederationLink         ProductRuntimeOwnerID = "stackkits-federation-link-runtime"
-	ProductRuntimeOwnerFederationControlAgent ProductRuntimeOwnerID = "stackkits-federation-control-agent-runtime"
-	ProductRuntimeOwnerBridgePublication      ProductRuntimeOwnerID = "stackkits-bridge-publication-runtime"
-	ProductRuntimeOwnerBridgeOriginMTLS       ProductRuntimeOwnerID = "stackkits-bridge-origin-mtls-runtime"
-	ProductRuntimeOwnerHABasementWarm         ProductRuntimeOwnerID = "stackkits-ha-basement-warm-runtime"
-	ProductRuntimeOwnerHABasementQuorum       ProductRuntimeOwnerID = "stackkits-ha-basement-quorum-runtime"
-	ProductRuntimeOwnerHACloudWarm            ProductRuntimeOwnerID = "stackkits-ha-cloud-warm-runtime"
-	ProductRuntimeOwnerHACloudQuorum          ProductRuntimeOwnerID = "stackkits-ha-cloud-quorum-runtime"
-	ProductRuntimeOwnerHAModernWarm           ProductRuntimeOwnerID = "stackkits-ha-modern-warm-runtime"
-	ProductRuntimeOwnerHAModernQuorum         ProductRuntimeOwnerID = "stackkits-ha-modern-quorum-runtime"
+	ProductRuntimeOwnerSecurityBaseline        ProductRuntimeOwnerID = "security-baseline"
+	ProductRuntimeOwnerCoreHostBootstrap       ProductRuntimeOwnerID = "stackkits-core-host-bootstrap"
+	ProductRuntimeOwnerHomeBackupTarget        ProductRuntimeOwnerID = "stackkits-home-backup-target"
+	ProductRuntimeOwnerBasementCompose         ProductRuntimeOwnerID = "socket-proxy"
+	ProductRuntimeOwnerBasementIdentityTrust   ProductRuntimeOwnerID = "stackkits-basement-identity-trust-policy-manifest"
+	ProductRuntimeOwnerCloudIdentityTrust      ProductRuntimeOwnerID = "stackkits-cloud-identity-trust-policy-manifest"
+	ProductRuntimeOwnerCloudHostSecurity       ProductRuntimeOwnerID = "stackkits-cloud-host-security-runtime"
+	ProductRuntimeOwnerCloudPublicEdge         ProductRuntimeOwnerID = "stackkits-cloud-public-edge-runtime"
+	ProductRuntimeOwnerCloudOffsiteBackup      ProductRuntimeOwnerID = "stackkits-cloud-offsite-backup-runtime"
+	ProductRuntimeOwnerPublicTLS               ProductRuntimeOwnerID = "stackkits-public-tls-contract"
+	ProductRuntimeOwnerHomeDeviceAuthority     ProductRuntimeOwnerID = "stackkits-home-device-authority-policy-manifest"
+	ProductRuntimeOwnerHomeAccess              ProductRuntimeOwnerID = "stackkits-home-access-policy-manifest"
+	ProductRuntimeOwnerLocalAutonomy           ProductRuntimeOwnerID = "stackkits-local-autonomy-policy-manifest"
+	ProductRuntimeOwnerMonitoringAgent         ProductRuntimeOwnerID = "stackkits-monitoring-agent-runtime"
+	ProductRuntimeOwnerModernHomeIdentity      ProductRuntimeOwnerID = "stackkits-modern-home-identity-trust-policy-manifest"
+	ProductRuntimeOwnerModernCloudIdentity     ProductRuntimeOwnerID = "stackkits-modern-cloud-identity-verifier-policy-manifest"
+	ProductRuntimeOwnerModernFederationPolicy  ProductRuntimeOwnerID = "stackkits-modern-federation-policy-manifest"
+	ProductRuntimeOwnerFederationLink          ProductRuntimeOwnerID = "stackkits-federation-link-runtime"
+	ProductRuntimeOwnerFederationControlAgent  ProductRuntimeOwnerID = "stackkits-federation-control-agent-runtime"
+	ProductRuntimeOwnerFederationBackup        ProductRuntimeOwnerID = "stackkits-federation-backup-runtime"
+	ProductRuntimeOwnerFederationObservability ProductRuntimeOwnerID = "stackkits-federation-observability-runtime"
+	ProductRuntimeOwnerBridgePublication       ProductRuntimeOwnerID = "stackkits-bridge-publication-runtime"
+	ProductRuntimeOwnerBridgeOriginMTLS        ProductRuntimeOwnerID = "stackkits-bridge-origin-mtls-runtime"
+	ProductRuntimeOwnerHomePrivateRemoteAccess ProductRuntimeOwnerID = "stackkits-home-private-remote-access-runtime"
+	ProductRuntimeOwnerHABasementWarm          ProductRuntimeOwnerID = "stackkits-ha-basement-warm-runtime"
+	ProductRuntimeOwnerHABasementQuorum        ProductRuntimeOwnerID = "stackkits-ha-basement-quorum-runtime"
+	ProductRuntimeOwnerHACloudWarm             ProductRuntimeOwnerID = "stackkits-ha-cloud-warm-runtime"
+	ProductRuntimeOwnerHACloudQuorum           ProductRuntimeOwnerID = "stackkits-ha-cloud-quorum-runtime"
+	ProductRuntimeOwnerHAModernWarm            ProductRuntimeOwnerID = "stackkits-ha-modern-warm-runtime"
+	ProductRuntimeOwnerHAModernQuorum          ProductRuntimeOwnerID = "stackkits-ha-modern-quorum-runtime"
 )
 
 // ProductRuntimeOwnerDescriptor exposes one immutable value projection of a
@@ -69,10 +73,14 @@ func ProductStaticRuntimeOwnerCatalog() []ProductRuntimeOwnerDescriptor {
 		{ID: ProductRuntimeOwnerMonitoringAgent, Selector: productMonitoringAgentSelector()},
 		{ID: ProductRuntimeOwnerModernHomeIdentity, Selector: productModernHomeIdentitySelector()},
 		{ID: ProductRuntimeOwnerModernCloudIdentity, Selector: productModernCloudIdentitySelector()},
+		{ID: ProductRuntimeOwnerModernFederationPolicy, Selector: productModernFederationPolicySelector()},
 		{ID: ProductRuntimeOwnerFederationLink, Selector: productFederationLinkSelector()},
 		{ID: ProductRuntimeOwnerFederationControlAgent, Selector: productFederationControlAgentSelector()},
+		{ID: ProductRuntimeOwnerFederationBackup, Selector: productFederationBackupSelector()},
+		{ID: ProductRuntimeOwnerFederationObservability, Selector: productFederationObservabilitySelector()},
 		{ID: ProductRuntimeOwnerBridgePublication, Selector: productBridgePublicationSelector()},
 		{ID: ProductRuntimeOwnerBridgeOriginMTLS, Selector: productBridgeOriginMTLSSelector()},
+		{ID: ProductRuntimeOwnerHomePrivateRemoteAccess, Selector: productHomePrivateRemoteAccessSelector()},
 		{ID: ProductRuntimeOwnerHABasementWarm, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHABasementWarm))},
 		{ID: ProductRuntimeOwnerHABasementQuorum, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHABasementQuorum))},
 		{ID: ProductRuntimeOwnerHACloudWarm, Selector: productHAAvailabilitySelector(string(ProductRuntimeOwnerHACloudWarm))},

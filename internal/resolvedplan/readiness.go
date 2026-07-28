@@ -111,10 +111,7 @@ func bridgeExecutionReadinessBlockers(bridge map[string]any, modules []any) ([]e
 	// Runtime-only seams never make a fully materializable plan generation-
 	// blocked. They remain Apply blockers until the exact selected module owns
 	// executable, bound enforcement.
-	blockers := []executionReadinessBlocker{
-		{code: "policy-enforcement-unverified", refs: []string{"bridge:policy"}},
-		{code: "partition-policy-enforcement-unverified", refs: []string{"bridge:partition-policy"}},
-	}
+	var blockers []executionReadinessBlocker
 	linkBound, err := exactBoundModuleEnforcement(modules, "stackkits-federation-link-runtime", "stackkits-federation-link-executor")
 	if err != nil {
 		return nil, err
@@ -128,6 +125,19 @@ func bridgeExecutionReadinessBlockers(bridge map[string]any, modules []any) ([]e
 	}
 	if !controlBound {
 		blockers = append(blockers, executionReadinessBlocker{code: "bridge-control-agent-unverified", refs: []string{"bridge:control-agent"}})
+	}
+	policyBound, err := exactBoundModuleEnforcement(modules, "stackkits-modern-federation-policy-manifest", "stackkits-modern-federation-policy-enforcer")
+	if err != nil {
+		return nil, err
+	}
+	// This owner proves only local policy and partition enforcement. The
+	// independently evaluated external Federation-link binding remains
+	// fail-closed and cannot be satisfied by this declaration.
+	if !policyBound {
+		blockers = append(blockers,
+			executionReadinessBlocker{code: "policy-enforcement-unverified", refs: []string{"bridge:policy"}},
+			executionReadinessBlocker{code: "partition-policy-enforcement-unverified", refs: []string{"bridge:partition-policy"}},
+		)
 	}
 	homeIdentityBound, err := exactBoundModuleEnforcement(modules, "stackkits-modern-home-identity-trust-policy-manifest", "stackkits-modern-home-identity-trust-enforcer")
 	if err != nil {

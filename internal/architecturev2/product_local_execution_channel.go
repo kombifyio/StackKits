@@ -21,7 +21,7 @@ type ProductLocalExecutionChannelBinding struct {
 }
 
 type productLocalExecutionChannelFactory struct {
-	binding ProductLocalExecutionChannelBinding
+	bindings []ProductLocalExecutionChannelBinding
 }
 
 type productLocalExecutionChannelAdmission struct{}
@@ -34,39 +34,51 @@ type productExecutionChannelTargetBinder interface {
 // caller must source it from device-/orchestrator-owned configuration; a
 // RuntimeTarget can never declare itself local merely by naming a channel.
 func NewProductLocalExecutionChannelFactory(binding ProductLocalExecutionChannelBinding) (ProductExecutionChannelFactory, error) {
-	if err := validateProductLocalExecutionChannelBinding(binding); err != nil {
+	return NewProductLocalExecutionChannelSetFactory([]ProductLocalExecutionChannelBinding{binding})
+}
+
+// NewProductLocalExecutionChannelSetFactory admits a closed set of
+// configuration-owned Site/node/channel tuples. The operations implementation
+// behind each tuple retains transport and authentication custody.
+func NewProductLocalExecutionChannelSetFactory(bindings []ProductLocalExecutionChannelBinding) (ProductExecutionChannelFactory, error) {
+	closed := append([]ProductLocalExecutionChannelBinding(nil), bindings...)
+	if err := validateProductLocalExecutionChannelSet(closed); err != nil {
 		return nil, err
 	}
-	return &productLocalExecutionChannelFactory{binding: binding}, nil
+	return &productLocalExecutionChannelFactory{bindings: closed}, nil
 }
 
 func (f *productLocalExecutionChannelFactory) AdmitExecutionChannel(request ProductExecutionChannelRequest) (ProductExecutionChannelAdmission, error) {
 	if f == nil {
 		return nil, errors.New("local execution-channel factory is not initialized")
 	}
-	if err := validateProductLocalExecutionChannelBinding(f.binding); err != nil {
+	if err := validateProductLocalExecutionChannelSet(f.bindings); err != nil {
 		return nil, err
 	}
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("local execution-channel request is invalid: %w", err)
 	}
-	if request.ChannelRef != f.binding.ChannelRef || request.SiteRef != f.binding.SiteRef || request.NodeRef != f.binding.NodeRef {
-		return nil, fmt.Errorf("execution channel %q is not the configured local Site/node binding", request.ChannelRef)
+	for _, binding := range f.bindings {
+		if request.ChannelRef == binding.ChannelRef && request.SiteRef == binding.SiteRef && request.NodeRef == binding.NodeRef {
+			return productLocalExecutionChannelAdmission{}, nil
+		}
 	}
-	return productLocalExecutionChannelAdmission{}, nil
+	return nil, fmt.Errorf("execution channel %q is not a configured Site/node binding", request.ChannelRef)
 }
 
 func (f *productLocalExecutionChannelFactory) executionChannelFor(siteRef, nodeRef string) (string, error) {
 	if f == nil {
 		return "", errors.New("local execution-channel factory is not initialized")
 	}
-	if err := validateProductLocalExecutionChannelBinding(f.binding); err != nil {
+	if err := validateProductLocalExecutionChannelSet(f.bindings); err != nil {
 		return "", err
 	}
-	if siteRef != f.binding.SiteRef || nodeRef != f.binding.NodeRef {
-		return "", fmt.Errorf("Site/node %q/%q is not the configured local execution-channel binding", siteRef, nodeRef)
+	for _, binding := range f.bindings {
+		if siteRef == binding.SiteRef && nodeRef == binding.NodeRef {
+			return binding.ChannelRef, nil
+		}
 	}
-	return f.binding.ChannelRef, nil
+	return "", fmt.Errorf("Site/node %q/%q is not a configured execution-channel binding", siteRef, nodeRef)
 }
 
 func (productLocalExecutionChannelAdmission) PrepareExecutionChannel(local ProductExecutionChannelLocalExecutor) (runtimeexecutor.Executor, error) {
@@ -114,6 +126,29 @@ func validateProductLocalExecutionChannelBinding(binding ProductLocalExecutionCh
 		if field.value == "" || field.value != strings.TrimSpace(field.value) {
 			return fmt.Errorf("local execution-channel %s is required and must be trimmed", field.label)
 		}
+	}
+	return nil
+}
+
+func validateProductLocalExecutionChannelSet(bindings []ProductLocalExecutionChannelBinding) error {
+	if len(bindings) == 0 {
+		return errors.New("local execution-channel factory has no bindings")
+	}
+	byChannel := make(map[string]struct{}, len(bindings))
+	byScope := make(map[[2]string]struct{}, len(bindings))
+	for index, binding := range bindings {
+		if err := validateProductLocalExecutionChannelBinding(binding); err != nil {
+			return fmt.Errorf("local execution-channel binding %d: %w", index, err)
+		}
+		scope := [2]string{binding.SiteRef, binding.NodeRef}
+		if _, duplicate := byChannel[binding.ChannelRef]; duplicate {
+			return fmt.Errorf("local execution channel %q is bound more than once", binding.ChannelRef)
+		}
+		if _, duplicate := byScope[scope]; duplicate {
+			return fmt.Errorf("local Site/node %q/%q is bound more than once", binding.SiteRef, binding.NodeRef)
+		}
+		byChannel[binding.ChannelRef] = struct{}{}
+		byScope[scope] = struct{}{}
 	}
 	return nil
 }

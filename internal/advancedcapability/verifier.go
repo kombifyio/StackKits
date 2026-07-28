@@ -364,6 +364,57 @@ func resolveTrustedKey(bundle *TrustBundle, keyID, issuerID string) (TrustedKey,
 	return *matched, nil
 }
 
+// VerifyIdentityProjectionDigest verifies one domain-separated desired
+// identity projection digest against the exact Owner-approved issuer/key
+// binding. It intentionally exposes neither trusted public-key bytes nor a
+// generic signing oracle to callers.
+func VerifyIdentityProjectionDigest(
+	bundle *TrustBundle,
+	issuerID, keyID string,
+	digest, signature []byte,
+) error {
+	if bundle == nil {
+		return deny(ReasonTrustBundleUnavailable, "trustBundle", "is required")
+	}
+	trusted, err := resolveTrustedKey(bundle, keyID, issuerID)
+	if err != nil {
+		return err
+	}
+	if len(digest) != sha256.Size || len(signature) != ed25519.SignatureSize ||
+		!ed25519.Verify(trusted.PublicKey, digest, signature) {
+		return deny(
+			ReasonCapabilitySignatureInvalid,
+			"signature",
+			"desired identity projection signature does not verify",
+		)
+	}
+	return nil
+}
+
+// VerifyTrustedDigest verifies one domain-separated digest against the exact
+// Owner-approved issuer/key binding used by Advanced capability verification.
+// It is the only additional trust seam needed by authenticated execution
+// channels: callers cannot supply a second trust schema, store, or key parser.
+func VerifyTrustedDigest(bundle *TrustBundle, issuerID, keyID string, digest, signature []byte) error {
+	if bundle == nil {
+		return deny(ReasonTrustBundleUnavailable, "trustBundle", "is required")
+	}
+	trustedKey, err := resolveTrustedKey(bundle, keyID, issuerID)
+	if err != nil {
+		return err
+	}
+	if len(digest) != sha256.Size {
+		return deny(ReasonCapabilitySignatureInvalid, "digest", "must be one SHA-256 digest")
+	}
+	if len(signature) != ed25519.SignatureSize {
+		return deny(ReasonCapabilitySignatureInvalid, "signature", "must be one Ed25519 signature")
+	}
+	if !ed25519.Verify(trustedKey.PublicKey, digest, signature) {
+		return deny(ReasonCapabilitySignatureInvalid, "signature", "does not verify against the trusted issuer key")
+	}
+	return nil
+}
+
 func verifySignature(document envelope, publicKey ed25519.PublicKey) error {
 	signature, err := base64.RawStdEncoding.DecodeString(document.Signature)
 	if err != nil {

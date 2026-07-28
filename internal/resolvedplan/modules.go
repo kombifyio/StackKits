@@ -985,7 +985,7 @@ func selectModuleRenderUnits(moduleID string, units []map[string]any, generation
 		if len(targets) == 0 {
 			targets = []string{"compose", "opentofu"}
 		}
-		if !contains(targets, generationTarget) {
+		if !moduleRenderUnitSupportsTarget(unit, targets, generationTarget) {
 			continue
 		}
 		unitID, err := stringField(unit, unitPath, "id")
@@ -1008,6 +1008,42 @@ func selectModuleRenderUnits(moduleID string, units []map[string]any, generation
 	return selected, selectedIDs, nil
 }
 
+// Terramate is the orchestration layer over OpenTofu, but only target-neutral
+// module material may be inherited implicitly. Compose definitions, raw
+// OpenTofu units, and Terramate programs require an explicit target variant so
+// a caller cannot relabel executable infrastructure by selecting a target.
+func moduleRenderUnitSupportsTarget(unit map[string]any, targets []string, target string) bool {
+	if contains(targets, target) {
+		return true
+	}
+	if target != "terramate" || !contains(targets, "opentofu") {
+		return false
+	}
+	kind, _ := unit["kind"].(string)
+	switch kind {
+	case "native-config", "host", "job", "cue-fragment":
+		return true
+	default:
+		return false
+	}
+}
+
+func moduleArtifactSupportsTarget(contract map[string]any, targets []string, target string) bool {
+	if contains(targets, target) {
+		return true
+	}
+	if target != "terramate" || !contains(targets, "opentofu") {
+		return false
+	}
+	kind, _ := contract["kind"].(string)
+	switch kind {
+	case "metadata", "script", "native-config":
+		return true
+	default:
+		return false
+	}
+}
+
 func selectExplicitModuleRenderVariant(moduleID string, contract map[string]any, units []map[string]any, generationTarget string) ([]map[string]any, map[string]struct{}, map[string]any, error) {
 	variants, err := objectListOptional(contract, "renderVariants")
 	if err != nil {
@@ -1027,6 +1063,21 @@ func selectExplicitModuleRenderVariant(moduleID string, contract map[string]any,
 			matches = append(matches, variant)
 		}
 	}
+	if len(matches) == 0 && generationTarget == "terramate" {
+		for index, variant := range variants {
+			target, err := stringField(
+				variant,
+				fmt.Sprintf("catalog.modules.%s.renderVariants[%d]", moduleID, index),
+				"target",
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if target == "opentofu" {
+				matches = append(matches, variant)
+			}
+		}
+	}
 	if len(matches) != 1 {
 		return nil, nil, nil, fail(ErrUnrealizedModule, "catalog.modules."+moduleID+".renderVariants", "generation target %q resolves %d variants, want exactly one", generationTarget, len(matches))
 	}
@@ -1034,6 +1085,7 @@ func selectExplicitModuleRenderVariant(moduleID string, contract map[string]any,
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	variant["target"] = generationTarget
 	unitRefs, err := stringListField(variant, "catalog.modules."+moduleID+".renderVariants", "unitRefs", true)
 	if err != nil {
 		return nil, nil, nil, err
@@ -1060,7 +1112,7 @@ func selectExplicitModuleRenderVariant(moduleID string, contract map[string]any,
 		if len(targets) == 0 {
 			targets = []string{"compose", "opentofu"}
 		}
-		if !contains(targets, generationTarget) {
+		if !moduleRenderUnitSupportsTarget(unit, targets, generationTarget) {
 			return nil, nil, nil, fail(ErrContractConflict, unitPath+".compatibleTargets", "variant selects unit outside target %q", generationTarget)
 		}
 		selectedUnit, err := cloneObject(unit, true)
@@ -1130,7 +1182,7 @@ func selectModuleRealizationSupport(moduleID string, support map[string]any, sel
 		if err != nil {
 			return err
 		}
-		if !contains(targets, generationTarget) {
+		if !moduleArtifactSupportsTarget(contract, targets, generationTarget) {
 			continue
 		}
 		artifactID, err := stringField(contract, contractPath, "id")
@@ -1154,7 +1206,16 @@ func selectModuleRealizationSupport(moduleID string, support map[string]any, sel
 		// multi-target here makes the persisted plan non-canonical under the
 		// governed #ResolvedPlan projection used by Day-2 commands.
 		contract["compatibleTargets"] = stringSliceAny([]string{generationTarget})
-		selectedContracts = append(selectedContracts, contract)
+		if contains(targets, generationTarget) {
+			selectedContracts = append(selectedContracts, contract)
+		} else {
+			selectedContract, err := cloneObject(contract, true)
+			if err != nil {
+				return err
+			}
+			selectedContract["compatibleTargets"] = stringSliceAny([]string{generationTarget})
+			selectedContracts = append(selectedContracts, selectedContract)
+		}
 		selectedArtifactIDs[artifactID] = struct{}{}
 	}
 	if explicitArtifactIDs != nil && len(selectedArtifactIDs) != len(explicitArtifactIDs) {

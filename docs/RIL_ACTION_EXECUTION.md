@@ -1,6 +1,6 @@
 ---
 title: RIL Action Execution Contract
-last_verified: 2026-07-23
+last_verified: 2026-07-28
 status: target-contract
 ---
 
@@ -28,7 +28,7 @@ The general RIL catalog is independent from Modern Homelab's
 specific Home-to-Cloud federation boundary and are not a general Agent or RIL
 execution substrate.
 
-## Current v0.7.1 Checkpoint
+## Historical v0.7.1 HTTP Checkpoint
 
 The embedded Architecture-v2 product authority contains seven primitives:
 
@@ -86,30 +86,34 @@ Postgres/RLS implementation and the outer at-most-once dispatch custody.
 StackKits retains a bounded in-memory secondary guard inside its server and CLI
 process; it makes no cross-process durability claim.
 
-TechStack PR #200 provides the concrete consumer dispatcher. It refuses HTTP
-redirects, authenticates as the TechStack service, forwards the trusted tenant
-context, loads the immutable StackSpec plus Inventory snapshot through an
-injected Postgres authority, verifies the resolved plan header and body against
-the approved request, and strictly validates the returned shared evidence.
-Product startup registration remains fail closed until the Postgres
-approval/grant/resolution-snapshot source is available; the legacy PocketBase
-action route is not an execution fallback.
+The earlier two-step `/api/v2/internal/ril-actions/resolve` and
+`/api/v2/internal/ril-actions/execute` service-auth design is retained only as
+historical compatibility documentation. It is not the target delivery path.
 
-The concrete service delivery is deliberately two-step:
+The v0.9 target orchestration path is:
 
-1. `POST /api/v2/internal/ril-actions/resolve` accepts only StackSpec and
-   Inventory, authenticated with the TechStack service token and the trusted
-   `X-Kombify-Tenant-ID` transport context. StackKits resolves and retains an
-   opaque `CurrentResolution` under the exact tenant and Stack ID.
-2. `POST /api/v2/internal/ril-actions/execute` accepts only the shared
-   `rilaction.Request`. It samples one UTC instant, requires the same trusted
-   tenant, loads the matching current resolution, executes the CUE-selected
-   owner, and returns the exact shared evidence document.
+1. Techstack Core/UI closes an approved action into a typed
+   `StackKitCommand`.
+2. Techstack sends it over its own outbound/reverse mTLS gRPC worker channel to
+   the already enrolled node-side Techstack Agent.
+3. The Agent revalidates the exact StackKits release pin, release index,
+   receipt, executable digest, command vocabulary, target, expiry, and
+   idempotency binding.
+4. The Agent removes Techstack/Kombify control-plane environment and invokes
+   the exact published `stackkit` CLI as a bounded local subprocess. There is
+   no generic shell and no caller-selected executable.
+5. The Agent returns only `stackkit.command-result/v1` and versioned
+   `stackkit.rollout-event/v1` JSONL.
 
-No StackSpec, Inventory, URL, provider, lease, generation, transport,
-credential, or callback data is added to the action handoff. A StackKits server
-restart intentionally discards the opaque resolution and requires TechStack to
-resolve again; it never reconstructs execution authority from a plan hash.
+StackKits exposes no gRPC endpoint and does not own Techstack worker
+enrollment, mTLS credentials, transport, provider, lease, or server lifecycle.
+Standard local CLI operations remain available without Techstack. Advanced
+RIL/Terramate operations additionally require a short-lived capability that the
+CLI validates fully offline before rendering or side effects.
+
+This section is a target contract. Slice 1 establishes local authority,
+Federation admission, and the credential-free desired identity projection;
+Agent execution-channel admission is Slice 2.
 
 The returned `stackkit.ril-action-evidence/v1` shape comes from the exact
 pinned `kombify-go-common/rilaction` package. StackKits validates its own result
@@ -138,6 +142,9 @@ silently widened into the break-glass authority required by
 
 ## Execution Rules
 
+- These approval/card rules govern Advanced RIL execution only. Standard local
+  CLI apply, verify, upgrade, backup, restore, and read-only drift detection do
+  not require Techstack, Gateway, gRPC, or an Advanced capability.
 - No StackKit action executes without an approved TechStack action card, a
   Gateway policy decision, the required connector grant, and the exact current
   ResolvedPlan hash.
@@ -161,16 +168,17 @@ silently widened into the break-glass authority required by
   adds a closed primitive contract. Caller-defined extension actions are not an
   escape hatch.
 
-## Public-Beta Proof
+## Orchestrated Proof
 
-The first public-beta proof should show:
+The orchestrated proof must show:
 
-1. TechStack creates an action card for one connected RIL server.
+1. TechStack creates an action card for one connected node Agent.
 2. Gateway denies execution until a delegated connector grant binding and user
    approval exist.
-3. TechStack durably reserves the approved request, refreshes the tenant-bound
-   StackKits resolution when needed, and calls the exact StackKits execute path.
-4. StackKits returns verification evidence.
+3. TechStack durably reserves the approved request and sends the closed
+   `StackKitCommand` over its mTLS worker channel.
+4. The Agent validates the exact pin and capability, invokes the local CLI, and
+   returns bounded JSON/JSONL verification evidence.
 5. Workbench displays completion or failure without secret leakage.
 
 Detailed execution and node-handoff planning:
@@ -178,10 +186,10 @@ Detailed execution and node-handoff planning:
 
 Tracking:
 
-- `kombify-StackKits-6nrh`: StackKit RIL action execution and Cloudflare Agent
-  handoff.
+- `kombify-StackKits-6nrh`: StackKit RIL action execution and Techstack node
+  Agent handoff.
 - `kombify-StackKits-6nrh.1`: approved action primitive catalog.
-- `kombify-StackKits-6nrh.2`: Cloudflare Agent node handoff executor contract.
+- `kombify-StackKits-6nrh.2`: Techstack node-Agent-to-pinned-CLI handoff contract.
 - `kombify-StackKits-6nrh.2.1`: exact CUE executor contracts and StackKits
   runtime-owner registry.
 - `kombify-StackKits-6nrh.3`: verification rollback evidence model.
