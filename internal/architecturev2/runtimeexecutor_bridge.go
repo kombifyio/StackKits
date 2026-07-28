@@ -2,8 +2,10 @@ package architecturev2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -57,7 +59,11 @@ func (b *sharedRuntimeExecutorBridge) PrepareProductApplyRecovery(ctx context.Co
 func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request applyRuntimeExecutionRequest) (applyRuntimeExecutionResult, error) {
 	sharedRequest, err := b.sharedExecutionRequest(request)
 	if err != nil {
-		return applyRuntimeExecutionResult{}, err
+		return applyRuntimeExecutionResult{}, fmt.Errorf(
+			"shared runtime execution failed (%s): %w",
+			runtimeExecutionErrorChain(err),
+			err,
+		)
 	}
 	var result runtimeexecutor.ExecutionResult
 	if len(sharedRequest.AccessBindings) == 0 && len(sharedRequest.BackupTargetBindings) == 0 {
@@ -72,6 +78,26 @@ func (b *sharedRuntimeExecutorBridge) Execute(ctx context.Context, request apply
 		return applyRuntimeExecutionResult{}, fmt.Errorf("shared runtime executor result does not bind the exact sealed request")
 	}
 	return stackKitsExecutionResult(result), nil
+}
+
+// runtimeExecutionErrorChain preserves bounded, already-redacted nested
+// executor stages. The shared runtime contract intentionally hides adapter
+// payloads, but nested dispatch used to hide even the actionable failing
+// boundary and made live failures impossible to diagnose.
+func runtimeExecutionErrorChain(err error) string {
+	const maxDepth = 12
+	parts := make([]string, 0, maxDepth)
+	for depth := 0; err != nil && depth < maxDepth; depth++ {
+		message := strings.TrimSpace(err.Error())
+		if message != "" && (len(parts) == 0 || parts[len(parts)-1] != message) {
+			parts = append(parts, message)
+		}
+		err = errors.Unwrap(err)
+	}
+	if len(parts) == 0 {
+		return "unknown"
+	}
+	return strings.Join(parts, " -> ")
 }
 
 func (b *sharedRuntimeExecutorBridge) sharedExecutionRequest(request applyRuntimeExecutionRequest) (runtimeexecutor.ExecutionRequest, error) {
