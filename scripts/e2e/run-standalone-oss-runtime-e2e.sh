@@ -679,16 +679,17 @@ if [ "${STACKKIT_E2E_RESTORE_PROOF:-0}" = "1" ]; then
   )"
 
   activation_operation_a="restore-proof-activate-a"
-  setsid timeout 300 "$lifecycle_stackkit" backup restore activate "$restore_result_a" \
+  setsid timeout 600 "$lifecycle_stackkit" backup restore activate "$restore_result_a" \
     --operation-id "$activation_operation_a" --owner-approve --json \
     >"$restore_proof_dir/activate-a-interrupted.json" 2>&1 &
   restore_activation_pid=$!
 
   activation_journal="$project_dir/.stackkit/lifecycle-mutations/active.json"
   activation_ready=0
-  # Activation first stops the verified Compose runtime with a 60-second
-  # bounded grace period before it can commit the first governed volume copy.
-  for _ in $(seq 1 1200); do
+  # Activation captures a safety snapshot, stops the verified Compose runtime,
+  # and prepares rollback copies for every governed volume before its first
+  # activation copy. Keep the observer inside the command's bounded budget.
+  for _ in $(seq 1 5400); do
     if [ -s "$activation_journal" ] &&
       jq -e --arg operation "$activation_operation_a" --arg volume "$first_volume" '
         .apiVersion == "stackkit.lifecycle-mutation/v1"
