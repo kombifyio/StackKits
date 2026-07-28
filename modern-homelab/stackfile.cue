@@ -286,6 +286,14 @@ Definition: base.#ProductKitDefinition & {
 				members: ["home-main", "home-standby"]
 			}
 			capabilities: {enable: [], disable: []}
+			workloads: photos: {
+				alternative: "immich"
+				secretRefs: "database-password": "secret://workloads/photos/database-password"
+				placement: {
+					siteRefs: ["home"]
+					nodeRefs: ["home-main"]
+				}
+			}
 			addons: ha: enabled: true
 			availability: {
 				enabled:             true
@@ -308,6 +316,15 @@ Definition: base.#ProductKitDefinition & {
 				revocationSupported:       true
 				credentialTTLSeconds:      3600
 			}
+			access: "owner-device": {
+				exposure:               "public"
+				privilege:              "user"
+				authentication:         "human+device"
+				enrolledDeviceRequired: true
+				ownerStepUpRequired:    false
+				lanStepDown:            false
+				allowedMethods: ["GET", "HEAD"]
+			}
 			partitionPolicy: {
 				onCloudLoss:                     "local-continues"
 				onLinkLoss:                      "local-continues"
@@ -319,13 +336,49 @@ Definition: base.#ProductKitDefinition & {
 			bridge: {
 				overlay: {
 					contractRef: "outbound-private-mesh"
-					trafficMode: "management-only"
+					trafficMode: "policy-scoped"
 					peerSiteRefs: ["home", "cloud"]
 				}
-				publications: []
+				publications: [{
+					serviceRef:    "photos"
+					sourceSiteRef: "home"
+					edgeSiteRef:   "cloud"
+					host:          "photos.example.invalid"
+					protocol:      "https"
+					port:          443
+					path:          "/"
+					defaultClosed: true
+					tls: {
+						required:   true
+						mode:       "terminate-at-edge"
+						minVersion: "TLS1.3"
+					}
+					auth: {
+						required:  true
+						policyRef: "owner-device"
+					}
+					origin: {
+						identityRef:  "photos-origin"
+						mtlsRequired: true
+					}
+					rateLimit: {
+						enabled:       true
+						requests:      120
+						windowSeconds: 60
+					}
+				}]
 				policy: {
 					defaultDeny: true
-					allowedFlows: []
+					allowedFlows: [{
+						fromSiteRef: "cloud"
+						toSiteRef:   "home"
+						serviceRef:  "photos"
+						protocol:    "http"
+						ports: [2283]
+						methods: ["GET", "HEAD"]
+						dataClasses: ["personal"]
+						serviceIdentityRequired: true
+					}]
 					allowRFC1918Transit:            false
 					cloudMayEnrollDevices:          false
 					cloudMayIssueDeviceCredentials: false
@@ -335,7 +388,15 @@ Definition: base.#ProductKitDefinition & {
 					actionAllowlist: ["plan", "apply", "verify"]
 				}
 			}
-			data: defaultAuthority: "home"
+			data: {
+				defaultAuthority: "home"
+				bindings: photos: {
+					classes: ["personal"]
+					primarySiteRef: "home"
+					replicaSiteRefs: []
+					cloudCopyAllowed: false
+				}
+			}
 		}
 	}
 	bridge: {required: true, sourceKinds: ["home"], edgeKinds: ["cloud"]}

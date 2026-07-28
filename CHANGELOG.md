@@ -4,6 +4,19 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.1] - 2026-07-28
+
+### Fixed
+
+- Every product kit now materializes absolute host storage roots. `#StackSpecV2`
+  defaulted `storage` to an empty object, and that empty default won over
+  unifying with `#StorageIntentV2`, so a kit authoring `storage: {}` shipped a
+  spec with no roots at all. `cloud-kit` and `modern-homelab` both did, and
+  `stackkit validate` therefore rejected the CLI's own `stackkit init` output
+  with `resolvedPlan.storage.hostRoots.dataRoot: requires an absolute host
+  storage root`. Only `basement-kit`, which spells the roots out by hand, was
+  unaffected.
+
 ## [0.9.0] - 2026-07-28
 
 > **Modern Homelab and optional orchestration** over the stable, standalone

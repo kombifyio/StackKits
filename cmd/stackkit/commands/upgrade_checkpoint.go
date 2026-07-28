@@ -208,11 +208,32 @@ func createPublicUpgradeSnapshot(
 	statusContext, cancelStatus := nativeV2BackupOperationContext(
 		ctx, backupQuickOperationTimeout,
 	)
-	status, err := service.Status(statusContext, backuplifecycle.StatusInput{
+	statusInput := backuplifecycle.StatusInput{
 		OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
 		Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
-	})
+	}
+	status, err := service.Status(statusContext, statusInput)
 	cancelStatus()
+	if errors.Is(err, os.ErrNotExist) {
+		configureContext, cancelConfigure := nativeV2BackupOperationContext(
+			ctx, backupLongOperationTimeout,
+		)
+		_, err = service.Configure(configureContext, backuplifecycle.ConfigureInput{
+			OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
+			Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
+		})
+		cancelConfigure()
+		if err != nil {
+			return backuplifecycle.SnapshotAnchor{}, fmt.Errorf(
+				"configure missing pre-upgrade Kopia repository: %w", err,
+			)
+		}
+		statusContext, cancelStatus = nativeV2BackupOperationContext(
+			ctx, backupQuickOperationTimeout,
+		)
+		status, err = service.Status(statusContext, statusInput)
+		cancelStatus()
+	}
 	if err != nil {
 		return backuplifecycle.SnapshotAnchor{}, fmt.Errorf(
 			"verify configured pre-upgrade Kopia repository (run stackkit backup configure first): %w",

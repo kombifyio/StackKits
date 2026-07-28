@@ -10,6 +10,20 @@
   "authoring": {
     "contractVersion": "1.0.0",
     "initialSpec": {
+      "access": {
+        "owner-device": {
+          "allowedMethods": [
+            "GET",
+            "HEAD"
+          ],
+          "authentication": "human+device",
+          "enrolledDeviceRequired": true,
+          "exposure": "public",
+          "lanStepDown": false,
+          "ownerStepUpRequired": false,
+          "privilege": "user"
+        }
+      },
       "addons": {
         "ha": {
           "enabled": true
@@ -40,16 +54,63 @@
             "home",
             "cloud"
           ],
-          "trafficMode": "management-only"
+          "trafficMode": "policy-scoped"
         },
         "policy": {
           "allowRFC1918Transit": false,
-          "allowedFlows": [],
+          "allowedFlows": [
+            {
+              "dataClasses": [
+                "personal"
+              ],
+              "fromSiteRef": "cloud",
+              "methods": [
+                "GET",
+                "HEAD"
+              ],
+              "ports": [
+                2283
+              ],
+              "protocol": "http",
+              "serviceIdentityRequired": true,
+              "serviceRef": "photos",
+              "toSiteRef": "home"
+            }
+          ],
           "cloudMayEnrollDevices": false,
           "cloudMayIssueDeviceCredentials": false,
           "defaultDeny": true
         },
-        "publications": []
+        "publications": [
+          {
+            "auth": {
+              "policyRef": "owner-device",
+              "required": true
+            },
+            "defaultClosed": true,
+            "edgeSiteRef": "cloud",
+            "host": "photos.example.invalid",
+            "origin": {
+              "identityRef": "photos-origin",
+              "mtlsRequired": true
+            },
+            "path": "/",
+            "port": 443,
+            "protocol": "https",
+            "rateLimit": {
+              "enabled": true,
+              "requests": 120,
+              "windowSeconds": 60
+            },
+            "serviceRef": "photos",
+            "sourceSiteRef": "home",
+            "tls": {
+              "minVersion": "TLS1.3",
+              "mode": "terminate-at-edge",
+              "required": true
+            }
+          }
+        ]
       },
       "capabilities": {
         "disable": [],
@@ -72,6 +133,16 @@
         "mode": "warm-standby"
       },
       "data": {
+        "bindings": {
+          "photos": {
+            "classes": [
+              "personal"
+            ],
+            "cloudCopyAllowed": false,
+            "primarySiteRef": "home",
+            "replicaSiteRefs": []
+          }
+        },
         "defaultAuthority": "home"
       },
       "deviceEnrollment": {
@@ -210,7 +281,24 @@
         "stacksRoot": "/opt/stacks",
         "volumeDriver": "local"
       },
-      "system": {}
+      "system": {},
+      "workloads": {
+        "photos": {
+          "alternative": "immich",
+          "placement": {
+            "nodeRefs": [
+              "home-main"
+            ],
+            "requiresRoles": [],
+            "siteRefs": [
+              "home"
+            ]
+          },
+          "secretRefs": {
+            "database-password": "secret://workloads/photos/database-password"
+          }
+        }
+      }
     },
     "initialSpecStatus": "preview",
     "requiredOverrides": [

@@ -211,6 +211,11 @@ func materializeInitialStackSpec(
 		if err := setNestedString(spec, overrides.DomainBase, "network", "domain", "base"); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "apply network.domain.base override: "+err.Error(), err)
 		}
+		if profile == stackspecmigration.KitProfileModern {
+			if err := projectModernInitialPublicationHost(spec, overrides.DomainBase); err != nil {
+				return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "project Modern initial publication host: "+err.Error(), err)
+			}
+		}
 	}
 
 	candidate, err := resolvedplan.CanonicalJSON(spec)
@@ -228,6 +233,23 @@ func materializeInitialStackSpec(
 		return StackSpecValidation{}, resolveError(ErrResolveFailed, "StackSpec validator returned incomplete canonical evidence", nil)
 	}
 	return validation, nil
+}
+
+func projectModernInitialPublicationHost(spec map[string]any, domainBase string) error {
+	bridge, ok := spec["bridge"].(map[string]any)
+	if !ok || bridge == nil {
+		return fmt.Errorf("bridge is not an object")
+	}
+	publications, ok := bridge["publications"].([]any)
+	if !ok || len(publications) != 1 {
+		return fmt.Errorf("bridge.publications does not contain the one compiler-owned default")
+	}
+	publication, ok := publications[0].(map[string]any)
+	if !ok || publication == nil || publication["serviceRef"] != "photos" {
+		return fmt.Errorf("bridge.publications[0] is not the compiler-owned photos publication")
+	}
+	publication["host"] = "photos." + strings.TrimSpace(domainBase)
+	return nil
 }
 
 func validateInitialAuthoringContractVersion(authoring map[string]any, profile stackspecmigration.KitProfile) (string, error) {
