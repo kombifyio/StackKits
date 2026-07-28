@@ -117,9 +117,9 @@ func verifyArchitectureV2LocalState(
 	manifest generationartifact.ArtifactManifest,
 	offline bool,
 ) (architectureV2OwnerVerifySummary, *architectureV2RuntimeVerifySummary, error) {
-	owner, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	ownerSummary, localBinding, err := verifyArchitectureV2OwnerCustody(workspaceRoot)
 	if err != nil {
-		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify local owner custody: %w", err)
+		return architectureV2OwnerVerifySummary{}, nil, err
 	}
 	if _, err := localevidence.LoadBasementRuntimeCustody(workspaceRoot); err != nil {
 		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify local Basement runtime custody: %w", err)
@@ -128,18 +128,15 @@ func verifyArchitectureV2LocalState(
 	if err != nil {
 		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify PocketID/step-ca owner binding: %w", err)
 	}
-	ownerSummary := architectureV2OwnerVerifySummary{
-		OwnerRef: binding.OwnerRef, KeyID: owner.KeyID,
-		PocketIDSubject:    binding.PocketIDSubject,
-		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
-	}
-	if ownerSummary.OwnerRef != owner.OwnerRef {
+	ownerSummary.PocketIDSubject = binding.PocketIDSubject
+	ownerSummary.OwnerBindingDigest = localevidence.OwnerRuntimeBindingDigest(binding)
+	if ownerSummary.OwnerRef != binding.OwnerRef {
 		return architectureV2OwnerVerifySummary{}, nil, errors.New("PocketID owner binding differs from local owner custody")
 	}
 	if offline {
 		return ownerSummary, nil, nil
 	}
-	observation, err := verifyBasementCoreWorkspace(ctx, workspaceRoot, plan, manifest, owner.Binding)
+	observation, err := verifyBasementCoreWorkspace(ctx, workspaceRoot, plan, manifest, localBinding)
 	if err != nil {
 		return ownerSummary, nil, fmt.Errorf("verify live Basement core: %w", err)
 	}
@@ -152,6 +149,14 @@ func verifyArchitectureV2LocalState(
 		ProjectRef: observation.ProjectRef, Status: observation.Status,
 		ServiceCount: len(observation.Services), ProbeCount: len(observation.Probes),
 	}, nil
+}
+
+func verifyArchitectureV2OwnerCustody(workspaceRoot string) (architectureV2OwnerVerifySummary, localevidence.LocalBinding, error) {
+	owner, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	if err != nil {
+		return architectureV2OwnerVerifySummary{}, localevidence.LocalBinding{}, fmt.Errorf("verify local owner custody: %w", err)
+	}
+	return architectureV2OwnerVerifySummary{OwnerRef: owner.OwnerRef, KeyID: owner.KeyID}, owner.Binding, nil
 }
 
 func verifyBasementCoreWorkspace(

@@ -684,7 +684,17 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		if verifyContext == nil {
 			verifyContext = context.Background()
 		}
-		owner, runtime, err := verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline)
+		_, processRuntime, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+		if err != nil {
+			return err
+		}
+		var owner architectureV2OwnerVerifySummary
+		var runtime *architectureV2RuntimeVerifySummary
+		if processRuntime {
+			owner, _, err = verifyArchitectureV2OwnerCustody(wd)
+		} else {
+			owner, runtime, err = verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline)
+		}
 		report := architectureV2VerifyReport{
 			SchemaVersion: "stackkit.verify-result/v1", Offline: options.verifyOffline,
 			PlanHash: persisted.Binding().PlanHash, Apply: result.Summary(),
