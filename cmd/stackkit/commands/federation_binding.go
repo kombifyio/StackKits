@@ -40,12 +40,14 @@ type federationBindingCommandDeps struct {
 type federationBindingImportOptions struct {
 	admission          string
 	inventory          string
+	resolvedPlan       string
 	allowHermeticProof bool
 }
 
 type federationBindingAdoptOptions struct {
-	binding   string
-	inventory string
+	binding      string
+	inventory    string
+	resolvedPlan string
 }
 
 type federationBindingIssueOptions struct {
@@ -135,6 +137,10 @@ func newFederationCommand(deps federationBindingCommandDeps) *cobra.Command {
 		&options.inventory, "inventory", "",
 		"Workspace-confined inventory.json to update atomically",
 	)
+	importCommand.Flags().StringVar(
+		&options.resolvedPlan, "resolved-plan", "",
+		"Workspace-confined canonical ResolvedPlan (otherwise derived beside Inventory)",
+	)
 	importCommand.Flags().BoolVar(
 		&options.allowHermeticProof, "allow-hermetic-proof", false,
 		"Internal E2E only: admit a hermetic live-proof binding",
@@ -156,6 +162,10 @@ func newFederationCommand(deps federationBindingCommandDeps) *cobra.Command {
 	adoptCommand.Flags().StringVar(
 		&adoptOptions.inventory, "inventory", "",
 		"Workspace-confined inventory.json to update atomically",
+	)
+	adoptCommand.Flags().StringVar(
+		&adoptOptions.resolvedPlan, "resolved-plan", "",
+		"Workspace-confined canonical ResolvedPlan (otherwise derived beside Inventory)",
 	)
 	binding.AddCommand(importCommand, adoptCommand)
 	command.AddCommand(binding)
@@ -185,7 +195,10 @@ func runFederationBindingAdopt(
 	if path.Base(inventoryPath) != "inventory.json" {
 		return errors.New("federation binding adopt requires an inventory.json target")
 	}
-	planPath := federationPlanPathForInventory(inventoryPath)
+	planPath, err := federationResolvedPlanPath(workspace, options.resolvedPlan, inventoryPath)
+	if err != nil {
+		return err
+	}
 	now := deps.now().UTC().Truncate(time.Second)
 
 	preflight, err := loadFederationBindingAdoptionInput(
@@ -379,7 +392,10 @@ func runFederationBindingImport(
 	if path.Base(inventoryPath) != "inventory.json" {
 		return errors.New("federation binding import requires an inventory.json target")
 	}
-	planPath := federationPlanPathForInventory(inventoryPath)
+	planPath, err := federationResolvedPlanPath(workspace, options.resolvedPlan, inventoryPath)
+	if err != nil {
+		return err
+	}
 	now := deps.now().UTC().Truncate(time.Second)
 	importOptions := federationbinding.ImportOptions{AllowHermeticProof: options.allowHermeticProof}
 
@@ -572,6 +588,13 @@ func federationPlanPathForInventory(inventoryPath string) string {
 		return path.Join(directory, "resolved-plan.json")
 	}
 	return path.Join(directory, federationCanonicalPlanName)
+}
+
+func federationResolvedPlanPath(workspace, explicit, inventoryPath string) (string, error) {
+	if strings.TrimSpace(explicit) == "" {
+		return federationPlanPathForInventory(inventoryPath), nil
+	}
+	return federationWorkspacePath(workspace, explicit, "resolved plan")
 }
 
 func loadFederationBindingMutationInput(

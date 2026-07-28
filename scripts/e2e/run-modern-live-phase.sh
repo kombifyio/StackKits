@@ -151,12 +151,13 @@ jq -e '
 
 export STACKKIT_HERMETIC_LIVE_PROOF=1
 admission="$project/.stackkit/evidence/federation-binding/proof.json"
-inventory="$project/deploy/.stackkit/inventory.json"
+inventory="$project/.stackkit/inventory.json"
 timeout 20 "$internal_stackkit" internal proof federation-binding issue \
   --resolved-plan "$plan" --candidate-digest "$source_digest" --valid-for 10m \
   --output "$admission" --allow-hermetic-proof >"$output/binding-issue.log" 2>&1
 timeout 20 "$internal_stackkit" federation binding import \
-  --admission "$admission" --inventory "$inventory" --allow-hermetic-proof \
+  --admission "$admission" --inventory "$inventory" --resolved-plan "$plan" \
+  --allow-hermetic-proof \
   >"$output/binding-import.log" 2>&1
 cp "$admission" "$output/federation-binding-admission.json"
 

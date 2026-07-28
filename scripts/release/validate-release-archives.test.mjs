@@ -63,7 +63,8 @@ test('Modern live proof separates the tagged internal helper from the release bi
   assert.match(runner, /"\$internal_stackkit" internal proof federation-binding issue/u)
   assert.match(runner, /"\$internal_stackkit" federation binding import/u)
   assert.match(runner, /admission="\$project\/\.stackkit\/evidence\/federation-binding\/proof\.json"/u)
-  assert.match(runner, /inventory="\$project\/deploy\/\.stackkit\/inventory\.json"/u)
+  assert.match(runner, /inventory="\$project\/\.stackkit\/inventory\.json"/u)
+  assert.match(runner, /federation binding import[\s\S]*?--resolved-plan "\$plan"/u)
   for (const command of ['init modern-homelab', 'kit verify', 'validate', 'generate', 'apply', 'verify']) {
     assert.ok(runner.includes(`"$release_stackkit" ${command}`))
   }
