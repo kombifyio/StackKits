@@ -276,6 +276,14 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return nil, fmt.Errorf("register Modern process runtime owners: %w", err)
 		}
 		registrations = append(registrations, remote...)
+		immich, err := architecturev2.NewProductRemoteImmichSelectedPaaSRegistration(
+			"coolify",
+			"stackkits-coolify-runtime",
+		)
+		if err != nil {
+			return nil, fmt.Errorf("register Modern selected-PaaS runtime owner: %w", err)
+		}
+		registrations = append(registrations, immich)
 	}
 	return registrations, nil
 }
