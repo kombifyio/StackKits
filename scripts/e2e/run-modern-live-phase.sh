@@ -196,7 +196,16 @@ if [ "$phase" = runtime ]; then
     --format '{{json .Containers}}' | jq --arg id "$(docker inspect -f '{{.Id}}' "$edge_container")" \
     'has($id) | not')"
   docker network connect --alias cloud-edge "$network" "$edge_container"
-  curl -fsS "$(jq -r .urls.cloudEdge "$state")/healthz" >/dev/null
+  edge_url="$(jq -r .urls.cloudEdge "$state")"
+  edge_reconnected=false
+  for _ in $(seq 1 50); do
+    if curl -fsS "$edge_url/healthz" >/dev/null 2>&1; then
+      edge_reconnected=true
+      break
+    fi
+    sleep .1
+  done
+  test "$edge_reconnected" = true
   jq -n --argjson home "$home_status" --argjson denied "$disconnected" '{
     apiVersion:"stackkit.modern-partition-live-evidence/v1",
     failClosed:$denied,homeContinued:($home.site == "home"),reconnected:true
