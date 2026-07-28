@@ -24,6 +24,11 @@ import (
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 )
 
+var (
+	inspectCurrentNativeV2BackupAuthorityForRequest = inspectNativeV2BackupAuthority
+	inspectExactBeta4BackupAuthorityForRequest      = inspectExactBeta4BackupAuthority
+)
+
 type exactBeta4CheckpointState struct {
 	authority         nativeV2BackupAuthority
 	manifest          generationartifact.ArtifactManifest
@@ -57,6 +62,32 @@ func inspectExactBeta4BackupAuthority(
 	return state.authority, nil
 }
 
+// inspectNativeV2BackupAuthorityForRequest keeps the normal current authority
+// path as the default. It may retain the beta.4 authority only when its full
+// attested bridge proof succeeds for the sole supported v0.8.0 target.
+func inspectNativeV2BackupAuthorityForCommand(
+	ctx context.Context,
+	workspace string,
+	requestedSpec string,
+) (nativeV2BackupAuthority, error) {
+	current, currentErr := inspectCurrentNativeV2BackupAuthorityForRequest(ctx, workspace, requestedSpec)
+	if currentErr == nil {
+		return current, nil
+	}
+	legacy, legacyErr := inspectExactBeta4BackupAuthorityForRequest(
+		ctx, workspace, requestedSpec, "basement-kit",
+		releaseindex.Resolution{Asset: releaseindex.Asset{
+			Kit:      "basement-kit",
+			Version:  exactBeta4UpgradeTargetVersion,
+			Channel:  releaseindex.ChannelStable,
+			Platform: currentReleasePlatform(),
+		}},
+	)
+	if legacyErr != nil {
+		return nativeV2BackupAuthority{}, errors.Join(currentErr, legacyErr)
+	}
+	return legacy, nil
+}
 func readExactBeta4CheckpointState(
 	workspace string,
 	bridge publicUpgradeBridge,
@@ -379,7 +410,7 @@ func inspectPublicUpgradeSnapshotAuthority(
 		snapshot.Release.IndexSHA256 != "sha256:"+exactBeta4UpgradeIndexSHA256 {
 		return nativeV2BackupAuthority{}, currentErr
 	}
-	legacy, legacyErr := inspectExactBeta4BackupAuthority(
+	legacy, legacyErr := inspectExactBeta4BackupAuthorityForRequest(
 		ctx,
 		workspace,
 		requestedSpec,

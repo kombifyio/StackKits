@@ -1149,6 +1149,11 @@ func selectModuleRealizationSupport(moduleID string, support map[string]any, sel
 		if _, exists := selectedUnitIDs[unitRef]; !exists {
 			return fail(ErrContractConflict, contractPath+".unitRef", "artifact selected for target %q belongs to unselected render unit %q", generationTarget, unitRef)
 		}
+		// A ResolvedPlan records the selected artifact realization, not the
+		// catalog's wider compatibility set. Keeping portable contracts
+		// multi-target here makes the persisted plan non-canonical under the
+		// governed #ResolvedPlan projection used by Day-2 commands.
+		contract["compatibleTargets"] = stringSliceAny([]string{generationTarget})
 		selectedContracts = append(selectedContracts, contract)
 		selectedArtifactIDs[artifactID] = struct{}{}
 	}

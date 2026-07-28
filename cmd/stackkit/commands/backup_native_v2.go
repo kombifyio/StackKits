@@ -61,7 +61,7 @@ type nativeV2BackupRequest struct {
 
 var (
 	continueNativeV2Backup                   nativeV2BackupContinuation = continueNativeV2BackupProduction
-	inspectNativeV2BackupAuthorityForRequest                            = inspectNativeV2BackupAuthority
+	inspectNativeV2BackupAuthorityForRequest                            = inspectNativeV2BackupAuthorityForCommand
 )
 
 var nativeV2BackupOperationIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
