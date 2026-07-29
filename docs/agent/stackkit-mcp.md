@@ -49,19 +49,28 @@ Default stance:
 
 For non-loopback access, the connector must be behind a protected path such as VPN, SSH tunnel, private network, mTLS/reverse proxy, or an OAuth-aware gateway. Remote write access also needs explicit write mode and should log run IDs, actor, target, tool inputs, and evidence locations.
 
-## MCP App
+## StackKits State Console
 
-The connector embeds the onboarding resource `ui://stackkits/onboarding.html`. It is generated from the mcp-use-compatible app layer and exposed through the Go MCP runtime so hosts can render StackKits guidance inside the MCP client. The resource is a single stateful MCP App widget; it uses widget-local state for progress and can call the native connector tools from the widget when the host supports the Apps SDK bridge.
+The connector embeds `ui://stackkits/state-console.html`. It is generated from
+the mcp-use-compatible app layer and exposed through the Go MCP runtime so hosts
+can render local StackKits state inside the MCP client. The State Console is a
+single stateful UI adapter over registered MCP operations. It is not a Wizard,
+Finder, recommendation engine, or lifecycle implementation.
 
-The production runtime stays in Go. Native v0.7 obtains its authoring metadata from the embedded CUE Definition and renders a provider-free initial-authoring request; the widget does not hand-author StackSpec YAML.
+The production runtime stays in Go. The State Console obtains configuration
+metadata from the embedded CUE Definition and renders a provider-free request;
+it does not hand-author StackSpec YAML.
 
 The native v0.7 app flow is:
 
 1. Workspace: collect deployment name, workspace, and spec path.
-2. StackKit profile: choose Basement Kit, Cloud Kit, or Modern Homelab; profile identity already defines local, cloud, or multi-site topology.
+2. Explicit Kit configuration: the user chooses Basement Kit, Cloud Kit, or Modern Homelab; the State Console does not score or recommend a Kit.
 3. Resolution inputs: reference externally observed Inventory and the canonical ResolvedPlan output path. Provider lifecycle, credentials, management addresses, host facts, and transports remain outside StackSpec.
 4. Review and plan: create initial v2 intent through the CUE authoring contract, validate it, resolve it against Inventory, then generate and plan from the exact persisted plan.
-5. Apply and evidence: apply only after approval and verify the exact spec/plan/manifest/receipt chain.
+5. Operation approval and evidence: stage an Apply request for the connected
+   agent. The State Console does not call `stackkit_apply`; the agent must
+   present the registered operation for operation-specific confirmation and
+   Owner approval before the connector executes it.
 
 Initial authoring is no-replace. Updating existing v2 intent requires its exact CUE-normalized `expected_spec_hash`; stale writers fail without mutation and an already-applied retry is idempotent.
 
@@ -77,7 +86,7 @@ Read-only and diagnostic tools:
 - `stackkit_get_openapi_spec`
 - `stackkit_install_plan`
 - `stackkit_self_check_plan`
-- `stackkit_onboarding_app`
+- `stackkit_state_console`
 - `stackkit_validate_spec`
 - `stackkit_generate_preview`
 - `stackkit_config_get`

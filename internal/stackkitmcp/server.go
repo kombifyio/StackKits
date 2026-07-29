@@ -16,10 +16,10 @@ import (
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 )
 
-//go:embed assets/onboarding.html
-var onboardingHTML string
+//go:embed assets/state-console.html
+var stateConsoleHTML string
 
-const onboardingResourceURI = "ui://stackkits/onboarding.html"
+const stateConsoleResourceURI = "ui://stackkits/state-console.html"
 
 // App owns the StackKits MCP registration shared by stackkit-mcp and stackkit-server.
 type App struct {
@@ -100,7 +100,7 @@ func (a *App) OpenMCP() map[string]any {
 		toolDefinition("stackkit_get_openapi_spec", true, false, true),
 		toolDefinition("stackkit_install_plan", true, false, true),
 		toolDefinition("stackkit_self_check_plan", true, false, true),
-		toolDefinition("stackkit_onboarding_app", true, false, true),
+		toolDefinition("stackkit_state_console", true, false, true),
 	}
 	if a.opts.Modes["local"] {
 		tools = append(tools,
@@ -172,12 +172,12 @@ func (a *App) OpenMCP() map[string]any {
 		"resources":  a.openMCPResources(),
 		"prompts":    stackkitPrompts(),
 		"appResources": []map[string]any{{
-			"uri":                  onboardingResourceURI,
+			"uri":                  stateConsoleResourceURI,
 			"mimeType":             "text/html;profile=mcp-app",
-			"description":          "Stateful StackKits MCP App onboarding widget",
-			"steps":                []string{"workspace", "stackkit-profile", "resolution-inputs", "review-and-plan", "apply-and-evidence"},
+			"description":          "StackKits State Console for local state review, planning, operation approval, and evidence",
+			"steps":                []string{"workspace", "explicit-kit-configuration", "resolution-inputs", "review-and-plan", "operation-approval-and-evidence"},
 			"callsToolsFromWidget": true,
-			"appsSdkMetadata":      onboardingResourceMeta(),
+			"appsSdkMetadata":      stateConsoleResourceMeta(),
 		}},
 	}
 }
@@ -198,12 +198,12 @@ func (a *App) addDocs(server *mcp.Server) {
 	mcp.AddTool(server, mcpTool("stackkit_get_openapi_spec", "Return the StackKits OpenAPI YAML.", true, false, true), a.getOpenAPISpec)
 	mcp.AddTool(server, mcpTool("stackkit_install_plan", "Return a safe BaseKit install plan for agents.", true, false, true), a.installPlan)
 	mcp.AddTool(server, mcpTool("stackkit_self_check_plan", "Return ordered StackKits agent self-check probes.", true, false, true), a.selfCheckPlan)
-	onboardingTool := mcpTool("stackkit_onboarding_app", "Return the StackKits MCP App onboarding widget metadata.", true, false, true)
-	onboardingTool.Meta["ui"] = map[string]any{"resourceUri": onboardingResourceURI}
-	onboardingTool.Meta["openai/outputTemplate"] = onboardingResourceURI
-	onboardingTool.Meta["openai/toolInvocation/invoking"] = "Opening StackKits onboarding"
-	onboardingTool.Meta["openai/toolInvocation/invoked"] = "StackKits onboarding opened"
-	mcp.AddTool(server, onboardingTool, a.onboardingApp)
+	stateConsoleTool := mcpTool("stackkit_state_console", "Return StackKits State Console metadata.", true, false, true)
+	stateConsoleTool.Meta["ui"] = map[string]any{"resourceUri": stateConsoleResourceURI}
+	stateConsoleTool.Meta["openai/outputTemplate"] = stateConsoleResourceURI
+	stateConsoleTool.Meta["openai/toolInvocation/invoking"] = "Opening StackKits State Console"
+	stateConsoleTool.Meta["openai/toolInvocation/invoked"] = "StackKits State Console opened"
+	mcp.AddTool(server, stateConsoleTool, a.stateConsole)
 
 	for uri, body := range a.docs {
 		uri := uri
@@ -221,20 +221,20 @@ func (a *App) addDocs(server *mcp.Server) {
 		})
 	}
 	server.AddResource(&mcp.Resource{
-		Name:        "stackkits-onboarding",
-		Title:       "StackKits Onboarding",
-		URI:         onboardingResourceURI,
+		Name:        "stackkits-state-console",
+		Title:       "StackKits State Console",
+		URI:         stateConsoleResourceURI,
 		MIMEType:    "text/html;profile=mcp-app",
-		Size:        int64(len(onboardingHTML)),
-		Description: "MCP App onboarding widget for guided StackKits host check, workspace selection, rollout, and evidence review.",
-		Meta:        onboardingResourceMeta(),
+		Size:        int64(len(stateConsoleHTML)),
+		Description: "MCP App for local state review, plan inspection, operation approval, and Owner evidence.",
+		Meta:        stateConsoleResourceMeta(),
 		Annotations: &mcp.Annotations{Audience: []mcp.Role{mcp.Role("assistant")}, Priority: 1.0},
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		return &mcp.ReadResourceResult{Contents: []*mcp.ResourceContents{{
 			URI:      req.Params.URI,
 			MIMEType: "text/html;profile=mcp-app",
-			Text:     onboardingHTML,
-			Meta:     onboardingResourceMeta(),
+			Text:     stateConsoleHTML,
+			Meta:     stateConsoleResourceMeta(),
 		}}}, nil
 	})
 	for _, prompt := range stackkitPrompts() {
@@ -310,8 +310,8 @@ func mcpTool(name, description string, readOnly, destructive, idempotent bool) *
 	}
 }
 
-var onboardingWidgetToolNames = map[string]bool{
-	"stackkit_onboarding_app":   true,
+var stateConsoleToolNames = map[string]bool{
+	"stackkit_state_console":    true,
 	"stackkit_self_check_plan":  true,
 	"stackkit_status":           true,
 	"stackkit_config_get":       true,
@@ -336,10 +336,10 @@ func toolMeta(name string) mcp.Meta {
 }
 
 func isWidgetAccessibleTool(name string) bool {
-	return onboardingWidgetToolNames[name]
+	return stateConsoleToolNames[name]
 }
 
-func onboardingResourceMeta() mcp.Meta {
+func stateConsoleResourceMeta() mcp.Meta {
 	return mcp.Meta{
 		"ui": map[string]any{
 			"prefersBorder": true,
@@ -348,7 +348,7 @@ func onboardingResourceMeta() mcp.Meta {
 				"resourceDomains": []string{"https://stackkit.cc"},
 			},
 		},
-		"openai/widgetDescription":      "Guided Architecture v2 authoring, Inventory-bound resolution, planning, apply approval, and evidence review.",
+		"openai/widgetDescription":      "Local StackKits state review, Inventory-bound planning, operation approval, and Owner evidence.",
 		"openai/widgetPrefersBorder":    true,
 		"openai/widgetAccessible":       true,
 		"openai/resultCanProduceWidget": true,
@@ -356,7 +356,7 @@ func onboardingResourceMeta() mcp.Meta {
 			"connect_domains":  []string{"http://localhost:8082"},
 			"resource_domains": []string{"https://stackkit.cc"},
 		},
-		"openai/outputTemplate": onboardingResourceURI,
+		"openai/outputTemplate": stateConsoleResourceURI,
 	}
 }
 
@@ -411,7 +411,7 @@ func (a *App) openMCPResources() []map[string]any {
 	resources := []map[string]any{
 		{"uri": "api/openapi.v1.yaml", "mimeType": "application/yaml"},
 		{"uri": "docs/agent/stackkit-mcp.md", "mimeType": "text/markdown"},
-		{"uri": onboardingResourceURI, "mimeType": "text/html"},
+		{"uri": stateConsoleResourceURI, "mimeType": "text/html"},
 	}
 	for uri := range a.docs {
 		if uri == "api/openapi.v1.yaml" || uri == "docs/agent/stackkit-mcp.md" {

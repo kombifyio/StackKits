@@ -305,15 +305,15 @@ func (a *App) doctor(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) 
 	return a.serverRequest(ctx, http.MethodPost, "/api/v1/doctor", map[string]any{})
 }
 
-func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+func (a *App) stateConsole(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	out := map[string]any{
-		"resource": onboardingResourceURI,
+		"resource": stateConsoleResourceURI,
 		"steps": []string{
-			"contact-and-workspace",
-			"stackkit-select",
-			"domain-and-core-settings",
+			"workspace-and-local-state",
+			"explicit-kit-configuration",
+			"inventory-and-resolution",
 			"review-and-plan",
-			"rollout-and-evidence",
+			"operation-approval-and-evidence",
 		},
 		"defaults": map[string]any{
 			"workspace":       ".",
@@ -348,7 +348,7 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 	if stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		service, serviceErr := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(a.opts.Version))
 		if serviceErr != nil {
-			failure := errorOutput("stackkit_onboarding_app", fmt.Errorf("load embedded Architecture v2 authoring authority: %w", serviceErr))
+			failure := errorOutput("stackkit_state_console", fmt.Errorf("load embedded Architecture v2 configuration authority: %w", serviceErr))
 			return errorJSONResult(failure), failure, nil
 		}
 		profiles := []stackspecmigration.KitProfile{
@@ -360,7 +360,7 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 		for _, profile := range profiles {
 			contract, contractErr := service.InitialStackSpecAuthoringContract(profile)
 			if contractErr != nil {
-				failure := errorOutput("stackkit_onboarding_app", fmt.Errorf("load %s authoring contract: %w", profile, contractErr))
+				failure := errorOutput("stackkit_state_console", fmt.Errorf("load %s configuration contract: %w", profile, contractErr))
 				return errorJSONResult(failure), failure, nil
 			}
 			kitContracts = append(kitContracts, map[string]any{
@@ -373,11 +373,11 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 		out["authoring_mode"] = "cue-initial-spec"
 		out["steps"] = []string{
 			"workspace-and-kit-profile",
-			"cue-governed-required-overrides",
+			"cue-governed-configuration",
 			"spec-only-validation",
 			"inventory-and-resolve",
 			"authorized-generation",
-			"apply-and-evidence",
+			"operation-approval-and-evidence",
 		}
 		out["defaults"] = map[string]any{
 			"workspace":   ".",
@@ -391,7 +391,7 @@ func (a *App) onboardingApp(ctx context.Context, req *mcp.CallToolRequest, _ str
 	}
 	result := JSONResult(out)
 	result.StructuredContent = out
-	result.Meta = mcp.Meta{"openai/outputTemplate": onboardingResourceURI}
+	result.Meta = mcp.Meta{"openai/outputTemplate": stateConsoleResourceURI}
 	return result, out, nil
 }
 

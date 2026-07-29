@@ -1,10 +1,25 @@
 # Architecture — kombify StackKits
 
-> Last verified: 2026-07-28
+> Last verified: 2026-07-29
 
 This is the current implementation overview for this repo. Normative product and module rules are summarized here and in accepted ADRs.
 
 ## System Role
+
+### Non-negotiable product surfaces
+
+- Installers and the `stackkit` CLI are standalone adapters to the StackKits
+  lifecycle authority.
+- The StackKits State Console is the MCP App for local state review, plan
+  inspection, Owner evidence, and operation-approval requests. It invokes only
+  registered MCP operations and owns no lifecycle implementation.
+- The Easy/Techie Wizard, Finder, operator-capability scoring, recommendation,
+  guidance, and intent drafts belong exclusively to Techstack.
+
+Standard Mode requires none of Techstack, Kombify Cloud, an account, provider
+credentials, or hosted Kombify state. Advanced Mode is the sole sanctioned
+Techstack dependency and still leaves final validation and execution with the
+pinned StackKits CLI.
 
 StackKits turns CUE-defined infrastructure contracts into deployable homelab environments:
 

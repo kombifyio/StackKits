@@ -66,6 +66,15 @@ var fileFocusedTests = map[string][]string{
 		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
 		"TestRunArchitectureV2InitUsesExistingSpecAliasWithoutCreatingSecondAuthority",
 	},
+	"cmd/stackkit/commands/wizard.go": {
+		"TestPublicCommandTreeExcludesPublisherOperations",
+	},
+	"cmd/stackkit/commands/wizard_test.go": {
+		"TestPublicCommandTreeExcludesPublisherOperations",
+	},
+	"cmd/stackkit/commands/publisher_boundary_publisher_test.go": {
+		"TestPublicCommandTreeExcludesPublisherOperations",
+	},
 	"internal/resolvedplan/identity_trust.go": {
 		"TestBuildResolvedIdentityTrustBindsGraphToStackAndExactSites",
 		"TestBuildResolvedIdentityTrustLowersBasementWithoutCloudDistribution",
@@ -354,6 +363,14 @@ func buildPlan(input plannerInput) testPlan {
 		Argv:   []string{"git", "diff", "--check", input.MergeBase, "--"},
 		Reason: "catch whitespace errors only in the candidate diff",
 	}}
+	if productBoundaryRelevant(files) {
+		commands = append(commands, testCommand{
+			Kind:   "release",
+			Scope:  "stackkits-product-boundary",
+			Argv:   []string{"node", "scripts/release/check-product-boundaries.mjs"},
+			Reason: "reject Wizard/scoring ownership drift, external Standard Mode dependencies, provider credentials, and State Console lifecycle duplication",
+		})
+	}
 
 	goSelection := affectedGoSelectionFor(files, input.GoPackages, maxReverse)
 	if classes.GoShared {
@@ -479,6 +496,22 @@ func buildPlan(input plannerInput) testPlan {
 	}
 }
 
+func productBoundaryRelevant(files []string) bool {
+	for _, file := range files {
+		if file == "architecture-snapshot.json" ||
+			file == "architecture-snapshot.schema.json" ||
+			file == "scripts/build-architecture-snapshot.py" ||
+			file == "scripts/release/check-product-boundaries.mjs" ||
+			strings.HasPrefix(file, "schemas/") ||
+			strings.HasPrefix(file, "cmd/stackkit/") ||
+			strings.HasPrefix(file, "internal/stackkitmcp/") ||
+			strings.HasPrefix(file, "mcp-use/stackkits-app/") {
+			return true
+		}
+	}
+	return false
+}
+
 func slicesContain(values []string, want string) bool {
 	index := sort.SearchStrings(values, want)
 	return index < len(values) && values[index] == want
@@ -506,12 +539,19 @@ func focusedGoTests(files []string, changedTests map[string][]string) map[string
 func affectedReleaseTests(files []string) []string {
 	selected := map[string]struct{}{}
 	needsFallback := false
+	productBoundaryTaskChange := slicesContain(files, "mise.toml") &&
+		slicesContain(files, "scripts/release/check-product-boundaries.mjs")
 	for _, file := range files {
 		if !isGeneralReleasePath(file) {
 			continue
 		}
 		if strings.HasSuffix(file, ".test.mjs") {
 			selected[file] = struct{}{}
+			continue
+		}
+		if file == "mise.toml" && productBoundaryTaskChange {
+			selected["scripts/release/check-product-boundaries.test.mjs"] = struct{}{}
+			selected["scripts/release/check-fast-feedback-budget.test.mjs"] = struct{}{}
 			continue
 		}
 		if tests, ok := releaseTestBindings[file]; ok {

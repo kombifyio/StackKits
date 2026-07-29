@@ -1,18 +1,96 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://kombify.io/schemas/architecture-snapshot-2.3.0.json",
-  "title": "kombify-StackKits architecture snapshot",
-  "$comment": "Focused contract for the placement-eligibility (2.1.0), mode-matrix (2.2.0), and enriched stackkits/wizard_schema (2.3.0, additive) additions. Other emitted top-level fields (source, generated_at, architecture_patterns, wizard_schema, contexts, stackkits, service_groups) are intentionally not constrained here.",
+  "$id": "https://kombify.io/schemas/architecture-snapshot-3.0.0.json",
+  "title": "StackKits facts-only architecture snapshot v3",
+  "description": "Closed downstream contract containing only StackKits-owned kit, topology, capability, placement, module, add-on, and support-maturity facts.",
   "type": "object",
-  "required": ["schema_version", "placement_model", "mode_matrix", "modules", "addons"],
+  "additionalProperties": false,
+  "required": [
+    "$comment",
+    "schema_version",
+    "generated_at",
+    "source",
+    "placement_model",
+    "stackkits",
+    "mode_matrix",
+    "modules",
+    "addons"
+  ],
   "properties": {
-    "schema_version": {"const": "2.3.0"},
-    "mode_matrix": {
+    "$comment": {"type": "string"},
+    "schema_version": {"const": "3.0.0"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "source": {
       "type": "object",
-      "required": ["levels", "kits"],
+      "additionalProperties": false,
+      "required": ["repo", "ref", "commit"],
       "properties": {
-        "levels": {"type": "array", "items": {"enum": ["supported", "scaffolding", "unsupported", "control-plane"]}},
-        "paas_statuses": {"type": "array", "items": {"enum": ["default", "supported", "draft", "experimental"]}},
+        "repo": {"type": "string"},
+        "ref": {"type": "string"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "placement_model": {"$ref": "#/$defs/placementModel"},
+    "stackkits": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/stackkit"}
+    },
+    "mode_matrix": {"$ref": "#/$defs/modeMatrix"},
+    "modules": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/catalogEntry"}
+    },
+    "addons": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/catalogEntry"}
+    }
+  },
+  "$defs": {
+    "placementModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "modes", "sub_dimensions", "oss_realized", "control_plane_only", "note", "source_standard"],
+      "properties": {
+        "axis": {"const": "placementMode"},
+        "modes": {
+          "type": "array",
+          "items": {"enum": ["local-only", "standard", "managed-serverless"]}
+        },
+        "sub_dimensions": {"type": "object"},
+        "oss_realized": {"type": "array", "items": {"type": "string"}},
+        "control_plane_only": {"type": "array", "items": {"type": "string"}},
+        "note": {"type": "string"},
+        "source_standard": {"type": "string"}
+      }
+    },
+    "stackkit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slug", "display_name", "description", "version", "topology", "capabilities", "contexts", "source_path"],
+      "properties": {
+        "slug": {"type": "string"},
+        "display_name": {"type": "string"},
+        "description": {"type": "string"},
+        "version": {"type": "string"},
+        "topology": {"type": "object"},
+        "capabilities": {"type": "object"},
+        "contexts": {"type": "array", "items": {"type": "string"}},
+        "source_path": {"type": "string"}
+      }
+    },
+    "modeMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["levels", "paas_statuses", "note", "kits"],
+      "properties": {
+        "levels": {
+          "type": "array",
+          "items": {"enum": ["supported", "scaffolding", "unsupported", "control-plane"]}
+        },
+        "paas_statuses": {
+          "type": "array",
+          "items": {"enum": ["default", "supported", "draft", "experimental"]}
+        },
         "note": {"type": "string"},
         "kits": {
           "type": "object",
@@ -20,62 +98,22 @@
         }
       }
     },
-    "placement_model": {
-      "type": "object",
-      "required": ["axis", "modes", "oss_realized", "control_plane_only"],
-      "properties": {
-        "axis": {"const": "placementMode"},
-        "modes": {
-          "type": "array",
-          "minItems": 3,
-          "items": {"enum": ["local-only", "standard", "managed-serverless"]}
-        },
-        "oss_realized": {"type": "array", "items": {"type": "string"}},
-        "control_plane_only": {"type": "array", "items": {"type": "string"}},
-        "sub_dimensions": {"type": "object"},
-        "note": {"type": "string"},
-        "source_standard": {"type": "string"}
-      }
-    },
-    "modules": {"type": "array", "items": {"$ref": "#/$defs/catalogEntry"}},
-    "addons": {"type": "array", "items": {"$ref": "#/$defs/catalogEntry"}}
-  },
-  "$defs": {
     "kitModeSupport": {
       "type": "object",
       "required": ["kit", "placement", "install", "context"],
       "properties": {
         "kit": {"type": "string"},
-        "placement": {
-          "type": "object",
-          "required": ["local-only", "standard", "managed-serverless"],
-          "properties": {
-            "local-only": {"$ref": "#/$defs/supportLevel"},
-            "standard": {"$ref": "#/$defs/supportLevel"},
-            "managed-serverless": {"const": "control-plane"}
-          }
-        },
-        "install": {
-          "type": "object",
-          "required": ["bare", "bootstrapped", "advanced"],
-          "additionalProperties": {"$ref": "#/$defs/supportLevel"}
-        },
-        "context": {
-          "type": "object",
-          "required": ["local", "cloud", "pi"],
-          "additionalProperties": {"$ref": "#/$defs/supportLevel"}
-        },
-        "paas": {
-          "type": "object",
-          "additionalProperties": {"enum": ["default", "supported", "draft", "experimental"]}
-        },
+        "placement": {"type": "object"},
+        "install": {"type": "object"},
+        "context": {"type": "object"},
+        "paas": {"type": "object"},
         "evidence": {"type": "array", "items": {"type": "string"}}
       }
     },
-    "supportLevel": {"enum": ["supported", "scaffolding", "unsupported", "control-plane"]},
     "catalogEntry": {
       "type": "object",
-      "required": ["slug", "source_path", "placement"],
+      "additionalProperties": false,
+      "required": ["slug", "display_name", "layer", "description", "source_path", "placement"],
       "properties": {
         "slug": {"type": "string"},
         "display_name": {"type": "string"},
@@ -87,10 +125,12 @@
     },
     "placementEligibility": {
       "type": "object",
-      "required": ["supports", "cf_fit"],
+      "additionalProperties": false,
+      "required": ["supports", "cf_fit", "rejection_reason"],
       "properties": {
         "supports": {
           "type": "object",
+          "additionalProperties": false,
           "required": ["local_only", "standard", "managed_serverless"],
           "properties": {
             "local_only": {"type": "boolean"},

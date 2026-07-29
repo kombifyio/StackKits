@@ -32,7 +32,7 @@ Implementation details:
 | --- | --- | --- |
 | Local adapter | `stackkit-mcp` stdio or loopback HTTP | The `stackkit` MCP connection on the same machine as the CLI/workspace |
 | Durable endpoint | `stackkit-server POST /mcp` | The same `stackkit` MCP connection after install, exposed only through a protected access path |
-| App authoring | `mcp-use/stackkits-app` | Build/Inspector layer for `ui://stackkits/onboarding.html`, not a production connector |
+| State Console authoring | `mcp-use/stackkits-app` | Build/Inspector layer for `ui://stackkits/state-console.html`, not a production connector or lifecycle owner |
 
 This means `P5` and `P6` are not different MCP products. They differ only by where the same `stackkit` connection is hosted and which authority boundary applies.
 
@@ -126,7 +126,7 @@ Installation variants must be described on two independent axes:
 | --- | --- | --- | --- |
 | `A0` | Discovery only | User or agent reads docs and chooses a path | Website, `llms.txt`, OpenMCP discovery |
 | `A1` | Manual CLI | User runs each lifecycle command | `install -> init -> prepare -> generate -> plan -> apply -> verify` |
-| `A2` | Guided agent | Agent proposes/runs steps, user supplies intent and approvals | Prompted CLI, MCP App onboarding, SSH agent |
+| `A2` | Guided agent | Agent proposes/runs steps, user supplies intent and approvals | Prompted CLI, StackKits State Console, SSH agent |
 | `A3` | Autonomous approved rollout | User supplies minimum intent, agent/installer executes the rollout | Basement Kit one-line installer, agent on target with approved plan |
 | `A4` | Durable connector operation | Target-local connector performs config/update/verify/log workflows for an external agent after the StackKit is installed | `stackkit-server POST /mcp` with token and write gate |
 
@@ -178,7 +178,7 @@ Use this table when choosing the user-facing installation path. The three pillar
 | `P2` Shared CLI installer plus direct CLI | Full range (`I0-I4`). Best for reviewing StackSpec, generated preview, plan, add-ons, advanced owner/recovery policy, custom network/platform choices. | Local shell on target or operator workstation, depending on workspace/target flags. Root/sudo only when preparing local host. | Low to guided (`A1-A2`). User or agent runs each command. | Install CLI, create/edit spec, run prepare/validate/generate/plan, then approve apply. |
 | `P3` Agent already on target server | Full range (`I0-I4`) if the agent has enough local context and approval. Good for default and advanced flows. | Agent has direct target-shell authority. Website/prompting is guidance only. | Guided to autonomous (`A2-A3`). | Agent reads prompts/docs, asks for missing intent, executes CLI locally, reports evidence. |
 | `P4` External agent through SSH/remote shell | Medium to full (`I1-I4`). Strong for target host, SSH user/key, email, domain, custom install mode, and remote evidence. | Agent outside server with SSH or equivalent remote shell. Authority is SSH user privileges. | Guided to autonomous (`A2-A3`). | Agent confirms target safety, downloads installer or CLI on target, runs lifecycle remotely, returns logs/evidence. |
-| `P5` Protected durable StackKits MCP endpoint | Medium to full (`I1-I4`) through typed tools and MCP App onboarding. Best for future StackKit-owned config/update/verify/log day-2 operations after install. | Agent outside server connects to target `stackkit-server /mcp` over a protected endpoint, tunnel, VPN, or private network. Token, transport security, and write gate are required for mutation. | Durable connector target (`A4`), not a current primary first-install path. | Installed StackKit keeps `stackkit-server` running; external agent starts read-only, then uses write tools only after explicit write-mode approval. |
+| `P5` Protected durable StackKits MCP endpoint | Medium to full (`I1-I4`) through typed tools and the State Console. Best for future StackKit-owned config/update/verify/log day-2 operations after install. | Agent outside server connects to target `stackkit-server /mcp` over a protected endpoint, tunnel, VPN, or private network. Token, transport security, and write gate are required for mutation. | Durable connector target (`A4`), not a current primary first-install path. | Installed StackKit keeps `stackkit-server` running; external agent starts read-only, then uses write tools only after explicit write-mode approval. |
 | `P6` Local StackKits MCP adapter | Medium to full (`I1-I4`) on the local workspace. Good when the MCP client and StackKit workspace are colocated. | Same-machine MCP client using `stackkit-mcp` stdio or loopback HTTP. Local process authority. If launched through SSH, the authority boundary is still `P4`. | Guided (`A2`). | User configures one `stackkit` MCP connection; agent reads resources/tools and drives local CLI-equivalent operations where enabled. |
 
 Decision rules:
@@ -196,7 +196,7 @@ For users, the product should present five method groups. The internal `P*` IDs 
 | User-facing method | Internal paths | Individualizability | Access options | Automatisability | When to choose it |
 | --- | --- | --- | --- | --- | --- |
 | CLI | `P1`, `P2` | `P1`: low to medium through env vars. `P2`: full through StackSpec, flags, and plan review. | Shell on the target or a controlled operator shell. SSH can be used to run the same commands remotely. | `P1` is highly automated; `P2` is manual to guided. | Choose CLI when users want the clearest, most inspectable product path. |
-| Native MCP | `P5`, `P6` | Medium to full through typed tools and the MCP App onboarding resource. | Same-machine `stackkit-mcp` or protected target `stackkit-server /mcp`. | Guided locally; durable day-2 remotely after install. | Choose MCP when an agent should manage StackKits through a narrow tool surface instead of arbitrary shell commands. |
+| Native MCP | `P5`, `P6` | Medium to full through typed tools and the State Console resource. | Same-machine `stackkit-mcp` or protected target `stackkit-server /mcp`. | Guided locally; durable day-2 remotely after install. | Choose MCP when an agent should manage StackKits through a narrow tool surface instead of arbitrary shell commands. |
 | WebMCP / website discovery | `P0` | Planning across the full range, but no target mutation. | Public website, `llms.txt`, `/openmcp.json`, docs, schemas, OpenAPI. | Discovery only. | Choose WebMCP first when an agent needs to learn StackKits and decide the execution path. |
 | External SSH agent | `P4` | Medium to full; strong for target host, domain, user, key, mode, and evidence choices. | Agent outside the server with SSH or equivalent remote shell. | Guided to autonomous after target approval. | Choose SSH when no native MCP endpoint exists yet and the agent must bootstrap a remote server. |
 | On-server coding agent | `P3` | Full, as long as the agent has local context and explicit approval. | Agent is already inside the target VM/server shell. | Guided to autonomous. | Choose this when the agent already runs on the target and can use CLI directly. |
@@ -260,7 +260,7 @@ The agent drives the workflow but asks for the variable choices:
 - optional PaaS/platform target;
 - apply approval.
 
-This is the default shape for the MCP App onboarding.
+This is the default shape for initial configuration in the State Console.
 
 ### `A3`: Autonomous Approved Rollout
 
@@ -286,7 +286,8 @@ Best paths: `P1`, `P2`, `P3`.
 
 ### `I1`: Identity And Workspace
 
-Adds email, stack name, workspace, and spec path. This is the minimum expected MCP App onboarding input set.
+Adds email, stack name, workspace, and spec path. This is the minimum expected
+State Console configuration input set.
 
 Best paths: `P2`, `P3`, `P6`; `P5` only after the target connector exists.
 
@@ -578,7 +579,7 @@ User journey:
 2. Operator starts `stackkit-server` as the target-local StackKits service.
 3. Operator configures protected remote access, MCP token/auth, and optional write mode.
 4. External agent reads `GET /openmcp.json`.
-5. Agent opens `ui://stackkits/onboarding.html` if the host supports MCP Apps.
+5. Agent opens `ui://stackkits/state-console.html` if the host supports MCP Apps.
 6. User or agent supplies email, workspace, kit, core settings, domain choice, and approval.
 7. Agent uses read-only tools first: config, status, logs, verify, drift detection, generate preview.
 8. Agent uses write tools only after approval and write gate.

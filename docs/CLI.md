@@ -111,7 +111,7 @@ the v0.8 Basement default executes Compose directly.
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
 
-Publisher-only `module`, `wizard`, registry-maintenance, DB, and Admin
+Publisher-only `module`, registry-maintenance, DB, and Admin
 operations are not part of this public command tree. They compile only into the
 private `stackkit-publisher` executable.
 
@@ -636,18 +636,6 @@ Subcommands:
 - `logs [run-id]`
 
 Structured deploy logs live under `.stackkit/logs` unless configured otherwise.
-
-### `stackkit-publisher wizard` (Publisher-only)
-
-Subcommands:
-
-- `wizard report`
-
-Exact-v0.6 compatibility only: posts locally captured wizard answers or
-free-form intents to the Admin API. Native v0.7 rejects the command before
-environment, answer-file, payload, or network access because the v1
-`answers`/derived-context/compute payload is not a canonical v2 intent contract.
-Use `--dry-run` to inspect the compatibility payload on an exact-v0.6 build.
 
 ### `stackkit completion [bash|zsh|fish|powershell]`
 

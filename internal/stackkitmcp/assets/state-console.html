@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>StackKits Onboarding</title>
+  <title>StackKits State Console</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -476,8 +476,8 @@
   <main>
     <header>
       <div>
-        <h1>StackKits Onboarding</h1>
-        <p class="sub">Native Architecture v2 authoring from CUE, Inventory-bound resolution, governed generation, and evidence.</p>
+        <h1>StackKits State Console</h1>
+        <p class="sub">Local state review, Inventory-bound planning, operation approval, and Owner evidence.</p>
       </div>
       <div class="mode" aria-live="polite">
         <span id="writeDot" class="dot"></span>
@@ -485,9 +485,9 @@
       </div>
     </header>
 
-    <nav class="steps" aria-label="Onboarding progress">
-      <button class="step-button" type="button" data-step="0"><strong>Workspace</strong><span>Intent</span></button>
-      <button class="step-button" type="button" data-step="1"><strong>StackKit</strong><span>Profile</span></button>
+    <nav class="steps" aria-label="State review progress">
+      <button class="step-button" type="button" data-step="0"><strong>Workspace</strong><span>Local state</span></button>
+      <button class="step-button" type="button" data-step="1"><strong>StackKit</strong><span>Explicit profile</span></button>
       <button class="step-button" type="button" data-step="2"><strong>Inventory</strong><span>Resolve</span></button>
       <button class="step-button" type="button" data-step="3"><strong>Review</strong><span>Plan</span></button>
       <button class="step-button" type="button" data-step="4"><strong>Rollout</strong><span>Evidence</span></button>
@@ -518,7 +518,7 @@
       </section>
 
       <section class="panel hidden" id="panel-kit">
-        <h2>StackKit and Profile</h2>
+        <h2>Explicit StackKit Configuration</h2>
         <div class="fields">
           <label class="field full">
             <span>StackKit</span>
@@ -528,7 +528,7 @@
               <option value="modern-homelab">Modern Homelab (Home + Cloud Sites)</option>
             </select>
           </label>
-          <p class="field full">The selected KitProfile owns locality and topology. Context, provider, host, compute-tier, and transport flags are not StackSpec v2 authoring inputs.</p>
+          <p class="field full">Choose the KitProfile explicitly. The State Console does not score, recommend, or select a Kit. Context, provider, host, compute-tier, and transport flags are not StackSpec v2 inputs.</p>
         </div>
       </section>
 
@@ -561,7 +561,7 @@
           </label>
           <p class="field full">Initial authoring is no-replace. Replacing existing v2 intent requires its exact CUE-normalized expected spec hash.</p>
         </div>
-        <h3>Initial authoring request</h3>
+        <h3>Initial configuration request</h3>
         <textarea id="spec_preview" spellcheck="false" aria-label="Spec preview"></textarea>
         <div class="actions">
           <button type="button" class="primary" id="createSpec">Create Spec</button>
@@ -572,12 +572,12 @@
       </section>
 
       <section class="panel hidden" id="panel-rollout">
-        <h2>Rollout and Evidence</h2>
+        <h2>Operation Approval and Evidence</h2>
         <ul class="run-list" id="runList" aria-live="polite"></ul>
         <div class="checks">
           <label class="check">
-            <input id="apply_auto_approve" name="apply_auto_approve" type="checkbox">
-            <span>Auto approve apply</span>
+            <input id="apply_reviewed" name="apply_reviewed" type="checkbox">
+            <span>I reviewed the current plan and want the agent to request Apply approval</span>
           </label>
           <label class="check">
             <input id="verify_http" name="verify_http" type="checkbox" disabled>
@@ -585,7 +585,7 @@
           </label>
         </div>
         <div class="actions">
-          <button type="button" class="primary" id="runRollout">Run Governed Flow</button>
+          <button type="button" class="primary" id="runRollout">Request Apply Approval</button>
           <button type="button" id="verify">Verify Plan</button>
           <button type="button" id="logs">Logs</button>
         </div>
@@ -617,7 +617,7 @@
       ["stackkit_resolve", "Resolve"],
       ["stackkit_generate", "Generate"],
       ["stackkit_plan", "Plan"],
-      ["stackkit_apply", "Apply"],
+      ["apply_approval", "Apply approval"],
       ["stackkit_verify_plan", "Verify"]
     ];
 
@@ -634,7 +634,7 @@
         stackkit: "basement-kit",
         domain_base: "",
         inventory_path: "inventory.json",
-        apply_auto_approve: false,
+        apply_reviewed: false,
         verify_http: false
       }
     };
@@ -868,17 +868,15 @@
         setOutput({ blocked: true, error: "Create or load a canonical StackSpec v2 before running the governed flow." });
         return;
       }
-      if (!state.form.apply_auto_approve) {
-        setOutput({ blocked: true, error: "apply_auto_approve must be selected before running rollout from the widget" });
+      if (!state.form.apply_reviewed) {
+        setOutput({ blocked: true, error: "Review the current plan before requesting Apply approval." });
         return;
       }
       const sequence = [
         ["stackkit_validate_spec", baseArgs()],
         ["stackkit_resolve", resolveArgs()],
         ["stackkit_generate", baseArgs()],
-        ["stackkit_plan", baseArgs()],
-        ["stackkit_apply", { ...baseArgs(), auto_approve: true }],
-        ["stackkit_verify_plan", baseArgs()]
+        ["stackkit_plan", baseArgs()]
       ];
       clearRunMarks(sequence);
       for (const [tool, args] of sequence) {
@@ -889,6 +887,13 @@
           return;
         }
       }
+      markRun("apply_approval", "pending");
+      setOutput({
+        operation_approval_required: true,
+        operation: "apply",
+        requested_arguments: baseArgs(),
+        message: "The State Console never invokes Apply directly. Ask the connected agent to present the registered StackKits Apply operation for operation-specific confirmation and Owner approval."
+      });
     }
 
     async function createSpec() {
@@ -998,7 +1003,7 @@
     document.getElementById("verify").addEventListener("click", () => callTool("stackkit_verify_plan", baseArgs()));
     document.getElementById("logs").addEventListener("click", () => callTool("stackkit_logs_list"));
 
-    callTool("stackkit_onboarding_app").then((result) => {
+    callTool("stackkit_state_console").then((result) => {
       const meta = structured(result);
       state.writeEnabled = !!meta?.cli_actions_enabled;
       writeDot.classList.toggle("ok", state.writeEnabled);
