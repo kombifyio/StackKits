@@ -40,6 +40,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   execution, Owner observation, rollback, and recovery state. Standard Mode
   remains account-free and independent of Techstack.
 
+### Fixed
+
+- Stable v0.11-to-v0.12 upgrades now inspect and checkpoint the applied
+  generation through the exact installed, attested v0.11 binary. The bridge
+  admits only the published v0.11 compiler, renderer, Definition, semantic
+  authority, Basement archive, and release-index tuple; normal v0.12 target
+  generation and mutation remain governed by the strict v0.12 CUE authority.
+
 ## [0.11.0] - 2026-07-30
 
 > **Family Photo Vault reference vertical** across one CUE-owned lifecycle and
