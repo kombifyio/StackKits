@@ -39,6 +39,14 @@ const (
 	legacyV09DefinitionHash         = "sha256:63ccaa8a22cb01177ba97ed46f003134c09893ba62f2a786b7cefaf9fca88c3a"
 	legacyV09CompilerVersion        = "stackkits-resolver/0.9.0"
 	legacyV09RendererVersion        = "0.9.0"
+	legacyV010Version               = "v0.10.0"
+	legacyV010ArchiveSHA256         = "sha256:f4bfbd633c20417479fb76ce7df7b67828c2dba25f50743fed3a48d80cc49105"
+	legacyV010IndexSHA256           = "sha256:90f42b95a359d4d27d1cb84ac6a33d98a1d216050d0a51b7d22a26214fe8f089"
+	legacyV010AuthorityFingerprint  = "sha256:2b01cfdc8e23ac492141d64bdd299b351fa1bcbd1b0d7cc1d4fcf604d5600541"
+	legacyV010CatalogHash           = "sha256:a749d5e6cc0a6d87863e4f97914cf8d1118b93aa3db4e0ae66a729eb18b070a7"
+	legacyV010DefinitionHash        = "sha256:63ccaa8a22cb01177ba97ed46f003134c09893ba62f2a786b7cefaf9fca88c3a"
+	legacyV010CompilerVersion       = "stackkits-resolver/0.10.0"
+	legacyV010RendererVersion       = "0.10.0"
 )
 
 type allowedLegacyRelease struct {
@@ -49,7 +57,7 @@ type allowedLegacyRelease struct {
 }
 
 // LegacyCurrentStateAuthorityInput is intentionally limited to the exact
-// published beta.4, v0.8.0, and v0.9.0 authority discontinuities. The caller
+// published beta.4 through v0.10.0 authority discontinuities. The caller
 // must still supply the immutable installed-release proof, owner-signed Apply
 // evidence, complete generated artifact closure, and the candidate-created
 // Kopia snapshot.
@@ -278,6 +286,20 @@ func verifyAllowedLegacyInspection(
 			version: legacyV09Version, channel: releaseindex.ChannelStable,
 			archiveSHA256: legacyV09ArchiveSHA256,
 			indexSHA256:   legacyV09IndexSHA256,
+		}, nil
+	}
+	if matchesHistoricalStableInspection(
+		inspection,
+		legacyV010DefinitionHash,
+		legacyV010CompilerVersion,
+		legacyV010RendererVersion,
+		legacyV010AuthorityFingerprint,
+		legacyV010CatalogHash,
+	) {
+		return allowedLegacyRelease{
+			version: legacyV010Version, channel: releaseindex.ChannelStable,
+			archiveSHA256: legacyV010ArchiveSHA256,
+			indexSHA256:   legacyV010IndexSHA256,
 		}, nil
 	}
 	return allowedLegacyRelease{}, errors.New(

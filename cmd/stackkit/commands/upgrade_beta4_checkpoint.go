@@ -112,6 +112,31 @@ func inspectPublishedV09BackupAuthority(
 	return state.authority, nil
 }
 
+func inspectPublishedV010BackupAuthority(
+	ctx context.Context,
+	workspace string,
+	requestedSpec string,
+	kit string,
+	target releaseindex.Resolution,
+) (nativeV2BackupAuthority, error) {
+	bridge, err := inspectPublishedV010UpgradeBridge(
+		ctx, workspace, requestedSpec, kit, target,
+	)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	if !bridge.Enabled {
+		return nativeV2BackupAuthority{}, errors.New(
+			"current state is not eligible for the published v0.10 checkpoint bridge",
+		)
+	}
+	state, err := readPublishedV08CheckpointState(workspace, bridge)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	return state.authority, nil
+}
+
 // inspectNativeV2BackupAuthorityForRequest keeps the normal current authority
 // path as the default. It may retain the beta.4 authority only when its full
 // attested bridge proof succeeds for the sole supported v0.8.0 target.
@@ -440,6 +465,10 @@ func withPreparedHistoricalUpgradeCapture(
 					return validatePublishedV09Receipt(
 						receipt, kit, currentReleasePlatform(),
 					)
+				case publishedV010CurrentVersion:
+					return validatePublishedV010Receipt(
+						receipt, kit, currentReleasePlatform(),
+					)
 				default:
 					return errors.New("installed release is not an admitted historical stable source")
 				}
@@ -511,6 +540,29 @@ func inspectPublicUpgradeSnapshotAuthority(
 	)
 	if currentErr == nil {
 		return current, nil
+	}
+	if snapshot.Release.Kit == "basement-kit" &&
+		snapshot.Release.Version == publishedV010CurrentVersion &&
+		snapshot.Release.Channel == releaseindex.ChannelStable &&
+		snapshot.Release.Platform == currentReleasePlatform() &&
+		snapshot.Release.ArchiveSHA256 == "sha256:"+publishedV010ArchiveSHA256 &&
+		snapshot.Release.IndexSHA256 == "sha256:"+publishedV010IndexSHA256 {
+		historical, historicalErr := inspectPublishedV010BackupAuthority(
+			ctx,
+			workspace,
+			requestedSpec,
+			snapshot.Release.Kit,
+			releaseindex.Resolution{Asset: releaseindex.Asset{
+				Kit:      snapshot.Release.Kit,
+				Version:  publishedV011UpgradeVersion,
+				Channel:  releaseindex.ChannelStable,
+				Platform: snapshot.Release.Platform,
+			}},
+		)
+		if historicalErr != nil {
+			return nativeV2BackupAuthority{}, errors.Join(currentErr, historicalErr)
+		}
+		return historical, nil
 	}
 	if snapshot.Release.Kit == "basement-kit" &&
 		snapshot.Release.Version == publishedV09CurrentVersion &&
