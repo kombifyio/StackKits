@@ -957,6 +957,15 @@ func validateResolvedWorkloadBodies(plan ResolvedPlan, catalog *indexedCatalog) 
 				return nil, nil, nil, err
 			}
 		}
+		_, hasInfrastructure, err := optionalObjectField(alternative, path+".alternative", "infrastructure")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if hasInfrastructure {
+			if err := validateResolvedWorkloadInfrastructure(resolvedAlternative, alternative, modulesByID, path+".alternative"); err != nil {
+				return nil, nil, nil, err
+			}
+		}
 		if err := validateResolvedWorkloadRuntimeAdapter(resolvedAlternative, alternative, catalog, path+".alternative"); err != nil {
 			return nil, nil, nil, err
 		}
@@ -1028,6 +1037,66 @@ func validateResolvedWorkloadBodies(plan ResolvedPlan, catalog *indexedCatalog) 
 		providers[id], modules[moduleID], placements[moduleID] = providerID, id, resolvedWorkloadPlacement{siteRefs: siteRefs, nodeRefs: nodeRefs}
 	}
 	return providers, modules, placements, nil
+}
+
+func validateResolvedWorkloadInfrastructure(resolvedAlternative, alternative map[string]any, modulesByID map[string]map[string]any, path string) error {
+	if err := requireCatalogObjectField(resolvedAlternative, alternative, path, "infrastructure"); err != nil {
+		return err
+	}
+	infrastructure, err := objectField(resolvedAlternative, path, "infrastructure")
+	if err != nil {
+		return err
+	}
+	moduleRefs := make([]struct {
+		field         string
+		contractField string
+	}, 0, 2)
+	moduleRefs = append(moduleRefs,
+		struct {
+			field         string
+			contractField string
+		}{field: "storageAllocation", contractField: "storageAllocationContract"},
+		struct {
+			field         string
+			contractField string
+		}{field: "dataBinding", contractField: "dataBindingContract"},
+		struct {
+			field         string
+			contractField string
+		}{field: "backupSource", contractField: "backupSourceContract"},
+		struct {
+			field         string
+			contractField string
+		}{field: "snapshot", contractField: "snapshotContract"},
+		struct {
+			field         string
+			contractField string
+		}{field: "restore", contractField: "restoreContract"},
+		struct {
+			field         string
+			contractField string
+		}{field: "recovery", contractField: "recoveryContract"},
+	)
+	for _, moduleRef := range moduleRefs {
+		binding, err := objectField(infrastructure, path+".infrastructure", moduleRef.field)
+		if err != nil {
+			return err
+		}
+		moduleID, err := stringField(binding, path+".infrastructure."+moduleRef.field, "moduleRef")
+		if err != nil {
+			return err
+		}
+		module := modulesByID[moduleID]
+		if module == nil {
+			return fmt.Errorf("%s.infrastructure.%s.moduleRef %q is not selected in resolvedPlan.modules", path, moduleRef.field, moduleID)
+		}
+		if _, exists, err := optionalObjectField(module, "resolvedPlan.modules."+moduleID, moduleRef.contractField); err != nil {
+			return err
+		} else if !exists {
+			return fmt.Errorf("%s.infrastructure.%s.moduleRef %q lacks %s", path, moduleRef.field, moduleID, moduleRef.contractField)
+		}
+	}
+	return nil
 }
 
 func validateResolvedWorkloadRuntimeAdapter(resolvedAlternative, alternative map[string]any, catalog *indexedCatalog, path string) error {
@@ -1653,13 +1722,20 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if err := requireCatalogField(module, contract, path, "role"); err != nil {
 			return err
 		}
+		if err := requireCatalogOptionalField(module, contract, path, "planOnly"); err != nil {
+			return err
+		}
 		if err := requireCatalogObjectField(module, contract, path, "runtime"); err != nil {
 			return err
 		}
 		if err := validateResolvedModuleSupportProjection(module, contract, path); err != nil {
 			return err
 		}
-		for _, field := range []string{"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement", "runtimeAdapter", "runtimeAdapterAgent"} {
+		for _, field := range []string{
+			"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement",
+			"runtimeAdapter", "runtimeAdapterAgent", "storageAllocationContract", "dataBindingContract",
+			"backupSourceContract", "snapshotContract", "restoreContract", "recoveryContract",
+		} {
 			if err := requireCatalogOptionalObjectField(module, contract, path, field); err != nil {
 				return err
 			}
@@ -2923,6 +2999,25 @@ func requireCatalogObjectField(have, want map[string]any, path, field string) er
 		return err
 	}
 	equal, err := canonicalEqual(haveObject, wantObject)
+	if err != nil {
+		return err
+	}
+	if !equal {
+		return fmt.Errorf("%s.%s does not match the bound catalog body", path, field)
+	}
+	return nil
+}
+
+func requireCatalogOptionalField(have, want map[string]any, path, field string) error {
+	haveValue, haveExists := have[field]
+	wantValue, wantExists := want[field]
+	if haveExists != wantExists {
+		return fmt.Errorf("%s.%s presence does not match the bound catalog body", path, field)
+	}
+	if !wantExists {
+		return nil
+	}
+	equal, err := canonicalEqual(haveValue, wantValue)
 	if err != nil {
 		return err
 	}

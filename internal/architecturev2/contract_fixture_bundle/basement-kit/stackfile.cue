@@ -31,7 +31,7 @@ Definition: base.#ProductKitDefinition & {
 	kind:       "KitDefinition"
 	metadata: {
 		slug:        "basement-kit"
-		version:     "5.0.0"
+		version:     "5.1.0"
 		displayName: "Basement Kit"
 		description: "Local-first StackKit for one or more nodes on private home sites"
 	}
@@ -124,7 +124,7 @@ Definition: base.#ProductKitDefinition & {
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

@@ -1340,6 +1340,111 @@ import (
 	]) & true
 }
 
+// #ResolvedFleetLifecycleV1 is the compiler-owned, single-StackInstance
+// contract for supplemental-node mutations. It binds both sides of every
+// mutation to exact ResolvedPlans while leaving provider allocation,
+// credentials, and multi-server orchestration outside StackKits authority.
+#ResolvedFleetLifecycleMemberV1: {
+	nodeRef: #NodeID
+	siteRef: #SiteID
+	roles: [...#NodeRoleV2] & list.MinItems(1)
+	enabled:            bool
+	failureDomain:      string & =~"^.+$"
+	controlPlaneMember: bool
+}
+
+#ResolvedFleetMutationOperationV1: {
+	name:                 "add" | "replace" | "drain" | "recover" | "remove"
+	sourceMember:         "required" | "optional" | "forbidden"
+	targetMember:         "required" | "optional" | "forbidden"
+	targetPlanRequired:   true
+	targetPlanMustDiffer: bool
+	mutation:             true
+	destructive:          bool
+	ownerApproval: {
+		required: true
+		class:    "owner-step-up" | "break-glass"
+	}
+	checkpointRequired: bool
+	recoveryRequired:   true
+	phases: [...#ContractID] & list.MinItems(3)
+	evidence: {
+		schema:         "stackkit.fleet-mutation-evidence/v1"
+		immutable:      true
+		localCustody:   true
+		requiredPhases: phases
+	}
+}
+
+#ResolvedFleetLifecycleV1: {
+	apiVersion:    "stackkit.fleet-lifecycle/v1"
+	kind:          "FleetLifecycle"
+	stackId:       #ContractID
+	fleetRef?:     #ContractID
+	specHash:      #ContentHash
+	inventoryHash: #ContentHash
+	scope:         "single-stack-instance"
+
+	membership: {
+		members: [...#ResolvedFleetLifecycleMemberV1] & list.MinItems(1)
+		controlAuthority: {
+			mode:             #ControlPlaneMode
+			authoritySiteRef: #SiteID
+			memberRefs: [...#NodeID] & list.MinItems(1)
+		}
+	}
+
+	authority: {
+		source: "resolved-plan"
+		planBinding: {
+			currentHashField:   "planHash"
+			targetHashField:    "planHash"
+			stackIdentityField: "stackId"
+			fleetIdentityField: "fleetRef"
+			specIdentityField:  "specHash"
+			inventoryField:     "inventoryHash"
+		}
+		ownerApprovalRequired:         true
+		localCustodyRequired:          true
+		providerLifecycleOwned:        false
+		multiServerOrchestrationOwned: false
+		credentialCustodyOwned:        false
+	}
+
+	operations: {
+		add: #ResolvedFleetMutationOperationV1 & {
+			name:                 "add", sourceMember: "forbidden", targetMember: "required"
+			targetPlanMustDiffer: true, destructive:   false, checkpointRequired: true
+			ownerApproval: class: "owner-step-up"
+			phases: ["admit", "checkpoint", "attach", "place", "verify", "commit"]
+		}
+		replace: #ResolvedFleetMutationOperationV1 & {
+			name:                 "replace", sourceMember: "required", targetMember: "required"
+			targetPlanMustDiffer: true, destructive:       true, checkpointRequired: true
+			ownerApproval: class: "owner-step-up"
+			phases: ["admit", "checkpoint", "drain", "attach", "place", "verify", "detach", "commit"]
+		}
+		drain: #ResolvedFleetMutationOperationV1 & {
+			name:                 "drain", sourceMember: "required", targetMember: "optional"
+			targetPlanMustDiffer: true, destructive:     true, checkpointRequired: true
+			ownerApproval: class: "owner-step-up"
+			phases: ["admit", "checkpoint", "drain", "verify", "commit"]
+		}
+		recover: #ResolvedFleetMutationOperationV1 & {
+			name:                 "recover", sourceMember: "required", targetMember: "optional"
+			targetPlanMustDiffer: false, destructive:      true, checkpointRequired: false
+			ownerApproval: class: "break-glass"
+			phases: ["admit", "inspect", "resume-or-rollback", "verify", "commit"]
+		}
+		remove: #ResolvedFleetMutationOperationV1 & {
+			name:                 "remove", sourceMember: "required", targetMember: "forbidden"
+			targetPlanMustDiffer: true, destructive:      true, checkpointRequired: true
+			ownerApproval: class: "owner-step-up"
+			phases: ["admit", "checkpoint", "drain", "detach", "verify", "commit"]
+		}
+	}
+}
+
 #WorkloadPlacementIntent: {
 	siteRefs: [...#SiteID] | *[]
 	nodeRefs: [...#NodeID] | *[]
@@ -4637,6 +4742,9 @@ _servicePublicationShape: {
 	}
 	role:        "foundation" | "platform" | "workload" | "operations"
 	providerRef: #ContractID
+	// planOnly marks a typed ResolvedPlan contract that needs neither a
+	// renderer nor a runtime owner. It carries no mutation authority.
+	planOnly?: true
 	let moduleContractID = metadata.id
 	let moduleProviderRef = providerRef
 
@@ -4669,8 +4777,14 @@ _servicePublicationShape: {
 		_operationsUnique:          list.UniqueItems(operations) & true
 		_agentRefsUnique:           list.UniqueItems(agentRefs) & true
 	}
-	runtimeAdapterAgent?: #RuntimeAdapterAgentContractV1
-	runtime:              #ModuleRuntimeContractV2
+	runtimeAdapterAgent?:       #RuntimeAdapterAgentContractV1
+	storageAllocationContract?: #StorageAllocationModuleContractV1
+	dataBindingContract?:       #WorkloadDataBindingModuleContractV1
+	backupSourceContract?:      #BackupSourceModuleContractV1
+	snapshotContract?:          #SnapshotModuleContractV1
+	restoreContract?:           #RestoreModuleContractV1
+	recoveryContract?:          #RecoveryModuleContractV1
+	runtime:                    #ModuleRuntimeContractV2
 	// inputDefaults is resolved once per module and then fanned out unchanged to
 	// every render unit declaring the public input. Per-unit defaults are
 	// intentionally forbidden so one logical input cannot resolve differently
@@ -4693,6 +4807,34 @@ _servicePublicationShape: {
 		}
 		target: scope: "module-instance" | "runtime-instance"
 	})] | *[]
+	if planOnly != _|_ {
+		_planContractKinds: [
+			if storageAllocationContract != _|_ {"storage-allocation"},
+			if dataBindingContract != _|_ {"workload-data-binding"},
+			if backupSourceContract != _|_ {"backup-source"},
+			if snapshotContract != _|_ {"snapshot"},
+			if restoreContract != _|_ {"restore"},
+			if recoveryContract != _|_ {"recovery"},
+		] & list.MinItems(1) & list.MaxItems(1)
+		runtime: {
+			execution:   "contract-handoff"
+			engine?:     _|_
+			image?:      _|_
+			components?: _|_
+		}
+		renderUnits:    list.MaxItems(0)
+		renderVariants: list.MaxItems(0)
+		realizationSupport: {
+			scope: "concrete"
+			level: "contract-only"
+		}
+	}
+	if storageAllocationContract != _|_ {planOnly: true}
+	if dataBindingContract != _|_ {planOnly: true}
+	if backupSourceContract != _|_ {planOnly: true}
+	if snapshotContract != _|_ {planOnly: true}
+	if restoreContract != _|_ {planOnly: true}
+	if recoveryContract != _|_ {planOnly: true}
 
 	_renderUnitIDsUnique: list.UniqueItems([for unit in renderUnits {unit.id}]) & true
 	_renderVariantIDsUnique: list.UniqueItems([for variant in renderVariants {variant.id}]) & true
@@ -6139,6 +6281,7 @@ _servicePublicationShape: {
 	contractHash: #ContentHash
 	role:         "foundation" | "platform" | "workload" | "operations"
 	providerRef:  #ContractID
+	planOnly?:    true
 	provides: [...#CapabilityID]
 	siteRefs: [...#SiteID] & list.MinItems(1)
 	nodeRefs: [...#NodeID] & list.MinItems(1)
@@ -6157,8 +6300,14 @@ _servicePublicationShape: {
 		providerLifecycle: "not-owned"
 		evidenceRequired:  true
 	}
-	runtimeAdapterAgent?: #RuntimeAdapterAgentContractV1
-	runtime:              #ModuleRuntimeContractV2
+	runtimeAdapterAgent?:       #RuntimeAdapterAgentContractV1
+	storageAllocationContract?: #StorageAllocationModuleContractV1
+	dataBindingContract?:       #WorkloadDataBindingModuleContractV1
+	backupSourceContract?:      #BackupSourceModuleContractV1
+	snapshotContract?:          #SnapshotModuleContractV1
+	restoreContract?:           #RestoreModuleContractV1
+	recoveryContract?:          #RecoveryModuleContractV1
+	runtime:                    #ModuleRuntimeContractV2
 	// renderTarget records the exact target used to select this module's
 	// render-unit and artifact projection.
 	renderTarget:   #GenerationTarget
@@ -6171,6 +6320,22 @@ _servicePublicationShape: {
 	healthGateRefs?:   _|_
 	evidenceGateRefs?: _|_
 	let moduleID = id
+	if planOnly != _|_ {
+		_planContractKinds: [
+			if storageAllocationContract != _|_ {"storage-allocation"},
+			if dataBindingContract != _|_ {"workload-data-binding"},
+			if backupSourceContract != _|_ {"backup-source"},
+			if snapshotContract != _|_ {"snapshot"},
+			if restoreContract != _|_ {"restore"},
+			if recoveryContract != _|_ {"recovery"},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}
+	if storageAllocationContract != _|_ {planOnly: true}
+	if dataBindingContract != _|_ {planOnly: true}
+	if backupSourceContract != _|_ {planOnly: true}
+	if snapshotContract != _|_ {planOnly: true}
+	if restoreContract != _|_ {planOnly: true}
+	if recoveryContract != _|_ {planOnly: true}
 	_providesUnique: list.UniqueItems(provides) & true
 	if len(provides) == 0 && role != "workload" {
 		realizationSupport: {
@@ -6422,6 +6587,7 @@ _servicePublicationShape: {
 			requiredRefs: [...#ContractID] | *[]
 		}
 	}
+	infrastructure?: #WorkloadInfrastructureV1
 
 	_runtimeKindsUnique:       list.UniqueItems(runtime.allowedKinds) & true
 	_runtimeDeliveriesUnique:  list.UniqueItems(runtime.allowedDeliveries) & true
@@ -6473,6 +6639,16 @@ _servicePublicationShape: {
 	if defaultAlternative != _|_ {
 		_defaultAlternativeExact: [for alternative in alternatives if alternative.id == defaultAlternative {alternative.id}] & list.MinItems(1) & list.MaxItems(1)
 	}
+	_applicationInfrastructureBindings: [
+		for alternative in alternatives
+		if alternative.infrastructure != _|_ {
+			routeBinding: alternative.route.serviceRef & alternative.infrastructure.dataBinding.bindingRef
+			classCount:   len(dataClasses) & len(alternative.infrastructure.dataBinding.classes)
+			classes: [for dataClass in dataClasses {
+				matches: [for bindingClass in alternative.infrastructure.dataBinding.classes if dataClass == bindingClass {bindingClass}] & list.MinItems(1) & list.MaxItems(1)
+			}]
+		},
+	]
 }
 
 // #ApplicationLifecycleContractV1 binds one Application Kit package to the
@@ -6542,6 +6718,7 @@ _servicePublicationShape: {
 			owner: "module" | "operator"
 			actionRefs: [...#ContractID] | *[]
 		}
+		infrastructure?: #WorkloadInfrastructureV1
 	}
 	siteRefs: [...#SiteID] & list.MinItems(1)
 	nodeRefs: [...#NodeID] & list.MinItems(1)
@@ -7084,6 +7261,35 @@ _servicePublicationShape: {
 
 	sites: [...#SiteSpec] & list.MinItems(1)
 	nodes: [...#NodeSpecV2] & list.MinItems(1)
+	let fleetLifecycleStackID = stackId
+	let fleetLifecycleSpecHash = specHash
+	let fleetLifecycleInventoryHash = inventoryHash
+	let fleetLifecycleNodes = nodes
+	let fleetLifecycleControlPlane = controlPlane
+	fleetLifecycle: close(#ResolvedFleetLifecycleV1) & {
+		stackId:       fleetLifecycleStackID
+		specHash:      fleetLifecycleSpecHash
+		inventoryHash: fleetLifecycleInventoryHash
+		membership: {
+			members: [for node in fleetLifecycleNodes {
+				nodeRef:            node.id
+				siteRef:            node.siteRef
+				roles:              node.roles
+				enabled:            node.enabled
+				failureDomain:      node.failureDomain
+				controlPlaneMember: list.Contains(fleetLifecycleControlPlane.members, node.id)
+			}]
+			controlAuthority: {
+				mode:             fleetLifecycleControlPlane.mode
+				authoritySiteRef: fleetLifecycleControlPlane.authoritySiteRef
+				memberRefs:       fleetLifecycleControlPlane.members
+			}
+		}
+	}
+	if fleetRef != _|_ {
+		let fleetLifecycleFleetRef = fleetRef
+		fleetLifecycle: fleetRef: fleetLifecycleFleetRef
+	}
 	externalHostBindings: [#NodeID]:    #ExternalHostBindingV1
 	hostConformanceReceipts: [#NodeID]: #HostConformanceReceiptV1
 	homeAccessRequirements: [#SiteID]: [#CapabilityID]:           #HomeAccessRequirementV1
@@ -8685,21 +8891,24 @@ _servicePublicationShape: {
 	_moduleContractOnlyReadiness: [
 		for module in modules
 		if module.realizationSupport.level == "contract-only" {
-			generation: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.generation
-				code:  "module-contract-only"
-				refs: ["module:\(module.id)"]
-			}
-			apply: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "module-contract-only"
-				refs: ["module:\(module.id)"]
+			if module.planOnly == _|_ {
+				generation: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.generation
+					code:  "module-contract-only"
+					refs: ["module:\(module.id)"]
+				}
+				apply: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "module-contract-only"
+					refs: ["module:\(module.id)"]
+				}
 			}
 		},
 	]
 	_moduleRenderUnitsReadiness: [
 		for module in modules
-		if len(module.renderUnits) == 0 {
+		if len(module.renderUnits) == 0
+		if module.planOnly == _|_ {
 			generation: #ExecutionReadinessRequirementV1 & {
 				phase: executionReadiness.generation
 				code:  "module-render-units-missing"

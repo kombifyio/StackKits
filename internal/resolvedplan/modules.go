@@ -842,6 +842,9 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	if providerID != "" {
 		module["providerRef"] = providerID
 	}
+	if planOnly, exists := contract["planOnly"]; exists {
+		module["planOnly"] = planOnly
+	}
 	requires, err := stringListField(contract, "catalog.modules."+moduleID, "requires", false)
 	if err != nil {
 		return nil, err
@@ -849,7 +852,11 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	if requires = sortStringsUnique(requires); len(requires) > 0 {
 		module["requires"] = stringSliceAny(requires)
 	}
-	for _, field := range []string{"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement", "runtimeAdapter", "runtimeAdapterAgent"} {
+	for _, field := range []string{
+		"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement",
+		"runtimeAdapter", "runtimeAdapterAgent", "storageAllocationContract", "dataBindingContract",
+		"backupSourceContract", "snapshotContract", "restoreContract", "recoveryContract",
+	} {
 		contractValue, exists, err := optionalObjectField(contract, "catalog.modules."+moduleID, field)
 		if err != nil {
 			return nil, err

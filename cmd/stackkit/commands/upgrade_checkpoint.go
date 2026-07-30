@@ -74,6 +74,12 @@ func createPublicUpgradeCheckpoint(
 		if currentErr == nil {
 			return current, nil
 		}
+		stableV012, stableV012Err := inspectPublishedV012BackupAuthority(
+			checkpointContext, workspace, specFile, kit, target,
+		)
+		if stableV012Err == nil {
+			return stableV012, nil
+		}
 		stableV011, stableV011Err := inspectPublishedV011BackupAuthority(
 			checkpointContext, workspace, specFile, kit, target,
 		)
@@ -103,7 +109,8 @@ func createPublicUpgradeCheckpoint(
 		)
 		if legacyErr != nil {
 			return nativeV2BackupAuthority{}, errors.Join(
-				currentErr, stableV011Err, stableV010Err, stableV09Err, stableV08Err, legacyErr,
+				currentErr, stableV012Err, stableV011Err, stableV010Err,
+				stableV09Err, stableV08Err, legacyErr,
 			)
 		}
 		return legacy, nil

@@ -87,6 +87,7 @@ func normalizeJSON(value any, redactSecrets bool, key string) (any, error) {
 			}
 			result[childKey] = child
 		}
+		alignFleetLifecycleMembership(result)
 		return result, nil
 	case []any:
 		result := make([]any, len(typed))
@@ -118,6 +119,63 @@ func normalizeJSON(value any, redactSecrets bool, key string) (any, error) {
 		}
 		return normalizeJSON(generic, redactSecrets, key)
 	}
+}
+
+// Fleet lifecycle membership is a derived projection of the canonical nodes
+// list. Both fields retain set semantics, but their positional relationship is
+// part of the closed CUE contract: member N describes node N. Restore that
+// relationship after the independent set normalizers have sorted both lists.
+func alignFleetLifecycleMembership(value map[string]any) {
+	nodes, ok := value["nodes"].([]any)
+	if !ok || len(nodes) == 0 {
+		return
+	}
+	lifecycle, ok := value["fleetLifecycle"].(map[string]any)
+	if !ok {
+		return
+	}
+	membership, ok := lifecycle["membership"].(map[string]any)
+	if !ok {
+		return
+	}
+	members, ok := membership["members"].([]any)
+	if !ok || len(members) != len(nodes) {
+		return
+	}
+
+	membersByNodeRef := make(map[string]any, len(members))
+	for _, rawMember := range members {
+		member, ok := rawMember.(map[string]any)
+		if !ok {
+			return
+		}
+		nodeRef, ok := member["nodeRef"].(string)
+		if !ok || nodeRef == "" {
+			return
+		}
+		if _, duplicate := membersByNodeRef[nodeRef]; duplicate {
+			return
+		}
+		membersByNodeRef[nodeRef] = rawMember
+	}
+
+	aligned := make([]any, len(nodes))
+	for index, rawNode := range nodes {
+		node, ok := rawNode.(map[string]any)
+		if !ok {
+			return
+		}
+		nodeID, ok := node["id"].(string)
+		if !ok || nodeID == "" {
+			return
+		}
+		member, exists := membersByNodeRef[nodeID]
+		if !exists {
+			return
+		}
+		aligned[index] = member
+	}
+	membership["members"] = aligned
 }
 
 func isSecretKey(key string) bool {

@@ -414,6 +414,198 @@
       },
       "packageRef": "files",
       "workloadRef": "files"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade",
+              "stackkit.advanced.change-set.apply",
+              "stackkit.drift.reconcile.advanced"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Reusable owner-controlled lifecycle for the Vault Application Kit.",
+        "id": "vault",
+        "version": "1.0.0"
+      },
+      "packageRef": "vault",
+      "workloadRef": "vault"
     }
   ],
   "capabilities": [
@@ -2002,6 +2194,48 @@
     ],
     "moduleCapabilities": [
       {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "module": "stackkits-storage-allocation"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "module": "stackkits-workload-data-binding"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "module": "stackkits-backup-source"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "module": "stackkits-snapshot"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "module": "stackkits-restore"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "module": "stackkits-recovery"
+      },
+      {
         "capability": "telemetry-collection",
         "matches": [
           "telemetry-collection"
@@ -2320,6 +2554,66 @@
     "moduleGovernance": [
       {
         "governanceMatches": [
+          "stackkits-storage-allocation"
+        ],
+        "matches": [
+          "stackkits-storage-data-policy"
+        ],
+        "module": "stackkits-storage-allocation",
+        "provider": "stackkits-storage-data-policy"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-workload-data-binding"
+        ],
+        "matches": [
+          "stackkits-storage-data-policy"
+        ],
+        "module": "stackkits-workload-data-binding",
+        "provider": "stackkits-storage-data-policy"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-backup-source"
+        ],
+        "matches": [
+          "stackkits-backup-core-contract"
+        ],
+        "module": "stackkits-backup-source",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-snapshot"
+        ],
+        "matches": [
+          "stackkits-backup-core-contract"
+        ],
+        "module": "stackkits-snapshot",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-restore"
+        ],
+        "matches": [
+          "stackkits-backup-core-contract"
+        ],
+        "module": "stackkits-restore",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-recovery"
+        ],
+        "matches": [
+          "stackkits-backup-core-contract"
+        ],
+        "module": "stackkits-recovery",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "governanceMatches": [
           "stackkits-monitoring-agent-runtime"
         ],
         "matches": [
@@ -2560,6 +2854,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-vaultwarden-runtime"
+        ],
+        "matches": [
+          "stackkits-vaultwarden"
+        ],
+        "module": "stackkits-vaultwarden-runtime",
+        "provider": "stackkits-vaultwarden"
+      },
+      {
+        "governanceMatches": [
           "stackkits-coolify-runtime"
         ],
         "matches": [
@@ -2740,6 +3044,48 @@
       }
     ],
     "moduleRequirements": [
+      {
+        "matches": [
+          "stackkits-storage-allocation"
+        ],
+        "module": "stackkits-workload-data-binding",
+        "requires": "stackkits-storage-allocation"
+      },
+      {
+        "matches": [
+          "stackkits-storage-allocation"
+        ],
+        "module": "stackkits-backup-source",
+        "requires": "stackkits-storage-allocation"
+      },
+      {
+        "matches": [
+          "stackkits-workload-data-binding"
+        ],
+        "module": "stackkits-backup-source",
+        "requires": "stackkits-workload-data-binding"
+      },
+      {
+        "matches": [
+          "stackkits-backup-source"
+        ],
+        "module": "stackkits-snapshot",
+        "requires": "stackkits-backup-source"
+      },
+      {
+        "matches": [
+          "stackkits-snapshot"
+        ],
+        "module": "stackkits-restore",
+        "requires": "stackkits-snapshot"
+      },
+      {
+        "matches": [
+          "stackkits-restore"
+        ],
+        "module": "stackkits-recovery",
+        "requires": "stackkits-restore"
+      },
       {
         "matches": [
           "stackkits-core-host-bootstrap"
@@ -3210,6 +3556,12 @@
             "files"
           ],
           "providerID": "stackkits-cloudreve"
+        },
+        {
+          "contracts": [
+            "vault"
+          ],
+          "providerID": "stackkits-vaultwarden"
         },
         {
           "contracts": [
@@ -3783,6 +4135,48 @@
     "providerModuleOwnership": [
       {
         "matches": [
+          "stackkits-storage-allocation"
+        ],
+        "module": "stackkits-storage-allocation",
+        "provider": "stackkits-storage-data-policy"
+      },
+      {
+        "matches": [
+          "stackkits-workload-data-binding"
+        ],
+        "module": "stackkits-workload-data-binding",
+        "provider": "stackkits-storage-data-policy"
+      },
+      {
+        "matches": [
+          "stackkits-backup-source"
+        ],
+        "module": "stackkits-backup-source",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "matches": [
+          "stackkits-snapshot"
+        ],
+        "module": "stackkits-snapshot",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "matches": [
+          "stackkits-restore"
+        ],
+        "module": "stackkits-restore",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "matches": [
+          "stackkits-recovery"
+        ],
+        "module": "stackkits-recovery",
+        "provider": "stackkits-backup-core-contract"
+      },
+      {
+        "matches": [
           "stackkits-monitoring-agent-runtime"
         ],
         "module": "stackkits-monitoring-agent-runtime",
@@ -3948,6 +4342,13 @@
         ],
         "module": "stackkits-cloudreve-runtime",
         "provider": "stackkits-cloudreve"
+      },
+      {
+        "matches": [
+          "stackkits-vaultwarden-runtime"
+        ],
+        "module": "stackkits-vaultwarden-runtime",
+        "provider": "stackkits-vaultwarden"
       },
       {
         "matches": [
@@ -4554,6 +4955,13 @@
         "provider": "stackkits-immich"
       },
       {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-immich"
+      },
+      {
         "capability": "runtime-paas",
         "matches": [
           "runtime-paas"
@@ -4573,6 +4981,41 @@
           "storage-data-policy"
         ],
         "provider": "stackkits-cloudreve"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-cloudreve"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-vaultwarden"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-vaultwarden"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-vaultwarden"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-vaultwarden"
       },
       {
         "capability": "runtime-paas",
@@ -5195,6 +5638,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-vaultwarden"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-coolify"
         },
         {
@@ -5574,11 +6023,619 @@
             }
           ],
           "workloadID": "files"
+        },
+        {
+          "alternativeID": "vaultwarden",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-vaultwarden-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "selected-paas"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "vaultwarden"
+                  ],
+                  "ref": "admin-token"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "vault",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "secret"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ],
+                  "unitID": "vaultwarden",
+                  "workloadDataClasses": [
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-vaultwarden",
+              "workloadOwnership": [
+                "vault"
+              ]
+            }
+          ],
+          "workloadID": "vault"
         }
       ]
     }
   },
   "modules": [
+    {
+      "evidence": [
+        "storage-allocation-contract"
+      ],
+      "health": [
+        {
+          "id": "storage-allocation-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Reusable resolved-plan storage allocation authority shared by Application Kits.",
+        "id": "stackkits-storage-allocation",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "planOnly": true,
+      "providerRef": "stackkits-storage-data-policy",
+      "provides": [
+        "storage-data-policy"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [],
+          "outputBindings": [],
+          "requiredRefs": []
+        },
+        "compatibleRendererRefs": [],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "contract-only",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [],
+      "renderVariants": [],
+      "rilActionPrimitives": [],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "storageAllocationContract": {
+        "allocationIdentity": "workload/component/volume",
+        "apiVersion": "stackkit.storage-allocation/v1",
+        "authority": "resolved-plan",
+        "credentialCustodyOwned": false,
+        "kind": "StorageAllocationContract",
+        "multiServerOrchestrationOwned": false,
+        "providerLifecycleOwned": false,
+        "rootSourceRef": "storage.dataRoot",
+        "supportedClasses": [
+          "persistent",
+          "cache"
+        ],
+        "volumeDriverSourceRef": "storage.volumeDriver"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "dataBindingContract": {
+        "apiVersion": "stackkit.workload-data-binding/v1",
+        "authority": "resolved-plan",
+        "bindingIdentity": "workload/service",
+        "classValidation": "workload-subset",
+        "credentialCustodyOwned": false,
+        "kind": "WorkloadDataBindingContract",
+        "multiServerOrchestrationOwned": false,
+        "placementValidation": "primary-or-declared-replica",
+        "providerLifecycleOwned": false,
+        "sourceRef": "data.bindings",
+        "storageAllocationModuleRef": "stackkits-storage-allocation"
+      },
+      "evidence": [
+        "workload-data-binding-contract"
+      ],
+      "health": [
+        {
+          "id": "workload-data-binding-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Reusable workload-to-data-placement binding authority shared by Application Kits.",
+        "id": "stackkits-workload-data-binding",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "planOnly": true,
+      "providerRef": "stackkits-storage-data-policy",
+      "provides": [
+        "storage-data-policy"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [],
+          "outputBindings": [],
+          "requiredRefs": []
+        },
+        "compatibleRendererRefs": [],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "contract-only",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-storage-allocation"
+      ],
+      "rilActionPrimitives": [],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "backupSourceContract": {
+        "apiVersion": "stackkit.backup-source/v1",
+        "authority": "resolved-plan",
+        "backupIntentRequired": true,
+        "credentialCustodyOwned": false,
+        "eligibleStorageClass": "persistent",
+        "kind": "BackupSourceContract",
+        "multiServerOrchestrationOwned": false,
+        "providerLifecycleOwned": false,
+        "sourceRef": "workloads[].alternative.infrastructure.backupSource",
+        "storageAllocationModuleRef": "stackkits-storage-allocation",
+        "targetLifecycleOwned": false,
+        "workloadDataBindingModuleRef": "stackkits-workload-data-binding"
+      },
+      "evidence": [
+        "backup-source-contract"
+      ],
+      "health": [
+        {
+          "id": "backup-source-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Reusable ResolvedPlan backup-source authority derived from workload storage allocations.",
+        "id": "stackkits-backup-source",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "planOnly": true,
+      "providerRef": "stackkits-backup-core-contract",
+      "provides": [
+        "backup-core"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [],
+          "outputBindings": [],
+          "requiredRefs": []
+        },
+        "compatibleRendererRefs": [],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "contract-only",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-storage-allocation",
+        "stackkits-workload-data-binding"
+      ],
+      "rilActionPrimitives": [],
+      "role": "foundation",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "snapshot-anchor"
+      ],
+      "health": [
+        {
+          "id": "snapshot-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Reusable snapshot stage contract bound to one Application Kit backup source and lifecycle evidence.",
+        "id": "stackkits-snapshot",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "planOnly": true,
+      "providerRef": "stackkits-backup-core-contract",
+      "provides": [
+        "backup-core"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [],
+          "outputBindings": [],
+          "requiredRefs": []
+        },
+        "compatibleRendererRefs": [],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "contract-only",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-backup-source"
+      ],
+      "rilActionPrimitives": [],
+      "role": "operations",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "snapshotContract": {
+        "apiVersion": "stackkit.snapshot/v1",
+        "authority": "resolved-plan",
+        "backupSourceModuleRef": "stackkits-backup-source",
+        "credentialCustodyOwned": false,
+        "evidence": [
+          "snapshot-anchor"
+        ],
+        "kind": "SnapshotContract",
+        "multiServerOrchestrationOwned": false,
+        "operation": "stackkit.backup",
+        "ownerApprovalRequired": true,
+        "phases": [
+          "snapshot",
+          "verify"
+        ],
+        "providerLifecycleOwned": false,
+        "stageRef": "applicationLifecycles[].lifecycle.stages.backup",
+        "targetLifecycleOwned": false
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "restore-result"
+      ],
+      "health": [
+        {
+          "id": "restore-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Reusable staged restore contract with a mandatory safety snapshot and verification.",
+        "id": "stackkits-restore",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "planOnly": true,
+      "providerRef": "stackkits-backup-core-contract",
+      "provides": [
+        "backup-core"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [],
+          "outputBindings": [],
+          "requiredRefs": []
+        },
+        "compatibleRendererRefs": [],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "contract-only",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-snapshot"
+      ],
+      "restoreContract": {
+        "apiVersion": "stackkit.restore/v1",
+        "authority": "resolved-plan",
+        "credentialCustodyOwned": false,
+        "evidence": [
+          "owner-observation",
+          "restore-result",
+          "snapshot-anchor"
+        ],
+        "kind": "RestoreContract",
+        "multiServerOrchestrationOwned": false,
+        "operations": [
+          "stackkit.restore",
+          "stackkit.verify"
+        ],
+        "ownerApprovalRequired": true,
+        "phases": [
+          "stage",
+          "safety-snapshot",
+          "activate",
+          "verify",
+          "recover"
+        ],
+        "providerLifecycleOwned": false,
+        "safetySnapshotRequired": true,
+        "snapshotModuleRef": "stackkits-snapshot",
+        "stageRef": "applicationLifecycles[].lifecycle.stages.restore",
+        "stagedActivation": true,
+        "targetLifecycleOwned": false
+      },
+      "rilActionPrimitives": [],
+      "role": "operations",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "recovery-evidence"
+      ],
+      "health": [
+        {
+          "id": "recovery-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Reusable durable recovery contract over the shared Application Lifecycle state and evidence chain.",
+        "id": "stackkits-recovery",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "any",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "planOnly": true,
+      "providerRef": "stackkits-backup-core-contract",
+      "provides": [
+        "backup-core"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [],
+          "outputBindings": [],
+          "requiredRefs": []
+        },
+        "compatibleRendererRefs": [],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "contract-only",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "recoveryContract": {
+        "apiVersion": "stackkit.recovery/v1",
+        "authority": "resolved-plan",
+        "credentialCustodyOwned": false,
+        "evidenceSourceRef": "application-lifecycle",
+        "kind": "RecoveryContract",
+        "multiServerOrchestrationOwned": false,
+        "phase": "recover",
+        "providerLifecycleOwned": false,
+        "recoveryEvidenceRequired": true,
+        "restoreModuleRef": "stackkits-restore",
+        "resumeRequiresOwnerApproval": true,
+        "stageRef": "applicationLifecycles[].lifecycle.stages.restore",
+        "stateSourceRef": "application-lifecycle",
+        "targetLifecycleOwned": false
+      },
+      "renderUnits": [],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-restore"
+      ],
+      "rilActionPrimitives": [],
+      "role": "operations",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
     {
       "enforcementRequirement": {
         "operations": [
@@ -10227,6 +11284,232 @@
     },
     {
       "evidence": [
+        "vaultwarden-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "vaultwarden-http",
+          "kind": "http",
+          "path": "/alive",
+          "phase": "continuous",
+          "port": 80,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Vaultwarden password-vault contract bound to one selected site and its secret-data primary.",
+        "id": "stackkits-vaultwarden-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-vaultwarden",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "vaultwarden-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/vaultwarden/bundle.json",
+              "required": true,
+              "unitRef": "vaultwarden"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "vaultwarden-workload-bundle",
+              "outputRef": "workloads/vaultwarden/bundle.json",
+              "unitRef": "vaultwarden"
+            }
+          ],
+          "requiredRefs": [
+            "vaultwarden-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "vaultwarden-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "admin-token"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:4b5734ce53b1f8e3291b0e836b30dc89ac55375c6125e64f1528541f5350251b",
+          "id": "vaultwarden",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/vaultwarden/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "admin-token"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "data": {
+                "bindingRef": "vault",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "secret"
+                ]
+              },
+              "healthRef": "vaultwarden-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "vault",
+              "serviceRef": "vault",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/vaultwarden/bundle/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "vaultwarden-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "admin-token"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "vaultwarden"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "vaultwarden-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "admin-token"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "vaultwarden"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "environment": {
+              "SIGNUPS_ALLOWED": "false"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/alive",
+              "port": 80
+            },
+            "id": "vaultwarden",
+            "image": {
+              "digest": "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664",
+              "ref": "ghcr.io/dani-garcia/vaultwarden:1.35.4"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "vaultwarden-internal"
+            ],
+            "role": "application",
+            "secretEnvironment": {
+              "ADMIN_TOKEN": "admin-token"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "selected-paas",
+        "engine": "docker",
+        "entryComponentRef": "vaultwarden",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664",
+          "ref": "ghcr.io/dani-garcia/vaultwarden:1.35.4"
+        },
+        "kind": "container"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
         "coolify-adapter-contract"
       ],
       "health": [
@@ -12997,19 +14280,34 @@
     },
     {
       "certificateIssuers": [],
+      "evidence": [
+        "storage-allocation-contract",
+        "workload-data-binding-contract"
+      ],
+      "health": [
+        {
+          "id": "storage-data-policy-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
       "metadata": {
         "id": "stackkits-storage-data-policy",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "overlayContracts": [],
       "provides": [
         "storage-data-policy"
       ],
       "realization": {
-        "kind": "contract",
+        "kind": "modules",
         "moduleRefs": {
           "optional": [],
-          "required": []
+          "required": [
+            "stackkits-storage-allocation",
+            "stackkits-workload-data-binding"
+          ]
         }
       },
       "remoteActionContracts": [],
@@ -13096,19 +14394,38 @@
     },
     {
       "certificateIssuers": [],
+      "evidence": [
+        "backup-source-contract",
+        "snapshot-anchor",
+        "restore-result",
+        "recovery-evidence"
+      ],
+      "health": [
+        {
+          "id": "backup-lifecycle-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
       "metadata": {
         "id": "stackkits-backup-core-contract",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "overlayContracts": [],
       "provides": [
         "backup-core"
       ],
       "realization": {
-        "kind": "contract",
+        "kind": "modules",
         "moduleRefs": {
           "optional": [],
-          "required": []
+          "required": [
+            "stackkits-backup-source",
+            "stackkits-snapshot",
+            "stackkits-restore",
+            "stackkits-recovery"
+          ]
         }
       },
       "remoteActionContracts": [],
@@ -14698,7 +16015,7 @@
       ],
       "metadata": {
         "id": "stackkits-immich",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "overlayContracts": [],
       "provides": [],
@@ -14724,6 +16041,10 @@
         {
           "id": "storage-data-policy",
           "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
         }
       ],
       "runtimeAdapterRefs": [],
@@ -14742,7 +16063,7 @@
       ],
       "metadata": {
         "id": "stackkits-cloudreve",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "overlayContracts": [],
       "provides": [],
@@ -14768,6 +16089,10 @@
         {
           "id": "storage-data-policy",
           "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
         }
       ],
       "runtimeAdapterRefs": [],
@@ -14777,6 +16102,54 @@
       ],
       "workloadRefs": [
         "files"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "vaultwarden-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-vaultwarden",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-vaultwarden-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "vault"
       ]
     },
     {
@@ -16522,6 +17895,79 @@
       "alternatives": [
         {
           "id": "immich",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "immich-server",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "library"
+                },
+                {
+                  "componentRef": "immich-postgres",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "photos",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "immich-server",
+                  "dataBindingRef": "photos",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/data",
+                  "volumeRef": "library"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "immich-machine-learning",
+                  "dataClasses": [],
+                  "target": "/cache",
+                  "volumeRef": "model-cache"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "immich-postgres",
+                  "dataBindingRef": "photos",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/postgresql/data",
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
           "inputs": {
             "secretInputs": {
               "allowedRefs": [
@@ -16574,7 +18020,7 @@
       "metadata": {
         "description": "Self-hosted photo management selected independently from kit architecture capabilities.",
         "id": "photos",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "supportedSiteKinds": [
         "home",
@@ -16585,6 +18031,53 @@
       "alternatives": [
         {
           "id": "cloudreve",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "cloudreve",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "files",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "cloudreve",
+                  "dataBindingRef": "files",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/cloudreve/data",
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
           "inputs": {
             "secretInputs": {
               "allowedRefs": [],
@@ -16633,6 +18126,116 @@
       "metadata": {
         "description": "Self-hosted file management and sharing selected independently from kit architecture capabilities.",
         "id": "files",
+        "version": "1.1.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "alternatives": [
+        {
+          "id": "vaultwarden",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "vaultwarden",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "vault",
+              "classes": [
+                "secret"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "vaultwarden",
+                  "dataBindingRef": "vault",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "target": "/data",
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "admin-token"
+              ],
+              "requiredRefs": [
+                "admin-token"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-vaultwarden-runtime",
+          "providerRef": "stackkits-vaultwarden",
+          "route": {
+            "healthRef": "vaultwarden-http",
+            "serviceRef": "vault"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "coolify",
+              "komodo"
+            ],
+            "allowedDeliveries": [
+              "selected-paas"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "defaultAdapterRef": "coolify"
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [
+        "secret"
+      ],
+      "defaultAlternative": "vaultwarden",
+      "functionalCapabilities": [
+        "password-vault",
+        "secure-notes"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Self-hosted password vault selected independently from kit architecture capabilities.",
+        "id": "vault",
         "version": "1.0.0"
       },
       "supportedSiteKinds": [

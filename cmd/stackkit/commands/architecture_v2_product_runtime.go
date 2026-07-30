@@ -340,6 +340,14 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return nil, fmt.Errorf("register Files selected-PaaS runtime owner: %w", err)
 		}
 		registrations = append(registrations, cloudreve)
+		vaultwarden, err := architecturev2.NewProductRemoteVaultwardenSelectedPaaSRegistration(
+			"coolify",
+			"stackkits-coolify-runtime",
+		)
+		if err != nil {
+			return nil, fmt.Errorf("register Vault selected-PaaS runtime owner: %w", err)
+		}
+		registrations = append(registrations, vaultwarden)
 	}
 	return registrations, nil
 }

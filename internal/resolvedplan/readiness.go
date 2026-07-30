@@ -398,6 +398,7 @@ type readinessModule struct {
 	level                   string
 	scope                   string
 	runtimeExecution        string
+	planOnly                bool
 	support                 map[string]any
 	enforcementRequirement  map[string]any
 	runtimeOwnerRequirement map[string]any
@@ -520,6 +521,9 @@ func moduleExecutionReadiness(raw any, index int, artifactIDs map[string]readine
 	if err != nil {
 		return nil, nil, err
 	}
+	if module.planOnly {
+		return nil, nil, nil
+	}
 	generation, err := moduleGenerationBlockers(module, artifactIDs, rendererID, outputRoot)
 	if err != nil {
 		return nil, nil, err
@@ -539,6 +543,10 @@ func readReadinessModule(raw any, index int) (readinessModule, error) {
 		return result, err
 	}
 	result.ref = "module:" + result.id
+	result.planOnly, err = boolFieldDefault(module, "modules."+result.id, "planOnly", false)
+	if err != nil {
+		return result, err
+	}
 	result.support, err = objectField(module, "modules."+result.id, "realizationSupport")
 	if err != nil {
 		return result, err
@@ -687,6 +695,9 @@ func readReadinessRenderUnit(moduleID string, rawUnit map[string]any, unitPath s
 }
 
 func moduleGenerationBlockers(module readinessModule, artifactIDs map[string]readinessArtifact, rendererID, outputRoot string) ([]executionReadinessBlocker, error) {
+	if module.planOnly {
+		return nil, nil
+	}
 	var blockers []executionReadinessBlocker
 	if module.scope == "umbrella" {
 		blockers = append(blockers, executionReadinessBlocker{code: "module-umbrella", refs: []string{module.ref}})

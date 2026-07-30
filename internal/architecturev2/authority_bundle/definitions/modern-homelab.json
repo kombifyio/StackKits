@@ -981,7 +981,7 @@
     "description": "Federated local and cloud StackKit with a policy-constrained bridge",
     "displayName": "Modern Homelab",
     "slug": "modern-homelab",
-    "version": "1.0.0-alpha"
+    "version": "1.1.0-alpha"
   },
   "network": {
     "defaultTLSMode": "public",
@@ -1069,7 +1069,8 @@
     "forbidden": [],
     "optional": [
       "files",
-      "photos"
+      "photos",
+      "vault"
     ],
     "required": [
       "basement-core"

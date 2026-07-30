@@ -1,6 +1,9 @@
 package resolvedplan
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 type resolvedWorkloadSelection struct {
 	id                       string
@@ -77,7 +80,7 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		if err != nil {
 			return nil, err
 		}
-		if err := validateWorkloadImplementation(id, providerID, moduleID, catalog); err != nil {
+		if err := validateWorkloadImplementation(id, providerID, moduleID, contract, alternative, catalog); err != nil {
 			return nil, err
 		}
 		adapterID, adapterProviderID, adapterModuleID, err := resolveWorkloadRuntimeAdapter(id, selection, alternative, moduleID, catalog)
@@ -239,7 +242,7 @@ func workloadAlternative(contract map[string]any, workloadID, alternativeID stri
 	return nil, fail(ErrUnknownWorkloadAlternative, "spec.workloads."+workloadID+".alternative", "alternative %q is not governed", alternativeID)
 }
 
-func validateWorkloadImplementation(workloadID, providerID, moduleID string, catalog *indexedCatalog) error {
+func validateWorkloadImplementation(workloadID, providerID, moduleID string, workloadContract, alternative map[string]any, catalog *indexedCatalog) error {
 	provider, exists := catalog.providers[providerID]
 	if !exists {
 		return fail(ErrUnknownProvider, "catalog.workloads."+workloadID, "alternative references unknown provider %q", providerID)
@@ -269,7 +272,372 @@ func validateWorkloadImplementation(workloadID, providerID, moduleID string, cat
 	if declaredProvider != providerID {
 		return fail(ErrContractConflict, "catalog.modules."+moduleID+".providerRef", "module belongs to %q, want %q", declaredProvider, providerID)
 	}
+	kind, err := stringField(workloadContract, "catalog.workloads."+workloadID, "kind")
+	if err != nil {
+		return err
+	}
+	if kind != "application" {
+		return nil
+	}
+	return validateWorkloadInfrastructure(workloadID, moduleID, alternative, catalog)
+}
+
+func validateWorkloadInfrastructure(workloadID, workloadModuleID string, alternative map[string]any, catalog *indexedCatalog) error {
+	path := "catalog.workloads." + workloadID + ".alternative.infrastructure"
+	infrastructure, exists, err := optionalObjectField(alternative, "catalog.workloads."+workloadID+".alternative", "infrastructure")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	storage, err := objectField(infrastructure, path, "storageAllocation")
+	if err != nil {
+		return err
+	}
+	dataBinding, err := objectField(infrastructure, path, "dataBinding")
+	if err != nil {
+		return err
+	}
+	storageModuleID, err := stringField(storage, path+".storageAllocation", "moduleRef")
+	if err != nil {
+		return err
+	}
+	dataBindingModuleID, err := stringField(dataBinding, path+".dataBinding", "moduleRef")
+	if err != nil {
+		return err
+	}
+	if storageModuleID == dataBindingModuleID {
+		return fail(ErrContractConflict, path, "storage allocation and data binding require distinct shared module identities")
+	}
+	storageModule := catalog.modules[storageModuleID]
+	if storageModule == nil {
+		return fail(ErrUnknownModule, path+".storageAllocation.moduleRef", "shared storage allocation module %q is not governed", storageModuleID)
+	}
+	if _, exists, fieldErr := optionalObjectField(storageModule, "catalog.modules."+storageModuleID, "storageAllocationContract"); fieldErr != nil {
+		return fieldErr
+	} else if !exists {
+		return fail(ErrContractConflict, path+".storageAllocation.moduleRef", "module %q does not implement the storage allocation contract", storageModuleID)
+	}
+	dataBindingModule := catalog.modules[dataBindingModuleID]
+	if dataBindingModule == nil {
+		return fail(ErrUnknownModule, path+".dataBinding.moduleRef", "shared data binding module %q is not governed", dataBindingModuleID)
+	}
+	dataBindingContract, exists, err := optionalObjectField(dataBindingModule, "catalog.modules."+dataBindingModuleID, "dataBindingContract")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fail(ErrContractConflict, path+".dataBinding.moduleRef", "module %q does not implement the workload data binding contract", dataBindingModuleID)
+	}
+	requiredStorageModuleID, err := stringField(dataBindingContract, "catalog.modules."+dataBindingModuleID+".dataBindingContract", "storageAllocationModuleRef")
+	if err != nil {
+		return err
+	}
+	if requiredStorageModuleID != storageModuleID {
+		return fail(ErrContractConflict, path+".dataBinding.moduleRef", "data binding module is not bound to storage allocation module %q", storageModuleID)
+	}
+	storageProviderID, err := stringField(storageModule, "catalog.modules."+storageModuleID, "providerRef")
+	if err != nil {
+		return err
+	}
+	dataBindingProviderID, err := stringField(dataBindingModule, "catalog.modules."+dataBindingModuleID, "providerRef")
+	if err != nil {
+		return err
+	}
+	if storageProviderID != dataBindingProviderID {
+		return fail(ErrContractConflict, path, "shared infrastructure modules belong to different providers")
+	}
+	infrastructureProvider := catalog.providers[storageProviderID]
+	if infrastructureProvider == nil {
+		return fail(ErrUnknownProvider, path, "shared infrastructure provider %q is not governed", storageProviderID)
+	}
+	provides, err := stringListField(infrastructureProvider, "catalog.providers."+storageProviderID, "provides", true)
+	if err != nil {
+		return err
+	}
+	if !contains(provides, "storage-data-policy") {
+		return fail(ErrContractConflict, path, "shared infrastructure provider does not own storage-data-policy")
+	}
+	workloadProviderID, err := stringField(alternative, "catalog.workloads."+workloadID+".alternative", "providerRef")
+	if err != nil {
+		return err
+	}
+	workloadProvider := catalog.providers[workloadProviderID]
+	workloadRequirements, err := requirements(workloadProvider, "catalog.providers."+workloadProviderID)
+	if err != nil {
+		return err
+	}
+	requiresStorageDataPolicy := false
+	requiresBackupCore := false
+	for _, requirement := range workloadRequirements {
+		if requirement.id == "storage-data-policy" && !requirement.optional {
+			requiresStorageDataPolicy = true
+		}
+		if requirement.id == "backup-core" && !requirement.optional {
+			requiresBackupCore = true
+		}
+	}
+	if !requiresStorageDataPolicy {
+		return fail(ErrContractConflict, path, "Application Kit provider must require storage-data-policy")
+	}
+	if !requiresBackupCore {
+		return fail(ErrContractConflict, path, "Application Kit provider must require backup-core")
+	}
+	if err := validateWorkloadBackupInfrastructure(infrastructure, storage, storageModuleID, dataBindingModuleID, catalog, path); err != nil {
+		return err
+	}
+	return validateWorkloadInfrastructureRuntimeProjection(workloadID, workloadModuleID, infrastructure, catalog)
+}
+
+func validateWorkloadBackupInfrastructure(infrastructure, storage map[string]any, storageModuleID, dataBindingModuleID string, catalog *indexedCatalog, path string) error {
+	type backupModuleBinding struct {
+		field, contractField, dependencyField, dependencyID string
+	}
+	bindings := []backupModuleBinding{
+		{field: "backupSource", contractField: "backupSourceContract"},
+		{field: "snapshot", contractField: "snapshotContract", dependencyField: "backupSourceModuleRef"},
+		{field: "restore", contractField: "restoreContract", dependencyField: "snapshotModuleRef"},
+		{field: "recovery", contractField: "recoveryContract", dependencyField: "restoreModuleRef"},
+	}
+	moduleIDs := map[string]struct{}{storageModuleID: {}, dataBindingModuleID: {}}
+	backupProviderID := ""
+	previousModuleID := ""
+	for index := range bindings {
+		binding := &bindings[index]
+		value, err := objectField(infrastructure, path, binding.field)
+		if err != nil {
+			return err
+		}
+		moduleID, err := stringField(value, path+"."+binding.field, "moduleRef")
+		if err != nil {
+			return err
+		}
+		if _, duplicate := moduleIDs[moduleID]; duplicate {
+			return fail(ErrContractConflict, path+"."+binding.field+".moduleRef", "shared infrastructure module identities must be distinct")
+		}
+		moduleIDs[moduleID] = struct{}{}
+		module := catalog.modules[moduleID]
+		if module == nil {
+			return fail(ErrUnknownModule, path+"."+binding.field+".moduleRef", "shared %s module %q is not governed", binding.field, moduleID)
+		}
+		contract, exists, err := optionalObjectField(module, "catalog.modules."+moduleID, binding.contractField)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return fail(ErrContractConflict, path+"."+binding.field+".moduleRef", "module %q does not implement %s", moduleID, binding.contractField)
+		}
+		planOnly, err := boolFieldDefault(module, "catalog.modules."+moduleID, "planOnly", false)
+		if err != nil {
+			return err
+		}
+		if !planOnly {
+			return fail(ErrContractConflict, path+"."+binding.field+".moduleRef", "shared backup lifecycle modules must be plan-only")
+		}
+		providerID, err := stringField(module, "catalog.modules."+moduleID, "providerRef")
+		if err != nil {
+			return err
+		}
+		if backupProviderID == "" {
+			backupProviderID = providerID
+		} else if providerID != backupProviderID {
+			return fail(ErrContractConflict, path, "shared backup lifecycle modules belong to different providers")
+		}
+		if binding.dependencyField != "" {
+			binding.dependencyID = previousModuleID
+			requiredModuleID, err := stringField(contract, "catalog.modules."+moduleID+"."+binding.contractField, binding.dependencyField)
+			if err != nil {
+				return err
+			}
+			if requiredModuleID != binding.dependencyID {
+				return fail(ErrContractConflict, path+"."+binding.field+".moduleRef", "%s module is not bound to %q", binding.field, binding.dependencyID)
+			}
+		}
+		requires, err := stringListField(module, "catalog.modules."+moduleID, "requires", false)
+		if err != nil {
+			return err
+		}
+		if index == 0 {
+			if !contains(requires, storageModuleID) || !contains(requires, dataBindingModuleID) {
+				return fail(ErrContractConflict, path+".backupSource.moduleRef", "backup source module must require the selected storage allocation and data binding modules")
+			}
+			if err := validateBackupSourceContract(contract, storageModuleID, dataBindingModuleID, moduleID); err != nil {
+				return err
+			}
+		} else if !contains(requires, previousModuleID) {
+			return fail(ErrContractConflict, path+"."+binding.field+".moduleRef", "%s module must require %q", binding.field, previousModuleID)
+		}
+		previousModuleID = moduleID
+	}
+	provider := catalog.providers[backupProviderID]
+	if provider == nil {
+		return fail(ErrUnknownProvider, path, "shared backup lifecycle provider %q is not governed", backupProviderID)
+	}
+	provides, err := stringListField(provider, "catalog.providers."+backupProviderID, "provides", true)
+	if err != nil {
+		return err
+	}
+	if !contains(provides, "backup-core") {
+		return fail(ErrContractConflict, path, "shared backup lifecycle provider does not own backup-core")
+	}
+	return validateWorkloadBackupSources(infrastructure, storage, path)
+}
+
+func validateBackupSourceContract(contract map[string]any, storageModuleID, dataBindingModuleID, moduleID string) error {
+	path := "catalog.modules." + moduleID + ".backupSourceContract"
+	storageRef, err := stringField(contract, path, "storageAllocationModuleRef")
+	if err != nil {
+		return err
+	}
+	dataBindingRef, err := stringField(contract, path, "workloadDataBindingModuleRef")
+	if err != nil {
+		return err
+	}
+	if storageRef != storageModuleID || dataBindingRef != dataBindingModuleID {
+		return fail(ErrContractConflict, path, "backup source contract is not bound to the selected storage allocation and data binding modules")
+	}
 	return nil
+}
+
+func validateWorkloadBackupSources(infrastructure, storage map[string]any, path string) error {
+	allocations, err := objectListField(storage, path+".storageAllocation", "allocations")
+	if err != nil {
+		return err
+	}
+	backed := make(map[string][]string)
+	for index, allocation := range allocations {
+		allocationPath := fmt.Sprintf("%s.storageAllocation.allocations[%d]", path, index)
+		backup, err := boolFieldDefault(allocation, allocationPath, "backup", false)
+		if err != nil {
+			return err
+		}
+		if !backup {
+			continue
+		}
+		componentRef, err := stringField(allocation, allocationPath, "componentRef")
+		if err != nil {
+			return err
+		}
+		volumeRef, err := stringField(allocation, allocationPath, "volumeRef")
+		if err != nil {
+			return err
+		}
+		classes, err := stringListField(allocation, allocationPath, "dataClasses", true)
+		if err != nil {
+			return err
+		}
+		backed[componentRef+"/"+volumeRef] = classes
+	}
+	backupSource, err := objectField(infrastructure, path, "backupSource")
+	if err != nil {
+		return err
+	}
+	sources, err := objectListField(backupSource, path+".backupSource", "allocations")
+	if err != nil {
+		return err
+	}
+	if len(sources) != len(backed) {
+		return fail(ErrContractConflict, path+".backupSource.allocations", "backup sources do not exactly cover backup-enabled storage allocations")
+	}
+	for index, source := range sources {
+		sourcePath := fmt.Sprintf("%s.backupSource.allocations[%d]", path, index)
+		componentRef, err := stringField(source, sourcePath, "componentRef")
+		if err != nil {
+			return err
+		}
+		volumeRef, err := stringField(source, sourcePath, "volumeRef")
+		if err != nil {
+			return err
+		}
+		classes, err := stringListField(source, sourcePath, "dataClasses", true)
+		if err != nil {
+			return err
+		}
+		want, exists := backed[componentRef+"/"+volumeRef]
+		if !exists || !equalStringSets(classes, want) {
+			return fail(ErrContractConflict, sourcePath, "backup source is not an exact backup-enabled storage allocation")
+		}
+		delete(backed, componentRef+"/"+volumeRef)
+	}
+	if len(backed) != 0 {
+		return fail(ErrContractConflict, path+".backupSource.allocations", "backup-enabled storage allocations are missing from the backup source contract")
+	}
+	return nil
+}
+
+func validateWorkloadInfrastructureRuntimeProjection(workloadID, workloadModuleID string, infrastructure map[string]any, catalog *indexedCatalog) error {
+	path := "catalog.workloads." + workloadID + ".alternative.infrastructure"
+	dataBinding, err := objectField(infrastructure, path, "dataBinding")
+	if err != nil {
+		return err
+	}
+	bindingRef, err := stringField(dataBinding, path+".dataBinding", "bindingRef")
+	if err != nil {
+		return err
+	}
+	classes, err := stringListField(dataBinding, path+".dataBinding", "classes", true)
+	if err != nil {
+		return err
+	}
+	locality, err := stringField(dataBinding, path+".dataBinding", "locality")
+	if err != nil {
+		return err
+	}
+	module := catalog.modules[workloadModuleID]
+	units, err := objectListField(module, "catalog.modules."+workloadModuleID, "renderUnits")
+	if err != nil {
+		return err
+	}
+	matches := 0
+	for _, unit := range units {
+		endpoints, err := objectListOptional(unit, "serviceEndpoints")
+		if err != nil {
+			return err
+		}
+		for _, endpoint := range endpoints {
+			data, exists, err := optionalObjectField(endpoint, "catalog.modules."+workloadModuleID+".serviceEndpoints", "data")
+			if err != nil {
+				return err
+			}
+			if !exists {
+				continue
+			}
+			endpointBindingRef, err := stringField(data, "catalog.modules."+workloadModuleID+".serviceEndpoints.data", "bindingRef")
+			if err != nil {
+				return err
+			}
+			endpointClasses, err := stringListField(data, "catalog.modules."+workloadModuleID+".serviceEndpoints.data", "requiredClasses", true)
+			if err != nil {
+				return err
+			}
+			endpointLocality, err := stringField(data, "catalog.modules."+workloadModuleID+".serviceEndpoints.data", "locality")
+			if err != nil {
+				return err
+			}
+			if endpointBindingRef == bindingRef && endpointLocality == locality && equalStringSets(endpointClasses, classes) {
+				matches++
+			}
+		}
+	}
+	if matches != 1 {
+		return fail(ErrContractConflict, path+".dataBinding", "requires exactly one workload endpoint bound to the shared data contract, got %d", matches)
+	}
+	return nil
+}
+
+func equalStringSets(left, right []string) bool {
+	left = sortStringsUnique(left)
+	right = sortStringsUnique(right)
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func workloadInputs(selection, alternative map[string]any, path string) (map[string]any, map[string]any, error) {

@@ -1324,6 +1324,16 @@ func parseModule(raw json.RawMessage, modulePath string, artifacts map[string]ar
 	if err != nil {
 		return renderModule{}, nil, err
 	}
+	planOnly, err := optionalRawBool(object, "planOnly", modulePath+".planOnly")
+	if err != nil {
+		return renderModule{}, nil, err
+	}
+	if planOnly {
+		if err := validatePlanOnlyModule(object, runtime, modulePath); err != nil {
+			return renderModule{}, nil, err
+		}
+		return renderModule{id: moduleID}, nil, nil
+	}
 	module, unitIDs, outputs, err := parseModuleUnits(object, moduleID, modulePath)
 	if err != nil {
 		return renderModule{}, nil, err
@@ -1337,6 +1347,44 @@ func parseModule(raw json.RawMessage, modulePath string, artifacts map[string]ar
 	}
 	bindings, err := bindModuleInstances(module, logicalBindings, artifacts, outputRoot, modulePath)
 	return module, bindings, err
+}
+
+func validatePlanOnlyModule(object map[string]json.RawMessage, runtime moduleRuntimeContract, modulePath string) error {
+	if runtime.execution != "contract-handoff" {
+		return fail(ErrInvalidPlan, modulePath+".runtime.execution", "plan-only modules require contract-handoff execution")
+	}
+	units, err := requiredRawArray(object, "renderUnits", modulePath+".renderUnits")
+	if err != nil {
+		return err
+	}
+	if len(units) != 0 {
+		return fail(ErrInvalidPlan, modulePath+".renderUnits", "plan-only modules must not carry render units")
+	}
+	realization, err := requiredRawObject(object, "realizationSupport", modulePath+".realizationSupport")
+	if err != nil {
+		return err
+	}
+	renderers, err := requiredRawArray(realization, "compatibleRendererRefs", modulePath+".realizationSupport.compatibleRendererRefs")
+	if err != nil {
+		return err
+	}
+	if len(renderers) != 0 {
+		return fail(ErrInvalidPlan, modulePath+".realizationSupport.compatibleRendererRefs", "plan-only modules must not select renderers")
+	}
+	artifactSupport, err := requiredRawObject(realization, "artifacts", modulePath+".realizationSupport.artifacts")
+	if err != nil {
+		return err
+	}
+	for _, field := range []string{"requiredRefs", "outputBindings", "contracts"} {
+		values, err := requiredRawArray(artifactSupport, field, modulePath+".realizationSupport.artifacts."+field)
+		if err != nil {
+			return err
+		}
+		if len(values) != 0 {
+			return fail(ErrInvalidPlan, modulePath+".realizationSupport.artifacts."+field, "plan-only modules must not claim artifact authority")
+		}
+	}
+	return nil
 }
 
 func parseModuleRuntime(object map[string]json.RawMessage, modulePath string) (moduleRuntimeContract, error) {
@@ -3142,6 +3190,18 @@ func requiredRawString(object map[string]json.RawMessage, name, valuePath string
 			err = fmt.Errorf("must be a non-empty string")
 		}
 		return "", wrap(ErrInvalidPlan, valuePath, "decode string", err)
+	}
+	return result, nil
+}
+
+func optionalRawBool(object map[string]json.RawMessage, name, valuePath string) (bool, error) {
+	raw, exists := object[name]
+	if !exists {
+		return false, nil
+	}
+	var result bool
+	if err := decodeJSON(raw, &result, false); err != nil {
+		return false, wrap(ErrInvalidPlan, valuePath, "decode boolean", err)
 	}
 	return result, nil
 }

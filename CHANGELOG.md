@@ -4,6 +4,42 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.13.0] - 2026-07-30
+
+> **Fleet and reusable infrastructure lifecycle** with bounded node mutations
+> and a third Application Kit on the shared lifecycle platform.
+
+### Added
+
+- Compiler-owned Fleet membership and `add`, `replace`, `drain`, `recover`,
+  and `remove` mutation contracts bind exact current/target ResolvedPlans,
+  local Owner approval, durable checkpoints, recovery authority, and immutable
+  signed evidence.
+- Shared plan-only storage allocation, workload data binding, backup source,
+  snapshot, restore, and recovery modules are selected by Application Kits
+  without gaining provider, credential, target, or multi-server authority.
+- Vault with Vaultwarden 1.35.4 is the third native Application Kit. Its exact
+  digest-pinned selected-PaaS bundle, parser, executor, Product factory, and
+  remote CLI registration reuse the same seven-stage lifecycle and shared
+  infrastructure contracts as Photos/Immich and Files/Cloudreve.
+
+### Changed
+
+- Basement Kit and Cloud Kit Definition contracts advance to 5.1.0 and Modern
+  Homelab advances to 1.1.0-alpha as all three explicitly admit the optional
+  Vault workload.
+- CLI, MCP, and State Console consume the same Fleet lifecycle state and
+  evidence projection; lifecycle behavior remains in the local StackKits
+  owner and Standard Mode remains account-free.
+
+### Fixed
+
+- Stable v0.12-to-v0.13 upgrades inspect and checkpoint the applied generation
+  through the exact installed, attested v0.12 binary. The bridge admits only
+  the published v0.12 release index, Basement archive, Definition, compiler,
+  renderer, and product-authority tuple; v0.13 target generation remains
+  governed by the strict current CUE authority.
+
 ## [0.12.0] - 2026-07-30
 
 > **Reusable Application Kit lifecycle platform** with one CUE-owned,

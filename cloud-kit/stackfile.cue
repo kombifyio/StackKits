@@ -31,7 +31,7 @@ Definition: base.#ProductKitDefinition & {
 	kind:       "KitDefinition"
 	metadata: {
 		slug:        "cloud-kit"
-		version:     "5.0.0"
+		version:     "5.1.0"
 		displayName: "Cloud Kit"
 		description: "Cloud-only StackKit for one or more externally supplied cloud hosts"
 	}
@@ -115,7 +115,7 @@ Definition: base.#ProductKitDefinition & {
 		optional: ["private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
-	workloads: {required: [], defaults: [], optional: ["files", "photos"], forbidden: []}
+	workloads: {required: [], defaults: [], optional: ["files", "photos", "vault"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

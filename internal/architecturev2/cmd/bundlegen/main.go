@@ -34,6 +34,8 @@ var contractFixtureSourceAllowlist = []string{
 	"cue.mod/module.cue",
 	"base/architecture_v2_profiles.cue",
 	"base/architecture_v2.cue",
+	"base/architecture_v2_storage.cue",
+	"base/architecture_v2_backup.cue",
 	"base/application_lifecycle.cue",
 	"base/architecture_v2_definition_binding.cue",
 	"base/architecture_v2_catalog.cue",

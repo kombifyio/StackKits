@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
+	"github.com/kombifyio/stackkits/internal/fleetlifecycle"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/olekukonko/tablewriter"
@@ -194,6 +195,10 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 	if err != nil {
 		return fmt.Errorf("status: load Application Kit lifecycle evidence: %w", err)
 	}
+	fleetProjection, fleetState, err := loadFleetLifecycleEvidence(wd, plan)
+	if err != nil {
+		return fmt.Errorf("status: load Fleet lifecycle evidence: %w", err)
+	}
 	output := map[string]any{
 		"apiVersion":            "stackkit.status/v2",
 		"stackId":               plan["stackId"],
@@ -202,6 +207,7 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		"executionReadiness":    plan["executionReadiness"],
 		"workloads":             plan["workloads"],
 		"applicationLifecycles": lifecycles,
+		"fleetLifecycle":        fleetProjection,
 	}
 	if statusJSON {
 		encoder := json.NewEncoder(cmd.OutOrStdout())
@@ -209,6 +215,11 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		return encoder.Encode(output)
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Stack: %v\nPlan: %v\n", plan["stackId"], plan["planHash"])
+	fleetStatus := "not-started"
+	if len(fleetState.Operations) > 0 {
+		fleetStatus = fleetState.Operations[len(fleetState.Operations)-1].Status
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Fleet lifecycle: %s\n", fleetStatus)
 	if len(lifecycles) == 0 {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Application Kits: none selected")
 		return nil
@@ -222,6 +233,22 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", state.WorkloadRef, status)
 	}
 	return nil
+}
+
+func loadFleetLifecycleEvidence(
+	wd string,
+	plan resolvedplan.ResolvedPlan,
+) (map[string]any, fleetlifecycle.State, error) {
+	contract, state, err := (fleetlifecycle.Store{Workspace: wd}).LoadForPlan(plan)
+	if err != nil {
+		return nil, fleetlifecycle.State{}, err
+	}
+	return map[string]any{
+		"contract": contract,
+		"state":    state,
+		"planMatchesState": state.CurrentPlanHash == "" ||
+			state.CurrentPlanHash == plan["planHash"],
+	}, state, nil
 }
 
 func loadApplicationLifecycleEvidence(wd string, plan resolvedplan.ResolvedPlan) ([]applicationlifecycle.State, error) {

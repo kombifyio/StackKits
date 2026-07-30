@@ -1183,16 +1183,26 @@ func (c *Compiler) buildWorkloads(resolved *resolution, modules []any) ([]any, e
 		if err != nil {
 			return nil, err
 		}
+		resolvedAlternative := map[string]any{
+			"id": selection.alternativeID, "contractHash": alternativeHash,
+			"providerRef": selection.providerID, "moduleRef": selection.moduleID,
+			"route": resolvedRoute, "runtime": resolvedRuntime, "setup": resolvedSetup,
+		}
+		if infrastructure, exists, err := optionalObjectField(selection.alternative, path+".alternatives."+selection.alternativeID, "infrastructure"); err != nil {
+			return nil, err
+		} else if exists {
+			resolvedInfrastructure, err := cloneObject(infrastructure, true)
+			if err != nil {
+				return nil, err
+			}
+			resolvedAlternative["infrastructure"] = resolvedInfrastructure
+		}
 		result = append(result, map[string]any{
 			"id": id, "version": version, "contractHash": contractHash, "kind": kind,
 			"functionalCapabilities": stringSliceAny(functionalCapabilities),
 			"dataClasses":            stringSliceAny(dataClasses),
-			"alternative": map[string]any{
-				"id": selection.alternativeID, "contractHash": alternativeHash,
-				"providerRef": selection.providerID, "moduleRef": selection.moduleID,
-				"route": resolvedRoute, "runtime": resolvedRuntime, "setup": resolvedSetup,
-			},
-			"siteRefs": stringSliceAny(selection.siteRefs), "nodeRefs": stringSliceAny(selection.nodeRefs),
+			"alternative":            resolvedAlternative,
+			"siteRefs":               stringSliceAny(selection.siteRefs), "nodeRefs": stringSliceAny(selection.nodeRefs),
 			"settings": settings, "secretRefs": secretRefs,
 		})
 	}
@@ -1379,6 +1389,21 @@ func (c *Compiler) workloadDataBindingRef(workload *resolvedWorkloadSelection) (
 	if len(dataClasses) == 0 {
 		return "", nil
 	}
+	infrastructure, exists, err := optionalObjectField(workload.alternative, "catalog.workloads."+workload.id+".alternative", "infrastructure")
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		dataBinding, err := objectField(infrastructure, "catalog.workloads."+workload.id+".alternative.infrastructure", "dataBinding")
+		if err != nil {
+			return "", err
+		}
+		return stringField(dataBinding, "catalog.workloads."+workload.id+".alternative.infrastructure.dataBinding", "bindingRef")
+	}
+	return c.legacyWorkloadDataBindingRef(workload)
+}
+
+func (c *Compiler) legacyWorkloadDataBindingRef(workload *resolvedWorkloadSelection) (string, error) {
 	route, err := objectField(workload.alternative, "catalog.workloads."+workload.id+".alternative", "route")
 	if err != nil {
 		return "", err

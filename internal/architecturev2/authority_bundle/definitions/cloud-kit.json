@@ -593,7 +593,7 @@
     "description": "Cloud-only StackKit for one or more externally supplied cloud hosts",
     "displayName": "Cloud Kit",
     "slug": "cloud-kit",
-    "version": "5.0.0"
+    "version": "5.1.0"
   },
   "network": {
     "defaultTLSMode": "public",
@@ -678,7 +678,8 @@
     "forbidden": [],
     "optional": [
       "files",
-      "photos"
+      "photos",
+      "vault"
     ],
     "required": []
   }

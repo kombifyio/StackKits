@@ -18,7 +18,7 @@ Definition: base.#ProductKitDefinition & {
 	kind:       "KitDefinition"
 	metadata: {
 		slug:        "modern-homelab"
-		version:     "1.0.0-alpha"
+		version:     "1.1.0-alpha"
 		displayName: "Modern Homelab"
 		description: "Federated local and cloud StackKit with a policy-constrained bridge"
 	}
@@ -121,7 +121,7 @@ Definition: base.#ProductKitDefinition & {
 		optional: ["lan-discovery", "lan-dns", "internal-pki", "private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["cloud-enrollment-authority", "broad-lan-route-advertisement"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

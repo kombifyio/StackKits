@@ -146,3 +146,14 @@ func NewProductRemoteCloudreveSelectedPaaSRegistration(runtimeAdapterRef, runtim
 	}
 	return NewProductRemoteRuntimeOwnerRegistration(productCloudreveSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRef))
 }
+
+// NewProductRemoteVaultwardenSelectedPaaSRegistration binds the Vault
+// vertical to one exact service-owned PaaS adapter without granting credential
+// or provider lifecycle authority.
+func NewProductRemoteVaultwardenSelectedPaaSRegistration(runtimeAdapterRef, runtimeAdapterModuleRef string) (ProductRuntimeOwnerRegistration, error) {
+	if runtimeAdapterRef == "" || runtimeAdapterRef != strings.TrimSpace(runtimeAdapterRef) ||
+		runtimeAdapterModuleRef == "" || runtimeAdapterModuleRef != strings.TrimSpace(runtimeAdapterModuleRef) {
+		return ProductRuntimeOwnerRegistration{}, fmt.Errorf("remote Vaultwarden selected-PaaS registration requires an exact normalized adapter ref and module ref")
+	}
+	return NewProductRemoteRuntimeOwnerRegistration(productVaultwardenSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRef))
+}
