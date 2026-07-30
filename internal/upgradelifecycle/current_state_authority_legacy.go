@@ -31,6 +31,14 @@ const (
 	legacyV08DefinitionHash         = "sha256:e605db9c5c0f60b7b571a11ec234f051ca65902402b88aca8b07f74169306cf3"
 	legacyV08CompilerVersion        = "stackkits-resolver/0.8.0"
 	legacyV08RendererVersion        = "0.8.0"
+	legacyV09Version                = "v0.9.0"
+	legacyV09ArchiveSHA256          = "sha256:6d969b7fbe672a596df4226db4e695d3d4f51a75d8edfc8434f1b37201fef423"
+	legacyV09IndexSHA256            = "sha256:0dd20f30dfaad350cc5fb8077d68f99f2df8dcdb673817ee4aefdfe4aff5e587"
+	legacyV09AuthorityFingerprint   = "sha256:fe62ce4fe53cef67f225b772beaeffdafadf859e74a1721c8e04249e0f10e765"
+	legacyV09CatalogHash            = "sha256:36e536598cc040ffa6a440d75eeeeb8ff067b813e0cc5549a10d3e41a971d2ab"
+	legacyV09DefinitionHash         = "sha256:63ccaa8a22cb01177ba97ed46f003134c09893ba62f2a786b7cefaf9fca88c3a"
+	legacyV09CompilerVersion        = "stackkits-resolver/0.9.0"
+	legacyV09RendererVersion        = "0.9.0"
 )
 
 type allowedLegacyRelease struct {
@@ -41,9 +49,10 @@ type allowedLegacyRelease struct {
 }
 
 // LegacyCurrentStateAuthorityInput is intentionally limited to the exact
-// published beta.4 and v0.8.0 stable authority discontinuities. The caller must still supply the
-// immutable installed-release proof, owner-signed Apply evidence, complete
-// generated artifact closure, and the candidate-created Kopia snapshot.
+// published beta.4, v0.8.0, and v0.9.0 authority discontinuities. The caller
+// must still supply the immutable installed-release proof, owner-signed Apply
+// evidence, complete generated artifact closure, and the candidate-created
+// Kopia snapshot.
 type LegacyCurrentStateAuthorityInput struct {
 	WorkspaceRoot     string
 	Inspection        generationartifact.PlanInspection
@@ -243,26 +252,58 @@ func verifyAllowedLegacyInspection(
 	if err := validatePlanInspection(inspection, "legacy v0.8 stable current"); err != nil {
 		return allowedLegacyRelease{}, err
 	}
-	authority := inspection.Binding.Authority
-	if inspection.Binding.DefinitionHash != legacyV08DefinitionHash ||
-		inspection.Binding.CompilerVersion != legacyV08CompilerVersion ||
-		inspection.Binding.Renderer.ID != "stackkit" ||
-		inspection.Binding.Renderer.Version != legacyV08RendererVersion ||
-		authority.Class != "product" ||
-		authority.Document != "catalog" ||
-		!authority.GraduationEligible ||
-		authority.Issuer != "stackkits-product-authority/v1" ||
-		authority.AuthorityFingerprint != legacyV08AuthorityFingerprint ||
-		authority.CatalogHash != legacyV08CatalogHash {
-		return allowedLegacyRelease{}, errors.New(
-			"legacy current state authority: plan is outside the exact historical authority allowlist",
-		)
+	if matchesHistoricalStableInspection(
+		inspection,
+		legacyV08DefinitionHash,
+		legacyV08CompilerVersion,
+		legacyV08RendererVersion,
+		legacyV08AuthorityFingerprint,
+		legacyV08CatalogHash,
+	) {
+		return allowedLegacyRelease{
+			version: legacyV08Version, channel: releaseindex.ChannelStable,
+			archiveSHA256: legacyV08ArchiveSHA256,
+			indexSHA256:   legacyV08IndexSHA256,
+		}, nil
 	}
-	return allowedLegacyRelease{
-		version: legacyV08Version, channel: releaseindex.ChannelStable,
-		archiveSHA256: legacyV08ArchiveSHA256,
-		indexSHA256:   legacyV08IndexSHA256,
-	}, nil
+	if matchesHistoricalStableInspection(
+		inspection,
+		legacyV09DefinitionHash,
+		legacyV09CompilerVersion,
+		legacyV09RendererVersion,
+		legacyV09AuthorityFingerprint,
+		legacyV09CatalogHash,
+	) {
+		return allowedLegacyRelease{
+			version: legacyV09Version, channel: releaseindex.ChannelStable,
+			archiveSHA256: legacyV09ArchiveSHA256,
+			indexSHA256:   legacyV09IndexSHA256,
+		}, nil
+	}
+	return allowedLegacyRelease{}, errors.New(
+		"legacy current state authority: plan is outside the exact historical authority allowlist",
+	)
+}
+
+func matchesHistoricalStableInspection(
+	inspection generationartifact.PlanInspection,
+	definitionHash string,
+	compilerVersion string,
+	rendererVersion string,
+	authorityFingerprint string,
+	catalogHash string,
+) bool {
+	authority := inspection.Binding.Authority
+	return inspection.Binding.DefinitionHash == definitionHash &&
+		inspection.Binding.CompilerVersion == compilerVersion &&
+		inspection.Binding.Renderer.ID == "stackkit" &&
+		inspection.Binding.Renderer.Version == rendererVersion &&
+		authority.Class == "product" &&
+		authority.Document == "catalog" &&
+		authority.GraduationEligible &&
+		authority.Issuer == "stackkits-product-authority/v1" &&
+		authority.AuthorityFingerprint == authorityFingerprint &&
+		authority.CatalogHash == catalogHash
 }
 
 func equalLegacyArtifacts(
