@@ -2,6 +2,7 @@ package architecturev2
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutordispatch"
@@ -35,7 +36,55 @@ func (e *ProductApplyReconcileRequiredError) RequestDigest() string {
 }
 
 func (e *ProductApplyReconcileRequiredError) Error() string {
-	return "product Apply requires reconciliation"
+	const message = "product Apply requires reconciliation"
+	if e == nil {
+		return message
+	}
+	closed := make([]string, 0)
+	for _, operation := range e.operations {
+		for _, snapshot := range operation.Snapshot.Steps {
+			if snapshot.State != runtimeapply.StepFailed || snapshot.StepID == "" || snapshot.FailureCode == "" {
+				continue
+			}
+			closed = append(closed, productApplyClosedStepDiagnostic(operation.Operation, snapshot))
+		}
+	}
+	if len(closed) == 0 {
+		return message
+	}
+	sort.Strings(closed)
+	if len(closed) > 4 {
+		closed = closed[:4]
+	}
+	return message + " (" + strings.Join(closed, ",") + ")"
+}
+
+func productApplyClosedStepDiagnostic(operation runtimeapply.Operation, snapshot runtimeapply.StepSnapshot) string {
+	label := "step"
+	for _, step := range operation.Steps {
+		if step.ID != snapshot.StepID {
+			continue
+		}
+		parts := make([]string, 0, 1+len(step.Runtime)+len(step.Health))
+		if step.Executor.ID != "" {
+			parts = append(parts, "executor:"+step.Executor.ID)
+		}
+		for _, runtime := range step.Runtime {
+			if runtime.InstanceRef != "" {
+				parts = append(parts, "runtime:"+runtime.InstanceRef)
+			}
+		}
+		for _, health := range step.Health {
+			if health.TargetRef != "" {
+				parts = append(parts, "health:"+health.TargetRef)
+			}
+		}
+		if len(parts) != 0 {
+			label = strings.Join(parts, "/")
+		}
+		break
+	}
+	return label + "=" + string(snapshot.FailureCode)
 }
 
 func (e *ProductApplyReconcileRequiredError) Unwrap() error {

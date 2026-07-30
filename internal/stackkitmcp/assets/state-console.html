@@ -560,6 +560,10 @@
             <input id="network_mode" readonly>
           </label>
           <p class="field full">Initial authoring is no-replace. Replacing existing v2 intent requires its exact CUE-normalized expected spec hash.</p>
+          <label class="check field full">
+            <input id="owner_mutations_approved" name="owner_mutations_approved" type="checkbox">
+            <span>I approve the explicitly named local Init, Resolve, and Generate operations shown in this flow.</span>
+          </label>
         </div>
         <h3>Initial configuration request</h3>
         <textarea id="spec_preview" spellcheck="false" aria-label="Spec preview"></textarea>
@@ -613,12 +617,12 @@
     const panels = ["contact", "kit", "domain", "review", "rollout"];
     const runSteps = [
       ["stackkit_init", "Init"],
-      ["stackkit_validate_spec", "Validate"],
+      ["stackkit_validate", "Validate"],
       ["stackkit_resolve", "Resolve"],
       ["stackkit_generate", "Generate"],
       ["stackkit_plan", "Plan"],
       ["apply_approval", "Apply approval"],
-      ["stackkit_verify_plan", "Verify"]
+      ["stackkit_verify", "Verify"]
     ];
 
     const defaults = {
@@ -634,6 +638,7 @@
         stackkit: "basement-kit",
         domain_base: "",
         inventory_path: "inventory.json",
+        owner_mutations_approved: false,
         apply_reviewed: false,
         verify_http: false
       }
@@ -723,6 +728,25 @@
         ...baseArgs(),
         inventory_path: clean(state.form.inventory_path)
       });
+    }
+
+    function approvedArgs(operation, args = {}) {
+      return {
+        ...args,
+        operation_confirmation: operation,
+        owner_approved: true
+      };
+    }
+
+    function requireMutationApproval() {
+      if (state.form.owner_mutations_approved) {
+        return true;
+      }
+      setOutput({
+        blocked: true,
+        error: "Explicit local Owner approval is required before requesting Init, Resolve, or Generate."
+      });
+      return false;
     }
 
     function prune(value) {
@@ -841,10 +865,13 @@
         setOutput({ blocked: true, error: "Create or load a canonical StackSpec v2 before resolving and planning." });
         return;
       }
+      if (!requireMutationApproval()) {
+        return;
+      }
       const sequence = [
-        ["stackkit_validate_spec", baseArgs()],
-        ["stackkit_resolve", resolveArgs()],
-        ["stackkit_generate", baseArgs()],
+        ["stackkit_validate", baseArgs()],
+        ["stackkit_resolve", approvedArgs("stackkit.resolve", resolveArgs())],
+        ["stackkit_generate", approvedArgs("stackkit.generate", baseArgs())],
         ["stackkit_plan", baseArgs()]
       ];
       clearRunMarks(sequence);
@@ -872,10 +899,13 @@
         setOutput({ blocked: true, error: "Review the current plan before requesting Apply approval." });
         return;
       }
+      if (!requireMutationApproval()) {
+        return;
+      }
       const sequence = [
-        ["stackkit_validate_spec", baseArgs()],
-        ["stackkit_resolve", resolveArgs()],
-        ["stackkit_generate", baseArgs()],
+        ["stackkit_validate", baseArgs()],
+        ["stackkit_resolve", approvedArgs("stackkit.resolve", resolveArgs())],
+        ["stackkit_generate", approvedArgs("stackkit.generate", baseArgs())],
         ["stackkit_plan", baseArgs()]
       ];
       clearRunMarks(sequence);
@@ -890,14 +920,21 @@
       markRun("apply_approval", "pending");
       setOutput({
         operation_approval_required: true,
-        operation: "apply",
-        requested_arguments: baseArgs(),
+        operation: "stackkit.apply",
+        requested_arguments: {
+          ...baseArgs(),
+          operation_confirmation: "stackkit.apply",
+          owner_approved: true
+        },
         message: "The State Console never invokes Apply directly. Ask the connected agent to present the registered StackKits Apply operation for operation-specific confirmation and Owner approval."
       });
     }
 
     async function createSpec() {
-      const result = await callTool("stackkit_init", initArgs());
+      if (!requireMutationApproval()) {
+        return;
+      }
+      const result = await callTool("stackkit_init", approvedArgs("stackkit.init", initArgs()));
       if (toolSucceeded(result)) {
         state.specReady = true;
         persist();
@@ -994,18 +1031,18 @@
     document.getElementById("status").addEventListener("click", () => callTool("stackkit_status"));
     document.getElementById("createSpec").dataset.write = "true";
     document.getElementById("createSpec").addEventListener("click", createSpec);
-    document.getElementById("validateSpec").addEventListener("click", () => callTool("stackkit_validate_spec", baseArgs()));
+    document.getElementById("validateSpec").addEventListener("click", () => callTool("stackkit_validate", baseArgs()));
     document.getElementById("generatePreview").addEventListener("click", () => callTool("stackkit_generate_preview", baseArgs()));
     document.getElementById("planFlow").dataset.write = "true";
     document.getElementById("planFlow").addEventListener("click", runPlanFlow);
     document.getElementById("runRollout").dataset.write = "true";
     document.getElementById("runRollout").addEventListener("click", runRollout);
-    document.getElementById("verify").addEventListener("click", () => callTool("stackkit_verify_plan", baseArgs()));
-    document.getElementById("logs").addEventListener("click", () => callTool("stackkit_logs_list"));
+    document.getElementById("verify").addEventListener("click", () => callTool("stackkit_verify", baseArgs()));
+    document.getElementById("logs").addEventListener("click", () => callTool("stackkit_logs", baseArgs()));
 
     callTool("stackkit_state_console").then((result) => {
       const meta = structured(result);
-      state.writeEnabled = !!meta?.cli_actions_enabled;
+      state.writeEnabled = !!meta?.cli_actions_enabled && !!meta?.config_write_enabled;
       writeDot.classList.toggle("ok", state.writeEnabled);
       writeDot.classList.toggle("error", !window.openai?.callTool);
       writeStatus.textContent = state.writeEnabled ? "Write tools enabled" : "Read-only connector";

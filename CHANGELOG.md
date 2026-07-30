@@ -4,6 +4,93 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.0] - 2026-07-30
+
+> **Unified standalone operations** behind one exact CLI/MCP contract, with
+> the StackKits State Console remaining a review and approval adapter.
+
+### Added
+
+- A canonical standalone Operations registry now owns Init, Validate, Resolve,
+  Generate, Plan, Apply, Verify, Status, Logs, Backup, Restore, Upgrade, and
+  Drift identities, command paths, mutation metadata, and approval policy.
+  The public CLI and native MCP connector bind the same registry; Backup,
+  Restore, Upgrade, Drift, native Status/Logs, Validate, and Verify now have
+  full MCP parity through the exact same-build sibling CLI.
+- The native MCP connector is read-only by default. Every mutating operation
+  now requires explicit write opt-in, the exact registered operation identity,
+  and explicit local Owner approval before the CLI can be invoked. The State
+  Console renders these registered contracts, requests governed approval, and
+  never invokes Apply directly.
+
+- Architecture v2 Foundation host hardening now supports Alpine/OpenRC with a
+  canonical daily stable-repository upgrade job, active `crond`, and the same
+  governed sysctl evidence used by apt hosts.
+
+- `stackkit host attach-conformance` atomically attaches an exact
+  `ExternalHostBinding` and matching `HostConformanceReceipt` to one Inventory
+  node before canonical plan generation. Workspace escapes, malformed JSON,
+  unknown nodes, and post-generation attachment fail closed.
+
+### Fixed
+
+- Alpine VM installation now includes `curl`, which is the exact binary used
+  by the governed Host-routed HTTP service verification phase.
+
+- Regenerated the Architecture v2 product and contract-fixture authorities,
+  distribution pin, and canonical plans for the Alpine-capable Foundation
+  security-baseline contract hash.
+
+- Alpine VM evidence now derives the closed `kvm` virtualization class from
+  QEMU/KVM DMI vendor data when `systemd-detect-virt` is unavailable.
+
+- Proxmox OS-matrix clones now disable implicit cloud-init package upgrades so
+  the graded install phase runs against the booted kernel and its matching
+  modules, including Alpine nftables support.
+
+- Alpine host installation now waits for the OpenRC-managed Docker daemon with
+  a bounded 30-second readiness loop before grading Docker and Compose v2.
+
+- Alpine 3.24 Proxmox provisioning now matches cloud-init's exact JSON-encoded
+  `scripts_user`/`runcmd` error instead of looking for a non-existent standalone
+  JSON field.
+
+- Native Architecture v2 Apply now resumes one exact journaled
+  `ProductApplyReconcileRequiredError` through the service-owned recovery
+  authority. Only the typed non-empty request digest from the original Apply is
+  accepted; unrelated failures remain fail-closed and no provider authority is
+  introduced. Persistent reconciliation failures now expose only deterministic
+  verified executor/runtime/health contract references and closed
+  `FailureCode` pairs; opaque step hashes, adapter output, socket paths, and
+  provider data remain private.
+
+- The protected OS matrix now creates native v2 intent with
+  `init --owner-source=local` and proceeds directly to generation. It no
+  longer invokes current binaries with rejected v0.6 flags or restores the
+  removed StackKits host-preparation authority; the exact local StackKit Server
+  image is built inside the bounded Generate phase. The protected lab harness
+  installs and verifies Docker prerequisites explicitly through apt on
+  Ubuntu/Debian or apk/OpenRC on Alpine before installing Candidate bytes.
+  Generation also uses the native transactional `stackkit generate` contract
+  without the retired `--context` and `--force` switches.
+  Exact matrix Candidate binaries now embed the explicit v0.10 `-devel`
+  SemVer, source SHA, and commit timestamp through the same version fields as
+  release builds; evidence no longer claims a stale nearest Git tag, and
+  unreleased candidates remain on the narrowly recognized development path.
+  Ubuntu/Debian host prerequisites now install and verify the separately
+  packaged Compose v2 plugin before any Candidate lifecycle phase; Alpine
+  verifies its existing `docker-cli-compose` plugin through the same command.
+  Candidate attestation now validates the same nine-phase native v2 chain as
+  the OS-matrix bundle and no longer requires the removed StackKits-owned
+  `prepare` phase.
+  Debian 12/13 host compatibility now installs Engine and Compose v2 from
+  Docker's official signed apt repository because Bookworm does not publish
+  Ubuntu's `docker-compose-v2` package name.
+  Alpine Proxmox targets now accept only the exact known OpenRC cloud-init
+  warning caused by Proxmox's generated `systemctl enable --now
+  qemu-guest-agent` command, and still require the boot-finished marker,
+  running Guest Agent/SSHD services, and an ED25519 host key.
+
 ## [0.9.1] - 2026-07-28
 
 ### Fixed

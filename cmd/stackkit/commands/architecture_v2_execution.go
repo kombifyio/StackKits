@@ -75,7 +75,9 @@ type architectureV2ExecutionAuthority interface {
 }
 
 type architectureV2ProductApplyAuthority interface {
+	architectureV2ExecutionAuthority
 	ExecuteProductApply(context.Context, architecturev2.ProductApplyInput) (architecturev2.VerifiedApplyResult, error)
+	ReconcileProductApply(context.Context, architecturev2.ProductApplyReconcileInput) (architecturev2.VerifiedApplyResult, error)
 }
 
 type architectureV2ProductVerifyAuthority interface {
@@ -732,9 +734,12 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if executionContext == nil {
 		executionContext = context.Background()
 	}
-	result, err := applyAuthority.ExecuteProductApply(executionContext, architecturev2.ProductApplyInput{
+	applyInput := architecturev2.ProductApplyInput{
 		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions,
-	})
+	}
+	result, err := executeArchitectureV2ProductApply(
+		executionContext, applyAuthority, applyInput, options.stackSpecData, options.inventoryData,
+	)
 	if err != nil {
 		return err
 	}
@@ -747,6 +752,39 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	})
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
 	return nil
+}
+
+func executeArchitectureV2ProductApply(
+	ctx context.Context,
+	authority architectureV2ProductApplyAuthority,
+	input architecturev2.ProductApplyInput,
+	stackSpec []byte,
+	inventory []byte,
+) (architecturev2.VerifiedApplyResult, error) {
+	result, err := authority.ExecuteProductApply(ctx, input)
+	if err == nil {
+		return result, nil
+	}
+	var reconcile *architecturev2.ProductApplyReconcileRequiredError
+	if !errors.As(err, &reconcile) || reconcile.RequestDigest() == "" {
+		return architecturev2.VerifiedApplyResult{}, err
+	}
+	current, resolveErr := authority.ResolveCurrent(architecturev2.ResolveInput{
+		StackSpec: append([]byte(nil), stackSpec...),
+		Inventory: append([]byte(nil), inventory...),
+	})
+	if resolveErr != nil {
+		return architecturev2.VerifiedApplyResult{}, fmt.Errorf(
+			"resolve current authority for Product Apply reconciliation: %w", resolveErr,
+		)
+	}
+	return authority.ReconcileProductApply(ctx, architecturev2.ProductApplyReconcileInput{
+		Current:       current,
+		Workspace:     input.Workspace,
+		OutputLock:    input.OutputLock,
+		Versions:      input.Versions,
+		RequestDigest: reconcile.RequestDigest(),
+	})
 }
 
 func persistArchitectureV2ApplyResult(transaction *confinedfs.Transaction, result architecturev2.VerifiedApplyResult) (string, error) {

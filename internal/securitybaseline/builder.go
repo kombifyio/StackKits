@@ -404,8 +404,13 @@ chmod 600 .stackkit/security-baseline.json
 const architectureV2ScriptTemplate = `#!/bin/sh
 set -eu
 @@PACKAGE_MANAGER_LOCK_WAIT@@
-if ! command -v apt-get >/dev/null 2>&1; then
-  echo "StackKit Architecture v2 Foundation host hardening currently supports apt-based Ubuntu hosts." >&2
+PACKAGE_FAMILY=""
+if command -v apt-get >/dev/null 2>&1; then
+  PACKAGE_FAMILY="apt"
+elif command -v apk >/dev/null 2>&1; then
+  PACKAGE_FAMILY="apk"
+else
+  echo "StackKit Architecture v2 Foundation host hardening requires apt or apk." >&2
   exit 1
 fi
 if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
@@ -418,34 +423,49 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ] && [ "$(ca
   SYSTEMD_RUNNING=1
 fi
 mkdir -p .stackkit
-$SUDO mkdir -p /etc/apt/apt.conf.d /etc/sysctl.d /var/log/stackkit
-PACKAGES_READY=1
-for package in unattended-upgrades procps; do
-  if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'ok installed'; then
-    PACKAGES_READY=0
-  fi
-done
-if [ "$PACKAGES_READY" != "1" ]; then
-  $SUDO apt-get update -y
-  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unattended-upgrades procps
-fi
-
-$SUDO tee /etc/apt/apt.conf.d/20auto-upgrades >/dev/null <<'STACKKIT_UPGRADES'
+$SUDO mkdir -p /etc/sysctl.d /var/log/stackkit
+case "$PACKAGE_FAMILY" in
+  apt)
+    $SUDO mkdir -p /etc/apt/apt.conf.d
+    PACKAGES_READY=1
+    for package in unattended-upgrades procps; do
+      if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'ok installed'; then
+        PACKAGES_READY=0
+      fi
+    done
+    if [ "$PACKAGES_READY" != "1" ]; then
+      $SUDO apt-get update -y
+      $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unattended-upgrades procps
+    fi
+    $SUDO tee /etc/apt/apt.conf.d/20auto-upgrades >/dev/null <<'STACKKIT_UPGRADES'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 APT::Periodic::AutocleanInterval "7";
 STACKKIT_UPGRADES
-$SUDO tee /etc/apt/apt.conf.d/50unattended-upgrades-stackkit >/dev/null <<'STACKKIT_SECURITY_UPGRADES'
+    $SUDO tee /etc/apt/apt.conf.d/50unattended-upgrades-stackkit >/dev/null <<'STACKKIT_SECURITY_UPGRADES'
 Unattended-Upgrade::Allowed-Origins {
         "${distro_id}:${distro_codename}-security";
 };
 Unattended-Upgrade::Automatic-Reboot "false";
 STACKKIT_SECURITY_UPGRADES
-if [ "$SYSTEMD_RUNNING" = "1" ] && systemctl list-unit-files unattended-upgrades.service >/dev/null 2>&1; then
-  $SUDO systemctl enable --now unattended-upgrades
-elif command -v service >/dev/null 2>&1; then
-  $SUDO service unattended-upgrades restart
-fi
+    if [ "$SYSTEMD_RUNNING" = "1" ] && systemctl list-unit-files unattended-upgrades.service >/dev/null 2>&1; then
+      $SUDO systemctl enable --now unattended-upgrades
+    elif command -v service >/dev/null 2>&1; then
+      $SUDO service unattended-upgrades restart
+    fi
+    ;;
+  apk)
+    $SUDO apk add --no-cache apk-tools procps
+    $SUDO mkdir -p /etc/periodic/daily
+    $SUDO tee /etc/periodic/daily/stackkit-security-upgrades >/dev/null <<'STACKKIT_APK_UPGRADES'
+#!/bin/sh
+exec apk upgrade --no-cache
+STACKKIT_APK_UPGRADES
+    $SUDO chmod 0755 /etc/periodic/daily/stackkit-security-upgrades
+    $SUDO rc-update add crond default
+    $SUDO rc-service crond status >/dev/null 2>&1 || $SUDO rc-service crond start
+    ;;
+esac
 
 # Routing and reverse-path filtering are deliberately absent. Their safe values
 # depend on Local, Cloud, multi-NIC, VPN, mesh, and federation topology.
@@ -464,8 +484,17 @@ fail_stackkit_control() {
   echo "security baseline control probe failed: $1" >&2
   exit 1
 }
-$SUDO grep -q 'APT::Periodic::Unattended-Upgrade "1";' /etc/apt/apt.conf.d/20auto-upgrades || fail_stackkit_control "unattended upgrades are not enabled"
-$SUDO grep -q '\${distro_id}:\${distro_codename}-security' /etc/apt/apt.conf.d/50unattended-upgrades-stackkit || fail_stackkit_control "security-only unattended upgrade origin is missing"
+case "$PACKAGE_FAMILY" in
+  apt)
+    $SUDO grep -q 'APT::Periodic::Unattended-Upgrade "1";' /etc/apt/apt.conf.d/20auto-upgrades || fail_stackkit_control "unattended upgrades are not enabled"
+    $SUDO grep -q '\${distro_id}:\${distro_codename}-security' /etc/apt/apt.conf.d/50unattended-upgrades-stackkit || fail_stackkit_control "security-only unattended upgrade origin is missing"
+    ;;
+  apk)
+    $SUDO test -x /etc/periodic/daily/stackkit-security-upgrades || fail_stackkit_control "Alpine stable-repository upgrade job is not executable"
+    $SUDO grep -q '^exec apk upgrade --no-cache$' /etc/periodic/daily/stackkit-security-upgrades || fail_stackkit_control "Alpine stable-repository upgrade job is not canonical"
+    $SUDO rc-service crond status >/dev/null 2>&1 || fail_stackkit_control "Alpine periodic upgrade scheduler is not active"
+    ;;
+esac
 CONTROL_UNATTENDED_UPGRADES="security"
 
 probe_sysctl() {

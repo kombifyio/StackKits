@@ -47,6 +47,7 @@ func newHostCommand(deps hostConformanceCommandDeps) *cobra.Command {
 		},
 	}
 	host.AddCommand(newHostConformanceCommand(deps))
+	host.AddCommand(newHostConformanceAttachCommand(defaultHostConformanceAttachDeps()))
 	return host
 }
 

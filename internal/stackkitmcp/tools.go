@@ -23,6 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
+	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
@@ -73,26 +74,56 @@ func (in architectureV2CommandInput) commandInput() stackkitCommandInput {
 
 type architectureV2InitInput struct {
 	architectureV2CommandInput
-	KitProfile string `json:"kit_profile" jsonschema:"canonical StackKit profile"`
-	Name       string `json:"name,omitempty" jsonschema:"deployment contract ID"`
-	DomainBase string `json:"domain_base,omitempty" jsonschema:"CUE-governed network.domain.base override when required"`
+	KitProfile            string `json:"kit_profile" jsonschema:"canonical StackKit profile"`
+	Name                  string `json:"name,omitempty" jsonschema:"deployment contract ID"`
+	DomainBase            string `json:"domain_base,omitempty" jsonschema:"CUE-governed network.domain.base override when required"`
+	OperationConfirmation string `json:"operation_confirmation" jsonschema:"exact registered operation ID stackkit.init"`
+	OwnerApproved         bool   `json:"owner_approved" jsonschema:"explicit local Owner approval"`
 }
 
 type architectureV2ResolveInput struct {
 	architectureV2CommandInput
-	InventoryPath string `json:"inventory_path" jsonschema:"path to observed Inventory owned outside StackSpec"`
+	InventoryPath         string `json:"inventory_path" jsonschema:"path to observed Inventory owned outside StackSpec"`
+	OperationConfirmation string `json:"operation_confirmation" jsonschema:"exact registered operation ID stackkit.resolve"`
+	OwnerApproved         bool   `json:"owner_approved" jsonschema:"explicit local Owner approval"`
 }
 
 type architectureV2ApplyInput struct {
 	architectureV2CommandInput
-	AutoApprove bool `json:"auto_approve,omitempty"`
+	AutoApprove           bool   `json:"auto_approve,omitempty"`
+	OperationConfirmation string `json:"operation_confirmation" jsonschema:"exact registered operation ID stackkit.apply"`
+	OwnerApproved         bool   `json:"owner_approved" jsonschema:"explicit local Owner approval"`
+}
+
+type architectureV2MutationInput struct {
+	architectureV2CommandInput
+	OperationConfirmation string `json:"operation_confirmation" jsonschema:"exact registered operation ID"`
+	OwnerApproved         bool   `json:"owner_approved" jsonschema:"explicit local Owner approval"`
+}
+
+type backupOperationInput struct {
+	architectureV2MutationInput
+	OperationID string `json:"operation_id,omitempty" jsonschema:"stable idempotency key for the snapshot"`
+}
+
+type restoreOperationInput struct {
+	architectureV2MutationInput
+	SnapshotAnchorID string `json:"snapshot_anchor_id" jsonschema:"owner-signed snapshot anchor ID"`
+	OperationID      string `json:"operation_id,omitempty" jsonschema:"stable idempotency key for the staged restore"`
+}
+
+type upgradeOperationInput struct {
+	architectureV2MutationInput
+	Target string `json:"target,omitempty" jsonschema:"latest, vX.Y.Z, or channel:stable|beta|edge"`
 }
 
 type configSetInput struct {
-	BaseDir          string `json:"base_dir,omitempty" jsonschema:"workspace directory"`
-	SpecPath         string `json:"spec_path,omitempty" jsonschema:"target stack spec path"`
-	YAML             string `json:"yaml" jsonschema:"complete StackSpec v2 content"`
-	ExpectedSpecHash string `json:"expected_spec_hash,omitempty" jsonschema:"exact current CUE-normalized sha256 spec hash required when replacing existing intent"`
+	BaseDir               string `json:"base_dir,omitempty" jsonschema:"workspace directory"`
+	SpecPath              string `json:"spec_path,omitempty" jsonschema:"target stack spec path"`
+	YAML                  string `json:"yaml" jsonschema:"complete StackSpec v2 content"`
+	ExpectedSpecHash      string `json:"expected_spec_hash,omitempty" jsonschema:"exact current CUE-normalized sha256 spec hash required when replacing existing intent"`
+	OperationConfirmation string `json:"operation_confirmation" jsonschema:"exact operation ID stackkit.config.set"`
+	OwnerApproved         bool   `json:"owner_approved" jsonschema:"explicit local Owner approval"`
 }
 
 func (a *App) docsSearch(ctx context.Context, req *mcp.CallToolRequest, in queryInput) (*mcp.CallToolResult, any, error) {
@@ -335,6 +366,7 @@ func (a *App) stateConsole(ctx context.Context, req *mcp.CallToolRequest, _ stru
 			{"id": "basement-kit", "status": "beta"},
 			{"id": "cloud-kit", "status": "beta"},
 		},
+		"operations":           standaloneoperations.All(),
 		"config_write_enabled": a.opts.AllowWrite,
 		"cli_actions_enabled":  a.cliBinding != nil,
 		"cli_binding_error": func() string {
@@ -473,6 +505,16 @@ func (a *App) configSet(ctx context.Context, req *mcp.CallToolRequest, in config
 		out := writeDisabledOutput("stackkit_config_set")
 		return errorJSONResult(out), out, nil
 	}
+	if strings.TrimSpace(in.OperationConfirmation) != "stackkit.config.set" {
+		out := errorOutput("stackkit_config_set", fmt.Errorf("operation confirmation must exactly equal %q", "stackkit.config.set"))
+		out["approval_required"] = true
+		return errorJSONResult(out), out, nil
+	}
+	if !in.OwnerApproved {
+		out := errorOutput("stackkit_config_set", fmt.Errorf("local Owner approval is required for %q", "stackkit.config.set"))
+		out["approval_required"] = true
+		return errorJSONResult(out), out, nil
+	}
 	baseDir, err := a.workspaceDir(in.BaseDir)
 	if err != nil {
 		out := errorOutput("stackkit_config_set", err)
@@ -561,11 +603,11 @@ func (a *App) stackkitInitV2(ctx context.Context, req *mcp.CallToolRequest, in a
 	args := []string{"init", kit, "--non-interactive", "--owner-source=local"}
 	args = appendOptionalFlag(args, "--name", in.Name)
 	args = appendOptionalFlag(args, "--domain", in.DomainBase)
-	return a.runStackkitTool(ctx, "stackkit_init", in.commandInput(), args, nil)
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Init, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 
-func (a *App) stackkitGenerateV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
-	return a.runStackkitTool(ctx, "stackkit_generate", in.commandInput(), []string{"generate"}, nil)
+func (a *App) stackkitGenerateV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2MutationInput) (*mcp.CallToolResult, any, error) {
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Generate, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), []string{"generate"}, nil)
 }
 
 func (a *App) stackkitResolveV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2ResolveInput) (*mcp.CallToolResult, any, error) {
@@ -576,11 +618,11 @@ func (a *App) stackkitResolveV2(ctx context.Context, req *mcp.CallToolRequest, i
 	args := []string{"resolve"}
 	args = appendOptionalFlag(args, "--inventory", in.InventoryPath)
 	args = append(args, "--output", "deploy/.stackkit/resolved-plan.json")
-	return a.runStackkitTool(ctx, "stackkit_resolve", in.commandInput(), args, nil)
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Resolve, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 
 func (a *App) stackkitPlanV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
-	return a.runStackkitReadOnlyTool(ctx, "stackkit_plan", in.commandInput(), []string{"plan", "--json"}, nil)
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Plan, in.commandInput(), nil, nil)
 }
 
 func (a *App) stackkitApplyV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2ApplyInput) (*mcp.CallToolResult, any, error) {
@@ -588,11 +630,49 @@ func (a *App) stackkitApplyV2(ctx context.Context, req *mcp.CallToolRequest, in 
 	if in.AutoApprove {
 		args = append(args, "--auto-approve")
 	}
-	return a.runStackkitTool(ctx, "stackkit_apply", in.commandInput(), args, nil)
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Apply, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 
 func (a *App) stackkitVerifyV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
-	return a.runStackkitTool(ctx, "stackkit_verify_plan", in.commandInput(), []string{"verify", "--json"}, nil)
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Verify, in.commandInput(), nil, nil)
+}
+
+func (a *App) stackkitValidateV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Validate, in.commandInput(), nil, nil)
+}
+
+func (a *App) stackkitStatusV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Status, in.commandInput(), nil, nil)
+}
+
+func (a *App) stackkitLogsV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Logs, in.commandInput(), nil, nil)
+}
+
+func (a *App) stackkitBackupV2(ctx context.Context, req *mcp.CallToolRequest, in backupOperationInput) (*mcp.CallToolResult, any, error) {
+	args := []string{"backup", "run", "--json"}
+	args = appendOptionalFlag(args, "--operation-id", in.OperationID)
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Backup, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
+}
+
+func (a *App) stackkitRestoreV2(ctx context.Context, req *mcp.CallToolRequest, in restoreOperationInput) (*mcp.CallToolResult, any, error) {
+	if strings.TrimSpace(in.SnapshotAnchorID) == "" {
+		out := errorOutput("stackkit_restore", fmt.Errorf("snapshot_anchor_id is required"))
+		return errorJSONResult(out), out, nil
+	}
+	args := []string{"backup", "restore", strings.TrimSpace(in.SnapshotAnchorID), "--json", "--owner-approve"}
+	args = appendOptionalFlag(args, "--operation-id", in.OperationID)
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Restore, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
+}
+
+func (a *App) stackkitUpgradeV2(ctx context.Context, req *mcp.CallToolRequest, in upgradeOperationInput) (*mcp.CallToolResult, any, error) {
+	args := []string{"upgrade", "--json"}
+	args = appendOptionalFlag(args, "--to", firstNonEmpty(in.Target, "latest"))
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Upgrade, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
+}
+
+func (a *App) stackkitDriftV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Drift, in.commandInput(), nil, nil)
 }
 
 func (a *App) serverRequest(ctx context.Context, method, path string, payload any) (*mcp.CallToolResult, any, error) {
@@ -632,12 +712,56 @@ func (a *App) serverRequest(ctx context.Context, method, path string, payload an
 	return TextResult(string(raw)), string(raw), nil
 }
 
-func (a *App) runStackkitTool(ctx context.Context, tool string, in stackkitCommandInput, args []string, env map[string]string) (*mcp.CallToolResult, any, error) {
-	if !a.opts.AllowWrite {
-		out := writeDisabledOutput(tool)
+func (a *App) runApprovedStackkitTool(
+	ctx context.Context,
+	id standaloneoperations.ID,
+	confirmation string,
+	ownerApproved bool,
+	in stackkitCommandInput,
+	args []string,
+	env map[string]string,
+) (*mcp.CallToolResult, any, error) {
+	operation, ok := standaloneoperations.Lookup(id)
+	if !ok {
+		out := errorOutput(string(id), fmt.Errorf("registered standalone operation is unavailable"))
 		return errorJSONResult(out), out, nil
 	}
-	return a.runStackkitBoundTool(ctx, tool, in, args, env, true)
+	if !a.opts.AllowWrite {
+		out := writeDisabledOutput(operation.ToolName)
+		return errorJSONResult(out), out, nil
+	}
+	if err := standaloneoperations.ConfirmMutation(id, confirmation, ownerApproved); err != nil {
+		out := errorOutput(operation.ToolName, err)
+		out["operation"] = operation.ID
+		out["approval_required"] = true
+		return errorJSONResult(out), out, nil
+	}
+	if len(args) == 0 {
+		args = operation.Command
+	}
+	return a.runStackkitBoundTool(ctx, operation.ToolName, in, args, env, true)
+}
+
+func (a *App) runRegisteredReadOnlyTool(
+	ctx context.Context,
+	id standaloneoperations.ID,
+	in stackkitCommandInput,
+	args []string,
+	env map[string]string,
+) (*mcp.CallToolResult, any, error) {
+	operation, ok := standaloneoperations.Lookup(id)
+	if !ok {
+		out := errorOutput(string(id), fmt.Errorf("registered standalone operation is unavailable"))
+		return errorJSONResult(out), out, nil
+	}
+	if operation.Mutation {
+		out := errorOutput(operation.ToolName, fmt.Errorf("registered operation is not read-only"))
+		return errorJSONResult(out), out, nil
+	}
+	if len(args) == 0 {
+		args = operation.Command
+	}
+	return a.runStackkitReadOnlyTool(ctx, operation.ToolName, in, args, env)
 }
 
 func (a *App) runStackkitReadOnlyTool(ctx context.Context, tool string, in stackkitCommandInput, args []string, env map[string]string) (*mcp.CallToolResult, any, error) {

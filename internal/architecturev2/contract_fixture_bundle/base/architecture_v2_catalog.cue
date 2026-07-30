@@ -1625,7 +1625,7 @@ _architectureV2Modules: list.Concat([[
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://foundation/security-baseline/apply.sh"
 			version:      "1.0.0"
-			contractHash: "sha256:1685e923f68ab3acb760fc98677fbd7ea1f409b5fdea7de7be98071d79bae2bd"
+			contractHash: "sha256:a8f629c2e7df8fb9f38b2f57c1b10d6bc76c67d8be615c116310c68e48a6d6e4"
 			publicInputRefs: []
 			secretInputRefs: []
 			outputs: ["foundation/security-baseline/apply.sh"]

@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
+	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 )
 
 //go:embed assets/state-console.html
@@ -63,7 +64,7 @@ func (a *App) Server() *mcp.Server {
 		a.addLocal(server)
 	}
 	if a.opts.Modes["server"] {
-		a.addServerTools(server)
+		a.addServerTools(server, a.opts.Modes["actions"] && a.cliBinding != nil && stackspecadmission.RejectOperationalV1(a.opts.Version))
 	}
 	if a.opts.Modes["actions"] {
 		a.addReadOnlyActions(server)
@@ -110,7 +111,8 @@ func (a *App) OpenMCP() map[string]any {
 			toolDefinition("stackkit_config_get", true, false, true),
 		)
 	}
-	if a.opts.Modes["server"] {
+	nativeActions := a.opts.Modes["actions"] && a.cliBinding != nil && stackspecadmission.RejectOperationalV1(a.opts.Version)
+	if a.opts.Modes["server"] && !nativeActions {
 		tools = append(tools,
 			toolDefinition("stackkit_status", true, false, true),
 			toolDefinition("stackkit_logs_list", true, false, true),
@@ -123,19 +125,21 @@ func (a *App) OpenMCP() map[string]any {
 			)
 		}
 	}
-	if a.opts.Modes["actions"] && a.cliBinding != nil && stackspecadmission.RejectOperationalV1(a.opts.Version) {
-		tools = append(tools, toolDefinition("stackkit_plan", true, false, true))
+	if nativeActions {
+		for _, operation := range standaloneoperations.All() {
+			if !operation.Mutation {
+				tools = append(tools, operationToolDefinition(operation))
+			}
+		}
 	}
 	if a.opts.Modes["actions"] && a.opts.AllowWrite && stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		tools = append(tools, toolDefinition("stackkit_config_set", false, true, true))
 		if a.cliBinding != nil {
-			tools = append(tools,
-				toolDefinition("stackkit_init", false, false, false),
-				toolDefinition("stackkit_resolve", false, false, false),
-				toolDefinition("stackkit_generate", false, false, false),
-				toolDefinition("stackkit_apply", false, true, false),
-				toolDefinition("stackkit_verify_plan", true, false, true),
-			)
+			for _, operation := range standaloneoperations.All() {
+				if operation.Mutation {
+					tools = append(tools, operationToolDefinition(operation))
+				}
+			}
 		}
 	}
 	return map[string]any{
@@ -262,7 +266,10 @@ func (a *App) addLocal(server *mcp.Server) {
 	mcp.AddTool(server, mcpTool("stackkit_config_get", "Read the local stack-spec.yaml or kombination.yaml without mutation.", true, false, true), a.configGet)
 }
 
-func (a *App) addServerTools(server *mcp.Server) {
+func (a *App) addServerTools(server *mcp.Server, nativeActions bool) {
+	if nativeActions {
+		return
+	}
 	mcp.AddTool(server, mcpTool("stackkit_status", "GET /api/v1/status from stackkit-server.", true, false, true), a.status)
 	mcp.AddTool(server, mcpTool("stackkit_logs_list", "GET /api/v1/logs from stackkit-server.", true, false, true), a.logsList)
 	mcp.AddTool(server, mcpTool("stackkit_log_get", "GET /api/v1/logs/{runID} from stackkit-server.", true, false, true), a.logGet)
@@ -280,18 +287,41 @@ func (a *App) addActions(server *mcp.Server) {
 	if a.cliBinding == nil {
 		return
 	}
-	mcp.AddTool(server, mcpTool("stackkit_init", "Materialize a native Architecture v2 StackSpec from the embedded CUE authoring contract.", false, false, false), a.stackkitInitV2)
-	mcp.AddTool(server, mcpTool("stackkit_resolve", "Resolve StackSpec v2 plus observed Inventory into the canonical persisted ResolvedPlan.", false, false, false), a.stackkitResolveV2)
-	mcp.AddTool(server, mcpTool("stackkit_generate", "Generate from the exact persisted Architecture v2 ResolvedPlan.", false, false, false), a.stackkitGenerateV2)
-	mcp.AddTool(server, mcpTool("stackkit_apply", "Apply the exact persisted Architecture v2 plan after explicit approval.", false, true, false), a.stackkitApplyV2)
-	mcp.AddTool(server, mcpTool("stackkit_verify_plan", "Verify the exact Architecture v2 spec, plan, manifest, receipt, and generated outputs.", true, false, true), a.stackkitVerifyV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Init), a.stackkitInitV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Resolve), a.stackkitResolveV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Generate), a.stackkitGenerateV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Apply), a.stackkitApplyV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Backup), a.stackkitBackupV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Restore), a.stackkitRestoreV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Upgrade), a.stackkitUpgradeV2)
 }
 
 func (a *App) addReadOnlyActions(server *mcp.Server) {
 	if a.cliBinding == nil || !stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		return
 	}
-	mcp.AddTool(server, mcpTool("stackkit_plan", "Inspect the exact persisted Architecture v2 ResolvedPlan and generated artifact closure without mutation or executor invocation.", true, false, true), a.stackkitPlanV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Validate), a.stackkitValidateV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Plan), a.stackkitPlanV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Verify), a.stackkitVerifyV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Status), a.stackkitStatusV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Logs), a.stackkitLogsV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Drift), a.stackkitDriftV2)
+}
+
+func operationMCPTool(id standaloneoperations.ID) *mcp.Tool {
+	operation, ok := standaloneoperations.Lookup(id)
+	if !ok {
+		panic("missing standalone operation: " + string(id))
+	}
+	return mcpTool(operation.ToolName, operation.Description, !operation.Mutation, operation.Destructive, operation.Idempotent)
+}
+
+func operationToolDefinition(operation standaloneoperations.Contract) map[string]any {
+	definition := toolDefinition(operation.ToolName, !operation.Mutation, operation.Destructive, operation.Idempotent)
+	definition["operation"] = operation.ID
+	definition["command"] = operation.Command
+	definition["ownerApproval"] = operation.OwnerApproval
+	return definition
 }
 
 func mcpTool(name, description string, readOnly, destructive, idempotent bool) *mcp.Tool {
@@ -318,12 +348,18 @@ var stateConsoleToolNames = map[string]bool{
 	"stackkit_init":             true,
 	"stackkit_config_set":       true,
 	"stackkit_validate_spec":    true,
+	"stackkit_validate":         true,
 	"stackkit_generate_preview": true,
 	"stackkit_resolve":          true,
 	"stackkit_generate":         true,
 	"stackkit_plan":             true,
 	"stackkit_verify":           true,
 	"stackkit_verify_plan":      true,
+	"stackkit_backup":           true,
+	"stackkit_restore":          true,
+	"stackkit_upgrade":          true,
+	"stackkit_drift":            true,
+	"stackkit_logs":             true,
 	"stackkit_logs_list":        true,
 	"stackkit_doctor":           true,
 }
