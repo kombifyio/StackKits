@@ -73,6 +73,7 @@ func NewCUEContractValidatorFromSourcesForAuthority(virtualModuleRoot string, so
 		"cue.mod/module.cue",
 		"base/architecture_v2_profiles.cue",
 		"base/architecture_v2.cue",
+		"base/application_lifecycle.cue",
 		"base/architecture_v2_definition_binding.cue",
 	} {
 		if len(frozen[required]) == 0 {
@@ -123,6 +124,7 @@ func NewCUEContractValidatorForAuthority(moduleRoot string, authority PlanAuthor
 		filepath.Join(absoluteRoot, "cue.mod", "module.cue"),
 		filepath.Join(absoluteRoot, "base", "architecture_v2_profiles.cue"),
 		filepath.Join(absoluteRoot, "base", "architecture_v2.cue"),
+		filepath.Join(absoluteRoot, "base", "application_lifecycle.cue"),
 		filepath.Join(absoluteRoot, "base", "architecture_v2_definition_binding.cue"),
 	} {
 		info, err := os.Stat(required)
@@ -247,6 +249,9 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	if catalog.Workloads == nil {
 		catalog.Workloads = []WorkloadContract{}
 	}
+	if catalog.ApplicationLifecycles == nil {
+		catalog.ApplicationLifecycles = []ApplicationLifecycleContract{}
+	}
 	if catalog.PrivilegedInterfaceApprovals == nil {
 		catalog.PrivilegedInterfaceApprovals = []PrivilegedInterfaceApproval{}
 	}
@@ -262,6 +267,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 		"addons":                       catalog.AddOns,
 		"modules":                      catalog.Modules,
 		"workloads":                    catalog.Workloads,
+		"applicationLifecycles":        catalog.ApplicationLifecycles,
 		"privilegedInterfaceApprovals": catalog.PrivilegedInterfaceApprovals,
 		"rilActionExecutors":           catalog.RILActionExecutors,
 		"rilActionPrimitives":          catalog.RILActionPrimitives,
@@ -287,15 +293,16 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	decoder := json.NewDecoder(bytesReader(data))
 	decoder.UseNumber()
 	var wire struct {
-		Capabilities                 []CapabilityContract          `json:"capabilities"`
-		Providers                    []CapabilityProvider          `json:"providers"`
-		AddOns                       []AddOnContract               `json:"addons"`
-		Modules                      []ModuleContract              `json:"modules"`
-		Workloads                    []WorkloadContract            `json:"workloads"`
-		PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
-		RILActionExecutors           []RILActionExecutorContract   `json:"rilActionExecutors"`
-		RILActionPrimitives          []RILActionPrimitiveContract  `json:"rilActionPrimitives"`
-		PlanArtifacts                []PlanArtifactContract        `json:"planArtifacts"`
+		Capabilities                 []CapabilityContract           `json:"capabilities"`
+		Providers                    []CapabilityProvider           `json:"providers"`
+		AddOns                       []AddOnContract                `json:"addons"`
+		Modules                      []ModuleContract               `json:"modules"`
+		Workloads                    []WorkloadContract             `json:"workloads"`
+		ApplicationLifecycles        []ApplicationLifecycleContract `json:"applicationLifecycles"`
+		PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval  `json:"privilegedInterfaceApprovals"`
+		RILActionExecutors           []RILActionExecutorContract    `json:"rilActionExecutors"`
+		RILActionPrimitives          []RILActionPrimitiveContract   `json:"rilActionPrimitives"`
+		PlanArtifacts                []PlanArtifactContract         `json:"planArtifacts"`
 	}
 	if err := decoder.Decode(&wire); err != nil {
 		return Catalog{}, fmt.Errorf("decode normalized Architecture v2 catalog: %w", err)
@@ -305,6 +312,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	normalized.AddOns = wire.AddOns
 	normalized.Modules = wire.Modules
 	normalized.Workloads = wire.Workloads
+	normalized.ApplicationLifecycles = wire.ApplicationLifecycles
 	normalized.PrivilegedInterfaceApprovals = wire.PrivilegedInterfaceApprovals
 	normalized.RILActionExecutors = wire.RILActionExecutors
 	normalized.RILActionPrimitives = wire.RILActionPrimitives

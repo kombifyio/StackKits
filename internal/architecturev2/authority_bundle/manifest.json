@@ -1,5 +1,5 @@
 {
-  "distributionFingerprint": "sha256:d4a5656e7083e28fa5dda292946af51163f265933b29532fa44cbe6425280aae",
+  "distributionFingerprint": "sha256:a130a62849f905fa7cadfdb0b83eb23dfc8387a65bdaf2f034580b454b5543cc",
   "documents": {
     "catalog": "catalog.json"
   },
@@ -12,8 +12,9 @@
   },
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
-    "base/architecture_v2.cue": "sha256:ec561a0b3df874fa1769017bd6927fd41c10dcaf07684c8dbd094df20302c393",
-    "base/architecture_v2_catalog.cue": "sha256:13cc46878ec1617b760f9686db4829c651b73b620f7f05674d961a62c5669a57",
+    "base/application_lifecycle.cue": "sha256:3368c230c7e4e31ecba1700fa55552ce9955cb124507047d6efbfe48e07e94b5",
+    "base/architecture_v2.cue": "sha256:b3032252acef9f091916dfee0a28701727da0ec0cf7a8d1c6055238e931eaf44",
+    "base/architecture_v2_catalog.cue": "sha256:38f8b7924f030e8760cbee6c8ab545e70cdc6754781781bfcb1c35806ee1d6eb",
     "base/architecture_v2_definition_binding.cue": "sha256:692c5ec5ed511c8ee23e5a0a11c4911c8a865efda9464dbceb6c28d92aa9a5bd",
     "base/architecture_v2_federation.cue": "sha256:35d8735150dbaed887dfa73fd50a8ce4c5ce117f77ada096d339252e8f7ce352",
     "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",

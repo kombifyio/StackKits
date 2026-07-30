@@ -16,14 +16,17 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/advancedchangeset"
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backupcustody"
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
 )
@@ -122,10 +125,38 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		return result, err
 	}
 	result.PlanHash = verified.admission.candidate.PlanHash
+	candidatePlan, err := verified.admission.candidateService.VerifyCanonicalPlan(
+		verified.admission.candidate.CanonicalPlan,
+	)
+	if err != nil {
+		return result, fmt.Errorf("verify Advanced candidate lifecycle plan: %w", err)
+	}
+	lifecycleOperation, err := advancedApplicationLifecycleOperation(request.Operation)
+	if err != nil {
+		return result, err
+	}
+	applicationRuns, err := beginArchitectureV2ApplicationLifecycles(
+		workspace,
+		candidatePlan,
+		"upgrade",
+		lifecycleOperation,
+		"",
+		now,
+	)
+	if err != nil {
+		return result, fmt.Errorf("begin Advanced application lifecycle: %w", err)
+	}
+	failApplications := func(message string, cause error) error {
+		return failArchitectureV2ApplicationLifecycles(
+			workspace, applicationRuns, message, time.Now().UTC(), cause,
+		)
+	}
 
 	kit, receipt, resolution, err := currentAdvancedReleaseAuthority(cmd, workspace)
 	if err != nil {
-		return result, err
+		return result, failApplications(
+			"Advanced target release authority could not be established before mutation", err,
+		)
 	}
 	var checkpoint publicUpgradeCheckpoint
 	mutation, err := beginPublicUpgradeMutation(
@@ -177,7 +208,9 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		},
 	)
 	if err != nil {
-		return result, err
+		return result, failApplications(
+			"mandatory Advanced rollback checkpoint could not be created before mutation", err,
+		)
 	}
 	defer mutation.Close()
 	result.Checkpoint = checkpoint
@@ -187,7 +220,143 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		absoluteCapability, absoluteCandidate, now,
 	)
 	result.Transaction = transaction
+	transactionErr = completeAdvancedApplicationLifecycles(
+		workspace, applicationRuns, result, transactionErr,
+	)
 	return result, transactionErr
+}
+
+func advancedApplicationLifecycleOperation(operation string) (string, error) {
+	switch operation {
+	case advancedcapability.OperationTerramateChangeSetApply:
+		return "stackkit.advanced.change-set.apply", nil
+	case advancedcapability.OperationDriftReconcileAdvanced:
+		return "stackkit.drift.reconcile.advanced", nil
+	default:
+		return "", &advancedcapability.Denial{
+			Code:   advancedcapability.ReasonCapabilityOperationDenied,
+			Field:  "operation",
+			Detail: "operation has no bounded Application Lifecycle projection",
+		}
+	}
+}
+
+func completeAdvancedApplicationLifecycles(
+	workspace string,
+	runs []architectureV2ApplicationLifecycleRun,
+	result advancedMutationResult,
+	mutationErr error,
+) error {
+	if len(runs) == 0 {
+		return mutationErr
+	}
+	resultRef, resultDigest, persistErr := persistAdvancedApplicationLifecycleResult(
+		workspace, result,
+	)
+	if persistErr != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			workspace,
+			runs,
+			"Advanced mutation completed without durable application Owner evidence",
+			"urn:stackkit:advanced-operation:"+result.Transaction.OperationID,
+			time.Now().UTC(),
+			errors.Join(mutationErr, persistErr),
+		)
+	}
+	snapshotRef, snapshotErr := backuplifecycle.SnapshotAnchorEvidenceRef(
+		result.Checkpoint.KopiaAnchorID,
+	)
+	if snapshotErr != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			workspace,
+			runs,
+			"Advanced rollback snapshot evidence could not be bound",
+			resultRef,
+			time.Now().UTC(),
+			errors.Join(mutationErr, snapshotErr),
+		)
+	}
+	evidence := []applicationlifecycle.Evidence{
+		{
+			Kind: "snapshot-anchor", Ref: snapshotRef,
+			Digest: result.Checkpoint.KopiaAnchorID,
+		},
+		{Kind: "upgrade-result", Ref: resultRef, Digest: resultDigest},
+		{
+			Kind: "owner-observation", Ref: resultRef + "#advanced-authority",
+			Digest: resultDigest,
+		},
+	}
+	if mutationErr == nil {
+		return succeedArchitectureV2ApplicationLifecycles(
+			workspace, runs, evidence, time.Now().UTC(),
+		)
+	}
+	if result.Transaction.Status == "rolled-back" &&
+		result.Transaction.Rollback.Verified {
+		evidence[2].Ref = resultRef + "#verified-rollback"
+		return recoverArchitectureV2ApplicationLifecycles(
+			workspace,
+			runs,
+			"Advanced target failed and the prior runtime was restored and verified",
+			resultRef,
+			evidence,
+			time.Now().UTC(),
+			mutationErr,
+		)
+	}
+	return requireArchitectureV2ApplicationLifecycleRecovery(
+		workspace,
+		runs,
+		"Advanced mutation failed without a verified automatic recovery",
+		resultRef,
+		time.Now().UTC(),
+		mutationErr,
+	)
+}
+
+func persistAdvancedApplicationLifecycleResult(
+	workspace string,
+	result advancedMutationResult,
+) (string, string, error) {
+	canonical, err := resolvedplan.CanonicalJSON(result)
+	if err != nil {
+		return "", "", fmt.Errorf("canonicalize Advanced lifecycle result: %w", err)
+	}
+	digest := architectureV2ApplicationLifecycleDigest(canonical)
+	path := filepath.ToSlash(filepath.Join(
+		".stackkit", "advanced", "results",
+		strings.TrimPrefix(digest, "sha256:")+".json",
+	))
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return "", "", fmt.Errorf("open Advanced lifecycle result workspace: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return "", "", fmt.Errorf("begin Advanced lifecycle result transaction: %w", err)
+	}
+	defer func() { _ = transaction.Close() }()
+	if err := transaction.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return "", "", fmt.Errorf("create Advanced lifecycle result directory: %w", err)
+	}
+	if err := transaction.WriteFileExclusive(path, canonical, 0o600); err != nil {
+		existing, info, readErr := transaction.ReadStable(path)
+		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonical) {
+			return "", "", fmt.Errorf("persist content-addressed Advanced lifecycle result: %w", err)
+		}
+	}
+	absoluteRoot := filepath.Join(root.Name(), ".stackkit", "advanced")
+	if err := backupcustody.ProtectPrivatePath(absoluteRoot, true); err != nil {
+		return "", "", fmt.Errorf("protect Advanced lifecycle evidence root: %w", err)
+	}
+	if err := backupcustody.ProtectPrivatePath(
+		filepath.Join(root.Name(), filepath.FromSlash(path)), false,
+	); err != nil {
+		return "", "", fmt.Errorf("protect Advanced lifecycle result: %w", err)
+	}
+	return path, digest, nil
 }
 
 func verifyAdvancedMutation(

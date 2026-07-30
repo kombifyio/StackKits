@@ -136,3 +136,13 @@ func NewProductRemoteImmichSelectedPaaSRegistration(runtimeAdapterRef, runtimeAd
 	}
 	return NewProductRemoteRuntimeOwnerRegistration(productImmichSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRef))
 }
+
+// NewProductRemoteCloudreveSelectedPaaSRegistration binds the Files vertical
+// to one exact service-owned PaaS adapter without granting provider lifecycle.
+func NewProductRemoteCloudreveSelectedPaaSRegistration(runtimeAdapterRef, runtimeAdapterModuleRef string) (ProductRuntimeOwnerRegistration, error) {
+	if runtimeAdapterRef == "" || runtimeAdapterRef != strings.TrimSpace(runtimeAdapterRef) ||
+		runtimeAdapterModuleRef == "" || runtimeAdapterModuleRef != strings.TrimSpace(runtimeAdapterModuleRef) {
+		return ProductRuntimeOwnerRegistration{}, fmt.Errorf("remote Cloudreve selected-PaaS registration requires an exact normalized adapter ref and module ref")
+	}
+	return NewProductRemoteRuntimeOwnerRegistration(productCloudreveSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRef))
+}

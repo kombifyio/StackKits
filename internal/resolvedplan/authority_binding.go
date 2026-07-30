@@ -14,18 +14,19 @@ import (
 // sufficient: persisted plans must still reference contracts from this exact
 // projection.
 type expectedAuthorityBinding struct {
-	authority     PlanAuthority
-	definitions   map[string]authorityDefinitionIdentity
-	capabilities  map[string]authorityContractIdentity
-	providers     map[string]authorityContractIdentity
-	modules       map[string]authorityContractIdentity
-	workloads     map[string]authorityContractIdentity
-	addons        map[string]authorityContractIdentity
-	approvals     map[string]map[string]string
-	compiler      string
-	rendererID    string
-	rendererVer   string
-	compatibility map[string]any
+	authority             PlanAuthority
+	definitions           map[string]authorityDefinitionIdentity
+	capabilities          map[string]authorityContractIdentity
+	providers             map[string]authorityContractIdentity
+	modules               map[string]authorityContractIdentity
+	workloads             map[string]authorityContractIdentity
+	applicationLifecycles map[string]authorityContractIdentity
+	addons                map[string]authorityContractIdentity
+	approvals             map[string]map[string]string
+	compiler              string
+	rendererID            string
+	rendererVer           string
+	compatibility         map[string]any
 }
 
 type authorityDefinitionIdentity struct {
@@ -48,17 +49,18 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 	}
 	authority := options.PlanAuthority
 	binding := &expectedAuthorityBinding{
-		authority:    authority,
-		definitions:  make(map[string]authorityDefinitionIdentity, len(definitions)),
-		capabilities: make(map[string]authorityContractIdentity, len(catalog.Capabilities)),
-		providers:    make(map[string]authorityContractIdentity, len(catalog.Providers)),
-		modules:      make(map[string]authorityContractIdentity, len(catalog.Modules)),
-		workloads:    make(map[string]authorityContractIdentity, len(catalog.Workloads)),
-		addons:       make(map[string]authorityContractIdentity, len(catalog.AddOns)),
-		approvals:    make(map[string]map[string]string, len(catalog.PrivilegedInterfaceApprovals)),
-		compiler:     options.CompilerVersion,
-		rendererID:   options.RendererID,
-		rendererVer:  options.RendererVersion,
+		authority:             authority,
+		definitions:           make(map[string]authorityDefinitionIdentity, len(definitions)),
+		capabilities:          make(map[string]authorityContractIdentity, len(catalog.Capabilities)),
+		providers:             make(map[string]authorityContractIdentity, len(catalog.Providers)),
+		modules:               make(map[string]authorityContractIdentity, len(catalog.Modules)),
+		workloads:             make(map[string]authorityContractIdentity, len(catalog.Workloads)),
+		applicationLifecycles: make(map[string]authorityContractIdentity, len(catalog.ApplicationLifecycles)),
+		addons:                make(map[string]authorityContractIdentity, len(catalog.AddOns)),
+		approvals:             make(map[string]map[string]string, len(catalog.PrivilegedInterfaceApprovals)),
+		compiler:              options.CompilerVersion,
+		rendererID:            options.RendererID,
+		rendererVer:           options.RendererVersion,
 		compatibility: map[string]any{
 			"minCLI": options.MinimumCLIVersion, "minRuntime": options.MinimumRuntimeVersion,
 			"minGenerator":   options.MinimumGeneratorVersion,
@@ -121,6 +123,9 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 		return PlanAuthority{}, err
 	}
 	if err := bindCatalogIdentities("workloads", catalog.Workloads, binding.workloads); err != nil {
+		return PlanAuthority{}, err
+	}
+	if err := bindCatalogIdentities("applicationLifecycles", catalog.ApplicationLifecycles, binding.applicationLifecycles); err != nil {
 		return PlanAuthority{}, err
 	}
 	if err := bindCatalogIdentities("addons", catalog.AddOns, binding.addons); err != nil {
@@ -208,6 +213,9 @@ func canonicalAuthorityCatalogHash(catalog Catalog) (string, error) {
 		return "", err
 	}
 	if projection["workloads"], err = sortedAuthorityContracts("workloads", catalog.Workloads, true); err != nil {
+		return "", err
+	}
+	if projection["applicationLifecycles"], err = sortedAuthorityContracts("applicationLifecycles", catalog.ApplicationLifecycles, true); err != nil {
 		return "", err
 	}
 	if projection["privilegedInterfaceApprovals"], err = sortedAuthorityContracts("privilegedInterfaceApprovals", catalog.PrivilegedInterfaceApprovals, false); err != nil {
@@ -299,6 +307,10 @@ func selectedAuthorityCatalogClosure(plan ResolvedPlan, catalog *indexedCatalog)
 	if err != nil {
 		return nil, err
 	}
+	applicationLifecycleIDs, err := selectedResolvedObjectIDs(plan, "applicationLifecycles")
+	if err != nil {
+		return nil, err
+	}
 	addonIDs, err := selectedResolvedAddonIDs(plan)
 	if err != nil {
 		return nil, err
@@ -328,6 +340,10 @@ func selectedAuthorityCatalogClosure(plan ResolvedPlan, catalog *indexedCatalog)
 	if err != nil {
 		return nil, err
 	}
+	applicationLifecycles, err := selectMetadataAuthorityBodies("applicationLifecycles", applicationLifecycleIDs, catalog.applicationLifecycles)
+	if err != nil {
+		return nil, err
+	}
 	addons, err := selectMetadataAuthorityBodies("addons", addonIDs, catalog.addons)
 	if err != nil {
 		return nil, err
@@ -349,6 +365,7 @@ func selectedAuthorityCatalogClosure(plan ResolvedPlan, catalog *indexedCatalog)
 		"providers":                    providers,
 		"modules":                      modules,
 		"workloads":                    workloads,
+		"applicationLifecycles":        applicationLifecycles,
 		"addons":                       addons,
 		"privilegedInterfaceApprovals": approvals,
 		"planArtifacts":                planArtifacts,
@@ -653,6 +670,9 @@ func (v *CUEContractValidator) validateBoundAuthority(plan ResolvedPlan) error {
 	}
 	workloadIDs, err := validateResolvedContractIdentities(plan, "workloads", expected.workloads, true)
 	if err != nil {
+		return err
+	}
+	if _, err := validateResolvedContractIdentities(plan, "applicationLifecycles", expected.applicationLifecycles, true); err != nil {
 		return err
 	}
 	if selectedKit != "" {

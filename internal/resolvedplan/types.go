@@ -89,6 +89,12 @@ type ModuleContract map[string]any
 // the referenced provider or module implementation IDs.
 type WorkloadContract map[string]any
 
+// ApplicationLifecycleContract is a JSON-decoded
+// base.#ApplicationLifecycleContractV1 document. It binds a selected
+// application workload to the reusable lifecycle and its Application Kit
+// package without exposing either choice as StackSpec input.
+type ApplicationLifecycleContract map[string]any
+
 // PrivilegedInterfaceApproval is centrally owned catalog authority for one
 // narrowly scoped direct runtime-interface exception.
 type PrivilegedInterfaceApproval map[string]any
@@ -126,6 +132,7 @@ type Catalog struct {
 	AddOns                       []AddOnContract
 	Modules                      []ModuleContract
 	Workloads                    []WorkloadContract
+	ApplicationLifecycles        []ApplicationLifecycleContract
 	PrivilegedInterfaceApprovals []PrivilegedInterfaceApproval
 	RILActionExecutors           []RILActionExecutorContract
 	RILActionPrimitives          []RILActionPrimitiveContract

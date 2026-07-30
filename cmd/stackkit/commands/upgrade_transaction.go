@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -1029,6 +1030,50 @@ func commitPublicUpgradeSuccess(
 		canonical,
 		0o600,
 	)
+}
+
+func persistPublicUpgradeApplicationLifecycleResult(
+	workspace string,
+	result publicUpgradeTransaction,
+) (string, string, error) {
+	canonical, err := resolvedplan.CanonicalJSON(result)
+	if err != nil {
+		return "", "", fmt.Errorf("canonicalize upgrade lifecycle result: %w", err)
+	}
+	digest := architectureV2ApplicationLifecycleDigest(canonical)
+	path := filepath.ToSlash(filepath.Join(
+		".stackkit", "upgrades", "results",
+		strings.TrimPrefix(digest, "sha256:")+".json",
+	))
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return "", "", fmt.Errorf("open upgrade lifecycle result workspace: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return "", "", fmt.Errorf("begin upgrade lifecycle result transaction: %w", err)
+	}
+	defer func() { _ = transaction.Close() }()
+	if err := transaction.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return "", "", fmt.Errorf("create upgrade lifecycle result directory: %w", err)
+	}
+	if err := transaction.WriteFileExclusive(path, canonical, 0o600); err != nil {
+		existing, info, readErr := transaction.ReadStable(path)
+		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonical) {
+			return "", "", fmt.Errorf("persist content-addressed upgrade lifecycle result: %w", err)
+		}
+	}
+	absoluteRoot := filepath.Join(root.Name(), ".stackkit", "upgrades")
+	if err := backupcustody.ProtectPrivatePath(absoluteRoot, true); err != nil {
+		return "", "", fmt.Errorf("protect upgrade lifecycle evidence root: %w", err)
+	}
+	if err := backupcustody.ProtectPrivatePath(
+		filepath.Join(root.Name(), filepath.FromSlash(path)), false,
+	); err != nil {
+		return "", "", fmt.Errorf("protect upgrade lifecycle result: %w", err)
+	}
+	return path, digest, nil
 }
 
 func validPublicUpgradeSuccessProof(proof publicUpgradeSuccessAuthority) bool {

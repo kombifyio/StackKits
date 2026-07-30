@@ -694,6 +694,7 @@
     "defaults": [],
     "forbidden": [],
     "optional": [
+      "files",
       "photos"
     ],
     "required": [

@@ -4,6 +4,42 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.12.0] - 2026-07-30
+
+> **Reusable Application Kit lifecycle platform** with one CUE-owned,
+> ResolvedPlan-bound contract shared by independent application verticals.
+
+### Added
+
+- A generic seven-stage Application lifecycle now owns install, manage,
+  backup, upgrade with explicit migration, restore, drift, and remove
+  contracts. Every stage declares its exact phases, registered operation,
+  approval policy, and required evidence.
+- Durable Owner-private lifecycle state records collision-resistant operation
+  identities, structured content-addressed evidence, authority snapshots,
+  digest chains, retry and resume state, recovery-required failures, and
+  verified recovery completion.
+- Files with Cloudreve is the second selected-PaaS application vertical. It
+  compiles through the same catalog, renderer, runtime executor, lifecycle,
+  health, and evidence contracts as Photos with Immich.
+- Native status, the `stackkit_status` MCP operation, and the State Console
+  now project the same verified ResolvedPlan and durable Application lifecycle
+  evidence.
+
+### Changed
+
+- Selected-PaaS rendering and local execution use a provider-neutral shared
+  core with thin Immich and Cloudreve adapters; Immich-specific core lifecycle
+  types are removed.
+- Runtime topology and application selection are read exclusively from the
+  verified ResolvedPlan. Raw StackSpec topology is no longer consulted after
+  resolution, while Inventory remains limited to external execution-channel
+  custody.
+- The bounded Advanced change-set operation now joins the same lifecycle
+  evidence model with exact candidate/current plans, checkpoint, pinned
+  execution, Owner observation, rollback, and recovery state. Standard Mode
+  remains account-free and independent of Techstack.
+
 ## [0.11.0] - 2026-07-30
 
 > **Family Photo Vault reference vertical** across one CUE-owned lifecycle and

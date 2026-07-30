@@ -1,16 +1,24 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/backupcustody"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
 )
@@ -60,6 +68,7 @@ type driftSubject struct {
 type architectureV2DriftObservation struct {
 	Verification architectureV2VerifyReport
 	Differences  []architectureV2DriftDifference
+	Plan         generationartifact.VerifiedPlan
 }
 
 type architectureV2DriftDifference struct {
@@ -123,7 +132,8 @@ var driftDetectCmd = &cobra.Command{
 	Short: "Read the authoritative local state and report drift",
 	Long: `Read and verify the canonical ResolvedPlan, generated artifacts,
 owner-signed Apply evidence, local Owner binding, and live Basement Compose
-runtime without refreshing state or writing lifecycle data.`,
+runtime without refreshing runtime state. The content-addressed report is
+retained as local Owner evidence for every selected Application Kit.`,
 	Args: cobra.NoArgs,
 	RunE: runDriftDetect,
 }
@@ -168,6 +178,35 @@ func runDriftDetect(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	workspace := getWorkDir()
+	if len(observation.Plan.Canonical()) != 0 {
+		if err := withLifecycleMutation(workspace, "drift-detect", func() error {
+			startedAt := time.Now().UTC()
+			runs, beginErr := beginArchitectureV2ApplicationLifecycles(
+				workspace, observation.Plan, "drift", "stackkit.drift", "", startedAt,
+			)
+			if beginErr != nil {
+				return beginErr
+			}
+			ref, digest, persistErr := persistArchitectureV2DriftReport(workspace, report)
+			if persistErr != nil {
+				return failArchitectureV2ApplicationLifecycles(
+					workspace, runs, "drift report evidence could not be persisted",
+					time.Now().UTC(), persistErr,
+				)
+			}
+			return succeedArchitectureV2ApplicationLifecycles(
+				workspace,
+				runs,
+				[]applicationlifecycle.Evidence{{
+					Kind: "drift-report", Ref: ref, Digest: digest,
+				}},
+				time.Now().UTC(),
+			)
+		}); err != nil {
+			return err
+		}
+	}
 	if driftDetectJSON {
 		return writeCommandResult(cmd, cmd.CommandPath(), report)
 	}
@@ -181,8 +220,13 @@ func observeCurrentArchitectureV2Drift(
 ) (architectureV2DriftObservation, error) {
 	options := architectureV2ExecutionCLIOptions{context: ctx, driftObservation: true}
 	var report architectureV2VerifyReport
+	var plan generationartifact.VerifiedPlan
 	options.verifySink = func(observation architectureV2VerifyReport) error {
 		report = observation
+		return nil
+	}
+	options.verifiedPlanSink = func(verified generationartifact.VerifiedPlan) error {
+		plan = verified
 		return nil
 	}
 	handled, err := newArchitectureV2ExecutionGate().preflight(
@@ -194,9 +238,13 @@ func observeCurrentArchitectureV2Drift(
 	if err != nil {
 		var detected *architectureV2DriftDetectedError
 		if errors.As(err, &detected) {
+			if len(plan.Canonical()) == 0 {
+				return architectureV2DriftObservation{}, errors.New("drift detection did not retain the verified canonical ResolvedPlan")
+			}
 			return architectureV2DriftObservation{
 				Verification: detected.Verification,
 				Differences:  append([]architectureV2DriftDifference(nil), detected.Differences...),
+				Plan:         plan,
 			}, nil
 		}
 		return architectureV2DriftObservation{}, err
@@ -204,7 +252,54 @@ func observeCurrentArchitectureV2Drift(
 	if !handled {
 		return architectureV2DriftObservation{}, errors.New("drift detection requires a canonical Architecture v2 StackSpec")
 	}
-	return architectureV2DriftObservation{Verification: report}, nil
+	if len(plan.Canonical()) == 0 {
+		return architectureV2DriftObservation{}, errors.New("drift detection did not retain the verified canonical ResolvedPlan")
+	}
+	return architectureV2DriftObservation{Verification: report, Plan: plan}, nil
+}
+
+func persistArchitectureV2DriftReport(
+	workspace string,
+	report driftReport,
+) (string, string, error) {
+	canonical, err := resolvedplan.CanonicalJSON(report)
+	if err != nil {
+		return "", "", fmt.Errorf("canonicalize Architecture v2 drift report: %w", err)
+	}
+	digest := architectureV2ApplicationLifecycleDigest(canonical)
+	path := filepath.ToSlash(filepath.Join(
+		".stackkit", "evidence", "drift", "reports",
+		strings.TrimPrefix(digest, "sha256:")+".json",
+	))
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return "", "", fmt.Errorf("open drift evidence workspace: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return "", "", fmt.Errorf("begin drift evidence transaction: %w", err)
+	}
+	defer func() { _ = transaction.Close() }()
+	if err := transaction.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return "", "", fmt.Errorf("create drift evidence directory: %w", err)
+	}
+	if err := transaction.WriteFileExclusive(path, canonical, 0o600); err != nil {
+		existing, info, readErr := transaction.ReadStable(path)
+		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonical) {
+			return "", "", fmt.Errorf("persist content-addressed drift evidence: %w", err)
+		}
+	}
+	absoluteRoot := filepath.Join(root.Name(), ".stackkit", "evidence", "drift")
+	if err := backupcustody.ProtectPrivatePath(absoluteRoot, true); err != nil {
+		return "", "", fmt.Errorf("protect drift evidence root: %w", err)
+	}
+	if err := backupcustody.ProtectPrivatePath(
+		filepath.Join(root.Name(), filepath.FromSlash(path)), false,
+	); err != nil {
+		return "", "", fmt.Errorf("protect drift evidence: %w", err)
+	}
+	return path, digest, nil
 }
 
 func newDriftReport(observed architectureV2DriftObservation) (driftReport, error) {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
@@ -84,6 +85,18 @@ func runNativeV2RestoreActivationCommand(
 	if err != nil {
 		return err
 	}
+	lifecycleRuns, err := beginArchitectureV2ApplicationLifecyclesWithID(
+		workspace,
+		plan,
+		"restore",
+		"stackkit.restore",
+		"",
+		operationID,
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return err
+	}
 	result, err := service.Activate(ctx, restoreactivation.ActivateInput{
 		WorkspaceRoot:  workspace,
 		OperationID:    operationID,
@@ -110,6 +123,31 @@ func runNativeV2RestoreActivationCommand(
 		),
 	})
 	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			workspace,
+			lifecycleRuns,
+			"restore activation failed and requires explicit recovery review",
+			"urn:stackkit:restore-activation:"+operationID,
+			time.Now().UTC(),
+			err,
+		)
+	}
+	evidence, evidenceRef, err := restoreActivationApplicationLifecycleEvidence(
+		workspace, result,
+	)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			workspace,
+			lifecycleRuns,
+			"restore activation completed but owner evidence could not be bound",
+			evidenceRef,
+			time.Now().UTC(),
+			err,
+		)
+	}
+	if err := succeedArchitectureV2ApplicationLifecycles(
+		workspace, lifecycleRuns, evidence, time.Now().UTC(),
+	); err != nil {
 		return err
 	}
 	return emitRestoreActivationResult(cmd, result)
@@ -139,7 +177,10 @@ func runNativeV2RestoreRecoveryCommand(
 	if err != nil {
 		return err
 	}
-	var recoveryRestoreResult backuplifecycle.RestoreResult
+	var (
+		recoveryRestoreResult backuplifecycle.RestoreResult
+		recoveryPlan          generationartifact.VerifiedPlan
+	)
 	resolver := func(
 		resolveContext context.Context,
 		journal lifecyclemutation.RestoreActivationAuthority,
@@ -157,6 +198,7 @@ func runNativeV2RestoreRecoveryCommand(
 		if resolveErr != nil {
 			return restoreactivation.Authority{}, resolveErr
 		}
+		recoveryPlan = plan
 		return restoreactivation.DeriveAuthority(
 			plan, manifest, recoveryRestoreResult, journal.OperationID,
 		)
@@ -185,7 +227,38 @@ func runNativeV2RestoreRecoveryCommand(
 	if err != nil {
 		return err
 	}
+	evidence, _, err := restoreActivationApplicationLifecycleEvidence(workspace, result)
+	if err != nil {
+		return err
+	}
+	if err := completeExistingRecoveredApplicationLifecycles(
+		workspace, recoveryPlan, operationID, evidence, time.Now().UTC(),
+	); err != nil {
+		return err
+	}
 	return emitRestoreActivationResult(cmd, result)
+}
+
+func restoreActivationApplicationLifecycleEvidence(
+	workspace string,
+	result restoreactivation.Result,
+) ([]applicationlifecycle.Evidence, string, error) {
+	resultRef, resultDigest, err := restoreactivation.ResultEvidence(workspace, result)
+	if err != nil {
+		return nil, "urn:stackkit:restore-activation:" + result.OperationID, err
+	}
+	snapshotRef, err := backuplifecycle.SnapshotAnchorEvidenceRef(result.SafetySnapshotID)
+	if err != nil {
+		return nil, resultRef, err
+	}
+	return []applicationlifecycle.Evidence{
+		{Kind: "snapshot-anchor", Ref: snapshotRef, Digest: result.SafetySnapshotID},
+		{Kind: "restore-result", Ref: resultRef, Digest: resultDigest},
+		{
+			Kind: "owner-observation", Ref: resultRef + "#verification",
+			Digest: resultDigest,
+		},
+	}, resultRef, nil
 }
 
 func readNativeV2RestorePlanManifest(

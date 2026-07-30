@@ -11,6 +11,7 @@ type indexedCatalog struct {
 	addons                       map[string]map[string]any
 	modules                      map[string]map[string]any
 	workloads                    map[string]map[string]any
+	applicationLifecycles        map[string]map[string]any
 	privilegedInterfaceApprovals []map[string]any
 	planArtifacts                []map[string]any
 }
@@ -28,6 +29,7 @@ func indexCatalog(catalog Catalog) (*indexedCatalog, error) {
 		addons:                       make(map[string]map[string]any, len(catalog.AddOns)),
 		modules:                      make(map[string]map[string]any, len(catalog.Modules)),
 		workloads:                    make(map[string]map[string]any, len(catalog.Workloads)),
+		applicationLifecycles:        make(map[string]map[string]any, len(catalog.ApplicationLifecycles)),
 		privilegedInterfaceApprovals: make([]map[string]any, 0, len(catalog.PrivilegedInterfaceApprovals)),
 		planArtifacts:                make([]map[string]any, 0, len(catalog.PlanArtifacts)),
 	}
@@ -94,6 +96,46 @@ func indexCatalog(catalog Catalog) (*indexedCatalog, error) {
 			return nil, fail(ErrInvalidInput, "catalog.workloads", "duplicate workload contract %q", id)
 		}
 		indexed.workloads[id] = object
+	}
+	for i, lifecycle := range catalog.ApplicationLifecycles {
+		object := map[string]any(lifecycle)
+		id, err := metadataID(object, fmt.Sprintf("catalog.applicationLifecycles[%d]", i))
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := indexed.applicationLifecycles[id]; exists {
+			return nil, fail(ErrInvalidInput, "catalog.applicationLifecycles", "duplicate application lifecycle contract %q", id)
+		}
+		workloadRef, err := stringField(object, fmt.Sprintf("catalog.applicationLifecycles[%d]", i), "workloadRef")
+		if err != nil {
+			return nil, err
+		}
+		if workloadRef != id {
+			return nil, fail(ErrInvalidInput, "catalog.applicationLifecycles", "lifecycle %q must bind the same workloadRef, got %q", id, workloadRef)
+		}
+		workload, exists := indexed.workloads[workloadRef]
+		if !exists {
+			return nil, fail(ErrInvalidInput, "catalog.applicationLifecycles", "lifecycle %q references unknown workload %q", id, workloadRef)
+		}
+		kind, err := stringField(workload, "catalog.workloads."+workloadRef, "kind")
+		if err != nil {
+			return nil, err
+		}
+		if kind != "application" {
+			return nil, fail(ErrInvalidInput, "catalog.applicationLifecycles", "lifecycle %q references non-application workload %q", id, workloadRef)
+		}
+		indexed.applicationLifecycles[id] = object
+	}
+	for id, workload := range indexed.workloads {
+		kind, err := stringField(workload, "catalog.workloads."+id, "kind")
+		if err != nil {
+			return nil, err
+		}
+		if kind == "application" {
+			if _, exists := indexed.applicationLifecycles[id]; !exists {
+				return nil, fail(ErrInvalidInput, "catalog.applicationLifecycles", "application workload %q has no lifecycle contract", id)
+			}
+		}
 	}
 	return indexed, nil
 }

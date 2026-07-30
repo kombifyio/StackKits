@@ -182,15 +182,16 @@ func decodeCatalog(document map[string]any) (resolvedplan.Catalog, error) {
 	decoder := json.NewDecoder(bytesReader(data))
 	decoder.UseNumber()
 	var wire struct {
-		Capabilities                 []resolvedplan.CapabilityContract          `json:"capabilities"`
-		Providers                    []resolvedplan.CapabilityProvider          `json:"providers"`
-		AddOns                       []resolvedplan.AddOnContract               `json:"addons"`
-		Modules                      []resolvedplan.ModuleContract              `json:"modules"`
-		Workloads                    []resolvedplan.WorkloadContract            `json:"workloads"`
-		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
-		RILActionExecutors           []resolvedplan.RILActionExecutorContract   `json:"rilActionExecutors"`
-		RILActionPrimitives          []resolvedplan.RILActionPrimitiveContract  `json:"rilActionPrimitives"`
-		PlanArtifacts                []resolvedplan.PlanArtifactContract        `json:"planArtifacts"`
+		Capabilities                 []resolvedplan.CapabilityContract           `json:"capabilities"`
+		Providers                    []resolvedplan.CapabilityProvider           `json:"providers"`
+		AddOns                       []resolvedplan.AddOnContract                `json:"addons"`
+		Modules                      []resolvedplan.ModuleContract               `json:"modules"`
+		Workloads                    []resolvedplan.WorkloadContract             `json:"workloads"`
+		ApplicationLifecycles        []resolvedplan.ApplicationLifecycleContract `json:"applicationLifecycles"`
+		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval  `json:"privilegedInterfaceApprovals"`
+		RILActionExecutors           []resolvedplan.RILActionExecutorContract    `json:"rilActionExecutors"`
+		RILActionPrimitives          []resolvedplan.RILActionPrimitiveContract   `json:"rilActionPrimitives"`
+		PlanArtifacts                []resolvedplan.PlanArtifactContract         `json:"planArtifacts"`
 	}
 	if err := decoder.Decode(&wire); err != nil {
 		return resolvedplan.Catalog{}, err
@@ -208,6 +209,7 @@ func decodeCatalog(document map[string]any) (resolvedplan.Catalog, error) {
 		AddOns:                       wire.AddOns,
 		Modules:                      wire.Modules,
 		Workloads:                    wire.Workloads,
+		ApplicationLifecycles:        wire.ApplicationLifecycles,
 		PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
 		RILActionExecutors:           wire.RILActionExecutors,
 		RILActionPrimitives:          wire.RILActionPrimitives,

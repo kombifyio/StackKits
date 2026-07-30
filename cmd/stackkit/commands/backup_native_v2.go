@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
@@ -39,6 +40,7 @@ type nativeV2BackupAuthority struct {
 	AuthorityRef     string
 	WorkspaceRoot    string
 	OutputRoot       string
+	Plan             generationartifact.VerifiedPlan
 	Lineage          backuplifecycle.AuthorityLineage
 	PolicyDigest     string
 	PolicyArtifact   []byte
@@ -128,8 +130,48 @@ func runNativeV2BackupRequest(
 			if !sameNativeV2BackupAuthority(initial, current) {
 				return errors.New("native v2 backup authority changed while acquiring the output lock")
 			}
+			var (
+				lifecycleRuns  []architectureV2ApplicationLifecycleRun
+				lifecycleStage string
+				lifecycleRef   string
+			)
+			switch operation {
+			case nativeV2BackupRun:
+				lifecycleStage, lifecycleRef = "backup", "stackkit.backup"
+			}
+			startedAt := time.Now().UTC()
+			if lifecycleStage != "" && len(current.Plan.Canonical()) != 0 {
+				lifecycleRuns, inspectErr = beginArchitectureV2ApplicationLifecycles(
+					workspace, current.Plan, lifecycleStage, lifecycleRef, "", startedAt,
+				)
+				if inspectErr != nil {
+					return inspectErr
+				}
+			}
 			result, inspectErr = continueNativeV2Backup(ctx, operation, current, request)
-			return inspectErr
+			if inspectErr != nil {
+				return failArchitectureV2ApplicationLifecycles(
+					workspace, lifecycleRuns,
+					"native backup lifecycle failed before owner evidence was completed",
+					time.Now().UTC(), inspectErr,
+				)
+			}
+			if len(lifecycleRuns) == 0 {
+				return nil
+			}
+			evidence, recoveryRef, evidenceErr := nativeV2BackupApplicationLifecycleEvidence(
+				operation, request, result,
+			)
+			if evidenceErr != nil {
+				return requireArchitectureV2ApplicationLifecycleRecovery(
+					workspace, lifecycleRuns,
+					"native backup lifecycle completed but its owner evidence could not be bound",
+					recoveryRef, time.Now().UTC(), evidenceErr,
+				)
+			}
+			return succeedArchitectureV2ApplicationLifecycles(
+				workspace, lifecycleRuns, evidence, time.Now().UTC(),
+			)
 		})
 	}
 	if operation == nativeV2BackupStatus {
@@ -141,6 +183,49 @@ func runNativeV2BackupRequest(
 		return err
 	}
 	return emitNativeV2BackupResult(cmd, operation, result)
+}
+
+func nativeV2BackupApplicationLifecycleEvidence(
+	operation nativeV2BackupOperation,
+	request nativeV2BackupRequest,
+	result any,
+) ([]applicationlifecycle.Evidence, string, error) {
+	switch operation {
+	case nativeV2BackupRun:
+		anchor, ok := result.(backuplifecycle.SnapshotAnchor)
+		if !ok {
+			return nil, "urn:stackkit:backup-operation:" + request.OperationID,
+				errors.New("native backup runtime returned no snapshot anchor")
+		}
+		ref, err := backuplifecycle.SnapshotAnchorEvidenceRef(anchor.ID)
+		if err != nil {
+			return nil, "urn:stackkit:snapshot-anchor:" + anchor.ID, err
+		}
+		return []applicationlifecycle.Evidence{{
+			Kind: "snapshot-anchor", Ref: ref, Digest: anchor.ID,
+		}}, ref, nil
+	case nativeV2BackupRestore:
+		restore, ok := result.(backuplifecycle.RestoreResult)
+		if !ok {
+			return nil, "urn:stackkit:restore-operation:" + request.OperationID,
+				errors.New("native restore runtime returned no restore result")
+		}
+		snapshotRef, err := backuplifecycle.SnapshotAnchorEvidenceRef(request.SnapshotAnchorID)
+		if err != nil {
+			return nil, "urn:stackkit:snapshot-anchor:" + request.SnapshotAnchorID, err
+		}
+		resultRef, err := backuplifecycle.RestoreResultEvidenceRef(restore.ID)
+		if err != nil {
+			return nil, "urn:stackkit:restore-result:" + restore.ID, err
+		}
+		return []applicationlifecycle.Evidence{
+			{Kind: "snapshot-anchor", Ref: snapshotRef, Digest: request.SnapshotAnchorID},
+			{Kind: "restore-result", Ref: resultRef, Digest: restore.ID},
+			{Kind: "owner-observation", Ref: resultRef + "#verification", Digest: restore.ID},
+		}, resultRef, nil
+	default:
+		return nil, "", nil
+	}
 }
 
 func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpec string) (nativeV2BackupAuthority, error) {
@@ -272,7 +357,7 @@ func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpe
 	}
 	return nativeV2BackupAuthority{
 		OwnerRef: owner.OwnerRef, AuthorityRef: owner.Trust.HumanAuthorityRef, WorkspaceRoot: workspace,
-		OutputRoot: inspection.OutputRoot,
+		OutputRoot: inspection.OutputRoot, Plan: plan,
 		Lineage: backuplifecycle.AuthorityLineage{
 			Binding: inspection.Binding, ManifestHash: manifestHash,
 			GenerationReceiptHash: generationReceiptHash,
@@ -457,6 +542,7 @@ func sameNativeV2BackupAuthority(left, right nativeV2BackupAuthority) bool {
 		left.AuthorityRef == right.AuthorityRef &&
 		left.WorkspaceRoot == right.WorkspaceRoot &&
 		left.OutputRoot == right.OutputRoot &&
+		bytes.Equal(left.Plan.Canonical(), right.Plan.Canonical()) &&
 		left.PolicyDigest == right.PolicyDigest &&
 		left.Lineage == right.Lineage &&
 		bytes.Equal(left.PolicyArtifact, right.PolicyArtifact) &&

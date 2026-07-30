@@ -115,7 +115,7 @@ Definition: base.#ProductKitDefinition & {
 		optional: ["private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
-	workloads: {required: [], defaults: [], optional: ["photos"], forbidden: []}
+	workloads: {required: [], defaults: [], optional: ["files", "photos"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

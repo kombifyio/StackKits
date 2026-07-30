@@ -124,7 +124,7 @@ Definition: base.#ProductKitDefinition & {
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: ["photos"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

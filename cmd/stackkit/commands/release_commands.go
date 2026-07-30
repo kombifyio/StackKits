@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
@@ -42,9 +45,10 @@ var (
 )
 
 type publicUpgradeCheckpoint struct {
-	OperationID             string `json:"operationId"`
-	KopiaAnchorID           string `json:"kopiaAnchorId"`
-	ExecutorStateSnapshotID string `json:"executorStateSnapshotId"`
+	OperationID              string                          `json:"operationId"`
+	KopiaAnchorID            string                          `json:"kopiaAnchorId"`
+	ExecutorStateSnapshotID  string                          `json:"executorStateSnapshotId"`
+	ApplicationLifecyclePlan generationartifact.VerifiedPlan `json:"-"`
 }
 
 type releaseCommandResult struct {
@@ -293,6 +297,20 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("begin exclusive lifecycle mutation: %w", mutationErr)
 		}
 		defer mutation.Close()
+		var applicationLifecycleRuns []architectureV2ApplicationLifecycleRun
+		if len(checkpoint.ApplicationLifecyclePlan.Canonical()) != 0 {
+			applicationLifecycleRuns, mutationErr = beginArchitectureV2ApplicationLifecycles(
+				workspace,
+				checkpoint.ApplicationLifecyclePlan,
+				"upgrade",
+				"stackkit.upgrade",
+				"",
+				time.Now().UTC(),
+			)
+			if mutationErr != nil {
+				return fmt.Errorf("begin application upgrade lifecycle: %w", mutationErr)
+			}
+		}
 		result.Checkpoint = &checkpoint
 		result.InstallDir = receipt.InstallDir
 		result.Receipt = &receipt
@@ -301,6 +319,70 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		)
 		result.Transaction = &transaction
 		result.ApplyInvoked = transaction.Target.ApplyInvoked
+		if len(applicationLifecycleRuns) != 0 {
+			resultRef, resultDigest, persistErr := persistPublicUpgradeApplicationLifecycleResult(
+				workspace, transaction,
+			)
+			if persistErr != nil {
+				transactionErr = requireArchitectureV2ApplicationLifecycleRecovery(
+					workspace,
+					applicationLifecycleRuns,
+					"upgrade transaction completed without durable application owner evidence",
+					"urn:stackkit:upgrade-operation:"+checkpoint.OperationID,
+					time.Now().UTC(),
+					errors.Join(transactionErr, persistErr),
+				)
+			} else {
+				snapshotRef, snapshotErr := backuplifecycle.SnapshotAnchorEvidenceRef(
+					checkpoint.KopiaAnchorID,
+				)
+				evidence := []applicationlifecycle.Evidence{
+					{
+						Kind: "snapshot-anchor", Ref: snapshotRef,
+						Digest: checkpoint.KopiaAnchorID,
+					},
+					{Kind: "upgrade-result", Ref: resultRef, Digest: resultDigest},
+					{
+						Kind: "owner-observation", Ref: resultRef + "#success-proof",
+						Digest: resultDigest,
+					},
+				}
+				if snapshotErr != nil {
+					transactionErr = requireArchitectureV2ApplicationLifecycleRecovery(
+						workspace,
+						applicationLifecycleRuns,
+						"upgrade snapshot evidence could not be bound",
+						resultRef,
+						time.Now().UTC(),
+						errors.Join(transactionErr, snapshotErr),
+					)
+				} else if transactionErr == nil {
+					transactionErr = succeedArchitectureV2ApplicationLifecycles(
+						workspace, applicationLifecycleRuns, evidence, time.Now().UTC(),
+					)
+				} else if transaction.Status == "rolled-back" && transaction.Rollback.Verified {
+					evidence[2].Ref = resultRef + "#verified-rollback"
+					transactionErr = recoverArchitectureV2ApplicationLifecycles(
+						workspace,
+						applicationLifecycleRuns,
+						"upgrade target failed and the prior runtime was restored and verified",
+						resultRef,
+						evidence,
+						time.Now().UTC(),
+						transactionErr,
+					)
+				} else {
+					transactionErr = requireArchitectureV2ApplicationLifecycleRecovery(
+						workspace,
+						applicationLifecycleRuns,
+						"upgrade failed without a verified automatic recovery",
+						resultRef,
+						time.Now().UTC(),
+						transactionErr,
+					)
+				}
+			}
+		}
 		if transactionErr != nil {
 			if publicUpgradeJSON {
 				if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "failed", result); writeErr != nil {

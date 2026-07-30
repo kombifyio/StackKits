@@ -30,6 +30,392 @@
       ]
     }
   ],
+  "applicationLifecycles": [
+    {
+      "lifecycle": {
+        "referenceVertical": true,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade",
+              "stackkit.advanced.change-set.apply",
+              "stackkit.drift.reconcile.advanced"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Reusable owner-controlled lifecycle for the Photos Application Kit.",
+        "id": "photos",
+        "version": "1.0.0"
+      },
+      "packageRef": "photos",
+      "workloadRef": "photos"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade",
+              "stackkit.advanced.change-set.apply",
+              "stackkit.drift.reconcile.advanced"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Reusable owner-controlled lifecycle for the Files Application Kit.",
+        "id": "files",
+        "version": "1.0.0"
+      },
+      "packageRef": "files",
+      "workloadRef": "files"
+    }
+  ],
   "capabilities": [
     {
       "evidence": [
@@ -2164,6 +2550,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-cloudreve-runtime"
+        ],
+        "matches": [
+          "stackkits-cloudreve"
+        ],
+        "module": "stackkits-cloudreve-runtime",
+        "provider": "stackkits-cloudreve"
+      },
+      {
+        "governanceMatches": [
           "stackkits-coolify-runtime"
         ],
         "matches": [
@@ -2808,6 +3204,12 @@
             "photos"
           ],
           "providerID": "stackkits-immich"
+        },
+        {
+          "contracts": [
+            "files"
+          ],
+          "providerID": "stackkits-cloudreve"
         },
         {
           "contracts": [
@@ -3542,6 +3944,13 @@
       },
       {
         "matches": [
+          "stackkits-cloudreve-runtime"
+        ],
+        "module": "stackkits-cloudreve-runtime",
+        "provider": "stackkits-cloudreve"
+      },
+      {
+        "matches": [
           "stackkits-coolify-runtime"
         ],
         "module": "stackkits-coolify-runtime",
@@ -4143,6 +4552,27 @@
           "storage-data-policy"
         ],
         "provider": "stackkits-immich"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-cloudreve"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-cloudreve"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-cloudreve"
       },
       {
         "capability": "runtime-paas",
@@ -4759,6 +5189,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-cloudreve"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-coolify"
         },
         {
@@ -4873,6 +5309,7 @@
     },
     "uniqueness": {
       "addonIDsUnique": true,
+      "applicationLifecycleIDsUnique": true,
       "capabilityIDsUnique": true,
       "dockerProxyDaemonPoliciesUnique": true,
       "generationArtifactIDsUnique": true,
@@ -5050,6 +5487,93 @@
             }
           ],
           "workloadID": "photos"
+        },
+        {
+          "alternativeID": "cloudreve",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-cloudreve-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "selected-paas"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "files",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "cloudreve",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-cloudreve",
+              "workloadOwnership": [
+                "files"
+              ]
+            }
+          ],
+          "workloadID": "files"
         }
       ]
     }
@@ -9480,6 +10004,219 @@
         "image": {
           "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
           "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+        },
+        "kind": "container"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "cloudreve-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "cloudreve-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 5212,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Cloudreve file service contract bound to one selected site and its personal-data primary.",
+        "id": "stackkits-cloudreve-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-cloudreve",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "cloudreve-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/cloudreve/bundle.json",
+              "required": true,
+              "unitRef": "cloudreve"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "cloudreve-workload-bundle",
+              "outputRef": "workloads/cloudreve/bundle.json",
+              "unitRef": "cloudreve"
+            }
+          ],
+          "requiredRefs": [
+            "cloudreve-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "cloudreve-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:1735d0d2012a7b0fa15e45aac606ba9c5faf861ecd38d651a9eabb9f22367846",
+          "id": "cloudreve",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/cloudreve/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "data": {
+                "bindingRef": "files",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "cloudreve-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "files",
+              "targetPort": 5212,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/cloudreve/bundle/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "cloudreve-workload-bundle"
+          ],
+          "contractHash": "sha256:351ef1abec597588906c6abedfeb95c85fe8fed5be63937c16a0c178c1210130",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "cloudreve"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "cloudreve-workload-bundle"
+          ],
+          "contractHash": "sha256:58609d10adde5f149301184cd8f24c375da1f8eadd6f2ce8e83c58c3dca34520",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "cloudreve"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 5212
+            },
+            "id": "cloudreve",
+            "image": {
+              "digest": "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a",
+              "ref": "docker.io/cloudreve/cloudreve:4.18.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloudreve-internal"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/cloudreve/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "selected-paas",
+        "engine": "docker",
+        "entryComponentRef": "cloudreve",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a",
+          "ref": "docker.io/cloudreve/cloudreve:4.18.0"
         },
         "kind": "container"
       },
@@ -14001,6 +14738,50 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "cloudreve-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-cloudreve",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-cloudreve-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "files"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "coolify-adapter-contract"
       ],
       "health": [
@@ -15793,6 +16574,65 @@
       "metadata": {
         "description": "Self-hosted photo management selected independently from kit architecture capabilities.",
         "id": "photos",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "alternatives": [
+        {
+          "id": "cloudreve",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-cloudreve-runtime",
+          "providerRef": "stackkits-cloudreve",
+          "route": {
+            "healthRef": "cloudreve-http",
+            "serviceRef": "files"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "coolify",
+              "komodo"
+            ],
+            "allowedDeliveries": [
+              "selected-paas"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "defaultAdapterRef": "coolify"
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "cloudreve",
+      "functionalCapabilities": [
+        "file-library",
+        "file-sharing"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Self-hosted file management and sharing selected independently from kit architecture capabilities.",
+        "id": "files",
         "version": "1.0.0"
       },
       "supportedSiteKinds": [

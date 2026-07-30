@@ -1,5 +1,6 @@
 {
   "addons": [],
+  "applicationLifecycles": [],
   "capabilities": [
     {
       "evidence": [
@@ -1139,6 +1140,7 @@
     },
     "uniqueness": {
       "addonIDsUnique": true,
+      "applicationLifecycleIDsUnique": true,
       "capabilityIDsUnique": true,
       "dockerProxyDaemonPoliciesUnique": true,
       "generationArtifactIDsUnique": true,

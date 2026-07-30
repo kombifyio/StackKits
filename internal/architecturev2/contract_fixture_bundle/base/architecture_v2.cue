@@ -968,7 +968,7 @@ import (
 	// and the resolved plan rejects its own init output --
 	// "resolvedPlan.storage.hostRoots.dataRoot: requires an absolute host
 	// storage root". cloud-kit and modern-homelab both shipped that way.
-	storage: #StorageIntentV2
+	storage:    #StorageIntentV2
 	network:    #NetworkIntentV2
 	container?: #ContainerRuntimeIntentV2
 
@@ -1221,7 +1221,7 @@ import (
 	contractVersion:   #SemanticVersion
 	initialSpecStatus: "supported" | "preview"
 	requiredOverrides: [...#KitAuthoringOverrideV2] | *[]
-	initialSpec: #StackSpecV2
+	initialSpec:      #StackSpecV2
 	standaloneOwner?: #StandaloneOwnerAuthoringV2
 
 	_requiredOverridesUnique: list.UniqueItems(requiredOverrides) & true
@@ -3445,10 +3445,10 @@ _servicePublicationShape: {
 }
 
 #ModulePublicLocalKopiaBackupSourceV1: {
-	kind:               "docker-volume-root"
-	hostPath:           "/var/lib/docker/volumes"
-	containerPath:      "/source/docker-volumes"
-	readOnly:           true
+	kind:          "docker-volume-root"
+	hostPath:      "/var/lib/docker/volumes"
+	containerPath: "/source/docker-volumes"
+	readOnly:      true
 	managedVolumeNames: [
 		"stackkit-basement-core_coolify-applications",
 		"stackkit-basement-core_coolify-backups",
@@ -3468,10 +3468,10 @@ _servicePublicationShape: {
 		"/source/docker-volumes/stackkit-basement-core_kopia-cache/_data",
 		"/source/docker-volumes/stackkit-basement-core_kopia-restore-staging/_data",
 	]
-	repositoryPath:     "/app/repository"
-	configPath:         "/app/config"
-	cachePath:          "/app/cache"
-	custody:            "owner-local"
+	repositoryPath:  "/app/repository"
+	configPath:      "/app/config"
+	cachePath:       "/app/cache"
+	custody:         "owner-local"
 	runtimeMaterial: "owner-command"
 }
 
@@ -4480,7 +4480,7 @@ _servicePublicationShape: {
 		placement: scope: "node-local"
 	}
 	if applyMode == "artifact-only" {
-		serviceEndpoints:   []
+		serviceEndpoints: []
 		providesInterfaces: []
 		requiresInterfaces: []
 	}
@@ -4963,6 +4963,7 @@ _servicePublicationShape: {
 	addons: [...#AddOnContract]
 	modules: [...#ModuleContractV2] | *[]
 	workloads: [...#WorkloadContractV2] | *[]
+	applicationLifecycles: [...#ApplicationLifecycleContractV1] | *[]
 	privilegedInterfaceApprovals: [...#PrivilegedInterfaceApprovalV2] | *[]
 	rilActionExecutors: [...#RILActionExecutorContractV1] | *[]
 	rilActionPrimitives: [...#RILActionPrimitiveContractV1] | *[]
@@ -5047,6 +5048,7 @@ _servicePublicationShape: {
 		addonIDsUnique: list.UniqueItems([for contract in addons {contract.metadata.id}]) & true
 		moduleIDsUnique: list.UniqueItems([for contract in modules {contract.metadata.id}]) & true
 		workloadIDsUnique: list.UniqueItems([for contract in workloads {contract.metadata.id}]) & true
+		applicationLifecycleIDsUnique: list.UniqueItems([for contract in applicationLifecycles {contract.metadata.id}]) & true
 		workloadAlternativesUnique: list.UniqueItems([
 			for workload in workloads
 			for alternative in workload.alternatives {"\(workload.metadata.id)/\(alternative.id)"},
@@ -5096,6 +5098,23 @@ _servicePublicationShape: {
 			for target in contract.compatibleTargets {"\(target)/\(strings.ToLower(contract.outputRef))"},
 		]) & true
 	}
+	_applicationLifecycleWorkloadClosure: [for lifecycle in applicationLifecycles {
+		lifecycle: lifecycle.metadata.id
+		matches: [
+			for workload in workloads
+			if workload.metadata.id == lifecycle.workloadRef && workload.kind == "application" {workload.metadata.id},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_applicationWorkloadLifecycleClosure: [
+		for workload in workloads
+		if workload.kind == "application" {
+			workload: workload.metadata.id
+			matches: [
+				for lifecycle in applicationLifecycles
+				if lifecycle.workloadRef == workload.metadata.id {lifecycle.metadata.id},
+			] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
 	integrity: ownership: {
 		providerContractsNonEmpty: [for provider in providers {
 			providerID: provider.metadata.id
@@ -6456,6 +6475,30 @@ _servicePublicationShape: {
 	}
 }
 
+// #ApplicationLifecycleContractV1 binds one Application Kit package to the
+// reusable standalone lifecycle. Workload selection remains the only product
+// intent; the package and its lifecycle are catalog authority, never StackSpec
+// input.
+#ApplicationLifecycleContractV1: {
+	metadata: {
+		id:          #WorkloadID
+		version:     #SemanticVersion
+		description: string & =~"^.+$"
+	}
+	workloadRef: metadata.id
+	packageRef:  #ContractID
+	lifecycle:   #StandardUseCaseLifecycle
+}
+
+#ResolvedApplicationLifecycleV1: {
+	id:           #WorkloadID
+	version:      #SemanticVersion
+	contractHash: #ContentHash
+	workloadRef:  id
+	packageRef:   #ContractID
+	lifecycle:    #StandardUseCaseLifecycle
+}
+
 #ResolvedPlacementV2: {
 	workloadRef: #ContractID
 	siteRefs: [...#SiteID] & list.MinItems(1)
@@ -7125,6 +7168,7 @@ _servicePublicationShape: {
 	capabilities: [...#ResolvedCapability] & list.MinItems(1)
 	providers: [...#ResolvedProvider] & list.MinItems(1)
 	workloads: [...#ResolvedWorkloadV2] | *[]
+	applicationLifecycles: [...#ResolvedApplicationLifecycleV1] | *[]
 	// The field is mandatory, but an empty list is valid when every selected
 	// provider realizes behavior through host/external contracts. Providers do
 	// not become modules by name.
@@ -7150,6 +7194,24 @@ _servicePublicationShape: {
 	privilegedInterfaceApprovals: [...#ResolvedPrivilegedInterfaceApprovalV2] | *[]
 	placement: [...#ResolvedPlacementV2] | *[]
 	_workloadIDsUnique: list.UniqueItems([for workload in workloads {workload.id}]) & true
+	_applicationLifecycleIDsUnique: list.UniqueItems([for lifecycle in applicationLifecycles {lifecycle.id}]) & true
+	_applicationLifecycleWorkloadsExact: [for lifecycle in applicationLifecycles {
+		lifecycle: lifecycle.id
+		matches: [
+			for workload in workloads
+			if workload.id == lifecycle.workloadRef && workload.kind == "application" {workload.id},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_applicationWorkloadLifecyclesExact: [
+		for workload in workloads
+		if workload.kind == "application" {
+			workload: workload.id
+			matches: [
+				for lifecycle in applicationLifecycles
+				if lifecycle.workloadRef == workload.id {lifecycle.id},
+			] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
 	_placementWorkloadRefsUnique: list.UniqueItems([for item in placement {item.workloadRef}]) & true
 	_placementWorkloadRefsExact: [for item in placement {
 		workloadRef: item.workloadRef
@@ -8915,6 +8977,7 @@ _servicePublicationShape: {
 					refs: ["bridge:control-agent"]
 				}
 			}
+
 			// The local policy owner enforces only the declared per-node flow and
 			// partition guardrails. It neither creates nor satisfies the separate
 			// external Federation-link binding, transport, endpoint, or credential

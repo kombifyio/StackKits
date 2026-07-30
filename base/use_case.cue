@@ -33,6 +33,8 @@ package base
 
 #UseCaseLifecycleEvidence: "resolved-plan" | "generation-receipt" | "apply-result" | "owner-observation" | "snapshot-anchor" | "restore-result" | "upgrade-result" | "drift-report" | "removal-result"
 
+#UseCaseLifecyclePhase: "resolve" | "generate" | "apply" | "verify" | "observe" | "inspect" | "snapshot" | "preflight" | "update" | "migrate" | "rollback" | "stage" | "safety-snapshot" | "activate" | "recover" | "compare" | "authorize" | "remove"
+
 #UseCasePackage: {
 	metadata: {
 		name:        =~"^[a-z][a-z0-9-]+$"
@@ -80,12 +82,12 @@ package base
 		referenceVertical: bool | *false
 		stages: {
 			install: #UseCaseLifecycleStage & {name: "install"}
-			manage:  #UseCaseLifecycleStage & {name: "manage"}
-			backup:  #UseCaseLifecycleStage & {name: "backup"}
+			manage: #UseCaseLifecycleStage & {name: "manage"}
+			backup: #UseCaseLifecycleStage & {name: "backup"}
 			upgrade: #UseCaseLifecycleStage & {name: "upgrade"}
 			restore: #UseCaseLifecycleStage & {name: "restore"}
-			drift:   #UseCaseLifecycleStage & {name: "drift"}
-			remove:  #UseCaseLifecycleStage & {name: "remove"}
+			drift: #UseCaseLifecycleStage & {name: "drift"}
+			remove: #UseCaseLifecycleStage & {name: "remove"}
 		}
 	}
 }
@@ -95,8 +97,9 @@ package base
 
 	// operations are stable registry identities, never shell fragments.
 	operations: [#UseCaseLifecycleOperationID, ...#UseCaseLifecycleOperationID]
-	surfaces:   [#UseCaseLifecycleSurface, ...#UseCaseLifecycleSurface]
-	evidence:   [#UseCaseLifecycleEvidence, ...#UseCaseLifecycleEvidence]
+	surfaces: [#UseCaseLifecycleSurface, ...#UseCaseLifecycleSurface]
+	evidence: [#UseCaseLifecycleEvidence, ...#UseCaseLifecycleEvidence]
+	phases: [#UseCaseLifecyclePhase, ...#UseCaseLifecyclePhase]
 
 	mutation:      bool
 	destructive:   bool
@@ -106,7 +109,7 @@ package base
 		ownerApproval: true
 	}
 	if destructive {
-		mutation: true
+		mutation:      true
 		ownerApproval: true
 	}
 }
@@ -135,29 +138,29 @@ package base
 }
 
 #UseCaseConnector: {
-	kind:      #UseCaseConnectorKind
-	name:      =~"^[a-z][a-z0-9-]+$"
-	owner:     #UseCaseConnectorOwner
-	endpoint?: string
-	transport: string
-	auth:      string
+	kind:          #UseCaseConnectorKind
+	name:          =~"^[a-z][a-z0-9-]+$"
+	owner:         #UseCaseConnectorOwner
+	endpoint?:     string
+	transport:     string
+	auth:          string
 	nativeProduct: bool | *false
 	capabilities?: [...string] | *[]
 }
 
 #UseCaseProductAPI: {
-	protocol: "rest" | "websocket" | "webdav" | "s3-compatible"
+	protocol:  "rest" | "websocket" | "webdav" | "s3-compatible"
 	basePath?: string
-	auth:     string
-	purpose:  string
+	auth:      string
+	purpose:   string
 }
 
 #UseCaseCapability: {
-	mode:      #UseCaseCapabilityMode
-	authority: #UseCaseCapabilityAuthority
-	source:    "stackkit-mcp" | "product-mcp" | "product-api" | "bridge"
+	mode:             #UseCaseCapabilityMode
+	authority:        #UseCaseCapabilityAuthority
+	source:           "stackkit-mcp" | "product-mcp" | "product-api" | "bridge"
 	requiresApproval: bool | *false
-	evidence: string
+	evidence:         string
 }
 
 #UseCaseSetupDrop: {

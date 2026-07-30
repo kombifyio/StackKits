@@ -3,20 +3,24 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
 var (
-	statusJSON bool
+	statusJSON             bool
+	statusResolvedPlanPath string
 )
 
 var statusCmd = &cobra.Command{
@@ -39,11 +43,15 @@ Examples:
 
 func init() {
 	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Output as JSON")
+	statusCmd.Flags().StringVar(&statusResolvedPlanPath, "resolved-plan", "", "Canonical Architecture v2 ResolvedPlan (default: deploy/.stackkit/resolved-plan.json)")
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	wd := getWorkDir()
+	if architectureV2RejectsV1Execution(version) {
+		return runArchitectureV2Status(cmd, wd)
+	}
 
 	loader := config.NewLoader(wd)
 	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Status)
@@ -155,6 +163,94 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
+	planPath := strings.TrimSpace(statusResolvedPlanPath)
+	if planPath == "" {
+		planPath = filepath.Join("deploy", ".stackkit", "resolved-plan.json")
+	}
+	planPath = resolvePathFromWorkDir(wd, planPath)
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		return fmt.Errorf("status: read canonical ResolvedPlan %s: %w", planPath, err)
+	}
+	authority, err := newArchitectureV2ExecutionGate().newAuthority()
+	if err != nil {
+		return fmt.Errorf("status: open Architecture v2 authority: %w", err)
+	}
+	if closer, ok := authority.(interface{ Close() error }); ok {
+		defer closer.Close()
+	}
+	verified, err := authority.VerifyCanonicalPlan(raw)
+	if err != nil {
+		return fmt.Errorf("status: verify canonical ResolvedPlan: %w", err)
+	}
+	plan, err := resolvedplan.DecodeCanonicalPlan(verified.Canonical())
+	if err != nil {
+		return fmt.Errorf("status: decode verified ResolvedPlan: %w", err)
+	}
+	lifecycles, err := loadApplicationLifecycleEvidence(wd, plan)
+	if err != nil {
+		return fmt.Errorf("status: load Application Kit lifecycle evidence: %w", err)
+	}
+	output := map[string]any{
+		"apiVersion":            "stackkit.status/v2",
+		"stackId":               plan["stackId"],
+		"kit":                   plan["kit"],
+		"planHash":              plan["planHash"],
+		"executionReadiness":    plan["executionReadiness"],
+		"workloads":             plan["workloads"],
+		"applicationLifecycles": lifecycles,
+	}
+	if statusJSON {
+		encoder := json.NewEncoder(cmd.OutOrStdout())
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(output)
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Stack: %v\nPlan: %v\n", plan["stackId"], plan["planHash"])
+	if len(lifecycles) == 0 {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Application Kits: none selected")
+		return nil
+	}
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Application Kits:")
+	for _, state := range lifecycles {
+		status := "not-started"
+		if len(state.Operations) > 0 {
+			status = state.Operations[len(state.Operations)-1].Status
+		}
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", state.WorkloadRef, status)
+	}
+	return nil
+}
+
+func loadApplicationLifecycleEvidence(wd string, plan resolvedplan.ResolvedPlan) ([]applicationlifecycle.State, error) {
+	raw, ok := plan["applicationLifecycles"].([]any)
+	if !ok {
+		return nil, errors.New("verified ResolvedPlan applicationLifecycles is missing")
+	}
+	states := make([]applicationlifecycle.State, 0, len(raw))
+	store := applicationlifecycle.Store{Workspace: wd}
+	for index, item := range raw {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("verified ResolvedPlan applicationLifecycles[%d] is invalid", index)
+		}
+		workloadRef, ok := object["workloadRef"].(string)
+		if !ok {
+			return nil, fmt.Errorf("verified ResolvedPlan applicationLifecycles[%d].workloadRef is invalid", index)
+		}
+		contract, err := applicationlifecycle.ContractFromResolvedPlan(plan, workloadRef)
+		if err != nil {
+			return nil, err
+		}
+		state, err := store.Load(contract)
+		if err != nil {
+			return nil, err
+		}
+		states = append(states, state)
+	}
+	return states, nil
 }
 
 func buildStatusJSONOutput(spec *models.StackSpec, state *models.DeploymentState, services []models.ServiceState, overallStatus models.DeploymentStatus, access *accessSummary) map[string]interface{} {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/config"
@@ -52,7 +53,6 @@ type architectureV2ExecutionCLIOptions struct {
 	inventoryPath    string
 	planPath         string
 	manifestPath     string
-	stackSpecData    []byte
 	inventoryData    []byte
 	receiptPath      string
 	localSiteRef     string
@@ -65,6 +65,7 @@ type architectureV2ExecutionCLIOptions struct {
 	planOut          string
 	planDestroy      bool
 	inspectionSink   func(generationartifact.PlanInspection) error
+	verifiedPlanSink func(generationartifact.VerifiedPlan) error
 	verifySink       func(architectureV2VerifyReport) error
 	verifyOffline    bool
 	driftObservation bool
@@ -382,7 +383,6 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	if err != nil {
 		return err
 	}
-	options.stackSpecData = append([]byte(nil), rawSpec...)
 	options.inventoryData = append([]byte(nil), inventory...)
 	authority, err := g.openV2Authority(wd, mode, options)
 	if err != nil {
@@ -640,6 +640,11 @@ func validateArchitectureV2GenerateOptions(wd string, options architectureV2Exec
 }
 
 func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions, authority architectureV2ExecutionAuthority, current architecturev2.CurrentResolution, persisted generationartifact.VerifiedPlan, currentCanonical []byte, defaultManifestPath, defaultReceiptPath string, transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
+	if options.verifiedPlanSink != nil {
+		if err := options.verifiedPlanSink(persisted); err != nil {
+			return err
+		}
+	}
 	manifestPath, err := architectureV2CanonicalMetadataPath(wd, options.manifestPath, defaultManifestPath, "artifact manifest")
 	if err != nil {
 		return err
@@ -710,7 +715,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		if verifyContext == nil {
 			verifyContext = context.Background()
 		}
-		_, processRuntime, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+		_, processRuntime, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 		if err != nil {
 			return err
 		}
@@ -761,18 +766,77 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	applyInput := architecturev2.ProductApplyInput{
 		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions,
 	}
+	now := time.Now
+	if g.now != nil {
+		now = g.now
+	}
+	lifecycleStartedAt := now().UTC()
+	var lifecycleRuns []architectureV2ApplicationLifecycleRun
+	if strings.TrimSpace(lifecycleJoinOperation) == "" {
+		lifecycleRuns, err = beginArchitectureV2ApplicationLifecycles(
+			wd, persisted, "install", "stackkit.apply", "", lifecycleStartedAt,
+		)
+		if err != nil {
+			return err
+		}
+	}
 	result, err := executeArchitectureV2ProductApply(
-		executionContext, applyAuthority, applyInput, options.stackSpecData, options.inventoryData,
+		executionContext, applyAuthority, applyInput,
 	)
 	if err != nil {
-		return err
+		return failArchitectureV2ApplicationLifecycles(
+			wd, lifecycleRuns, "Product Apply failed before owner evidence was persisted", now().UTC(), err,
+		)
 	}
-	resultPath, err := persistArchitectureV2ApplyResult(transaction, result)
+	persistedResult, err := persistArchitectureV2ApplyResult(transaction, result)
 	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns,
+			"Product Apply completed but its owner evidence could not be persisted",
+			"urn:stackkit:apply-result:"+result.ResultHash(), now().UTC(), err,
+		)
+	}
+	defaultPlanPath, _, _ := persisted.MetadataPaths(wd)
+	planPath := architectureV2MetadataPath(wd, options.planPath, defaultPlanPath)
+	planRef, err := architectureV2WorkspaceEvidenceRef(wd, planPath)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply evidence is outside owner workspace custody",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
+	generationReceiptRef, err := architectureV2WorkspaceEvidenceRef(wd, receiptPath)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Generation receipt evidence is outside owner workspace custody",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
+	generationReceiptHash, err := receipt.Hash()
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Generation receipt evidence could not be content-addressed",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
+	if err := succeedArchitectureV2ApplicationLifecycles(
+		wd,
+		lifecycleRuns,
+		[]applicationlifecycle.Evidence{
+			{Kind: "resolved-plan", Ref: planRef, Digest: persisted.Binding().PlanHash},
+			{Kind: "generation-receipt", Ref: generationReceiptRef, Digest: generationReceiptHash},
+			{Kind: "apply-result", Ref: persistedResult.ResultPath, Digest: result.ResultHash()},
+			{
+				Kind: "owner-observation", Ref: persistedResult.OwnerReceiptPath,
+				Digest: persistedResult.OwnerReceiptDigest,
+			},
+		},
+		now().UTC(),
+	); err != nil {
 		return err
 	}
 	rolloutEvent("architecture_v2.apply", "succeeded", "native Architecture v2 Apply result persisted", map[string]string{
-		"result_hash": result.ResultHash(), "result_path": resultPath,
+		"result_hash": result.ResultHash(), "result_path": persistedResult.ResultPath,
 	})
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
 	return nil
@@ -838,7 +902,7 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 		strings.TrimSpace(target.ExecutionChannelRef) == "" {
 		return fmt.Errorf("applied workload %q does not bind exactly one Site, node, and execution channel", workloadRef)
 	}
-	configured, active, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+	configured, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return err
 	}
@@ -890,12 +954,34 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	if err != nil {
 		return err
 	}
-	result, err := executor.RemoveWorkload(ctx, request)
+	lifecycleRuns, err := beginArchitectureV2ApplicationLifecycles(
+		wd, plan, "remove", "stackkit.remove", workloadRef, requestedAt,
+	)
 	if err != nil {
 		return err
 	}
+	result, err := executor.RemoveWorkload(ctx, request)
+	if err != nil {
+		return failArchitectureV2ApplicationLifecycles(
+			wd, lifecycleRuns, "workload removal failed before owner evidence was persisted", now().UTC(), err,
+		)
+	}
 	requestPath, resultPath, err := persistArchitectureV2Removal(transaction, request, result)
 	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns,
+			"workload removal completed but its owner evidence could not be persisted",
+			"urn:stackkit:removal-result:"+result.ResultDigest, now().UTC(), err,
+		)
+	}
+	if err := succeedArchitectureV2ApplicationLifecycles(
+		wd,
+		lifecycleRuns,
+		[]applicationlifecycle.Evidence{{
+			Kind: "removal-result", Ref: resultPath, Digest: result.ResultDigest,
+		}},
+		now().UTC(),
+	); err != nil {
 		return err
 	}
 	if options.removalSink != nil {
@@ -962,8 +1048,6 @@ func executeArchitectureV2ProductApply(
 	ctx context.Context,
 	authority architectureV2ProductApplyAuthority,
 	input architecturev2.ProductApplyInput,
-	stackSpec []byte,
-	inventory []byte,
 ) (architecturev2.VerifiedApplyResult, error) {
 	result, err := authority.ExecuteProductApply(ctx, input)
 	if err == nil {
@@ -973,17 +1057,8 @@ func executeArchitectureV2ProductApply(
 	if !errors.As(err, &reconcile) || reconcile.RequestDigest() == "" {
 		return architecturev2.VerifiedApplyResult{}, err
 	}
-	current, resolveErr := authority.ResolveCurrent(architecturev2.ResolveInput{
-		StackSpec: append([]byte(nil), stackSpec...),
-		Inventory: append([]byte(nil), inventory...),
-	})
-	if resolveErr != nil {
-		return architecturev2.VerifiedApplyResult{}, fmt.Errorf(
-			"resolve current authority for Product Apply reconciliation: %w", resolveErr,
-		)
-	}
 	return authority.ReconcileProductApply(ctx, architecturev2.ProductApplyReconcileInput{
-		Current:       current,
+		Current:       input.Current,
 		Workspace:     input.Workspace,
 		OutputLock:    input.OutputLock,
 		Versions:      input.Versions,
@@ -991,42 +1066,54 @@ func executeArchitectureV2ProductApply(
 	})
 }
 
-func persistArchitectureV2ApplyResult(transaction *confinedfs.Transaction, result architecturev2.VerifiedApplyResult) (string, error) {
+type architectureV2PersistedApplyResult struct {
+	ResultPath         string
+	OwnerReceiptPath   string
+	OwnerReceiptDigest string
+}
+
+func persistArchitectureV2ApplyResult(
+	transaction *confinedfs.Transaction,
+	result architecturev2.VerifiedApplyResult,
+) (architectureV2PersistedApplyResult, error) {
 	canonical, err := result.Canonical()
 	if err != nil {
-		return "", err
+		return architectureV2PersistedApplyResult{}, err
 	}
 	hash := strings.TrimPrefix(result.ResultHash(), "sha256:")
 	if len(hash) != 64 {
-		return "", fmt.Errorf("persist Architecture v2 Apply result: invalid result hash")
+		return architectureV2PersistedApplyResult{}, fmt.Errorf("persist Architecture v2 Apply result: invalid result hash")
 	}
 	directory := filepath.Join(".stackkit", "evidence", "apply", "results")
 	if err := transaction.MkdirAll(directory, 0o700); err != nil {
-		return "", fmt.Errorf("create Architecture v2 Apply result directory: %w", err)
+		return architectureV2PersistedApplyResult{}, fmt.Errorf("create Architecture v2 Apply result directory: %w", err)
 	}
 	path := filepath.Join(directory, hash+".json")
 	if err := transaction.WriteFileExclusive(path, canonical, 0o600); err != nil {
 		existing, info, readErr := transaction.ReadStable(path)
 		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonical) {
-			return "", fmt.Errorf("persist content-addressed Architecture v2 Apply result: %w", err)
+			return architectureV2PersistedApplyResult{}, fmt.Errorf("persist content-addressed Architecture v2 Apply result: %w", err)
 		}
 	}
 	_, canonicalReceipt, err := newOwnerApplyResultReceipt(transaction.Name(), result)
 	if err != nil {
-		return "", err
+		return architectureV2PersistedApplyResult{}, err
 	}
 	receiptDirectory := filepath.Join(".stackkit", "evidence", "apply", "receipts")
 	if err := transaction.MkdirAll(receiptDirectory, 0o700); err != nil {
-		return "", fmt.Errorf("create owner-signed Architecture v2 Apply result receipt directory: %w", err)
+		return architectureV2PersistedApplyResult{}, fmt.Errorf("create owner-signed Architecture v2 Apply result receipt directory: %w", err)
 	}
 	receiptPath := filepath.Join(receiptDirectory, hash+".json")
 	if err := transaction.WriteFileExclusive(receiptPath, canonicalReceipt, 0o600); err != nil {
 		existing, info, readErr := transaction.ReadStable(receiptPath)
 		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonicalReceipt) {
-			return "", fmt.Errorf("persist owner-signed Architecture v2 Apply result receipt: %w", err)
+			return architectureV2PersistedApplyResult{}, fmt.Errorf("persist owner-signed Architecture v2 Apply result receipt: %w", err)
 		}
 	}
-	return filepath.ToSlash(path), nil
+	return architectureV2PersistedApplyResult{
+		ResultPath: filepath.ToSlash(path), OwnerReceiptPath: filepath.ToSlash(receiptPath),
+		OwnerReceiptDigest: architectureV2ApplicationLifecycleDigest(canonicalReceipt),
+	}, nil
 }
 
 func validateArchitectureV2PlanOptions(options architectureV2ExecutionCLIOptions) error {

@@ -146,7 +146,8 @@ func createPublicUpgradeCheckpoint(
 					}
 					checkpoint = publicUpgradeCheckpoint{
 						OperationID: attempt.OperationID, KopiaAnchorID: anchor.ID,
-						ExecutorStateSnapshotID: snapshotID,
+						ExecutorStateSnapshotID:  snapshotID,
+						ApplicationLifecyclePlan: current.Plan,
 					}
 					return nil
 				},

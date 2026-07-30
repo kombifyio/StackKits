@@ -1,11 +1,15 @@
 package restoreactivation
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
@@ -16,9 +20,10 @@ import (
 )
 
 const (
-	ResultAPIVersion = "stackkit.restore-activation-result/v1"
-	operationTimeout = 10 * time.Minute
-	resultRoot       = ".stackkit/backups/restore-activations"
+	ResultAPIVersion   = "stackkit.restore-activation-result/v1"
+	operationTimeout   = 10 * time.Minute
+	resultRoot         = ".stackkit/backups/restore-activations"
+	resultEvidenceRoot = resultRoot + "/results"
 )
 
 type LiveVerification = backuplifecycle.RestoreVerification
@@ -550,9 +555,21 @@ func persistResult(workspace string, result Result) error {
 	if err != nil {
 		return err
 	}
-	if err := transaction.MkdirAll(resultRoot, 0o700); err != nil {
+	if err := transaction.MkdirAll(resultEvidenceRoot, 0o700); err != nil {
 		_ = transaction.Close()
 		return err
+	}
+	evidenceRef, _, err := ResultEvidence(workspace, result)
+	if err != nil {
+		_ = transaction.Close()
+		return err
+	}
+	if err := transaction.WriteFileExclusive(evidenceRef, encoded, 0o600); err != nil {
+		existing, info, readErr := transaction.ReadStable(evidenceRef)
+		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, encoded) {
+			_ = transaction.Close()
+			return fmt.Errorf("restoreactivation: persist content-addressed result: %w", err)
+		}
 	}
 	if err := transaction.Close(); err != nil {
 		return err
@@ -564,6 +581,24 @@ func persistResult(workspace string, result Result) error {
 	name := filepath.ToSlash(filepath.Join(resultRoot, result.OperationID+".json"))
 	_, err = view.WriteAtomic0600(name, encoded)
 	return err
+}
+
+// ResultEvidence returns the immutable owner-custody location and digest of
+// the exact signed activation result bytes persisted by the service.
+func ResultEvidence(workspace string, result Result) (string, string, error) {
+	if err := VerifyResult(workspace, result); err != nil {
+		return "", "", err
+	}
+	encoded, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return "", "", err
+	}
+	digest := sha256.Sum256(encoded)
+	digestText := "sha256:" + hex.EncodeToString(digest[:])
+	ref := filepath.ToSlash(filepath.Join(
+		resultEvidenceRoot, strings.TrimPrefix(digestText, "sha256:")+".json",
+	))
+	return ref, digestText, nil
 }
 
 func cleanupRollbackVolumes(ctx context.Context, runtime Runtime, authority Authority) {

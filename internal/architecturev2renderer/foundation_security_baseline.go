@@ -117,6 +117,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(immichWorkload.contract, immichWorkload); err != nil {
 		return nil, err
 	}
+	cloudreveWorkload := newCloudreveWorkloadBundleRenderer()
+	if err := registry.Register(cloudreveWorkload.contract, cloudreveWorkload); err != nil {
+		return nil, err
+	}
 	basementCoreCompose := newBasementCoreComposeRenderer()
 	if err := registry.Register(basementCoreCompose.contract, basementCoreCompose); err != nil {
 		return nil, err

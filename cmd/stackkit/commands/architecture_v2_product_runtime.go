@@ -299,7 +299,7 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		}
 		registrations = append(registrations, registration)
 	}
-	_, active, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+	_, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return nil, err
 	}
@@ -332,12 +332,20 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return nil, fmt.Errorf("register Modern selected-PaaS runtime owner: %w", err)
 		}
 		registrations = append(registrations, immich)
+		cloudreve, err := architecturev2.NewProductRemoteCloudreveSelectedPaaSRegistration(
+			"coolify",
+			"stackkits-coolify-runtime",
+		)
+		if err != nil {
+			return nil, fmt.Errorf("register Files selected-PaaS runtime owner: %w", err)
+		}
+		registrations = append(registrations, cloudreve)
 	}
 	return registrations, nil
 }
 
 func architectureV2ProductExecutionChannels(options architectureV2ExecutionCLIOptions) (architecturev2.ProductExecutionChannelFactory, error) {
-	configuredRuntime, active, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+	configuredRuntime, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return nil, err
 	}

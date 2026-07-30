@@ -264,6 +264,16 @@ func freezeCatalog(catalog Catalog) (Catalog, error) {
 		}
 		frozen.Workloads = append(frozen.Workloads, WorkloadContract(clone))
 	}
+	for _, lifecycle := range catalog.ApplicationLifecycles {
+		if err := validateSecretReferences(map[string]any(lifecycle), "catalog.applicationLifecycles", ""); err != nil {
+			return Catalog{}, err
+		}
+		clone, err := cloneObject(map[string]any(lifecycle), false)
+		if err != nil {
+			return Catalog{}, err
+		}
+		frozen.ApplicationLifecycles = append(frozen.ApplicationLifecycles, ApplicationLifecycleContract(clone))
+	}
 	for _, approval := range catalog.PrivilegedInterfaceApprovals {
 		if err := validateSecretReferences(map[string]any(approval), "catalog.privilegedInterfaceApprovals", ""); err != nil {
 			return Catalog{}, err
@@ -443,6 +453,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"capabilities":                     contracts.capabilities,
 		"providers":                        contracts.providers,
 		"workloads":                        contracts.workloads,
+		"applicationLifecycles":            contracts.applicationLifecycles,
 		"modules":                          contracts.modules,
 		"runtimeNetworks":                  contracts.runtimeNetworks,
 		"privilegedInterfaceApprovals":     privilegedInterfaceApprovals,
@@ -553,16 +564,17 @@ func buildPlanHashes(spec *specView) (planHashes, error) {
 }
 
 type planContracts struct {
-	capabilities    []any
-	providers       []any
-	workloads       []any
-	modules         []any
-	runtimeNetworks []any
-	evidence        []string
-	providerSites   map[string][]string
-	providerNodes   map[string][]string
-	moduleSites     map[string][]string
-	moduleNodes     map[string][]string
+	capabilities          []any
+	providers             []any
+	workloads             []any
+	applicationLifecycles []any
+	modules               []any
+	runtimeNetworks       []any
+	evidence              []string
+	providerSites         map[string][]string
+	providerNodes         map[string][]string
+	moduleSites           map[string][]string
+	moduleNodes           map[string][]string
 }
 
 func (c *Compiler) buildPlanContracts(spec *specView, resolved *resolution) (planContracts, error) {
@@ -580,6 +592,9 @@ func (c *Compiler) buildPlanContracts(spec *specView, resolved *resolution) (pla
 		return contracts, err
 	}
 	if contracts.workloads, err = c.buildWorkloads(resolved, contracts.modules); err != nil {
+		return contracts, err
+	}
+	if contracts.applicationLifecycles, err = c.buildApplicationLifecycles(contracts.workloads); err != nil {
 		return contracts, err
 	}
 	contracts.evidence = append(contracts.evidence, collectModuleEvidence(c.catalog, sortedStringMapKeys(contracts.moduleSites))...)
@@ -1179,6 +1194,60 @@ func (c *Compiler) buildWorkloads(resolved *resolution, modules []any) ([]any, e
 			},
 			"siteRefs": stringSliceAny(selection.siteRefs), "nodeRefs": stringSliceAny(selection.nodeRefs),
 			"settings": settings, "secretRefs": secretRefs,
+		})
+	}
+	return result, nil
+}
+
+func (c *Compiler) buildApplicationLifecycles(workloads []any) ([]any, error) {
+	result := make([]any, 0, len(workloads))
+	for index, rawWorkload := range workloads {
+		workload, ok := rawWorkload.(map[string]any)
+		if !ok {
+			return nil, fail(ErrInvalidInput, fmt.Sprintf("workloads[%d]", index), "must be an object")
+		}
+		id, err := stringField(workload, fmt.Sprintf("workloads[%d]", index), "id")
+		if err != nil {
+			return nil, err
+		}
+		kind, err := stringField(workload, fmt.Sprintf("workloads[%d]", index), "kind")
+		if err != nil {
+			return nil, err
+		}
+		if kind != "application" {
+			continue
+		}
+		contract, exists := c.catalog.applicationLifecycles[id]
+		if !exists {
+			return nil, fail(ErrInvalidInput, "catalog.applicationLifecycles", "selected application workload %q has no lifecycle contract", id)
+		}
+		version, err := metadataVersion(contract, "catalog.applicationLifecycles."+id)
+		if err != nil {
+			return nil, err
+		}
+		contractHash, err := canonicalHash(contract, true)
+		if err != nil {
+			return nil, err
+		}
+		workloadRef, err := stringField(contract, "catalog.applicationLifecycles."+id, "workloadRef")
+		if err != nil {
+			return nil, err
+		}
+		packageRef, err := stringField(contract, "catalog.applicationLifecycles."+id, "packageRef")
+		if err != nil {
+			return nil, err
+		}
+		lifecycle, err := objectField(contract, "catalog.applicationLifecycles."+id, "lifecycle")
+		if err != nil {
+			return nil, err
+		}
+		resolvedLifecycle, err := cloneObject(lifecycle, true)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, map[string]any{
+			"id": id, "version": version, "contractHash": contractHash,
+			"workloadRef": workloadRef, "packageRef": packageRef, "lifecycle": resolvedLifecycle,
 		})
 	}
 	return result, nil

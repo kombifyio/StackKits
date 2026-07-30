@@ -34,6 +34,7 @@ var contractFixtureSourceAllowlist = []string{
 	"cue.mod/module.cue",
 	"base/architecture_v2_profiles.cue",
 	"base/architecture_v2.cue",
+	"base/application_lifecycle.cue",
 	"base/architecture_v2_definition_binding.cue",
 	"base/architecture_v2_catalog.cue",
 	"architecture/v2/contractfixture/catalog.cue",
@@ -422,15 +423,16 @@ func sameProfileSet(left, right []sourceProfile) bool {
 
 func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 	var wire struct {
-		Capabilities                 []resolvedplan.CapabilityContract          `json:"capabilities"`
-		Providers                    []resolvedplan.CapabilityProvider          `json:"providers"`
-		AddOns                       []resolvedplan.AddOnContract               `json:"addons"`
-		Modules                      []resolvedplan.ModuleContract              `json:"modules"`
-		Workloads                    []resolvedplan.WorkloadContract            `json:"workloads"`
-		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval `json:"privilegedInterfaceApprovals"`
-		RILActionExecutors           []resolvedplan.RILActionExecutorContract   `json:"rilActionExecutors"`
-		RILActionPrimitives          []resolvedplan.RILActionPrimitiveContract  `json:"rilActionPrimitives"`
-		PlanArtifacts                []resolvedplan.PlanArtifactContract        `json:"planArtifacts"`
+		Capabilities                 []resolvedplan.CapabilityContract           `json:"capabilities"`
+		Providers                    []resolvedplan.CapabilityProvider           `json:"providers"`
+		AddOns                       []resolvedplan.AddOnContract                `json:"addons"`
+		Modules                      []resolvedplan.ModuleContract               `json:"modules"`
+		Workloads                    []resolvedplan.WorkloadContract             `json:"workloads"`
+		ApplicationLifecycles        []resolvedplan.ApplicationLifecycleContract `json:"applicationLifecycles"`
+		PrivilegedInterfaceApprovals []resolvedplan.PrivilegedInterfaceApproval  `json:"privilegedInterfaceApprovals"`
+		RILActionExecutors           []resolvedplan.RILActionExecutorContract    `json:"rilActionExecutors"`
+		RILActionPrimitives          []resolvedplan.RILActionPrimitiveContract   `json:"rilActionPrimitives"`
+		PlanArtifacts                []resolvedplan.PlanArtifactContract         `json:"planArtifacts"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
@@ -439,10 +441,11 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 	}
 	return resolvedplan.Catalog{
 		Capabilities: wire.Capabilities, Providers: wire.Providers, AddOns: wire.AddOns,
-		Modules: wire.Modules, Workloads: wire.Workloads, PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
-		RILActionExecutors:  wire.RILActionExecutors,
-		RILActionPrimitives: wire.RILActionPrimitives,
-		PlanArtifacts:       wire.PlanArtifacts,
+		Modules: wire.Modules, Workloads: wire.Workloads, ApplicationLifecycles: wire.ApplicationLifecycles,
+		PrivilegedInterfaceApprovals: wire.PrivilegedInterfaceApprovals,
+		RILActionExecutors:           wire.RILActionExecutors,
+		RILActionPrimitives:          wire.RILActionPrimitives,
+		PlanArtifacts:                wire.PlanArtifacts,
 	}, nil
 }
 

@@ -228,6 +228,60 @@ _architectureV2WorkloadContracts: [
 			}
 		}]
 	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "files"
+			version:     "1.0.0"
+			description: "Self-hosted file management and sharing selected independently from kit architecture capabilities."
+		}
+		kind: "application"
+		functionalCapabilities: ["file-library", "file-sharing"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "cloudreve"
+		alternatives: [{
+			id:          "cloudreve"
+			providerRef: "stackkits-cloudreve"
+			moduleRef:   "stackkits-cloudreve-runtime"
+			route: {serviceRef: "files", healthRef: "cloudreve-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["selected-paas"]
+				allowedAdapterRefs: ["coolify", "komodo"]
+				defaultAdapterRef: "coolify"
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}]
+	},
+]
+
+_architectureV2ApplicationLifecycleContracts: [
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "photos"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Photos Application Kit."
+		}
+		workloadRef: "photos"
+		packageRef:  "photos"
+		lifecycle: #StandardUseCaseLifecycle & {
+			referenceVertical: true
+		}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "files"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Files Application Kit."
+		}
+		workloadRef: "files"
+		packageRef:  "files"
+		lifecycle:   #StandardUseCaseLifecycle
+	},
 ]
 
 _architectureV2TLSCapabilityContracts: [
@@ -804,6 +858,25 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["SK-S1", "SK-S2", "SK-S4"]
+	},
+	{
+		metadata: {id: "stackkits-cloudreve", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["files"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-cloudreve-runtime"]
+			}
+		}
+		evidence: ["cloudreve-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-coolify", version: "1.0.0"}
@@ -1470,6 +1543,36 @@ _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
 }
 
+// Cloudreve is the second Application Kit vertical on the reusable lifecycle.
+// Its artifact carries a complete pinned single-container runtime while the
+// selected PaaS retains endpoint, credential, and provider lifecycle custody.
+_architectureV2CloudreveSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["cloudreve-workload-bundle"]
+		outputBindings: [{
+			artifactRef: "cloudreve-workload-bundle"
+			unitRef:     "cloudreve"
+			outputRef:   "workloads/cloudreve/bundle.json"
+		}]
+		contracts: [{
+			id:       "cloudreve-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "cloudreve"
+			outputRef: "workloads/cloudreve/bundle.json"
+		}]
+	}
+	evidence: requiredRefs: ["cloudreve-selected-paas-runtime-contract"]
+}
+
 // Coolify owns a deterministic provider-free adapter handoff. Generation does
 // not claim that StackKits can install Coolify, hold its credentials, discover
 // an endpoint, or mutate its provider lifecycle.
@@ -1737,7 +1840,7 @@ _architectureV2Modules: list.Concat([[
 		enforcementRequirement: {
 			status: "bound", ownerRef: "stackkits-home-private-remote-access-executor"
 			policyArtifactRefs: ["home-private-remote-access-executor-contract"]
-			targetScope:    "home-sites", operations: ["bind-private-remote-access", "remove-private-remote-access", "verify-private-remote-access"]
+			targetScope: "home-sites", operations: ["bind-private-remote-access", "remove-private-remote-access", "verify-private-remote-access"]
 			requiredHealthRef: "home-private-remote-access-health", requiredEvidenceRef: "home-private-remote-access-evidence"
 		}
 		renderUnits: [{
@@ -2551,8 +2654,8 @@ _architectureV2Modules: list.Concat([[
 		}
 		renderUnits: [
 			{
-				id: "compose", kind: "compose", rendererRef: "stackkit"
-				templateRef: "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
+				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
 				contractHash: "sha256:688445d14626e3995f03f1730001458c1bc09b29c35f2dc8146cbe74bc363116"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
@@ -2566,8 +2669,8 @@ _architectureV2Modules: list.Concat([[
 				}]
 			},
 			{
-				id: "opentofu", kind: "opentofu", rendererRef: "stackkit"
-				templateRef: "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
+				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
 				contractHash: "sha256:74ef76136183c761caf98c3bc9d622566eb63599b0425b0d5fce1ac2bf72e853"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
@@ -2581,8 +2684,8 @@ _architectureV2Modules: list.Concat([[
 				}]
 			},
 			{
-				id: "terramate", kind: "terramate", rendererRef: "stackkit"
-				templateRef: "builtin://basement/core/terramate/v1", version: "1.0.0"
+				id:           "terramate", kind:                               "terramate", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core/terramate/v1", version: "1.0.0"
 				contractHash: "sha256:f6a6ddb4e024ccba609e95cfcbebb3a87fc7202131dc4911fc20dfa77fa85cf7"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: [
@@ -2623,21 +2726,21 @@ _architectureV2Modules: list.Concat([[
 		]
 		renderVariants: [
 			{
-				id: "compose", target: "compose", rendererRef: "stackkit"
+				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53"
 				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-compose", "local-kopia-backup-source-policy"]
 				publicInputRefs: ["backup-source"], secretInputRefs: []
 				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 			},
 			{
-				id: "opentofu", target: "opentofu", rendererRef: "stackkit"
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c"
 				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-opentofu", "local-kopia-backup-source-policy"]
 				publicInputRefs: ["backup-source"], secretInputRefs: []
 				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 			},
 			{
-				id: "terramate", target: "terramate", rendererRef: "stackkit"
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: "sha256:b5b8c38c50d99d14cc822faeae79c76ab10c77fa7c01a4fc83578aa223ca8ff5"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
@@ -2672,59 +2775,59 @@ _architectureV2Modules: list.Concat([[
 				outputBindings: [
 					{
 						artifactRef: "basement-core-compose", unitRef: "compose"
-						outputRef: "platform/basement-core/compose.yaml"
+						outputRef:   "platform/basement-core/compose.yaml"
 					},
 					{
 						artifactRef: "basement-core-opentofu", unitRef: "opentofu"
-						outputRef: "platform/basement-core/main.tf"
+						outputRef:   "platform/basement-core/main.tf"
 					},
 					{
 						artifactRef: "basement-core-terramate-opentofu", unitRef: "terramate"
-						outputRef: "platform/basement-core/main.tf"
+						outputRef:   "platform/basement-core/main.tf"
 					},
 					{
 						artifactRef: "basement-core-terramate-root", unitRef: "terramate"
-						outputRef: "platform/basement-core/terramate.tm.hcl"
+						outputRef:   "platform/basement-core/terramate.tm.hcl"
 					},
 					{
 						artifactRef: "basement-core-terramate-stack", unitRef: "terramate"
-						outputRef: "platform/basement-core/stack.tm.hcl"
+						outputRef:   "platform/basement-core/stack.tm.hcl"
 					},
 					{
 						artifactRef: "local-kopia-backup-source-policy", unitRef: "source-policy"
-						outputRef: "home/backup/kopia-source-policy.json"
+						outputRef:   "home/backup/kopia-source-policy.json"
 					},
 				]
 				contracts: [
 					{
 						id: "basement-core-compose", kind: "compose", format: "yaml", mode: "0640", required: true
 						compatibleTargets: ["compose"], unitRef: "compose"
-						outputRef: "platform/basement-core/compose.yaml"
+						outputRef:                               "platform/basement-core/compose.yaml"
 					},
 					{
 						id: "basement-core-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
 						compatibleTargets: ["opentofu"], unitRef: "opentofu"
-						outputRef: "platform/basement-core/main.tf"
+						outputRef:                                "platform/basement-core/main.tf"
 					},
 					{
 						id: "basement-core-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
 						compatibleTargets: ["terramate"], unitRef: "terramate"
-						outputRef: "platform/basement-core/main.tf"
+						outputRef:                                 "platform/basement-core/main.tf"
 					},
 					{
 						id: "basement-core-terramate-root", kind: "terramate", format: "hcl", mode: "0640", required: true
 						compatibleTargets: ["terramate"], unitRef: "terramate"
-						outputRef: "platform/basement-core/terramate.tm.hcl"
+						outputRef:                                 "platform/basement-core/terramate.tm.hcl"
 					},
 					{
 						id: "basement-core-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
 						compatibleTargets: ["terramate"], unitRef: "terramate"
-						outputRef: "platform/basement-core/stack.tm.hcl"
+						outputRef:                                 "platform/basement-core/stack.tm.hcl"
 					},
 					{
 						id: "local-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true
 						compatibleTargets: ["compose", "opentofu", "terramate"], unitRef: "source-policy"
-						outputRef: "home/backup/kopia-source-policy.json"
+						outputRef:                                                        "home/backup/kopia-source-policy.json"
 					},
 				]
 			}
@@ -2896,6 +2999,97 @@ _architectureV2Modules: list.Concat([[
 			verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
 			recovery: {kind: "none", requiredOnFailure: false}
 		}]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloudreve-runtime"
+			version:     "1.0.0"
+			description: "Cloudreve file service contract bound to one selected site and its personal-data primary."
+		}
+		role:        "workload"
+		providerRef: "stackkits-cloudreve"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "selected-paas"
+			engine:   "docker"
+			image: {
+				ref:    "docker.io/cloudreve/cloudreve:4.18.0"
+				digest: "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"
+			}
+			entryComponentRef: "cloudreve"
+			components: [{
+				id: "cloudreve", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/cloudreve/cloudreve:4.18.0"
+					digest: "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"
+				}
+				dependsOn: []
+				networkRefs: ["cloudreve-internal"]
+				volumes: [{id: "data", target: "/cloudreve/data", class: "persistent", backup: true}]
+				health: {kind: "http", path: "/", port: 5212}
+			}]
+		}
+		renderUnits: [{
+			id:          "cloudreve"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/cloudreve/bundle/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:1735d0d2012a7b0fa15e45aac606ba9c5faf861ecd38d651a9eabb9f22367846"
+			publicInputRefs: []
+			secretInputRefs: []
+			outputs: ["workloads/cloudreve/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "files"
+				upstreamProtocol: "http"
+				targetPort:       5212
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "cloudreve-http"
+				data: {
+					bindingRef: "files"
+					requiredClasses: ["personal"]
+					locality: "primary-site"
+				}
+			}]
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:351ef1abec597588906c6abedfeb95c85fe8fed5be63937c16a0c178c1210130"
+				unitRefs: ["cloudreve"], artifactRefs: ["cloudreve-workload-bundle"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:58609d10adde5f149301184cd8f24c375da1f8eadd6f2ce8e83c58c3dca34520"
+				unitRefs: ["cloudreve"], artifactRefs: ["cloudreve-workload-bundle"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2CloudreveSupport
+		health: [{
+			id:             "cloudreve-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           5212
+			timeoutSeconds: 10
+			expectedStatuses: [200, 302]
+		}]
+		evidence: ["cloudreve-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {
@@ -3244,7 +3438,8 @@ ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	providers: [for contract in _architectureV2Providers {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
 	modules: [for contract in _architectureV2Modules {#ModuleContractV2 & contract}]
-	workloads: _architectureV2WorkloadContracts
+	workloads:             _architectureV2WorkloadContracts
+	applicationLifecycles: _architectureV2ApplicationLifecycleContracts
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
 	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]
 	rilActionPrimitives: list.Concat([
