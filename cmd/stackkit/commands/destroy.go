@@ -2,36 +2,43 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/iac"
+	"github.com/kombifyio/stackkits/internal/stackspecmigration"
+	"github.com/kombifyio/stackkits/internal/workloadremoval"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
 
 var (
-	removeAutoApprove bool
-	removeForce       bool
-	removePurge       bool
+	removeAutoApprove        bool
+	removeForce              bool
+	removePurge              bool
+	removeJSON               bool
+	removeWorkloadRef        string
+	removeV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
 const removeConfirmationValue = "yes"
 
 var removeCmd = &cobra.Command{
-	Use:         "remove",
-	Short:       "Remove the deployed infrastructure",
-	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "remove"},
+	Use:   "remove",
+	Short: "Remove a governed workload or an exact-v0.6 deployment",
 	Long: `Remove all resources created by the deployment.
 
-This command runs 'tofu destroy' to tear down all infrastructure
-resources managed by the StackKit deployment. If OpenTofu is unavailable
-or the state is corrupt, it falls back to Docker-level cleanup using labels.
+For canonical Architecture v2, --workload removes one exact workload through
+its applied runtime owner and persists Owner-signed absence evidence. Exact
+v0.6 compatibility builds retain the historical whole-deployment OpenTofu
+destroy and Docker fallback.
 
 Use --purge for a full factory reset (removes images, state, deploy dir).
 
@@ -40,6 +47,7 @@ WARNING: This will permanently delete all resources and data.
 Examples:
   stackkit remove                 Remove with confirmation
   stackkit remove --auto-approve  Remove without confirmation
+  stackkit remove --workload photos --json
   stackkit remove --force         Force remove even with errors
   stackkit remove --purge         Full factory reset`,
 	RunE: runRemove,
@@ -49,27 +57,26 @@ func init() {
 	removeCmd.Flags().BoolVar(&removeAutoApprove, "auto-approve", false, "Skip interactive approval")
 	removeCmd.Flags().BoolVar(&removeForce, "force", false, "Force remove even with errors")
 	removeCmd.Flags().BoolVar(&removePurge, "purge", false, "Remove all StackKit data including images, state, and deploy directory")
+	removeCmd.Flags().BoolVar(&removeJSON, "json", false, "Emit the canonical Architecture v2 removal result as JSON")
+	removeCmd.Flags().StringVar(&removeWorkloadRef, "workload", "", "Exact Architecture v2 ResolvedPlan workload ref to remove")
+	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
+	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan")
+	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest")
+	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt")
 }
 
 func runRemove(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	wd := getWorkDir()
 
-	loader := config.NewLoader(wd)
-	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Remove)
-	if err != nil {
-		return fmt.Errorf("admit StackSpec before remove: %w", err)
-	}
-
-	printWarning("Removing deployment: %s", spec.StackKit)
-	if removePurge {
-		printWarning("Purge mode: will remove all StackKit data (images, state, deploy directory)")
-	}
-
-	// Confirmation if not auto-approved
 	if !removeAutoApprove {
 		fmt.Println()
-		if removePurge {
+		if strings.TrimSpace(removeWorkloadRef) != "" {
+			printError("WARNING: This will permanently remove workload %q and its runtime data!", strings.TrimSpace(removeWorkloadRef))
+		} else if removePurge {
 			printError("WARNING: This will permanently remove all resources AND all StackKit data!")
 		} else {
 			printError("WARNING: This will permanently remove all resources!")
@@ -82,6 +89,47 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			printInfo("Remove canceled")
 			return nil
 		}
+	}
+
+	removeV2ExecutionOptions.context = ctx
+	removeV2ExecutionOptions.workloadRef = strings.TrimSpace(removeWorkloadRef)
+	removeV2ExecutionOptions.removalJSON = removeJSON
+	if removeJSON {
+		removeV2ExecutionOptions.removalSink = func(result workloadremoval.Result) error {
+			canonical, err := result.Canonical()
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(canonical))
+			return err
+		}
+	} else {
+		removeV2ExecutionOptions.removalSink = nil
+	}
+	_, sourceVersion, classified, classifyErr := classifyArchitectureV2ExecutionSpec(wd, specFile)
+	if classifyErr != nil {
+		return classifyErr
+	}
+	if classified && sourceVersion == stackspecmigration.SourceVersionV2Alpha1 && (removePurge || removeForce) {
+		return errors.New("canonical Architecture v2 workload removal does not accept legacy --purge or --force authority")
+	}
+	if handled, err := newArchitectureV2ExecutionGate().preflight(
+		wd, specFile, architectureV2Remove, removeV2ExecutionOptions,
+	); handled {
+		return err
+	}
+	if strings.TrimSpace(removeWorkloadRef) != "" || removeJSON {
+		return errors.New("--workload and --json require canonical Architecture v2 removal")
+	}
+
+	loader := config.NewLoader(wd)
+	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Remove)
+	if err != nil {
+		return fmt.Errorf("admit StackSpec before remove: %w", err)
+	}
+	printWarning("Removing deployment: %s", spec.StackKit)
+	if removePurge {
+		printWarning("Purge mode: will remove all StackKit data (images, state, deploy directory)")
 	}
 
 	startTime := time.Now()

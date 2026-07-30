@@ -1409,6 +1409,22 @@ an optional Orchestrator UI, but cannot inject an executor, mint evidence, or
 expand the resolved operation set. Multi-node/hybrid channel authority remains
 a v0.9 concern.
 
+Architecture v2 workload removal is a distinct destructive protocol, never a
+negative Apply. `stackkit remove --workload <ref>` first verifies the current
+Plan/generation/Apply closure and loads the exact sealed Shared request retained
+by Apply recovery custody. Recovery expiry limits retry authority but does not
+erase this historical record of what crossed the channel. StackKits reduces
+that request to exactly one workload target and its referenced executable plus
+selected-adapter artifacts, re-seals the child, and signs a fresh five-minute
+authorization with established local Owner custody. The digest-pinned Standard
+execution process receives
+`stackkit.standard-workload-removal-request/v1` and must return
+`stackkit.standard-workload-removal-result/v1`; success requires selected
+runtime-owner readback of `absent` bound to the exact requirement, instance,
+and applied artifact digest. The content-addressed request/result pair is local
+Owner evidence. Legacy `--purge`/`--force`, raw provider deletion, unselected
+targets, and generic command execution cannot enter this path.
+
 The native v0.8 backup path reuses that local authority rather than creating a
 parallel backup control plane. Before configure, status, or snapshot side
 effects it binds the full Plan identity, manifest and generation receipt, the

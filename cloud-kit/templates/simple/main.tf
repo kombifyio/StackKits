@@ -4832,12 +4832,12 @@ resource "docker_image" "komodo_mongo" {
 
 resource "docker_image" "komodo_core" {
   count = var.enable_komodo ? 1 : 0
-  name  = "ghcr.io/moghtech/komodo-core:2"
+  name  = "ghcr.io/moghtech/komodo-core:2.3.0"
 }
 
 resource "docker_image" "komodo_periphery" {
   count = var.enable_komodo ? 1 : 0
-  name  = "ghcr.io/moghtech/komodo-periphery:2"
+  name  = "ghcr.io/moghtech/komodo-periphery:2.3.0"
 }
 
 resource "docker_container" "komodo_mongo" {

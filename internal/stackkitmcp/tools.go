@@ -117,6 +117,11 @@ type upgradeOperationInput struct {
 	Target string `json:"target,omitempty" jsonschema:"latest, vX.Y.Z, or channel:stable|beta|edge"`
 }
 
+type removeOperationInput struct {
+	architectureV2MutationInput
+	WorkloadRef string `json:"workload_ref" jsonschema:"exact ResolvedPlan workload ref to remove"`
+}
+
 type configSetInput struct {
 	BaseDir               string `json:"base_dir,omitempty" jsonschema:"workspace directory"`
 	SpecPath              string `json:"spec_path,omitempty" jsonschema:"target stack spec path"`
@@ -178,6 +183,11 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 	out := map[string]any{
 		"scenario": "architecture-v2-basement-rollout", "kit": "basement-kit", "source_version": stackspecmigration.SourceVersionV2Alpha1,
 		"steps": steps,
+		"reference_vertical": map[string]any{
+			"id": "family-photo-vault", "kit": "modern-homelab",
+			"init_command": "stackkit init modern-homelab --domain <domain-base> --non-interactive --owner-source=local",
+			"operations":   standaloneoperations.All(),
+		},
 		"notes": []string{
 			"StackSpec never contains provider lifecycle, credentials, management addresses, or observed host facts.",
 			"Spec validation is not generation or apply readiness; the Inventory-bound ResolvedPlan is authoritative.",
@@ -669,6 +679,16 @@ func (a *App) stackkitUpgradeV2(ctx context.Context, req *mcp.CallToolRequest, i
 	args := []string{"upgrade", "--json"}
 	args = appendOptionalFlag(args, "--to", firstNonEmpty(in.Target, "latest"))
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Upgrade, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
+}
+
+func (a *App) stackkitRemoveV2(ctx context.Context, req *mcp.CallToolRequest, in removeOperationInput) (*mcp.CallToolResult, any, error) {
+	workloadRef := strings.TrimSpace(in.WorkloadRef)
+	if workloadRef == "" {
+		out := errorOutput("stackkit_remove", fmt.Errorf("workload_ref is required"))
+		return errorJSONResult(out), out, nil
+	}
+	args := []string{"remove", "--json", "--auto-approve", "--workload", workloadRef}
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Remove, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 
 func (a *App) stackkitDriftV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {

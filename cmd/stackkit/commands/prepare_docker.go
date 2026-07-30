@@ -407,8 +407,8 @@ func baseKitImages(tier string) []string {
 			"ghcr.io/coollabsio/sentinel:0.0.21",
 			"ghcr.io/coollabsio/coolify:4.1.2",
 			"public.ecr.aws/docker/library/mongo:7",
-			"ghcr.io/moghtech/komodo-core:2",
-			"ghcr.io/moghtech/komodo-periphery:2",
+			"ghcr.io/moghtech/komodo-core:2.3.0",
+			"ghcr.io/moghtech/komodo-periphery:2.3.0",
 			"smallstep/step-ca:0.30.2",
 			"dokploy/dokploy:latest",
 			"public.ecr.aws/docker/library/node:22-alpine",
@@ -509,8 +509,8 @@ func platformPrePullImages(platform string) []string {
 	case "komodo":
 		return []string{
 			"public.ecr.aws/docker/library/mongo:7",
-			"ghcr.io/moghtech/komodo-core:2",
-			"ghcr.io/moghtech/komodo-periphery:2",
+			"ghcr.io/moghtech/komodo-core:2.3.0",
+			"ghcr.io/moghtech/komodo-periphery:2.3.0",
 			"smallstep/step-ca:0.30.2",
 		}
 	case "dokploy":

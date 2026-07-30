@@ -346,7 +346,23 @@ Docker, Techstack, or a network service.
 
 ### `stackkit remove`
 
-Destroys the generated deployment with OpenTofu and updates `.stackkit/state.yaml`.
+Canonical Architecture v2 removes one exact applied workload:
+
+```bash
+stackkit remove --workload photos
+stackkit remove --workload photos --auto-approve --json
+```
+
+The command verifies current Plan, generation, Apply, and Owner authority,
+recovers the sealed applied runtime request, and dispatches a fresh
+Owner-signed five-minute removal request through the digest-pinned Standard
+execution channel. Success requires selected-runtime-owner `absent` readback
+for the exact requirement, instance, and applied artifact digest. Request and
+result evidence is persisted below `.stackkit/evidence/removal/`.
+
+OpenTofu/Docker whole-deployment cleanup plus `--purge` and `--force` are
+exact-v0.6 compatibility behavior only. Native v2 rejects those flags and
+never falls back to label-based Docker deletion.
 
 ### `stackkit status`
 

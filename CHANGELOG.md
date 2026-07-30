@@ -4,6 +4,39 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.11.0] - 2026-07-30
+
+> **Family Photo Vault reference vertical** across one CUE-owned lifecycle and
+> the common standalone operation surface.
+
+### Added
+
+- The Photos use-case package now declares the complete install, manage,
+  backup, upgrade, restore, drift, and remove lifecycle with exact registered
+  operation identities, supported standalone surfaces, approval policy, and
+  bounded evidence classes.
+- `stackkit.remove` is the fourteenth standalone operation. CLI, MCP, coding
+  agent, Installer discovery, and State Console all project the same
+  destructive, Owner-approved workload-removal contract.
+- Native Architecture v2 workload removal recovers the exact sealed request
+  from successful Apply custody, selects one applied ResolvedPlan workload,
+  binds a five-minute local Owner signature to its plan, runtime owner,
+  artifact, Site, node, and execution channel, and persists content-addressed
+  request and absence evidence.
+- Selected-PaaS removal uses a distinct, bounded protocol over the existing
+  authenticated executable-digest-pinned Standard execution channel. It
+  accepts neither provider lifecycle nor a fresh placement decision and
+  validates exact runtime-owner readback before reporting success.
+
+### Changed
+
+- The Family Photo Vault documentation and agent guidance now describe the
+  account-free Standard Mode reference flow. Techstack Advanced dispatch and
+  compatibility evidence remain independent optional programs.
+- Exact-v0.6 whole-deployment removal remains available only on its historical
+  compatibility path. Canonical Architecture v2 rejects legacy `--force` and
+  `--purge` authority and requires an exact `--workload`.
+
 ## [0.10.0] - 2026-07-30
 
 > **Unified standalone operations** behind one exact CLI/MCP contract, with

@@ -25,6 +25,7 @@ const (
 	Restore  ID = "stackkit.restore"
 	Upgrade  ID = "stackkit.upgrade"
 	Drift    ID = "stackkit.drift"
+	Remove   ID = "stackkit.remove"
 )
 
 // Contract describes one operation without owning its lifecycle
@@ -55,6 +56,7 @@ var catalog = []Contract{
 	{ID: Restore, ToolName: "stackkit_restore", Title: "Restore", Description: "Verify and restore one signed snapshot into isolated staging.", Command: []string{"backup", "restore"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true},
 	{ID: Upgrade, ToolName: "stackkit_upgrade", Title: "Upgrade", Description: "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.", Command: []string{"upgrade", "--json"}, Mutation: true, Destructive: true, Idempotent: false, OwnerApproval: true},
 	{ID: Drift, ToolName: "stackkit_drift", Title: "Drift", Description: "Observe desired-versus-applied standalone state drift.", Command: []string{"drift", "detect", "--json"}, Idempotent: true},
+	{ID: Remove, ToolName: "stackkit_remove", Title: "Remove", Description: "Remove one governed workload from its exact applied ResolvedPlan after local Owner approval.", Command: []string{"remove", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true},
 }
 
 // All returns fresh contracts in stable catalog order.

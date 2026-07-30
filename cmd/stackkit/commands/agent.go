@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 	"github.com/spf13/cobra"
 )
 
@@ -17,13 +18,14 @@ type agentCommandStep struct {
 }
 
 type agentInstallPlan struct {
-	Scenario      string             `json:"scenario"`
-	Kit           string             `json:"kit"`
-	Target        string             `json:"target"`
-	Workspace     string             `json:"workspace"`
-	Commands      []agentCommandStep `json:"commands"`
-	Evidence      []string           `json:"evidence"`
-	ReadinessNote string             `json:"readinessNote"`
+	Scenario      string                          `json:"scenario"`
+	Kit           string                          `json:"kit"`
+	Target        string                          `json:"target"`
+	Workspace     string                          `json:"workspace"`
+	Commands      []agentCommandStep              `json:"commands"`
+	Evidence      []string                        `json:"evidence"`
+	Operations    []standaloneoperations.Contract `json:"operations"`
+	ReadinessNote string                          `json:"readinessNote"`
 }
 
 type agentSelfCheck struct {
@@ -86,6 +88,20 @@ stackkit generate
 stackkit plan
 stackkit apply
 stackkit verify --json`,
+	"family-photo-vault-lifecycle": `Operate the Family Photo Vault through the common standalone StackKits operation registry.
+
+Install from the CUE-owned Modern reference profile:
+stackkit init modern-homelab --domain <domain-base> --owner-source=local --non-interactive
+stackkit validate
+stackkit generate
+stackkit plan
+stackkit apply
+stackkit verify --json
+
+Manage with status, logs, backup, upgrade, restore, and drift. Before destructive removal, obtain explicit local Owner approval, then run:
+stackkit remove --workload photos --json
+
+Never hand-edit generated artifacts, inject provider lifecycle or credentials, bypass the exact operation confirmation, or treat the State Console as lifecycle authority.`,
 }
 
 var agentCmd = &cobra.Command{
@@ -113,6 +129,10 @@ var agentInstallPlanCmd = &cobra.Command{
 		fmt.Fprintf(cmd.OutOrStdout(), "\nEvidence:\n")
 		for _, item := range plan.Evidence {
 			fmt.Fprintf(cmd.OutOrStdout(), "- %s\n", item)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "\nRegistered lifecycle operations:\n")
+		for _, operation := range plan.Operations {
+			fmt.Fprintf(cmd.OutOrStdout(), "- %s (%s)\n", operation.ID, strings.Join(operation.Command, " "))
 		}
 		return nil
 	},
@@ -251,8 +271,12 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 	if kit == "cloud-kit" || kit == "modern-homelab" {
 		initCommand += " --domain <domain-base>"
 	}
+	scenario := "basekit-autonomous-rollout"
+	if kit == "modern-homelab" {
+		scenario = "family-photo-vault-standalone-rollout"
+	}
 	return agentInstallPlan{
-		Scenario:  "basekit-autonomous-rollout",
+		Scenario:  scenario,
 		Kit:       kit,
 		Target:    target,
 		Workspace: workspace,
@@ -273,6 +297,7 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 			"manifest matching stackkit-agent-run-manifest.schema.json",
 			"functional result matching stackkit-agent-functional-result.schema.json",
 		},
+		Operations:    standaloneoperations.All(),
 		ReadinessNote: "StackSpec validity is not generation or apply readiness; the ResolvedPlan written atomically by generate is authoritative.",
 	}
 }

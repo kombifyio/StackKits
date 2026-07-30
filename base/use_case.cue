@@ -25,6 +25,14 @@ package base
 
 #UseCaseCapabilityAuthority: "read-only" | "gated-write" | "destructive"
 
+#UseCaseLifecycleStageName: "install" | "manage" | "backup" | "upgrade" | "restore" | "drift" | "remove"
+
+#UseCaseLifecycleOperationID: "stackkit.init" | "stackkit.validate" | "stackkit.resolve" | "stackkit.generate" | "stackkit.plan" | "stackkit.apply" | "stackkit.verify" | "stackkit.status" | "stackkit.logs" | "stackkit.backup" | "stackkit.restore" | "stackkit.upgrade" | "stackkit.drift" | "stackkit.remove"
+
+#UseCaseLifecycleSurface: "installer" | "cli" | "mcp" | "state-console"
+
+#UseCaseLifecycleEvidence: "resolved-plan" | "generation-receipt" | "apply-result" | "owner-observation" | "snapshot-anchor" | "restore-result" | "upgrade-result" | "drift-report" | "removal-result"
+
 #UseCasePackage: {
 	metadata: {
 		name:        =~"^[a-z][a-z0-9-]+$"
@@ -63,6 +71,43 @@ package base
 	evidence?: {
 		healthChecks?: [...string] | *[]
 		required?: [...string] | *[]
+	}
+
+	// lifecycle is product intent only. The referenced operation IDs remain
+	// implemented by the standalone operation registry; use-case packages do
+	// not implement commands, MCP handlers, or State Console behavior.
+	lifecycle?: {
+		referenceVertical: bool | *false
+		stages: {
+			install: #UseCaseLifecycleStage & {name: "install"}
+			manage:  #UseCaseLifecycleStage & {name: "manage"}
+			backup:  #UseCaseLifecycleStage & {name: "backup"}
+			upgrade: #UseCaseLifecycleStage & {name: "upgrade"}
+			restore: #UseCaseLifecycleStage & {name: "restore"}
+			drift:   #UseCaseLifecycleStage & {name: "drift"}
+			remove:  #UseCaseLifecycleStage & {name: "remove"}
+		}
+	}
+}
+
+#UseCaseLifecycleStage: {
+	name: #UseCaseLifecycleStageName
+
+	// operations are stable registry identities, never shell fragments.
+	operations: [#UseCaseLifecycleOperationID, ...#UseCaseLifecycleOperationID]
+	surfaces:   [#UseCaseLifecycleSurface, ...#UseCaseLifecycleSurface]
+	evidence:   [#UseCaseLifecycleEvidence, ...#UseCaseLifecycleEvidence]
+
+	mutation:      bool
+	destructive:   bool
+	ownerApproval: bool
+
+	if mutation {
+		ownerApproval: true
+	}
+	if destructive {
+		mutation: true
+		ownerApproval: true
 	}
 }
 

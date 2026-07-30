@@ -17,17 +17,21 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/internal/workloadremoval"
 )
 
 const (
-	requestSchema  = "stackkit.standard-execution-request/v1"
-	responseSchema = "stackkit.standard-execution-result/v1"
-	maxExecutable  = 128 << 20
-	maxPayload     = 16 << 20
-	maxOutput      = 16 << 20
+	requestSchema         = "stackkit.standard-execution-request/v1"
+	responseSchema        = "stackkit.standard-execution-result/v1"
+	removalRequestSchema  = "stackkit.standard-workload-removal-request/v1"
+	removalResponseSchema = "stackkit.standard-workload-removal-result/v1"
+	maxExecutable         = 128 << 20
+	maxPayload            = 16 << 20
+	maxOutput             = 16 << 20
 )
 
 type Binding struct {
@@ -53,6 +57,18 @@ type responseEnvelope struct {
 	SchemaVersion string                           `json:"schemaVersion"`
 	ChannelRef    string                           `json:"channelRef"`
 	Outcome       runtimeexecutor.ExecutionOutcome `json:"outcome"`
+}
+
+type removalRequestEnvelope struct {
+	SchemaVersion string                  `json:"schemaVersion"`
+	ChannelRef    string                  `json:"channelRef"`
+	Request       workloadremoval.Request `json:"request"`
+}
+
+type removalResponseEnvelope struct {
+	SchemaVersion string                 `json:"schemaVersion"`
+	ChannelRef    string                 `json:"channelRef"`
+	Result        workloadremoval.Result `json:"result"`
 }
 
 func ValidateBinding(binding Binding) error {
@@ -183,6 +199,87 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	return response.Outcome, nil
+}
+
+// RemoveWorkload invokes the same digest-pinned Standard execution channel
+// with a distinct closed protocol. It never reinterprets Apply as deletion and
+// accepts only a fresh Owner-signed request bound to one previously applied
+// workload.
+func (e *Executor) RemoveWorkload(ctx context.Context, request workloadremoval.Request) (workloadremoval.Result, error) {
+	if ctx == nil {
+		return workloadremoval.Result{}, errors.New("standard process workload removal requires a context")
+	}
+	if e == nil {
+		return workloadremoval.Result{}, errors.New("standard process executor is not initialized")
+	}
+	now := time.Now().UTC()
+	if err := request.ValidateAt(now); err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("validate standard process workload removal: %w", err)
+	}
+	if err := validateScope(e.binding, request.Applied); err != nil {
+		return workloadremoval.Result{}, err
+	}
+	executable, err := loadExecutable(e.binding)
+	if err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("standard process executable changed before workload removal: %w", err)
+	}
+	tempRoot, err := os.MkdirTemp("", "stackkit-standard-removal-")
+	if err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("create private standard workload-removal directory: %w", err)
+	}
+	defer os.RemoveAll(tempRoot)
+	executableName := "channel-executor"
+	if runtime.GOOS == "windows" {
+		executableName += ".exe"
+	}
+	privateExecutable := filepath.Join(tempRoot, executableName)
+	if err := os.WriteFile(privateExecutable, executable, 0o700); err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("materialize verified workload-removal executable: %w", err)
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(privateExecutable, 0o700); err != nil {
+			return workloadremoval.Result{}, fmt.Errorf("make verified workload-removal executable private: %w", err)
+		}
+	}
+	payload, err := json.Marshal(removalRequestEnvelope{
+		SchemaVersion: removalRequestSchema, ChannelRef: e.binding.ChannelRef, Request: request,
+	})
+	if err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("encode standard workload-removal request: %w", err)
+	}
+	if len(payload) > maxPayload {
+		return workloadremoval.Result{}, errors.New("standard workload-removal request exceeds the closed payload limit")
+	}
+	var stdout, stderr boundedBuffer
+	stdout.limit, stderr.limit = maxOutput, maxOutput
+	command := exec.CommandContext(ctx, privateExecutable) //nolint:gosec // private copy of exact digest-verified bytes
+	command.Env = []string{}
+	command.Stdin = bytes.NewReader(payload)
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("standard process channel %q workload removal failed: %w", e.binding.ChannelRef, err)
+	}
+	if stdout.exceeded || stderr.exceeded {
+		return workloadremoval.Result{}, errors.New("standard workload-removal output exceeded the closed limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
+	decoder.DisallowUnknownFields()
+	var response removalResponseEnvelope
+	if err := decoder.Decode(&response); err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("decode standard workload-removal result: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return workloadremoval.Result{}, errors.New("standard workload-removal result contains trailing JSON")
+	}
+	if response.SchemaVersion != removalResponseSchema || response.ChannelRef != e.binding.ChannelRef {
+		return workloadremoval.Result{}, errors.New("standard workload-removal result is not bound to the admitted channel")
+	}
+	if err := response.Result.Validate(request); err != nil {
+		return workloadremoval.Result{}, fmt.Errorf("validate standard workload-removal result: %w", err)
+	}
+	return response.Result, nil
 }
 
 func validateScope(binding Binding, request runtimeexecutor.ExecutionRequest) error {

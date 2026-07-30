@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/hostconformance"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 type architectureV2ProductRuntimeAuthority struct {
@@ -25,6 +28,31 @@ func (a *architectureV2ProductRuntimeAuthority) Close() error {
 	err := a.journal.Close()
 	a.journal = nil
 	return err
+}
+
+func (a *architectureV2ProductRuntimeAuthority) LoadAppliedRuntimeRequest(ctx context.Context, requestDigest string) (runtimeexecutor.ExecutionRequest, error) {
+	if a == nil || a.journal == nil {
+		return runtimeexecutor.ExecutionRequest{}, errors.New("Architecture v2 applied runtime custody is unavailable")
+	}
+	canonical, err := a.journal.LoadApplyRecovery(ctx, requestDigest)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("load applied runtime request: %w", err)
+	}
+	var capsule struct {
+		APIVersion string                           `json:"api_version"`
+		Shared     runtimeexecutor.ExecutionRequest `json:"shared_request"`
+	}
+	if err := json.Unmarshal(canonical, &capsule); err != nil {
+		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("decode validated applied runtime custody: %w", err)
+	}
+	if capsule.APIVersion != "stackkits.product-apply-recovery/v1alpha1" ||
+		capsule.Shared.RequestDigest != requestDigest {
+		return runtimeexecutor.ExecutionRequest{}, errors.New("applied runtime request custody returned a substituted identity")
+	}
+	if err := capsule.Shared.Validate(); err != nil {
+		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("validate applied runtime request custody: %w", err)
+	}
+	return runtimeexecutor.CloneExecutionRequest(capsule.Shared), nil
 }
 
 // newArchitectureV2ProductRuntimeAuthority is the production CLI composition
@@ -277,6 +305,7 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	}
 	if active {
 		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(
+			architecturev2.ProductRuntimeOwnerCloudOffsiteBackup,
 			architecturev2.ProductRuntimeOwnerPublicTLS,
 			architecturev2.ProductRuntimeOwnerModernHomeIdentity,
 			architecturev2.ProductRuntimeOwnerModernCloudIdentity,

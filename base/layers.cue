@@ -137,7 +137,9 @@ package base
 // #KomodoConfig defines Komodo PAAS settings
 #KomodoConfig: {
 	enabled: bool | *false
-	version: string | *"2"
+	// Core and Periphery are upgraded as one compatibility unit. Keep this
+	// exact release aligned with #KomodoService and the canonical template.
+	version: string | *"2.3.0"
 	image:   string | *"ghcr.io/moghtech/komodo-core"
 	port:    uint16 & >0 & <=65535 | *9120
 	database: {

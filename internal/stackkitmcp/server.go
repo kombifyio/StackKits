@@ -294,6 +294,7 @@ func (a *App) addActions(server *mcp.Server) {
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Backup), a.stackkitBackupV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Restore), a.stackkitRestoreV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Upgrade), a.stackkitUpgradeV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Remove), a.stackkitRemoveV2)
 }
 
 func (a *App) addReadOnlyActions(server *mcp.Server) {
@@ -358,6 +359,7 @@ var stateConsoleToolNames = map[string]bool{
 	"stackkit_backup":           true,
 	"stackkit_restore":          true,
 	"stackkit_upgrade":          true,
+	"stackkit_remove":           true,
 	"stackkit_drift":            true,
 	"stackkit_logs":             true,
 	"stackkit_logs_list":        true,

@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -16,9 +17,13 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
+	"github.com/kombifyio/stackkits/internal/workloadremoval"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -64,6 +69,9 @@ type architectureV2ExecutionCLIOptions struct {
 	verifyOffline    bool
 	driftObservation bool
 	legacyPlanFile   string
+	workloadRef      string
+	removalJSON      bool
+	removalSink      func(workloadremoval.Result) error
 }
 
 type architectureV2ExecutionAuthority interface {
@@ -82,6 +90,10 @@ type architectureV2ProductApplyAuthority interface {
 
 type architectureV2ProductVerifyAuthority interface {
 	VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput) (architecturev2.VerifiedApplyResult, error)
+}
+
+type architectureV2AppliedRuntimeCustody interface {
+	LoadAppliedRuntimeRequest(context.Context, string) (runtimeexecutor.ExecutionRequest, error)
 }
 
 type architectureV2ExecutionGate struct {
@@ -194,6 +206,7 @@ func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 		validateCmd: architectureV2Validate,
 		verifyCmd:   architectureV2Verify,
 		prepareCmd:  architectureV2Prepare,
+		removeCmd:   architectureV2Remove,
 	}[cmd]
 	if !native {
 		return nil
@@ -420,10 +433,12 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 				return err
 			}
 		}
-		if mode == architectureV2Apply {
+		if mode == architectureV2Apply || mode == architectureV2Remove {
 			if err := validateArchitectureV2ApplyOptions(options); err != nil {
 				return err
 			}
+		}
+		if mode == architectureV2Apply {
 			now := time.Now
 			if g.now != nil {
 				now = g.now
@@ -457,7 +472,11 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	if mode == architectureV2Plan {
 		return withArchitectureV2ReadOnlyOutput(wd, current.OutputRoot(), func() error { return execute(nil, nil) })
 	}
-	return withLifecycleMutation(wd, "apply", func() error {
+	operation := "apply"
+	if mode == architectureV2Remove {
+		operation = "remove"
+	}
+	return withLifecycleMutation(wd, operation, func() error {
 		return withArchitectureV2OutputLock(wd, current.OutputRoot(), func(transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
 			if err := architecturev2.RequireNoPendingOutputTransaction(transaction, current.OutputRoot()); err != nil {
 				return err
@@ -469,7 +488,7 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 
 func (g architectureV2ExecutionGate) openV2Authority(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error) {
 	newAuthority := g.newAuthority
-	if mode == architectureV2Apply && g.newApplyAuthority != nil {
+	if (mode == architectureV2Apply || mode == architectureV2Remove) && g.newApplyAuthority != nil {
 		return g.newApplyAuthority(wd, options)
 	}
 	if newAuthority == nil {
@@ -534,7 +553,7 @@ func withArchitectureV2OutputLock(wd, outputRoot string, execute func(*confinedf
 }
 
 func architectureV2ReadinessPhase(mode architectureV2ExecutionMode) generationartifact.ExecutionPhase {
-	if mode == architectureV2Apply {
+	if mode == architectureV2Apply || mode == architectureV2Remove {
 		return generationartifact.ExecutionPhaseApply
 	}
 	return generationartifact.ExecutionPhaseGeneration
@@ -544,7 +563,7 @@ func (g architectureV2ExecutionGate) continueV2Execution(wd string, mode archite
 	switch mode {
 	case architectureV2Generate:
 		return g.generateV2(wd, options.context, authority, current)
-	case architectureV2Plan, architectureV2Apply, architectureV2Verify:
+	case architectureV2Plan, architectureV2Apply, architectureV2Verify, architectureV2Remove:
 		return g.verifyV2Generation(wd, mode, options, authority, current, persisted, currentCanonical, defaultManifestPath, defaultReceiptPath, transaction, outputLock)
 	default:
 		return fmt.Errorf("unsupported architecture v2 execution mode %q", mode)
@@ -659,6 +678,11 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if err := generationartifact.VerifyExecution(input); err != nil {
 		return err
 	}
+	if mode == architectureV2Remove {
+		return g.removeV2Workload(
+			wd, options, authority, persisted, manifest, receipt, transaction,
+		)
+	}
 	if mode == architectureV2Verify {
 		if g.newVerifyAuthority == nil {
 			return generationartifact.VerifierNotImplemented(persisted.Binding().Renderer)
@@ -752,6 +776,186 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	})
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
 	return nil
+}
+
+func (g architectureV2ExecutionGate) removeV2Workload(
+	wd string,
+	options architectureV2ExecutionCLIOptions,
+	authority architectureV2ExecutionAuthority,
+	plan generationartifact.VerifiedPlan,
+	manifest generationartifact.ArtifactManifest,
+	receipt generationartifact.GenerationReceipt,
+	transaction *confinedfs.Transaction,
+) error {
+	workloadRef := strings.TrimSpace(options.workloadRef)
+	if workloadRef == "" {
+		return errors.New("architecture v2 remove requires --workload with one exact ResolvedPlan workload ref")
+	}
+	if transaction == nil {
+		return errors.New("architecture v2 workload removal requires the held lifecycle transaction")
+	}
+	verifyAuthority, ok := authority.(architectureV2ProductVerifyAuthority)
+	if !ok {
+		return errors.New("architecture v2 workload removal requires Product Apply verification authority")
+	}
+	applied, err := readCurrentArchitectureV2ApplyResult(
+		wd,
+		plan.Binding(),
+		func(data []byte) (architecturev2.VerifiedApplyResult, error) {
+			return verifyAuthority.VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput{
+				Plan: plan, Manifest: manifest, Receipt: receipt, Versions: g.versions, Result: data,
+			})
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("verify current Product Apply before workload removal: %w", err)
+	}
+	sharedRequestDigest, err := architectureV2SharedRequestDigest(applied)
+	if err != nil {
+		return err
+	}
+	if sharedRequestDigest == "" {
+		return errors.New("current Product Apply result has no sealed runtime request custody")
+	}
+	custody, ok := authority.(architectureV2AppliedRuntimeCustody)
+	if !ok {
+		return errors.New("architecture v2 workload removal requires applied runtime request custody")
+	}
+	ctx := options.context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	rootRequest, err := custody.LoadAppliedRuntimeRequest(ctx, sharedRequestDigest)
+	if err != nil {
+		return err
+	}
+	selected, err := workloadremoval.SelectAppliedWorkload(rootRequest, workloadRef)
+	if err != nil {
+		return err
+	}
+	target := selected.RuntimeTargets[0]
+	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
+		strings.TrimSpace(target.ExecutionChannelRef) == "" {
+		return fmt.Errorf("applied workload %q does not bind exactly one Site, node, and execution channel", workloadRef)
+	}
+	configured, active, err := architectureV2ConfiguredStandardRuntimeFrom(options)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return errors.New("selected-PaaS workload removal requires the exact configured Standard execution channel from Inventory")
+	}
+	var processBinding *runtimeexecutorprocess.Binding
+	for _, binding := range configured.bindings {
+		if binding.ChannelRef == target.ExecutionChannelRef &&
+			binding.SiteRef == target.SiteRefs[0] && binding.NodeRef == target.NodeRefs[0] {
+			candidate := runtimeexecutorprocess.Binding{
+				ChannelRef: binding.ChannelRef, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef,
+				Executable: binding.Executable, ExecutableSHA256: binding.ExecutableSHA256,
+			}
+			processBinding = &candidate
+			break
+		}
+	}
+	if processBinding == nil {
+		return fmt.Errorf("applied workload %q has no exact configured Standard execution channel", workloadRef)
+	}
+	executor, err := runtimeexecutorprocess.New(architectureV2ComponentVersion(version), *processBinding)
+	if err != nil {
+		return fmt.Errorf("construct exact workload-removal execution channel: %w", err)
+	}
+	now := time.Now
+	if g.now != nil {
+		now = g.now
+	}
+	requestedAt := now().UTC()
+	validUntil := requestedAt.Add(5 * time.Minute)
+	authorizationBytes, err := workloadremoval.AuthorizationBytes(selected, workloadRef, requestedAt, validUntil)
+	if err != nil {
+		return err
+	}
+	signature, err := localevidence.SignOwnerLifecycleMutation(wd, authorizationBytes)
+	if err != nil {
+		return fmt.Errorf("sign workload-removal Owner authorization: %w", err)
+	}
+	if err := localevidence.VerifyOwnerLifecycleMutation(wd, authorizationBytes, signature); err != nil {
+		return fmt.Errorf("verify workload-removal Owner authorization: %w", err)
+	}
+	request, err := workloadremoval.SealRequest(
+		selected, workloadRef, requestedAt, validUntil,
+		workloadremoval.OwnerAuthorization{
+			OwnerRef: signature.OwnerRef, KeyID: signature.KeyID, Value: signature.Value,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	result, err := executor.RemoveWorkload(ctx, request)
+	if err != nil {
+		return err
+	}
+	requestPath, resultPath, err := persistArchitectureV2Removal(transaction, request, result)
+	if err != nil {
+		return err
+	}
+	if options.removalSink != nil {
+		if err := options.removalSink(result); err != nil {
+			return err
+		}
+	} else if options.removalJSON {
+		canonical, _ := result.Canonical()
+		fmt.Fprintln(os.Stdout, string(canonical))
+	} else {
+		printSuccess("Architecture v2 workload %s removed: %s", workloadRef, result.ResultDigest)
+	}
+	rolloutEvent("architecture_v2.remove", "succeeded", "native Architecture v2 workload removal result persisted", map[string]string{
+		"workload_ref": workloadRef, "request_path": requestPath, "result_path": resultPath,
+		"result_hash": result.ResultDigest,
+	})
+	return nil
+}
+
+func architectureV2SharedRequestDigest(result architecturev2.VerifiedApplyResult) (string, error) {
+	canonical, err := result.Canonical()
+	if err != nil {
+		return "", err
+	}
+	var envelope struct {
+		SharedRequestDigest string `json:"sharedRequestDigest"`
+	}
+	if err := json.Unmarshal(canonical, &envelope); err != nil {
+		return "", fmt.Errorf("decode verified Product Apply request custody: %w", err)
+	}
+	return strings.TrimSpace(envelope.SharedRequestDigest), nil
+}
+
+func persistArchitectureV2Removal(
+	transaction *confinedfs.Transaction,
+	request workloadremoval.Request,
+	result workloadremoval.Result,
+) (string, string, error) {
+	requestCanonical, err := request.Canonical()
+	if err != nil {
+		return "", "", err
+	}
+	resultCanonical, err := result.Canonical()
+	if err != nil {
+		return "", "", err
+	}
+	requestPath := filepath.Join(".stackkit", "evidence", "removal", "requests", strings.TrimPrefix(request.RequestDigest, "sha256:")+".json")
+	resultPath := filepath.Join(".stackkit", "evidence", "removal", "results", strings.TrimPrefix(result.ResultDigest, "sha256:")+".json")
+	for path, data := range map[string][]byte{requestPath: requestCanonical, resultPath: resultCanonical} {
+		if err := transaction.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return "", "", fmt.Errorf("create workload-removal evidence directory: %w", err)
+		}
+		if err := transaction.WriteFileExclusive(path, data, 0o600); err != nil {
+			existing, info, readErr := transaction.ReadStable(path)
+			if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, data) {
+				return "", "", fmt.Errorf("persist content-addressed workload-removal evidence: %w", err)
+			}
+		}
+	}
+	return filepath.ToSlash(requestPath), filepath.ToSlash(resultPath), nil
 }
 
 func executeArchitectureV2ProductApply(

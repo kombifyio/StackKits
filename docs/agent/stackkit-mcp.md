@@ -76,7 +76,7 @@ Initial authoring is no-replace. Updating existing v2 intent requires its exact 
 
 Use [../INSTALLATION_PROCESSES.md](../INSTALLATION_PROCESSES.md) to decide whether native MCP is the right execution or day-2 path. The comparison is based on configuration/individualization degree, access options, and automation degree.
 
-## Native v0.7 Tools
+## Native standalone tools
 
 Read-only and diagnostic tools:
 
@@ -90,7 +90,12 @@ Read-only and diagnostic tools:
 - `stackkit_validate_spec`
 - `stackkit_generate_preview`
 - `stackkit_config_get`
+- `stackkit_validate`
+- `stackkit_plan`
+- `stackkit_verify`
 - `stackkit_status`
+- `stackkit_logs`
+- `stackkit_drift`
 - `stackkit_logs_list`
 - `stackkit_log_get`
 - `stackkit_compat_check`
@@ -106,11 +111,24 @@ These tools are registered only when write mode is enabled and the MCP process c
 - `stackkit_init`
 - `stackkit_resolve`
 - `stackkit_generate`
-- `stackkit_plan`
 - `stackkit_apply`
-- `stackkit_verify_plan`
+- `stackkit_backup`
+- `stackkit_restore`
+- `stackkit_upgrade`
+- `stackkit_remove`
 
-Native init and `stackkit_config_set` share one persistence authority: create is no-replace, replacement requires the exact current CUE-normalized hash (`--expected-spec-hash` in the CLI, `expected_spec_hash` in MCP), and already-applied retries are idempotent. Native v0.7 does not register the legacy combined rollout, update, node-local HTTP verify/doctor, or arbitrary provider/SSH inputs.
+Every tool above is projected from the common standalone operation registry and
+delegates to the exact bound sibling CLI. Mutations require the exact operation
+ID plus local Owner approval. `stackkit_remove` additionally requires one exact
+`workload_ref`; it invokes native v2 workload-removal authority and never the
+legacy whole-deployment cleanup.
+
+Native init and `stackkit_config_set` share one persistence authority: create
+is no-replace, replacement requires the exact current CUE-normalized hash
+(`--expected-spec-hash` in the CLI, `expected_spec_hash` in MCP), and
+already-applied retries are idempotent. Current native builds do not register
+the legacy combined rollout, update, node-local HTTP verify/doctor, or
+arbitrary provider/SSH inputs.
 
 ## Exact-v0.6 HTTP Compatibility
 

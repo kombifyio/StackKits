@@ -450,7 +450,7 @@ package base
 	required:    false
 	enabled:     false // Explicit alternative; Coolify is the default PaaS
 	image:       "ghcr.io/moghtech/komodo-core"
-	tag:         "2"
+	tag:         "2.3.0"
 	description: "Programmable self-hosted PaaS for Compose stack deployment through API keys."
 	needs: ["traefik"]
 
