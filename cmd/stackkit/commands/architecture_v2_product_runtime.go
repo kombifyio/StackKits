@@ -277,8 +277,6 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	}
 	if active {
 		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(
-			architecturev2.ProductRuntimeOwnerCloudHostSecurity,
-			architecturev2.ProductRuntimeOwnerCloudPublicEdge,
 			architecturev2.ProductRuntimeOwnerPublicTLS,
 			architecturev2.ProductRuntimeOwnerModernHomeIdentity,
 			architecturev2.ProductRuntimeOwnerModernCloudIdentity,

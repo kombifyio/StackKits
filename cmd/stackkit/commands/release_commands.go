@@ -23,6 +23,7 @@ var (
 	publicUpgradeRecover           string
 	newUpgradeInspectionRunner     = func() upgradelifecycle.Runner { return upgradelifecycle.ExecRunner{} }
 	newCurrentUpgradeInspection    = currentUpgradeInspection
+	inspectPublishedV09Current     = inspectPublishedV09CurrentGeneration
 	inspectPublishedV08Current     = inspectPublishedV08CurrentGeneration
 	inspectPublicUpgradeTarget     = inspectVerifiedPublicUpgradeTarget
 	inspectPublicUpgradeBridge     = inspectExactBeta4UpgradeBridge
@@ -165,11 +166,19 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 	if !bridge.Enabled {
 		var currentErr error
 		var compatible bool
-		current, compatible, currentErr = inspectPublishedV08Current(
+		current, compatible, currentErr = inspectPublishedV09Current(
 			ctx, workspace, specFile, kit, resolution,
 		)
 		if currentErr != nil {
-			return fmt.Errorf("inspect published v0.8 current generation: %w", currentErr)
+			return fmt.Errorf("inspect published v0.9 current generation: %w", currentErr)
+		}
+		if !compatible {
+			current, compatible, currentErr = inspectPublishedV08Current(
+				ctx, workspace, specFile, kit, resolution,
+			)
+			if currentErr != nil {
+				return fmt.Errorf("inspect published v0.8 current generation: %w", currentErr)
+			}
 		}
 		if !compatible {
 			current, currentErr = newCurrentUpgradeInspection(ctx, workspace, specFile)

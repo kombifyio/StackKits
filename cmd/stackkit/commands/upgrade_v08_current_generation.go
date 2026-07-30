@@ -163,7 +163,7 @@ func inspectPublishedV08UpgradeBridge(
 		if runErr != nil {
 			return fmt.Errorf("run attested v0.8 offline verification: %w", runErr)
 		}
-		report, verifyErr := validatePublishedV08VerifyResult(
+		report, verifyErr := validatePublishedStableVerifyResult(
 			rawVerify, bridge.Current, receipt,
 		)
 		if verifyErr != nil {
@@ -242,25 +242,25 @@ func validatePublishedV08Inspection(current generationartifact.PlanInspection) e
 	return nil
 }
 
-func validatePublishedV08VerifyResult(
+func validatePublishedStableVerifyResult(
 	raw []byte,
 	current generationartifact.PlanInspection,
 	receipt releaseindex.Receipt,
 ) (architectureV2VerifyReport, error) {
 	var envelope publicUpgradeRawCommandResult
 	if err := decodeUpgradeExactJSON(raw, &envelope); err != nil {
-		return architectureV2VerifyReport{}, fmt.Errorf("decode v0.8 verify envelope: %w", err)
+		return architectureV2VerifyReport{}, fmt.Errorf("decode historical stable verify envelope: %w", err)
 	}
 	if envelope.SchemaVersion != commandResultSchemaVersion ||
 		envelope.Command != "stackkit verify" ||
 		envelope.Status != "success" {
 		return architectureV2VerifyReport{}, errors.New(
-			"v0.8 offline verification did not return a successful canonical command result",
+			"historical stable offline verification did not return a successful canonical command result",
 		)
 	}
 	var report architectureV2VerifyReport
 	if err := decodeUpgradeExactJSON(envelope.Data, &report); err != nil {
-		return architectureV2VerifyReport{}, fmt.Errorf("decode v0.8 verify report: %w", err)
+		return architectureV2VerifyReport{}, fmt.Errorf("decode historical stable verify report: %w", err)
 	}
 	if report.SchemaVersion != "stackkit.verify-result/v1" ||
 		!report.Offline ||
@@ -274,7 +274,7 @@ func validatePublishedV08VerifyResult(
 		report.Runtime != nil ||
 		exactBeta4ReceiptMatches(report.Releases, receipt) != 1 {
 		return architectureV2VerifyReport{}, errors.New(
-			"v0.8 offline verification is not bound to the exact plan, owner, apply evidence, and release",
+			"historical stable offline verification is not bound to the exact plan, owner, apply evidence, and release",
 		)
 	}
 	return report, nil

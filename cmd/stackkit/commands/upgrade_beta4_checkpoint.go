@@ -87,6 +87,31 @@ func inspectPublishedV08BackupAuthority(
 	return state.authority, nil
 }
 
+func inspectPublishedV09BackupAuthority(
+	ctx context.Context,
+	workspace string,
+	requestedSpec string,
+	kit string,
+	target releaseindex.Resolution,
+) (nativeV2BackupAuthority, error) {
+	bridge, err := inspectPublishedV09UpgradeBridge(
+		ctx, workspace, requestedSpec, kit, target,
+	)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	if !bridge.Enabled {
+		return nativeV2BackupAuthority{}, errors.New(
+			"current state is not eligible for the published v0.9 checkpoint bridge",
+		)
+	}
+	state, err := readPublishedV08CheckpointState(workspace, bridge)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	return state.authority, nil
+}
+
 // inspectNativeV2BackupAuthorityForRequest keeps the normal current authority
 // path as the default. It may retain the beta.4 authority only when its full
 // attested bridge proof succeeds for the sole supported v0.8.0 target.
@@ -289,7 +314,7 @@ func readPublishedV08CheckpointState(
 	}
 	bridgeCopy := bridge
 	state.authority.LegacyBeta4 = nil
-	state.authority.LegacyV08 = &bridgeCopy
+	state.authority.HistoricalStable = &bridgeCopy
 	return state, nil
 }
 
@@ -306,7 +331,7 @@ func withPreparedExactBeta4UpgradeCapture(
 	)
 }
 
-func withPreparedPublishedV08UpgradeCapture(
+func withPreparedPublishedStableUpgradeCapture(
 	ctx context.Context,
 	workspace string,
 	kit string,
@@ -314,7 +339,7 @@ func withPreparedPublishedV08UpgradeCapture(
 	continuePrepared func(upgradelifecycle.CurrentStateAuthorityInput) error,
 ) error {
 	return withPreparedHistoricalUpgradeCapture(
-		ctx, workspace, kit, authority, authority.LegacyV08,
+		ctx, workspace, kit, authority, authority.HistoricalStable,
 		true, continuePrepared,
 	)
 }
@@ -406,9 +431,18 @@ func withPreparedHistoricalUpgradeCapture(
 		) error {
 			currentReceipt = receipt
 			if publishedV08 {
-				return validatePublishedV08Receipt(
-					receipt, kit, currentReleasePlatform(),
-				)
+				switch receipt.Version {
+				case publishedV08CurrentVersion:
+					return validatePublishedV08Receipt(
+						receipt, kit, currentReleasePlatform(),
+					)
+				case publishedV09CurrentVersion:
+					return validatePublishedV09Receipt(
+						receipt, kit, currentReleasePlatform(),
+					)
+				default:
+					return errors.New("installed release is not an admitted historical stable source")
+				}
 			}
 			return validateExactBeta4ReleaseReceipt(
 				receipt, kit, currentReleasePlatform(),
@@ -477,6 +511,29 @@ func inspectPublicUpgradeSnapshotAuthority(
 	)
 	if currentErr == nil {
 		return current, nil
+	}
+	if snapshot.Release.Kit == "basement-kit" &&
+		snapshot.Release.Version == publishedV09CurrentVersion &&
+		snapshot.Release.Channel == releaseindex.ChannelStable &&
+		snapshot.Release.Platform == currentReleasePlatform() &&
+		snapshot.Release.ArchiveSHA256 == "sha256:"+publishedV09ArchiveSHA256 &&
+		snapshot.Release.IndexSHA256 == "sha256:"+publishedV09IndexSHA256 {
+		historical, historicalErr := inspectPublishedV09BackupAuthority(
+			ctx,
+			workspace,
+			requestedSpec,
+			snapshot.Release.Kit,
+			releaseindex.Resolution{Asset: releaseindex.Asset{
+				Kit:      snapshot.Release.Kit,
+				Version:  publishedV010UpgradeVersion,
+				Channel:  releaseindex.ChannelStable,
+				Platform: snapshot.Release.Platform,
+			}},
+		)
+		if historicalErr != nil {
+			return nativeV2BackupAuthority{}, errors.Join(currentErr, historicalErr)
+		}
+		return historical, nil
 	}
 	if snapshot.Release.Kit == "basement-kit" &&
 		snapshot.Release.Version == publishedV08CurrentVersion &&
@@ -578,19 +635,19 @@ func verifyExactBeta4BackupRestore(
 	}, nil
 }
 
-func verifyPublishedV08BackupRestore(
+func verifyPublishedStableBackupRestore(
 	ctx context.Context,
 	expected nativeV2BackupAuthority,
 	request backuplifecycle.RestoreVerificationRequest,
 ) (backuplifecycle.RestoreVerification, error) {
-	if expected.LegacyV08 == nil {
+	if expected.HistoricalStable == nil {
 		return backuplifecycle.RestoreVerification{}, errors.New(
-			"published v0.8 bridge proof is required",
+			"published historical stable bridge proof is required",
 		)
 	}
 	compatibility := expected
-	compatibility.LegacyBeta4 = compatibility.LegacyV08
-	compatibility.LegacyV08 = nil
+	compatibility.LegacyBeta4 = compatibility.HistoricalStable
+	compatibility.HistoricalStable = nil
 	return verifyExactBeta4BackupRestore(ctx, compatibility, request)
 }
 
