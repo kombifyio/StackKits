@@ -55,6 +55,17 @@ func beginArchitectureV2ApplicationLifecyclesWithID(
 		if workloadRef != "" && contract.WorkloadRef != workloadRef {
 			continue
 		}
+		if !applicationLifecycleStageSupportedByDelivery(contract, stage) {
+			if workloadRef != "" {
+				return nil, fmt.Errorf(
+					"application workload %q adapter %q does not support the %s lifecycle",
+					contract.WorkloadRef,
+					contract.Delivery.AdapterRef,
+					stage,
+				)
+			}
+			continue
+		}
 		runOperationID := strings.TrimSpace(operationID)
 		if runOperationID == "" {
 			runOperationID, err = applicationlifecycle.NewOperationID(operationRef)
@@ -76,6 +87,26 @@ func beginArchitectureV2ApplicationLifecyclesWithID(
 		})
 	}
 	return runs, nil
+}
+
+func applicationLifecycleStageSupportedByDelivery(
+	contract applicationlifecycle.Contract,
+	stage string,
+) bool {
+	switch stage {
+	case "backup", "restore":
+		switch contract.Delivery.Kind {
+		case "stackkit":
+			return true
+		case "application-adapter", "selected-paas":
+			return contract.Delivery.Capabilities != nil &&
+				contract.Delivery.Capabilities.BackupRestore
+		default:
+			return false
+		}
+	default:
+		return true
+	}
 }
 
 func succeedArchitectureV2ApplicationLifecycles(

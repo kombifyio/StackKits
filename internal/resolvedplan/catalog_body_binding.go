@@ -2400,14 +2400,18 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 		if err != nil {
 			return err
 		}
+		workloads, err := objectListField(map[string]any(plan), "resolvedPlan", "workloads")
+		if err != nil {
+			return err
+		}
 		bindingSource := moduleRenderInputSource{
 			stackID: stackID, kit: kit, sites: objectMapsAsAny(sites),
 			identity: identity, identityTrust: identityTrust, controlPlane: controlPlane, data: data,
 			failurePolicy: failurePolicy, network: network, gates: gates,
-			install: install, system: system, storage: storage,
+			install: install, system: system, storage: storage, workloads: objectMapsAsAny(workloads),
 		}
 		for _, binding := range bindings {
-			want, available, err := bindingSource.resolve(binding)
+			want, available, err := bindingSource.resolve(binding, moduleID)
 			if err != nil {
 				return fmt.Errorf("recompute %s.values.%s: %w", unitPath, binding.targetRef, err)
 			}

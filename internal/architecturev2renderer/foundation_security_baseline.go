@@ -141,6 +141,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(coolifyAdapter.contract, coolifyAdapter); err != nil {
 		return nil, err
 	}
+	standaloneComposeAdapter := newStandaloneComposeRuntimeAdapterRenderer()
+	if err := registry.Register(standaloneComposeAdapter.contract, standaloneComposeAdapter); err != nil {
+		return nil, err
+	}
 	komodoCore := newKomodoCoreRenderer()
 	if err := registry.Register(komodoCore.contract, komodoCore); err != nil {
 		return nil, err

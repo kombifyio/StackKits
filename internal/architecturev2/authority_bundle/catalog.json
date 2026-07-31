@@ -2874,6 +2874,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-standalone-compose-runtime"
+        ],
+        "matches": [
+          "stackkits-standalone-compose"
+        ],
+        "module": "stackkits-standalone-compose-runtime",
+        "provider": "stackkits-standalone-compose"
+      },
+      {
+        "governanceMatches": [
           "stackkits-komodo-core-runtime"
         ],
         "matches": [
@@ -3574,6 +3584,12 @@
             "komodo"
           ],
           "providerID": "stackkits-komodo"
+        },
+        {
+          "contracts": [
+            "standalone-compose"
+          ],
+          "providerID": "stackkits-standalone-compose"
         },
         {
           "contracts": [
@@ -4373,6 +4389,13 @@
       },
       {
         "matches": [
+          "stackkits-standalone-compose-runtime"
+        ],
+        "module": "stackkits-standalone-compose-runtime",
+        "provider": "stackkits-standalone-compose"
+      },
+      {
+        "matches": [
           "stackkits-bridge-publication-runtime"
         ],
         "module": "stackkits-bridge-publication-runtime",
@@ -5046,6 +5069,20 @@
         "provider": "stackkits-komodo"
       },
       {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-standalone-compose"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-standalone-compose"
+      },
+      {
         "capability": "site-local",
         "matches": [
           "site-local"
@@ -5656,6 +5693,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-standalone-compose"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-federation-topology-contract"
         },
         {
@@ -5882,7 +5925,7 @@
                 }
               ],
               "runtimeDelivery": [
-                "selected-paas"
+                "application-adapter"
               ],
               "runtimeKind": [
                 "container"
@@ -5976,7 +6019,7 @@
                 }
               ],
               "runtimeDelivery": [
-                "selected-paas"
+                "application-adapter"
               ],
               "runtimeKind": [
                 "container"
@@ -6063,7 +6106,7 @@
                 }
               ],
               "runtimeDelivery": [
-                "selected-paas"
+                "application-adapter"
               ],
               "runtimeKind": [
                 "container"
@@ -10719,9 +10762,18 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:dfd43f8ddbdf3ca812d2374b766b533ee1d94bcd3ea8d2e64f030c6872569269",
+          "contractHash": "sha256:a84c2f253497052d30677aaecc3b0d73793a5b48ea36c380b01c3c385aa9064e",
           "id": "immich-server",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "workloads/immich/bundle.json"
@@ -10732,7 +10784,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -10765,8 +10819,8 @@
               "upstreamProtocol": "http"
             }
           ],
-          "templateRef": "builtin://workloads/immich/bundle/v1.json",
-          "version": "2.0.0"
+          "templateRef": "builtin://workloads/immich/bundle/v2.json",
+          "version": "3.0.0"
         }
       ],
       "renderVariants": [
@@ -10777,7 +10831,9 @@
           "contractHash": "sha256:383c8a53811d3c7abb2049a188af77152367ea56b7c47716dc9a7144b7cda99e",
           "id": "compose",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
             "database-password"
@@ -10794,7 +10850,9 @@
           "contractHash": "sha256:c8cafbfb8ada7743566432b94ad908dfaef53b62db343f80e38fad5c34ab9d33",
           "id": "opentofu",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
             "database-password"
@@ -11054,7 +11112,7 @@
             "role": "cache"
           }
         ],
-        "delivery": "selected-paas",
+        "delivery": "application-adapter",
         "engine": "docker",
         "entryComponentRef": "immich-server",
         "execution": "executable",
@@ -11156,9 +11214,18 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:1735d0d2012a7b0fa15e45aac606ba9c5faf861ecd38d651a9eabb9f22367846",
+          "contractHash": "sha256:a6343c858576f1dee488e363779962fa9c4f7feda0f2592ced538fa86e934ae0",
           "id": "cloudreve",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "workloads/cloudreve/bundle.json"
@@ -11169,7 +11236,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -11200,8 +11269,8 @@
               "upstreamProtocol": "http"
             }
           ],
-          "templateRef": "builtin://workloads/cloudreve/bundle/v1.json",
-          "version": "1.0.0"
+          "templateRef": "builtin://workloads/cloudreve/bundle/v2.json",
+          "version": "2.0.0"
         }
       ],
       "renderVariants": [
@@ -11212,7 +11281,9 @@
           "contractHash": "sha256:351ef1abec597588906c6abedfeb95c85fe8fed5be63937c16a0c178c1210130",
           "id": "compose",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "compose",
@@ -11227,7 +11298,9 @@
           "contractHash": "sha256:58609d10adde5f149301184cd8f24c375da1f8eadd6f2ce8e83c58c3dca34520",
           "id": "opentofu",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "opentofu",
@@ -11267,7 +11340,7 @@
             ]
           }
         ],
-        "delivery": "selected-paas",
+        "delivery": "application-adapter",
         "engine": "docker",
         "entryComponentRef": "cloudreve",
         "execution": "executable",
@@ -11370,9 +11443,18 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:4b5734ce53b1f8e3291b0e836b30dc89ac55375c6125e64f1528541f5350251b",
+          "contractHash": "sha256:fa23863a99c114b5662986eb6b814504c8b1dd1dbfe4aa0c03b504ba451a58ce",
           "id": "vaultwarden",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "workloads/vaultwarden/bundle.json"
@@ -11383,7 +11465,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "secretInputBindings": {},
@@ -11416,8 +11500,8 @@
               "upstreamProtocol": "http"
             }
           ],
-          "templateRef": "builtin://workloads/vaultwarden/bundle/v1.json",
-          "version": "1.0.0"
+          "templateRef": "builtin://workloads/vaultwarden/bundle/v2.json",
+          "version": "2.0.0"
         }
       ],
       "renderVariants": [
@@ -11428,7 +11512,9 @@
           "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
           "id": "compose",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
             "admin-token"
@@ -11445,7 +11531,9 @@
           "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
           "id": "opentofu",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
             "admin-token"
@@ -11493,7 +11581,7 @@
             ]
           }
         ],
-        "delivery": "selected-paas",
+        "delivery": "application-adapter",
         "engine": "docker",
         "entryComponentRef": "vaultwarden",
         "execution": "executable",
@@ -11587,7 +11675,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:b86c0645b02361fb94fa6b03ae71ba78174fec126578df3da10d4b700bcbf993",
+          "contractHash": "sha256:0115f3bdc1a7806823330a1a271085c9721549f9b69dbb0e9fd2da25bada97ab",
           "id": "coolify-adapter",
           "inputBindings": [],
           "kind": "native-config",
@@ -11656,12 +11744,174 @@
         "id": "coolify",
         "operations": [
           "apply",
-          "observe",
-          "rollback"
+          "observe"
         ],
         "providerLifecycle": "not-owned",
         "supportedDeliveries": [
-          "selected-paas"
+          "application-adapter"
+        ],
+        "supportedKinds": [
+          "container"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "standalone-compose-adapter-contract"
+      ],
+      "health": [
+        {
+          "id": "standalone-compose-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "StackKits-owned no-PaaS workload adapter over an admitted Docker host; host and server-provider lifecycle remain outside this contract.",
+        "id": "stackkits-standalone-compose-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-standalone-compose",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "standalone-compose-runtime-adapter",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "platform/standalone-compose/runtime-adapter.json",
+              "required": true,
+              "unitRef": "standalone-compose-adapter"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "standalone-compose-runtime-adapter",
+              "outputRef": "platform/standalone-compose/runtime-adapter.json",
+              "unitRef": "standalone-compose-adapter"
+            }
+          ],
+          "requiredRefs": [
+            "standalone-compose-runtime-adapter"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:552389b0d9c11503754d264e39654aebece5251fa92cdd38d6f59b9790734e05",
+          "id": "standalone-compose-adapter",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/standalone-compose/runtime-adapter.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/standalone-compose/runtime-adapter/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "standalone-compose-runtime-adapter"
+          ],
+          "contractHash": "sha256:75a6431c0ad93a09a27d454c7f29712b910287b5b03668a5c1f5f089ef0daba5",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "standalone-compose-adapter"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "standalone-compose-runtime-adapter"
+          ],
+          "contractHash": "sha256:b98d542d03eaf368279943dbffbd6641ddc49df854e13f988b59289ac62f067d",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "standalone-compose-adapter"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "contract-handoff",
+        "kind": "host"
+      },
+      "runtimeAdapter": {
+        "agentRefs": [],
+        "credentialCustody": "local-owner",
+        "evidenceRequired": true,
+        "id": "standalone-compose",
+        "operations": [
+          "apply",
+          "observe"
+        ],
+        "providerLifecycle": "not-owned",
+        "supportedDeliveries": [
+          "application-adapter"
         ],
         "supportedKinds": [
           "container"
@@ -11752,7 +12002,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:4e2f9d1f68d2f5ff28f5a51f181254c71f3ab6742c88927d9e8937f3db197bd8",
+          "contractHash": "sha256:c9f14e4bd228574a3a4c26465141fcc0f57f1eddf8d24aa5d418f28df8095c34",
           "id": "komodo-core-adapter",
           "inputBindings": [],
           "kind": "native-config",
@@ -11823,14 +12073,11 @@
         "id": "komodo",
         "operations": [
           "apply",
-          "observe",
-          "rollback",
-          "backup",
-          "restore"
+          "observe"
         ],
         "providerLifecycle": "not-owned",
         "supportedDeliveries": [
-          "selected-paas"
+          "application-adapter"
         ],
         "supportedKinds": [
           "container"
@@ -16258,6 +16505,54 @@
     },
     {
       "certificateIssuers": [],
+      "evidence": [
+        "standalone-compose-adapter-contract"
+      ],
+      "health": [
+        {
+          "id": "standalone-compose-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-standalone-compose",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-standalone-compose-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [
+        "standalone-compose"
+      ],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
       "metadata": {
         "id": "stackkits-federation-topology-contract",
         "version": "1.0.0"
@@ -17991,13 +18286,46 @@
           "runtime": {
             "allowedAdapterRefs": [
               "coolify",
-              "komodo"
+              "komodo",
+              "standalone-compose"
             ],
             "allowedDeliveries": [
-              "selected-paas"
+              "application-adapter"
             ],
             "allowedKinds": [
               "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              },
+              {
+                "adapterRef": "komodo",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
             ],
             "defaultAdapterRef": "coolify"
           },
@@ -18097,13 +18425,46 @@
           "runtime": {
             "allowedAdapterRefs": [
               "coolify",
-              "komodo"
+              "komodo",
+              "standalone-compose"
             ],
             "allowedDeliveries": [
-              "selected-paas"
+              "application-adapter"
             ],
             "allowedKinds": [
               "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              },
+              {
+                "adapterRef": "komodo",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
             ],
             "defaultAdapterRef": "coolify"
           },
@@ -18207,13 +18568,46 @@
           "runtime": {
             "allowedAdapterRefs": [
               "coolify",
-              "komodo"
+              "komodo",
+              "standalone-compose"
             ],
             "allowedDeliveries": [
-              "selected-paas"
+              "application-adapter"
             ],
             "allowedKinds": [
               "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              },
+              {
+                "adapterRef": "komodo",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
             ],
             "defaultAdapterRef": "coolify"
           },

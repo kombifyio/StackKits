@@ -90,7 +90,7 @@ func productImmichSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRe
 	return ProductRuntimeOwnerSelector{
 		OwnerKind: "module", OwnerRef: "stackkits-immich-runtime",
 		ProviderRef: "stackkits-immich", ModuleRef: "stackkits-immich-runtime", UnitRef: "immich-server",
-		RuntimeKind: "container", RuntimeDelivery: "selected-paas", RuntimeEngine: "docker", WorkloadRef: "photos",
+		RuntimeKind: "container", RuntimeDelivery: sharedApplicationAdapterRuntimeDelivery, RuntimeEngine: "docker", WorkloadRef: "photos",
 		RuntimeAdapterRef: runtimeAdapterRef, RuntimeAdapterModuleRef: runtimeAdapterModuleRef,
 	}
 }

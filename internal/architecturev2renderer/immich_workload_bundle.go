@@ -14,15 +14,15 @@ const (
 	immichWorkloadModuleID    = "stackkits-immich-runtime"
 	immichWorkloadUnitID      = "immich-server"
 	immichWorkloadRendererRef = "stackkit"
-	immichWorkloadTemplateRef = "builtin://workloads/immich/bundle/v1.json"
-	immichWorkloadVersion     = "2.0.0"
+	immichWorkloadTemplateRef = "builtin://workloads/immich/bundle/v2.json"
+	immichWorkloadVersion     = "3.0.0"
 	immichWorkloadOutputRef   = "workloads/immich/bundle.json"
 )
 
 // This fixed schema identity binds the renderer semantics. The rendered
 // document itself also carries the exact plan-owned target and opaque secret
 // references, so its artifact hash remains instance-specific.
-const immichWorkloadRendererSchema = `stackkit.workload-bundle/v1|ImmichWorkloadBundle|selected-paas|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|secret-material:not-included`
+const immichWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|secret-material:not-included`
 
 type selectedPaaSRuntimeImage struct {
 	Ref    string `json:"ref"`
@@ -94,9 +94,10 @@ type selectedPaaSWorkloadBundle struct {
 		ProviderLifecycle string `json:"providerLifecycle"`
 		Credentials       string `json:"credentials"`
 	} `json:"ownership"`
-	SecretRefs map[string]string              `json:"secretRefs"`
-	Components []selectedPaaSRuntimeComponent `json:"components"`
-	Route      selectedPaaSServiceEndpoint    `json:"route"`
+	SecretRefs    map[string]string              `json:"secretRefs"`
+	Components    []selectedPaaSRuntimeComponent `json:"components"`
+	Route         selectedPaaSServiceEndpoint    `json:"route"`
+	DeliveryRoute *applicationDeliveryRoute      `json:"deliveryRoute,omitempty"`
 }
 
 // SelectedPaaSWorkloadComponentDescriptor is the immutable component identity
@@ -120,6 +121,7 @@ type ImmichWorkloadBundleDescriptor struct {
 	InstanceRef string
 	SecretRef   string
 	Components  []SelectedPaaSWorkloadComponentDescriptor
+	Route       ApplicationDeliveryRouteDescriptor
 }
 
 // ParseImmichWorkloadBundle validates the closed generated artifact before a
@@ -131,10 +133,10 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 	if err := decodeStrict(data, &bundle); err != nil {
 		return ImmichWorkloadBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed Immich workload bundle", err)
 	}
-	if bundle.APIVersion != "stackkit.workload-bundle/v1" || bundle.Kind != "ImmichWorkloadBundle" ||
+	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "ImmichWorkloadBundle" ||
 		bundle.Workload.Ref != "photos" || bundle.Workload.AlternativeRef != "immich" || bundle.Workload.ModuleRef != immichWorkloadModuleID ||
-		bundle.Workload.Release != "v2.7.0" || bundle.Workload.Delivery != "selected-paas" || bundle.Workload.EntryComponent != "immich-server" ||
-		bundle.Ownership.ExecutionAdapter != "external-selected-paas-adapter" || bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
+		bundle.Workload.Release != "v2.7.0" || bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != "immich-server" ||
+		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" || bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Immich v2.7.0 contract")
 	}
 	for field, value := range map[string]string{"siteRef": bundle.Target.SiteRef, "nodeRef": bundle.Target.NodeRef, "instanceRef": bundle.Target.InstanceRef} {
@@ -156,10 +158,18 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 	if err := validateImmichServiceEndpoint(bundle.Route, path+".route"); err != nil {
 		return ImmichWorkloadBundleDescriptor{}, err
 	}
+	if bundle.DeliveryRoute != nil {
+		if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, immichWorkloadModuleID, "photos", 2283, path+".deliveryRoute"); err != nil {
+			return ImmichWorkloadBundleDescriptor{}, err
+		}
+	}
 	descriptor := ImmichWorkloadBundleDescriptor{
 		WorkloadRef: bundle.Workload.Ref, ModuleRef: bundle.Workload.ModuleRef, Release: bundle.Workload.Release,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		SecretRef: bundle.SecretRefs["database-password"], Components: make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
+	}
+	if bundle.DeliveryRoute != nil {
+		descriptor.Route = bundle.DeliveryRoute.descriptor()
 	}
 	for index, component := range components {
 		descriptor.Components[index] = SelectedPaaSWorkloadComponentDescriptor{ID: component.ID, Lifecycle: component.Lifecycle, ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest}
@@ -207,8 +217,8 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (sel
 	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef || unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version || unit.ContractHash() != contract.ContractHash {
 		return selectedPaaSWorkloadBundle{}, fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered Immich workload contract")
 	}
-	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "selected-paas" {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "Immich requires exact container/selected-paas delivery")
+	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "application-adapter" {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "Immich requires exact container/application-adapter delivery")
 	}
 	engine, hasEngine := unit.RuntimeEngine()
 	imageRef, hasImage := unit.ContainerImageRef()
@@ -232,8 +242,9 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (sel
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workloads do not receive daemon or socket authority")
 	}
-	if len(unit.PublicInputRefs()) != 0 || !emptyJSONObject(unit.ValuesJSON()) || !emptyJSONObject(unit.PlanInputsJSON()) || !emptyJSONArray(unit.InputBindingsJSON()) {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs", "Immich v1 bundle has no free public or plan input")
+	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, immichWorkloadModuleID, "photos", 2283, path+".inputs")
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
 	}
 	if !exactStringList(unit.SecretInputRefs(), []string{"database-password"}) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".secretInputRefs", "requires exactly the database-password secret slot")
@@ -267,15 +278,15 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (sel
 	if err := validateImmichServiceEndpoint(endpoint, path+".serviceEndpoints"); err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
-	bundle := selectedPaaSWorkloadBundle{APIVersion: "stackkit.workload-bundle/v1", Kind: "ImmichWorkloadBundle", SecretRefs: secretRefs, Components: components, Route: endpoint}
+	bundle := selectedPaaSWorkloadBundle{APIVersion: "stackkit.workload-bundle/v2", Kind: "ImmichWorkloadBundle", SecretRefs: secretRefs, Components: components, Route: endpoint, DeliveryRoute: deliveryRoute}
 	bundle.Workload.Ref = "photos"
 	bundle.Workload.AlternativeRef = "immich"
 	bundle.Workload.ModuleRef = immichWorkloadModuleID
 	bundle.Workload.Release = "v2.7.0"
-	bundle.Workload.Delivery = "selected-paas"
+	bundle.Workload.Delivery = "application-adapter"
 	bundle.Workload.EntryComponent = entryComponent
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
-	bundle.Ownership.ExecutionAdapter = "external-selected-paas-adapter"
+	bundle.Ownership.ExecutionAdapter = "selected-application-adapter"
 	bundle.Ownership.ProviderLifecycle = "not-owned"
 	bundle.Ownership.Credentials = "opaque-references-only"
 	return bundle, nil

@@ -11,14 +11,14 @@ import (
 const (
 	vaultwardenWorkloadModuleID    = "stackkits-vaultwarden-runtime"
 	vaultwardenWorkloadUnitID      = "vaultwarden"
-	vaultwardenWorkloadTemplateRef = "builtin://workloads/vaultwarden/bundle/v1.json"
-	vaultwardenWorkloadVersion     = "1.0.0"
+	vaultwardenWorkloadTemplateRef = "builtin://workloads/vaultwarden/bundle/v2.json"
+	vaultwardenWorkloadVersion     = "2.0.0"
 	vaultwardenWorkloadOutputRef   = "workloads/vaultwarden/bundle.json"
 	vaultwardenImageRef            = "ghcr.io/dani-garcia/vaultwarden:1.35.4"
 	vaultwardenImageDigest         = "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664"
 )
 
-const vaultwardenWorkloadRendererSchema = `stackkit.workload-bundle/v1|VaultwardenWorkloadBundle|selected-paas|provider-lifecycle:not-owned|components:vaultwarden|release:1.35.4|secret-material:not-included`
+const vaultwardenWorkloadRendererSchema = `stackkit.workload-bundle/v2|VaultwardenWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:vaultwarden|release:1.35.4|secret-material:not-included`
 
 // VaultwardenWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor. AdminTokenRef is opaque.
@@ -31,6 +31,7 @@ type VaultwardenWorkloadBundleDescriptor struct {
 	InstanceRef   string
 	AdminTokenRef string
 	Components    []SelectedPaaSWorkloadComponentDescriptor
+	Route         ApplicationDeliveryRouteDescriptor
 }
 
 func VaultwardenWorkloadBundleRendererContract() RendererContract {
@@ -71,11 +72,11 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 	if err := decodeStrict(data, &bundle); err != nil {
 		return VaultwardenWorkloadBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed Vaultwarden workload bundle", err)
 	}
-	if bundle.APIVersion != "stackkit.workload-bundle/v1" || bundle.Kind != "VaultwardenWorkloadBundle" ||
+	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "VaultwardenWorkloadBundle" ||
 		bundle.Workload.Ref != "vault" || bundle.Workload.AlternativeRef != "vaultwarden" ||
 		bundle.Workload.ModuleRef != vaultwardenWorkloadModuleID || bundle.Workload.Release != "1.35.4" ||
-		bundle.Workload.Delivery != "selected-paas" || bundle.Workload.EntryComponent != vaultwardenWorkloadUnitID ||
-		bundle.Ownership.ExecutionAdapter != "external-selected-paas-adapter" ||
+		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != vaultwardenWorkloadUnitID ||
+		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Vaultwarden 1.35.4 contract")
 	}
@@ -94,11 +95,19 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 	if err := validateVaultwardenServiceEndpoint(bundle.Route, path+".route"); err != nil {
 		return VaultwardenWorkloadBundleDescriptor{}, err
 	}
+	if bundle.DeliveryRoute != nil {
+		if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, vaultwardenWorkloadModuleID, "vault", 80, path+".deliveryRoute"); err != nil {
+			return VaultwardenWorkloadBundleDescriptor{}, err
+		}
+	}
 	descriptor := VaultwardenWorkloadBundleDescriptor{
 		WorkloadRef: "vault", ModuleRef: vaultwardenWorkloadModuleID, Release: "1.35.4",
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		AdminTokenRef: bundle.SecretRefs["admin-token"],
 		Components:    make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
+	}
+	if bundle.DeliveryRoute != nil {
+		descriptor.Route = bundle.DeliveryRoute.descriptor()
 	}
 	for index, component := range components {
 		descriptor.Components[index] = SelectedPaaSWorkloadComponentDescriptor{
@@ -124,7 +133,7 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 	imageRef, hasImage := unit.ContainerImageRef()
 	imageDigest, hasDigest := unit.ContainerImageDigest()
 	entry, hasEntry := unit.RuntimeEntryComponentRef()
-	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "selected-paas" ||
+	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "application-adapter" ||
 		!hasEngine || engine != "docker" || !hasImage || imageRef != vaultwardenImageRef ||
 		!hasDigest || imageDigest != vaultwardenImageDigest || !hasEntry || entry != vaultwardenWorkloadUnitID {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Vaultwarden 1.35.4 contract")
@@ -143,9 +152,11 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	if len(unit.PublicInputRefs()) != 0 || !emptyJSONObject(unit.ValuesJSON()) ||
-		!emptyJSONObject(unit.PlanInputsJSON()) || !emptyJSONArray(unit.InputBindingsJSON()) ||
-		!exactStringList(unit.SecretInputRefs(), []string{"admin-token"}) {
+	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, vaultwardenWorkloadModuleID, "vault", 80, path+".inputs")
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	if !exactStringList(unit.SecretInputRefs(), []string{"admin-token"}) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs", "Vaultwarden requires only its exact opaque admin-token slot")
 	}
 	secretRefs := map[string]string{}
@@ -172,7 +183,7 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 	if err := decodeStrict(unit.RuntimeComponentsJSON(), &components); err != nil {
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
 	}
-	components, err := validateVaultwardenRuntimeComponents(components, path+".runtime.components")
+	components, err = validateVaultwardenRuntimeComponents(components, path+".runtime.components")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -184,14 +195,14 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 		return selectedPaaSWorkloadBundle{}, err
 	}
 	bundle := selectedPaaSWorkloadBundle{
-		APIVersion: "stackkit.workload-bundle/v1", Kind: "VaultwardenWorkloadBundle",
-		SecretRefs: secretRefs, Components: components, Route: endpoints[0],
+		APIVersion: "stackkit.workload-bundle/v2", Kind: "VaultwardenWorkloadBundle",
+		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "vault", "vaultwarden"
 	bundle.Workload.ModuleRef, bundle.Workload.Release = vaultwardenWorkloadModuleID, "1.35.4"
-	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "selected-paas", entry
+	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "application-adapter", entry
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
-	bundle.Ownership.ExecutionAdapter = "external-selected-paas-adapter"
+	bundle.Ownership.ExecutionAdapter = "selected-application-adapter"
 	bundle.Ownership.ProviderLifecycle = "not-owned"
 	bundle.Ownership.Credentials = "opaque-references-only"
 	return bundle, nil

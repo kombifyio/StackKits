@@ -1,32 +1,38 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
 
 var (
-	appAddImage      string
-	appAddKind       string
-	appAddPort       int
-	appAddHost       string
-	appAddAuth       string
-	appAddHealthPath string
-	appAddEnv        []string
-	appAddSecrets    []string
+	appAddImage          string
+	appAddKind           string
+	appAddPort           int
+	appAddHost           string
+	appAddAuth           string
+	appAddHealthPath     string
+	appAddEnv            []string
+	appAddSecrets        []string
+	appCompatibilityJSON bool
 )
 
 var appCmd = &cobra.Command{
 	Use:   "app",
-	Short: "Write v0.6 compatibility PaaS app handoff metadata",
-	Long: `Write optional customer PaaS handoff metadata only on the explicit
-v0.6 StackSpec compatibility line. Architecture v2 has no truthful arbitrary
-customer-workload mapping; StackKit-owned apps must come from the CUE catalog,
-and a future customer-workload desired-state contract belongs to TechStack.`,
+	Short: "Inspect StackKits application delivery and manage v0.6 handoffs",
+	Long: `Inspect the governed Architecture v2 application-delivery matrix for
+Coolify, Komodo, and standalone Compose.
+
+Optional customer PaaS handoff metadata remains available only on the explicit
+v0.6 StackSpec compatibility line. Architecture v2 has no arbitrary customer-
+workload mapping; StackKit-owned applications come from the CUE catalog, while
+customer-workload desired state belongs to Techstack.`,
 }
 
 var appAddCmd = &cobra.Command{
@@ -35,6 +41,15 @@ var appAddCmd = &cobra.Command{
 	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "app add"},
 	Args:        cobra.ExactArgs(1),
 	RunE:        runAppAdd,
+}
+
+var appCompatibilityCmd = &cobra.Command{
+	Use:   "compatibility",
+	Short: "Show the governed application/adapter support matrix",
+	Long: `Show the immutable CUE-owned support rows for StackKits applications.
+This reports product capability, not the selected plan, live adapter
+availability, or deployment evidence.`,
+	RunE: runAppCompatibility,
 }
 
 type appAddOptions struct {
@@ -58,7 +73,57 @@ func init() {
 	appAddCmd.Flags().StringVar(&appAddHealthPath, "health-path", "/health", "HTTP health path")
 	appAddCmd.Flags().StringArrayVar(&appAddEnv, "env", nil, "Plain environment variable as KEY=value; repeatable")
 	appAddCmd.Flags().StringArrayVar(&appAddSecrets, "secret", nil, "Secret reference as KEY=env:NAME|doppler:NAME|vault:NAME|file:PATH; repeatable")
+	appCompatibilityCmd.Flags().BoolVar(&appCompatibilityJSON, "json", false, "Print the compatibility matrix as JSON")
 	appCmd.AddCommand(appAddCmd)
+	appCmd.AddCommand(appCompatibilityCmd)
+}
+
+func runAppCompatibility(cmd *cobra.Command, _ []string) error {
+	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
+	if err != nil {
+		return fmt.Errorf("load embedded Architecture v2 application catalog: %w", err)
+	}
+	entries, err := service.ListApplicationDeliveryCompatibility()
+	if err != nil {
+		return err
+	}
+	writer := cmd.OutOrStdout()
+	if appCompatibilityJSON {
+		encoder := json.NewEncoder(writer)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(entries)
+	}
+	if _, err := fmt.Fprintln(writer, "Governed Architecture v2 application delivery compatibility"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(
+		writer, "\n%-10s %-13s %-18s %-11s %-7s %-9s %-8s %-14s\n",
+		"SERVICE", "APPLICATION", "ADAPTER", "MATURITY", "DEPLOY", "ROUTE/TLS", "STATUS", "BACKUP/RESTORE",
+	); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		capability := entry.Capabilities
+		if _, err := fmt.Fprintf(
+			writer, "%-10s %-13s %-18s %-11s %-7s %-9s %-8s %-14s\n",
+			entry.WorkloadRef, entry.AlternativeRef, entry.AdapterRef, entry.Maturity,
+			applicationDeliverySupportWord(capability.Deployment),
+			applicationDeliverySupportWord(capability.RouteTLS),
+			applicationDeliverySupportWord(capability.StatusEvidence),
+			applicationDeliverySupportWord(capability.BackupRestore),
+		); err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintln(writer)
+	return err
+}
+
+func applicationDeliverySupportWord(value bool) string {
+	if value {
+		return "yes"
+	}
+	return "no"
 }
 
 func runAppAdd(cmd *cobra.Command, args []string) error {

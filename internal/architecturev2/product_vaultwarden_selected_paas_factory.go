@@ -86,7 +86,7 @@ func productVaultwardenSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterMod
 	return ProductRuntimeOwnerSelector{
 		OwnerKind: "module", OwnerRef: "stackkits-vaultwarden-runtime",
 		ProviderRef: "stackkits-vaultwarden", ModuleRef: "stackkits-vaultwarden-runtime", UnitRef: "vaultwarden",
-		RuntimeKind: "container", RuntimeDelivery: "selected-paas", RuntimeEngine: "docker", WorkloadRef: "vault",
+		RuntimeKind: "container", RuntimeDelivery: sharedApplicationAdapterRuntimeDelivery, RuntimeEngine: "docker", WorkloadRef: "vault",
 		RuntimeAdapterRef: runtimeAdapterRef, RuntimeAdapterModuleRef: runtimeAdapterModuleRef,
 	}
 }

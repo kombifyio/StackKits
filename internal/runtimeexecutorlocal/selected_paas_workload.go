@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -58,6 +59,7 @@ type SelectedPaaSWorkloadDeployment struct {
 	ArtifactRef         string
 	ArtifactDigest      string
 	Bundle              []byte
+	Route               architecturev2renderer.ApplicationDeliveryRouteDescriptor
 	RuntimeAdapter      runtimeexecutor.RuntimeAdapterBinding
 	AdapterArtifacts    []runtimeexecutor.Artifact
 }
@@ -77,13 +79,47 @@ type SelectedPaaSComponentObservation struct {
 
 // SelectedPaaSRouteObservation is the provider-neutral service readback.
 type SelectedPaaSRouteObservation struct {
-	ServiceRef string `json:"serviceRef"`
-	Protocol   string `json:"protocol"`
-	Port       int    `json:"port"`
-	Method     string `json:"method"`
-	Path       string `json:"path"`
-	Status     string `json:"status"`
-	HTTPStatus int    `json:"httpStatus"`
+	RouteRef              string `json:"routeRef"`
+	ServiceRef            string `json:"serviceRef"`
+	ModuleRef             string `json:"moduleRef"`
+	Exposure              string `json:"exposure"`
+	Protocol              string `json:"protocol"`
+	UpstreamProtocol      string `json:"upstreamProtocol"`
+	HealthGateRef         string `json:"healthGateRef"`
+	BackendPoolRef        string `json:"backendPoolRef"`
+	Host                  string `json:"host,omitempty"`
+	RoutePath             string `json:"routePath"`
+	Port                  int    `json:"port"`
+	TargetPort            int    `json:"targetPort"`
+	TLSRequired           bool   `json:"tlsRequired"`
+	TLSMode               string `json:"tlsMode"`
+	TLSMinVersion         string `json:"tlsMinVersion,omitempty"`
+	TLSProfileRef         string `json:"tlsProfileRef,omitempty"`
+	TLSIssuerRef          string `json:"tlsIssuerRef,omitempty"`
+	TLSOwnerCapabilityRef string `json:"tlsOwnerCapabilityRef,omitempty"`
+	Method                string `json:"method"`
+	Path                  string `json:"path"`
+	Status                string `json:"status"`
+	HTTPStatus            int    `json:"httpStatus"`
+}
+
+func exactApplicationDeliveryRouteObservation(
+	actual SelectedPaaSRouteObservation,
+	expected architecturev2renderer.ApplicationDeliveryRouteDescriptor,
+) bool {
+	return actual.RouteRef == expected.ID && actual.ServiceRef == expected.ServiceRef &&
+		actual.ModuleRef == expected.ModuleRef &&
+		actual.Exposure == expected.Exposure && actual.Protocol == expected.Protocol &&
+		actual.UpstreamProtocol == expected.UpstreamProtocol &&
+		actual.HealthGateRef == expected.HealthGateRef &&
+		actual.BackendPoolRef == expected.BackendPoolRef &&
+		actual.Host == expected.Host && actual.RoutePath == expected.Path &&
+		actual.Port == expected.Port && actual.TargetPort == expected.TargetPort &&
+		actual.TLSRequired == expected.TLSRequired && actual.TLSMode == expected.TLSMode &&
+		actual.TLSMinVersion == expected.TLSMinVersion &&
+		actual.TLSProfileRef == expected.TLSProfileRef &&
+		actual.TLSIssuerRef == expected.TLSIssuerRef &&
+		actual.TLSOwnerCapabilityRef == expected.TLSOwnerCapabilityRef
 }
 
 type SelectedPaaSWorkloadObservation struct {

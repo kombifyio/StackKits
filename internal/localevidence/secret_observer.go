@@ -71,6 +71,22 @@ func MaterializeLocalSecret(workspaceRoot, secretRef string) error {
 	return nil
 }
 
+// ResolveLocalSecretMaterial returns a defensive copy of the text-safe secret
+// material after verifying the exact owner-signed local custody record. It is
+// intended only for construction-owned local runtime adapters; callers must
+// not persist it outside an owner-only runtime file or include it in evidence.
+func ResolveLocalSecretMaterial(workspaceRoot, secretRef string) ([]byte, error) {
+	refDigest, err := localSecretRefDigest(secretRef)
+	if err != nil {
+		return nil, err
+	}
+	record, err := loadLocalSecretCustody(workspaceRoot, refDigest)
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), record.Material...), nil
+}
+
 // SecretObserver proves that the exact opaque secret locator in an Apply
 // expectation resolves to valid owner-only local custody.
 type SecretObserver struct{ workspaceRoot string }

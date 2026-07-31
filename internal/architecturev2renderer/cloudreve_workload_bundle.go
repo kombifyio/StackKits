@@ -11,14 +11,14 @@ import (
 const (
 	cloudreveWorkloadModuleID    = "stackkits-cloudreve-runtime"
 	cloudreveWorkloadUnitID      = "cloudreve"
-	cloudreveWorkloadTemplateRef = "builtin://workloads/cloudreve/bundle/v1.json"
-	cloudreveWorkloadVersion     = "1.0.0"
+	cloudreveWorkloadTemplateRef = "builtin://workloads/cloudreve/bundle/v2.json"
+	cloudreveWorkloadVersion     = "2.0.0"
 	cloudreveWorkloadOutputRef   = "workloads/cloudreve/bundle.json"
 	cloudreveImageRef            = "docker.io/cloudreve/cloudreve:4.18.0"
 	cloudreveImageDigest         = "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"
 )
 
-const cloudreveWorkloadRendererSchema = `stackkit.workload-bundle/v1|CloudreveWorkloadBundle|selected-paas|provider-lifecycle:not-owned|components:cloudreve|release:4.18.0|secret-material:not-included`
+const cloudreveWorkloadRendererSchema = `stackkit.workload-bundle/v2|CloudreveWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:cloudreve|release:4.18.0|secret-material:not-included`
 
 // CloudreveWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor.
@@ -30,6 +30,7 @@ type CloudreveWorkloadBundleDescriptor struct {
 	NodeRef     string
 	InstanceRef string
 	Components  []SelectedPaaSWorkloadComponentDescriptor
+	Route       ApplicationDeliveryRouteDescriptor
 }
 
 func CloudreveWorkloadBundleRendererContract() RendererContract {
@@ -68,11 +69,11 @@ func ParseCloudreveWorkloadBundle(data []byte) (CloudreveWorkloadBundleDescripto
 	if err := decodeStrict(data, &bundle); err != nil {
 		return CloudreveWorkloadBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed Cloudreve workload bundle", err)
 	}
-	if bundle.APIVersion != "stackkit.workload-bundle/v1" || bundle.Kind != "CloudreveWorkloadBundle" ||
+	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "CloudreveWorkloadBundle" ||
 		bundle.Workload.Ref != "files" || bundle.Workload.AlternativeRef != "cloudreve" ||
 		bundle.Workload.ModuleRef != cloudreveWorkloadModuleID || bundle.Workload.Release != "4.18.0" ||
-		bundle.Workload.Delivery != "selected-paas" || bundle.Workload.EntryComponent != cloudreveWorkloadUnitID ||
-		bundle.Ownership.ExecutionAdapter != "external-selected-paas-adapter" ||
+		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != cloudreveWorkloadUnitID ||
+		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return CloudreveWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Cloudreve 4.18.0 contract")
 	}
@@ -91,10 +92,18 @@ func ParseCloudreveWorkloadBundle(data []byte) (CloudreveWorkloadBundleDescripto
 	if err := validateCloudreveServiceEndpoint(bundle.Route, path+".route"); err != nil {
 		return CloudreveWorkloadBundleDescriptor{}, err
 	}
+	if bundle.DeliveryRoute != nil {
+		if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, cloudreveWorkloadModuleID, "files", 5212, path+".deliveryRoute"); err != nil {
+			return CloudreveWorkloadBundleDescriptor{}, err
+		}
+	}
 	descriptor := CloudreveWorkloadBundleDescriptor{
 		WorkloadRef: "files", ModuleRef: cloudreveWorkloadModuleID, Release: "4.18.0",
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		Components: make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
+	}
+	if bundle.DeliveryRoute != nil {
+		descriptor.Route = bundle.DeliveryRoute.descriptor()
 	}
 	for index, component := range components {
 		descriptor.Components[index] = SelectedPaaSWorkloadComponentDescriptor{
@@ -119,7 +128,7 @@ func validateCloudreveWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	imageRef, hasImage := unit.ContainerImageRef()
 	imageDigest, hasDigest := unit.ContainerImageDigest()
 	entry, hasEntry := unit.RuntimeEntryComponentRef()
-	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "selected-paas" ||
+	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "application-adapter" ||
 		!hasEngine || engine != "docker" || !hasImage || imageRef != cloudreveImageRef ||
 		!hasDigest || imageDigest != cloudreveImageDigest || !hasEntry || entry != cloudreveWorkloadUnitID {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Cloudreve 4.18.0 contract")
@@ -138,9 +147,11 @@ func validateCloudreveWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	if len(unit.PublicInputRefs()) != 0 || len(unit.SecretInputRefs()) != 0 ||
-		!emptyJSONObject(unit.ValuesJSON()) || !emptyJSONObject(unit.SecretRefsJSON()) ||
-		!emptyJSONObject(unit.PlanInputsJSON()) || !emptyJSONArray(unit.InputBindingsJSON()) ||
+	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, cloudreveWorkloadModuleID, "files", 5212, path+".inputs")
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	if len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.SecretRefsJSON()) ||
 		!emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
 		!emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) || !emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs", "Cloudreve bundle accepts no free inputs or host authority")
@@ -160,7 +171,7 @@ func validateCloudreveWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.RuntimeComponentsJSON(), &components); err != nil {
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
 	}
-	components, err := validateCloudreveRuntimeComponents(components, path+".runtime.components")
+	components, err = validateCloudreveRuntimeComponents(components, path+".runtime.components")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -172,14 +183,14 @@ func validateCloudreveWorkloadUnit(unit RenderUnit, contract RendererContract) (
 		return selectedPaaSWorkloadBundle{}, err
 	}
 	bundle := selectedPaaSWorkloadBundle{
-		APIVersion: "stackkit.workload-bundle/v1", Kind: "CloudreveWorkloadBundle",
-		SecretRefs: map[string]string{}, Components: components, Route: endpoints[0],
+		APIVersion: "stackkit.workload-bundle/v2", Kind: "CloudreveWorkloadBundle",
+		SecretRefs: map[string]string{}, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "files", "cloudreve"
 	bundle.Workload.ModuleRef, bundle.Workload.Release = cloudreveWorkloadModuleID, "4.18.0"
-	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "selected-paas", entry
+	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "application-adapter", entry
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
-	bundle.Ownership.ExecutionAdapter = "external-selected-paas-adapter"
+	bundle.Ownership.ExecutionAdapter = "selected-application-adapter"
 	bundle.Ownership.ProviderLifecycle = "not-owned"
 	bundle.Ownership.Credentials = "opaque-references-only"
 	return bundle, nil

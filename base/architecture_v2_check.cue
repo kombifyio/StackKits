@@ -87,7 +87,7 @@ _assertPhotosWorkloadContract: [
 	serviceRef:         "photos"
 	healthRef:          "immich-http"
 	runtimeKinds: ["container"]
-	runtimeDeliveries: ["selected-paas"]
+	runtimeDeliveries: ["application-adapter"]
 	setup: {mode: "manual", owner: "operator", actionRefs: []}
 	settings: {allowedRefs: [], requiredRefs: []}
 	secretInputs: {allowedRefs: ["database-password"], requiredRefs: ["database-password"]}

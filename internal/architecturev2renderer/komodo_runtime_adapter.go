@@ -20,7 +20,7 @@ const (
 	komodoContractVersion    = "1.0.0"
 )
 
-const komodoCoreRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|komodo|container:selected-paas|operations:apply,observe,rollback,backup,restore|provider-lifecycle:not-owned|credentials:external-owner|endpoints:not-included|agent:komodo-periphery|auth:external-mutual-key|evidence:required`
+const komodoCoreRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|komodo|container:application-adapter|operations:apply,observe|provider-lifecycle:not-owned|credentials:external-owner|routes:artifact-bound|agent:komodo-periphery|auth:external-mutual-key|evidence:required`
 const komodoPeripheryRendererSchema = `stackkit.runtime-adapter-agent/v1|WorkloadRuntimeAdapterAgent|komodo-periphery|adapter:komodo|role:node-agent|target:control-authority-site-workers|direction:outbound-to-control-plane|transport:tls|minimum:TLS1.3|authentication:mutual-key|host-execution:executor-mediated|provider-lifecycle:not-owned|credentials:external-owner|endpoints:not-included|evidence:required`
 
 type komodoTarget struct {
@@ -142,14 +142,15 @@ func (r komodoCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]
 	bundle := komodoCoreBundle{APIVersion: "stackkit.runtime-adapter/v1", Kind: "WorkloadRuntimeAdapter", Target: target}
 	bundle.Adapter.ID, bundle.Adapter.ProviderRef, bundle.Adapter.ModuleRef, bundle.Adapter.Version = "komodo", "stackkits-komodo", komodoCoreModuleID, komodoContractVersion
 	bundle.Adapter.SupportedKinds = []string{"container"}
-	bundle.Adapter.SupportedDeliveries = []string{"selected-paas"}
-	bundle.Adapter.Operations = []string{"apply", "observe", "rollback", "backup", "restore"}
+	bundle.Adapter.SupportedDeliveries = []string{"application-adapter"}
+	bundle.Adapter.Operations = []string{"apply", "observe"}
 	bundle.Adapter.AgentRefs = []string{"komodo-periphery"}
-	bundle.Inputs = closedKomodoInputs([]string{"stackkit.workload-bundle/v1"})
+	bundle.Inputs = closedKomodoInputs([]string{"stackkit.workload-bundle/v2"})
 	bundle.Authentication.Mode, bundle.Authentication.CredentialCustody, bundle.Authentication.CredentialPayload = "external-mutual-key", "external-owner", "not-included"
 	bundle.Ownership = closedKomodoOwnership("authenticated-external-adapter")
+	bundle.Ownership.Endpoints = "resolved-route-only"
 	bundle.Verification.HealthContractRef = "komodo-core-runtime-contract"
-	bundle.Verification.RequiredPhases = []string{"authenticate", "apply", "observe", "rollback", "backup", "restore"}
+	bundle.Verification.RequiredPhases = []string{"authenticate", "apply", "observe"}
 	bundle.Verification.DigestBinding, bundle.Verification.RuntimeReadback, bundle.Verification.RouteReadback, bundle.Verification.AgentRegistrationReadback = true, true, true, true
 	data, err := json.Marshal(bundle)
 	if err != nil {

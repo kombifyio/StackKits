@@ -52,12 +52,30 @@ type StageContract struct {
 	OwnerApproval bool
 }
 
+// DeliveryCapabilities is the compiler-bound support row for the exact
+// runtime adapter selected by one Application workload. It is catalog
+// authority, not live evidence. Backup/restore remains false until that
+// adapter owns a complete executable lifecycle.
+type DeliveryCapabilities struct {
+	Deployment     bool
+	RouteTLS       bool
+	StatusEvidence bool
+	BackupRestore  bool
+}
+
+type DeliveryContract struct {
+	Kind         string
+	AdapterRef   string
+	Capabilities *DeliveryCapabilities
+}
+
 type Contract struct {
 	WorkloadRef  string
 	PackageRef   string
 	Version      string
 	ContractHash string
 	PlanHash     string
+	Delivery     DeliveryContract
 	Stages       map[string]StageContract
 }
 
@@ -179,7 +197,10 @@ func ContractsFromResolvedPlan(plan resolvedplan.ResolvedPlan) ([]Contract, erro
 
 func decodeContract(object map[string]any, planHash string) (Contract, error) {
 	contract := Contract{PlanHash: planHash}
-	var ok bool
+	var (
+		ok  bool
+		err error
+	)
 	if contract.WorkloadRef, ok = object["workloadRef"].(string); !ok || !contractIDPattern.MatchString(contract.WorkloadRef) {
 		return Contract{}, errors.New("resolved application lifecycle workloadRef is invalid")
 	}
@@ -195,6 +216,64 @@ func decodeContract(object map[string]any, planHash string) (Contract, error) {
 	if contract.ContractHash, ok = object["contractHash"].(string); !ok || !digestPattern.MatchString(contract.ContractHash) {
 		return Contract{}, errors.New("resolved application lifecycle contractHash is invalid")
 	}
+	delivery, ok := object["delivery"].(map[string]any)
+	if !ok {
+		return Contract{}, errors.New("resolved application lifecycle delivery authority is invalid")
+	}
+	if contract.Delivery.Kind, ok = delivery["kind"].(string); !ok {
+		return Contract{}, errors.New("resolved application lifecycle delivery kind is invalid")
+	}
+	switch contract.Delivery.Kind {
+	case "stackkit", "external-control-plane":
+		if len(delivery) != 1 {
+			return Contract{}, errors.New("resolved application lifecycle delivery contains undeclared authority")
+		}
+	case "application-adapter", "selected-paas":
+		if contract.Delivery.AdapterRef, ok = delivery["adapterRef"].(string); !ok ||
+			!contractIDPattern.MatchString(contract.Delivery.AdapterRef) {
+			return Contract{}, errors.New("resolved application lifecycle delivery adapterRef is invalid")
+		}
+	default:
+		return Contract{}, errors.New("resolved application lifecycle delivery kind is invalid")
+	}
+	if contract.Delivery.Kind == "application-adapter" || contract.Delivery.Kind == "selected-paas" {
+		capabilities, valid := delivery["capabilities"].(map[string]any)
+		if !valid {
+			return Contract{}, errors.New("resolved application lifecycle delivery capabilities are invalid")
+		}
+		readCapability := func(name string) (bool, error) {
+			value, exists := capabilities[name]
+			if !exists {
+				return false, fmt.Errorf("resolved application lifecycle delivery capability %q is missing", name)
+			}
+			result, valid := value.(bool)
+			if !valid {
+				return false, fmt.Errorf("resolved application lifecycle delivery capability %q is invalid", name)
+			}
+			return result, nil
+		}
+		decodedCapabilities := DeliveryCapabilities{}
+		if decodedCapabilities.Deployment, err = readCapability("deployment"); err != nil {
+			return Contract{}, err
+		}
+		if decodedCapabilities.RouteTLS, err = readCapability("routeTLS"); err != nil {
+			return Contract{}, err
+		}
+		if decodedCapabilities.StatusEvidence, err = readCapability("statusEvidence"); err != nil {
+			return Contract{}, err
+		}
+		if decodedCapabilities.BackupRestore, err = readCapability("backupRestore"); err != nil {
+			return Contract{}, err
+		}
+		if len(capabilities) != 4 {
+			return Contract{}, errors.New("resolved application lifecycle delivery capabilities contain undeclared authority")
+		}
+		if len(delivery) != 3 {
+			return Contract{}, errors.New("resolved application lifecycle delivery contains undeclared authority")
+		}
+		contract.Delivery.Capabilities = &decodedCapabilities
+	}
+
 	lifecycle, ok := object["lifecycle"].(map[string]any)
 	if !ok {
 		return Contract{}, errors.New("resolved application lifecycle body is invalid")
@@ -462,6 +541,18 @@ func validateContract(contract Contract) error {
 		!digestPattern.MatchString(contract.PlanHash) || !digestPattern.MatchString(contract.ContractHash) ||
 		strings.TrimSpace(contract.Version) == "" || len(contract.Stages) != len(allowedStages) {
 		return errors.New("application lifecycle contract is incomplete")
+	}
+	switch contract.Delivery.Kind {
+	case "stackkit", "external-control-plane":
+		if contract.Delivery.AdapterRef != "" || contract.Delivery.Capabilities != nil {
+			return errors.New("application lifecycle delivery contract is invalid")
+		}
+	case "application-adapter", "selected-paas":
+		if !contractIDPattern.MatchString(contract.Delivery.AdapterRef) || contract.Delivery.Capabilities == nil {
+			return errors.New("application lifecycle delivery contract is invalid")
+		}
+	default:
+		return errors.New("application lifecycle delivery contract is invalid")
 	}
 	for name := range allowedStages {
 		if stage, ok := contract.Stages[name]; !ok || stage.Name != name ||

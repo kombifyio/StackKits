@@ -143,6 +143,7 @@ func validateImmichSelectedPaaSRequest(request runtimeexecutor.ExecutionRequest,
 		WorkloadRef: descriptor.WorkloadRef, ModuleRef: descriptor.ModuleRef, UnitRef: target.UnitRef, Release: descriptor.Release,
 		SiteRef: descriptor.SiteRef, NodeRef: descriptor.NodeRef, InstanceRef: descriptor.InstanceRef, ExecutionChannelRef: binding.ExecutionChannelRef,
 		ArtifactRef: artifact.ID, ArtifactDigest: artifact.Digest, Bundle: append([]byte(nil), artifact.Content...),
+		Route:          descriptor.Route,
 		RuntimeAdapter: *target.RuntimeAdapter, AdapterArtifacts: adapterArtifacts,
 	}
 	return target, append([]runtimeexecutor.HealthTarget(nil), request.HealthTargets...), deployment, descriptor, nil
@@ -161,7 +162,8 @@ func validateImmichRouteHealthTarget(health runtimeexecutor.HealthTarget, target
 
 func validateImmichSelectedPaaSObservation(observation SelectedPaaSWorkloadObservation, deployment SelectedPaaSWorkloadDeployment, descriptor architecturev2renderer.ImmichWorkloadBundleDescriptor) error {
 	if observation.WorkloadRef != deployment.WorkloadRef || observation.Release != deployment.Release || observation.InstanceRef != deployment.InstanceRef || observation.ArtifactDigest != deployment.ArtifactDigest || observation.Status != "running" ||
-		observation.Route.ServiceRef != "photos" || observation.Route.Protocol != "http" || observation.Route.Port != 2283 || observation.Route.Method != "GET" || observation.Route.Path != "/api/server/ping" ||
+		!exactApplicationDeliveryRouteObservation(observation.Route, descriptor.Route) ||
+		observation.Route.Method != "GET" || observation.Route.Path != "/api/server/ping" ||
 		observation.Route.Status != "healthy" || observation.Route.HTTPStatus != 200 || len(observation.Components) != len(descriptor.Components) {
 		return errors.New("selected-PaaS observation does not prove the exact running Immich workload and route")
 	}

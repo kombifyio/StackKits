@@ -86,7 +86,7 @@ func productCloudreveSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModul
 	return ProductRuntimeOwnerSelector{
 		OwnerKind: "module", OwnerRef: "stackkits-cloudreve-runtime",
 		ProviderRef: "stackkits-cloudreve", ModuleRef: "stackkits-cloudreve-runtime", UnitRef: "cloudreve",
-		RuntimeKind: "container", RuntimeDelivery: "selected-paas", RuntimeEngine: "docker", WorkloadRef: "files",
+		RuntimeKind: "container", RuntimeDelivery: sharedApplicationAdapterRuntimeDelivery, RuntimeEngine: "docker", WorkloadRef: "files",
 		RuntimeAdapterRef: runtimeAdapterRef, RuntimeAdapterModuleRef: runtimeAdapterModuleRef,
 	}
 }

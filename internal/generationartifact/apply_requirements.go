@@ -15,6 +15,7 @@ const (
 	ApplyExecutionClassContractHandoff = "contract-handoff"
 	ApplyExecutionClassArtifactOnly    = "artifact-only"
 	ApplyExecutionClassPlan            = "plan"
+	applicationAdapterRuntimeDelivery  = "application-adapter"
 )
 
 // ApplyRequirements is the immutable, plan-owned input and postcondition set
@@ -742,11 +743,11 @@ func parseApplyWorkloads(plan resolvedplan.ResolvedPlan, modules map[string]appl
 		if err != nil {
 			return nil, nil, err
 		}
-		if requirement.RuntimeDelivery == "selected-paas" && adapter == nil {
-			return nil, nil, fail(ErrInvalidPlan, path+".alternative.runtime.adapter", "selected-paas workload requires one exact runtime adapter")
+		if requirement.RuntimeDelivery == applicationAdapterRuntimeDelivery && adapter == nil {
+			return nil, nil, fail(ErrInvalidPlan, path+".alternative.runtime.adapter", "application-adapter workload requires one exact runtime adapter")
 		}
-		if requirement.RuntimeDelivery != "selected-paas" && adapter != nil {
-			return nil, nil, fail(ErrInvalidPlan, path+".alternative.runtime.adapter", "runtime adapter is valid only for selected-paas delivery")
+		if requirement.RuntimeDelivery != applicationAdapterRuntimeDelivery && adapter != nil {
+			return nil, nil, fail(ErrInvalidPlan, path+".alternative.runtime.adapter", "runtime adapter is valid only for application-adapter delivery")
 		}
 		if requirement.ServiceRef, err = requiredString(route, "serviceRef", path+".alternative.route.serviceRef"); err != nil {
 			return nil, nil, err
@@ -1973,12 +1974,12 @@ func validateApplyArtifactRuntimeClosure(requirements ApplyRequirements) error {
 			}
 			runtimeReferenced[artifactRef]++
 		}
-		if runtime.RuntimeDelivery == "selected-paas" && runtime.RuntimeAdapter == nil {
-			return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".runtimeAdapter", "selected-paas runtime requires one exact adapter")
+		if runtime.RuntimeDelivery == applicationAdapterRuntimeDelivery && runtime.RuntimeAdapter == nil {
+			return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".runtimeAdapter", "application-adapter runtime requires one exact adapter")
 		}
 		if runtime.RuntimeAdapter != nil {
-			if runtime.RuntimeDelivery != "selected-paas" || runtime.WorkloadRef == "" {
-				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".runtimeAdapter", "is valid only for a selected-paas workload")
+			if runtime.RuntimeDelivery != applicationAdapterRuntimeDelivery || runtime.WorkloadRef == "" {
+				return fail(ErrInvalidPlan, "resolvedPlan.applyRequirements.runtimeInstances."+runtime.ID+".runtimeAdapter", "is valid only for an application-adapter workload")
 			}
 			adapter := runtime.RuntimeAdapter
 			if err := validateApplyRuntimeAdapterArtifacts(runtime.ID, "runtimeAdapter", adapter.ProviderRef, adapter.ProviderContractHash, adapter.ModuleRef, adapter.ModuleContractHash, adapter.ArtifactRefs, artifacts, adapterReferenced); err != nil {

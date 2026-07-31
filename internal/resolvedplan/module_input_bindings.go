@@ -10,35 +10,37 @@ import (
 )
 
 const (
-	moduleInputSourceDeviceEnrollment = "identity.deviceEnrollment"
-	moduleInputSourceHomeAuthority    = "identityTrust.homeDeviceAuthority"
-	moduleInputSourceBasementVerify   = "identityTrust.basementVerification"
-	moduleInputSourceCloudAuthority   = "identityTrust.cloudAuthority"
-	moduleInputSourceModernHome       = "identityTrust.modernHomeAuthority"
-	moduleInputSourceModernCloud      = "identityTrust.modernCloudVerification"
-	moduleInputSourceHomeAccess       = "access.homeEnforcement"
-	moduleInputSourceLocalAutonomy    = "localAutonomy.policy"
-	moduleInputSourceNetworkRoutes    = "network.routes"
-	moduleInputSourceCloudHostNetwork = "network.cloudHostSecurity"
-	moduleInputSourceHostBootstrap    = "host.bootstrapRuntime"
-	moduleInputSourceStorageHostRoots = "storage.hostRoots"
-	moduleInputSourceStorageBackup    = "storage.backupRoot"
-	moduleInputSourceLocalKopiaBackup = "backup.localKopiaSource"
-	moduleInputTypeDeviceEnrollment   = "device-enrollment-public-v1"
-	moduleInputTypeHomeAuthority      = "home-device-authority-v1"
-	moduleInputTypeBasementVerify     = "basement-identity-verification-v1"
-	moduleInputTypeCloudAuthority     = "cloud-identity-authority-v1"
-	moduleInputTypeModernHome         = "modern-home-identity-authority-v1"
-	moduleInputTypeModernCloud        = "modern-cloud-identity-verification-v1"
-	moduleInputTypeHomeAccess         = "home-access-enforcement-v1"
-	moduleInputTypeLocalAutonomy      = "local-autonomy-policy-v1"
-	moduleInputTypeNetworkRoutesV4    = "authority-bound-service-route-list-v4"
-	moduleInputTypeCloudHostNetwork   = "cloud-host-security-policy-v2"
-	moduleInputTypeHostBootstrap      = "host-bootstrap-runtime-v1"
-	moduleInputTypeStorageHostRoots   = "host-storage-roots-v1"
-	moduleInputTypeStorageBackup      = "local-backup-root-v1"
-	moduleInputTypeLocalKopiaBackup   = "local-kopia-backup-source-v1"
-	moduleInputTypeNetworkRoutes      = moduleInputTypeNetworkRoutesV4
+	moduleInputSourceDeviceEnrollment   = "identity.deviceEnrollment"
+	moduleInputSourceHomeAuthority      = "identityTrust.homeDeviceAuthority"
+	moduleInputSourceBasementVerify     = "identityTrust.basementVerification"
+	moduleInputSourceCloudAuthority     = "identityTrust.cloudAuthority"
+	moduleInputSourceModernHome         = "identityTrust.modernHomeAuthority"
+	moduleInputSourceModernCloud        = "identityTrust.modernCloudVerification"
+	moduleInputSourceHomeAccess         = "access.homeEnforcement"
+	moduleInputSourceLocalAutonomy      = "localAutonomy.policy"
+	moduleInputSourceNetworkRoutes      = "network.routes"
+	moduleInputSourceNetworkModuleRoute = "network.moduleRoute"
+	moduleInputSourceCloudHostNetwork   = "network.cloudHostSecurity"
+	moduleInputSourceHostBootstrap      = "host.bootstrapRuntime"
+	moduleInputSourceStorageHostRoots   = "storage.hostRoots"
+	moduleInputSourceStorageBackup      = "storage.backupRoot"
+	moduleInputSourceLocalKopiaBackup   = "backup.localKopiaSource"
+	moduleInputTypeDeviceEnrollment     = "device-enrollment-public-v1"
+	moduleInputTypeHomeAuthority        = "home-device-authority-v1"
+	moduleInputTypeBasementVerify       = "basement-identity-verification-v1"
+	moduleInputTypeCloudAuthority       = "cloud-identity-authority-v1"
+	moduleInputTypeModernHome           = "modern-home-identity-authority-v1"
+	moduleInputTypeModernCloud          = "modern-cloud-identity-verification-v1"
+	moduleInputTypeHomeAccess           = "home-access-enforcement-v1"
+	moduleInputTypeLocalAutonomy        = "local-autonomy-policy-v1"
+	moduleInputTypeNetworkRoutesV4      = "authority-bound-service-route-list-v4"
+	moduleInputTypeNetworkModuleRoute   = "authority-bound-module-route-v1"
+	moduleInputTypeCloudHostNetwork     = "cloud-host-security-policy-v2"
+	moduleInputTypeHostBootstrap        = "host-bootstrap-runtime-v1"
+	moduleInputTypeStorageHostRoots     = "host-storage-roots-v1"
+	moduleInputTypeStorageBackup        = "local-backup-root-v1"
+	moduleInputTypeLocalKopiaBackup     = "local-kopia-backup-source-v1"
+	moduleInputTypeNetworkRoutes        = moduleInputTypeNetworkRoutesV4
 )
 
 type moduleRenderInputBinding struct {
@@ -66,6 +68,7 @@ type moduleRenderInputSource struct {
 	install       map[string]any
 	system        map[string]any
 	storage       map[string]any
+	workloads     []any
 }
 
 func moduleRenderInputBindings(unit map[string]any, unitPath string) ([]moduleRenderInputBinding, error) {
@@ -247,6 +250,13 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 				return fail(ErrContractConflict, path+".defaultValue", "route default is not the exact secret-safe public projection")
 			}
 		}
+	case moduleInputSourceNetworkModuleRoute:
+		if valueType != moduleInputTypeNetworkModuleRoute || cardinality != "single" {
+			return fail(ErrContractConflict, path, "network.moduleRoute requires type %q and single cardinality", moduleInputTypeNetworkModuleRoute)
+		}
+		if hasDefault && defaultValue != nil {
+			return fail(ErrContractConflict, path+".defaultValue", "optional module route requires the exact null default")
+		}
 	case moduleInputSourceCloudHostNetwork:
 		if valueType != moduleInputTypeCloudHostNetwork || cardinality != "single" {
 			return fail(ErrContractConflict, path, "network.cloudHostSecurity requires type %q and single cardinality", moduleInputTypeCloudHostNetwork)
@@ -356,7 +366,7 @@ func bindResolvedModuleRenderInputs(modules []any, source moduleRenderInputSourc
 				if _, exists := values[binding.targetRef]; exists {
 					return fail(ErrContractConflict, unitPath+".values."+binding.targetRef, "compiler-bound public input was already populated")
 				}
-				value, available, err := source.resolve(binding)
+				value, available, err := source.resolve(binding, moduleID)
 				if err != nil {
 					return fail(ErrContractConflict, unitPath+".inputBindings."+binding.targetRef, "%v", err)
 				}
@@ -379,7 +389,7 @@ func bindResolvedModuleRenderInputs(modules []any, source moduleRenderInputSourc
 	return nil
 }
 
-func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding) (any, bool, error) {
+func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, moduleID string) (any, bool, error) {
 	switch binding.sourceRef {
 	case moduleInputSourceDeviceEnrollment:
 		if source.identity == nil {
@@ -463,6 +473,53 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding) 
 		}
 		projected, err := projectPublicRouteListFromNetwork(source.network, source.gates, "resolvedPlan.network", true, true)
 		return projected, err == nil, err
+	case moduleInputSourceNetworkModuleRoute:
+		if source.network == nil {
+			return nil, false, nil
+		}
+		if _, exists := source.network["routes"]; !exists {
+			return nil, false, nil
+		}
+		serviceRef, selected, err := selectedWorkloadServiceForModule(source.workloads, moduleID)
+		if err != nil {
+			return nil, false, err
+		}
+		if source.workloads != nil && !selected {
+			return nil, false, nil
+		}
+		projected, err := projectPublicRouteListFromNetwork(source.network, source.gates, "resolvedPlan.network", true, true)
+		if err != nil {
+			return nil, false, err
+		}
+		matches := make([]map[string]any, 0, 3)
+		for _, raw := range projected {
+			route, ok := raw.(map[string]any)
+			if !ok {
+				return nil, false, fmt.Errorf("resolved route projection is not an object")
+			}
+			if route["moduleRef"] == moduleID && (!selected || route["serviceRef"] == serviceRef) {
+				matches = append(matches, route)
+			}
+		}
+		if len(matches) == 0 {
+			return nil, false, nil
+		}
+		priority := map[string]int{"local": 1, "remote-private": 2, "public": 3}
+		bestPriority := 0
+		best := make([]map[string]any, 0, 1)
+		for _, route := range matches {
+			exposure, _ := route["exposure"].(string)
+			value := priority[exposure]
+			if value > bestPriority {
+				bestPriority, best = value, []map[string]any{route}
+			} else if value == bestPriority {
+				best = append(best, route)
+			}
+		}
+		if bestPriority == 0 || len(best) != 1 {
+			return nil, false, fmt.Errorf("module %q has %d equally preferred resolved delivery routes", moduleID, len(best))
+		}
+		return best[0], true, nil
 	case moduleInputSourceCloudHostNetwork:
 		if source.network == nil || source.kit == nil {
 			return nil, false, nil
@@ -495,6 +552,36 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding) 
 	default:
 		return nil, false, fmt.Errorf("unsupported resolved-plan input source %q", binding.sourceRef)
 	}
+}
+
+func selectedWorkloadServiceForModule(workloads []any, moduleID string) (string, bool, error) {
+	for index, raw := range workloads {
+		workload, err := asObject(raw, fmt.Sprintf("workloads[%d]", index))
+		if err != nil {
+			return "", false, err
+		}
+		alternative, err := objectField(workload, fmt.Sprintf("workloads[%d]", index), "alternative")
+		if err != nil {
+			return "", false, err
+		}
+		ref, err := stringField(alternative, fmt.Sprintf("workloads[%d].alternative", index), "moduleRef")
+		if err != nil {
+			return "", false, err
+		}
+		if ref != moduleID {
+			continue
+		}
+		route, err := objectField(alternative, fmt.Sprintf("workloads[%d].alternative", index), "route")
+		if err != nil {
+			return "", false, err
+		}
+		serviceRef, err := stringField(route, fmt.Sprintf("workloads[%d].alternative.route", index), "serviceRef")
+		if err != nil {
+			return "", false, err
+		}
+		return serviceRef, true, nil
+	}
+	return "", false, nil
 }
 
 func localKopiaBackupSourceProjection() map[string]any {

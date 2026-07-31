@@ -299,6 +299,34 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		}
 		registrations = append(registrations, registration)
 	}
+	standaloneOperations, err := runtimeexecutorlocal.NewOSStandaloneComposeWorkloadOperations(workspaceRoot)
+	if err != nil {
+		return nil, fmt.Errorf("configure standalone Compose application adapter: %w", err)
+	}
+	standaloneApplications := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductImmichSelectedPaaSRegistration(
+				runtimeVersion, "standalone-compose", "stackkits-standalone-compose-runtime", standaloneOperations,
+			)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductCloudreveSelectedPaaSRegistration(
+				runtimeVersion, "standalone-compose", "stackkits-standalone-compose-runtime", standaloneOperations,
+			)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductVaultwardenSelectedPaaSRegistration(
+				runtimeVersion, "standalone-compose", "stackkits-standalone-compose-runtime", standaloneOperations,
+			)
+		},
+	}
+	for _, application := range standaloneApplications {
+		registration, err := application()
+		if err != nil {
+			return nil, fmt.Errorf("register local standalone Compose application owner: %w", err)
+		}
+		registrations = append(registrations, registration)
+	}
 	_, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return nil, err
@@ -324,30 +352,31 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return nil, fmt.Errorf("register Modern process runtime owners: %w", err)
 		}
 		registrations = append(registrations, remote...)
-		immich, err := architecturev2.NewProductRemoteImmichSelectedPaaSRegistration(
-			"coolify",
-			"stackkits-coolify-runtime",
-		)
-		if err != nil {
-			return nil, fmt.Errorf("register Modern selected-PaaS runtime owner: %w", err)
+		for _, adapter := range []struct {
+			ref, moduleRef string
+		}{
+			{ref: "coolify", moduleRef: "stackkits-coolify-runtime"},
+			{ref: "komodo", moduleRef: "stackkits-komodo-core-runtime"},
+		} {
+			applications := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
+				func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+					return architecturev2.NewProductRemoteImmichSelectedPaaSRegistration(adapter.ref, adapter.moduleRef)
+				},
+				func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+					return architecturev2.NewProductRemoteCloudreveSelectedPaaSRegistration(adapter.ref, adapter.moduleRef)
+				},
+				func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+					return architecturev2.NewProductRemoteVaultwardenSelectedPaaSRegistration(adapter.ref, adapter.moduleRef)
+				},
+			}
+			for _, application := range applications {
+				registration, err := application()
+				if err != nil {
+					return nil, fmt.Errorf("register %s application-adapter runtime owner: %w", adapter.ref, err)
+				}
+				registrations = append(registrations, registration)
+			}
 		}
-		registrations = append(registrations, immich)
-		cloudreve, err := architecturev2.NewProductRemoteCloudreveSelectedPaaSRegistration(
-			"coolify",
-			"stackkits-coolify-runtime",
-		)
-		if err != nil {
-			return nil, fmt.Errorf("register Files selected-PaaS runtime owner: %w", err)
-		}
-		registrations = append(registrations, cloudreve)
-		vaultwarden, err := architecturev2.NewProductRemoteVaultwardenSelectedPaaSRegistration(
-			"coolify",
-			"stackkits-coolify-runtime",
-		)
-		if err != nil {
-			return nil, fmt.Errorf("register Vault selected-PaaS runtime owner: %w", err)
-		}
-		registrations = append(registrations, vaultwarden)
 	}
 	return registrations, nil
 }

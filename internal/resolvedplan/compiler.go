@@ -416,6 +416,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		install:       deployment.install,
 		system:        deployment.system,
 		storage:       deployment.storage,
+		workloads:     contracts.workloads,
 	}); err != nil {
 		return nil, err
 	}
@@ -1255,12 +1256,158 @@ func (c *Compiler) buildApplicationLifecycles(workloads []any) ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		delivery, err := c.applicationLifecycleDelivery(workload, id, fmt.Sprintf("workloads[%d]", index))
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, map[string]any{
 			"id": id, "version": version, "contractHash": contractHash,
-			"workloadRef": workloadRef, "packageRef": packageRef, "lifecycle": resolvedLifecycle,
+			"workloadRef": workloadRef, "packageRef": packageRef,
+			"delivery": delivery, "lifecycle": resolvedLifecycle,
 		})
 	}
 	return result, nil
+}
+
+func (c *Compiler) applicationLifecycleDelivery(
+	resolvedWorkload map[string]any,
+	workloadID string,
+	path string,
+) (map[string]any, error) {
+	resolvedAlternative, err := objectField(resolvedWorkload, path, "alternative")
+	if err != nil {
+		return nil, err
+	}
+	alternativeID, err := stringField(resolvedAlternative, path+".alternative", "id")
+	if err != nil {
+		return nil, err
+	}
+	resolvedRuntime, err := objectField(resolvedAlternative, path+".alternative", "runtime")
+	if err != nil {
+		return nil, err
+	}
+	deliveryKind, err := stringField(resolvedRuntime, path+".alternative.runtime", "delivery")
+	if err != nil {
+		return nil, err
+	}
+	delivery := map[string]any{"kind": deliveryKind}
+	if deliveryKind != "application-adapter" && deliveryKind != "selected-paas" {
+		return delivery, nil
+	}
+	resolvedAdapter, exists, err := optionalObjectField(resolvedRuntime, path+".alternative.runtime", "adapter")
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fail(
+			ErrContractConflict,
+			path+".alternative.runtime.adapter",
+			"application workload %q requires one exact delivery adapter",
+			workloadID,
+		)
+	}
+	adapterRef, err := stringField(resolvedAdapter, path+".alternative.runtime.adapter", "id")
+	if err != nil {
+		return nil, err
+	}
+
+	catalogWorkload, exists := c.catalog.workloads[workloadID]
+	if !exists {
+		return nil, fail(ErrInvalidInput, "catalog.workloads", "selected application workload %q is absent", workloadID)
+	}
+	alternatives, err := objectListField(catalogWorkload, "catalog.workloads."+workloadID, "alternatives")
+	if err != nil {
+		return nil, err
+	}
+	var selectedAlternative map[string]any
+	for index, alternative := range alternatives {
+		candidateID, candidateErr := stringField(
+			alternative,
+			fmt.Sprintf("catalog.workloads.%s.alternatives[%d]", workloadID, index),
+			"id",
+		)
+		if candidateErr != nil {
+			return nil, candidateErr
+		}
+		if candidateID == alternativeID {
+			if selectedAlternative != nil {
+				return nil, fail(
+					ErrContractConflict,
+					"catalog.workloads."+workloadID+".alternatives",
+					"application alternative %q is duplicated",
+					alternativeID,
+				)
+			}
+			selectedAlternative = alternative
+		}
+	}
+	if selectedAlternative == nil {
+		return nil, fail(
+			ErrContractConflict,
+			"catalog.workloads."+workloadID+".alternatives",
+			"selected application alternative %q is absent",
+			alternativeID,
+		)
+	}
+	catalogRuntime, err := objectField(
+		selectedAlternative,
+		"catalog.workloads."+workloadID+".alternatives."+alternativeID,
+		"runtime",
+	)
+	if err != nil {
+		return nil, err
+	}
+	compatibility, err := objectListField(
+		catalogRuntime,
+		"catalog.workloads."+workloadID+".alternatives."+alternativeID+".runtime",
+		"compatibility",
+	)
+	if err != nil {
+		return nil, err
+	}
+	var capabilities map[string]any
+	for index, row := range compatibility {
+		rowPath := fmt.Sprintf(
+			"catalog.workloads.%s.alternatives.%s.runtime.compatibility[%d]",
+			workloadID,
+			alternativeID,
+			index,
+		)
+		rowAdapterRef, rowErr := stringField(row, rowPath, "adapterRef")
+		if rowErr != nil {
+			return nil, rowErr
+		}
+		if rowAdapterRef != adapterRef {
+			continue
+		}
+		if capabilities != nil {
+			return nil, fail(
+				ErrContractConflict,
+				rowPath,
+				"delivery adapter %q has duplicate compatibility rows",
+				adapterRef,
+			)
+		}
+		rawCapabilities, rowErr := objectField(row, rowPath, "capabilities")
+		if rowErr != nil {
+			return nil, rowErr
+		}
+		capabilities, rowErr = cloneObject(rawCapabilities, true)
+		if rowErr != nil {
+			return nil, rowErr
+		}
+	}
+	if capabilities == nil {
+		return nil, fail(
+			ErrContractConflict,
+			"catalog.workloads."+workloadID+".alternatives."+alternativeID+".runtime.compatibility",
+			"selected delivery adapter %q has no compatibility row",
+			adapterRef,
+		)
+	}
+	delivery["adapterRef"] = adapterRef
+	delivery["capabilities"] = capabilities
+	return delivery, nil
 }
 
 func buildPlacement(workloads []any) ([]any, error) {

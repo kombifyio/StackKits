@@ -12,6 +12,12 @@ import (
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
+// kombify-go-common currently names its workload-adapter wire class
+// "selected-paas". StackKits keeps the broader CUE-owned
+// "application-adapter" semantic and translates only at this shared-package
+// boundary so standalone delivery is never modeled as a PaaS.
+const sharedApplicationAdapterRuntimeDelivery = "selected-paas"
+
 // sharedRuntimeExecutorBridge is the only translation boundary between the
 // StackKits-owned authorization grant and the provider-neutral shared executor
 // contract. StackKits retains registry, policy, trust, locking, and one-shot
@@ -232,13 +238,17 @@ func sharedRuntimeTargets(requirements generationartifact.ApplyRequirements) ([]
 		}
 		accessCapabilities := runtimeTargetAccessCapabilities(target.ID, requirements.AccessBindings)
 		backupTargetCapabilities := runtimeTargetBackupCapabilities(target.ID, requirements.BackupTargetBindings)
+		runtimeDelivery := target.RuntimeDelivery
+		if runtimeDelivery == "application-adapter" {
+			runtimeDelivery = sharedApplicationAdapterRuntimeDelivery
+		}
 		result[index] = runtimeexecutor.RuntimeTarget{
 			RequirementID: target.ID, OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef,
 			OwnerVersion: target.OwnerVersion, OwnerContractHash: target.OwnerContractHash, ProviderRef: target.ProviderRef,
 			ProviderContractHash: target.ProviderContractHash, ModuleRef: target.ModuleRef,
 			ModuleContractHash: target.ModuleContractHash, UnitRef: target.UnitRef,
 			UnitContractHash: target.UnitContractHash, RuntimeKind: target.RuntimeKind,
-			RuntimeDelivery: target.RuntimeDelivery, RuntimeEngine: target.RuntimeEngine,
+			RuntimeDelivery: runtimeDelivery, RuntimeEngine: target.RuntimeEngine,
 			InstanceRef: target.InstanceRef, ExecutionChannelRef: executionChannelRef,
 			SiteRefs: append([]string(nil), target.SiteRefs...),
 			NodeRefs: append([]string(nil), target.NodeRefs...), WorkloadRef: target.WorkloadRef,

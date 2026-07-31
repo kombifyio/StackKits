@@ -1399,7 +1399,7 @@ func parseModuleRuntime(object map[string]json.RawMessage, modulePath string) (m
 	if !containsStringValue([]string{"container", "native", "host", "external", "control-plane"}, decoded.Kind) {
 		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.kind", "unsupported module runtime kind %q", decoded.Kind)
 	}
-	if !containsStringValue([]string{"stackkit", "selected-paas", "external-control-plane"}, decoded.Delivery) {
+	if !containsStringValue([]string{"stackkit", "application-adapter", "selected-paas", "external-control-plane"}, decoded.Delivery) {
 		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.delivery", "unsupported module delivery %q", decoded.Delivery)
 	}
 	if !containsStringValue([]string{"executable", "contract-handoff"}, decoded.Execution) {
@@ -1638,15 +1638,15 @@ func parseRenderUnit(raw json.RawMessage, unitPath string) (renderUnitContract, 
 	if err := validateRenderUnitIdentity(decoded, unitPath); err != nil {
 		return renderUnitContract{}, err
 	}
+	inputBindingsCanonical, err := validateRenderUnitInputBindings(decoded, unitPath)
+	if err != nil {
+		return renderUnitContract{}, err
+	}
 	valuesCanonical, secretsCanonical, err := validateRenderUnitInputs(decoded, unitPath)
 	if err != nil {
 		return renderUnitContract{}, err
 	}
 	planInputRefs, planInputsCanonical, err := validateRenderUnitPlanInputs(decoded, unitPath)
-	if err != nil {
-		return renderUnitContract{}, err
-	}
-	inputBindingsCanonical, err := validateRenderUnitInputBindings(decoded, unitPath)
 	if err != nil {
 		return renderUnitContract{}, err
 	}
@@ -1737,7 +1737,7 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 			return nil, fail(ErrDuplicate, path+".targetRef", "duplicate bound target")
 		}
 		seen[binding.TargetRef] = struct{}{}
-		hasDefault := len(binding.DefaultValue) != 0 && string(binding.DefaultValue) != "null"
+		hasDefault := len(binding.DefaultValue) != 0
 		if binding.Required == hasDefault {
 			return nil, fail(ErrInvalidPlan, path+".defaultValue", "required bindings forbid defaults and optional bindings require one")
 		}
@@ -1808,6 +1808,25 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound network.routes value is missing")
 			}
 			if err := validatePublicServiceRouteListV4(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
+			}
+		case "network.moduleRoute":
+			if binding.ValueType != "authority-bound-module-route-v1" || binding.Cardinality != "single" {
+				return nil, fail(ErrInvalidPlan, path, "network.moduleRoute has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound network.moduleRoute value is missing")
+			}
+			if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+				if binding.Required || !bytes.Equal(bytes.TrimSpace(binding.DefaultValue), []byte("null")) {
+					return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "null module route requires the exact optional null default")
+				}
+				break
+			}
+			routeList := append([]byte{'['}, value...)
+			routeList = append(routeList, ']')
+			if err := validatePublicServiceRouteListV4(routeList, unitPath+".values."+binding.TargetRef); err != nil {
 				return nil, err
 			}
 		case "network.cloudHostSecurity":
@@ -2989,7 +3008,15 @@ func validateRenderUnitInputs(unit rawRenderUnit, unitPath string) ([]byte, []by
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := requireObjectKeysSubset(unit.Values, publicSet, unitPath+".values"); err != nil {
+	nullable := make(map[string]struct{})
+	for _, raw := range unit.InputBindings {
+		var binding rawModuleRenderInputBinding
+		if err := decodeStrict(raw, &binding); err == nil && !binding.Required &&
+			bytes.Equal(bytes.TrimSpace(binding.DefaultValue), []byte("null")) {
+			nullable[binding.TargetRef] = struct{}{}
+		}
+	}
+	if err := requireObjectKeysSubsetAllowingNull(unit.Values, publicSet, nullable, unitPath+".values"); err != nil {
 		return nil, nil, err
 	}
 	if err := requireCompleteSecretRefs(unit.SecretRefs, secretSet, unitPath+".secretRefs"); err != nil {
@@ -3097,12 +3124,27 @@ func validateRenderUnitOutputs(declared []string, unitPath string) ([]string, er
 }
 
 func requireObjectKeysSubset(values map[string]json.RawMessage, expected map[string]struct{}, valuePath string) error {
+	return requireObjectKeysSubsetAllowingNull(values, expected, nil, valuePath)
+}
+
+func requireObjectKeysSubsetAllowingNull(
+	values map[string]json.RawMessage,
+	expected map[string]struct{},
+	nullable map[string]struct{},
+	valuePath string,
+) error {
 	for key, raw := range values {
 		if _, exists := expected[key]; !exists {
 			return fail(ErrInvalidPlan, valuePath+"."+key, "input is not declared")
 		}
-		if len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) == 0 {
 			return fail(ErrInvalidPlan, valuePath+"."+key, "input value must not be null")
+		}
+		if bytes.Equal(trimmed, []byte("null")) {
+			if _, allowed := nullable[key]; !allowed {
+				return fail(ErrInvalidPlan, valuePath+"."+key, "input value must not be null")
+			}
 		}
 	}
 	return nil

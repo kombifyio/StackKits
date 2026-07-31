@@ -16,7 +16,7 @@ const (
 	coolifyRuntimeAdapterOutputRef   = "platform/coolify/runtime-adapter.json"
 )
 
-const coolifyRuntimeAdapterRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|coolify|container:selected-paas|operations:apply,observe,rollback|provider-lifecycle:not-owned|credentials:external-owner|endpoints:not-included|evidence:required`
+const coolifyRuntimeAdapterRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|coolify|container:application-adapter|operations:apply,observe|provider-lifecycle:not-owned|credentials:external-owner|routes:artifact-bound|evidence:required`
 
 type coolifyRuntimeAdapterBundle struct {
 	APIVersion string `json:"apiVersion"`
@@ -143,19 +143,19 @@ func validateCoolifyRuntimeAdapterUnit(unit RenderUnit, contract RendererContrac
 	bundle.Adapter.ModuleRef = coolifyRuntimeAdapterModuleID
 	bundle.Adapter.Version = "1.0.0"
 	bundle.Adapter.SupportedKinds = []string{"container"}
-	bundle.Adapter.SupportedDeliveries = []string{"selected-paas"}
-	bundle.Adapter.Operations = []string{"apply", "observe", "rollback"}
+	bundle.Adapter.SupportedDeliveries = []string{"application-adapter"}
+	bundle.Adapter.Operations = []string{"apply", "observe"}
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
-	bundle.Inputs.ArtifactAPIVersions = []string{"stackkit.workload-bundle/v1"}
+	bundle.Inputs.ArtifactAPIVersions = []string{"stackkit.workload-bundle/v2"}
 	bundle.Inputs.PublicValues = "artifact-bound-only"
 	bundle.Inputs.SecretRefs = "opaque-artifact-references-only"
 	bundle.Inputs.CredentialMaterial = "forbidden"
 	bundle.Ownership.ProviderLifecycle = "not-owned"
 	bundle.Ownership.Credentials = "external-owner"
-	bundle.Ownership.Endpoints = "not-included"
+	bundle.Ownership.Endpoints = "resolved-route-only"
 	bundle.Ownership.Execution = "authenticated-external-adapter"
 	bundle.Verification.HealthContractRef = "coolify-runtime-contract"
-	bundle.Verification.RequiredPhases = []string{"apply", "observe", "rollback"}
+	bundle.Verification.RequiredPhases = []string{"apply", "observe"}
 	bundle.Verification.DigestBinding = true
 	bundle.Verification.RuntimeReadback = true
 	bundle.Verification.RouteReadback = true

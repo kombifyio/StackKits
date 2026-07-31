@@ -148,6 +148,7 @@ func validateVaultwardenSelectedPaaSRequest(request runtimeexecutor.ExecutionReq
 		Release: descriptor.Release, SiteRef: descriptor.SiteRef, NodeRef: descriptor.NodeRef,
 		InstanceRef: descriptor.InstanceRef, ExecutionChannelRef: binding.ExecutionChannelRef,
 		ArtifactRef: artifact.ID, ArtifactDigest: artifact.Digest, Bundle: append([]byte(nil), artifact.Content...),
+		Route:          descriptor.Route,
 		RuntimeAdapter: *target.RuntimeAdapter, AdapterArtifacts: adapterArtifacts,
 	}
 	return target, append([]runtimeexecutor.HealthTarget(nil), request.HealthTargets...), deployment, descriptor, nil
@@ -170,8 +171,7 @@ func validateVaultwardenRouteHealthTarget(health runtimeexecutor.HealthTarget, t
 func validateVaultwardenObservation(observation SelectedPaaSWorkloadObservation, deployment SelectedPaaSWorkloadDeployment, descriptor architecturev2renderer.VaultwardenWorkloadBundleDescriptor) error {
 	if observation.WorkloadRef != deployment.WorkloadRef || observation.Release != deployment.Release ||
 		observation.InstanceRef != deployment.InstanceRef || observation.ArtifactDigest != deployment.ArtifactDigest ||
-		observation.Status != "running" || observation.Route.ServiceRef != "vault" ||
-		observation.Route.Protocol != "http" || observation.Route.Port != 80 ||
+		observation.Status != "running" || !exactApplicationDeliveryRouteObservation(observation.Route, descriptor.Route) ||
 		observation.Route.Method != "GET" || observation.Route.Path != "/alive" ||
 		observation.Route.Status != "healthy" || observation.Route.HTTPStatus != 200 ||
 		len(observation.Components) != len(descriptor.Components) {

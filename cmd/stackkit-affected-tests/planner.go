@@ -15,6 +15,8 @@ const planSchema = "kombify.stackkits/affected-test-plan/v1"
 // package's focused tests run.
 const focusedTestBatchSize = 8
 
+const basementCatalogRendererTest = "TestProductBasementCoreFactoryAdmitsGeneratedStandardTarget"
+
 var coreCUERoots = []string{
 	"./base/...",
 	"./basement-kit/...",
@@ -191,6 +193,9 @@ var releaseTestBindings = map[string][]string{
 	},
 	".github/workflows/ci.yml": {
 		"scripts/public/public-surface-policy.test.mjs",
+	},
+	".github/workflows/ci-fast.yml": {
+		"scripts/release/check-fast-feedback-budget.test.mjs",
 	},
 	".github/workflows/publish-oss.yml": {
 		"scripts/public/public-surface-policy.test.mjs",
@@ -385,9 +390,20 @@ func buildPlan(input plannerInput) testPlan {
 		}
 		goSelection.Reverse = sortedUnique(goSelection.Reverse)
 	}
+	focusedTests := focusedGoTests(files, input.ChangedTests)
+	if slicesContain(files, "base/architecture_v2_catalog.cue") {
+		const rendererPattern = "./internal/architecturev2"
+		goSelection.Changed = sortedUnique(append(goSelection.Changed, rendererPattern))
+		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, rendererPattern)
+		goSelection.Reverse = withoutString(goSelection.Reverse, rendererPattern)
+		focusedTests["internal/architecturev2"] = sortedUnique(append(
+			focusedTests["internal/architecturev2"],
+			basementCatalogRendererTest,
+		))
+	}
 	goPatterns := sortedUnique(append(append(append([]string(nil), goSelection.Changed...), goSelection.CompileOnly...), goSelection.Reverse...))
 	classes.GoPackages = append([]string(nil), goPatterns...)
-	commands = append(commands, affectedGoCommands(goSelection, focusedGoTests(files, input.ChangedTests))...)
+	commands = append(commands, affectedGoCommands(goSelection, focusedTests)...)
 
 	if classes.CUEShared {
 		commands = append(commands, testCommand{
@@ -396,18 +412,6 @@ func buildPlan(input plannerInput) testPlan {
 			Argv:   append([]string{"cue", "vet", "-c=false"}, coreRoots...),
 			Reason: "shared CUE schemas can affect each core kit but intentionally remain incomplete until bound to concrete plans",
 		})
-		if slicesContain(files, "base/architecture_v2_catalog.cue") {
-			commands = append(commands, testCommand{
-				Kind:  "go",
-				Scope: "basement-catalog-renderer-contract",
-				Argv: []string{
-					"go", "test", "-count=1", "-timeout=90s",
-					"-run", "^TestProductBasementCoreFactoryAdmitsGeneratedStandardTarget$",
-					"./internal/architecturev2",
-				},
-				Reason: "the Basement catalog component graph must match the exact renderer-owned runtime topology",
-			})
-		}
 	} else if len(classes.CUEKits) > 0 {
 		args := []string{"cue", "vet"}
 		for _, kit := range classes.CUEKits {
@@ -515,6 +519,16 @@ func productBoundaryRelevant(files []string) bool {
 func slicesContain(values []string, want string) bool {
 	index := sort.SearchStrings(values, want)
 	return index < len(values) && values[index] == want
+}
+
+func withoutString(values []string, unwanted string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != unwanted {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func focusedGoTests(files []string, changedTests map[string][]string) map[string][]string {

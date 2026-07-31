@@ -40,9 +40,11 @@ _architectureV2ServiceCatalogCapabilities: ["service-catalog"]
 _architectureV2AccessPolicyCapabilities: ["access-policy"]
 _architectureV2StorageDataPolicyCapabilities: ["storage-data-policy"]
 
-// runtime-paas is the shared workload delivery interface. Basement Compose,
-// Cloud runtime, and Modern federation remain distinct realizations and must
-// not be inferred from this cross-kit contract.
+// runtime-paas is the historical capability ID for the shared workload
+// delivery interface. Native v2 binds the concrete application-adapter
+// separately, including the non-PaaS standalone Compose implementation.
+// Basement Compose, Cloud runtime, and Modern federation remain distinct
+// realizations and must not be inferred from this cross-kit contract.
 _architectureV2WorkloadRuntimeContractCapabilities: ["runtime-paas"]
 
 _architectureV2PhotosInfrastructure: #WorkloadInfrastructureV1 & {
@@ -310,9 +312,14 @@ _architectureV2WorkloadContracts: [
 			route: {serviceRef: "photos", healthRef: "immich-http"}
 			runtime: {
 				allowedKinds: ["container"]
-				allowedDeliveries: ["selected-paas"]
-				allowedAdapterRefs: ["coolify", "komodo"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
 				defaultAdapterRef: "coolify"
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+				]
 			}
 			setup: {
 				mode:  "manual"
@@ -347,9 +354,14 @@ _architectureV2WorkloadContracts: [
 			route: {serviceRef: "files", healthRef: "cloudreve-http"}
 			runtime: {
 				allowedKinds: ["container"]
-				allowedDeliveries: ["selected-paas"]
-				allowedAdapterRefs: ["coolify", "komodo"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
 				defaultAdapterRef: "coolify"
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
 			inputs: {
@@ -377,9 +389,14 @@ _architectureV2WorkloadContracts: [
 			route: {serviceRef: "vault", healthRef: "vaultwarden-http"}
 			runtime: {
 				allowedKinds: ["container"]
-				allowedDeliveries: ["selected-paas"]
-				allowedAdapterRefs: ["coolify", "komodo"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
 				defaultAdapterRef: "coolify"
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
 			inputs: {
@@ -1112,6 +1129,25 @@ _architectureV2Providers: list.Concat([[
 		]
 		evidence: ["komodo-core-adapter-contract", "komodo-periphery-agent-contract"]
 	},
+	{
+		metadata: {id: "stackkits-standalone-compose", version: "1.0.0"}
+		provides: []
+		runtimeAdapterRefs: ["standalone-compose"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-standalone-compose-runtime"]
+				optional: []
+			}
+		}
+		health: [{id: "standalone-compose-runtime-contract", kind: "contract"}]
+		evidence: ["standalone-compose-adapter-contract"]
+	},
 ],
 	_architectureV2ProfileExtensionProviders,
 	[for haRealization in _architectureV2HARealizations {
@@ -1832,6 +1868,37 @@ _architectureV2CoolifyAdapterSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "coolify-adapter"
 			outputRef: "platform/coolify/runtime-adapter.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+// Standalone Compose is a StackKits-owned execution adapter over an already
+// admitted Docker host. It consumes the same closed workload and route
+// authority as PaaS adapters and owns neither host nor server-provider
+// lifecycle.
+_architectureV2StandaloneComposeAdapterSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["standalone-compose-runtime-adapter"]
+		outputBindings: [{
+			artifactRef: "standalone-compose-runtime-adapter"
+			unitRef:     "standalone-compose-adapter"
+			outputRef:   "platform/standalone-compose/runtime-adapter.json"
+		}]
+		contracts: [{
+			id:       "standalone-compose-runtime-adapter"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "standalone-compose-adapter"
+			outputRef: "platform/standalone-compose/runtime-adapter.json"
 		}]
 	}
 	evidence: requiredRefs: []
@@ -3312,7 +3379,7 @@ _architectureV2Modules: list.Concat([[
 		}
 		runtime: {
 			kind:     "container"
-			delivery: "selected-paas"
+			delivery: "application-adapter"
 			engine:   "docker"
 			image: {
 				ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
@@ -3393,10 +3460,14 @@ _architectureV2Modules: list.Concat([[
 			kind:        "native-config"
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
-			templateRef:  "builtin://workloads/immich/bundle/v1.json"
-			version:      "2.0.0"
-			contractHash: "sha256:dfd43f8ddbdf3ca812d2374b766b533ee1d94bcd3ea8d2e64f030c6872569269"
-			publicInputRefs: []
+			templateRef:  "builtin://workloads/immich/bundle/v2.json"
+			version:      "3.0.0"
+			contractHash: "sha256:a84c2f253497052d30677aaecc3b0d73793a5b48ea36c380b01c3c385aa9064e"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
 			secretInputRefs: ["database-password"]
 			outputs: ["workloads/immich/bundle.json"]
 			placement: {
@@ -3423,13 +3494,13 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:383c8a53811d3c7abb2049a188af77152367ea56b7c47716dc9a7144b7cda99e"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
-				publicInputRefs: [], secretInputRefs: ["database-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:c8cafbfb8ada7743566432b94ad908dfaef53b62db343f80e38fad5c34ab9d33"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
-				publicInputRefs: [], secretInputRefs: ["database-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2ImmichSupport
@@ -3474,7 +3545,7 @@ _architectureV2Modules: list.Concat([[
 		}
 		runtime: {
 			kind:     "container"
-			delivery: "selected-paas"
+			delivery: "application-adapter"
 			engine:   "docker"
 			image: {
 				ref:    "docker.io/cloudreve/cloudreve:4.18.0"
@@ -3500,10 +3571,14 @@ _architectureV2Modules: list.Concat([[
 			kind:        "native-config"
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
-			templateRef:  "builtin://workloads/cloudreve/bundle/v1.json"
-			version:      "1.0.0"
-			contractHash: "sha256:1735d0d2012a7b0fa15e45aac606ba9c5faf861ecd38d651a9eabb9f22367846"
-			publicInputRefs: []
+			templateRef:  "builtin://workloads/cloudreve/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:a6343c858576f1dee488e363779962fa9c4f7feda0f2592ced538fa86e934ae0"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
 			secretInputRefs: []
 			outputs: ["workloads/cloudreve/bundle.json"]
 			placement: {
@@ -3530,13 +3605,13 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:351ef1abec597588906c6abedfeb95c85fe8fed5be63937c16a0c178c1210130"
 				unitRefs: ["cloudreve"], artifactRefs: ["cloudreve-workload-bundle"]
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:58609d10adde5f149301184cd8f24c375da1f8eadd6f2ce8e83c58c3dca34520"
 				unitRefs: ["cloudreve"], artifactRefs: ["cloudreve-workload-bundle"]
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2CloudreveSupport
@@ -3567,7 +3642,7 @@ _architectureV2Modules: list.Concat([[
 		}
 		runtime: {
 			kind:     "container"
-			delivery: "selected-paas"
+			delivery: "application-adapter"
 			engine:   "docker"
 			image: {
 				ref:    "ghcr.io/dani-garcia/vaultwarden:1.35.4"
@@ -3595,10 +3670,14 @@ _architectureV2Modules: list.Concat([[
 			kind:        "native-config"
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
-			templateRef:  "builtin://workloads/vaultwarden/bundle/v1.json"
-			version:      "1.0.0"
-			contractHash: "sha256:4b5734ce53b1f8e3291b0e836b30dc89ac55375c6125e64f1528541f5350251b"
-			publicInputRefs: []
+			templateRef:  "builtin://workloads/vaultwarden/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:fa23863a99c114b5662986eb6b814504c8b1dd1dbfe4aa0c03b504ba451a58ce"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
 			secretInputRefs: ["admin-token"]
 			outputs: ["workloads/vaultwarden/bundle.json"]
 			placement: {
@@ -3626,13 +3705,13 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
-				publicInputRefs: [], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
-				publicInputRefs: [], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2VaultwardenSupport
@@ -3664,8 +3743,8 @@ _architectureV2Modules: list.Concat([[
 		runtimeAdapter: {
 			id: "coolify"
 			supportedKinds: ["container"]
-			supportedDeliveries: ["selected-paas"]
-			operations: ["apply", "observe", "rollback"]
+			supportedDeliveries: ["application-adapter"]
+			operations: ["apply", "observe"]
 			credentialCustody: "external-owner"
 			providerLifecycle: "not-owned"
 			evidenceRequired:  true
@@ -3678,7 +3757,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://platform/coolify/runtime-adapter/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:b86c0645b02361fb94fa6b03ae71ba78174fec126578df3da10d4b700bcbf993"
+			contractHash: "sha256:0115f3bdc1a7806823330a1a271085c9721549f9b69dbb0e9fd2da25bada97ab"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/coolify/runtime-adapter.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3703,6 +3782,60 @@ _architectureV2Modules: list.Concat([[
 	},
 	{
 		metadata: {
+			id:          "stackkits-standalone-compose-runtime"
+			version:     "1.0.0"
+			description: "StackKits-owned no-PaaS workload adapter over an admitted Docker host; host and server-provider lifecycle remain outside this contract."
+		}
+		role:        "platform"
+		providerRef: "stackkits-standalone-compose"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapter: {
+			id: "standalone-compose"
+			supportedKinds: ["container"]
+			supportedDeliveries: ["application-adapter"]
+			operations: ["apply", "observe"]
+			credentialCustody: "local-owner"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:          "standalone-compose-adapter"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/standalone-compose/runtime-adapter/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:552389b0d9c11503754d264e39654aebece5251fa92cdd38d6f59b9790734e05"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/standalone-compose/runtime-adapter.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:75a6431c0ad93a09a27d454c7f29712b910287b5b03668a5c1f5f089ef0daba5"
+				unitRefs: ["standalone-compose-adapter"], artifactRefs: ["standalone-compose-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b98d542d03eaf368279943dbffbd6641ddc49df854e13f988b59289ac62f067d"
+				unitRefs: ["standalone-compose-adapter"], artifactRefs: ["standalone-compose-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2StandaloneComposeAdapterSupport
+		health: [{id: "standalone-compose-runtime-contract", kind: "contract"}]
+		evidence: ["standalone-compose-adapter-contract"]
+	},
+	{
+		metadata: {
 			id:          "stackkits-komodo-core-runtime"
 			version:     "1.0.0"
 			description: "Workload-scoped Komodo Core API adapter contract; installation, endpoints, credentials, leases, and provider lifecycle remain outside StackKits."
@@ -3719,8 +3852,8 @@ _architectureV2Modules: list.Concat([[
 		runtimeAdapter: {
 			id: "komodo"
 			supportedKinds: ["container"]
-			supportedDeliveries: ["selected-paas"]
-			operations: ["apply", "observe", "rollback", "backup", "restore"]
+			supportedDeliveries: ["application-adapter"]
+			operations: ["apply", "observe"]
 			agentRefs: ["komodo-periphery"]
 			credentialCustody: "external-owner"
 			providerLifecycle: "not-owned"
@@ -3734,7 +3867,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://platform/komodo/core-runtime-adapter/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:4e2f9d1f68d2f5ff28f5a51f181254c71f3ab6742c88927d9e8937f3db197bd8"
+			contractHash: "sha256:c9f14e4bd228574a3a4c26465141fcc0f57f1eddf8d24aa5d418f28df8095c34"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/komodo/core-runtime-adapter.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}

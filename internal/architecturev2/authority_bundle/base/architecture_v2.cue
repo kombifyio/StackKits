@@ -2828,8 +2828,11 @@ _servicePublicationShape: {
 	// contract-handoff and therefore produce no Apply runtime target.
 	execution: *"executable" | "contract-handoff"
 	kind:      "container" | "native" | "host" | "external" | "control-plane"
-	delivery:  "stackkit" | "selected-paas" | "external-control-plane"
-	engine?:   "docker" | "podman" | "systemd" | "binary" | "api"
+	// application-adapter is the workload-scoped delivery seam shared by
+	// PaaS adapters and the StackKits-owned standalone Compose adapter.
+	// selected-paas remains accepted for exact historical plan authority.
+	delivery: "stackkit" | "application-adapter" | "selected-paas" | "external-control-plane"
+	engine?:  "docker" | "podman" | "systemd" | "binary" | "api"
 	image?: {
 		ref:     string & =~"^[^[:space:]]+$"
 		digest?: #ContentHash
@@ -3236,8 +3239,8 @@ _servicePublicationShape: {
 // architecture authority into public renderer inputs. Sources are finite and
 // typed; arbitrary paths, raw StackSpec access, module outputs, and secrets are
 // intentionally unrepresentable.
-#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot" | "backup.localKopiaSource"
-#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1"
+#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.moduleRoute" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot" | "backup.localKopiaSource"
+#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "authority-bound-module-route-v1" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1"
 #ModuleRenderInputCardinalityV2: "single" | "list"
 
 // This projection renames credentialTTLSeconds to lifetimeSeconds so the
@@ -3810,6 +3813,11 @@ _servicePublicationShape: {
 		cardinality: "list"
 		if required == false && valueType == "authority-bound-service-route-list-v4" {defaultValue: [...#ModulePublicResolvedRouteV4]}
 	}
+	if sourceRef == "network.moduleRoute" {
+		valueType:   "authority-bound-module-route-v1"
+		cardinality: "single"
+		if required == false {defaultValue: null}
+	}
 	if sourceRef == "network.cloudHostSecurity" {
 		valueType:   "cloud-host-security-policy-v2"
 		cardinality: "single"
@@ -3840,7 +3848,7 @@ _servicePublicationShape: {
 	defaultValue?: _|_
 } | {
 	required: false
-	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityPolicyV2 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1 | #ModulePublicLocalKopiaBackupSourceV1
+	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityPolicyV2 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1 | #ModulePublicLocalKopiaBackupSourceV1 | null
 })
 
 // #ModuleSecretInputBindingV2 is the closed compiler-owned seam from a
@@ -4765,10 +4773,10 @@ _servicePublicationShape: {
 	runtimeAdapter?: {
 		id: #ContractID
 		supportedKinds: [...("container" | "native" | "host" | "external" | "control-plane")] & list.MinItems(1)
-		supportedDeliveries: [...("stackkit" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
+		supportedDeliveries: [...("stackkit" | "application-adapter" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
 		operations: [...("apply" | "observe" | "rollback" | "backup" | "restore")] & list.MinItems(1)
 		agentRefs: [...#ContractID] | *[]
-		credentialCustody: "external-owner"
+		credentialCustody: "external-owner" | "local-owner"
 		providerLifecycle: "not-owned"
 		evidenceRequired:  true
 
@@ -6293,10 +6301,10 @@ _servicePublicationShape: {
 	runtimeAdapter?: {
 		id: #ContractID
 		supportedKinds: [...("container" | "native" | "host" | "external" | "control-plane")] & list.MinItems(1)
-		supportedDeliveries: [...("stackkit" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
+		supportedDeliveries: [...("stackkit" | "application-adapter" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
 		operations: [...("apply" | "observe" | "rollback" | "backup" | "restore")] & list.MinItems(1)
 		agentRefs: [...#ContractID] | *[]
-		credentialCustody: "external-owner"
+		credentialCustody: "external-owner" | "local-owner"
 		providerLifecycle: "not-owned"
 		evidenceRequired:  true
 	}
@@ -6558,6 +6566,21 @@ _servicePublicationShape: {
 	}
 }
 
+#ApplicationAdapterCapabilitiesV1: {
+	deployment:     bool
+	routeTLS:       bool
+	statusEvidence: bool
+	backupRestore:  bool
+}
+
+#ResolvedApplicationLifecycleDeliveryV1: {
+	kind: "stackkit" | "external-control-plane"
+} | {
+	kind:         "application-adapter" | "selected-paas"
+	adapterRef:   #ContractID
+	capabilities: #ApplicationAdapterCapabilitiesV1
+}
+
 #WorkloadAlternativeV2: {
 	id:          #ContractID
 	providerRef: #ContractID
@@ -6568,9 +6591,17 @@ _servicePublicationShape: {
 	}
 	runtime: {
 		allowedKinds: [...("container" | "native" | "host" | "external" | "control-plane")] & list.MinItems(1)
-		allowedDeliveries: [...("stackkit" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
+		allowedDeliveries: [...("stackkit" | "application-adapter" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
 		allowedAdapterRefs: [...#ContractID] | *[]
 		defaultAdapterRef?: #ContractID
+		// compatibility is catalog authority, not observed runtime evidence.
+		// Every allowed adapter has exactly one row and every row names an
+		// allowed adapter. Missing evidence must still be reported separately.
+		compatibility?: [...{
+			adapterRef:   #ContractID
+			maturity:     "supported" | "beta" | "contract-only" | "unsupported"
+			capabilities: #ApplicationAdapterCapabilitiesV1
+		}] | *[]
 	}
 	setup: {
 		mode:  "automatic" | "on-demand" | "manual"
@@ -6592,6 +6623,13 @@ _servicePublicationShape: {
 	_runtimeKindsUnique:       list.UniqueItems(runtime.allowedKinds) & true
 	_runtimeDeliveriesUnique:  list.UniqueItems(runtime.allowedDeliveries) & true
 	_runtimeAdapterRefsUnique: list.UniqueItems(runtime.allowedAdapterRefs) & true
+	_runtimeCompatibilityRefsUnique: list.UniqueItems([for row in runtime.compatibility {row.adapterRef}]) & true
+	_runtimeCompatibilityComplete: [for adapterRef in runtime.allowedAdapterRefs {
+		[for row in runtime.compatibility if row.adapterRef == adapterRef {row.adapterRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_runtimeCompatibilityClosed: [for row in runtime.compatibility {
+		[for adapterRef in runtime.allowedAdapterRefs if adapterRef == row.adapterRef {adapterRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	if runtime.defaultAdapterRef != _|_ {
 		_runtimeDefaultAdapterAllowed: [for adapterRef in runtime.allowedAdapterRefs if adapterRef == runtime.defaultAdapterRef {adapterRef}] & list.MinItems(1) & list.MaxItems(1)
 	}
@@ -6672,6 +6710,7 @@ _servicePublicationShape: {
 	contractHash: #ContentHash
 	workloadRef:  id
 	packageRef:   #ContractID
+	delivery:     #ResolvedApplicationLifecycleDeliveryV1
 	lifecycle:    #StandardUseCaseLifecycle
 }
 
@@ -6702,7 +6741,7 @@ _servicePublicationShape: {
 		}
 		runtime: {
 			kind:     "container" | "native" | "host" | "external" | "control-plane"
-			delivery: "stackkit" | "selected-paas" | "external-control-plane"
+			delivery: "stackkit" | "application-adapter" | "selected-paas" | "external-control-plane"
 			adapter?: {
 				id:                   #ContractID
 				providerRef:          #ContractID

@@ -170,6 +170,22 @@ func (a *App) getOpenAPISpec(ctx context.Context, req *mcp.CallToolRequest, _ st
 	return TextResult(openAPISpec()), nil, nil
 }
 
+func (a *App) applicationDeliveryCompatibility(
+	ctx context.Context,
+	req *mcp.CallToolRequest,
+	_ struct{},
+) (*mcp.CallToolResult, any, error) {
+	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(a.opts.Version))
+	if err != nil {
+		return TextResult(err.Error()), nil, nil
+	}
+	entries, err := service.ListApplicationDeliveryCompatibility()
+	if err != nil {
+		return TextResult(err.Error()), nil, nil
+	}
+	return JSONResult(entries), entries, nil
+}
+
 func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	steps := []map[string]any{
 		{"command": "stackkit version", "purpose": "require the exact native v0.8 candidate bundle and its packaged definitions", "mutation": false},

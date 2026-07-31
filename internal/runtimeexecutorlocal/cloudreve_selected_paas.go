@@ -150,6 +150,7 @@ func validateCloudreveSelectedPaaSRequest(request runtimeexecutor.ExecutionReque
 		Release: descriptor.Release, SiteRef: descriptor.SiteRef, NodeRef: descriptor.NodeRef,
 		InstanceRef: descriptor.InstanceRef, ExecutionChannelRef: binding.ExecutionChannelRef,
 		ArtifactRef: artifact.ID, ArtifactDigest: artifact.Digest, Bundle: append([]byte(nil), artifact.Content...),
+		Route:          descriptor.Route,
 		RuntimeAdapter: *target.RuntimeAdapter, AdapterArtifacts: adapterArtifacts,
 	}
 	return target, append([]runtimeexecutor.HealthTarget(nil), request.HealthTargets...), deployment, descriptor, nil
@@ -172,8 +173,7 @@ func validateCloudreveRouteHealthTarget(health runtimeexecutor.HealthTarget, tar
 func validateCloudreveObservation(observation SelectedPaaSWorkloadObservation, deployment SelectedPaaSWorkloadDeployment, descriptor architecturev2renderer.CloudreveWorkloadBundleDescriptor) error {
 	if observation.WorkloadRef != deployment.WorkloadRef || observation.Release != deployment.Release ||
 		observation.InstanceRef != deployment.InstanceRef || observation.ArtifactDigest != deployment.ArtifactDigest ||
-		observation.Status != "running" || observation.Route.ServiceRef != "files" ||
-		observation.Route.Protocol != "http" || observation.Route.Port != 5212 ||
+		observation.Status != "running" || !exactApplicationDeliveryRouteObservation(observation.Route, descriptor.Route) ||
 		observation.Route.Method != "GET" || observation.Route.Path != "/" ||
 		observation.Route.Status != "healthy" ||
 		(observation.Route.HTTPStatus != 200 && observation.Route.HTTPStatus != 302) ||
