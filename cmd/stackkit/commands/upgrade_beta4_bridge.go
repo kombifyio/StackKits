@@ -1,5 +1,3 @@
-//go:build !publisher
-
 package commands
 
 import (
