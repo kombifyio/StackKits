@@ -61,9 +61,9 @@ jobs:
           STABLE_PREVIOUS_TAG: ${{ github.event.client_payload.stable_previous_tag }}
         run: |
           set -euo pipefail
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|edge)\.[0-9]+)?$ ]]
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-          if [[ "$TAG" =~ -(beta|edge)\.[0-9]+$ ]]; then
+          if [[ "$TAG" =~ ^v0\. ]]; then
             [ -z "$STABLE_PREVIOUS_TAG" ] || {
               echo "::error title=Unexpected stable baseline::stable_previous_tag must be empty for prerelease ${TAG}."
               exit 1
@@ -334,7 +334,7 @@ jobs:
           done
 
       - name: Download and verify exact previous stable release for stable Day-2
-        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -466,7 +466,7 @@ jobs:
         run: sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
 
       - name: Run bounded standalone Basement archive Apply and Verify
-        if: ${{ contains(github.ref_name, '-beta.') || contains(github.ref_name, '-edge.') }}
+        if: ${{ startsWith(github.ref_name, 'v0.') }}
         shell: bash
         env:
           STACKKIT_E2E_PRELOAD_IMAGES: "1"
@@ -493,7 +493,7 @@ jobs:
             artifacts/standalone-runtime/restore-live-evidence.json >/dev/null
 
       - name: Run bounded stable Day-2 proof from exact stable baseline to candidate
-        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         shell: bash
         env:
           STACKKIT_E2E_PRELOAD_IMAGES: "1"
@@ -568,7 +568,7 @@ jobs:
           retention-days: 1
 
       - name: Attest exact restore evidence
-        if: ${{ contains(github.ref_name, '-beta.') || contains(github.ref_name, '-edge.') }}
+        if: ${{ startsWith(github.ref_name, 'v0.') }}
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: artifacts/standalone-runtime/restore-live-evidence.json
@@ -576,7 +576,7 @@ jobs:
           show-summary: false
 
       - name: Attest exact stable Day-2 evidence
-        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: artifacts/standalone-runtime/stable-day2-live-evidence.json
@@ -600,7 +600,7 @@ jobs:
           retention-days: 90
 
       - name: Retain exact stable Day-2 evidence
-        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: stable-day2-live-${{ github.ref_name }}-${{ github.sha }}
@@ -610,7 +610,7 @@ jobs:
           retention-days: 90
 
       - name: Attach runtime evidence and publish the prerelease
-        if: ${{ contains(github.ref_name, '-beta.') || contains(github.ref_name, '-edge.') }}
+        if: ${{ startsWith(github.ref_name, 'v0.') }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -631,7 +631,7 @@ jobs:
             --latest=false
 
       - name: Retain stable evidence for the terminal release gate
-        if: ${{ !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-edge.') }}
+        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -643,8 +643,7 @@ jobs:
     if: >-
       ${{
         github.repository == 'kombifyio/StackKits' &&
-        !contains(github.ref_name, '-beta.') &&
-        !contains(github.ref_name, '-edge.')
+        !startsWith(github.ref_name, 'v0.')
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -789,8 +788,7 @@ jobs:
     if: >-
       ${{
         github.repository == 'kombifyio/StackKits' &&
-        !contains(github.ref_name, '-beta.') &&
-        !contains(github.ref_name, '-edge.')
+        !startsWith(github.ref_name, 'v0.')
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -845,8 +843,7 @@ jobs:
     if: >-
       ${{
         github.repository == 'kombifyio/StackKits' &&
-        !contains(github.ref_name, '-beta.') &&
-        !contains(github.ref_name, '-edge.')
+        !startsWith(github.ref_name, 'v0.')
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -936,8 +933,7 @@ jobs:
     if: >-
       ${{
         github.repository == 'kombifyio/StackKits' &&
-        !contains(github.ref_name, '-beta.') &&
-        !contains(github.ref_name, '-edge.')
+        !startsWith(github.ref_name, 'v0.')
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 3
@@ -1107,7 +1103,7 @@ jobs:
           EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           set -euo pipefail
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|edge)\.[0-9]+)?$ ]]
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           [[ "$EXPECTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           tag_source_commit="$(git rev-list -n 1 "refs/tags/$TAG")"
           if [ "$tag_source_commit" != "$EXPECTED_SOURCE_COMMIT" ]; then

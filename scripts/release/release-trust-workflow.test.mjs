@@ -85,6 +85,12 @@ test('public manual workflow binds exact ready draft bytes before publishing a r
     assert.match(publicRelease, new RegExp(fragment.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'))
   }
   assert.doesNotMatch(publicRelease, /^\s*push:\s*$/mu)
+  assert.match(publicRelease, /startsWith\(github\.ref_name, 'v0\.'\)/u)
+  assert.doesNotMatch(publicRelease, /contains\(github\.ref_name, '-(?:beta|edge)\.'\)/u)
+  assert.match(
+    publicRelease,
+    /\[\[ "\$TAG" =~ \^v\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$ \]\]/u
+  )
   assert.doesNotMatch(publicRelease, /seq 1 60|sleep 5|within 300 seconds/u)
   before(publicRelease, 'Dispatch exact publisher-ready tag', 'Attest exact release and prove standalone runtime')
   assert.match(
