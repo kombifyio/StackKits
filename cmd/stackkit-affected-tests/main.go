@@ -350,11 +350,29 @@ func loadGoPackages(repo string) ([]goPackage, error) {
 func gitOutput(repo string, args ...string) (string, error) {
 	command := exec.Command("git", args...)
 	command.Dir = repo
-	output, err := command.CombinedOutput()
+	output, err := commandOutput(command)
 	if err != nil {
-		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(output)))
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
-	return strings.TrimSpace(string(output)), nil
+	return output, nil
+}
+
+// commandOutput keeps successful stderr diagnostics out of machine-readable
+// stdout. Git for Windows can emit CRLF advice while returning success; using
+// CombinedOutput would make that advice look like changed filenames.
+func commandOutput(command *exec.Cmd) (string, error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			detail = err.Error()
+		}
+		return "", errors.New(detail)
+	}
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 func gitLines(repo string, args ...string) ([]string, error) {

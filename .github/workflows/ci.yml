@@ -20,7 +20,10 @@ jobs:
   affected:
     name: Fast affected checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    # The affected planner owns synchronous scope. Measure and optimize actual
+    # latency; this ceiling only exposes an opaque/hung job and is not an SLO,
+    # success criterion, or product gate.
+    timeout-minutes: 15
     steps:
       - name: Checkout bounded history
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
