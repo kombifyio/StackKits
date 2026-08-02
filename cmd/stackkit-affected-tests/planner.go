@@ -55,10 +55,6 @@ var fileFocusedTests = map[string][]string{
 		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
 		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
 	},
-	"internal/api/runtime_actions_backup_test.go": {
-		"TestLegacyV06BackupRuntimeActionCompatibilityBoundary",
-		"TestNativeV2RetiresAllLegacyBackupRuntimeActionsBeforeStateOrExecution",
-	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
 		"TestRunArchitectureV2InitMaterializesCanonicalProductSpecs",
 		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
@@ -185,7 +181,6 @@ var releaseTestBindings = map[string][]string{
 		"scripts/release/install-latest-resolution.test.mjs",
 	},
 	"mise.toml": {
-		"scripts/dev/architecture-v2-generation.test.mjs",
 		"scripts/release/check-fast-feedback-budget.test.mjs",
 	},
 	"scripts/dev/architecture-v2-generation.mjs": {
@@ -196,6 +191,15 @@ var releaseTestBindings = map[string][]string{
 	},
 	".github/workflows/ci-fast.yml": {
 		"scripts/release/check-fast-feedback-budget.test.mjs",
+	},
+	".github/workflows/delivery.yml": {
+		"scripts/release/check-fast-feedback-budget.test.mjs",
+	},
+	".github/workflows/deployment-standards-gate.yml": {
+		"scripts/release/check-fast-feedback-budget.test.mjs",
+	},
+	".github/workflows/os-matrix.yml": {
+		"scripts/release/validate-os-matrix.test.mjs",
 	},
 	".github/workflows/publish-oss.yml": {
 		"scripts/public/public-surface-policy.test.mjs",
@@ -247,6 +251,9 @@ var releaseTestBindings = map[string][]string{
 		"scripts/release/check-ci-race-shards.test.mjs",
 	},
 	"scripts/release/check-fast-feedback-budget.mjs": {
+		"scripts/release/check-fast-feedback-budget.test.mjs",
+	},
+	"scripts/release/check-fast-numeric-delivery.mjs": {
 		"scripts/release/check-fast-feedback-budget.test.mjs",
 	},
 	"scripts/release/check-l3-paas-contract.mjs": {
@@ -321,16 +328,17 @@ type plannerInput struct {
 }
 
 type classification struct {
-	GoPackages     []string `json:"goPackages,omitempty"`
-	GoShared       bool     `json:"goShared,omitempty"`
-	CUEModules     []string `json:"cueModules,omitempty"`
-	CUEKits        []string `json:"cueKits,omitempty"`
-	CUEShared      bool     `json:"cueShared,omitempty"`
-	Website        bool     `json:"website,omitempty"`
-	ReleaseE2E     bool     `json:"releaseE2E,omitempty"`
-	ReleaseGeneral bool     `json:"releaseGeneral,omitempty"`
-	Docs           bool     `json:"docs,omitempty"`
-	Unknown        []string `json:"unknown,omitempty"`
+	GoPackages        []string `json:"goPackages,omitempty"`
+	GoShared          bool     `json:"goShared,omitempty"`
+	CUEModules        []string `json:"cueModules,omitempty"`
+	CUEKits           []string `json:"cueKits,omitempty"`
+	CUEShared         bool     `json:"cueShared,omitempty"`
+	Website           bool     `json:"website,omitempty"`
+	OpenAPIProjection bool     `json:"openAPIProjection,omitempty"`
+	ReleaseE2E        bool     `json:"releaseE2E,omitempty"`
+	ReleaseGeneral    bool     `json:"releaseGeneral,omitempty"`
+	Docs              bool     `json:"docs,omitempty"`
+	Unknown           []string `json:"unknown,omitempty"`
 }
 
 type testCommand struct {
@@ -452,6 +460,14 @@ func buildPlan(input plannerInput) testPlan {
 				Reason: "validate the private/public website source boundary",
 			},
 		)
+	}
+	if classes.OpenAPIProjection {
+		commands = append(commands, testCommand{
+			Kind:   "contract",
+			Scope:  "stackaction-generated-openapi",
+			Argv:   []string{"go", "run", "./internal/contractgen/stackactiongen/cmd", "-repo-root", ".", "-check"},
+			Reason: "verify canonical and website OpenAPI projections without installing unrelated website tooling",
+		})
 	}
 	if classes.ReleaseE2E {
 		commands = append(commands, testCommand{
@@ -619,7 +635,10 @@ func classifyFiles(files []string) classification {
 			}
 		}
 
-		if top == "website" {
+		if file == "api/openapi/stackkits-v1.yaml" || file == "website/public/api/openapi.v1.yaml" {
+			result.OpenAPIProjection = true
+			known = true
+		} else if top == "website" {
 			result.Website = true
 			known = true
 		}

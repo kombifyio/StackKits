@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/rilactionv2"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -73,8 +71,6 @@ type Service struct {
 	compiler                      *resolvedplan.Compiler
 	validator                     *resolvedplan.CUEContractValidator
 	generation                    *generationCoordinator
-	rilActionLedger               rilaction.ExecutionLedger
-	rilActionExecutors            *rilActionExecutorRegistry
 	productApplyTrust             []productApplyTrustAnchor
 	productApplyEvidenceCollector ProductApplyEvidenceCollector
 	productRuntimeOwners          *ProductRuntimeOwnerRegistry
@@ -234,17 +230,6 @@ func newProductEmbeddedServiceWithRuntimeOwners(
 	return service, nil
 }
 
-// NewProductEmbeddedServiceWithRILActionLedger creates the product service
-// with an integration-owned atomic replay/evidence store. The ledger supplies
-// persistence only; it cannot select or authorize a runtime owner.
-func NewProductEmbeddedServiceWithRILActionLedger(contract CompilerContract, ledger rilaction.ExecutionLedger) (*Service, error) {
-	service, err := NewProductEmbeddedService(contract)
-	if err != nil {
-		return nil, err
-	}
-	return service.withRILActionLedger(ledger)
-}
-
 // NewService is the compatibility name for an explicit filesystem authority.
 // New integrations should use NewEmbeddedService by default and select
 // NewFilesystemService only for an intentional development/operator override.
@@ -271,37 +256,6 @@ func NewEmbeddedService(contract CompilerContract) (*Service, error) {
 		return nil, resolveError(ErrAuthorityLoad, err.Error(), err)
 	}
 	return newServiceWithAuthority(authority, contract)
-}
-
-// NewEmbeddedServiceWithRILActionLedger is the non-product counterpart for
-// integrations and focused contract tests that provide their own durable SPI.
-func NewEmbeddedServiceWithRILActionLedger(contract CompilerContract, ledger rilaction.ExecutionLedger) (*Service, error) {
-	service, err := NewEmbeddedService(contract)
-	if err != nil {
-		return nil, err
-	}
-	return service.withRILActionLedger(ledger)
-}
-
-func (s *Service) withRILActionLedger(ledger rilaction.ExecutionLedger) (*Service, error) {
-	if s == nil || nilRILActionLedger(ledger) {
-		return nil, resolveError(ErrAuthorityLoad, "a RIL action execution ledger is required", nil)
-	}
-	s.rilActionLedger = ledger
-	return s, nil
-}
-
-func nilRILActionLedger(ledger rilaction.ExecutionLedger) bool {
-	if ledger == nil {
-		return true
-	}
-	value := reflect.ValueOf(ledger)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }
 
 // NewFilesystemContractFixtureService loads the deliberately non-product
@@ -420,19 +374,10 @@ func newServiceWithValidatedAuthority(authority *cueAuthority, contract Compiler
 	if err != nil {
 		return nil, resolveError(ErrAuthorityLoad, "construct Architecture v2 generation coordinator: "+err.Error(), err)
 	}
-	service := &Service{
+	return &Service{
 		authority: authority, compiler: compiler, validator: validator,
-		generation: generation, rilActionLedger: newMemoryRILActionLedger(),
-	}
-	executorCatalog, err := decodeRILActionExecutorCatalog(authority.catalog.RILActionExecutors)
-	if err != nil {
-		return nil, resolveError(ErrAuthorityLoad, "decode Architecture v2 RIL action executor catalog: "+err.Error(), err)
-	}
-	service.rilActionExecutors, err = newRILActionExecutorRegistry(executorCatalog)
-	if err != nil {
-		return nil, resolveError(ErrAuthorityLoad, "construct RIL action executor registry: "+err.Error(), err)
-	}
-	return service, nil
+		generation: generation,
+	}, nil
 }
 
 func authorityDefinitionSet(definitions map[stackspecmigration.KitProfile]resolvedplan.KitDefinition) []resolvedplan.KitDefinition {

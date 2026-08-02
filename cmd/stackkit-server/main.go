@@ -168,8 +168,6 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		TrustedProxies:                    proxies,
 		ServiceAuthSecret:                 strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET")),
 		ServiceAuthSecretNext:             strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET_NEXT")),
-		RuntimeActionMode:                 resolveRuntimeActionMode(),
-		RuntimeRestoreVerifierCommand:     strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
 		StackActionMode:                   resolveStackActionMode(),
 		StackActionRestoreVerifierCommand: strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
 		SetupActionMode:                   resolveSetupActionMode(),
@@ -203,20 +201,6 @@ func resolveRuntimeProfile() string {
 
 func runtimeProfileRequiresProductionGuards(profile string) bool {
 	return profile == "production"
-}
-
-func resolveRuntimeActionMode() string {
-	mode := strings.ToLower(strings.TrimSpace(os.Getenv("STACKKITS_RUNTIME_ACTION_MODE")))
-	switch mode {
-	case "apply":
-		slog.Warn("StackKits runtime actions will execute OpenTofu apply/state commands")
-		return "apply"
-	case "", "dry-run":
-		return "dry-run"
-	default:
-		slog.Warn("unknown STACKKITS_RUNTIME_ACTION_MODE; falling back to dry-run", "mode", mode)
-		return "dry-run"
-	}
 }
 
 func resolveStackActionMode() string {

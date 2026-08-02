@@ -22,7 +22,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
-	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
 	"github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -90,8 +89,6 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 		"capabilities": s.versionedCapabilities([]map[string]interface{}{
 			// Architecture v2
 			{"name": "architecture.resolve", "description": "Resolve canonical Architecture v2 intent into a deterministic ResolvedPlan", "method": "POST", "path": "/api/v2/resolve"},
-			{"name": "ril.v2.resolve", "description": "Bind tenant-owned StackSpec and Inventory to the current governed RIL execution resolution", "method": "POST", "path": rilActionResolvePath},
-			{"name": "ril.v2.execute", "description": "Execute one approved provider-free RIL action against the exact tenant-bound current resolution", "method": "POST", "path": rilActionExecutePath},
 			// Catalog
 			{"name": "stackkit.list", "description": "List all available StackKits", "method": "GET", "path": "/api/v1/stackkits"},
 			{"name": "stackkit.get", "description": "Get StackKit details by name", "method": "GET", "path": "/api/v1/stackkits/{name}"},
@@ -118,12 +115,6 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "setup.base_hub.protection.status", "description": "Read Base Hub protection state", "method": "GET", "path": "/api/v1/setup/base-hub/protection"},
 			{"name": "setup.base_hub.protection.apply", "description": "Protect Base Hub and the node-local API with TinyAuth", "method": "POST", "path": "/api/v1/setup/base-hub/protection"},
 			{"name": "setup.service.run", "description": "Run or request an on-demand first-run setup action for a service", "method": "POST", "path": "/api/v1/setup/services/{service}/run"},
-			// Internal runtime actions
-			{"name": "runtime.v2.stackkit_rollout", "description": "Admit governed Architecture v2 rollout for a TechStack-managed stack", "method": "POST", "path": sharedruntimeaction.ArchitectureV2PathStackKitRollout},
-			{"name": "runtime.v2.verify_rollout", "description": "Admit governed Architecture v2 verification for a TechStack-managed stack", "method": "POST", "path": sharedruntimeaction.ArchitectureV2PathStackKitVerify},
-			{"name": "runtime.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-rollout"},
-			{"name": "runtime.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/stackkit-verify"},
-			{"name": "runtime.restore_drill", "description": "Run or dry-run a StackKits restore drill for a TechStack-managed stack", "method": "POST", "path": "/api/v1/internal/runtime-actions/restore-drill"},
 			// CUE-governed StackActions
 			{"name": "stackaction.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": stackaction.PathStackKitRollout},
 			{"name": "stackaction.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": stackaction.PathStackKitVerify},

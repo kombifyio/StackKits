@@ -1,196 +1,35 @@
 ---
-title: RIL Action Execution Contract
-last_verified: 2026-07-28
-status: target-contract
+title: RIL Ownership Boundary
+last_verified: 2026-08-02
+status: superseded-checkpoint
 ---
 
-# RIL Action Execution Contract
+# RIL Ownership Boundary
 
-StackKits owns the StackKit-side execution primitives used by the `ril-ops`
-harness after Gateway policy and user approval succeed.
+The v0.7 StackKits-hosted RIL execution checkpoint is retired. StackKits no
+longer exposes RIL admission, execution, replay-ledger, or RuntimeAction HTTP
+surfaces and does not project their shared Go packages into the public mirror.
+Techstack owns those hosted concerns, including action-card lifecycle,
+idempotency, transport, runtime inventory, provider/server lifecycle, and
+multi-server orchestration.
 
-## Boundary
+StackKits still owns two things that the cutover must not erase:
 
-- `kombify-Agents` plans RIL action cards and resumes approved execution through
-  `ril-executor`.
-- `kombify-Gateway` enforces AuthContext, entitlements, delegated connector
-  grants, tool subset policy, audit, and redaction.
-- `kombify-TechStack` owns the action-card lifecycle, execution leases, server
-  read model, and verification record.
-- `kombify-StackKits` owns the CUE-governed primitive catalog, exact
-  ResolvedPlan/runtime-owner admission, and the provider-free execution and
-  evidence envelopes consumed by its governed runtime owners. StackKits does
-  not expose raw OpenTofu, SSH, Docker, provider lifecycle, or caller-selected
-  commands through RIL.
+- the CUE catalog facts for approved action primitives and executor identity,
+  including approval, recovery, target, evidence, and prohibition metadata;
+- provider-neutral local execution through the generated StackAction contract
+  and the published `stackkit` CLI.
 
-The general RIL catalog is independent from Modern Homelab's
-`outbound-control-agent` remote-action contracts. Those contracts govern a
-specific Home-to-Cloud federation boundary and are not a general Agent or RIL
-execution substrate.
+`contract-only` catalog entries remain discovery and validation metadata. They
+do not create a StackKits HTTP executor. Techstack may dispatch only the closed
+StackAction/CLI vocabulary to an already bound host; StackKits revalidates the
+local contract and produces local lifecycle evidence. Standard Mode remains
+account-free and does not depend on Techstack or RIL.
 
-## Historical v0.7.1 HTTP Checkpoint
+The former RIL and RuntimeAction paths are intentionally absent. Their local
+rollout, verify, restore-drill, and backup behavior is preserved one-for-one
+below `/api/v1/internal/stack-actions/*`; RIL admission itself has no StackKits
+replacement because it is not StackKits-owned behavior.
 
-The embedded Architecture-v2 product authority contains seven primitives:
-
-| Primitive | Class | Mutation | Recovery | Current support |
-|---|---|---:|---|---|
-| `plan-drift-repair` | plan/read-only | no | none | `contract-only` |
-| `apply-stackkit-change` | apply/high | yes | `rollback-stackkit-change` | `contract-only` |
-| `verify-stackkit-state` | verify/read-only | no | none | `executor-bound` to governed-plan readback |
-| `rollback-stackkit-change` | rollback/critical | yes | manual | `contract-only` |
-| `restart-service` | service/high | yes | manual | `contract-only` |
-| `rotate-certificate` | certificate/high | yes | manual | `contract-only` |
-| `check-backup` | backup/read-only | no | none | `contract-only` |
-
-`contract-only` means discovery and validation only. It does not authorize an
-API call, node handoff, local process, runtime adapter, or provider mutation.
-Each primitive receives a deterministic hash derived from its exact CUE
-projection and declares its required operation class. Later execution must bind
-that hash and class to an authenticated runtime owner; changing only an ID or
-title is insufficient.
-
-The sole current owner, `stackkits-governed-state-verifier-v1`, performs an
-in-process readback of the exact current canonical ResolvedPlan. It rechecks
-the plan hash, embedded CUE contract, product authority, and current generation
-binding. Its evidence explicitly records `runtime_state_observed=false`: it is
-not a host, container, service-health, provider, or Apply check.
-
-The owner itself is now a first-class closed CUE contract rather than a Go
-special case. Its exact reference, version, allowed operation class, and
-provider-free prohibitions receive a deterministic contract hash. The
-executor-bound primitive hash also covers that executor-contract hash.
-StackKits builds an immutable registry from the embedded authority and marks a
-primitive executable only when the registered shared `rilaction.Executor`
-identity matches CUE byte-for-byte. Invocation uses the immutable shared
-request/digest/time handoff, and both newly returned and durably replayed
-evidence must name the exact CUE-selected executor.
-
-The current validation boundary consumes the exact pinned
-`kombify-go-common/rilaction` envelope. It samples one trusted UTC instant and
-checks request, approval, and grant freshness; authenticated tenant, current
-StackInstance and ResolvedPlan identity; primitive hash and operation class;
-approval ceremony and exact grant scopes; typed input closure; and exact
-Site/node/module/runtime placement. Validation remains non-authorizing, but
-reports `executable=true` only when the exact CUE executor is implemented by
-the current binary. `AdmitRILActionAt` rejects all other primitives before
-filesystem, network, host, or provider access. `ExecuteRILActionAt` applies a
-bounded process-local replay guard and returns stable redacted evidence for the
-read-only verifier. Durable cross-process replay and evidence custody remain
-separate follow-up work.
-
-Execution persistence is abstracted by the shared `rilaction.ExecutionLedger`.
-An atomic reserve returns exactly `acquired`, `replay`, `in-progress`, or
-`conflict`; only `acquired` receives an opaque reservation token, and the same
-token must fence the final evidence commit. TechStack owns the durable
-Postgres/RLS implementation and the outer at-most-once dispatch custody.
-StackKits retains a bounded in-memory secondary guard inside its server and CLI
-process; it makes no cross-process durability claim.
-
-The earlier two-step `/api/v2/internal/ril-actions/resolve` and
-`/api/v2/internal/ril-actions/execute` service-auth design is retained only as
-historical compatibility documentation. It is not the target delivery path.
-
-The v0.9 target orchestration path is:
-
-1. Techstack Core/UI closes an approved action into a typed
-   `StackKitCommand`.
-2. Techstack sends it over its own outbound/reverse mTLS gRPC worker channel to
-   the already enrolled node-side Techstack Agent.
-3. The Agent revalidates the exact StackKits release pin, release index,
-   receipt, executable digest, command vocabulary, target, expiry, and
-   idempotency binding.
-4. The Agent removes Techstack/Kombify control-plane environment and invokes
-   the exact published `stackkit` CLI as a bounded local subprocess. There is
-   no generic shell and no caller-selected executable.
-5. The Agent returns only `stackkit.command-result/v1` and versioned
-   `stackkit.rollout-event/v1` JSONL.
-
-StackKits exposes no gRPC endpoint and does not own Techstack worker
-enrollment, mTLS credentials, transport, provider, lease, or server lifecycle.
-Standard local CLI operations remain available without Techstack. Advanced
-RIL/Terramate operations additionally require a short-lived capability that the
-CLI validates fully offline before rendering or side effects.
-
-This section is a target contract. Slice 1 establishes local authority,
-Federation admission, and the credential-free desired identity projection;
-Agent execution-channel admission is Slice 2.
-
-The returned `stackkit.ril-action-evidence/v1` shape comes from the exact
-pinned `kombify-go-common/rilaction` package. StackKits validates its own result
-against the original request before returning it. Evidence contains only
-closed, sorted verification/recovery/summary codes and an optional opaque
-`diagnostic:` reference; free-form logs and runtime output are not part of the
-wire.
-
-The optional diagnostic reference is also closed by the CUE primitive
-authority: it is never required, must use the `diagnostic:` opaque-reference
-scheme, has no inline material or direct-access semantics, and remains under
-TechStack evidence-sink custody. StackKits rechecks that policy before ledger
-completion and on replay; it does not receive a log store, URL, path,
-credential, retention setting, or diagnostic retrieval capability.
-
-One evidence document can represent only one approval ceremony. When a failed
-primitive names another primitive as recovery, the original evidence reports
-only `kind=primitive`, `status=required`, and the exact recovery primitive ID.
-It cannot report nested rollback success or failure. TechStack must submit that
-recovery primitive as a new request with its own approval, grant, idempotency
-reservation, and evidence. StackKits rebinds the returned recovery disposition
-to the exact CUE primitive before ledger completion and again on replay. This
-prevents the owner-step-up approval for `apply-stackkit-change` from being
-silently widened into the break-glass authority required by
-`rollback-stackkit-change`.
-
-## Execution Rules
-
-- These approval/card rules govern Advanced RIL execution only. Standard local
-  CLI apply, verify, upgrade, backup, restore, and read-only drift detection do
-  not require Techstack, Gateway, gRPC, or an Advanced capability.
-- No StackKit action executes without an approved TechStack action card, a
-  Gateway policy decision, the required connector grant, and the exact current
-  ResolvedPlan hash.
-- Harnesses do not get raw SSH, Docker socket, or OpenTofu apply authority.
-- A handoff selects only the catalog primitive and its governed runtime owner;
-  it cannot select a command, binary, path, endpoint, provider, transport, or
-  credential.
-- An executor reference alone never selects an owner. Reference, version,
-  contract hash, operation class, and construction-owned registry identity must
-  all close over the same CUE authority.
-- TechStack lease/generation/CAS and provider lifecycle stay outside the
-  StackKits envelope; opaque approval and grant bindings are authority
-  references, not provider-control handles.
-- Every future execution returns stable evidence: action-card ID, execution
-  ID, primitive ID and contract hash, exact plan hash, target reference,
-  redacted logs, verification result, rollback/compensation status, and trace
-  ID.
-- Failures return public-safe error codes and redacted summaries; raw target
-  output remains protected.
-- Module/package-specific actions are admitted only after the owning CUE module
-  adds a closed primitive contract. Caller-defined extension actions are not an
-  escape hatch.
-
-## Orchestrated Proof
-
-The orchestrated proof must show:
-
-1. TechStack creates an action card for one connected node Agent.
-2. Gateway denies execution until a delegated connector grant binding and user
-   approval exist.
-3. TechStack durably reserves the approved request and sends the closed
-   `StackKitCommand` over its mTLS worker channel.
-4. The Agent validates the exact pin and capability, invokes the local CLI, and
-   returns bounded JSON/JSONL verification evidence.
-5. Workbench displays completion or failure without secret leakage.
-
-Detailed execution and node-handoff planning:
-[RIL_NODE_HANDOFF_EXECUTION_PLAN.md](RIL_NODE_HANDOFF_EXECUTION_PLAN.md).
-
-Tracking:
-
-- `kombify-StackKits-6nrh`: StackKit RIL action execution and Techstack node
-  Agent handoff.
-- `kombify-StackKits-6nrh.1`: approved action primitive catalog.
-- `kombify-StackKits-6nrh.2`: Techstack node-Agent-to-pinned-CLI handoff contract.
-- `kombify-StackKits-6nrh.2.1`: exact CUE executor contracts and StackKits
-  runtime-owner registry.
-- `kombify-StackKits-6nrh.3`: verification rollback evidence model.
-- `kombify-StackKits-6nrh.4`: unapproved/raw execution denial paths.
+Historical implementation detail remains available in Git history and the
+completed v0.7.1 roadmap record. It must not be used as a current API contract.

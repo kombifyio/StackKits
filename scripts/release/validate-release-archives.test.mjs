@@ -13,7 +13,7 @@ const goreleaser = readFileSync(path.join(root, '.goreleaser.yaml'), 'utf8')
 test('snapshot archives embed a compatibility-admissible semantic version', () => {
   assert.match(
     goreleaser,
-    /snapshot:[\s\S]*?version_template: "\{\{ incpatch \.Version \}\}-devel"/u
+    /snapshot:[\s\S]*?version_template: "\{\{ incpatch \.Version \}\}"/u
   )
 })
 

@@ -16,8 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
-	"github.com/kombifyio/stackkits/internal/runtimeaction"
-	sharedruntimeaction "github.com/kombifyio/stackkits/internal/runtimeactionv2"
 	"github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
@@ -36,8 +34,6 @@ type ServerConfig struct {
 	LogDir                            string   // Directory containing deploy log files (.stackkit/logs/)
 	ServiceAuthSecret                 string
 	ServiceAuthSecretNext             string
-	RuntimeActionMode                 string
-	RuntimeRestoreVerifierCommand     string
 	StackActionMode                   string
 	StackActionRestoreVerifierCommand string
 	SetupActionMode                   string
@@ -70,9 +66,8 @@ type Server struct {
 	setupMu           sync.Mutex
 	architectureV2    architectureV2ServiceState
 
-	// backupMu guards backupState; a node runs at most one backup at a time.
+	// backupMu guards stackActionBackupState; a node runs at most one backup at a time.
 	backupMu               sync.Mutex
-	backupState            *backupRunState
 	stackActionBackupState *backupRunStateStackAction
 	// backupExec and hookExec override the docker-exec adapters in tests.
 	backupExec                   backupexec.Executor
@@ -123,8 +118,7 @@ func (s *Server) Handler() http.Handler {
 
 func architectureV2NoStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v2/resolve" || strings.HasPrefix(r.URL.Path, sharedruntimeaction.ArchitectureV2PathPrefix) ||
-			strings.HasPrefix(r.URL.Path, rilActionPathPrefix) ||
+		if r.URL.Path == "/api/v2/resolve" ||
 			strings.HasPrefix(r.URL.Path, stackaction.PathPrefix) {
 			w.Header().Set("Cache-Control", "no-store")
 		}
@@ -141,7 +135,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v2/resolve", s.handleArchitectureV2Resolve)
 	s.registerMCPRoutes()
 
-	s.registerRuntimeActionRoutes()
 	s.registerStackActionRoutes()
 
 	// Node-local management
@@ -608,18 +601,7 @@ func isServiceAuthenticatedRoute(r *http.Request) bool {
 		return false
 	}
 	switch r.URL.Path {
-	case rilActionResolvePath,
-		rilActionExecutePath,
-		sharedruntimeaction.ArchitectureV2PathStackKitRollout,
-		sharedruntimeaction.ArchitectureV2PathStackKitVerify,
-		"/api/v1/internal/runtime-actions/stackkit-rollout",
-		"/api/v1/internal/runtime-actions/stackkit-verify",
-		"/api/v1/internal/runtime-actions/restore-drill",
-		runtimeaction.PathBackupRun,
-		runtimeaction.PathBackupStatus,
-		runtimeaction.PathBackupRestore,
-		runtimeaction.PathBackupWipe,
-		stackaction.PathStackKitRollout,
+	case stackaction.PathStackKitRollout,
 		stackaction.PathStackKitVerify,
 		stackaction.PathRestoreDrill,
 		stackaction.PathBackupRun,

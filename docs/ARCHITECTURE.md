@@ -1571,61 +1571,19 @@ an explicit integration-owned operation, not an automatic retry or rollback.
 
 ### Approved RIL action and recovery boundary
 
-RIL action execution is a separate provider-free boundary above the current
-ResolvedPlan. TechStack owns action cards, approval state, grants, durable
-idempotency, and provider/server lifecycle. StackKits revalidates the trusted
-tenant, current plan, CUE-owned primitive contract, target placement, and one
-fresh authority instant before it selects a construction-owned runtime owner.
-The shared request cannot carry a provider, lease, endpoint, credential,
-transport selection, command, arbitrary path, or raw SSH/Docker/OpenTofu
-authority.
+The Architecture-v2 CUE catalog retains the closed approved-action facts:
+primitive identity, operation class, risk, approval and grant requirements,
+target scope, recovery relationship, evidence shape, executor identity, and
+explicit provider/lease/credential/transport/command prohibitions. Module
+extensions remain bound to their exact module and provider contracts.
 
-Executor ownership is part of the same CUE catalog authority. An
-executor-bound primitive resolves exactly one executor contract with an exact
-reference, semantic version, allowed operation class, and explicit
-provider/lease/credential-resolution/transport prohibitions. The executor
-contract receives a canonical hash, and the primitive hash covers that hash.
-At construction StackKits registers only implementations whose shared
-`rilaction.ExecutorIdentity` matches the complete CUE identity. Admission,
-immutable invocation, returned evidence, and durable replay all retain that
-selection; a matching string reference with another version or contract hash
-is unavailable, not a fallback.
-
-Every returned evidence record is immutable and belongs to exactly one approved
-request. If a failed primitive declares another primitive as recovery, its
-evidence may report only that the exact recovery primitive is `required`. It
-cannot claim that recovery succeeded or failed. The recovery primitive has its
-own CUE contract, approval ceremony, grant, request digest, ledger reservation,
-runtime owner, and top-level evidence. For example,
-`apply-stackkit-change` may require `rollback-stackkit-change`, but the original
-owner-step-up grant can never execute or fabricate the break-glass rollback.
-Manual recovery remains `manual-required`; a successful action always reports
-recovery as `not-required`.
-
-Package-specific actions use the same closed contract, not a second plugin or
-command surface. A module may declare `rilActionPrimitives` only inside its
-canonical CUE module contract. The catalog derives and hashes the exact
-`moduleRef` plus `providerRef`, flattens the primitive into the global discovery
-view, and rejects duplicate identities. Global primitives cannot carry this
-extension authority. At admission, a module- or Runtime-scoped target must
-belong to the exact derived module/provider authority in the current
-ResolvedPlan or Apply graph. Callers cannot add package actions, choose their
-owner, or turn a `contract-only` declaration into executable support. The first
-canary is the read-only, module-scoped Immich health inspection contract; it
-remains deliberately non-executable.
-
-The StackKits evidence boundary rebinds this disposition to the selected CUE
-primitive before committing it to the integration-owned ledger and repeats the
-check for durable replay. Protected diagnostics remain an opaque
-`diagnostic:` reference under TechStack custody; free-form logs and node output
-never enter the public evidence wire. The CUE primitive makes that reference
-optional, fixes its scheme and external custody, and forbids both inline
-material and direct access. StackKits repeats this policy check for live and
-replayed evidence without acquiring storage, retention, URL, path, credential,
-or retrieval authority. Only the read-only governed-state
-verifier is currently executable. Mutating primitives remain contract-only
-until their authenticated Product Runtime owners and separately approved
-recovery paths are registered.
+Those facts are metadata, not a StackKits-hosted RIL executor. Techstack owns
+action cards, admission, durable idempotency, dispatch, transport, runtime
+inventory, and provider/server lifecycle. StackKits exposes no RIL HTTP route
+or replay ledger. It executes its provider-neutral local behavior through the
+CUE-generated StackAction contract or the standalone CLI, revalidating local
+authority and producing local lifecycle evidence. Standard Mode remains
+independent of Techstack.
 
 ### External infrastructure authority
 
@@ -1673,22 +1631,11 @@ do not define kit compatibility and do not gate pre-beta releases. Concrete
 addresses, provider/device locators, credentials, ownership, and cleanup state
 remain outside StackKits contracts and public evidence.
 
-Managed runtime admission follows the same boundary. The temporary
-`/api/v1/internal/runtime-actions/*` surface accepts the historical node-side
-transport shape only when `api_version` is absent or explicitly
-`stackkit.runtime-action/v1`; it rejects `stack_spec` and every other version.
-The physically separate `/api/v2/internal/runtime-actions/stackkit-rollout`
-and `stackkit-verify` routes decode explicit `stackkit.runtime-action/v2alpha1`
-through the shared closed Go contract. They contain only StackSpec, Inventory,
-expected plan hash, and stack/tenant/owner identity. StackKits re-resolves that
-intent with its embedded CUE authority and binds both stack ID and plan hash
-before execution admission. Until the governed V2 renderer/executor exists,
-the V2 routes return a typed 501 and have no code path to dry-run readiness,
-caller-chosen OpenTofu directories, raw SSH, TechStack lease identifiers, or
-legacy verify.
-The private source consumes the exact shared Go module pin; the curated OSS
-export deterministically projects that same verified package into a local path
-and removes the private module dependency before its public build gate.
+Managed dispatch follows the same ownership boundary. Techstack selects and
+transports a bounded operation; StackKits accepts only the generated
+`/api/v1/internal/stack-actions/*` vocabulary. The former RuntimeAction and RIL
+routes and their public Go projections are absent. Shared packages still owned
+by StackKits are projected from the exact pinned module during OSS export.
 
 ## Major Containers
 
@@ -1761,7 +1708,7 @@ Layer definitions are enforced by CUE contracts.
 
 ## API Surface
 
-The API server registers endpoints in `internal/api/server.go`; the general contract source is [../api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml). Node-operational StackAction fields, vocabularies, and paths are owned by [../base/stack_action.cue](../base/stack_action.cue), which generates `internal/stackaction` and marked OpenAPI regions. The provider-free Architecture-v2 RuntimeAction admission remains a separate contract during the cutover. The human summary is [API.md](API.md).
+The API server registers endpoints in `internal/api/server.go`; the general contract source is [../api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml). Node-operational StackAction fields, vocabularies, and paths are owned by [../base/stack_action.cue](../base/stack_action.cue), which generates `internal/stackaction` and marked OpenAPI regions. No separate RuntimeAction or RIL HTTP admission surface exists in StackKits. The human summary is [API.md](API.md).
 
 Public unauthenticated endpoints:
 

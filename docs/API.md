@@ -1,6 +1,6 @@
 # StackKits API
 
-> Last verified: 2026-07-28
+> Last verified: 2026-08-02
 
 This document summarizes the local and compatibility StackKits HTTP API. The
 general contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml);
@@ -25,7 +25,9 @@ This describes the target contract. Agent execution-channel admission is Slice
 routes below are compatibility surfaces and cannot mint local Owner evidence,
 reinterpret the ResolvedPlan, or become a prerequisite for Standard Mode.
 
-Implementation note: `internal/api/server.go` registers health, capabilities, catalog, validation, generation, node-local management, log, node-local setup, Architecture-v2 RuntimeAction, StackAction, and Direct Connect registry routes.
+Implementation note: `internal/api/server.go` registers health, capabilities,
+catalog, validation, generation, node-local management, log, node-local setup,
+StackAction, and Direct Connect registry routes.
 
 ## Surfaces
 
@@ -52,28 +54,20 @@ Set `STACKKITS_RUNTIME_PROFILE=production`, `public`, `managed`, or
 to start with unauthenticated API access or wildcard CORS, even if the local
 development flags are present.
 
-The internal runtime-action HTTP routes below document historical v0.7.1
-compatibility and migration debt. They are not the v0.9 Techstack delivery
-path and must not be used to introduce a StackKits gRPC endpoint or a managed
-control-plane dependency into the public CLI.
+The node-operational endpoints live exclusively below
+`/api/v1/internal/stack-actions/`. They require the service-auth
+caller/audience, default to `STACKKITS_STACK_ACTION_MODE=dry-run`, reject
+unknown or trailing JSON, and accept only the generated CUE vocabulary. Raw
+SSH keys, onboarding secrets, owner-spec tokens, and backup credentials have no
+public representation; scoped references are resolved and revalidated only
+behind the internal `StackActionReferenceResolver` seam.
 
-The three deployment routes below `/api/v1/internal/runtime-actions/` are exact-v0.6 compatibility only. Native v0.7 returns `410 legacy_runtime_action_retired` before decoding or execution. This StackSpec/deployment retirement does not silently re-version the independently shared backup-operation protocol (`backup-run`, `backup-status`, `backup-restore`, `backup-wipe`); those actions are a separate go-common contract and are not evidence that StackSpec v1 remains operational.
-
-The replacement node-operational endpoints live below `/api/v1/internal/stack-actions/`. They require the same service-auth caller/audience, default to `STACKKITS_STACK_ACTION_MODE=dry-run`, reject unknown or trailing JSON, and accept only the generated CUE vocabulary. Raw SSH keys, onboarding secrets, owner-spec tokens, and backup credentials have no public representation; scoped references are resolved and revalidated only behind the internal `StackActionReferenceResolver` seam. This is separate from the provider-free Architecture-v2 RuntimeAction admission above.
-
-The legacy `ril-ops` service beta uses the paired
-`/api/v2/internal/ril-actions/resolve` and
-`/api/v2/internal/ril-actions/execute` service surface. Both require a valid
-TechStack service token and exact `X-Kombify-Tenant-ID`. Resolve accepts
-StackSpec plus Inventory and retains an opaque current resolution; execute
-accepts only the shared provider-free `rilaction.Request` and returns the exact
-shared evidence document. Only `verify-stackkit-state` currently has an
-executor; every other catalog primitive remains contract-only. Agents and
-Workbench never receive raw SSH, Docker socket, OpenTofu apply, provider input,
-or caller-selected command authority. Native v0.8 Advanced operations instead
-use the published CLI and an offline-verified capability before rendering or
-side effects. See
-[RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md).
+The former RuntimeAction and RIL HTTP routes are removed, not deprecated
+compatibility surfaces. StackKits keeps the CUE action-catalog facts and its
+local execution/verification behavior. Techstack owns RIL admission,
+idempotency, transport, and orchestration and consumes the published
+StackAction/CLI contracts. See [RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md)
+for the superseded checkpoint and current ownership boundary.
 
 ## Response Model
 
@@ -100,8 +94,6 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `GET` | `/api/v1/stackkits/{name}/defaults` | Read versioned initial StackSpec authoring data. | Yes |
 | `POST` | `/api/v1/validate` | Validate v2 against CUE or v1 as read-only migration input. | Yes |
 | `POST` | `/api/v1/validate/partial` | Validate versioned initial StackSpec authoring input. | Yes |
-| `POST` | `/api/v2/internal/ril-actions/resolve` | Bind StackSpec + Inventory to one tenant-owned current RIL resolution. | TechStack service auth + tenant header |
-| `POST` | `/api/v2/internal/ril-actions/execute` | Execute the exact shared approved-action request and return shared evidence. | TechStack service auth + tenant header |
 | `POST` | `/api/v1/generate/tfvars` | Exact-v0.6 compatibility generator; not advertised on native v0.7. | Yes |
 | `POST` | `/api/v1/generate/preview` | Exact-v0.6 compatibility preview; not advertised on native v0.7. | Yes |
 | `GET` | `/api/v1/status` | Read node-local StackKit rollout status. | Yes |
@@ -118,9 +110,6 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `GET` | `/api/v1/setup/initial-access` | Exact-v0.6 technical bootstrap state; native v0.7 returns 501. | Yes |
 | `POST` | `/api/v1/setup/initial-access/reveal` | Exact-v0.6 credential reveal; native v0.7 returns 501 before state access. | Yes |
 | `POST` | `/api/v1/setup/services/{service}/run` | Exact-v0.6 setup-drop executor; native v0.7 returns 501 before external calls or writes. | Yes |
-| `POST` | `/api/v1/internal/runtime-actions/stackkit-rollout` | Exact-v0.6 legacy rollout; native v0.7 returns 410. | Servicecall |
-| `POST` | `/api/v1/internal/runtime-actions/stackkit-verify` | Exact-v0.6 legacy verification; native v0.7 returns 410. | Servicecall |
-| `POST` | `/api/v1/internal/runtime-actions/restore-drill` | Exact-v0.6 legacy restore drill; native v0.7 returns 410. | Servicecall |
 | `POST` | `/api/v1/internal/stack-actions/stackkit-rollout` | CUE-governed node-operational rollout or dry-run. | Servicecall |
 | `POST` | `/api/v1/internal/stack-actions/stackkit-verify` | CUE-governed node-operational verification. | Servicecall |
 | `POST` | `/api/v1/internal/stack-actions/restore-drill` | CUE-governed restore-drill handoff. | Servicecall |
@@ -217,51 +206,13 @@ The Node Hub posts setup/retry actions to `POST /api/v1/setup/services/{service}
 
 `STACKKITS_SETUP_ACTION_MODE=dry-run` validates the manifest and returns the planned drop. `STACKKITS_SETUP_ACTION_MODE=apply` runs implemented node-local drops, persists each `SetupRun` in `.stackkit/state.yaml`, and treats completed drops as idempotent on re-run. Each persisted run records a stable `runId`, current phase, attempts, timestamps, phase logs, machine-readable `evidence`, a stable `failureClass` for failed runs, and manifest-provided `rollbackNotes` so the Node Hub can show retry-safe diagnostics. Basement Kit currently implements `cloudreve-owner-bootstrap`, `immich-owner-bootstrap`, and `vaultwarden-admin-handoff`; rollout-owned drops such as Kuma bootstrap are also persisted as setup-run evidence during apply. Immich uses `STACKKIT_ADMIN_EMAIL`, `STACKKIT_ADMIN_PASSWORD`, and `STACKKIT_SETUP_IMMICH_URL` to create the technical bootstrap account, configure PocketID OAuth, and prepare the app-local Owner account/session handoff. Cloudreve resolves the activated PocketID Owner, creates or logs into the matching app-local Files account, prepares the StackKit session bridge, and seeds demo content only when enabled. Vaultwarden verifies the generated admin endpoint/token, proves `ADMIN_TOKEN_B64`/PHC runtime storage, keeps app-local signups disabled, and uses the Vaultwarden admin invite endpoint to pre-provision the activated PocketID Owner email; the encrypted Vaultwarden account setup remains user-completed and the admin token stays break-glass material.
 
-## Exact-v0.6 Legacy Runtime Actions
+## StackAction contract
 
-The following payload documents only the retired exact-v0.6 deployment surface. Native v0.7 must not author or execute it; TechStack uses the governed v2 contract instead.
-
-```json
-{
-  "action": "stackkit_rollout",
-  "stack_id": "stack-123",
-  "stack_name": "Managed Base",
-  "stackkit": "basement-kit",
-  "tofu_dir": "/shared/stacks/stack-123/tofu",
-  "unified_path": "/shared/stacks/stack-123/unified-spec.yaml",
-  "runtime_target": {
-    "host": "main.stack.example",
-    "user": "root",
-    "port": 22
-  },
-  "platform_nodes": [
-    {
-      "name": "worker-1",
-      "role": "worker",
-      "services": ["vaultwarden"],
-      "platform": {
-        "server_id": "real-platform-server-id"
-      }
-    }
-  ],
-  "owner_spec_bootstrap": {
-    "endpoint": "/api/v1/stacks/stack-123/owner-spec",
-    "token": "short-lived-token",
-    "expires_at": "2026-05-14T10:15:00Z",
-    "scopes": ["read:owner-spec"]
-  }
-}
-```
-
-Supported `action` values are `stackkit_rollout`, `verify_rollout`, and `restore_drill`. `runtime_target` is the primary/foundation node for rollout execution. `platform_nodes[]` carries supplemental worker/storage nodes for capacity or service placement; Coolify/Dokploy require real platform placement identifiers, while Komodo requires either a real `server_id` or a Periphery onboarding bootstrap with Core address, onboarding key, and SSH target. Dry-run mode validates and echoes the handoff contract; apply mode runs OpenTofu `init`/`apply` for rollout, prepares supplemental platform nodes before app deployment, `state list` for verification, and `STACKKITS_RESTORE_DRILL_COMMAND` for restore proof when configured. Without that command, restore-drill remains an explicit `skipped` result.
-
-Apply-mode rollout responses include platform app evidence when the generated handoff manifest is present:
-
-- `platform_refs`: raw selected-PaaS deployment refs from the adapter.
-- `platform_system_apps`: artifact-ready state for StackKit-owned system apps such as `stackkit-hub` and `stackkit-server`.
-- `platform_apps`: artifact-ready state for StackKit-owned L3 apps such as `vaultwarden`, `immich`, and `cloudreve`.
-
-The `platform_system_apps` and `platform_apps` arrays use the same state shape as `stackkit status --json`: `name`, `platform`, `management`, `externalId`, `deploymentId`, `observedStatus`, `observedAt`, `setupPolicy`, `composePath`, and setup-drop metadata. For `on_demand` L3 apps, `observedStatus: "deploy:accepted"` is valid platform evidence until browser/setup evidence proves user-facing readiness.
+The exact request/response vocabulary, action set, and paths are generated from
+`base/stack_action.cue`; the marked OpenAPI regions are the human- and
+machine-readable projection. Rollout, verification, restore drill, backup run,
+backup status, backup restore, and backup wipe remain implemented through this
+single contract. The retired RuntimeAction envelopes are not accepted aliases.
 
 ## Registry
 

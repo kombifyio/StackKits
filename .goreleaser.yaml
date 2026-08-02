@@ -302,9 +302,9 @@ checksum:
 
 snapshot:
   # Snapshot archives participate in the same native-v2 compatibility gate as
-  # tagged releases. Keep their embedded CLI/runtime version above the latest
-  # tag instead of GoReleaser's otherwise pre-release form of that exact tag.
-  version_template: "{{ incpatch .Version }}-devel"
+  # tagged releases. Keep their embedded CLI/runtime version numeric and above
+  # the latest tag; development maturity comes from major zero, never a suffix.
+  version_template: "{{ incpatch .Version }}"
 
 changelog:
   # Release notes are rendered deterministically from CHANGELOG.md by
