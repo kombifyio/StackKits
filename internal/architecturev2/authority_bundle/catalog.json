@@ -18319,7 +18319,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -18458,7 +18458,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -18601,7 +18601,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true

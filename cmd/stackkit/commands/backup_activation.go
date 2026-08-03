@@ -200,7 +200,7 @@ func runNativeV2RestoreRecoveryCommand(
 		}
 		recoveryPlan = plan
 		return restoreactivation.DeriveAuthority(
-			plan, manifest, recoveryRestoreResult, journal.OperationID,
+			workspace, plan, manifest, recoveryRestoreResult, journal.OperationID,
 		)
 	}
 	service, err := restoreactivation.NewService(runtime, resolver)
@@ -342,7 +342,7 @@ func nativeV2RestoreRecoveryResolver(
 			return restoreactivation.Authority{}, err
 		}
 		return restoreactivation.DeriveAuthority(
-			plan, manifest, restoreResult, journal.OperationID,
+			workspace, plan, manifest, restoreResult, journal.OperationID,
 		)
 	}
 }

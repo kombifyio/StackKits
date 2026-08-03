@@ -55,6 +55,10 @@ var fileFocusedTests = map[string][]string{
 		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
 		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
 	},
+	"cmd/stackkit/commands/backup_activation.go": {
+		"TestNativeV2BackupCommandSurface",
+		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
+	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
 		"TestRunArchitectureV2InitMaterializesCanonicalProductSpecs",
 		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",

@@ -57,8 +57,14 @@ func (runtime *dockerRuntime) Inspect(ctx context.Context, authority Authority) 
 		return err
 	}
 	expected := make(map[string]string, len(authority.VolumeDetails)+1)
+	projects := make(map[string]string, len(authority.VolumeDetails)+1)
 	for _, volume := range authority.VolumeDetails {
 		expected[volume.LiveName] = volume.LogicalName
+		project := volume.ComposeProject
+		if project == "" {
+			project = authority.ComposeProject
+		}
+		projects[volume.LiveName] = project
 	}
 	stagingLogical := strings.TrimPrefix(
 		authority.StagingVolume, authority.ComposeProject+"_",
@@ -67,6 +73,7 @@ func (runtime *dockerRuntime) Inspect(ctx context.Context, authority Authority) 
 		return errors.New("restoreactivation: staging volume is outside the Compose project")
 	}
 	expected[authority.StagingVolume] = stagingLogical
+	projects[authority.StagingVolume] = authority.ComposeProject
 	for name, logical := range expected {
 		output, err := runtime.docker(ctx, "volume", "inspect", name)
 		if err != nil {
@@ -82,7 +89,7 @@ func (runtime *dockerRuntime) Inspect(ctx context.Context, authority Authority) 
 		}
 		volume := inspected[0]
 		if volume.Name != name || volume.Driver != "local" ||
-			volume.Labels["com.docker.compose.project"] != authority.ComposeProject ||
+			volume.Labels["com.docker.compose.project"] != projects[name] ||
 			volume.Labels["com.docker.compose.volume"] != logical {
 			return fmt.Errorf("restoreactivation: Docker volume %s is not owned by the verified Compose project", name)
 		}
@@ -117,15 +124,23 @@ func (runtime *dockerRuntime) ValidateStaging(ctx context.Context, authority Aut
 }
 
 func (runtime *dockerRuntime) Stop(ctx context.Context, authority Authority) error {
-	composePath, err := runtime.verifiedComposePath(authority)
-	if err != nil {
-		return err
+	runtimes := authorityComposeRuntimes(authority)
+	for index := len(runtimes) - 1; index >= 0; index-- {
+		composePath, err := runtime.verifiedComposeRuntimePath(runtimes[index])
+		if err != nil {
+			return err
+		}
+		prefix, err := runtime.composeRuntimeArgs(runtimes[index], composePath)
+		if err != nil {
+			return err
+		}
+		if _, err = runtime.docker(
+			ctx, append(prefix, "stop", "--timeout", "60")...,
+		); err != nil {
+			return wrapDocker("stop verified Compose runtime "+runtimes[index].Project, err)
+		}
 	}
-	_, err = runtime.docker(
-		ctx, "compose", "--project-name", authority.ComposeProject,
-		"-f", composePath, "stop", "--timeout", "60",
-	)
-	return wrapDocker("stop verified Compose runtime", err)
+	return nil
 }
 
 func (runtime *dockerRuntime) PrepareRollback(
@@ -198,15 +213,22 @@ func (runtime *dockerRuntime) RestoreVolume(
 }
 
 func (runtime *dockerRuntime) Start(ctx context.Context, authority Authority) error {
-	composePath, err := runtime.verifiedComposePath(authority)
-	if err != nil {
-		return err
+	for _, composeRuntime := range authorityComposeRuntimes(authority) {
+		composePath, err := runtime.verifiedComposeRuntimePath(composeRuntime)
+		if err != nil {
+			return err
+		}
+		prefix, err := runtime.composeRuntimeArgs(composeRuntime, composePath)
+		if err != nil {
+			return err
+		}
+		if _, err = runtime.docker(
+			ctx, append(prefix, "up", "-d", "--wait", "--wait-timeout", "600")...,
+		); err != nil {
+			return wrapDocker("start verified Compose runtime "+composeRuntime.Project, err)
+		}
 	}
-	_, err = runtime.docker(
-		ctx, "compose", "--project-name", authority.ComposeProject,
-		"-f", composePath, "up", "-d", "--wait", "--wait-timeout", "600",
-	)
-	return wrapDocker("start verified Compose runtime", err)
+	return nil
 }
 
 func (runtime *dockerRuntime) CleanupRollback(
@@ -259,15 +281,33 @@ func (runtime *dockerRuntime) docker(ctx context.Context, args ...string) ([]byt
 }
 
 func (runtime *dockerRuntime) verifyCompose(authority Authority) error {
-	_, err := runtime.verifiedComposePath(authority)
-	return err
+	for _, composeRuntime := range authorityComposeRuntimes(authority) {
+		composePath, err := runtime.verifiedComposeRuntimePath(composeRuntime)
+		if err != nil {
+			return err
+		}
+		if _, err := runtime.composeRuntimeArgs(composeRuntime, composePath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (runtime *dockerRuntime) verifiedComposePath(authority Authority) (string, error) {
-	if authority.ComposePath == "" || !strings.HasPrefix(authority.ComposeDigest, "sha256:") {
+func authorityComposeRuntimes(authority Authority) []ComposeRuntime {
+	if len(authority.ComposeRuntimes) != 0 {
+		return append([]ComposeRuntime(nil), authority.ComposeRuntimes...)
+	}
+	return []ComposeRuntime{{
+		Project: authority.ComposeProject, Path: authority.ComposePath,
+		Digest: authority.ComposeDigest,
+	}}
+}
+
+func (runtime *dockerRuntime) verifiedComposeRuntimePath(composeRuntime ComposeRuntime) (string, error) {
+	if composeRuntime.Project == "" || composeRuntime.Path == "" || !strings.HasPrefix(composeRuntime.Digest, "sha256:") {
 		return "", errors.New("restoreactivation: verified Compose artifact identity is incomplete")
 	}
-	target := filepath.Join(runtime.workspace, filepath.FromSlash(authority.ComposePath))
+	target := filepath.Join(runtime.workspace, filepath.FromSlash(composeRuntime.Path))
 	absolute, err := filepath.Abs(target)
 	if err != nil {
 		return "", err
@@ -277,7 +317,7 @@ func (runtime *dockerRuntime) verifiedComposePath(authority Authority) (string, 
 		return "", errors.New("restoreactivation: Compose artifact escapes the workspace")
 	}
 	info, err := os.Lstat(absolute)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > 1<<20 {
 		return "", errors.New("restoreactivation: Compose artifact is not a plain file")
 	}
 	raw, err := os.ReadFile(absolute)
@@ -285,8 +325,51 @@ func (runtime *dockerRuntime) verifiedComposePath(authority Authority) (string, 
 		return "", err
 	}
 	sum := sha256.Sum256(raw)
-	if "sha256:"+hex.EncodeToString(sum[:]) != authority.ComposeDigest {
+	if "sha256:"+hex.EncodeToString(sum[:]) != composeRuntime.Digest {
 		return "", errors.New("restoreactivation: Compose artifact digest differs from the verified manifest")
+	}
+	return absolute, nil
+}
+
+func (runtime *dockerRuntime) composeRuntimeArgs(composeRuntime ComposeRuntime, composePath string) ([]string, error) {
+	args := []string{"compose", "--project-name", composeRuntime.Project}
+	if composeRuntime.EnvironmentPath != "" || composeRuntime.EnvironmentDigest != "" {
+		environmentPath, err := runtime.verifiedRuntimeFile(
+			composeRuntime.EnvironmentPath, composeRuntime.EnvironmentDigest,
+			"Compose environment",
+		)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--env-file", environmentPath)
+	}
+	return append(args, "-f", composePath), nil
+}
+
+func (runtime *dockerRuntime) verifiedRuntimeFile(relativePath, digest, identity string) (string, error) {
+	if relativePath == "" || !strings.HasPrefix(digest, "sha256:") {
+		return "", fmt.Errorf("restoreactivation: verified %s identity is incomplete", identity)
+	}
+	target := filepath.Join(runtime.workspace, filepath.FromSlash(relativePath))
+	absolute, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	relative, err := filepath.Rel(runtime.workspace, absolute)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("restoreactivation: %s escapes the workspace", identity)
+	}
+	info, err := os.Lstat(absolute)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > 1<<20 {
+		return "", fmt.Errorf("restoreactivation: %s is not a plain file", identity)
+	}
+	raw, err := os.ReadFile(absolute)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	if "sha256:"+hex.EncodeToString(sum[:]) != digest {
+		return "", fmt.Errorf("restoreactivation: %s digest differs from the verified custody", identity)
 	}
 	return absolute, nil
 }

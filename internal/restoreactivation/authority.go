@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -46,6 +49,7 @@ type planAuthority struct {
 }
 
 func deriveAuthority(
+	workspaceRoot string,
 	plan generationartifact.VerifiedPlan,
 	manifest generationartifact.ArtifactManifest,
 	restoreResult backuplifecycle.RestoreResult,
@@ -68,18 +72,43 @@ func deriveAuthority(
 	if err := bindRestoreResult(plan.Binding(), manifestHash, derived, restoreResult); err != nil {
 		return Authority{}, err
 	}
+	var planDocument map[string]any
+	if err := json.Unmarshal(plan.Canonical(), &planDocument); err != nil {
+		return Authority{}, fmt.Errorf("restoreactivation: decode verified plan for Application restore authority: %w", err)
+	}
+	applicationRuntimes, applicationVolumes, err := deriveStandaloneComposeApplications(
+		workspaceRoot, planDocument, operationID,
+	)
+	if err != nil {
+		return Authority{}, err
+	}
 	volumeDetails := append([]Volume(nil), derived.volumes...)
+	volumeDetails = append(volumeDetails, applicationVolumes...)
+	sort.Slice(volumeDetails, func(i, j int) bool { return volumeDetails[i].LiveName < volumeDetails[j].LiveName })
+	liveNames := make([]string, len(volumeDetails))
+	seenVolumes := make(map[string]struct{}, len(volumeDetails))
 	for index := range volumeDetails {
+		if _, duplicate := seenVolumes[volumeDetails[index].LiveName]; duplicate {
+			return Authority{}, errors.New("restoreactivation: duplicate managed volume across local Compose runtimes")
+		}
+		seenVolumes[volumeDetails[index].LiveName] = struct{}{}
+		liveNames[index] = volumeDetails[index].LiveName
 		volumeDetails[index].StagingPath = path.Join(
 			restoreResult.Request.StagingPath,
 			volumeDetails[index].LiveName,
 			"_data",
 		)
 	}
-	volumeSetHash, err := resolvedplan.CanonicalSHA256(derived.liveNames)
+	volumeSetHash, err := resolvedplan.CanonicalSHA256(liveNames)
 	if err != nil {
 		return Authority{}, fmt.Errorf("restoreactivation: hash managed volume set: %w", err)
 	}
+	composeRuntimes := []ComposeRuntime{{
+		Project: derived.composeProject, Path: derived.composeArtifact.Path,
+		Digest: derived.composeArtifact.SHA256,
+	}}
+	composeRuntimes = append(composeRuntimes, applicationRuntimes...)
+	sort.Slice(composeRuntimes, func(i, j int) bool { return composeRuntimes[i].Project < composeRuntimes[j].Project })
 	return Authority{
 		OperationID:          operationID,
 		OwnerRef:             restoreResult.OwnerRef,
@@ -92,10 +121,11 @@ func deriveAuthority(
 		ComposeProject:       derived.composeProject,
 		ComposePath:          derived.composeArtifact.Path,
 		ComposeDigest:        derived.composeArtifact.SHA256,
+		ComposeRuntimes:      composeRuntimes,
 		KopiaHelperImage:     derived.kopiaImage,
 		StagingVolume:        derived.stagingVolume,
 		StagingPath:          restoreResult.Request.StagingPath,
-		Volumes:              append([]string(nil), derived.liveNames...),
+		Volumes:              liveNames,
 		VolumeDetails:        volumeDetails,
 	}, nil
 }
@@ -382,16 +412,229 @@ func bindManagedVolumes(
 		rollbackSeen[rollbackName] = struct{}{}
 		liveNames[index] = liveName
 		volumes[index] = Volume{
-			ComponentRef: candidate.componentRef,
-			LogicalName:  candidate.logicalName,
-			LiveName:     liveName,
-			StagingPath:  "",
-			RollbackName: rollbackName,
+			ComponentRef:   candidate.componentRef,
+			LogicalName:    candidate.logicalName,
+			ComposeProject: project,
+			LiveName:       liveName,
+			StagingPath:    "",
+			RollbackName:   rollbackName,
 		}
 	}
 	sort.Slice(volumes, func(i, j int) bool { return volumes[i].LiveName < volumes[j].LiveName })
 	sort.Strings(liveNames)
 	return project, volumes, liveNames, nil
+}
+
+type standaloneComposeCustodyDocument struct {
+	Name     string                                     `yaml:"name"`
+	Services map[string]standaloneComposeCustodyService `yaml:"services"`
+	Volumes  map[string]map[string]any                  `yaml:"volumes"`
+}
+
+type standaloneComposeCustodyService struct {
+	Volumes []string `yaml:"volumes"`
+}
+
+// deriveStandaloneComposeApplications selects only the local adapter rows
+// whose CUE-owned lifecycle projection explicitly advertises backup/restore.
+// Coolify, Komodo, and any unknown delivery remain outside this authority.
+func deriveStandaloneComposeApplications(
+	workspaceRoot string,
+	plan map[string]any,
+	operationID string,
+) ([]ComposeRuntime, []Volume, error) {
+	lifecycles, err := array(plan, "applicationLifecycles")
+	if err != nil {
+		return nil, nil, errors.New("restoreactivation: Application lifecycle authority is absent")
+	}
+	supported := make(map[string]struct{}, len(lifecycles))
+	for _, raw := range lifecycles {
+		lifecycle, ok := raw.(map[string]any)
+		if !ok {
+			return nil, nil, errors.New("restoreactivation: Application lifecycle is not an object")
+		}
+		delivery, deliveryErr := object(lifecycle, "delivery")
+		if deliveryErr != nil || text(delivery, "kind") != "application-adapter" ||
+			text(delivery, "adapterRef") != "standalone-compose" {
+			continue
+		}
+		capabilities, capabilityErr := object(delivery, "capabilities")
+		if capabilityErr != nil || capabilities["backupRestore"] != true {
+			continue
+		}
+		workloadRef := text(lifecycle, "workloadRef")
+		if !portableNamePattern.MatchString(workloadRef) {
+			return nil, nil, errors.New("restoreactivation: standalone Application lifecycle identity is invalid")
+		}
+		if _, duplicate := supported[workloadRef]; duplicate {
+			return nil, nil, errors.New("restoreactivation: standalone Application lifecycle identity is ambiguous")
+		}
+		supported[workloadRef] = struct{}{}
+	}
+
+	workloads, err := array(plan, "workloads")
+	if err != nil {
+		return nil, nil, errors.New("restoreactivation: plan workloads are absent")
+	}
+	runtimes := make([]ComposeRuntime, 0, len(supported))
+	volumes := []Volume{}
+	seenSupported := make(map[string]struct{}, len(supported))
+	operationHash := sha256.Sum256([]byte(operationID))
+	rollbackSuffix := "-rollback-" + hex.EncodeToString(operationHash[:8])
+	for _, raw := range workloads {
+		workload, ok := raw.(map[string]any)
+		if !ok || text(workload, "kind") != "application" {
+			continue
+		}
+		workloadRef := text(workload, "id")
+		alternative, alternativeErr := object(workload, "alternative")
+		if alternativeErr != nil {
+			continue
+		}
+		runtimeContract, runtimeErr := object(alternative, "runtime")
+		if runtimeErr != nil || text(runtimeContract, "delivery") != "application-adapter" {
+			continue
+		}
+		adapter, adapterErr := object(runtimeContract, "adapter")
+		if adapterErr != nil || text(adapter, "id") != "standalone-compose" {
+			continue
+		}
+		if _, admitted := supported[workloadRef]; !admitted {
+			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q lacks explicit backup/restore capability", workloadRef)
+		}
+		seenSupported[workloadRef] = struct{}{}
+		nodeRefs, nodeErr := stringArray(workload, "nodeRefs")
+		if nodeErr != nil || len(nodeRefs) != 1 || !portableNamePattern.MatchString(nodeRefs[0]) {
+			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q must bind one exact local node", workloadRef)
+		}
+		project := "stackkit-" + workloadRef + "-" + nodeRefs[0]
+		infrastructure, infrastructureErr := object(alternative, "infrastructure")
+		if infrastructureErr != nil {
+			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q has no storage authority", workloadRef)
+		}
+		storage, storageErr := object(infrastructure, "storageAllocation")
+		if storageErr != nil {
+			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q has no storage allocation", workloadRef)
+		}
+		allocations, allocationErr := array(storage, "allocations")
+		if allocationErr != nil || len(allocations) == 0 {
+			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q storage allocation is empty", workloadRef)
+		}
+		allLogical := make([]string, 0, len(allocations))
+		backupCount := 0
+		for _, rawAllocation := range allocations {
+			allocation, valid := rawAllocation.(map[string]any)
+			if !valid {
+				return nil, nil, errors.New("restoreactivation: standalone Application storage allocation is invalid")
+			}
+			componentRef, volumeRef := text(allocation, "componentRef"), text(allocation, "volumeRef")
+			logicalName := componentRef + "-" + volumeRef
+			if !portableNamePattern.MatchString(componentRef) || !portableNamePattern.MatchString(volumeRef) ||
+				!portableNamePattern.MatchString(logicalName) {
+				return nil, nil, errors.New("restoreactivation: standalone Application volume identity is invalid")
+			}
+			allLogical = append(allLogical, logicalName)
+			backup, _ := allocation["backup"].(bool)
+			if !backup {
+				continue
+			}
+			if text(allocation, "class") != "persistent" {
+				return nil, nil, errors.New("restoreactivation: backup-enabled standalone Application volume is not persistent")
+			}
+			liveName := project + "_" + logicalName
+			volumes = append(volumes, Volume{
+				ComponentRef: componentRef, LogicalName: logicalName, ComposeProject: project,
+				LiveName: liveName, RollbackName: liveName + rollbackSuffix,
+			})
+			backupCount++
+		}
+		if backupCount == 0 {
+			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q has no backup-enabled volume", workloadRef)
+		}
+		runtime, custodyErr := bindStandaloneComposeCustody(workspaceRoot, project, allLogical)
+		if custodyErr != nil {
+			return nil, nil, fmt.Errorf("restoreactivation: bind standalone Application %q runtime custody: %w", workloadRef, custodyErr)
+		}
+		runtimes = append(runtimes, runtime)
+	}
+	if len(seenSupported) != len(supported) {
+		return nil, nil, errors.New("restoreactivation: standalone backup/restore lifecycle has no exact selected workload")
+	}
+	sort.Slice(runtimes, func(i, j int) bool { return runtimes[i].Project < runtimes[j].Project })
+	sort.Slice(volumes, func(i, j int) bool { return volumes[i].LiveName < volumes[j].LiveName })
+	return runtimes, volumes, nil
+}
+
+func bindStandaloneComposeCustody(
+	workspaceRoot, project string,
+	expectedLogicalVolumes []string,
+) (ComposeRuntime, error) {
+	absoluteWorkspace, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return ComposeRuntime{}, err
+	}
+	relativePath := filepath.ToSlash(filepath.Join(".stackkit", "runtime", "applications", project, "compose.yaml"))
+	target := filepath.Join(absoluteWorkspace, filepath.FromSlash(relativePath))
+	absoluteTarget, err := filepath.Abs(target)
+	if err != nil {
+		return ComposeRuntime{}, err
+	}
+	relative, err := filepath.Rel(absoluteWorkspace, absoluteTarget)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return ComposeRuntime{}, errors.New("standalone Compose custody escapes the owner workspace")
+	}
+	info, err := os.Lstat(absoluteTarget)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() <= 0 || info.Size() > 1<<20 {
+		return ComposeRuntime{}, errors.New("standalone Compose custody is not a bounded plain file")
+	}
+	raw, err := os.ReadFile(absoluteTarget)
+	if err != nil {
+		return ComposeRuntime{}, err
+	}
+	var document standaloneComposeCustodyDocument
+	if err := yaml.Unmarshal(raw, &document); err != nil || document.Name != project || len(document.Services) == 0 {
+		return ComposeRuntime{}, errors.New("standalone Compose custody does not bind the expected project")
+	}
+	declared := make(map[string]struct{}, len(document.Volumes))
+	for name := range document.Volumes {
+		declared[name] = struct{}{}
+	}
+	mounted := map[string]struct{}{}
+	for _, service := range document.Services {
+		for _, mount := range service.Volumes {
+			name, _, found := strings.Cut(mount, ":")
+			if found {
+				mounted[name] = struct{}{}
+			}
+		}
+	}
+	if len(declared) != len(expectedLogicalVolumes) {
+		return ComposeRuntime{}, errors.New("standalone Compose volume set differs from the resolved storage allocation")
+	}
+	for _, name := range expectedLogicalVolumes {
+		if _, exists := declared[name]; !exists {
+			return ComposeRuntime{}, errors.New("standalone Compose omits a resolved storage allocation")
+		}
+		if _, exists := mounted[name]; !exists {
+			return ComposeRuntime{}, errors.New("standalone Compose does not mount a resolved storage allocation")
+		}
+	}
+	sum := sha256.Sum256(raw)
+	environmentPath := filepath.ToSlash(filepath.Join(".stackkit", "runtime", "applications", project, ".env"))
+	environmentTarget := filepath.Join(absoluteWorkspace, filepath.FromSlash(environmentPath))
+	environmentInfo, err := os.Lstat(environmentTarget)
+	if err != nil || !environmentInfo.Mode().IsRegular() || environmentInfo.Mode()&os.ModeSymlink != 0 || environmentInfo.Size() > 1<<20 {
+		return ComposeRuntime{}, errors.New("standalone Compose environment custody is not a bounded plain file")
+	}
+	environment, err := os.ReadFile(environmentTarget)
+	if err != nil {
+		return ComposeRuntime{}, err
+	}
+	environmentSum := sha256.Sum256(environment)
+	return ComposeRuntime{
+		Project: project, Path: relativePath, Digest: "sha256:" + hex.EncodeToString(sum[:]),
+		EnvironmentPath: environmentPath, EnvironmentDigest: "sha256:" + hex.EncodeToString(environmentSum[:]),
+	}, nil
 }
 
 func bindManifest(

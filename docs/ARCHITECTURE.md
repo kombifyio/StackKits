@@ -417,6 +417,20 @@ their authenticated external owners. The CUE catalog is also the source for
 the read-only per-service compatibility matrix exposed by
 `stackkit app compatibility` and MCP.
 
+Backup and restore use that same selected-delivery boundary. The local Kopia
+snapshot remains one owner-approved, content-addressed snapshot of the local
+Docker volume root bound to the exact Plan, manifest, Apply result, and Owner
+custody. During restore activation, only Applications whose resolved adapter
+is `standalone-compose` and whose CUE compatibility row explicitly enables
+`backupRestore` join the mutation authority. Their backup-enabled persistent
+allocations become exact Compose-qualified volume names; their private
+`compose.yaml` and `.env` custody is digest-bound before mutation. The runtime
+quiesces Applications before Basement, prepares deterministic per-volume
+rollback copies, activates staged content, starts Basement before Applications,
+and records success only after the normal full live readback. Coolify, Komodo,
+unknown adapters, missing capability rows, substituted files, and foreign
+volumes remain fail-closed.
+
 Komodo is intentionally two contracts. `stackkits-komodo-core-runtime` is the
 only workload adapter and API authority. It targets Control Plane members at
 the Control Authority Site. Its `agentRefs` closes onto the separately typed

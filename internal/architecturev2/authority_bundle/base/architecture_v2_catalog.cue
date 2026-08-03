@@ -318,7 +318,7 @@ _architectureV2WorkloadContracts: [
 				compatibility: [
 					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {
@@ -360,7 +360,7 @@ _architectureV2WorkloadContracts: [
 				compatibility: [
 					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
@@ -395,7 +395,7 @@ _architectureV2WorkloadContracts: [
 				compatibility: [
 					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}

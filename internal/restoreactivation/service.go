@@ -104,7 +104,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 		return Result{}, fmt.Errorf("restoreactivation: verify staged restore result: %w", err)
 	}
 	authority, err := DeriveAuthority(
-		input.Plan, input.Manifest, input.RestoreResult, input.OperationID,
+		input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID,
 	)
 	if err != nil {
 		return Result{}, err
