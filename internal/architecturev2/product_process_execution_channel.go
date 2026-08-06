@@ -95,8 +95,25 @@ func (a productProcessExecutionChannelAdmission) PrepareExecutionChannel(
 	})
 }
 
+func (a productProcessExecutionChannelAdmission) PrepareHybridExecutionChannel(
+	local func(runtimeexecutor.Executor) (runtimeexecutor.Executor, error),
+) (runtimeexecutor.Executor, error) {
+	if local == nil {
+		return nil, errors.New("hybrid process execution channel requires the exact local router builder")
+	}
+	remote, err := runtimeexecutorprocess.New(a.runtimeVersion, runtimeexecutorprocess.Binding{
+		ChannelRef: a.binding.ChannelRef, SiteRef: a.binding.SiteRef, NodeRef: a.binding.NodeRef,
+		Executable: a.binding.Executable, ExecutableSHA256: a.binding.ExecutableSHA256,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return local(remote)
+}
+
 var (
-	_ ProductExecutionChannelFactory      = (*productProcessExecutionChannelFactory)(nil)
-	_ productExecutionChannelTargetBinder = (*productProcessExecutionChannelFactory)(nil)
-	_ ProductExecutionChannelAdmission    = productProcessExecutionChannelAdmission{}
+	_ ProductExecutionChannelFactory         = (*productProcessExecutionChannelFactory)(nil)
+	_ productExecutionChannelTargetBinder    = (*productProcessExecutionChannelFactory)(nil)
+	_ ProductExecutionChannelAdmission       = productProcessExecutionChannelAdmission{}
+	_ productHybridExecutionChannelAdmission = productProcessExecutionChannelAdmission{}
 )

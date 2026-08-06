@@ -103,6 +103,14 @@ type ProductExecutionChannelRequest = runtimeexecutor.ExecutionChannelRequest
 // operations implementations.
 type ProductExecutionChannelLocalExecutor = runtimeexecutor.ExecutionChannelLocalExecutor
 
+// productHybridExecutionChannelAdmission is the private composition seam for
+// one Site/node channel that contains both local and explicitly remote-only
+// owners. The admitted transport supplies only the remote child executor; the
+// registry still constructs and seals the exact local OwnerRouter.
+type productHybridExecutionChannelAdmission interface {
+	PrepareHybridExecutionChannel(func(runtimeexecutor.Executor) (runtimeexecutor.Executor, error)) (runtimeexecutor.Executor, error)
+}
+
 // ProductExecutionChannelAdmission binds one already admitted channel to an
 // executor. A remote admission may return its authenticated transport executor
 // without invoking local; an explicit local admission invokes local and may
@@ -387,9 +395,17 @@ func (r *ProductRuntimeOwnerRegistry) prepare(request runtimeexecutor.ExecutionR
 	routes := make([]runtimeexecutordispatch.Route, 0, len(channels))
 	for _, channelRef := range channels {
 		channelTargets := append([]productPlannedRuntimeTarget(nil), byChannel[channelRef]...)
-		channelExecutor, err := safelyPrepareProductExecutionChannel(channelAdmissions[channelRef], func() (runtimeexecutor.Executor, error) {
-			return prepareProductLocalExecutionChannel(request.Executor.Version, channelRef, channelTargets, r.journal)
-		})
+		admission := channelAdmissions[channelRef]
+		var channelExecutor runtimeexecutor.Executor
+		if productChannelHasLocalAndRemoteOwners(channelTargets) {
+			channelExecutor, err = safelyPrepareProductHybridExecutionChannel(admission, func(remote runtimeexecutor.Executor) (runtimeexecutor.Executor, error) {
+				return prepareProductHybridExecutionChannel(request.Executor.Version, channelRef, channelTargets, r.journal, remote)
+			})
+		} else {
+			channelExecutor, err = safelyPrepareProductExecutionChannel(admission, func() (runtimeexecutor.Executor, error) {
+				return prepareProductLocalExecutionChannel(request.Executor.Version, channelRef, channelTargets, r.journal)
+			})
+		}
 		if err != nil {
 			return nil, fmt.Errorf("prepare execution channel %q: %w", channelRef, err)
 		}
@@ -401,20 +417,41 @@ func (r *ProductRuntimeOwnerRegistry) prepare(request runtimeexecutor.ExecutionR
 	return runtimeexecutordispatch.NewWithJournal(request.Executor, routes, r.journal)
 }
 
-func prepareProductLocalExecutionChannel(version, channelRef string, planned []productPlannedRuntimeTarget, journal runtimeapply.Journal) (runtimeexecutor.Executor, error) {
+func productChannelHasLocalAndRemoteOwners(planned []productPlannedRuntimeTarget) bool {
+	local, remote := false, false
 	for _, target := range planned {
-		if !target.localFactory || nilProductRuntimeOwnerFactory(target.factory) {
+		if target.localFactory {
+			local = true
+		} else {
+			remote = true
+		}
+	}
+	return local && remote
+}
+
+func prepareProductLocalExecutionChannel(version, channelRef string, planned []productPlannedRuntimeTarget, journal runtimeapply.Journal) (runtimeexecutor.Executor, error) {
+	return prepareProductHybridExecutionChannel(version, channelRef, planned, journal, nil)
+}
+
+func prepareProductHybridExecutionChannel(version, channelRef string, planned []productPlannedRuntimeTarget, journal runtimeapply.Journal, remote runtimeexecutor.Executor) (runtimeexecutor.Executor, error) {
+	for _, target := range planned {
+		if target.localFactory && nilProductRuntimeOwnerFactory(target.factory) ||
+			!target.localFactory && nilRuntimeExecutor(remote) {
 			return nil, &ProductRuntimeOwnerLocalAdmissionError{RequirementID: target.target.RequirementID}
 		}
 	}
 	prepared := make([]productPreparedRuntimeTarget, 0, len(planned))
 	for _, target := range planned {
-		executor, err := safelyPrepareProductRuntimeOwner(target.factory, ProductRuntimeOwnerRequest{
-			Target:        cloneProductRuntimeTarget(target.target),
-			HealthTargets: cloneProductHealthTargets(target.health),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("prepare runtime owner for %q: %w", target.target.RequirementID, err)
+		executor := remote
+		if target.localFactory {
+			var err error
+			executor, err = safelyPrepareProductRuntimeOwner(target.factory, ProductRuntimeOwnerRequest{
+				Target:        cloneProductRuntimeTarget(target.target),
+				HealthTargets: cloneProductHealthTargets(target.health),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("prepare runtime owner for %q: %w", target.target.RequirementID, err)
+			}
 		}
 		identity, err := safeProductRuntimeExecutorIdentity(executor)
 		if err != nil {
@@ -439,6 +476,47 @@ func prepareProductLocalExecutionChannel(version, channelRef string, planned []p
 		return runtimeexecutordispatch.NewOwnerRouter(identity, ownerRoutes)
 	}
 	return runtimeexecutordispatch.NewOwnerRouterWithJournal(identity, ownerRoutes, journal)
+}
+
+func safelyPrepareProductHybridExecutionChannel(admission ProductExecutionChannelAdmission, local func(runtimeexecutor.Executor) (runtimeexecutor.Executor, error)) (executor runtimeexecutor.Executor, err error) {
+	defer func() {
+		if recover() != nil {
+			executor = nil
+			err = errors.New("hybrid execution-channel admission panicked")
+		}
+	}()
+	if nilProductRuntimeOwnerValue(admission) {
+		return nil, errors.New("hybrid execution-channel admission is missing")
+	}
+	hybrid, ok := admission.(productHybridExecutionChannelAdmission)
+	if !ok || local == nil {
+		return nil, errors.New("mixed local/remote owners require an explicit hybrid execution-channel admission")
+	}
+	localCalls := 0
+	guardedLocal := func(remote runtimeexecutor.Executor) (runtimeexecutor.Executor, error) {
+		localCalls++
+		if localCalls > 1 {
+			return nil, errors.New("hybrid execution-channel admission invoked the local router builder more than once")
+		}
+		if nilRuntimeExecutor(remote) {
+			return nil, errors.New("hybrid execution-channel admission supplied no remote executor")
+		}
+		return local(remote)
+	}
+	executor, err = hybrid.PrepareHybridExecutionChannel(guardedLocal)
+	if err != nil {
+		return nil, err
+	}
+	if localCalls != 1 {
+		return nil, errors.New("hybrid execution-channel admission did not construct the exact local router")
+	}
+	if nilRuntimeExecutor(executor) {
+		return nil, errors.New("hybrid execution-channel admission returned no executor")
+	}
+	if _, err := safeProductRuntimeExecutorIdentity(executor); err != nil {
+		return nil, err
+	}
+	return executor, nil
 }
 
 func admitProductExecutionChannels(planned []productPlannedRuntimeTarget, factory ProductExecutionChannelFactory) (map[string]ProductExecutionChannelAdmission, error) {
