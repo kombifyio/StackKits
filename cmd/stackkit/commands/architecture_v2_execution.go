@@ -53,6 +53,7 @@ type architectureV2ExecutionCLIOptions struct {
 	inventoryPath    string
 	planPath         string
 	manifestPath     string
+	stackSpecData    []byte
 	inventoryData    []byte
 	receiptPath      string
 	localSiteRef     string
@@ -384,6 +385,7 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		return err
 	}
 	options.inventoryData = append([]byte(nil), inventory...)
+	options.stackSpecData = append([]byte(nil), rawSpec...)
 	authority, err := g.openV2Authority(wd, mode, options)
 	if err != nil {
 		return err
@@ -781,7 +783,10 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		}
 	}
 	result, err := executeArchitectureV2ProductApply(
-		executionContext, applyAuthority, applyInput,
+		executionContext,
+		applyAuthority,
+		applyInput,
+		architecturev2.ResolveInput{StackSpec: options.stackSpecData, Inventory: options.inventoryData},
 	)
 	if err != nil {
 		return failArchitectureV2ApplicationLifecycles(
@@ -1061,6 +1066,7 @@ func executeArchitectureV2ProductApply(
 	ctx context.Context,
 	authority architectureV2ProductApplyAuthority,
 	input architecturev2.ProductApplyInput,
+	resolveInput architecturev2.ResolveInput,
 ) (architecturev2.VerifiedApplyResult, error) {
 	result, err := authority.ExecuteProductApply(ctx, input)
 	if err == nil {
@@ -1070,12 +1076,26 @@ func executeArchitectureV2ProductApply(
 	if !errors.As(err, &reconcile) || reconcile.RequestDigest() == "" {
 		return architecturev2.VerifiedApplyResult{}, err
 	}
+	return reconcileArchitectureV2ProductApply(ctx, authority, input, resolveInput, reconcile.RequestDigest())
+}
+
+func reconcileArchitectureV2ProductApply(
+	ctx context.Context,
+	authority architectureV2ProductApplyAuthority,
+	input architecturev2.ProductApplyInput,
+	resolveInput architecturev2.ResolveInput,
+	requestDigest string,
+) (architecturev2.VerifiedApplyResult, error) {
+	freshCurrent, err := authority.ResolveCurrent(resolveInput)
+	if err != nil {
+		return architecturev2.VerifiedApplyResult{}, fmt.Errorf("refresh current resolution for Product Apply reconciliation: %w", err)
+	}
 	return authority.ReconcileProductApply(ctx, architecturev2.ProductApplyReconcileInput{
-		Current:       input.Current,
+		Current:       freshCurrent,
 		Workspace:     input.Workspace,
 		OutputLock:    input.OutputLock,
 		Versions:      input.Versions,
-		RequestDigest: reconcile.RequestDigest(),
+		RequestDigest: requestDigest,
 	})
 }
 
