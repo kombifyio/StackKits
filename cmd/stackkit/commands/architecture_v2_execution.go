@@ -1076,7 +1076,7 @@ func executeArchitectureV2ProductApply(
 	if !errors.As(err, &reconcile) || reconcile.RequestDigest() == "" {
 		return architecturev2.VerifiedApplyResult{}, err
 	}
-	return reconcileArchitectureV2ProductApply(ctx, authority, input, resolveInput, reconcile.RequestDigest())
+	return reconcileArchitectureV2ProductApply(ctx, authority, input, resolveInput, reconcile.RequestDigest(), err)
 }
 
 func reconcileArchitectureV2ProductApply(
@@ -1085,18 +1085,23 @@ func reconcileArchitectureV2ProductApply(
 	input architecturev2.ProductApplyInput,
 	resolveInput architecturev2.ResolveInput,
 	requestDigest string,
+	primaryErr error,
 ) (architecturev2.VerifiedApplyResult, error) {
 	freshCurrent, err := authority.ResolveCurrent(resolveInput)
 	if err != nil {
-		return architecturev2.VerifiedApplyResult{}, fmt.Errorf("refresh current resolution for Product Apply reconciliation: %w", err)
+		return architecturev2.VerifiedApplyResult{}, errors.Join(primaryErr, fmt.Errorf("refresh current resolution for Product Apply reconciliation: %w", err))
 	}
-	return authority.ReconcileProductApply(ctx, architecturev2.ProductApplyReconcileInput{
+	result, err := authority.ReconcileProductApply(ctx, architecturev2.ProductApplyReconcileInput{
 		Current:       freshCurrent,
 		Workspace:     input.Workspace,
 		OutputLock:    input.OutputLock,
 		Versions:      input.Versions,
 		RequestDigest: requestDigest,
 	})
+	if err != nil {
+		return architecturev2.VerifiedApplyResult{}, errors.Join(primaryErr, err)
+	}
+	return result, nil
 }
 
 type architectureV2PersistedApplyResult struct {
