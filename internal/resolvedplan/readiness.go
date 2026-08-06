@@ -1100,10 +1100,22 @@ func missingBackupTargetBindingBlockers(module readinessModule) ([]executionRead
 	var blockers []executionReadinessBlocker
 	for _, unit := range module.units {
 		requirementsRaw, requiresTarget := unit.planInputs["backupTargetRequirements"]
+		bindingsRaw, hasBindings := unit.planInputs["externalBackupTargetBindings"]
+		if !requiresTarget {
+			projectionRaw, hasProjection := unit.planInputs["cloudOffsiteBackup"]
+			if !hasProjection {
+				continue
+			}
+			projection, err := asObject(projectionRaw, "modules."+module.id+".renderUnits."+unit.id+".planInputs.cloudOffsiteBackup")
+			if err != nil {
+				return nil, err
+			}
+			requirementsRaw, requiresTarget = projection["requirements"]
+			bindingsRaw, hasBindings = projection["bindings"]
+		}
 		if !requiresTarget {
 			continue
 		}
-		bindingsRaw, hasBindings := unit.planInputs["externalBackupTargetBindings"]
 		if !hasBindings {
 			return nil, fail(ErrContractConflict, "modules."+module.id+".renderUnits."+unit.id+".planInputs", "backup target requirement is missing its external binding projection")
 		}
