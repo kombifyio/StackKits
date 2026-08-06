@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -28,8 +29,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:13|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:13|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:14|resolved-network-domain:required|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:14|resolved-network-domain:required|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -96,7 +97,7 @@ services:
       start_period: 10s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.pocketid.rule=Host(` + "`id.home.test`" + `)
+      - traefik.http.routers.pocketid.rule=Host(` + "`id.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.services.pocketid.loadbalancer.server.port=1411
     networks: [basement-core]
   tinyauth:
@@ -117,7 +118,7 @@ services:
       start_period: 10s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.tinyauth.rule=Host(` + "`auth.home.test`" + `)
+      - traefik.http.routers.tinyauth.rule=Host(` + "`auth.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.services.tinyauth.loadbalancer.server.port=3000
     networks: [basement-core]
   step-ca:
@@ -208,7 +209,7 @@ services:
       start_period: 10s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.coolify.rule=Host(` + "`coolify.home.test`" + `)
+      - traefik.http.routers.coolify.rule=Host(` + "`coolify.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.services.coolify.loadbalancer.server.port=8080
     networks: [basement-core, basement-control]
   kopia-agent:
@@ -248,7 +249,7 @@ services:
       - /bin/sh
       - -ec
       - |
-        printf '%s\n' '<!doctype html><title>StackKit Basement Hub</title><h1>StackKit Basement</h1><ul><li><a href="http://id.home.test">PocketID</a></li><li><a href="http://auth.home.test">TinyAuth</a></li><li><a href="http://coolify.home.test">Coolify</a></li></ul>' > /usr/share/nginx/html/index.html
+        printf '%s\n' '<!doctype html><title>StackKit Basement Hub</title><h1>StackKit Basement</h1><ul><li><a href="http://id.{{STACKKIT_DOMAIN}}">PocketID</a></li><li><a href="http://auth.{{STACKKIT_DOMAIN}}">TinyAuth</a></li><li><a href="http://coolify.{{STACKKIT_DOMAIN}}">Coolify</a></li></ul>' > /usr/share/nginx/html/index.html
         printf '%s\n' '{"status":"ok","service":"basement-hub"}' > /usr/share/nginx/html/healthz
         printf '%s\n' '{"apiVersion":"stackkit.service-verification/v1","status":"pending","authority":"stackkit verify"}' > /usr/share/nginx/html/verification
         exec nginx -g 'daemon off;'
@@ -295,7 +296,7 @@ type basementCoreRenderer struct {
 	contract  RendererContract
 	unitID    string
 	outputRef string
-	render    func() []byte
+	render    func(RenderUnit) []byte
 }
 
 func BasementCoreComposeRendererContract() RendererContract {
@@ -310,7 +311,21 @@ func BasementCoreOpenTofuRendererContract() RendererContract {
 // definition used by both generation and the local runtime-owner admission
 // boundary. Callers receive a defensive copy.
 func ExpectedBasementCoreComposeArtifact() []byte {
-	return []byte(basementCoreCompose)
+	return RenderBasementCoreComposeForDomain("home.test")
+}
+
+var basementDomainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+
+func RenderBasementCoreComposeForDomain(domain string) []byte {
+	if !basementDomainPattern.MatchString(domain) {
+		return nil
+	}
+	return []byte(strings.ReplaceAll(basementCoreCompose, "{{STACKKIT_DOMAIN}}", domain))
+}
+
+func ValidateBasementCoreComposeArtifact(content []byte) bool {
+	match := regexp.MustCompile("id\\.([a-z0-9.-]+)`").FindSubmatch(content)
+	return len(match) == 2 && bytes.Equal(content, RenderBasementCoreComposeForDomain(string(match[1])))
 }
 
 // BasementCoreServiceContract is the secret-free, pinned service identity
@@ -364,14 +379,20 @@ func newBasementCoreComposeRenderer() basementCoreRenderer {
 	return basementCoreRenderer{
 		contract: BasementCoreComposeRendererContract(), unitID: basementCoreComposeUnitID,
 		outputRef: basementCoreComposeOutputRef,
-		render:    func() []byte { return []byte(basementCoreCompose) },
+		render: func(unit RenderUnit) []byte {
+			domain, _ := unit.NetworkDomainBase()
+			return RenderBasementCoreComposeForDomain(domain)
+		},
 	}
 }
 
 func newBasementCoreOpenTofuRenderer() basementCoreRenderer {
 	return basementCoreRenderer{
 		contract: BasementCoreOpenTofuRendererContract(), unitID: basementCoreOpenTofuUnitID,
-		outputRef: basementCoreOpenTofuOutputRef, render: renderBasementCoreOpenTofu,
+		outputRef: basementCoreOpenTofuOutputRef, render: func(unit RenderUnit) []byte {
+			domain, _ := unit.NetworkDomainBase()
+			return renderBasementCoreOpenTofu(domain)
+		},
 	}
 }
 
@@ -382,7 +403,7 @@ func (r basementCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) (
 	if err := validateBasementCoreUnit(unit, r.contract, r.unitID, r.outputRef); err != nil {
 		return nil, err
 	}
-	return []UnitOutput{{Ref: r.outputRef, Bytes: r.render()}}, nil
+	return []UnitOutput{{Ref: r.outputRef, Bytes: r.render(unit)}}, nil
 }
 
 func validateBasementCoreUnit(unit RenderUnit, contract RendererContract, unitID, outputRef string) error {
@@ -391,6 +412,10 @@ func validateBasementCoreUnit(unit RenderUnit, contract RendererContract, unitID
 
 func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract, unitID string, outputRefs []string) error {
 	path := "resolvedPlan.modules." + basementCoreModuleID + ".renderUnits." + unitID
+	domain, hasDomain := unit.NetworkDomainBase()
+	if !hasDomain || !basementDomainPattern.MatchString(domain) {
+		return fail(ErrInvalidPlan, "resolvedPlan.network.configuration.domain.base", "Basement core requires a canonical resolved network domain")
+	}
 	if unit.ModuleID() != basementCoreModuleID || unit.ID() != unitID {
 		return fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", basementCoreModuleID, unitID)
 	}
@@ -443,16 +468,31 @@ func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract,
 		return err
 	}
 	var endpoints []rawModuleServiceEndpoint
-	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 1 {
-		return fail(ErrInvalidPlan, path+".serviceEndpoints", "requires one exact Basement hub endpoint")
+	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 4 {
+		return fail(ErrInvalidPlan, path+".serviceEndpoints", "requires the four exact Basement service endpoints")
 	}
-	endpoint := endpoints[0]
-	if endpoint.ServiceRef != "basement-hub" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 80 ||
-		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "basement-hub-http" ||
-		!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
-		!exactStringList(endpoint.AllowedExposures, []string{"local", "remote-private"}) {
-		return fail(ErrInvalidPlan, path+".serviceEndpoints", "Basement hub route differs from the closed local contract")
+	expectedEndpoints := map[string]struct {
+		port      int
+		healthRef string
+	}{
+		"basement-hub": {port: 80, healthRef: "basement-hub-http"},
+		"id":           {port: 1411, healthRef: "pocketid-http"},
+		"auth":         {port: 3000, healthRef: "tinyauth-http"},
+		"coolify":      {port: 8080, healthRef: "coolify-http"},
+	}
+	for _, endpoint := range endpoints {
+		expected, ok := expectedEndpoints[endpoint.ServiceRef]
+		if !ok || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != expected.port ||
+			endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
+			endpoint.HealthRef != expected.healthRef ||
+			!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
+			!exactStringList(endpoint.AllowedExposures, []string{"local", "remote-private"}) {
+			return fail(ErrInvalidPlan, path+".serviceEndpoints", "Basement service route differs from the closed local contract")
+		}
+		delete(expectedEndpoints, endpoint.ServiceRef)
+	}
+	if len(expectedEndpoints) != 0 {
+		return fail(ErrInvalidPlan, path+".serviceEndpoints", "Basement service endpoint set is incomplete")
 	}
 	return nil
 }
@@ -505,8 +545,12 @@ func normalizeBasementCoreComponentSets(components []map[string]any) {
 	}
 }
 
-func renderBasementCoreOpenTofu() []byte {
-	escapedCompose := strings.ReplaceAll(basementCoreCompose, "${", "$${")
+func renderBasementCoreOpenTofu(domains ...string) []byte {
+	domain := "home.test"
+	if len(domains) == 1 {
+		domain = domains[0]
+	}
+	escapedCompose := strings.ReplaceAll(string(RenderBasementCoreComposeForDomain(domain)), "${", "$${")
 	return []byte(fmt.Sprintf(`terraform {
   required_version = ">= 1.10.0"
   required_providers {

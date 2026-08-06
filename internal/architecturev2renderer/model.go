@@ -26,10 +26,11 @@ const dockerSocketPathSourceDaemonBinding = "daemon-binding"
 const maxDockerSocketPathBytes = 107
 
 type renderPlan struct {
-	outputRoot string
-	modules    []renderModule
-	artifacts  map[string]artifactContract
-	bindings   map[instanceOutputKey]outputBinding
+	outputRoot        string
+	networkDomainBase string
+	modules           []renderModule
+	artifacts         map[string]artifactContract
+	bindings          map[instanceOutputKey]outputBinding
 }
 
 type renderModule struct {
@@ -556,6 +557,10 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 			return renderPlan{}, wrap(ErrInvalidPath, "resolvedPlan.generation.outputRoot", "invalid managed output root", err)
 		}
 	}
+	networkDomainBase, err := parseOptionalNetworkDomainBase(top)
+	if err != nil {
+		return renderPlan{}, err
+	}
 
 	artifacts, err := parseArtifacts(generation, outputRoot)
 	if err != nil {
@@ -578,9 +583,9 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 	}
 
 	result := renderPlan{
-		outputRoot: outputRoot,
-		artifacts:  artifacts,
-		bindings:   make(map[instanceOutputKey]outputBinding),
+		outputRoot: outputRoot, networkDomainBase: networkDomainBase,
+		artifacts: artifacts,
+		bindings:  make(map[instanceOutputKey]outputBinding),
 	}
 	moduleIDs := make(map[string]struct{}, len(rawModules))
 	boundArtifacts := make(map[string]instanceOutputKey)
@@ -612,6 +617,26 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 	}
 
 	return finalizeRenderPlan(top, result, artifacts, boundArtifacts, runtimeNetworks)
+}
+
+func parseOptionalNetworkDomainBase(top map[string]json.RawMessage) (string, error) {
+	raw, present := top["network"]
+	if !present {
+		return "", nil
+	}
+	network, err := decodeRawObject(raw, "resolvedPlan.network")
+	if err != nil {
+		return "", err
+	}
+	configuration, err := requiredRawObject(network, "configuration", "resolvedPlan.network.configuration")
+	if err != nil {
+		return "", err
+	}
+	domain, err := requiredRawObject(configuration, "domain", "resolvedPlan.network.configuration.domain")
+	if err != nil {
+		return "", err
+	}
+	return requiredRawString(domain, "base", "resolvedPlan.network.configuration.domain.base")
 }
 
 func finalizeRenderPlan(top map[string]json.RawMessage, result renderPlan, artifacts map[string]artifactContract, boundArtifacts map[string]instanceOutputKey, runtimeNetworks []runtimeNetwork) (renderPlan, error) {

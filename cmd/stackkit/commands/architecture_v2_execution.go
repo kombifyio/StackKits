@@ -796,6 +796,19 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			"urn:stackkit:apply-result:"+result.ResultHash(), now().UTC(), err,
 		)
 	}
+	access, err := buildArchitectureV2AccessSummary(persisted, result.Summary().AppliedAt)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply completed but its service access manifest could not be projected",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
+	if err := writeAccessSummary(wd, access); err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply completed but its service access manifest could not be persisted",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
 	defaultPlanPath, _, _ := persisted.MetadataPaths(wd)
 	planPath := architectureV2MetadataPath(wd, options.planPath, defaultPlanPath)
 	planRef, err := architectureV2WorkspaceEvidenceRef(wd, planPath)

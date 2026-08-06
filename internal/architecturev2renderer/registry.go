@@ -163,6 +163,7 @@ type RenderUnit struct {
 	privilegedApprovalsJSON    []byte
 	runtimeNetworkBindingsJSON []byte
 	declaredOutputRef          []string
+	networkDomainBase          string
 }
 
 func (u RenderUnit) ModuleID() string        { return u.moduleID }
@@ -245,7 +246,8 @@ func (u RenderUnit) PrivilegedInterfaceApprovalsJSON() []byte {
 func (u RenderUnit) RuntimeNetworkBindingsJSON() []byte {
 	return append([]byte(nil), u.runtimeNetworkBindingsJSON...)
 }
-func (u RenderUnit) DeclaredOutputs() []string { return append([]string(nil), u.declaredOutputRef...) }
+func (u RenderUnit) DeclaredOutputs() []string         { return append([]string(nil), u.declaredOutputRef...) }
+func (u RenderUnit) NetworkDomainBase() (string, bool) { return optionalAccessor(u.networkDomainBase) }
 
 func optionalAccessor(value string) (string, bool) { return value, value != "" }
 
@@ -333,7 +335,7 @@ func renderProjection(ctx context.Context, projection renderPlan, canonical []by
 				return RenderResult{}, fail(ErrUnknownRenderer, "resolvedPlan.modules."+module.id+".renderUnits."+contract.id, "renderer contract %s/%s@%s (%s) is not registered exactly", contract.rendererRef, contract.templateRef, contract.version, contract.contractHash)
 			}
 			for _, instance := range contract.instances {
-				unit := newRenderUnit(module.id, contract, instance)
+				unit := newRenderUnit(module.id, contract, instance, projection.networkDomainBase)
 				outputs, err := renderUnit(ctx, renderer, unit)
 				if err != nil {
 					return RenderResult{}, err
@@ -386,7 +388,11 @@ func ValidateManagedOutput(plan generationartifact.VerifiedPlan, result RenderRe
 	return projection.outputRoot, nil
 }
 
-func newRenderUnit(moduleID string, contract renderUnitContract, instance renderUnitInstance) RenderUnit {
+func newRenderUnit(moduleID string, contract renderUnitContract, instance renderUnitInstance, networkDomainBase ...string) RenderUnit {
+	domain := ""
+	if len(networkDomainBase) == 1 {
+		domain = networkDomainBase[0]
+	}
 	return RenderUnit{
 		moduleID: moduleID, id: contract.id, instanceID: instance.id, instanceScope: instance.scope,
 		siteRef: instance.siteRef, nodeRef: instance.nodeRef, daemonRef: instance.daemonRef, daemonInstanceRef: instance.daemonInstanceRef,
@@ -408,6 +414,7 @@ func newRenderUnit(moduleID string, contract renderUnitContract, instance render
 		privilegedApprovalsJSON:    append([]byte(nil), contract.privilegedApprovalsCanonical...),
 		runtimeNetworkBindingsJSON: append([]byte(nil), instance.networkCanonical...),
 		declaredOutputRef:          instanceLogicalOutputRefs(instance.outputs),
+		networkDomainBase:          domain,
 	}
 }
 

@@ -50,8 +50,9 @@ func (r basementCoreTerramateRenderer) RenderUnit(ctx context.Context, unit Rend
 	if err := validateBasementCoreTerramateUnit(unit, r.contract); err != nil {
 		return nil, err
 	}
+	domain, _ := unit.NetworkDomainBase()
 	return []UnitOutput{
-		{Ref: basementCoreTerramateOpenTofuOutputRef, Bytes: renderBasementCoreOpenTofu()},
+		{Ref: basementCoreTerramateOpenTofuOutputRef, Bytes: renderBasementCoreOpenTofu(domain)},
 		{Ref: basementCoreTerramateRootOutputRef, Bytes: []byte(basementCoreTerramateRoot)},
 		{Ref: basementCoreTerramateStackOutputRef, Bytes: []byte(basementCoreTerramateStack)},
 	}, nil

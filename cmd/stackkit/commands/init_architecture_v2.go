@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -155,7 +156,11 @@ func runArchitectureV2InitWithBootstrap(
 		}
 		printSuccess("Established local owner custody: %s", custody.OwnerRef)
 		if stackkitName == "basement-kit" {
-			runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd)
+			runtimeDomain, err := architectureV2CanonicalDomain(validation.CanonicalStackSpec)
+			if err != nil {
+				return fmt.Errorf("read Basement runtime domain: %w", err)
+			}
+			runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeDomain)
 			if err != nil {
 				return fmt.Errorf("establish Basement runtime custody: %w", err)
 			}
@@ -177,6 +182,24 @@ func runArchitectureV2InitWithBootstrap(
 	}
 	printArchitectureV2InitSummary(displayPath)
 	return nil
+}
+
+func architectureV2CanonicalDomain(canonicalStackSpec []byte) (string, error) {
+	var spec struct {
+		Network struct {
+			Domain struct {
+				Base string `json:"base"`
+			} `json:"domain"`
+		} `json:"network"`
+	}
+	if err := json.Unmarshal(canonicalStackSpec, &spec); err != nil {
+		return "", err
+	}
+	domain := strings.TrimSpace(spec.Network.Domain.Base)
+	if domain == "" {
+		return "", errors.New("canonical StackSpec is missing network.domain.base")
+	}
+	return domain, nil
 }
 
 func materializeArchitectureV2LocalSecrets(workspaceRoot string, canonicalStackSpec []byte) (int, error) {

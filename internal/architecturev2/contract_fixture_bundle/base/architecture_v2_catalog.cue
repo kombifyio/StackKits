@@ -1958,6 +1958,37 @@ _architectureV2KomodoPeripheryAgentSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: []
 }
 
+_basementCoreServiceEndpoints: [
+	{
+		serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "basement-hub-http"
+	},
+	{
+		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "pocketid-http"
+	},
+	{
+		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "tinyauth-http"
+	},
+	{
+		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "coolify-http"
+	},
+]
+
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
@@ -3175,32 +3206,20 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:688445d14626e3995f03f1730001458c1bc09b29c35f2dc8146cbe74bc363116"
+				contractHash: "sha256:b7aef7863ecb3c5ff01082a0afe57e6ae9e189c66e709cda5d24ac0cdd62761d"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
-				serviceEndpoints: [{
-					serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
-					allowedIngressProtocols: ["http", "https"]
-					allowedExposures: ["local", "remote-private"]
-					originSelector: "control-authority-site"
-					healthRef:      "basement-hub-http"
-				}]
+				serviceEndpoints: _basementCoreServiceEndpoints
 			},
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:74ef76136183c761caf98c3bc9d622566eb63599b0425b0d5fce1ac2bf72e853"
+				contractHash: "sha256:6cb6764ecd6fb7c45c1f4a6644a1ff4a1737b67bcfde031b90b79fdd25b5f01e"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
-				serviceEndpoints: [{
-					serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
-					allowedIngressProtocols: ["http", "https"]
-					allowedExposures: ["local", "remote-private"]
-					originSelector: "control-authority-site"
-					healthRef:      "basement-hub-http"
-				}]
+				serviceEndpoints: _basementCoreServiceEndpoints
 			},
 			{
 				id:           "terramate", kind:                               "terramate", rendererRef: "stackkit"
@@ -3213,13 +3232,7 @@ _architectureV2Modules: list.Concat([[
 					"platform/basement-core/stack.tm.hcl",
 				]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
-				serviceEndpoints: [{
-					serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
-					allowedIngressProtocols: ["http", "https"]
-					allowedExposures: ["local", "remote-private"]
-					originSelector: "control-authority-site"
-					healthRef:      "basement-hub-http"
-				}]
+				serviceEndpoints: _basementCoreServiceEndpoints
 			},
 			{
 				id:           "source-policy"

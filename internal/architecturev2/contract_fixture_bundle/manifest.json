@@ -12,7 +12,7 @@
     "base/application_lifecycle.cue": "sha256:3368c230c7e4e31ecba1700fa55552ce9955cb124507047d6efbfe48e07e94b5",
     "base/architecture_v2.cue": "sha256:94725a76e7fc4204edf6db5ecd332fd605dc4207388815547860c7daa01d54a7",
     "base/architecture_v2_backup.cue": "sha256:e6b05f90eeb3705f38ce096fb83dcfe258cbbf3359fd8863f556229dbfe734bc",
-    "base/architecture_v2_catalog.cue": "sha256:9254da504bfc14e666f1cfbaa59b67384edf8685856d2507c3fcf97711f7a20a",
+    "base/architecture_v2_catalog.cue": "sha256:aa2edb0fd5ad82688911717917814cfa2d07d1ae90fd6eff9cf60e75a208a96b",
     "base/architecture_v2_definition_binding.cue": "sha256:692c5ec5ed511c8ee23e5a0a11c4911c8a865efda9464dbceb6c28d92aa9a5bd",
     "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",
     "base/architecture_v2_storage.cue": "sha256:f6fac8445802045892a1a98e3e8ecf856365bc94889f1708811466edb3df1471",

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -25,13 +26,14 @@ import (
 )
 
 const (
-	BasementRuntimeCustodyAPIVersion = "stackkit.basement-runtime-custody/v2"
+	BasementRuntimeCustodyAPIVersion = "stackkit.basement-runtime-custody/v3"
 	basementRuntimeCustodyRelDir     = ".stackkit/custody/basement-runtime"
 	basementRuntimeManifestRelPath   = "manifest.json"
 )
 
 var (
 	ErrBasementRuntimeCustodyMissing = errors.New("localevidence: no Basement runtime custody")
+	basementRuntimeDomainPattern     = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
 	basementRuntimeFilePaths         = []string{
 		"coolify.env",
 		"pocketid.env",
@@ -43,6 +45,10 @@ var (
 		"tinyauth.env",
 	}
 )
+
+func validBasementRuntimeDomain(domain string) bool {
+	return len(domain) <= 253 && basementRuntimeDomainPattern.MatchString(domain)
+}
 
 type BasementRuntimeCustodyFile struct {
 	Path string `json:"path"`
@@ -57,6 +63,7 @@ type BasementRuntimeCustody struct {
 	Kind          string                       `json:"kind"`
 	OwnerRef      string                       `json:"ownerRef"`
 	KeyID         string                       `json:"keyId"`
+	Domain        string                       `json:"domain"`
 	EstablishedAt time.Time                    `json:"establishedAt"`
 	Files         []BasementRuntimeCustodyFile `json:"files"`
 	Signature     string                       `json:"signature"`
@@ -65,13 +72,20 @@ type BasementRuntimeCustody struct {
 // EstablishBasementRuntimeCustody creates the service runtime bundle exactly
 // once. A complete bundle is installed by one directory rename; a preexisting
 // incomplete or modified bundle is rejected instead of repaired or rotated.
-func EstablishBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCustody, error) {
+func EstablishBasementRuntimeCustody(workspaceRoot, domain string) (BasementRuntimeCustody, error) {
+	domain = strings.TrimSpace(strings.ToLower(domain))
+	if !validBasementRuntimeDomain(domain) {
+		return BasementRuntimeCustody{}, errors.New("localevidence: Basement runtime custody requires a canonical domain")
+	}
 	owner, err := LoadOwnerCustody(workspaceRoot)
 	if err != nil {
 		return BasementRuntimeCustody{}, err
 	}
 	existing, err := LoadBasementRuntimeCustody(workspaceRoot)
 	if err == nil {
+		if existing.Domain != domain {
+			return BasementRuntimeCustody{}, errors.New("localevidence: Basement runtime custody domain differs from established custody")
+		}
 		return existing, nil
 	}
 	if !errors.Is(err, ErrBasementRuntimeCustodyMissing) {
@@ -105,7 +119,7 @@ func EstablishBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCusto
 		return BasementRuntimeCustody{}, fmt.Errorf("localevidence: restrict Basement runtime custody transaction: %w", err)
 	}
 
-	files, err := buildBasementRuntimeFiles(workspaceRoot, owner)
+	files, err := buildBasementRuntimeFiles(workspaceRoot, owner, domain)
 	if err != nil {
 		return BasementRuntimeCustody{}, err
 	}
@@ -136,6 +150,7 @@ func EstablishBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCusto
 		Kind:          "BasementRuntimeCustody",
 		OwnerRef:      owner.OwnerRef,
 		KeyID:         owner.KeyID,
+		Domain:        domain,
 		EstablishedAt: time.Now().UTC().Truncate(time.Second),
 		Files:         manifestFiles,
 	}
@@ -182,7 +197,7 @@ func LoadBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCustody, e
 	}
 	if record.APIVersion != BasementRuntimeCustodyAPIVersion ||
 		record.Kind != "BasementRuntimeCustody" ||
-		record.OwnerRef == "" || record.KeyID == "" || record.EstablishedAt.IsZero() {
+		record.OwnerRef == "" || record.KeyID == "" || !validBasementRuntimeDomain(record.Domain) || record.EstablishedAt.IsZero() {
 		return BasementRuntimeCustody{}, errors.New("localevidence: Basement runtime custody is not a recognised record")
 	}
 	owner, err := LoadOwnerCustody(workspaceRoot)
@@ -214,7 +229,7 @@ func LoadBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCustody, e
 	return record, nil
 }
 
-func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody) (map[string][]byte, error) {
+func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain string) (map[string][]byte, error) {
 	rootPrivate, err := loadStepCARootKey(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: load established step-ca root key for runtime intermediate: %w", err)
@@ -266,7 +281,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody) (map[st
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: encrypt step-ca runtime intermediate key: %w", err)
 	}
-	environments, err := basementRuntimeEnvironments(owner)
+	environments, err := basementRuntimeEnvironments(owner, domain)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +290,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody) (map[st
 		Crt:      "/home/step/certs/intermediate_ca.crt",
 		Key:      "/home/step/secrets/intermediate_ca_key",
 		Address:  ":9000",
-		DNSNames: []string{"step-ca", "localhost", "ca.home.test"},
+		DNSNames: []string{"step-ca", "localhost", "ca." + domain},
 		Logger:   basementStepCALogger{Format: "text"},
 		DB:       basementStepCADatabase{Type: "badgerV2", DataSource: "/home/step/db"},
 		Authority: basementStepCAAuthority{
@@ -298,7 +313,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody) (map[st
 	return files, nil
 }
 
-func basementRuntimeEnvironments(owner OwnerCustody) (map[string][]byte, error) {
+func basementRuntimeEnvironments(owner OwnerCustody, domain string) (map[string][]byte, error) {
 	encryptionKey, err := randomRuntimeSecret(32, base64.StdEncoding)
 	if err != nil {
 		return nil, err
@@ -335,7 +350,7 @@ func basementRuntimeEnvironments(owner OwnerCustody) (map[string][]byte, error) 
 	}
 	return map[string][]byte{
 		"pocketid.env": encode(
-			"APP_URL=http://id.home.test",
+			"APP_URL=http://id."+domain,
 			"ENCRYPTION_KEY="+encryptionKey,
 			"STATIC_API_KEY="+staticAPIKey,
 			"TRUST_PROXY=true",
@@ -343,16 +358,16 @@ func basementRuntimeEnvironments(owner OwnerCustody) (map[string][]byte, error) 
 			"ANALYTICS_DISABLED=true",
 		),
 		"tinyauth.env": encode(
-			"TINYAUTH_APPURL=http://auth.home.test",
+			"TINYAUTH_APPURL=http://auth."+domain,
 			"TINYAUTH_DATABASE_PATH=/data/tinyauth.db",
 			"TINYAUTH_AUTH_SECURECOOKIE=false",
 			"TINYAUTH_ANALYTICS_ENABLED=false",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=stackkit-tinyauth",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET="+tinyAuthBootstrapSecret,
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=http://id.home.test/authorize",
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=http://id.home.test/api/oidc/token",
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=http://id.home.test/api/oidc/userinfo",
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=http://auth.home.test/api/oauth/callback/pocketid",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=http://id."+domain+"/authorize",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=http://pocketid:1411/api/oidc/token",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=http://pocketid:1411/api/oidc/userinfo",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=http://auth."+domain+"/api/oauth/callback/pocketid",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES=openid email profile groups",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME=Pocket ID",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=true",

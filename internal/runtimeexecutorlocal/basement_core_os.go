@@ -37,7 +37,12 @@ type BasementCoreObservationDriftError struct {
 }
 
 func (err *BasementCoreObservationDriftError) Error() string {
-	return "verified Basement runtime differs from the authorized project"
+	message := "verified Basement runtime differs from the authorized project: " + err.code
+	var processErr *basementCoreProcessError
+	if errors.As(err.cause, &processErr) {
+		return message + " (" + processErr.Error() + ")"
+	}
+	return message
 }
 
 func (err *BasementCoreObservationDriftError) Unwrap() error { return err.cause }
@@ -292,6 +297,31 @@ func basementCoreComposeArgs(composePath, operation string) []string {
 
 type osBasementCoreProcessRunner struct{}
 
+type basementCoreProcessError struct {
+	output string
+	cause  error
+}
+
+func (err *basementCoreProcessError) Error() string {
+	return fmt.Sprintf("docker-compose-exit; output=%q", err.output)
+}
+
+func (err *basementCoreProcessError) Unwrap() error { return err.cause }
+
+func boundedBasementCoreProcessDiagnostic(output []byte) string {
+	value := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' || (r >= 32 && r <= 126) {
+			return r
+		}
+		return '?'
+	}, string(output))
+	value = strings.TrimSpace(value)
+	if len(value) > 512 {
+		value = value[:512] + "..."
+	}
+	return value
+}
+
 func (osBasementCoreProcessRunner) Run(ctx context.Context, args []string, directory string, environment []string) ([]byte, error) {
 	if len(args) < 6 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[2] != "stackkit-basement-core" || args[3] != "-f" ||
@@ -299,11 +329,11 @@ func (osBasementCoreProcessRunner) Run(ctx context.Context, args []string, direc
 		filepath.Dir(args[4]) != directory ||
 		(!slices.Equal(args[5:], []string{"up", "-d", "--wait", "--wait-timeout", "600"}) &&
 			!slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"})) {
-		return nil, errors.New("process is outside the closed Basement core Docker Compose contract")
+		return nil, &basementCoreProcessError{output: "closed-contract-rejected", cause: errors.New("invalid process contract")}
 	}
 	executable, err := exec.LookPath("docker")
 	if err != nil {
-		return nil, errors.New("required local Docker runtime is not installed")
+		return nil, &basementCoreProcessError{output: "docker-not-found", cause: err}
 	}
 	command := exec.CommandContext(ctx, executable, args...)
 	command.Dir = directory
@@ -311,10 +341,10 @@ func (osBasementCoreProcessRunner) Run(ctx context.Context, args []string, direc
 	output := &basementCoreBoundedBuffer{remaining: basementCoreProcessOutputLimit}
 	command.Stdout, command.Stderr = output, output
 	if err := command.Run(); err != nil {
-		return nil, errors.New("bounded local Docker Compose process failed")
+		return nil, &basementCoreProcessError{output: boundedBasementCoreProcessDiagnostic(output.Bytes()), cause: err}
 	}
 	if output.exceeded {
-		return nil, errors.New("local Docker Compose process output exceeded the bound")
+		return nil, &basementCoreProcessError{output: "output-exceeded", cause: errors.New("bounded process output exceeded")}
 	}
 	return append([]byte(nil), output.Bytes()...), nil
 }

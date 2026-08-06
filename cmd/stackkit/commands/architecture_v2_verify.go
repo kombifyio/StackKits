@@ -230,7 +230,7 @@ func verifyBasementCoreWorkspace(
 	}
 	digest := sha256.Sum256(definition)
 	if "sha256:"+hex.EncodeToString(digest[:]) != rendered.SHA256 ||
-		!bytes.Equal(definition, architecturev2renderer.ExpectedBasementCoreComposeArtifact()) {
+		!architecturev2renderer.ValidateBasementCoreComposeArtifact(definition) {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
 	}
 	serviceContracts := architecturev2renderer.BasementCoreServiceContracts()

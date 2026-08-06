@@ -1,7 +1,6 @@
 package runtimeexecutorlocal
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -267,7 +266,7 @@ func exactBasementCoreArtifact(artifacts []runtimeexecutor.Artifact, target runt
 		artifact.OutputRef != basementCoreOutputRef || !slices.Equal(artifact.SiteRefs, target.SiteRefs) ||
 		!slices.Equal(artifact.NodeRefs, target.NodeRefs) || len(artifact.Content) == 0 ||
 		len(artifact.Content) > basementCoreMaxArtifactBytes ||
-		!bytes.Equal(artifact.Content, architecturev2renderer.ExpectedBasementCoreComposeArtifact()) {
+		!architecturev2renderer.ValidateBasementCoreComposeArtifact(artifact.Content) {
 		return runtimeexecutor.Artifact{}, errors.New("artifact is not the exact CUE-owned Basement core Compose instance")
 	}
 	sum := sha256.Sum256(artifact.Content)

@@ -19,7 +19,6 @@ import (
 
 const (
 	pocketIDLocalAPI       = "http://127.0.0.1:1411"
-	pocketIDPublicOrigin   = "http://id.home.test"
 	tinyAuthClientName     = "StackKits TinyAuth"
 	ownerEnrollmentTTL     = 24 * time.Hour
 	pocketIDHealthTimeout  = 2 * time.Minute
@@ -153,11 +152,15 @@ func (s *Service) Realize(ctx context.Context) (Result, error) {
 		return Result{}, errors.New("localowner: PocketID owner enrollment creation failed")
 	}
 	expiresAt := s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
+	runtimeCustody, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
+	if err != nil {
+		return Result{}, err
+	}
 	enrollmentPath, err := localevidence.PersistPocketIDOwnerEnrollment(
 		s.workspaceRoot,
 		localevidence.PocketIDOwnerEnrollment{
 			OwnerRef: owner.OwnerRef, PocketIDSubject: subject,
-			SetupURL:  pocketIDPublicOrigin + "/setup-account?token=" + url.QueryEscape(token),
+			SetupURL:  "http://id." + runtimeCustody.Domain + "/setup-account?token=" + url.QueryEscape(token),
 			ExpiresAt: expiresAt,
 		},
 	)
@@ -217,12 +220,17 @@ func (s *Service) ensureTinyAuthPocketIDBinding(
 	} else if !errors.Is(err, localevidence.ErrTinyAuthPocketIDBindingMissing) {
 		return err
 	}
+	runtimeCustody, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
+	if err != nil {
+		return err
+	}
+	callbackURL := localevidence.TinyAuthPocketIDCallbackURL(runtimeCustody.Domain)
 	oidcClient, err := client.GetOIDCClient(ctx, localevidence.TinyAuthPocketIDClientID)
 	var secret string
 	if errors.Is(err, pocketid.ErrNotFound) {
 		oidcClient, err = client.RegisterOIDCClient(ctx, pocketid.RegisterClientRequest{
 			ID: localevidence.TinyAuthPocketIDClientID, Name: tinyAuthClientName,
-			CallbackURLs: []string{localevidence.TinyAuthPocketIDCallbackURL},
+			CallbackURLs: []string{callbackURL},
 			IsPublic:     false, IsGroupRestricted: true,
 		})
 		if err == nil && oidcClient != nil {
@@ -261,11 +269,15 @@ func (s *Service) verifyTinyAuthPocketIDBinding(
 	if err != nil {
 		return err
 	}
+	runtimeCustody, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
+	if err != nil {
+		return err
+	}
 	oidcClient, err := client.GetOIDCClient(ctx, binding.ClientID)
 	if err != nil || oidcClient == nil ||
 		oidcClient.ID != localevidence.TinyAuthPocketIDClientID ||
 		oidcClient.Name != tinyAuthClientName ||
-		!slices.Equal(oidcClient.CallbackURLs, []string{localevidence.TinyAuthPocketIDCallbackURL}) ||
+		!slices.Equal(oidcClient.CallbackURLs, []string{localevidence.TinyAuthPocketIDCallbackURL(runtimeCustody.Domain)}) ||
 		oidcClient.IsPublic || !oidcClient.IsGroupRestricted ||
 		!samePocketIDGroupIDs(oidcClient.AllowedUserGroups, groupIDs) ||
 		binding.OwnerRef != owner.OwnerRef ||
