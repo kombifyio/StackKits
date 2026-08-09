@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // ProductApplyReconcileInput identifies one service-owned recovery operation
@@ -89,7 +91,8 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 	if err := validateProductApplyRecoveryPlan(current.plan, s.productRuntimeOwners, capsule); err != nil {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Product Apply recovery authority does not match the current plan", err)
 	}
-	if err := verifyProductApplyRecoveryWorkspace(current.plan, input.Workspace, capsule); err != nil {
+	manifest, receipt, err := revalidateProductApplyRecoveryWorkspace(current.plan, input.Workspace, capsule)
+	if err != nil {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Product Apply recovery workspace revalidation failed", err)
 	}
 	at := clock()
@@ -111,7 +114,20 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 	}
 	defer releaseCurrent()
 
-	sharedResult, err := s.productRuntimeOwners.reconcileProductApply(ctx, input.RequestDigest, at)
+	executionRequest := capsule.Request
+	var sharedResult runtimeexecutor.ExecutionResult
+	if productApplyRecoveryHasExternalBindings(capsule) {
+		continuation, continuationErr := s.newProductApplyFreshContinuation(
+			ctx, current.plan, manifest, receipt, capsule, input.RequestDigest, input.Versions.Runtime, at,
+		)
+		if continuationErr != nil {
+			return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "construct fresh Product Apply recovery continuation", continuationErr)
+		}
+		executionRequest = continuation.Request
+		sharedResult, err = s.productRuntimeOwners.executeProductApplyContinuation(ctx, continuation, at)
+	} else {
+		sharedResult, err = s.productRuntimeOwners.reconcileProductApply(ctx, input.RequestDigest, at)
+	}
 	if err != nil {
 		cause := applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.reconcile", "Product Apply recovery execution failed", err)
 		if reconcile := newProductApplyReconcileRequiredError(cause, input.RequestDigest); reconcile != nil {
@@ -123,7 +139,7 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.context", "execution context was cancelled during Product Apply recovery", err)
 	}
 	return verifyApplyRuntimeExecutionResult(
-		capsule.Request,
+		executionRequest,
 		stackKitsExecutionResult(sharedResult),
 		&sharedRuntimeExecutorBridge{executor: s.productRuntimeOwners},
 	)
@@ -138,9 +154,6 @@ func (s *Service) loadProductApplyRecoveryCapsule(ctx context.Context, requestDi
 }
 
 func validateProductApplyRecoveryPlan(plan generationartifact.VerifiedPlan, owners *ProductRuntimeOwnerRegistry, capsule productApplyRecoveryCapsule) error {
-	if len(capsule.Shared.AccessBindings) != 0 || len(capsule.Request.Requirements.AccessBindings) != 0 {
-		return applyExecutorError(generationartifact.ErrEvidenceFreshness, "apply.reconcile.accessBindings", "access-bound Product Apply recovery requires a versioned fresh-instant continuation contract", nil)
-	}
 	if owners == nil || capsule.Shared.Executor != owners.Identity() ||
 		capsule.Request.Executor.ID != owners.Identity().ID || capsule.Request.Executor.Version != owners.Identity().Version || capsule.Request.Executor.Digest != owners.Identity().Digest {
 		return applyExecutorError(generationartifact.ErrBindingMismatch, "apply.reconcile.executor", "recovery authority does not bind the service-owned executor", nil)
@@ -166,51 +179,105 @@ func validateProductApplyRecoveryPlan(plan generationartifact.VerifiedPlan, owne
 	return nil
 }
 
+func productApplyRecoveryHasExternalBindings(capsule productApplyRecoveryCapsule) bool {
+	return len(capsule.Shared.AccessBindings) != 0 || len(capsule.Shared.BackupTargetBindings) != 0 ||
+		len(capsule.Request.Requirements.AccessBindings) != 0 || len(capsule.Request.Requirements.BackupTargetBindings) != 0
+}
+
+func (s *Service) newProductApplyFreshContinuation(
+	ctx context.Context,
+	plan generationartifact.VerifiedPlan,
+	manifest generationartifact.ArtifactManifest,
+	receipt generationartifact.GenerationReceipt,
+	capsule productApplyRecoveryCapsule,
+	recoveryRequestDigest string,
+	runtimeVersion string,
+	at time.Time,
+) (productApplyContinuation, error) {
+	if nilProductApplyEvidenceCollector(s.productApplyEvidenceCollector) {
+		return productApplyContinuation{}, applyExecutorError(generationartifact.ErrEvidenceFreshness, "apply.reconcile.evidenceCollector", "external-binding recovery requires the service-owned Apply evidence collector", nil)
+	}
+	registry, err := s.productApplyExecutorRegistry(plan, runtimeVersion)
+	if err != nil {
+		return productApplyContinuation{}, err
+	}
+	collectionRequest, err := newProductApplyEvidenceCollectionRequest(plan, manifest, registry.entry.identity, at)
+	if err != nil {
+		return productApplyContinuation{}, err
+	}
+	evidenceBytes, err := collectProductApplyEvidence(ctx, s.productApplyEvidenceCollector, collectionRequest)
+	if err != nil {
+		return productApplyContinuation{}, fmt.Errorf("collect fresh Product Apply evidence: %w", err)
+	}
+	evidence, err := generationartifact.VerifyApplyEvidenceBundleAt(generationartifact.ApplyEvidenceVerificationInput{
+		Plan: plan, Manifest: manifest, GenerationReceipt: receipt, Executor: registry.entry.identity,
+		Bundle: evidenceBytes, TrustedProducers: registry.entry.trustedProducers,
+	}, at)
+	if err != nil {
+		return productApplyContinuation{}, fmt.Errorf("verify fresh Product Apply evidence: %w", err)
+	}
+	request := capsule.Request
+	request.EvidenceBundle = append([]byte(nil), evidenceBytes...)
+	request.EvidenceBundleHash = evidence.BundleHash()
+	request.ExecutionAt = evidence.EvaluatedAt()
+	bridge := &sharedRuntimeExecutorBridge{executor: s.productRuntimeOwners}
+	shared, err := bridge.sharedRuntimeRequest(request)
+	if err != nil {
+		return productApplyContinuation{}, fmt.Errorf("seal fresh Product Apply continuation: %w", err)
+	}
+	return newProductApplyContinuation(recoveryRequestDigest, capsule, request, shared, evidence.ExpiresAt())
+}
+
 func verifyProductApplyRecoveryWorkspace(plan generationartifact.VerifiedPlan, workspace *confinedfs.Transaction, capsule productApplyRecoveryCapsule) error {
+	_, _, err := revalidateProductApplyRecoveryWorkspace(plan, workspace, capsule)
+	return err
+}
+
+func revalidateProductApplyRecoveryWorkspace(plan generationartifact.VerifiedPlan, workspace *confinedfs.Transaction, capsule productApplyRecoveryCapsule) (generationartifact.ArtifactManifest, generationartifact.GenerationReceipt, error) {
 	if err := RequireNoPendingOutputTransaction(workspace, plan.OutputRoot()); err != nil {
-		return applyExecutorError(generationartifact.ErrBindingMismatch, "apply.reconcile.output", "governed output has a pending transaction", err)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.reconcile.output", "governed output has a pending transaction", err)
 	}
 	manifest, err := generationartifact.ReadManifestHeld(plan, workspace, ".")
 	if err != nil {
-		return err
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, err
 	}
 	manifestHash, err := manifest.Hash()
 	if err != nil || manifestHash != capsule.Request.ManifestHash {
-		return applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.manifest", "held generation manifest identity changed", err)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.manifest", "held generation manifest identity changed", err)
 	}
 	if err := generationartifact.VerifyManifestHeld(plan, workspace, ".", manifest); err != nil {
-		return applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.output", "held generated output changed", err)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.output", "held generated output changed", err)
 	}
 	receipt, err := generationartifact.ReadReceiptHeld(plan, workspace, ".")
 	if err != nil {
-		return err
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, err
 	}
 	receiptHash, err := canonicalGenerationReceiptHash(receipt)
 	if err != nil || receiptHash != capsule.Request.GenerationReceiptHash {
-		return applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.receipt", "held generation receipt identity changed", err)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.receipt", "held generation receipt identity changed", err)
 	}
 	if err := generationartifact.VerifyReceipt(plan, manifest, receipt); err != nil {
-		return applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.receipt", "held generation receipt no longer binds the output", err)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.receipt", "held generation receipt no longer binds the output", err)
 	}
 	artifacts, err := snapshotHeldApplyArtifacts(workspace, manifest, plan.ApplyRequirements())
 	if err != nil {
-		return err
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, err
 	}
 	artifactsEqual, err := canonicalProductApplyRecoveryEqual(
 		map[string]any{"artifacts": artifacts},
 		map[string]any{"artifacts": capsule.Request.Artifacts},
 	)
 	if err != nil {
-		return applyExecutorError(generationartifact.ErrInvalidContract, "apply.reconcile.artifacts", "canonicalize recovery artifact snapshots", err)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrInvalidContract, "apply.reconcile.artifacts", "canonicalize recovery artifact snapshots", err)
 	}
 	if !artifactsEqual {
-		return applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.artifacts", "held artifact snapshots differ from the recovery authority", nil)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.artifacts", "held artifact snapshots differ from the recovery authority", nil)
 	}
 	artifactSetHash, err := hashApplyArtifactSet(artifacts)
 	if err != nil || artifactSetHash != capsule.Request.ArtifactSetHash {
-		return applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.artifactSetHash", "held artifact-set identity changed", err)
+		return generationartifact.ArtifactManifest{}, generationartifact.GenerationReceipt{}, applyExecutorError(generationartifact.ErrArtifactChanged, "apply.reconcile.artifactSetHash", "held artifact-set identity changed", err)
 	}
-	return nil
+	return manifest, receipt, nil
 }
 
 func canonicalProductApplyRecoveryEqual(first, second any) (bool, error) {

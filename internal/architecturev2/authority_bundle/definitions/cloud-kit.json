@@ -43,7 +43,7 @@
       "generation": {
         "outputRoot": "deploy",
         "strategy": "kit-template",
-        "target": "opentofu"
+        "target": "compose"
       },
       "install": {
         "mode": "bootstrapped",
@@ -271,6 +271,7 @@
       "observability-evidence",
       "lifecycle-update",
       "site-cloud",
+      "cloud-core-runtime",
       "host-local-internet-firewall",
       "public-edge",
       "public-dns",
@@ -305,7 +306,7 @@
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
-    "defaultTarget": "opentofu"
+    "defaultTarget": "compose"
   },
   "identityTrust": {
     "authorities": [
@@ -681,6 +682,8 @@
       "photos",
       "vault"
     ],
-    "required": []
+    "required": [
+      "cloud-core"
+    ]
   }
 }

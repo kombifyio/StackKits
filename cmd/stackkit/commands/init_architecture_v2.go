@@ -155,16 +155,24 @@ func runArchitectureV2InitWithBootstrap(
 			return fmt.Errorf("establish local owner custody: %w", err)
 		}
 		printSuccess("Established local owner custody: %s", custody.OwnerRef)
-		if stackkitName == "basement-kit" {
+		if stackkitName == "basement-kit" || stackkitName == "cloud-kit" {
 			runtimeDomain, err := architectureV2CanonicalDomain(validation.CanonicalStackSpec)
 			if err != nil {
-				return fmt.Errorf("read Basement runtime domain: %w", err)
+				return fmt.Errorf("read %s runtime domain: %w", stackkitName, err)
 			}
-			runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeDomain)
-			if err != nil {
-				return fmt.Errorf("establish Basement runtime custody: %w", err)
+			if stackkitName == "cloud-kit" {
+				runtimeCustody, err := localevidence.EstablishCloudRuntimeCustody(wd, runtimeDomain)
+				if err != nil {
+					return fmt.Errorf("establish Cloud runtime custody: %w", err)
+				}
+				printSuccess("Established owner-bound Cloud runtime custody: %s", runtimeCustody.KeyID)
+			} else {
+				runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeDomain)
+				if err != nil {
+					return fmt.Errorf("establish Basement runtime custody: %w", err)
+				}
+				printSuccess("Established owner-bound Basement runtime custody: %s", runtimeCustody.KeyID)
 			}
-			printSuccess("Established owner-bound Basement runtime custody: %s", runtimeCustody.KeyID)
 		}
 		secretCount, err := materializeArchitectureV2LocalSecrets(wd, validation.CanonicalStackSpec)
 		if err != nil {

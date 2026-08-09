@@ -102,6 +102,7 @@ Definition: base.#ProductKitDefinition & {
 	capabilities: {
 		required: list.Concat([base.#CommonCapabilityIDs, [
 			"site-cloud",
+			"cloud-core-runtime",
 			"host-local-internet-firewall",
 			"public-edge",
 			"public-dns",
@@ -115,7 +116,7 @@ Definition: base.#ProductKitDefinition & {
 		optional: ["private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
-	workloads: {required: [], defaults: [], optional: ["files", "photos", "vault"], forbidden: []}
+	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -184,7 +185,7 @@ Definition: base.#ProductKitDefinition & {
 	generation: {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
-		defaultTarget: "opentofu"
+		defaultTarget: "compose"
 		allowedTargets: ["opentofu", "compose"]
 		contractVersion: "1.0.0"
 	}
@@ -225,7 +226,7 @@ Definition: base.#ProductKitDefinition & {
 			}
 			generation: {
 				strategy: "kit-template"
-				target:   "opentofu"
+				target:   "compose"
 			}
 			system: {}
 			storage: {}

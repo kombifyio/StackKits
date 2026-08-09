@@ -217,6 +217,7 @@ _architectureV2BasementComposeCapabilities: ["basement-compose-runtime"]
 
 _architectureV2CloudCapabilities: [
 	"site-cloud",
+	"cloud-core-runtime",
 	"host-local-internet-firewall",
 	"public-edge",
 	"public-dns",
@@ -243,6 +244,7 @@ _architectureV2CloudPublicDNSCapabilities: ["public-dns"]
 _architectureV2CloudPublicEdgeCapabilities: ["public-edge"]
 _architectureV2CloudOffsiteBackupCapabilities: ["offsite-object-backup"]
 _architectureV2CloudPrivateAdminMeshCapabilities: ["private-admin-mesh"]
+_architectureV2CloudCoreCapabilities: ["cloud-core-runtime"]
 
 _architectureV2PublicTLSCapabilities: ["public-tls"]
 
@@ -278,6 +280,44 @@ _architectureV2WorkloadContracts: [
 			providerRef: "stackkits-basement-core"
 			moduleRef:   "stackkits-basement-core-runtime"
 			route: {serviceRef: "basement-hub", healthRef: "basement-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "cloud-core"
+			version:     "1.0.0"
+			description: "Required provider-neutral Cloud control plane installed on an externally supplied host; provider and server lifecycle remain outside StackKits."
+		}
+		kind: "service"
+		functionalCapabilities: [
+			"public-routing",
+			"owner-identity",
+			"forward-auth",
+			"container-platform",
+			"operator-hub",
+		]
+		supportedSiteKinds: ["cloud"]
+		dataClasses: []
+		defaultAlternative: "standalone"
+		alternatives: [{
+			id:          "standalone"
+			providerRef: "stackkits-cloud-core"
+			moduleRef:   "stackkits-cloud-core-runtime"
+			route: {serviceRef: "base", healthRef: "cloud-hub-http"}
 			runtime: {
 				allowedKinds: ["container"]
 				allowedDeliveries: ["stackkit"]
@@ -1027,6 +1067,28 @@ _architectureV2Providers: list.Concat([[
 		}
 		health: [{id: "basement-core-provider-contract", kind: "contract"}]
 		evidence: ["basement-core-runtime-evidence"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-core", version: "1.0.0"}
+		provides: _architectureV2CloudCoreCapabilities
+		workloadRefs: ["cloud-core"]
+		requires: [
+			{id: "host-bootstrap"},
+			{id: "offsite-object-backup"},
+			{id: "public-edge"},
+			{id: "public-tls"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-cloud-core-runtime"]
+				optional: []
+			}
+		}
+		health: [{id: "cloud-core-provider-contract", kind: "contract"}]
+		evidence: ["cloud-core-runtime-evidence"]
 	},
 	{
 		metadata: {id: "stackkits-immich", version: "1.1.0"}
@@ -1986,6 +2048,37 @@ _basementCoreServiceEndpoints: [
 		allowedExposures: ["local", "remote-private"]
 		originSelector: "control-authority-site"
 		healthRef:      "coolify-http"
+	},
+]
+
+_cloudCoreServiceEndpoints: [
+	{
+		serviceRef: "base", upstreamProtocol: "http", targetPort: 80
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-hub-http"
+	},
+	{
+		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-pocketid-http"
+	},
+	{
+		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-tinyauth-http"
+	},
+	{
+		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-coolify-http"
 	},
 ]
 
@@ -3048,6 +3141,139 @@ _architectureV2Modules: list.Concat([[
 		realizationSupport: _architectureV2SocketProxySupport
 		health: [{id: "socket-proxy-contract", kind: "contract"}]
 		evidence: ["socket-proxy-provider-backing-governance"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-core-runtime"
+			version:     "1.0.0"
+			description: "Provider-neutral Cloud core runtime for routing, local identity, access control, Coolify, and the operator hub on an externally supplied host."
+		}
+		role:        "workload"
+		providerRef: "stackkits-cloud-core"
+		provides:    _architectureV2CloudCoreCapabilities
+		requires: ["stackkits-cloud-offsite-backup-runtime", "stackkits-public-tls-contract"]
+		supportedSiteKinds: ["cloud"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller", "worker"]
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "ghcr.io/coollabsio/coolify:4.1.2"
+				digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
+			}
+			entryComponentRef: "coolify"
+			components: [
+				{
+					id: "router", role: "application", lifecycle: "daemon"
+					image: {ref: "ghcr.io/traefik/traefik:v3", digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"}
+					dependsOn: ["socket-proxy"], networkRefs: ["cloud-core", "cloud-control"]
+					health: {kind: "http", path: "/ping", port: 8080}
+				},
+				{
+					id: "socket-proxy", role: "application", lifecycle: "daemon"
+					image: {ref: "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2", digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"}
+					dependsOn: [], networkRefs: ["cloud-control"]
+					health: {kind: "image"}
+				},
+				{
+					id: "pocketid", role: "application", lifecycle: "daemon"
+					image: {ref: "ghcr.io/pocket-id/pocket-id:v2.7.0", digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"}
+					dependsOn: [], networkRefs: ["cloud-core"]
+					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 1411}
+				},
+				{
+					id: "tinyauth", role: "application", lifecycle: "daemon"
+					image: {ref: "ghcr.io/steveiliop56/tinyauth:v5.0.7", digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"}
+					dependsOn: ["pocketid"], networkRefs: ["cloud-core"]
+					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["tinyauth", "healthcheck"]}
+				},
+				{
+					id: "coolify", role: "application", lifecycle: "daemon"
+					image: {ref: "ghcr.io/coollabsio/coolify:4.1.2", digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"}
+					dependsOn: ["coolify-postgres", "coolify-redis", "coolify-realtime"], networkRefs: ["cloud-core", "cloud-control"]
+					volumes: [
+						{id: "coolify-data", target: "/var/www/html/storage", class: "persistent", backup: true},
+						{id: "coolify-ssh", target: "/var/www/html/storage/app/ssh", class: "persistent", backup: true},
+						{id: "coolify-applications", target: "/var/www/html/storage/app/applications", class: "persistent", backup: true},
+						{id: "coolify-databases", target: "/var/www/html/storage/app/databases", class: "persistent", backup: true},
+						{id: "coolify-services", target: "/var/www/html/storage/app/services", class: "persistent", backup: true},
+						{id: "coolify-backups", target: "/var/www/html/storage/app/backups", class: "persistent", backup: true},
+					]
+					health: {kind: "http", path: "/api/health", port: 8080}
+				},
+				{
+					id: "coolify-postgres", role: "database", lifecycle: "daemon"
+					image: {ref: "docker.io/library/postgres:15-alpine", digest: "sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"}
+					dependsOn: [], networkRefs: ["cloud-control"]
+					volumes: [{id: "coolify-postgres-data", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["pg_isready", "-U", "coolify"]}
+				},
+				{
+					id: "coolify-redis", role: "cache", lifecycle: "daemon"
+					image: {ref: "docker.io/library/redis:7-alpine", digest: "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"}
+					dependsOn: [], networkRefs: ["cloud-control"]
+					volumes: [{id: "coolify-redis-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["redis-cli", "ping"]}
+				},
+				{
+					id: "coolify-realtime", role: "application", lifecycle: "daemon"
+					image: {ref: "ghcr.io/coollabsio/coolify-realtime:1.0.16", digest: "sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629"}
+					dependsOn: ["coolify-redis"], networkRefs: ["cloud-control"]
+					health: {kind: "http", path: "/ready", port: 6001}
+				},
+				{
+					id: "hub", role: "application", lifecycle: "daemon"
+					image: {ref: "docker.io/library/nginx:alpine", digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"}
+					dependsOn: ["tinyauth"], networkRefs: ["cloud-core"]
+					health: {kind: "http", path: "/healthz", port: 80}
+				},
+			]
+		}
+		renderUnits: [{
+			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
+			contractHash: "sha256:a368eb2417a0cbe7fbf28d0c7576164fab4919435fd2fc3205c2ae65be86d0a6"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/cloud-core/compose.yaml"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _cloudCoreServiceEndpoints
+		}]
+		renderVariants: [{
+			id:           "compose", target: "compose", rendererRef: "stackkit"
+			contractHash: "sha256:a368eb2417a0cbe7fbf28d0c7576164fab4919435fd2fc3205c2ae65be86d0a6"
+			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}]
+		realizationSupport: {
+			contractVersion: "1.0.0", scope: "concrete", level: "apply-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: []}
+			planInputs: {contractComplete: true, requiredRefs: []}
+			artifacts: {
+				requiredRefs: ["cloud-core-compose"]
+				outputBindings: [{artifactRef: "cloud-core-compose", unitRef: "compose", outputRef: "platform/cloud-core/compose.yaml"}]
+				contracts: [{
+					id: "cloud-core-compose", kind: "compose", format: "yaml", mode: "0640", required: true
+					compatibleTargets: ["compose"], unitRef: "compose", outputRef: "platform/cloud-core/compose.yaml"
+				}]
+			}
+			evidence: requiredRefs: ["cloud-core-runtime-evidence"]
+		}
+		health: [
+			{id: "cloud-router-http", kind: "http", path: "/ping", port: 8080, expectedStatuses: [200]},
+			{id: "cloud-pocketid-http", kind: "http", path: "/", port: 1411, expectedStatuses: [200, 302]},
+			{id: "cloud-tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
+			{id: "cloud-coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
+			{id: "cloud-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
+		]
+		evidence: ["cloud-core-runtime-evidence"]
 	},
 	{
 		metadata: {

@@ -270,6 +270,35 @@ func (r *ProductRuntimeOwnerRegistry) reconcileProductApply(ctx context.Context,
 	return runtimeexecutor.InvokeAt(ctx, r, capsule.Shared, at)
 }
 
+func (r *ProductRuntimeOwnerRegistry) executeProductApplyContinuation(ctx context.Context, continuation productApplyContinuation, at time.Time) (runtimeexecutor.ExecutionResult, error) {
+	if ctx == nil {
+		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation requires a context")
+	}
+	if r == nil || at.IsZero() || at.Location() != time.UTC {
+		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation requires an exact service-owned UTC instant")
+	}
+	canonical, err := safeLoadProductApplyRecovery(r.recovery, ctx, continuation.RecoveryRequestDigest)
+	if err != nil {
+		return runtimeexecutor.ExecutionResult{}, err
+	}
+	capsule, err := parseProductApplyRecoveryCapsule(canonical)
+	if err != nil {
+		return runtimeexecutor.ExecutionResult{}, err
+	}
+	if err := validateProductApplyContinuation(continuation, capsule); err != nil {
+		return runtimeexecutor.ExecutionResult{}, err
+	}
+	evaluatedAt, _ := time.Parse(time.RFC3339Nano, continuation.EvaluatedAt)
+	validUntil, _ := time.Parse(time.RFC3339Nano, continuation.ValidUntil)
+	if at != evaluatedAt || !at.Before(validUntil) {
+		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation is not valid at the execution instant")
+	}
+	if continuation.Shared.Executor != r.identity {
+		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation does not bind the service-owned registry identity")
+	}
+	return runtimeexecutor.InvokeAt(ctx, r, continuation.Shared, at)
+}
+
 // Identity returns the immutable product-owned root executor identity. It is
 // fixed before authorization and cannot be selected by an Apply request.
 func (r *ProductRuntimeOwnerRegistry) Identity() runtimeexecutor.ExecutorIdentity {

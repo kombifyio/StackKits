@@ -258,6 +258,13 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductBasementCoreRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			operations, err := runtimeexecutorlocal.NewOSCloudCoreOperations(workspaceRoot)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.NewProductCloudCoreRegistration(runtimeVersion, operations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			operations, err := runtimeexecutorlocal.NewOSCloudHostSecurityOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err

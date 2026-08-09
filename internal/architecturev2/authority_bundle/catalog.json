@@ -1078,6 +1078,21 @@
         "SK-S3"
       ],
       "metadata": {
+        "description": "Cloud-site Architecture v2 contract for cloud-core-runtime.",
+        "id": "cloud-core-runtime",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S2",
+        "SK-S3"
+      ],
+      "metadata": {
         "description": "Cloud-site Architecture v2 contract for host-local-internet-firewall.",
         "id": "host-local-internet-firewall",
         "layer": "platform",
@@ -1912,6 +1927,16 @@
         "siteKind": "cloud"
       },
       {
+        "capability": "cloud-core-runtime",
+        "matches": [],
+        "siteKind": "home"
+      },
+      {
+        "capability": "cloud-core-runtime",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
         "capability": "host-local-internet-firewall",
         "matches": [],
         "siteKind": "home"
@@ -2425,6 +2450,13 @@
         "module": "stackkits-basement-compose-runtime"
       },
       {
+        "capability": "cloud-core-runtime",
+        "matches": [
+          "cloud-core-runtime"
+        ],
+        "module": "stackkits-cloud-core-runtime"
+      },
+      {
         "capability": "local-backup-runtime",
         "matches": [
           "local-backup-runtime"
@@ -2824,6 +2856,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-cloud-core-runtime"
+        ],
+        "matches": [
+          "stackkits-cloud-core"
+        ],
+        "module": "stackkits-cloud-core-runtime",
+        "provider": "stackkits-cloud-core"
+      },
+      {
+        "governanceMatches": [
           "stackkits-basement-core-runtime"
         ],
         "matches": [
@@ -3217,6 +3259,20 @@
       },
       {
         "matches": [
+          "stackkits-cloud-offsite-backup-runtime"
+        ],
+        "module": "stackkits-cloud-core-runtime",
+        "requires": "stackkits-cloud-offsite-backup-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-public-tls-contract"
+        ],
+        "module": "stackkits-cloud-core-runtime",
+        "requires": "stackkits-public-tls-contract"
+      },
+      {
+        "matches": [
           "stackkits-home-backup-target"
         ],
         "module": "stackkits-basement-core-runtime",
@@ -3554,6 +3610,13 @@
             "basement-core"
           ],
           "providerID": "stackkits-basement-core"
+        },
+        {
+          "contracts": [
+            "cloud-core-runtime",
+            "cloud-core"
+          ],
+          "providerID": "stackkits-cloud-core"
         },
         {
           "contracts": [
@@ -4008,6 +4071,13 @@
         "provider": "stackkits-basement-core"
       },
       {
+        "capability": "cloud-core-runtime",
+        "matches": [
+          "cloud-core-runtime"
+        ],
+        "provider": "stackkits-cloud-core"
+      },
+      {
         "capability": "site-federation",
         "matches": [
           "site-federation"
@@ -4344,6 +4414,13 @@
         ],
         "module": "stackkits-basement-core-runtime",
         "provider": "stackkits-basement-core"
+      },
+      {
+        "matches": [
+          "stackkits-cloud-core-runtime"
+        ],
+        "module": "stackkits-cloud-core-runtime",
+        "provider": "stackkits-cloud-core"
       },
       {
         "matches": [
@@ -4955,6 +5032,41 @@
           "service-catalog"
         ],
         "provider": "stackkits-basement-core"
+      },
+      {
+        "capability": "host-bootstrap",
+        "matches": [
+          "host-bootstrap"
+        ],
+        "provider": "stackkits-cloud-core"
+      },
+      {
+        "capability": "offsite-object-backup",
+        "matches": [
+          "offsite-object-backup"
+        ],
+        "provider": "stackkits-cloud-core"
+      },
+      {
+        "capability": "public-edge",
+        "matches": [
+          "public-edge"
+        ],
+        "provider": "stackkits-cloud-core"
+      },
+      {
+        "capability": "public-tls",
+        "matches": [
+          "public-tls"
+        ],
+        "provider": "stackkits-cloud-core"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-cloud-core"
       },
       {
         "capability": "runtime-paas",
@@ -5663,6 +5775,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-cloud-core"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-immich"
         },
         {
@@ -5885,6 +6003,65 @@
             }
           ],
           "workloadID": "basement-core"
+        },
+        {
+          "alternativeID": "standalone",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [
+                {
+                  "capability": "cloud-core-runtime",
+                  "matches": [
+                    "cloud-core-runtime"
+                  ]
+                }
+              ],
+              "moduleID": "stackkits-cloud-core-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "stackkit"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "unitID": "compose"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-cloud-core",
+              "workloadOwnership": [
+                "cloud-core"
+              ]
+            }
+          ],
+          "workloadID": "cloud-core"
         },
         {
           "alternativeID": "immich",
@@ -9815,6 +9992,519 @@
       },
       "supportedSiteKinds": [
         "home"
+      ]
+    },
+    {
+      "evidence": [
+        "cloud-core-runtime-evidence"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "cloud-router-http",
+          "kind": "http",
+          "path": "/ping",
+          "phase": "post-apply",
+          "port": 8080,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "cloud-pocketid-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 1411,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "cloud-tinyauth-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 4000,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "cloud-coolify-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 8000,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "cloud-hub-http",
+          "kind": "http",
+          "path": "/healthz",
+          "phase": "post-apply",
+          "port": 80,
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Provider-neutral Cloud core runtime for routing, local identity, access control, Coolify, and the operator hub on an externally supplied host.",
+        "id": "stackkits-cloud-core-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller",
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-cloud-core",
+      "provides": [
+        "cloud-core-runtime"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose"
+              ],
+              "format": "yaml",
+              "id": "cloud-core-compose",
+              "kind": "compose",
+              "mode": "0640",
+              "outputRef": "platform/cloud-core/compose.yaml",
+              "required": true,
+              "unitRef": "compose"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "cloud-core-compose",
+              "outputRef": "platform/cloud-core/compose.yaml",
+              "unitRef": "compose"
+            }
+          ],
+          "requiredRefs": [
+            "cloud-core-compose"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "cloud-core-runtime-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose"
+          ],
+          "contractHash": "sha256:a368eb2417a0cbe7fbf28d0c7576164fab4919435fd2fc3205c2ae65be86d0a6",
+          "id": "compose",
+          "inputBindings": [],
+          "kind": "compose",
+          "outputs": [
+            "platform/cloud-core/compose.yaml"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-hub-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "base",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-pocketid-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-tinyauth-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-coolify-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "coolify",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://cloud/core/compose/v1.yaml",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "cloud-core-compose"
+          ],
+          "contractHash": "sha256:a368eb2417a0cbe7fbf28d0c7576164fab4919435fd2fc3205c2ae65be86d0a6",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "compose"
+          ]
+        }
+      ],
+      "requires": [
+        "stackkits-cloud-offsite-backup-runtime",
+        "stackkits-public-tls-contract"
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "socket-proxy"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/ping",
+              "port": 8080
+            },
+            "id": "router",
+            "image": {
+              "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+              "ref": "ghcr.io/traefik/traefik:v3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-core",
+              "cloud-control"
+            ],
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "socket-proxy",
+            "image": {
+              "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
+              "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-control"
+            ],
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 1411
+            },
+            "id": "pocketid",
+            "image": {
+              "digest": "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e",
+              "ref": "ghcr.io/pocket-id/pocket-id:v2.7.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-core"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "pocketid-data",
+                "target": "/app/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "pocketid"
+            ],
+            "health": {
+              "command": [
+                "tinyauth",
+                "healthcheck"
+              ],
+              "kind": "command"
+            },
+            "id": "tinyauth",
+            "image": {
+              "digest": "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6",
+              "ref": "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-core"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "tinyauth-data",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "coolify-postgres",
+              "coolify-redis",
+              "coolify-realtime"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/api/health",
+              "port": 8080
+            },
+            "id": "coolify",
+            "image": {
+              "digest": "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f",
+              "ref": "ghcr.io/coollabsio/coolify:4.1.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-core",
+              "cloud-control"
+            ],
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-data",
+                "target": "/var/www/html/storage"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-ssh",
+                "target": "/var/www/html/storage/app/ssh"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-applications",
+                "target": "/var/www/html/storage/app/applications"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-databases",
+                "target": "/var/www/html/storage/app/databases"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-services",
+                "target": "/var/www/html/storage/app/services"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-backups",
+                "target": "/var/www/html/storage/app/backups"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "coolify"
+              ],
+              "kind": "command"
+            },
+            "id": "coolify-postgres",
+            "image": {
+              "digest": "sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f",
+              "ref": "docker.io/library/postgres:15-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-control"
+            ],
+            "role": "database",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-postgres-data",
+                "target": "/var/lib/postgresql/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "redis-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "coolify-redis",
+            "image": {
+              "digest": "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99",
+              "ref": "docker.io/library/redis:7-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-control"
+            ],
+            "role": "cache",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "coolify-redis-data",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "coolify-redis"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/ready",
+              "port": 6001
+            },
+            "id": "coolify-realtime",
+            "image": {
+              "digest": "sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629",
+              "ref": "ghcr.io/coollabsio/coolify-realtime:1.0.16"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-control"
+            ],
+            "role": "application"
+          },
+          {
+            "dependsOn": [
+              "tinyauth"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/healthz",
+              "port": 80
+            },
+            "id": "hub",
+            "image": {
+              "digest": "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
+              "ref": "docker.io/library/nginx:alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-core"
+            ],
+            "role": "application"
+          }
+        ],
+        "delivery": "stackkit",
+        "engine": "docker",
+        "entryComponentRef": "coolify",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f",
+          "ref": "ghcr.io/coollabsio/coolify:4.1.2"
+        },
+        "kind": "container"
+      },
+      "supportedSiteKinds": [
+        "cloud"
       ]
     },
     {
@@ -16400,6 +17090,67 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "cloud-core-runtime-evidence"
+      ],
+      "health": [
+        {
+          "id": "cloud-core-provider-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-cloud-core",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "cloud-core-runtime"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-cloud-core-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "host-bootstrap",
+          "optional": false
+        },
+        {
+          "id": "offsite-object-backup",
+          "optional": false
+        },
+        {
+          "id": "public-edge",
+          "optional": false
+        },
+        {
+          "id": "public-tls",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": [
+        "cloud-core"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "SK-S1",
         "SK-S2",
         "SK-S4"
@@ -18328,6 +19079,61 @@
       },
       "supportedSiteKinds": [
         "home"
+      ]
+    },
+    {
+      "alternatives": [
+        {
+          "id": "standalone",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-cloud-core-runtime",
+          "providerRef": "stackkits-cloud-core",
+          "route": {
+            "healthRef": "cloud-hub-http",
+            "serviceRef": "base"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "stackkit"
+            ],
+            "allowedKinds": [
+              "container"
+            ]
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [],
+      "defaultAlternative": "standalone",
+      "functionalCapabilities": [
+        "public-routing",
+        "owner-identity",
+        "forward-auth",
+        "container-platform",
+        "operator-hub"
+      ],
+      "kind": "service",
+      "metadata": {
+        "description": "Required provider-neutral Cloud control plane installed on an externally supplied host; provider and server lifecycle remain outside StackKits.",
+        "id": "cloud-core",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "cloud"
       ]
     },
     {

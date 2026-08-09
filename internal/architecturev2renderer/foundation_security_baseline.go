@@ -137,6 +137,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(basementCoreTerramate.contract, basementCoreTerramate); err != nil {
 		return nil, err
 	}
+	cloudCoreCompose := newCloudCoreComposeRenderer()
+	if err := registry.Register(cloudCoreCompose.contract, cloudCoreCompose); err != nil {
+		return nil, err
+	}
 	coolifyAdapter := newCoolifyRuntimeAdapterRenderer()
 	if err := registry.Register(coolifyAdapter.contract, coolifyAdapter); err != nil {
 		return nil, err
