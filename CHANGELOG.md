@@ -4,6 +4,28 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.0] - 2026-08-09
+
+### Added
+
+- Cloud Kit now resolves a required provider-neutral Cloud core workload for
+  `base`, `auth`, `id`, and `coolify`, renders one digest-pinned Compose
+  project, and executes it through a closed local runtime owner on an
+  externally supplied host.
+- Owner-signed Cloud runtime custody stores only service-scoped PocketID,
+  TinyAuth, and Coolify material. Provider credentials, server credentials,
+  leases, inventory, and provider lifecycle remain outside StackKits.
+- Cloud Apply and Verify bind the exact generated artifact, authenticated
+  execution channel, nine-service image graph, and five post-apply health
+  conditions. The generated access manifest exposes the four Cloud core
+  services over the plan-owned public TLS domain.
+
+### Changed
+
+- Cloud Kit's native default generation target is Compose and `cloud-core` is
+  a required workload. IONOS, centron, BYO-VPS, and local-host selection remain
+  Techstack concerns; StackKits receives only an enrolled host channel.
+
 ## [0.13.0] - 2026-07-30
 
 > **Fleet and reusable infrastructure lifecycle** with bounded node mutations
