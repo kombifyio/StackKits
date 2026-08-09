@@ -70,6 +70,9 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err := validateRouteOriginProjection(plan, catalog, capabilityProviders); err != nil {
 		return err
 	}
+	if err := validateRuntimeListenerProjection(plan); err != nil {
+		return err
+	}
 	if err := validateRouteCapabilityRealizationBodies(plan, catalog, capabilityProviders); err != nil {
 		return err
 	}
@@ -2206,6 +2209,9 @@ func validateResolvedRenderUnitBodies(module, contract map[string]any, path stri
 		if err := validateResolvedServiceEndpointBodies(have, want, unitPath); err != nil {
 			return err
 		}
+		if err := validateResolvedRuntimeListenerBodies(have, want, unitPath); err != nil {
+			return err
+		}
 		if err := validateResolvedProvidedInterfaceBodies(have, want, unitPath); err != nil {
 			return err
 		}
@@ -2445,6 +2451,17 @@ func validateResolvedServiceEndpointBodies(haveUnit, wantUnit map[string]any, pa
 		"serviceEndpoints",
 		"service endpoint",
 		indexServiceEndpointBodies,
+	)
+}
+
+func validateResolvedRuntimeListenerBodies(haveUnit, wantUnit map[string]any, path string) error {
+	return validateResolvedIndexedBodies(
+		haveUnit,
+		wantUnit,
+		path,
+		"runtimeListeners",
+		"runtime listener",
+		indexObjectsByID,
 	)
 }
 

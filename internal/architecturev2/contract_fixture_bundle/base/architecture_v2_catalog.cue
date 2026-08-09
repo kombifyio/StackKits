@@ -2082,6 +2082,19 @@ _cloudCoreServiceEndpoints: [
 	},
 ]
 
+_cloudCoreRuntimeListeners: [
+	{id: "web-http", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 80, targetPort: 80, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
+	{id: "web-https", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 443, targetPort: 443, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
+	{id: "router-admin", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 8080, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "pocketid-direct", componentRef: "pocketid", transport: "tcp", bindAddress: "0.0.0.0", port: 1411, targetPort: 1411, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "tinyauth-direct", componentRef: "tinyauth", transport: "tcp", bindAddress: "0.0.0.0", port: 4000, targetPort: 3000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "coolify-direct", componentRef: "coolify", transport: "tcp", bindAddress: "0.0.0.0", port: 8000, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+]
+
+_basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
+	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "0.0.0.0", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+]])
+
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
@@ -3239,15 +3252,16 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:a368eb2417a0cbe7fbf28d0c7576164fab4919435fd2fc3205c2ae65be86d0a6"
+			contractHash: "sha256:6a005bfcd0729c1afa7e4e88ebd8930842ecf165fafbb9c0b492972a1c4fc447"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _cloudCoreServiceEndpoints
+			runtimeListeners: _cloudCoreRuntimeListeners
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:a368eb2417a0cbe7fbf28d0c7576164fab4919435fd2fc3205c2ae65be86d0a6"
+			contractHash: "sha256:6a005bfcd0729c1afa7e4e88ebd8930842ecf165fafbb9c0b492972a1c4fc447"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
@@ -3432,25 +3446,27 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:b7aef7863ecb3c5ff01082a0afe57e6ae9e189c66e709cda5d24ac0cdd62761d"
+				contractHash: "sha256:4a63f59c3c708412a3740767189f416b0020bfb6dfef114979682c3378c71acc"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreServiceEndpoints
+				runtimeListeners: _basementCoreRuntimeListeners
 			},
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:6cb6764ecd6fb7c45c1f4a6644a1ff4a1737b67bcfde031b90b79fdd25b5f01e"
+				contractHash: "sha256:53076b1f51ff3c408ba8a37ed4435d38764426e378d2396b4b714d9cbf2cb5d9"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreServiceEndpoints
+				runtimeListeners: _basementCoreRuntimeListeners
 			},
 			{
 				id:           "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash: "sha256:f6a6ddb4e024ccba609e95cfcbebb3a87fc7202131dc4911fc20dfa77fa85cf7"
+				contractHash: "sha256:6cac9e11984dca63a715d9eb886afbf96cd4bb2d210cce737468e7f2205c16d7"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: [
 					"platform/basement-core/main.tf",
@@ -3459,6 +3475,7 @@ _architectureV2Modules: list.Concat([[
 				]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreServiceEndpoints
+				runtimeListeners: _basementCoreRuntimeListeners
 			},
 			{
 				id:           "source-policy"

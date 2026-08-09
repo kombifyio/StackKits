@@ -15,11 +15,12 @@ import (
 
 #ArchitectureAPIVersion: "stackkit/v2alpha1"
 
-#ContractID:   string & =~"^[a-z][a-z0-9-]*$"
-#CapabilityID: #ContractID
-#WorkloadID:   #ContractID
-#SiteID:       #ContractID
-#NodeID:       #ContractID
+#ContractID:          string & =~"^[a-z][a-z0-9-]*$"
+#RuntimeListenerIDV1: string & =~"^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*){3}$"
+#CapabilityID:        #ContractID
+#WorkloadID:          #ContractID
+#SiteID:              #ContractID
+#NodeID:              #ContractID
 
 #SemanticVersion: string & =~"^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
 #ContentHash:     string & =~"^sha256:[a-f0-9]{64}$"
@@ -1662,6 +1663,60 @@ import (
 	}
 	if originSelector == "single-site" || originSelector == "control-authority-site" {
 		originSelection?: _|_
+	}
+}
+
+// #ModuleRuntimeListenerV1 is the catalog-owned physical host-listener
+// declaration for one node-local runtime render unit. It is independent from
+// route publication and provider lifecycle: routes may annotate a listener,
+// but they can never create one. componentRef and targetPort keep generated
+// runtime artifacts bound to the same declaration as the host-port inventory.
+#ModuleRuntimeListenerV1: {
+	id:                #ContractID
+	componentRef:      #ContractID
+	transport:         "tcp" | "udp"
+	bindAddress:       #NetworkAddressV2
+	port:              int & >=1 & <=65535
+	targetPort:        int & >=1 & <=65535
+	sharing:           "exclusive" | "virtual-host"
+	listenerGroupRef?: #ContractID
+	exposure:          #ServiceExposureV2
+	sourceServiceRefs: [...#ContractID] | *[]
+
+	_sourceServiceRefsUnique: list.UniqueItems(sourceServiceRefs) & true
+	if sharing == "exclusive" {
+		listenerGroupRef?: _|_
+	}
+	if sharing == "virtual-host" {
+		listenerGroupRef: #ContractID
+	}
+}
+
+// #ResolvedRuntimeListenerV1 is the exact node-realized listener inventory.
+// Ownership is explicit so a consumer can reserve ports without inferring
+// locality from routes, providers, rendered files, or observed sockets.
+#ResolvedRuntimeListenerV1: {
+	id:                #RuntimeListenerIDV1
+	moduleRef:         #ContractID
+	unitRef:           #ContractID
+	instanceRef:       #ContractID
+	nodeRef:           #NodeID
+	componentRef:      #ContractID
+	transport:         "tcp" | "udp"
+	bindAddress:       #NetworkAddressV2
+	port:              int & >=1 & <=65535
+	targetPort:        int & >=1 & <=65535
+	sharing:           "exclusive" | "virtual-host"
+	listenerGroupRef?: #ContractID
+	sourceRouteRefs: [...#ContractID] | *[]
+	exposure: #ServiceExposureV2
+
+	_sourceRouteRefsUnique: list.UniqueItems(sourceRouteRefs) & true
+	if sharing == "exclusive" {
+		listenerGroupRef?: _|_
+	}
+	if sharing == "virtual-host" {
+		listenerGroupRef: #ContractID
 	}
 }
 
@@ -4549,6 +4604,7 @@ _servicePublicationShape: {
 		cardinality: "single"
 	}
 	serviceEndpoints: [...#ModuleServiceEndpointV2] | *[]
+	runtimeListeners: [...#ModuleRuntimeListenerV1] | *[]
 	providesInterfaces: [...#ImplementationInterfaceProviderV2] | *[]
 	requiresInterfaces: [...#ImplementationInterfaceRequirementV2] | *[]
 
@@ -4587,13 +4643,23 @@ _servicePublicationShape: {
 		compatibleTargets: ["terramate"]
 	}
 	_serviceRefsUnique: list.UniqueItems([for endpoint in serviceEndpoints {endpoint.serviceRef}]) & true
+	_runtimeListenerIDsUnique: list.UniqueItems([for listener in runtimeListeners {listener.id}]) & true
+	_runtimeListenerServicesDeclared: [for listener in runtimeListeners for serviceRef in listener.sourceServiceRefs {
+		listener: listener.id
+		service:  serviceRef
+		matches: [for endpoint in serviceEndpoints if endpoint.serviceRef == serviceRef {endpoint.serviceRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	if len(serviceEndpoints) > 0 {
 		// Routable backends require concrete site/node/instance locality. A
 		// module-scoped singleton has no executable network origin to publish.
 		placement: scope: "node-local"
 	}
+	if len(runtimeListeners) > 0 {
+		placement: scope: "node-local"
+	}
 	if applyMode == "artifact-only" {
 		serviceEndpoints: []
+		runtimeListeners: []
 		providesInterfaces: []
 		requiresInterfaces: []
 	}
@@ -6074,6 +6140,7 @@ _servicePublicationShape: {
 	daemonBindings: [...#ResolvedRuntimeDaemonBindingV1] | *[]
 	instances: [...#ResolvedModuleRenderUnitInstanceV2] & list.MinItems(1)
 	serviceEndpoints: [...#ModuleServiceEndpointV2] | *[]
+	runtimeListeners: [...#ModuleRuntimeListenerV1] | *[]
 	providesInterfaces: [...#ImplementationInterfaceProviderV2] | *[]
 	requiresInterfaces: [...#ResolvedImplementationInterfaceRequirementV2] | *[]
 	let unitID = id
@@ -6093,7 +6160,13 @@ _servicePublicationShape: {
 
 	_publicInputRefsUnique: list.UniqueItems(publicInputRefs) & true
 	_secretInputRefsUnique: list.UniqueItems(secretInputRefs) & true
-	_planInputRefsUnique:   list.UniqueItems(planInputRefs) & true
+	_runtimeListenerIDsUnique: list.UniqueItems([for listener in runtimeListeners {listener.id}]) & true
+	_runtimeListenerServicesDeclared: [for listener in runtimeListeners for serviceRef in listener.sourceServiceRefs {
+		listener: listener.id
+		service:  serviceRef
+		matches: [for endpoint in serviceEndpoints if endpoint.serviceRef == serviceRef {endpoint.serviceRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_planInputRefsUnique: list.UniqueItems(planInputRefs) & true
 	_inputBindingTargetsUnique: list.UniqueItems([for binding in inputBindings {binding.targetRef}]) & true
 	_inputBindingTargetsDeclared: [for binding in inputBindings {
 		target: binding.targetRef
@@ -6150,6 +6223,12 @@ _servicePublicationShape: {
 		for output in instance.outputs {output.path},
 	]) & true
 	_serviceRefsUnique: list.UniqueItems([for endpoint in serviceEndpoints {endpoint.serviceRef}]) & true
+	if len(runtimeListeners) > 0 {
+		placement: scope: "node-local"
+	}
+	if applyMode == "artifact-only" {
+		runtimeListeners: []
+	}
 	_directAndProxyDisjoint: [
 		for directContract in requiresInterfaces
 		if directContract.kind == "docker-socket-direct-v1"
@@ -7014,8 +7093,18 @@ _servicePublicationShape: {
 	configuration: #NetworkIntentV2
 	routes: [...#ResolvedServiceRouteV2] | *[]
 	backendPools: [...#ResolvedRouteBackendPoolV2] | *[]
+	// ResolvedPlan v1 predates runtime listener inventory. Historical plans
+	// normalize a missing field to an empty set; the current compiler and
+	// OpenAPI projection always emit the field explicitly.
+	runtimeListeners: [...#ResolvedRuntimeListenerV1] | *[]
 	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
 	_backendPoolIDsUnique: list.UniqueItems([for pool in backendPools {pool.id}]) & true
+	_runtimeListenerIDsUnique: list.UniqueItems([for listener in runtimeListeners {listener.id}]) & true
+	// CUE rejects byte-identical socket claims here. The compiler/body-binding
+	// validator additionally canonicalizes IPs and rejects wildcard overlap.
+	_runtimeListenerExactBindingsUnique: list.UniqueItems([
+		for listener in runtimeListeners {"\(listener.nodeRef)/\(listener.transport)/\(listener.bindAddress)/\(listener.port)"},
+	]) & true
 	_routePoolRefsExact: [for route in routes {
 		route: route.id
 		matches: [for pool in backendPools if pool.id == route.backendPoolRef && pool.routeRef == route.id {pool.id}] & list.MinItems(1) & list.MaxItems(1)
@@ -9327,6 +9416,75 @@ _servicePublicationShape: {
 			publicTermination: serviceRoute.tls.mode & ("terminate-at-edge" | "external")
 		}
 	}]
+	_runtimeListenerBindings: [for listener in network.runtimeListeners {
+		listenerRef: listener.id
+		matches: [
+			for module in modules
+			if module.id == listener.moduleRef
+			for unit in module.renderUnits
+			if unit.id == listener.unitRef
+			for instance in unit.instances
+			if instance.id == listener.instanceRef && instance.nodeRef == listener.nodeRef
+			for declaration in unit.runtimeListeners
+			if listener.id == "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)" && declaration.componentRef == listener.componentRef && declaration.transport == listener.transport && declaration.bindAddress == listener.bindAddress && declaration.port == listener.port && declaration.targetPort == listener.targetPort && declaration.sharing == listener.sharing && declaration.exposure == listener.exposure {
+				id: declaration.id
+			},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_runtimeListenerDeclarationsComplete: [
+		for module in modules
+		for unit in module.renderUnits
+		for instance in unit.instances
+		for declaration in unit.runtimeListeners {
+			declarationRef: "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)"
+			matches: [for listener in network.runtimeListeners if listener.id == "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)" {listener.id}] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
+	_runtimeListenerGroupsExact: [for listener in network.runtimeListeners if listener.sharing == "virtual-host" {
+		listenerRef: listener.id
+		matches: [
+			for module in modules
+			if module.id == listener.moduleRef
+			for unit in module.renderUnits
+			if unit.id == listener.unitRef
+			for instance in unit.instances
+			if instance.id == listener.instanceRef
+			for declaration in unit.runtimeListeners
+			if declaration.sharing == "virtual-host" && listener.id == "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)" {
+				groupRef: listener.listenerGroupRef & declaration.listenerGroupRef
+			},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_runtimeListenerRouteRefsBound: [for listener in network.runtimeListeners for routeRef in listener.sourceRouteRefs {
+		listenerRef: listener.id
+		route:       routeRef
+		matches: [
+			for module in modules
+			if module.id == listener.moduleRef
+			for unit in module.renderUnits
+			if unit.id == listener.unitRef
+			for instance in unit.instances
+			if instance.id == listener.instanceRef
+			for declaration in unit.runtimeListeners
+			if listener.id == "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)"
+			for serviceRef in declaration.sourceServiceRefs
+			for serviceRoute in network.routes
+			if serviceRoute.id == routeRef && serviceRoute.moduleRef == module.id && serviceRoute.serviceRef == serviceRef {serviceRoute.id},
+		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	_runtimeListenerRouteRefsComplete: [
+		for module in modules
+		for unit in module.renderUnits
+		for instance in unit.instances
+		for declaration in unit.runtimeListeners
+		for serviceRef in declaration.sourceServiceRefs
+		for serviceRoute in network.routes
+		if serviceRoute.moduleRef == module.id && serviceRoute.serviceRef == serviceRef {
+			listenerRef: "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)"
+			route:       serviceRoute.id
+			matches: [for listener in network.runtimeListeners if listener.id == "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)" for routeRef in listener.sourceRouteRefs if routeRef == serviceRoute.id {routeRef}] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
 	_routeServiceEndpointBindings: [for serviceRoute in network.routes {
 		route:   serviceRoute.id
 		service: serviceRoute.serviceRef
@@ -9873,6 +10031,13 @@ _servicePublicationShape: {
 		healthReadinessRequirements: plan._routeHealthReadinessRequirements
 		tlsCapabilityBindings:       plan._routeTLSCapabilityBindings
 		capabilityRealizations:      plan._routeCapabilityRealizationBindings
+	}
+	integrity: runtimeListeners: {
+		bindings:             plan._runtimeListenerBindings
+		declarationsComplete: plan._runtimeListenerDeclarationsComplete
+		groupsExact:          plan._runtimeListenerGroupsExact
+		routeRefsBound:       plan._runtimeListenerRouteRefsBound
+		routeRefsComplete:    plan._runtimeListenerRouteRefsComplete
 	}
 	integrity: runtimeNetworks: {
 		idsUnique:                   plan._runtimeNetworkIDsUnique

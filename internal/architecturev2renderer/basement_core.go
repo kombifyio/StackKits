@@ -29,8 +29,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:14|resolved-network-domain:required|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:14|resolved-network-domain:required|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:15|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:15|resolved-network-domain:required|runtime-listeners:catalog-bound|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -75,7 +75,7 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-    ports: ["80:80", "443:443", "8080:8080"]
+    ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "0.0.0.0:8080:8080"]
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 5s
@@ -88,7 +88,7 @@ services:
     restart: unless-stopped
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/basement-runtime/pocketid.env"]
     volumes: [pocketid-data:/app/data]
-    ports: ["1411:1411"]
+    ports: ["0.0.0.0:1411:1411"]
     healthcheck:
       test: ["CMD", "/app/pocket-id", "healthcheck"]
       interval: 10s
@@ -109,7 +109,7 @@ services:
       - path: "${STACKKIT_CUSTODY_DIR:?}/tinyauth-pocketid/tinyauth.env"
         required: false
     volumes: [tinyauth-data:/data]
-    ports: ["4000:3000"]
+    ports: ["0.0.0.0:4000:3000"]
     healthcheck:
       test: ["CMD", "tinyauth", "healthcheck"]
       interval: 10s
@@ -129,7 +129,7 @@ services:
     volumes:
       - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca:/home/step:ro
       - step-ca-db:/home/step/db
-    ports: ["9000:9000"]
+    ports: ["0.0.0.0:9000:9000"]
     healthcheck:
       test: ["CMD", "step-ca", "version"]
       interval: 10s
@@ -200,7 +200,7 @@ services:
       - coolify-databases:/var/www/html/storage/app/databases
       - coolify-services:/var/www/html/storage/app/services
       - coolify-backups:/var/www/html/storage/app/backups
-    ports: ["8000:8080"]
+    ports: ["0.0.0.0:8000:8080"]
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://127.0.0.1:8080/api/health"]
       interval: 5s
@@ -493,6 +493,9 @@ func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract,
 	}
 	if len(expectedEndpoints) != 0 {
 		return fail(ErrInvalidPlan, path+".serviceEndpoints", "Basement service endpoint set is incomplete")
+	}
+	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), RenderBasementCoreComposeForDomain(domain), path+".runtimeListeners"); err != nil {
+		return err
 	}
 	return nil
 }

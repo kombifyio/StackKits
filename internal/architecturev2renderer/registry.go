@@ -158,6 +158,7 @@ type RenderUnit struct {
 	planInputsJSON             []byte
 	placementJSON              []byte
 	serviceEndpointsJSON       []byte
+	runtimeListenersJSON       []byte
 	providedInterfacesJSON     []byte
 	requiredInterfacesJSON     []byte
 	privilegedApprovalsJSON    []byte
@@ -224,6 +225,13 @@ func (u RenderUnit) PlacementJSON() []byte            { return append([]byte(nil
 // discover, or widen endpoint identity, protocol, port, exposure, or locality.
 func (u RenderUnit) ServiceEndpointsJSON() []byte {
 	return append([]byte(nil), u.serviceEndpointsJSON...)
+}
+
+// RuntimeListenersJSON returns the exact catalog-owned physical listener
+// declarations for this render unit. Renderers cannot infer host bindings
+// from routes, service target ports, health checks, or provider state.
+func (u RenderUnit) RuntimeListenersJSON() []byte {
+	return append([]byte(nil), u.runtimeListenersJSON...)
 }
 func (u RenderUnit) ProvidedInterfacesJSON() []byte {
 	return append([]byte(nil), u.providedInterfacesJSON...)
@@ -409,6 +417,7 @@ func newRenderUnit(moduleID string, contract renderUnitContract, instance render
 		valuesJSON: append([]byte(nil), contract.valuesCanonical...), secretRefsJSON: append([]byte(nil), contract.secretsCanonical...), planInputsJSON: append([]byte(nil), contract.planInputsCanonical...),
 		placementJSON:              append([]byte(nil), contract.placementCanonical...),
 		serviceEndpointsJSON:       append([]byte(nil), contract.serviceEndpointsCanonical...),
+		runtimeListenersJSON:       append([]byte(nil), contract.runtimeListenersCanonical...),
 		providedInterfacesJSON:     append([]byte(nil), contract.providedInterfacesCanonical...),
 		requiredInterfacesJSON:     append([]byte(nil), contract.requiredInterfacesCanonical...),
 		privilegedApprovalsJSON:    append([]byte(nil), contract.privilegedApprovalsCanonical...),

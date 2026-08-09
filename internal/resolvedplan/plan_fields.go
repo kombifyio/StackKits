@@ -140,7 +140,11 @@ func buildNetwork(profile *profileView, spec *specView, resolved *resolution, mo
 	if err != nil {
 		return nil, nil, err
 	}
-	return map[string]any{"configuration": configuration, "routes": routes, "backendPools": backendPools}, routeHealth, nil
+	runtimeListeners, err := buildRuntimeListeners(modules, routes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return map[string]any{"configuration": configuration, "routes": routes, "backendPools": backendPools, "runtimeListeners": runtimeListeners}, routeHealth, nil
 }
 
 func buildRoutes(profile *profileView, spec *specView, resolved *resolution, modules []any, providerSites map[string][]string, serviceEndpoints resolvedServiceEndpointIndex, catalog *indexedCatalog) ([]any, []any, []any, error) {

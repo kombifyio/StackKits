@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/netip"
 	"path"
 	"reflect"
 	"regexp"
@@ -57,6 +58,7 @@ type renderUnitContract struct {
 	planInputsCanonical          []byte
 	placementCanonical           []byte
 	serviceEndpointsCanonical    []byte
+	runtimeListenersCanonical    []byte
 	providedInterfacesCanonical  []byte
 	requiredInterfacesCanonical  []byte
 	privilegedApprovalsCanonical []byte
@@ -204,6 +206,7 @@ type rawRenderUnit struct {
 	Placement           json.RawMessage            `json:"placement"`
 	DaemonBindings      []json.RawMessage          `json:"daemonBindings"`
 	ServiceEndpoints    []json.RawMessage          `json:"serviceEndpoints"`
+	RuntimeListeners    []json.RawMessage          `json:"runtimeListeners"`
 	ProvidesInterfaces  []json.RawMessage          `json:"providesInterfaces"`
 	RequiresInterfaces  []json.RawMessage          `json:"requiresInterfaces"`
 	Instances           []rawRenderUnitInstance    `json:"instances"`
@@ -226,6 +229,19 @@ type rawModuleServiceEndpointData struct {
 	BindingRef      string   `json:"bindingRef"`
 	RequiredClasses []string `json:"requiredClasses"`
 	Locality        string   `json:"locality"`
+}
+
+type rawModuleRuntimeListener struct {
+	ID                string              `json:"id"`
+	ComponentRef      string              `json:"componentRef"`
+	Transport         string              `json:"transport"`
+	BindAddress       string              `json:"bindAddress"`
+	Port              int                 `json:"port"`
+	TargetPort        int                 `json:"targetPort"`
+	Sharing           string              `json:"sharing"`
+	ListenerGroupRef  optionalStringField `json:"listenerGroupRef,omitempty"`
+	Exposure          string              `json:"exposure"`
+	SourceServiceRefs []string            `json:"sourceServiceRefs"`
 }
 
 type rawModuleRuntime struct {
@@ -1687,6 +1703,10 @@ func parseRenderUnit(raw json.RawMessage, unitPath string) (renderUnitContract, 
 	if err != nil {
 		return renderUnitContract{}, err
 	}
+	runtimeListenersCanonical, err := parseRuntimeListeners(decoded.RuntimeListeners, placementContract, decoded.ApplyMode, unitPath+".runtimeListeners")
+	if err != nil {
+		return renderUnitContract{}, err
+	}
 	providedContracts, err := parseImplementationInterfaces(decoded.ProvidesInterfaces, "provider", unitPath+".providesInterfaces")
 	if err != nil {
 		return renderUnitContract{}, err
@@ -1711,6 +1731,7 @@ func parseRenderUnit(raw json.RawMessage, unitPath string) (renderUnitContract, 
 		valuesCanonical: valuesCanonical, secretsCanonical: secretsCanonical, planInputsCanonical: planInputsCanonical,
 		inputBindingsCanonical: inputBindingsCanonical, placementCanonical: placement,
 		serviceEndpointsCanonical:   serviceEndpointsCanonical,
+		runtimeListenersCanonical:   runtimeListenersCanonical,
 		providedInterfacesCanonical: providedInterfaces, requiredInterfacesCanonical: requiredInterfaces,
 		serviceEndpoints:   serviceEndpoints,
 		providedInterfaces: providedContracts, requiredInterfaces: requiredContracts,
@@ -2194,8 +2215,8 @@ func validatePublicServiceRouteListV2(raw json.RawMessage, valuePath string) err
 }
 
 func validateRenderUnitImplementation(unit rawRenderUnit, unitPath string) ([]byte, []byte, []byte, rawRenderUnitPlacement, error) {
-	if unit.SiteRefs == nil || unit.NodeRefs == nil || unit.Placement == nil || unit.DaemonBindings == nil || unit.ServiceEndpoints == nil || unit.ProvidesInterfaces == nil || unit.RequiresInterfaces == nil {
-		return nil, nil, nil, rawRenderUnitPlacement{}, fail(ErrInvalidPlan, unitPath, "siteRefs, nodeRefs, placement, daemonBindings, serviceEndpoints, providesInterfaces, and requiresInterfaces are mandatory")
+	if unit.SiteRefs == nil || unit.NodeRefs == nil || unit.Placement == nil || unit.DaemonBindings == nil || unit.ServiceEndpoints == nil || unit.RuntimeListeners == nil || unit.ProvidesInterfaces == nil || unit.RequiresInterfaces == nil {
+		return nil, nil, nil, rawRenderUnitPlacement{}, fail(ErrInvalidPlan, unitPath, "siteRefs, nodeRefs, placement, daemonBindings, serviceEndpoints, runtimeListeners, providesInterfaces, and requiresInterfaces are mandatory")
 	}
 	if len(unit.SiteRefs) == 0 || len(unit.NodeRefs) == 0 {
 		return nil, nil, nil, rawRenderUnitPlacement{}, fail(ErrInvalidPlan, unitPath, "siteRefs and nodeRefs must contain resolved placement")
@@ -2230,6 +2251,72 @@ func validateRenderUnitImplementation(unit rawRenderUnit, unitPath string) ([]by
 		return nil, nil, nil, rawRenderUnitPlacement{}, err
 	}
 	return placement, provided, required, placementContract, nil
+}
+
+func parseRuntimeListeners(values []json.RawMessage, placement rawRenderUnitPlacement, applyMode, valuePath string) ([]byte, error) {
+	if len(values) > 0 && placement.Scope != "node-local" {
+		return nil, fail(ErrInvalidPlan, valuePath, "physical runtime listeners require node-local placement")
+	}
+	if len(values) > 0 && applyMode == "artifact-only" {
+		return nil, fail(ErrInvalidPlan, valuePath, "artifact-only render units cannot own physical runtime listeners")
+	}
+	seen := make(map[string]struct{}, len(values))
+	for index, raw := range values {
+		listenerPath := fmt.Sprintf("%s[%d]", valuePath, index)
+		var listener rawModuleRuntimeListener
+		if err := decodeStrict(raw, &listener); err != nil {
+			return nil, wrap(ErrInvalidPlan, listenerPath, "decode runtime listener", err)
+		}
+		for _, field := range []struct{ name, value string }{
+			{"id", listener.ID}, {"componentRef", listener.ComponentRef},
+		} {
+			if err := requireContractID(field.value, listenerPath+"."+field.name); err != nil {
+				return nil, err
+			}
+		}
+		if _, duplicate := seen[listener.ID]; duplicate {
+			return nil, fail(ErrDuplicate, listenerPath+".id", "duplicate runtime listener %q", listener.ID)
+		}
+		seen[listener.ID] = struct{}{}
+		if !oneOf(listener.Transport, "tcp", "udp") {
+			return nil, fail(ErrInvalidPlan, listenerPath+".transport", "unsupported listener transport %q", listener.Transport)
+		}
+		if _, err := netip.ParseAddr(listener.BindAddress); err != nil {
+			return nil, wrap(ErrInvalidPlan, listenerPath+".bindAddress", "parse listener bind address", err)
+		}
+		if listener.Port < 1 || listener.Port > 65535 || listener.TargetPort < 1 || listener.TargetPort > 65535 {
+			return nil, fail(ErrInvalidPlan, listenerPath, "port and targetPort must be between 1 and 65535")
+		}
+		if !oneOf(listener.Sharing, "exclusive", "virtual-host") {
+			return nil, fail(ErrInvalidPlan, listenerPath+".sharing", "unsupported listener sharing %q", listener.Sharing)
+		}
+		groupRef, hasGroupRef := listener.ListenerGroupRef.value, listener.ListenerGroupRef.present
+		if listener.Sharing == "exclusive" && hasGroupRef {
+			return nil, fail(ErrInvalidPlan, listenerPath+".listenerGroupRef", "exclusive listener forbids listenerGroupRef")
+		}
+		if listener.Sharing == "virtual-host" {
+			if !hasGroupRef {
+				return nil, fail(ErrInvalidPlan, listenerPath+".listenerGroupRef", "virtual-host listener requires listenerGroupRef")
+			}
+			if err := requireContractID(groupRef, listenerPath+".listenerGroupRef"); err != nil {
+				return nil, err
+			}
+		}
+		if !oneOf(listener.Exposure, "local", "remote-private", "public") {
+			return nil, fail(ErrInvalidPlan, listenerPath+".exposure", "unsupported listener exposure %q", listener.Exposure)
+		}
+		if listener.SourceServiceRefs == nil {
+			return nil, fail(ErrInvalidPlan, listenerPath+".sourceServiceRefs", "sourceServiceRefs is mandatory")
+		}
+		if _, err := uniqueContractIDSet(listener.SourceServiceRefs, listenerPath+".sourceServiceRefs"); err != nil {
+			return nil, err
+		}
+	}
+	canonical, err := json.Marshal(values)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, valuePath, "canonicalize runtime listeners", err)
+	}
+	return canonical, nil
 }
 
 //nolint:gocyclo // Endpoint parsing validates the complete closed schema and security policy before admitting any routable contract.

@@ -31,11 +31,11 @@ function before(text, left, right) {
   assert.ok(leftIndex < rightIndex, `${left} must precede ${right}`)
 }
 
-test('private publisher creates an immutable draft and cannot publish it directly', () => {
+test('private publisher creates an immutable non-prerelease draft and cannot publish it directly', () => {
   if (privatePublish === null) return
   assert.match(
     privatePublish,
-    /gh release create "\$TAG"[\s\S]*?--draft[\s\S]*?"\$\{prerelease_args\[@\]\}"/u
+    /gh release create "\$TAG"[\s\S]*?--draft[\s\S]*?--prerelease=false/u
   )
   assert.match(privatePublish, /--title "StackKits \$TAG"/u)
   assert.doesNotMatch(privatePublish, /gh release edit "\$TAG"[\s\S]*?--draft=false/u)
@@ -129,10 +129,11 @@ test('public manual workflow binds exact ready draft bytes before publishing a r
     /--base-url "https:\/\/github\.com\/kombifyio\//u,
     'the release base URL must be derived from GITHUB_REPOSITORY, not hardcoded'
   )
-  const attachStart = publicRelease.indexOf('- name: Attach runtime evidence and publish the prerelease')
+  const attachStart = publicRelease.indexOf('- name: Attach runtime evidence and publish the release')
   const attachEnd = publicRelease.indexOf('--clobber', attachStart)
   assert.notEqual(attachStart, -1)
   assert.ok(attachEnd > attachStart)
+  assert.match(publicRelease.slice(attachStart, attachEnd + 300), /--prerelease=false[\s\S]*?--latest/u)
   assert.deepEqual(
     [...publicRelease.slice(attachStart, attachEnd).matchAll(
       /artifacts\/standalone-runtime\/([a-z0-9.-]+)/gu

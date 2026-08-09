@@ -13,7 +13,7 @@ const (
 	basementCoreTerramateStackOutputRef    = "platform/basement-core/stack.tm.hcl"
 )
 
-const basementCoreTerramateSchema = `stackkit.basement-core-terramate/v1|artifact-revision:1|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl,terramate.tm.hcl|execution-instance:node-local|credentials:none|cloud:none`
+const basementCoreTerramateSchema = `stackkit.basement-core-terramate/v1|artifact-revision:2|runtime-listeners:catalog-bound|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl,terramate.tm.hcl|execution-instance:node-local|credentials:none|cloud:none`
 
 const basementCoreTerramateRoot = `terramate {
   required_version = "~> 0.17"

@@ -2645,7 +2645,7 @@ components:
         storage:
           type: object
         network:
-          type: object
+          $ref: "#/components/schemas/ArchitectureV2ResolvedNetworkPlan"
         homeLANDiscovery:
           $ref: "#/components/schemas/ArchitectureV2HomeLANDiscovery"
         gates:
@@ -3136,6 +3136,7 @@ components:
         - placement
         - daemonBindings
         - serviceEndpoints
+        - runtimeListeners
         - instances
         - providesInterfaces
         - requiresInterfaces
@@ -3228,6 +3229,11 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ModuleServiceEndpoint"
+        runtimeListeners:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModuleRuntimeListener"
         instances:
           type: array
           minItems: 1
@@ -3258,6 +3264,8 @@ components:
             properties:
               serviceEndpoints:
                 maxItems: 0
+              runtimeListeners:
+                maxItems: 0
               providesInterfaces:
                 maxItems: 0
               requiresInterfaces:
@@ -3266,6 +3274,17 @@ components:
             required: [serviceEndpoints]
             properties:
               serviceEndpoints:
+                minItems: 1
+          then:
+            properties:
+              placement:
+                properties:
+                  scope:
+                    const: node-local
+        - if:
+            required: [runtimeListeners]
+            properties:
+              runtimeListeners:
                 minItems: 1
           then:
             properties:
@@ -5403,6 +5422,134 @@ components:
                     minItems: 1
                     maxItems: 1
                     prefixItems: [{const: edge}]
+    ArchitectureV2ModuleRuntimeListener:
+      type: object
+      description: >-
+        Catalog-owned physical host-listener declaration for one node-local runtime render unit. Routes may annotate this declaration but never create listener authority.
+      additionalProperties: false
+      required: [id, componentRef, transport, bindAddress, port, targetPort, sharing, exposure, sourceServiceRefs]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        componentRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        transport:
+          type: string
+          enum: [tcp, udp]
+        bindAddress:
+          $ref: "#/components/schemas/ArchitectureV2NetworkAddress"
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        targetPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        sharing:
+          type: string
+          enum: [exclusive, virtual-host]
+        listenerGroupRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        exposure:
+          type: string
+          enum: [local, remote-private, public]
+        sourceServiceRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+      allOf:
+        - if:
+            properties: {sharing: {const: exclusive}}
+            required: [sharing]
+          then:
+            not: {required: [listenerGroupRef]}
+        - if:
+            properties: {sharing: {const: virtual-host}}
+            required: [sharing]
+          then:
+            required: [listenerGroupRef]
+    ArchitectureV2ResolvedNetworkPlan:
+      type: object
+      description: >-
+        Provider-neutral resolved network projection. Runtime listeners are exact desired node bindings, not observations or provider leases.
+      additionalProperties: false
+      required: [configuration, routes, backendPools, runtimeListeners]
+      properties:
+        configuration:
+          type: object
+        routes:
+          type: array
+          uniqueItems: true
+          items:
+            type: object
+        backendPools:
+          type: array
+          uniqueItems: true
+          items:
+            type: object
+        runtimeListeners:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedRuntimeListener"
+    ArchitectureV2ResolvedRuntimeListener:
+      type: object
+      description: >-
+        Exact node-realized listener inventory with explicit module, unit, and render-instance ownership.
+      additionalProperties: false
+      required: [id, moduleRef, unitRef, instanceRef, nodeRef, componentRef, transport, bindAddress, port, targetPort, sharing, sourceRouteRefs, exposure]
+      properties:
+        id:
+          $ref: "#/components/schemas/ArchitectureV2RuntimeListenerID"
+        moduleRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unitRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        instanceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        componentRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        transport:
+          type: string
+          enum: [tcp, udp]
+        bindAddress:
+          $ref: "#/components/schemas/ArchitectureV2NetworkAddress"
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        targetPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        sharing:
+          type: string
+          enum: [exclusive, virtual-host]
+        listenerGroupRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        sourceRouteRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        exposure:
+          type: string
+          enum: [local, remote-private, public]
+      allOf:
+        - if:
+            properties: {sharing: {const: exclusive}}
+            required: [sharing]
+          then:
+            not: {required: [listenerGroupRef]}
+        - if:
+            properties: {sharing: {const: virtual-host}}
+            required: [sharing]
+          then:
+            required: [listenerGroupRef]
     ArchitectureV2ServiceEndpointOriginSelection:
       type: object
       additionalProperties: false
@@ -6217,6 +6364,18 @@ components:
     ArchitectureV2ContractID:
       type: string
       pattern: "^[a-z][a-z0-9-]*$"
+    ArchitectureV2RuntimeListenerID:
+      type: string
+      description: Deterministic module/unit/instance/declaration listener identity.
+      pattern: "^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*){3}$"
+    ArchitectureV2NetworkAddress:
+      type: string
+      description: Concrete IPv4 or IPv6 host bind address.
+      oneOf:
+        - format: ipv4
+          pattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+        - format: ipv6
+          pattern: '^[0-9A-Fa-f]*:[0-9A-Fa-f:.]*$'
     ArchitectureV2UnixSocketPath:
       type: string
       description: >-

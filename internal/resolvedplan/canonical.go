@@ -31,7 +31,7 @@ var (
 		"nodeRefs": {}, "nodes": {}, "optional": {}, "outputBindings": {}, "outputs": {}, "peerSiteRefs": {},
 		"placement": {}, "privileges": {}, "providers": {}, "provides": {}, "publications": {},
 		"refs": {}, "required": {}, "requiredCapabilities": {}, "requiredRealizations": {}, "requiredRefs": {}, "requiredSiteKinds": {}, "requires": {}, "roles": {}, "routes": {},
-		"inputBindings": {}, "planInputRefs": {}, "publicInputRefs": {}, "renderUnits": {}, "secretInputRefs": {}, "secretInputs": {}, "secretRefs": {}, "serviceEndpoints": {}, "siteRefs": {}, "sites": {}, "sourceKinds": {},
+		"inputBindings": {}, "planInputRefs": {}, "publicInputRefs": {}, "renderUnits": {}, "runtimeListeners": {}, "secretInputRefs": {}, "secretInputs": {}, "secretRefs": {}, "serviceEndpoints": {}, "siteRefs": {}, "sites": {}, "sourceKinds": {}, "sourceRouteRefs": {}, "sourceServiceRefs": {},
 		"supportedKits": {}, "supportedSiteKinds": {}, "volumes": {}, "warnings": {},
 	}
 )

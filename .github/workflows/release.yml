@@ -23,7 +23,7 @@ on:
         required: true
         type: string
       stable_previous_tag:
-        description: Exact published stable SemVer baseline required for a stable Day-2 proof; must be empty for prereleases
+        description: Exact published stable SemVer baseline required for a v1+ Day-2 proof; must be empty for fast pre-1.0 releases
         required: false
         default: ''
         type: string
@@ -65,7 +65,7 @@ jobs:
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           if [[ "$TAG" =~ ^v0\. ]]; then
             [ -z "$STABLE_PREVIOUS_TAG" ] || {
-              echo "::error title=Unexpected stable baseline::stable_previous_tag must be empty for prerelease ${TAG}."
+              echo "::error title=Unexpected stable baseline::stable_previous_tag must be empty for fast pre-1.0 release ${TAG}."
               exit 1
             }
           else
@@ -609,7 +609,7 @@ jobs:
           compression-level: 0
           retention-days: 90
 
-      - name: Attach runtime evidence and publish the prerelease
+      - name: Attach runtime evidence and publish the release
         if: ${{ startsWith(github.ref_name, 'v0.') }}
         shell: bash
         env:
@@ -627,8 +627,8 @@ jobs:
             --clobber
           gh release edit "$TAG" \
             --draft=false \
-            --prerelease \
-            --latest=false
+            --prerelease=false \
+            --latest
 
       - name: Retain stable evidence for the terminal release gate
         if: ${{ !startsWith(github.ref_name, 'v0.') }}

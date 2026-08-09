@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:1|resolved-network-domain:required|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:2|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -52,7 +52,7 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-    ports: ["80:80", "443:443", "8080:8080"]
+    ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "0.0.0.0:8080:8080"]
     healthcheck: {test: ["CMD", "traefik", "healthcheck", "--ping"], interval: 5s, timeout: 3s, retries: 12, start_period: 5s}
     networks: [cloud-core, cloud-control]
   pocketid:
@@ -60,7 +60,7 @@ services:
     restart: unless-stopped
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/pocketid.env"]
     volumes: [pocketid-data:/app/data]
-    ports: ["1411:1411"]
+    ports: ["0.0.0.0:1411:1411"]
     healthcheck: {test: ["CMD", "/app/pocket-id", "healthcheck"], interval: 10s, timeout: 5s, retries: 12, start_period: 10s}
     labels:
       - traefik.enable=true
@@ -73,7 +73,7 @@ services:
     depends_on: [pocketid]
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/tinyauth.env"]
     volumes: [tinyauth-data:/data]
-    ports: ["4000:3000"]
+    ports: ["0.0.0.0:4000:3000"]
     healthcheck: {test: ["CMD", "tinyauth", "healthcheck"], interval: 10s, timeout: 5s, retries: 12, start_period: 10s}
     labels:
       - traefik.enable=true
@@ -118,7 +118,7 @@ services:
       - coolify-databases:/var/www/html/storage/app/databases
       - coolify-services:/var/www/html/storage/app/services
       - coolify-backups:/var/www/html/storage/app/backups
-    ports: ["8000:8080"]
+    ports: ["0.0.0.0:8000:8080"]
     healthcheck: {test: ["CMD-SHELL", "curl --fail http://127.0.0.1:8080/api/health"], interval: 5s, timeout: 2s, retries: 12, start_period: 10s}
     labels:
       - traefik.enable=true
@@ -270,7 +270,11 @@ func (r cloudCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]U
 	if len(expected) != 0 {
 		return nil, fail(ErrInvalidPlan, path+".serviceEndpoints", "Cloud service endpoint set is incomplete")
 	}
-	return []UnitOutput{{Ref: cloudCoreComposeOutputRef, Bytes: RenderCloudCoreComposeForDomain(domain)}}, nil
+	output := RenderCloudCoreComposeForDomain(domain)
+	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), output, path+".runtimeListeners"); err != nil {
+		return nil, err
+	}
+	return []UnitOutput{{Ref: cloudCoreComposeOutputRef, Bytes: output}}, nil
 }
 
 func validateCloudCoreComponents(data []byte, path string) error {

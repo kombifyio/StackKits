@@ -1591,6 +1591,9 @@ func resolveModuleRenderUnit(moduleID string, contract, moduleValues, moduleSecr
 		return nil, err
 	}
 	resolved["instances"] = instances
+	if err := normalizeRuntimeListenerContracts(resolved, unitPath); err != nil {
+		return nil, err
+	}
 	if err := normalizeResolvedUnitInterfaces(resolved, unitPath); err != nil {
 		return nil, err
 	}
