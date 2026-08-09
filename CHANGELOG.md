@@ -4,6 +4,15 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.1] - 2026-08-09
+
+### Fixed
+
+- An idempotent pre-1.0 publisher retry now treats an already-published public
+  release as immutable. It validates the exact source/tag but skips SBOM,
+  evidence, attestation, and public-trust mutations, preventing regenerated
+  Syft documents from invalidating the sealed release-index digests.
+
 ## [0.15.0] - 2026-08-09
 
 ### Added
