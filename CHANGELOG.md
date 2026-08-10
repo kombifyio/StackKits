@@ -4,6 +4,30 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.4] - 2026-08-10
+
+### Fixed
+
+- Public release publication now requires the exact numeric version to exist in
+  this changelog. Fast pre-1.0 deliveries can no longer replace user-facing
+  notes with a source-SHA placeholder.
+- The missing public history for every existing v0.14.x and v0.15.x tag is
+  restored, including patch releases that previously existed only as tags or
+  GitHub Release objects.
+
+## [0.15.3] - 2026-08-10
+
+### Added
+
+- Architecture v2 catalog projections now expose runtime listeners for
+  product-owned application delivery without moving lifecycle authority out of
+  StackKits.
+
+### Fixed
+
+- Suffix-free numeric v0.x releases publish as normal GitHub releases and
+  advance `releases/latest`.
+
 ## [0.15.1] - 2026-08-09
 
 ### Fixed
@@ -34,6 +58,117 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Cloud Kit's native default generation target is Compose and `cloud-core` is
   a required workload. IONOS, centron, BYO-VPS, and local-host selection remain
   Techstack concerns; StackKits receives only an enrolled host channel.
+
+## [0.14.28] - 2026-08-09
+
+### Added
+
+- Cloud Kit gained a provider-neutral core runtime that renders and operates
+  its service set on an already enrolled external host.
+
+### Fixed
+
+- Apply reconciliation preserves the original failure, refreshes external
+  recovery evidence, and keeps bounded runner custody attached to the exact
+  delivery continuation.
+- Release orchestration preserves authoritative publish failures, handles
+  ambiguous dispatch results, and uses a bounded hosted-runner recovery path.
+
+## [0.14.19] - 2026-08-06
+
+### Fixed
+
+- Apply reconciliation now preserves the primary lifecycle failure instead of
+  replacing it with a secondary cleanup or reconciliation error.
+
+## [0.14.18] - 2026-08-06
+
+### Fixed
+
+- Apply refreshes the resolved plan before reconciliation so recovery uses the
+  current authoritative state.
+
+## [0.14.17] - 2026-08-06
+
+### Added
+
+- The public contract export now includes the producer side of backup bindings
+  used by application delivery.
+
+### Fixed
+
+- Package changes are included in StackKits delivery publication instead of
+  being omitted from the affected release slice.
+
+## [0.14.15] - 2026-08-06
+
+### Fixed
+
+- Compose-backed and externally connected product-owner channels can be
+  combined without splitting runtime custody.
+
+## [0.14.14] - 2026-08-06
+
+### Fixed
+
+- Cloud Apply fails closed until its required backup binding is present.
+
+## [0.14.13] - 2026-08-06
+
+### Fixed
+
+- Native Basement services are included in the architecture v2 projection
+  consumed by Techstack.
+
+## [0.14.12] - 2026-08-04
+
+### Changed
+
+- Repository standards checks are scoped to StackKits and fail on open P1
+  release blockers.
+- Core-standard references now resolve to the current canonical workspace
+  source.
+
+## [0.14.9] - 2026-08-03
+
+### Added
+
+- Standalone Compose installations can restore backups through the native
+  StackKits lifecycle.
+
+## [0.14.8] - 2026-08-03
+
+### Fixed
+
+- Delivery operations use one exact-source synchronization path.
+
+## [0.14.7] - 2026-08-02
+
+### Fixed
+
+- Delivery waits for exact StackKits activation before reporting success.
+- Affected feedback stays isolated to the selected source slice.
+
+### Changed
+
+- Fast feedback documentation now describes scope-derived checks instead of a
+  repository-wide gate.
+
+## [0.14.4] - 2026-08-02
+
+### Added
+
+- CUE-owned StackAction contracts are generated into the public contract
+  bundle.
+
+### Changed
+
+- Runtime actions completed the cutover to the public architecture v2 contract.
+
+### Fixed
+
+- Pre-1.0 delivery uses the maturity-aware source-integrity gate for the exact
+  numeric version.
 
 ## [0.13.0] - 2026-07-30
 
