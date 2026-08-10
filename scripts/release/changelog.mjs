@@ -6,6 +6,16 @@ function normalizeVersion(version) {
   return version.startsWith('v') ? version.slice(1) : version
 }
 
+function renderSourceProvenance(sourceSha) {
+  if (!sourceSha) {
+    return ''
+  }
+  if (!/^[0-9a-f]{40}$/u.test(sourceSha)) {
+    throw new Error('source SHA must be a lowercase full 40-character commit SHA')
+  }
+  return `Built from \`${sourceSha}\`.`
+}
+
 function stripFullChangelogLink(body) {
   return body.replace(/\n?\*\*Full Changelog\*\*:.*$/m, '').trim()
 }
@@ -131,7 +141,14 @@ export function extractLatestReleaseNotes(markdown, options = {}) {
   }
 }
 
-export function renderReleaseNotes({ markdown, version, repoUrl, compareUrl, allowUnreleased = false }) {
+export function renderReleaseNotes({
+  markdown,
+  version,
+  repoUrl,
+  compareUrl,
+  allowUnreleased = false,
+  sourceSha = '',
+}) {
   const sections = parseChangelogSections(markdown)
   const normalizedVersion = normalizeVersion(version)
   let sectionIndex = sections.findIndex((section) => section.version === normalizedVersion)
@@ -156,6 +173,11 @@ export function renderReleaseNotes({ markdown, version, repoUrl, compareUrl, all
     notes.push(`**Full Changelog**: ${compareUrl}`)
   } else if (repoUrl && previousSection) {
     notes.push(`**Full Changelog**: ${repoUrl}/compare/v${previousSection.version}...v${normalizedVersion}`)
+  }
+
+  const sourceProvenance = renderSourceProvenance(sourceSha)
+  if (sourceProvenance) {
+    notes.push(sourceProvenance)
   }
 
   return notes.filter(Boolean).join('\n\n').trim()

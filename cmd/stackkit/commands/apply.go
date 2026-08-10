@@ -18,6 +18,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/iac"
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/terramate"
 	"github.com/kombifyio/stackkits/internal/tofu"
@@ -42,11 +43,10 @@ var applyCmd = &cobra.Command{
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Long: `Apply the planned changes to the infrastructure.
 
-On the v0.7 line Product Apply requires an authenticated service/device
-integration that constructs the provider-free Product Runtime with its own
-evidence Collector and execution-channel custody. The standalone binary does
-not accept caller evidence, create a signing key, or infer a local channel.
-Exact v0.6 builds retain the bounded OpenTofu compatibility implementation.
+On the v0.7 line Product Apply executes the shared rollout core. Standard Mode
+uses the persisted CUE-owned local Site/node/channel binding automatically;
+Advanced Mode may provide an authenticated service/device execution channel.
+Both paths use the same ResolvedPlan, evidence, and runtime validation.
 
 Examples:
   stackkit apply                   Apply changes (with confirmation)
@@ -123,9 +123,9 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		return err
 	}
 
-	// Load the local StackSpec. Local files and lifecycle state are the
-	// standalone product authority; provider or tenant control planes do not
-	// inject specs into the public CLI.
+	// Load the local StackSpec. Standard Mode uses local intent directly;
+	// Advanced Mode reaches this same command through an authenticated,
+	// separately admitted proposal and execution channel.
 	loader := config.NewLoader(wd)
 	rolloutEvent("spec.load", "started", "loading stack spec", map[string]string{
 		"spec_file": specFile,
@@ -331,21 +331,33 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	} else {
 		rolloutEvent("platform_apps", "started", "platform app handoff processing started", nil)
 		if err := runPlatformAppDeployments(ctx, deployDir, state); err != nil {
-			rolloutFailure("platform_apps", err)
-			return fmt.Errorf("platform app handoff processing: %w", err)
+			if platformdeploy.IsDegraded(err) {
+				state.Status = models.StatusDegraded
+				rolloutEvent("platform_apps", "completed_degraded", err.Error(), map[string]string{"retryable": "true"})
+				printWarning("Core rollout is usable; some applications need retry or agent repair: %v", err)
+			} else {
+				rolloutFailure("platform_apps", err)
+				return fmt.Errorf("platform app handoff processing: %w", err)
+			}
+		} else {
+			rolloutEvent("platform_apps", "succeeded", "platform app handoff processing succeeded", nil)
 		}
-		rolloutEvent("platform_apps", "succeeded", "platform app handoff processing succeeded", nil)
 
 		rolloutEvent("setup_actions", "started", "automatic setup action processing started", nil)
 		updatedState, setupActionErr := runAutomaticNodeSetupActions(ctx, access, state, loader, stateFile)
 		if setupActionErr != nil {
-			rolloutFailure("setup_actions", setupActionErr)
-			return fmt.Errorf("automatic setup actions: %w", setupActionErr)
+			state.Status = models.StatusDegraded
+			rolloutEvent("setup_actions", "completed_degraded", setupActionErr.Error(), map[string]string{"retryable": "true"})
+			printWarning("Core rollout is usable; automatic setup actions need retry or agent repair: %v", setupActionErr)
+		} else {
+			rolloutEvent("setup_actions", "succeeded", "automatic setup action processing succeeded", nil)
 		}
 		if updatedState != nil {
 			state = updatedState
+			if setupActionErr != nil {
+				state.Status = models.StatusDegraded
+			}
 		}
-		rolloutEvent("setup_actions", "succeeded", "automatic setup action processing succeeded", nil)
 	}
 
 	if access != nil {
@@ -395,7 +407,11 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	printHumanln()
-	printSuccess("Apply complete! (took %s)", duration.Round(time.Second))
+	if state.Status == models.StatusDegraded {
+		printWarning("Apply complete with degraded components (took %s); the core is available and failed components remain retryable", duration.Round(time.Second))
+	} else {
+		printSuccess("Apply complete! (took %s)", duration.Round(time.Second))
+	}
 
 	// Get and display outputs
 	output, err := executor.Output(ctx)

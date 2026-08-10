@@ -58,7 +58,7 @@ func (a *KomodoAdapter) ApplyCompose(ctx context.Context, manifest AppManifest) 
 	ref.ServiceNames = composeLongRunningServiceNames(manifest.ComposeYAML)
 	deploymentID, err := a.Deploy(ctx, ref)
 	if err != nil {
-		return DeploymentRef{}, err
+		return ref, err
 	}
 	ref.DeploymentID = deploymentID
 	ref.LastDeployed = time.Now().UTC()

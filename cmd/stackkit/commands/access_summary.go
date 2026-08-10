@@ -10,6 +10,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
+	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -25,17 +26,20 @@ type accessSummary struct {
 }
 
 type accessService struct {
-	Key           string   `json:"key"`
-	Name          string   `json:"name"`
-	DisplayName   string   `json:"displayName"`
-	ToolName      string   `json:"toolName"`
-	ModuleSlug    string   `json:"moduleSlug"`
-	RouteSlug     string   `json:"routeSlug"`
-	Section       string   `json:"section,omitempty"`
-	URL           string   `json:"url"`
-	Host          string   `json:"host"`
-	Status        string   `json:"status,omitempty"`
-	LegacyAliases []string `json:"legacyAliases,omitempty"`
+	Key            string   `json:"key"`
+	Name           string   `json:"name"`
+	DisplayName    string   `json:"displayName"`
+	ToolName       string   `json:"toolName"`
+	ModuleSlug     string   `json:"moduleSlug"`
+	RouteSlug      string   `json:"routeSlug"`
+	Section        string   `json:"section,omitempty"`
+	URL            string   `json:"url"`
+	Host           string   `json:"host"`
+	Status         string   `json:"status,omitempty"`
+	LegacyAliases  []string `json:"legacyAliases,omitempty"`
+	DesiredState   string   `json:"desiredState,omitempty"`
+	AllowedActions []string `json:"allowedActions,omitempty"`
+	EvidenceRef    string   `json:"evidenceRef,omitempty"`
 }
 
 func buildAccessSummary(wd string, spec *models.StackSpec) (*accessSummary, error) {
@@ -111,17 +115,19 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 		routeSlug := routeSlugForEntry(entry, prefix)
 
 		svc := accessService{
-			Key:           entry.Key,
-			Name:          name,
-			DisplayName:   display,
-			ToolName:      entry.ToolName,
-			ModuleSlug:    entry.ModuleSlug,
-			RouteSlug:     routeSlug,
-			Section:       entry.Section,
-			Host:          host,
-			URL:           accessURLForEntry(entry, proto, host, tfvars),
-			Status:        string(models.ServiceStatusRunning),
-			LegacyAliases: append([]string(nil), entry.LegacyAliases...),
+			Key:            entry.Key,
+			Name:           name,
+			DisplayName:    display,
+			ToolName:       entry.ToolName,
+			ModuleSlug:     entry.ModuleSlug,
+			RouteSlug:      routeSlug,
+			Section:        entry.Section,
+			Host:           host,
+			URL:            accessURLForEntry(entry, proto, host, tfvars),
+			Status:         string(models.ServiceStatusRunning),
+			LegacyAliases:  append([]string(nil), entry.LegacyAliases...),
+			DesiredState:   servicecontrol.DesiredRunning,
+			AllowedActions: servicecontrol.AllowedActions(entry.Key),
 		}
 		summary.Services = append(summary.Services, svc)
 		if entry.Key == "base" {

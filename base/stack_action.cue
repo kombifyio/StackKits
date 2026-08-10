@@ -12,7 +12,7 @@ stackActionContract: {
 	wireVersion:        "stackkit.stack-action/v1"
 	target:             "stackkits"
 	pathPrefix:         "/api/v1/internal/stack-actions"
-	observationVersion: "stackkit.runtime-observation/v1"
+	observationVersion: "stackkit.runtime-observation/v2"
 
 	enums: {
 		Action: {
@@ -26,6 +26,10 @@ stackActionContract: {
 				{goConst: "ActionBackupStatus", value: "backup_status", backup: true},
 				{goConst: "ActionBackupRestore", value: "backup_restore", backup: true},
 				{goConst: "ActionBackupWipe", value: "backup_wipe", backup: true},
+				{goConst: "ActionServiceStart", value: "service_start"},
+				{goConst: "ActionServiceStop", value: "service_stop"},
+				{goConst: "ActionServiceRestart", value: "service_restart"},
+				{goConst: "ActionServiceLogs", value: "service_logs"},
 			]
 		}
 		Mode: {
@@ -44,6 +48,7 @@ stackActionContract: {
 				{goConst: "StatusReady", value: "ready"},
 				{goConst: "StatusApplied", value: "applied"},
 				{goConst: "StatusVerified", value: "verified"},
+				{goConst: "StatusCompletedDegraded", value: "completed_degraded"},
 				{goConst: "StatusSkipped", value: "skipped"},
 				{goConst: "StatusFailed", value: "failed"},
 			]
@@ -118,6 +123,10 @@ stackActionContract: {
 		{goConst: "PathBackupStatus", suffix: "/backup-status", action: "backup_status", operationID: "stackActionBackupStatus", summary: "Inspect StackKits backup status"},
 		{goConst: "PathBackupRestore", suffix: "/backup-restore", action: "backup_restore", operationID: "stackActionBackupRestore", summary: "Restore a StackKits backup snapshot"},
 		{goConst: "PathBackupWipe", suffix: "/backup-wipe", action: "backup_wipe", operationID: "stackActionBackupWipe", summary: "Wipe the configured StackKits backup repository"},
+		{goConst: "PathServiceStart", suffix: "/service-start", action: "service_start", operationID: "stackActionServiceStart", summary: "Start one StackKits-managed service"},
+		{goConst: "PathServiceStop", suffix: "/service-stop", action: "service_stop", operationID: "stackActionServiceStop", summary: "Stop one non-critical StackKits-managed service"},
+		{goConst: "PathServiceRestart", suffix: "/service-restart", action: "service_restart", operationID: "stackActionServiceRestart", summary: "Restart one StackKits-managed service"},
+		{goConst: "PathServiceLogs", suffix: "/service-logs", action: "service_logs", operationID: "stackActionServiceLogs", summary: "Read bounded redacted logs for one StackKits-managed service"},
 	]
 
 	types: {
@@ -366,14 +375,51 @@ stackActionContract: {
 			description: "Artifact-ready selected-PaaS application state."
 			fields: [
 				(#StackActionField & {json: "name", goName: "Name", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}), (#StackActionField & {json: "role", goName: "Role", goType: "string", required: false, value: string, openapi: {kind: "string"}}), (#StackActionField & {json: "platform", goName: "Platform", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
-				(#StackActionField & {json: "management", goName: "Management", goType: "string", required: false, value: string, openapi: {kind: "enum", enum: "PlatformManagement"}}), (#StackActionField & {json: "externalId", goName: "ExternalID", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "management", goName: "Management", goType: "string", required: false, value: string, openapi: {kind: "enum", enum: "PlatformManagement"}}), (#StackActionField & {json: "externalId", goName: "ExternalID", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
 				(#StackActionField & {json: "deploymentId", goName: "DeploymentID", goType: "string", required: false, value: string, openapi: {kind: "string"}}), (#StackActionField & {json: "observedStatus", goName: "ObservedStatus", goType: "string", required: false, value: string, openapi: {kind: "string"}}), (#StackActionField & {json: "observedAt", goName: "ObservedAt", goType: "time.Time", required: false, value: string, openapi: {kind: "string", format: "date-time"}}),
 				(#StackActionField & {json: "composePath", goName: "ComposePath", goType: "string", required: false, value: string, openapi: {kind: "string"}}), (#StackActionField & {json: "setupPolicy", goName: "SetupPolicy", goType: "string", required: false, value: string, openapi: {kind: "enum", enum: "SetupPolicy"}}),
 				(#StackActionField & {json: "setupDrops", goName: "SetupDrops", goType: "[]SetupDrop", required: false, value: [...types.SetupDrop.schema], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionSetupDrop"}}), (#StackActionField & {json: "lastDeployed", goName: "LastDeployed", goType: "time.Time", required: false, value: string, openapi: {kind: "string", format: "date-time"}}),
+				(#StackActionField & {json: "failureStage", goName: "FailureStage", goType: "string", required: false, value: string, openapi: {kind: "string"}}), (#StackActionField & {json: "failureMessage", goName: "FailureMessage", goType: "string", required: false, value: string, openapi: {kind: "string"}}), (#StackActionField & {json: "retryable", goName: "Retryable", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
+			]
+		}
+		ServiceActionRequest: #StackActionType & {
+			order:       290, goName: "ServiceActionRequest", openapiName: "StackActionServiceActionRequest"
+			description: "Bounded service action parameters without caller-supplied runtime authority."
+			fields: [
+				(#StackActionField & {json: "service_key", goName: "ServiceKey", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "expected_inventory_revision", goName: "ExpectedInventoryRevision", goType: "int64", required: false, value: int & >=0, openapi: {kind: "integer", minimum: 0, format: "int64"}}),
+				(#StackActionField & {json: "owner_approved", goName: "OwnerApproved", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
+				(#StackActionField & {json: "tail", goName: "Tail", goType: "int", required: false, value: int & >=1 & <=200, openapi: {kind: "integer", minimum: 1, maximum: 200}}),
+				(#StackActionField & {json: "cursor", goName: "Cursor", goType: "string", required: false, value: string & =~"^(|sha256:[a-f0-9]{64})$", openapi: {kind: "string", pattern: "^(|sha256:[a-f0-9]{64})$"}}),
+			]
+		}
+		ServiceLogEntry: #StackActionType & {
+			order:       300, goName: "ServiceLogEntry", openapiName: "StackActionServiceLogEntry"
+			description: "One redacted bounded service log entry."
+			fields: [
+				(#StackActionField & {json: "timestamp", goName: "Timestamp", goType: "time.Time", required: true, value: string, openapi: {kind: "string", format: "date-time"}}),
+				(#StackActionField & {json: "message", goName: "Message", goType: "string", required: true, value: string, openapi: {kind: "string"}}),
+			]
+		}
+		ServiceActionResult: #StackActionType & {
+			order:       310, goName: "ServiceActionResult", openapiName: "StackActionServiceActionResult"
+			description: "Desired and observed service state plus protected evidence."
+			fields: [
+				(#StackActionField & {json: "service_key", goName: "ServiceKey", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "desired_state", goName: "DesiredState", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "observed_state", goName: "ObservedState", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "revision", goName: "Revision", goType: "int64", required: false, value: int & >=0, openapi: {kind: "integer", minimum: 0, format: "int64"}}),
+				(#StackActionField & {json: "checks", goName: "Checks", goType: "[]Check", required: false, value: [...types.Check.schema], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionCheck"}}),
+				(#StackActionField & {json: "reason_code", goName: "ReasonCode", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "retryable", goName: "Retryable", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
+				(#StackActionField & {json: "evidence_ref", goName: "EvidenceRef", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "log_entries", goName: "LogEntries", goType: "[]ServiceLogEntry", required: false, value: [...types.ServiceLogEntry.schema], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionServiceLogEntry"}}),
+				(#StackActionField & {json: "next_cursor", goName: "NextCursor", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "truncated", goName: "Truncated", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
 			]
 		}
 		Request: #StackActionType & {
-			order:       290, goName: "Request", openapiName: "StackActionRequest"
+			order:       320, goName: "Request", openapiName: "StackActionRequest"
 			description: "StackKits-owned action request."
 			fields: [
 				(#StackActionField & {json: "action", goName: "Action", goType: "Action", required: true, value: string, openapi: {kind: "enum", enum: "Action"}}), (#StackActionField & {json: "stack_id", goName: "StackID", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
@@ -384,10 +430,11 @@ stackActionContract: {
 				(#StackActionField & {json: "platform_nodes", goName: "PlatformNodes", goType: "[]PlatformNode", required: false, value: [...#PlatformNodeHandoff], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionPlatformNode"}}),
 				(#StackActionField & {json: "techstack_enrollment", goName: "TechStackEnrollment", goType: "*TechStackEnrollment", required: false, value: #ManagedEnrollment, openapi: {kind: "ref", ref: "StackActionTechStackEnrollment"}}),
 				(#StackActionField & {json: "backup", goName: "Backup", goType: "*BackupRequest", required: false, value: types.BackupRequest.schema, openapi: {kind: "ref", ref: "StackActionBackupRequest"}}),
+				(#StackActionField & {json: "service", goName: "Service", goType: "*ServiceActionRequest", required: false, value: types.ServiceActionRequest.schema, openapi: {kind: "ref", ref: "StackActionServiceActionRequest"}}),
 			]
 		}
 		Response: #StackActionType & {
-			order:       300, goName: "Response", openapiName: "StackActionResponse"
+			order:       330, goName: "Response", openapiName: "StackActionResponse"
 			description: "StackKits-owned action response and evidence."
 			fields: [
 				(#StackActionField & {json: "status", goName: "Status", goType: "Status", required: true, value: string, openapi: {kind: "enum", enum: "Status"}}), (#StackActionField & {json: "action", goName: "Action", goType: "Action", required: true, value: string, openapi: {kind: "enum", enum: "Action"}}), (#StackActionField & {json: "stack_id", goName: "StackID", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
@@ -400,6 +447,7 @@ stackActionContract: {
 				(#StackActionField & {json: "platform_system_apps", goName: "PlatformSystemApps", goType: "[]PlatformAppState", required: false, value: [...types.PlatformAppState.schema], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionPlatformAppState"}}),
 				(#StackActionField & {json: "platform_apps", goName: "PlatformApps", goType: "[]PlatformAppState", required: false, value: [...types.PlatformAppState.schema], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionPlatformAppState"}}),
 				(#StackActionField & {json: "backup", goName: "Backup", goType: "*BackupResult", required: false, value: types.BackupResult.schema, openapi: {kind: "ref", ref: "StackActionBackupResult"}}),
+				(#StackActionField & {json: "service", goName: "Service", goType: "*ServiceActionResult", required: false, value: types.ServiceActionResult.schema, openapi: {kind: "ref", ref: "StackActionServiceActionResult"}}),
 			]
 		}
 	}

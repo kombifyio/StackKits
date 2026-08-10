@@ -607,7 +607,11 @@ func isServiceAuthenticatedRoute(r *http.Request) bool {
 		stackaction.PathBackupRun,
 		stackaction.PathBackupStatus,
 		stackaction.PathBackupRestore,
-		stackaction.PathBackupWipe:
+		stackaction.PathBackupWipe,
+		stackaction.PathServiceStart,
+		stackaction.PathServiceStop,
+		stackaction.PathServiceRestart,
+		stackaction.PathServiceLogs:
 		return true
 	default:
 		return false

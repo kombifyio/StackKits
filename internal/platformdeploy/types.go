@@ -7,6 +7,7 @@ package platformdeploy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -30,6 +31,47 @@ type BundleManifest struct {
 type FallbackManifest struct {
 	Enabled bool   `json:"enabled,omitempty"`
 	Mode    string `json:"mode,omitempty"`
+}
+
+// ComponentFailure records one application-scoped rollout failure. A failure
+// with IdentityCommitted=false may be retried through another registered
+// adapter without risking two platform-owned deployment identities.
+type ComponentFailure struct {
+	AppName           string `json:"appName" yaml:"appName"`
+	Platform          string `json:"platform" yaml:"platform"`
+	Stage             string `json:"stage" yaml:"stage"`
+	Message           string `json:"message" yaml:"message"`
+	IdentityCommitted bool   `json:"identityCommitted" yaml:"identityCommitted"`
+	Retryable         bool   `json:"retryable" yaml:"retryable"`
+}
+
+// BundleResult preserves every successful deployment reference alongside
+// application-scoped failures. Callers can finish the independent graph,
+// persist a degraded state, and retry only components that still need work.
+type BundleResult struct {
+	Refs     []DeploymentRef    `json:"refs,omitempty" yaml:"refs,omitempty"`
+	Failures []ComponentFailure `json:"failures,omitempty" yaml:"failures,omitempty"`
+}
+
+func (r BundleResult) Degraded() bool { return len(r.Failures) > 0 }
+
+// DegradedError is a terminal, usable rollout result rather than a lost
+// deployment. It deliberately carries component failures without discarding
+// successful references.
+type DegradedError struct {
+	Failures []ComponentFailure
+}
+
+func (e *DegradedError) Error() string {
+	if e == nil || len(e.Failures) == 0 {
+		return "rollout completed with degraded components"
+	}
+	return fmt.Sprintf("rollout completed with %d degraded component(s); first: %s: %s", len(e.Failures), e.Failures[0].AppName, e.Failures[0].Message)
+}
+
+func IsDegraded(err error) bool {
+	var degraded *DegradedError
+	return errors.As(err, &degraded)
 }
 
 // BootstrapManifest records the generated first-run setup contract for the
@@ -202,6 +244,7 @@ type DeploymentRef struct {
 	LastDeployed   time.Time `json:"lastDeployed,omitempty" yaml:"lastDeployed,omitempty"`
 	ServiceNames   []string  `json:"-" yaml:"-"`
 	ComposeYAML    string    `json:"-" yaml:"-"`
+	ComposePath    string    `json:"-" yaml:"-"`
 }
 
 // Adapter is implemented by concrete platform API clients.

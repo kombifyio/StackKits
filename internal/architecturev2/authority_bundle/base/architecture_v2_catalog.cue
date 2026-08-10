@@ -355,6 +355,7 @@ _architectureV2WorkloadContracts: [
 				allowedDeliveries: ["application-adapter"]
 				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
 				defaultAdapterRef: "coolify"
+				defaultFallbackAdapterRefs: ["standalone-compose"]
 				compatibility: [
 					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
@@ -397,6 +398,7 @@ _architectureV2WorkloadContracts: [
 				allowedDeliveries: ["application-adapter"]
 				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
 				defaultAdapterRef: "coolify"
+				defaultFallbackAdapterRefs: ["standalone-compose"]
 				compatibility: [
 					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
@@ -432,6 +434,7 @@ _architectureV2WorkloadContracts: [
 				allowedDeliveries: ["application-adapter"]
 				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
 				defaultAdapterRef: "coolify"
+				defaultFallbackAdapterRefs: ["standalone-compose"]
 				compatibility: [
 					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},

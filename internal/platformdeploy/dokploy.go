@@ -39,7 +39,7 @@ func (a *DokployAdapter) ApplyCompose(ctx context.Context, manifest AppManifest)
 		return DeploymentRef{}, err
 	}
 	if err := a.Deploy(ctx, ref); err != nil {
-		return DeploymentRef{}, err
+		return ref, err
 	}
 	ref.LastDeployed = time.Now().UTC()
 	return ref, nil

@@ -427,7 +427,8 @@ func renderGo(spec generationSpec, digest string) ([]byte, error) {
 	fmt.Fprintf(&b, "\t// WireVersion identifies the generated StackAction wire contract.\n\tWireVersion = %q\n", spec.WireVersion)
 	fmt.Fprintf(&b, "\t// TargetStackKits identifies StackKits as the action target.\n\tTargetStackKits = %q\n", spec.Target)
 	fmt.Fprintf(&b, "\t// PathPrefix is the canonical internal StackAction transport prefix.\n\tPathPrefix = %q\n", spec.PathPrefix)
-	fmt.Fprintf(&b, "\t// ObservationVersionV1 identifies the generated observation envelope.\n\tObservationVersionV1 = %q\n", spec.ObservationVersion)
+	fmt.Fprintf(&b, "\t// ObservationVersion identifies the generated observation envelope.\n\tObservationVersion = %q\n", spec.ObservationVersion)
+	b.WriteString("\t// ObservationVersionV1 is retained as a source-compatible alias.\n\tObservationVersionV1 = ObservationVersion\n")
 	for _, path := range spec.Paths {
 		fmt.Fprintf(&b, "\t// %s is the canonical path for the %q action.\n\t%s = PathPrefix + %q\n", path.GoConst, path.Action, path.GoConst, path.Suffix)
 	}

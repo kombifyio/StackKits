@@ -121,6 +121,26 @@ test('renderReleaseNotes rewrites private Release Please links to the public rep
   assert.doesNotMatch(notes, /kombify/u)
 })
 
+test('renderReleaseNotes binds published notes to the exact private source SHA', () => {
+  const sourceSha = 'a'.repeat(40)
+  const notes = renderReleaseNotes({
+    markdown: sampleChangelog,
+    version: 'v0.2.0',
+    repoUrl: 'https://github.com/kombifyio/stackKits',
+    sourceSha,
+  })
+
+  assert.ok(notes.includes(`Built from \`${sourceSha}\`.`))
+  assert.throws(
+    () => renderReleaseNotes({
+      markdown: sampleChangelog,
+      version: 'v0.2.0',
+      sourceSha: 'not-a-full-sha',
+    }),
+    /source SHA must be a lowercase full 40-character commit SHA/,
+  )
+})
+
 test('renderReleaseNotes can render an Unreleased release candidate on demand', () => {
   const notes = renderReleaseNotes({
     markdown: sampleChangelog,

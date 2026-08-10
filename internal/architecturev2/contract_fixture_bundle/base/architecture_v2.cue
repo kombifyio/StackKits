@@ -1463,6 +1463,11 @@ import (
 	// lifecycle selection. When omitted, the governed workload alternative may
 	// supply one exact default.
 	runtimeAdapterRef?: #ContractID
+	// runtimeAdapterFallbackRefs is an ordered, workload-scoped recovery policy.
+	// A fallback may run only before the preferred adapter commits a deployment
+	// identity; observation failures are repaired in place instead of duplicated.
+	runtimeAdapterFallbackRefs?: [...#ContractID]
+	_runtimeAdapterFallbackRefsUnique: list.UniqueItems(runtimeAdapterFallbackRefs) & true
 	placement: #WorkloadPlacementIntent | *{}
 	settings?: #PublicSettings
 	secretRefs?: [string]: #SecretReference
@@ -6673,6 +6678,7 @@ _servicePublicationShape: {
 		allowedDeliveries: [...("stackkit" | "application-adapter" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
 		allowedAdapterRefs: [...#ContractID] | *[]
 		defaultAdapterRef?: #ContractID
+		defaultFallbackAdapterRefs: [...#ContractID] | *[]
 		// compatibility is catalog authority, not observed runtime evidence.
 		// Every allowed adapter has exactly one row and every row names an
 		// allowed adapter. Missing evidence must still be reported separately.
@@ -6699,9 +6705,13 @@ _servicePublicationShape: {
 	}
 	infrastructure?: #WorkloadInfrastructureV1
 
-	_runtimeKindsUnique:       list.UniqueItems(runtime.allowedKinds) & true
-	_runtimeDeliveriesUnique:  list.UniqueItems(runtime.allowedDeliveries) & true
-	_runtimeAdapterRefsUnique: list.UniqueItems(runtime.allowedAdapterRefs) & true
+	_runtimeKindsUnique:               list.UniqueItems(runtime.allowedKinds) & true
+	_runtimeDeliveriesUnique:          list.UniqueItems(runtime.allowedDeliveries) & true
+	_runtimeAdapterRefsUnique:         list.UniqueItems(runtime.allowedAdapterRefs) & true
+	_runtimeFallbackAdapterRefsUnique: list.UniqueItems(runtime.defaultFallbackAdapterRefs) & true
+	_runtimeFallbackAdaptersAllowed: [for fallbackRef in runtime.defaultFallbackAdapterRefs {
+		[for adapterRef in runtime.allowedAdapterRefs if adapterRef == fallbackRef {adapterRef}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_runtimeCompatibilityRefsUnique: list.UniqueItems([for row in runtime.compatibility {row.adapterRef}]) & true
 	_runtimeCompatibilityComplete: [for adapterRef in runtime.allowedAdapterRefs {
 		[for row in runtime.compatibility if row.adapterRef == adapterRef {row.adapterRef}] & list.MinItems(1) & list.MaxItems(1)
@@ -6769,7 +6779,8 @@ _servicePublicationShape: {
 }
 
 // #ApplicationLifecycleContractV1 binds one Application Kit package to the
-// reusable standalone lifecycle. Workload selection remains the only product
+// reusable application lifecycle shared by Standard and Advanced execution.
+// Workload selection remains the only product
 // intent; the package and its lifecycle are catalog authority, never StackSpec
 // input.
 #ApplicationLifecycleContractV1: {
@@ -6829,6 +6840,11 @@ _servicePublicationShape: {
 				moduleRef:            #ContractID
 				moduleVersion:        #SemanticVersion
 				moduleContractHash:   #ContentHash
+			}
+			fallback?: {
+				adapterRefs: [...#ContractID] | *[]
+				identityCommitPolicy: "fallback-before-identity-commit"
+				failurePolicy:        "complete-independent-graph"
 			}
 		}
 		setup: {

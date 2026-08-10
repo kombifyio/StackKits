@@ -25,6 +25,7 @@ func runPlatformAppDeployments(ctx context.Context, deployDir string, state *mod
 		filepath.Join(deployDir, ".platform-apps-manifest.json"),
 	}
 
+	var degraded []platformdeploy.ComponentFailure
 	for _, manifestPath := range manifestPaths {
 		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
 			continue
@@ -54,43 +55,117 @@ func runPlatformAppDeployments(ctx context.Context, deployDir string, state *mod
 			if deployCount == 0 {
 				continue
 			}
-			fallback := explicitStandaloneFallback(deployBundle)
-			if !models.IsSupportedPAAS(deployBundle.Platform) && !fallback {
-				return fmt.Errorf("StackKit-owned platform app manifest targets %q without an explicit platformFallback standalone-compose contract", deployBundle.Platform)
-			}
-
-			adapter, configured, err := platformAdapterForBundle(deployBundle, deployDir)
-			if err != nil {
-				return err
-			}
-			if !configured {
-				return fmt.Errorf("platform API config for %s is required for %d StackKit-owned app(s); self-managed rollouts must persist .stackkit/platform.json during PaaS bootstrap, Coolify requires endpoint/token values, Komodo requires endpoint/apiKey/apiSecret values, draft Dokploy uses endpoint/token values, or platformFallback.mode=standalone-compose must be enabled explicitly", deployBundle.Platform, deployCount)
-			}
-
+			fallback := explicitStandaloneFallback(deployBundle) || deployBundle.Platform == models.PAASNone
 			if fallback {
 				printWarning("Deploying %d StackKit-owned app(s) through explicit standalone Compose fallback...", deployCount)
 			} else {
 				printInfo("Deploying %d StackKit-owned app(s) through %s platform adapter...", deployCount, deployBundle.Platform)
 			}
-			refs, err := platformdeploy.ApplyBundle(ctx, adapter, deployBundle)
-			if err != nil {
-				return err
+
+			result, fatalErr := applyPlatformBundleWithFallback(ctx, deployDir, deployBundle)
+			if fatalErr != nil {
+				return fatalErr
 			}
-			management := platformdeploy.AppManagementManaged
-			if fallback {
-				management = platformdeploy.AppManagementFallback
+			if len(result.Primary.Refs) > 0 {
+				management := platformdeploy.AppManagementManaged
+				if fallback {
+					management = platformdeploy.AppManagementFallback
+				}
+				recordPlatformAppStateWithManagement(state, deployBundle, result.Primary.Refs, management)
 			}
-			recordPlatformAppStateWithManagement(state, deployBundle, refs, management)
-			recordAutomaticComposeProvisionerSetupRuns(state, deployBundle)
-			if fallback {
-				printSuccess("Standalone Compose fallback rollout complete")
+			if len(result.Fallback.Refs) > 0 {
+				recordPlatformAppStateWithManagement(state, result.FallbackBundle, result.Fallback.Refs, platformdeploy.AppManagementFallback)
+				printWarning("Recovered %d component(s) through standalone Compose fallback", len(result.Fallback.Refs))
+			}
+			recordAutomaticComposeProvisionerSetupRuns(state, bundleForDeploymentRefs(deployBundle, append(append([]platformdeploy.DeploymentRef{}, result.Primary.Refs...), result.Fallback.Refs...)))
+			recordPlatformAppFailures(state, deployBundle, result.Failures)
+			degraded = append(degraded, result.Failures...)
+			if len(result.Failures) == 0 {
+				printSuccess("Application rollout complete: %s", deployBundle.Platform)
 			} else {
-				printSuccess("PaaS app rollout complete: %s", deployBundle.Platform)
+				printWarning("Application rollout completed with %d degraded component(s) for %s", len(result.Failures), deployBundle.Platform)
 			}
 		}
 	}
-
+	if len(degraded) > 0 {
+		return &platformdeploy.DegradedError{Failures: degraded}
+	}
 	return nil
+}
+
+type platformBundleFallbackResult struct {
+	Primary        platformdeploy.BundleResult
+	Fallback       platformdeploy.BundleResult
+	FallbackBundle platformdeploy.BundleManifest
+	Failures       []platformdeploy.ComponentFailure
+}
+
+func applyPlatformBundleWithFallback(ctx context.Context, deployDir string, bundle platformdeploy.BundleManifest) (platformBundleFallbackResult, error) {
+	var out platformBundleFallbackResult
+	adapter, configured, adapterErr := platformAdapterForBundle(bundle, deployDir)
+	if adapterErr != nil && !strings.Contains(adapterErr.Error(), "unsupported platform app adapter") {
+		return out, adapterErr
+	}
+	if adapterErr != nil || !configured {
+		if adapterErr == nil {
+			adapterErr = fmt.Errorf("preferred adapter %s is not configured", bundle.Platform)
+		}
+		out.Primary.Failures = deploymentFailuresForBundle(bundle, "adapter-configuration", adapterErr)
+	} else {
+		result, err := platformdeploy.ApplyBundleResilient(ctx, adapter, bundle)
+		if err != nil {
+			return out, err
+		}
+		out.Primary = result
+	}
+
+	if explicitStandaloneFallback(bundle) {
+		out.Failures = append(out.Failures, out.Primary.Failures...)
+		return out, nil
+	}
+	out.FallbackBundle = platformdeploy.StandaloneFallbackBundle(bundle, out.Primary.Failures)
+	if countDeployablePlatformApps(out.FallbackBundle) == 0 {
+		out.Failures = append(out.Failures, out.Primary.Failures...)
+		return out, nil
+	}
+	fallbackAdapter := newLocalComposeAdapter(deployDir)
+	fallbackResult, err := platformdeploy.ApplyBundleResilient(ctx, fallbackAdapter, out.FallbackBundle)
+	if err != nil {
+		return out, err
+	}
+	out.Fallback = fallbackResult
+	recovered := map[string]bool{}
+	for _, ref := range fallbackResult.Refs {
+		recovered[ref.AppName] = true
+	}
+	fallbackFailed := map[string]bool{}
+	for _, failure := range fallbackResult.Failures {
+		fallbackFailed[failure.AppName] = true
+	}
+	for _, failure := range out.Primary.Failures {
+		if failure.IdentityCommitted || (!recovered[failure.AppName] && !fallbackFailed[failure.AppName]) {
+			out.Failures = append(out.Failures, failure)
+		}
+	}
+	out.Failures = append(out.Failures, fallbackResult.Failures...)
+	return out, nil
+}
+
+func countDeployablePlatformApps(bundle platformdeploy.BundleManifest) int {
+	return len(bundle.SystemApps) + countStackKitOwnedApps(bundle.Apps)
+}
+
+func deploymentFailuresForBundle(bundle platformdeploy.BundleManifest, stage string, err error) []platformdeploy.ComponentFailure {
+	failures := make([]platformdeploy.ComponentFailure, 0, countDeployablePlatformApps(bundle))
+	for _, app := range bundle.SystemApps {
+		failures = append(failures, platformdeploy.ComponentFailure{AppName: app.Name, Platform: bundle.Platform, Stage: stage, Message: err.Error(), Retryable: true})
+	}
+	for _, app := range bundle.Apps {
+		if platformdeploy.IsStackKitOwnedApp(app) {
+			failures = append(failures, platformdeploy.ComponentFailure{AppName: app.Name, Platform: bundle.Platform, Stage: stage, Message: err.Error(), Retryable: true})
+		}
+	}
+	return failures
 }
 
 func customerOwnedApps(apps []platformdeploy.AppManifest) []platformdeploy.AppManifest {
@@ -165,9 +240,6 @@ func countStackKitOwnedApps(apps []platformdeploy.AppManifest) int {
 func platformAdapterForBundle(bundle platformdeploy.BundleManifest, deployDir string) (platformdeploy.Adapter, bool, error) {
 	switch bundle.Platform {
 	case models.PAASNone:
-		if !explicitStandaloneFallback(bundle) {
-			return nil, false, fmt.Errorf("local compose adapter requires platformFallback.mode=standalone-compose")
-		}
 		return newLocalComposeAdapter(deployDir), true, nil
 	case models.PAASDokploy:
 		cfg, configured, err := platformHTTPConfigForBundle(bundle, deployDir)
@@ -575,6 +647,60 @@ func recordPlatformAppStateWithManagement(state *models.DeploymentState, bundle 
 		}
 		state.PlatformApps = upsertPlatformAppState(state.PlatformApps, appState)
 	}
+}
+
+func recordPlatformAppFailures(state *models.DeploymentState, bundle platformdeploy.BundleManifest, failures []platformdeploy.ComponentFailure) {
+	if state == nil {
+		return
+	}
+	systemByName := make(map[string]platformdeploy.SystemAppManifest, len(bundle.SystemApps))
+	for _, app := range bundle.SystemApps {
+		systemByName[app.Name] = app
+	}
+	appsByName := make(map[string]platformdeploy.AppManifest, len(bundle.Apps))
+	for _, app := range bundle.Apps {
+		appsByName[app.Name] = app
+	}
+	for _, failure := range failures {
+		if app, ok := systemByName[failure.AppName]; ok {
+			state.PlatformSystemApps = upsertPlatformAppState(state.PlatformSystemApps, models.PlatformAppState{
+				Name: failure.AppName, Role: app.Role, Platform: failure.Platform,
+				Management: platformdeploy.AppManagementManaged, ObservedStatus: "error",
+				ComposePath: app.ComposePath, SetupPolicy: app.SetupPolicy, SetupDrops: setupDropsToState(app.SetupDrops),
+				FailureStage: failure.Stage, FailureMessage: failure.Message, Retryable: failure.Retryable,
+			})
+			continue
+		}
+		if app, ok := appsByName[failure.AppName]; ok {
+			state.PlatformApps = upsertPlatformAppState(state.PlatformApps, models.PlatformAppState{
+				Name: failure.AppName, Platform: failure.Platform,
+				Management: platformdeploy.AppManagementManaged, ObservedStatus: "error",
+				ComposePath: app.ComposePath, SetupPolicy: app.SetupPolicy, SetupDrops: setupDropsToState(app.SetupDrops),
+				FailureStage: failure.Stage, FailureMessage: failure.Message, Retryable: failure.Retryable,
+			})
+		}
+	}
+}
+
+func bundleForDeploymentRefs(bundle platformdeploy.BundleManifest, refs []platformdeploy.DeploymentRef) platformdeploy.BundleManifest {
+	deployed := make(map[string]bool, len(refs))
+	for _, ref := range refs {
+		deployed[ref.AppName] = true
+	}
+	out := bundle
+	out.SystemApps = nil
+	out.Apps = nil
+	for _, app := range bundle.SystemApps {
+		if deployed[app.Name] {
+			out.SystemApps = append(out.SystemApps, app)
+		}
+	}
+	for _, app := range bundle.Apps {
+		if deployed[app.Name] {
+			out.Apps = append(out.Apps, app)
+		}
+	}
+	return out
 }
 
 func recordPlatformAppHandoffs(state *models.DeploymentState, bundle platformdeploy.BundleManifest) {

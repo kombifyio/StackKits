@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func LoadBundleManifest(path string) (BundleManifest, error) {
@@ -93,6 +94,117 @@ func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([
 		}
 	}
 	return append(systemRefs, appRefs...), nil
+}
+
+// ApplyBundleResilient executes every independent StackKit-owned application
+// and preserves partial success. Adapter/application failures become component
+// results; cancellation remains a fatal orchestration boundary.
+func ApplyBundleResilient(ctx context.Context, adapter Adapter, bundle BundleManifest) (BundleResult, error) {
+	var result BundleResult
+	apps := deployableApps(bundle)
+	if readiness, ok := adapter.(ReadinessChecker); ok {
+		if err := readiness.WaitReady(ctx); err != nil {
+			if ctx.Err() != nil {
+				return result, ctx.Err()
+			}
+			for _, app := range apps {
+				result.Failures = append(result.Failures, componentFailure(app, bundle.Platform, "adapter-readiness", err, false))
+			}
+			return result, nil
+		}
+	}
+
+	for _, app := range apps {
+		defaultAppPlatform(&app, bundle.Platform)
+		ref, err := adapter.ApplyCompose(ctx, app)
+		if err != nil {
+			if ctx.Err() != nil {
+				return result, ctx.Err()
+			}
+			identityCommitted := strings.TrimSpace(ref.ExternalID) != ""
+			if identityCommitted {
+				// The adapter already created or adopted a durable platform
+				// identity. Retain it for reconciliation and never fan this
+				// component out to a second adapter or Compose fallback.
+				result.Refs = append(result.Refs, ref)
+			}
+			result.Failures = append(result.Failures, componentFailure(app, bundle.Platform, "apply", err, identityCommitted))
+			continue
+		}
+
+		observed, observeErr := observeDeployments(ctx, adapter, []DeploymentRef{ref})
+		if len(observed) > 0 {
+			ref = observed[0]
+		}
+		result.Refs = append(result.Refs, ref)
+		if observeErr != nil {
+			if ctx.Err() != nil {
+				return result, ctx.Err()
+			}
+			result.Failures = append(result.Failures, componentFailure(app, bundle.Platform, "observe", observeErr, true))
+		}
+	}
+	return result, nil
+}
+
+func deployableApps(bundle BundleManifest) []AppManifest {
+	apps := make([]AppManifest, 0, len(bundle.SystemApps)+len(bundle.Apps))
+	for _, systemApp := range bundle.SystemApps {
+		apps = append(apps, systemApp.AppManifest)
+	}
+	for _, app := range bundle.Apps {
+		if IsStackKitOwnedApp(app) {
+			apps = append(apps, app)
+		}
+	}
+	return apps
+}
+
+func componentFailure(app AppManifest, platform, stage string, err error, identityCommitted bool) ComponentFailure {
+	return ComponentFailure{
+		AppName: app.Name, Platform: firstNonEmptyPlatform(app.ManagedBy, app.Platform, platform),
+		Stage: stage, Message: err.Error(), IdentityCommitted: identityCommitted, Retryable: true,
+	}
+}
+
+func firstNonEmptyPlatform(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return "none"
+}
+
+// StandaloneFallbackBundle selects only components that have no committed
+// platform identity. It is safe to execute after a preferred adapter failed.
+func StandaloneFallbackBundle(bundle BundleManifest, failures []ComponentFailure) BundleManifest {
+	wanted := map[string]bool{}
+	for _, failure := range failures {
+		if !failure.IdentityCommitted {
+			wanted[failure.AppName] = true
+		}
+	}
+	fallback := BundleManifest{
+		Version: bundle.Version, Platform: "none",
+		Fallback:  FallbackManifest{Enabled: true, Mode: "standalone-compose"},
+		Bootstrap: bundle.Bootstrap,
+	}
+	for _, systemApp := range bundle.SystemApps {
+		if !wanted[systemApp.Name] {
+			continue
+		}
+		systemApp.Platform, systemApp.ManagedBy = "none", "standalone-compose"
+		fallback.SystemApps = append(fallback.SystemApps, systemApp)
+	}
+	for _, app := range bundle.Apps {
+		if !wanted[app.Name] || !IsStackKitOwnedApp(app) {
+			continue
+		}
+		app.Platform, app.ManagedBy = "none", "standalone-compose"
+		fallback.Apps = append(fallback.Apps, app)
+	}
+	return fallback
 }
 
 func observeDeployments(ctx context.Context, adapter Adapter, refs []DeploymentRef) ([]DeploymentRef, error) {

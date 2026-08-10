@@ -909,6 +909,9 @@ type PlatformAppState struct {
 	SetupPolicy    string          `yaml:"setupPolicy,omitempty" json:"setupPolicy,omitempty"`
 	SetupDrops     []SetupDropSpec `yaml:"setupDrops,omitempty" json:"setupDrops,omitempty"`
 	LastDeployed   time.Time       `yaml:"lastDeployed,omitempty" json:"lastDeployed,omitempty"`
+	FailureStage   string          `yaml:"failureStage,omitempty" json:"failureStage,omitempty"`
+	FailureMessage string          `yaml:"failureMessage,omitempty" json:"failureMessage,omitempty"`
+	Retryable      bool            `yaml:"retryable,omitempty" json:"retryable,omitempty"`
 }
 
 // SetupRunState records an explicit setup-drop execution. Manual setup drops

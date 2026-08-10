@@ -123,6 +123,10 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "stackaction.backup_status", "description": "Inspect node-local StackKits backup state", "method": "POST", "path": stackaction.PathBackupStatus},
 			{"name": "stackaction.backup_restore", "description": "Restore a StackKits backup snapshot", "method": "POST", "path": stackaction.PathBackupRestore},
 			{"name": "stackaction.backup_wipe", "description": "Wipe the configured StackKits backup repository", "method": "POST", "path": stackaction.PathBackupWipe},
+			{"name": "stackaction.service_start", "description": "Start one StackKits-managed service", "method": "POST", "path": stackaction.PathServiceStart},
+			{"name": "stackaction.service_stop", "description": "Stop one non-critical StackKits-managed service", "method": "POST", "path": stackaction.PathServiceStop},
+			{"name": "stackaction.service_restart", "description": "Restart one StackKits-managed service", "method": "POST", "path": stackaction.PathServiceRestart},
+			{"name": "stackaction.service_logs", "description": "Read bounded redacted StackKits service logs", "method": "POST", "path": stackaction.PathServiceLogs},
 			// Registry
 			{"name": "registry.register", "description": "Register stackkit-server instance for Direct Connect", "method": "POST", "path": "/api/v1/registry/instances"},
 			{"name": "registry.heartbeat", "description": "Send instance heartbeat", "method": "PUT", "path": "/api/v1/registry/instances/{instanceId}/heartbeat"},

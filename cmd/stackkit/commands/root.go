@@ -210,6 +210,7 @@ func init() {
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(agentCmd)
 	rootCmd.AddCommand(hostCmd)
+	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(outputTransactionCmd)
 }
 

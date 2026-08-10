@@ -16,6 +16,7 @@ const compareUrl = readArg('compare-url')
 const output = readArg('output')
 const changelogPath = readArg('changelog', 'CHANGELOG.md')
 const allowUnreleased = process.argv.includes('--allow-unreleased')
+const sourceSha = readArg('source-sha')
 
 if (!version) {
   throw new Error('--version is required')
@@ -28,6 +29,7 @@ const notes = renderReleaseNotes({
   repoUrl,
   compareUrl,
   allowUnreleased,
+  sourceSha,
 })
 
 if (output) {

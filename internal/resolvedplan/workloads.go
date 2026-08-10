@@ -6,19 +6,20 @@ import (
 )
 
 type resolvedWorkloadSelection struct {
-	id                       string
-	alternativeID            string
-	providerID               string
-	moduleID                 string
-	runtimeAdapterID         string
-	runtimeAdapterProviderID string
-	runtimeAdapterModuleID   string
-	contract                 map[string]any
-	alternative              map[string]any
-	settings                 map[string]any
-	secretRefs               map[string]any
-	siteRefs                 []string
-	nodeRefs                 []string
+	id                        string
+	alternativeID             string
+	providerID                string
+	moduleID                  string
+	runtimeAdapterID          string
+	runtimeAdapterProviderID  string
+	runtimeAdapterModuleID    string
+	runtimeAdapterFallbackIDs []string
+	contract                  map[string]any
+	alternative               map[string]any
+	settings                  map[string]any
+	secretRefs                map[string]any
+	siteRefs                  []string
+	nodeRefs                  []string
 }
 
 func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *indexedCatalog) (map[string]*resolvedWorkloadSelection, error) {
@@ -87,6 +88,10 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		if err != nil {
 			return nil, err
 		}
+		fallbackIDs, err := resolveWorkloadRuntimeFallbacks(id, selection, alternative, adapterID)
+		if err != nil {
+			return nil, err
+		}
 		if owner, exists := moduleOwners[moduleID]; exists && owner != id {
 			return nil, fail(ErrContractConflict, path+".alternative", "module %q is already owned by workload %q", moduleID, owner)
 		}
@@ -102,9 +107,51 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		resolved[id] = &resolvedWorkloadSelection{
 			id: id, alternativeID: alternativeID, providerID: providerID, moduleID: moduleID,
 			runtimeAdapterID: adapterID, runtimeAdapterProviderID: adapterProviderID, runtimeAdapterModuleID: adapterModuleID,
-			contract: contract, alternative: alternative, settings: settings, secretRefs: secretRefs,
+			runtimeAdapterFallbackIDs: fallbackIDs,
+			contract:                  contract, alternative: alternative, settings: settings, secretRefs: secretRefs,
 			siteRefs: siteRefs, nodeRefs: nodeRefs,
 		}
+	}
+	return resolved, nil
+}
+
+func resolveWorkloadRuntimeFallbacks(workloadID string, selection, alternative map[string]any, primary string) ([]string, error) {
+	runtimeContract, err := objectField(alternative, "catalog.workloads."+workloadID+".alternative.runtime", "runtime")
+	if err != nil {
+		return nil, err
+	}
+	allowed, err := stringListField(runtimeContract, "catalog.workloads."+workloadID+".alternative.runtime", "allowedAdapterRefs", false)
+	if err != nil {
+		return nil, err
+	}
+	_, explicit := selection["runtimeAdapterFallbackRefs"]
+	refs, err := stringListField(selection, "spec.workloads."+workloadID, "runtimeAdapterFallbackRefs", false)
+	if err != nil {
+		return nil, err
+	}
+	if !explicit {
+		refs, err = stringListField(runtimeContract, "catalog.workloads."+workloadID+".alternative.runtime", "defaultFallbackAdapterRefs", false)
+		if err != nil {
+			return nil, err
+		}
+	}
+	resolved := make([]string, 0, len(refs))
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		if ref == primary {
+			if explicit {
+				return nil, fail(ErrContractConflict, "spec.workloads."+workloadID+".runtimeAdapterFallbackRefs", "fallback adapter %q duplicates the preferred adapter", ref)
+			}
+			continue
+		}
+		if seen[ref] {
+			return nil, fail(ErrContractConflict, "spec.workloads."+workloadID+".runtimeAdapterFallbackRefs", "fallback adapter %q is duplicated", ref)
+		}
+		if !contains(allowed, ref) {
+			return nil, fail(ErrContractConflict, "spec.workloads."+workloadID+".runtimeAdapterFallbackRefs", "fallback adapter %q is not allowed by the selected workload alternative", ref)
+		}
+		seen[ref] = true
+		resolved = append(resolved, ref)
 	}
 	return resolved, nil
 }

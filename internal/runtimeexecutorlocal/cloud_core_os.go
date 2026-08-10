@@ -13,6 +13,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/servicecontrol"
 )
 
 type osCloudCoreOperations struct {
@@ -46,6 +47,13 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	}
 	if _, err := o.runner.Run(ctx, cloudCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
 		return CloudCoreApplyObservation{}, errors.New("Cloud Docker Compose Apply did not complete")
+	}
+	controller, err := servicecontrol.NewOSController(o.workspaceRoot)
+	if err != nil {
+		return CloudCoreApplyObservation{}, fmt.Errorf("initialize durable service reconciliation: %w", err)
+	}
+	if err := controller.ReconcileAfterApply(ctx); err != nil {
+		return CloudCoreApplyObservation{}, fmt.Errorf("reconcile durable service desired state: %w", err)
 	}
 	return CloudCoreApplyObservation{ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest, Status: "applied"}, nil
 }

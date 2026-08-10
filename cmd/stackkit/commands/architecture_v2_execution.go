@@ -920,7 +920,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		"result_hash": result.ResultHash(), "result_path": persistedResult.ResultPath,
 	})
 	applyOutput := architectureV2ApplyCommandResult{
-		SchemaVersion: "stackkit.apply-result/v2", Apply: result.Summary(), Observations: observations,
+		SchemaVersion: "stackkit.apply-result/v2", Status: "applied", Apply: result.Summary(), Observations: observations,
 		EvidenceLinks: []runtimeobservation.EvidenceLink{
 			{Kind: "apply-result", Ref: persistedResult.ResultPath, Digest: result.ResultHash()},
 			{Kind: "owner-apply-result-receipt", Ref: persistedResult.OwnerReceiptPath, Digest: persistedResult.OwnerReceiptDigest},

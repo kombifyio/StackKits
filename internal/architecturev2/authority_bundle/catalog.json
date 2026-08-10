@@ -19409,7 +19409,8 @@
             ],
             "allowedKinds": [
               "container"
-            ]
+            ],
+            "defaultFallbackAdapterRefs": []
           },
           "setup": {
             "actionRefs": [],
@@ -19465,7 +19466,8 @@
             ],
             "allowedKinds": [
               "container"
-            ]
+            ],
+            "defaultFallbackAdapterRefs": []
           },
           "setup": {
             "actionRefs": [],
@@ -19634,7 +19636,10 @@
                 "maturity": "supported"
               }
             ],
-            "defaultAdapterRef": "coolify"
+            "defaultAdapterRef": "coolify",
+            "defaultFallbackAdapterRefs": [
+              "standalone-compose"
+            ]
           },
           "setup": {
             "actionRefs": [],
@@ -19773,7 +19778,10 @@
                 "maturity": "supported"
               }
             ],
-            "defaultAdapterRef": "coolify"
+            "defaultAdapterRef": "coolify",
+            "defaultFallbackAdapterRefs": [
+              "standalone-compose"
+            ]
           },
           "setup": {
             "actionRefs": [],
@@ -19916,7 +19924,10 @@
                 "maturity": "supported"
               }
             ],
-            "defaultAdapterRef": "coolify"
+            "defaultAdapterRef": "coolify",
+            "defaultFallbackAdapterRefs": [
+              "standalone-compose"
+            ]
           },
           "setup": {
             "actionRefs": [],

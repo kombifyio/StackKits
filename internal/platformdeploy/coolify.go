@@ -120,12 +120,12 @@ func (a *CoolifyAdapter) ApplyCompose(ctx context.Context, manifest AppManifest)
 	ref.ComposeYAML = normalizeComposeYAML(manifest.ComposeYAML)
 	if !a.cfg.LegacyDockerComposeAPI {
 		if err := a.waitForServiceResources(ctx, ref, manifest); err != nil {
-			return DeploymentRef{}, err
+			return ref, err
 		}
 	}
 	deploymentID, err := a.Deploy(ctx, ref)
 	if err != nil {
-		return DeploymentRef{}, err
+		return ref, err
 	}
 	ref.DeploymentID = deploymentID
 	ref.LastDeployed = time.Now().UTC()

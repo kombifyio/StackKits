@@ -4,6 +4,20 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.16.0](https://github.com/kombifyio/stackKits/compare/v0.15.9...v0.16.0) (2026-08-10)
+
+
+### Added
+
+* make StackKit rollout service-controllable ([#631](https://github.com/kombifyio/stackKits/issues/631)) ([086b6ac](https://github.com/kombifyio/stackKits/commit/086b6aca9e5d1957ef850594499c5efe6444520a))
+
+
+### Fixed
+
+* **release:** close StackKits release preparation ([#629](https://github.com/kombifyio/stackKits/issues/629)) ([64912d8](https://github.com/kombifyio/stackKits/commit/64912d887ff715ef9ee2a4f830a526f8478f5310))
+* **release:** preserve exact source provenance in notes ([#627](https://github.com/kombifyio/stackKits/issues/627)) ([b9f38a7](https://github.com/kombifyio/stackKits/commit/b9f38a75b60780ceacda93fe6c597bac54f2d3dd))
+* **release:** tolerate forward-only main advances ([#628](https://github.com/kombifyio/stackKits/issues/628)) ([ccb4ee0](https://github.com/kombifyio/stackKits/commit/ccb4ee03cf95d7964600573570e12945c3eae4d4))
+
 ## [0.15.9](https://github.com/kombifyio/stackKits/compare/v0.15.8...v0.15.9) (2026-08-10)
 
 

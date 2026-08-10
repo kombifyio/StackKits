@@ -1167,6 +1167,11 @@ func (c *Compiler) buildWorkloads(resolved *resolution, modules []any) ([]any, e
 				"moduleVersion":        moduleVersion,
 				"moduleContractHash":   moduleHash,
 			}
+			resolvedRuntime["fallback"] = map[string]any{
+				"adapterRefs":          append([]string{}, selection.runtimeAdapterFallbackIDs...),
+				"identityCommitPolicy": "fallback-before-identity-commit",
+				"failurePolicy":        "complete-independent-graph",
+			}
 		}
 		settings, err := cloneObject(selection.settings, true)
 		if err != nil {

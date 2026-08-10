@@ -1080,6 +1080,126 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/service-start:
+    post:
+      operationId: stackActionServiceStart
+      summary: "Start one StackKits-managed service"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_start"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/service-stop:
+    post:
+      operationId: stackActionServiceStop
+      summary: "Stop one non-critical StackKits-managed service"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_stop"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/service-restart:
+    post:
+      operationId: stackActionServiceRestart
+      summary: "Restart one StackKits-managed service"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_restart"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/internal/stack-actions/service-logs:
+    post:
+      operationId: stackActionServiceLogs
+      summary: "Read bounded redacted logs for one StackKits-managed service"
+      description: Requires X-Kombify-Service-Auth from caller techstack.
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_logs"
+      responses:
+        "200":
+          description: StackAction accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - properties:
+                      data:
+                        $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
           # END GENERATED: stackaction paths
 components:
   securitySchemes:
@@ -7782,7 +7902,6 @@ components:
       required:
         - name
         - platform
-        - externalId
       properties:
         name:
           type: string
@@ -7821,6 +7940,82 @@ components:
         lastDeployed:
           type: string
           format: date-time
+        failureStage:
+          type: string
+        failureMessage:
+          type: string
+        retryable:
+          type: boolean
+    StackActionServiceActionRequest:
+      type: object
+      description: "Bounded service action parameters without caller-supplied runtime authority."
+      additionalProperties: false
+      required:
+        - service_key
+      properties:
+        service_key:
+          type: string
+        expected_inventory_revision:
+          type: integer
+          format: int64
+          minimum: 0
+        owner_approved:
+          type: boolean
+        tail:
+          type: integer
+          minimum: 1
+          maximum: 200
+        cursor:
+          type: string
+          pattern: "^(|sha256:[a-f0-9]{64})$"
+    StackActionServiceLogEntry:
+      type: object
+      description: "One redacted bounded service log entry."
+      additionalProperties: false
+      required:
+        - timestamp
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          type: string
+    StackActionServiceActionResult:
+      type: object
+      description: "Desired and observed service state plus protected evidence."
+      additionalProperties: false
+      required:
+        - service_key
+      properties:
+        service_key:
+          type: string
+        desired_state:
+          type: string
+        observed_state:
+          type: string
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionCheck"
+        reason_code:
+          type: string
+        retryable:
+          type: boolean
+        evidence_ref:
+          type: string
+        log_entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionServiceLogEntry"
+        next_cursor:
+          type: string
+        truncated:
+          type: boolean
     StackActionRequest:
       type: object
       description: "StackKits-owned action request."
@@ -7839,6 +8034,10 @@ components:
             - "backup_status"
             - "backup_restore"
             - "backup_wipe"
+            - "service_start"
+            - "service_stop"
+            - "service_restart"
+            - "service_logs"
         stack_id:
           type: string
         stack_name:
@@ -7867,6 +8066,8 @@ components:
           $ref: "#/components/schemas/StackActionTechStackEnrollment"
         backup:
           $ref: "#/components/schemas/StackActionBackupRequest"
+        service:
+          $ref: "#/components/schemas/StackActionServiceActionRequest"
     StackActionResponse:
       type: object
       description: "StackKits-owned action response and evidence."
@@ -7884,6 +8085,7 @@ components:
             - "ready"
             - "applied"
             - "verified"
+            - "completed_degraded"
             - "skipped"
             - "failed"
         action:
@@ -7896,6 +8098,10 @@ components:
             - "backup_status"
             - "backup_restore"
             - "backup_wipe"
+            - "service_start"
+            - "service_stop"
+            - "service_restart"
+            - "service_logs"
         stack_id:
           type: string
         stack_name:
@@ -7935,6 +8141,8 @@ components:
             $ref: "#/components/schemas/StackActionPlatformAppState"
         backup:
           $ref: "#/components/schemas/StackActionBackupResult"
+        service:
+          $ref: "#/components/schemas/StackActionServiceActionResult"
           # END GENERATED: stackaction schemas
   responses:
     HealthResponse:

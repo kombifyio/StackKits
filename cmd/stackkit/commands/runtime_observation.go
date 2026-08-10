@@ -36,6 +36,7 @@ type architectureV2RuntimeObservationInput struct {
 
 type architectureV2ApplyCommandResult struct {
 	SchemaVersion string                            `json:"schemaVersion"`
+	Status        string                            `json:"status"`
 	Apply         architecturev2.ApplyResultSummary `json:"apply"`
 	Observations  []runtimeobservation.Observation  `json:"observations"`
 	EvidenceLinks []runtimeobservation.EvidenceLink `json:"evidenceLinks"`

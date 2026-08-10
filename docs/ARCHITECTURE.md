@@ -8,8 +8,9 @@ This is the current implementation overview for this repo. Normative product and
 
 ### Non-negotiable product surfaces
 
-- Installers and the `stackkit` CLI are standalone adapters to the StackKits
-  lifecycle authority.
+- Installers and the `stackkit` CLI invoke the shared StackKits rollout core
+  directly. Standard Mode needs no hosted orchestrator; Advanced Mode may add
+  registered external capabilities and orchestration around the same core.
 - The StackKits State Console is the MCP App for local state review, plan
   inspection, Owner evidence, and operation-approval requests. It invokes only
   registered MCP operations and owns no lifecycle implementation.
@@ -43,20 +44,21 @@ generated Compose / OpenTofu / metadata
 stackkit apply + stackkit verify
 ```
 
-CUE is the technical contract source of truth. Local lifecycle state and
-evidence are authoritative. Remote databases may mirror public registry or
-fleet state, but they do not replace live CUE contracts or gate the standalone
-lifecycle.
+CUE is the technical contract source of truth. Lifecycle state and evidence
+remain bound to the executing Stack, whether custody is local or supplied by an
+Advanced-mode owner. Remote databases may mirror registry or fleet state, but
+they do not replace live CUE contracts or gate Standard Mode.
 
-### Standalone product and optional orchestration boundary
+### Shared rollout core and orchestration boundary
 
 [ADR-0031](ADR/ADR-0031-stackkits-standalone-lifecycle-boundary.md) defines the
-product boundary: StackKits is the standalone CLI-manageable Homelab standard.
-Local CUE, StackSpec, immutable ResolvedPlan, lifecycle state, Owner custody,
-and evidence are authoritative. Attested GitHub Releases are the account-free
-distribution source.
+product boundary: StackKits provides a CLI-manageable Homelab rollout core.
+Standard Mode can execute it directly; Advanced Mode supplies additional
+registered authority and orchestration. CUE, StackSpec, immutable ResolvedPlan,
+lifecycle state, Owner custody, and evidence remain bound to the same rollout.
+Attested GitHub Releases are the account-free distribution source.
 
-For v0.9, Techstack is the optional Orchestrator UI, Config Unifier, and Advanced
+For v0.9, Techstack is the Orchestrator UI, Config Unifier, and Advanced
 Day-2/RIL control plane. Techstack Core sends only a closed `StackKitCommand`
 over its own outbound/reverse mTLS gRPC worker channel to the node-side
 Techstack Agent. The Agent revalidates the exact release pin, index, receipt,
