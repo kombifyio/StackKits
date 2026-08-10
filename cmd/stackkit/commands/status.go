@@ -9,11 +9,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/fleetlifecycle"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -22,6 +27,7 @@ import (
 var (
 	statusJSON             bool
 	statusResolvedPlanPath string
+	statusInventoryPath    string
 )
 
 var statusCmd = &cobra.Command{
@@ -45,13 +51,41 @@ Examples:
 func init() {
 	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Output as JSON")
 	statusCmd.Flags().StringVar(&statusResolvedPlanPath, "resolved-plan", "", "Canonical Architecture v2 ResolvedPlan (default: deploy/.stackkit/resolved-plan.json)")
+	statusCmd.Flags().StringVar(&statusInventoryPath, "inventory", "", "Architecture v2 observed Inventory used to identify a configured Standard process runtime")
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
+type architectureV2StatusResult struct {
+	APIVersion            string                              `json:"apiVersion"`
+	StackID               any                                 `json:"stackId"`
+	Kit                   any                                 `json:"kit"`
+	PlanHash              string                              `json:"planHash"`
+	ExecutionReadiness    any                                 `json:"executionReadiness"`
+	Workloads             any                                 `json:"workloads"`
+	ApplicationLifecycles []applicationlifecycle.State        `json:"applicationLifecycles"`
+	FleetLifecycle        map[string]any                      `json:"fleetLifecycle"`
+	ApplyState            string                              `json:"applyState"`
+	Apply                 *architecturev2.ApplyResultSummary  `json:"apply,omitempty"`
+	Runtime               *architectureV2RuntimeVerifySummary `json:"runtime,omitempty"`
+	Observations          []runtimeobservation.Observation    `json:"observations"`
+	ActionableError       *actionableerror.Contract           `json:"actionableError,omitempty"`
+}
+
+func runStatus(cmd *cobra.Command, args []string) (retErr error) {
+	machineResultWritten := false
+	defer func() {
+		if retErr != nil && statusJSON && !machineResultWritten {
+			retErr = writeMachineCommandFailure(cmd, retErr,
+				"Correct the reported Plan, inventory, or local evidence condition, then retry `stackkit status --json`.",
+				"Use `stackkit logs latest --json` only when a prior lifecycle run exists.",
+			)
+		}
+	}()
 	ctx := context.Background()
 	wd := getWorkDir()
 	if architectureV2RejectsV1Execution(version) {
-		return runArchitectureV2Status(cmd, wd)
+		retErr = runArchitectureV2Status(cmd, wd)
+		machineResultWritten = retErr == nil && statusJSON
+		return retErr
 	}
 
 	loader := config.NewLoader(wd)
@@ -68,12 +102,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Print header
-	fmt.Println()
-	fmt.Printf("  %s: %s\n", bold("StackKit"), spec.StackKit)
-	fmt.Printf("  %s: %s\n", bold("Mode"), spec.Mode)
-	fmt.Printf("  %s: %s\n", bold("Last Applied"), state.LastApplied.Format("2006-01-02 15:04:05"))
-	fmt.Println()
+	if !statusJSON {
+		// Print header
+		fmt.Println()
+		fmt.Printf("  %s: %s\n", bold("StackKit"), spec.StackKit)
+		fmt.Printf("  %s: %s\n", bold("Mode"), spec.Mode)
+		fmt.Printf("  %s: %s\n", bold("Last Applied"), state.LastApplied.Format("2006-01-02 15:04:05"))
+		fmt.Println()
+	}
 
 	// Get Docker containers
 	dockerClient := docker.NewClient()
@@ -122,9 +158,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// JSON output mode
 	if statusJSON {
 		output := buildStatusJSONOutput(spec, state, services, overallStatus, access)
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
-		return enc.Encode(output)
+		retErr = enc.Encode(output)
+		machineResultWritten = retErr == nil
+		return retErr
 	}
 
 	// Display table
@@ -199,22 +237,46 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 	if err != nil {
 		return fmt.Errorf("status: load Fleet lifecycle evidence: %w", err)
 	}
-	output := map[string]any{
-		"apiVersion":            "stackkit.status/v2",
-		"stackId":               plan["stackId"],
-		"kit":                   plan["kit"],
-		"planHash":              plan["planHash"],
-		"executionReadiness":    plan["executionReadiness"],
-		"workloads":             plan["workloads"],
-		"applicationLifecycles": lifecycles,
-		"fleetLifecycle":        fleetProjection,
+	output := architectureV2StatusResult{
+		APIVersion: "stackkit.status/v2", StackID: plan["stackId"], Kit: plan["kit"],
+		PlanHash: verified.Binding().PlanHash, ExecutionReadiness: plan["executionReadiness"],
+		Workloads: plan["workloads"], ApplicationLifecycles: lifecycles, FleetLifecycle: fleetProjection,
+		ApplyState: "unavailable", Observations: []runtimeobservation.Observation{},
+	}
+	statusOptions := architectureV2ExecutionCLIOptions{inventoryPath: statusInventoryPath}
+	statusOptions.inventoryData, err = readArchitectureV2Inventory(wd, statusInventoryPath)
+	if err == nil {
+		err = initializeArchitectureV2StatusRuntime(statusOptions, &output)
+	}
+	if err == nil {
+		err = populateArchitectureV2StatusRuntime(wd, verified, statusOptions, &output)
+	}
+	if err != nil {
+		action := actionableerror.New(
+			"stackkit_runtime_observation_unavailable", "apply_evidence_unavailable", err.Error(),
+			[]string{
+				"Inspect the latest bounded rollout evidence with `stackkit logs latest --json`.",
+				"Run `stackkit verify --json` to validate the current Plan and signed Apply evidence.",
+				"Run `stackkit apply --json` only when no current Apply result exists or after the reported cause is fixed.",
+			}, false,
+		)
+		output.ActionableError = &action
 	}
 	if statusJSON {
 		encoder := json.NewEncoder(cmd.OutOrStdout())
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(output)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Stack: %v\nPlan: %v\n", plan["stackId"], plan["planHash"])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Stack: %v\nPlan: %v\nApply: %s\n", plan["stackId"], verified.Binding().PlanHash, output.ApplyState)
+	if output.Runtime != nil {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Runtime: %s (%s, live=%t)\n", output.Runtime.Status, output.Runtime.ExecutionMode, output.Runtime.Live)
+	}
+	if output.ActionableError != nil {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Runtime observation unavailable: %s\n", output.ActionableError.Message)
+		for _, guidance := range output.ActionableError.UserGuidance {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", guidance)
+		}
+	}
 	fleetStatus := "not-started"
 	if len(fleetState.Operations) > 0 {
 		fleetStatus = fleetState.Operations[len(fleetState.Operations)-1].Status
@@ -233,6 +295,98 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", state.WorkloadRef, status)
 	}
 	return nil
+}
+
+func initializeArchitectureV2StatusRuntime(options architectureV2ExecutionCLIOptions, output *architectureV2StatusResult) error {
+	if output == nil {
+		return errors.New("Architecture v2 status output is required")
+	}
+	_, processRuntime, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
+	if err != nil {
+		return err
+	}
+	if processRuntime {
+		output.Runtime = unavailableArchitectureV2ProcessRuntime()
+	}
+	return nil
+}
+
+func populateArchitectureV2StatusRuntime(
+	wd string,
+	plan generationartifact.VerifiedPlan,
+	options architectureV2ExecutionCLIOptions,
+	output *architectureV2StatusResult,
+) (returnErr error) {
+	_, manifestPath, receiptPath := plan.MetadataPaths(wd)
+	manifest, err := generationartifact.ReadManifest(manifestPath)
+	if err != nil {
+		return err
+	}
+	receipt, err := generationartifact.ReadReceipt(receiptPath)
+	if err != nil {
+		return err
+	}
+	gate := newArchitectureV2ExecutionGate()
+	rawAuthority, err := gate.newVerifyAuthority(wd, options)
+	if err != nil {
+		return err
+	}
+	if closer, ok := rawAuthority.(interface{ Close() error }); ok {
+		defer func() { returnErr = errors.Join(returnErr, closer.Close()) }()
+	}
+	authority, ok := rawAuthority.(architectureV2ProductVerifyAuthority)
+	if !ok {
+		return generationartifact.VerifierNotImplemented(plan.Binding().Renderer)
+	}
+	result, err := readCurrentArchitectureV2ApplyResult(wd, plan.Binding(), func(data []byte) (architecturev2.VerifiedApplyResult, error) {
+		return authority.VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput{
+			Plan: plan, Manifest: manifest, Receipt: receipt, Versions: gate.versions, Result: data,
+		})
+	})
+	if err != nil {
+		return err
+	}
+	custody, err := localevidence.LoadOwnerCustody(wd)
+	if err != nil {
+		return err
+	}
+	configuredRuntime, _, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
+	if err != nil {
+		return err
+	}
+	access, err := readArchitectureV2AccessSummary(wd)
+	if err != nil {
+		return err
+	}
+	summary := result.Summary()
+	observedAt, observationRunID := historicalRuntimeObservationIdentity(summary.AppliedAt)
+	observations, err := buildArchitectureV2RuntimeObservations(architectureV2RuntimeObservationInput{
+		Plan: plan, Access: access, Phase: runtimeobservation.PhaseStatus,
+		Source: runtimeobservation.SourceVerifiedApplyEvidence, Live: false, ObservedAt: observedAt,
+		RunID: observationRunID, Apply: summary, Outcomes: result.ObservationSummary(),
+		FallbackSiteRef: custody.Binding.SiteRef, FallbackNodeRef: custody.Binding.NodeRef,
+		FallbackChannelRef: custody.Binding.ChannelRef, AccessEvidence: access != nil,
+		RolloutEvidence: rolloutRecorder != nil || deployLog != nil,
+	})
+	if err != nil {
+		return err
+	}
+	mode := runtimeObservationExecutionMode(observations, runtimeObservationProcessChannelRefs(configuredRuntime))
+	serviceCount, probeCount := runtimeObservationCounts(observations)
+	output.ApplyState, output.Apply, output.Observations = "applied", &summary, observations
+	output.Runtime = &architectureV2RuntimeVerifySummary{
+		ExecutionMode: mode, Live: false, Status: "verified-apply-evidence",
+		ServiceCount: serviceCount, ProbeCount: probeCount,
+	}
+	return nil
+}
+
+func runtimeObservationCounts(observations []runtimeobservation.Observation) (services, probes int) {
+	for _, observation := range observations {
+		services += len(observation.Services)
+		probes += len(observation.Health)
+	}
+	return services, probes
 }
 
 func loadFleetLifecycleEvidence(

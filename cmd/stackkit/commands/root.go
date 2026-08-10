@@ -61,6 +61,7 @@ var (
 	contextFlag            string
 	noLog                  bool
 	progressJSONL          string
+	correlationID          string
 	lifecycleJoinOperation string
 	lifecycleJoinPhase     string
 	lifecycleJoinNonce     string
@@ -102,13 +103,20 @@ Examples:
   stackkit remove                      Tear down deployment`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		machineOutputCommandActive = commandRequestsMachineOutput(cmd)
 		// Show banner for root help and key workflow commands
 		name := cmd.Name()
-		if name == "stackkit" || name == "init" || name == "apply" {
+		if !machineOutputCommandActive && (name == "stackkit" || name == "init" || name == "apply") {
 			printBanner()
 		}
+		if err := logging.ValidateCorrelationID(correlationID); err != nil {
+			return machineAwareCommandError(cmd, fmt.Errorf("invalid --correlation-id: %w", err))
+		}
+		if machineOutputCommandActive && strings.TrimSpace(progressJSONL) == "-" {
+			return machineAwareCommandError(cmd, fmt.Errorf("machine JSON output cannot share stdout with --progress-jsonl -; select a file path"))
+		}
 		if err := admitCommandBeforeDeployObservability(cmd); err != nil {
-			return err
+			return machineAwareCommandError(cmd, err)
 		}
 		if commandDisablesDeployObservability(cmd) {
 			return nil
@@ -133,6 +141,7 @@ Examples:
 		if deployLog != nil {
 			deployLog.Close()
 		}
+		machineOutputCommandActive = false
 	},
 }
 
@@ -150,6 +159,7 @@ func Execute() error {
 		rolloutOTelRuntime = telemetry.OTelRuntime{}
 		rolloutOTelShutdown = nil
 		rolloutPhaseSpans = nil
+		machineOutputCommandActive = false
 	}()
 	return rootCmd.Execute()
 }
@@ -163,6 +173,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&contextFlag, "context", "", "Node context override (local, cloud, pi). Auto-detected if omitted.")
 	rootCmd.PersistentFlags().BoolVar(&noLog, "no-log", false, "Disable structured deploy logging")
 	rootCmd.PersistentFlags().StringVar(&progressJSONL, "progress-jsonl", "", "Write redacted machine-readable rollout progress JSONL to a path, or '-' for stdout")
+	rootCmd.PersistentFlags().StringVar(&correlationID, "correlation-id", "", "Validated caller correlation ID recorded in local rollout evidence")
 	rootCmd.PersistentFlags().StringVar(
 		&lifecycleJoinOperation, "internal-lifecycle-operation", "",
 		"Internal exact lifecycle mutation operation.",
@@ -215,14 +226,14 @@ func commandDisablesDeployObservability(cmd *cobra.Command) bool {
 
 // printSuccess prints a success message
 func printSuccess(format string, args ...interface{}) {
-	if !quiet {
+	if !quiet && !humanOutputSuppressed() {
 		fmt.Printf("%s %s\n", green("✓"), fmt.Sprintf(format, args...))
 	}
 }
 
 // printWarning prints a warning message
 func printWarning(format string, args ...interface{}) {
-	if !quiet {
+	if !quiet && !humanOutputSuppressed() {
 		fmt.Printf("%s %s\n", yellow("⚠"), fmt.Sprintf(format, args...))
 	}
 }
@@ -234,15 +245,27 @@ func printError(format string, args ...interface{}) {
 
 // printInfo prints an info message
 func printInfo(format string, args ...interface{}) {
-	if !quiet {
+	if !quiet && !humanOutputSuppressed() {
 		fmt.Printf("%s %s\n", cyan("ℹ"), fmt.Sprintf(format, args...))
 	}
 }
 
 // printVerbose prints verbose output
 func printVerbose(format string, args ...interface{}) {
-	if verbose {
+	if verbose && !humanOutputSuppressed() {
 		fmt.Printf("  %s\n", fmt.Sprintf(format, args...))
+	}
+}
+
+func printHumanln(args ...interface{}) {
+	if !humanOutputSuppressed() {
+		fmt.Println(args...)
+	}
+}
+
+func printHumanf(format string, args ...interface{}) {
+	if !humanOutputSuppressed() {
+		fmt.Printf(format, args...)
 	}
 }
 
@@ -260,7 +283,12 @@ func initDeployLogger() {
 
 	wd := getWorkDir()
 	logDir := filepath.Join(wd, ".stackkit", "logs")
-	deployLog = logging.New(logDir)
+	var err error
+	deployLog, err = logging.NewWithCorrelation(logDir, correlationID)
+	if err != nil {
+		deployLog = nil
+		printVerbose("structured deploy logging disabled: %v", err)
+	}
 	initRolloutRecorder(wd)
 }
 
@@ -269,9 +297,14 @@ func initRolloutRecorder(wd string) {
 	if deployLog != nil {
 		runID = deployLog.RunID()
 	}
+	labels := map[string]string{}
+	if strings.TrimSpace(correlationID) != "" {
+		labels["correlationId"] = strings.TrimSpace(correlationID)
+	}
 	rec, err := rollout.NewRecorder(filepath.Join(wd, ".stackkit"), rollout.Metadata{
 		RunID:       runID,
 		Environment: firstEnv("STACKKIT_ENVIRONMENT", "GO_ENV"),
+		Labels:      labels,
 	})
 	if err != nil {
 		printVerbose("rollout evidence disabled: %v", err)

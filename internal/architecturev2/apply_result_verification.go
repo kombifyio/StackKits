@@ -33,6 +33,31 @@ type ApplyResultSummary struct {
 	HealthCount        int       `json:"healthCount"`
 }
 
+// ApplyRuntimeObservationSummary is the secret-free, immutable runtime
+// evidence projection used by CLI/MCP observation surfaces.
+type ApplyRuntimeObservationSummary struct {
+	RequirementID     string `json:"requirementId"`
+	InstanceRef       string `json:"instanceRef"`
+	Status            string `json:"status"`
+	ObservationRef    string `json:"observationRef"`
+	ObservationDigest string `json:"observationDigest"`
+}
+
+// ApplyHealthObservationSummary is the secret-free health evidence projection
+// used by CLI/MCP observation surfaces.
+type ApplyHealthObservationSummary struct {
+	RequirementID     string `json:"requirementId"`
+	TargetRef         string `json:"targetRef"`
+	Status            string `json:"status"`
+	ObservationRef    string `json:"observationRef"`
+	ObservationDigest string `json:"observationDigest"`
+}
+
+type ApplyObservationSummary struct {
+	Runtime []ApplyRuntimeObservationSummary `json:"runtime"`
+	Health  []ApplyHealthObservationSummary  `json:"health"`
+}
+
 // Summary returns a defensive public projection.
 func (r VerifiedApplyResult) Summary() ApplyResultSummary {
 	appliedAt, _ := time.Parse(time.RFC3339Nano, r.envelope.AppliedAt)
@@ -41,6 +66,28 @@ func (r VerifiedApplyResult) Summary() ApplyResultSummary {
 		EvidenceBundleHash: r.envelope.EvidenceBundleHash,
 		RuntimeCount:       len(r.envelope.Runtime), HealthCount: len(r.envelope.Health),
 	}
+}
+
+// ObservationSummary returns defensive copies of the exact validated runtime
+// and health outcome links. It never exposes request payloads or evidence bytes.
+func (r VerifiedApplyResult) ObservationSummary() ApplyObservationSummary {
+	result := ApplyObservationSummary{
+		Runtime: make([]ApplyRuntimeObservationSummary, len(r.envelope.Runtime)),
+		Health:  make([]ApplyHealthObservationSummary, len(r.envelope.Health)),
+	}
+	for index, item := range r.envelope.Runtime {
+		result.Runtime[index] = ApplyRuntimeObservationSummary{
+			RequirementID: item.RequirementID, InstanceRef: item.InstanceRef, Status: item.Status,
+			ObservationRef: item.ObservationRef, ObservationDigest: item.ObservationDigest,
+		}
+	}
+	for index, item := range r.envelope.Health {
+		result.Health[index] = ApplyHealthObservationSummary{
+			RequirementID: item.RequirementID, TargetRef: item.TargetRef, Status: item.Status,
+			ObservationRef: item.ObservationRef, ObservationDigest: item.ObservationDigest,
+		}
+	}
+	return result
 }
 
 // ExecutorIdentity returns the exact product-owned executor that produced the

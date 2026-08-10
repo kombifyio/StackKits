@@ -1028,7 +1028,7 @@
     document.getElementById("next").addEventListener("click", () => setStep(state.step + 1));
     document.getElementById("loadConfig").addEventListener("click", async () => hydrateFromConfig(await callTool("stackkit_config_get", baseArgs())));
     document.getElementById("selfCheck").addEventListener("click", () => callTool("stackkit_self_check_plan"));
-    document.getElementById("status").addEventListener("click", () => callTool("stackkit_status"));
+    document.getElementById("status").addEventListener("click", () => callTool("stackkit_status", baseArgs()));
     document.getElementById("createSpec").dataset.write = "true";
     document.getElementById("createSpec").addEventListener("click", createSpec);
     document.getElementById("validateSpec").addEventListener("click", () => callTool("stackkit_validate", baseArgs()));

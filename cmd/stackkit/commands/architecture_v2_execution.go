@@ -22,6 +22,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/workloadremoval"
@@ -67,6 +68,7 @@ type architectureV2ExecutionCLIOptions struct {
 	planDestroy      bool
 	inspectionSink   func(generationartifact.PlanInspection) error
 	verifiedPlanSink func(generationartifact.VerifiedPlan) error
+	applySink        func(architectureV2ApplyCommandResult) error
 	verifySink       func(architectureV2VerifyReport) error
 	verifyOffline    bool
 	driftObservation bool
@@ -717,7 +719,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		if verifyContext == nil {
 			verifyContext = context.Background()
 		}
-		_, processRuntime, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
+		configuredRuntime, processRuntime, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 		if err != nil {
 			return err
 		}
@@ -725,13 +727,43 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		var runtime *architectureV2RuntimeVerifySummary
 		if processRuntime {
 			owner, _, err = verifyArchitectureV2OwnerCustody(wd)
+			runtime = &architectureV2RuntimeVerifySummary{
+				ExecutionMode: "standard-process", Live: false, Status: "verified-apply-evidence",
+				ServiceCount: result.Summary().RuntimeCount, ProbeCount: result.Summary().HealthCount,
+			}
 		} else {
 			owner, runtime, err = verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline)
+		}
+		ownerCustody, custodyErr := localevidence.LoadOwnerCustody(wd)
+		if custodyErr != nil {
+			return custodyErr
+		}
+		verifyObservedAt, verifyObservationRunID := historicalRuntimeObservationIdentity(result.Summary().AppliedAt)
+		access, accessErr := readArchitectureV2AccessSummary(wd)
+		if accessErr != nil {
+			return accessErr
+		}
+		observations, observationErr := buildArchitectureV2RuntimeObservations(architectureV2RuntimeObservationInput{
+			Plan: persisted, Access: access, Phase: runtimeobservation.PhaseVerify,
+			Source: runtimeobservation.SourceVerifiedApplyEvidence, Live: false,
+			ObservedAt: verifyObservedAt, RunID: verifyObservationRunID,
+			Apply: result.Summary(), Outcomes: result.ObservationSummary(),
+			FallbackSiteRef: ownerCustody.Binding.SiteRef, FallbackNodeRef: ownerCustody.Binding.NodeRef,
+			FallbackChannelRef: ownerCustody.Binding.ChannelRef,
+			RolloutEvidence:    rolloutRecorder != nil || deployLog != nil,
+			AccessEvidence:     access != nil,
+		})
+		if observationErr != nil {
+			return observationErr
+		}
+		if processRuntime && runtime != nil {
+			runtime.ServiceCount, runtime.ProbeCount = runtimeObservationCounts(observations)
+			runtime.ExecutionMode = runtimeObservationExecutionMode(observations, runtimeObservationProcessChannelRefs(configuredRuntime))
 		}
 		report := architectureV2VerifyReport{
 			SchemaVersion: "stackkit.verify-result/v1", Offline: options.verifyOffline,
 			PlanHash: persisted.Binding().PlanHash, Apply: result.Summary(),
-			Owner: owner, Runtime: runtime,
+			Owner: owner, Runtime: runtime, Observations: observations,
 		}
 		if err != nil {
 			var drift architectureV2DriftCarrier
@@ -814,6 +846,37 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			persistedResult.ResultPath, now().UTC(), err,
 		)
 	}
+	ownerCustody, err := localevidence.LoadOwnerCustody(wd)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply completed but its exact owner runtime binding could not be loaded",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
+	configuredRuntime, _, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply completed but its configured runtime could not be projected",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
+	observations, err := buildArchitectureV2RuntimeObservations(architectureV2RuntimeObservationInput{
+		Plan: persisted, Access: access, Phase: runtimeobservation.PhaseApply,
+		Source: runtimeobservation.SourceLocalRuntime, Live: true, ObservedAt: result.Summary().AppliedAt,
+		RunID: runtimeObservationRunID(result.Summary().AppliedAt), Apply: result.Summary(),
+		Outcomes:        result.ObservationSummary(),
+		FallbackSiteRef: ownerCustody.Binding.SiteRef, FallbackNodeRef: ownerCustody.Binding.NodeRef,
+		FallbackChannelRef: ownerCustody.Binding.ChannelRef,
+		RolloutEvidence:    rolloutRecorder != nil || deployLog != nil,
+		AccessEvidence:     true,
+		ProcessChannelRefs: runtimeObservationProcessChannelRefs(configuredRuntime),
+	})
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply completed but its versioned runtime observation could not be projected",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
 	defaultPlanPath, _, _ := persisted.MetadataPaths(wd)
 	planPath := architectureV2MetadataPath(wd, options.planPath, defaultPlanPath)
 	planRef, err := architectureV2WorkspaceEvidenceRef(wd, planPath)
@@ -856,6 +919,16 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	rolloutEvent("architecture_v2.apply", "succeeded", "native Architecture v2 Apply result persisted", map[string]string{
 		"result_hash": result.ResultHash(), "result_path": persistedResult.ResultPath,
 	})
+	applyOutput := architectureV2ApplyCommandResult{
+		SchemaVersion: "stackkit.apply-result/v2", Apply: result.Summary(), Observations: observations,
+		EvidenceLinks: []runtimeobservation.EvidenceLink{
+			{Kind: "apply-result", Ref: persistedResult.ResultPath, Digest: result.ResultHash()},
+			{Kind: "owner-apply-result-receipt", Ref: persistedResult.OwnerReceiptPath, Digest: persistedResult.OwnerReceiptDigest},
+		},
+	}
+	if options.applySink != nil {
+		return options.applySink(applyOutput)
+	}
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
 	return nil
 }

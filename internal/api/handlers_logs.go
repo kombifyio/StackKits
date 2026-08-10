@@ -266,15 +266,7 @@ func filterEntriesByPrefix(entries []logging.LogEntry, prefix string) []logging.
 }
 
 func isValidRunID(id string) bool {
-	if len(id) != 15 { // YYYYMMDD-HHMMSS
-		return false
-	}
-	for _, c := range id {
-		if c != '-' && (c < '0' || c > '9') {
-			return false
-		}
-	}
-	return id[8] == '-'
+	return logging.IsValidRunID(id)
 }
 
 func isTerminalEvent(msg string) bool {

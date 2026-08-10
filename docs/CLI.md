@@ -67,6 +67,7 @@ go build -o build/stackkit-mcp ./cmd/stackkit-mcp
 | `--context` | | auto | Override node context: `local`, `cloud`, or `pi`. |
 | `--no-log` | | `false` | Disable structured deploy logging. |
 | `--progress-jsonl` | | unset | Write redacted machine-readable rollout progress JSONL to a path, or `-` for stdout. |
+| `--correlation-id` | | unset | Bind one validated caller correlation ID to the collision-resistant local rollout run and its events. |
 
 ## Primary Workflow
 
@@ -245,6 +246,7 @@ Common flags:
 - `--verify`
 - `--verify-http`
 - `--verify-strict`
+- `--json`
 
 The public command applies only local StackSpec, ResolvedPlan, owner-custody,
 and generated artifacts. It has no tenant-deployment, Admin endpoint, Admin
@@ -267,6 +269,15 @@ spans and, on failed rollouts, a sanitized Sentry error event plus a local
 `stack-spec.yaml` never persists DSNs, OTLP endpoints, OTLP header values, or
 Sentry API credentials.
 
+`--json` returns `stackkit.apply-result/v2` inside
+`stackkit.command-result/v1`. The result includes secret-free
+`stackkit.runtime-observation/v2` records bound to the exact Stack, Plan,
+signed Apply result, CLI run, Site, node, and execution channel. A configured
+Standard process runtime is reported as `source: standard-process`; hybrid
+plans retain `local-runtime` on local scopes and `standard-process` only on
+the exact configured process channels. This does not transfer provider,
+enrollment, or server lifecycle ownership into StackKits.
+
 ### `stackkit verify`
 
 Runs read-only checks against an applied workspace.
@@ -283,6 +294,12 @@ Common flags:
 - `--remote-dir`
 
 HTTP verification treats `2xx`, `3xx`, `401`, and `403` as reachable because authenticated services are expected.
+
+Native-v2 JSON includes the exact runtime mode plus
+`stackkit.runtime-observation/v2`. When Verify can prove only the signed Apply
+observation, it reports `source: verified-apply-evidence` and `live: false`
+instead of inventing current service health. Local Basement probes remain a
+separate truthful `runtime.live: true` result when they actually ran.
 
 ### `stackkit drift`
 
@@ -366,7 +383,14 @@ never falls back to label-based Docker deletion.
 
 ### `stackkit status`
 
-Reads local deployment state and reports service health from generated outputs and runtime checks.
+Reads the verified local Plan, lifecycle state, signed Apply result, service
+access manifest, and provider-neutral runtime projection. Native-v2 JSON is
+`stackkit.status/v2` and includes `applyState`, the exact local or Standard
+process runtime mode, and `stackkit.runtime-observation/v2` records. Status is
+read-only: historical signed Apply evidence is marked `live: false`. If Apply
+evidence is absent or invalid, the command still returns the Plan and a
+`stackkit.actionable-error/v1` recovery contract instead of leaving the
+operator at a dead end.
 
 ### `stackkit backup`
 
@@ -648,10 +672,29 @@ The public command reads the embedded CUE-derived snapshot. `snapshot` and
 
 Subcommands:
 
-- `logs list`
-- `logs [run-id]`
+- `logs list [--json]`
+- `logs get <run-id> [--json] [--cursor CURSOR] [--max-events N] [--max-bytes N]`
+- `logs latest [--json] [--cursor CURSOR] [--max-events N] [--max-bytes N]`
+- `logs [run-id] [--jsonl]` (compatibility display/raw JSONL form)
 
 Structured deploy logs live under `.stackkit/logs` unless configured otherwise.
+`--json` returns `stackkit.log-list/v1` or `stackkit.log-run/v1` inside the
+command-result envelope, including content-addressed local evidence links.
+Run IDs are exact basenames returned by `logs list`; traversal and unknown IDs
+fail with `stackkit.actionable-error/v1` guidance. Current runs use a UTC
+nanosecond timestamp plus a cryptographic nonce and exclusive file creation;
+legacy timestamp-only IDs remain readable. JSON reads stream bounded pages
+(default 200 events/256 KiB, hard maximum 2000 events/1 MiB). Every page
+returns `cursor`, optional `next_cursor`, and `truncated`; a cursor is bound to
+the exact run ID and complete file digest, so appended or replaced evidence
+must be restarted without the stale cursor. Secret-shaped keys and inline
+credentials are redacted before write and again during structured reads.
+
+`--json` on Apply, Status, and Verify reserves stdout for exactly one versioned
+JSON value. Early failures and authorization denials retain a non-zero exit and
+emit `stackkit.command-result/v1` with `stackkit.actionable-error/v1`; human
+banner/status text is suppressed. `--progress-jsonl -` cannot share stdout with
+these single-document modes.
 
 ### `stackkit completion [bash|zsh|fish|powershell]`
 

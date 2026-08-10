@@ -32,6 +32,7 @@ var (
 	applyVerifyHTTP         bool
 	applyVerifyStrict       bool
 	applySkipPlatformApps   bool
+	applyJSON               bool
 	applyV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
@@ -61,6 +62,7 @@ func init() {
 	applyCmd.Flags().BoolVar(&applyVerifyHTTP, "verify-http", false, "Include HTTP route checks in post-apply verification")
 	applyCmd.Flags().BoolVar(&applyVerifyStrict, "verify-strict", false, "Treat post-apply verification warnings as failures")
 	applyCmd.Flags().BoolVar(&applySkipPlatformApps, "skip-platform-apps", false, "Skip platform app lifecycle handoff and automatic app setup actions")
+	applyCmd.Flags().BoolVar(&applyJSON, "json", false, "Emit the versioned Apply result and runtime observations as machine-readable JSON")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
@@ -75,20 +77,27 @@ func init() {
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	ctx := context.Background()
+	machineResultWritten := false
+	applyV2ExecutionOptions.applySink = nil
+	if applyJSON {
+		applyV2ExecutionOptions.applySink = func(result architectureV2ApplyCommandResult) error {
+			err := writeCommandResult(cmd, cmd.CommandPath(), result)
+			machineResultWritten = err == nil
+			return err
+		}
+	}
 	applyV2ExecutionOptions.legacyPlanFile = ""
 	if len(args) > 0 {
 		applyV2ExecutionOptions.legacyPlanFile = args[0]
 	}
-	wd := getWorkDir()
-	if err := admitApplyBeforeDeployObservability(wd, specFile); err != nil {
-		return err
-	}
-	if !noLog {
-		initDeployLogger()
-	}
-	rolloutEvent("apply", "started", "apply started", nil)
 	defer func() {
 		if retErr != nil {
+			if applyJSON && !machineResultWritten {
+				retErr = writeMachineCommandFailure(cmd, retErr,
+					"Correct the reported Apply authority or input condition, then retry `stackkit apply --json`.",
+					"Inspect `stackkit logs latest --json` only when the failure created a local rollout run.",
+				)
+			}
 			rolloutFailure("apply", retErr)
 			closeRolloutRecorder(rollout.Summary{
 				Status:  "failed",
@@ -99,6 +108,14 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		rolloutEvent("apply", "succeeded", "apply succeeded", nil)
 		closeRolloutRecorder(rollout.Summary{Status: "success"})
 	}()
+	wd := getWorkDir()
+	if err := admitApplyBeforeDeployObservability(wd, specFile); err != nil {
+		return err
+	}
+	if !noLog {
+		initDeployLogger()
+	}
+	rolloutEvent("apply", "started", "apply started", nil)
 	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
 		return err
 	}
@@ -247,8 +264,8 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 
 	// Display output
 	if result.Stdout != "" {
-		fmt.Println()
-		fmt.Println(result.Stdout)
+		printHumanln()
+		printHumanln(result.Stdout)
 	}
 
 	if !result.Success {
@@ -261,14 +278,14 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			"failure_class": rollout.ClassifyFailure(userMsg),
 		})
 		printError("%s", userMsg)
-		fmt.Println()
+		printHumanln()
 		printInfo("Troubleshooting tips:")
-		fmt.Println("  1. Run 'stackkit prepare' to re-detect system capabilities")
-		fmt.Println("  2. Run 'stackkit apply' to retry the deployment")
-		fmt.Println()
+		printHumanln("  1. Run 'stackkit prepare' to re-detect system capabilities")
+		printHumanln("  2. Run 'stackkit apply' to retry the deployment")
+		printHumanln()
 		printWarning("To clean up a failed deployment:")
-		fmt.Println("  stackkit remove               (remove deployed resources)")
-		fmt.Println("  stackkit remove --purge       (full reset, remove everything)")
+		printHumanln("  stackkit remove               (remove deployed resources)")
+		printHumanln("  stackkit remove --purge       (full reset, remove everything)")
 		return fmt.Errorf("deployment failed")
 	}
 	rolloutEvent("tofu.apply", "succeeded", "OpenTofu apply succeeded", map[string]string{
@@ -377,14 +394,14 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		}
 	}
 
-	fmt.Println()
+	printHumanln()
 	printSuccess("Apply complete! (took %s)", duration.Round(time.Second))
 
 	// Get and display outputs
 	output, err := executor.Output(ctx)
 	if err == nil && output != "" {
 		printInfo("Deployment outputs:")
-		fmt.Println(output)
+		printHumanln(output)
 	}
 
 	// Post-deploy: verify service URLs are reachable
@@ -398,7 +415,7 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	if applyVerify || applyVerifyHTTP || applyVerifyStrict {
-		fmt.Println()
+		printHumanln()
 		printInfo("Running post-deployment verification...")
 		rolloutEvent("verify", "started", "post-deployment verification started", nil)
 		report := buildLocalVerifyReport(ctx, wd, spec, state, stackverify.Options{
@@ -560,7 +577,7 @@ func ensureDocker(ctx context.Context) error {
 			printInfo("Docker is not installed, installing...")
 		} else {
 			printWarning("Docker is not installed")
-			fmt.Print("Install Docker now? [Y/n] ")
+			printHumanf("Install Docker now? [Y/n] ")
 			var answer string
 			_, _ = fmt.Scanln(&answer)
 			if len(answer) > 0 && (answer[0] == 'n' || answer[0] == 'N') {
@@ -719,7 +736,7 @@ func troubleshootAndApply(
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
-			fmt.Println()
+			printHumanln()
 			printInfo("Retry attempt %d/%d...", attempt, maxRetries)
 		}
 
@@ -773,7 +790,7 @@ func troubleshootAndApply(
 				continue
 			}
 
-			fmt.Println()
+			printHumanln()
 			printWarning("%s", pattern.UserMessage)
 
 			if fixErr := pattern.Fix(ctx, deployDir); fixErr != nil {
@@ -905,7 +922,7 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 	}
 
 	// URLs are not reachable — provide actionable guidance
-	fmt.Println()
+	printHumanln()
 	if len(probes) == 1 {
 		printWarning("Service URL check: %s is not reachable: %s", firstFailure.URL, firstFailureReason)
 	} else {
@@ -917,14 +934,14 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 		// On a cloud/VPS context with local domains — this is the root cause
 		if models.IsLocalDomain(domain) {
 			printError("Local domain '%s' is not accessible on a public server", domain)
-			fmt.Println()
+			printHumanln()
 			printInfo("Your server is a VPS/cloud instance but is configured with a local domain.")
 			printInfo("Browser-native *.localhost domains work only on the machine opening the link. LAN domains (*.home, *.<name>.home, *.internal, *.local, *.lab, *.lan) require a StackKit-managed or verified resolver path.")
-			fmt.Println()
+			printHumanln()
 			printInfo("To fix this, update your stack-spec.yaml domain to one of:")
-			fmt.Println("  1. domain: kombify.me    (free public subdomains via kombify.me)")
-			fmt.Println("  2. domain: yourdomain.com  (your own domain with DNS configured)")
-			fmt.Println()
+			printHumanln("  1. domain: kombify.me    (free public subdomains via kombify.me)")
+			printHumanln("  2. domain: yourdomain.com  (your own domain with DNS configured)")
+			printHumanln()
 			printInfo("Then migrate this v0.6 workspace and use the native generate/apply workflow.")
 		}
 	} else if !firstDNSOK {
@@ -933,7 +950,7 @@ func verifyServiceURLs(ctx context.Context, spec *models.StackSpec, access *acce
 			printInfo("The .localhost mode is device-local. Open the URL on the machine that reaches this Docker host, or use --local-dns for LAN-wide names.")
 		} else if caps != nil && caps.PrivateIP != "" {
 			printInfo("For LAN DNS, point router DHCP DNS to:")
-			fmt.Printf("  %s\n", caps.PrivateIP)
+			printHumanf("  %s\n", caps.PrivateIP)
 		}
 	}
 }

@@ -17,9 +17,11 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -55,6 +57,7 @@ type runIDInput struct {
 type stackkitCommandInput struct {
 	BaseDir        string            `json:"base_dir,omitempty" jsonschema:"workspace directory"`
 	SpecPath       string            `json:"spec_path,omitempty" jsonschema:"stack spec path"`
+	CorrelationID  string            `json:"correlation_id,omitempty" jsonschema:"validated caller correlation ID recorded in local evidence"`
 	TimeoutSeconds int               `json:"timeout_seconds,omitempty" jsonschema:"command timeout capped at 870 seconds"`
 	ExtraEnv       map[string]string `json:"extra_env,omitempty" jsonschema:"additional environment variables"`
 }
@@ -65,11 +68,12 @@ type stackkitCommandInput struct {
 type architectureV2CommandInput struct {
 	BaseDir        string `json:"base_dir,omitempty" jsonschema:"workspace directory"`
 	SpecPath       string `json:"spec_path,omitempty" jsonschema:"canonical StackSpec v2 path"`
+	CorrelationID  string `json:"correlation_id,omitempty" jsonschema:"validated caller correlation ID recorded in local evidence"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"command timeout capped at 870 seconds"`
 }
 
 func (in architectureV2CommandInput) commandInput() stackkitCommandInput {
-	return stackkitCommandInput{BaseDir: in.BaseDir, SpecPath: in.SpecPath, TimeoutSeconds: in.TimeoutSeconds}
+	return stackkitCommandInput{BaseDir: in.BaseDir, SpecPath: in.SpecPath, CorrelationID: in.CorrelationID, TimeoutSeconds: in.TimeoutSeconds}
 }
 
 type architectureV2InitInput struct {
@@ -652,7 +656,7 @@ func (a *App) stackkitPlanV2(ctx context.Context, req *mcp.CallToolRequest, in a
 }
 
 func (a *App) stackkitApplyV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2ApplyInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"apply"}
+	args := []string{"apply", "--json"}
 	if in.AutoApprove {
 		args = append(args, "--auto-approve")
 	}
@@ -738,14 +742,19 @@ func (a *App) serverRequest(ctx context.Context, method, path string, payload an
 		return nil, nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return TextResult(fmt.Sprintf("stackkit-server returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))), nil, nil
+		out := errorOutput("stackkit_server_request", fmt.Errorf("stackkit-server returned HTTP %d: %s", resp.StatusCode, logging.RedactText(strings.TrimSpace(string(raw)))))
+		result := JSONResult(out)
+		result.IsError = true
+		return result, out, nil
 	}
 	var structured any
 	if json.Valid(raw) {
 		_ = json.Unmarshal(raw, &structured)
-		return TextResult(string(raw)), structured, nil
+		structured = logging.RedactValue(structured)
+		return JSONResult(structured), structured, nil
 	}
-	return TextResult(string(raw)), string(raw), nil
+	redacted := logging.RedactText(string(raw))
+	return TextResult(redacted), redacted, nil
 }
 
 func (a *App) runApprovedStackkitTool(
@@ -836,6 +845,10 @@ func (a *App) runStackkitCommand(ctx context.Context, tool string, in stackkitCo
 			return errorOutput(tool, fmt.Errorf("read-only workspace is not a directory: %s", baseDir))
 		}
 	}
+	args, err = appendCorrelationFlag(args, in.CorrelationID)
+	if err != nil {
+		return errorOutput(tool, err)
+	}
 	args = appendSpecFlag(args, in.SpecPath)
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, a.cliBinding.path, args...) // #nosec G204 -- executable is the identity-bound packaged CLI and args are assembled from typed MCP inputs.
@@ -865,8 +878,17 @@ func (a *App) runStackkitCommand(ctx context.Context, tool string, in stackkitCo
 		"stderr":      truncateOutput(stderr.String()),
 		"timed_out":   ctx.Err() == context.DeadlineExceeded,
 	}
+	if structured, ok := decodeStructuredCLIOutput(stdout.String()); ok {
+		out["structured_output"] = logging.RedactValue(structured)
+	}
 	if err != nil {
-		out["error"] = err.Error()
+		out["error"] = logging.RedactText(err.Error())
+		detail := actionableerror.New(
+			"stackkit_cli_command_failed", "cli_exit_nonzero", logging.RedactText(err.Error()),
+			[]string{"Inspect structured_output and stderr for the stable reason code.", "Run `stackkit logs latest --json` for the newest local evidence."},
+			ctx.Err() == context.DeadlineExceeded,
+		)
+		out["error_details"] = actionableErrorMap(detail)
 	}
 	return out
 }
@@ -932,6 +954,17 @@ func appendSpecFlag(args []string, specPath string) []string {
 	return append(args, "--spec", specPath)
 }
 
+func appendCorrelationFlag(args []string, correlationID string) ([]string, error) {
+	correlationID = strings.TrimSpace(correlationID)
+	if correlationID == "" || containsArg(args, "--correlation-id") {
+		return args, nil
+	}
+	if err := logging.ValidateCorrelationID(correlationID); err != nil {
+		return nil, fmt.Errorf("invalid correlation_id: %w", err)
+	}
+	return append(args, "--correlation-id", correlationID), nil
+}
+
 func containsArg(args []string, needle string) bool {
 	for _, arg := range args {
 		if arg == needle {
@@ -943,7 +976,7 @@ func containsArg(args []string, needle string) bool {
 
 func truncateOutput(value string) string {
 	const limit = 12000
-	value = strings.TrimSpace(value)
+	value = strings.TrimSpace(logging.RedactText(value))
 	if len(value) <= limit {
 		return value
 	}
@@ -951,24 +984,57 @@ func truncateOutput(value string) string {
 }
 
 func writeDisabledOutput(tool string) map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"tool":     tool,
 		"success":  false,
 		"enabled":  false,
 		"executes": false,
 		"error":    "write tools are disabled; set STACKKIT_MCP_ALLOW_WRITE=true or the equivalent server flag",
 	}
+	out["error_details"] = actionableErrorMap(actionableerror.New(
+		"stackkit_mcp_write_disabled", "write_mode_disabled", fmt.Sprint(out["error"]),
+		[]string{"Enable the explicit MCP write gate, then repeat the exact operation confirmation and local Owner approval."}, false,
+	))
+	return out
 }
 
 func errorOutput(tool string, err error) map[string]any {
 	msg := ""
 	if err != nil {
-		msg = err.Error()
+		msg = logging.RedactText(err.Error())
 	}
-	return map[string]any{
+	out := map[string]any{
 		"tool":    tool,
 		"success": false,
 		"error":   msg,
+	}
+	out["error_details"] = actionableErrorMap(actionableerror.New(
+		"stackkit_mcp_request_failed", "request_rejected", msg,
+		[]string{"Correct the reported input or workspace condition, then retry the same bounded operation."}, false,
+	))
+	return out
+}
+
+func decodeStructuredCLIOutput(value string) (any, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" || !json.Valid([]byte(value)) {
+		return nil, false
+	}
+	var structured any
+	if err := json.Unmarshal([]byte(value), &structured); err != nil {
+		return nil, false
+	}
+	return structured, true
+}
+
+func actionableErrorMap(value actionableerror.Contract) map[string]any {
+	return map[string]any{
+		"schemaVersion": value.SchemaVersion,
+		"code":          value.Code,
+		"reasonCode":    value.ReasonCode,
+		"message":       value.Message,
+		"userGuidance":  append([]string(nil), value.UserGuidance...),
+		"retryable":     value.Retryable,
 	}
 }
 

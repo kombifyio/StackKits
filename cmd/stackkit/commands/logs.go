@@ -11,9 +11,13 @@ import (
 
 var (
 	logsJSON      bool
+	logsJSONL     bool
 	logsDecisions bool
 	logsErrors    bool
 	logsTiming    bool
+	logsCursor    string
+	logsMaxEvents int
+	logsMaxBytes  int64
 )
 
 var logsCmd = &cobra.Command{
@@ -26,7 +30,8 @@ Use filters to narrow down to specific event types.
 
 Examples:
   stackkit logs                     Show latest log (human-readable)
-  stackkit logs --json              Show latest log as raw JSON-Lines
+  stackkit logs --json              Show latest log as structured JSON
+  stackkit logs --jsonl             Show latest log as raw JSON-Lines
   stackkit logs --decisions         Show only decision events
   stackkit logs --errors            Show only errors and warnings
   stackkit logs --timing            Show timing summary
@@ -38,21 +43,60 @@ Examples:
 var logsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available log files",
+	Args:  cobra.NoArgs,
 	RunE:  runLogsList,
 }
 
+var logsGetCmd = &cobra.Command{
+	Use:   "get <run-id>",
+	Short: "Read one exact structured rollout log",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runLogs(cmd, args)
+	},
+}
+
+var logsLatestCmd = &cobra.Command{
+	Use:   "latest",
+	Short: "Read the newest structured rollout log",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runLogs(cmd, nil)
+	},
+}
+
 func init() {
-	logsCmd.Flags().BoolVar(&logsJSON, "json", false, "Output raw JSON-Lines")
-	logsCmd.Flags().BoolVar(&logsDecisions, "decisions", false, "Show only decision events")
-	logsCmd.Flags().BoolVar(&logsErrors, "errors", false, "Show only errors and warnings")
-	logsCmd.Flags().BoolVar(&logsTiming, "timing", false, "Show timing summary")
+	logsCmd.PersistentFlags().BoolVar(&logsJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	logsCmd.PersistentFlags().BoolVar(&logsJSONL, "jsonl", false, "Output raw JSON-Lines")
+	logsCmd.PersistentFlags().BoolVar(&logsDecisions, "decisions", false, "Show only decision events")
+	logsCmd.PersistentFlags().BoolVar(&logsErrors, "errors", false, "Show only errors and warnings")
+	logsCmd.PersistentFlags().BoolVar(&logsTiming, "timing", false, "Show timing summary")
+	logsCmd.PersistentFlags().StringVar(&logsCursor, "cursor", "", "Opaque digest-bound cursor returned by a prior JSON page")
+	logsCmd.PersistentFlags().IntVar(&logsMaxEvents, "max-events", defaultLogReadMaxEvents, "Maximum structured events per JSON page")
+	logsCmd.PersistentFlags().Int64Var(&logsMaxBytes, "max-bytes", defaultLogReadMaxBytes, "Maximum raw log bytes scanned per JSON page")
 
 	logsCmd.AddCommand(logsListCmd)
+	logsCmd.AddCommand(logsGetCmd)
+	logsCmd.AddCommand(logsLatestCmd)
 	rootCmd.AddCommand(logsCmd)
 }
 
 func runLogs(cmd *cobra.Command, args []string) error {
 	logDir := getLogDir()
+	requested := "latest"
+	if len(args) > 0 {
+		requested = args[0]
+	}
+	if logsJSON {
+		result, err := readStructuredLogRun(logDir, requested, logReadOptions{
+			Decisions: logsDecisions, Errors: logsErrors, Cursor: logsCursor,
+			MaxEvents: logsMaxEvents, MaxBytes: logsMaxBytes,
+		})
+		if err != nil {
+			return writeActionableCommandFailure(cmd, "logs_read_failed", err, "Run `stackkit logs list --json` and choose one returned runId.")
+		}
+		return writeCommandResult(cmd, cmd.CommandPath(), result)
+	}
 
 	var logPath string
 	var err error
@@ -97,17 +141,17 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if logsJSONL {
+		for _, entry := range filtered {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(entry.RawJSON))
+		}
+		return nil
+	}
+
 	// Print header
 	runID := strings.TrimSuffix(strings.TrimPrefix(logPath, logDir+"/"), ".jsonl")
 	printInfo("Log: %s (%d events)", runID, len(filtered))
 	fmt.Println()
-
-	if logsJSON {
-		for _, entry := range filtered {
-			fmt.Println(string(entry.RawJSON))
-		}
-		return nil
-	}
 
 	// Human-readable output
 	for _, entry := range filtered {
@@ -119,6 +163,13 @@ func runLogs(cmd *cobra.Command, args []string) error {
 
 func runLogsList(cmd *cobra.Command, args []string) error {
 	logDir := getLogDir()
+	if logsJSON {
+		result, err := buildStructuredLogList(logDir)
+		if err != nil {
+			return writeActionableCommandFailure(cmd, "logs_list_failed", err, "Verify that the workspace .stackkit/logs directory is readable.")
+		}
+		return writeCommandResult(cmd, cmd.CommandPath(), result)
+	}
 	files, err := logging.ListLogFiles(logDir)
 	if err != nil {
 		return fmt.Errorf("failed to list logs: %w", err)

@@ -14,6 +14,11 @@ stackkit verify --json
 
 Inspect the canonical ResolvedPlan, generation manifest, authorization, and execution receipt before inspecting generated output. Classify the failure as one of:
 
+Use the `latestRunId` from `logs list` with
+`stackkit logs get <latestRunId> --json` when a durable explicit run reference
+is needed. Follow `actionableError.userGuidance` locally; StackKits Standard
+Mode recovery must not depend on an AI or hosted handoff.
+
 - invalid-desired-intent
 - missing-or-stale-inventory
 - unresolved-placement

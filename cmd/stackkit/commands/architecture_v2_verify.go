@@ -23,6 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 )
 
 const (
@@ -93,6 +94,7 @@ type architectureV2VerifyReport struct {
 	Apply         architecturev2.ApplyResultSummary   `json:"apply"`
 	Owner         architectureV2OwnerVerifySummary    `json:"owner"`
 	Runtime       *architectureV2RuntimeVerifySummary `json:"runtime,omitempty"`
+	Observations  []runtimeobservation.Observation    `json:"observations"`
 	Releases      []releaseindex.Receipt              `json:"releases"`
 }
 
@@ -104,10 +106,12 @@ type architectureV2OwnerVerifySummary struct {
 }
 
 type architectureV2RuntimeVerifySummary struct {
-	ProjectRef   string `json:"projectRef"`
-	Status       string `json:"status"`
-	ServiceCount int    `json:"serviceCount"`
-	ProbeCount   int    `json:"probeCount"`
+	ExecutionMode string `json:"executionMode"`
+	Live          bool   `json:"live"`
+	ProjectRef    string `json:"projectRef,omitempty"`
+	Status        string `json:"status"`
+	ServiceCount  int    `json:"serviceCount"`
+	ProbeCount    int    `json:"probeCount"`
 }
 
 func verifyArchitectureV2LocalState(
@@ -146,6 +150,7 @@ func verifyArchitectureV2LocalState(
 		return architectureV2OwnerVerifySummary{}, nil, errors.New("live Basement owner observation differs from signed local binding")
 	}
 	return ownerSummary, &architectureV2RuntimeVerifySummary{
+		ExecutionMode: "local-runtime", Live: true,
 		ProjectRef: observation.ProjectRef, Status: observation.Status,
 		ServiceCount: len(observation.Services), ProbeCount: len(observation.Probes),
 	}, nil

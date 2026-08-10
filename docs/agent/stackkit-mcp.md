@@ -123,6 +123,21 @@ ID plus local Owner approval. `stackkit_remove` additionally requires one exact
 `workload_ref`; it invokes native v2 workload-removal authority and never the
 legacy whole-deployment cleanup.
 
+CLI-backed tools publish parsed JSON through MCP `structuredContent`; they do
+not require clients to scrape text. Apply, Status, Verify, and Logs preserve
+their versioned runtime/log contracts and local evidence links. Adapter or CLI
+failures include `stackkit.actionable-error/v1` under `error_details` with a
+stable reason code and concrete local recovery commands. These read models
+remain usable in Standard Mode without Techstack, Kombify Cloud, an account,
+or another hosted endpoint.
+
+CLI-backed inputs accept an optional validated `correlation_id`, forwarded as
+the local CLI `--correlation-id`; it is evidence correlation only and grants no
+authority. Machine commands reserve stdout for a single JSON document, so MCP
+can retain Apply/Status/Verify evidence in `structuredContent` even on a
+non-zero actionable result. MCP also recursively redacts returned structured
+values and text as a defense for legacy log files and subprocess diagnostics.
+
 Native init and `stackkit_config_set` share one persistence authority: create
 is no-replace, replacement requires the exact current CUE-normalized hash
 (`--expected-spec-hash` in the CLI, `expected_spec_hash` in MCP), and

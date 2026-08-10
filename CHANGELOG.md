@@ -4,6 +4,27 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.8] - 2026-08-10
+
+### Added
+
+- StackKits now emits an identity-bound, versioned runtime observation for
+  services, endpoints, health, probes, freshness, and supporting evidence.
+- Structured log listing and retrieval provide redacted, bounded pages with
+  digest-bound cursors and explicit truncation metadata.
+
+### Changed
+
+- `apply`, `status`, and `verify` keep machine-readable JSON parseable on
+  success, denial, and failure, while MCP results expose structured evidence
+  alongside human-readable presentation.
+
+### Fixed
+
+- Process runtimes no longer disappear when apply evidence is unavailable,
+  observation freshness uses the authoritative apply timestamp, and run IDs
+  remain collision-safe under concurrent execution.
+
 ## [0.15.3] - 2026-08-10
 
 ### Added

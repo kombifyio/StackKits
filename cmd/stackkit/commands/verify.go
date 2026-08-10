@@ -99,6 +99,7 @@ func init() {
 }
 
 func runVerify(cmd *cobra.Command, args []string) (retErr error) {
+	machineResultWritten := false
 	ctx := context.Background()
 	wd := getWorkDir()
 	v2Gate := newArchitectureV2ExecutionGate()
@@ -107,6 +108,12 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 	})
 	defer func() {
 		if retErr != nil {
+			if verifyJSON && !machineResultWritten {
+				retErr = writeMachineCommandFailure(cmd, retErr,
+					"Correct the reported Plan, Apply evidence, inventory, or owner-custody condition, then retry `stackkit verify --json`.",
+					"Inspect `stackkit logs latest --json` only when a lifecycle run exists.",
+				)
+			}
 			rolloutFailure("verify", retErr)
 			closeRolloutRecorder(rollout.Summary{
 				Status:  "failed",
@@ -144,7 +151,9 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 			HTTP:      verifyHTTP,
 			Strict:    verifyStrict,
 		})
-		return emitVerifyReport(cmd.OutOrStdout(), report, verifyJSON)
+		retErr = emitVerifyReport(cmd.OutOrStdout(), report, verifyJSON)
+		machineResultWritten = retErr == nil && verifyJSON
+		return retErr
 	}
 	v2Options := verifyV2ExecutionOptions
 	v2Options.context = cmd.Context()
@@ -163,12 +172,16 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 			return err
 		}
 		if verifyJSON {
-			return writeCommandResult(cmd, cmd.CommandPath(), v2Report)
+			retErr = writeCommandResult(cmd, cmd.CommandPath(), v2Report)
+			machineResultWritten = retErr == nil
+			return retErr
 		}
 		return printArchitectureV2VerifyReport(cmd.OutOrStdout(), v2Report)
 	}
 	if verifyOffline {
-		return runOfflineReleaseVerification(cmd, wd, verifyJSON)
+		retErr = runOfflineReleaseVerification(cmd, wd, verifyJSON)
+		machineResultWritten = retErr == nil && verifyJSON
+		return retErr
 	}
 
 	loader := config.NewLoader(wd)
@@ -197,7 +210,9 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		Strict: verifyStrict,
 	})
 
-	return emitVerifyReport(cmd.OutOrStdout(), report, verifyJSON)
+	retErr = emitVerifyReport(cmd.OutOrStdout(), report, verifyJSON)
+	machineResultWritten = retErr == nil && verifyJSON
+	return retErr
 }
 
 func buildLocalVerifyReport(
