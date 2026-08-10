@@ -4,6 +4,14 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.9](https://github.com/kombifyio/stackKits/compare/v0.15.8...v0.15.9) (2026-08-10)
+
+
+### Fixed
+
+* **release:** enforce one normal StackKits release path ([#624](https://github.com/kombifyio/stackKits/issues/624)) ([b9e9d54](https://github.com/kombifyio/stackKits/commit/b9e9d54ac3280a0d64f3b604e65bd8118ebdfdfb))
+* **release:** synchronize StackKits release surfaces ([#626](https://github.com/kombifyio/stackKits/issues/626)) ([7d8317a](https://github.com/kombifyio/stackKits/commit/7d8317a018616ae3299e62dddd1382f4dcd61a44))
+
 ## [0.15.8] - 2026-08-10
 
 ### Added

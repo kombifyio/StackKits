@@ -35,6 +35,17 @@ const sampleChangelog = `# Changelog
 - Initial public release candidate.
 `
 
+const releasePleaseChangelog = `# Changelog
+
+## [0.3.0](https://github.com/kombifyio/stackKits/compare/v0.2.0...v0.3.0) (2026-08-10)
+
+### Added
+
+* Normal release PR automation.
+
+## [Unreleased]
+`
+
 test('parseChangelogSections reads versions and dates', () => {
   const sections = parseChangelogSections(sampleChangelog)
 
@@ -46,6 +57,15 @@ test('parseChangelogSections reads versions and dates', () => {
       ['0.1.0', '2026-05-01'],
     ],
   )
+})
+
+test('parseChangelogSections accepts Release Please headings and bullets', () => {
+  const sections = parseChangelogSections(releasePleaseChangelog)
+  assert.equal(sections[0].version, '0.3.0')
+  assert.equal(sections[0].date, '2026-08-10')
+  assert.deepEqual(extractLatestReleaseNotes(releasePleaseChangelog).notes, [
+    { title: 'Update 1', body: 'Normal release PR automation.' },
+  ])
 })
 
 test('extractLatestReleaseNotes skips Unreleased and folds continuation lines', () => {
@@ -77,6 +97,28 @@ test('renderReleaseNotes renders exact release notes and compare link', () => {
     notes,
     /https:\/\/github\.com\/kombifyio\/stackKits\/compare\/v0\.1\.0\.\.\.v0\.2\.0/,
   )
+})
+
+test('renderReleaseNotes rewrites private Release Please links to the public repository', () => {
+  const markdown = `# Changelog
+
+## [0.15.9](https://github.com/kombifyio/stackKits/compare/v0.15.8...v0.15.9) (2026-08-10)
+
+### Fixed
+
+* **release:** Normal release path ([#624](https://github.com/kombifyio/stackKits/issues/624)) ([b9e9d54](https://github.com/kombifyio/stackKits/commit/b9e9d54ac3280a0d64f3b604e65bd8118ebdfdfb))
+
+## [0.15.8] - 2026-08-10
+`
+  const notes = renderReleaseNotes({
+    markdown,
+    version: 'v0.15.9',
+    repoUrl: 'https://github.com/kombifyio/stackKits',
+  })
+
+  assert.match(notes, /https:\/\/github\.com\/kombifyio\/stackKits\/issues\/624/u)
+  assert.match(notes, /https:\/\/github\.com\/kombifyio\/stackKits\/commit\/b9e9d54/u)
+  assert.doesNotMatch(notes, /kombify/u)
 })
 
 test('renderReleaseNotes can render an Unreleased release candidate on demand', () => {

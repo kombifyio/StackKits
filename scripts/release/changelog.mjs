@@ -10,6 +10,16 @@ function stripFullChangelogLink(body) {
   return body.replace(/\n?\*\*Full Changelog\*\*:.*$/m, '').trim()
 }
 
+function rewritePublicRepositoryLinks(body, repoUrl) {
+  if (!repoUrl) {
+    return body
+  }
+  return body.replace(
+    /https:\/\/github\.com\/[^/\s)]+\/kombify-StackKits/giu,
+    repoUrl.replace(/\/$/u, ''),
+  )
+}
+
 function getSubsectionBody(body, heading) {
   const headingExpression = new RegExp(`^### ${escapeRegExp(heading)}\\s*$`, 'm')
   const headingMatch = headingExpression.exec(body)
@@ -32,7 +42,7 @@ function extractBulletBlocks(body) {
 
   for (const line of body.split('\n')) {
     const trimmed = line.trim()
-    if (trimmed.startsWith('- ')) {
+    if (/^[-*]\s/u.test(trimmed)) {
       if (current) {
         bullets.push(current)
       }
@@ -79,7 +89,7 @@ function toReleaseNote(rawLine, index) {
 }
 
 export function parseChangelogSections(markdown) {
-  const headerExpression = /^## \[([^\]]+)\](?:\s+[-\u2014]\s+(.+))?$/gm
+  const headerExpression = /^## \[([^\]]+)\](?:\([^)]+\))?(?:\s+(?:[-\u2014]\s+(.+)|\(([^)]+)\)))?$/gm
   const matches = [...markdown.matchAll(headerExpression)]
   const sections = []
 
@@ -94,7 +104,7 @@ export function parseChangelogSections(markdown) {
     const sectionEnd = matches[index + 1]?.index ?? markdown.length
     sections.push({
       version,
-      date: match[2]?.trim() ?? '',
+      date: (match[2] ?? match[3])?.trim() ?? '',
       body: markdown.slice(sectionStart, sectionEnd).trim(),
     })
   }
@@ -136,7 +146,7 @@ export function renderReleaseNotes({ markdown, version, repoUrl, compareUrl, all
 
   const section = sections[sectionIndex]
   const previousSection = sections.slice(sectionIndex + 1).find((candidate) => candidate.version !== 'Unreleased')
-  const notes = [stripFullChangelogLink(section.body)]
+  const notes = [rewritePublicRepositoryLinks(stripFullChangelogLink(section.body), repoUrl)]
 
   if (section.version === 'Unreleased') {
     notes.unshift(`Release notes for ${version} are rendered from the current Unreleased changelog section.`)
