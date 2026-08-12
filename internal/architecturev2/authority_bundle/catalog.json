@@ -3259,13 +3259,6 @@
       },
       {
         "matches": [
-          "stackkits-cloud-offsite-backup-runtime"
-        ],
-        "module": "stackkits-cloud-core-runtime",
-        "requires": "stackkits-cloud-offsite-backup-runtime"
-      },
-      {
-        "matches": [
           "stackkits-public-tls-contract"
         ],
         "module": "stackkits-cloud-core-runtime",
@@ -5037,13 +5030,6 @@
         "capability": "host-bootstrap",
         "matches": [
           "host-bootstrap"
-        ],
-        "provider": "stackkits-cloud-core"
-      },
-      {
-        "capability": "offsite-object-backup",
-        "matches": [
-          "offsite-object-backup"
         ],
         "provider": "stackkits-cloud-core"
       },
@@ -10325,7 +10311,6 @@
         }
       ],
       "requires": [
-        "stackkits-cloud-offsite-backup-runtime",
         "stackkits-public-tls-contract"
       ],
       "rilActionPrimitives": [],
@@ -17478,10 +17463,6 @@
       "requires": [
         {
           "id": "host-bootstrap",
-          "optional": false
-        },
-        {
-          "id": "offsite-object-backup",
           "optional": false
         },
         {

@@ -10,6 +10,8 @@ _assertRemoteRouteRole:       "access" & Definition.reachability.routes["remote-
 _assertPublicRouteCapability: "public-edge" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
 _assertPublicRouteRole:       "edge" & Definition.reachability.routes.public.requiredRealizations[0].role
 _assertPhotosOptional: [for workload in Definition.workloads.optional if workload == "photos" {workload}] & ["photos"]
+_assertOffsiteBackupOptional: [for capability in Definition.capabilities.optional if capability == "offsite-object-backup" {capability}] & ["offsite-object-backup"]
+_assertOffsiteBackupNotCore: [for capability in Definition.capabilities.required if capability == "offsite-object-backup" {capability}] & []
 _assertReachabilityMatrix: Definition.reachability & {
 	accessPolicies: {allowedExposures: ["private", "public"], lanStepDownAllowed: false}
 	routes: {

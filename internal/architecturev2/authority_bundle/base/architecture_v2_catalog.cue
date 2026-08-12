@@ -1077,7 +1077,6 @@ _architectureV2Providers: list.Concat([[
 		workloadRefs: ["cloud-core"]
 		requires: [
 			{id: "host-bootstrap"},
-			{id: "offsite-object-backup"},
 			{id: "public-edge"},
 			{id: "public-tls"},
 			{id: "service-catalog"},
@@ -3167,7 +3166,7 @@ _architectureV2Modules: list.Concat([[
 		role:        "workload"
 		providerRef: "stackkits-cloud-core"
 		provides:    _architectureV2CloudCoreCapabilities
-		requires: ["stackkits-cloud-offsite-backup-runtime", "stackkits-public-tls-contract"]
+		requires: ["stackkits-public-tls-contract"]
 		supportedSiteKinds: ["cloud"]
 		nodeSelection: {
 			authority:           "control-authority-site"

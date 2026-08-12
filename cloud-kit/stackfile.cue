@@ -109,11 +109,10 @@ Definition: base.#ProductKitDefinition & {
 			"public-tls",
 			"internet-host-hardening",
 			"remote-owner-bootstrap",
-			"offsite-object-backup",
 			"cloud-control-authority",
 		]])
 		defaults: []
-		optional: ["private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
+		optional: ["private-admin-mesh", "offsite-object-backup", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
 	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault"], forbidden: []}

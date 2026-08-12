@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.16.1](https://github.com/kombifyio/stackKits/compare/v0.16.0...v0.16.1) (2026-08-12)
+
+
+### Fixed
+
+* **cloud-kit:** make offsite backup opt-in ([#633](https://github.com/kombifyio/stackKits/issues/633)) ([299be35](https://github.com/kombifyio/stackKits/commit/299be35c67269a5bd22d072f96274186147fa12f))
+
 ## [0.16.0](https://github.com/kombifyio/stackKits/compare/v0.15.9...v0.16.0) (2026-08-10)
 
 
