@@ -4,6 +4,15 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.16.7](https://github.com/kombifyio/stackKits/compare/v0.16.1...v0.16.7) (2026-08-13)
+
+
+### Fixed
+
+* **ci:** advance StackKits delivery workflow ([#640](https://github.com/kombifyio/stackKits/issues/640)) ([243f627](https://github.com/kombifyio/stackKits/commit/243f62764624a1d27d000fe38c42f005fa7453fb))
+* **ci:** reconcile StackKits development fleet ([#644](https://github.com/kombifyio/stackKits/issues/644)) ([127d9bb](https://github.com/kombifyio/stackKits/commit/127d9bb54aa8ac728b264ebf220a8ce9d387eaa4))
+* **delivery:** detach pre-1.0 publish completion ([#643](https://github.com/kombifyio/stackKits/issues/643)) ([bb4ab36](https://github.com/kombifyio/stackKits/commit/bb4ab36ca0d69276b39f3ce8e55996ccba0eac26))
+
 ## [0.16.1](https://github.com/kombifyio/stackKits/compare/v0.16.0...v0.16.1) (2026-08-12)
 
 
