@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.16.8](https://github.com/kombifyio/stackKits/compare/v0.16.7...v0.16.8) (2026-08-13)
+
+
+### Fixed
+
+* authenticate public runtime image pulls ([#646](https://github.com/kombifyio/stackKits/issues/646)) ([7e11c01](https://github.com/kombifyio/stackKits/commit/7e11c0120d49de9d1edbe3607302944f911d5990))
+
 ## [0.16.7](https://github.com/kombifyio/stackKits/compare/v0.16.1...v0.16.7) (2026-08-13)
 
 

@@ -238,6 +238,42 @@ test('public runtime failure diagnostics are explicit, sanitized, and short-live
   assert.doesNotMatch(block, /\.stackkit|custody|work_root|project_dir|home_dir/u)
 })
 
+test('public runtime authenticates GHCR pulls and never retries an unchanged preload', () => {
+  assert.match(publicRelease, /permissions:[\s\S]*?packages: read/u)
+  assert.equal(
+    [...publicRelease.matchAll(/- name: Authenticate GHCR runtime image pulls/gu)].length,
+    3,
+  )
+  assert.equal(
+    [...publicRelease.matchAll(
+      /docker login ghcr\.io --username "\$GITHUB_ACTOR" --password-stdin/gu,
+    )].length,
+    3,
+  )
+
+  for (const [job, nextJob] of [
+    ['runtime-e2e', 'stable-restore-e2e'],
+    ['stable-restore-e2e', 'modern-runtime-e2e'],
+    ['restore-proof', null],
+  ]) {
+    const start = publicRelease.indexOf(`\n  ${job}:`)
+    const end = nextJob === null
+      ? publicRelease.length
+      : publicRelease.indexOf(`\n  ${nextJob}:`, start)
+    assert.notEqual(start, -1, `missing ${job}`)
+    assert.ok(end > start, `invalid ${job} boundary`)
+    const block = publicRelease.slice(start, end)
+    before(block, 'Authenticate GHCR runtime image pulls', 'run-standalone-oss-runtime-e2e.sh')
+  }
+
+  assert.match(
+    runtimeHarness,
+    /docker pull "\$image" \|\| \{[\s\S]*?failed to preload runtime image:[\s\S]*?exit 1/u,
+  )
+  assert.doesNotMatch(runtimeHarness, /pull_attempt|retrying runtime image preload/u)
+  assert.doesNotMatch(runtimeHarness, /^\s*return 1\s*$/mu)
+})
+
 test('public release workflow can replay an exact live restore proof without changing publisher flow', () => {
   for (const fragment of [
     'mode:',

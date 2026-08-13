@@ -36,6 +36,7 @@ permissions:
   contents: write
   id-token: write
   attestations: write
+  packages: read
 
 env:
   GO_VERSION: "1.26.5"
@@ -461,6 +462,14 @@ jobs:
             echo "STACKKIT_E2E_PREVIOUS_SOURCE_DIGEST=$previous_source_digest"
           } >> "$GITHUB_ENV"
 
+      - name: Authenticate GHCR runtime image pulls
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
       - name: Admit packet capture without a privileged runtime
         shell: bash
         run: sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
@@ -701,6 +710,14 @@ jobs:
                 .sbom.sha256 == $sbomSha256
               )] | length) == 1
             ' dist/stackkits-release-index-v1.json >/dev/null
+
+      - name: Authenticate GHCR runtime image pulls
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
       - name: Admit packet capture without a privileged runtime
         shell: bash
@@ -1187,6 +1204,14 @@ jobs:
             -R "$GITHUB_REPOSITORY" \
             --bundle dist/stackkits-release-index-v1.json.intoto.jsonl \
             --custom-trusted-root dist/sigstore-trusted-root.jsonl
+
+      - name: Authenticate GHCR runtime image pulls
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
       - name: Admit packet capture without a privileged runtime
         shell: bash
