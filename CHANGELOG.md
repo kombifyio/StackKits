@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.2](https://github.com/kombifyio/stackKits/compare/v0.18.1...v0.18.2) (2026-08-14)
+
+### Fixed
+
+* **renderer:** accept canonical CUE route ordering while still rejecting duplicate public-edge and public-TLS route identities
+* **cloud-kit:** allow unrouted workload health bindings and declare the Immich model-server health command
+
 ## [0.18.1](https://github.com/kombifyio/stackKits/compare/v0.18.0...v0.18.1) (2026-08-14)
 
 ### Fixed

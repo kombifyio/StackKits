@@ -299,16 +299,18 @@ func validatePublicTLSExecutorPlanInputs(raw []byte, path string) ([]string, err
 	if !issuer.Renewal.Required || issuer.Renewal.HealthGateRef != "public-tls-renewal-contract" || issuer.Renewal.RenewBeforeSeconds != 2592000 || issuer.Renewal.RenewBeforeSeconds >= issuer.ValiditySeconds {
 		return nil, fail(ErrInvalidPlan, path+".publicTLS.issuer.renewal", "renewal policy is outside the exact catalog contract")
 	}
-	previousRoute := ""
+	// The canonical plan form orders set-semantic lists by serialized bytes,
+	// not by id, so uniqueness is the invariant that can actually be enforced.
+	seenRoutes := make(map[string]struct{}, len(tls.Routes))
 	for index, route := range tls.Routes {
 		routePath := fmt.Sprintf("%s.publicTLS.routes[%d]", path, index)
 		if err := requireContractID(route.ID, routePath+".id"); err != nil {
 			return nil, err
 		}
-		if previousRoute != "" && route.ID <= previousRoute {
-			return nil, fail(ErrDuplicate, routePath+".id", "public TLS routes must be unique and sorted")
+		if _, duplicate := seenRoutes[route.ID]; duplicate {
+			return nil, fail(ErrDuplicate, routePath+".id", "public TLS routes must be unique")
 		}
-		previousRoute = route.ID
+		seenRoutes[route.ID] = struct{}{}
 		_, hostAddressErr := netip.ParseAddr(route.Host)
 		if !validExecutorBundleHost(route.Host) || hostAddressErr == nil || route.Port < 1 || route.Port > 65535 || !strings.HasPrefix(route.Path, "/") || strings.ContainsAny(route.Path, "\r\n\x00") || route.Exposure != "public" || route.Protocol != "https" {
 			return nil, fail(ErrInvalidPlan, routePath, "route must be an exact public HTTPS hostname binding")

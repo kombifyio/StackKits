@@ -12148,7 +12148,11 @@
           {
             "dependsOn": [],
             "health": {
-              "kind": "image"
+              "command": [
+                "python3",
+                "healthcheck.py"
+              ],
+              "kind": "command"
             },
             "id": "immich-machine-learning",
             "image": {

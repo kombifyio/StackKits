@@ -2962,13 +2962,17 @@ func validateCloudPublicEdgeProjection(projection CloudPublicEdgeProjection, pla
 	for _, target := range plan.ModuleTargets {
 		targetSites[target.ID] = target.SiteRef
 	}
-	previousRouteID := ""
+	// Route order is decided by the canonical plan form, which sorts
+	// set-semantic lists by their serialized bytes rather than by id. Requiring
+	// ascending ids here would reject every plan the canonicalizer produces, so
+	// the enforced invariant is uniqueness.
+	seenRouteIDs := make(map[string]struct{}, len(projection.Routes))
 	for index, route := range projection.Routes {
 		routePath := fmt.Sprintf("%s.routes[%d]", path, index)
-		if previousRouteID != "" && route.ID <= previousRouteID {
-			return fail(ErrInvalidPlan, routePath+".id", "public-edge routes must be unique and sorted")
+		if _, duplicate := seenRouteIDs[route.ID]; duplicate {
+			return fail(ErrInvalidPlan, routePath+".id", "public-edge routes must be unique")
 		}
-		previousRouteID = route.ID
+		seenRouteIDs[route.ID] = struct{}{}
 		if route.Exposure != "public" || route.TLS.Mode != "terminate-at-edge" || !route.TLS.Required || !route.Access.DefaultClosed {
 			return fail(ErrInvalidPlan, routePath, "public-edge route must be public, default-closed, and terminate required TLS at the edge")
 		}

@@ -26,7 +26,10 @@ const (
 	standaloneComposeAdapterRef     = "standalone-compose"
 	standaloneComposeModuleRef      = "stackkits-standalone-compose-runtime"
 	standaloneComposeRoutingNetwork = "stackkit-basement-core"
-	standaloneComposeOutputMax      = 256 << 10
+	// standaloneComposeHealthNetwork carries only the entry component of an
+	// unrouted workload so its loopback health port can bind.
+	standaloneComposeHealthNetwork = "stackkit-workload-health"
+	standaloneComposeOutputMax     = 256 << 10
 )
 
 type standaloneComposeProcessRunner interface {
@@ -308,6 +311,14 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 				document.Networks["stackkit-routing"] = standaloneComposeNetwork{Name: standaloneComposeRoutingNetwork, External: true}
 				service.Networks = append(service.Networks, "stackkit-routing")
 				service.Labels = standaloneComposeRouteLabels(bundle.Route)
+			} else {
+				// Docker cannot bind a published port for a container attached
+				// only to internal networks, so the loopback health port the
+				// observation contract requires would never materialize. Give
+				// the entry component one workload-local, non-internal bridge;
+				// every other component stays internal-only.
+				document.Networks[standaloneComposeHealthNetwork] = standaloneComposeNetwork{}
+				service.Networks = append(service.Networks, standaloneComposeHealthNetwork)
 			}
 		}
 		sort.Strings(service.Networks)

@@ -3673,7 +3673,11 @@ _architectureV2Modules: list.Concat([[
 					volumes: [for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-machine-learning" {
 						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 					}]
-					health: {kind: "image"}
+					// The image's own healthcheck inherits Docker's defaults, which
+					// give this model server no start period and mark it unhealthy
+					// before it finishes loading. Running the same script as a
+					// declared command health gets the generous renderer timings.
+					health: {kind: "command", command: ["python3", "healthcheck.py"]}
 				},
 				{
 					id: "immich-postgres", role: "database", lifecycle: "daemon"
