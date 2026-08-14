@@ -186,12 +186,14 @@ func validateCloudCoreRequest(request runtimeexecutor.ExecutionRequest, binding 
 		Definition: append([]byte(nil), artifact.Content...), Services: services, Health: expectations}, nil
 }
 
+// Cloud module health contracts use container target ports; the local owner
+// probes the exact host listeners published by the Cloud Compose artifact.
 var cloudCoreHealthSpecs = []basementCoreHealthSpec{
-	{source: "cloud-coolify-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 8000, timeout: 30, statuses: []int{200, 302}},
-	{source: "cloud-hub-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/healthz", port: 80, timeout: 30, statuses: []int{200}},
-	{source: "cloud-pocketid-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 1411, timeout: 30, statuses: []int{200, 302}},
-	{source: "cloud-router-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/ping", port: 8080, timeout: 30, statuses: []int{200}},
-	{source: "cloud-tinyauth-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 4000, timeout: 30, statuses: []int{200, 302}},
+	{source: "cloud-coolify-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 8080, probePort: 8000, timeout: 30, statuses: []int{200, 302}},
+	{source: "cloud-hub-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/healthz", port: 80, probePort: 80, timeout: 30, statuses: []int{200}},
+	{source: "cloud-pocketid-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 1411, probePort: 1411, timeout: 30, statuses: []int{200, 302}},
+	{source: "cloud-router-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/ping", port: 8080, probePort: 8080, timeout: 30, statuses: []int{200}},
+	{source: "cloud-tinyauth-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 3000, probePort: 4000, timeout: 30, statuses: []int{200, 302}},
 }
 
 func exactCloudCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget, authority CloudCoreAuthority) ([]runtimeexecutor.HealthTarget, []BasementCoreHealthExpectation, error) {
@@ -220,7 +222,7 @@ func exactCloudCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeex
 		}
 		health = append(health, item)
 		expectations = append(expectations, BasementCoreHealthExpectation{RequirementID: item.RequirementID, SourceRef: item.SourceRef,
-			Kind: item.Kind, Port: spec.port, Path: spec.path, ExpectedStatuses: append([]int(nil), spec.statuses...)})
+			Kind: item.Kind, Port: spec.probePort, Path: spec.path, ExpectedStatuses: append([]int(nil), spec.statuses...)})
 	}
 	return health, expectations, nil
 }

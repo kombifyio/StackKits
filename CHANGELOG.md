@@ -4,6 +4,21 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.0](https://github.com/kombifyio/stackKits/compare/v0.17.0...v0.18.0) (2026-08-14)
+
+
+### Added
+
+* **dev:** host-native website inner loop task (dev:website) ([e38204a](https://github.com/kombifyio/stackKits/commit/e38204a033d4bfd93be2992e0ee5c5d05a979b1f))
+
+
+### Fixed
+
+* **cloud-kit:** own and materialize public TLS routes ([#652](https://github.com/kombifyio/stackKits/issues/652)) ([a5ced29](https://github.com/kombifyio/stackKits/commit/a5ced29c6f15cbba2881cadf887b3cbab368b178))
+* **lifecycle:** drop two operations the standalone registry never had (95p5) ([e239c76](https://github.com/kombifyio/stackKits/commit/e239c764776570b1f643bbd62ed502de7435fe9a))
+* **tests:** bind the host-admission test to the spec its fixture came from ([632eac5](https://github.com/kombifyio/stackKits/commit/632eac5af36ca57e28e27e54e0eca2d79d5780c8))
+* **tests:** stop assuming one home node in the Modern fixture (tnoa) ([6e021bc](https://github.com/kombifyio/stackKits/commit/6e021bcc8937a073702005723caa27fe799b57c5))
+
 ## [0.17.0](https://github.com/kombifyio/stackKits/compare/v0.16.8...v0.17.0) (2026-08-14)
 
 

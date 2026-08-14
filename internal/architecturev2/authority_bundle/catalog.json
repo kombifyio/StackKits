@@ -194,9 +194,7 @@
             "mutation": true,
             "name": "upgrade",
             "operations": [
-              "stackkit.upgrade",
-              "stackkit.advanced.change-set.apply",
-              "stackkit.drift.reconcile.advanced"
+              "stackkit.upgrade"
             ],
             "ownerApproval": true,
             "phases": [
@@ -386,9 +384,7 @@
             "mutation": true,
             "name": "upgrade",
             "operations": [
-              "stackkit.upgrade",
-              "stackkit.advanced.change-set.apply",
-              "stackkit.drift.reconcile.advanced"
+              "stackkit.upgrade"
             ],
             "ownerApproval": true,
             "phases": [
@@ -578,9 +574,7 @@
             "mutation": true,
             "name": "upgrade",
             "operations": [
-              "stackkit.upgrade",
-              "stackkit.advanced.change-set.apply",
-              "stackkit.drift.reconcile.advanced"
+              "stackkit.upgrade"
             ],
             "ownerApproval": true,
             "phases": [
@@ -10038,7 +10032,7 @@
           "kind": "http",
           "path": "/",
           "phase": "post-apply",
-          "port": 4000,
+          "port": 3000,
           "timeoutSeconds": 30
         },
         {
@@ -10050,7 +10044,7 @@
           "kind": "http",
           "path": "/",
           "phase": "post-apply",
-          "port": 8000,
+          "port": 8080,
           "timeoutSeconds": 30
         },
         {
@@ -10135,7 +10129,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:6a005bfcd0729c1afa7e4e88ebd8930842ecf165fafbb9c0b492972a1c4fc447",
+          "contractHash": "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -10177,7 +10171,7 @@
               "transport": "tcp"
             },
             {
-              "bindAddress": "0.0.0.0",
+              "bindAddress": "127.0.0.1",
               "componentRef": "router",
               "exposure": "remote-private",
               "id": "router-admin",
@@ -10298,7 +10292,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:6a005bfcd0729c1afa7e4e88ebd8930842ecf165fafbb9c0b492972a1c4fc447",
+          "contractHash": "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -10873,7 +10867,7 @@
               "transport": "tcp"
             },
             {
-              "bindAddress": "0.0.0.0",
+              "bindAddress": "127.0.0.1",
               "componentRef": "router",
               "exposure": "remote-private",
               "id": "router-admin",
@@ -11046,7 +11040,7 @@
               "transport": "tcp"
             },
             {
-              "bindAddress": "0.0.0.0",
+              "bindAddress": "127.0.0.1",
               "componentRef": "router",
               "exposure": "remote-private",
               "id": "router-admin",
@@ -11221,7 +11215,7 @@
               "transport": "tcp"
             },
             {
-              "bindAddress": "0.0.0.0",
+              "bindAddress": "127.0.0.1",
               "componentRef": "router",
               "exposure": "remote-private",
               "id": "router-admin",

@@ -10,6 +10,16 @@
   "authoring": {
     "contractVersion": "1.0.0",
     "initialSpec": {
+      "access": {
+        "cloud-public-owner": {
+          "authentication": "human+device",
+          "enrolledDeviceRequired": true,
+          "exposure": "public",
+          "lanStepDown": false,
+          "ownerStepUpRequired": false,
+          "privilege": "user"
+        }
+      },
       "apiVersion": "stackkit/v2alpha1",
       "availability": {
         "enabled": false,
@@ -113,6 +123,48 @@
         "maxStaleVerificationSeconds": 0,
         "onCloudLoss": "fail-closed",
         "onLinkLoss": "not-applicable"
+      },
+      "routes": {
+        "cloud-coolify-public": {
+          "accessPolicyRef": "cloud-public-owner",
+          "exposure": "public",
+          "host": "coolify.example.invalid",
+          "moduleRef": "stackkits-cloud-core-runtime",
+          "path": "/",
+          "port": 443,
+          "protocol": "https",
+          "serviceRef": "coolify"
+        },
+        "cloud-hub-public": {
+          "accessPolicyRef": "cloud-public-owner",
+          "exposure": "public",
+          "host": "base.example.invalid",
+          "moduleRef": "stackkits-cloud-core-runtime",
+          "path": "/",
+          "port": 443,
+          "protocol": "https",
+          "serviceRef": "base"
+        },
+        "cloud-pocketid-public": {
+          "accessPolicyRef": "cloud-public-owner",
+          "exposure": "public",
+          "host": "id.example.invalid",
+          "moduleRef": "stackkits-cloud-core-runtime",
+          "path": "/",
+          "port": 443,
+          "protocol": "https",
+          "serviceRef": "id"
+        },
+        "cloud-tinyauth-public": {
+          "accessPolicyRef": "cloud-public-owner",
+          "exposure": "public",
+          "host": "auth.example.invalid",
+          "moduleRef": "stackkits-cloud-core-runtime",
+          "path": "/",
+          "port": 443,
+          "protocol": "https",
+          "serviceRef": "auth"
+        }
       },
       "sites": [
         {

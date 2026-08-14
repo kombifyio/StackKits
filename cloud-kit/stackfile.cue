@@ -240,6 +240,61 @@ Definition: base.#ProductKitDefinition & {
 				dns: {}
 				tls: defaultMode: "public"
 			}
+			// Cloud core declares four default-closed public service routes. They
+			// are intent, not an implicit allow-all: the resolved plan binds each
+			// route to the exact Cloud core endpoint and the public-edge/TLS owners.
+			access: {
+				"cloud-public-owner": {
+					exposure:               "public"
+					privilege:              "user"
+					authentication:         "human+device"
+					enrolledDeviceRequired: true
+					ownerStepUpRequired:    false
+					lanStepDown:            false
+				}
+			}
+			routes: {
+				"cloud-hub-public": {
+					serviceRef:      "base"
+					moduleRef:       "stackkits-cloud-core-runtime"
+					exposure:        "public"
+					protocol:        "https"
+					port:            443
+					host:            "base.example.invalid"
+					path:            "/"
+					accessPolicyRef: "cloud-public-owner"
+				}
+				"cloud-pocketid-public": {
+					serviceRef:      "id"
+					moduleRef:       "stackkits-cloud-core-runtime"
+					exposure:        "public"
+					protocol:        "https"
+					port:            443
+					host:            "id.example.invalid"
+					path:            "/"
+					accessPolicyRef: "cloud-public-owner"
+				}
+				"cloud-tinyauth-public": {
+					serviceRef:      "auth"
+					moduleRef:       "stackkits-cloud-core-runtime"
+					exposure:        "public"
+					protocol:        "https"
+					port:            443
+					host:            "auth.example.invalid"
+					path:            "/"
+					accessPolicyRef: "cloud-public-owner"
+				}
+				"cloud-coolify-public": {
+					serviceRef:      "coolify"
+					moduleRef:       "stackkits-cloud-core-runtime"
+					exposure:        "public"
+					protocol:        "https"
+					port:            443
+					host:            "coolify.example.invalid"
+					path:            "/"
+					accessPolicyRef: "cloud-public-owner"
+				}
+			}
 			sites: [{
 				id:            "cloud"
 				kind:          "cloud"

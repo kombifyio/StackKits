@@ -385,6 +385,13 @@ func materializeInitialStackSpec(
 		if err := setNestedString(spec, overrides.DomainBase, "network", "domain", "base"); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "apply network.domain.base override: "+err.Error(), err)
 		}
+		if profile == stackspecmigration.KitProfileCloud {
+			if _, declared := spec["routes"]; declared {
+				if err := projectCloudInitialPublicRouteHosts(spec, overrides.DomainBase); err != nil {
+					return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "project Cloud initial public route hosts: "+err.Error(), err)
+				}
+			}
+		}
 		if profile == stackspecmigration.KitProfileModern {
 			if err := projectModernInitialPublicationHost(spec, overrides.DomainBase); err != nil {
 				return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "project Modern initial publication host: "+err.Error(), err)
@@ -447,6 +454,33 @@ func materializeInitialStackSpec(
 		return StackSpecValidation{}, resolveError(ErrResolveFailed, "StackSpec validator returned incomplete canonical evidence", nil)
 	}
 	return validation, nil
+}
+
+// projectCloudInitialPublicRouteHosts keeps the CUE-owned default service
+// routes bound to the operator-selected domain. Initial authoring starts from
+// a concrete Definition projection, so CUE cannot re-evaluate a route host
+// after the narrow domain override is applied here.
+func projectCloudInitialPublicRouteHosts(spec map[string]any, domainBase string) error {
+	routes, ok := spec["routes"].(map[string]any)
+	if !ok || len(routes) == 0 {
+		return fmt.Errorf("routes are not an object with a declared Cloud service route")
+	}
+	for routeID, rawRoute := range routes {
+		route, ok := rawRoute.(map[string]any)
+		if !ok || route == nil {
+			return fmt.Errorf("routes.%s is not an object", routeID)
+		}
+		exposure, _ := route["exposure"].(string)
+		if exposure != "public" {
+			continue
+		}
+		serviceRef, ok := route["serviceRef"].(string)
+		if !ok || strings.TrimSpace(serviceRef) == "" {
+			return fmt.Errorf("routes.%s has no serviceRef", routeID)
+		}
+		route["host"] = serviceRef + "." + strings.TrimSpace(domainBase)
+	}
+	return nil
 }
 
 func projectModernInitialPublicationHost(spec map[string]any, domainBase string) error {

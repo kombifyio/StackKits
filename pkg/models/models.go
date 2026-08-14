@@ -6,10 +6,13 @@ import (
 	"time"
 )
 
-// StackKitMetadata represents the metadata section of a stackkit.yaml
+// StackKitMetadata represents the metadata section of a stackkit.yaml.
+//
+// apiVersion and kind are document identity, not metadata: every kit file
+// declares them at the document root. They lived here until 2026-08-14 and
+// therefore never loaded at all, so every kit's declared schema silently read
+// as the empty string. internal/kitio always had them in the right place.
 type StackKitMetadata struct {
-	APIVersion  string   `yaml:"apiVersion" json:"apiVersion"`
-	Kind        string   `yaml:"kind" json:"kind"`
 	Name        string   `yaml:"name" json:"name"`
 	Version     string   `yaml:"version" json:"version"`
 	DisplayName string   `yaml:"displayName" json:"displayName"`
@@ -23,6 +26,8 @@ type StackKitMetadata struct {
 
 // StackKit represents a complete stackkit.yaml file
 type StackKit struct {
+	APIVersion   string                    `yaml:"apiVersion,omitempty" json:"apiVersion,omitempty"`
+	Kind         string                    `yaml:"kind,omitempty" json:"kind,omitempty"`
 	Metadata     StackKitMetadata          `yaml:"metadata" json:"metadata"`
 	SupportedOS  []string                  `yaml:"supportedOS" json:"supportedOS"`
 	Requirements Requirements              `yaml:"requirements" json:"requirements"`

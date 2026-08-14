@@ -279,6 +279,13 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductCloudPublicEdgeRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			operations, err := runtimeexecutorlocal.NewOSPublicTLSOperations(workspaceRoot)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.NewProductPublicTLSRegistration(runtimeVersion, operations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			operations, err := runtimeexecutorlocal.NewOSCloudIdentityTrustPolicyOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
@@ -339,9 +346,11 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		return nil, err
 	}
 	if active {
+		// Public TLS is a StackKits-owned edge operation. Keep it out of the
+		// remote static set so an Inventory-backed hybrid channel cannot route
+		// certificate verification through an unbound Techstack adapter.
 		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(
 			architecturev2.ProductRuntimeOwnerCloudOffsiteBackup,
-			architecturev2.ProductRuntimeOwnerPublicTLS,
 			architecturev2.ProductRuntimeOwnerModernHomeIdentity,
 			architecturev2.ProductRuntimeOwnerModernCloudIdentity,
 			architecturev2.ProductRuntimeOwnerFederationLink,

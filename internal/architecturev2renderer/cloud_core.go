@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:2|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:3|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-tls-alpn|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -52,7 +52,10 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-    ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "0.0.0.0:8080:8080"]
+      - --certificatesresolvers.stackkits.acme.tlschallenge=true
+      - --certificatesresolvers.stackkits.acme.storage=/letsencrypt/acme.json
+    volumes: [public-tls-acme:/letsencrypt]
+    ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "127.0.0.1:8080:8080"]
     healthcheck: {test: ["CMD", "traefik", "healthcheck", "--ping"], interval: 5s, timeout: 3s, retries: 12, start_period: 5s}
     networks: [cloud-core, cloud-control]
   pocketid:
@@ -65,6 +68,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.pocketid.rule=Host(` + "`id.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.pocketid.entrypoints=websecure
+      - traefik.http.routers.pocketid.tls=true
+      - traefik.http.routers.pocketid.tls.certresolver=stackkits
       - traefik.http.services.pocketid.loadbalancer.server.port=1411
     networks: [cloud-core]
   tinyauth:
@@ -78,6 +84,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.tinyauth.rule=Host(` + "`auth.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.tinyauth.entrypoints=websecure
+      - traefik.http.routers.tinyauth.tls=true
+      - traefik.http.routers.tinyauth.tls.certresolver=stackkits
       - traefik.http.services.tinyauth.loadbalancer.server.port=3000
     networks: [cloud-core]
   coolify-postgres:
@@ -123,6 +132,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.coolify.rule=Host(` + "`coolify.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.coolify.entrypoints=websecure
+      - traefik.http.routers.coolify.tls=true
+      - traefik.http.routers.coolify.tls.certresolver=stackkits
       - traefik.http.services.coolify.loadbalancer.server.port=8080
     networks: [cloud-core, cloud-control]
   hub:
@@ -139,6 +151,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.hub.rule=Host(` + "`base.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.hub.entrypoints=websecure
+      - traefik.http.routers.hub.tls=true
+      - traefik.http.routers.hub.tls.certresolver=stackkits
       - traefik.http.services.hub.loadbalancer.server.port=80
     healthcheck: {test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep '\"status\":\"ok\"'"], interval: 5s, timeout: 2s, retries: 12, start_period: 5s}
     networks: [cloud-core]
@@ -156,6 +171,7 @@ volumes:
   coolify-backups: {}
   coolify-postgres-data: {}
   coolify-redis-data: {}
+  public-tls-acme: {}
 `
 
 type cloudCoreRenderer struct{ contract RendererContract }

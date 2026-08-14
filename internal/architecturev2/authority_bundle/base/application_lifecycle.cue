@@ -43,7 +43,13 @@ import "list"
 		}
 		upgrade: {
 			name: "upgrade"
-			operations: ["stackkit.upgrade", "stackkit.advanced.change-set.apply", "stackkit.drift.reconcile.advanced"]
+			// Only registry operations. #554 also listed
+			// stackkit.advanced.change-set.apply and
+			// stackkit.drift.reconcile.advanced, which the standalone operation
+			// registry has never declared — they are Advanced-mode commands
+			// behind a capability gate, and this is the standalone lifecycle
+			// whose sole implementation is that registry.
+			operations: ["stackkit.upgrade"]
 			phases: ["preflight", "snapshot", "update", "migrate", "verify", "rollback"]
 			surfaces: ["cli", "mcp", "state-console"]
 			evidence: *["snapshot-anchor", "upgrade-result", "owner-observation"] | ([...("snapshot-anchor" | "upgrade-result" | "owner-observation")] & list.MinItems(3) & list.MaxItems(3))

@@ -19,6 +19,21 @@ const focusedTestBatchSize = 8
 
 const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
 
+const (
+	kitInventoryParityTest   = "TestProductKitsMatchesCUEDerivedAuthorityProfiles"
+	authorityBundleDriftTest = "TestEmbeddedAuthorityBundleHasNoSourceOrProjectionDrift"
+)
+
+// kitRoots are the directories whose contents define a product kit.
+var kitRoots = []string{"basement-kit/", "cloud-kit/", "modern-homelab/"}
+
+// architectureAuthoritySources covers every input the embedded authority bundle
+// declares in its own manifest sourceHashes. Keying on the "base/architecture_v2"
+// name prefix missed base/application_lifecycle.cue, which is a bundle source
+// too: changing it left the bundle and the canonical plan fixtures stale while
+// the plan ran neither drift check.
+var architectureAuthoritySources = []string{"base/", "cue.mod/"}
+
 var coreCUERoots = []string{
 	"./base/...",
 	"./basement-kit/...",
@@ -416,7 +431,7 @@ func buildPlan(input plannerInput) testPlan {
 	// because nothing selected that package. A narrower rule that named only
 	// architecture_v2_catalog.cue, and only one focused test inside it, was
 	// what let them through.
-	if anyPathUnder(files, "base/architecture_v2") {
+	if anyPathUnder(files, architectureAuthoritySources...) {
 		for _, pkg := range []string{"internal/architecturev2", "internal/architecturev2renderer"} {
 			pattern := "./" + pkg
 			goSelection.Changed = sortedUnique(append(goSelection.Changed, pattern))
@@ -425,6 +440,36 @@ func buildPlan(input plannerInput) testPlan {
 			// Editing a test in the same commit must not narrow the run back to
 			// that test: the CUE change's blast radius is the whole package.
 			delete(focusedTests, pkg)
+		}
+	}
+	// A kit root holds the three documents that define what a kit IS: its
+	// KitDefinition (stackfile.cue), its exported metadata (stackkit.yaml) and
+	// its reality grading (mode_matrix.cue). Every parity test guarding them
+	// lives elsewhere, so without this rule a kit change ran `cue vet` at best
+	// and hygiene alone for the YAML — which is how cloud-kit once shipped a
+	// byte copy of basement-kit's manifest.
+	//
+	// internal/cue is cheap and holds all of the kit metadata, mode-matrix and
+	// document-identity parity tests, so it runs in full. internal/architecturev2
+	// is the expensive package, so only the two assertions a kit change can
+	// actually break are selected: the CUE-derived kit inventory parity and the
+	// embedded authority bundle drift check, whose own mise task runs in no
+	// workflow.
+	if anyPathUnder(files, kitRoots...) {
+		const cuePattern = "./internal/cue"
+		goSelection.Changed = sortedUnique(append(goSelection.Changed, cuePattern))
+		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, cuePattern)
+		goSelection.Reverse = withoutString(goSelection.Reverse, cuePattern)
+		delete(focusedTests, "internal/cue")
+
+		if !slicesContain(goSelection.Changed, "./internal/architecturev2") {
+			goSelection.Changed = sortedUnique(append(goSelection.Changed, "./internal/architecturev2"))
+			goSelection.CompileOnly = withoutString(goSelection.CompileOnly, "./internal/architecturev2")
+			goSelection.Reverse = withoutString(goSelection.Reverse, "./internal/architecturev2")
+			focusedTests["internal/architecturev2"] = sortedUnique(append(
+				focusedTests["internal/architecturev2"],
+				kitInventoryParityTest, authorityBundleDriftTest,
+			))
 		}
 	}
 	// Per-kit templates are generated copies of base/templates. Editing either

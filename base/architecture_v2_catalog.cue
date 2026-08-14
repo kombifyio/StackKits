@@ -2087,7 +2087,7 @@ _cloudCoreServiceEndpoints: [
 _cloudCoreRuntimeListeners: [
 	{id: "web-http", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 80, targetPort: 80, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
 	{id: "web-https", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 443, targetPort: 443, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
-	{id: "router-admin", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 8080, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "router-admin", componentRef: "router", transport: "tcp", bindAddress: "127.0.0.1", port: 8080, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "pocketid-direct", componentRef: "pocketid", transport: "tcp", bindAddress: "0.0.0.0", port: 1411, targetPort: 1411, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "tinyauth-direct", componentRef: "tinyauth", transport: "tcp", bindAddress: "0.0.0.0", port: 4000, targetPort: 3000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "coolify-direct", componentRef: "coolify", transport: "tcp", bindAddress: "0.0.0.0", port: 8000, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
@@ -3254,7 +3254,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:6a005bfcd0729c1afa7e4e88ebd8930842ecf165fafbb9c0b492972a1c4fc447"
+			contractHash: "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3263,7 +3263,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:6a005bfcd0729c1afa7e4e88ebd8930842ecf165fafbb9c0b492972a1c4fc447"
+			contractHash: "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
@@ -3285,8 +3285,8 @@ _architectureV2Modules: list.Concat([[
 		health: [
 			{id: "cloud-router-http", kind: "http", path: "/ping", port: 8080, expectedStatuses: [200]},
 			{id: "cloud-pocketid-http", kind: "http", path: "/", port: 1411, expectedStatuses: [200, 302]},
-			{id: "cloud-tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
-			{id: "cloud-coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
+			{id: "cloud-tinyauth-http", kind: "http", path: "/", port: 3000, expectedStatuses: [200, 302]},
+			{id: "cloud-coolify-http", kind: "http", path: "/", port: 8080, expectedStatuses: [200, 302]},
 			{id: "cloud-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
 		]
 		evidence: ["cloud-core-runtime-evidence"]

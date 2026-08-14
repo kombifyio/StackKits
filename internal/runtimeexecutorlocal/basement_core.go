@@ -278,7 +278,7 @@ func exactBasementCoreArtifact(artifacts []runtimeexecutor.Artifact, target runt
 
 type basementCoreHealthSpec struct {
 	source, kind, targetKind, targetRef, path string
-	port, timeout                             int
+	port, probePort, timeout                  int
 	statuses                                  []int
 }
 
