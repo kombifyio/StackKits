@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/productkits"
 )
 
 var sha256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -47,10 +49,8 @@ func (index Index) Validate() error {
 }
 
 func (asset Asset) validate(release parsedVersion) error {
-	switch asset.Kit {
-	case "basement-kit", "cloud-kit", "modern-homelab":
-	default:
-		return fmt.Errorf("kit %q is unsupported", asset.Kit)
+	if err := productkits.Validate(asset.Kit); err != nil {
+		return err
 	}
 	if asset.Version != release.original {
 		return fmt.Errorf("version %q does not equal release version %q", asset.Version, release.original)

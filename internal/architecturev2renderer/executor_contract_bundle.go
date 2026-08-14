@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
@@ -112,7 +113,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: coreRuntimeModuleID, moduleVersion: coreRuntimeModuleVersion,
 		templateRef: coreRuntimeTemplateRef, outputRef: coreRuntimeOutputRef,
 		planInputRefs: []string{"controlPlane", "data", "failurePolicy", "hostRuntimePolicy", "identity", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
-		allowedKits:   []string{"basement-kit", "cloud-kit", "modern-homelab"},
+		allowedKits:   productkits.Slugs(),
 		allowedCapabilities: []string{
 			"backup-core", "lifecycle-update", "observability-evidence", "secrets-recovery",
 		},
@@ -125,7 +126,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: localRuntimeModuleID, moduleVersion: localRuntimeModuleVersion,
 		templateRef: localRuntimeTemplateRef, outputRef: localRuntimeOutputRef,
 		planInputRefs: []string{"controlPlane", "data", "failurePolicy", "kit", "localNetworkPolicy", "localReachability", "moduleCapabilities", "moduleTargets", "sites", "stackId", "storagePolicy"},
-		allowedKits:   []string{"basement-kit", "modern-homelab"}, siteKind: "home",
+		allowedKits:   []string{productkits.Basement, productkits.Modern}, siteKind: "home",
 		allowedCapabilities: []string{
 			"encrypted-offsite-backup", "lan-dns",
 			"private-remote-access", "public-publish-egress",
@@ -137,7 +138,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: cloudPrivateAdminMeshModuleID, moduleVersion: cloudPrivateAdminMeshModuleVersion,
 		templateRef: cloudPrivateAdminMeshTemplateRef, outputRef: cloudPrivateAdminMeshOutputRef,
 		planInputRefs: []string{"cloudAdminMesh", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
-		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
+		allowedKits:   []string{productkits.Cloud, productkits.Modern}, siteKind: "cloud",
 		allowedCapabilities:  []string{"private-admin-mesh"},
 		requiredCapabilities: []string{"private-admin-mesh"},
 		decodePlan:           decodeCloudRuntimeExecutorPlan,
@@ -146,7 +147,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: basementComposeRuntimeModuleID, moduleVersion: basementComposeRuntimeModuleVersion,
 		templateRef: basementComposeRuntimeTemplateRef, outputRef: basementComposeRuntimeOutputRef,
 		planInputRefs: []string{"controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
-		allowedKits:   []string{"basement-kit"}, siteKind: "home",
+		allowedKits:   []string{productkits.Basement}, siteKind: "home",
 		allowedCapabilities:  []string{"basement-compose-runtime"},
 		requiredCapabilities: []string{"basement-compose-runtime"},
 		decodePlan:           decodeBasementComposeExecutorPlan,
@@ -164,7 +165,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: cloudHostSecurityModuleID, moduleVersion: cloudHostSecurityModuleVersion,
 		templateRef: cloudHostSecurityTemplateRef, outputRef: cloudHostSecurityOutputRef,
 		planInputRefs: []string{"controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
-		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
+		allowedKits:   []string{productkits.Cloud, productkits.Modern}, siteKind: "cloud",
 		allowedCapabilities:  []string{"host-local-internet-firewall", "internet-host-hardening"},
 		requiredCapabilities: []string{"host-local-internet-firewall", "internet-host-hardening"},
 		decodePlan:           decodeCloudRuntimeExecutorPlan,
@@ -174,7 +175,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		templateRef: cloudPublicEdgeTemplateRef, outputRef: cloudPublicEdgeOutputRef,
 		contractJSON:  cloudPublicEdgeExecutorContract,
 		planInputRefs: []string{"controlPlane", "kit", "moduleCapabilities", "moduleTargets", "publicEdge", "sites", "stackId"},
-		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
+		allowedKits:   []string{productkits.Cloud, productkits.Modern}, siteKind: "cloud",
 		allowedCapabilities:  []string{"public-edge"},
 		requiredCapabilities: []string{"public-edge"},
 		decodePlan:           decodeCloudRuntimeExecutorPlan,
@@ -184,7 +185,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		templateRef: cloudOffsiteBackupTemplateRef, outputRef: cloudOffsiteBackupOutputRef,
 		contractJSON:  cloudOffsiteBackupExecutorContract,
 		planInputRefs: []string{"cloudOffsiteBackup", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
-		allowedKits:   []string{"cloud-kit", "modern-homelab"}, siteKind: "cloud",
+		allowedKits:   []string{productkits.Cloud, productkits.Modern}, siteKind: "cloud",
 		allowedCapabilities:  []string{"offsite-object-backup"},
 		requiredCapabilities: []string{"offsite-object-backup"},
 		decodePlan:           decodeCloudRuntimeExecutorPlan,
@@ -229,7 +230,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: homePrivateRemoteAccessModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
 		templateRef: homePrivateRemoteAccessTemplateRef, outputRef: homePrivateRemoteAccessOutputRef,
 		planInputRefs: []string{"controlPlane", "homeAccessHandoff", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
-		allowedKits:   []string{"basement-kit", "modern-homelab"}, siteKind: "home",
+		allowedKits:   []string{productkits.Basement, productkits.Modern}, siteKind: "home",
 		allowedCapabilities: []string{"private-remote-access"}, requiredCapabilities: []string{"private-remote-access"},
 		decodePlan: decodeHomeAccessExecutorPlan,
 	},
@@ -237,7 +238,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: homePublicPublishEgressModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
 		templateRef: homePublicPublishEgressTemplateRef, outputRef: homePublicPublishEgressOutputRef,
 		planInputRefs: []string{"controlPlane", "homeAccessHandoff", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
-		allowedKits:   []string{"basement-kit"}, siteKind: "home",
+		allowedKits:   []string{productkits.Basement}, siteKind: "home",
 		allowedCapabilities: []string{"public-publish-egress"}, requiredCapabilities: []string{"public-publish-egress"},
 		decodePlan: decodeHomeAccessExecutorPlan,
 	},
@@ -245,7 +246,7 @@ var executorContractBundleSpecs = []executorContractBundleSpec{
 		moduleID: homeEncryptedOffsiteBackupModuleID, moduleVersion: homeExtensionRuntimeModuleVersion,
 		templateRef: homeEncryptedOffsiteBackupTemplateRef, outputRef: homeEncryptedOffsiteBackupOutputRef,
 		planInputRefs: []string{"controlPlane", "homeOffsiteBackup", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"},
-		allowedKits:   []string{"basement-kit"}, siteKind: "home",
+		allowedKits:   []string{productkits.Basement}, siteKind: "home",
 		allowedCapabilities: []string{"encrypted-offsite-backup"}, requiredCapabilities: []string{"encrypted-offsite-backup"},
 		decodePlan: decodeLocalRuntimeExecutorPlan,
 	},

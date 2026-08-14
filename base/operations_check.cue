@@ -1,11 +1,11 @@
 package base
 
-_validPulumiOperation: #OperationSpec & {
+_validStatefulOperation: #OperationSpec & {
 	name:     "cloudflare-access-policy"
 	phase:    "post_apply"
-	executor: "pulumi"
+	executor: "go"
 	stateful: true
-	owner:    "pulumi"
+	owner:    "external"
 	provider: "cloudflare"
 	inputs: zone_id: ref: "tofu.outputs.cloudflare_zone_id"
 	secret_refs: ["secret://cloudflare/api-token"]

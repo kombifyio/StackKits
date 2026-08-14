@@ -301,7 +301,6 @@
       "module-fragments"
     ],
     "allowedTargets": [
-      "opentofu",
       "compose"
     ],
     "contractVersion": "1.0.0",

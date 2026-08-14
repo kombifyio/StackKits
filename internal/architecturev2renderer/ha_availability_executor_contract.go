@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/productkits"
 )
 
 const (
@@ -147,7 +149,7 @@ func validateHAAvailabilityPlan(plan haAvailabilityPlan, moduleID, siteRef, node
 	if err := requireContractID(plan.StackID, path+".stackId"); err != nil {
 		return err
 	}
-	if !containsExecutorBundleString([]string{"basement-kit", "cloud-kit", "modern-homelab"}, plan.Kit.Slug) || strings.TrimSpace(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
+	if !productkits.IsActive(plan.Kit.Slug) || strings.TrimSpace(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
 		return fail(ErrInvalidPlan, path+".kit", "requires exact governed Kit identity")
 	}
 	p := plan.Availability.Policy

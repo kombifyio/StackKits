@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/productkits"
 )
 
 const planSchema = "kombify.stackkits/affected-test-plan/v1"
@@ -15,7 +17,7 @@ const planSchema = "kombify.stackkits/affected-test-plan/v1"
 // package's focused tests run.
 const focusedTestBatchSize = 8
 
-const basementCatalogRendererTest = "TestProductBasementCoreFactoryAdmitsGeneratedStandardTarget"
+const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
 
 var coreCUERoots = []string{
 	"./base/...",
@@ -403,14 +405,40 @@ func buildPlan(input plannerInput) testPlan {
 		goSelection.Reverse = sortedUnique(goSelection.Reverse)
 	}
 	focusedTests := focusedGoTests(files, input.ChangedTests)
-	if slicesContain(files, "base/architecture_v2_catalog.cue") {
-		const rendererPattern = "./internal/architecturev2"
-		goSelection.Changed = sortedUnique(append(goSelection.Changed, rendererPattern))
-		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, rendererPattern)
-		goSelection.Reverse = withoutString(goSelection.Reverse, rendererPattern)
-		focusedTests["internal/architecturev2"] = sortedUnique(append(
-			focusedTests["internal/architecturev2"],
-			basementCatalogRendererTest,
+	// The Architecture v2 CUE files are contracts that only become observable
+	// once the compiler turns them into a resolved plan. `cue vet` proves the
+	// CUE is internally consistent and says nothing about the plan it produces,
+	// so a change here must run the packages that compile and render it.
+	//
+	// This is not hypothetical: #486, #561, #562 and #570 each changed module
+	// placement, evidence, or execution kind in these files, and seven
+	// plan-shape assertions in internal/architecturev2 went red and stayed red
+	// because nothing selected that package. A narrower rule that named only
+	// architecture_v2_catalog.cue, and only one focused test inside it, was
+	// what let them through.
+	if anyPathUnder(files, "base/architecture_v2") {
+		for _, pkg := range []string{"internal/architecturev2", "internal/architecturev2renderer"} {
+			pattern := "./" + pkg
+			goSelection.Changed = sortedUnique(append(goSelection.Changed, pattern))
+			goSelection.CompileOnly = withoutString(goSelection.CompileOnly, pattern)
+			goSelection.Reverse = withoutString(goSelection.Reverse, pattern)
+			// Editing a test in the same commit must not narrow the run back to
+			// that test: the CUE change's blast radius is the whole package.
+			delete(focusedTests, pkg)
+		}
+	}
+	// Per-kit templates are generated copies of base/templates. Editing either
+	// side is the only way they can diverge, and nothing else in the plan would
+	// notice: template files are not Go and not CUE, so they would otherwise
+	// classify as unknown and receive hygiene checks only.
+	if anyPathUnder(files, "base/templates/", "basement-kit/templates/", "cloud-kit/templates/") {
+		const templatesPattern = "./internal/kittemplates"
+		goSelection.Changed = sortedUnique(append(goSelection.Changed, templatesPattern))
+		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, templatesPattern)
+		goSelection.Reverse = withoutString(goSelection.Reverse, templatesPattern)
+		focusedTests["internal/kittemplates"] = sortedUnique(append(
+			focusedTests["internal/kittemplates"],
+			perKitTemplateParityTest,
 		))
 	}
 	goPatterns := sortedUnique(append(append(append([]string(nil), goSelection.Changed...), goSelection.CompileOnly...), goSelection.Reverse...))
@@ -541,6 +569,19 @@ func slicesContain(values []string, want string) bool {
 	return index < len(values) && values[index] == want
 }
 
+// anyPathUnder reports whether any changed file lives under one of the given
+// directory prefixes. Paths are repository-relative and slash-separated.
+func anyPathUnder(files []string, prefixes ...string) bool {
+	for _, file := range files {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(file, prefix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func withoutString(values []string, unwanted string) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
@@ -628,7 +669,7 @@ func classifyFiles(files []string) classification {
 			case "base", "cue.mod", "schemas", "architecture", "addons", "platforms":
 				result.CUEShared = true
 				known = true
-			case "basement-kit", "cloud-kit", "modern-homelab":
+			case productkits.Basement, productkits.Cloud, productkits.Modern:
 				kits[top] = struct{}{}
 				known = true
 			case "modules":

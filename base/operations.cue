@@ -3,9 +3,13 @@ package base
 
 #OperationPhase: "post_apply" | "reconcile" | "upgrade" | "pre_destroy"
 
-#OperationExecutor: "go" | "pulumi"
+// Only executors StackKits actually implements may be named here. A contract
+// term with no implementation is a promise the product cannot keep, and this
+// one is public vocabulary: the Pulumi executor and resource owner were removed
+// with ADR-0019's supersession.
+#OperationExecutor: "go"
 
-#ResourceOwner: "opentofu" | "stackkit-runtime" | "pulumi" | "external"
+#ResourceOwner: "opentofu" | "stackkit-runtime" | "external"
 
 #ApprovalMode: "implicit" | "required" | "denied"
 
@@ -43,11 +47,6 @@ package base
 	}
 	if !stateful {
 		state_scope?: _|_
-	}
-	if executor == "pulumi" {
-		stateful: true
-		owner:    "pulumi"
-		provider: !~"(?i)^command$"
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/productkits"
 )
 
 const (
@@ -185,7 +187,7 @@ func validateCoreHostBootstrapUnit(unit RenderUnit, contract RendererContract) (
 	if inputs.Kit.Version == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputs.kit", "requires an exact governed kit identity")
 	}
-	if inputs.Kit.Slug != "basement-kit" && inputs.Kit.Slug != "cloud-kit" && inputs.Kit.Slug != "modern-homelab" {
+	if !productkits.IsActive(inputs.Kit.Slug) {
 		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputs.kit.slug", "kit is outside the Core host-bootstrap contract")
 	}
 	if len(inputs.ModuleCapabilities) != 1 || inputs.ModuleCapabilities[0].ID != "host-bootstrap" || !validSHA256(inputs.ModuleCapabilities[0].ContractHash) {

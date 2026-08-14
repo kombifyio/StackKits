@@ -201,7 +201,7 @@ domain: home.localhost
 - **TLS:** HTTP in local-only mode. Use a public/custom domain for real certificates.
 - **DNS:** Browser/OS `.localhost` handling resolves names to loopback.
 
-> Hinweis: „local-only" hier = informeller Deployment-Kontext (kein Domain / pi). Die CUE-Achse `placementMode: "local-only"` (eigene Semantik: exposure=private, coupling=cloudless) ist davon verschieden — siehe `docs/placement/`.
+> Note: "local-only" here means the informal deployment context (no domain, no pi). The CUE axis `placementMode: "local-only"` carries its own semantics (exposure=private, coupling=cloudless) and is a different thing — see `docs/placement/`.
 - **Requires:** no hosts-file edits, no router/client DNS setup, no trust-store setup, and no port suffixes in generated user links.
 
 ### Mode 4: Explicit Named Local DNS

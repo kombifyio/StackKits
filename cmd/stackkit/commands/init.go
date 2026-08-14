@@ -26,10 +26,14 @@ var (
 	initForce            bool
 	initExpectedSpecHash string
 	initNonInteractive   bool
-	initAdminEmail       string
-	initLocalDNS         bool
-	initLocalName        string
-	initServiceProfile   string
+	// Native v2 authoring overrides (validated by the CUE authority).
+	initPlatform           string
+	initEnableCapabilities []string
+	initUseCases           []string
+	initAdminEmail         string
+	initLocalDNS           bool
+	initLocalName          string
+	initServiceProfile     string
 
 	// Phase 1 owner-breakglass provisioning flags. Wired into init.go's
 	// flag block; consumed by resolveOwnerBootstrapConfig in init_owner.go
@@ -91,6 +95,9 @@ func init() {
 	initCmd.Flags().StringVarP(&initOutputDir, "output", "o", "deploy", "v0.6 compatibility only: output directory for generated files")
 	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "v0.6 compatibility only: overwrite existing files")
 	initCmd.Flags().StringVar(&initExpectedSpecHash, "expected-spec-hash", "", "Native v2 only: exact current CUE-normalized spec hash required for replacement")
+	initCmd.Flags().StringVar(&initPlatform, "platform", "", "Native v2 only: selected-provider platform adapter (install.platform.providerRef, e.g. coolify or komodo)")
+	initCmd.Flags().StringSliceVar(&initUseCases, "use-case", nil, "Native v2 only: optional kit workloads to enable with their governed default alternative (e.g. photos,files,vault)")
+	initCmd.Flags().StringSliceVar(&initEnableCapabilities, "enable", nil, "Native v2 only: optional kit capabilities to enable (capabilities.enable, e.g. lan-dns,internal-pki)")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (fail if input is required)")
 	initCmd.Flags().StringVar(&initAdminEmail, "admin-email", "", "v0.6 compatibility only: admin email for login accounts")
 	initCmd.Flags().StringVar(&initServiceProfile, "service-profile", "", "v0.6 compatibility only: BaseKit service profile")

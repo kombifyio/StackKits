@@ -4,6 +4,25 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.17.0](https://github.com/kombifyio/stackKits/compare/v0.16.8...v0.17.0) (2026-08-14)
+
+
+### Added
+
+* **installer,cli:** SUDO_USER-safe kit install; v2 init --use-case/--platform/--enable (nzws.6, nzws.7) ([676117e](https://github.com/kombifyio/stackKits/commit/676117e185ee746482254c321447dde0d7aa1fbe))
+* **installer:** full guided installation to a running homelab (3 modes) (nzws.8, nzws.9, nzws.10) ([66ae2a3](https://github.com/kombifyio/stackKits/commit/66ae2a33886a2fd9b5992aa598c1cbf2cf1faa38))
+
+
+### Fixed
+
+* **api:** restore Architecture v2 OpenAPI projection parity (isv1) ([68df223](https://github.com/kombifyio/stackKits/commit/68df223821b1801e5d53792beff091df41045d6c))
+* **apply:** bind mutation to expected plan hash ([#650](https://github.com/kombifyio/stackKits/issues/650)) ([8706c91](https://github.com/kombifyio/stackKits/commit/8706c91488ca4e519260f39171d803e389f3781d))
+* **architecture:** align Cloud targets with realized renderer ([#648](https://github.com/kombifyio/stackKits/issues/648)) ([1372c5b](https://github.com/kombifyio/stackKits/commit/1372c5b59c6175dea59eb4be347f18d3c5889543))
+* **installer:** bootstrap Docker and storage roots directly; truthful native-v2 credentials (nzws.11, nzws.12) ([4c451e2](https://github.com/kombifyio/stackKits/commit/4c451e25644f41a46c2df9370b1ab429b4cec01e))
+* **kits:** give cloud-kit a real Cloud identity; enforce YAML/CUE metadata parity (nzws.1, nzws.2) ([3eda25c](https://github.com/kombifyio/stackKits/commit/3eda25cccc7d3f5570fd8aece4dfb8f50a865047))
+* **public-surface:** English-only export surface with an enforcing gate (nzws.3, nzws.4) ([0bfae18](https://github.com/kombifyio/stackKits/commit/0bfae18dcf5b7fc87c8ed8d19363d59c82bd0975))
+* **tests:** unrot the plan-shape assertions and run them on CUE changes (dbvm) ([43885be](https://github.com/kombifyio/stackKits/commit/43885beef6c46d45aad201719da7f625ea288d94))
+
 ## [0.16.8](https://github.com/kombifyio/stackKits/compare/v0.16.7...v0.16.8) (2026-08-13)
 
 

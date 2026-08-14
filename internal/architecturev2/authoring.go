@@ -2,6 +2,7 @@ package architecturev2
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
@@ -21,6 +22,19 @@ const (
 type AuthoringOverrides struct {
 	Name       string
 	DomainBase string
+	// Platform selects the workload runtime adapter (e.g. coolify, komodo,
+	// standalone-compose) for every workload chosen via UseCases. It is
+	// validated against each selected alternative's runtime.allowedAdapterRefs
+	// and requires at least one use case.
+	Platform string
+	// EnableCapabilities is appended to capabilities.enable (optional
+	// capability IDs declared by the kit, e.g. lan-dns). The resolver
+	// rejects capabilities the kit does not declare.
+	EnableCapabilities []string
+	// UseCases selects optional kit workloads by ID (e.g. photos, files,
+	// vault). Each ID must be declared by the kit's workload policy; the
+	// governed catalog supplies the default alternative.
+	UseCases []string
 }
 
 // InitialStackSpecAuthoring exposes only the workflow metadata a CLI or UI
@@ -63,7 +77,166 @@ func (s *Service) MaterializeInitialStackSpec(profile stackspecmigration.KitProf
 	if !exists {
 		return StackSpecValidation{}, resolveError(ErrAuthorityLoad, fmt.Sprintf("no governed Definition exists for %q", profile), nil)
 	}
-	return materializeInitialStackSpec(profile, definition, overrides, s.ValidateStackSpec)
+	workloadSelections, err := resolveUseCaseWorkloadSelections(profile, definition, s.authority.catalog, overrides.UseCases, overrides.Platform)
+	if err != nil {
+		return StackSpecValidation{}, err
+	}
+	return materializeInitialStackSpec(profile, definition, overrides, workloadSelections, s.ValidateStackSpec)
+}
+
+// resolveUseCaseWorkloadSelections maps requested use-case IDs onto the kit's
+// declared workloads and the governed catalog's default alternative for each.
+// Unknown or undeclared IDs fail closed with the kit's declared choices.
+func resolveUseCaseWorkloadSelections(
+	profile stackspecmigration.KitProfile,
+	definition resolvedplan.KitDefinition,
+	catalog resolvedplan.Catalog,
+	useCases []string,
+	platform string,
+) (map[string]useCaseWorkloadSelection, error) {
+	platform = strings.TrimSpace(platform)
+	if len(useCases) == 0 {
+		if platform != "" {
+			return nil, resolveError(ErrInvalidStackSpec, "--platform selects the runtime adapter for chosen use cases; combine it with --use-case (e.g. --use-case photos --platform komodo)", nil)
+		}
+		return nil, nil
+	}
+	declared := map[string]bool{}
+	if policy, ok := definition["workloads"].(map[string]any); ok {
+		for _, field := range []string{"required", "defaults", "optional"} {
+			if list, ok := policy[field].([]any); ok {
+				for _, entry := range list {
+					if id, ok := entry.(string); ok {
+						declared[id] = true
+					}
+				}
+			}
+		}
+	}
+	declaredIDs := make([]string, 0, len(declared))
+	for id := range declared {
+		declaredIDs = append(declaredIDs, id)
+	}
+	sort.Strings(declaredIDs)
+
+	selections := make(map[string]useCaseWorkloadSelection, len(useCases))
+	for _, useCase := range useCases {
+		useCase = strings.TrimSpace(useCase)
+		if useCase == "" {
+			continue
+		}
+		if !declared[useCase] {
+			return nil, resolveError(ErrInvalidStackSpec, fmt.Sprintf("use case %q is not declared by %s; declared workloads: %s", useCase, profile, strings.Join(declaredIDs, ", ")), nil)
+		}
+		var contract map[string]any
+		for _, candidate := range catalog.Workloads {
+			object := map[string]any(candidate)
+			metadata, _ := object["metadata"].(map[string]any)
+			if metadata == nil {
+				continue
+			}
+			if id, _ := metadata["id"].(string); id == useCase {
+				contract = object
+				break
+			}
+		}
+		alternativeID := ""
+		if contract != nil {
+			alternativeID, _ = contract["defaultAlternative"].(string)
+		}
+		if strings.TrimSpace(alternativeID) == "" {
+			return nil, resolveError(ErrAuthorityLoad, fmt.Sprintf("workload %q has no governed catalog default alternative", useCase), nil)
+		}
+		if platform != "" {
+			allowed := workloadAlternativeAllowedAdapterRefs(contract, alternativeID)
+			if !containsStringValue(allowed, platform) {
+				return nil, resolveError(ErrInvalidStackSpec, fmt.Sprintf("platform %q is not an allowed runtime adapter for use case %q (alternative %q); allowed: %s", platform, useCase, alternativeID, strings.Join(allowed, ", ")), nil)
+			}
+		}
+		selections[useCase] = useCaseWorkloadSelection{
+			Alternative:        alternativeID,
+			RuntimeAdapterRef:  platform,
+			RequiredSecretRefs: workloadAlternativeRequiredSecretRefs(contract, alternativeID),
+		}
+	}
+	return selections, nil
+}
+
+type useCaseWorkloadSelection struct {
+	Alternative        string
+	RuntimeAdapterRef  string
+	RequiredSecretRefs []string
+}
+
+func containsStringValue(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+// workloadAlternativeAllowedAdapterRefs returns runtime.allowedAdapterRefs of
+// the selected workload alternative.
+func workloadAlternativeAllowedAdapterRefs(contract map[string]any, alternativeID string) []string {
+	alternatives, _ := contract["alternatives"].([]any)
+	for _, raw := range alternatives {
+		alternative, _ := raw.(map[string]any)
+		if alternative == nil {
+			continue
+		}
+		if id, _ := alternative["id"].(string); id != alternativeID {
+			continue
+		}
+		runtime, _ := alternative["runtime"].(map[string]any)
+		if runtime == nil {
+			return nil
+		}
+		rawRefs, _ := runtime["allowedAdapterRefs"].([]any)
+		refs := make([]string, 0, len(rawRefs))
+		for _, entry := range rawRefs {
+			if ref, ok := entry.(string); ok {
+				refs = append(refs, ref)
+			}
+		}
+		return refs
+	}
+	return nil
+}
+
+// workloadAlternativeRequiredSecretRefs returns the secret input refs the
+// selected alternative declares as required (alternative.inputs.secretInputs.
+// requiredRefs). The initial spec satisfies them with the canonical opaque
+// convention secret://workloads/<workload>/<ref>.
+func workloadAlternativeRequiredSecretRefs(contract map[string]any, alternativeID string) []string {
+	alternatives, _ := contract["alternatives"].([]any)
+	for _, raw := range alternatives {
+		alternative, _ := raw.(map[string]any)
+		if alternative == nil {
+			continue
+		}
+		if id, _ := alternative["id"].(string); id != alternativeID {
+			continue
+		}
+		inputs, _ := alternative["inputs"].(map[string]any)
+		if inputs == nil {
+			return nil
+		}
+		secretInputs, _ := inputs["secretInputs"].(map[string]any)
+		if secretInputs == nil {
+			return nil
+		}
+		rawRefs, _ := secretInputs["requiredRefs"].([]any)
+		refs := make([]string, 0, len(rawRefs))
+		for _, entry := range rawRefs {
+			if ref, ok := entry.(string); ok && strings.TrimSpace(ref) != "" {
+				refs = append(refs, ref)
+			}
+		}
+		return refs
+	}
+	return nil
 }
 
 // InitialStackSpecAuthoringContract returns the CUE-owned authoring status and
@@ -154,6 +327,7 @@ func materializeInitialStackSpec(
 	profile stackspecmigration.KitProfile,
 	definition resolvedplan.KitDefinition,
 	overrides AuthoringOverrides,
+	workloadSelections map[string]useCaseWorkloadSelection,
 	validate stackSpecValidationFunc,
 ) (StackSpecValidation, error) {
 	if !isCanonicalProductKitProfile(profile) {
@@ -215,6 +389,46 @@ func materializeInitialStackSpec(
 			if err := projectModernInitialPublicationHost(spec, overrides.DomainBase); err != nil {
 				return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "project Modern initial publication host: "+err.Error(), err)
 			}
+		}
+	}
+	if len(overrides.EnableCapabilities) > 0 {
+		if err := appendNestedStringList(spec, overrides.EnableCapabilities, "capabilities", "enable"); err != nil {
+			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "apply capabilities.enable override: "+err.Error(), err)
+		}
+	}
+	if len(workloadSelections) > 0 {
+		workloads, _ := spec["workloads"].(map[string]any)
+		if workloads == nil {
+			workloads = map[string]any{}
+			spec["workloads"] = workloads
+		}
+		for _, id := range sortedSelectionKeys(workloadSelections) {
+			if _, exists := workloads[id]; exists {
+				continue
+			}
+			selection := workloadSelections[id]
+			// Explicit empty placement lists: the authority's policy
+			// comprehensions iterate these fields on the raw candidate,
+			// where CUE list defaults are not yet materialized.
+			entry := map[string]any{
+				"alternative": selection.Alternative,
+				"placement": map[string]any{
+					"siteRefs":      []any{},
+					"nodeRefs":      []any{},
+					"requiresRoles": []any{},
+				},
+			}
+			if strings.TrimSpace(selection.RuntimeAdapterRef) != "" {
+				entry["runtimeAdapterRef"] = selection.RuntimeAdapterRef
+			}
+			if len(selection.RequiredSecretRefs) > 0 {
+				secretRefs := map[string]any{}
+				for _, ref := range selection.RequiredSecretRefs {
+					secretRefs[ref] = fmt.Sprintf("secret://workloads/%s/%s", id, ref)
+				}
+				entry["secretRefs"] = secretRefs
+			}
+			workloads[id] = entry
 		}
 	}
 
@@ -362,6 +576,63 @@ func nestedString(document map[string]any, path ...string) (string, error) {
 		current = next
 	}
 	return "", fmt.Errorf("path is empty")
+}
+
+func sortedSelectionKeys(values map[string]useCaseWorkloadSelection) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// appendNestedStringList appends values to a list of strings at path,
+// deduplicating while preserving order (existing entries first).
+func appendNestedStringList(document map[string]any, values []string, path ...string) error {
+	if len(path) == 0 {
+		return fmt.Errorf("path is empty")
+	}
+	current := document
+	for index, segment := range path[:len(path)-1] {
+		nextValue, exists := current[segment]
+		if !exists {
+			next := make(map[string]any)
+			current[segment] = next
+			current = next
+			continue
+		}
+		next, ok := nextValue.(map[string]any)
+		if !ok || next == nil {
+			return fmt.Errorf("%s is not an object", strings.Join(path[:index+1], "."))
+		}
+		current = next
+	}
+	leaf := path[len(path)-1]
+	existing := []any{}
+	if raw, exists := current[leaf]; exists {
+		list, ok := raw.([]any)
+		if !ok {
+			return fmt.Errorf("%s is not a list", strings.Join(path, "."))
+		}
+		existing = list
+	}
+	seen := make(map[string]bool, len(existing)+len(values))
+	for _, entry := range existing {
+		if s, ok := entry.(string); ok {
+			seen[s] = true
+		}
+	}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		existing = append(existing, value)
+		seen[value] = true
+	}
+	current[leaf] = existing
+	return nil
 }
 
 func setNestedString(document map[string]any, value string, path ...string) error {

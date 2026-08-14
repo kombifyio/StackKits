@@ -1,6 +1,6 @@
 # Enterprise Readiness
 
-> Last verified: 2026-07-08
+> Last verified: 2026-08-13
 
 This page is the release contract for Enterprise review of the curated
 StackKits OSS surface. It is intentionally stricter than the general beta
@@ -10,17 +10,18 @@ required evidence item below is present for the exact public release tag.
 ## Verdict
 
 StackKits is not yet Enterprise production-ready for broad Public OSS use.
-The supported Enterprise hardening targets are Basement Kit (stable since
-`v0.5.0`) and Cloud Kit (graduated with `v0.5.1`, `bootstrapped` mode), from
-released artifacts, with explicit limitations. Unreleased kit definitions and
-non-graduated mode cells (`bare`, `advanced`) stay outside the public beta
-install surface until their rollout matrices graduate.
+The Enterprise hardening target is Basement Kit in `bootstrapped` mode, from
+released artifacts, with explicit limitations. Cloud Kit ships as
+`maturity: preview` and Modern Homelab as alpha scaffolding; neither carries an
+Enterprise claim. Unreleased kit definitions and non-graduated mode cells
+(`bare`, `advanced`) stay outside the public beta install surface until their
+rollout matrices graduate.
 
 ## Supported Production Scope
 
 | Area | Current contract |
 | --- | --- |
-| Kit | Basement Kit (local) and Cloud Kit (cloud/VPS, since `v0.5.1`), `bootstrapped` install mode only. |
+| Kit | Basement Kit (local), `bootstrapped` install mode only. Cloud Kit is preview and outside the Enterprise scope. |
 | Install path | Published `kombifyio/stackKits` release archives, `https://base.stackkit.cc` (Basement), or `https://cloud.stackkit.cc` (Cloud). |
 | Source surface | Curated public `kombifyio/stackKits` mirror only. A private-source build is not Enterprise release evidence. |
 | Operating system | Fresh Ubuntu target used by the production-style VM gate. |
@@ -91,22 +92,31 @@ and include:
 
 ## Current Blockers
 
-Updated 2026-07-08 against the `v0.5.1` release train. Landed since the
-2026-06-24 revision: Coolify-managed application-layer contract + evidence
-(`kombify-StackKits-85x`, released-content SK-S1 run `28427006994`), live
-installer endpoint smoke (green unpinned since `v0.5.0`), and the daily OSS
-mirror parity audit (`public-mirror-audit.yml`).
+Updated 2026-08-13. Landed since the 2026-07-08 revision: the Coolify-managed
+application-layer contract and evidence (`kombify-StackKits-85x`,
+released-content SK-S1 run `28427006994`), live installer endpoint smoke, the
+daily OSS mirror parity audit (`public-mirror-audit.yml`), and guided installers
+that carry a blank host to a running homelab in auto, guided, and expert modes.
 
 The remaining blockers for an Enterprise Public OSS production claim are:
 
 - released-archive VM smoke ("BaseKit Released Installer Live Test") re-run
-  against the published `v0.5.1` contents — it was skipped in the otherwise
-  green release run `28881686758`,
-- managed-provider entitlement denial verified live and fail-closed in
-  kombify-Simulate (`kombify-StackKits-zaon`),
-- Monthly Runtime upgrade and rollback VM proof (`kombify-StackKits-3hw.1`),
+  against published release contents. The 2026-08-13 blank-host runs used the
+  released CLI with a candidate installer script, which is installer evidence
+  but not released-archive evidence,
+- host compatibility is asserted by policy rather than by evidence: the OS
+  matrix is not yet fed by `HostConformanceReceipt`s
+  (`kombify-StackKits-y8go.21`, `.22`),
+- Runtime upgrade and rollback VM proof (`kombify-StackKits-3hw.1`). Its own
+  owner note declares it is never a v0.x release gate; it is an Enterprise
+  blocker only,
 - multi-tenant backup agent/controller remain scaffolds (no durable storage,
   queueing, enrollment, or OIDC operator auth) — excluded from any Enterprise
   backup claim beyond the self-hosted single-node Kopia path,
 - install modes `bare` and `advanced` remain `scaffolding` (no verification
   cells); Enterprise claims stay `bootstrapped`-only.
+
+Managed-provider entitlement denial is no longer listed here.
+`kombify-StackKits-zaon` was closed on 2026-07-23 as belonging to
+TechStack/Simulate provider control: StackKits holds no provider admission
+code or release dependency, so it cannot be a StackKits Enterprise blocker.

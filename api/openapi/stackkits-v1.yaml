@@ -2782,6 +2782,12 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ResolvedWorkload"
+        applicationLifecycles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ResolvedApplicationLifecycle"
+        fleetLifecycle:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedFleetLifecycle"
         warnings:
           type: array
           items:
@@ -2972,6 +2978,8 @@ components:
         contractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
         providerRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        infrastructure:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedWorkloadInfrastructure"
         route:
           type: object
           additionalProperties: false
@@ -2985,7 +2993,20 @@ components:
           required: [kind, delivery]
           properties:
             kind: {type: string, enum: [container, native, host, external, control-plane]}
-            delivery: {type: string, enum: [stackkit, selected-paas, external-control-plane]}
+            delivery: {type: string, enum: [stackkit, application-adapter, selected-paas, external-control-plane]}
+            fallback:
+              type: object
+              additionalProperties: false
+              required: [adapterRefs, failurePolicy, identityCommitPolicy]
+              description: >-
+                Ordered, workload-scoped recovery policy. A fallback may run only before the preferred adapter commits a deployment identity; observation failures are repaired in place instead of duplicated.
+              properties:
+                adapterRefs:
+                  type: array
+                  uniqueItems: true
+                  items: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+                failurePolicy: {type: string}
+                identityCommitPolicy: {type: string, const: fallback-before-identity-commit}
             adapter:
               type: object
               additionalProperties: false
@@ -3124,6 +3145,380 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/ArchitectureV2ContractID"
+        planOnly:
+          type: boolean
+          const: true
+          description: >-
+            Marks a typed ResolvedPlan contract that needs neither a renderer nor a runtime owner. It carries no mutation authority.
+        storageAllocationContract:
+          $ref: "#/components/schemas/ArchitectureV2StorageAllocationModuleContract"
+        dataBindingContract:
+          $ref: "#/components/schemas/ArchitectureV2WorkloadDataBindingModuleContract"
+        backupSourceContract:
+          $ref: "#/components/schemas/ArchitectureV2BackupSourceModuleContract"
+        snapshotContract:
+          $ref: "#/components/schemas/ArchitectureV2SnapshotModuleContract"
+        restoreContract:
+          $ref: "#/components/schemas/ArchitectureV2RestoreModuleContract"
+        recoveryContract:
+          $ref: "#/components/schemas/ArchitectureV2RecoveryModuleContract"
+    # Plan-only module contracts (base/architecture_v2_backup.cue plus the
+    # storage and data-binding contracts). They bind the shared Application
+    # Lifecycle to exact workload storage facts in ResolvedPlan; they never
+    # create repositories, schedule jobs, hold credentials, choose targets, or
+    # execute provider lifecycle, which is why the ownership flags are fixed.
+    ArchitectureV2StorageAllocationModuleContract:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, kind, authority, rootSourceRef, volumeDriverSourceRef, supportedClasses, allocationIdentity, providerLifecycleOwned, credentialCustodyOwned, multiServerOrchestrationOwned]
+      properties:
+        apiVersion: {type: string, const: stackkit.storage-allocation/v1}
+        kind: {type: string, const: StorageAllocationContract}
+        authority: {type: string, const: resolved-plan}
+        rootSourceRef: {type: string}
+        volumeDriverSourceRef: {type: string}
+        supportedClasses:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string}
+        allocationIdentity: {type: string}
+        providerLifecycleOwned: {type: boolean, const: false}
+        credentialCustodyOwned: {type: boolean, const: false}
+        multiServerOrchestrationOwned: {type: boolean, const: false}
+    ArchitectureV2WorkloadDataBindingModuleContract:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, kind, authority, sourceRef, storageAllocationModuleRef, bindingIdentity, classValidation, placementValidation, providerLifecycleOwned, credentialCustodyOwned, multiServerOrchestrationOwned]
+      properties:
+        apiVersion: {type: string, const: stackkit.workload-data-binding/v1}
+        kind: {type: string, const: WorkloadDataBindingContract}
+        authority: {type: string, const: resolved-plan}
+        sourceRef: {type: string}
+        storageAllocationModuleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        bindingIdentity: {type: string}
+        classValidation: {type: string}
+        placementValidation: {type: string}
+        providerLifecycleOwned: {type: boolean, const: false}
+        credentialCustodyOwned: {type: boolean, const: false}
+        multiServerOrchestrationOwned: {type: boolean, const: false}
+    ArchitectureV2BackupSourceModuleContract:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, kind, authority, sourceRef, storageAllocationModuleRef, workloadDataBindingModuleRef, eligibleStorageClass, backupIntentRequired, providerLifecycleOwned, credentialCustodyOwned, targetLifecycleOwned, multiServerOrchestrationOwned]
+      properties:
+        apiVersion: {type: string, const: stackkit.backup-source/v1}
+        kind: {type: string, const: BackupSourceContract}
+        authority: {type: string, const: resolved-plan}
+        sourceRef: {type: string}
+        storageAllocationModuleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        workloadDataBindingModuleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        eligibleStorageClass: {type: string, const: persistent}
+        backupIntentRequired: {type: boolean, const: true}
+        providerLifecycleOwned: {type: boolean, const: false}
+        credentialCustodyOwned: {type: boolean, const: false}
+        targetLifecycleOwned: {type: boolean, const: false}
+        multiServerOrchestrationOwned: {type: boolean, const: false}
+    ArchitectureV2SnapshotModuleContract:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, kind, authority, stageRef, operation, phases, evidence, backupSourceModuleRef, ownerApprovalRequired, providerLifecycleOwned, credentialCustodyOwned, targetLifecycleOwned, multiServerOrchestrationOwned]
+      properties:
+        apiVersion: {type: string, const: stackkit.snapshot/v1}
+        kind: {type: string, const: SnapshotContract}
+        authority: {type: string, const: resolved-plan}
+        stageRef: {type: string}
+        operation: {type: string, const: stackkit.backup}
+        phases:
+          type: array
+          minItems: 1
+          items: {type: string}
+        evidence:
+          type: array
+          minItems: 1
+          items: {type: string}
+        backupSourceModuleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        ownerApprovalRequired: {type: boolean, const: true}
+        providerLifecycleOwned: {type: boolean, const: false}
+        credentialCustodyOwned: {type: boolean, const: false}
+        targetLifecycleOwned: {type: boolean, const: false}
+        multiServerOrchestrationOwned: {type: boolean, const: false}
+    ArchitectureV2RestoreModuleContract:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, kind, authority, stageRef, operations, phases, evidence, snapshotModuleRef, ownerApprovalRequired, safetySnapshotRequired, stagedActivation, providerLifecycleOwned, credentialCustodyOwned, targetLifecycleOwned, multiServerOrchestrationOwned]
+      properties:
+        apiVersion: {type: string, const: stackkit.restore/v1}
+        kind: {type: string, const: RestoreContract}
+        authority: {type: string, const: resolved-plan}
+        stageRef: {type: string}
+        operations:
+          type: array
+          minItems: 1
+          items: {type: string}
+        phases:
+          type: array
+          minItems: 1
+          items: {type: string}
+        evidence:
+          type: array
+          minItems: 1
+          items: {type: string}
+        snapshotModuleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        ownerApprovalRequired: {type: boolean, const: true}
+        safetySnapshotRequired: {type: boolean, const: true}
+        stagedActivation: {type: boolean, const: true}
+        providerLifecycleOwned: {type: boolean, const: false}
+        credentialCustodyOwned: {type: boolean, const: false}
+        targetLifecycleOwned: {type: boolean, const: false}
+        multiServerOrchestrationOwned: {type: boolean, const: false}
+    ArchitectureV2RecoveryModuleContract:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, kind, authority, stageRef, phase, stateSourceRef, evidenceSourceRef, restoreModuleRef, recoveryEvidenceRequired, resumeRequiresOwnerApproval, providerLifecycleOwned, credentialCustodyOwned, targetLifecycleOwned, multiServerOrchestrationOwned]
+      properties:
+        apiVersion: {type: string, const: stackkit.recovery/v1}
+        kind: {type: string, const: RecoveryContract}
+        authority: {type: string, const: resolved-plan}
+        stageRef: {type: string}
+        phase: {type: string}
+        stateSourceRef: {type: string}
+        evidenceSourceRef: {type: string}
+        restoreModuleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        recoveryEvidenceRequired: {type: boolean, const: true}
+        resumeRequiresOwnerApproval: {type: boolean, const: true}
+        providerLifecycleOwned: {type: boolean, const: false}
+        credentialCustodyOwned: {type: boolean, const: false}
+        targetLifecycleOwned: {type: boolean, const: false}
+        multiServerOrchestrationOwned: {type: boolean, const: false}
+    ArchitectureV2ResolvedWorkloadInfrastructure:
+      type: object
+      additionalProperties: false
+      required: [storageAllocation, dataBinding, backupSource, snapshot, restore, recovery]
+      description: >-
+        Shared storage and backup infrastructure bound to one workload alternative. Each entry names the plan-only module that owns the contract; StackKits never creates repositories or holds credentials here.
+      properties:
+        storageAllocation:
+          type: object
+          additionalProperties: false
+          required: [moduleRef, allocations]
+          properties:
+            moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            allocations:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                additionalProperties: false
+                required: [componentRef, volumeRef, class, target, dataClasses]
+                properties:
+                  componentRef: {type: string}
+                  volumeRef: {type: string}
+                  class: {type: string}
+                  target: {type: string}
+                  backup: {type: boolean}
+                  dataBindingRef: {type: string}
+                  dataClasses:
+                    type: array
+                    items: {type: string}
+        dataBinding:
+          type: object
+          additionalProperties: false
+          required: [moduleRef, bindingRef, classes, locality]
+          properties:
+            moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            bindingRef: {type: string}
+            classes:
+              type: array
+              items: {type: string}
+            locality: {type: string}
+        backupSource:
+          type: object
+          additionalProperties: false
+          required: [moduleRef, allocations]
+          properties:
+            moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            allocations:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [componentRef, volumeRef, dataClasses]
+                properties:
+                  componentRef: {type: string}
+                  volumeRef: {type: string}
+                  dataClasses:
+                    type: array
+                    items: {type: string}
+        snapshot:
+          type: object
+          additionalProperties: false
+          required: [moduleRef]
+          properties:
+            moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        restore:
+          type: object
+          additionalProperties: false
+          required: [moduleRef]
+          properties:
+            moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        recovery:
+          type: object
+          additionalProperties: false
+          required: [moduleRef]
+          properties:
+            moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2ResolvedApplicationLifecycle:
+      type: object
+      additionalProperties: false
+      required: [id, version, contractHash, workloadRef, packageRef, delivery, lifecycle]
+      description: >-
+        One workload's resolved Application Lifecycle. The shared lifecycle stage bodies are owned by the CUE authority; this projection pins the identity, delivery, and adapter-capability surface consumers depend on.
+      properties:
+        id: {type: string}
+        version:
+          type: string
+          pattern: '^v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$'
+        contractHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        workloadRef: {type: string}
+        packageRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        delivery:
+          type: object
+          additionalProperties: false
+          required: [kind]
+          properties:
+            kind: {type: string, enum: [stackkit, application-adapter, selected-paas, external-control-plane]}
+            adapterRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            capabilities:
+              type: object
+              additionalProperties: false
+              properties:
+                deployment: {type: boolean}
+                routeTLS: {type: boolean}
+                statusEvidence: {type: boolean}
+                backupRestore: {type: boolean}
+        lifecycle:
+          type: object
+          required: [stages]
+          properties:
+            referenceVertical: {type: boolean}
+            stages:
+              type: object
+              minProperties: 1
+              additionalProperties:
+                type: object
+                required: [name, operations, phases, evidence, mutation, destructive, ownerApproval, surfaces]
+                properties:
+                  name: {type: string}
+                  operations:
+                    type: array
+                    minItems: 1
+                    items: {type: string}
+                  phases:
+                    type: array
+                    minItems: 1
+                    items: {type: string}
+                  evidence:
+                    type: array
+                    items: {type: string}
+                  surfaces:
+                    type: array
+                    minItems: 1
+                    items: {type: string}
+                  mutation: {type: boolean}
+                  destructive: {type: boolean}
+                  ownerApproval: {type: boolean}
+    ArchitectureV2ResolvedFleetLifecycle:
+      type: object
+      required: [apiVersion, kind, stackId, specHash, inventoryHash, scope, membership, authority, operations]
+      description: >-
+        Resolved fleet lifecycle for one stack instance. StackKits owns neither provider lifecycle nor credential custody nor multi-server orchestration, which is why those authority flags are fixed false.
+      properties:
+        apiVersion: {type: string, const: stackkit.fleet-lifecycle/v1}
+        kind: {type: string, const: FleetLifecycle}
+        stackId: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        fleetRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        specHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        inventoryHash: {$ref: "#/components/schemas/ArchitectureV2ContentHash"}
+        scope: {type: string, const: single-stack-instance}
+        membership:
+          type: object
+          required: [members, controlAuthority]
+          properties:
+            members:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                required: [nodeRef, siteRef, roles, enabled, controlPlaneMember, failureDomain]
+                properties:
+                  nodeRef: {type: string}
+                  siteRef: {type: string}
+                  roles:
+                    type: array
+                    minItems: 1
+                    items: {type: string}
+                  enabled: {type: boolean}
+                  controlPlaneMember: {type: boolean}
+                  failureDomain: {type: string}
+            controlAuthority:
+              type: object
+              required: [mode, authoritySiteRef, memberRefs]
+              properties:
+                mode: {type: string}
+                authoritySiteRef: {type: string}
+                memberRefs:
+                  type: array
+                  minItems: 1
+                  items: {type: string}
+        authority:
+          type: object
+          required: [source, planBinding, ownerApprovalRequired, localCustodyRequired, providerLifecycleOwned, credentialCustodyOwned, multiServerOrchestrationOwned]
+          properties:
+            source: {type: string}
+            planBinding: {type: object}
+            ownerApprovalRequired: {type: boolean}
+            localCustodyRequired: {type: boolean}
+            providerLifecycleOwned: {type: boolean, const: false}
+            credentialCustodyOwned: {type: boolean, const: false}
+            multiServerOrchestrationOwned: {type: boolean, const: false}
+        operations:
+          type: object
+          minProperties: 1
+          additionalProperties:
+            type: object
+            required: [name, phases, evidence, mutation, destructive, ownerApproval]
+            properties:
+              name: {type: string}
+              phases:
+                type: array
+                minItems: 1
+                items: {type: string}
+              evidence:
+                type: object
+                required: [schema, immutable, localCustody, requiredPhases]
+                properties:
+                  schema: {type: string}
+                  immutable: {type: boolean}
+                  localCustody: {type: boolean}
+                  requiredPhases:
+                    type: array
+                    minItems: 1
+                    items: {type: string}
+              mutation: {type: boolean}
+              destructive: {type: boolean}
+              ownerApproval:
+                type: object
+                required: [required, class]
+                properties:
+                  required: {type: boolean}
+                  class: {type: string}
+              checkpointRequired: {type: boolean}
+              recoveryRequired: {type: boolean}
+              sourceMember: {type: string, enum: [required, optional, forbidden]}
+              targetMember: {type: string, enum: [required, optional, forbidden]}
+              targetPlanRequired: {type: boolean}
+              targetPlanMustDiffer: {type: boolean}
     ArchitectureV2RuntimeOwnerRequirement:
       type: object
       additionalProperties: false
@@ -3159,7 +3554,7 @@ components:
           type: array
           minItems: 1
           uniqueItems: true
-          items: {type: string, enum: [stackkit, selected-paas, external-control-plane]}
+          items: {type: string, enum: [stackkit, application-adapter, selected-paas, external-control-plane]}
         operations:
           type: array
           minItems: 1
@@ -3421,10 +3816,10 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         sourceRef:
           type: string
-          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, access.homeEnforcement, localAutonomy.policy, network.routes, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot, backup.localKopiaSource]
+          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, access.homeEnforcement, localAutonomy.policy, network.routes, network.moduleRoute, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot, backup.localKopiaSource]
         valueType:
           type: string
-          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, home-access-enforcement-v1, local-autonomy-policy-v1, authority-bound-service-route-list-v4, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1, local-kopia-backup-source-v1]
+          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, home-access-enforcement-v1, local-autonomy-policy-v1, authority-bound-service-route-list-v4, authority-bound-module-route-v1, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1, local-kopia-backup-source-v1]
         cardinality:
           type: string
           enum: [single, list]
@@ -3446,6 +3841,10 @@ components:
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostStorageRoots"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalBackupRoot"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalKopiaBackupSource"
+            # network.moduleRoute resolves to a single authority-bound module
+            # route; when the binding is optional the CUE authority defaults it
+            # to null rather than an empty object.
+            - type: "null"
       allOf:
         - if:
             properties: {sourceRef: {const: identity.deviceEnrollment}}
@@ -4190,6 +4589,45 @@ components:
     ArchitectureV2ModulePlanInputRef:
       type: string
       enum: [stackId, kit, sites, controlPlane, bridge, bridgePublications, bridgeOriginMTLS, identity, identityTrust, data, failurePolicy, federationPolicy, federationLinkPolicy, federationControlActions, federationBackupPolicy, federationObservability, backupPolicy, driftPolicy, observability, availability, localReachability, homeLANDiscovery, homeAccessRequirements, externalHomeAccessBindings, homeAccessHandoff, backupTargetRequirements, externalBackupTargetBindings, homeBackupTargetRequirements, externalHomeBackupTargetBindings, homeOffsiteBackup, cloudOffsiteBackup, federationLinkRequirements, externalFederationLinkBindings, moduleTargets, moduleCapabilities, hostRuntimePolicy, storagePolicy, localNetworkPolicy, cloudNetworkPolicy, publicEdge, publicTLS, internalPKI, cloudAdminMesh]
+    ArchitectureV2ModuleAvailabilityProjection:
+      type: object
+      additionalProperties: false
+      required: [policy, failureModel, members]
+      description: >-
+        Compiler-owned availability projection for one HA module. It carries the resolved policy, the failure model, and the control-plane members the module may reason about, and nothing else about the plan.
+      properties:
+        policy:
+          type: object
+          additionalProperties: false
+          required: [mode, policyRef, realizationRef, moduleRef, selector, rpoSeconds, rtoSeconds, failureDomainSpread, fencing]
+          properties:
+            mode: {type: string, enum: [warm-standby, quorum]}
+            policyRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            realizationRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            moduleRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+            selector: {type: string, const: control-plane-members}
+            rpoSeconds: {type: integer, minimum: 0}
+            rtoSeconds: {type: integer, minimum: 1}
+            failureDomainSpread: {type: integer, minimum: 2}
+            fencing: {type: string, enum: [manual, automatic]}
+        failureModel:
+          type: object
+          required: [basis]
+          properties:
+            basis: {type: string}
+            memberSiteScope: {type: string}
+            partitionBehavior: {type: string}
+        members:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            additionalProperties: false
+            required: [nodeRef, siteRef, failureDomain]
+            properties:
+              nodeRef: {type: string}
+              siteRef: {type: string}
+              failureDomain: {type: string}
     ArchitectureV2ModulePlanInputs:
       type: object
       additionalProperties: false
@@ -4218,6 +4656,8 @@ components:
             $ref: "#/components/schemas/ArchitectureV2ModulePlanPublication"
         bridgeOriginMTLS:
           $ref: "#/components/schemas/ArchitectureV2ModuleBridgeOriginMTLS"
+        availability:
+          $ref: "#/components/schemas/ArchitectureV2ModuleAvailabilityProjection"
         identity:
           $ref: "#/components/schemas/ArchitectureV2ModulePlanIdentity"
         identityTrust:

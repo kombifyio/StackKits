@@ -88,8 +88,11 @@ func runArchitectureV2InitWithBootstrap(
 		printInfo("Using normalized deployment contract ID %q for workspace %q", name, filepath.Base(filepath.Clean(wd)))
 	}
 	validation, err := service.MaterializeInitialStackSpec(profile, architecturev2.AuthoringOverrides{
-		Name:       name,
-		DomainBase: domain,
+		Name:               name,
+		DomainBase:         domain,
+		Platform:           strings.TrimSpace(initPlatform),
+		EnableCapabilities: initEnableCapabilities,
+		UseCases:           initUseCases,
 	})
 	if err != nil {
 		return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)

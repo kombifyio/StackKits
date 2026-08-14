@@ -4,10 +4,14 @@ kind: StackKit
 
 metadata:
   name: basement-kit
-  version: "5.0.0"
+  version: "5.1.0"
   description: "Single-environment homelab with a robust default scope: Platform baseline (Coolify, PocketID, TinyAuth, Node Hub, Homepage, Uptime Kuma, Whoami) plus Photos, Vault, and Files (Cloudreve default). Media, Smart Home, and AI stay opt-in until their first-run paths are production-ready."
   author: "kombify Stack Team"
   license: "Apache-2.0"
+  # The one path with end-to-end evidence: the bootstrapped cell is `supported`
+  # in mode_matrix.cue, and blank-host installer runs reach a running homelab.
+  # `bare` and `advanced` remain scaffolding and are not covered by this claim.
+  maturity: supported
   repository: "https://github.com/kombifyio/stackkits"
   tags:
     - homelab
@@ -126,13 +130,13 @@ application:
         displayName: "Self-hosted Photo Vault"
         realization: oss
         placementModes: [local-only, standard]
-        contexts: [local, pi, cloud]
+        contexts: [local, pi]
         description: "StackKit deploys Immich (server, ML, pgvecto-rs, Redis) through the selected PaaS on the user's node — including managed-VPS leases, which remain standard placement."
       bring-your-own-photos:
         displayName: "Bring Your Own Photo Service"
         realization: external
         placementModes: [local-only, standard]
-        contexts: [local, pi, cloud]
+        contexts: [local, pi]
         description: "An existing Immich (or API-compatible) instance is connected as the package backend."
   media:
     role: optional            # Opt-in until Jellyfin first-run UX matches the default live smoke path.
@@ -156,7 +160,7 @@ application:
         displayName: "Kombify Managed Home Assistant"
         realization: control-plane
         placementModes: [managed-serverless]
-        contexts: [cloud]
+        contexts: [local]
         managedServerlessEligible: true
         requiresControlPlane: true
         description: "Kombify operates Home Assistant state, routing, auth handoff, backup, and MCP/API wiring without user-owned HA OS hardware."
@@ -164,7 +168,7 @@ application:
         displayName: "Kombify Managed Home Assistant + Home Bridge"
         realization: hybrid
         placementModes: [managed-serverless, standard]
-        contexts: [cloud, local, pi]
+        contexts: [local, pi]
         managedServerlessEligible: true
         requiresControlPlane: true
         requiresLocalBridge: true
@@ -173,7 +177,7 @@ application:
         displayName: "Self-hosted Home Assistant Container"
         realization: oss
         placementModes: [local-only, standard]
-        contexts: [local, pi, cloud]
+        contexts: [local, pi]
         description: "StackKit deploys Home Assistant as a selected-PaaS application on the user's node."
       self-hosted-ha-os:
         displayName: "Self-hosted Home Assistant OS"
@@ -185,7 +189,7 @@ application:
         displayName: "Bring Your Own Home Assistant"
         realization: external
         placementModes: [local-only, standard, managed-serverless]
-        contexts: [local, pi, cloud]
+        contexts: [local, pi]
         managedServerlessEligible: true
         description: "An existing Home Assistant instance is connected through native MCP/API surfaces."
     connectors:
@@ -247,19 +251,19 @@ application:
         displayName: "Self-hosted Lightweight Files"
         realization: oss
         placementModes: [local-only, standard]
-        contexts: [local, pi, cloud]
+        contexts: [local, pi]
         description: "StackKit deploys Cloudreve as the default file storage and sharing app on the user's node."
       self-hosted-collaboration:
         displayName: "Self-hosted Collaboration Suite"
         realization: oss
         placementModes: [local-only, standard]
-        contexts: [local, cloud]
+        contexts: [local]
         description: "StackKit deploys Nextcloud as the files provider for collaboration and WebDAV-heavy use."
       kombify-managed-files:
         displayName: "Kombify Managed Files"
         realization: control-plane
         placementModes: [managed-serverless]
-        contexts: [cloud]
+        contexts: [local]
         managedServerlessEligible: true
         requiresControlPlane: true
         description: "Kombify operates storage, route, auth handoff, backup, sharing policy, and API wiring."
@@ -267,7 +271,7 @@ application:
         displayName: "Kombify Managed Document Management"
         realization: control-plane
         placementModes: [managed-serverless]
-        contexts: [cloud]
+        contexts: [local]
         managedServerlessEligible: true
         requiresControlPlane: true
         description: "Kombify operates document ingestion, OCR/indexing, retention policy, search, sharing, backup, and RIL evidence."
@@ -275,7 +279,7 @@ application:
         displayName: "Bring Your Own Storage"
         realization: external
         placementModes: [local-only, standard, managed-serverless]
-        contexts: [local, pi, cloud]
+        contexts: [local, pi]
         managedServerlessEligible: true
         description: "An existing Nextcloud, WebDAV, S3-compatible bucket, or file service is connected as the package backend."
     connectors:

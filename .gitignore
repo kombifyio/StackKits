@@ -95,6 +95,9 @@ website-v2/blob-report/
 .beads/dolt-server.lock
 .beads/export-state.json
 .wrangler/cache/
+# stackkit-server writes instance identity and enrollment state here on any
+# local run; it is per-machine state, never source.
+pb_data/
 modules/*/tests/artifacts/
 artifacts/local-builds/
 artifacts/release-smoke/
@@ -122,3 +125,8 @@ modules/*/cue.mod/
 
 # Local module-release artifacts (CI writes to RUNNER_TEMP)
 modules/*/module-release.json
+
+# local build/test artifacts (public-beta M0 hygiene)
+coverage.out
+.tmp-*
+*.test

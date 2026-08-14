@@ -1,5 +1,5 @@
 # Cloud Kit - Advanced Mode mit Terramate
-# Diese Struktur ermöglicht Change Detection und parallele Ausführung
+# This structure enables change detection and parallel execution
 
 terramate {
   required_version = ">= 0.4.0"

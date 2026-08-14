@@ -1,6 +1,6 @@
 # StackKits Installation Processes
 
-> Last verified: 2026-06-08
+> Last verified: 2026-08-13
 
 This specification defines the supported ways a user or agent can install and roll out a StackKit. It separates discovery, installation, execution authority, and post-install management so agents do not confuse a read-only website surface with a target-server control surface.
 
@@ -41,7 +41,7 @@ This means `P5` and `P6` are not different MCP products. They differ only by whe
 All installation paths share the same underlying lifecycle:
 
 ```text
-discover -> collect intent -> install toolchain -> init -> prepare -> validate -> generate -> plan -> apply -> verify -> preserve evidence
+discover -> collect intent -> install toolchain -> init -> validate -> generate -> plan -> apply -> verify -> preserve evidence
 ```
 
 Source-of-truth rules:
@@ -100,10 +100,10 @@ StackKits configuration is intentionally broad enough to support a guided agent 
 | --- | --- | --- |
 | Owner and admin intent | `adminEmail`, `owner.*`, CLI `--admin-email`, owner bootstrap flags | `adminEmail` is compatibility input; Owner fields are the stronger identity contract when present. |
 | Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `basement-kit` is the verified beta path. |
-| Install mode | `mode`, `STACKKIT_MODE`, `--mode` | `bare` is minimal/manual, `bootstrapped` is default and the only mode with full E2E evidence. `advanced` is **scaffolding** (mode matrix status in every kit): it renders a static Terramate template (traefik/dockge/monitoring) without composition rendering — the Terramate-Plus lifecycle (drift/rollback/restore-drill surfaces, Runtime/Frontend Intelligence, managed TechStack handoff) is the target contract, not current behavior (`kombify-StackKits-b0xy`). |
+| Install mode | retired v0.6 knob (`STACKKIT_MODE` warn-and-ignore) | `bare` is minimal/manual, `bootstrapped` is default and the only mode with full E2E evidence. `advanced` is **scaffolding** (mode matrix status in every kit): it renders a static Terramate template (traefik/dockge/monitoring) without composition rendering — the Terramate-Plus lifecycle (drift/rollback/restore-drill surfaces, Runtime/Frontend Intelligence, managed TechStack handoff) is the target contract, not current behavior (`kombify-StackKits-b0xy`). |
 | Target context | `context`, `--context`, `KOMBIFY_CONTEXT` | `local` means local/default runtime assumptions, not a dependency on a home network. |
 | Domain strategy | `domain`, `localDns`, `DOMAIN`, `STACKKIT_LOCAL_DOMAIN`, DNS provider env | Default local links use browser-native `.localhost`; public/custom domains require DNS/TLS proof. |
-| Service profile | `serviceProfile`, `STACKKIT_SERVICE_PROFILE`, `--service-profile` | `admin-only` keeps platform/admin services while deferring L3 application setup. |
+| Service profile | retired v0.6 knob; select use cases instead (`--use-case`, `STACKKIT_USE_CASES`) | `admin-only` keeps platform/admin services while deferring L3 application setup. |
 | Compute and topology | `compute.tier`, `nodes[]`, `node.role` | Used by CUE to select resources and placement constraints. |
 | PaaS selection | `paas`, `STACKKIT_PLATFORM`, `STACKKIT_PAAS`, platform credential env | Coolify is default; Komodo is beta-supported; Dokploy remains draft. |
 | Setup policy | `bootstrap.*`, `application.*.setup.policy`, `services.*.setup.policy` | Valid values are `manual`, `on_demand`, `automatic`. |
@@ -395,37 +395,84 @@ Beta validation should pin the tested release explicitly:
 env STACKKIT_RELEASE_VERSION=v0.8.0-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
 ```
 
-Current implementation:
+Current implementation (full guided installation; strict separation from the
+CLI path: whoever wants stepwise control installs the CLI and drives the
+verbs, whoever runs this entrypoint is carried to a running homelab):
 
-1. Downloads and runs the shared CLI installer from `https://install.stackkit.cc`.
-2. Installs `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, and Basement Kit definitions.
-3. Creates canonical StackSpec v2 and local Owner custody non-interactively.
-4. Runs read-only `stackkit validate`.
-5. Prints the workspace and explicit `generate`/`plan`/`apply` next steps.
+1. Resolves the install mode: `STACKKIT_INSTALL_MODE=auto|guided|expert`, or
+   an interactive 3-item menu on a TTY (Enter = Quick Install). Non-TTY runs
+   always use `auto`; `guided`/`expert` without a TTY fail closed and print
+   the equivalent parameterized CLI chain.
+2. Collects decisions per mode and maps each onto a CLI parameter.
+   Environment-provided values are never re-asked:
+   - guided: workspace (Enter keeps the default), own domain yes/no,
+     admin email, owner account yes/no, one apply confirmation;
+   - expert additionally: use cases (`photos,files,vault`), stack name,
+     platform adapter (`coolify|komodo`), image prepull, and visible
+     two-phase applies.
+3. Refuses to install over a workspace that already carries deployment
+   intent (one host runs one active local deployment; the deployment
+   contract ID derives from the workspace directory name).
+4. Downloads and runs the shared CLI installer from
+   `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit
+   definitions — SUDO_USER-safe).
+5. `stackkit init basement-kit --non-interactive --owner-source=local`
+   with the collected `--domain`, `--name`, `--owner-email`,
+   `--owner-username`, `--use-case`, `--platform` parameters, then
+   `stackkit validate`.
+6. Bootstraps the container runtime: installs Docker via get.docker.com
+   when missing and activates the docker group for the current session on
+   non-root runs (`stackkit prepare` is external-host-only on native v2).
+7. Builds the local FROM-scratch `stackkit-server:local` image with the
+   host CA bundle, falling back to the configured registry image when
+   Docker or the binary is unavailable.
+8. `stackkit generate`, then the two-phase deployment:
+   `stackkit apply --auto-approve --skip-platform-apps` followed by
+   `stackkit apply --auto-approve`.
+9. Prints the access summary: service URLs, initial admin credentials,
+   the machine-readable access summary path, and the project directory.
 
-The installer does not prepare or mutate the host, generate deployment
-artifacts, Apply workloads, or expose private custody. Host/provider lifecycle
-is external; the operator runs the remaining standalone lifecycle explicitly
-after reviewing the intent.
-
-Important environment variables:
+Important environment variables (each pre-seeds one decision):
 
 | Variable | Purpose |
 | --- | --- |
+| `STACKKIT_INSTALL_MODE` | `auto`, `guided`, or `expert`; non-TTY always `auto`. |
 | `HOMELAB_DIR` | Workspace; defaults to `$HOME/my-homelab`. |
+| `DOMAIN` | Own domain; default stays the kit's CUE default (`home.test`). |
+| `STACKKIT_NAME` | Deployment contract ID; default derives from the workspace name. |
+| `STACKKIT_ADMIN_EMAIL` | Admin/owner email (`KOMBIFY_USER_EMAIL` fallback). |
+| `STACKKIT_BOOTSTRAP_OWNER` | `true` preconfigures the PocketID owner account. |
+| `STACKKIT_USE_CASES` | Optional workloads, e.g. `photos,files,vault`. |
+| `STACKKIT_PLATFORM` / `STACKKIT_PAAS` | Workload runtime adapter (`coolify`/`komodo`) for the selected use cases. |
+| `STACKKIT_SERVER_IMAGE` | stackkit-server image override (skips the local build). |
 | `STACKKIT_INSTALL_URL` | Alternate published release-installer endpoint for fixtures or mirrors. |
 | `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. |
 
+Fully automated installation via parameters (the owner-facing automation
+contract — the script asks nothing when every decision arrives via
+environment):
+
+```bash
+STACKKIT_INSTALL_MODE=auto \
+DOMAIN=example.test \
+STACKKIT_ADMIN_EMAIL=owner@example.test \
+STACKKIT_BOOTSTRAP_OWNER=true \
+STACKKIT_USE_CASES=photos,files,vault \
+STACKKIT_PLATFORM=coolify \
+sh -c 'curl -sSL https://base.stackkit.cc | sh'
+```
+
 Use when:
 
-- the operator wants the fastest account-free Basement intent bootstrap;
+- the user wants one command to a running homelab, with the mode choice
+  deciding how many questions they answer on the way;
 - the agent or user can execute shell commands directly on the target.
 
 Do not use when:
 
-- the operator needs a preview-only plan before any mutation;
-- the desired intent is outside the published Basement Kit beta scope;
-- an automated full Apply is expected from the bootstrap command itself.
+- the operator wants to drive each lifecycle verb explicitly — install the
+  CLI (`https://install.stackkit.cc`) and run the P2 chain instead;
+- the desired intent is outside the published Basement Kit scope.
 
 ## P2: Shared CLI Installer Plus Direct CLI
 
@@ -439,9 +486,15 @@ stackkit init basement-kit --owner-source=local
 stackkit validate
 stackkit generate
 stackkit plan
-stackkit apply
+stackkit apply          # installs Docker on demand; needs docker access
 stackkit verify --http --json
 ```
+
+`stackkit prepare` is external-host-only on the native v2 line (local
+host preparation is governed by admission/conformance contracts). For a
+non-root user, ensure Docker group access before apply
+(`sudo usermod -aG docker $USER` + re-login) or let the guided installer
+handle the group activation for you.
 
 The shared installer supports kit arguments:
 
@@ -450,14 +503,30 @@ curl -sSL https://install.stackkit.cc | sh -s -- basement-kit
 curl -sSL https://install.stackkit.cc | sh -s -- all
 ```
 
+Native v2 init accepts the full authoring parameter surface (unknown values
+fail closed with the kit's declared choices):
+
+| Flag | Effect |
+| --- | --- |
+| `--non-interactive` | Fail instead of prompting. |
+| `--owner-source=local` | Account-free local Owner custody (+ `--owner-email`, `--owner-username`, `--owner-display-name`). |
+| `--domain <base>` | `network.domain.base` authoring override. |
+| `--name <id>` | Deployment contract ID (default: normalized workspace name). |
+| `--use-case photos,files,vault` | Optional kit workloads with the governed catalog default alternative and canonical `secret://workloads/<id>/<ref>` inputs. |
+| `--platform coolify\|komodo` | Workload runtime adapter for the selected use cases (validated against `runtime.allowedAdapterRefs`). |
+| `--enable <capability-ids>` | Optional kit capabilities (`capabilities.enable`). |
+
 User journey:
 
 1. Install CLI/server/MCP binaries and the selected kit catalog.
-2. Create or select a workspace.
-3. Run `stackkit init` manually or non-interactively.
-4. Run `prepare` to check and install prerequisites.
+2. Create or select a workspace (the contract ID derives from its name;
+   one host runs one active local deployment).
+3. Run `stackkit init` manually or non-interactively with the flags above.
+4. Ensure Docker access (apply installs Docker on demand; non-root users
+   need docker group membership).
 5. Generate and review the plan.
-6. Apply after explicit approval.
+6. Apply after explicit approval (`--auto-approve` for automation;
+   `--skip-platform-apps` first for the two-phase order).
 7. Verify and collect evidence.
 
 Best fit:

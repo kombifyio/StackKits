@@ -13,7 +13,7 @@ stack {
     "traefik",
   ]
 
-  # Dieser Stack muss immer zuerst provisioniert werden
+  # This stack must always be provisioned first
   after = []
 }
 

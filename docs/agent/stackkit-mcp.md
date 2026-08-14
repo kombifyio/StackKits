@@ -51,9 +51,12 @@ For non-loopback access, the connector must be behind a protected path such as V
 
 ## StackKits State Console
 
-The connector embeds `ui://stackkits/state-console.html`. It is generated from
-the mcp-use-compatible app layer and exposed through the Go MCP runtime so hosts
-can render local StackKits state inside the MCP client. The State Console is a
+The connector embeds `ui://stackkits/state-console.html`. The Go MCP runtime
+owns it: `internal/stackkitmcp/assets/state-console.html` is the source, embedded
+into the binary and served so hosts can render local StackKits state inside the
+MCP client. The mcp-use-compatible app layer is the derived artifact —
+`mcp-use/stackkits-app/scripts/build.mjs` reads that asset and writes the app
+bundle, never the reverse. The State Console is a
 single stateful UI adapter over registered MCP operations. It is not a Wizard,
 Finder, recommendation engine, or lifecycle implementation.
 

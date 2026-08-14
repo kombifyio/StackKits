@@ -17,9 +17,10 @@ const (
 
 type Executor string
 
+// Only executors StackKits implements are named. Pulumi was removed with
+// ADR-0019's supersession: the contract never had an executor behind it.
 const (
-	ExecutorGo     Executor = "go"
-	ExecutorPulumi Executor = "pulumi"
+	ExecutorGo Executor = "go"
 )
 
 type Owner string
@@ -27,7 +28,6 @@ type Owner string
 const (
 	OwnerOpenTofu        Owner = "opentofu"
 	OwnerStackKitRuntime Owner = "stackkit-runtime"
-	OwnerPulumi          Owner = "pulumi"
 	OwnerExternal        Owner = "external"
 )
 
@@ -106,17 +106,6 @@ func (s OperationSpec) Validate() error {
 			errs = append(errs, fmt.Sprintf("secret_refs entry %q must start with secret://", ref))
 		}
 	}
-	if s.Executor == ExecutorPulumi {
-		if strings.EqualFold(strings.TrimSpace(s.Provider), "command") {
-			errs = append(errs, "pulumi command provider is not allowed in StackKit operation specs")
-		}
-		if !s.Stateful {
-			errs = append(errs, "pulumi operations must be stateful")
-		}
-		if s.Owner != OwnerPulumi {
-			errs = append(errs, "pulumi operations must declare owner pulumi")
-		}
-	}
 	if s.Stateful {
 		if s.StateScope == nil {
 			errs = append(errs, "state_scope is required for stateful operations")
@@ -157,7 +146,7 @@ func validPhase(phase Phase) bool {
 
 func validExecutor(executor Executor) bool {
 	switch executor {
-	case ExecutorGo, ExecutorPulumi:
+	case ExecutorGo:
 		return true
 	default:
 		return false
@@ -166,7 +155,7 @@ func validExecutor(executor Executor) bool {
 
 func validOwner(owner Owner) bool {
 	switch owner {
-	case OwnerOpenTofu, OwnerStackKitRuntime, OwnerPulumi, OwnerExternal:
+	case OwnerOpenTofu, OwnerStackKitRuntime, OwnerExternal:
 		return true
 	default:
 		return false

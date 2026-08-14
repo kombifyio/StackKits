@@ -19,12 +19,12 @@ Nobody installs a StackKit for infrastructure. They install it because they want
 - A smart home (Home Assistant)
 - ...and more
 
-**A StackKit delivers a complete, pre-configured Homelab platform.** In v0.8
-the standalone CLI installs the single-node Basement core: host/Docker
-baseline, router, PocketID, TinyAuth, step-ca, Coolify, Hub, and verification
-endpoints. Photos, Vault, Files, and the broader application catalog remain
-explicit opt-ins and graduate after the v0.8 core. The platform is owned by the
-local PocketID/TinyAuth Owner bound to StackKits `ownerRef`/step-ca custody.
+**A StackKit delivers a complete, pre-configured Homelab platform.** The
+standalone CLI installs the single-node Basement core: host/Docker baseline,
+router, PocketID, TinyAuth, step-ca, Coolify, Hub, and verification endpoints.
+Photos, Vault, Files, and the broader application catalog remain explicit
+opt-ins and graduate after that core. The platform is owned by the local
+PocketID/TinyAuth Owner bound to StackKits `ownerRef`/step-ca custody.
 
 ---
 
@@ -58,9 +58,9 @@ the HA add-on may replicate its members.
 
 | StackKit | Pattern | Maturity | Default Scope |
 |----------|---------|----------|---------------|
-| **Basement Kit** | Exactly one home Site; v0.8 supports one node and local Control Authority | v0.8 standalone core | Complete local CLI lifecycle, LAN access/enrollment, hardware gates, and offline autonomy |
-| **Cloud Kit** | Exactly one cloud Site with one or more nodes; cloud Control Authority | stable runtime; v2 profile migration active | Admission of an externally supplied host, default-closed public edge, public DNS/TLS, internet hardening |
-| **Modern Homelab** | At least one home and one cloud Site; home authority + five bridge contracts | preview/early-access | Protected Site federation, explicit publication/placement/residency/partition policy |
+| **Basement Kit** | Exactly one home Site; one node and local Control Authority | verified standalone core | Complete local CLI lifecycle, LAN access/enrollment, hardware gates, and offline autonomy |
+| **Cloud Kit** | Exactly one cloud Site with one or more nodes; cloud Control Authority | `maturity: preview` | Admission of an externally supplied host, default-closed public edge, public DNS/TLS, internet hardening |
+| **Modern Homelab** | At least one home and one cloud Site; home authority + five bridge contracts | alpha scaffolding | Protected Site federation, explicit publication/placement/residency/partition policy |
 | **HA** *(add-on, never a kit)* | Replicates one logical ControlPlane against explicit RPO/RTO | `addons/ha` | Kit-specific active-passive/quorum realization with real nodes, failure domains, and fencing |
 
 Basement Kit and Cloud Kit use the same neutral Site/Node/Capability contracts, but
@@ -141,7 +141,7 @@ User enables optionals: `stackkit generate --enable smart-home`
 - WHY someone installs a StackKit
 - A real-world scenario with a default tool + curated alternatives
 - Ships only when its role and current milestone permit it; optional use cases
-  are not part of the v0.8 default readiness claim
+  are not part of the default readiness claim
 
 Optional modules stay off by default and must have documented enablement,
 resource limits, and generated-output behavior before they are exposed through
@@ -233,7 +233,7 @@ Replaced by the per-tool role system:
 
 Service placement rules:
 
-> Hinweis: „placement" hier = Node-Scheduling (`#ServiceDefinition.placement.nodeType`), nicht die `placementMode`-Achse (`docs/placement/`).
+> Note: "placement" here means node scheduling (`#ServiceDefinition.placement.nodeType`), not the `placementMode` axis (`docs/placement/`).
 
 1. Platform services (Traefik, Auth, PAAS) stay on primary node
 2. Use case services distributed by hardware requirements (GPU, storage)

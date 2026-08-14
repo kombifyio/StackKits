@@ -1,7 +1,7 @@
 ---
 title: RIL Ownership Boundary
-last_verified: 2026-08-02
-status: superseded-checkpoint
+last_verified: 2026-08-13
+status: active
 ---
 
 # RIL Ownership Boundary

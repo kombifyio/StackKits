@@ -42,6 +42,19 @@ RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/
 RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases/latest}"
 INSTALL_DIR="/usr/local/bin"
 
+# Kit definitions belong to the INVOKING user, even under `curl | sudo sh`:
+# with plain $HOME they would land in /root/.stackkits and the printed next
+# steps (stackkit init as the normal user) would not find them.
+TARGET_USER="$(id -un)"
+TARGET_HOME="$HOME"
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  sudo_home="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6 || true)"
+  if [ -n "$sudo_home" ] && [ -d "$sudo_home" ]; then
+    TARGET_USER="$SUDO_USER"
+    TARGET_HOME="$sudo_home"
+  fi
+fi
+
 GITHUB_AUTH_HEADER=""
 if [ -n "${STACKKIT_GITHUB_TOKEN:-}" ]; then
   GITHUB_AUTH_HEADER="Authorization: Bearer ${STACKKIT_GITHUB_TOKEN}"
@@ -281,7 +294,7 @@ maybe_link_sk
 # Shared directories sit alongside them at ~/.stackkits/.
 
 if [ -n "$INSTALL_KITS" ]; then
-  STACKKITS_DIR="$HOME/.stackkits"
+  STACKKITS_DIR="$TARGET_HOME/.stackkits"
   mkdir -p "$STACKKITS_DIR"
 
   # Shared CUE schemas — needed inside each kit dir for module resolution.
@@ -312,6 +325,12 @@ if [ -n "$INSTALL_KITS" ]; then
       echo "  -> Installed $kit to $STACKKITS_DIR/$kit"
     fi
   done
+
+  # Under `curl | sudo sh` the copies above are root-owned inside the invoking
+  # user's home — hand them back so `stackkit init` works without sudo.
+  if [ "$(id -u)" -eq 0 ] && [ "$TARGET_USER" != "root" ]; then
+    chown -R "$TARGET_USER" "$STACKKITS_DIR" 2>/dev/null || true
+  fi
 fi
 
 # --- Summary ------------------------------------------------------------------
@@ -324,34 +343,34 @@ if command -v stackkit-mcp >/dev/null 2>&1; then
   echo "stackkit-mcp is installed for local agent/MCP workflows."
 fi
 
+print_cli_chain() {
+  kit="$1"
+  echo "  CLI path (you drive every step; fully parameterizable/automatable):"
+  echo "    mkdir my-homelab && cd my-homelab"
+  echo "    stackkit init $kit --non-interactive --owner-source=local"
+  echo "    stackkit generate                            # resolve + render artifacts"
+  echo "    stackkit apply --auto-approve                # deploy (installs Docker on demand)"
+}
+
 if [ -n "$INSTALL_KITS" ]; then
   echo ""
   echo "  Installed kit definitions: $INSTALL_KITS"
   echo ""
-  echo "  Get started manually:"
-  echo "    mkdir my-homelab && cd my-homelab"
-  case "$KIT_NAME" in
-    base-kit)
-      echo "    stackkit init basement-kit  # continue with this StackKit"
-      ;;
-    basement-kit|cloud-kit|modern-homelab)
-      echo "    stackkit init $KIT_NAME     # continue with this StackKit"
-      ;;
-    *)
-      echo "    stackkit init               # interactive kit selection"
-      ;;
-  esac
-  echo "    stackkit apply              # deploy with confirmation"
+  echo "  Guided one-command installs (recommended; walks you to a running homelab):"
+  echo "    curl -sSL https://base.stackkit.cc | sh     # Basement (local homelab)"
+  echo "    curl -sSL https://cloud.stackkit.cc | sh    # Cloud Kit (public domain)"
   echo ""
-  echo "  Shortcut install entrypoints:"
-  echo "    curl -sSL https://install.stackkit.cc | sh"
-  echo "    curl -sSL https://base.stackkit.cc | sh"
-  echo "    curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab"
+  case "$KIT_NAME" in
+    base-kit) print_cli_chain basement-kit ;;
+    basement-kit|cloud-kit|modern-homelab) print_cli_chain "$KIT_NAME" ;;
+    *) print_cli_chain basement-kit ;;
+  esac
 else
   echo ""
-  echo "  Get started:"
-  echo "    mkdir my-homelab && cd my-homelab"
-  echo "    stackkit init              # interactive kit selection"
-  echo "    stackkit apply"
+  echo "  Guided one-command installs (recommended):"
+  echo "    curl -sSL https://base.stackkit.cc | sh     # Basement (local homelab)"
+  echo "    curl -sSL https://cloud.stackkit.cc | sh    # Cloud Kit (public domain)"
+  echo ""
+  print_cli_chain basement-kit
 fi
 echo ""

@@ -67,6 +67,7 @@ func init() {
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)")
+	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.expectedPlanHash, "expected-plan-hash", "", "Require the canonical ResolvedPlan to match this sha256 digest immediately before Apply")
 	// Local execution binding. Apply never infers that a planned target is this
 	// machine: the owner names the exact Site, node, and channel this process
 	// owns, and anything else stays unadmitted.

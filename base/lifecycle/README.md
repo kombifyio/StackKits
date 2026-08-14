@@ -1,105 +1,76 @@
 # Lifecycle Templates
 
-> Teil der **IaC-First Architektur** von kombify-TechStack
+Shared OpenTofu templates for workload deployment and lifecycle management,
+kept in the StackKits base library so kits do not each carry their own copy.
 
-## Zweck
+## Scope
 
-Dieses Verzeichnis enthält OpenTofu-Templates für das Service-Deployment und Lifecycle-Management. Hier werden die eigentlichen Workloads (Container, VMs) definiert und verwaltet.
+- Service deployment (Compose stacks)
+- Container lifecycle through the Docker provider
+- Persistent volumes and config material
+- Secret deployment and rotation
+- Health-check configuration
+- Drift observation (`_drift.tf.tmpl`)
 
-## Was gehört hierher?
+## Declarative execution
 
-- **Service-Deployment**: Docker Compose/Swarm Stacks
-- **Container-Management**: Container-Lifecycle via Docker Provider
-- **VM-Management**: QEMU/KVM VMs via libvirt Provider
-- **Secrets-Management**: Secret-Deployment und Rotation
-- **Config-Management**: ConfigMaps, Environment-Variables
-- **Health-Checks**: Service-Health-Monitoring-Konfiguration
+Workloads are declared as OpenTofu resources rather than applied by ad-hoc
+shell commands: `tofu plan` shows the change, `tofu apply` performs it, and
+state management makes rollback possible.
 
-## IaC-First Prinzip
+## Files
 
-Der kombify-TechStack-Agent führt **keine Shell-Commands direkt** aus. Stattdessen:
+| File | Purpose |
+| --- | --- |
+| `_drift.tf.tmpl` | Drift observation for deployed workloads |
 
-1. Services werden deklarativ als OpenTofu-Ressourcen definiert
-2. Agent führt `tofu apply` für Deployments aus
-3. Updates erfolgen durch `tofu plan` → `tofu apply`
-4. Rollbacks sind durch State-Management möglich
+## Template variables
 
-## Erwartete Template-Files
+Templates are rendered from the resolved plan, which supplies the service
+identities, images, replica counts, environment, volume mounts, and secret
+references a kit declares. Templates never read user input directly.
 
-```
-lifecycle/
-├── main.tf.tmpl           # Haupt-Modul für Lifecycle
-├── variables.tf.tmpl      # Input-Variablen
-├── outputs.tf.tmpl        # Output-Werte (Service-URLs, etc.)
-├── providers.tf.tmpl      # Docker/libvirt Provider
-├── containers.tf.tmpl     # Container-Definitionen
-├── volumes.tf.tmpl        # Persistent Volumes
-├── secrets.tf.tmpl        # Secret-Management
-├── configs.tf.tmpl        # Config-Files und Envs
-├── services.tf.tmpl       # Docker Swarm Services
-└── vms.tf.tmpl            # VM-Definitionen (optional)
-```
-
-## Template-Variablen
-
-Templates erhalten Variablen aus der `kombination.yaml`:
-
-- `${services[*].name}` - Service-Namen
-- `${services[*].image}` - Container-Images
-- `${services[*].replicas}` - Replica-Count
-- `${services[*].env}` - Environment-Variablen
-- `${services[*].volumes}` - Volume-Mounts
-- `${secrets[*]}` - Secrets-Referenzen
-
-## Beispiel
+## Example
 
 ```hcl
-# containers.tf.tmpl
-resource "docker_container" "traefik" {
-  name  = "traefik"
-  image = docker_image.traefik.image_id
-  
+resource "docker_container" "router" {
+  name  = "router"
+  image = docker_image.router.image_id
+
   restart = "unless-stopped"
-  
+
   ports {
     internal = 80
     external = 80
   }
-  
+
   ports {
     internal = 443
     external = 443
   }
-  
+
   volumes {
     host_path      = "/var/run/docker.sock"
     container_path = "/var/run/docker.sock"
     read_only      = true
   }
-  
-  labels {
-    label = "managed-by"
-    value = "kombify-TechStack"
-  }
 }
 ```
 
-## Terramate-Integration
+## Multi-node deployments
 
-Für Multi-Node-Deployments wird Terramate verwendet:
+Terramate orders the stacks for multi-node deployments:
 
 ```hcl
-# terramate.tm.hcl
 stack {
   name        = "service-deployment"
-  description = "Deploy services to cluster"
-  
+  description = "Deploy services to the cluster"
+
   after = ["bootstrap", "network"]
 }
 ```
 
-## Abhängigkeiten
+## Dependencies
 
-- Erfordert abgeschlossene `bootstrap/`-Phase
-- Erfordert abgeschlossene `network/`-Phase
-- Koordiniert mit anderen Nodes via Core
+Lifecycle templates assume the `bootstrap/` and `network/` phases completed on
+the target host.

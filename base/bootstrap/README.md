@@ -1,57 +1,47 @@
 # Bootstrap Templates
 
-> Teil der **IaC-First Architektur** von kombify-TechStack
+Shared OpenTofu templates for host preparation, kept in the StackKits base
+library so kits do not each carry their own copy.
 
-## Zweck
+## Scope
 
-Dieses Verzeichnis enthält OpenTofu-Templates für die initiale Node-Vorbereitung (Bootstrap-Phase). Diese Templates werden ausgeführt, **bevor** ein Node dem Cluster beitritt.
+These templates cover the preparation a host needs before workloads are
+deployed onto it:
 
-## Was gehört hierher?
+- OS baseline configuration
+- Package installation (container engine, systemd units)
+- Service accounts and SSH key deployment
+- Mount points and directory layout
+- Baseline firewall and SSH hardening
 
-- **OS-Preparation**: Basis-Konfiguration des Betriebssystems
-- **Package-Installation**: Installation von Grundpaketen (Docker, systemd-Konfiguration, etc.)
-- **User-Setup**: Erstellung von Service-Accounts und SSH-Key-Deployment
-- **Storage-Preparation**: Vorbereitung von Mountpoints und Verzeichnisstrukturen
-- **Security-Hardening**: Firewall-Basisregeln, SSH-Härtung
+## Declarative execution
 
-## IaC-First Prinzip
+Host preparation is expressed as OpenTofu configuration rather than ad-hoc
+shell commands: the configuration is rendered from these templates, then
+applied with `tofu init`, `tofu plan`, `tofu apply`. Every change is
+declarative, idempotent, and reviewable before it runs.
 
-Der kombify-TechStack-Agent führt **keine Shell-Commands direkt** aus. Stattdessen:
+## Files
 
-1. Core generiert OpenTofu-Konfigurationen basierend auf diesen Templates
-2. Agent führt `tofu init`, `tofu plan`, `tofu apply` aus
-3. Alle Änderungen sind deklarativ, idempotent und nachvollziehbar
+| File | Purpose |
+| --- | --- |
+| `_bootstrap.tf.tmpl` | Host preparation module |
+| `_services.tf.tmpl` | Service unit preparation |
+| `_variables.tf.tmpl` | Input variables for the rendered module |
 
-## Erwartete Template-Files
+## Template variables
 
-```
-bootstrap/
-├── main.tf.tmpl          # Haupt-Modul für Bootstrap
-├── variables.tf.tmpl     # Input-Variablen
-├── outputs.tf.tmpl       # Output-Werte für nachfolgende Phasen
-├── providers.tf.tmpl     # Provider-Konfiguration (local, null, etc.)
-├── packages.tf.tmpl      # Package-Installation via system provider
-├── users.tf.tmpl         # User- und Group-Management
-├── ssh.tf.tmpl           # SSH-Konfiguration und Key-Deployment
-└── storage.tf.tmpl       # Storage-Vorbereitung
-```
+Templates are rendered with values resolved from the canonical StackSpec and
+the kit's CUE contracts, for example the node hostname, the node roles, and
+the network and storage settings the kit declares. Templates never read user
+input directly; the resolved plan is the only input authority.
 
-## Template-Variablen
-
-Templates erhalten Variablen aus der `kombination.yaml`:
-
-- `${node.hostname}` - Hostname des Nodes
-- `${node.role}` - Rolle (manager/worker)
-- `${stack.network.*}` - Netzwerk-Konfiguration
-- `${stack.security.*}` - Security-Einstellungen
-
-## Beispiel
+## Example
 
 ```hcl
-# packages.tf.tmpl
 resource "system_packages_apt" "docker" {
   count = var.install_docker ? 1 : 0
-  
+
   package {
     name = "docker-ce"
   }

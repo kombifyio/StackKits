@@ -14,17 +14,17 @@ stackkit version
 The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`,
 packaged OpenTofu, packaged Terramate, and the public kit catalog under
 `~/.stackkits`, so `stackkit init basement-kit` works from a clean directory
-without a repo checkout. Basement Kit is the verified v0.8 standalone path;
-Cloud Kit exposes the same account-free intent bootstrap with an explicit
-domain, while Modern Homelab remains a v0.9 preview. The installer also adds a
+without a repo checkout. Basement Kit is the verified standalone path; Cloud Kit
+exposes the same account-free intent bootstrap with an explicit domain and ships
+as a preview, while Modern Homelab is alpha scaffolding. The installer also adds a
 short `sk -> stackkit` symlink when the `sk` name is free — it never overwrites
 an existing `sk` (e.g. `skim`). Opt out with `STACKKIT_SKIP_SK_SYMLINK=1`.
-Unpinned installer runs use the current stable GitHub `releases/latest`. To
-test a v0.8 prerelease, export the exact candidate tag before invoking the
-installer:
+Unpinned installer runs use the GitHub `releases/latest` of
+`kombifyio/stackKits`. To test a prerelease, export the exact candidate tag
+before invoking the installer:
 
 ```bash
-export STACKKIT_RELEASE_VERSION=v0.8.0-beta.1
+export STACKKIT_RELEASE_VERSION=v0.17.0-beta.1
 curl -sSL https://base.stackkit.cc | sh
 ```
 
@@ -32,7 +32,7 @@ For a single copy/paste command, pass the pin to the shell that executes the
 installer:
 
 ```bash
-env STACKKIT_RELEASE_VERSION=v0.8.0-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
+env STACKKIT_RELEASE_VERSION=v0.17.0-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
 ```
 
 For local-server beta tests, run the command in the shell of the target server
@@ -87,7 +87,7 @@ the v0.8 Basement default executes Compose directly.
 
 | Command | Purpose |
 | --- | --- |
-| `init [stackkit]` | Create a CUE-owned StackSpec. Published v0.6 binaries also created a legacy output directory; current v0.8 uses native v2 plus local Owner custody. |
+| `init [stackkit]` | Create a CUE-owned StackSpec. Published v0.6 binaries also created a legacy output directory; current source uses native v2 plus local Owner custody. |
 | `prepare` / `prep` | Prepare local or SSH target: prerequisites, Docker checks, packaged OpenTofu check, spec validation, hardware checks. |
 | `generate` / `gen` | Generate rollout artifacts from the spec and CUE contracts. |
 | `plan` | Run an OpenTofu plan for the generated deployment. |

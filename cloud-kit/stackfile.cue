@@ -185,7 +185,10 @@ Definition: base.#ProductKitDefinition & {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
 		defaultTarget: "compose"
-		allowedTargets: ["opentofu", "compose"]
+		// Cloud core currently has one concrete renderer: the Compose
+		// realization. Do not advertise OpenTofu until its renderer, artifacts,
+		// and support contract are implemented together.
+		allowedTargets: ["compose"]
 		contractVersion: "1.0.0"
 	}
 	network: {

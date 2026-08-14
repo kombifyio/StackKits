@@ -10,11 +10,16 @@ kind: KitCatalogMetadata
 
 metadata:
   name: modern-homelab
-  version: "1.0.0-alpha"
+  version: "1.1.0-alpha"
   description: "Federated Home and Cloud StackKit with Home-owned authority and a policy-constrained bridge"
   author: "kombify Team"
   license: "Apache-2.0"
   repository: "https://github.com/kombifyio/stackkits"
+  # Every mode_matrix.cue cell is scaffolding or unsupported and no native or
+  # advanced templates are generated for this kit, so it is not an installable
+  # path. It stays in the public export as a declared alpha rather than being
+  # hidden, because the federation contracts it defines are real and readable.
+  maturity: alpha
   status: scaffolding
   tags:
     - homelab

@@ -1,5 +1,5 @@
 # Monitoring Stack - Advanced Mode
-# Adaptive monitoring: Netdata (standard/high) oder Glances (low)
+# Adaptive monitoring: Netdata (standard/high) or Glances (low)
 
 stack {
   name        = "monitoring"

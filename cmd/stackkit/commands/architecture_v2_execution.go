@@ -57,6 +57,7 @@ type architectureV2ExecutionCLIOptions struct {
 	stackSpecData    []byte
 	inventoryData    []byte
 	receiptPath      string
+	expectedPlanHash string
 	localSiteRef     string
 	localNodeRef     string
 	localChannelRef  string
@@ -431,6 +432,15 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		}
 		if err := persisted.VerifyCompatibility(g.versions); err != nil {
 			return err
+		}
+		// Mutating modes reach execute only while the lifecycle and exact
+		// output-root locks are held. Keep the caller's admitted plan identity
+		// at this boundary so PLAN -> APPLY cannot mutate a newly resolved plan
+		// after an orchestrator approved an older one.
+		if mode == architectureV2Apply {
+			if err := persisted.RequireExpectedPlanHash(options.expectedPlanHash); err != nil {
+				return err
+			}
 		}
 		if mode == architectureV2Plan {
 			if err := validateArchitectureV2PlanOptions(options); err != nil {

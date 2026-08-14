@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -241,7 +242,7 @@ func validateCoreHostBootstrapDocument(document coreHostBootstrapDocument, bindi
 	}
 	policy := document.Policy
 	if strings.TrimSpace(policy.StackID) == "" ||
-		!slices.Contains([]string{"basement-kit", "cloud-kit", "modern-homelab"}, policy.Kit.Slug) || policy.Kit.Version == "" || !validCoreHostBootstrapDigest(policy.Kit.DefinitionHash) ||
+		!productkits.IsActive(policy.Kit.Slug) || policy.Kit.Version == "" || !validCoreHostBootstrapDigest(policy.Kit.DefinitionHash) ||
 		policy.Target.SiteRef != binding.SiteRef || policy.Target.NodeRef != binding.NodeRef ||
 		policy.Runtime.InstallMode != "bootstrapped" || policy.Runtime.Runtime != "docker" || policy.Runtime.Engine != "docker" ||
 		policy.Runtime.DataRoot == "" || len(policy.Directories) < 3 || len(policy.Directories) > 4 {

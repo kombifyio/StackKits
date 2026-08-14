@@ -188,6 +188,23 @@ func (p VerifiedPlan) VerifyCurrentResolution(canonical []byte) error {
 	return nil
 }
 
+// RequireExpectedPlanHash binds an external Apply admission decision to this
+// exact verified ResolvedPlan. An empty expectation preserves owner-operated
+// Standard Mode; governed orchestrators provide the hash returned by PLAN.
+func (p VerifiedPlan) RequireExpectedPlanHash(expected string) error {
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return nil
+	}
+	if !validSHA256(expected) {
+		return fail(ErrInvalidContract, "resolvedPlan.expectedPlanHash", "expected Apply plan hash must be a lowercase sha256 digest")
+	}
+	if expected != p.binding.PlanHash {
+		return fail(ErrBindingMismatch, "resolvedPlan.planHash", "verified plan hash %s does not match expected Apply plan hash %s", p.binding.PlanHash, expected)
+	}
+	return nil
+}
+
 // RequireReady enforces the signed readiness decision embedded by the
 // compiler. Blocker codes and refs are included deterministically for operator
 // diagnostics while callers classify the typed ErrorCode.
