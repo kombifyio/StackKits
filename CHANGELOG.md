@@ -4,6 +4,12 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.18.1](https://github.com/kombifyio/stackKits/compare/v0.18.0...v0.18.1) (2026-08-14)
+
+### Fixed
+
+* **cloud-kit:** keep the Traefik admin API localhost-only in product and public release contracts ([#653](https://github.com/kombifyio/stackKits/issues/653), [#654](https://github.com/kombifyio/stackKits/issues/654))
+
 ## [0.18.0](https://github.com/kombifyio/stackKits/compare/v0.17.0...v0.18.0) (2026-08-14)
 
 

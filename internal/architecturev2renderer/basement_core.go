@@ -75,7 +75,7 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-    ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "0.0.0.0:8080:8080"]
+    ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "127.0.0.1:8080:8080"]
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 5s
