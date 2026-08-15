@@ -34,6 +34,33 @@ var (
 	}
 )
 
+// validateExpectedCurrentReleaseReceipt asserts that a verified receipt for a
+// downloaded release archive names the kit, tag, and platform that were asked
+// for. It never inspects the running executable.
+func validateExpectedCurrentReleaseReceipt(
+	receipt releaseindex.Receipt,
+	kit string,
+	exactTag string,
+	platform releaseindex.Platform,
+) error {
+	if receipt.Kit != kit ||
+		receipt.Version != exactTag ||
+		receipt.Platform != platform {
+		return fmt.Errorf(
+			"verified receipt %s/%s/%s/%s does not match expected current release %s/%s/%s/%s",
+			receipt.Kit,
+			receipt.Version,
+			receipt.Platform.OS,
+			receipt.Platform.Arch,
+			kit,
+			exactTag,
+			platform.OS,
+			platform.Arch,
+		)
+	}
+	return nil
+}
+
 type rejectedReleaseSource struct {
 	err error
 }
@@ -114,26 +141,4 @@ func shortDigest(value string) string {
 		return value
 	}
 	return value[:12]
-}
-
-func validateExpectedCurrentReleaseReceipt(
-	receipt releaseindex.Receipt,
-	kit string,
-	exactTag string,
-	platform releaseindex.Platform,
-) error {
-	if receipt.Kit != kit || receipt.Version != exactTag || receipt.Platform != platform {
-		return fmt.Errorf(
-			"verified receipt %s/%s/%s/%s does not match expected current release %s/%s/%s/%s",
-			receipt.Kit,
-			receipt.Version,
-			receipt.Platform.OS,
-			receipt.Platform.Arch,
-			kit,
-			exactTag,
-			platform.OS,
-			platform.Arch,
-		)
-	}
-	return nil
 }

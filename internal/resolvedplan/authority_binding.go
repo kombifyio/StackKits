@@ -1,8 +1,6 @@
 package resolvedplan
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"reflect"
 	"sort"
@@ -101,17 +99,8 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 		}
 		normalizedDefinitions = append(normalizedDefinitions, normalized)
 	}
-	if authority.Class == "product" {
-		if len(v.authoritySource) == 0 {
-			return PlanAuthority{}, fmt.Errorf("product authority requires immutable in-memory authority sources")
-		}
-		fingerprint, err := ComputeDistributionFingerprint(v.authoritySource, catalog, normalizedDefinitions)
-		if err != nil {
-			return PlanAuthority{}, fmt.Errorf("compute product distribution fingerprint: %w", err)
-		}
-		if fingerprint != pinnedProductDistributionFingerprint || authority.DistributionFingerprint != fingerprint {
-			return PlanAuthority{}, fmt.Errorf("product Catalog, Definition set, or CUE sources do not match the pinned product distribution fingerprint")
-		}
+	if authority.Class == "product" && len(v.authoritySource) == 0 {
+		return PlanAuthority{}, fmt.Errorf("product authority requires immutable in-memory authority sources")
 	}
 	if err := bindCatalogIdentities("capabilities", catalog.Capabilities, binding.capabilities); err != nil {
 		return PlanAuthority{}, err
@@ -151,50 +140,6 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 	v.planAuthority = authority
 	v.boundAuthority = binding
 	return authority, nil
-}
-
-// ComputeDistributionFingerprint binds the immutable CUE source bytes to the
-// complete concrete Catalog and Definition projections shipped in one build.
-// It is a bundle/build attestation only. It must never be copied into a
-// ResolvedPlan, whose authority is derived from the selected semantic closure.
-func ComputeDistributionFingerprint(sources map[string][]byte, catalog Catalog, definitions []KitDefinition) (string, error) {
-	if len(sources) == 0 {
-		return "", fmt.Errorf("authority sources are required")
-	}
-	sourceHashes := make(map[string]any, len(sources))
-	for relativePath, source := range sources {
-		sum := sha256.Sum256(source)
-		sourceHashes[relativePath] = "sha256:" + hex.EncodeToString(sum[:])
-	}
-	catalogHash, err := canonicalAuthorityCatalogHash(catalog)
-	if err != nil {
-		return "", err
-	}
-	definitionHashes := make(map[string]any, len(definitions))
-	for index, definition := range definitions {
-		metadata, err := objectField(map[string]any(definition), fmt.Sprintf("definitions[%d]", index), "metadata")
-		if err != nil {
-			return "", err
-		}
-		slug, err := stringField(metadata, fmt.Sprintf("definitions[%d].metadata", index), "slug")
-		if err != nil {
-			return "", err
-		}
-		if _, duplicate := definitionHashes[slug]; duplicate {
-			return "", fmt.Errorf("authority Definition %s is duplicated", slug)
-		}
-		hash, err := canonicalHash(definition, true)
-		if err != nil {
-			return "", err
-		}
-		definitionHashes[slug] = hash
-	}
-	return canonicalHash(map[string]any{
-		"schemaVersion": "stackkits-product-distribution-fingerprint/v1",
-		"sourceHashes":  sourceHashes,
-		"catalogHash":   catalogHash,
-		"definitions":   definitionHashes,
-	}, false)
 }
 
 func canonicalAuthorityCatalogHash(catalog Catalog) (string, error) {

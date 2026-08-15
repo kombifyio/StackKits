@@ -99,19 +99,17 @@ func validatePlanAuthority(authority PlanAuthority) error {
 	switch authority.Class {
 	case "product":
 		if authority.Document != "catalog" || !authority.GraduationEligible ||
-			authority.Issuer != "stackkits-product-authority/v1" ||
-			authority.DistributionFingerprint != pinnedProductDistributionFingerprint ||
-			!canonicalSHA256Pattern.MatchString(authority.DistributionFingerprint) {
-			return fail(ErrInvalidInput, "options.planAuthority", "product authority requires the pinned issuer and distribution fingerprint")
+			authority.Issuer != "stackkits-product-authority/v1" {
+			return fail(ErrInvalidInput, "options.planAuthority", "product authority requires the pinned issuer")
 		}
 	case "contract-fixture":
 		if authority.Document != "contractFixtureCatalog" || authority.GraduationEligible ||
-			authority.Issuer != "stackkits-contract-fixture-authority/v1" || authority.DistributionFingerprint != "" {
+			authority.Issuer != "stackkits-contract-fixture-authority/v1" {
 			return fail(ErrInvalidInput, "options.planAuthority", "contract-fixture authority requires document contractFixtureCatalog and graduationEligible=false")
 		}
 	case "development":
 		if authority.Document != "catalog" || authority.GraduationEligible ||
-			authority.Issuer != "stackkits-development-authority/v1" || authority.DistributionFingerprint != "" {
+			authority.Issuer != "stackkits-development-authority/v1" {
 			return fail(ErrInvalidInput, "options.planAuthority", "development authority requires document catalog and graduationEligible=false")
 		}
 	default:
@@ -123,7 +121,6 @@ func validatePlanAuthority(authority PlanAuthority) error {
 func samePlanAuthorityClass(left, right PlanAuthority) bool {
 	return left.Class == right.Class && left.Document == right.Document &&
 		left.GraduationEligible == right.GraduationEligible && left.Issuer == right.Issuer &&
-		left.DistributionFingerprint == right.DistributionFingerprint &&
 		left.AuthorityFingerprint == right.AuthorityFingerprint && left.CatalogHash == right.CatalogHash
 }
 

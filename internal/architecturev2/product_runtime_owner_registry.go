@@ -680,6 +680,11 @@ func validateProductRuntimeOwnerSelector(selector ProductRuntimeOwnerSelector) e
 func productRuntimeOwnerHealthAssignments(targets []runtimeexecutor.RuntimeTarget, health []runtimeexecutor.HealthTarget) (map[string][]runtimeexecutor.HealthTarget, error) {
 	result := make(map[string][]runtimeexecutor.HealthTarget, len(targets))
 	for _, candidate := range health {
+		if strings.TrimSpace(candidate.RouteRef) != "" {
+			// Route health is not a runtime postcondition (see
+			// productHealthTargetsRuntime); it needs no runtime owner.
+			continue
+		}
 		matchedRequirementID := ""
 		matches := 0
 		for _, target := range targets {
@@ -703,6 +708,16 @@ func productRuntimeOwnerHealthAssignments(targets []runtimeexecutor.RuntimeTarge
 }
 
 func productHealthTargetsRuntime(health runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget) bool {
+	// Route health describes the reverse-proxy path to a service, not the
+	// runtime that hosts it. No executor can observe it: HealthProbe carries
+	// protocol, port and path but no host, so a name-based route cannot be
+	// probed through the router at all. The module gate for the same service
+	// already proves the service is up, so a route gate is never a runtime
+	// postcondition - dispatching it only made every kit with a public route
+	// refuse to apply.
+	if strings.TrimSpace(health.RouteRef) != "" {
+		return false
+	}
 	if len(health.SiteRefs) != 1 || len(health.NodeRefs) != 1 || len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
 		health.SiteRefs[0] != target.SiteRefs[0] || health.NodeRefs[0] != target.NodeRefs[0] {
 		return false

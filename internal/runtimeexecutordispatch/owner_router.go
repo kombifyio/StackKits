@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -177,6 +178,12 @@ func partitionOwnerRequest(request runtimeexecutor.ExecutionRequest, channelRef,
 	for _, health := range request.HealthTargets {
 		matchedHash := ""
 		matches := 0
+		if strings.TrimSpace(health.RouteRef) != "" {
+			// Route health is not a runtime postcondition: HealthProbe has no
+			// host, so a name-based route cannot be probed, and the module
+			// gate for the same service already proves it runs.
+			continue
+		}
 		for _, target := range request.RuntimeTargets {
 			if !sameTargetScope(health, target) || !healthTargetsRuntime(health, target) {
 				continue

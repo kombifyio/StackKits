@@ -675,8 +675,8 @@ case "$DOMAIN_EFFECTIVE" in
     ;;
 esac
 echo "  Commands:"
-echo "    stackkit status        Check service health"
-echo "    stackkit verify --http Run HTTP route checks"
+echo "    stackkit logs latest --json  Inspect local rollout evidence"
+echo "    cat $ACCESS_JSON             Read service URLs and setup evidence"
 echo "    stackkit remove        Tear down everything"
 echo ""
 if [ -f "$ACCESS_JSON" ]; then

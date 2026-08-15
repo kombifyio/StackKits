@@ -695,9 +695,6 @@ func validateBindingAuthority(authority resolvedplan.PlanAuthority, valuePath st
 	if !validSHA256(authority.CatalogHash) {
 		return fail(ErrInvalidContract, valuePath+".catalogHash", "must be a lowercase sha256:<64-hex> digest")
 	}
-	if authority.DistributionFingerprint != "" {
-		return fail(ErrInvalidContract, valuePath+".distributionFingerprint", "distribution attestation is build-local and must not enter a plan binding")
-	}
 	switch authority.Class {
 	case "product":
 		expected := resolvedplan.ProductPlanAuthority()

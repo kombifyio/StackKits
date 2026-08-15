@@ -76,6 +76,13 @@ function extractBulletBlocks(body) {
 
 function toReleaseNote(rawLine, index) {
   const raw = rawLine.slice(2).trim()
+  const scopedBoldMatch = raw.match(/^\*\*(.+?):\*\*\s*(.+)$/u)
+  if (scopedBoldMatch) {
+    return {
+      title: scopedBoldMatch[1].trim(),
+      body: scopedBoldMatch[2].trim(),
+    }
+  }
   const boldMatch = raw.match(/^\*\*(.+?)\*\*:\s*(.+)$/)
   if (boldMatch) {
     return {
@@ -138,6 +145,37 @@ export function extractLatestReleaseNotes(markdown, options = {}) {
   return {
     version: latest.version,
     notes: bulletLines.map(toReleaseNote),
+  }
+}
+
+function minorKey(version) {
+  const match = /^(\d+)\.(\d+)\.\d+(?:[-+].*)?$/u.exec(version)
+  return match ? `${match[1]}.${match[2]}` : ''
+}
+
+export function toMinorVersionLabel(version) {
+  return minorKey(normalizeVersion(version)) || normalizeVersion(version)
+}
+
+// Keep the website changelog on the current release line. Patch releases
+// update artifacts, while the X.Y.0 entry remains the line-level changelog.
+export function extractLatestMinorReleaseNotes(markdown, options = {}) {
+  const { limit = 3, fallbackVersion = '0.0.0', anchorVersion = '' } = options
+  const sections = parseChangelogSections(markdown)
+  const anchor = normalizeVersion(anchorVersion)
+  const currentMinor = minorKey(anchor) || minorKey(sections.find((section) => minorKey(section.version))?.version || '')
+  const lineSections = sections.filter((section) => minorKey(section.version) === currentMinor)
+  const highlighted = lineSections.find((section) => getSubsectionBody(section.body, 'Highlights'))
+  const baseline = lineSections.find((section) => /^\d+\.\d+\.0(?:[-+].*)?$/u.test(section.version))
+  const release = highlighted || baseline
+  if (!release) {
+    return extractLatestReleaseNotes(markdown, { limit, fallbackVersion })
+  }
+
+  const sourceBody = getSubsectionBody(release.body, 'Highlights') || release.body
+  return {
+    version: release.version,
+    notes: extractBulletBlocks(sourceBody).slice(0, limit).map(toReleaseNote),
   }
 }
 

@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.18.14](https://github.com/kombifyio/stackKits/compare/v0.18.13...v0.18.14) (2026-08-15)
+
+### Fixed
+
+* **release:** include every static schema and compatibility document required by the public GoReleaser archives
+
+## [0.18.13](https://github.com/kombifyio/stackKits/compare/v0.18.12...v0.18.13) (2026-08-15)
+
+### Fixed
+
+* **release:** remove deliberately deleted pre-1.0 tests from the public surface policy
+
+## [0.18.12](https://github.com/kombifyio/stackKits/compare/v0.18.11...v0.18.12) (2026-08-15)
+
+### Fixed
+
+* **release:** remove the retired distribution-fingerprint option from both public export implementations
+
+## [0.18.11](https://github.com/kombifyio/stackKits/compare/v0.18.9...v0.18.11) (2026-08-15)
+
+### Fixed
+
+* **verify:** preserve the local Architecture v2 runtime report when an orchestrator-provided release bundle has no downloaded workspace receipt cache
+* **apply:** allow resolved public-route health executors to run instead of blocking a valid kit rollout
+* **installer:** retain the selected Cloud domain and target the public release repository explicitly
+* **release:** remove deleted pre-1.0 test files from the curated public export manifest
+
 ## [0.18.9](https://github.com/kombifyio/stackKits/compare/v0.18.8...v0.18.9) (2026-08-15)
 
 ### Fixed

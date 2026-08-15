@@ -2,7 +2,7 @@
 # =============================================================================
 # StackKits Cloud Installer — full cloud-kit deployment in one command.
 # =============================================================================
-# Usage: DOMAIN=example.com curl -sSL https://cloud.stackkit.cc | sh
+# Usage: curl -sSL https://cloud.stackkit.cc | DOMAIN=example.com sh
 #
 # This installer carries you through the COMPLETE installation to a running
 # Cloud Kit on a public host. It is a guidance layer over the stackkit CLI:
@@ -127,7 +127,7 @@ if [ -z "${DOMAIN:-}" ] && can_prompt; then
   echo ""
 fi
 if [ -z "${DOMAIN:-}" ]; then
-  die "Cloud Kit v2 requires DOMAIN (for example: DOMAIN=example.com curl -sSL https://cloud.stackkit.cc | sh)."
+  die "Cloud Kit v2 requires DOMAIN (for example: curl -sSL https://cloud.stackkit.cc | DOMAIN=example.com sh)."
 fi
 
 ADMIN_EMAIL="${STACKKIT_ADMIN_EMAIL:-${KOMBIFY_USER_EMAIL:-}}"

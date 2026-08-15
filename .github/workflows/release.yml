@@ -310,6 +310,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
             --draft=false \
             --prerelease=false \
             --latest
@@ -1044,6 +1045,7 @@ jobs:
             artifacts/modern-terminal/modern-terminal-live-receipt.json \
             --clobber
           gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
             --draft=false \
             --prerelease=false \
             --latest

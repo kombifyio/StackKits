@@ -35,13 +35,12 @@ const (
 var embeddedBundleFS embed.FS
 
 type authorityBundleManifest struct {
-	SchemaVersion           string            `json:"schemaVersion"`
-	Module                  string            `json:"module"`
-	ProfileScope            string            `json:"profileScope,omitempty"`
-	DistributionFingerprint string            `json:"distributionFingerprint,omitempty"`
-	SourceHashes            map[string]string `json:"sourceHashes"`
-	Documents               map[string]string `json:"documents"`
-	Profiles                map[string]string `json:"profiles"`
+	SchemaVersion string            `json:"schemaVersion"`
+	Module        string            `json:"module"`
+	ProfileScope  string            `json:"profileScope,omitempty"`
+	SourceHashes  map[string]string `json:"sourceHashes"`
+	Documents     map[string]string `json:"documents"`
+	Profiles      map[string]string `json:"profiles"`
 }
 
 type embeddedAuthorityRole struct {
@@ -185,8 +184,8 @@ func readEmbeddedManifestForRole(role embeddedAuthorityRole) (authorityBundleMan
 		return authorityBundleManifest{}, fmt.Errorf("embedded %s authority manifest must contain exactly the %s document", role.name, role.document)
 	}
 	if role.fixture {
-		if manifest.ProfileScope != "" || manifest.DistributionFingerprint != "" {
-			return authorityBundleManifest{}, fmt.Errorf("embedded contract fixture authority cannot claim a product scope or distribution fingerprint")
+		if manifest.ProfileScope != "" {
+			return authorityBundleManifest{}, fmt.Errorf("embedded contract fixture authority cannot claim a product scope")
 		}
 		if len(manifest.Profiles) != 1 || manifest.Profiles[string(stackspecmigration.KitProfileBasement)] == "" {
 			return authorityBundleManifest{}, fmt.Errorf("embedded contract fixture authority must contain exactly its Basement fixture Definition")
@@ -239,9 +238,6 @@ func validateAuthorityRoleManifest(role embeddedAuthorityRole, manifest authorit
 
 	if manifest.Documents[role.document] != "catalog.json" {
 		return fmt.Errorf("embedded product authority catalog must use catalog.json")
-	}
-	if manifest.DistributionFingerprint != role.planAuthority.DistributionFingerprint {
-		return fmt.Errorf("embedded product distribution fingerprint does not match the binary pin")
 	}
 	var expectedProfileCount int
 	switch manifest.ProfileScope {

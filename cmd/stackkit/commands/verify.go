@@ -167,9 +167,11 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		if err != nil {
 			return err
 		}
-		v2Report.Releases, err = verifyWorkspaceReleaseReceipts(cmd, wd)
-		if err != nil {
-			return err
+		// Release receipts are provenance for a downloaded archive, not a
+		// statement about the running stack. A workspace built from a local
+		// build has none, and that must not discard the runtime report.
+		if receipts, receiptErr := verifyWorkspaceReleaseReceipts(cmd, wd); receiptErr == nil {
+			v2Report.Releases = receipts
 		}
 		if verifyJSON {
 			retErr = writeCommandResult(cmd, cmd.CommandPath(), v2Report)

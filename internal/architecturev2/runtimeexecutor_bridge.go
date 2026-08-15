@@ -264,17 +264,25 @@ func sharedRuntimeTargets(requirements generationartifact.ApplyRequirements) ([]
 	return result, nil
 }
 
+// sharedHealthTargets drops route health requirements. A route gate asserts
+// that the reverse proxy serves a name; HealthProbe carries protocol, port and
+// path but no host, so no executor can observe one, and the module gate for the
+// same service already proves the service runs. Carrying them into Apply only
+// made every kit that publishes a route refuse to install.
 func sharedHealthTargets(requirements []generationartifact.ApplyHealthRequirement) []runtimeexecutor.HealthTarget {
-	result := make([]runtimeexecutor.HealthTarget, len(requirements))
-	for index, target := range requirements {
-		result[index] = runtimeexecutor.HealthTarget{
+	result := make([]runtimeexecutor.HealthTarget, 0, len(requirements))
+	for _, target := range requirements {
+		if strings.TrimSpace(target.RouteRef) != "" {
+			continue
+		}
+		result = append(result, runtimeexecutor.HealthTarget{
 			RequirementID: target.ID, RuntimeRequirementID: target.RuntimeRequirementID,
 			SourceRef: target.SourceRef, ContractHash: target.ContractHash, Phase: target.Phase,
 			Kind: target.Kind, TargetKind: target.TargetKind, TargetRef: target.TargetRef,
 			RouteRef: target.RouteRef, BackendPoolRef: target.BackendPoolRef,
 			Probe:    sharedHealthProbe(target.Probe),
 			SiteRefs: append([]string(nil), target.SiteRefs...), NodeRefs: append([]string(nil), target.NodeRefs...),
-		}
+		})
 	}
 	return result
 }

@@ -66,13 +66,12 @@ type sourceProfile struct {
 }
 
 type manifest struct {
-	SchemaVersion           string            `json:"schemaVersion"`
-	Module                  string            `json:"module"`
-	ProfileScope            string            `json:"profileScope,omitempty"`
-	DistributionFingerprint string            `json:"distributionFingerprint,omitempty"`
-	SourceHashes            map[string]string `json:"sourceHashes"`
-	Documents               map[string]string `json:"documents"`
-	Profiles                map[string]string `json:"profiles"`
+	SchemaVersion string            `json:"schemaVersion"`
+	Module        string            `json:"module"`
+	ProfileScope  string            `json:"profileScope,omitempty"`
+	SourceHashes  map[string]string `json:"sourceHashes"`
+	Documents     map[string]string `json:"documents"`
+	Profiles      map[string]string `json:"profiles"`
 }
 
 func main() {
@@ -81,19 +80,18 @@ func main() {
 	sourceFlag := flag.String("manifest", "", "authority source manifest (defaults beneath -repo)")
 	profilesFlag := flag.String("profiles", "all", "comma-separated authority profile slugs, public, or all")
 	projectFlag := flag.Bool("project", false, "project the target repo to the selected profile set before bundling")
-	distributionFingerprintOutFlag := flag.String("distribution-fingerprint-out", "", "generated Go product distribution fingerprint pin (must be internal/resolvedplan/product_distribution_fingerprint_generated.go beneath -repo)")
 	contractFixtureFlag := flag.Bool("contract-fixture", false, "generate the isolated non-product contract-fixture authority bundle")
 	contractFixtureOutFlag := flag.String("contract-fixture-out", "", "also generate the isolated contract-fixture bundle at this path after the product bundle")
 	flag.Parse()
 	var err error
 	if *contractFixtureFlag {
-		if strings.TrimSpace(*sourceFlag) != "" || *profilesFlag != "all" || *projectFlag || strings.TrimSpace(*distributionFingerprintOutFlag) != "" || strings.TrimSpace(*contractFixtureOutFlag) != "" {
-			err = fmt.Errorf("-contract-fixture cannot be combined with -manifest, -profiles, -project, -distribution-fingerprint-out, or -contract-fixture-out")
+		if strings.TrimSpace(*sourceFlag) != "" || *profilesFlag != "all" || *projectFlag || strings.TrimSpace(*contractFixtureOutFlag) != "" {
+			err = fmt.Errorf("-contract-fixture cannot be combined with -manifest, -profiles, -project, or -contract-fixture-out")
 		} else {
 			err = runContractFixture(*repoFlag, *outFlag)
 		}
 	} else {
-		err = runWithOptionsAndDistributionFingerprint(*repoFlag, *outFlag, *sourceFlag, *profilesFlag, *projectFlag, *distributionFingerprintOutFlag)
+		err = runWithOptions(*repoFlag, *outFlag, *sourceFlag, *profilesFlag, *projectFlag)
 		if err == nil && strings.TrimSpace(*contractFixtureOutFlag) != "" {
 			err = runContractFixture(*repoFlag, *contractFixtureOutFlag)
 		}
@@ -109,10 +107,6 @@ func run(repoFlag, outFlag string) error {
 }
 
 func runWithOptions(repoFlag, outFlag, sourceFlag, profilesFlag string, project bool) error {
-	return runWithOptionsAndDistributionFingerprint(repoFlag, outFlag, sourceFlag, profilesFlag, project, "")
-}
-
-func runWithOptionsAndDistributionFingerprint(repoFlag, outFlag, sourceFlag, profilesFlag string, project bool, fingerprintOut string) error {
 	repoRoot, source, profiles, err := resolveBundleInputs(repoFlag, sourceFlag, profilesFlag, project)
 	if err != nil {
 		return err
@@ -126,19 +120,13 @@ func runWithOptionsAndDistributionFingerprint(repoFlag, outFlag, sourceFlag, pro
 			_ = removeGuardedTree(staging, parent, "."+base+"-staging-")
 		}
 	}()
-	distributionFingerprint, err := generateBundleProjection(repoRoot, staging, source, profiles)
-	if err != nil {
+	if err := generateBundleProjection(repoRoot, staging, source, profiles); err != nil {
 		return err
 	}
 	if err := replaceGeneratedDirectory(staging, outRoot, parent, base); err != nil {
 		return err
 	}
 	staging = ""
-	if strings.TrimSpace(fingerprintOut) != "" {
-		if err := writeProductDistributionFingerprintPin(repoRoot, fingerprintOut, distributionFingerprint); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -222,11 +210,11 @@ func prepareBundleOutput(outFlag string) (outRoot, parent, base, staging string,
 	return outRoot, parent, base, staging, err
 }
 
-//nolint:gocyclo // Projection is an atomic fail-closed pipeline whose source, namespace, catalog, definition, and fingerprint checks must remain visibly ordered.
-func generateBundleProjection(repoRoot, staging string, source sourceManifest, profiles []sourceProfile) (distributionFingerprint string, returnErr error) {
+//nolint:gocyclo // Projection is an atomic fail-closed pipeline whose source, namespace, catalog, and definition checks must remain visibly ordered.
+func generateBundleProjection(repoRoot, staging string, source sourceManifest, profiles []sourceProfile) (returnErr error) {
 	stagingRoot, err := os.OpenRoot(staging)
 	if err != nil {
-		return "", fmt.Errorf("open guarded bundle staging root: %w", err)
+		return fmt.Errorf("open guarded bundle staging root: %w", err)
 	}
 	defer func() {
 		if err := stagingRoot.Close(); returnErr == nil && err != nil {
@@ -243,26 +231,24 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 	}
 	result.ProfileScope, err = productProfileScope(source.Profiles, profiles)
 	if err != nil {
-		return "", err
+		return err
 	}
 	sourceFiles := selectedSourceFiles(source, profiles)
-	authoritySources := make(map[string][]byte, len(sourceFiles))
 	for _, relativePath := range sourceFiles {
 		if err := validateProductBundlePath(relativePath); err != nil {
-			return "", err
+			return err
 		}
 		data, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(relativePath)))
 		if err != nil {
-			return "", err
+			return err
 		}
 		if err := rejectProductFixtureNamespace(relativePath, data); err != nil {
-			return "", err
+			return err
 		}
 		if err := writeGenerated(stagingRoot, relativePath, data); err != nil {
-			return "", err
+			return err
 		}
 		result.SourceHashes[relativePath] = contentHash(data)
-		authoritySources[relativePath] = data
 	}
 
 	requests := []cueJSONRequest{{Directory: "base", Expression: "ArchitectureV2Catalog"}}
@@ -271,49 +257,40 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 	}
 	documents, err := loadCUEJSONDocuments(repoRoot, requests)
 	if err != nil {
-		return "", err
+		return err
 	}
 	catalog := documents[0]
 	if err := rejectProductFixtureValue("catalog.json", catalog); err != nil {
-		return "", err
+		return err
 	}
 	catalogPath := "catalog.json"
 	if err := writeCanonicalJSON(stagingRoot, catalogPath, catalog); err != nil {
-		return "", err
+		return err
 	}
-	decodedCatalog, err := decodeResolvedPlanCatalog(catalog)
-	if err != nil {
-		return "", err
+	if _, err := decodeResolvedPlanCatalog(catalog); err != nil {
+		return err
 	}
-	definitions := make([]resolvedplan.KitDefinition, 0, len(profiles))
 	for index, profile := range profiles {
 		document := documents[index+1]
 		relativePath := filepath.ToSlash(filepath.Join("definitions", profile.Slug+".json"))
 		if err := validateProductBundlePath(relativePath); err != nil {
-			return "", err
+			return err
 		}
 		if err := rejectProductFixtureValue(relativePath, document); err != nil {
-			return "", err
+			return err
 		}
 		if err := writeCanonicalJSON(stagingRoot, relativePath, document); err != nil {
-			return "", err
+			return err
 		}
 		result.Profiles[profile.Slug] = relativePath
-		definition, err := resolvedplan.DecodeDocument[resolvedplan.KitDefinition](document)
-		if err != nil {
-			return "", err
+		if _, err := resolvedplan.DecodeDocument[resolvedplan.KitDefinition](document); err != nil {
+			return err
 		}
-		definitions = append(definitions, definition)
 	}
-	distributionFingerprint, err = resolvedplan.ComputeDistributionFingerprint(authoritySources, decodedCatalog, definitions)
-	if err != nil {
-		return "", err
-	}
-	result.DistributionFingerprint = distributionFingerprint
 	if err := writeGeneratedJSON(stagingRoot, "manifest.json", result); err != nil {
-		return "", err
+		return err
 	}
-	return distributionFingerprint, nil
+	return nil
 }
 
 func generateContractFixtureBundle(repoRoot, staging string, source sourceManifest) (returnErr error) {
@@ -439,39 +416,6 @@ func decodeResolvedPlanCatalog(data []byte) (resolvedplan.Catalog, error) {
 		RILActionPrimitives:          wire.RILActionPrimitives,
 		PlanArtifacts:                wire.PlanArtifacts,
 	}, nil
-}
-
-func writeProductDistributionFingerprintPin(repoRoot, outputPath, fingerprint string) error {
-	if !strings.HasPrefix(fingerprint, "sha256:") {
-		return fmt.Errorf("invalid product distribution fingerprint %q", fingerprint)
-	}
-	absoluteOutput, err := filepath.Abs(outputPath)
-	if err != nil {
-		return err
-	}
-	expected := filepath.Join(repoRoot, "internal", "resolvedplan", "product_distribution_fingerprint_generated.go")
-	if filepath.Clean(absoluteOutput) != filepath.Clean(expected) {
-		return fmt.Errorf("product distribution fingerprint output must be %s", expected)
-	}
-	content := []byte("// Code generated by internal/architecturev2/cmd/bundlegen; DO NOT EDIT.\n\n" +
-		"package resolvedplan\n\n" +
-		"// pinnedProductDistributionFingerprint is regenerated from the exact product\n" +
-		"// CUE sources plus their complete concrete Catalog and Definition projections.\n" +
-		fmt.Sprintf("const pinnedProductDistributionFingerprint = %q\n", fingerprint))
-	temporary, err := os.CreateTemp(filepath.Dir(expected), ".product-distribution-fingerprint-*.go")
-	if err != nil {
-		return err
-	}
-	temporaryPath := temporary.Name()
-	defer func() { _ = os.Remove(temporaryPath) }()
-	if _, err := temporary.Write(content); err != nil {
-		_ = temporary.Close()
-		return err
-	}
-	if err := temporary.Close(); err != nil {
-		return err
-	}
-	return os.Rename(temporaryPath, expected)
 }
 
 func contractFixtureSourceFiles(source sourceManifest) ([]string, error) {

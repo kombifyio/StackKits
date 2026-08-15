@@ -150,17 +150,12 @@ type PlanAuthority struct {
 	Issuer               string `json:"issuer"`
 	AuthorityFingerprint string `json:"authorityFingerprint,omitempty"`
 	CatalogHash          string `json:"catalogHash,omitempty"`
-	// DistributionFingerprint attests the exact source/catalog/Definition
-	// bundle compiled into one binary. It is deliberately not serialized into
-	// ResolvedPlan: plans carry a portable semantic authority derived only from
-	// the selected Definition and selected catalog closure.
-	DistributionFingerprint string `json:"-"`
 }
 
 func ProductPlanAuthority() PlanAuthority {
 	return PlanAuthority{
 		Class: "product", Document: "catalog", GraduationEligible: true,
-		Issuer: "stackkits-product-authority/v1", DistributionFingerprint: pinnedProductDistributionFingerprint,
+		Issuer: "stackkits-product-authority/v1",
 	}
 }
 
@@ -173,9 +168,8 @@ func ContractFixturePlanAuthority() PlanAuthority {
 }
 
 // DevelopmentPlanAuthority is the non-graduating default for filesystem and
-// caller-supplied CUE sources. Product eligibility is reserved for a binary
-// whose exact source/catalog/Definition distribution matches its generated
-// distribution fingerprint pin.
+// caller-supplied CUE sources. Product eligibility is reserved for the embedded
+// authority bundle shipped inside the binary.
 func DevelopmentPlanAuthority() PlanAuthority {
 	return PlanAuthority{
 		Class: "development", Document: "catalog", GraduationEligible: false,

@@ -76,12 +76,16 @@ stackkit init --owner-source=local
 stackkit validate
 stackkit generate
 stackkit apply
-stackkit verify --json
+stackkit logs latest --json
+cat .stackkit/access.json
 ```
 
 `init` defaults to `basement-kit`. `prepare` remains an optional host-conformance
 step. `plan` is used only when the selected Product Apply executor is OpenTofu;
-the v0.8 Basement default executes Compose directly.
+the v0.8 Basement default executes Compose directly. The local Owner/admin is
+bootstrapped by the Basement one-liner without a kombify Cloud account. On the
+current public native-v2 line, the access summary and bounded logs are the first
+post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
 
 ## Top-Level Commands
 
