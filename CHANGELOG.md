@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.18.8](https://github.com/kombifyio/stackKits/compare/v0.18.7...v0.18.8) (2026-08-15)
+
+### Fixed
+
+* **apply:** retain bounded Standard execution-channel stderr so orchestrators expose the actual installer failure instead of only `executor-failed`
+
 ## [0.18.7](https://github.com/kombifyio/stackKits/compare/v0.18.2...v0.18.7) (2026-08-15)
 
 ### Changed

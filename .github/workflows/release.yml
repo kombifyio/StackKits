@@ -1,4 +1,4 @@
-name: Public Release Trust and Runtime Gate
+name: Public Release Trust and Stable Runtime Evidence
 
 on:
   repository_dispatch:
@@ -278,7 +278,7 @@ jobs:
             dist/stackkits-release-index-v1.json.intoto.jsonl \
             --clobber
 
-      - name: Hand exact release trust set to the runtime proof
+      - name: Hand exact release trust set to optional stable runtime proof
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-trust-${{ github.ref_name }}-${{ github.sha }}
@@ -291,10 +291,37 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-  runtime-e2e:
-    name: Prove exact standalone Basement archive
+  publish-v0-release:
+    name: Publish exact v0.x release
     needs: release-trust
-    if: github.repository == 'kombifyio/StackKits'
+    if: >-
+      ${{
+        github.repository == 'kombifyio/StackKits' &&
+        startsWith(github.ref_name, 'v0.')
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Publish the source- and artifact-verified release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" \
+            --draft=false \
+            --prerelease=false \
+            --latest
+
+  runtime-e2e:
+    name: Prove exact stable Day-2 Basement archive
+    needs: release-trust
+    if: >-
+      ${{
+        github.repository == 'kombifyio/StackKits' &&
+        !startsWith(github.ref_name, 'v0.')
+      }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -333,7 +360,6 @@ jobs:
           done
 
       - name: Download and verify exact previous stable release for stable Day-2
-        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -472,35 +498,7 @@ jobs:
         shell: bash
         run: sudo setcap cap_net_raw,cap_net_admin=eip "$(command -v tcpdump)"
 
-      - name: Run bounded standalone Basement archive Apply and Verify
-        if: ${{ startsWith(github.ref_name, 'v0.') }}
-        shell: bash
-        env:
-          STACKKIT_E2E_PRELOAD_IMAGES: "1"
-          STACKKIT_E2E_RESTORE_PROOF: "1"
-        run: |
-          set -euo pipefail
-          archive="$(find dist -maxdepth 1 -type f -name 'stackkits-basement-kit_*_linux_amd64.tar.gz' -print -quit)"
-          test -n "$archive"
-          tree="$(git rev-parse HEAD^{tree})"
-          source_digest="sha256:$(printf '%s\0%s' "$GITHUB_SHA" "$tree" | sha256sum | cut -d' ' -f1)"
-          mkdir -p artifacts/standalone-runtime
-          bash scripts/e2e/run-standalone-oss-runtime-e2e.sh \
-            "$archive" \
-            "${archive}.spdx.json" \
-            dist/stackkits-release-assets.intoto.jsonl \
-            dist/sigstore-trusted-root.jsonl \
-            dist/stackkits-release-index-v1.json \
-            dist/stackkits-release-index-v1.json.intoto.jsonl \
-            "$GITHUB_SHA" \
-            "$source_digest" \
-            artifacts/standalone-runtime
-          jq -e \
-            '.schemaVersion == "stackkit.restore-live-e2e-evidence/v1"' \
-            artifacts/standalone-runtime/restore-live-evidence.json >/dev/null
-
       - name: Run bounded stable Day-2 proof from exact stable baseline to candidate
-        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         shell: bash
         env:
           STACKKIT_E2E_PRELOAD_IMAGES: "1"
@@ -574,16 +572,7 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-      - name: Attest exact restore evidence
-        if: ${{ startsWith(github.ref_name, 'v0.') }}
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
-        with:
-          subject-path: artifacts/standalone-runtime/restore-live-evidence.json
-          create-storage-record: false
-          show-summary: false
-
       - name: Attest exact stable Day-2 evidence
-        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: artifacts/standalone-runtime/stable-day2-live-evidence.json
@@ -607,7 +596,6 @@ jobs:
           retention-days: 90
 
       - name: Retain exact stable Day-2 evidence
-        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: stable-day2-live-${{ github.ref_name }}-${{ github.sha }}
@@ -616,29 +604,7 @@ jobs:
           compression-level: 0
           retention-days: 90
 
-      - name: Attach runtime evidence and publish the release
-        if: ${{ startsWith(github.ref_name, 'v0.') }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          gh release upload "$TAG" \
-            artifacts/standalone-runtime/runtime-evidence.json \
-            artifacts/standalone-runtime/release-bootstrap.json \
-            artifacts/standalone-runtime/network-events.jsonl \
-            artifacts/standalone-runtime/compose-origin-scope.json \
-            artifacts/standalone-runtime/apply.log \
-            artifacts/standalone-runtime/verify.json \
-            --clobber
-          gh release edit "$TAG" \
-            --draft=false \
-            --prerelease=false \
-            --latest
-
       - name: Retain stable evidence for the terminal release gate
-        if: ${{ !startsWith(github.ref_name, 'v0.') }}
         shell: bash
         run: |
           set -euo pipefail

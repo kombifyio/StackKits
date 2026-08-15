@@ -173,6 +173,13 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	if err := command.Run(); err != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail != "" {
+			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf(
+				"standard process channel %q failed: %w: %s",
+				e.binding.ChannelRef, err, detail,
+			)
+		}
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf(
 			"standard process channel %q failed: %w",
 			e.binding.ChannelRef, err,
@@ -258,6 +265,10 @@ func (e *Executor) RemoveWorkload(ctx context.Context, request workloadremoval.R
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	if err := command.Run(); err != nil {
+		detail := strings.TrimSpace(stderr.String())
+		if detail != "" {
+			return workloadremoval.Result{}, fmt.Errorf("standard process channel %q workload removal failed: %w: %s", e.binding.ChannelRef, err, detail)
+		}
 		return workloadremoval.Result{}, fmt.Errorf("standard process channel %q workload removal failed: %w", e.binding.ChannelRef, err)
 	}
 	if stdout.exceeded || stderr.exceeded {
