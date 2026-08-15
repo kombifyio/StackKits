@@ -146,9 +146,6 @@ func (r haAvailabilityRenderer) RenderUnit(ctx context.Context, unit RenderUnit)
 }
 
 func validateHAAvailabilityPlan(plan haAvailabilityPlan, moduleID, siteRef, nodeRef, path string) error {
-	if err := requireContractID(plan.StackID, path+".stackId"); err != nil {
-		return err
-	}
 	if !productkits.IsActive(plan.Kit.Slug) || strings.TrimSpace(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
 		return fail(ErrInvalidPlan, path+".kit", "requires exact governed Kit identity")
 	}
@@ -172,15 +169,6 @@ func validateHAAvailabilityPlan(plan haAvailabilityPlan, moduleID, siteRef, node
 	seenNodes, seenDomains := map[string]struct{}{}, map[string]struct{}{}
 	for index, member := range plan.Availability.Members {
 		memberPath := fmt.Sprintf("%s.availability.members[%d]", path, index)
-		if err := requireContractID(member.NodeRef, memberPath+".nodeRef"); err != nil {
-			return err
-		}
-		if err := requireContractID(member.SiteRef, memberPath+".siteRef"); err != nil {
-			return err
-		}
-		if err := requireContractID(member.FailureDomain, memberPath+".failureDomain"); err != nil {
-			return err
-		}
 		if _, duplicate := seenNodes[member.NodeRef]; duplicate || targets[member.NodeRef] != member.SiteRef {
 			return fail(ErrInvalidPlan, memberPath, "member is not an exact module target")
 		}

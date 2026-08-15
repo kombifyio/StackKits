@@ -80,6 +80,10 @@ check_archive_contents() {
     docs/ENTERPRISE_READINESS.md \
     schemas/release-evidence.schema.json \
     schemas/standalone-oss-e2e-receipt.schema.json \
+    schemas/stackkits-use-case-catalog-v1.schema.json \
+    schemas/stackkits-compatibility-v1.schema.json \
+    schemas/stackkits-os-compatibility-input-v1.schema.json \
+    docs/data/os-compat/latest.json \
     scripts/e2e/validate-standalone-oss-e2e.mjs \
     scripts/e2e/validate-standalone-runtime-e2e.mjs \
     scripts/release/validate-architecture-contract-fixture.mjs \

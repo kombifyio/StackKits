@@ -126,9 +126,6 @@ func validateCloudIdentityAuthorityUnit(unit RenderUnit, contract RendererContra
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return CloudIdentityTrustEnforcementPolicy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode bounded Cloud identity plan", err)
 	}
-	if err := requireContractID(inputs.StackID, path+".planInputs.stackId"); err != nil {
-		return CloudIdentityTrustEnforcementPolicy{}, err
-	}
 	if inputs.Kit.Slug != "cloud-kit" || stringsTrim(inputs.Kit.Version) == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return CloudIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".planInputs.kit", "requires exact governed Cloud Kit identity")
 	}
@@ -165,9 +162,6 @@ func validateCloudIdentityAuthorityBinding(raw []byte, path string) error {
 }
 
 func validateCloudIdentityAuthorityInput(value CloudIdentityAuthorityInput, stackID, path string) (CloudIdentityAuthorityInput, error) {
-	if err := requireContractID(value.SiteRef, path+".siteRef"); err != nil {
-		return value, err
-	}
 	if len(value.Issuers) != 2 || len(value.Verifiers) != 3 {
 		return value, fail(ErrInvalidPlan, path, "requires exactly two owned issuers and three verifiers")
 	}
@@ -175,12 +169,6 @@ func validateCloudIdentityAuthorityInput(value CloudIdentityAuthorityInput, stac
 	for index := range value.Issuers {
 		issuer := &value.Issuers[index]
 		itemPath := path + ".issuers[" + strconv.Itoa(index) + "]"
-		if err := requireContractID(issuer.ID, itemPath+".id"); err != nil {
-			return value, err
-		}
-		if err := requireContractID(issuer.AuthorityRef, itemPath+".authorityRef"); err != nil {
-			return value, err
-		}
 		if _, duplicate := issuerIDs[issuer.ID]; duplicate {
 			return value, fail(ErrInvalidPlan, itemPath+".id", "issuer ID is duplicated")
 		}
@@ -213,12 +201,6 @@ func validateCloudIdentityAuthorityInput(value CloudIdentityAuthorityInput, stac
 	for index := range value.Verifiers {
 		verifier := &value.Verifiers[index]
 		itemPath := path + ".verifiers[" + strconv.Itoa(index) + "]"
-		if err := requireContractID(verifier.ID, itemPath+".id"); err != nil {
-			return value, err
-		}
-		if err := requireContractID(verifier.CredentialIssuerRef, itemPath+".issuerRef"); err != nil {
-			return value, err
-		}
 		if _, duplicate := verifierIDs[verifier.ID]; duplicate {
 			return value, fail(ErrInvalidPlan, itemPath+".id", "verifier ID is duplicated")
 		}

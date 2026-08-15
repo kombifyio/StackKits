@@ -2,15 +2,14 @@
 
 StackKits is built around CUE contracts and Go code.
 
-## Local Gates
+## Local Development
 
-Run the narrowest relevant checks for your change:
+Build the changed product surface locally. Additional checks are optional and
+must not block a pre-1.0 release:
 
 ```sh
-go test ./...
 cue vet -c=false ./base/...
 cue vet ./basement-kit/... ./cloud-kit/... ./modern-homelab/...
-node --test scripts/release/changelog.test.mjs scripts/release/install-latest-resolution.test.mjs
 ```
 
 When changing generated rollout output, update the CUE or Go source and

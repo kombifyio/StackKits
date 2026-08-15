@@ -128,6 +128,25 @@ func EstablishOwnerRuntimeBinding(workspaceRoot string, observation OwnerRuntime
 	return LoadOwnerRuntimeBinding(workspaceRoot)
 }
 
+// DiscardOwnerRuntimeBinding removes the recorded projection of the PocketID
+// owner: the signed subject binding and the one-time enrollment that names it.
+// Both describe rows inside PocketID's own database, so a host whose runtime
+// data was destroyed can only be rebuilt once they are gone. Owner custody, the
+// owner key, and step-ca stay untouched; they are workspace-resident authority
+// that survives any host wipe and keeps the rebuilt owner the same owner.
+func DiscardOwnerRuntimeBinding(workspaceRoot string) error {
+	for _, relative := range []string{ownerRuntimeBindingRelPath, ownerEnrollmentRelPath} {
+		path, err := confinedCustodyPath(workspaceRoot, relative)
+		if err != nil {
+			return err
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("localevidence: discard stale owner runtime projection: %w", err)
+		}
+	}
+	return nil
+}
+
 func LoadOwnerRuntimeBinding(workspaceRoot string) (OwnerRuntimeBinding, error) {
 	path, err := confinedCustodyPath(workspaceRoot, ownerRuntimeBindingRelPath)
 	if err != nil {

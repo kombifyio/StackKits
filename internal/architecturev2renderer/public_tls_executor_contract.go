@@ -231,9 +231,6 @@ func validatePublicTLSExecutorPlanInputs(raw []byte, path string) ([]string, err
 	if err := decodeStrict(raw, &plan); err != nil {
 		return nil, wrap(ErrInvalidPlan, path, "decode exact public TLS executor inputs", err)
 	}
-	if err := requireContractID(plan.StackID, path+".stackId"); err != nil {
-		return nil, err
-	}
 	if !containsExecutorBundleString([]string{"cloud-kit", "modern-homelab"}, plan.Kit.Slug) || strings.TrimSpace(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
 		return nil, fail(ErrInvalidPlan, path+".kit", "public TLS requires an exact Cloud-capable kit identity")
 	}
@@ -244,16 +241,10 @@ func validatePublicTLSExecutorPlanInputs(raw []byte, path string) ([]string, err
 	previousTarget := ""
 	for index, target := range plan.ModuleTargets {
 		targetPath := fmt.Sprintf("%s.moduleTargets[%d]", path, index)
-		if err := requireContractID(target.ID, targetPath+".id"); err != nil {
-			return nil, err
-		}
 		if previousTarget != "" && target.ID <= previousTarget {
 			return nil, fail(ErrDuplicate, targetPath+".id", "module targets must be unique and sorted")
 		}
 		previousTarget = target.ID
-		if err := requireContractID(target.SiteRef, targetPath+".siteRef"); err != nil {
-			return nil, err
-		}
 		if strings.TrimSpace(target.FailureDomain) == "" || validSecretReference(strings.ToLower(target.FailureDomain)) {
 			return nil, fail(ErrInvalidPlan, targetPath+".failureDomain", "failure domain must be non-secret declared intent")
 		}
@@ -304,9 +295,6 @@ func validatePublicTLSExecutorPlanInputs(raw []byte, path string) ([]string, err
 	seenRoutes := make(map[string]struct{}, len(tls.Routes))
 	for index, route := range tls.Routes {
 		routePath := fmt.Sprintf("%s.publicTLS.routes[%d]", path, index)
-		if err := requireContractID(route.ID, routePath+".id"); err != nil {
-			return nil, err
-		}
 		if _, duplicate := seenRoutes[route.ID]; duplicate {
 			return nil, fail(ErrDuplicate, routePath+".id", "public TLS routes must be unique")
 		}

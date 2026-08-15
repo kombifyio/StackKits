@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/stackkits-os-compatibility-input-v1.schema.json",
+  "title": "StackKits OS compatibility input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "stackkitsVersion", "results", "generatedAt"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "stackkitsVersion": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["os", "grade", "reasonCodes"],
+        "properties": {
+          "os": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["family", "distribution", "version"],
+            "properties": {
+              "family": { "type": "string", "minLength": 1 },
+              "distribution": { "type": "string", "minLength": 1 },
+              "version": { "type": "string", "minLength": 1 }
+            }
+          },
+          "grade": { "enum": ["pending", "unverified", "unsupported", "preview", "supported"] },
+          "reasonCodes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["releaseTag", "sourceSha", "publicSourceSha", "evidenceRef"],
+            "properties": {
+              "releaseTag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+              "sourceSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+              "publicSourceSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+              "evidenceRef": { "type": "string", "pattern": "^https://" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

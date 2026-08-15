@@ -125,9 +125,6 @@ func validateBasementIdentityVerificationUnit(unit RenderUnit, contract Renderer
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return BasementIdentityTrustEnforcementPolicy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode bounded Basement verifier plan identity", err)
 	}
-	if err := requireContractID(inputs.StackID, path+".planInputs.stackId"); err != nil {
-		return BasementIdentityTrustEnforcementPolicy{}, err
-	}
 	if inputs.Kit.Slug != "basement-kit" || stringsTrim(inputs.Kit.Version) == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return BasementIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".planInputs.kit", "requires exact governed Basement Kit identity")
 	}
@@ -163,9 +160,6 @@ func validateBasementIdentityVerificationBinding(raw []byte, path string) error 
 }
 
 func validateBasementIdentityVerificationInput(value BasementIdentityVerificationInput, stackID, path string) (BasementIdentityVerificationInput, error) {
-	if err := requireContractID(value.SiteRef, path+".siteRef"); err != nil {
-		return value, err
-	}
 	if len(value.Verifiers) != 3 {
 		return value, fail(ErrInvalidPlan, path+".verifiers", "requires exactly device, human, and workload verifiers")
 	}
@@ -174,9 +168,6 @@ func validateBasementIdentityVerificationInput(value BasementIdentityVerificatio
 	for index := range value.Verifiers {
 		verifier := &value.Verifiers[index]
 		verifierPath := path + ".verifiers[" + strconv.Itoa(index) + "]"
-		if err := requireContractID(verifier.ID, verifierPath+".id"); err != nil {
-			return value, err
-		}
 		if _, duplicate := ids[verifier.ID]; duplicate {
 			return value, fail(ErrInvalidPlan, verifierPath+".id", "verifier ID is duplicated")
 		}
@@ -185,9 +176,6 @@ func validateBasementIdentityVerificationInput(value BasementIdentityVerificatio
 			return value, fail(ErrInvalidPlan, verifierPath+".principal", "requires device, human, or workload")
 		}
 		counts[verifier.Principal]++
-		if err := requireContractID(verifier.CredentialIssuerRef, verifierPath+".issuerRef"); err != nil {
-			return value, err
-		}
 		if err := requireStackInstanceURN(verifier.Issuer, stackID, "issuer", verifierPath+".issuer"); err != nil {
 			return value, err
 		}

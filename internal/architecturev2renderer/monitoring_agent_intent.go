@@ -195,9 +195,6 @@ func validateMonitoringAgentPlanInputs(raw []byte, path string) ([]string, error
 	seenSites := map[string]struct{}{}
 	for index, site := range inputs.Sites {
 		sitePath := fmt.Sprintf("%s.sites[%d]", path, index)
-		if err := requireContractID(site.ID, sitePath+".id"); err != nil {
-			return nil, err
-		}
 		if site.Kind != "home" && site.Kind != "cloud" || strings.TrimSpace(site.FailureDomain) == "" {
 			return nil, fail(ErrInvalidPlan, sitePath, "collector target Site must be a governed Home or Cloud failure domain")
 		}

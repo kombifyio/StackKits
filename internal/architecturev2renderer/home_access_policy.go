@@ -297,9 +297,6 @@ func validateHomeAccessPolicyUnit(unit RenderUnit, contract RendererContract) (H
 	if err := decodeStrict(values.Policy, &value); err != nil {
 		return HomeAccessEnforcementPolicy{}, wrap(ErrInvalidPlan, path+".values.home-access-policy", "decode exact compiler-owned Home access policy", err)
 	}
-	if err := requireContractID(value.StackID, path+".values.home-access-policy.stackId"); err != nil {
-		return HomeAccessEnforcementPolicy{}, err
-	}
 	if err := validateHomeAccessEnforcementRoutes(value.Routes, values.Policy, path+".values.home-access-policy"); err != nil {
 		return HomeAccessEnforcementPolicy{}, err
 	}
@@ -334,15 +331,6 @@ func validateHomeAccessPolicyBindings(raw []byte, path string) error {
 }
 
 func validateNodeLocalHomeAccessPolicy(policy HomeAccessEnforcementPolicy, raw []byte, path string) error {
-	if err := requireContractID(policy.StackID, path+".stackId"); err != nil {
-		return err
-	}
-	if err := requireContractID(policy.SiteRef, path+".siteRef"); err != nil {
-		return err
-	}
-	if err := requireContractID(policy.NodeRef, path+".nodeRef"); err != nil {
-		return err
-	}
 	if err := validateHomeAccessEnforcementRoutes(policy.Routes, raw, path); err != nil {
 		return err
 	}
@@ -370,14 +358,6 @@ func validateHomeAccessEnforcementRoutes(routes []HomeAccessEnforcementRoute, ra
 }
 
 func validateHomeAccessEnforcementRoute(route HomeAccessEnforcementRoute, path string) error {
-	for field, value := range map[string]string{
-		"id": route.ID, "serviceRef": route.ServiceRef, "moduleRef": route.ModuleRef,
-		"originSiteRef": route.OriginSiteRef, "policyRef": route.PolicyRef,
-	} {
-		if err := requireContractID(value, path+"."+field); err != nil {
-			return err
-		}
-	}
 	if route.Protocol == "" || route.UpstreamProtocol == "" || route.Port < 1 || route.Port > 65535 || route.TargetPort < 1 || route.TargetPort > 65535 {
 		return fail(ErrInvalidPlan, path, "route requires protocols and valid listener/target ports")
 	}
@@ -416,9 +396,6 @@ func validateExactContractIDs(values []string, path string) error {
 		return fail(ErrInvalidPlan, path, "must be non-empty, unique, and sorted")
 	}
 	for index, value := range values {
-		if err := requireContractID(value, fmt.Sprintf("%s[%d]", path, index)); err != nil {
-			return err
-		}
 		if index > 0 && values[index-1] == value {
 			return fail(ErrDuplicate, fmt.Sprintf("%s[%d]", path, index), "duplicate contract ref")
 		}
@@ -457,9 +434,6 @@ func validateHomeAccessPlanInputs(raw []byte, path string) ([]string, error) {
 	var inputs homeAccessPlanInputs
 	if err := decodeStrict(raw, &inputs); err != nil {
 		return nil, wrap(ErrInvalidPlan, path, "decode exact home-access plan inputs", err)
-	}
-	if err := requireContractID(inputs.StackID, path+".stackId"); err != nil {
-		return nil, err
 	}
 	if inputs.Kit.Version == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return nil, fail(ErrInvalidPlan, path+".kit", "home-access policy requires an exact governed kit identity")
@@ -514,14 +488,6 @@ func validateHomeAccessPlanInputsForKit(inputs homeAccessPlanInputs, raw []byte,
 }
 
 func validateHomeLocalRoute(route homeLocalReachabilityRoute, siteKinds map[string]string, path string) error {
-	for field, value := range map[string]string{
-		"id": route.ID, "serviceRef": route.ServiceRef, "moduleRef": route.ModuleRef,
-		"originSiteRef": route.OriginSiteRef, "healthGateRef": route.HealthGateRef, "policyRef": route.Access.PolicyRef,
-	} {
-		if err := requireContractID(value, path+"."+field); err != nil {
-			return err
-		}
-	}
 	if route.Exposure != "local" || siteKinds[route.OriginSiteRef] != "home" || len(route.OriginNodeRefs) == 0 {
 		return fail(ErrInvalidPlan, path, "home-access routes must be local, Home-originated, and bound to explicit logical nodes")
 	}
@@ -536,9 +502,6 @@ func validateHomeLocalRoute(route homeLocalReachabilityRoute, siteKinds map[stri
 	}
 	seenNodes := map[string]struct{}{}
 	for index, nodeRef := range route.OriginNodeRefs {
-		if err := requireContractID(nodeRef, fmt.Sprintf("%s.originNodeRefs[%d]", path, index)); err != nil {
-			return err
-		}
 		if _, duplicate := seenNodes[nodeRef]; duplicate {
 			return fail(ErrDuplicate, fmt.Sprintf("%s.originNodeRefs[%d]", path, index), "duplicate logical node ref")
 		}

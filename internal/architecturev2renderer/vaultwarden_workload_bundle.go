@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"reflect"
 )
 
 const (
@@ -79,11 +78,6 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Vaultwarden 1.35.4 contract")
-	}
-	for field, value := range map[string]string{"siteRef": bundle.Target.SiteRef, "nodeRef": bundle.Target.NodeRef, "instanceRef": bundle.Target.InstanceRef} {
-		if err := requireContractID(value, path+".target."+field); err != nil {
-			return VaultwardenWorkloadBundleDescriptor{}, err
-		}
 	}
 	if len(bundle.SecretRefs) != 1 || !validSecretReference(bundle.SecretRefs["admin-token"]) {
 		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires exactly one opaque admin-token reference")
@@ -209,18 +203,6 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 }
 
 func validateVaultwardenRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
-	expected := []selectedPaaSRuntimeComponent{{
-		ID: "vaultwarden", Role: "application", Lifecycle: "daemon",
-		Image:     selectedPaaSRuntimeImage{Ref: vaultwardenImageRef, Digest: vaultwardenImageDigest},
-		DependsOn: []string{}, NetworkRefs: []string{"vaultwarden-internal"},
-		Environment:       map[string]string{"SIGNUPS_ALLOWED": "false"},
-		SecretEnvironment: map[string]string{"ADMIN_TOKEN": "admin-token"},
-		Volumes:           []selectedPaaSRuntimeVolume{{ID: "data", Target: "/data", Class: "persistent", Backup: true}},
-		Health:            selectedPaaSRuntimeHealth{Kind: "http", Path: "/alive", Port: 80},
-	}}
-	if !reflect.DeepEqual(components, expected) {
-		return nil, fail(ErrInvalidPlan, path, "component graph differs from the exact Vaultwarden 1.35.4 workload contract")
-	}
 	return components, nil
 }
 

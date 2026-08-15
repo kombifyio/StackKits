@@ -69,3 +69,10 @@ cue vet ./cloud-kit/...
 go test ./...
 mise run test:cue-binding
 ```
+
+## Route health readiness
+
+Public HTTPS listeners terminate at the governed edge while their HTTP
+upstreams use executable route-health probes. A route remains Apply-blocked
+only when its upstream health contract cannot be executed (for example an
+HTTPS upstream without a bound TLS peer identity).

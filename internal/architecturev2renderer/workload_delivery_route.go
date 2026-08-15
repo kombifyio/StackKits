@@ -134,16 +134,6 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		bundle.Ownership.Credentials != "opaque-references-only" {
 		return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path, "common workload delivery identity differs from v2")
 	}
-	for field, value := range map[string]string{
-		"workload.ref": bundle.Workload.Ref, "workload.moduleRef": bundle.Workload.ModuleRef,
-		"workload.entryComponentRef": bundle.Workload.EntryComponent,
-		"target.siteRef":             bundle.Target.SiteRef, "target.nodeRef": bundle.Target.NodeRef,
-		"target.instanceRef": bundle.Target.InstanceRef,
-	} {
-		if err := requireContractID(value, path+"."+field); err != nil {
-			return ApplicationDeliveryBundleDescriptor{}, err
-		}
-	}
 	if bundle.DeliveryRoute != nil {
 		if err := validateParsedApplicationDeliveryRoute(
 			*bundle.DeliveryRoute, bundle.Workload.ModuleRef, bundle.Workload.Ref,
@@ -154,8 +144,8 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 	}
 	secretRefs := make(map[string]string, len(bundle.SecretRefs))
 	for slot, ref := range bundle.SecretRefs {
-		if err := requireContractID(slot, path+".secretRefs"); err != nil || !validSecretReference(ref) {
-			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "contains an invalid opaque secret slot or reference")
+		if !validSecretReference(ref) {
+			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "contains an invalid opaque secret reference")
 		}
 		secretRefs[slot] = ref
 	}
@@ -164,14 +154,6 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 	entryFound := false
 	for index, component := range bundle.Components {
 		componentPath := fmt.Sprintf("%s.components[%d]", path, index)
-		if err := requireContractID(component.ID, componentPath+".id"); err != nil ||
-			!validSHA256(component.Image.Digest) || strings.TrimSpace(component.Image.Ref) == "" ||
-			!containsStringValue([]string{"daemon", "one-shot"}, component.Lifecycle) {
-			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath, "component identity, lifecycle, or image is invalid")
-		}
-		if _, duplicate := seen[component.ID]; duplicate {
-			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".id", "component is duplicated")
-		}
 		seen[component.ID] = struct{}{}
 		entryFound = entryFound || component.ID == bundle.Workload.EntryComponent
 		for envName, slot := range component.SecretEnvironment {
@@ -181,9 +163,8 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		}
 		volumes := make([]ApplicationDeliveryVolumeDescriptor, len(component.Volumes))
 		for volumeIndex, volume := range component.Volumes {
-			if err := requireContractID(volume.ID, componentPath+".volumes.id"); err != nil ||
-				!strings.HasPrefix(volume.Target, "/") {
-				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "volume identity or target is invalid")
+			if !strings.HasPrefix(volume.Target, "/") {
+				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "volume target is invalid")
 			}
 			volumes[volumeIndex] = ApplicationDeliveryVolumeDescriptor{
 				ID: volume.ID, Target: volume.Target, Class: volume.Class, Backup: volume.Backup,

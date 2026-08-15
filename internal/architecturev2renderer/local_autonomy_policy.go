@@ -292,16 +292,10 @@ func validateLocalAutonomyPolicyBinding(raw []byte, path string) error {
 
 //nolint:gocyclo // Basement and Modern partition invariants must be accepted or rejected atomically.
 func validateLocalAutonomyPolicyInput(input localAutonomyPolicyInput, path string) (localAutonomyPolicyInput, error) {
-	if err := requireContractID(input.StackID, path+".stackId"); err != nil {
-		return input, err
-	}
 	if input.KitSlug != "basement-kit" && input.KitSlug != "modern-homelab" {
 		return input, fail(ErrInvalidPlan, path+".kitSlug", "local autonomy is unavailable to kit %q", input.KitSlug)
 	}
 	authority := input.Topology.AuthorityHomeSiteRef
-	if err := requireContractID(authority, path+".topology.authorityHomeSiteRef"); err != nil {
-		return input, err
-	}
 	if input.Control.AuthoritySiteRef != authority || input.Identity.AuthoritySiteRef != authority ||
 		input.Data.DefaultAuthoritySiteRef != authority {
 		return input, fail(ErrInvalidPlan, path, "control, identity and data authority must equal the exact Home authority Site")
@@ -340,16 +334,10 @@ func validateLocalAutonomyPolicyInput(input localAutonomyPolicyInput, path strin
 	previousBinding := ""
 	for index, binding := range input.Data.Bindings {
 		bindingPath := fmt.Sprintf("%s.data.bindings[%d]", path, index)
-		if err := requireContractID(binding.BindingRef, bindingPath+".bindingRef"); err != nil {
-			return input, err
-		}
 		if previousBinding != "" && binding.BindingRef <= previousBinding {
 			return input, fail(ErrInvalidPlan, bindingPath+".bindingRef", "bindings must be unique and sorted")
 		}
 		previousBinding = binding.BindingRef
-		if err := requireContractID(binding.PrimarySiteRef, bindingPath+".primarySiteRef"); err != nil {
-			return input, err
-		}
 		if err := requireSortedUniqueContractIDs(binding.ReplicaSiteRefs, bindingPath+".replicaSiteRefs", false); err != nil {
 			return input, err
 		}
@@ -456,9 +444,6 @@ func requireSortedUniqueContractIDs(values []string, path string, required bool)
 		return fail(ErrInvalidPlan, path, "references must be sorted")
 	}
 	for index, value := range values {
-		if err := requireContractID(value, fmt.Sprintf("%s[%d]", path, index)); err != nil {
-			return err
-		}
 		if index > 0 && values[index-1] == value {
 			return fail(ErrDuplicate, fmt.Sprintf("%s[%d]", path, index), "duplicate reference %q", value)
 		}
@@ -484,9 +469,6 @@ func validateLocalAutonomySites(sites []localAutonomySite, path string) (map[str
 	homeSiteRefs := make([]string, 0, len(sites))
 	cloudSiteRefs := make([]string, 0, len(sites))
 	for index, site := range sites {
-		if err := requireContractID(site.ID, fmt.Sprintf("%s.sites[%d].id", path, index)); err != nil {
-			return nil, nil, nil, err
-		}
 		if site.FailureDomain == "" || site.Kind != "home" && site.Kind != "cloud" {
 			return nil, nil, nil, fail(ErrInvalidPlan, fmt.Sprintf("%s.sites[%d]", path, index), "Site projection must contain only id, kind and failureDomain")
 		}
@@ -544,9 +526,6 @@ func validateLocalAutonomyData(data localAutonomyData, siteKinds map[string]stri
 	}
 	for ref, binding := range data.Bindings {
 		bindingPath := path + ".bindings." + ref
-		if err := requireContractID(ref, bindingPath); err != nil {
-			return err
-		}
 		if err := validateLocalAutonomyDataClasses(binding.Classes, bindingPath+".classes"); err != nil {
 			return err
 		}
@@ -578,9 +557,6 @@ func validateLocalAutonomyData(data localAutonomyData, siteKinds map[string]stri
 		if policy == nil {
 			return fail(ErrInvalidPlan, bindingPath+".cloudCopyPolicy", "Cloud-copy opt-in requires a policy")
 		}
-		if err := requireContractID(policy.PolicyRef, bindingPath+".cloudCopyPolicy.policyRef"); err != nil {
-			return err
-		}
 		if err := validateLocalAutonomyDataClasses(policy.AllowedClasses, bindingPath+".cloudCopyPolicy.allowedClasses"); err != nil {
 			return err
 		}
@@ -599,9 +575,6 @@ func validateLocalAutonomyData(data localAutonomyData, siteKinds map[string]stri
 func uniqueLocalAutonomyIDSet(values []string, path string) (map[string]struct{}, error) {
 	result := make(map[string]struct{}, len(values))
 	for index, value := range values {
-		if err := requireContractID(value, fmt.Sprintf("%s[%d]", path, index)); err != nil {
-			return nil, err
-		}
 		if _, duplicate := result[value]; duplicate {
 			return nil, fail(ErrDuplicate, fmt.Sprintf("%s[%d]", path, index), "duplicate reference %q", value)
 		}

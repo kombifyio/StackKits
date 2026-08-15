@@ -4,6 +4,22 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+## [0.18.7](https://github.com/kombifyio/stackKits/compare/v0.18.2...v0.18.7) (2026-08-15)
+
+### Changed
+
+* **development:** remove tests from public sync and release execution, delete the release/public/evidence Node test fleet and affected-planner meta-tests, reduce `mise run check` to shipped builds, and prohibit release-blocking test/guard reintroduction during v0.x
+* **renderer:** stop duplicating CUE-owned identifier formats, instance cardinality, generated naming, and daemon metadata equality checks in the Go renderer
+* **init:** remove the current-executable release self-bootstrap from local Architecture v2 initialization while retaining explicit install, upgrade, and receipt verification boundaries
+
+### Fixed
+
+* **cloud-kit:** execute resolved HTTP route-health probes instead of permanently blocking Apply with an unbound-executor marker
+* **release:** include the shared Use Case identity in public Architecture v2 authority bundles, use one fixture source-list authority in generator and runtime, and refresh canonical fixture plans with the changed readiness semantics
+* **docs:** remove public links to the intentionally private Use Case development projection
+
 ## [0.18.2](https://github.com/kombifyio/stackKits/compare/v0.18.1...v0.18.2) (2026-08-14)
 
 ### Fixed

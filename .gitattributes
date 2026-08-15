@@ -19,7 +19,6 @@
 *.toml text eol=lf
 *.mod text eol=lf
 *.sum text eol=lf
-Makefile text eol=lf
 Dockerfile text eol=lf
 
 # Binary files — do not normalize

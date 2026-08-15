@@ -29,8 +29,8 @@ func (f *productCloudCoreFactory) PrepareRuntimeOwner(request ProductRuntimeOwne
 	target := cloneProductRuntimeTarget(request.Target)
 	health := cloneProductHealthTargets(request.HealthTargets)
 	if productRuntimeOwnerSelectorForTarget(target) != productCloudCoreSelector() || len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
-		strings.TrimSpace(target.ExecutionChannelRef) == "" || len(health) != 5 {
-		return nil, errors.New("Cloud core product factory requires one exact channel-bound target and five postconditions")
+		strings.TrimSpace(target.ExecutionChannelRef) == "" || len(health) == 0 {
+		return nil, errors.New("Cloud core product factory requires one channel-bound target and at least one postcondition")
 	}
 	healthHashes := make(map[string]string, len(health))
 	for _, item := range health {

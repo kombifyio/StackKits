@@ -341,6 +341,7 @@ _architectureV2WorkloadContracts: [
 			description: "Self-hosted photo management selected independently from kit architecture capabilities."
 		}
 		kind: "application"
+		useCaseRef: "photos"
 		functionalCapabilities: ["photo-library", "mobile-photo-backup"]
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["personal"]
@@ -384,6 +385,7 @@ _architectureV2WorkloadContracts: [
 			description: "Self-hosted file management and sharing selected independently from kit architecture capabilities."
 		}
 		kind: "application"
+		useCaseRef: "files"
 		functionalCapabilities: ["file-library", "file-sharing"]
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["personal"]
@@ -420,6 +422,7 @@ _architectureV2WorkloadContracts: [
 			description: "Self-hosted password vault selected independently from kit architecture capabilities."
 		}
 		kind: "application"
+		useCaseRef: "vault"
 		functionalCapabilities: ["password-vault", "secure-notes"]
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["secret"]
@@ -462,6 +465,7 @@ _architectureV2ApplicationLifecycleContracts: [
 			description: "Reusable owner-controlled lifecycle for the Photos Application Kit."
 		}
 		workloadRef: "photos"
+		useCaseRef:  "photos"
 		packageRef:  "photos"
 		lifecycle: #StandardUseCaseLifecycle & {
 			referenceVertical: true
@@ -474,6 +478,7 @@ _architectureV2ApplicationLifecycleContracts: [
 			description: "Reusable owner-controlled lifecycle for the Files Application Kit."
 		}
 		workloadRef: "files"
+		useCaseRef:  "files"
 		packageRef:  "files"
 		lifecycle:   #StandardUseCaseLifecycle
 	},
@@ -484,6 +489,7 @@ _architectureV2ApplicationLifecycleContracts: [
 			description: "Reusable owner-controlled lifecycle for the Vault Application Kit."
 		}
 		workloadRef: "vault"
+		useCaseRef:  "vault"
 		packageRef:  "vault"
 		lifecycle:   #StandardUseCaseLifecycle
 	},

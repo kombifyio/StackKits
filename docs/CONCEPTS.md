@@ -151,22 +151,16 @@ the public OSS surface.
 
 ## Curated Use-Case Catalog
 
-| # | Use Case | Default Tool | Category |
-|---|----------|-------------|----------|
-| 1 | Smart Home | Home Assistant | smart-home |
-| 2 | Photo Memories | Immich | photos |
-| 3 | Media Streaming | Jellyfin + *arr stack | media |
-| 4 | Password Vault | Vaultwarden | vault |
-| 5 | File Sharing | Cloudreve / Nextcloud | files |
-| 6 | AI / LLM | Ollama + Open WebUI | ai |
-| 7 | Dev Platform | Gitea + CI | dev |
-| 8 | Mail Server | Stalwart | mail |
-| 9 | Game Server | Various | game |
-| 10 | Remote Desktop | Guacamole | remote |
+The catalog is the open `base.UseCaseCatalog` CUE map. Its size is derived from
+the explicitly registered product intentions; there is no fixed count or
+handwritten ordering contract. Adding an add-on or guide does not create a use
+case. Every package, Architecture v2 workload, lifecycle, module, adapter, test,
+and evidence record joins the catalog with `useCaseRef`.
 
-Each use case may have curated alternatives. This table is a catalog, not the
-v0.8 default install set. Photos, Vault, and Files are opt-in; other
-application graduations require their own lifecycle and verification evidence.
+Internal development builds generate `docs/USE_CASE_DEVELOPMENT_OVERVIEW.md`.
+It is intentionally excluded from the public release, whose documentation is
+generated separately from immutable release manifests and omits internal gaps
+and maturity conclusions.
 
 ---
 

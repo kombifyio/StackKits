@@ -68,34 +68,46 @@ func newServiceForTest(workspaceRoot string, client pocketIDOwnerClient, now tim
 	return &Service{workspaceRoot: workspaceRoot, client: client, now: func() time.Time { return now }}
 }
 
+// errPocketIDRuntimeLost marks the one divergence a rollout may repair on its
+// own: PocketID no longer holds a resource this workspace recorded, because the
+// host's containers and volumes were removed underneath it. A resource that is
+// present but different is never this error — that is a genuine conflict, and
+// overwriting it would take an identity the workspace does not own.
+var errPocketIDRuntimeLost = errors.New("localowner: PocketID no longer holds the recorded runtime identity")
+
 // Realize creates the exact desired PocketID owner once, persists a private
 // one-time passkey-enrollment URL, and records a secret-free signed binding to
 // ownerRef and the step-ca certificate chain.
+//
+// A reset host answers as an empty PocketID: reachable, unbootstrapped, and
+// without the subject, groups, or client the workspace recorded. Realize treats
+// that as work to redo rather than as a reason to refuse, so re-running an
+// install rebuilds the owner from the custody that survived on disk.
 func (s *Service) Realize(ctx context.Context) (Result, error) {
 	owner, client, err := s.ready(ctx)
 	if err != nil {
 		return Result{}, err
 	}
-	if binding, loadErr := localevidence.LoadOwnerRuntimeBinding(s.workspaceRoot); loadErr == nil {
-		if err := s.verifyBoundOwner(ctx, client, owner, binding); err != nil {
-			return Result{}, err
-		}
-		groupIDs, err := exactRequiredGroupIDs(ctx, client)
-		if err != nil {
-			return Result{}, err
-		}
-		if err := s.ensureTinyAuthPocketIDBinding(ctx, client, owner, groupIDs); err != nil {
-			return Result{}, err
-		}
-		return Result{
-			Binding:        binding,
-			EnrollmentPath: filepath.Join(s.workspaceRoot, filepath.FromSlash(ownerEnrollmentRelPath)),
-		}, nil
-	} else if !errors.Is(loadErr, localevidence.ErrOwnerRuntimeBindingMissing) {
-		return Result{}, loadErr
-	}
+	// Admission runs before any recorded state is read: a rebuilt PocketID needs
+	// its initial admin accepted again before the owner can be recreated.
 	if err := verifyPocketIDAdmin(ctx, client); err != nil {
 		return Result{}, err
+	}
+	recorded, loadErr := localevidence.LoadOwnerRuntimeBinding(s.workspaceRoot)
+	switch {
+	case loadErr == nil:
+		result, realizeErr := s.realizeBoundOwner(ctx, client, owner, recorded)
+		if realizeErr == nil {
+			return result, nil
+		}
+		if !errors.Is(realizeErr, errPocketIDRuntimeLost) {
+			return Result{}, realizeErr
+		}
+		if err := localevidence.DiscardOwnerRuntimeBinding(s.workspaceRoot); err != nil {
+			return Result{}, err
+		}
+	case !errors.Is(loadErr, localevidence.ErrOwnerRuntimeBindingMissing):
+		return Result{}, loadErr
 	}
 	users, err := client.FindUsersByUsername(ctx, owner.PocketID.Username)
 	if err != nil {
@@ -181,6 +193,32 @@ func (s *Service) Realize(ctx context.Context) (Result, error) {
 	return Result{Binding: binding, EnrollmentPath: enrollmentPath}, nil
 }
 
+// realizeBoundOwner confirms that the runtime still carries the exact owner,
+// groups, and TinyAuth client this workspace already recorded. It reports
+// errPocketIDRuntimeLost when the runtime simply no longer has them, which the
+// caller repairs by rebuilding rather than by refusing the rollout.
+func (s *Service) realizeBoundOwner(
+	ctx context.Context,
+	client pocketIDOwnerClient,
+	owner localevidence.OwnerCustody,
+	binding localevidence.OwnerRuntimeBinding,
+) (Result, error) {
+	if err := s.verifyBoundOwner(ctx, client, owner, binding); err != nil {
+		return Result{}, err
+	}
+	groupIDs, err := exactRequiredGroupIDs(ctx, client)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := s.ensureTinyAuthPocketIDBinding(ctx, client, owner, groupIDs); err != nil {
+		return Result{}, err
+	}
+	return Result{
+		Binding:        binding,
+		EnrollmentPath: filepath.Join(s.workspaceRoot, filepath.FromSlash(ownerEnrollmentRelPath)),
+	}, nil
+}
+
 // Verify performs only authenticated readback. It verifies custody and the
 // signed binding before any network request and never creates or updates a
 // PocketID resource.
@@ -215,10 +253,23 @@ func (s *Service) ensureTinyAuthPocketIDBinding(
 	owner localevidence.OwnerCustody,
 	groupIDs []string,
 ) error {
-	if _, err := localevidence.LoadBasementTinyAuthPocketIDBinding(s.workspaceRoot); err == nil {
-		return s.verifyTinyAuthPocketIDBinding(ctx, client, owner, groupIDs)
-	} else if !errors.Is(err, localevidence.ErrTinyAuthPocketIDBindingMissing) {
-		return err
+	_, loadErr := localevidence.LoadBasementTinyAuthPocketIDBinding(s.workspaceRoot)
+	switch {
+	case loadErr == nil:
+		verifyErr := s.verifyTinyAuthPocketIDBinding(ctx, client, owner, groupIDs)
+		if verifyErr == nil {
+			return nil
+		}
+		if !errors.Is(verifyErr, errPocketIDRuntimeLost) {
+			return verifyErr
+		}
+		// The recorded secret only authenticates against the client that issued
+		// it, so a runtime that lost the client makes this custody unusable.
+		if err := localevidence.DiscardBasementTinyAuthPocketIDBinding(s.workspaceRoot); err != nil {
+			return err
+		}
+	case !errors.Is(loadErr, localevidence.ErrTinyAuthPocketIDBindingMissing):
+		return loadErr
 	}
 	runtimeCustody, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
 	if err != nil {
@@ -274,6 +325,9 @@ func (s *Service) verifyTinyAuthPocketIDBinding(
 		return err
 	}
 	oidcClient, err := client.GetOIDCClient(ctx, binding.ClientID)
+	if errors.Is(err, pocketid.ErrNotFound) {
+		return errPocketIDRuntimeLost
+	}
 	if err != nil || oidcClient == nil ||
 		oidcClient.ID != localevidence.TinyAuthPocketIDClientID ||
 		oidcClient.Name != tinyAuthClientName ||
@@ -390,6 +444,9 @@ func (s *Service) verifyBoundOwner(
 	binding localevidence.OwnerRuntimeBinding,
 ) error {
 	user, err := client.GetUser(ctx, binding.PocketIDSubject)
+	if errors.Is(err, pocketid.ErrNotFound) {
+		return errPocketIDRuntimeLost
+	}
 	if err != nil || user == nil || user.ID != binding.PocketIDSubject {
 		return errors.New("localowner: bound PocketID subject readback failed")
 	}

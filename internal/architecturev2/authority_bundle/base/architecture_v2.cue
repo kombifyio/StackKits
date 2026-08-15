@@ -6753,6 +6753,11 @@ _servicePublicationShape: {
 		description: string & =~"^.+$"
 	}
 	kind: "application" | "service"
+	// Every executable application must identify the product use case it
+	// realizes. Services deliberately have no use-case identity.
+	if kind == "application" {
+		useCaseRef: #UseCaseSlug
+	}
 	functionalCapabilities: [...#ContractID] & list.MinItems(1)
 	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
 	dataClasses: [...#DataClass] | *[]
@@ -6790,6 +6795,7 @@ _servicePublicationShape: {
 		description: string & =~"^.+$"
 	}
 	workloadRef: metadata.id
+	useCaseRef:  #UseCaseSlug
 	packageRef:  #ContractID
 	lifecycle:   #StandardUseCaseLifecycle
 }
@@ -9898,12 +9904,12 @@ _servicePublicationShape: {
 		for serviceRoute in network.routes
 		for healthGate in gates.health
 		if healthGate.id == serviceRoute.healthGateRef {
-			executor: #ExecutionReadinessRequirementV1 & {
-				phase: executionReadiness.apply
-				code:  "route-health-executor-unbound"
-				refs: ["route:\(serviceRoute.id)", "health:\(healthGate.id)", "backend-pool:\(serviceRoute.backendPoolRef)"]
-			}
 			if healthGate.execution == "contract-only" {
+				executor: #ExecutionReadinessRequirementV1 & {
+					phase: executionReadiness.apply
+					code:  "route-health-executor-unbound"
+					refs: ["route:\(serviceRoute.id)", "health:\(healthGate.id)", "backend-pool:\(serviceRoute.backendPoolRef)"]
+				}
 				executable: #ExecutionReadinessRequirementV1 & {
 					phase: executionReadiness.apply
 					code:  "health-gate-not-executable"

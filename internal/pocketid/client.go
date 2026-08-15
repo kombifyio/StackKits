@@ -545,3 +545,13 @@ type HTTPError struct {
 func (e *HTTPError) Error() string {
 	return fmt.Sprintf("pocketid: %s %s -> %d: %s", e.Method, e.Path, e.StatusCode, e.Body)
 }
+
+// Unwrap exposes a lookup miss as ErrNotFound so callers can distinguish "this
+// resource is gone" from "this resource answered something unexpected" on every
+// endpoint, not only the ones that map the status explicitly.
+func (e *HTTPError) Unwrap() error {
+	if e.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
+	return nil
+}

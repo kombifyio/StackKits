@@ -28,7 +28,7 @@ _validCloudV2: #CloudKitStackV2 & {
 		metadata: name: "public-edge"
 		kit: slug:      "cloud-kit"
 		install: {platform: {setupPolicy: {}}}
-		generation: {strategy: "kit-template", target: "opentofu"}
+		generation: {strategy: "kit-template", target: "compose"}
 		network: {
 			mode: "public-capable"
 			domain: {base: "example.net"}

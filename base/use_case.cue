@@ -5,8 +5,6 @@
 // atomic; packages compose those modules plus managed/control-plane handoffs.
 package base
 
-#UseCaseSlug: "smart-home" | "photos" | "media" | "vault" | "files" | "ai" | "dev" | "mail" | "game" | "remote"
-
 #UseCaseLayer: "application" | "platform" | "foundation"
 
 #UseCaseLifecycle: "stable" | "beta" | "pilot" | "experimental" | "draft"
@@ -27,7 +25,7 @@ package base
 
 #UseCaseLifecycleStageName: "install" | "manage" | "backup" | "upgrade" | "restore" | "drift" | "remove"
 
-#UseCaseLifecycleOperationID: "stackkit.init" | "stackkit.validate" | "stackkit.resolve" | "stackkit.generate" | "stackkit.plan" | "stackkit.apply" | "stackkit.verify" | "stackkit.status" | "stackkit.logs" | "stackkit.backup" | "stackkit.restore" | "stackkit.upgrade" | "stackkit.drift" | "stackkit.remove"
+#UseCaseLifecycleOperationID: "stackkit.init" | "stackkit.validate" | "stackkit.resolve" | "stackkit.generate" | "stackkit.plan" | "stackkit.apply" | "stackkit.verify" | "stackkit.status" | "stackkit.logs" | "stackkit.backup" | "stackkit.restore" | "stackkit.upgrade" | "stackkit.drift" | "stackkit.remove" | "stackkit.advanced.change-set.apply" | "stackkit.drift.reconcile.advanced"
 
 #UseCaseLifecycleSurface: "installer" | "cli" | "mcp" | "state-console"
 
@@ -38,6 +36,10 @@ package base
 #UseCasePackage: {
 	metadata: {
 		name:        =~"^[a-z][a-z0-9-]+$"
+		// useCaseRef joins this package to the CUE-owned product catalog. A
+		// package remains product/docs input; it does not make a workload
+		// executable or replace Architecture v2 runtime authority.
+		useCaseRef:  category
 		displayName: string
 		version:     =~"^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-z0-9.]+)?$"
 		layer:       #UseCaseLayer

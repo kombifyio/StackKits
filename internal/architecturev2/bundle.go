@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2/authoritysources"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
@@ -70,23 +71,12 @@ var productAuthorityRole = embeddedAuthorityRole{
 }
 
 var contractFixtureAuthorityRole = embeddedAuthorityRole{
-	name:          "contract fixture",
-	root:          embeddedContractFixtureBundleRoot,
-	document:      "contractFixtureCatalog",
-	planAuthority: resolvedplan.ContractFixturePlanAuthority(),
-	requiredSources: []string{
-		"cue.mod/module.cue",
-		"base/architecture_v2_profiles.cue",
-		"base/architecture_v2.cue",
-		"base/architecture_v2_storage.cue",
-		"base/architecture_v2_backup.cue",
-		"base/application_lifecycle.cue",
-		"base/architecture_v2_definition_binding.cue",
-		"base/architecture_v2_catalog.cue",
-		"architecture/v2/contractfixture/catalog.cue",
-		"basement-kit/stackfile.cue",
-	},
-	fixture: true,
+	name:            "contract fixture",
+	root:            embeddedContractFixtureBundleRoot,
+	document:        "contractFixtureCatalog",
+	planAuthority:   resolvedplan.ContractFixturePlanAuthority(),
+	requiredSources: authoritysources.ContractFixture(),
+	fixture:         true,
 }
 
 func loadEmbeddedAuthority() (*cueAuthority, error) {

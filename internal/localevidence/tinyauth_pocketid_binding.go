@@ -140,6 +140,21 @@ func BindBasementTinyAuthPocketID(
 	return LoadBasementTinyAuthPocketIDBinding(workspaceRoot)
 }
 
+// DiscardBasementTinyAuthPocketIDBinding removes the recorded TinyAuth client
+// custody, including the private environment carrying its secret. The secret is
+// only meaningful to the PocketID instance that issued it, so once that client
+// is gone the custody is unusable and must be rebuilt from a fresh registration.
+func DiscardBasementTinyAuthPocketIDBinding(workspaceRoot string) error {
+	directory, err := confinedCustodyPath(workspaceRoot, tinyAuthPocketIDBindingRelDir)
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(directory); err != nil {
+		return fmt.Errorf("localevidence: discard stale TinyAuth PocketID custody: %w", err)
+	}
+	return nil
+}
+
 func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketIDBinding, error) {
 	directory, err := confinedCustodyPath(workspaceRoot, tinyAuthPocketIDBindingRelDir)
 	if err != nil {

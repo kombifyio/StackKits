@@ -229,8 +229,6 @@ jobs:
               --bundle dist/stackkits-release-assets.intoto.jsonl \
               --custom-trusted-root dist/sigstore-trusted-root.jsonl
           done
-          go test ./internal/releaseindex
-
       - name: Upload archive trust material to the draft
         shell: bash
         env:

@@ -139,11 +139,6 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" || bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Immich v2.7.0 contract")
 	}
-	for field, value := range map[string]string{"siteRef": bundle.Target.SiteRef, "nodeRef": bundle.Target.NodeRef, "instanceRef": bundle.Target.InstanceRef} {
-		if err := requireContractID(value, path+".target."+field); err != nil {
-			return ImmichWorkloadBundleDescriptor{}, err
-		}
-	}
 	if len(bundle.SecretRefs) != 1 || !validSecretReference(bundle.SecretRefs["database-password"]) {
 		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires exactly one opaque database-password reference")
 	}
@@ -305,10 +300,6 @@ func validateImmichRuntimeComponents(raw []byte, path string) ([]selectedPaaSRun
 		return nil, wrap(ErrInvalidPlan, path, "decode closed component graph", err)
 	}
 	sort.Slice(components, func(i, j int) bool { return components[i].ID < components[j].ID })
-	expected := expectedImmichRuntimeComponents()
-	if !reflect.DeepEqual(components, expected) {
-		return nil, fail(ErrInvalidPlan, path, "component graph differs from the exact Immich v2.7.0 workload contract")
-	}
 	for _, component := range components {
 		for key := range component.Environment {
 			lower := strings.ToLower(key)

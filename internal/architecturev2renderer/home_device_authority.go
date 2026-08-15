@@ -162,9 +162,6 @@ func validateHomeDeviceAuthorityUnit(unit RenderUnit, contract RendererContract)
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return HomeDeviceAuthorityEnforcementPolicy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode bounded Home authority plan identity", err)
 	}
-	if err := requireContractID(inputs.StackID, path+".planInputs.stackId"); err != nil {
-		return HomeDeviceAuthorityEnforcementPolicy{}, err
-	}
 	if inputs.Kit.Slug != "basement-kit" && inputs.Kit.Slug != "modern-homelab" {
 		return HomeDeviceAuthorityEnforcementPolicy{}, fail(ErrInvalidPlan, path+".planInputs.kit.slug", "Home device authority is unavailable to kit %q", inputs.Kit.Slug)
 	}
@@ -204,18 +201,6 @@ func validateHomeDeviceAuthorityBinding(raw []byte, path string) error {
 }
 
 func validateHomeDeviceAuthorityInput(value HomeDeviceAuthorityInput, stackID, path string) (HomeDeviceAuthorityInput, error) {
-	if err := requireContractID(value.Authority.ID, path+".authority.id"); err != nil {
-		return value, err
-	}
-	if err := requireContractID(value.Authority.TrustDomainRef, path+".authority.trustDomainRef"); err != nil {
-		return value, err
-	}
-	if err := requireContractID(value.Authority.SiteRef, path+".authority.siteRef"); err != nil {
-		return value, err
-	}
-	if err := requireContractID(value.Issuer.ID, path+".issuer.id"); err != nil {
-		return value, err
-	}
 	if value.Issuer.AuthorityRef != value.Authority.ID {
 		return value, fail(ErrInvalidPlan, path+".issuer.authorityRef", "issuer must bind the exact projected authority")
 	}

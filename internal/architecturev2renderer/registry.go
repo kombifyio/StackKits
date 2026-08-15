@@ -71,12 +71,6 @@ func (r *Registry) Register(contract RendererContract, renderer UnitRenderer) er
 	if r == nil {
 		return fail(ErrUnknownRenderer, "renderer.registry", "registry is required")
 	}
-	if err := requireContractID(contract.Kind, "renderer.registry.kind"); err != nil {
-		return err
-	}
-	if err := requireContractID(contract.RendererRef, "renderer.registry.rendererRef"); err != nil {
-		return err
-	}
 	if strings.TrimSpace(contract.TemplateRef) == "" || strings.ContainsAny(contract.TemplateRef, "\r\n\t") {
 		return fail(ErrInvalidPlan, "renderer.registry.templateRef", "a non-empty template reference is required")
 	}

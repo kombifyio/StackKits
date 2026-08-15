@@ -207,6 +207,7 @@ func init() {
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(appCmd)
 	rootCmd.AddCommand(compatCmd)
+	rootCmd.AddCommand(docsCmd)
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(agentCmd)
 	rootCmd.AddCommand(hostCmd)

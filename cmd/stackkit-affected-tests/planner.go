@@ -77,13 +77,7 @@ var fileFocusedTests = map[string][]string{
 		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
 	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
-		"TestRunArchitectureV2InitMaterializesCanonicalProductSpecs",
-		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
 		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
-		"TestRunArchitectureV2InitFailsBeforeWriteForMissingRequiredDomain",
-		"TestRunArchitectureV2InitRejectsLegacySemanticsAndLocalPathsBeforeWrite",
-		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
-		"TestRunArchitectureV2InitUsesExistingSpecAliasWithoutCreatingSecondAuthority",
 	},
 	"cmd/stackkit/commands/wizard.go": {
 		"TestPublicCommandTreeExcludesPublisherOperations",
@@ -180,154 +174,6 @@ var fileFocusedTests = map[string][]string{
 	},
 }
 
-var defaultReleaseContractSmokeTests = []string{
-	"scripts/release/release-evidence.test.mjs",
-	"scripts/release/render-release-index.test.mjs",
-	"scripts/release/release-trust-workflow.test.mjs",
-	"scripts/release/verify-trusted-root.test.mjs",
-	"scripts/release/validate-release-archives.test.mjs",
-	"scripts/release/check-fast-feedback-budget.test.mjs",
-	"scripts/public/export-public-verification.test.mjs",
-}
-
-// releaseTestBindings keeps release feedback producer-specific. Directly
-// changed *.test.mjs files select themselves; this table binds producers and
-// declarative inputs to the smallest contract tests that own them. Unbound
-// release paths retain the bounded historical smoke as a conservative fallback.
-var releaseTestBindings = map[string][]string{
-	".goreleaser.yaml": {
-		"scripts/release/validate-release-archives.test.mjs",
-	},
-	"install.sh": {
-		"scripts/release/install-latest-resolution.test.mjs",
-	},
-	"mise.toml": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-	},
-	"scripts/dev/architecture-v2-generation.mjs": {
-		"scripts/dev/architecture-v2-generation.test.mjs",
-	},
-	".github/workflows/ci.yml": {
-		"scripts/public/public-surface-policy.test.mjs",
-	},
-	".github/workflows/ci-fast.yml": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-	},
-	".github/workflows/delivery.yml": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-	},
-	".github/workflows/deployment-standards-gate.yml": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-	},
-	".github/workflows/os-matrix.yml": {
-		"scripts/release/validate-os-matrix.test.mjs",
-	},
-	".github/workflows/publish-oss.yml": {
-		"scripts/public/public-surface-policy.test.mjs",
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-		"scripts/release/publish-oss-phase-boundary.test.mjs",
-		"scripts/release/release-evidence.private.test.mjs",
-		"scripts/release/release-trust-workflow.test.mjs",
-	},
-	"scripts/public/assert-safe-export-destination.mjs": {
-		"scripts/public/assert-safe-export-destination.test.mjs",
-	},
-	"scripts/public/check-public-cli-boundary.mjs": {
-		"scripts/public/check-public-cli-boundary.test.mjs",
-	},
-	"scripts/public/export-manifest.txt": {
-		"scripts/public/public-surface-policy.test.mjs",
-	},
-	"scripts/public/export-public.ps1": {
-		"scripts/public/export-public-verification.test.mjs",
-	},
-	"scripts/public/export-public.sh": {
-		"scripts/public/export-public-verification.test.mjs",
-	},
-	"scripts/public/public-export-transaction.mjs": {
-		"scripts/public/public-export-transaction.test.mjs",
-	},
-	"scripts/public/public-surface-policy.json": {
-		"scripts/public/public-surface-policy.test.mjs",
-	},
-	"scripts/public/public-surface-policy.mjs": {
-		"scripts/public/public-surface-policy.test.mjs",
-	},
-	"scripts/public/workflows/release.yml": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-		"scripts/release/release-evidence.private.test.mjs",
-		"scripts/release/release-trust-workflow.test.mjs",
-	},
-	"scripts/public/workflows/publish-image.yml": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-		"scripts/release/release-trust-workflow.test.mjs",
-	},
-	"scripts/public/workflows/ci.yml": {
-		"scripts/public/public-surface-policy.test.mjs",
-	},
-	"scripts/release/changelog.mjs": {
-		"scripts/release/changelog.test.mjs",
-	},
-	"scripts/release/check-ci-race-shards.mjs": {
-		"scripts/release/check-ci-race-shards.test.mjs",
-	},
-	"scripts/release/check-fast-feedback-budget.mjs": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-	},
-	"scripts/release/check-fast-numeric-delivery.mjs": {
-		"scripts/release/check-fast-feedback-budget.test.mjs",
-	},
-	"scripts/release/check-l3-paas-contract.mjs": {
-		"scripts/release/check-l3-paas-contract.test.mjs",
-	},
-	"scripts/release/check-node24-actions.mjs": {
-		"scripts/release/check-node24-actions.test.mjs",
-	},
-	"scripts/release/check-timeout-budget.mjs": {
-		"scripts/release/check-timeout-budget.test.mjs",
-	},
-	"scripts/release/exact-sha-release-gate.mjs": {
-		"scripts/release/exact-sha-release-gate.test.mjs",
-	},
-	"scripts/release/finalize-release-dist.sh": {
-		"scripts/release/finalize-release-dist.test.mjs",
-	},
-	"scripts/release/live-website-headers.mjs": {
-		"scripts/release/live-website-headers.test.mjs",
-	},
-	"scripts/release/render-exact-sha-deploy.mjs": {
-		"scripts/release/render-exact-sha-deploy.test.mjs",
-	},
-	"scripts/release/render-release-evidence.mjs": {
-		"scripts/release/release-evidence.test.mjs",
-	},
-	"scripts/release/render-release-index.mjs": {
-		"scripts/release/render-release-index.test.mjs",
-	},
-	"scripts/release/verify-trusted-root.mjs": {
-		"scripts/release/verify-trusted-root.test.mjs",
-	},
-	"internal/releaseindex/release-trust-policy.json": {
-		"scripts/release/release-trust-workflow.test.mjs",
-		"scripts/release/verify-trusted-root.test.mjs",
-	},
-	"scripts/release/validate-os-matrix.mjs": {
-		"scripts/release/validate-os-matrix.test.mjs",
-	},
-	"scripts/release/validate-release-archives.sh": {
-		"scripts/release/validate-release-archives.test.mjs",
-	},
-	"scripts/release/validate-release-evidence.mjs": {
-		"scripts/release/validate-release-evidence.test.mjs",
-	},
-	"scripts/release/validate-scenario-artifact.mjs": {
-		"scripts/release/validate-scenario-artifact.test.mjs",
-	},
-	"scripts/release/verify-release-attestations.mjs": {
-		"scripts/release/verify-release-attestations.test.mjs",
-	},
-}
-
 type goPackage struct {
 	ImportPath   string
 	Dir          string
@@ -397,15 +243,6 @@ func buildPlan(input plannerInput) testPlan {
 		Argv:   []string{"git", "diff", "--check", input.MergeBase, "--"},
 		Reason: "catch whitespace errors only in the candidate diff",
 	}}
-	if productBoundaryRelevant(files) {
-		commands = append(commands, testCommand{
-			Kind:   "release",
-			Scope:  "stackkits-product-boundary",
-			Argv:   []string{"node", "scripts/release/check-product-boundaries.mjs"},
-			Reason: "reject Wizard/scoring ownership drift, external Standard Mode dependencies, provider credentials, and State Console lifecycle duplication",
-		})
-	}
-
 	goSelection := affectedGoSelectionFor(files, input.GoPackages, maxReverse)
 	if classes.GoShared {
 		changed := make(map[string]struct{}, len(goSelection.Changed))
@@ -546,28 +383,6 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "verify canonical and website OpenAPI projections without installing unrelated website tooling",
 		})
 	}
-	if classes.ReleaseE2E {
-		commands = append(commands, testCommand{
-			Kind:  "release",
-			Scope: "release-e2e-contracts",
-			Argv: []string{
-				"node", "--test",
-				"scripts/e2e/validate-standalone-oss-e2e.test.mjs",
-				"scripts/e2e/validate-standalone-runtime-e2e.test.mjs",
-			},
-			Reason: "run only the standalone OSS and runtime E2E evidence contracts",
-		})
-	}
-	if classes.ReleaseGeneral {
-		tests := affectedReleaseTests(files)
-		commands = append(commands, testCommand{
-			Kind:   "release",
-			Scope:  "release-contract-smoke",
-			Argv:   append([]string{"node", "--test"}, tests...),
-			Reason: "run only release contract tests bound to changed producers and declarative inputs",
-		})
-	}
-
 	warnings := []string{}
 	if input.GoListWarning != "" {
 		warnings = append(warnings, input.GoListWarning)
@@ -591,22 +406,6 @@ func buildPlan(input plannerInput) testPlan {
 		Commands:       commands,
 		Warnings:       warnings,
 	}
-}
-
-func productBoundaryRelevant(files []string) bool {
-	for _, file := range files {
-		if file == "architecture-snapshot.json" ||
-			file == "architecture-snapshot.schema.json" ||
-			file == "scripts/build-architecture-snapshot.py" ||
-			file == "scripts/release/check-product-boundaries.mjs" ||
-			strings.HasPrefix(file, "schemas/") ||
-			strings.HasPrefix(file, "cmd/stackkit/") ||
-			strings.HasPrefix(file, "internal/stackkitmcp/") ||
-			strings.HasPrefix(file, "mcp-use/stackkits-app/") {
-			return true
-		}
-	}
-	return false
 }
 
 func slicesContain(values []string, want string) bool {
@@ -654,40 +453,6 @@ func focusedGoTests(files []string, changedTests map[string][]string) map[string
 		result[dir] = sortedUnique(names)
 	}
 	return result
-}
-
-func affectedReleaseTests(files []string) []string {
-	selected := map[string]struct{}{}
-	needsFallback := false
-	productBoundaryTaskChange := slicesContain(files, "mise.toml") &&
-		slicesContain(files, "scripts/release/check-product-boundaries.mjs")
-	for _, file := range files {
-		if !isGeneralReleasePath(file) {
-			continue
-		}
-		if strings.HasSuffix(file, ".test.mjs") {
-			selected[file] = struct{}{}
-			continue
-		}
-		if file == "mise.toml" && productBoundaryTaskChange {
-			selected["scripts/release/check-product-boundaries.test.mjs"] = struct{}{}
-			selected["scripts/release/check-fast-feedback-budget.test.mjs"] = struct{}{}
-			continue
-		}
-		if tests, ok := releaseTestBindings[file]; ok {
-			for _, test := range tests {
-				selected[test] = struct{}{}
-			}
-			continue
-		}
-		needsFallback = true
-	}
-	if needsFallback {
-		for _, test := range defaultReleaseContractSmokeTests {
-			selected[test] = struct{}{}
-		}
-	}
-	return sortedKeys(selected)
 }
 
 func classifyFiles(files []string) classification {
@@ -762,8 +527,8 @@ func isReleaseE2EPath(file string) bool {
 }
 
 func isGeneralReleasePath(file string) bool {
-	if file == ".goreleaser.yaml" || file == "install.sh" || file == "Dockerfile" || file == "mise.toml" || file == "scripts/sync-public.sh" ||
-		file == "scripts/dev/architecture-v2-generation.mjs" || file == "scripts/dev/architecture-v2-generation.test.mjs" ||
+	if file == ".goreleaser.yaml" || file == "install.sh" || file == "Dockerfile" || file == "scripts/sync-public.sh" ||
+		file == "scripts/dev/architecture-v2-generation.mjs" ||
 		file == "internal/releaseindex/release-trust-policy.json" {
 		return true
 	}

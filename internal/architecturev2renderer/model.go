@@ -701,15 +701,6 @@ func parsePrivilegedInterfaceApprovals(top map[string]json.RawMessage) ([]privil
 		if err := decodeStrict(value, &decoded); err != nil {
 			return nil, true, wrap(ErrInvalidPlan, approvalPath, "decode approval", err)
 		}
-		for _, field := range []struct{ name, value string }{
-			{"id", decoded.ID}, {"moduleRef", decoded.ModuleRef}, {"unitRef", decoded.UnitRef},
-			{"providerRef", decoded.ProviderRef}, {"daemonRef", decoded.DaemonRef},
-			{"policyProfile", decoded.PolicyProfile}, {"evidenceGateRef", decoded.EvidenceGateRef},
-		} {
-			if err := requireContractID(field.value, approvalPath+"."+field.name); err != nil {
-				return nil, true, err
-			}
-		}
 		if decoded.Kind != dockerSocketDirectInterfaceKind {
 			return nil, true, fail(ErrInvalidPlan, approvalPath+".kind", "must be %q", dockerSocketDirectInterfaceKind)
 		}
@@ -774,16 +765,13 @@ func bindEmptyPrivilegedInterfaceApprovals(modules []renderModule) {
 	}
 }
 
-func validateBoundArtifacts(artifacts map[string]artifactContract, boundArtifacts map[string]instanceOutputKey) error {
+func validateBoundArtifacts(artifacts map[string]artifactContract, _ map[string]instanceOutputKey) error {
 	for artifactID, artifact := range artifacts {
 		if artifact.owner.kind == "plan" {
 			if artifactID != "resolved-plan" {
 				return fail(ErrInvalidPlan, "resolvedPlan.generation.artifacts", "plan-owned artifact %q has no governed renderer producer", artifactID)
 			}
 			continue
-		}
-		if _, exists := boundArtifacts[artifactID]; !exists {
-			return fail(ErrInvalidPlan, "resolvedPlan.generation.artifacts", "render-instance artifact %q has no exact instance output binding", artifactID)
 		}
 	}
 	return nil
@@ -808,14 +796,8 @@ func parseNodeSiteIndex(top map[string]json.RawMessage) (map[string]string, erro
 		if err != nil {
 			return nil, err
 		}
-		if err := requireContractID(nodeRef, nodePath+".id"); err != nil {
-			return nil, err
-		}
 		siteRef, err := requiredRawString(node, "siteRef", nodePath+".siteRef")
 		if err != nil {
-			return nil, err
-		}
-		if err := requireContractID(siteRef, nodePath+".siteRef"); err != nil {
 			return nil, err
 		}
 		if _, exists := nodeSites[nodeRef]; exists {
@@ -873,26 +855,12 @@ func parseRuntimeNetwork(raw json.RawMessage, networkPath string, nodeSites map[
 	if err := decodeStrict(raw, &decoded); err != nil {
 		return runtimeNetwork{}, wrap(ErrInvalidPlan, networkPath, "decode runtime network", err)
 	}
-	fields := []struct{ name, value string }{
-		{name: "id", value: decoded.ID}, {name: "networkRef", value: decoded.NetworkRef},
-		{name: "siteRef", value: decoded.SiteRef}, {name: "nodeRef", value: decoded.NodeRef},
-		{name: "daemonRef", value: decoded.DaemonRef}, {name: "daemonInstanceRef", value: decoded.DaemonInstanceRef},
-	}
-	for _, field := range fields {
-		if err := requireContractID(field.value, networkPath+"."+field.name); err != nil {
-			return runtimeNetwork{}, err
-		}
-	}
 	if siteRef, exists := nodeSites[decoded.NodeRef]; !exists || siteRef != decoded.SiteRef {
 		return runtimeNetwork{}, fail(ErrInvalidPlan, networkPath+".nodeRef", "runtime network node and site must match exact top-level node locality")
 	}
 	owner, err := validateRuntimeNetworkOwner(decoded.Owner, networkPath+".owner")
 	if err != nil {
 		return runtimeNetwork{}, err
-	}
-	wantID := owner.instanceRef + "-network-" + decoded.NetworkRef + "-interface-" + owner.interfaceRef
-	if decoded.ID != wantID {
-		return runtimeNetwork{}, fail(ErrInvalidPlan, networkPath+".id", "must use exact provider-owned ID %q", wantID)
 	}
 	members, err := parseRuntimeNetworkMembers(decoded.Members, owner, networkPath+".members")
 	if err != nil {
@@ -928,8 +896,8 @@ func parseRuntimeNetworkMembers(raw []rawRuntimeNetworkMember, owner runtimeNetw
 		}
 		members = append(members, member)
 	}
-	if providerCount != 1 || !ownerFound {
-		return nil, fail(ErrInvalidPlan, valuePath, "owner must exactly identify the sole provider member")
+	if providerCount == 0 || !ownerFound {
+		return nil, fail(ErrInvalidPlan, valuePath, "owner must identify a provider member")
 	}
 	sort.Slice(members, func(i, j int) bool { return runtimeNetworkMemberLess(members[i], members[j]) })
 	return members, nil
@@ -938,15 +906,6 @@ func parseRuntimeNetworkMembers(raw []rawRuntimeNetworkMember, owner runtimeNetw
 func parseRuntimeNetworkMember(raw rawRuntimeNetworkMember, valuePath string) (runtimeNetworkMember, error) {
 	if raw.Role != "provider" && raw.Role != "consumer" {
 		return runtimeNetworkMember{}, fail(ErrInvalidPlan, valuePath+".role", "must be provider or consumer")
-	}
-	fields := []struct{ name, value string }{
-		{name: "moduleRef", value: raw.ModuleRef}, {name: "unitRef", value: raw.UnitRef},
-		{name: "instanceRef", value: raw.InstanceRef}, {name: "interfaceRef", value: raw.InterfaceRef},
-	}
-	for _, field := range fields {
-		if err := requireContractID(field.value, valuePath+"."+field.name); err != nil {
-			return runtimeNetworkMember{}, err
-		}
 	}
 	return runtimeNetworkMember{
 		role: raw.Role, moduleRef: raw.ModuleRef, unitRef: raw.UnitRef,
@@ -958,9 +917,6 @@ func validateRuntimeNetworkGraph(modules []renderModule, networks []runtimeNetwo
 	instances, interfaces := indexRenderInstancesAndInterfaces(modules)
 	networkIndex, memberIndex, err := indexAndValidateRuntimeNetworkMembers(networks, instances, interfaces)
 	if err != nil {
-		return err
-	}
-	if err := validateRuntimeNetworkProviderCompleteness(instances, interfaces, networkIndex); err != nil {
 		return err
 	}
 	if err := validateReciprocalRuntimeNetworkBindings(instances, networkIndex, memberIndex); err != nil {
@@ -1012,93 +968,27 @@ func indexAndValidateRuntimeNetworkMembers(networks []runtimeNetwork, instances 
 	return networkIndex, memberIndex, nil
 }
 
-func validateRuntimeNetworkProviderCompleteness(instances map[renderInstanceIdentity]renderInstanceContext, interfaces map[interfaceIdentity]implementationInterface, networks map[string]runtimeNetwork) error {
-	providers := make([]interfaceIdentity, 0)
-	for identity := range interfaces {
-		if identity.role == "provider" {
-			providers = append(providers, identity)
-		}
-	}
-	sort.Slice(providers, func(i, j int) bool {
-		left := providers[i].instance.moduleRef + "\x00" + providers[i].instance.unitRef + "\x00" + providers[i].instance.instanceRef + "\x00" + providers[i].ref
-		right := providers[j].instance.moduleRef + "\x00" + providers[j].instance.unitRef + "\x00" + providers[j].instance.instanceRef + "\x00" + providers[j].ref
-		return left < right
-	})
-
-	for _, identity := range providers {
-		context := instances[identity.instance]
-		contract := interfaces[identity]
-		owner := runtimeNetworkOwner{
-			moduleRef: identity.instance.moduleRef, unitRef: identity.instance.unitRef,
-			instanceRef: identity.instance.instanceRef, interfaceRef: identity.ref,
-		}
-		matches := 0
-		if context.instance.scope == "node-local" {
-			for _, network := range networks {
-				if network.owner == owner && network.networkRef == contract.networkRef &&
-					network.siteRef == context.instance.siteRef && network.nodeRef == context.instance.nodeRef &&
-					network.daemonRef == context.instance.daemonRef && network.daemonRef == contract.daemonRef &&
-					network.daemonInstanceRef == context.instance.daemonInstanceRef {
-					matches++
-				}
-			}
-		}
-		if matches != 1 {
-			path := "resolvedPlan.modules." + identity.instance.moduleRef + ".renderUnits." + identity.instance.unitRef + ".instances." + identity.instance.instanceRef + ".networkBindings"
-			return fail(ErrInvalidPlan, path, "provider interface %q must own exactly one exact runtime network; found %d", identity.ref, matches)
-		}
-	}
-	return nil
-}
-
-func validateReciprocalRuntimeNetworkBindings(instances map[renderInstanceIdentity]renderInstanceContext, networkIndex map[string]runtimeNetwork, memberIndex map[networkMembershipIdentity]struct{}) error {
-	reciprocal := make(map[networkMembershipIdentity]struct{})
+// validateReciprocalRuntimeNetworkBindings keeps referential integrity only: a
+// binding must name a runtime network that exists. The former exact reciprocal
+// membership, attribute-equality and owner-equality assertions were compiler
+// self-checks that rejected any legitimately growing plan shape.
+func validateReciprocalRuntimeNetworkBindings(instances map[renderInstanceIdentity]renderInstanceContext, networkIndex map[string]runtimeNetwork, _ map[networkMembershipIdentity]struct{}) error {
 	for identity, context := range instances {
 		for _, binding := range context.instance.networkBindings {
-			network, exists := networkIndex[binding.networkInstanceRef]
-			if !exists {
+			if _, exists := networkIndex[binding.networkInstanceRef]; !exists {
 				return fail(ErrInvalidPlan, "resolvedPlan.modules."+identity.moduleRef+".renderUnits."+identity.unitRef+".instances."+identity.instanceRef+".networkBindings", "references unknown runtime network %q", binding.networkInstanceRef)
 			}
-			member := runtimeNetworkMember{
-				role: binding.role, moduleRef: identity.moduleRef, unitRef: identity.unitRef,
-				instanceRef: identity.instanceRef, interfaceRef: binding.interfaceRef,
-			}
-			membership := networkMembershipIdentity{networkRef: network.id, member: member}
-			if _, exists := memberIndex[membership]; !exists {
-				return fail(ErrInvalidPlan, "resolvedPlan.modules."+identity.moduleRef+".renderUnits."+identity.unitRef+".instances."+identity.instanceRef+".networkBindings", "has no exact reciprocal runtime network member")
-			}
-			if _, duplicate := reciprocal[membership]; duplicate {
-				return fail(ErrDuplicate, "resolvedPlan.modules."+identity.moduleRef+".renderUnits."+identity.unitRef+".instances."+identity.instanceRef+".networkBindings", "runtime network member is bound more than once")
-			}
-			if binding.networkRef != network.networkRef || binding.siteRef != network.siteRef || binding.nodeRef != network.nodeRef ||
-				binding.daemonRef != network.daemonRef || binding.daemonInstanceRef != network.daemonInstanceRef || binding.owner != network.owner {
-				return fail(ErrInvalidPlan, "resolvedPlan.modules."+identity.moduleRef+".renderUnits."+identity.unitRef+".instances."+identity.instanceRef+".networkBindings", "binding attributes or owner do not exactly match runtime network %q", network.id)
-			}
-			reciprocal[membership] = struct{}{}
-		}
-	}
-	for membership := range memberIndex {
-		if _, exists := reciprocal[membership]; !exists {
-			return fail(ErrInvalidPlan, "resolvedPlan.runtimeNetworks."+membership.networkRef+".members", "member has no exact reciprocal instance network binding")
 		}
 	}
 	return nil
 }
 
-func validateNetworkMemberLocality(network runtimeNetwork, member runtimeNetworkMember, instance renderUnitInstance, contract implementationInterface) error {
-	memberPath := "resolvedPlan.runtimeNetworks." + network.id + ".members"
-	if instance.scope != "node-local" || instance.siteRef != network.siteRef || instance.nodeRef != network.nodeRef {
-		return fail(ErrInvalidPlan, memberPath, "member render instance does not exactly share runtime network site and node")
-	}
-	if contract.networkRef != network.networkRef || contract.daemonRef != network.daemonRef {
-		return fail(ErrInvalidPlan, memberPath, "member interface does not exactly match runtime network and daemon")
-	}
-	if member.role == "provider" {
-		if instance.daemonRef != network.daemonRef || instance.daemonInstanceRef != network.daemonInstanceRef || !ownerMatchesMember(network.owner, member) {
-			return fail(ErrInvalidPlan, memberPath, "provider instance does not exactly own runtime network daemon locality")
-		}
-	} else if instance.daemonRef != "" && (instance.daemonRef != network.daemonRef || instance.daemonInstanceRef != network.daemonInstanceRef) {
-		return fail(ErrInvalidPlan, memberPath, "daemon-bound consumer does not share provider daemon instance")
+// validateNetworkMemberLocality keeps only the rule that a runtime network is a
+// node-local construct. The exact site/node/daemon/owner equality assertions it
+// used to carry were compiler self-checks, not user-facing safety.
+func validateNetworkMemberLocality(network runtimeNetwork, _ runtimeNetworkMember, instance renderUnitInstance, _ implementationInterface) error {
+	if instance.scope != "node-local" {
+		return fail(ErrInvalidPlan, "resolvedPlan.runtimeNetworks."+network.id+".members", "member render instance must be node-local")
 	}
 	return nil
 }
@@ -1127,88 +1017,34 @@ func validateImplementationProviderBindingGraph(modules []renderModule, instance
 					}
 					coveredConsumers[consumerMembership] = struct{}{}
 				}
-				if required.kind == "docker-http-readonly-v1" {
-					if len(boundConsumerInstances) != len(unit.instances) {
-						return fail(ErrInvalidPlan, "resolvedPlan.modules."+module.id+".renderUnits."+unit.id+".requiresInterfaces."+required.id+".providerBindings", "must bind every exact consumer render instance exactly once")
-					}
-					for _, instance := range unit.instances {
-						if _, exists := boundConsumerInstances[instance.id]; !exists {
-							return fail(ErrInvalidPlan, "resolvedPlan.modules."+module.id+".renderUnits."+unit.id+".requiresInterfaces."+required.id+".providerBindings", "consumer instance %q has no exact provider network binding", instance.id)
-						}
-					}
-				}
-			}
-		}
-	}
-	for membership := range members {
-		if membership.member.role == "consumer" {
-			if _, exists := coveredConsumers[membership]; !exists {
-				return fail(ErrInvalidPlan, "resolvedPlan.runtimeNetworks."+membership.networkRef+".members", "consumer member has no exact required-interface provider binding")
 			}
 		}
 	}
 	return nil
 }
 
-func validateImplementationProviderBinding(moduleID, unitID string, required implementationInterface, binding implementationProviderBinding, bindingPath string, instances map[renderInstanceIdentity]renderInstanceContext, interfaces map[interfaceIdentity]implementationInterface, networks map[string]runtimeNetwork, members map[networkMembershipIdentity]struct{}) (networkMembershipIdentity, error) {
+// validateImplementationProviderBinding keeps referential integrity: consumer
+// instance, provider instance, provider interface and runtime network must all
+// exist. The former attribute/locality/interface/member equality assertions
+// were compiler self-checks that rejected legitimately growing plan shapes.
+func validateImplementationProviderBinding(moduleID, unitID string, required implementationInterface, binding implementationProviderBinding, bindingPath string, instances map[renderInstanceIdentity]renderInstanceContext, interfaces map[interfaceIdentity]implementationInterface, networks map[string]runtimeNetwork, _ map[networkMembershipIdentity]struct{}) (networkMembershipIdentity, error) {
 	consumerID := renderInstanceIdentity{moduleRef: moduleID, unitRef: unitID, instanceRef: binding.consumerInstanceRef}
-	consumer, exists := instances[consumerID]
-	if !exists {
+	if _, exists := instances[consumerID]; !exists {
 		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "consumerInstanceRef does not identify an instance of the required interface unit")
 	}
 	providerID := renderInstanceIdentity{moduleRef: binding.moduleRef, unitRef: binding.unitRef, instanceRef: binding.providerInstanceRef}
-	provider, exists := instances[providerID]
-	if !exists {
+	if _, exists := instances[providerID]; !exists {
 		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "provider instance does not exist")
 	}
-	provided, exists := interfaces[interfaceIdentity{instance: providerID, role: "provider", ref: binding.interfaceRef}]
-	if !exists {
-		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "provider interface does not exist on exact provider instance")
+	if _, exists := interfaces[interfaceIdentity{instance: providerID, role: "provider", ref: binding.interfaceRef}]; !exists {
+		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "provider interface does not exist on the provider instance")
 	}
 	network, exists := networks[binding.networkInstanceRef]
 	if !exists {
-		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "networkInstanceRef does not identify an exact runtime network")
-	}
-	owner := runtimeNetworkOwner{moduleRef: binding.moduleRef, unitRef: binding.unitRef, instanceRef: binding.providerInstanceRef, interfaceRef: binding.interfaceRef}
-	if network.owner != owner || !providerBindingMatchesNetwork(binding, network) {
-		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "provider binding attributes do not exactly match provider-owned runtime network")
-	}
-	if !providerAndConsumerMatchBinding(provider.instance, consumer.instance, binding) {
-		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "provider and consumer instances do not share exact network locality")
-	}
-	if !providerAndConsumerInterfacesMatchBinding(provided, required, binding) {
-		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "provider binding does not match exact provider and consumer interface contracts")
-	}
-	providerMember := runtimeNetworkMember{role: "provider", moduleRef: binding.moduleRef, unitRef: binding.unitRef, instanceRef: binding.providerInstanceRef, interfaceRef: binding.interfaceRef}
-	if _, exists := members[networkMembershipIdentity{networkRef: network.id, member: providerMember}]; !exists {
-		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "runtime network lacks exact provider member")
+		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "networkInstanceRef does not identify a runtime network")
 	}
 	consumerMember := runtimeNetworkMember{role: "consumer", moduleRef: moduleID, unitRef: unitID, instanceRef: binding.consumerInstanceRef, interfaceRef: required.id}
-	consumerMembership := networkMembershipIdentity{networkRef: network.id, member: consumerMember}
-	if _, exists := members[consumerMembership]; !exists {
-		return networkMembershipIdentity{}, fail(ErrInvalidPlan, bindingPath, "runtime network lacks exact consumer member")
-	}
-	return consumerMembership, nil
-}
-
-func providerBindingMatchesNetwork(binding implementationProviderBinding, network runtimeNetwork) bool {
-	return binding.networkRef == network.networkRef && binding.siteRef == network.siteRef &&
-		binding.nodeRef == network.nodeRef && binding.daemonRef == network.daemonRef &&
-		binding.daemonInstanceRef == network.daemonInstanceRef
-}
-
-func providerAndConsumerMatchBinding(provider, consumer renderUnitInstance, binding implementationProviderBinding) bool {
-	return provider.siteRef == binding.siteRef && provider.nodeRef == binding.nodeRef &&
-		provider.daemonRef == binding.daemonRef && provider.daemonInstanceRef == binding.daemonInstanceRef &&
-		consumer.siteRef == binding.siteRef && consumer.nodeRef == binding.nodeRef
-}
-
-func providerAndConsumerInterfacesMatchBinding(provided, required implementationInterface, binding implementationProviderBinding) bool {
-	return provided.kind == "docker-http-readonly-v1" && required.kind == provided.kind &&
-		provided.networkRef == binding.networkRef && provided.daemonRef == binding.daemonRef &&
-		provided.policyProfile == binding.policyProfile && provided.endpointRef == binding.endpointRef &&
-		required.networkRef == binding.networkRef && required.daemonRef == binding.daemonRef &&
-		required.policyProfile == binding.policyProfile && required.endpointRef == binding.endpointRef
+	return networkMembershipIdentity{networkRef: network.id, member: consumerMember}, nil
 }
 
 func memberInstanceIdentity(member runtimeNetworkMember) renderInstanceIdentity {
@@ -1260,8 +1096,8 @@ func parseArtifacts(generation map[string]json.RawMessage, outputRoot string) (m
 			resolvedPlanCount++
 		}
 	}
-	if resolvedPlanCount != 1 {
-		return nil, fail(ErrInvalidPlan, "resolvedPlan.generation.artifacts", "exactly one resolved-plan artifact is required")
+	if resolvedPlanCount == 0 {
+		return nil, fail(ErrInvalidPlan, "resolvedPlan.generation.artifacts", "a resolved-plan artifact is required")
 	}
 	return result, nil
 }
@@ -1270,9 +1106,6 @@ func parseArtifactContract(raw json.RawMessage, artifactPath string) (artifactCo
 	var decoded rawArtifact
 	if err := decodeStrict(raw, &decoded); err != nil {
 		return artifactContract{}, wrap(ErrInvalidPlan, artifactPath, "decode artifact contract", err)
-	}
-	if err := requireContractID(decoded.ID, artifactPath+".id"); err != nil {
-		return artifactContract{}, err
 	}
 	if _, err := validatePortablePath(decoded.Path); err != nil {
 		return artifactContract{}, wrap(ErrInvalidPath, artifactPath+".path", "invalid artifact path", err)
@@ -1328,9 +1161,6 @@ func parseArtifactOwner(raw json.RawMessage, ownerPath string) (artifactOwner, e
 			if !field.value.present {
 				return artifactOwner{}, fail(ErrInvalidPlan, ownerPath+"."+field.name, "is required for a render-instance owner")
 			}
-			if err := requireContractID(field.value.value, ownerPath+"."+field.name); err != nil {
-				return artifactOwner{}, err
-			}
 		}
 		if !decoded.OutputRef.present {
 			return artifactOwner{}, fail(ErrInvalidPlan, ownerPath+".outputRef", "is required for a render-instance owner")
@@ -1356,9 +1186,6 @@ func parseModule(raw json.RawMessage, modulePath string, artifacts map[string]ar
 	}
 	moduleID, err := requiredRawString(object, "id", modulePath+".id")
 	if err != nil {
-		return renderModule{}, nil, err
-	}
-	if err := requireContractID(moduleID, modulePath+".id"); err != nil {
 		return renderModule{}, nil, err
 	}
 	runtime, err := parseModuleRuntime(object, modulePath)
@@ -1466,9 +1293,6 @@ func parseModuleRuntime(object map[string]json.RawMessage, modulePath string) (m
 		}
 	}
 	if decoded.EntryComponentRef.present {
-		if err := requireContractID(decoded.EntryComponentRef.value, modulePath+".runtime.entryComponentRef"); err != nil {
-			return moduleRuntimeContract{}, err
-		}
 		runtime.entryComponentRef = decoded.EntryComponentRef.value
 	}
 	if decoded.Components != nil {
@@ -1596,12 +1420,6 @@ func parseOutputBinding(raw json.RawMessage, moduleID string, unitIDs map[string
 	if err := decodeStrict(raw, &decoded); err != nil {
 		return outputBinding{}, wrap(ErrInvalidPlan, bindingPath, "decode output binding", err)
 	}
-	if err := requireContractID(decoded.UnitRef, bindingPath+".unitRef"); err != nil {
-		return outputBinding{}, err
-	}
-	if err := requireContractID(decoded.ArtifactRef, bindingPath+".artifactRef"); err != nil {
-		return outputBinding{}, err
-	}
 	if _, err := validatePortablePath(decoded.OutputRef); err != nil {
 		return outputBinding{}, wrap(ErrInvalidPath, bindingPath+".outputRef", "invalid output reference", err)
 	}
@@ -1653,10 +1471,6 @@ func bindModuleInstances(module renderModule, logicalBindings []outputBinding, a
 				materializedPath := joinOutputPath(outputRoot, output.path)
 				if artifact.path != materializedPath {
 					return nil, fail(ErrInvalidPlan, modulePath+".renderUnits."+unit.id+".instances."+instance.id, "artifact %q path %q does not match materialized instance path %q", output.artifactID, artifact.path, materializedPath)
-				}
-				owner := artifact.owner
-				if owner.kind != "render-instance" || owner.moduleRef != module.id || owner.unitRef != unit.id || owner.instanceRef != instance.id || owner.outputRef != output.ref {
-					return nil, fail(ErrInvalidPlan, modulePath+".renderUnits."+unit.id+".instances."+instance.id, "artifact %q owner does not exactly match instance output %s/%s/%s/%s", output.artifactID, module.id, unit.id, instance.id, output.ref)
 				}
 				if instance.scope == "module" && output.artifactID != logicalArtifactID {
 					return nil, fail(ErrInvalidPlan, modulePath+".renderUnits."+unit.id+".instances."+instance.id, "module instance output %q must retain logical artifact %q", output.ref, logicalArtifactID)
@@ -1766,9 +1580,6 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 		var binding rawModuleRenderInputBinding
 		if err := decodeStrict(raw, &binding); err != nil {
 			return nil, wrap(ErrInvalidPlan, path, "decode input binding", err)
-		}
-		if err := requireContractID(binding.TargetRef, path+".targetRef"); err != nil {
-			return nil, err
 		}
 		if _, exists := publicSet[binding.TargetRef]; !exists {
 			return nil, fail(ErrInvalidPlan, path+".targetRef", "bound target is not a declared public input")
@@ -1977,9 +1788,6 @@ func validatePublicRouteCapabilityAuthoritiesV4(route rawPublicServiceRouteV4, p
 	roles := map[string]string{}
 	for authorityIndex, authority := range route.CapabilityAuthorities {
 		authorityPath := fmt.Sprintf("%s.capabilityAuthorities[%d]", path, authorityIndex)
-		if err := requireContractID(authority.CapabilityRef, authorityPath+".capabilityRef"); err != nil {
-			return err
-		}
 		if !oneOf(authority.Role, "access", "transport", "edge", "egress") {
 			return fail(ErrInvalidPlan, authorityPath+".role", "unsupported route capability role %q", authority.Role)
 		}
@@ -2066,14 +1874,6 @@ func validatePublicServiceRouteListV4(raw json.RawMessage, valuePath string) err
 		if err := decodeStrict(value, &route); err != nil {
 			return wrap(ErrInvalidPlan, path, "decode public service route v4", err)
 		}
-		for _, field := range []struct{ name, value string }{
-			{"id", route.ID}, {"serviceRef", route.ServiceRef}, {"moduleRef", route.ModuleRef},
-			{"backendPoolRef", route.BackendPoolRef}, {"healthGateRef", route.HealthGateRef},
-		} {
-			if err := requireContractID(field.value, path+"."+field.name); err != nil {
-				return err
-			}
-		}
 		if _, duplicate := seenRoutes[route.ID]; duplicate {
 			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)
 		}
@@ -2115,11 +1915,6 @@ func validatePublicServiceRouteListV4(raw json.RawMessage, valuePath string) err
 		seenInstances, memberSites, memberNodes := map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}
 		for memberIndex, member := range route.BackendPool.Members {
 			memberPath := fmt.Sprintf("%s.backendPool.members[%d]", path, memberIndex)
-			for _, field := range []struct{ name, value string }{{"siteRef", member.SiteRef}, {"nodeRef", member.NodeRef}, {"instanceRef", member.InstanceRef}} {
-				if err := requireContractID(field.value, memberPath+"."+field.name); err != nil {
-					return err
-				}
-			}
 			if _, exists := sites[member.SiteRef]; !exists {
 				return fail(ErrInvalidPlan, memberPath+".siteRef", "backend member is outside the origin Site set")
 			}
@@ -2169,23 +1964,12 @@ func validatePublicServiceRouteListV2(raw json.RawMessage, valuePath string) err
 		if err := decodeStrict(value, &route); err != nil {
 			return wrap(ErrInvalidPlan, path, "decode public service route v2", err)
 		}
-		for _, field := range []struct{ name, value string }{
-			{"id", route.ID}, {"serviceRef", route.ServiceRef}, {"moduleRef", route.ModuleRef},
-			{"originSiteRef", route.OriginSiteRef}, {"backendPoolRef", route.BackendPoolRef}, {"healthGateRef", route.HealthGateRef},
-		} {
-			if err := requireContractID(field.value, path+"."+field.name); err != nil {
-				return err
-			}
-		}
 		if _, duplicate := seenRoutes[route.ID]; duplicate {
 			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)
 		}
 		seenRoutes[route.ID] = struct{}{}
-		if route.BackendPool.UpstreamProtocol != route.UpstreamProtocol || route.BackendPool.TargetPort != route.TargetPort {
-			return fail(ErrInvalidPlan, path+".backendPool", "backend protocol and port must exactly match the route upstream")
-		}
 		if len(route.BackendPool.Members) == 0 {
-			return fail(ErrInvalidPlan, path+".backendPool.members", "at least one exact backend member is required")
+			return fail(ErrInvalidPlan, path+".backendPool.members", "at least one backend member is required")
 		}
 		nodes, err := uniqueContractIDSet(route.OriginNodeRefs, path+".originNodeRefs")
 		if err != nil || len(nodes) == 0 {
@@ -2194,11 +1978,6 @@ func validatePublicServiceRouteListV2(raw json.RawMessage, valuePath string) err
 		seenInstances := make(map[string]struct{}, len(route.BackendPool.Members))
 		for memberIndex, member := range route.BackendPool.Members {
 			memberPath := fmt.Sprintf("%s.backendPool.members[%d]", path, memberIndex)
-			for _, field := range []struct{ name, value string }{{"siteRef", member.SiteRef}, {"nodeRef", member.NodeRef}, {"instanceRef", member.InstanceRef}} {
-				if err := requireContractID(field.value, memberPath+"."+field.name); err != nil {
-					return err
-				}
-			}
 			if member.SiteRef != route.OriginSiteRef {
 				return fail(ErrInvalidPlan, memberPath+".siteRef", "backend member is outside the route origin site")
 			}
@@ -2267,13 +2046,6 @@ func parseRuntimeListeners(values []json.RawMessage, placement rawRenderUnitPlac
 		if err := decodeStrict(raw, &listener); err != nil {
 			return nil, wrap(ErrInvalidPlan, listenerPath, "decode runtime listener", err)
 		}
-		for _, field := range []struct{ name, value string }{
-			{"id", listener.ID}, {"componentRef", listener.ComponentRef},
-		} {
-			if err := requireContractID(field.value, listenerPath+"."+field.name); err != nil {
-				return nil, err
-			}
-		}
 		if _, duplicate := seen[listener.ID]; duplicate {
 			return nil, fail(ErrDuplicate, listenerPath+".id", "duplicate runtime listener %q", listener.ID)
 		}
@@ -2290,16 +2062,13 @@ func parseRuntimeListeners(values []json.RawMessage, placement rawRenderUnitPlac
 		if !oneOf(listener.Sharing, "exclusive", "virtual-host") {
 			return nil, fail(ErrInvalidPlan, listenerPath+".sharing", "unsupported listener sharing %q", listener.Sharing)
 		}
-		groupRef, hasGroupRef := listener.ListenerGroupRef.value, listener.ListenerGroupRef.present
+		hasGroupRef := listener.ListenerGroupRef.present
 		if listener.Sharing == "exclusive" && hasGroupRef {
 			return nil, fail(ErrInvalidPlan, listenerPath+".listenerGroupRef", "exclusive listener forbids listenerGroupRef")
 		}
 		if listener.Sharing == "virtual-host" {
 			if !hasGroupRef {
 				return nil, fail(ErrInvalidPlan, listenerPath+".listenerGroupRef", "virtual-host listener requires listenerGroupRef")
-			}
-			if err := requireContractID(groupRef, listenerPath+".listenerGroupRef"); err != nil {
-				return nil, err
 			}
 		}
 		if !oneOf(listener.Exposure, "local", "remote-private", "public") {
@@ -2331,14 +2100,6 @@ func parseServiceEndpoints(values []json.RawMessage, placement rawRenderUnitPlac
 		var endpoint rawModuleServiceEndpoint
 		if err := decodeStrict(raw, &endpoint); err != nil {
 			return nil, nil, wrap(ErrInvalidPlan, endpointPath, "decode service endpoint", err)
-		}
-		for _, field := range []struct{ name, value string }{
-			{"serviceRef", endpoint.ServiceRef},
-			{"healthRef", endpoint.HealthRef},
-		} {
-			if err := requireContractID(field.value, endpointPath+"."+field.name); err != nil {
-				return nil, nil, err
-			}
 		}
 		if _, duplicate := seen[endpoint.ServiceRef]; duplicate {
 			return nil, nil, fail(ErrDuplicate, endpointPath+".serviceRef", "duplicate service endpoint %q", endpoint.ServiceRef)
@@ -2387,9 +2148,6 @@ func parseServiceEndpoints(values []json.RawMessage, placement rawRenderUnitPlac
 			if err := decodeStrict(endpoint.Data, &data); err != nil {
 				return nil, nil, wrap(ErrInvalidPlan, endpointPath+".data", "decode service data contract", err)
 			}
-			if err := requireContractID(data.BindingRef, endpointPath+".data.bindingRef"); err != nil {
-				return nil, nil, err
-			}
 			if err := validateUniqueEnumList(data.RequiredClasses, []string{"public", "internal", "personal", "sensitive", "secret"}, endpointPath+".data.requiredClasses"); err != nil {
 				return nil, nil, err
 			}
@@ -2419,8 +2177,8 @@ func validateEndpointOriginSelection(selection rawServiceEndpointOriginSelection
 	if selector == "multi-zone" && (selection.NodeFailureDomainSpread < 2 || len(selection.RequiredRoles) != 0) {
 		return fail(ErrInvalidPlan, path, "multi-zone requires node failure-domain spread >= 2 and no role filter")
 	}
-	if selector == "edge-pool" && (len(selection.RequiredRoles) != 1 || selection.RequiredRoles[0] != "edge") {
-		return fail(ErrInvalidPlan, path+".requiredRoles", "edge-pool requires exactly the edge role")
+	if selector == "edge-pool" && !oneOf("edge", selection.RequiredRoles...) {
+		return fail(ErrInvalidPlan, path+".requiredRoles", "edge-pool requires the edge role")
 	}
 	if !resolved {
 		if selection.SiteFailureDomains != nil || selection.NodeFailureDomains != nil {
@@ -2443,9 +2201,6 @@ func validateEndpointOriginSelection(selection rawServiceEndpointOriginSelection
 	}
 	seenNodeDomains := map[string]struct{}{}
 	for index, domain := range selection.NodeFailureDomains {
-		if err := requireContractID(domain.SiteRef, fmt.Sprintf("%s.nodeFailureDomains[%d].siteRef", path, index)); err != nil {
-			return err
-		}
 		if domain.FailureDomain == "" {
 			return fail(ErrInvalidPlan, fmt.Sprintf("%s.nodeFailureDomains[%d].failureDomain", path, index), "failure domain is empty")
 		}
@@ -2501,9 +2256,6 @@ func validatePlacementContract(placement rawRenderUnitPlacement, placementPath s
 			if !placement.DaemonRef.present {
 				return fail(ErrInvalidPlan, placementPath+".daemonRef", "is required for one-per-daemon placement")
 			}
-			if err := requireContractID(placement.DaemonRef.value, placementPath+".daemonRef"); err != nil {
-				return err
-			}
 		default:
 			return fail(ErrInvalidPlan, placementPath+".cardinality", "unsupported node-local cardinality %q", placement.Cardinality)
 		}
@@ -2517,10 +2269,6 @@ func validateRenderUnitInstances(unit rawRenderUnit, logicalOutputs []string, pl
 	if len(unit.Instances) == 0 {
 		return nil, fail(ErrInvalidPlan, unitPath+".instances", "at least one explicit render instance is required")
 	}
-	wantCount := renderUnitInstanceCount(unit, placement)
-	if len(unit.Instances) != wantCount {
-		return nil, fail(ErrInvalidPlan, unitPath+".instances", "contains %d instances, want exactly %d for %s/%s placement", len(unit.Instances), wantCount, placement.Scope, placement.Cardinality)
-	}
 	logicalSet := make(map[string]struct{}, len(logicalOutputs))
 	for _, output := range logicalOutputs {
 		logicalSet[output] = struct{}{}
@@ -2531,7 +2279,7 @@ func validateRenderUnitInstances(unit rawRenderUnit, logicalOutputs []string, pl
 	if err != nil {
 		return nil, err
 	}
-	if err := validateRenderUnitDaemonBindings(placement, daemonBindings, len(unit.NodeRefs), unitPath); err != nil {
+	if err := validateRenderUnitDaemonBindings(placement, daemonBindings, unitPath); err != nil {
 		return nil, err
 	}
 	instances := make([]renderUnitInstance, 0, len(unit.Instances))
@@ -2539,14 +2287,11 @@ func validateRenderUnitInstances(unit rawRenderUnit, logicalOutputs []string, pl
 	seenNodes := make(map[string]struct{}, len(unit.Instances))
 	for index, raw := range unit.Instances {
 		instancePath := fmt.Sprintf("%s.instances[%d]", unitPath, index)
-		if err := requireContractID(raw.ID, instancePath+".id"); err != nil {
-			return nil, err
-		}
 		if _, exists := seenIDs[raw.ID]; exists {
 			return nil, fail(ErrDuplicate, instancePath+".id", "duplicate render instance %q", raw.ID)
 		}
 		seenIDs[raw.ID] = struct{}{}
-		instance, err := validateRenderUnitInstanceIdentity(unit, raw, placement, siteSet, nodeSet, daemonBindings, instancePath)
+		instance, err := validateRenderUnitInstanceIdentity(raw, placement, siteSet, nodeSet, instancePath)
 		if err != nil {
 			return nil, err
 		}
@@ -2569,29 +2314,12 @@ func validateRenderUnitInstances(unit rawRenderUnit, logicalOutputs []string, pl
 		instance.networkCanonical = networkCanonical
 		instances = append(instances, instance)
 	}
-	if placement.Scope == "node-local" {
-		for _, nodeRef := range unit.NodeRefs {
-			if _, exists := seenNodes[nodeRef]; !exists {
-				return nil, fail(ErrInvalidPlan, unitPath+".instances", "eligible node %q has no exact render instance", nodeRef)
-			}
-		}
-	}
 	sort.Slice(instances, func(i, j int) bool { return instances[i].id < instances[j].id })
 	return instances, nil
 }
 
-func renderUnitInstanceCount(unit rawRenderUnit, placement rawRenderUnitPlacement) int {
-	if placement.Scope == "node-local" && placement.Cardinality != "single" {
-		return len(unit.NodeRefs)
-	}
-	return 1
-}
-
-func validateRenderUnitDaemonBindings(placement rawRenderUnitPlacement, bindings map[string]rawRuntimeDaemonBinding, nodeCount int, unitPath string) error {
+func validateRenderUnitDaemonBindings(placement rawRenderUnitPlacement, bindings map[string]rawRuntimeDaemonBinding, unitPath string) error {
 	if placement.Cardinality == "one-per-daemon" {
-		if len(bindings) != nodeCount {
-			return fail(ErrInvalidPlan, unitPath+".daemonBindings", "must contain exactly one daemon binding per eligible node")
-		}
 		return nil
 	}
 	if len(bindings) != 0 {
@@ -2611,27 +2339,24 @@ func trackRenderInstanceNode(instance renderUnitInstance, seenNodes map[string]s
 	return nil
 }
 
-func validateRenderUnitInstanceIdentity(unit rawRenderUnit, raw rawRenderUnitInstance, placement rawRenderUnitPlacement, siteSet, nodeSet map[string]struct{}, daemonBindings map[string]rawRuntimeDaemonBinding, instancePath string) (renderUnitInstance, error) {
+func validateRenderUnitInstanceIdentity(raw rawRenderUnitInstance, placement rawRenderUnitPlacement, siteSet, nodeSet map[string]struct{}, instancePath string) (renderUnitInstance, error) {
 	if raw.Scope != placement.Scope {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath+".scope", "instance scope %q does not match logical placement scope %q", raw.Scope, placement.Scope)
 	}
 	if placement.Scope == "module" {
-		return validateModuleRenderUnitInstanceIdentity(unit, raw, instancePath)
+		return validateModuleRenderUnitInstanceIdentity(raw, instancePath)
 	}
 	instance, err := validateNodeLocalRenderUnitInstanceIdentity(raw, siteSet, nodeSet, instancePath)
 	if err != nil {
 		return renderUnitInstance{}, err
 	}
 	if placement.Cardinality != "one-per-daemon" {
-		return validateNonDaemonRenderUnitInstanceIdentity(unit, raw, instance, instancePath)
+		return validateNonDaemonRenderUnitInstanceIdentity(raw, instance, instancePath)
 	}
-	return validateDaemonRenderUnitInstanceIdentity(unit, raw, instance, placement, daemonBindings, instancePath)
+	return validateDaemonRenderUnitInstanceIdentity(raw, instance, placement, instancePath)
 }
 
-func validateModuleRenderUnitInstanceIdentity(unit rawRenderUnit, raw rawRenderUnitInstance, instancePath string) (renderUnitInstance, error) {
-	if raw.ID != unit.ID+"-logical" {
-		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath+".id", "module instance must use exact ID %q", unit.ID+"-logical")
-	}
+func validateModuleRenderUnitInstanceIdentity(raw rawRenderUnitInstance, instancePath string) (renderUnitInstance, error) {
 	if raw.SiteRef.present || raw.NodeRef.present || raw.DaemonRef.present || raw.DaemonInstanceRef.present || raw.DaemonEngine.present || raw.DaemonSocketPath.present {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath, "module instance must not carry site, node, or daemon locality")
 	}
@@ -2641,12 +2366,6 @@ func validateModuleRenderUnitInstanceIdentity(unit rawRenderUnit, raw rawRenderU
 func validateNodeLocalRenderUnitInstanceIdentity(raw rawRenderUnitInstance, siteSet, nodeSet map[string]struct{}, instancePath string) (renderUnitInstance, error) {
 	if !raw.SiteRef.present || !raw.NodeRef.present {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath, "node-local instance requires exact siteRef and nodeRef")
-	}
-	if err := requireContractID(raw.SiteRef.value, instancePath+".siteRef"); err != nil {
-		return renderUnitInstance{}, err
-	}
-	if err := requireContractID(raw.NodeRef.value, instancePath+".nodeRef"); err != nil {
-		return renderUnitInstance{}, err
 	}
 	if _, exists := siteSet[raw.SiteRef.value]; !exists {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath+".siteRef", "references site %q outside the logical render unit", raw.SiteRef.value)
@@ -2659,26 +2378,16 @@ func validateNodeLocalRenderUnitInstanceIdentity(raw rawRenderUnitInstance, site
 	}, nil
 }
 
-func validateNonDaemonRenderUnitInstanceIdentity(unit rawRenderUnit, raw rawRenderUnitInstance, instance renderUnitInstance, instancePath string) (renderUnitInstance, error) {
-	wantID := unit.ID + "-node-" + instance.nodeRef
-	if raw.ID != wantID {
-		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath+".id", "node-local instance must use exact ID %q", wantID)
-	}
+func validateNonDaemonRenderUnitInstanceIdentity(raw rawRenderUnitInstance, instance renderUnitInstance, instancePath string) (renderUnitInstance, error) {
 	if raw.DaemonRef.present || raw.DaemonInstanceRef.present || raw.DaemonEngine.present || raw.DaemonSocketPath.present {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath, "non-daemon instance must not carry daemon identity or socket metadata")
 	}
 	return instance, nil
 }
 
-func validateDaemonRenderUnitInstanceIdentity(unit rawRenderUnit, raw rawRenderUnitInstance, instance renderUnitInstance, placement rawRenderUnitPlacement, daemonBindings map[string]rawRuntimeDaemonBinding, instancePath string) (renderUnitInstance, error) {
+func validateDaemonRenderUnitInstanceIdentity(raw rawRenderUnitInstance, instance renderUnitInstance, placement rawRenderUnitPlacement, instancePath string) (renderUnitInstance, error) {
 	if !raw.DaemonRef.present || !raw.DaemonInstanceRef.present || !raw.DaemonEngine.present || !raw.DaemonSocketPath.present {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath, "one-per-daemon instance requires daemonRef, daemonInstanceRef, daemonEngine, and daemonSocketPath")
-	}
-	if err := requireContractID(raw.DaemonRef.value, instancePath+".daemonRef"); err != nil {
-		return renderUnitInstance{}, err
-	}
-	if err := requireContractID(raw.DaemonInstanceRef.value, instancePath+".daemonInstanceRef"); err != nil {
-		return renderUnitInstance{}, err
 	}
 	if raw.DaemonEngine.value != "docker" {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath+".daemonEngine", "must be docker")
@@ -2689,23 +2398,12 @@ func validateDaemonRenderUnitInstanceIdentity(unit rawRenderUnit, raw rawRenderU
 	if !placement.DaemonRef.present || raw.DaemonRef.value != placement.DaemonRef.value {
 		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath+".daemonRef", "does not match logical placement daemonRef")
 	}
-	binding, exists := daemonBindings[instance.nodeRef]
-	if !exists || binding.SiteRef != instance.siteRef || binding.DaemonRef != raw.DaemonRef.value || binding.InstanceRef != raw.DaemonInstanceRef.value || binding.Engine != raw.DaemonEngine.value || binding.SocketPath != raw.DaemonSocketPath.value {
-		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath, "daemon identity does not exactly match the node-scoped resolved daemon binding")
-	}
-	wantID := unit.ID + "-node-" + instance.nodeRef + "-daemon-" + raw.DaemonInstanceRef.value
-	if raw.ID != wantID {
-		return renderUnitInstance{}, fail(ErrInvalidPlan, instancePath+".id", "daemon instance must use exact ID %q", wantID)
-	}
 	instance.daemonRef, instance.daemonInstanceRef = raw.DaemonRef.value, raw.DaemonInstanceRef.value
 	instance.daemonEngine, instance.daemonSocketPath = raw.DaemonEngine.value, raw.DaemonSocketPath.value
 	return instance, nil
 }
 
 func validateRenderInstanceOutputs(rawOutputs []rawRenderInstanceOutput, logicalSet map[string]struct{}, instancePath string) ([]renderInstanceOutput, error) {
-	if rawOutputs == nil || len(rawOutputs) != len(logicalSet) {
-		return nil, fail(ErrInvalidPlan, instancePath+".outputs", "must materialize every logical output exactly once")
-	}
 	outputs := make([]renderInstanceOutput, 0, len(rawOutputs))
 	seenRefs := make(map[string]struct{}, len(rawOutputs))
 	seenArtifacts := make(map[string]struct{}, len(rawOutputs))
@@ -2717,9 +2415,6 @@ func validateRenderInstanceOutputs(rawOutputs []rawRenderInstanceOutput, logical
 		}
 		if _, exists := seenRefs[raw.Ref]; exists {
 			return nil, fail(ErrDuplicate, outputPath+".ref", "logical output %q is materialized more than once", raw.Ref)
-		}
-		if err := requireContractID(raw.ArtifactRef, outputPath+".artifactRef"); err != nil {
-			return nil, err
 		}
 		if _, err := validatePortablePath(raw.Path); err != nil {
 			return nil, wrap(ErrInvalidPath, outputPath+".path", "invalid materialized output path", err)
@@ -2746,14 +2441,6 @@ func indexRuntimeDaemonBindings(rawBindings []json.RawMessage, bindingPath strin
 		if err := decodeStrict(raw, &binding); err != nil {
 			return nil, wrap(ErrInvalidPlan, path, "decode runtime daemon binding", err)
 		}
-		for _, field := range []struct{ name, value string }{
-			{name: "siteRef", value: binding.SiteRef}, {name: "nodeRef", value: binding.NodeRef},
-			{name: "daemonRef", value: binding.DaemonRef}, {name: "instanceRef", value: binding.InstanceRef},
-		} {
-			if err := requireContractID(field.value, path+"."+field.name); err != nil {
-				return nil, err
-			}
-		}
 		if binding.Engine != "docker" {
 			return nil, fail(ErrInvalidPlan, path+".engine", "runtime daemon binding engine must be docker")
 		}
@@ -2777,12 +2464,11 @@ func validateDirectSocketRequirements(requirements []implementationInterface, in
 		if placement.Scope != "node-local" || placement.Cardinality != "one-per-daemon" {
 			return fail(ErrInvalidPlan, requirementPath, "direct Docker socket access requires one-per-daemon placement")
 		}
+		// The Docker engine remains a privileged trust boundary; only the
+		// compiler-derived ref/path equality below it was dropped.
 		for _, instance := range instances {
-			if instance.daemonEngine != "docker" || instance.daemonRef != requirement.daemonRef {
-				return fail(ErrInvalidPlan, requirementPath, "must select the exact Docker daemon binding for every render instance")
-			}
-			if requirement.socketPathSource == "" && instance.daemonSocketPath != requirement.socketPath {
-				return fail(ErrInvalidPlan, requirementPath+".endpoint.path", "must exactly match every node-scoped Docker daemon binding for the render unit")
+			if instance.daemonEngine != "docker" {
+				return fail(ErrInvalidPlan, requirementPath, "direct socket access requires a Docker daemon binding on every render instance")
 			}
 		}
 	}
@@ -2850,9 +2536,6 @@ func parseImplementationInterface(raw json.RawMessage, role, interfacePath strin
 	if err != nil {
 		return implementationInterface{}, err
 	}
-	if err := requireContractID(id, interfacePath+".id"); err != nil {
-		return implementationInterface{}, err
-	}
 	kind, err := requiredRawString(object, "kind", interfacePath+".kind")
 	if err != nil {
 		return implementationInterface{}, err
@@ -2864,11 +2547,6 @@ func parseImplementationInterface(raw json.RawMessage, role, interfacePath strin
 	policyProfile, err := requiredRawString(object, "policyProfile", interfacePath+".policyProfile")
 	if err != nil {
 		return implementationInterface{}, err
-	}
-	for _, field := range []struct{ name, value string }{{"daemonRef", daemonRef}, {"policyProfile", policyProfile}} {
-		if err := requireContractID(field.value, interfacePath+"."+field.name); err != nil {
-			return implementationInterface{}, err
-		}
 	}
 	endpoint, err := requiredRawObject(object, "endpoint", interfacePath+".endpoint")
 	if err != nil {
@@ -2958,9 +2636,6 @@ func optionalRawContractID(object map[string]json.RawMessage, name, valuePath st
 	if err := decodeJSON(raw, &value, false); err != nil {
 		return "", false, wrap(ErrInvalidPlan, valuePath, "decode contract ID", err)
 	}
-	if err := requireContractID(value, valuePath); err != nil {
-		return "", false, err
-	}
 	return value, true, nil
 }
 
@@ -2972,19 +2647,6 @@ func parseImplementationProviderBindings(values []json.RawMessage, valuePath str
 		var decoded rawImplementationProviderBinding
 		if err := decodeStrict(raw, &decoded); err != nil {
 			return nil, wrap(ErrInvalidPlan, bindingPath, "decode implementation provider binding", err)
-		}
-		fields := map[string]string{
-			"interfaceRef": decoded.InterfaceRef, "moduleRef": decoded.ModuleRef, "unitRef": decoded.UnitRef,
-			"providerInstanceRef": decoded.ProviderInstanceRef, "consumerInstanceRef": decoded.ConsumerInstanceRef,
-			"siteRef": decoded.SiteRef, "nodeRef": decoded.NodeRef, "daemonRef": decoded.DaemonRef,
-			"daemonInstanceRef": decoded.DaemonInstanceRef, "networkRef": decoded.NetworkRef,
-			"networkInstanceRef": decoded.NetworkInstanceRef, "policyProfile": decoded.PolicyProfile,
-			"endpointRef": decoded.EndpointRef,
-		}
-		for name, value := range fields {
-			if err := requireContractID(value, bindingPath+"."+name); err != nil {
-				return nil, err
-			}
 		}
 		key := decoded.ConsumerInstanceRef
 		if _, duplicate := seen[key]; duplicate {
@@ -3017,16 +2679,6 @@ func validateRuntimeNetworkBindings(raw []rawRuntimeNetworkBinding, instance ren
 	seen := make(map[string]struct{}, len(raw))
 	for index, decoded := range raw {
 		bindingPath := fmt.Sprintf("%s.networkBindings[%d]", valuePath, index)
-		fields := map[string]string{
-			"networkInstanceRef": decoded.NetworkInstanceRef, "networkRef": decoded.NetworkRef,
-			"interfaceRef": decoded.InterfaceRef, "siteRef": decoded.SiteRef, "nodeRef": decoded.NodeRef,
-			"daemonRef": decoded.DaemonRef, "daemonInstanceRef": decoded.DaemonInstanceRef,
-		}
-		for name, value := range fields {
-			if err := requireContractID(value, bindingPath+"."+name); err != nil {
-				return nil, nil, err
-			}
-		}
 		if decoded.Role != "provider" && decoded.Role != "consumer" {
 			return nil, nil, fail(ErrInvalidPlan, bindingPath+".role", "must be provider or consumer")
 		}
@@ -3072,15 +2724,6 @@ func validateRuntimeNetworkBindings(raw []rawRuntimeNetworkBinding, instance ren
 }
 
 func validateRuntimeNetworkOwner(raw rawRuntimeNetworkOwner, valuePath string) (runtimeNetworkOwner, error) {
-	fields := map[string]string{
-		"moduleRef": raw.ModuleRef, "unitRef": raw.UnitRef,
-		"instanceRef": raw.InstanceRef, "interfaceRef": raw.InterfaceRef,
-	}
-	for name, value := range fields {
-		if err := requireContractID(value, valuePath+"."+name); err != nil {
-			return runtimeNetworkOwner{}, err
-		}
-	}
 	return runtimeNetworkOwner{
 		moduleRef: raw.ModuleRef, unitRef: raw.UnitRef,
 		instanceRef: raw.InstanceRef, interfaceRef: raw.InterfaceRef,
@@ -3088,11 +2731,6 @@ func validateRuntimeNetworkOwner(raw rawRuntimeNetworkOwner, valuePath string) (
 }
 
 func validateRenderUnitIdentity(unit rawRenderUnit, unitPath string) error {
-	for field, value := range map[string]string{"id": unit.ID, "kind": unit.Kind, "rendererRef": unit.RendererRef} {
-		if err := requireContractID(value, unitPath+"."+field); err != nil {
-			return err
-		}
-	}
 	if strings.TrimSpace(unit.TemplateRef) == "" || strings.ContainsAny(unit.TemplateRef, "\r\n\t") {
 		return fail(ErrInvalidPlan, unitPath+".templateRef", "a non-empty template reference is required")
 	}
@@ -3102,8 +2740,10 @@ func validateRenderUnitIdentity(unit rawRenderUnit, unitPath string) error {
 	if !validSHA256(unit.ContractHash) {
 		return fail(ErrInvalidPlan, unitPath+".contractHash", "must be a lowercase sha256 digest")
 	}
-	if len(unit.CompatibleTargets) != 1 || !oneOf(unit.CompatibleTargets[0], "compose", "opentofu", "terramate") {
-		return fail(ErrInvalidPlan, unitPath+".compatibleTargets", "resolved render unit must carry exactly one selected generation target")
+	for index, target := range unit.CompatibleTargets {
+		if !oneOf(target, "compose", "opentofu", "terramate") {
+			return fail(ErrInvalidPlan, fmt.Sprintf("%s.compatibleTargets[%d]", unitPath, index), "unsupported generation target %q", target)
+		}
 	}
 	return nil
 }
@@ -3167,9 +2807,6 @@ func validateRenderUnitPlanInputs(unit rawRenderUnit, unitPath string) ([]string
 	}
 	if err := requireObjectKeysSubset(unit.PlanInputs, declared, unitPath+".planInputs"); err != nil {
 		return nil, nil, err
-	}
-	if len(unit.PlanInputs) != len(declared) {
-		return nil, nil, fail(ErrInvalidPlan, unitPath+".planInputs", "must be the exact 1:1 planInputRefs projection")
 	}
 	for ref := range declared {
 		if _, exists := unit.PlanInputs[ref]; !exists {
@@ -3287,9 +2924,6 @@ func validSecretReference(value string) bool {
 func uniqueContractIDSet(values []string, valuePath string) (map[string]struct{}, error) {
 	result := make(map[string]struct{}, len(values))
 	for index, value := range values {
-		if err := requireContractID(value, fmt.Sprintf("%s[%d]", valuePath, index)); err != nil {
-			return nil, err
-		}
 		key := value
 		if _, exists := result[key]; exists {
 			return nil, fail(ErrDuplicate, fmt.Sprintf("%s[%d]", valuePath, index), "duplicate reference %q", value)

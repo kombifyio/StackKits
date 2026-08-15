@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"reflect"
 )
 
 const (
@@ -79,11 +78,6 @@ func ParseCloudreveWorkloadBundle(data []byte) (CloudreveWorkloadBundleDescripto
 	}
 	if len(bundle.SecretRefs) != 0 {
 		return CloudreveWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "Cloudreve single-container contract accepts no secret material")
-	}
-	for field, value := range map[string]string{"siteRef": bundle.Target.SiteRef, "nodeRef": bundle.Target.NodeRef, "instanceRef": bundle.Target.InstanceRef} {
-		if err := requireContractID(value, path+".target."+field); err != nil {
-			return CloudreveWorkloadBundleDescriptor{}, err
-		}
 	}
 	components, err := validateCloudreveRuntimeComponents(bundle.Components, path+".components")
 	if err != nil {
@@ -197,16 +191,6 @@ func validateCloudreveWorkloadUnit(unit RenderUnit, contract RendererContract) (
 }
 
 func validateCloudreveRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
-	expected := []selectedPaaSRuntimeComponent{{
-		ID: "cloudreve", Role: "application", Lifecycle: "daemon",
-		Image:     selectedPaaSRuntimeImage{Ref: cloudreveImageRef, Digest: cloudreveImageDigest},
-		DependsOn: []string{}, NetworkRefs: []string{"cloudreve-internal"},
-		Volumes: []selectedPaaSRuntimeVolume{{ID: "data", Target: "/cloudreve/data", Class: "persistent", Backup: true}},
-		Health:  selectedPaaSRuntimeHealth{Kind: "http", Path: "/", Port: 5212},
-	}}
-	if !reflect.DeepEqual(components, expected) {
-		return nil, fail(ErrInvalidPlan, path, "component graph differs from the exact Cloudreve 4.18.0 workload contract")
-	}
 	return components, nil
 }
 

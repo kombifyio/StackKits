@@ -165,9 +165,6 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	if err := decodeStrict(raw, &plan); err != nil {
 		return nil, wrap(ErrInvalidPlan, path, "decode exact internal PKI executor inputs", err)
 	}
-	if err := requireContractID(plan.StackID, path+".stackId"); err != nil {
-		return nil, err
-	}
 	if !containsExecutorBundleString([]string{"basement-kit", "modern-homelab"}, plan.Kit.Slug) ||
 		strings.TrimSpace(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
 		return nil, fail(ErrInvalidPlan, path+".kit", "internal PKI requires an exact Home-capable kit")
@@ -184,12 +181,6 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 		!exactStringList(authority.KeyUsage, []string{"cert-sign", "crl-sign"}) {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.authority", "root CA authority is ambiguous or widened")
 	}
-	if err := requireContractID(authority.SiteRef, path+".internalPKI.authority.siteRef"); err != nil {
-		return nil, err
-	}
-	if err := requireContractID(authority.NodeRef, path+".internalPKI.authority.nodeRef"); err != nil {
-		return nil, err
-	}
 	targets := pki.TrustDistribution.Targets
 	if len(targets) == 0 {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.trustDistribution.targets", "trust distribution requires exact Home targets")
@@ -199,12 +190,6 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	previousNodeRef := ""
 	for index, target := range targets {
 		targetPath := fmt.Sprintf("%s.internalPKI.trustDistribution.targets[%d]", path, index)
-		if err := requireContractID(target.SiteRef, targetPath+".siteRef"); err != nil {
-			return nil, err
-		}
-		if err := requireContractID(target.NodeRef, targetPath+".nodeRef"); err != nil {
-			return nil, err
-		}
 		if previousNodeRef != "" && target.NodeRef <= previousNodeRef {
 			return nil, fail(ErrDuplicate, targetPath+".nodeRef", "trust targets must be unique and sorted")
 		}
@@ -237,15 +222,6 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	previousIdentity := ""
 	for index, identity := range leaf.Identities {
 		identityPath := fmt.Sprintf("%s.internalPKI.leafIssuance.identities[%d]", path, index)
-		for field, value := range map[string]string{
-			"id": identity.ID, "routeRef": identity.RouteRef, "serviceRef": identity.ServiceRef,
-			"moduleRef": identity.ModuleRef, "siteRef": identity.SiteRef, "nodeRef": identity.NodeRef,
-			"subjectRef": identity.SubjectRef,
-		} {
-			if err := requireContractID(value, identityPath+"."+field); err != nil {
-				return nil, err
-			}
-		}
 		if previousIdentity != "" && identity.ID <= previousIdentity {
 			return nil, fail(ErrDuplicate, identityPath+".id", "leaf identities must be unique and sorted")
 		}

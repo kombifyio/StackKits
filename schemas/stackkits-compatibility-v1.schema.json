@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/stackkits-compatibility-v1.schema.json",
+  "title": "StackKits release compatibility projection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "release", "generatedAt", "generatorVersion", "compatibility", "contentDigest"],
+  "properties": {
+    "schemaVersion": { "const": "stackkits-compatibility/v1" },
+    "release": { "$ref": "stackkits-use-case-catalog-v1.schema.json#/$defs/release" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "generatorVersion": { "type": "string", "minLength": 1 },
+    "contentDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "applicationDelivery"],
+      "properties": {
+        "os": { "type": "array", "items": { "$ref": "#/$defs/os" } },
+        "applicationDelivery": { "type": "array", "items": { "$ref": "#/$defs/delivery" } }
+      }
+    }
+  },
+  "$defs": {
+    "os": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "version", "architecture", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "architecture": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["unverified", "unsupported", "supported", "preview"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "evidenceRef": { "type": "string", "pattern": "^https://" }
+      },
+      "allOf": [{
+        "if": { "properties": { "status": { "enum": ["supported", "preview"] } }, "required": ["status"] },
+        "then": { "required": ["evidenceRef"] }
+      }]
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deployment", "routeTLS", "statusEvidence", "backupRestore"],
+      "properties": {
+        "deployment": { "type": "boolean" },
+        "routeTLS": { "type": "boolean" },
+        "statusEvidence": { "type": "boolean" },
+        "backupRestore": { "type": "boolean" }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["useCaseRef", "workloadRef", "adapterRef", "adapterName", "status", "capabilities"],
+      "properties": {
+        "useCaseRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "workloadRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "adapterRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "adapterName": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["unsupported", "supported", "preview", "beta"] },
+        "capabilities": { "$ref": "#/$defs/capabilities" }
+      }
+    }
+  }
+}

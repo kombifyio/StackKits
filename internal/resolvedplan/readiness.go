@@ -95,10 +95,13 @@ func routeHealthExecutionReadinessBlockers(routeHealth []any) ([]executionReadin
 			return nil, err
 		}
 		refs := []string{"route:" + routeRef, "health:" + gateID, "backend-pool:" + poolRef}
-		blockers = append(blockers, executionReadinessBlocker{code: "route-health-executor-unbound", refs: refs})
-		if execution != "probe" {
-			blockers = append(blockers, executionReadinessBlocker{code: "health-gate-not-executable", refs: refs})
+		if execution == "probe" {
+			continue
 		}
+		blockers = append(blockers,
+			executionReadinessBlocker{code: "route-health-executor-unbound", refs: refs},
+			executionReadinessBlocker{code: "health-gate-not-executable", refs: refs},
+		)
 	}
 	return blockers, nil
 }

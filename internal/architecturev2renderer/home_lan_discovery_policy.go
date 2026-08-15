@@ -148,9 +148,6 @@ func validateHomeLANDiscoveryPlanInputs(raw []byte, path string) ([]string, erro
 }
 
 func validateHomeLANDiscoveryEnvelopeIdentity(inputs homeLANDiscoveryPlanInputs, path string) error {
-	if err := requireContractID(inputs.StackID, path+".stackId"); err != nil {
-		return err
-	}
 	if inputs.Kit.Version == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return fail(ErrInvalidPlan, path+".kit", "home LAN discovery requires an exact governed kit identity")
 	}
@@ -191,14 +188,6 @@ func validateHomeLANDiscoveryPlanInputsForKit(inputs homeLANDiscoveryPlanInputs,
 }
 
 func validateHomeLANDiscoveryAdvertisement(advertisement homeLANDiscoveryAdvertisement, siteKinds map[string]string, path string) error {
-	for field, value := range map[string]string{
-		"routeRef": advertisement.RouteRef, "serviceRef": advertisement.ServiceRef,
-		"originSiteRef": advertisement.OriginSiteRef, "policyRef": advertisement.Access.PolicyRef,
-	} {
-		if err := requireContractID(value, path+"."+field); err != nil {
-			return err
-		}
-	}
 	if siteKinds[advertisement.OriginSiteRef] != "home" {
 		return fail(ErrInvalidPlan, path+".originSiteRef", "LAN advertisements must originate from an explicit Home Site")
 	}
@@ -207,9 +196,6 @@ func validateHomeLANDiscoveryAdvertisement(advertisement homeLANDiscoveryAdverti
 	}
 	previousNodeRef := ""
 	for index, nodeRef := range advertisement.OriginNodeRefs {
-		if err := requireContractID(nodeRef, fmt.Sprintf("%s.originNodeRefs[%d]", path, index)); err != nil {
-			return err
-		}
 		if previousNodeRef != "" && nodeRef <= previousNodeRef {
 			return fail(ErrInvalidPlan, fmt.Sprintf("%s.originNodeRefs[%d]", path, index), "origin node refs must be unique and sorted")
 		}

@@ -20,6 +20,7 @@ import (
 	cueapi "cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
+	"github.com/kombifyio/stackkits/internal/architecturev2/authoritysources"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"gopkg.in/yaml.v3"
 )
@@ -30,18 +31,7 @@ const (
 	projectedSourceManifestPath = "architecture/v2/authority-manifest.json"
 )
 
-var contractFixtureSourceAllowlist = []string{
-	"cue.mod/module.cue",
-	"base/architecture_v2_profiles.cue",
-	"base/architecture_v2.cue",
-	"base/architecture_v2_storage.cue",
-	"base/architecture_v2_backup.cue",
-	"base/application_lifecycle.cue",
-	"base/architecture_v2_definition_binding.cue",
-	"base/architecture_v2_catalog.cue",
-	"architecture/v2/contractfixture/catalog.cue",
-	"basement-kit/stackfile.cue",
-}
+var contractFixtureSourceAllowlist = authoritysources.ContractFixture()
 
 var modernPrivateOpenAPISchemas = []string{
 	"ArchitectureV2FederationLinkRequirement",

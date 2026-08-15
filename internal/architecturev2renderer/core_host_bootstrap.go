@@ -181,9 +181,6 @@ func validateCoreHostBootstrapUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return coreHostBootstrapPolicy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode exact Core host-bootstrap inputs", err)
 	}
-	if err := requireContractID(inputs.StackID, path+".planInputs.stackId"); err != nil {
-		return coreHostBootstrapPolicy{}, err
-	}
 	if inputs.Kit.Version == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return coreHostBootstrapPolicy{}, fail(ErrInvalidPlan, path+".planInputs.kit", "requires an exact governed kit identity")
 	}

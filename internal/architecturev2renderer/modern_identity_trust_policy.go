@@ -225,9 +225,6 @@ func validateModernIdentityProjectionUnit(unit RenderUnit, renderer modernIdenti
 	if err := decodeStrict(unit.PlanInputsJSON(), &plan); err != nil || plan.Kit.Slug != "modern-homelab" || stringsTrim(plan.Kit.Version) == "" || !validSHA256(plan.Kit.DefinitionHash) {
 		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".planInputs", "requires exact governed Modern Home Lab identity")
 	}
-	if err := requireContractID(plan.StackID, path+".planInputs.stackId"); err != nil {
-		return ModernIdentityTrustEnforcementPolicy{}, err
-	}
 	var values map[string]json.RawMessage
 	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil || len(values) != 1 {
 		return ModernIdentityTrustEnforcementPolicy{}, fail(ErrInvalidPlan, path+".values", "requires exactly one owner-specific projection")
@@ -342,16 +339,8 @@ func deriveModernIdentityPlacement(verifiers []ModernIdentityTrustVerifier, dist
 }
 
 func validateModernSiteEnvelope(home string, clouds []string, maxStale int, path string) error {
-	if err := requireContractID(home, path+".homeSiteRef"); err != nil {
-		return err
-	}
 	if !sortedUniqueNonEmpty(clouds) || containsExact(clouds, home) || maxStale < 0 || maxStale > 86400 {
 		return fail(ErrInvalidPlan, path, "Modern Site partition or staleness is invalid")
-	}
-	for index, cloud := range clouds {
-		if err := requireContractID(cloud, path+".cloudSiteRefs["+strconv.Itoa(index)+"]"); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -364,12 +353,6 @@ func validateModernIssuers(values []ModernIdentityTrustIssuer, stackID string, m
 	for index := range values {
 		value := &values[index]
 		itemPath := path + "[" + strconv.Itoa(index) + "]"
-		if err := requireContractID(value.ID, itemPath+".id"); err != nil {
-			return err
-		}
-		if err := requireContractID(value.AuthorityRef, itemPath+".authorityRef"); err != nil {
-			return err
-		}
 		if _, duplicate := ids[value.ID]; duplicate {
 			return fail(ErrInvalidPlan, itemPath+".id", "issuer ID is duplicated")
 		}
@@ -405,12 +388,6 @@ func validateModernVerifiers(values []ModernIdentityTrustVerifier, stackID strin
 	for index := range values {
 		value := &values[index]
 		itemPath := path + "[" + strconv.Itoa(index) + "]"
-		if err := requireContractID(value.ID, itemPath+".id"); err != nil {
-			return err
-		}
-		if err := requireContractID(value.CredentialIssuerRef, itemPath+".issuerRef"); err != nil {
-			return err
-		}
 		if _, duplicate := ids[value.ID]; duplicate {
 			return fail(ErrInvalidPlan, itemPath+".id", "verifier ID is duplicated")
 		}
@@ -437,12 +414,6 @@ func validateModernDistributions(values []ModernIdentityTrustDistribution, stack
 	for index := range values {
 		value := &values[index]
 		itemPath := path + "[" + strconv.Itoa(index) + "]"
-		if err := requireContractID(value.ID, itemPath+".id"); err != nil {
-			return err
-		}
-		if err := requireContractID(value.CredentialIssuerRef, itemPath+".issuerRef"); err != nil {
-			return err
-		}
 		if _, duplicate := ids[value.ID]; duplicate {
 			return fail(ErrInvalidPlan, itemPath+".id", "distribution ID is duplicated")
 		}

@@ -292,9 +292,6 @@ func decodeIdentityTrustPlanInputs(raw []byte, path string) (validatedIdentityTr
 }
 
 func validateIdentityTrustEnvelope(inputs identityTrustPlanInputs, raw []byte, path string) (validatedIdentityTrust, error) {
-	if err := requireContractID(inputs.StackID, path+".stackId"); err != nil {
-		return validatedIdentityTrust{}, err
-	}
 	if err := requireContractID(inputs.Kit.Slug, path+".kit.slug"); err != nil || strings.TrimSpace(inputs.Kit.Version) == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		if err != nil {
 			return validatedIdentityTrust{}, err
@@ -336,9 +333,6 @@ func validateIdentityTrustGraph(validated *validatedIdentityTrust, path string) 
 		}
 		if !validIdentityPrincipal(authority.Principal) {
 			return fail(ErrInvalidPlan, authorityPath+".principal", "must be human, device, or workload")
-		}
-		if err := requireContractID(authority.TrustDomainRef, authorityPath+".trustDomainRef"); err != nil {
-			return err
 		}
 		if err := validateIdentityTrustPlacement(authority.Placement, validated.siteKinds, authorityPath+".placement", true); err != nil {
 			return err
@@ -593,11 +587,6 @@ func validateIdentityAuthorityOwnerShape(owner identityTrustAuthorityOwner, path
 		if owner.ContractRef != "" {
 			return fail(ErrInvalidPlan, path+".contractRef", "catalog owner cannot carry an external contract")
 		}
-		for field, value := range map[string]string{"providerRef": owner.ProviderRef, "moduleRef": owner.ModuleRef} {
-			if err := requireContractID(value, path+"."+field); err != nil {
-				return err
-			}
-		}
 		return nil
 	case "external":
 		if owner.ProviderRef != "" || owner.ModuleRef != "" {
@@ -612,9 +601,6 @@ func validateIdentityAuthorityOwnerShape(owner identityTrustAuthorityOwner, path
 func validateCatalogOwner(owner identityTrustCatalogOwner, path string) error {
 	if owner.Kind != "catalog" {
 		return fail(ErrInvalidPlan, path+".kind", "verifier and distribution owners must be catalog-owned")
-	}
-	if err := requireContractID(owner.ProviderRef, path+".providerRef"); err != nil {
-		return err
 	}
 	return requireContractID(owner.ModuleRef, path+".moduleRef")
 }
@@ -652,9 +638,6 @@ func requireSortedSites(sites []localAutonomySite, path string) error {
 }
 
 func requireUniqueIdentityID(value string, seen map[string]struct{}, path string) error {
-	if err := requireContractID(value, path); err != nil {
-		return err
-	}
 	if _, duplicate := seen[value]; duplicate {
 		return fail(ErrDuplicate, path, "record id must be unique")
 	}

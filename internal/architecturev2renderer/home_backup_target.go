@@ -151,9 +151,6 @@ func validateHomeBackupTargetUnit(unit RenderUnit, contract RendererContract) (h
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return homeBackupTargetPolicy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode exact Home backup-target inputs", err)
 	}
-	if err := requireContractID(inputs.StackID, path+".planInputs.stackId"); err != nil {
-		return homeBackupTargetPolicy{}, err
-	}
 	if (inputs.Kit.Slug != "basement-kit" && inputs.Kit.Slug != "modern-homelab") || inputs.Kit.Version == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return homeBackupTargetPolicy{}, fail(ErrInvalidPlan, path+".planInputs.kit", "requires an exact Home-capable governed kit identity")
 	}

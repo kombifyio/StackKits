@@ -219,6 +219,7 @@
         "version": "1.0.0"
       },
       "packageRef": "photos",
+      "useCaseRef": "photos",
       "workloadRef": "photos"
     },
     {
@@ -409,6 +410,7 @@
         "version": "1.0.0"
       },
       "packageRef": "files",
+      "useCaseRef": "files",
       "workloadRef": "files"
     },
     {
@@ -599,6 +601,7 @@
         "version": "1.0.0"
       },
       "packageRef": "vault",
+      "useCaseRef": "vault",
       "workloadRef": "vault"
     }
   ],
@@ -19644,7 +19647,8 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
-      ]
+      ],
+      "useCaseRef": "photos"
     },
     {
       "alternatives": [
@@ -19786,7 +19790,8 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
-      ]
+      ],
+      "useCaseRef": "files"
     },
     {
       "alternatives": [
@@ -19932,7 +19937,8 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
-      ]
+      ],
+      "useCaseRef": "vault"
     }
   ]
 }

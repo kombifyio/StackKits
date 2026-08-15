@@ -144,9 +144,6 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode exact local Kopia inputs", err)
 	}
-	if err := requireContractID(inputs.StackID, path+".planInputs.stackId"); err != nil {
-		return localbackuppolicy.Policy{}, err
-	}
 	if (inputs.Kit.Slug != "basement-kit" && inputs.Kit.Slug != "modern-homelab") ||
 		inputs.Kit.Version == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".planInputs.kit", "requires an exact Home-capable governed kit identity")

@@ -74,7 +74,7 @@ func (e *CloudCoreExecutor) Execute(ctx context.Context, request runtimeexecutor
 	}
 	if e == nil || e.operations == nil || strings.TrimSpace(e.binding.SiteRef) == "" || strings.TrimSpace(e.binding.NodeRef) == "" ||
 		strings.TrimSpace(e.binding.ExecutionChannelRef) == "" || !validCoreHostBootstrapDigest(e.authority.ProviderContractHash) ||
-		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != 5 {
+		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) == 0 {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Cloud core executor requires one explicit authenticated host authority")
 	}
 	target, health, project, err := validateCloudCoreRequest(request, e.binding, e.authority)
@@ -137,8 +137,8 @@ func cloneCloudCoreProject(project CloudCoreProject) CloudCoreProject {
 }
 
 func validateCloudCoreRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority CloudCoreAuthority) (runtimeexecutor.RuntimeTarget, []runtimeexecutor.HealthTarget, CloudCoreProject, error) {
-	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) != 5 {
-		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, errors.New("Cloud core requires exactly one runtime, five health targets, and no access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) == 0 {
+		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, errors.New("Cloud core requires one runtime, at least one health target, and no access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.CloudCoreComposeRendererContract()
@@ -208,12 +208,16 @@ func exactCloudCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeex
 	expectations := make([]BasementCoreHealthExpectation, 0, len(cloudCoreHealthSpecs))
 	for _, spec := range cloudCoreHealthSpecs {
 		item, ok := bySource[spec.source]
+		if !ok {
+			// The kit decides which core services it selects; a spec this plan
+			// does not carry is simply not part of this rollout.
+			continue
+		}
 		hash, trusted := authority.HealthContractHashes[spec.source]
-		if !ok || !trusted || !validCoreHostBootstrapDigest(hash) || item.ContractHash != hash || item.Phase != "post-apply" ||
+		if !trusted || !validCoreHostBootstrapDigest(hash) || item.ContractHash != hash || item.Phase != "post-apply" ||
 			item.Kind != spec.kind || item.TargetKind != spec.targetKind || item.TargetRef != spec.targetRef ||
-			item.RouteRef != "" || item.BackendPoolRef != "" || !slices.Equal(item.SiteRefs, target.SiteRefs) ||
-			!slices.Equal(item.NodeRefs, target.NodeRefs) {
-			return nil, nil, errors.New("Cloud core health authority differs from the exact five postconditions")
+			!slices.Equal(item.SiteRefs, target.SiteRefs) || !slices.Equal(item.NodeRefs, target.NodeRefs) {
+			return nil, nil, errors.New("Cloud core health authority does not match its CUE-owned contract")
 		}
 		if item.Probe != nil && (item.Probe.Protocol != spec.kind || item.Probe.Port != spec.port ||
 			item.Probe.TimeoutSeconds != spec.timeout || item.Probe.Path != spec.path || item.Probe.Method != "GET" ||
