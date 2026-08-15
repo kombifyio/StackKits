@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.18.9](https://github.com/kombifyio/stackKits/compare/v0.18.8...v0.18.9) (2026-08-15)
+
+### Fixed
+
+* **apply:** expose the bounded leaf cause from failed Product Apply reconciliation so live installer errors reach orchestrator logs
+
 ## [0.18.8](https://github.com/kombifyio/stackKits/compare/v0.18.7...v0.18.8) (2026-08-15)
 
 ### Fixed

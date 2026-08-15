@@ -1,6 +1,7 @@
 package architecturev2
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -49,14 +50,57 @@ func (e *ProductApplyReconcileRequiredError) Error() string {
 			closed = append(closed, productApplyClosedStepDiagnostic(operation.Operation, snapshot))
 		}
 	}
-	if len(closed) == 0 {
-		return message
+	result := message
+	if len(closed) != 0 {
+		sort.Strings(closed)
+		if len(closed) > 4 {
+			closed = closed[:4]
+		}
+		result += " (" + strings.Join(closed, ",") + ")"
 	}
-	sort.Strings(closed)
-	if len(closed) > 4 {
-		closed = closed[:4]
+	if detail := boundedProductApplyCause(e.cause); detail != "" && detail != result {
+		result += ": " + detail
 	}
-	return message + " (" + strings.Join(closed, ",") + ")"
+	return result
+}
+
+func boundedProductApplyCause(err error) string {
+	if err == nil {
+		return ""
+	}
+	leaves := make([]string, 0, 2)
+	seen := map[string]bool{}
+	var visit func(error)
+	visit = func(candidate error) {
+		if candidate == nil {
+			return
+		}
+		children := make([]error, 0, 1)
+		if joined, ok := candidate.(interface{ Unwrap() []error }); ok {
+			children = append(children, joined.Unwrap()...)
+		} else if child := errors.Unwrap(candidate); child != nil {
+			children = append(children, child)
+		}
+		if len(children) != 0 {
+			for _, child := range children {
+				visit(child)
+			}
+			return
+		}
+		detail := strings.Join(strings.Fields(candidate.Error()), " ")
+		if detail != "" && !seen[detail] {
+			seen[detail] = true
+			leaves = append(leaves, detail)
+		}
+	}
+	visit(err)
+	detail := strings.Join(leaves, "; ")
+	const limit = 4096
+	runes := []rune(detail)
+	if len(runes) > limit {
+		return string(runes[:limit]) + "…"
+	}
+	return detail
 }
 
 func productApplyClosedStepDiagnostic(operation runtimeapply.Operation, snapshot runtimeapply.StepSnapshot) string {
